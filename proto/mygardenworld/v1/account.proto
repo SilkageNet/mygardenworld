@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/channel.proto";
+
+// Account is the per-player credential record stored in SQLite.
+// `password` is never returned in responses; only used at create/login time.
+message Account {
+  // Stable id (rowid as string) used everywhere else.
+  string id = 1;
+
+  // Human-friendly nickname; unique per data dir.
+  string name = 2;
+
+  // Distribution channel the daemon should speak with for this account.
+  // The protocol layer picks host fronts, version pinning, and device
+  // fingerprint based on this value. Required at creation time.
+  // Currently only CHANNEL_IOS is implemented; Android variants are pending
+  // capture-driven configs. CHANNEL_UNSPECIFIED is rejected at the API.
+  Channel channel = 11;
+
+  // gfsdk login username. Logged-in operations key off this.
+  string username = 3;
+
+  // Player platform id (`acc.id`) once the daemon has logged in at least once.
+  // Empty until the first successful login.
+  int64 aid = 4;
+
+  // Last-known game-server idx (`acc.lastGsIdx`).
+  int32 gs_idx = 5;
+
+  // Last-known WebSocket URL chosen for this account. Discovered at login
+  // time via gw.index.getGsInfoList - we never hardcode.
+  string ws_url = 6;
+
+  // Last login attempt timestamp. Useful for rate-limit decisions.
+  google.protobuf.Timestamp last_login_at = 7;
+
+  // True when the daemon currently holds a live WS for this account.
+  bool connected = 8;
+
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}

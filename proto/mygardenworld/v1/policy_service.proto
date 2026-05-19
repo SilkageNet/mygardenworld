@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "mygardenworld/v1/policy.proto";
+
+service PolicyService {
+  // Returns the merged effective policy for the account. Unset typed fields
+  // are filled with defaults; raw key/value entries are surfaced via extras.
+  rpc GetPolicy(GetPolicyRequest) returns (GetPolicyResponse);
+
+  // Replaces the entire policy struct. Use UpdatePolicy for partial edits.
+  rpc SetPolicy(SetPolicyRequest) returns (SetPolicyResponse);
+
+  // Patch a subset of policy keys, dot-path style. Examples:
+  //   "automation_enabled" = "true"
+  //   "plant.mode"         = "auto"
+  //   "plant.allowed_flower_ids" = "23001,23005"
+  // Values are parsed against the proto field type.
+  rpc UpdatePolicy(UpdatePolicyRequest) returns (UpdatePolicyResponse);
+}
+
+message GetPolicyRequest {
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message GetPolicyResponse {
+  Policy policy = 1;
+}
+
+message SetPolicyRequest {
+  string account_id = 1;
+  string account_name = 2;
+  Policy policy = 3;
+}
+
+message SetPolicyResponse {
+  Policy policy = 1;
+}
+
+message UpdatePolicyRequest {
+  string account_id = 1;
+  string account_name = 2;
+  // Each entry is "dot.path=value". Parse errors surface per entry in the
+  // response so partial CLI patches stay debuggable.
+  repeated string entries = 3;
+}
+
+message UpdatePolicyResponse {
+  Policy policy = 1;
+  repeated PolicyPatchError errors = 2;
+}
+
+message PolicyPatchError {
+  string entry = 1;
+  string message = 2;
+}

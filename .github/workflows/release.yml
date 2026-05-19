@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.0.8
+        with:
+          version: 10
+
+      - name: Build embedded web UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir web install --frozen-lockfile
+          NEXT_PUBLIC_API_URL= pnpm --dir web build
+          mkdir -p internal/webui/static
+          find internal/webui/static -mindepth 1 ! -name placeholder.txt -exec rm -rf {} +
+          cp -R web/out/. internal/webui/static/
+
+      - name: Setup Go
+        uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test -count=1 ./...
+
+      - name: Build release archives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME}"
+          DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          INFO_PKG="github.com/SilkageNet/mygardenworld/internal/buildinfo"
+          LDFLAGS="-s -w -X ${INFO_PKG}.Version=${VERSION} -X ${INFO_PKG}.Commit=${GITHUB_SHA} -X ${INFO_PKG}.Date=${DATE}"
+
+          mkdir -p dist
+          platforms=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+            "windows/arm64"
+          )
+
+          for platform in "${platforms[@]}"; do
+            GOOS="${platform%/*}"
+            GOARCH="${platform#*/}"
+            EXT=""
+            if [ "${GOOS}" = "windows" ]; then
+              EXT=".exe"
+            fi
+
+            PKG="mygardenworld_${VERSION}_${GOOS}_${GOARCH}"
+            OUTDIR="dist/${PKG}"
+            mkdir -p "${OUTDIR}"
+
+            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
+              go build -trimpath -ldflags "${LDFLAGS}" -o "${OUTDIR}/gardend${EXT}" ./cmd/gardend
+            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
+              go build -trimpath -ldflags "${LDFLAGS}" -o "${OUTDIR}/gardenctl${EXT}" ./cmd/gardenctl
+
+            cp README.md "${OUTDIR}/README.md"
+            cp scripts/install.sh "${OUTDIR}/install.sh"
+            cp scripts/install.ps1 "${OUTDIR}/install.ps1"
+            perl -pi -e "s/__MYGARDENWORLD_OS__/${GOOS}/g; s/__MYGARDENWORLD_ARCH__/${GOARCH}/g" "${OUTDIR}/install.sh" "${OUTDIR}/install.ps1"
+            chmod +x "${OUTDIR}/install.sh"
+
+            if [ "${GOOS}" = "windows" ]; then
+              (cd dist && zip -r "${PKG}.zip" "${PKG}")
+            else
+              tar -czf "dist/${PKG}.tar.gz" -C dist "${PKG}"
+            fi
+          done
+
+          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3.0.0
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt

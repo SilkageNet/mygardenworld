@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "mygardenworld/v1/auth.proto";
+
+service AdminService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  rpc GetSystemStats(GetSystemStatsRequest) returns (GetSystemStatsResponse);
+}
+
+message CreateUserRequest {
+  string username = 1;
+  string email = 2;
+  string password = 3;
+  optional string role = 4;
+  optional int32 max_accounts = 5;
+  optional string status = 6;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+message ListUsersRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total = 2;
+}
+
+message GetUserRequest {
+  int64 user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message UpdateUserRequest {
+  int64 user_id = 1;
+  optional string role = 2;
+  optional int32 max_accounts = 3;
+  optional string status = 4;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+message DeleteUserRequest {
+  int64 user_id = 1;
+}
+
+message DeleteUserResponse {}
+
+message GetSystemStatsRequest {}
+
+message GetSystemStatsResponse {
+  int32 total_users = 1;
+  int32 total_game_accounts = 2;
+  int32 active_runners = 3;
+  int32 connected_runners = 4;
+}

@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service QueryService {
+  // Lightweight summary: connected accounts and inventory totals. For dashboard polling.
+  rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+
+  // Full per-account snapshot: all known lands with state + recommendation,
+  // inventory map for the seed range, role identity.
+  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
+
+  // Stream of every event the runner emits (analogous to the Python bot's
+  // JSONL log). Supports filter + per-account scoping.
+  rpc StreamEvents(StreamEventsRequest) returns (stream Event);
+}
+
+message GetStatusRequest {
+  // Empty = all accounts.
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message GetStatusResponse {
+  repeated AccountStatus accounts = 1;
+}
+
+message AccountStatus {
+  string account_id = 1;
+  string account_name = 2;
+  // Live runtime state: true only while the daemon currently holds a WS.
+  bool connected = 3;
+  google.protobuf.Timestamp last_event_at = 4;
+  int32 known_lands = 5;
+  // Recommendation kind histogram: harvest=N, plant=N, water=N, wait=N, ...
+  map<string, int32> by_kind = 7;
+  int32 flower_stock_total = 8;
+  // Persisted user intent: true when automation should run once the account is started.
+  bool automation_enabled = 9;
+}
+
+message GetSnapshotRequest {
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message GetSnapshotResponse {
+  string account_id = 1;
+  string account_name = 2;
+  repeated LandView lands = 3;
+  // 7.0.32 sub-map: inventory itemId -> count.
+  map<int32, int32> inventory = 4;
+  int64 role_id = 5;
+  string role_name = 6;
+  google.protobuf.Timestamp captured_at = 7;
+
+  // Player resources (top-level fields from namespace 7.0).
+  int32 gold = 8;
+  int32 water_drops = 9;
+  int32 water_drops_total = 10;
+  int64 water_drops_next_ms = 11;
+  int32 level = 12;
+  int32 experience = 13;
+  int32 diamonds_free = 14;
+  int32 diamonds_paid = 15;
+  repeated PendingTaskView pending_tasks = 16;
+}
+
+message LandView {
+  int32 land_id = 1;
+  int32 flower_id = 2;
+  int32 state = 3;
+  int32 lvl = 4;
+  int32 harvest_cnt = 5;
+  // ms since epoch; 0 = unset (server hasn't scheduled the next event).
+  int64 next_time_ms = 6;
+  int64 plant_time_ms = 7;
+  // Local recommendation: harvest|plant|water|wait|unknown.
+  string recommendation = 8;
+  string reason = 9;
+  // Server-resolved display state: opened|wasteland|locked.
+  string land_status = 10;
+  // True when this land came from the live namespace 100 state. False means it
+  // was filled from static client config so the UI can still render the full map.
+  bool observed = 11;
+  // Static c_farmLand metadata resolved by the daemon.
+  int32 open_level = 12;
+  repeated int32 unlock_cost = 13;
+  repeated int32 wasteland = 14;
+}
+
+message PendingTaskView {
+  // Stable category for grouping in the dashboard.
+  string category = 1;
+  // Server id within that category, e.g. box id, npc id, or task id.
+  string id = 2;
+  string title = 3;
+  // Progress fields are populated for task-style entries.
+  int32 finished = 4;
+  int32 target = 5;
+  // missing|ready|progress
+  string status = 6;
+  repeated RequirementView requirements = 7;
+}
+
+message RequirementView {
+  int32 item_id = 1;
+  string item_name = 2;
+  int32 required = 3;
+  int32 owned = 4;
+  int32 missing = 5;
+  // True when the requirement is a flower item that auto-plant can use as a
+  // planting deficit source.
+  bool planting_relevant = 6;
+}
+
+message StreamEventsRequest {
+  // Optional: limit to one account. Empty = all.
+  string account_id = 1;
+  string account_name = 2;
+  // Optional: only emit these event kinds (e.g. "operation_planned",
+  // "operation_ack", "land_changed", "snapshot"). Empty = all.
+  repeated string kinds = 3;
+}
+
+message Event {
+  google.protobuf.Timestamp ts = 1;
+  string account_id = 2;
+  string account_name = 3;
+  // Stable machine-readable event type, e.g. "land_changed" or
+  // "operation_failed".
+  string kind = 4;
+  // Human-readable summary, suitable for terminal display.
+  string message = 5;
+  // Structured payload as JSON (so the daemon doesn't need a wire schema for
+  // every internal event type). Contents stable per kind.
+  string payload_json = 6;
+  // Coarse log grouping for UI filters: session|operation|land|resource|
+  // reward|task|order|cultivation|system.
+  string category = 7;
+  // Short human-readable type label, e.g. "田地" or "操作失败".
+  string label = 8;
+  // info|warn|error. Derived by the daemon when callers do not set it.
+  string level = 9;
+}

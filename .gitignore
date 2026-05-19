@@ -1,0 +1,46 @@
+# Build artifacts
+/bin/
+/dist/
+*.exe
+
+# Local data
+/data/
+/debug/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+*.log
+*.jsonl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test caches
+/coverage.out
+/coverage.html
+
+# Frontend
+/web/.next/
+/web/out/
+/web/node_modules/
+/web/.vercel/
+
+# Local scratch space, reverse-engineering outputs, and private captures
+/tmp/
+
+# Generated static web bundle copied into the Go embed package for release builds
+/internal/webui/static/*
+!/internal/webui/static/placeholder.txt

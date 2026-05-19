@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/struct.proto";
+
+// Policy is a typed bag of switches and thresholds the automation engine
+// reads on every decision tick. Stored row-per-key for cheap partial updates.
+//
+// The schema below is what the daemon understands; unknown keys are kept
+// in the SQLite table but ignored at runtime.
+message Policy {
+  // Master switch. When false, the runner stays connected and tracks state
+  // but never sends mutating RPCs.
+  bool automation_enabled = 1;
+
+  HarvestPolicy harvest = 2;
+  PlantPolicy plant = 3;
+  WaterPolicy water = 4;
+  MiscPolicy misc = 5;
+
+  // Seconds between decision ticks. Default 4.
+  double decision_interval_seconds = 10;
+
+  // Unrecognized keys round-tripped from the policies table.
+  google.protobuf.Struct extras = 99;
+}
+
+message HarvestPolicy {
+  bool enabled = 1;
+
+  // Use usrLand.harvestOneKey when more than one land is ready. Falls back
+  // to per-land usrLand.harvest if disabled or only one is ready.
+  bool prefer_one_key = 2;
+}
+
+message PlantPolicy {
+  bool enabled = 1;
+
+  // Planting strategy:
+  //   auto       = fill task/order flower deficits first, then highest value.
+  //   low_stock  = lowest stock, compatible with the legacy behavior.
+  //   high_value = highest value.
+  //   selected   = highest value from allowed_flower_ids.
+  string mode = 6;
+
+  // Deprecated: planting does not consume 230xx flower inventory.
+  int32 min_stock = 2;
+
+  // If non-empty, only these flower ids are considered for planting (whitelist).
+  // Otherwise the runner picks the flower with the lowest stock from all
+  // 23000-23999 ids (= seed range).
+  repeated int32 allowed_flower_ids = 3;
+
+  // If non-empty, ids in this list are *never* planted.
+  repeated int32 blocked_flower_ids = 4;
+
+  // Cap on lands per plantBatch RPC. Server-observed safe value: 8.
+  int32 max_batch = 5;
+}
+
+message WaterPolicy {
+  bool enabled = 1;
+  int32 max_batch = 2;
+
+  // Preserve at least this many water drops before watering. Default: 5.
+  int32 min_drops = 3;
+}
+
+message MiscPolicy {
+  bool land_unlock_enabled = 1;
+  bool task_recv_enabled = 2;
+  bool story_unlock_enabled = 3;
+  bool order_enabled = 4;
+  bool waterwheel_enabled = 5;
+  bool cultivate_enabled = 6;
+  bool flower_upgrade_enabled = 7;
+}

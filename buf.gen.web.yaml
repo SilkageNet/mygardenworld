@@ -1,0 +1,11 @@
+version: v2
+
+managed:
+  enabled: true
+
+plugins:
+  - local:
+      - node
+      - web/node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es
+    out: web/src/gen
+    opt: target=ts

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+service AutomationService {
+  // Enables the automation loop on the account. Equivalent to setting
+  // policy.automation_enabled = true and waking the runner.
+  rpc Start(StartRequest) returns (StartResponse);
+
+  // Disables the automation loop. WS connection stays up and state tracking
+  // continues; only mutating RPCs are suppressed.
+  rpc Stop(StopRequest) returns (StopResponse);
+
+  // Force-rebuild the runner: tear down and reopen the WS, refresh session.
+  // Useful when seeing protocol drift; not needed in normal operation.
+  rpc Reload(ReloadRequest) returns (ReloadResponse);
+}
+
+message StartRequest {
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message StartResponse {}
+
+message StopRequest {
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message StopResponse {}
+
+message ReloadRequest {
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message ReloadResponse {}

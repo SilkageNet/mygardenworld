@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/account.proto";
+import "mygardenworld/v1/channel.proto";
+
+service AccountService {
+  // Add a new game account. Stores the credentials and (optionally) attempts
+  // an initial login synchronously to surface bad creds immediately.
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+
+  // Soft-delete: stops the runner and removes the row + sessions/policies.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
+
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+
+  // Force a fresh username+password login for the account. Refreshes
+  // session token, routeToken, gsHost. Daemon will rebuild the WS.
+  rpc LoginAccount(LoginAccountRequest) returns (LoginAccountResponse);
+
+  // Stops the live runner/WS for the account. Credentials and automation
+  // preference stay stored; the account can be logged in again later.
+  rpc LogoutAccount(LogoutAccountRequest) returns (LogoutAccountResponse);
+}
+
+message CreateAccountRequest {
+  string name = 1;
+  string username = 2;
+  string password = 3;
+  // Required: distribution channel we should impersonate. CHANNEL_IOS today.
+  Channel channel = 5;
+  // If true, the daemon will attempt a login right after insertion.
+  bool login_now = 4;
+}
+
+message CreateAccountResponse {
+  Account account = 1;
+  // Populated when login_now=true and the login succeeded; empty otherwise.
+  string login_error = 2;
+}
+
+message DeleteAccountRequest {
+  // Either id or name; whichever is set wins.
+  string id = 1;
+  string name = 2;
+}
+
+message DeleteAccountResponse {}
+
+message ListAccountsRequest {}
+
+message ListAccountsResponse {
+  repeated Account accounts = 1;
+}
+
+message GetAccountRequest {
+  string id = 1;
+  string name = 2;
+}
+
+message GetAccountResponse {
+  Account account = 1;
+}
+
+message LoginAccountRequest {
+  string id = 1;
+  string name = 2;
+}
+
+message LoginAccountResponse {
+  Account account = 1;
+  google.protobuf.Timestamp logged_in_at = 2;
+}
+
+message LogoutAccountRequest {
+  string id = 1;
+  string name = 2;
+}
+
+message LogoutAccountResponse {
+  Account account = 1;
+}

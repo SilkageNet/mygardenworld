@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+// Channel identifies the gfsdk distribution / platform variant we should
+// impersonate when talking to the babigame backend. Different channels can
+// hit different host fronts, ship different version pinning, and require
+// different signing fingerprints (Android WeChat vs Alipay vs official APK
+// vs iOS App Store, etc.). Pick at account creation time; the daemon
+// resolves the wire-level Config from this on every login.
+enum Channel {
+  // Default zero. Reject at the API boundary; we never auto-pick.
+  CHANNEL_UNSPECIFIED = 0;
+
+  // The official iOS App Store build (cn.lbwdhysj.gf.ios). Captured and
+  // verified, May 2026.
+  CHANNEL_IOS = 1;
+
+  // Reserved for future Android variants. Add concrete values once a
+  // capture exists for each: CHANNEL_ANDROID_OFFICIAL, CHANNEL_ANDROID_WEIXIN,
+  // CHANNEL_ANDROID_ALIPAY, etc.
+}
