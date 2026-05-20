@@ -74,10 +74,22 @@ message WaterPolicy {
 
 message MiscPolicy {
   bool land_unlock_enabled = 1;
-  bool task_recv_enabled = 2;
-  bool story_unlock_enabled = 3;
-  bool order_enabled = 4;
-  bool waterwheel_enabled = 5;
-  bool cultivate_enabled = 6;
-  bool flower_upgrade_enabled = 7;
+  bool story_unlock_enabled = 2;
+  bool waterwheel_enabled = 3;
+  bool cultivate_enabled = 4;
+  bool flower_upgrade_enabled = 5;
+  bool resident_order_enabled = 6;
+  bool customer_order_enabled = 7;
+  bool customer_order_craft_enabled = 8;
+  bool customer_order_reject_enabled = 9;
+  bool resident_order_reward_enabled = 10;
+  bool resident_order_ad_enabled = 11;
+  bool flower_rack_enabled = 12;
+  bool flower_rack_craft_enabled = 13;
+  bool free_water_enabled = 14;
+  bool task_main_reward_enabled = 15;
+  bool task_daily_reward_enabled = 16;
+  bool road_grow_reward_enabled = 17;
+  bool random_event_enabled = 18;
+  bool flower_art_reward_enabled = 19;
 }

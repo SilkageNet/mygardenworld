@@ -497,7 +497,7 @@ func TestPlan_TaskPriorityPrioritizesOrderDeficit(t *testing.T) {
 	}
 }
 
-func TestPlan_TaskPriorityPrioritizesCustomerOrderDeficit(t *testing.T) {
+func TestPlan_TaskPriorityIgnoresCustomerOrderDeficit(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -519,8 +519,8 @@ func TestPlan_TaskPriorityPrioritizesCustomerOrderDeficit(t *testing.T) {
 	if op == nil {
 		t.Fatal("expected plant op")
 	}
-	if op.FlowerID != 23001 {
-		t.Fatalf("got flower=%d, want resident-order deficit flower 23001", op.FlowerID)
+	if op.FlowerID != 23005 {
+		t.Fatalf("got flower=%d, want low-stock flower 23005 instead of customer-order deficit", op.FlowerID)
 	}
 }
 

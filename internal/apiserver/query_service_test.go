@@ -8,14 +8,19 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
-func TestBuildLandViewsResolvesStaticLandStatus(t *testing.T) {
+func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 	lands := map[int32]state.LandView{
 		1001: {Observed: true, FlowerID: 23001, State: 1},
 	}
+	farmLands := []state.FarmLandInfo{
+		{ID: 1001, OpenLevel: 1, Cost: []int32{33, 800}},
+		{ID: 1002, OpenLevel: 1, Cost: []int32{34, 800}},
+		{ID: 1058, OpenLevel: 30, Cost: []int32{35, 800}},
+	}
 
-	got := buildLandViews(lands, 1, time.Unix(0, 0))
-	if len(got) < 64 {
-		t.Fatalf("expected full static land roster, got %d", len(got))
+	got := buildLandViews(lands, farmLands, true, true, 1, time.Unix(0, 0))
+	if len(got) != 3 {
+		t.Fatalf("expected runtime land roster, got %d", len(got))
 	}
 
 	byID := make(map[int32]string, len(got))
@@ -28,11 +33,50 @@ func TestBuildLandViewsResolvesStaticLandStatus(t *testing.T) {
 	if byID[1001] != "opened" || !observed[1001] {
 		t.Fatalf("land 1001 = status %q observed %v, want opened true", byID[1001], observed[1001])
 	}
-	if byID[1002] != "wasteland" || observed[1002] {
-		t.Fatalf("land 1002 = status %q observed %v, want wasteland false", byID[1002], observed[1002])
+	if byID[1002] != "unopened" || observed[1002] {
+		t.Fatalf("land 1002 = status %q observed %v, want unopened false", byID[1002], observed[1002])
 	}
 	if byID[1058] != "locked" || observed[1058] {
 		t.Fatalf("land 1058 = status %q observed %v, want locked false", byID[1058], observed[1058])
+	}
+}
+
+func TestBuildLandViewsDoesNotInventNextFourWastelands(t *testing.T) {
+	lands := map[int32]state.LandView{}
+	for id := int32(1001); id <= 1024; id++ {
+		lands[id] = state.LandView{Observed: true}
+	}
+
+	farmLands := []state.FarmLandInfo{{ID: 1025, OpenLevel: 42, Cost: []int32{37, 1526}}}
+	got := buildLandViews(lands, farmLands, true, true, 13, time.Unix(0, 0))
+	for _, land := range got {
+		if land.GetLandId() == 1025 {
+			if land.GetLandStatus() != "locked" {
+				t.Fatalf("land 1025 status=%q, want locked without max+4 inference", land.GetLandStatus())
+			}
+			return
+		}
+	}
+	t.Fatal("land 1025 not found")
+}
+
+func TestBuildLandViewsDoesNotMarkStaticRowsBeforeRoster(t *testing.T) {
+	got := buildLandViews(map[int32]state.LandView{}, []state.FarmLandInfo{{ID: 1001, OpenLevel: 1, Cost: []int32{33, 800}}}, false, true, 1, time.Unix(0, 0))
+	for _, land := range got {
+		if land.GetLandId() == 1001 {
+			if land.GetLandStatus() != "locked" || land.GetReason() != "等待服务端土地清单" {
+				t.Fatalf("land 1001=(%q,%q), want locked waiting for roster", land.GetLandStatus(), land.GetReason())
+			}
+			return
+		}
+	}
+	t.Fatal("land 1001 not found")
+}
+
+func TestBuildLandViewsDoesNotUseStaticLandConfigUntilRuntimeObserved(t *testing.T) {
+	got := buildLandViews(map[int32]state.LandView{}, nil, true, false, 13, time.Unix(0, 0))
+	if len(got) != 0 {
+		t.Fatalf("got %d land rows, want no synthetic static rows before runtime config", len(got))
 	}
 }
 
@@ -79,7 +123,7 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 		t.Fatalf("task categories = %+v, want all tracked categories once", byCategory)
 	}
 
-	var flowerReq, artReq, vaseReq, recipeReq *pb.RequirementView
+	var flowerReq, artReq, recipeReq *pb.RequirementView
 	for _, task := range tasks {
 		for _, req := range task.GetRequirements() {
 			switch req.GetItemId() {
@@ -87,9 +131,7 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 				flowerReq = req
 			case 300208:
 				artReq = req
-			case 3069:
-				vaseReq = req
-			case 23071:
+			case 23005:
 				recipeReq = req
 			}
 		}
@@ -97,11 +139,8 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 	if flowerReq == nil || !flowerReq.GetPlantingRelevant() || flowerReq.GetMissing() != 3 {
 		t.Fatalf("flower requirement = %+v, want planting-relevant missing 3", flowerReq)
 	}
-	if artReq == nil || artReq.GetPlantingRelevant() || artReq.GetMissing() != 2 {
-		t.Fatalf("art requirement = %+v, want non-planting missing 2", artReq)
-	}
-	if vaseReq == nil || vaseReq.GetPlantingRelevant() || vaseReq.GetMissing() != 2 {
-		t.Fatalf("vase requirement = %+v, want non-planting missing 2", vaseReq)
+	if artReq != nil {
+		t.Fatalf("art requirement = %+v, want recipe output hidden while crafting materials are missing", artReq)
 	}
 	if recipeReq == nil || !recipeReq.GetPlantingRelevant() || recipeReq.GetMissing() != 2 {
 		t.Fatalf("recipe requirement = %+v, want planting-relevant missing 2", recipeReq)

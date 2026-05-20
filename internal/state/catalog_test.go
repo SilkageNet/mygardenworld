@@ -132,8 +132,8 @@ func TestFlowerArtRecipeByID(t *testing.T) {
 	if !ok {
 		t.Fatal("FlowerArtRecipeByID(300208) ok=false")
 	}
-	want := []int32{23071, 23070, 23068}
-	if recipe.VaseID != 3069 || len(recipe.Flowers) != len(want) {
+	want := []int32{23008, 23007, 23005}
+	if recipe.VaseID != 3002 || recipe.Level != 8 || recipe.SaleValue != 236 || len(recipe.Flowers) != len(want) {
 		t.Fatalf("FlowerArtRecipeByID(300208)=%+v", recipe)
 	}
 	for i := range want {

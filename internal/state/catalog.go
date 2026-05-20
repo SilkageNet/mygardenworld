@@ -95,9 +95,11 @@ type FlowerUpgradeCost struct {
 
 // FlowerArtRecipe describes the flower-art craft input from c_flowerArt.
 type FlowerArtRecipe struct {
-	ArtID   int32
-	VaseID  int32
-	Flowers []int32
+	ArtID     int32
+	VaseID    int32
+	Flowers   []int32
+	Level     int32
+	SaleValue int32
 }
 
 // RoadGrowTask describes a growth-road task row that the daemon can evaluate.
@@ -170,6 +172,33 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return cloneRaw(row), true
+}
+
+// AllFlowerArtRecipes returns every decoded c_flowerArt recipe. The list is
+// sorted from higher-value art to lower-value art for automation choices.
+func AllFlowerArtRecipes() []FlowerArtRecipe {
+	table, ok := StaticTableByName("c_flowerArt")
+	if !ok {
+		return nil
+	}
+	out := make([]FlowerArtRecipe, 0, len(table.Rows))
+	for idStr := range table.Rows {
+		id := atoiCatalogID(idStr)
+		if id == 0 {
+			continue
+		}
+		recipe, ok := FlowerArtRecipeByID(id)
+		if ok {
+			out = append(out, recipe)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].SaleValue != out[j].SaleValue {
+			return out[i].SaleValue > out[j].SaleValue
+		}
+		return out[i].ArtID > out[j].ArtID
+	})
+	return out
 }
 
 func FlowerName(id int32) string {
@@ -416,15 +445,46 @@ func FlowerArtRecipeByID(artID int32) (FlowerArtRecipe, bool) {
 	}
 	var recipe FlowerArtRecipe
 	recipe.ArtID = artID
+	if rawLevel, ok := row["lvl"]; ok {
+		_ = json.Unmarshal(rawLevel, &recipe.Level)
+	}
 	if rawVase, ok := row["vase"]; ok {
 		_ = json.Unmarshal(rawVase, &recipe.VaseID)
 	}
 	if rawFlowers, ok := row["flowers"]; ok {
 		_ = json.Unmarshal(rawFlowers, &recipe.Flowers)
 	}
+	if rawSell, ok := row["sPrice"]; ok {
+		var prices []int32
+		if json.Unmarshal(rawSell, &prices) == nil {
+			for _, price := range prices {
+				if price > recipe.SaleValue {
+					recipe.SaleValue = price
+				}
+			}
+		}
+	}
+	// The current client table stores display/template vase ids and shifted
+	// flower ids, while the wire RPC uses the vase group (artID/100) and the
+	// real 230xx flower ids. This transform is verified against captured
+	// flowerArt.makeFlowerArt calls for 300103, 300207, and 300208.
+	if artID >= 300000 {
+		if vaseGroup := artID / 100; vaseGroup > 0 {
+			recipe.VaseID = vaseGroup
+		}
+		if suffix := artID % 100; suffix > 0 {
+			shift := int32(55) + suffix
+			for i, flowerID := range recipe.Flowers {
+				if flowerID-shift >= FlowerSeedLow && flowerID-shift < FlowerSeedHigh {
+					recipe.Flowers[i] = flowerID - shift
+				}
+			}
+		}
+	}
 	if recipe.VaseID == 0 || len(recipe.Flowers) == 0 {
 		return FlowerArtRecipe{}, false
 	}
+	recipe.Flowers = cloneInt32s(recipe.Flowers)
 	return recipe, true
 }
 

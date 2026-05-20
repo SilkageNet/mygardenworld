@@ -1,4 +1,4 @@
-.PHONY: default help install build require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test lint proto-gen proto-gen-web frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint dev dev\:debug check clean
+.PHONY: default help install build reset-data require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test lint proto-gen proto-gen-web frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint dev dev\:debug check clean
 
 BIN_DIR ?= bin
 DATA_DIR ?= data
@@ -38,6 +38,7 @@ help:
 	@echo "Available targets:"
 	@echo "  install              Install gardend and gardenctl to GOPATH/bin"
 	@echo "  build                Build binaries to $(BIN_DIR)/"
+	@echo "  reset-data           Delete local DATA_DIR via gardend reset-data"
 	@echo "  backend | server     Start gardend API server"
 	@echo "  backend:debug        Start gardend with debug logs and JSONL output"
 	@echo "  test                 Run go tests"
@@ -61,6 +62,9 @@ build:
 	$(MKDIR_BIN)
 	go build -o $(GARDEND) ./cmd/gardend
 	go build -o $(GARDENCTL) ./cmd/gardenctl
+
+reset-data:
+	go run ./cmd/gardend reset-data --data-dir "$(DATA_DIR)" --yes
 
 require-secrets:
 	@test -n "$(JWT_SECRET)" || (echo "JWT_SECRET is required" && exit 1)

@@ -36,6 +36,9 @@ func TestApplyV_RosterPopulatesLands(t *testing.T) {
 		},
 	})
 	got := s.Lands()
+	if !s.LandRosterObserved() {
+		t.Fatalf("LandRosterObserved()=false, want true after 100.0.1")
+	}
 	if len(got) != 2 {
 		t.Fatalf("want 2 lands, got %d", len(got))
 	}
@@ -46,6 +49,30 @@ func TestApplyV_RosterPopulatesLands(t *testing.T) {
 	l2 := got[1002]
 	if !l2.Observed || l2.FlowerID != 0 || l2.State != 0 {
 		t.Errorf("1002 should be observed-empty, got %+v", l2)
+	}
+}
+
+func TestApplyV_RosterReplacesStaleLands(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{},
+			"1025": map[string]any{},
+		}},
+	})
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1001": map[string]any{},
+			"1002": map[string]any{},
+		}}},
+	})
+
+	got := s.Lands()
+	if _, ok := got[1025]; ok {
+		t.Fatalf("stale land 1025 survived full roster replace: %+v", got)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(Lands())=%d, want 2 after roster replace", len(got))
 	}
 }
 
@@ -464,7 +491,7 @@ func TestApplyV_ReadyDailyTaskIDs(t *testing.T) {
 	}
 }
 
-func TestApplyV_CustomerOrderDeficits(t *testing.T) {
+func TestApplyV_CustomerOrdersDoNotCreatePlantingDeficits(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{"32": map[string]any{
@@ -488,11 +515,8 @@ func TestApplyV_CustomerOrderDeficits(t *testing.T) {
 		t.Fatalf("CustomerOrders got %v, want [7]", orders)
 	}
 	deficits := s.FlowerOrderDeficits()
-	if deficits[23001] != 5 {
-		t.Fatalf("deficit for 23001 = %d, want 5", deficits[23001])
-	}
-	if _, ok := deficits[23005]; ok {
-		t.Fatalf("23005 should have no deficit, got %v", deficits)
+	if len(deficits) != 0 {
+		t.Fatalf("customer orders should not create planting deficits, got %v", deficits)
 	}
 }
 
@@ -522,8 +546,8 @@ func TestApplyV_CustomerOrderMixedRequirementDeficits(t *testing.T) {
 		t.Fatalf("item requirements = %+v, want 1402 x2", got)
 	}
 	deficits := s.FlowerOrderDeficits()
-	if deficits[23001] != 5 {
-		t.Fatalf("flower deficit with mixed non-flower item = %d, want 5; all=%v", deficits[23001], deficits)
+	if len(deficits) != 0 {
+		t.Fatalf("mixed customer orders should not create planting deficits, got %v", deficits)
 	}
 }
 
@@ -555,13 +579,74 @@ func TestApplyV_CustomerOrderArtRequirements(t *testing.T) {
 		t.Fatalf("NPC 3 item requirements = %+v, want 300207 x2", got)
 	}
 	deficits := s.FlowerOrderDeficits()
-	for _, flowerID := range []int32{23070, 23069, 23065} {
-		if deficits[flowerID] != 1 {
-			t.Fatalf("art recipe deficit for %d = %d, want 1; all=%v", flowerID, deficits[flowerID], deficits)
-		}
+	if len(deficits) != 0 {
+		t.Fatalf("art customer orders should not create planting deficits, got %v", deficits)
 	}
-	if len(deficits) != 3 {
-		t.Fatalf("art customer order deficits = %v, want only one recipe shortage", deficits)
+}
+
+func TestApplyV_FlowerRackTracksSlots(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"104": map[string]any{
+			"0": map[string]any{
+				"1": map[string]any{"1": 1, "2": 0, "3": 0, "4": nil, "5": 100},
+				"3": map[string]any{"1": 3, "2": 300207, "3": 6, "4": 1779290145874, "5": 1779290145874},
+			},
+		},
+	})
+	slots := s.FlowerRackSlots()
+	if len(slots) != 2 {
+		t.Fatalf("FlowerRackSlots len=%d, want 2: %+v", len(slots), slots)
+	}
+	if slots[3].ItemID != 300207 || slots[3].Count != 6 || slots[3].ListedAtMs != 1779290145874 {
+		t.Fatalf("rack 3 mismatch: %+v", slots[3])
+	}
+	empty := s.EmptyFlowerRackSlotIDs()
+	if len(empty) != 1 || empty[0] != 1 {
+		t.Fatalf("EmptyFlowerRackSlotIDs=%v, want [1]", empty)
+	}
+
+	applyMap(t, s, map[string]any{
+		"104": map[string]any{
+			"0": map[string]any{
+				"1": map[string]any{"2": 300208, "3": 1, "4": 1779290172297, "5": 1779290172297},
+			},
+		},
+	})
+	slots = s.FlowerRackSlots()
+	if slots[1].ItemID != 300208 || slots[1].Count != 1 {
+		t.Fatalf("rack 1 delta mismatch: %+v", slots[1])
+	}
+	if got := s.EmptyFlowerRackSlotIDs(); len(got) != 0 {
+		t.Fatalf("empty slots after listing=%v, want none", got)
+	}
+}
+
+func TestApplyV_ResidentOrderRewardPartialUpdatePreservesOrders(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"105": map[string]any{"0": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"0": 8, "1": 1},
+				"2": map[string]any{"0": 3, "1": 1, "2": [][]int32{{23004, 7}}},
+			},
+		}},
+	})
+	if got := s.ReadyFlowerOrderAdBoxIDs(); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("ReadyFlowerOrderAdBoxIDs before reward=%v, want [1]", got)
+	}
+
+	applyMap(t, s, map[string]any{
+		"105": map[string]any{"0": map[string]any{
+			"2": []int32{1},
+		}},
+	})
+	if got := s.ReadyFlowerOrderAdBoxIDs(); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("ReadyFlowerOrderAdBoxIDs after partial reward=%v, want preserved [1]", got)
+	}
+	orders := s.FlowerOrders()
+	if orders[2] == nil || len(orders[2].Requires) != 1 {
+		t.Fatalf("partial reward update should preserve existing orders, got %+v", orders)
 	}
 }
 
@@ -602,8 +687,8 @@ func TestApplyV_RoadGrowAndRandomEventReady(t *testing.T) {
 		t.Fatalf("ReadyRoadGrowTaskIDs=%v, want [20004]", road)
 	}
 	events := s.ReadyRandomEventIDs()
-	if len(events) != 1 || events[0] != 6002 {
-		t.Fatalf("ReadyRandomEventIDs=%v, want [6002]", events)
+	if len(events) != 2 || events[0] != 6002 || events[1] != 6005 {
+		t.Fatalf("ReadyRandomEventIDs=%v, want [6002 6005]", events)
 	}
 }
 

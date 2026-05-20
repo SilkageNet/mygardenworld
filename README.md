@@ -33,6 +33,24 @@ JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="change-me-first" \
   gardend serve --data-dir ./data --listen 127.0.0.1:50051
 ```
 
+本地数据默认由 `gardend serve --data-dir` 决定；不传时是启动命令所在目录下的 `./data`，SQLite 文件为 `./data/garden.db`。一键安装只安装 `gardend` / `gardenctl` 二进制，不会额外切换数据目录。
+
+需要排查协议回包时，请用源码目录里的 debug 启动目标，而不是普通 `backend`：
+
+```sh
+make backend:debug
+# 或
+task backend:debug
+```
+
+`backend:debug` 会自动传入 `--debug-dir`，默认写到 `./debug/<账号名>_debug.jsonl`。如果直接运行 `gardend serve` 或 `make backend`，除非手动加 `--debug-dir`，否则不会生成 WS/HTTP debug JSONL。
+
+重置本地数据：
+
+```sh
+gardend reset-data --data-dir ./data --yes
+```
+
 打开 Web 控制台：
 
 ```text

@@ -346,16 +346,28 @@ func (x *WaterPolicy) GetMinDrops() int32 {
 }
 
 type MiscPolicy struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	LandUnlockEnabled    bool                   `protobuf:"varint,1,opt,name=land_unlock_enabled,json=landUnlockEnabled,proto3" json:"land_unlock_enabled,omitempty"`
-	TaskRecvEnabled      bool                   `protobuf:"varint,2,opt,name=task_recv_enabled,json=taskRecvEnabled,proto3" json:"task_recv_enabled,omitempty"`
-	StoryUnlockEnabled   bool                   `protobuf:"varint,3,opt,name=story_unlock_enabled,json=storyUnlockEnabled,proto3" json:"story_unlock_enabled,omitempty"`
-	OrderEnabled         bool                   `protobuf:"varint,4,opt,name=order_enabled,json=orderEnabled,proto3" json:"order_enabled,omitempty"`
-	WaterwheelEnabled    bool                   `protobuf:"varint,5,opt,name=waterwheel_enabled,json=waterwheelEnabled,proto3" json:"waterwheel_enabled,omitempty"`
-	CultivateEnabled     bool                   `protobuf:"varint,6,opt,name=cultivate_enabled,json=cultivateEnabled,proto3" json:"cultivate_enabled,omitempty"`
-	FlowerUpgradeEnabled bool                   `protobuf:"varint,7,opt,name=flower_upgrade_enabled,json=flowerUpgradeEnabled,proto3" json:"flower_upgrade_enabled,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                      protoimpl.MessageState `protogen:"open.v1"`
+	LandUnlockEnabled          bool                   `protobuf:"varint,1,opt,name=land_unlock_enabled,json=landUnlockEnabled,proto3" json:"land_unlock_enabled,omitempty"`
+	StoryUnlockEnabled         bool                   `protobuf:"varint,2,opt,name=story_unlock_enabled,json=storyUnlockEnabled,proto3" json:"story_unlock_enabled,omitempty"`
+	WaterwheelEnabled          bool                   `protobuf:"varint,3,opt,name=waterwheel_enabled,json=waterwheelEnabled,proto3" json:"waterwheel_enabled,omitempty"`
+	CultivateEnabled           bool                   `protobuf:"varint,4,opt,name=cultivate_enabled,json=cultivateEnabled,proto3" json:"cultivate_enabled,omitempty"`
+	FlowerUpgradeEnabled       bool                   `protobuf:"varint,5,opt,name=flower_upgrade_enabled,json=flowerUpgradeEnabled,proto3" json:"flower_upgrade_enabled,omitempty"`
+	ResidentOrderEnabled       bool                   `protobuf:"varint,6,opt,name=resident_order_enabled,json=residentOrderEnabled,proto3" json:"resident_order_enabled,omitempty"`
+	CustomerOrderEnabled       bool                   `protobuf:"varint,7,opt,name=customer_order_enabled,json=customerOrderEnabled,proto3" json:"customer_order_enabled,omitempty"`
+	CustomerOrderCraftEnabled  bool                   `protobuf:"varint,8,opt,name=customer_order_craft_enabled,json=customerOrderCraftEnabled,proto3" json:"customer_order_craft_enabled,omitempty"`
+	CustomerOrderRejectEnabled bool                   `protobuf:"varint,9,opt,name=customer_order_reject_enabled,json=customerOrderRejectEnabled,proto3" json:"customer_order_reject_enabled,omitempty"`
+	ResidentOrderRewardEnabled bool                   `protobuf:"varint,10,opt,name=resident_order_reward_enabled,json=residentOrderRewardEnabled,proto3" json:"resident_order_reward_enabled,omitempty"`
+	ResidentOrderAdEnabled     bool                   `protobuf:"varint,11,opt,name=resident_order_ad_enabled,json=residentOrderAdEnabled,proto3" json:"resident_order_ad_enabled,omitempty"`
+	FlowerRackEnabled          bool                   `protobuf:"varint,12,opt,name=flower_rack_enabled,json=flowerRackEnabled,proto3" json:"flower_rack_enabled,omitempty"`
+	FlowerRackCraftEnabled     bool                   `protobuf:"varint,13,opt,name=flower_rack_craft_enabled,json=flowerRackCraftEnabled,proto3" json:"flower_rack_craft_enabled,omitempty"`
+	FreeWaterEnabled           bool                   `protobuf:"varint,14,opt,name=free_water_enabled,json=freeWaterEnabled,proto3" json:"free_water_enabled,omitempty"`
+	TaskMainRewardEnabled      bool                   `protobuf:"varint,15,opt,name=task_main_reward_enabled,json=taskMainRewardEnabled,proto3" json:"task_main_reward_enabled,omitempty"`
+	TaskDailyRewardEnabled     bool                   `protobuf:"varint,16,opt,name=task_daily_reward_enabled,json=taskDailyRewardEnabled,proto3" json:"task_daily_reward_enabled,omitempty"`
+	RoadGrowRewardEnabled      bool                   `protobuf:"varint,17,opt,name=road_grow_reward_enabled,json=roadGrowRewardEnabled,proto3" json:"road_grow_reward_enabled,omitempty"`
+	RandomEventEnabled         bool                   `protobuf:"varint,18,opt,name=random_event_enabled,json=randomEventEnabled,proto3" json:"random_event_enabled,omitempty"`
+	FlowerArtRewardEnabled     bool                   `protobuf:"varint,19,opt,name=flower_art_reward_enabled,json=flowerArtRewardEnabled,proto3" json:"flower_art_reward_enabled,omitempty"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *MiscPolicy) Reset() {
@@ -395,23 +407,9 @@ func (x *MiscPolicy) GetLandUnlockEnabled() bool {
 	return false
 }
 
-func (x *MiscPolicy) GetTaskRecvEnabled() bool {
-	if x != nil {
-		return x.TaskRecvEnabled
-	}
-	return false
-}
-
 func (x *MiscPolicy) GetStoryUnlockEnabled() bool {
 	if x != nil {
 		return x.StoryUnlockEnabled
-	}
-	return false
-}
-
-func (x *MiscPolicy) GetOrderEnabled() bool {
-	if x != nil {
-		return x.OrderEnabled
 	}
 	return false
 }
@@ -433,6 +431,104 @@ func (x *MiscPolicy) GetCultivateEnabled() bool {
 func (x *MiscPolicy) GetFlowerUpgradeEnabled() bool {
 	if x != nil {
 		return x.FlowerUpgradeEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetResidentOrderEnabled() bool {
+	if x != nil {
+		return x.ResidentOrderEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetCustomerOrderEnabled() bool {
+	if x != nil {
+		return x.CustomerOrderEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetCustomerOrderCraftEnabled() bool {
+	if x != nil {
+		return x.CustomerOrderCraftEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetCustomerOrderRejectEnabled() bool {
+	if x != nil {
+		return x.CustomerOrderRejectEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetResidentOrderRewardEnabled() bool {
+	if x != nil {
+		return x.ResidentOrderRewardEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetResidentOrderAdEnabled() bool {
+	if x != nil {
+		return x.ResidentOrderAdEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetFlowerRackEnabled() bool {
+	if x != nil {
+		return x.FlowerRackEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetFlowerRackCraftEnabled() bool {
+	if x != nil {
+		return x.FlowerRackCraftEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetFreeWaterEnabled() bool {
+	if x != nil {
+		return x.FreeWaterEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetTaskMainRewardEnabled() bool {
+	if x != nil {
+		return x.TaskMainRewardEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetTaskDailyRewardEnabled() bool {
+	if x != nil {
+		return x.TaskDailyRewardEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetRoadGrowRewardEnabled() bool {
+	if x != nil {
+		return x.RoadGrowRewardEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetRandomEventEnabled() bool {
+	if x != nil {
+		return x.RandomEventEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetFlowerArtRewardEnabled() bool {
+	if x != nil {
+		return x.FlowerArtRewardEnabled
 	}
 	return false
 }
@@ -466,16 +562,29 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\vWaterPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1b\n" +
 	"\tmax_batch\x18\x02 \x01(\x05R\bmaxBatch\x12\x1b\n" +
-	"\tmin_drops\x18\x03 \x01(\x05R\bminDrops\"\xd1\x02\n" +
+	"\tmin_drops\x18\x03 \x01(\x05R\bminDrops\"\xa1\b\n" +
 	"\n" +
 	"MiscPolicy\x12.\n" +
-	"\x13land_unlock_enabled\x18\x01 \x01(\bR\x11landUnlockEnabled\x12*\n" +
-	"\x11task_recv_enabled\x18\x02 \x01(\bR\x0ftaskRecvEnabled\x120\n" +
-	"\x14story_unlock_enabled\x18\x03 \x01(\bR\x12storyUnlockEnabled\x12#\n" +
-	"\rorder_enabled\x18\x04 \x01(\bR\forderEnabled\x12-\n" +
-	"\x12waterwheel_enabled\x18\x05 \x01(\bR\x11waterwheelEnabled\x12+\n" +
-	"\x11cultivate_enabled\x18\x06 \x01(\bR\x10cultivateEnabled\x124\n" +
-	"\x16flower_upgrade_enabled\x18\a \x01(\bR\x14flowerUpgradeEnabledB\xce\x01\n" +
+	"\x13land_unlock_enabled\x18\x01 \x01(\bR\x11landUnlockEnabled\x120\n" +
+	"\x14story_unlock_enabled\x18\x02 \x01(\bR\x12storyUnlockEnabled\x12-\n" +
+	"\x12waterwheel_enabled\x18\x03 \x01(\bR\x11waterwheelEnabled\x12+\n" +
+	"\x11cultivate_enabled\x18\x04 \x01(\bR\x10cultivateEnabled\x124\n" +
+	"\x16flower_upgrade_enabled\x18\x05 \x01(\bR\x14flowerUpgradeEnabled\x124\n" +
+	"\x16resident_order_enabled\x18\x06 \x01(\bR\x14residentOrderEnabled\x124\n" +
+	"\x16customer_order_enabled\x18\a \x01(\bR\x14customerOrderEnabled\x12?\n" +
+	"\x1ccustomer_order_craft_enabled\x18\b \x01(\bR\x19customerOrderCraftEnabled\x12A\n" +
+	"\x1dcustomer_order_reject_enabled\x18\t \x01(\bR\x1acustomerOrderRejectEnabled\x12A\n" +
+	"\x1dresident_order_reward_enabled\x18\n" +
+	" \x01(\bR\x1aresidentOrderRewardEnabled\x129\n" +
+	"\x19resident_order_ad_enabled\x18\v \x01(\bR\x16residentOrderAdEnabled\x12.\n" +
+	"\x13flower_rack_enabled\x18\f \x01(\bR\x11flowerRackEnabled\x129\n" +
+	"\x19flower_rack_craft_enabled\x18\r \x01(\bR\x16flowerRackCraftEnabled\x12,\n" +
+	"\x12free_water_enabled\x18\x0e \x01(\bR\x10freeWaterEnabled\x127\n" +
+	"\x18task_main_reward_enabled\x18\x0f \x01(\bR\x15taskMainRewardEnabled\x129\n" +
+	"\x19task_daily_reward_enabled\x18\x10 \x01(\bR\x16taskDailyRewardEnabled\x127\n" +
+	"\x18road_grow_reward_enabled\x18\x11 \x01(\bR\x15roadGrowRewardEnabled\x120\n" +
+	"\x14random_event_enabled\x18\x12 \x01(\bR\x12randomEventEnabled\x129\n" +
+	"\x19flower_art_reward_enabled\x18\x13 \x01(\bR\x16flowerArtRewardEnabledB\xce\x01\n" +
 	"\x14com.mygardenworld.v1B\vPolicyProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (

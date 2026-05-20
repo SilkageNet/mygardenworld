@@ -53,6 +53,29 @@ func (r *Runner) Start(ctx context.Context) error {
 
 func (r *Runner) connectFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
 	httpc := babigame.NewHTTPClient(r.cfg, "", "", "")
+	if pkg, err := httpc.QueryPackageConfig(ctx); err == nil {
+		if pkg.GameVersion != "" {
+			httpc.Cfg.GameVersion = pkg.GameVersion
+			httpc.Cfg.ClientVersion = pkg.GameVersion
+		}
+		if rows, err := babigame.LoadFarmLandConfig(ctx, httpc, pkg); err == nil {
+			lands := make([]state.FarmLandInfo, 0, len(rows))
+			for _, row := range rows {
+				lands = append(lands, state.FarmLandInfo{
+					ID:        row.ID,
+					OpenLevel: row.OpenLevel,
+					Cost:      append([]int32(nil), row.Cost...),
+					Wasteland: append([]int32(nil), row.Wasteland...),
+				})
+			}
+			r.state.SetFarmLands(lands)
+			r.log.Info("loaded runtime land config", "version", pkg.GameVersion, "lands", len(lands))
+		} else {
+			r.log.Warn("load runtime land config failed", "err", err, "version", pkg.GameVersion)
+		}
+	} else {
+		r.log.Warn("query package config failed", "err", err)
+	}
 	session, err := babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
 	if err != nil {
 		return nil, fmt.Errorf("login: %w", err)
@@ -141,7 +164,6 @@ func (r *Runner) installStateHandlers() {
 			r.waterBlocked = false
 			r.waterBlockedUntil = time.Time{}
 		}
-		r.orderBlocked = false
 		r.flowerUpgradeBlocked = make(map[int32]flowerUpgradeBlock)
 		r.cultivateBlocked = make(map[int32]time.Time)
 		r.prevLevel = snap.Level

@@ -23,13 +23,25 @@ func TestFlattenApplyRoundTripIncludesMisc(t *testing.T) {
 		},
 		Water: &pb.WaterPolicy{Enabled: false, MaxBatch: 2, MinDrops: 7},
 		Misc: &pb.MiscPolicy{
-			LandUnlockEnabled:    true,
-			TaskRecvEnabled:      false,
-			StoryUnlockEnabled:   true,
-			OrderEnabled:         false,
-			WaterwheelEnabled:    true,
-			CultivateEnabled:     false,
-			FlowerUpgradeEnabled: true,
+			LandUnlockEnabled:          true,
+			StoryUnlockEnabled:         true,
+			WaterwheelEnabled:          true,
+			CultivateEnabled:           false,
+			FlowerUpgradeEnabled:       true,
+			ResidentOrderEnabled:       true,
+			CustomerOrderEnabled:       false,
+			CustomerOrderCraftEnabled:  true,
+			CustomerOrderRejectEnabled: false,
+			ResidentOrderRewardEnabled: true,
+			ResidentOrderAdEnabled:     false,
+			FlowerRackEnabled:          true,
+			FlowerRackCraftEnabled:     false,
+			FreeWaterEnabled:           false,
+			TaskMainRewardEnabled:      true,
+			TaskDailyRewardEnabled:     false,
+			RoadGrowRewardEnabled:      true,
+			RandomEventEnabled:         false,
+			FlowerArtRewardEnabled:     true,
 		},
 	})
 
@@ -55,11 +67,20 @@ func TestFlattenApplyRoundTripIncludesMisc(t *testing.T) {
 	if !got.GetMisc().GetLandUnlockEnabled() || !got.GetMisc().GetStoryUnlockEnabled() || !got.GetMisc().GetWaterwheelEnabled() {
 		t.Fatalf("enabled misc fields did not round-trip: %+v", got.GetMisc())
 	}
-	if got.GetMisc().GetTaskRecvEnabled() || got.GetMisc().GetOrderEnabled() || got.GetMisc().GetCultivateEnabled() {
+	if got.GetMisc().GetCultivateEnabled() {
 		t.Fatalf("disabled misc fields did not round-trip: %+v", got.GetMisc())
 	}
 	if !got.GetMisc().GetFlowerUpgradeEnabled() {
 		t.Fatalf("flower upgrade field did not round-trip: %+v", got.GetMisc())
+	}
+	if !got.GetMisc().GetResidentOrderEnabled() || got.GetMisc().GetCustomerOrderEnabled() ||
+		!got.GetMisc().GetCustomerOrderCraftEnabled() || got.GetMisc().GetCustomerOrderRejectEnabled() ||
+		!got.GetMisc().GetResidentOrderRewardEnabled() || got.GetMisc().GetResidentOrderAdEnabled() ||
+		!got.GetMisc().GetFlowerRackEnabled() || got.GetMisc().GetFlowerRackCraftEnabled() ||
+		got.GetMisc().GetFreeWaterEnabled() || !got.GetMisc().GetTaskMainRewardEnabled() ||
+		got.GetMisc().GetTaskDailyRewardEnabled() || !got.GetMisc().GetRoadGrowRewardEnabled() ||
+		got.GetMisc().GetRandomEventEnabled() || !got.GetMisc().GetFlowerArtRewardEnabled() {
+		t.Fatalf("fine-grained misc fields did not round-trip: %+v", got.GetMisc())
 	}
 }
 
@@ -70,6 +91,9 @@ func TestNormalizeFillsMissingSubPoliciesWithSafeDefaults(t *testing.T) {
 	}
 	if p.GetMisc().GetLandUnlockEnabled() || p.GetMisc().GetCultivateEnabled() || p.GetMisc().GetFlowerUpgradeEnabled() {
 		t.Fatalf("misc defaults should be opt-in: %+v", p.GetMisc())
+	}
+	if p.GetMisc().GetResidentOrderEnabled() || p.GetMisc().GetFreeWaterEnabled() || p.GetMisc().GetRandomEventEnabled() {
+		t.Fatalf("fine-grained misc defaults should be opt-in: %+v", p.GetMisc())
 	}
 	if p.GetPlant().GetMode() != "high_value" || !p.GetPlant().GetTaskPriorityEnabled() || p.GetWater().GetMinDrops() != 5 {
 		t.Fatalf("strategy defaults were not filled: plant=%+v water=%+v", p.GetPlant(), p.GetWater())

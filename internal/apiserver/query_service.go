@@ -105,7 +105,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		DiamondsPaid:     diamondsPaid,
 		PendingTasks:     buildPendingTasks(st),
 	}
-	resp.Lands = buildLandViews(lands, st.Level(), now)
+	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
 	return connect.NewResponse(resp), nil
 }
 
@@ -230,33 +230,21 @@ func flowerRequirements(reqs []state.FlowerRequire, inventory map[int32]int32) [
 	return out
 }
 
-func itemRequirements(reqs []state.ItemRequire, inventory map[int32]int32) []*pb.RequirementView {
-	out := make([]*pb.RequirementView, 0, len(reqs))
-	for _, req := range reqs {
-		if req.ItemID == 0 || req.Count <= 0 {
-			continue
-		}
-		out = append(out, requirementView(req.ItemID, req.Count, inventory[req.ItemID]))
-	}
-	return out
-}
-
 func customerOrderRequirements(order *state.CustomerOrder, inventory map[int32]int32) []*pb.RequirementView {
-	out := append(flowerRequirements(order.Requires, inventory), itemRequirements(order.ItemRequires, inventory)...)
+	out := flowerRequirements(order.Requires, inventory)
 	for _, req := range order.ItemRequires {
 		if req.ItemID == 0 || req.Count <= 0 {
 			continue
 		}
 		missingArt := req.Count - inventory[req.ItemID]
-		if missingArt <= 0 {
-			continue
-		}
 		recipe, ok := state.FlowerArtRecipeByID(req.ItemID)
 		if !ok {
+			out = append(out, requirementView(req.ItemID, req.Count, inventory[req.ItemID]))
 			continue
 		}
-		if recipe.VaseID != 0 {
-			out = append(out, requirementView(recipe.VaseID, missingArt, inventory[recipe.VaseID]))
+		if missingArt <= 0 {
+			out = append(out, requirementView(req.ItemID, req.Count, inventory[req.ItemID]))
+			continue
 		}
 		for _, flowerID := range recipe.Flowers {
 			out = append(out, requirementView(flowerID, missingArt, inventory[flowerID]))
@@ -293,12 +281,12 @@ func requirementsStatus(reqs []*pb.RequirementView) string {
 	return "ready"
 }
 
-func buildLandViews(lands map[int32]state.LandView, level int32, now time.Time) []*pb.LandView {
+func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandInfo, rosterObserved bool, farmLandObserved bool, level int32, now time.Time) []*pb.LandView {
 	out := make([]*pb.LandView, 0, len(lands))
 	seen := make(map[int32]struct{}, len(lands))
-	for _, info := range state.AllFarmLands() {
+	for _, info := range farmLands {
 		l, observed := lands[info.ID]
-		out = append(out, landViewProto(info.ID, l, info, observed, level, now))
+		out = append(out, landViewProto(info.ID, l, info, observed, rosterObserved, farmLandObserved, level, now))
 		seen[info.ID] = struct{}{}
 	}
 	extraIDs := make([]int32, 0)
@@ -310,21 +298,29 @@ func buildLandViews(lands map[int32]state.LandView, level int32, now time.Time) 
 	}
 	sort.Slice(extraIDs, func(i, j int) bool { return extraIDs[i] < extraIDs[j] })
 	for _, id := range extraIDs {
-		info, _ := state.FarmLandInfoByID(id)
-		out = append(out, landViewProto(id, lands[id], info, true, level, now))
+		out = append(out, landViewProto(id, lands[id], state.FarmLandInfo{}, true, rosterObserved, farmLandObserved, level, now))
 	}
 	return out
 }
 
-func landViewProto(id int32, l state.LandView, info state.FarmLandInfo, observed bool, level int32, now time.Time) *pb.LandView {
-	kind, reason := "locked", "等级未达到开放条件"
+func landViewProto(id int32, l state.LandView, info state.FarmLandInfo, observed bool, rosterObserved bool, farmLandObserved bool, level int32, now time.Time) *pb.LandView {
+	kind, reason := "unknown", "等待服务端土地清单"
 	status := "locked"
 	if observed {
 		kind, reason = automation.Recommend(l, now)
 		status = "opened"
-	} else if info.OpenLevel == 0 || level >= info.OpenLevel {
-		kind, reason = "unlock", "可开垦"
-		status = "wasteland"
+	} else if !farmLandObserved {
+		kind, reason = "unknown", "等待当前客户端土地配置"
+	} else if rosterObserved {
+		status = "unopened"
+		if info.OpenLevel > 0 && level < info.OpenLevel {
+			kind, reason = "locked", "等级未达到开放条件"
+			status = "locked"
+		} else if len(info.Cost) >= 2 {
+			kind, reason = "unlock", "可开垦"
+		} else {
+			kind, reason = "unknown", "缺少开垦消耗配置"
+		}
 	}
 	if observed && !l.Observed {
 		observed = false

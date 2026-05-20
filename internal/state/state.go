@@ -94,6 +94,7 @@ type CultivateView struct {
 // FlowerOrder represents a resident order box from namespace 105 (orderFlower).
 type FlowerOrder struct {
 	BoxID    int32           `json:"box_id"`
+	Mode     int32           `json:"mode,omitempty"`
 	Requires []FlowerRequire `json:"requires"`
 }
 
@@ -103,6 +104,15 @@ type CustomerOrder struct {
 	Requires     []FlowerRequire `json:"requires,omitempty"`
 	ItemRequires []ItemRequire   `json:"item_requires,omitempty"`
 	FinishCnt    int32           `json:"finish_cnt,omitempty"`
+}
+
+// FlowerRackSlot represents one shelf slot from namespace 104 (flowerRack).
+type FlowerRackSlot struct {
+	RackID      int32 `json:"rack_id"`
+	ItemID      int32 `json:"item_id,omitempty"`
+	Count       int32 `json:"count,omitempty"`
+	ListedAtMs  int64 `json:"listed_at_ms,omitempty"`
+	UpdatedAtMs int64 `json:"updated_at_ms,omitempty"`
 }
 
 // FlowerRequire is a single flower requirement in an order.
@@ -152,15 +162,18 @@ type RandomEventView struct {
 type State struct {
 	mu sync.RWMutex
 
-	lands        map[int32]LandView
-	inventory    map[int32]int32 // 7.0.32 sub-map: itemId -> count
-	gold         int32           // 7.0.44 金币
-	level        int32           // 7.0.34 等级
-	experience   int32           // 7.0.35 经验
-	diamondsFree int32           // 7.0.41 免费钻石
-	diamondsPaid int32           // 7.0.42 付费钻石
-	roleID       int64
-	roleName     string
+	lands              map[int32]LandView
+	landRosterObserved bool
+	farmLands          map[int32]FarmLandInfo
+	farmLandObserved   bool
+	inventory          map[int32]int32 // 7.0.32 sub-map: itemId -> count
+	gold               int32           // 7.0.44 金币
+	level              int32           // 7.0.34 等级
+	experience         int32           // 7.0.35 经验
+	diamondsFree       int32           // 7.0.41 免费钻石
+	diamondsPaid       int32           // 7.0.42 付费钻石
+	roleID             int64
+	roleName           string
 
 	hasWaterDropsItem  bool  // whether namespace 7 has carried itemId=7 at least once
 	waterDropsTotal    int32 // 7.0.33.7.1 observed water-drop capacity / total
@@ -172,9 +185,11 @@ type State struct {
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
 
-	customerOrders map[int32]*CustomerOrder // 109.0.1.<npcId> 当前活跃顾客订单
+	customerOrders map[int32]*CustomerOrder  // 109.0.1.<npcId> 当前活跃顾客订单
+	flowerRack     map[int32]*FlowerRackSlot // 104.0.<rackId> 花艺货架
 
-	flowerOrders map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
+	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
+	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 
 	mainTask   *MainTaskView            // 22.0 当前主线任务
 	dailyTasks map[int32]*DailyTaskView // 22.1.100.<taskId>
@@ -236,14 +251,17 @@ type InventoryItemDelta struct {
 // New creates an empty tracker.
 func New() *State {
 	return &State{
-		lands:            make(map[int32]LandView),
-		inventory:        make(map[int32]int32),
-		cultivations:     make(map[int32]*CultivateView),
-		customerOrders:   make(map[int32]*CustomerOrder),
-		flowerOrders:     make(map[int32]*FlowerOrder),
-		dailyTasks:       make(map[int32]*DailyTaskView),
-		roadGrowReceived: make(map[int32]bool),
-		randomEvents:     make(map[int32]*RandomEventView),
+		lands:                      make(map[int32]LandView),
+		farmLands:                  make(map[int32]FarmLandInfo),
+		inventory:                  make(map[int32]int32),
+		cultivations:               make(map[int32]*CultivateView),
+		customerOrders:             make(map[int32]*CustomerOrder),
+		flowerRack:                 make(map[int32]*FlowerRackSlot),
+		flowerOrders:               make(map[int32]*FlowerOrder),
+		flowerOrderRewardsReceived: make(map[int32]bool),
+		dailyTasks:                 make(map[int32]*DailyTaskView),
+		roadGrowReceived:           make(map[int32]bool),
+		randomEvents:               make(map[int32]*RandomEventView),
 	}
 }
 
@@ -339,6 +357,9 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	if rawNS109, ok := top["109"]; ok {
 		s.applyCustomerOrdersLocked(rawNS109)
 	}
+	if rawNS104, ok := top["104"]; ok {
+		s.applyFlowerRackLocked(rawNS104)
+	}
 	if rawNS105, ok := top["105"]; ok {
 		s.applyFlowerOrdersLocked(rawNS105)
 	}
@@ -406,6 +427,8 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 			if raw1, ok := s0["1"]; ok {
 				var roster map[string]json.RawMessage
 				if err := json.Unmarshal(raw1, &roster); err == nil {
+					s.landRosterObserved = true
+					next := make(map[int32]LandView, len(roster))
 					for lidStr, rawEntry := range roster {
 						lid := atoi32(lidStr)
 						if lid < 1000 {
@@ -423,10 +446,18 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 						} else {
 							view = EmptyObserved()
 						}
-						if change, ok := s.upsertLandLocked(lid, view, "roster"); ok {
-							changes = append(changes, change)
+						next[lid] = view
+						before, existed := s.lands[lid]
+						if !existed || before != view {
+							changes = append(changes, LandChange{LandID: lid, Before: before, After: view})
 						}
 					}
+					for lid, before := range s.lands {
+						if _, ok := next[lid]; !ok {
+							changes = append(changes, LandChange{LandID: lid, Before: before, After: LandView{}})
+						}
+					}
+					s.lands = next
 				}
 			}
 		}
@@ -783,6 +814,70 @@ func (s *State) applyCustomerOrdersLocked(raw json.RawMessage) {
 	}
 }
 
+func (s *State) applyFlowerRackLocked(raw json.RawMessage) {
+	var ns104 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns104); err != nil {
+		return
+	}
+	raw0, ok := ns104["0"]
+	if !ok {
+		return
+	}
+	var slots map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &slots); err != nil {
+		return
+	}
+	for rackIDStr, rawSlot := range slots {
+		rackID := atoi32(rackIDStr)
+		if rackID <= 0 {
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(rawSlot, &fields); err != nil {
+			continue
+		}
+		slot := s.flowerRack[rackID]
+		if slot == nil {
+			slot = &FlowerRackSlot{RackID: rackID}
+			s.flowerRack[rackID] = slot
+		}
+		if rawRackID, ok := fields["1"]; ok {
+			var n int32
+			if json.Unmarshal(rawRackID, &n) == nil && n > 0 {
+				slot.RackID = n
+			}
+		}
+		if rawItemID, ok := fields["2"]; ok {
+			var n int32
+			if json.Unmarshal(rawItemID, &n) == nil {
+				slot.ItemID = n
+			}
+		}
+		if rawCount, ok := fields["3"]; ok {
+			var n int32
+			if json.Unmarshal(rawCount, &n) == nil {
+				slot.Count = n
+			}
+		}
+		if rawListedAt, ok := fields["4"]; ok {
+			var n int64
+			if json.Unmarshal(rawListedAt, &n) == nil {
+				slot.ListedAtMs = n
+			}
+		}
+		if rawUpdatedAt, ok := fields["5"]; ok {
+			var n int64
+			if json.Unmarshal(rawUpdatedAt, &n) == nil {
+				slot.UpdatedAtMs = n
+			}
+		}
+		if slot.ItemID == 0 || slot.Count == 0 {
+			slot.ItemID = 0
+			slot.Count = 0
+		}
+	}
+}
+
 func (s *State) applyFlowerOrdersLocked(raw json.RawMessage) {
 	// NS105 structure: {"0": {"1": {boxId: {order...}}, ...}}
 	var ns105 map[string]json.RawMessage
@@ -797,30 +892,41 @@ func (s *State) applyFlowerOrdersLocked(raw json.RawMessage) {
 	if err := json.Unmarshal(raw0, &inner); err != nil {
 		return
 	}
-	raw1, ok := inner["1"]
-	if !ok {
-		return
+	if raw1, ok := inner["1"]; ok {
+		var boxes map[string]json.RawMessage
+		if err := json.Unmarshal(raw1, &boxes); err == nil {
+			s.flowerOrders = make(map[int32]*FlowerOrder, len(boxes))
+			for boxIDStr, rawBox := range boxes {
+				boxID := atoi32(boxIDStr)
+				if boxID == 0 {
+					continue
+				}
+				var fields map[string]json.RawMessage
+				if err := json.Unmarshal(rawBox, &fields); err != nil {
+					continue
+				}
+				order := &FlowerOrder{BoxID: boxID}
+				if rawMode, ok := fields["0"]; ok {
+					_ = json.Unmarshal(rawMode, &order.Mode)
+				}
+				// field "2" = [[flowerId, count], ...]
+				if rawReqs, ok := fields["2"]; ok {
+					order.Requires = parseFlowerRequires(rawReqs)
+				}
+				s.flowerOrders[boxID] = order
+			}
+		}
 	}
-	var boxes map[string]json.RawMessage
-	if err := json.Unmarshal(raw1, &boxes); err != nil {
-		return
-	}
-	s.flowerOrders = make(map[int32]*FlowerOrder, len(boxes))
-	for boxIDStr, rawBox := range boxes {
-		boxID := atoi32(boxIDStr)
-		if boxID == 0 {
-			continue
+	if rawReceived, ok := inner["2"]; ok {
+		var ids []int32
+		if json.Unmarshal(rawReceived, &ids) == nil {
+			s.flowerOrderRewardsReceived = make(map[int32]bool, len(ids))
+			for _, id := range ids {
+				if id > 0 {
+					s.flowerOrderRewardsReceived[id] = true
+				}
+			}
 		}
-		var fields map[string]json.RawMessage
-		if err := json.Unmarshal(rawBox, &fields); err != nil {
-			continue
-		}
-		order := &FlowerOrder{BoxID: boxID}
-		// field "2" = [[flowerId, count], ...]
-		if rawReqs, ok := fields["2"]; ok {
-			order.Requires = parseFlowerRequires(rawReqs)
-		}
-		s.flowerOrders[boxID] = order
 	}
 }
 
@@ -1050,6 +1156,71 @@ func (s *State) Lands() map[int32]LandView {
 		out[k] = v
 	}
 	return out
+}
+
+// LandRosterObserved reports whether the cold-start `100.0.1` land roster has
+// arrived. Once true, absence from Lands means the server did not include that
+// land in the player's opened/owned land list.
+func (s *State) LandRosterObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.landRosterObserved
+}
+
+// SetFarmLands replaces the per-account runtime c_farmLand view loaded from
+// the current client resource pack. This intentionally does not fall back to
+// embedded static data, because stale land tables cause wrong unlock decisions.
+func (s *State) SetFarmLands(lands []FarmLandInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.farmLands = make(map[int32]FarmLandInfo, len(lands))
+	for _, land := range lands {
+		if land.ID <= 0 {
+			continue
+		}
+		s.farmLands[land.ID] = cloneFarmLandInfo(land)
+	}
+	s.farmLandObserved = len(s.farmLands) > 0
+}
+
+// FarmLandConfigObserved reports whether the current client-side land table has
+// been loaded for this running account session.
+func (s *State) FarmLandConfigObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.farmLandObserved
+}
+
+// FarmLands returns the runtime c_farmLand rows loaded for this account,
+// sorted by id. It returns nil until SetFarmLands succeeds.
+func (s *State) FarmLands() []FarmLandInfo {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.farmLandObserved {
+		return nil
+	}
+	out := make([]FarmLandInfo, 0, len(s.farmLands))
+	for _, land := range s.farmLands {
+		if land.ID > 0 {
+			out = append(out, cloneFarmLandInfo(land))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// FarmLand returns one runtime c_farmLand row for this account.
+func (s *State) FarmLand(id int32) (FarmLandInfo, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.farmLandObserved {
+		return FarmLandInfo{}, false
+	}
+	land, ok := s.farmLands[id]
+	if !ok {
+		return FarmLandInfo{}, false
+	}
+	return cloneFarmLandInfo(land), true
 }
 
 // MarkLandsWatered forces the given lands to state=2 (growing) locally and
@@ -1517,10 +1688,77 @@ func (s *State) FlowerOrders() map[int32]*FlowerOrder {
 	return out
 }
 
-// FlowerOrderDeficits returns flower ids whose active order requirements are
-// not yet covered by current inventory. It includes resident orders (105),
-// legacy flower-shaped customer orders (109), customer flower-art recipe
-// flowers, and main-task flowers.
+// FlowerRackSlots returns the current flower-art shelf slots.
+func (s *State) FlowerRackSlots() map[int32]FlowerRackSlot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]FlowerRackSlot, len(s.flowerRack))
+	for k, v := range s.flowerRack {
+		if v != nil {
+			out[k] = *v
+		}
+	}
+	return out
+}
+
+// EmptyFlowerRackSlotIDs returns observed rack slots with no listed art.
+func (s *State) EmptyFlowerRackSlotIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0)
+	for rackID, slot := range s.flowerRack {
+		if slot == nil || slot.ItemID != 0 || slot.Count != 0 {
+			continue
+		}
+		out = append(out, rackID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyFlowerOrderAdBoxIDs returns resident-order boxes that currently present
+// the client as a video/share reward before a concrete order is generated.
+func (s *State) ReadyFlowerOrderAdBoxIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0)
+	for id, order := range s.flowerOrders {
+		if order != nil && order.Mode == 8 && len(order.Requires) == 0 {
+			out = append(out, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyFlowerOrderRewardTargets returns resident-order milestone rewards that
+// are claimable from observed daily progress.
+func (s *State) ReadyFlowerOrderRewardTargets() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var finished int32
+	for _, task := range s.dailyTasks {
+		if task != nil && task.TaskID == 30060001 && task.Finished > finished {
+			finished = task.Finished
+		}
+	}
+	if finished <= 0 {
+		return nil
+	}
+	thresholds := []int32{15, 30, 45, 60}
+	out := make([]int32, 0, len(thresholds))
+	for idx, threshold := range thresholds {
+		target := int32(idx + 1)
+		if finished >= threshold && !s.flowerOrderRewardsReceived[target] {
+			out = append(out, target)
+		}
+	}
+	return out
+}
+
+// FlowerOrderDeficits returns flower ids whose long-lived requirements are not
+// yet covered by current inventory. Customer orders are intentionally excluded:
+// they should be completed from current stock/craft capacity or refreshed.
 func (s *State) FlowerOrderDeficits() map[int32]int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1536,29 +1774,6 @@ func (s *State) FlowerOrderDeficits() map[int32]int32 {
 	for _, order := range s.flowerOrders {
 		if order != nil {
 			addRequires(order.Requires)
-		}
-	}
-	for _, order := range s.customerOrders {
-		if order != nil {
-			addRequires(order.Requires)
-			for _, req := range order.ItemRequires {
-				if req.ItemID == 0 || req.Count <= 0 {
-					continue
-				}
-				missingArt := req.Count - s.inventory[req.ItemID]
-				if missingArt <= 0 {
-					continue
-				}
-				recipe, ok := FlowerArtRecipeByID(req.ItemID)
-				if !ok {
-					continue
-				}
-				for _, flowerID := range recipe.Flowers {
-					if flowerID != 0 {
-						needed[flowerID] += missingArt
-					}
-				}
-			}
 		}
 	}
 	if s.mainTask != nil {
@@ -1681,7 +1896,7 @@ func (s *State) ReadyRandomEventIDs() []int32 {
 	defer s.mu.RUnlock()
 	out := make([]int32, 0, len(s.randomEvents))
 	for id, event := range s.randomEvents {
-		if event != nil && event.Status == 0 {
+		if event != nil && (event.Status == 0 || event.Status == 1) {
 			out = append(out, id)
 		}
 	}

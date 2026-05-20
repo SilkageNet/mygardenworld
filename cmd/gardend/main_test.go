@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -38,5 +40,42 @@ func TestCORSMiddlewareRejectsUnknownOrigin(t *testing.T) {
 
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("Access-Control-Allow-Origin = %q, want empty for disallowed origin", got)
+	}
+}
+
+func TestCleanDataDirPathRejectsDangerousTargets(t *testing.T) {
+	root := filepath.VolumeName(os.TempDir()) + string(os.PathSeparator)
+	if _, err := cleanDataDirPath(root); err == nil {
+		t.Fatalf("cleanDataDirPath(%q) succeeded, want error", root)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cleanDataDirPath(cwd); err == nil {
+		t.Fatalf("cleanDataDirPath(%q) succeeded, want error", cwd)
+	}
+}
+
+func TestRemoveDataDirDeletesDirectory(t *testing.T) {
+	parent := t.TempDir()
+	dataDir := filepath.Join(parent, "data")
+	if err := os.MkdirAll(filepath.Join(dataDir, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "garden.db"), []byte("db"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := removeDataDir(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !removed {
+		t.Fatal("removeDataDir removed=false, want true")
+	}
+	if _, err := os.Stat(dataDir); !os.IsNotExist(err) {
+		t.Fatalf("dataDir still exists or stat failed unexpectedly: %v", err)
 	}
 }

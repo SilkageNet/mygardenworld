@@ -205,7 +205,7 @@ func eventCategory(kind string) string {
 		return "reward"
 	case "task_recv", "task_daily", "road_grow", "story_unlock":
 		return "task"
-	case "order_finish", "order_customer", "flower_art":
+	case "order_finish", "order_customer", "order_reward", "order_ad", "flower_art", "flower_rack":
 		return "order"
 	case "cultivate_recv", "cultivate_new", "flower_upgrade":
 		return "cultivation"
@@ -256,8 +256,14 @@ func eventLabel(kind string) string {
 		return "居民订单"
 	case "order_customer":
 		return "顾客订单"
+	case "order_reward":
+		return "订单奖励"
+	case "order_ad":
+		return "居民订单"
 	case "flower_art":
 		return "花艺"
+	case "flower_rack":
+		return "花架"
 	case "cultivate_recv":
 		return "培育领取"
 	case "cultivate_new":

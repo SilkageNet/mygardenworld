@@ -80,7 +80,7 @@ message LandView {
   // Local recommendation: harvest|plant|water|wait|unknown.
   string recommendation = 8;
   string reason = 9;
-  // Server-resolved display state: opened|wasteland|locked.
+  // Server-resolved display state: opened|unopened|locked.
   string land_status = 10;
   // True when this land came from the live namespace 100 state. False means it
   // was filled from static client config so the UI can still render the full map.

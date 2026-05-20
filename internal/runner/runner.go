@@ -80,7 +80,6 @@ type Runner struct {
 	harvestBlockedUntil   map[int32]time.Time          // 服务端提示未成熟后，按田地短期冷却
 	freeWaterBlockedUntil time.Time                    // freeWater.recv 失败后的下一次试探时间
 	dailyTaskBlockedUntil time.Time                    // taskDly.recv 失败后的下一次试探时间
-	orderBlocked          bool                         // 订单材料或花艺处理暂时阻塞
 	flowerUpgradeBlocked  map[int32]flowerUpgradeBlock // 升级材料不足，等待材料变化或短期冷却
 	cultivateBlocked      map[int32]time.Time          // 培育材料不足或配置未知，短期冷却
 	prevLevel             int32                        // 用于检测升级

@@ -44,6 +44,11 @@ tasks:
       - cmd: go build -o bin/gardenctl ./cmd/gardenctl
         platforms: [linux, darwin]
 
+  reset-data:
+    desc: Delete local DATA_DIR via gardend reset-data
+    cmds:
+      - go run ./cmd/gardend reset-data --data-dir "{{.DATA_DIR}}" --yes
+
   backend:
     desc: Start gardend API server for local development
     aliases: [server, api]

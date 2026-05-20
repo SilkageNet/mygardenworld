@@ -2,10 +2,12 @@ package runner
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestWaterResponseIncludesDrops(t *testing.T) {
@@ -42,6 +44,40 @@ func TestWaterResponseIncludesDrops(t *testing.T) {
 				t.Fatalf("waterResponseIncludesDrops()=%t, want %t", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestNextLandUnlockCandidateDoesNotInventNextFourLands(t *testing.T) {
+	st := state.New()
+	roster := map[string]any{}
+	for id := int32(1001); id <= 1024; id++ {
+		roster[fmt.Sprint(id)] = map[string]any{}
+	}
+	st.ApplyVMap(map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": roster}},
+		"7":   map[string]any{"0": map[string]any{"34": 13, "44": 999999}},
+	})
+
+	if id, ok := nextLandUnlockCandidate(st); ok {
+		t.Fatalf("nextLandUnlockCandidate()=(%d,true), want no guessed candidate", id)
+	}
+}
+
+func TestNextLandUnlockCandidateUsesRuntimeLandConfig(t *testing.T) {
+	st := state.New()
+	roster := map[string]any{}
+	for id := int32(1001); id <= 1024; id++ {
+		roster[fmt.Sprint(id)] = map[string]any{}
+	}
+	st.ApplyVMap(map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": roster}},
+		"7":   map[string]any{"0": map[string]any{"34": 13, "44": 1500}},
+	})
+	st.SetFarmLands([]state.FarmLandInfo{{ID: 1025, OpenLevel: 13, Cost: []int32{37, 1500}}})
+
+	id, ok := nextLandUnlockCandidate(st)
+	if !ok || id != 1025 {
+		t.Fatalf("nextLandUnlockCandidate()=(%d,%t), want (1025,true)", id, ok)
 	}
 }
 

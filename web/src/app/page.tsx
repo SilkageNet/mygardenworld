@@ -77,6 +77,7 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "order_finish",
   "order_customer",
   "flower_art",
+  "flower_rack",
   "cultivate_recv",
   "cultivate_new",
   "flower_upgrade",
@@ -1089,7 +1090,7 @@ function SnapshotOverview({
       } satisfies LandTile;
     });
   const opened = landTiles.filter((tile) => tile.landState === "opened").length;
-  const wasteland = landTiles.filter((tile) => tile.landState === "wasteland").length;
+  const unopened = landTiles.filter((tile) => tile.landState === "unopened").length;
   const locked = landTiles.filter((tile) => tile.landState === "locked").length;
   const empty = landTiles.filter((tile) => tile.plantingState === "empty").length;
   const needsWater = landTiles.filter((tile) => tile.plantingState === "needs_water").length;
@@ -1126,7 +1127,7 @@ function SnapshotOverview({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-foreground/65">土地</span>
                 <LandLegend tone="opened" label={`已开垦 ${opened}`} />
-                <LandLegend tone="wasteland" label={`未开垦 ${wasteland}`} />
+                <LandLegend tone="unopened" label={`可开垦 ${unopened}`} />
                 <LandLegend tone="locked" label={`未开放 ${locked}`} />
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1167,7 +1168,7 @@ function SnapshotOverview({
 
 type LandTile = {
   land: LandView;
-  landState: "opened" | "wasteland" | "locked";
+  landState: "opened" | "unopened" | "locked";
   plantingState: "unavailable" | "empty" | "needs_water" | "growing" | "ready" | "unknown";
 };
 
@@ -1428,7 +1429,7 @@ function InventoryItemRow({ entry }: { entry: InventoryEntry }) {
 }
 
 function landStatus(land: LandView): LandTile["landState"] {
-  if (land.landStatus === "locked" || land.landStatus === "wasteland" || land.landStatus === "opened") {
+  if (land.landStatus === "locked" || land.landStatus === "unopened" || land.landStatus === "opened") {
     return land.landStatus;
   }
   return land.observed ? "opened" : "locked";
@@ -1449,7 +1450,7 @@ function plantingStatus(land: LandView, landState: LandTile["landState"]): LandT
 }
 
 function landStateLabel(state: LandTile["landState"]) {
-  return state === "locked" ? "未开放" : state === "wasteland" ? "未开垦" : "已开垦";
+  return state === "locked" ? "未开放" : state === "unopened" ? "可开垦" : "已开垦";
 }
 
 function plantingStateLabel(state: LandTile["plantingState"]) {
@@ -1467,7 +1468,7 @@ function plantingStateLabel(state: LandTile["plantingState"]) {
 function LandLegend({ tone, label }: { tone: LandTile["landState"]; label: string }) {
   const toneClass = {
     opened: "bg-primary",
-    wasteland: "bg-amber-400",
+    unopened: "bg-amber-400",
     locked: "bg-muted-foreground/45",
   }[tone];
   return (
@@ -1510,7 +1511,7 @@ function LandCell({ tile }: { tile: LandTile }) {
       className={cn(
         "group/land relative flex min-h-[72px] flex-col overflow-hidden rounded-lg border px-1.5 py-1.5 text-[10px] tabular-nums transition-colors duration-150 hover:border-primary/45 hover:bg-primary/5 xl:h-full xl:min-h-0",
         landState === "opened" && "border-primary/25 bg-emerald-50/70 text-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-50",
-        landState === "wasteland" && "border-amber-400/35 bg-amber-50/70 text-amber-900 dark:bg-amber-950/20 dark:text-amber-100",
+        landState === "unopened" && "border-amber-400/35 bg-amber-50/70 text-amber-900 dark:bg-amber-950/20 dark:text-amber-100",
         landState === "locked" && "border-border/60 bg-background/45 text-muted-foreground/70"
       )}
       title={titleParts.join(" · ")}
@@ -1522,7 +1523,7 @@ function LandCell({ tile }: { tile: LandTile }) {
           className={cn(
             "size-1.5 rounded-full transition-transform group-hover/land:scale-125",
             landState === "opened" && "bg-primary",
-            landState === "wasteland" && "bg-amber-400",
+            landState === "unopened" && "bg-amber-400",
             landState === "locked" && "bg-muted-foreground/45"
           )}
         />
@@ -1532,7 +1533,7 @@ function LandCell({ tile }: { tile: LandTile }) {
           <CatalogIcon itemId={land.flowerId} className="size-8 object-contain drop-shadow-sm transition-transform group-hover/land:scale-110" fallback={<Flower2 className="size-5" />} />
         ) : landState === "locked" ? (
           <LockKeyhole className="size-4 opacity-75" />
-        ) : landState === "wasteland" ? (
+        ) : landState === "unopened" ? (
           <Shovel className="size-5 opacity-85" />
         ) : (
           <Sprout className="size-5 opacity-85" />
@@ -1703,6 +1704,10 @@ function SettingsDialog({
     if (!policy) return;
     setPolicy({ ...policy, water: { ...policy.water!, ...patch } });
   };
+  const updateMisc = (patch: Partial<NonNullable<Policy["misc"]>>) => {
+    if (!policy) return;
+    setPolicy({ ...policy, misc: { ...policy.misc!, ...patch } });
+  };
   const toggleFlower = (flowerId: number) => {
     const ids = new Set(policy?.plant?.allowedFlowerIds ?? []);
     if (ids.has(flowerId)) {
@@ -1814,18 +1819,50 @@ function SettingsDialog({
                   </Card>
                 </div>
 
-                <Card size="sm">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">辅助操作</CardTitle></CardHeader>
-                  <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    <Row label="自动开垦"><Switch checked={policy.misc?.landUnlockEnabled ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, landUnlockEnabled: v } })} /></Row>
-                    <Row label="领取任务奖励"><Switch checked={policy.misc?.taskRecvEnabled ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, taskRecvEnabled: v } })} /></Row>
-                    <Row label="解锁剧情"><Switch checked={policy.misc?.storyUnlockEnabled ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, storyUnlockEnabled: v } })} /></Row>
-                    <Row label="完成订单"><Switch checked={policy.misc?.orderEnabled ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, orderEnabled: v } })} /></Row>
-                    <Row label="领取水资源"><Switch checked={policy.misc?.waterwheelEnabled ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, waterwheelEnabled: v } })} /></Row>
-                    <Row label="自动培育"><Switch checked={policy.misc?.cultivateEnabled ?? false} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, cultivateEnabled: v } })} /></Row>
-                    <Row label="自动升级"><Switch checked={policy.misc?.flowerUpgradeEnabled ?? false} onCheckedChange={(v: boolean) => setPolicy({ ...policy, misc: { ...policy.misc!, flowerUpgradeEnabled: v } })} /></Row>
-                  </CardContent>
-                </Card>
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <Card size="sm">
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">订单</CardTitle></CardHeader>
+                    <CardContent className="grid gap-2 sm:grid-cols-2">
+                      <Row label="居民订单"><Switch checked={policy.misc?.residentOrderEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ residentOrderEnabled: v })} /></Row>
+                      <Row label="顾客订单"><Switch checked={policy.misc?.customerOrderEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ customerOrderEnabled: v })} /></Row>
+                      <Row label="顾客缺货刷新"><Switch checked={policy.misc?.customerOrderRejectEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ customerOrderRejectEnabled: v })} /></Row>
+                      <Row label="订单阶段奖励"><Switch checked={policy.misc?.residentOrderRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ residentOrderRewardEnabled: v })} /></Row>
+                      <Row label="居民广告奖励"><Switch checked={policy.misc?.residentOrderAdEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ residentOrderAdEnabled: v })} /></Row>
+                    </CardContent>
+                  </Card>
+
+                  <Card size="sm">
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">花艺与花架</CardTitle></CardHeader>
+                    <CardContent className="grid gap-2 sm:grid-cols-2">
+                      <Row label="订单花艺制作"><Switch checked={policy.misc?.customerOrderCraftEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ customerOrderCraftEnabled: v })} /></Row>
+                      <Row label="制作奖励"><Switch checked={policy.misc?.flowerArtRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerArtRewardEnabled: v })} /></Row>
+                      <Row label="空花架上架"><Switch checked={policy.misc?.flowerRackEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerRackEnabled: v })} /></Row>
+                      <Row label="花架自动制作"><Switch checked={policy.misc?.flowerRackCraftEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerRackCraftEnabled: v })} /></Row>
+                    </CardContent>
+                  </Card>
+
+                  <Card size="sm">
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">任务与事件</CardTitle></CardHeader>
+                    <CardContent className="grid gap-2 sm:grid-cols-2">
+                      <Row label="主线任务奖励"><Switch checked={policy.misc?.taskMainRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ taskMainRewardEnabled: v })} /></Row>
+                      <Row label="日常任务奖励"><Switch checked={policy.misc?.taskDailyRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ taskDailyRewardEnabled: v })} /></Row>
+                      <Row label="成长之路奖励"><Switch checked={policy.misc?.roadGrowRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ roadGrowRewardEnabled: v })} /></Row>
+                      <Row label="地图随机事件"><Switch checked={policy.misc?.randomEventEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ randomEventEnabled: v })} /></Row>
+                    </CardContent>
+                  </Card>
+
+                  <Card size="sm">
+                    <CardHeader className="pb-2"><CardTitle className="text-sm">资源与养成</CardTitle></CardHeader>
+                    <CardContent className="grid gap-2 sm:grid-cols-2">
+                      <Row label="领取水车"><Switch checked={policy.misc?.waterwheelEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ waterwheelEnabled: v })} /></Row>
+                      <Row label="免费水滴"><Switch checked={policy.misc?.freeWaterEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ freeWaterEnabled: v })} /></Row>
+                      <Row label="自动开垦"><Switch checked={policy.misc?.landUnlockEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ landUnlockEnabled: v })} /></Row>
+                      <Row label="解锁剧情"><Switch checked={policy.misc?.storyUnlockEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ storyUnlockEnabled: v })} /></Row>
+                      <Row label="自动培育"><Switch checked={policy.misc?.cultivateEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ cultivateEnabled: v })} /></Row>
+                      <Row label="自动升级"><Switch checked={policy.misc?.flowerUpgradeEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerUpgradeEnabled: v })} /></Row>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
             <DialogFooter className="items-center gap-3 border-t border-border/70 pt-4">
@@ -2248,6 +2285,7 @@ function legacyKindColor(kind: string): string {
       return "text-rose-600 dark:text-rose-300";
     case "order_finish":
     case "order_customer":
+    case "flower_rack":
       return "text-orange-600 dark:text-orange-300";
     case "land_unlock":
     case "task_daily":

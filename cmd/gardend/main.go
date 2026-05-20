@@ -4,6 +4,7 @@
 // Subcommands:
 //
 //	gardend serve   --data-dir <dir> --listen <addr> --jwt-secret <secret>
+//	gardend reset-data --data-dir <dir> --yes
 //	gardend version
 package main
 
@@ -45,7 +46,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	rootCmd.AddCommand(newServeCmd(), newVersionCmd(), updatecmd.New("gardend"))
+	rootCmd.AddCommand(newServeCmd(), newResetDataCmd(), newVersionCmd(), updatecmd.New("gardend"))
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -118,6 +119,41 @@ func newVersionCmd() *cobra.Command {
 	}
 }
 
+func newResetDataCmd() *cobra.Command {
+	var (
+		dataDir string
+		yes     bool
+	)
+	cmd := &cobra.Command{
+		Use:   "reset-data",
+		Short: "Delete local SQLite and state data",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			absDataDir, err := cleanDataDirPath(dataDir)
+			if err != nil {
+				return err
+			}
+			if !yes {
+				fmt.Fprintf(cmd.OutOrStdout(), "Would delete local data directory: %s\n", absDataDir)
+				fmt.Fprintln(cmd.OutOrStdout(), "Re-run with --yes to confirm.")
+				return nil
+			}
+			removed, err := removeDataDir(absDataDir)
+			if err != nil {
+				return err
+			}
+			if removed {
+				fmt.Fprintf(cmd.OutOrStdout(), "Deleted local data directory: %s\n", absDataDir)
+			} else {
+				fmt.Fprintf(cmd.OutOrStdout(), "Local data directory did not exist: %s\n", absDataDir)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dataDir, "data-dir", "./data", "directory to delete (same default as serve)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "confirm deletion without prompting")
+	return cmd
+}
+
 type serveOpts struct {
 	DataDir       string
 	ListenAddr    string
@@ -130,6 +166,60 @@ type serveOpts struct {
 	CORSOrigins   string
 	DebugDir      string
 	WebEnabled    bool
+}
+
+func cleanDataDirPath(dataDir string) (string, error) {
+	if strings.TrimSpace(dataDir) == "" {
+		return "", errors.New("--data-dir cannot be empty")
+	}
+	absDataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve data-dir: %w", err)
+	}
+	absDataDir = filepath.Clean(absDataDir)
+	volumeRoot := filepath.VolumeName(absDataDir) + string(os.PathSeparator)
+	if samePath(absDataDir, volumeRoot) {
+		return "", fmt.Errorf("refusing to reset filesystem root: %s", absDataDir)
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil && homeDir != "" && samePath(absDataDir, homeDir) {
+		return "", fmt.Errorf("refusing to reset home directory: %s", absDataDir)
+	}
+	if cwd, err := os.Getwd(); err == nil && samePath(absDataDir, cwd) {
+		return "", fmt.Errorf("refusing to reset current working directory: %s", absDataDir)
+	}
+	return absDataDir, nil
+}
+
+func samePath(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	absA, err := filepath.Abs(a)
+	if err != nil {
+		absA = a
+	}
+	absB, err := filepath.Abs(b)
+	if err != nil {
+		absB = b
+	}
+	return strings.EqualFold(filepath.Clean(absA), filepath.Clean(absB))
+}
+
+func removeDataDir(absDataDir string) (bool, error) {
+	info, err := os.Stat(absDataDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("stat data-dir: %w", err)
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("data-dir is not a directory: %s", absDataDir)
+	}
+	if err := os.RemoveAll(absDataDir); err != nil {
+		return false, fmt.Errorf("delete data-dir: %w", err)
+	}
+	return true, nil
 }
 
 func runServe(ctx context.Context, opts serveOpts) error {

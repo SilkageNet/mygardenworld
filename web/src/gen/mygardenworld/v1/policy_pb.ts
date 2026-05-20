@@ -11,7 +11,7 @@ import type { JsonObject, Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/policy.proto.
  */
 export const file_mygardenworld_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIsgBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSIgoVdGFza19wcmlvcml0eV9lbmFibGVkGAcgASgISACIAQESEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFQhgKFl90YXNrX3ByaW9yaXR5X2VuYWJsZWQiRAoLV2F0ZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgltYXhfYmF0Y2gYAiABKAUSEQoJbWluX2Ryb3BzGAMgASgFItABCgpNaXNjUG9saWN5EhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYASABKAgSGQoRdGFza19yZWN2X2VuYWJsZWQYAiABKAgSHAoUc3RvcnlfdW5sb2NrX2VuYWJsZWQYAyABKAgSFQoNb3JkZXJfZW5hYmxlZBgEIAEoCBIaChJ3YXRlcndoZWVsX2VuYWJsZWQYBSABKAgSGQoRY3VsdGl2YXRlX2VuYWJsZWQYBiABKAgSHgoWZmxvd2VyX3VwZ3JhZGVfZW5hYmxlZBgHIAEoCEKEAQoUY29tLm15Z2FyZGVud29ybGQudjFCC1BvbGljeVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_struct]);
+  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIsgBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSIgoVdGFza19wcmlvcml0eV9lbmFibGVkGAcgASgISACIAQESEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFQhgKFl90YXNrX3ByaW9yaXR5X2VuYWJsZWQiRAoLV2F0ZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgltYXhfYmF0Y2gYAiABKAUSEQoJbWluX2Ryb3BzGAMgASgFIvkECgpNaXNjUG9saWN5EhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYASABKAgSHAoUc3RvcnlfdW5sb2NrX2VuYWJsZWQYAiABKAgSGgoSd2F0ZXJ3aGVlbF9lbmFibGVkGAMgASgIEhkKEWN1bHRpdmF0ZV9lbmFibGVkGAQgASgIEh4KFmZsb3dlcl91cGdyYWRlX2VuYWJsZWQYBSABKAgSHgoWcmVzaWRlbnRfb3JkZXJfZW5hYmxlZBgGIAEoCBIeChZjdXN0b21lcl9vcmRlcl9lbmFibGVkGAcgASgIEiQKHGN1c3RvbWVyX29yZGVyX2NyYWZ0X2VuYWJsZWQYCCABKAgSJQodY3VzdG9tZXJfb3JkZXJfcmVqZWN0X2VuYWJsZWQYCSABKAgSJQodcmVzaWRlbnRfb3JkZXJfcmV3YXJkX2VuYWJsZWQYCiABKAgSIQoZcmVzaWRlbnRfb3JkZXJfYWRfZW5hYmxlZBgLIAEoCBIbChNmbG93ZXJfcmFja19lbmFibGVkGAwgASgIEiEKGWZsb3dlcl9yYWNrX2NyYWZ0X2VuYWJsZWQYDSABKAgSGgoSZnJlZV93YXRlcl9lbmFibGVkGA4gASgIEiAKGHRhc2tfbWFpbl9yZXdhcmRfZW5hYmxlZBgPIAEoCBIhChl0YXNrX2RhaWx5X3Jld2FyZF9lbmFibGVkGBAgASgIEiAKGHJvYWRfZ3Jvd19yZXdhcmRfZW5hYmxlZBgRIAEoCBIcChRyYW5kb21fZXZlbnRfZW5hYmxlZBgSIAEoCBIhChlmbG93ZXJfYXJ0X3Jld2FyZF9lbmFibGVkGBMgASgIQoQBChRjb20ubXlnYXJkZW53b3JsZC52MUILUG9saWN5UHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_struct]);
 
 /**
  * Policy is a typed bag of switches and thresholds the automation engine
@@ -204,34 +204,94 @@ export type MiscPolicy = Message<"mygardenworld.v1.MiscPolicy"> & {
   landUnlockEnabled: boolean;
 
   /**
-   * @generated from field: bool task_recv_enabled = 2;
-   */
-  taskRecvEnabled: boolean;
-
-  /**
-   * @generated from field: bool story_unlock_enabled = 3;
+   * @generated from field: bool story_unlock_enabled = 2;
    */
   storyUnlockEnabled: boolean;
 
   /**
-   * @generated from field: bool order_enabled = 4;
-   */
-  orderEnabled: boolean;
-
-  /**
-   * @generated from field: bool waterwheel_enabled = 5;
+   * @generated from field: bool waterwheel_enabled = 3;
    */
   waterwheelEnabled: boolean;
 
   /**
-   * @generated from field: bool cultivate_enabled = 6;
+   * @generated from field: bool cultivate_enabled = 4;
    */
   cultivateEnabled: boolean;
 
   /**
-   * @generated from field: bool flower_upgrade_enabled = 7;
+   * @generated from field: bool flower_upgrade_enabled = 5;
    */
   flowerUpgradeEnabled: boolean;
+
+  /**
+   * @generated from field: bool resident_order_enabled = 6;
+   */
+  residentOrderEnabled: boolean;
+
+  /**
+   * @generated from field: bool customer_order_enabled = 7;
+   */
+  customerOrderEnabled: boolean;
+
+  /**
+   * @generated from field: bool customer_order_craft_enabled = 8;
+   */
+  customerOrderCraftEnabled: boolean;
+
+  /**
+   * @generated from field: bool customer_order_reject_enabled = 9;
+   */
+  customerOrderRejectEnabled: boolean;
+
+  /**
+   * @generated from field: bool resident_order_reward_enabled = 10;
+   */
+  residentOrderRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool resident_order_ad_enabled = 11;
+   */
+  residentOrderAdEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_rack_enabled = 12;
+   */
+  flowerRackEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_rack_craft_enabled = 13;
+   */
+  flowerRackCraftEnabled: boolean;
+
+  /**
+   * @generated from field: bool free_water_enabled = 14;
+   */
+  freeWaterEnabled: boolean;
+
+  /**
+   * @generated from field: bool task_main_reward_enabled = 15;
+   */
+  taskMainRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool task_daily_reward_enabled = 16;
+   */
+  taskDailyRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool road_grow_reward_enabled = 17;
+   */
+  roadGrowRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool random_event_enabled = 18;
+   */
+  randomEventEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_art_reward_enabled = 19;
+   */
+  flowerArtRewardEnabled: boolean;
 };
 
 /**

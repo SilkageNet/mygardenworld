@@ -34,6 +34,7 @@
 //	100        | Land state (see below)           | plant/water/harvest/unlock
 //	101        | Cultivation state (see below)    | cultivate.*
 //	103        | Collection rewards               | cultivate.recv
+//	104        | Flower-art rack/shelves          | flowerRack.sell
 //	105        | Flower orders                    | orderFlower.finishOrder
 //	109        | Customer orders                  | orderCustomer.*
 //	112        | Gift bag shop                    | shopGiftbag.enter
@@ -63,9 +64,16 @@
 //
 // Land data lives under namespace 100:
 //
-//	100.0.1.<landId>   Full roster (reLogin cold-start)
+//	100.0.1.<landId>   Full opened/owned land roster (reLogin cold-start)
 //	100.1.<landId>     Primary state delta (after plant/water/harvest)
 //	100.2.<landId>     Harvest reward data
+//
+// `100.0.1` is authoritative for lands the player already owns. The client
+// decides whether an absent land is unlockable from the current package's
+// runtime `c_farmLand.openLvl` plus the player's level, then uses that same
+// `c_farmLand.cost` when calling unlockLand. Do not infer candidates from
+// land-id ordering or stale embedded tables. `usrLand.unlockLand` responses add
+// the newly opened land through namespace 100.
 //
 // Per-land fields (G.ILand schema, numeric-string keys):
 //
@@ -120,6 +128,11 @@
 //	orderFlower.finishOrder   {boxId}               → {7,22,105,119,124}
 //	orderCustomer.finishOrder {npcId}               → {7,22,101,109,119,124}
 //	orderCustomer.genOrder    {guestNpcIdList:[]}   → {109}
+//
+// Flower art:
+//
+//	flowerArt.makeFlowerArt {vaseId, flowersIds, num} → {7,119}
+//	flowerRack.sell        {rackId, iid, num}         → {7,22,104,119}
 //
 // Misc:
 //

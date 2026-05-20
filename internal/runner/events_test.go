@@ -15,6 +15,7 @@ func TestEventMetadataDefaults(t *testing.T) {
 		{kind: "operation_failed", message: "浇水 失败: server", category: "operation", label: "失败", level: "error"},
 		{kind: "land_unlock", message: "跳过开垦 #1025：需要 Lv.42", category: "land", label: "开垦", level: "warn"},
 		{kind: "cultivate_new", category: "cultivation", label: "培育", level: "info"},
+		{kind: "order_ad", category: "order", label: "居民订单", level: "info"},
 	}
 
 	for _, tt := range tests {

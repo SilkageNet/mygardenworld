@@ -13,27 +13,39 @@ import (
 )
 
 const (
-	KeyAutomationEnabled        = "automation_enabled"
-	KeyDecisionIntervalSeconds  = "decision_interval_seconds"
-	KeyHarvestEnabled           = "harvest.enabled"
-	KeyHarvestPreferOneKey      = "harvest.prefer_one_key"
-	KeyPlantEnabled             = "plant.enabled"
-	KeyPlantMode                = "plant.mode"
-	KeyPlantTaskPriorityEnabled = "plant.task_priority_enabled"
-	KeyPlantMinStock            = "plant.min_stock"
-	KeyPlantMaxBatch            = "plant.max_batch"
-	KeyPlantAllowedFlowerIDs    = "plant.allowed_flower_ids"
-	KeyPlantBlockedFlowerIDs    = "plant.blocked_flower_ids"
-	KeyWaterEnabled             = "water.enabled"
-	KeyWaterMaxBatch            = "water.max_batch"
-	KeyWaterMinDrops            = "water.min_drops"
-	KeyMiscLandUnlockEnabled    = "misc.land_unlock_enabled"
-	KeyMiscTaskRecvEnabled      = "misc.task_recv_enabled"
-	KeyMiscStoryUnlockEnabled   = "misc.story_unlock_enabled"
-	KeyMiscOrderEnabled         = "misc.order_enabled"
-	KeyMiscWaterwheelEnabled    = "misc.waterwheel_enabled"
-	KeyMiscCultivateEnabled     = "misc.cultivate_enabled"
-	KeyMiscFlowerUpgradeEnabled = "misc.flower_upgrade_enabled"
+	KeyAutomationEnabled              = "automation_enabled"
+	KeyDecisionIntervalSeconds        = "decision_interval_seconds"
+	KeyHarvestEnabled                 = "harvest.enabled"
+	KeyHarvestPreferOneKey            = "harvest.prefer_one_key"
+	KeyPlantEnabled                   = "plant.enabled"
+	KeyPlantMode                      = "plant.mode"
+	KeyPlantTaskPriorityEnabled       = "plant.task_priority_enabled"
+	KeyPlantMinStock                  = "plant.min_stock"
+	KeyPlantMaxBatch                  = "plant.max_batch"
+	KeyPlantAllowedFlowerIDs          = "plant.allowed_flower_ids"
+	KeyPlantBlockedFlowerIDs          = "plant.blocked_flower_ids"
+	KeyWaterEnabled                   = "water.enabled"
+	KeyWaterMaxBatch                  = "water.max_batch"
+	KeyWaterMinDrops                  = "water.min_drops"
+	KeyMiscLandUnlockEnabled          = "misc.land_unlock_enabled"
+	KeyMiscStoryUnlockEnabled         = "misc.story_unlock_enabled"
+	KeyMiscWaterwheelEnabled          = "misc.waterwheel_enabled"
+	KeyMiscCultivateEnabled           = "misc.cultivate_enabled"
+	KeyMiscFlowerUpgradeEnabled       = "misc.flower_upgrade_enabled"
+	KeyMiscResidentOrderEnabled       = "misc.resident_order_enabled"
+	KeyMiscCustomerOrderEnabled       = "misc.customer_order_enabled"
+	KeyMiscCustomerOrderCraftEnabled  = "misc.customer_order_craft_enabled"
+	KeyMiscCustomerOrderRejectEnabled = "misc.customer_order_reject_enabled"
+	KeyMiscResidentOrderRewardEnabled = "misc.resident_order_reward_enabled"
+	KeyMiscResidentOrderAdEnabled     = "misc.resident_order_ad_enabled"
+	KeyMiscFlowerRackEnabled          = "misc.flower_rack_enabled"
+	KeyMiscFlowerRackCraftEnabled     = "misc.flower_rack_craft_enabled"
+	KeyMiscFreeWaterEnabled           = "misc.free_water_enabled"
+	KeyMiscTaskMainRewardEnabled      = "misc.task_main_reward_enabled"
+	KeyMiscTaskDailyRewardEnabled     = "misc.task_daily_reward_enabled"
+	KeyMiscRoadGrowRewardEnabled      = "misc.road_grow_reward_enabled"
+	KeyMiscRandomEventEnabled         = "misc.random_event_enabled"
+	KeyMiscFlowerArtRewardEnabled     = "misc.flower_art_reward_enabled"
 )
 
 func Normalize(p *pb.Policy) *pb.Policy {
@@ -86,27 +98,39 @@ func FromEntries(entries map[string]string) *pb.Policy {
 func Flatten(p *pb.Policy) map[string]string {
 	p = Normalize(p)
 	return map[string]string{
-		KeyAutomationEnabled:        fmt.Sprintf("%t", p.GetAutomationEnabled()),
-		KeyDecisionIntervalSeconds:  fmt.Sprintf("%g", p.GetDecisionIntervalSeconds()),
-		KeyHarvestEnabled:           fmt.Sprintf("%t", p.GetHarvest().GetEnabled()),
-		KeyHarvestPreferOneKey:      fmt.Sprintf("%t", p.GetHarvest().GetPreferOneKey()),
-		KeyPlantEnabled:             fmt.Sprintf("%t", p.GetPlant().GetEnabled()),
-		KeyPlantMode:                p.GetPlant().GetMode(),
-		KeyPlantTaskPriorityEnabled: fmt.Sprintf("%t", p.GetPlant().GetTaskPriorityEnabled()),
-		KeyPlantMinStock:            fmt.Sprintf("%d", p.GetPlant().GetMinStock()),
-		KeyPlantMaxBatch:            fmt.Sprintf("%d", p.GetPlant().GetMaxBatch()),
-		KeyPlantAllowedFlowerIDs:    joinInts(p.GetPlant().GetAllowedFlowerIds()),
-		KeyPlantBlockedFlowerIDs:    joinInts(p.GetPlant().GetBlockedFlowerIds()),
-		KeyWaterEnabled:             fmt.Sprintf("%t", p.GetWater().GetEnabled()),
-		KeyWaterMaxBatch:            fmt.Sprintf("%d", p.GetWater().GetMaxBatch()),
-		KeyWaterMinDrops:            fmt.Sprintf("%d", p.GetWater().GetMinDrops()),
-		KeyMiscLandUnlockEnabled:    fmt.Sprintf("%t", p.GetMisc().GetLandUnlockEnabled()),
-		KeyMiscTaskRecvEnabled:      fmt.Sprintf("%t", p.GetMisc().GetTaskRecvEnabled()),
-		KeyMiscStoryUnlockEnabled:   fmt.Sprintf("%t", p.GetMisc().GetStoryUnlockEnabled()),
-		KeyMiscOrderEnabled:         fmt.Sprintf("%t", p.GetMisc().GetOrderEnabled()),
-		KeyMiscWaterwheelEnabled:    fmt.Sprintf("%t", p.GetMisc().GetWaterwheelEnabled()),
-		KeyMiscCultivateEnabled:     fmt.Sprintf("%t", p.GetMisc().GetCultivateEnabled()),
-		KeyMiscFlowerUpgradeEnabled: fmt.Sprintf("%t", p.GetMisc().GetFlowerUpgradeEnabled()),
+		KeyAutomationEnabled:              fmt.Sprintf("%t", p.GetAutomationEnabled()),
+		KeyDecisionIntervalSeconds:        fmt.Sprintf("%g", p.GetDecisionIntervalSeconds()),
+		KeyHarvestEnabled:                 fmt.Sprintf("%t", p.GetHarvest().GetEnabled()),
+		KeyHarvestPreferOneKey:            fmt.Sprintf("%t", p.GetHarvest().GetPreferOneKey()),
+		KeyPlantEnabled:                   fmt.Sprintf("%t", p.GetPlant().GetEnabled()),
+		KeyPlantMode:                      p.GetPlant().GetMode(),
+		KeyPlantTaskPriorityEnabled:       fmt.Sprintf("%t", p.GetPlant().GetTaskPriorityEnabled()),
+		KeyPlantMinStock:                  fmt.Sprintf("%d", p.GetPlant().GetMinStock()),
+		KeyPlantMaxBatch:                  fmt.Sprintf("%d", p.GetPlant().GetMaxBatch()),
+		KeyPlantAllowedFlowerIDs:          joinInts(p.GetPlant().GetAllowedFlowerIds()),
+		KeyPlantBlockedFlowerIDs:          joinInts(p.GetPlant().GetBlockedFlowerIds()),
+		KeyWaterEnabled:                   fmt.Sprintf("%t", p.GetWater().GetEnabled()),
+		KeyWaterMaxBatch:                  fmt.Sprintf("%d", p.GetWater().GetMaxBatch()),
+		KeyWaterMinDrops:                  fmt.Sprintf("%d", p.GetWater().GetMinDrops()),
+		KeyMiscLandUnlockEnabled:          fmt.Sprintf("%t", p.GetMisc().GetLandUnlockEnabled()),
+		KeyMiscStoryUnlockEnabled:         fmt.Sprintf("%t", p.GetMisc().GetStoryUnlockEnabled()),
+		KeyMiscWaterwheelEnabled:          fmt.Sprintf("%t", p.GetMisc().GetWaterwheelEnabled()),
+		KeyMiscCultivateEnabled:           fmt.Sprintf("%t", p.GetMisc().GetCultivateEnabled()),
+		KeyMiscFlowerUpgradeEnabled:       fmt.Sprintf("%t", p.GetMisc().GetFlowerUpgradeEnabled()),
+		KeyMiscResidentOrderEnabled:       fmt.Sprintf("%t", p.GetMisc().GetResidentOrderEnabled()),
+		KeyMiscCustomerOrderEnabled:       fmt.Sprintf("%t", p.GetMisc().GetCustomerOrderEnabled()),
+		KeyMiscCustomerOrderCraftEnabled:  fmt.Sprintf("%t", p.GetMisc().GetCustomerOrderCraftEnabled()),
+		KeyMiscCustomerOrderRejectEnabled: fmt.Sprintf("%t", p.GetMisc().GetCustomerOrderRejectEnabled()),
+		KeyMiscResidentOrderRewardEnabled: fmt.Sprintf("%t", p.GetMisc().GetResidentOrderRewardEnabled()),
+		KeyMiscResidentOrderAdEnabled:     fmt.Sprintf("%t", p.GetMisc().GetResidentOrderAdEnabled()),
+		KeyMiscFlowerRackEnabled:          fmt.Sprintf("%t", p.GetMisc().GetFlowerRackEnabled()),
+		KeyMiscFlowerRackCraftEnabled:     fmt.Sprintf("%t", p.GetMisc().GetFlowerRackCraftEnabled()),
+		KeyMiscFreeWaterEnabled:           fmt.Sprintf("%t", p.GetMisc().GetFreeWaterEnabled()),
+		KeyMiscTaskMainRewardEnabled:      fmt.Sprintf("%t", p.GetMisc().GetTaskMainRewardEnabled()),
+		KeyMiscTaskDailyRewardEnabled:     fmt.Sprintf("%t", p.GetMisc().GetTaskDailyRewardEnabled()),
+		KeyMiscRoadGrowRewardEnabled:      fmt.Sprintf("%t", p.GetMisc().GetRoadGrowRewardEnabled()),
+		KeyMiscRandomEventEnabled:         fmt.Sprintf("%t", p.GetMisc().GetRandomEventEnabled()),
+		KeyMiscFlowerArtRewardEnabled:     fmt.Sprintf("%t", p.GetMisc().GetFlowerArtRewardEnabled()),
 	}
 }
 
@@ -216,13 +240,6 @@ func SetKey(p *pb.Policy, key, value string) error {
 			return err
 		}
 		p.Misc.LandUnlockEnabled = b
-	case KeyMiscTaskRecvEnabled:
-		ensureMisc(p)
-		b, err := parseBool(value)
-		if err != nil {
-			return err
-		}
-		p.Misc.TaskRecvEnabled = b
 	case KeyMiscStoryUnlockEnabled:
 		ensureMisc(p)
 		b, err := parseBool(value)
@@ -230,13 +247,6 @@ func SetKey(p *pb.Policy, key, value string) error {
 			return err
 		}
 		p.Misc.StoryUnlockEnabled = b
-	case KeyMiscOrderEnabled:
-		ensureMisc(p)
-		b, err := parseBool(value)
-		if err != nil {
-			return err
-		}
-		p.Misc.OrderEnabled = b
 	case KeyMiscWaterwheelEnabled:
 		ensureMisc(p)
 		b, err := parseBool(value)
@@ -258,6 +268,34 @@ func SetKey(p *pb.Policy, key, value string) error {
 			return err
 		}
 		p.Misc.FlowerUpgradeEnabled = b
+	case KeyMiscResidentOrderEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.ResidentOrderEnabled = b })
+	case KeyMiscCustomerOrderEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.CustomerOrderEnabled = b })
+	case KeyMiscCustomerOrderCraftEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.CustomerOrderCraftEnabled = b })
+	case KeyMiscCustomerOrderRejectEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.CustomerOrderRejectEnabled = b })
+	case KeyMiscResidentOrderRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.ResidentOrderRewardEnabled = b })
+	case KeyMiscResidentOrderAdEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.ResidentOrderAdEnabled = b })
+	case KeyMiscFlowerRackEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FlowerRackEnabled = b })
+	case KeyMiscFlowerRackCraftEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FlowerRackCraftEnabled = b })
+	case KeyMiscFreeWaterEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FreeWaterEnabled = b })
+	case KeyMiscTaskMainRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.TaskMainRewardEnabled = b })
+	case KeyMiscTaskDailyRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.TaskDailyRewardEnabled = b })
+	case KeyMiscRoadGrowRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.RoadGrowRewardEnabled = b })
+	case KeyMiscRandomEventEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.RandomEventEnabled = b })
+	case KeyMiscFlowerArtRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FlowerArtRewardEnabled = b })
 	default:
 		if p.Extras == nil {
 			p.Extras = &structpb.Struct{Fields: map[string]*structpb.Value{}}
@@ -310,6 +348,16 @@ func ensureMisc(p *pb.Policy) {
 	if p.Misc == nil {
 		p.Misc = &pb.MiscPolicy{}
 	}
+}
+
+func setMiscBool(p *pb.Policy, value string, setter func(*pb.MiscPolicy, bool)) error {
+	ensureMisc(p)
+	b, err := parseBool(value)
+	if err != nil {
+		return err
+	}
+	setter(p.Misc, b)
+	return nil
 }
 
 func parseBool(s string) (bool, error) {
