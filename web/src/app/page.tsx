@@ -109,6 +109,7 @@ function DashboardContent() {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [deleteAccountTarget, setDeleteAccountTarget] = useState<Account | null>(null);
   const [busyAccountId, setBusyAccountId] = useState("");
   const [workspaceBusy, setWorkspaceBusy] = useState("");
   const [error, setError] = useState("");
@@ -484,6 +485,28 @@ function DashboardContent() {
     }
   }
 
+  async function deleteAccount(account: Account) {
+    setBusyAccountId(account.id);
+    setError("");
+    try {
+      await accountClient.deleteAccount({ id: account.id, name: account.name });
+      setDeleteAccountTarget(null);
+      setEvents((prev) => prev.filter((event) => event.accountId !== account.id));
+      if (selectedAccountIdRef.current === account.id) {
+        const nextAccount = accountsRef.current.find((item) => item.id !== account.id);
+        setSelectedAccountId(nextAccount?.id ?? "");
+        setSelectedSnapshot(null);
+        setPolicy(null);
+        setPolicyAccountId(nextAccount?.id ?? "");
+      }
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除账号失败");
+    } finally {
+      setBusyAccountId("");
+    }
+  }
+
   async function runSelectedAction(action: "start" | "stop") {
     if (!selectedAccount) return;
     setWorkspaceBusy(action);
@@ -609,6 +632,7 @@ function DashboardContent() {
             onStart={() => runSelectedAction("start")}
             onStop={() => runSelectedAction("stop")}
             onOpenSettings={() => setSettingsOpen(true)}
+            onDelete={() => selectedAccount && setDeleteAccountTarget(selectedAccount)}
           />
         </div>
       ) : (
@@ -629,6 +653,14 @@ function DashboardContent() {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onSuccess={fetchData}
+      />
+      <DeleteAccountDialog
+        account={deleteAccountTarget}
+        deleting={deleteAccountTarget ? busyAccountId === deleteAccountTarget.id : false}
+        onOpenChange={(open) => {
+          if (!open) setDeleteAccountTarget(null);
+        }}
+        onConfirm={() => deleteAccountTarget && deleteAccount(deleteAccountTarget)}
       />
       <SettingsDialog
         open={settingsOpen}
@@ -896,6 +928,7 @@ function AccountWorkspace({
   onStart,
   onStop,
   onOpenSettings,
+  onDelete,
 }: {
   account: Account | null;
   status?: AccountStatus;
@@ -915,6 +948,7 @@ function AccountWorkspace({
   onStart: () => void;
   onStop: () => void;
   onOpenSettings: () => void;
+  onDelete: () => void;
 }) {
   if (!account) {
     return (
@@ -975,6 +1009,17 @@ function AccountWorkspace({
             <Button variant="outline" size="sm" onClick={onOpenSettings}>
               <SlidersHorizontal className="size-3.5" />
               设置
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              disabled={busy}
+              onClick={onDelete}
+              aria-label={`删除账号 ${account.name}`}
+              title="删除账号"
+            >
+              <Trash2 className="size-3.5" />
             </Button>
           </div>
         </div>
@@ -1959,6 +2004,40 @@ function AddAccountDialog({
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteAccountDialog({
+  account,
+  deleting,
+  onOpenChange,
+  onConfirm,
+}: {
+  account: Account | null;
+  deleting: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={Boolean(account)} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>删除游戏账号</DialogTitle>
+          <DialogDescription>
+            {account ? `确定删除「${account.name}」吗？已保存的凭据、会话和策略会一起移除。` : "确定删除这个账号吗？"}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex-col-reverse sm:flex-row">
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={deleting}>
+            取消
+          </Button>
+          <Button type="button" variant="destructive" onClick={onConfirm} disabled={deleting}>
+            <Trash2 className="size-4" />
+            {deleting ? "删除中..." : "删除账号"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
