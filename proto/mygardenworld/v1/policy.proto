@@ -38,11 +38,16 @@ message PlantPolicy {
   bool enabled = 1;
 
   // Planting strategy:
-  //   auto       = fill task/order flower deficits first, then highest value.
-  //   low_stock  = lowest stock, compatible with the legacy behavior.
   //   high_value = highest value.
+  //   low_stock  = lowest stock.
   //   selected   = highest value from allowed_flower_ids.
+  //
+  // Task/order deficits are controlled separately by task_priority_enabled.
   string mode = 6;
+
+  // When true, fill task/order flower deficits before applying mode. Default:
+  // true. Disable it to let mode fully control planting.
+  optional bool task_priority_enabled = 7;
 
   // Deprecated: planting does not consume 230xx flower inventory.
   int32 min_stock = 2;

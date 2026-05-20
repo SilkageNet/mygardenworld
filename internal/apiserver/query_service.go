@@ -51,8 +51,7 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) *pb.Acco
 	r := svc.Manager.Get(acc.ID)
 	if r == nil {
 		entries, _ := svc.DB.LoadPolicyValues(ctx, acc.ID)
-		policy := automation.DefaultPolicy()
-		policycfg.ApplyEntries(policy, entries)
+		policy := policycfg.FromEntries(entries)
 		out.AutomationEnabled = policy.GetAutomationEnabled()
 		return out
 	}

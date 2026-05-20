@@ -32,6 +32,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
+	"github.com/SilkageNet/mygardenworld/internal/updatecmd"
 	"github.com/SilkageNet/mygardenworld/internal/webui"
 
 	"github.com/spf13/cobra"
@@ -44,7 +45,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	rootCmd.AddCommand(newServeCmd(), newVersionCmd())
+	rootCmd.AddCommand(newServeCmd(), newVersionCmd(), updatecmd.New("gardend"))
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

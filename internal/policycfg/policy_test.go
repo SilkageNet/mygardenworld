@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestFlattenApplyRoundTripIncludesMisc(t *testing.T) {
@@ -12,12 +13,13 @@ func TestFlattenApplyRoundTripIncludesMisc(t *testing.T) {
 		DecisionIntervalSeconds: 9,
 		Harvest:                 &pb.HarvestPolicy{Enabled: true, PreferOneKey: false},
 		Plant: &pb.PlantPolicy{
-			Enabled:          true,
-			Mode:             "selected",
-			MinStock:         3,
-			MaxBatch:         4,
-			AllowedFlowerIds: []int32{23001, 23002},
-			BlockedFlowerIds: []int32{23009},
+			Enabled:             true,
+			Mode:                "selected",
+			TaskPriorityEnabled: proto.Bool(false),
+			MinStock:            3,
+			MaxBatch:            4,
+			AllowedFlowerIds:    []int32{23001, 23002},
+			BlockedFlowerIds:    []int32{23009},
 		},
 		Water: &pb.WaterPolicy{Enabled: false, MaxBatch: 2, MinDrops: 7},
 		Misc: &pb.MiscPolicy{
@@ -40,6 +42,9 @@ func TestFlattenApplyRoundTripIncludesMisc(t *testing.T) {
 	}
 	if got.GetPlant().GetMode() != "selected" {
 		t.Fatalf("plant mode did not round-trip: %+v", got.GetPlant())
+	}
+	if got.GetPlant().GetTaskPriorityEnabled() {
+		t.Fatalf("task priority did not round-trip as disabled: %+v", got.GetPlant())
 	}
 	if len(got.GetPlant().GetAllowedFlowerIds()) != 2 || got.GetPlant().GetAllowedFlowerIds()[1] != 23002 {
 		t.Fatalf("allowed flower ids did not round-trip: %+v", got.GetPlant().GetAllowedFlowerIds())
@@ -66,7 +71,14 @@ func TestNormalizeFillsMissingSubPoliciesWithSafeDefaults(t *testing.T) {
 	if p.GetMisc().GetLandUnlockEnabled() || p.GetMisc().GetCultivateEnabled() || p.GetMisc().GetFlowerUpgradeEnabled() {
 		t.Fatalf("misc defaults should be opt-in: %+v", p.GetMisc())
 	}
-	if p.GetPlant().GetMode() != "auto" || p.GetWater().GetMinDrops() != 5 {
+	if p.GetPlant().GetMode() != "high_value" || !p.GetPlant().GetTaskPriorityEnabled() || p.GetWater().GetMinDrops() != 5 {
 		t.Fatalf("strategy defaults were not filled: plant=%+v water=%+v", p.GetPlant(), p.GetWater())
+	}
+}
+
+func TestSetKeyRejectsLegacyAutoPlantMode(t *testing.T) {
+	p := &pb.Policy{}
+	if err := SetKey(p, KeyPlantMode, "auto"); err == nil {
+		t.Fatal("expected legacy auto plant mode to be rejected")
 	}
 }

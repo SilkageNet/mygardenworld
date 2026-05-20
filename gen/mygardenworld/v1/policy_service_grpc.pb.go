@@ -36,7 +36,8 @@ type PolicyServiceClient interface {
 	// Patch a subset of policy keys, dot-path style. Examples:
 	//
 	//	"automation_enabled" = "true"
-	//	"plant.mode"         = "auto"
+	//	"plant.mode"         = "high_value"
+	//	"plant.task_priority_enabled" = "true"
 	//	"plant.allowed_flower_ids" = "23001,23005"
 	//
 	// Values are parsed against the proto field type.
@@ -93,7 +94,8 @@ type PolicyServiceServer interface {
 	// Patch a subset of policy keys, dot-path style. Examples:
 	//
 	//	"automation_enabled" = "true"
-	//	"plant.mode"         = "auto"
+	//	"plant.mode"         = "high_value"
+	//	"plant.task_priority_enabled" = "true"
 	//	"plant.allowed_flower_ids" = "23001,23005"
 	//
 	// Values are parsed against the proto field type.

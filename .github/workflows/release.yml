@@ -89,8 +89,12 @@ jobs:
             chmod +x "${OUTDIR}/install.sh"
 
             if [ "${GOOS}" = "windows" ]; then
+              test -x "${OUTDIR}/gardend.exe"
+              test -x "${OUTDIR}/gardenctl.exe"
               (cd dist && zip -r "${PKG}.zip" "${PKG}")
             else
+              test -x "${OUTDIR}/gardend"
+              test -x "${OUTDIR}/gardenctl"
               tar -czf "dist/${PKG}.tar.gz" -C dist "${PKG}"
             fi
           done

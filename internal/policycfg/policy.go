@@ -19,6 +19,7 @@ const (
 	KeyHarvestPreferOneKey      = "harvest.prefer_one_key"
 	KeyPlantEnabled             = "plant.enabled"
 	KeyPlantMode                = "plant.mode"
+	KeyPlantTaskPriorityEnabled = "plant.task_priority_enabled"
 	KeyPlantMinStock            = "plant.min_stock"
 	KeyPlantMaxBatch            = "plant.max_batch"
 	KeyPlantAllowedFlowerIDs    = "plant.allowed_flower_ids"
@@ -47,8 +48,9 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant == nil {
 		cp.Plant = proto.Clone(def.Plant).(*pb.PlantPolicy)
 	}
-	if cp.Plant.Mode == "" {
-		cp.Plant.Mode = def.Plant.Mode
+	cp.Plant.Mode = normalizePlantMode(cp.Plant.Mode)
+	if cp.Plant.TaskPriorityEnabled == nil {
+		cp.Plant.TaskPriorityEnabled = proto.Bool(def.Plant.GetTaskPriorityEnabled())
 	}
 	if cp.Plant.MaxBatch <= 0 {
 		cp.Plant.MaxBatch = def.Plant.MaxBatch
@@ -90,6 +92,7 @@ func Flatten(p *pb.Policy) map[string]string {
 		KeyHarvestPreferOneKey:      fmt.Sprintf("%t", p.GetHarvest().GetPreferOneKey()),
 		KeyPlantEnabled:             fmt.Sprintf("%t", p.GetPlant().GetEnabled()),
 		KeyPlantMode:                p.GetPlant().GetMode(),
+		KeyPlantTaskPriorityEnabled: fmt.Sprintf("%t", p.GetPlant().GetTaskPriorityEnabled()),
 		KeyPlantMinStock:            fmt.Sprintf("%d", p.GetPlant().GetMinStock()),
 		KeyPlantMaxBatch:            fmt.Sprintf("%d", p.GetPlant().GetMaxBatch()),
 		KeyPlantAllowedFlowerIDs:    joinInts(p.GetPlant().GetAllowedFlowerIds()),
@@ -153,7 +156,18 @@ func SetKey(p *pb.Policy, key, value string) error {
 		p.Plant.Enabled = b
 	case KeyPlantMode:
 		ensurePlant(p)
-		p.Plant.Mode = strings.TrimSpace(value)
+		mode, err := parsePlantMode(value)
+		if err != nil {
+			return err
+		}
+		p.Plant.Mode = mode
+	case KeyPlantTaskPriorityEnabled:
+		ensurePlant(p)
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		p.Plant.TaskPriorityEnabled = proto.Bool(b)
 	case KeyPlantMinStock:
 		ensurePlant(p)
 		n, err := strconv.Atoi(value)
@@ -251,6 +265,27 @@ func SetKey(p *pb.Policy, key, value string) error {
 		p.Extras.Fields[key] = structpb.NewStringValue(value)
 	}
 	return nil
+}
+
+func normalizePlantMode(mode string) string {
+	mode, err := parsePlantMode(mode)
+	if err != nil {
+		return automation.PlantModeHighValue
+	}
+	return mode
+}
+
+func parsePlantMode(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", automation.PlantModeHighValue:
+		return automation.PlantModeHighValue, nil
+	case automation.PlantModeLowStock:
+		return automation.PlantModeLowStock, nil
+	case automation.PlantModeSelected:
+		return automation.PlantModeSelected, nil
+	default:
+		return "", fmt.Errorf("invalid plant mode %q (want high_value, low_stock, or selected)", value)
+	}
 }
 
 func ensureHarvest(p *pb.Policy) {

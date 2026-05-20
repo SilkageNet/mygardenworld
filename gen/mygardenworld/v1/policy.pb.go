@@ -182,11 +182,15 @@ type PlantPolicy struct {
 	Enabled bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	// Planting strategy:
 	//
-	//	auto       = fill task/order flower deficits first, then highest value.
-	//	low_stock  = lowest stock, compatible with the legacy behavior.
 	//	high_value = highest value.
+	//	low_stock  = lowest stock.
 	//	selected   = highest value from allowed_flower_ids.
+	//
+	// Task/order deficits are controlled separately by task_priority_enabled.
 	Mode string `protobuf:"bytes,6,opt,name=mode,proto3" json:"mode,omitempty"`
+	// When true, fill task/order flower deficits before applying mode. Default:
+	// true. Disable it to let mode fully control planting.
+	TaskPriorityEnabled *bool `protobuf:"varint,7,opt,name=task_priority_enabled,json=taskPriorityEnabled,proto3,oneof" json:"task_priority_enabled,omitempty"`
 	// Deprecated: planting does not consume 230xx flower inventory.
 	MinStock int32 `protobuf:"varint,2,opt,name=min_stock,json=minStock,proto3" json:"min_stock,omitempty"`
 	// If non-empty, only these flower ids are considered for planting (whitelist).
@@ -243,6 +247,13 @@ func (x *PlantPolicy) GetMode() string {
 		return x.Mode
 	}
 	return ""
+}
+
+func (x *PlantPolicy) GetTaskPriorityEnabled() bool {
+	if x != nil && x.TaskPriorityEnabled != nil {
+		return *x.TaskPriorityEnabled
+	}
+	return false
 }
 
 func (x *PlantPolicy) GetMinStock() int32 {
@@ -442,14 +453,16 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x06extras\x18c \x01(\v2\x17.google.protobuf.StructR\x06extras\"O\n" +
 	"\rHarvestPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12$\n" +
-	"\x0eprefer_one_key\x18\x02 \x01(\bR\fpreferOneKey\"\xd1\x01\n" +
+	"\x0eprefer_one_key\x18\x02 \x01(\bR\fpreferOneKey\"\xa4\x02\n" +
 	"\vPlantPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x12\n" +
-	"\x04mode\x18\x06 \x01(\tR\x04mode\x12\x1b\n" +
+	"\x04mode\x18\x06 \x01(\tR\x04mode\x127\n" +
+	"\x15task_priority_enabled\x18\a \x01(\bH\x00R\x13taskPriorityEnabled\x88\x01\x01\x12\x1b\n" +
 	"\tmin_stock\x18\x02 \x01(\x05R\bminStock\x12,\n" +
 	"\x12allowed_flower_ids\x18\x03 \x03(\x05R\x10allowedFlowerIds\x12,\n" +
 	"\x12blocked_flower_ids\x18\x04 \x03(\x05R\x10blockedFlowerIds\x12\x1b\n" +
-	"\tmax_batch\x18\x05 \x01(\x05R\bmaxBatch\"a\n" +
+	"\tmax_batch\x18\x05 \x01(\x05R\bmaxBatchB\x18\n" +
+	"\x16_task_priority_enabled\"a\n" +
 	"\vWaterPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1b\n" +
 	"\tmax_batch\x18\x02 \x01(\x05R\bmaxBatch\x12\x1b\n" +
@@ -504,6 +517,7 @@ func file_mygardenworld_v1_policy_proto_init() {
 	if File_mygardenworld_v1_policy_proto != nil {
 		return
 	}
+	file_mygardenworld_v1_policy_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

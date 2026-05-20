@@ -103,9 +103,17 @@ tasks:
     cmds:
       - buf generate --template buf.gen.web.yaml
 
+  frontend:deps:
+    desc: Install frontend dependencies
+    aliases: [web-deps]
+    dir: web
+    cmds:
+      - pnpm install --frozen-lockfile
+
   frontend:
     desc: Start Next.js dev server
     aliases: [web, web-dev]
+    deps: [frontend:deps]
     dir: web
     env:
       NEXT_PUBLIC_API_URL: '{{.API_URL}}'
@@ -115,6 +123,7 @@ tasks:
   frontend:build:
     desc: Build Next.js for production
     aliases: [web-build]
+    deps: [frontend:deps]
     dir: web
     env:
       NEXT_PUBLIC_API_URL: '{{.API_URL}}'
@@ -124,6 +133,7 @@ tasks:
   frontend:lint:
     desc: Run frontend lint
     aliases: [web-lint]
+    deps: [frontend:deps]
     dir: web
     cmds:
       - pnpm lint

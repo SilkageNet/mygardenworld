@@ -24,7 +24,7 @@ func (svc *Services) GetPolicy(ctx context.Context, req *connect.Request[pb.GetP
 		policy = r.Policy()
 	} else {
 		entries, _ := svc.DB.LoadPolicyValues(ctx, acc.ID)
-		policycfg.ApplyEntries(policy, entries)
+		policy = policycfg.FromEntries(entries)
 	}
 	return connect.NewResponse(&pb.GetPolicyResponse{Policy: policy}), nil
 }
@@ -58,7 +58,7 @@ func (svc *Services) UpdatePolicy(ctx context.Context, req *connect.Request[pb.U
 		policy = r.Policy()
 	} else {
 		entries, _ := svc.DB.LoadPolicyValues(ctx, acc.ID)
-		policycfg.ApplyEntries(policy, entries)
+		policy = policycfg.FromEntries(entries)
 	}
 
 	resp := &pb.UpdatePolicyResponse{}

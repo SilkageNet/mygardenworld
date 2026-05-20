@@ -101,7 +101,15 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if _, err := sqldb.ExecContext(ctx, schema); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
 	}
+	if err := migratePolicyRows(ctx, sqldb); err != nil {
+		return nil, fmt.Errorf("policy migration: %w", err)
+	}
 	return &DB{DB: sqldb}, nil
+}
+
+func migratePolicyRows(ctx context.Context, db *sql.DB) error {
+	_, err := db.ExecContext(ctx, `UPDATE policies SET value = 'high_value', updated_at = CURRENT_TIMESTAMP WHERE key = 'plant.mode' AND value = 'auto'`)
+	return err
 }
 
 // Account is the row shape we hand to the API layer. Password is *not*

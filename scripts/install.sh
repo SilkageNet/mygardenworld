@@ -97,4 +97,4 @@ if [ "${PATH_UPDATED:-false}" = "true" ]; then
   echo "Added ${DEST_DIR} to ${PROFILE}. Restart your terminal or run: export PATH=\"${DEST_DIR}:\$PATH\""
 fi
 echo "Run: gardend --help"
-
+echo "Run: gardenctl --help"

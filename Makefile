@@ -1,4 +1,4 @@
-.PHONY: default help install build require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test lint proto-gen proto-gen-web frontend web web-dev frontend\:build web-build frontend\:lint web-lint dev dev\:debug check clean
+.PHONY: default help install build require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test lint proto-gen proto-gen-web frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint dev dev\:debug check clean
 
 BIN_DIR ?= bin
 DATA_DIR ?= data
@@ -44,6 +44,7 @@ help:
 	@echo "  lint                 Run golangci-lint"
 	@echo "  proto-gen            Generate Go protobuf code"
 	@echo "  proto-gen-web        Generate TypeScript protobuf code"
+	@echo "  frontend:deps        Install frontend dependencies"
 	@echo "  frontend | web-dev   Start Next.js dev server"
 	@echo "  frontend:build       Build Next.js for production"
 	@echo "  frontend:lint        Run frontend lint"
@@ -88,17 +89,22 @@ proto-gen:
 proto-gen-web:
 	buf generate --template buf.gen.web.yaml
 
-frontend:
+frontend\:deps:
+	pnpm --dir web install --frozen-lockfile
+
+web-deps: frontend\:deps
+
+frontend: frontend\:deps
 	$(FRONTEND_DEV)
 
 web web-dev: frontend
 
-frontend\:build:
+frontend\:build: frontend\:deps
 	$(FRONTEND_BUILD)
 
 web-build: frontend\:build
 
-frontend\:lint:
+frontend\:lint: frontend\:deps
 	pnpm --dir web lint
 
 web-lint: frontend\:lint

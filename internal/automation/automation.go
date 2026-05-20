@@ -12,6 +12,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/proto"
 )
 
 // Recommendation kinds. Stable strings; matched against `Policy` knobs and
@@ -25,7 +26,6 @@ const (
 )
 
 const (
-	PlantModeAuto      = "auto"
 	PlantModeLowStock  = "low_stock"
 	PlantModeHighValue = "high_value"
 	PlantModeSelected  = "selected"
@@ -223,13 +223,11 @@ func selectPlantFlower(s *state.State, policy *pb.PlantPolicy) (int32, int32, in
 		return 0, 0, 0
 	}
 
-	if mode == PlantModeAuto {
+	if plantTaskPriorityEnabled(policy) {
 		deficits := s.FlowerOrderDeficits()
 		if candidate, deficit, ok := bestDeficitCandidate(candidates, deficits); ok {
 			return candidate.FlowerID, candidate.Stock, deficit
 		}
-		candidate := bestValueCandidate(candidates)
-		return candidate.FlowerID, candidate.Stock, 0
 	}
 	if mode == PlantModeHighValue || mode == PlantModeSelected {
 		candidate := bestValueCandidate(candidates)
@@ -237,6 +235,13 @@ func selectPlantFlower(s *state.State, policy *pb.PlantPolicy) (int32, int32, in
 	}
 	candidate := lowestStockCandidate(candidates)
 	return candidate.FlowerID, candidate.Stock, 0
+}
+
+func plantTaskPriorityEnabled(policy *pb.PlantPolicy) bool {
+	if policy == nil || policy.TaskPriorityEnabled == nil {
+		return true
+	}
+	return policy.GetTaskPriorityEnabled()
 }
 
 func bestDeficitCandidate(candidates []state.PlantableFlower, deficits map[int32]int32) (state.PlantableFlower, int32, bool) {
@@ -290,10 +295,10 @@ func normalizePlantMode(mode string) string {
 		return PlantModeHighValue
 	case PlantModeSelected:
 		return PlantModeSelected
-	case PlantModeAuto, "":
-		return PlantModeAuto
+	case "":
+		return PlantModeHighValue
 	default:
-		return PlantModeAuto
+		return PlantModeHighValue
 	}
 }
 
@@ -312,7 +317,7 @@ func DefaultPolicy() *pb.Policy {
 	return &pb.Policy{
 		AutomationEnabled:       false,
 		Harvest:                 &pb.HarvestPolicy{Enabled: true, PreferOneKey: true},
-		Plant:                   &pb.PlantPolicy{Enabled: true, Mode: PlantModeAuto, MinStock: 0, MaxBatch: 8},
+		Plant:                   &pb.PlantPolicy{Enabled: true, Mode: PlantModeHighValue, TaskPriorityEnabled: proto.Bool(true), MinStock: 0, MaxBatch: 8},
 		Water:                   &pb.WaterPolicy{Enabled: true, MaxBatch: 8, MinDrops: 5},
 		Misc:                    &pb.MiscPolicy{},
 		DecisionIntervalSeconds: 4,

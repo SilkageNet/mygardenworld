@@ -6,6 +6,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/proto"
 )
 
 // TestRecommend covers the per-land state machine. The mapping is anchored
@@ -469,7 +470,7 @@ func TestPlan_WaterHonorsMinDrops(t *testing.T) {
 	}
 }
 
-func TestPlan_AutoPlantPrioritizesOrderDeficit(t *testing.T) {
+func TestPlan_TaskPriorityPrioritizesOrderDeficit(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -485,7 +486,7 @@ func TestPlan_AutoPlantPrioritizesOrderDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeAuto
+	policy.Plant.Mode = PlantModeLowStock
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -496,7 +497,7 @@ func TestPlan_AutoPlantPrioritizesOrderDeficit(t *testing.T) {
 	}
 }
 
-func TestPlan_AutoPlantPrioritizesCustomerOrderDeficit(t *testing.T) {
+func TestPlan_TaskPriorityPrioritizesCustomerOrderDeficit(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -512,7 +513,7 @@ func TestPlan_AutoPlantPrioritizesCustomerOrderDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeAuto
+	policy.Plant.Mode = PlantModeLowStock
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -523,7 +524,7 @@ func TestPlan_AutoPlantPrioritizesCustomerOrderDeficit(t *testing.T) {
 	}
 }
 
-func TestPlan_AutoPlantPrioritizesMainTaskFlower(t *testing.T) {
+func TestPlan_TaskPriorityPrioritizesMainTaskFlower(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -537,7 +538,7 @@ func TestPlan_AutoPlantPrioritizesMainTaskFlower(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeAuto
+	policy.Plant.Mode = PlantModeLowStock
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -548,7 +549,7 @@ func TestPlan_AutoPlantPrioritizesMainTaskFlower(t *testing.T) {
 	}
 }
 
-func TestPlan_AutoPlantUsesHighestValueWithoutDeficit(t *testing.T) {
+func TestPlan_TaskPriorityUsesModeWithoutDeficit(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -562,7 +563,7 @@ func TestPlan_AutoPlantUsesHighestValueWithoutDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeAuto
+	policy.Plant.Mode = PlantModeHighValue
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -574,7 +575,7 @@ func TestPlan_AutoPlantUsesHighestValueWithoutDeficit(t *testing.T) {
 	}
 }
 
-func TestPlan_AutoPlantCapsBatchByDeficit(t *testing.T) {
+func TestPlan_TaskPriorityCapsBatchByDeficit(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -591,7 +592,7 @@ func TestPlan_AutoPlantCapsBatchByDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeAuto
+	policy.Plant.Mode = PlantModeHighValue
 	policy.Plant.MaxBatch = 8
 
 	op := Plan(s, policy, time.Now())
@@ -606,7 +607,7 @@ func TestPlan_AutoPlantCapsBatchByDeficit(t *testing.T) {
 	}
 }
 
-func TestPlan_AutoPlantPrioritizesZeroStockDeficit(t *testing.T) {
+func TestPlan_TaskPriorityPrioritizesZeroStockDeficit(t *testing.T) {
 	s := state.New()
 	applyLands(s, map[int32]state.LandView{
 		1001: {Observed: true},
@@ -623,7 +624,7 @@ func TestPlan_AutoPlantPrioritizesZeroStockDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeAuto
+	policy.Plant.Mode = PlantModeHighValue
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -634,6 +635,34 @@ func TestPlan_AutoPlantPrioritizesZeroStockDeficit(t *testing.T) {
 	}
 	if len(op.LandIDs) != 2 {
 		t.Fatalf("lands=%v, want capped to deficit 2", op.LandIDs)
+	}
+}
+
+func TestPlan_TaskPriorityCanBeDisabled(t *testing.T) {
+	s := state.New()
+	applyLands(s, map[int32]state.LandView{
+		1001: {Observed: true},
+	})
+	setInventory(s, map[int32]int32{23001: 1, 23005: 100})
+	setCultivations(s, map[int32]state.CultivateView{
+		23001: {Lvl: 1, Status: 2},
+		23005: {Lvl: 1, Status: 2},
+	})
+	setFlowerOrders(s, map[int32][]state.FlowerRequire{
+		1: {{FlowerID: 23005, Count: 120}},
+	})
+
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Plant.Mode = PlantModeLowStock
+	policy.Plant.TaskPriorityEnabled = proto.Bool(false)
+
+	op := Plan(s, policy, time.Now())
+	if op == nil {
+		t.Fatal("expected plant op")
+	}
+	if op.FlowerID != 23001 {
+		t.Fatalf("got flower=%d, want low-stock flower 23001 when task priority is disabled", op.FlowerID)
 	}
 }
 

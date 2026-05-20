@@ -1613,9 +1613,8 @@ function eventMatchesLogFilter(event: Event, category: string): boolean {
 }
 
 const PLANT_MODE_OPTIONS = [
-  { value: "auto", label: "自动", description: "任务和订单缺花优先，否则选择价值高的花。" },
-  { value: "high_value", label: "高价值", description: "始终优先选择金币收益更高的花。" },
-  { value: "low_stock", label: "低库存", description: "优先补库存最低的花，保留旧策略。" },
+  { value: "high_value", label: "高价值", description: "按金币收益和经验选择花。" },
+  { value: "low_stock", label: "低库存", description: "优先补当前库存最低的花。" },
   { value: "selected", label: "自选", description: "只从你勾选的花里选择种植。" },
 ] as const;
 
@@ -1638,7 +1637,8 @@ function SettingsDialog({
   message: string;
   onSave: () => void;
 }) {
-  const plantMode = policy?.plant?.mode || "auto";
+  const plantMode = policy?.plant?.mode || "high_value";
+  const plantTaskPriorityEnabled = policy?.plant?.taskPriorityEnabled ?? true;
   const [flowerQuery, setFlowerQuery] = useState("");
   const selectedFlowerIds = useMemo(() => new Set(policy?.plant?.allowedFlowerIds ?? []), [policy?.plant?.allowedFlowerIds]);
   const visibleFlowers = useMemo(() => {
@@ -1706,10 +1706,11 @@ function SettingsDialog({
                     <CardContent className="space-y-3">
                       <div className="grid gap-2 sm:grid-cols-2">
                         <Row label="自动种植"><Switch checked={policy.plant?.enabled ?? true} onCheckedChange={(v: boolean) => updatePlant({ enabled: v })} /></Row>
+                        <Row label="任务优先"><Switch checked={plantTaskPriorityEnabled} onCheckedChange={(v: boolean) => updatePlant({ taskPriorityEnabled: v })} /></Row>
                         <Row label="批量上限"><Input type="number" className="h-8 w-20 text-xs" value={policy.plant?.maxBatch ?? 8} onChange={(e) => updatePlant({ maxBatch: parseNumber(e.target.value, 8) })} /></Row>
                       </div>
 
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      <div className="grid gap-2 sm:grid-cols-3">
                         {PLANT_MODE_OPTIONS.map((option) => (
                           <button
                             key={option.value}

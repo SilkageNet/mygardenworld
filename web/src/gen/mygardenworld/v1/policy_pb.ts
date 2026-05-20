@@ -11,7 +11,7 @@ import type { JsonObject, Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/policy.proto.
  */
 export const file_mygardenworld_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIooBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFIkQKC1dhdGVyUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSEQoJbWF4X2JhdGNoGAIgASgFEhEKCW1pbl9kcm9wcxgDIAEoBSLQAQoKTWlzY1BvbGljeRIbChNsYW5kX3VubG9ja19lbmFibGVkGAEgASgIEhkKEXRhc2tfcmVjdl9lbmFibGVkGAIgASgIEhwKFHN0b3J5X3VubG9ja19lbmFibGVkGAMgASgIEhUKDW9yZGVyX2VuYWJsZWQYBCABKAgSGgoSd2F0ZXJ3aGVlbF9lbmFibGVkGAUgASgIEhkKEWN1bHRpdmF0ZV9lbmFibGVkGAYgASgIEh4KFmZsb3dlcl91cGdyYWRlX2VuYWJsZWQYByABKAhChAEKFGNvbS5teWdhcmRlbndvcmxkLnYxQgtQb2xpY3lQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_struct]);
+  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIsgBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSIgoVdGFza19wcmlvcml0eV9lbmFibGVkGAcgASgISACIAQESEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFQhgKFl90YXNrX3ByaW9yaXR5X2VuYWJsZWQiRAoLV2F0ZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgltYXhfYmF0Y2gYAiABKAUSEQoJbWluX2Ryb3BzGAMgASgFItABCgpNaXNjUG9saWN5EhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYASABKAgSGQoRdGFza19yZWN2X2VuYWJsZWQYAiABKAgSHAoUc3RvcnlfdW5sb2NrX2VuYWJsZWQYAyABKAgSFQoNb3JkZXJfZW5hYmxlZBgEIAEoCBIaChJ3YXRlcndoZWVsX2VuYWJsZWQYBSABKAgSGQoRY3VsdGl2YXRlX2VuYWJsZWQYBiABKAgSHgoWZmxvd2VyX3VwZ3JhZGVfZW5hYmxlZBgHIAEoCEKEAQoUY29tLm15Z2FyZGVud29ybGQudjFCC1BvbGljeVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_struct]);
 
 /**
  * Policy is a typed bag of switches and thresholds the automation engine
@@ -109,14 +109,23 @@ export type PlantPolicy = Message<"mygardenworld.v1.PlantPolicy"> & {
 
   /**
    * Planting strategy:
-   *   auto       = fill task/order flower deficits first, then highest value.
-   *   low_stock  = lowest stock, compatible with the legacy behavior.
    *   high_value = highest value.
+   *   low_stock  = lowest stock.
    *   selected   = highest value from allowed_flower_ids.
+   *
+   * Task/order deficits are controlled separately by task_priority_enabled.
    *
    * @generated from field: string mode = 6;
    */
   mode: string;
+
+  /**
+   * When true, fill task/order flower deficits before applying mode. Default:
+   * true. Disable it to let mode fully control planting.
+   *
+   * @generated from field: optional bool task_priority_enabled = 7;
+   */
+  taskPriorityEnabled?: boolean | undefined;
 
   /**
    * Deprecated: planting does not consume 230xx flower inventory.

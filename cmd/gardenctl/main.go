@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
+	"github.com/SilkageNet/mygardenworld/internal/updatecmd"
 	"github.com/spf13/cobra"
 )
 
@@ -69,6 +70,7 @@ func newRootCmd() *cobra.Command {
 		newSnapshotCmd(opts),
 		newWatchCmd(opts),
 		newVersionCmd(),
+		updatecmd.New("gardenctl"),
 	)
 	return root
 }

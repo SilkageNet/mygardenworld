@@ -83,3 +83,4 @@ if ($PathParts -notcontains $InstallDir) {
 
 Write-Host "Installed gardend and gardenctl to $InstallDir"
 Write-Host "Run: gardend --help"
+Write-Host "Run: gardenctl --help"
