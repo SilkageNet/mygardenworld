@@ -68,6 +68,7 @@ func newRootCmd() *cobra.Command {
 		newAutomationCmd(opts),
 		newStatusCmd(opts),
 		newSnapshotCmd(opts),
+		newHarvestStatsCmd(opts),
 		newWatchCmd(opts),
 		newVersionCmd(),
 		updatecmd.New("gardenctl"),

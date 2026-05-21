@@ -72,17 +72,18 @@ type Runner struct {
 	lastWaterSyncTick time.Time // 节流水资源状态刷新
 	lastEventAt       time.Time // latest event emitted by this runner
 
-	landUnlockBlocked     bool // 上次尝试无效果，等待条件变化
-	taskRecvBlocked       bool
-	storyUnlockBlocked    bool
-	waterBlocked          bool                         // 水滴不足，冷却后重试
-	waterBlockedUntil     time.Time                    // 缺水后下一次允许试探浇水的时间
-	harvestBlockedUntil   map[int32]time.Time          // 服务端提示未成熟后，按田地短期冷却
-	freeWaterBlockedUntil time.Time                    // freeWater.recv 失败后的下一次试探时间
-	dailyTaskBlockedUntil time.Time                    // taskDly.recv 失败后的下一次试探时间
-	flowerUpgradeBlocked  map[int32]flowerUpgradeBlock // 升级材料不足，等待材料变化或短期冷却
-	cultivateBlocked      map[int32]time.Time          // 培育材料不足或配置未知，短期冷却
-	prevLevel             int32                        // 用于检测升级
+	landUnlockBlocked         bool // 上次尝试无效果，等待条件变化
+	taskRecvBlocked           bool
+	storyUnlockBlocked        bool
+	waterBlocked              bool                         // 水滴不足，冷却后重试
+	waterBlockedUntil         time.Time                    // 缺水后下一次允许试探浇水的时间
+	harvestBlockedUntil       map[int32]time.Time          // 服务端提示未成熟后，按田地短期冷却
+	freeWaterBlockedUntil     time.Time                    // freeWater.recv 失败后的下一次试探时间
+	dailyTaskBlockedUntil     time.Time                    // taskDly.recv 失败后的下一次试探时间
+	residentOrderBlockedUntil time.Time                    // 居民订单达到当天上限后的下一次试探时间
+	flowerUpgradeBlocked      map[int32]flowerUpgradeBlock // 升级材料不足，等待材料变化或短期冷却
+	cultivateBlocked          map[int32]time.Time          // 培育材料不足或配置未知，短期冷却
+	prevLevel                 int32                        // 用于检测升级
 
 	debugWriter *babigame.DebugFrameWriter
 

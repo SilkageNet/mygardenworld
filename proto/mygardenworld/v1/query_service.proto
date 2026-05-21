@@ -12,6 +12,9 @@ service QueryService {
   // inventory map for the seed range, role identity.
   rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
 
+  // Summarise harvested rewards from the most recent contiguous harvest run.
+  rpc GetHarvestStats(GetHarvestStatsRequest) returns (GetHarvestStatsResponse);
+
   // Stream of every event the runner emits (analogous to the Python bot's
   // JSONL log). Supports filter + per-account scoping.
   rpc StreamEvents(StreamEventsRequest) returns (stream Event);
@@ -114,6 +117,45 @@ message RequirementView {
   // True when the requirement is a flower item that auto-plant can use as a
   // planting deficit source.
   bool planting_relevant = 6;
+}
+
+message GetHarvestStatsRequest {
+  // Optional: limit to one account. Empty = all visible accounts.
+  string account_id = 1;
+  string account_name = 2;
+  // Empty/zero uses the daemon default of 1800 seconds.
+  int32 run_gap_seconds = 3;
+  // Optional per-account item cap. Zero returns all items.
+  int32 limit_items = 4;
+}
+
+message GetHarvestStatsResponse {
+  google.protobuf.Timestamp window_start = 1;
+  google.protobuf.Timestamp window_end = 2;
+  int32 run_gap_seconds = 3;
+  int32 harvest_ops = 4;
+  repeated AccountHarvestStats accounts = 5;
+}
+
+message AccountHarvestStats {
+  string account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp first_harvest_at = 3;
+  google.protobuf.Timestamp last_harvest_at = 4;
+  int32 harvest_ops = 5;
+  int64 experience_total = 6;
+  int64 flower_total = 7;
+  int64 essence_total = 8;
+  int64 other_total = 9;
+  repeated HarvestItemTotal items = 10;
+}
+
+message HarvestItemTotal {
+  int32 item_id = 1;
+  string item_name = 2;
+  int64 count = 3;
+  // experience|flower|essence|item
+  string category = 4;
 }
 
 message StreamEventsRequest {

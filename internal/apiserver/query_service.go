@@ -109,6 +109,124 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	return connect.NewResponse(resp), nil
 }
 
+func (svc *Services) GetHarvestStats(ctx context.Context, req *connect.Request[pb.GetHarvestStatsRequest]) (*connect.Response[pb.GetHarvestStatsResponse], error) {
+	var accountIDs []int64
+	if req.Msg.GetAccountId() != "" || req.Msg.GetAccountName() != "" {
+		acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		accountIDs = []int64{acc.ID}
+	}
+	var userID int64
+	if len(accountIDs) == 0 && !auth.IsAdmin(ctx) {
+		userID = auth.UserIDFromContext(ctx)
+	}
+	runGap := time.Duration(req.Msg.GetRunGapSeconds()) * time.Second
+	stats, err := svc.DB.LatestHarvestStats(ctx, store.HarvestStatsOptions{
+		AccountIDs: accountIDs,
+		UserID:     userID,
+		RunGap:     runGap,
+	})
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return connect.NewResponse(harvestStatsProto(stats, req.Msg.GetLimitItems())), nil
+}
+
+func harvestStatsProto(stats *store.HarvestStats, limitItems int32) *pb.GetHarvestStatsResponse {
+	resp := &pb.GetHarvestStatsResponse{
+		RunGapSeconds: int32(stats.RunGap.Seconds()),
+		HarvestOps:    int32(stats.HarvestOps),
+	}
+	if !stats.WindowStart.IsZero() {
+		resp.WindowStart = timestamppb.New(stats.WindowStart)
+	}
+	if !stats.WindowEnd.IsZero() {
+		resp.WindowEnd = timestamppb.New(stats.WindowEnd)
+	}
+	for _, account := range stats.Accounts {
+		out := &pb.AccountHarvestStats{
+			AccountId:   fmt.Sprintf("%d", account.AccountID),
+			AccountName: account.AccountName,
+			HarvestOps:  int32(account.HarvestOps),
+		}
+		if !account.FirstHarvestAt.IsZero() {
+			out.FirstHarvestAt = timestamppb.New(account.FirstHarvestAt)
+		}
+		if !account.LastHarvestAt.IsZero() {
+			out.LastHarvestAt = timestamppb.New(account.LastHarvestAt)
+		}
+		items := append([]store.HarvestItemTotal(nil), account.Items...)
+		for _, item := range items {
+			switch harvestItemCategory(item.ItemID) {
+			case "experience":
+				out.ExperienceTotal += item.Count
+			case "flower":
+				out.FlowerTotal += item.Count
+			case "essence":
+				out.EssenceTotal += item.Count
+			default:
+				out.OtherTotal += item.Count
+			}
+		}
+		sort.Slice(items, func(i, j int) bool {
+			ci, cj := harvestItemCategory(items[i].ItemID), harvestItemCategory(items[j].ItemID)
+			if rankHarvestCategory(ci) != rankHarvestCategory(cj) {
+				return rankHarvestCategory(ci) < rankHarvestCategory(cj)
+			}
+			if items[i].Count != items[j].Count {
+				return items[i].Count > items[j].Count
+			}
+			return items[i].ItemID < items[j].ItemID
+		})
+		if limitItems > 0 && len(items) > int(limitItems) {
+			items = items[:limitItems]
+		}
+		for _, item := range items {
+			category := harvestItemCategory(item.ItemID)
+			name := state.ItemName(item.ItemID)
+			if name == "" {
+				name = fmt.Sprintf("#%d", item.ItemID)
+			}
+			out.Items = append(out.Items, &pb.HarvestItemTotal{
+				ItemId:   item.ItemID,
+				ItemName: name,
+				Count:    item.Count,
+				Category: category,
+			})
+		}
+		resp.Accounts = append(resp.Accounts, out)
+	}
+	return resp
+}
+
+func harvestItemCategory(itemID int32) string {
+	switch {
+	case itemID == 2:
+		return "experience"
+	case state.IsFlowerItemID(itemID):
+		return "flower"
+	case itemID >= 22000 && itemID < 23000:
+		return "essence"
+	default:
+		return "item"
+	}
+}
+
+func rankHarvestCategory(category string) int {
+	switch category {
+	case "experience":
+		return 0
+	case "flower":
+		return 1
+	case "essence":
+		return 2
+	default:
+		return 3
+	}
+}
+
 func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 	inventory := st.Inventory()
 	var out []*pb.PendingTaskView

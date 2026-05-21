@@ -132,3 +132,19 @@ func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 		t.Fatalf("applyHarvestBlocks()=%+v, want original op", got)
 	}
 }
+
+func TestResidentOrderDailyLimitHelpers(t *testing.T) {
+	if !isResidentOrderDailyLimit("今日完成订单次数已达上限") {
+		t.Fatal("daily limit message was not recognized")
+	}
+	if isResidentOrderDailyLimit("鲜花数量不足") {
+		t.Fatal("unrelated order error was recognized as daily limit")
+	}
+
+	loc := time.FixedZone("CST", 8*60*60)
+	got := nextLocalDay(time.Date(2026, 5, 21, 8, 19, 50, 0, loc))
+	want := time.Date(2026, 5, 22, 0, 5, 0, 0, loc)
+	if !got.Equal(want) {
+		t.Fatalf("nextLocalDay()=%s, want %s", got, want)
+	}
+}

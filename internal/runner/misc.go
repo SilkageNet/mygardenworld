@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
@@ -184,6 +185,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	storyUnlockBlocked := r.storyUnlockBlocked
 	freeWaterBlockedUntil := r.freeWaterBlockedUntil
 	dailyTaskBlockedUntil := r.dailyTaskBlockedUntil
+	residentOrderBlockedUntil := r.residentOrderBlockedUntil
 	r.mu.RUnlock()
 	misc := policy.GetMisc()
 
@@ -234,7 +236,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 
 	// 居民订单
-	if misc.GetResidentOrderEnabled() {
+	if misc.GetResidentOrderEnabled() && time.Now().After(residentOrderBlockedUntil) {
 		inv := r.state.FlowerInventory()
 		orders := r.state.FlowerOrders()
 		for boxID := int32(1); boxID <= 6; boxID++ {
@@ -261,7 +263,18 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 				break
 			}
 			if d.IsError() {
-				r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("完成居民订单 #%d: %s", boxID, d.ErrorMsg())})
+				msg := d.ErrorMsg()
+				if isResidentOrderDailyLimit(msg) {
+					until := nextLocalDay(time.Now())
+					r.setResidentOrderBlockedUntil(until)
+					r.emit(Event{
+						Kind:    "order_finish",
+						Message: fmt.Sprintf("居民订单今日次数已达上限，暂停到 %s 后重试", until.Format("2006-01-02 15:04")),
+						Level:   "warn",
+					})
+					break
+				}
+				r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("完成居民订单 #%d: %s", boxID, msg)})
 				continue
 			}
 			if babigame.HasPayload(v) {
@@ -584,6 +597,22 @@ func (r *Runner) setDailyTaskBlockedUntil(until time.Time) {
 	r.mu.Lock()
 	r.dailyTaskBlockedUntil = until
 	r.mu.Unlock()
+}
+
+func (r *Runner) setResidentOrderBlockedUntil(until time.Time) {
+	r.mu.Lock()
+	r.residentOrderBlockedUntil = until
+	r.mu.Unlock()
+}
+
+func isResidentOrderDailyLimit(msg string) bool {
+	return strings.Contains(msg, "今日完成订单次数已达上限")
+}
+
+func nextLocalDay(now time.Time) time.Time {
+	y, m, d := now.Local().Date()
+	loc := now.Local().Location()
+	return time.Date(y, m, d+1, 0, 5, 0, 0, loc)
 }
 
 func flowerLabel(fid int32) string {

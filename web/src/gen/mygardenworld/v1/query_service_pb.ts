@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/query_service.proto.
  */
 export const file_mygardenworld_v1_query_service: GenFile = /*@__PURE__*/
-  fileDesc("CiRteWdhcmRlbndvcmxkL3YxL3F1ZXJ5X3NlcnZpY2UucHJvdG8SEG15Z2FyZGVud29ybGQudjEiPAoQR2V0U3RhdHVzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSJGChFHZXRTdGF0dXNSZXNwb25zZRIxCghhY2NvdW50cxgBIAMoCzIfLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cyK5AgoNQWNjb3VudFN0YXR1cxISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIRCgljb25uZWN0ZWQYAyABKAgSMQoNbGFzdF9ldmVudF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLa25vd25fbGFuZHMYBSABKAUSPAoHYnlfa2luZBgHIAMoCzIrLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cy5CeUtpbmRFbnRyeRIaChJmbG93ZXJfc3RvY2tfdG90YWwYCCABKAUSGgoSYXV0b21hdGlvbl9lbmFibGVkGAkgASgIGi0KC0J5S2luZEVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBToCOAEiPgoSR2V0U25hcHNob3RSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJIqAEChNHZXRTbmFwc2hvdFJlc3BvbnNlEhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEikKBWxhbmRzGAMgAygLMhoubXlnYXJkZW53b3JsZC52MS5MYW5kVmlldxJHCglpbnZlbnRvcnkYBCADKAsyNC5teWdhcmRlbndvcmxkLnYxLkdldFNuYXBzaG90UmVzcG9uc2UuSW52ZW50b3J5RW50cnkSDwoHcm9sZV9pZBgFIAEoAxIRCglyb2xlX25hbWUYBiABKAkSLwoLY2FwdHVyZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBGdvbGQYCCABKAUSEwoLd2F0ZXJfZHJvcHMYCSABKAUSGQoRd2F0ZXJfZHJvcHNfdG90YWwYCiABKAUSGwoTd2F0ZXJfZHJvcHNfbmV4dF9tcxgLIAEoAxINCgVsZXZlbBgMIAEoBRISCgpleHBlcmllbmNlGA0gASgFEhUKDWRpYW1vbmRzX2ZyZWUYDiABKAUSFQoNZGlhbW9uZHNfcGFpZBgPIAEoBRI4Cg1wZW5kaW5nX3Rhc2tzGBAgAygLMiEubXlnYXJkZW53b3JsZC52MS5QZW5kaW5nVGFza1ZpZXcaMAoOSW52ZW50b3J5RW50cnkSCwoDa2V5GAEgASgFEg0KBXZhbHVlGAIgASgFOgI4ASKXAgoITGFuZFZpZXcSDwoHbGFuZF9pZBgBIAEoBRIRCglmbG93ZXJfaWQYAiABKAUSDQoFc3RhdGUYAyABKAUSCwoDbHZsGAQgASgFEhMKC2hhcnZlc3RfY250GAUgASgFEhQKDG5leHRfdGltZV9tcxgGIAEoAxIVCg1wbGFudF90aW1lX21zGAcgASgDEhYKDnJlY29tbWVuZGF0aW9uGAggASgJEg4KBnJlYXNvbhgJIAEoCRITCgtsYW5kX3N0YXR1cxgKIAEoCRIQCghvYnNlcnZlZBgLIAEoCBISCgpvcGVuX2xldmVsGAwgASgFEhMKC3VubG9ja19jb3N0GA0gAygFEhEKCXdhc3RlbGFuZBgOIAMoBSKpAQoPUGVuZGluZ1Rhc2tWaWV3EhAKCGNhdGVnb3J5GAEgASgJEgoKAmlkGAIgASgJEg0KBXRpdGxlGAMgASgJEhAKCGZpbmlzaGVkGAQgASgFEg4KBnRhcmdldBgFIAEoBRIOCgZzdGF0dXMYBiABKAkSNwoMcmVxdWlyZW1lbnRzGAcgAygLMiEubXlnYXJkZW53b3JsZC52MS5SZXF1aXJlbWVudFZpZXciggEKD1JlcXVpcmVtZW50VmlldxIPCgdpdGVtX2lkGAEgASgFEhEKCWl0ZW1fbmFtZRgCIAEoCRIQCghyZXF1aXJlZBgDIAEoBRINCgVvd25lZBgEIAEoBRIPCgdtaXNzaW5nGAUgASgFEhkKEXBsYW50aW5nX3JlbGV2YW50GAYgASgIIk4KE1N0cmVhbUV2ZW50c1JlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSDQoFa2luZHMYAyADKAkivgEKBUV2ZW50EiYKAnRzGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgphY2NvdW50X2lkGAIgASgJEhQKDGFjY291bnRfbmFtZRgDIAEoCRIMCgRraW5kGAQgASgJEg8KB21lc3NhZ2UYBSABKAkSFAoMcGF5bG9hZF9qc29uGAYgASgJEhAKCGNhdGVnb3J5GAcgASgJEg0KBWxhYmVsGAggASgJEg0KBWxldmVsGAkgASgJMpICCgxRdWVyeVNlcnZpY2USVAoJR2V0U3RhdHVzEiIubXlnYXJkZW53b3JsZC52MS5HZXRTdGF0dXNSZXF1ZXN0GiMubXlnYXJkZW53b3JsZC52MS5HZXRTdGF0dXNSZXNwb25zZRJaCgtHZXRTbmFwc2hvdBIkLm15Z2FyZGVud29ybGQudjEuR2V0U25hcHNob3RSZXF1ZXN0GiUubXlnYXJkZW53b3JsZC52MS5HZXRTbmFwc2hvdFJlc3BvbnNlElAKDFN0cmVhbUV2ZW50cxIlLm15Z2FyZGVud29ybGQudjEuU3RyZWFtRXZlbnRzUmVxdWVzdBoXLm15Z2FyZGVud29ybGQudjEuRXZlbnQwAUKKAQoUY29tLm15Z2FyZGVud29ybGQudjFCEVF1ZXJ5U2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiRteWdhcmRlbndvcmxkL3YxL3F1ZXJ5X3NlcnZpY2UucHJvdG8SEG15Z2FyZGVud29ybGQudjEiPAoQR2V0U3RhdHVzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSJGChFHZXRTdGF0dXNSZXNwb25zZRIxCghhY2NvdW50cxgBIAMoCzIfLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cyK5AgoNQWNjb3VudFN0YXR1cxISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIRCgljb25uZWN0ZWQYAyABKAgSMQoNbGFzdF9ldmVudF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLa25vd25fbGFuZHMYBSABKAUSPAoHYnlfa2luZBgHIAMoCzIrLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cy5CeUtpbmRFbnRyeRIaChJmbG93ZXJfc3RvY2tfdG90YWwYCCABKAUSGgoSYXV0b21hdGlvbl9lbmFibGVkGAkgASgIGi0KC0J5S2luZEVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBToCOAEiPgoSR2V0U25hcHNob3RSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJIqAEChNHZXRTbmFwc2hvdFJlc3BvbnNlEhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEikKBWxhbmRzGAMgAygLMhoubXlnYXJkZW53b3JsZC52MS5MYW5kVmlldxJHCglpbnZlbnRvcnkYBCADKAsyNC5teWdhcmRlbndvcmxkLnYxLkdldFNuYXBzaG90UmVzcG9uc2UuSW52ZW50b3J5RW50cnkSDwoHcm9sZV9pZBgFIAEoAxIRCglyb2xlX25hbWUYBiABKAkSLwoLY2FwdHVyZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBGdvbGQYCCABKAUSEwoLd2F0ZXJfZHJvcHMYCSABKAUSGQoRd2F0ZXJfZHJvcHNfdG90YWwYCiABKAUSGwoTd2F0ZXJfZHJvcHNfbmV4dF9tcxgLIAEoAxINCgVsZXZlbBgMIAEoBRISCgpleHBlcmllbmNlGA0gASgFEhUKDWRpYW1vbmRzX2ZyZWUYDiABKAUSFQoNZGlhbW9uZHNfcGFpZBgPIAEoBRI4Cg1wZW5kaW5nX3Rhc2tzGBAgAygLMiEubXlnYXJkZW53b3JsZC52MS5QZW5kaW5nVGFza1ZpZXcaMAoOSW52ZW50b3J5RW50cnkSCwoDa2V5GAEgASgFEg0KBXZhbHVlGAIgASgFOgI4ASKXAgoITGFuZFZpZXcSDwoHbGFuZF9pZBgBIAEoBRIRCglmbG93ZXJfaWQYAiABKAUSDQoFc3RhdGUYAyABKAUSCwoDbHZsGAQgASgFEhMKC2hhcnZlc3RfY250GAUgASgFEhQKDG5leHRfdGltZV9tcxgGIAEoAxIVCg1wbGFudF90aW1lX21zGAcgASgDEhYKDnJlY29tbWVuZGF0aW9uGAggASgJEg4KBnJlYXNvbhgJIAEoCRITCgtsYW5kX3N0YXR1cxgKIAEoCRIQCghvYnNlcnZlZBgLIAEoCBISCgpvcGVuX2xldmVsGAwgASgFEhMKC3VubG9ja19jb3N0GA0gAygFEhEKCXdhc3RlbGFuZBgOIAMoBSKpAQoPUGVuZGluZ1Rhc2tWaWV3EhAKCGNhdGVnb3J5GAEgASgJEgoKAmlkGAIgASgJEg0KBXRpdGxlGAMgASgJEhAKCGZpbmlzaGVkGAQgASgFEg4KBnRhcmdldBgFIAEoBRIOCgZzdGF0dXMYBiABKAkSNwoMcmVxdWlyZW1lbnRzGAcgAygLMiEubXlnYXJkZW53b3JsZC52MS5SZXF1aXJlbWVudFZpZXciggEKD1JlcXVpcmVtZW50VmlldxIPCgdpdGVtX2lkGAEgASgFEhEKCWl0ZW1fbmFtZRgCIAEoCRIQCghyZXF1aXJlZBgDIAEoBRINCgVvd25lZBgEIAEoBRIPCgdtaXNzaW5nGAUgASgFEhkKEXBsYW50aW5nX3JlbGV2YW50GAYgASgIInAKFkdldEhhcnZlc3RTdGF0c1JlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSFwoPcnVuX2dhcF9zZWNvbmRzGAMgASgFEhMKC2xpbWl0X2l0ZW1zGAQgASgFIuIBChdHZXRIYXJ2ZXN0U3RhdHNSZXNwb25zZRIwCgx3aW5kb3dfc3RhcnQYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCndpbmRvd19lbmQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKD3J1bl9nYXBfc2Vjb25kcxgDIAEoBRITCgtoYXJ2ZXN0X29wcxgEIAEoBRI3CghhY2NvdW50cxgFIAMoCzIlLm15Z2FyZGVud29ybGQudjEuQWNjb3VudEhhcnZlc3RTdGF0cyLOAgoTQWNjb3VudEhhcnZlc3RTdGF0cxISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRI0ChBmaXJzdF9oYXJ2ZXN0X2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCg9sYXN0X2hhcnZlc3RfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2hhcnZlc3Rfb3BzGAUgASgFEhgKEGV4cGVyaWVuY2VfdG90YWwYBiABKAMSFAoMZmxvd2VyX3RvdGFsGAcgASgDEhUKDWVzc2VuY2VfdG90YWwYCCABKAMSEwoLb3RoZXJfdG90YWwYCSABKAMSMQoFaXRlbXMYCiADKAsyIi5teWdhcmRlbndvcmxkLnYxLkhhcnZlc3RJdGVtVG90YWwiVwoQSGFydmVzdEl0ZW1Ub3RhbBIPCgdpdGVtX2lkGAEgASgFEhEKCWl0ZW1fbmFtZRgCIAEoCRINCgVjb3VudBgDIAEoAxIQCghjYXRlZ29yeRgEIAEoCSJOChNTdHJlYW1FdmVudHNSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEg0KBWtpbmRzGAMgAygJIr4BCgVFdmVudBImCgJ0cxgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKYWNjb3VudF9pZBgCIAEoCRIUCgxhY2NvdW50X25hbWUYAyABKAkSDAoEa2luZBgEIAEoCRIPCgdtZXNzYWdlGAUgASgJEhQKDHBheWxvYWRfanNvbhgGIAEoCRIQCghjYXRlZ29yeRgHIAEoCRINCgVsYWJlbBgIIAEoCRINCgVsZXZlbBgJIAEoCTL6AgoMUXVlcnlTZXJ2aWNlElQKCUdldFN0YXR1cxIiLm15Z2FyZGVud29ybGQudjEuR2V0U3RhdHVzUmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuR2V0U3RhdHVzUmVzcG9uc2USWgoLR2V0U25hcHNob3QSJC5teWdhcmRlbndvcmxkLnYxLkdldFNuYXBzaG90UmVxdWVzdBolLm15Z2FyZGVud29ybGQudjEuR2V0U25hcHNob3RSZXNwb25zZRJmCg9HZXRIYXJ2ZXN0U3RhdHMSKC5teWdhcmRlbndvcmxkLnYxLkdldEhhcnZlc3RTdGF0c1JlcXVlc3QaKS5teWdhcmRlbndvcmxkLnYxLkdldEhhcnZlc3RTdGF0c1Jlc3BvbnNlElAKDFN0cmVhbUV2ZW50cxIlLm15Z2FyZGVud29ybGQudjEuU3RyZWFtRXZlbnRzUmVxdWVzdBoXLm15Z2FyZGVud29ybGQudjEuRXZlbnQwAUKKAQoUY29tLm15Z2FyZGVud29ybGQudjFCEVF1ZXJ5U2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message mygardenworld.v1.GetStatusRequest
@@ -285,7 +285,7 @@ export type LandView = Message<"mygardenworld.v1.LandView"> & {
   reason: string;
 
   /**
-   * Server-resolved display state: opened|wasteland|locked.
+   * Server-resolved display state: opened|unopened|locked.
    *
    * @generated from field: string land_status = 10;
    */
@@ -425,6 +425,177 @@ export const RequirementViewSchema: GenMessage<RequirementView> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_query_service, 7);
 
 /**
+ * @generated from message mygardenworld.v1.GetHarvestStatsRequest
+ */
+export type GetHarvestStatsRequest = Message<"mygardenworld.v1.GetHarvestStatsRequest"> & {
+  /**
+   * Optional: limit to one account. Empty = all visible accounts.
+   *
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string account_name = 2;
+   */
+  accountName: string;
+
+  /**
+   * Empty/zero uses the daemon default of 1800 seconds.
+   *
+   * @generated from field: int32 run_gap_seconds = 3;
+   */
+  runGapSeconds: number;
+
+  /**
+   * Optional per-account item cap. Zero returns all items.
+   *
+   * @generated from field: int32 limit_items = 4;
+   */
+  limitItems: number;
+};
+
+/**
+ * Describes the message mygardenworld.v1.GetHarvestStatsRequest.
+ * Use `create(GetHarvestStatsRequestSchema)` to create a new message.
+ */
+export const GetHarvestStatsRequestSchema: GenMessage<GetHarvestStatsRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 8);
+
+/**
+ * @generated from message mygardenworld.v1.GetHarvestStatsResponse
+ */
+export type GetHarvestStatsResponse = Message<"mygardenworld.v1.GetHarvestStatsResponse"> & {
+  /**
+   * @generated from field: google.protobuf.Timestamp window_start = 1;
+   */
+  windowStart?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp window_end = 2;
+   */
+  windowEnd?: Timestamp | undefined;
+
+  /**
+   * @generated from field: int32 run_gap_seconds = 3;
+   */
+  runGapSeconds: number;
+
+  /**
+   * @generated from field: int32 harvest_ops = 4;
+   */
+  harvestOps: number;
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.AccountHarvestStats accounts = 5;
+   */
+  accounts: AccountHarvestStats[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.GetHarvestStatsResponse.
+ * Use `create(GetHarvestStatsResponseSchema)` to create a new message.
+ */
+export const GetHarvestStatsResponseSchema: GenMessage<GetHarvestStatsResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 9);
+
+/**
+ * @generated from message mygardenworld.v1.AccountHarvestStats
+ */
+export type AccountHarvestStats = Message<"mygardenworld.v1.AccountHarvestStats"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string account_name = 2;
+   */
+  accountName: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp first_harvest_at = 3;
+   */
+  firstHarvestAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp last_harvest_at = 4;
+   */
+  lastHarvestAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: int32 harvest_ops = 5;
+   */
+  harvestOps: number;
+
+  /**
+   * @generated from field: int64 experience_total = 6;
+   */
+  experienceTotal: bigint;
+
+  /**
+   * @generated from field: int64 flower_total = 7;
+   */
+  flowerTotal: bigint;
+
+  /**
+   * @generated from field: int64 essence_total = 8;
+   */
+  essenceTotal: bigint;
+
+  /**
+   * @generated from field: int64 other_total = 9;
+   */
+  otherTotal: bigint;
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.HarvestItemTotal items = 10;
+   */
+  items: HarvestItemTotal[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.AccountHarvestStats.
+ * Use `create(AccountHarvestStatsSchema)` to create a new message.
+ */
+export const AccountHarvestStatsSchema: GenMessage<AccountHarvestStats> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 10);
+
+/**
+ * @generated from message mygardenworld.v1.HarvestItemTotal
+ */
+export type HarvestItemTotal = Message<"mygardenworld.v1.HarvestItemTotal"> & {
+  /**
+   * @generated from field: int32 item_id = 1;
+   */
+  itemId: number;
+
+  /**
+   * @generated from field: string item_name = 2;
+   */
+  itemName: string;
+
+  /**
+   * @generated from field: int64 count = 3;
+   */
+  count: bigint;
+
+  /**
+   * experience|flower|essence|item
+   *
+   * @generated from field: string category = 4;
+   */
+  category: string;
+};
+
+/**
+ * Describes the message mygardenworld.v1.HarvestItemTotal.
+ * Use `create(HarvestItemTotalSchema)` to create a new message.
+ */
+export const HarvestItemTotalSchema: GenMessage<HarvestItemTotal> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 11);
+
+/**
  * @generated from message mygardenworld.v1.StreamEventsRequest
  */
 export type StreamEventsRequest = Message<"mygardenworld.v1.StreamEventsRequest"> & {
@@ -454,7 +625,7 @@ export type StreamEventsRequest = Message<"mygardenworld.v1.StreamEventsRequest"
  * Use `create(StreamEventsRequestSchema)` to create a new message.
  */
 export const StreamEventsRequestSchema: GenMessage<StreamEventsRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 8);
+  messageDesc(file_mygardenworld_v1_query_service, 12);
 
 /**
  * @generated from message mygardenworld.v1.Event
@@ -526,7 +697,7 @@ export type Event = Message<"mygardenworld.v1.Event"> & {
  * Use `create(EventSchema)` to create a new message.
  */
 export const EventSchema: GenMessage<Event> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 9);
+  messageDesc(file_mygardenworld_v1_query_service, 13);
 
 /**
  * @generated from service mygardenworld.v1.QueryService
@@ -552,6 +723,16 @@ export const QueryService: GenService<{
     methodKind: "unary";
     input: typeof GetSnapshotRequestSchema;
     output: typeof GetSnapshotResponseSchema;
+  },
+  /**
+   * Summarise harvested rewards from the most recent contiguous harvest run.
+   *
+   * @generated from rpc mygardenworld.v1.QueryService.GetHarvestStats
+   */
+  getHarvestStats: {
+    methodKind: "unary";
+    input: typeof GetHarvestStatsRequestSchema;
+    output: typeof GetHarvestStatsResponseSchema;
   },
   /**
    * Stream of every event the runner emits (analogous to the Python bot's

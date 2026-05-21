@@ -7,7 +7,7 @@ import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
 import { AutomationService } from "@/gen/mygardenworld/v1/automation_service_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountStatus, Event, GetSnapshotResponse, LandView, PendingTaskView, RequirementView } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountHarvestStats, AccountStatus, Event, GetHarvestStatsResponse, GetSnapshotResponse, HarvestItemTotal, LandView, PendingTaskView, RequirementView } from "@/gen/mygardenworld/v1/query_service_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
@@ -100,6 +100,7 @@ function DashboardContent() {
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [selectedSnapshot, setSelectedSnapshot] = useState<GetSnapshotResponse | null>(null);
+  const [harvestStats, setHarvestStats] = useState<GetHarvestStatsResponse | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [policy, setPolicy] = useState<Policy | null>(null);
@@ -125,11 +126,15 @@ function DashboardContent() {
   const fetchData = useCallback(async () => {
     try {
       setError("");
-      const [accRes, statusRes] = await Promise.all([
+      const [accRes, statusRes, harvestRes] = await Promise.all([
         accountClient.listAccounts({}),
         queryClient.getStatus({}),
+        queryClient.getHarvestStats({ limitItems: 24 }).catch(() => null),
       ]);
       setAccounts(accRes.accounts);
+      if (harvestRes) {
+        setHarvestStats(harvestRes);
+      }
       const statusMap = new Map<string, AccountStatus>();
       for (const status of statusRes.accounts) {
         statusMap.set(status.accountId, status);
@@ -139,6 +144,14 @@ function DashboardContent() {
       setError(err instanceof Error ? err.message : "刷新数据失败");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const refreshHarvestStats = useCallback(async () => {
+    try {
+      setHarvestStats(await queryClient.getHarvestStats({ limitItems: 24 }));
+    } catch {
+      // Recent harvest totals are a secondary panel; keep the last good view.
     }
   }, []);
 
@@ -382,6 +395,9 @@ function DashboardContent() {
             retryMs = 1000;
             setEvents((prev) => [...prev.slice(-(MAX_EVENT_ROWS * 3 - 1)), event]);
             applyEventToLocalState(event);
+            if (event.kind === "operation_ack" && event.payloadJson.includes("usrLand.harvest")) {
+              void refreshHarvestStats();
+            }
             if (eventNeedsSnapshotRefresh(event)) {
               scheduleSnapshotRefresh(event.accountId);
             }
@@ -404,7 +420,7 @@ function DashboardContent() {
       stopped = true;
       abort.abort();
     };
-  }, [applyEventToLocalState, scheduleSnapshotRefresh]);
+  }, [applyEventToLocalState, refreshHarvestStats, scheduleSnapshotRefresh]);
 
   useEffect(() => {
     return () => {
@@ -556,6 +572,9 @@ function DashboardContent() {
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
   const selectedStatus = selectedAccount ? statuses.get(selectedAccount.id) : undefined;
   const selectedPolicy = policyAccountId === selectedAccountId ? policy : null;
+  const selectedHarvestStats = selectedAccountId
+    ? harvestStats?.accounts.find((account) => account.accountId === selectedAccountId) ?? null
+    : null;
   const selectedEvents = selectedAccountId
     ? events.filter((event) => event.accountId === selectedAccountId).slice(-MAX_EVENT_ROWS)
     : [];
@@ -618,6 +637,8 @@ function DashboardContent() {
             account={selectedAccount}
             status={selectedStatus}
             snapshot={selectedSnapshot}
+            harvestStats={selectedHarvestStats}
+            harvestWindow={harvestStats}
             policy={selectedPolicy}
             events={selectedEvents}
             streaming={streaming}
@@ -914,6 +935,8 @@ function AccountWorkspace({
   account,
   status,
   snapshot,
+  harvestStats,
+  harvestWindow,
   policy,
   events,
   streaming,
@@ -934,6 +957,8 @@ function AccountWorkspace({
   account: Account | null;
   status?: AccountStatus;
   snapshot: GetSnapshotResponse | null;
+  harvestStats: AccountHarvestStats | null;
+  harvestWindow: GetHarvestStatsResponse | null;
   policy: Policy | null;
   events: Event[];
   streaming: boolean;
@@ -1034,6 +1059,8 @@ function AccountWorkspace({
         ) : snapshot ? (
           <SnapshotOverview
             snapshot={snapshot}
+            harvestStats={harvestStats}
+            harvestWindow={harvestWindow}
             events={events}
             streaming={streaming}
             logScrollKey={account.id}
@@ -1062,6 +1089,8 @@ function AccountWorkspace({
 
 function SnapshotOverview({
   snapshot,
+  harvestStats,
+  harvestWindow,
   events,
   streaming,
   logScrollKey,
@@ -1071,6 +1100,8 @@ function SnapshotOverview({
   onScrollLogToBottom,
 }: {
   snapshot: GetSnapshotResponse;
+  harvestStats: AccountHarvestStats | null;
+  harvestWindow: GetHarvestStatsResponse | null;
   events: Event[];
   streaming: boolean;
   logScrollKey: string;
@@ -1155,6 +1186,8 @@ function SnapshotOverview({
 
       <EventLog
         events={events}
+        harvestStats={harvestStats}
+        harvestWindow={harvestWindow}
         streaming={streaming}
         scrollKey={logScrollKey}
         logViewportRef={logViewportRef}
@@ -1184,6 +1217,27 @@ type InventoryGroup = {
   category: string;
   entries: InventoryEntry[];
 };
+
+function HarvestMetric({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-md border border-border/70 bg-background/60 px-3 py-2">
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="mt-0.5 truncate text-sm font-semibold tabular-nums">{value}</div>
+    </div>
+  );
+}
+
+function HarvestItemPill({ item }: { item: HarvestItemTotal }) {
+  return (
+    <div className="grid max-w-full grid-cols-[28px_minmax(0,1fr)] items-center gap-1.5 rounded-md border border-border/70 bg-background/70 px-2 py-1">
+      <CatalogIcon itemId={item.itemId} className="size-7 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
+      <div className="min-w-0">
+        <div className="truncate text-[11px] font-medium">{item.itemName}</div>
+        <div className="text-[10px] tabular-nums text-muted-foreground">x{formatCount(Number(item.count))}</div>
+      </div>
+    </div>
+  );
+}
 
 function TaskPanel({ tasks }: { tasks: PendingTaskView[] }) {
   const groups = useMemo(() => groupPendingTasks(tasks), [tasks]);
@@ -1564,6 +1618,8 @@ function LandCell({ tile }: { tile: LandTile }) {
 
 function EventLog({
   events,
+  harvestStats,
+  harvestWindow,
   streaming,
   scrollKey,
   logViewportRef,
@@ -1572,6 +1628,8 @@ function EventLog({
   onScrollToBottom,
 }: {
   events: Event[];
+  harvestStats: AccountHarvestStats | null;
+  harvestWindow: GetHarvestStatsResponse | null;
   streaming: boolean;
   scrollKey: string;
   logViewportRef: RefObject<HTMLDivElement | null>;
@@ -1579,64 +1637,127 @@ function EventLog({
   onClear: () => void;
   onScrollToBottom: () => void;
 }) {
+  const [tab, setTab] = useState<"events" | "harvest">("events");
   const [category, setCategory] = useState("all");
   const filteredEvents = events.filter((event) => eventMatchesLogFilter(event, category));
 
   useLayoutEffect(() => {
+    if (tab !== "events") return;
     const viewport = logViewportRef.current;
     if (!viewport) return;
     viewport.scrollTop = viewport.scrollHeight;
-  }, [scrollKey, category, logViewportRef]);
+  }, [scrollKey, category, logViewportRef, tab]);
 
   return (
     <section className="flex h-80 flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:h-auto xl:min-h-0 xl:flex-1">
       <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 font-medium">
-          <ListChecks className="size-4 text-primary" />
-          日志
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 font-medium">
+            <ListChecks className="size-4 text-primary" />
+            日志
+          </div>
+          <div className="flex overflow-hidden rounded-md border border-border/70 bg-muted/20 p-0.5">
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
+                tab === "events" && "bg-background text-foreground shadow-sm"
+              )}
+              onClick={() => setTab("events")}
+            >
+              日志
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
+                tab === "harvest" && "bg-background text-foreground shadow-sm"
+              )}
+              onClick={() => setTab("harvest")}
+            >
+              收获
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex overflow-hidden rounded-md border border-border/70 bg-muted/20 p-0.5">
-            {LOG_FILTERS.map((filter) => (
-              <button
-                key={filter.value}
-                type="button"
-                className={cn(
-                  "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
-                  category === filter.value && "bg-background text-foreground shadow-sm"
-                )}
-                onClick={() => setCategory(filter.value)}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-          <Badge variant="secondary" className="text-[10px]">
-            <span className={cn("mr-1 size-1.5 rounded-full", streaming ? "animate-pulse bg-emerald-400" : "bg-muted-foreground")} />
-            {streaming ? "实时" : "断开"}
-          </Badge>
-          <Button variant="outline" size="icon-sm" onClick={onScrollToBottom} disabled={events.length === 0} aria-label="滚动到日志底部" title="滚动到底部">
-            <ArrowDownToLine className="size-3.5" />
-          </Button>
-          <Button variant="outline" size="icon-sm" onClick={onClear} disabled={events.length === 0} aria-label="清空当前账号日志" title="清空日志">
-            <Trash2 className="size-3.5" />
-          </Button>
+          {tab === "events" && (
+            <>
+              <div className="flex overflow-hidden rounded-md border border-border/70 bg-muted/20 p-0.5">
+                {LOG_FILTERS.map((filter) => (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    className={cn(
+                      "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
+                      category === filter.value && "bg-background text-foreground shadow-sm"
+                    )}
+                    onClick={() => setCategory(filter.value)}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              <Badge variant="secondary" className="text-[10px]">
+                <span className={cn("mr-1 size-1.5 rounded-full", streaming ? "animate-pulse bg-emerald-400" : "bg-muted-foreground")} />
+                {streaming ? "实时" : "断开"}
+              </Badge>
+              <Button variant="outline" size="icon-sm" onClick={onScrollToBottom} disabled={events.length === 0} aria-label="滚动到日志底部" title="滚动到底部">
+                <ArrowDownToLine className="size-3.5" />
+              </Button>
+              <Button variant="outline" size="icon-sm" onClick={onClear} disabled={events.length === 0} aria-label="清空当前账号日志" title="清空日志">
+                <Trash2 className="size-3.5" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
-      <div ref={logViewportRef} onScroll={onScroll} className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 bg-background/70 p-2 font-mono text-[11px]">
-        {events.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">等待事件...</div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">当前分类暂无日志</div>
-        ) : filteredEvents.map((event, index) => (
-          <div key={`${event.kind}-${index}`} className="grid grid-cols-[54px_112px_minmax(0,1fr)] gap-1.5 rounded px-1 leading-5 hover:bg-muted/45">
-            <span className="text-muted-foreground">{event.ts ? new Date(Number(event.ts.seconds) * 1000).toLocaleTimeString("zh-CN", { hour12: false }) : "--:--"}</span>
-            <span className={cn("truncate", eventColor(event))}>[{event.label || eventLabel(event.kind)}]</span>
-            <span className="break-all text-foreground/80">{event.message}</span>
-          </div>
+      {tab === "harvest" ? (
+        <HarvestStatsLogView stats={harvestStats} window={harvestWindow} />
+      ) : (
+        <div ref={logViewportRef} onScroll={onScroll} className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 bg-background/70 p-2 font-mono text-[11px]">
+          {events.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">等待事件...</div>
+          ) : filteredEvents.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">当前分类暂无日志</div>
+          ) : filteredEvents.map((event, index) => (
+            <div key={`${event.kind}-${index}`} className="grid grid-cols-[54px_112px_minmax(0,1fr)] gap-1.5 rounded px-1 leading-5 hover:bg-muted/45">
+              <span className="text-muted-foreground">{event.ts ? new Date(Number(event.ts.seconds) * 1000).toLocaleTimeString("zh-CN", { hour12: false }) : "--:--"}</span>
+              <span className={cn("truncate", eventColor(event))}>[{event.label || eventLabel(event.kind)}]</span>
+              <span className="break-all text-foreground/80">{event.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function HarvestStatsLogView({ stats, window }: { stats: AccountHarvestStats | null; window: GetHarvestStatsResponse | null }) {
+  if (!stats || stats.harvestOps === 0) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded-md border border-border/70 bg-background/70 text-xs text-muted-foreground">
+        暂无最近收获统计
+      </div>
+    );
+  }
+  return (
+    <div className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 bg-background/70 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>{formatShortTime(stats.firstHarvestAt)} - {formatShortTime(stats.lastHarvestAt)}</span>
+        <span>{window?.runGapSeconds ? `${Math.round(window.runGapSeconds / 60)} 分钟窗口` : ""}</span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-4">
+        <HarvestMetric label="次数" value={formatCount(stats.harvestOps)} />
+        <HarvestMetric label="经验" value={formatCount(Number(stats.experienceTotal))} />
+        <HarvestMetric label="鲜花" value={formatCount(Number(stats.flowerTotal))} />
+        <HarvestMetric label="精华" value={formatCount(Number(stats.essenceTotal))} />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {stats.items.map((item) => (
+          <HarvestItemPill key={`${item.itemId}-${item.category}`} item={item} />
         ))}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -2247,6 +2368,18 @@ function inventoryCategoryRank(category: string): number {
 
 function formatCount(value: number): string {
   return new Intl.NumberFormat("zh-CN").format(value);
+}
+
+function formatShortTime(ts: AccountHarvestStats["firstHarvestAt"]): string {
+  if (!ts) return "--";
+  const millis = Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1_000_000);
+  return new Date(millis).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function eventColor(event: Event): string {

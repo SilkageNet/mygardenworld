@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	QueryService_GetStatus_FullMethodName    = "/mygardenworld.v1.QueryService/GetStatus"
-	QueryService_GetSnapshot_FullMethodName  = "/mygardenworld.v1.QueryService/GetSnapshot"
-	QueryService_StreamEvents_FullMethodName = "/mygardenworld.v1.QueryService/StreamEvents"
+	QueryService_GetStatus_FullMethodName       = "/mygardenworld.v1.QueryService/GetStatus"
+	QueryService_GetSnapshot_FullMethodName     = "/mygardenworld.v1.QueryService/GetSnapshot"
+	QueryService_GetHarvestStats_FullMethodName = "/mygardenworld.v1.QueryService/GetHarvestStats"
+	QueryService_StreamEvents_FullMethodName    = "/mygardenworld.v1.QueryService/StreamEvents"
 )
 
 // QueryServiceClient is the client API for QueryService service.
@@ -33,6 +34,8 @@ type QueryServiceClient interface {
 	// Full per-account snapshot: all known lands with state + recommendation,
 	// inventory map for the seed range, role identity.
 	GetSnapshot(ctx context.Context, in *GetSnapshotRequest, opts ...grpc.CallOption) (*GetSnapshotResponse, error)
+	// Summarise harvested rewards from the most recent contiguous harvest run.
+	GetHarvestStats(ctx context.Context, in *GetHarvestStatsRequest, opts ...grpc.CallOption) (*GetHarvestStatsResponse, error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
 	StreamEvents(ctx context.Context, in *StreamEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Event], error)
@@ -60,6 +63,16 @@ func (c *queryServiceClient) GetSnapshot(ctx context.Context, in *GetSnapshotReq
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetSnapshotResponse)
 	err := c.cc.Invoke(ctx, QueryService_GetSnapshot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetHarvestStats(ctx context.Context, in *GetHarvestStatsRequest, opts ...grpc.CallOption) (*GetHarvestStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetHarvestStatsResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetHarvestStats_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +107,8 @@ type QueryServiceServer interface {
 	// Full per-account snapshot: all known lands with state + recommendation,
 	// inventory map for the seed range, role identity.
 	GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error)
+	// Summarise harvested rewards from the most recent contiguous harvest run.
+	GetHarvestStats(context.Context, *GetHarvestStatsRequest) (*GetHarvestStatsResponse, error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
 	StreamEvents(*StreamEventsRequest, grpc.ServerStreamingServer[Event]) error
@@ -111,6 +126,9 @@ func (UnimplementedQueryServiceServer) GetStatus(context.Context, *GetStatusRequ
 }
 func (UnimplementedQueryServiceServer) GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSnapshot not implemented")
+}
+func (UnimplementedQueryServiceServer) GetHarvestStats(context.Context, *GetHarvestStatsRequest) (*GetHarvestStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHarvestStats not implemented")
 }
 func (UnimplementedQueryServiceServer) StreamEvents(*StreamEventsRequest, grpc.ServerStreamingServer[Event]) error {
 	return status.Error(codes.Unimplemented, "method StreamEvents not implemented")
@@ -171,6 +189,24 @@ func _QueryService_GetSnapshot_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QueryService_GetHarvestStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHarvestStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetHarvestStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetHarvestStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetHarvestStats(ctx, req.(*GetHarvestStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _QueryService_StreamEvents_Handler(srv interface{}, stream grpc.ServerStream) error {
 	m := new(StreamEventsRequest)
 	if err := stream.RecvMsg(m); err != nil {
@@ -196,6 +232,10 @@ var QueryService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSnapshot",
 			Handler:    _QueryService_GetSnapshot_Handler,
+		},
+		{
+			MethodName: "GetHarvestStats",
+			Handler:    _QueryService_GetHarvestStats_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
