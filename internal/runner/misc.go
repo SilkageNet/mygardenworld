@@ -610,8 +610,8 @@ func isResidentOrderDailyLimit(msg string) bool {
 }
 
 func nextLocalDay(now time.Time) time.Time {
-	y, m, d := now.Local().Date()
-	loc := now.Local().Location()
+	y, m, d := now.Date()
+	loc := now.Location()
 	return time.Date(y, m, d+1, 0, 5, 0, 0, loc)
 }
 
