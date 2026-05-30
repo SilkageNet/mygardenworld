@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -75,7 +77,7 @@ func newServeCmd() *cobra.Command {
 				jwtSecret = os.Getenv("JWT_SECRET")
 			}
 			if jwtSecret == "" {
-				return errors.New("--jwt-secret or JWT_SECRET env required")
+				jwtSecret = generateRandomSecret(32)
 			}
 			if adminPassword == "" {
 				adminPassword = os.Getenv("ADMIN_PASSWORD")
@@ -215,6 +217,12 @@ func defaultAppDir(sub string) string {
 		return filepath.Join(".", sub)
 	}
 	return filepath.Join(dir, "mygardenworld", sub)
+}
+
+func generateRandomSecret(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func removeDataDir(absDataDir string) (bool, error) {
