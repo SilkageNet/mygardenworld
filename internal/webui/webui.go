@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-//go:embed static
+//go:embed all:static
 var staticFS embed.FS
 
 func Handler() http.Handler {
