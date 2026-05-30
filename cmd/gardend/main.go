@@ -95,7 +95,7 @@ func newServeCmd() *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().StringVar(&dataDir, "data-dir", "./data", "directory for SQLite + state files")
+	cmd.Flags().StringVar(&dataDir, "data-dir", defaultAppDir("data"), "directory for SQLite + state files")
 	cmd.Flags().StringVar(&listenAddr, "listen", "127.0.0.1:50051", "API listen address (host:port)")
 	cmd.Flags().StringVar(&logFormat, "log-format", "text", "log format: text|json")
 	cmd.Flags().StringVar(&logLevel, "log-level", "info", "log level: debug|info|warn|error")
@@ -104,7 +104,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&adminPassword, "admin-password", "", "initial admin password (or ADMIN_PASSWORD env)")
 	cmd.Flags().StringVar(&adminEmail, "admin-email", "admin@localhost", "initial admin email")
 	cmd.Flags().StringVar(&corsOrigins, "cors-origins", "http://localhost:3000", "allowed CORS origins (comma-separated)")
-	cmd.Flags().StringVar(&debugDir, "debug-dir", "", "directory for debug JSONL logs (empty=disabled)")
+	cmd.Flags().StringVar(&debugDir, "debug-dir", defaultAppDir("debug"), "directory for debug JSONL logs (empty=disabled)")
 	cmd.Flags().BoolVar(&webEnabled, "web", true, "serve the embedded web console")
 	return cmd
 }
@@ -149,7 +149,7 @@ func newResetDataCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&dataDir, "data-dir", "./data", "directory to delete (same default as serve)")
+	cmd.Flags().StringVar(&dataDir, "data-dir", defaultAppDir("data"), "directory to delete (same default as serve)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "confirm deletion without prompting")
 	return cmd
 }
@@ -203,6 +203,18 @@ func samePath(a, b string) bool {
 		absB = b
 	}
 	return strings.EqualFold(filepath.Clean(absA), filepath.Clean(absB))
+}
+
+// defaultAppDir returns the platform-appropriate default directory for app data.
+// Windows: %LOCALAPPDATA%\mygardenworld\<sub>
+// macOS:   ~/Library/Application Support/mygardenworld/<sub>
+// Linux:   ~/.config/mygardenworld/<sub>
+func defaultAppDir(sub string) string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return filepath.Join(".", sub)
+	}
+	return filepath.Join(dir, "mygardenworld", sub)
 }
 
 func removeDataDir(absDataDir string) (bool, error) {
