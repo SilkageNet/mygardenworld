@@ -74,6 +74,7 @@ type Runner struct {
 
 	landUnlockBlocked         bool // 上次尝试无效果，等待条件变化
 	taskRecvBlocked           bool
+	taskAchBlocked            bool
 	storyUnlockBlocked        bool
 	waterBlocked              bool                         // 水滴不足，冷却后重试
 	waterBlockedUntil         time.Time                    // 缺水后下一次允许试探浇水的时间
@@ -84,6 +85,7 @@ type Runner struct {
 	flowerUpgradeBlocked      map[int32]flowerUpgradeBlock // 升级材料不足，等待材料变化或短期冷却
 	cultivateBlocked          map[int32]time.Time          // 培育材料不足或配置未知，短期冷却
 	prevLevel                 int32                        // 用于检测升级
+	rqst                      rqstState                    // 反作弊验证状态
 
 	debugWriter *babigame.DebugFrameWriter
 

@@ -201,6 +201,11 @@ type State struct {
 	freeWaterRecvIdx  int32 // 117.1 last observed free-water receive index
 	freeWaterResetMs  int64 // 117.2 reset timestamp
 
+	benefitBoxDraws     int32 // 116.0.1 remaining draws
+	benefitBoxLastDraw  int64 // 116.0.2 last draw time ms
+	benefitBoxRefreshMs int64 // 116.0.3 refresh time ms
+	benefitBoxObserved  bool  // namespace 116 has been observed at least once
+
 	// Recent server-side activity timestamp; updated on every apply.
 	lastApplyMs int64
 
@@ -368,6 +373,9 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	}
 	if rawNS117, ok := top["117"]; ok {
 		s.applyFreeWaterLocked(rawNS117)
+	}
+	if rawNS116, ok := top["116"]; ok {
+		s.applyBenefitBoxLocked(rawNS116)
 	}
 	if rawNS119, ok := top["119"]; ok {
 		s.applyRoadGrowLocked(rawNS119)
@@ -1145,6 +1153,55 @@ func (s *State) applyFreeWaterLocked(raw json.RawMessage) {
 			s.freeWaterResetMs = n
 		}
 	}
+}
+
+func (s *State) applyBenefitBoxLocked(raw json.RawMessage) {
+	// NS 116 structure: {"0": {"1": remaining_draws, "2": lastDrawTimeMs, "3": refreshTimeMs}}
+	var ns116 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns116); err != nil {
+		return
+	}
+	s.benefitBoxObserved = true
+	raw0, ok := ns116["0"]
+	if !ok {
+		return
+	}
+	var sub map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &sub); err != nil {
+		return
+	}
+	if v, ok := sub["1"]; ok {
+		var n int32
+		if json.Unmarshal(v, &n) == nil {
+			s.benefitBoxDraws = n
+		}
+	}
+	if v, ok := sub["2"]; ok {
+		var n int64
+		if json.Unmarshal(v, &n) == nil {
+			s.benefitBoxLastDraw = n
+		}
+	}
+	if v, ok := sub["3"]; ok {
+		var n int64
+		if json.Unmarshal(v, &n) == nil {
+			s.benefitBoxRefreshMs = n
+		}
+	}
+}
+
+// BenefitBoxDrawsRemaining returns the number of free draws available.
+func (s *State) BenefitBoxDrawsRemaining() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.benefitBoxDraws
+}
+
+// BenefitBoxReady returns true if there are draws available.
+func (s *State) BenefitBoxReady() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.benefitBoxObserved && s.benefitBoxDraws > 0
 }
 
 // Lands returns a copy of the land map.

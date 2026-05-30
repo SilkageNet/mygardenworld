@@ -235,8 +235,35 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 		}
 	}
 
+	// 福利箱
+	if misc.GetBenefitBoxEnabled() && r.state.BenefitBoxReady() {
+		v, d, err := client.RPC(ctx, "benefitBox.draw", map[string]any{}, session.RouteArg(), 10*time.Second)
+		if r.isSessionInvalidated() {
+			return
+		}
+		if err != nil {
+			r.emit(Event{Kind: "benefit_box", Message: fmt.Sprintf("福利箱抽奖失败: %v", err)})
+		} else if d.IsError() {
+			// 无可领取，静默
+		} else if babigame.HasPayload(v) {
+			r.state.ApplyV(v)
+			r.emit(Event{Kind: "benefit_box", Message: fmt.Sprintf("成功领取福利箱 (剩余%d次)", r.state.BenefitBoxDrawsRemaining())})
+		}
+	}
+
+	// 批量加速
+	if misc.GetSpeedUpEnabled() {
+		r.tickSpeedUp(ctx, client, session)
+		if r.isSessionInvalidated() {
+			return
+		}
+	}
+
 	// 居民订单
 	if misc.GetResidentOrderEnabled() && time.Now().After(residentOrderBlockedUntil) {
+		if err := r.ensureFlowerOrderRqst(ctx); err != nil {
+			r.log.Debug("flower order rqst failed", "err", err)
+		}
 		inv := r.state.FlowerInventory()
 		orders := r.state.FlowerOrders()
 		for boxID := int32(1); boxID <= 6; boxID++ {
@@ -287,6 +314,9 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 顾客订单
 	if misc.GetCustomerOrderEnabled() {
+		if err := r.ensureCustomerOrderRqst(ctx); err != nil {
+			r.log.Debug("customer order rqst failed", "err", err)
+		}
 		inventory := r.state.Inventory()
 		customerOrders := r.state.CustomerOrderDetails()
 		npcIDs := make([]int32, 0, len(customerOrders))
@@ -352,6 +382,15 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 
 	if misc.GetFlowerRackEnabled() {
+		// 一键收取花架收入
+		v, d, err := client.RPC(ctx, "flowerRack.recvOneKey", map[string]any{}, session.RouteArg(), 10*time.Second)
+		if r.isSessionInvalidated() {
+			return
+		}
+		if err == nil && !d.IsError() && babigame.HasPayload(v) {
+			r.state.ApplyV(v)
+		}
+		// 上架花艺
 		if r.tryStockFlowerRack(ctx, client, session, misc.GetFlowerRackCraftEnabled(), misc.GetFlowerArtRewardEnabled()) {
 			return
 		}
@@ -512,6 +551,14 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 		}
 	}
 
+	// 成就任务奖励
+	if misc.GetTaskAchRewardEnabled() {
+		r.tickTaskAchRewards(ctx, client, session)
+		if r.isSessionInvalidated() {
+			return
+		}
+	}
+
 	// 主线剧情解锁
 	if misc.StoryUnlockEnabled && !storyUnlockBlocked {
 		v, d, err := client.RPC(ctx, "storyMain.unlock", map[string]any{}, session.RouteArg(), 10*time.Second)
@@ -542,16 +589,18 @@ func nextLandUnlockCandidate(st *state.State) (int32, bool) {
 		return 0, false
 	}
 	lands := st.Lands()
-	level := st.Level()
 	gold := st.Gold()
+	// 开垦按地块 ID 顺序进行，只需要金币足够即可。
+	// 实际金币 = cost[1] - cost[0] + 11（配置表编码方式）。
 	for _, info := range st.FarmLands() {
 		if _, opened := lands[info.ID]; opened {
 			continue
 		}
-		if info.OpenLevel <= 0 || level < info.OpenLevel {
+		if len(info.Cost) < 2 {
 			continue
 		}
-		if len(info.Cost) < 2 || gold < info.Cost[1] {
+		actualCost := info.Cost[1] - info.Cost[0] + 11
+		if gold < actualCost {
 			continue
 		}
 		return info.ID, true
@@ -955,4 +1004,89 @@ func (r *Runner) setCultivateBlocked(fid int32, v bool) {
 		return
 	}
 	delete(r.cultivateBlocked, fid)
+}
+
+const speedUpItemID int32 = 1001
+const speedUpMaxBatch = 5
+
+var taskAchMilestoneIDs = []int{10001, 10002, 10003, 10004, 10005, 20001, 20002, 20003, 20004, 20005}
+
+func (r *Runner) tickTaskAchRewards(ctx context.Context, client *babigame.Client, session *babigame.Session) {
+	r.mu.RLock()
+	blocked := r.taskAchBlocked
+	r.mu.RUnlock()
+	if blocked {
+		return
+	}
+	for _, id := range taskAchMilestoneIDs {
+		v, d, err := client.RPC(ctx, "taskAch.recv", map[string]any{"id": id}, session.RouteArg(), 10*time.Second)
+		if r.isSessionInvalidated() {
+			return
+		}
+		if err != nil {
+			r.setTaskAchBlocked(true)
+			return
+		}
+		if d.IsError() {
+			continue
+		}
+		if babigame.HasPayload(v) {
+			r.state.ApplyV(v)
+			r.emit(Event{Kind: "task_ach", Message: fmt.Sprintf("成功领取成就奖励 #%d", id)})
+			return
+		}
+	}
+	r.setTaskAchBlocked(true)
+}
+
+func (r *Runner) setTaskAchBlocked(v bool) {
+	r.mu.Lock()
+	r.taskAchBlocked = v
+	r.mu.Unlock()
+}
+
+func (r *Runner) tickSpeedUp(ctx context.Context, client *babigame.Client, session *babigame.Session) {
+	available := r.state.Inventory()[speedUpItemID]
+	if available <= 0 {
+		return
+	}
+	lands := r.state.Lands()
+	now := time.Now().UnixMilli()
+	var candidates []int32
+	for id, land := range lands {
+		if land.State == 2 && land.NextTimeMs > now {
+			candidates = append(candidates, id)
+		}
+	}
+	if len(candidates) == 0 {
+		return
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i] < candidates[j] })
+	want := int32(len(candidates))
+	if want > available {
+		want = available
+	}
+	if want > speedUpMaxBatch {
+		want = speedUpMaxBatch
+	}
+	batch := candidates[:want]
+	ids := make([]any, len(batch))
+	for i, id := range batch {
+		ids[i] = int(id)
+	}
+	v, d, err := client.RPC(ctx, "usrLand.speedUpBatch", map[string]any{"landIds": ids}, session.RouteArg(), 10*time.Second)
+	if r.isSessionInvalidated() {
+		return
+	}
+	if err != nil {
+		r.emit(Event{Kind: "speed_up", Message: fmt.Sprintf("批量加速失败: %v", err)})
+		return
+	}
+	if d.IsError() {
+		return
+	}
+	if babigame.HasPayload(v) {
+		r.state.ApplyV(v)
+		r.emit(Event{Kind: "speed_up", Message: fmt.Sprintf("成功加速 %d 块地", len(batch))})
+	}
 }

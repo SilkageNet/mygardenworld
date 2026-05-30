@@ -366,6 +366,9 @@ type MiscPolicy struct {
 	RoadGrowRewardEnabled      bool                   `protobuf:"varint,17,opt,name=road_grow_reward_enabled,json=roadGrowRewardEnabled,proto3" json:"road_grow_reward_enabled,omitempty"`
 	RandomEventEnabled         bool                   `protobuf:"varint,18,opt,name=random_event_enabled,json=randomEventEnabled,proto3" json:"random_event_enabled,omitempty"`
 	FlowerArtRewardEnabled     bool                   `protobuf:"varint,19,opt,name=flower_art_reward_enabled,json=flowerArtRewardEnabled,proto3" json:"flower_art_reward_enabled,omitempty"`
+	BenefitBoxEnabled          bool                   `protobuf:"varint,20,opt,name=benefit_box_enabled,json=benefitBoxEnabled,proto3" json:"benefit_box_enabled,omitempty"`
+	SpeedUpEnabled             bool                   `protobuf:"varint,21,opt,name=speed_up_enabled,json=speedUpEnabled,proto3" json:"speed_up_enabled,omitempty"`
+	TaskAchRewardEnabled       bool                   `protobuf:"varint,22,opt,name=task_ach_reward_enabled,json=taskAchRewardEnabled,proto3" json:"task_ach_reward_enabled,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -533,6 +536,27 @@ func (x *MiscPolicy) GetFlowerArtRewardEnabled() bool {
 	return false
 }
 
+func (x *MiscPolicy) GetBenefitBoxEnabled() bool {
+	if x != nil {
+		return x.BenefitBoxEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetSpeedUpEnabled() bool {
+	if x != nil {
+		return x.SpeedUpEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetTaskAchRewardEnabled() bool {
+	if x != nil {
+		return x.TaskAchRewardEnabled
+	}
+	return false
+}
+
 var File_mygardenworld_v1_policy_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_policy_proto_rawDesc = "" +
@@ -562,7 +586,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\vWaterPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1b\n" +
 	"\tmax_batch\x18\x02 \x01(\x05R\bmaxBatch\x12\x1b\n" +
-	"\tmin_drops\x18\x03 \x01(\x05R\bminDrops\"\xa1\b\n" +
+	"\tmin_drops\x18\x03 \x01(\x05R\bminDrops\"\xb2\t\n" +
 	"\n" +
 	"MiscPolicy\x12.\n" +
 	"\x13land_unlock_enabled\x18\x01 \x01(\bR\x11landUnlockEnabled\x120\n" +
@@ -584,7 +608,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x19task_daily_reward_enabled\x18\x10 \x01(\bR\x16taskDailyRewardEnabled\x127\n" +
 	"\x18road_grow_reward_enabled\x18\x11 \x01(\bR\x15roadGrowRewardEnabled\x120\n" +
 	"\x14random_event_enabled\x18\x12 \x01(\bR\x12randomEventEnabled\x129\n" +
-	"\x19flower_art_reward_enabled\x18\x13 \x01(\bR\x16flowerArtRewardEnabledB\xce\x01\n" +
+	"\x19flower_art_reward_enabled\x18\x13 \x01(\bR\x16flowerArtRewardEnabled\x12.\n" +
+	"\x13benefit_box_enabled\x18\x14 \x01(\bR\x11benefitBoxEnabled\x12(\n" +
+	"\x10speed_up_enabled\x18\x15 \x01(\bR\x0espeedUpEnabled\x125\n" +
+	"\x17task_ach_reward_enabled\x18\x16 \x01(\bR\x14taskAchRewardEnabledB\xce\x01\n" +
 	"\x14com.mygardenworld.v1B\vPolicyProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (

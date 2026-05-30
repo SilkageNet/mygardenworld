@@ -46,6 +46,9 @@ const (
 	KeyMiscRoadGrowRewardEnabled      = "misc.road_grow_reward_enabled"
 	KeyMiscRandomEventEnabled         = "misc.random_event_enabled"
 	KeyMiscFlowerArtRewardEnabled     = "misc.flower_art_reward_enabled"
+	KeyMiscBenefitBoxEnabled          = "misc.benefit_box_enabled"
+	KeyMiscSpeedUpEnabled             = "misc.speed_up_enabled"
+	KeyMiscTaskAchRewardEnabled       = "misc.task_ach_reward_enabled"
 )
 
 func Normalize(p *pb.Policy) *pb.Policy {
@@ -131,6 +134,9 @@ func Flatten(p *pb.Policy) map[string]string {
 		KeyMiscRoadGrowRewardEnabled:      fmt.Sprintf("%t", p.GetMisc().GetRoadGrowRewardEnabled()),
 		KeyMiscRandomEventEnabled:         fmt.Sprintf("%t", p.GetMisc().GetRandomEventEnabled()),
 		KeyMiscFlowerArtRewardEnabled:     fmt.Sprintf("%t", p.GetMisc().GetFlowerArtRewardEnabled()),
+		KeyMiscBenefitBoxEnabled:          fmt.Sprintf("%t", p.GetMisc().GetBenefitBoxEnabled()),
+		KeyMiscSpeedUpEnabled:             fmt.Sprintf("%t", p.GetMisc().GetSpeedUpEnabled()),
+		KeyMiscTaskAchRewardEnabled:       fmt.Sprintf("%t", p.GetMisc().GetTaskAchRewardEnabled()),
 	}
 }
 
@@ -296,6 +302,12 @@ func SetKey(p *pb.Policy, key, value string) error {
 		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.RandomEventEnabled = b })
 	case KeyMiscFlowerArtRewardEnabled:
 		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FlowerArtRewardEnabled = b })
+	case KeyMiscBenefitBoxEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.BenefitBoxEnabled = b })
+	case KeyMiscSpeedUpEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.SpeedUpEnabled = b })
+	case KeyMiscTaskAchRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.TaskAchRewardEnabled = b })
 	default:
 		if p.Extras == nil {
 			p.Extras = &structpb.Struct{Fields: map[string]*structpb.Value{}}

@@ -92,4 +92,7 @@ message MiscPolicy {
   bool road_grow_reward_enabled = 17;
   bool random_event_enabled = 18;
   bool flower_art_reward_enabled = 19;
+  bool benefit_box_enabled = 20;
+  bool speed_up_enabled = 21;
+  bool task_ach_reward_enabled = 22;
 }

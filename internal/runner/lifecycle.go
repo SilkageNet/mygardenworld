@@ -97,6 +97,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	r.session = session
 	r.httpc = httpc
 	r.client = client
+	r.rqst = rqstState{}
 	r.mu.Unlock()
 
 	// reLogin to populate full 100.0.1.
@@ -114,6 +115,9 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if r.isSessionInvalidated() {
 		return nil, errors.New("session invalidated during startup")
 	}
+
+	// Send home verification after login to satisfy anti-cheat.
+	r.ensureHomeRqst(ctx)
 
 	r.emit(Event{Kind: "session", Message: fmt.Sprintf("已连接 (服务器=%s 区=%d)", session.GsHost, session.GsIdx)})
 	return client, nil

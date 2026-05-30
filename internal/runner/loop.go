@@ -123,6 +123,19 @@ func (r *Runner) tick(ctx context.Context) {
 	if op == nil {
 		return
 	}
+
+	// Anti-cheat verification: send once per session before the first
+	// harvest or plant batch.
+	if isHarvestOp(op.Kind) {
+		if err := r.ensureHarvestRqst(ctx); err != nil {
+			r.log.Debug("harvest rqst failed", "err", err)
+		}
+	} else if op.Kind == "usrLand.plant" || op.Kind == "usrLand.plantBatch" {
+		if err := r.ensurePlantRqst(ctx); err != nil {
+			r.log.Debug("plant rqst failed", "err", err)
+		}
+	}
+
 	// Skip water operations if blocked (water drops exhausted).
 	r.mu.RLock()
 	waterBlocked := r.waterBlocked

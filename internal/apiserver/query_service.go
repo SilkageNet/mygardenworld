@@ -431,10 +431,7 @@ func landViewProto(id int32, l state.LandView, info state.FarmLandInfo, observed
 		kind, reason = "unknown", "等待当前客户端土地配置"
 	} else if rosterObserved {
 		status = "unopened"
-		if info.OpenLevel > 0 && level < info.OpenLevel {
-			kind, reason = "locked", "等级未达到开放条件"
-			status = "locked"
-		} else if len(info.Cost) >= 2 {
+		if len(info.Cost) >= 2 {
 			kind, reason = "unlock", "可开垦"
 		} else {
 			kind, reason = "unknown", "缺少开垦消耗配置"
@@ -456,9 +453,17 @@ func landViewProto(id int32, l state.LandView, info state.FarmLandInfo, observed
 		LandStatus:     status,
 		Observed:       observed,
 		OpenLevel:      info.OpenLevel,
-		UnlockCost:     append([]int32(nil), info.Cost...),
+		UnlockCost:     farmLandActualCost(info.Cost),
 		Wasteland:      append([]int32(nil), info.Wasteland...),
 	}
+}
+
+func farmLandActualCost(cost []int32) []int32 {
+	if len(cost) < 2 {
+		return append([]int32(nil), cost...)
+	}
+	actualGold := cost[1] - cost[0] + 11
+	return []int32{actualGold}
 }
 
 // StreamEvents is a server-streaming RPC. We subscribe to the in-process bus

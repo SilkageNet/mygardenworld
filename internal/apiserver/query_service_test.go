@@ -36,8 +36,8 @@ func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 	if byID[1002] != "unopened" || observed[1002] {
 		t.Fatalf("land 1002 = status %q observed %v, want unopened false", byID[1002], observed[1002])
 	}
-	if byID[1058] != "locked" || observed[1058] {
-		t.Fatalf("land 1058 = status %q observed %v, want locked false", byID[1058], observed[1058])
+	if byID[1058] != "unopened" || observed[1058] {
+		t.Fatalf("land 1058 = status %q observed %v, want unopened false", byID[1058], observed[1058])
 	}
 }
 
@@ -51,8 +51,8 @@ func TestBuildLandViewsDoesNotInventNextFourWastelands(t *testing.T) {
 	got := buildLandViews(lands, farmLands, true, true, 13, time.Unix(0, 0))
 	for _, land := range got {
 		if land.GetLandId() == 1025 {
-			if land.GetLandStatus() != "locked" {
-				t.Fatalf("land 1025 status=%q, want locked without max+4 inference", land.GetLandStatus())
+			if land.GetLandStatus() != "unopened" {
+				t.Fatalf("land 1025 status=%q, want unopened (openLevel is not a hard lock)", land.GetLandStatus())
 			}
 			return
 		}
