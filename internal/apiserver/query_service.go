@@ -402,9 +402,14 @@ func requirementsStatus(reqs []*pb.RequirementView) string {
 func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandInfo, rosterObserved bool, farmLandObserved bool, level int32, now time.Time) []*pb.LandView {
 	out := make([]*pb.LandView, 0, len(lands))
 	seen := make(map[int32]struct{}, len(lands))
+	unopenedCount := 0
 	for _, info := range farmLands {
 		l, observed := lands[info.ID]
-		out = append(out, landViewProto(info.ID, l, info, observed, rosterObserved, farmLandObserved, level, now))
+		isUnopened := !observed && rosterObserved && farmLandObserved
+		if isUnopened {
+			unopenedCount++
+		}
+		out = append(out, landViewProtoWithLimit(info.ID, l, info, observed, rosterObserved, farmLandObserved, level, now, unopenedCount))
 		seen[info.ID] = struct{}{}
 	}
 	extraIDs := make([]int32, 0)
@@ -416,12 +421,14 @@ func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandIn
 	}
 	sort.Slice(extraIDs, func(i, j int) bool { return extraIDs[i] < extraIDs[j] })
 	for _, id := range extraIDs {
-		out = append(out, landViewProto(id, lands[id], state.FarmLandInfo{}, true, rosterObserved, farmLandObserved, level, now))
+		out = append(out, landViewProtoWithLimit(id, lands[id], state.FarmLandInfo{}, true, rosterObserved, farmLandObserved, level, now, 0))
 	}
 	return out
 }
 
-func landViewProto(id int32, l state.LandView, info state.FarmLandInfo, observed bool, rosterObserved bool, farmLandObserved bool, level int32, now time.Time) *pb.LandView {
+const maxReclaimableLands = 6
+
+func landViewProtoWithLimit(id int32, l state.LandView, info state.FarmLandInfo, observed bool, rosterObserved bool, farmLandObserved bool, level int32, now time.Time, unopenedIdx int) *pb.LandView {
 	kind, reason := "unknown", "等待服务端土地清单"
 	status := "locked"
 	if observed {
@@ -430,11 +437,16 @@ func landViewProto(id int32, l state.LandView, info state.FarmLandInfo, observed
 	} else if !farmLandObserved {
 		kind, reason = "unknown", "等待当前客户端土地配置"
 	} else if rosterObserved {
-		status = "unopened"
-		if len(info.Cost) >= 2 {
-			kind, reason = "unlock", "可开垦"
+		if unopenedIdx > 0 && unopenedIdx <= maxReclaimableLands {
+			status = "unopened"
+			if len(info.Cost) >= 2 {
+				kind, reason = "unlock", "可开垦"
+			} else {
+				kind, reason = "unknown", "缺少开垦消耗配置"
+			}
 		} else {
-			kind, reason = "unknown", "缺少开垦消耗配置"
+			status = "locked"
+			kind, reason = "locked", "未解锁"
 		}
 	}
 	if observed && !l.Observed {

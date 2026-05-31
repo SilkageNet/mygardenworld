@@ -584,17 +584,24 @@ func (r *Runner) setLandUnlockBlocked(v bool) {
 	r.mu.Unlock()
 }
 
+const maxReclaimableLands = 6
+
 func nextLandUnlockCandidate(st *state.State) (int32, bool) {
 	if !st.LandRosterObserved() || !st.FarmLandConfigObserved() {
 		return 0, false
 	}
 	lands := st.Lands()
 	gold := st.Gold()
-	// 开垦按地块 ID 顺序进行，只需要金币足够即可。
+	// 游戏允许在已开垦地块之后最多开垦 6 块。
 	// 实际金币 = cost[1] - cost[0] + 11（配置表编码方式）。
+	reclaimable := 0
 	for _, info := range st.FarmLands() {
 		if _, opened := lands[info.ID]; opened {
 			continue
+		}
+		reclaimable++
+		if reclaimable > maxReclaimableLands {
+			break
 		}
 		if len(info.Cost) < 2 {
 			continue
