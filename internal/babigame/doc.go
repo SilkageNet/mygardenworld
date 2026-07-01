@@ -31,18 +31,24 @@
 //	24         | Friend list                      | frd.enter
 //	27         | IM channel                       | im.getChannelId
 //	31         | Share state                      | usr.share
+//	33         | Zoo state                         | zoo.*
 //	100        | Land state (see below)           | plant/water/harvest/unlock
 //	101        | Cultivation state (see below)    | cultivate.*
 //	103        | Collection rewards               | cultivate.recv
 //	104        | Flower-art rack/shelves          | flowerRack.sell
 //	105        | Flower orders                    | orderFlower.finishOrder
+//	106        | Flower art / share state          | flowerArt.makeFlowerArt, usr.share
 //	109        | Customer orders                  | orderCustomer.*
 //	112        | Gift bag shop                    | shopGiftbag.enter
 //	114        | Waterwheel state (see below)     | waterwheel.*
 //	117        | Free-water reward state           | freeWater.recv
 //	119        | High-freq task counters          | Most RPCs
 //	124        | Daily summary / popup rewards    | harvest, orders
+//	131        | Observed high-frequency delta     | land, task, pass, random-event RPCs
+//	132        | Observed order/pass delta          | orderFlower, flowerElvesPass
 //	130        | Cultivation & art rewards        | cultivate.recv
+//	148        | Observed broad activity delta      | Most reward/activity RPCs
+//	165        | Celebrity state                   | celebrity.getAllTypesInfo
 //
 // # Inventory (Namespace 7)
 //

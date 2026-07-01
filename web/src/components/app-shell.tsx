@@ -12,9 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Flower2, LogOut, Shield } from "lucide-react";
+import { LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { itemIconPath, itemName } from "@/lib/game/catalog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserManagementPanel } from "@/components/user-management-panel";
 
@@ -92,15 +91,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 function BrandMark({ className }: { className?: string }) {
-  const src = itemIconPath(23006);
   return (
-    <div className={cn("flex items-center justify-center rounded-md bg-primary/10 p-1 ring-1 ring-primary/20", className)}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={itemName(23006)} className="size-full object-contain" />
-      ) : (
-        <Flower2 className="size-4 text-primary" />
-      )}
+    <div className={cn("flex items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20", className)}>
+      花
     </div>
   );
 }

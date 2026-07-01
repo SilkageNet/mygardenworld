@@ -9,7 +9,8 @@ import (
 	"strings"
 )
 
-//go:generate node ../../tmp/tools/extract-game-catalog.mjs
+// Refresh with: go run ./cmd/gardencatalog --mini tmp/mini
+//
 //go:embed catalog_data.json
 var catalogDataJSON []byte
 
@@ -27,7 +28,6 @@ type ItemInfo struct {
 	Name        string      `json:"name,omitempty"`
 	ShortName   string      `json:"short_name,omitempty"`
 	DisplayName string      `json:"display_name,omitempty"`
-	IconPath    string      `json:"icon_path,omitempty"`
 	Color       int32       `json:"color,omitempty"`
 	Type        int32       `json:"type,omitempty"`
 	UseType     int32       `json:"use_type,omitempty"`

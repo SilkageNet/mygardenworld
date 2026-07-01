@@ -53,7 +53,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { allFlowers, itemCategory, itemIconPath, itemInfo, itemName, type FlowerInfo, type ItemInfo } from "@/lib/game/catalog";
+import { allFlowers, itemCategory, itemInfo, itemName, type FlowerInfo, type ItemInfo } from "@/lib/game/catalog";
 import AppShell from "@/components/app-shell";
 
 const accountClient = createClient(AccountService, transport);
@@ -592,8 +592,8 @@ function DashboardContent() {
       )}
 
       {accounts.length > 0 ? (
-        <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[280px_minmax(0,1fr)] xl:overflow-hidden">
-          <Card className="bg-card/95 shadow-sm shadow-black/5 xl:min-h-0">
+        <div className="grid min-w-0 gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[280px_minmax(0,1fr)] xl:overflow-hidden">
+          <Card className="max-h-[46vh] bg-card/95 shadow-sm shadow-black/5 sm:max-h-none xl:min-h-0">
             <CardHeader className="space-y-3 border-b border-border/70 pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -617,7 +617,7 @@ function DashboardContent() {
                 <HeaderMetric label="未登录" value={offlineCount} />
               </div>
             </CardHeader>
-            <CardContent className="space-y-1.5 p-2 xl:dark-scrollbar xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+            <CardContent className="dark-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
               {accounts.map((account) => (
                 <AccountRow
                   key={account.id}
@@ -660,7 +660,7 @@ function DashboardContent() {
       ) : (
         <Card className="border-dashed bg-card/70 xl:flex-1">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <CatalogIcon itemId={23006} className="mb-4 size-14 rounded-md bg-muted p-2" fallback={<Sprout className="size-6 text-muted-foreground" />} />
+            <CatalogBadge itemId={23006} className="mb-4 size-14 rounded-md bg-muted p-2 text-sm" fallback={<Sprout className="size-6 text-muted-foreground" />} />
             <p className="font-medium">还没有游戏账号</p>
             <p className="mt-1 text-sm text-muted-foreground">添加账号后就能在首页切换查看状态。</p>
             <Button className="mt-5" onClick={() => setShowAddDialog(true)}>
@@ -1005,7 +1005,7 @@ function AccountWorkspace({
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             {connected ? (
               <Button variant="outline" size="sm" disabled={busy} onClick={onLogout}>
                 <LogOut className="size-3.5" />
@@ -1039,7 +1039,7 @@ function AccountWorkspace({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              className="justify-self-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:justify-self-auto"
               disabled={busy}
               onClick={onDelete}
               aria-label={`删除账号 ${account.name}`}
@@ -1230,7 +1230,7 @@ function HarvestMetric({ label, value }: { label: string; value: ReactNode }) {
 function HarvestItemPill({ item }: { item: HarvestItemTotal }) {
   return (
     <div className="grid max-w-full grid-cols-[28px_minmax(0,1fr)] items-center gap-1.5 rounded-md border border-border/70 bg-background/70 px-2 py-1">
-      <CatalogIcon itemId={item.itemId} className="size-7 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
+      <CatalogBadge itemId={item.itemId} className="size-7 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
       <div className="min-w-0">
         <div className="truncate text-[11px] font-medium">{item.itemName}</div>
         <div className="text-[10px] tabular-nums text-muted-foreground">x{formatCount(Number(item.count))}</div>
@@ -1364,7 +1364,7 @@ function taskDisplayTitle(task: PendingTaskView): string {
 function RequirementRow({ req }: { req: RequirementView }) {
   return (
     <div className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-1.5 rounded border border-border/45 bg-background/55 px-1.5 py-1">
-      <CatalogIcon itemId={req.itemId} className="size-6 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
+      <CatalogBadge itemId={req.itemId} className="size-6 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1">
           <span className="truncate text-[11px] font-medium">{req.itemName || itemName(req.itemId)}</span>
@@ -1472,7 +1472,7 @@ function InventoryPanel({ inventory }: { inventory: InventoryEntry[] }) {
 function InventoryItemRow({ entry }: { entry: InventoryEntry }) {
   return (
     <div className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border/60 bg-background/55 px-2 py-1.5">
-      <CatalogIcon itemId={entry.id} className="size-8 rounded-md bg-muted/45 p-1" fallback={<Package className="size-4 text-muted-foreground" />} />
+      <CatalogBadge itemId={entry.id} className="size-8 rounded-md bg-muted/45 p-1" fallback={<Package className="size-4 text-muted-foreground" />} />
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{entry.name}</div>
         <div className="text-[11px] text-muted-foreground">#{entry.id}</div>
@@ -1584,7 +1584,7 @@ function LandCell({ tile }: { tile: LandTile }) {
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center">
         {planted && land ? (
-          <CatalogIcon itemId={land.flowerId} className="size-8 object-contain drop-shadow-sm transition-transform group-hover/land:scale-110" fallback={<Flower2 className="size-5" />} />
+          <CatalogBadge itemId={land.flowerId} className="size-8 transition-transform group-hover/land:scale-110" fallback={<Flower2 className="size-5" />} />
         ) : landState === "locked" ? (
           <LockKeyhole className="size-4 opacity-75" />
         ) : landState === "unopened" ? (
@@ -1720,7 +1720,7 @@ function EventLog({
           ) : filteredEvents.length === 0 ? (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">当前分类暂无日志</div>
           ) : filteredEvents.map((event, index) => (
-            <div key={`${event.kind}-${index}`} className="grid grid-cols-[54px_112px_minmax(0,1fr)] gap-1.5 rounded px-1 leading-5 hover:bg-muted/45">
+            <div key={`${event.kind}-${index}`} className="grid grid-cols-[48px_92px_minmax(0,1fr)] gap-1.5 rounded px-1 leading-5 hover:bg-muted/45 sm:grid-cols-[54px_112px_minmax(0,1fr)]">
               <span className="text-muted-foreground">{event.ts ? new Date(Number(event.ts.seconds) * 1000).toLocaleTimeString("zh-CN", { hour12: false }) : "--:--"}</span>
               <span className={cn("truncate", eventColor(event))}>[{event.label || eventLabel(event.kind)}]</span>
               <span className="break-all text-foreground/80">{event.message}</span>
@@ -1986,8 +1986,8 @@ function SettingsDialog({
                 </div>
               </div>
             </div>
-            <DialogFooter className="items-center gap-3 border-t border-border/70 pt-4">
-              {message && <span className="mr-auto text-xs text-muted-foreground">{message}</span>}
+            <DialogFooter className="flex-col-reverse items-stretch gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center">
+              {message && <span className="text-xs text-muted-foreground sm:mr-auto">{message}</span>}
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>关闭</Button>
               <Button type="button" disabled={saving} onClick={onSave}>{saving ? "保存中..." : "保存策略"}</Button>
             </DialogFooter>
@@ -2018,7 +2018,7 @@ function FlowerOptionButton({ flower, selected, onToggle }: { flower: FlowerInfo
         selected && "border-primary/55 bg-primary/10 ring-1 ring-primary/20"
       )}
     >
-      <CatalogIcon itemId={flower.id} className="size-9 rounded-md bg-muted/45 p-1" fallback={<Flower2 className="size-4 text-muted-foreground" />} />
+      <CatalogBadge itemId={flower.id} className="size-9 rounded-md bg-muted/45 p-1" fallback={<Flower2 className="size-4 text-muted-foreground" />} />
       <span className="min-w-0">
         <span className="block truncate text-xs font-medium">{itemName(flower.id)}</span>
         <span className="block truncate text-[10px] text-muted-foreground">#{flower.id} · {formatCount(flower.gold || 0)} 金币</span>
@@ -2201,13 +2201,34 @@ function DeleteAccountDialog({
   );
 }
 
-function CatalogIcon({ itemId, className, fallback }: { itemId: number; className?: string; fallback: ReactNode }) {
-  const src = itemIconPath(itemId);
-  if (!src) return <div className={cn("flex items-center justify-center", className)}>{fallback}</div>;
+function CatalogBadge({ itemId, className, fallback }: { itemId: number; className?: string; fallback: ReactNode }) {
+  const label = catalogBadgeLabel(itemId);
+  const title = itemName(itemId);
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={itemName(itemId)} className={cn("object-contain", className)} loading="lazy" />
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-[10px] font-semibold leading-none text-foreground/75",
+        className
+      )}
+      title={title ? `${title} #${itemId}` : `#${itemId}`}
+      aria-hidden="true"
+    >
+      {label ? <span className="max-w-full truncate px-0.5">{label}</span> : fallback}
+    </div>
   );
+}
+
+function catalogBadgeLabel(itemId: number) {
+  if (itemId === 1) return "元";
+  if (itemId === 7) return "水";
+  if (itemId === 11) return "金";
+  if (itemId >= 23000 && itemId < 24000) return "花";
+  if (itemId >= 22000 && itemId < 23000) return "精";
+  const name = itemName(itemId);
+  if (name && !name.startsWith("#")) {
+    return Array.from(name).slice(0, 2).join("");
+  }
+  return `#${String(itemId).slice(-2)}`;
 }
 
 function StatusBadge({ connected }: { connected: boolean }) {

@@ -11,7 +11,6 @@ export type ItemInfo = {
   name?: string;
   short_name?: string;
   display_name?: string;
-  icon_path?: string;
   color?: number;
   type?: number;
   use_type?: number;
@@ -76,10 +75,6 @@ export function itemName(id: number | string | bigint | undefined | null): strin
   return item?.display_name || item?.name || (id ? `#${id}` : "");
 }
 
-export function itemIconPath(id: number | string | bigint | undefined | null): string | undefined {
-  return itemInfo(id)?.icon_path;
-}
-
 export function flowerDisplay(flowerId: number | string | bigint | undefined | null) {
   const flower = flowerInfo(flowerId);
   const item = itemInfo(flowerId);
@@ -87,7 +82,6 @@ export function flowerDisplay(flowerId: number | string | bigint | undefined | n
     flower,
     item,
     name: itemName(flowerId),
-    iconPath: item?.icon_path,
     seedName: flower?.seed_id ? itemName(flower.seed_id) : "",
     essenceName: flower?.elite_id ? itemName(flower.elite_id) : "",
   };

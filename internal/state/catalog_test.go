@@ -11,10 +11,10 @@ func TestCultivateCostKnownFlower(t *testing.T) {
 		t.Fatal("CultivateCost(23006) ok=false")
 	}
 	want := []ItemCount{
-		{ItemID: 1473, Count: 4},
-		{ItemID: 1481, Count: 4},
-		{ItemID: 1495, Count: 4},
-		{ItemID: 1507, Count: 1},
+		{ItemID: 1475, Count: 4},
+		{ItemID: 1483, Count: 4},
+		{ItemID: 1497, Count: 4},
+		{ItemID: 1509, Count: 1},
 	}
 	if len(costs) != len(want) {
 		t.Fatalf("len(costs)=%d want %d", len(costs), len(want))
@@ -51,9 +51,6 @@ func TestItemInfoByIDIncludesClientDetails(t *testing.T) {
 	}
 	if item.Name != "水滴" || item.Type != 0 || item.Color != 2 {
 		t.Fatalf("ItemInfoByID(7)=%+v", item)
-	}
-	if item.IconPath != "/game-assets/items/7.png" {
-		t.Fatalf("ItemInfoByID(7) missing icon asset path: %+v", item)
 	}
 }
 

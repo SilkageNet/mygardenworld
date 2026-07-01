@@ -1,8 +1,10 @@
-.PHONY: default help install build reset-data require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test lint proto-gen proto-gen-web frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint dev dev\:debug check clean
+.PHONY: default help install build reset-data catalog-gen require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test lint proto-gen proto-gen-web frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint dev dev\:debug check clean
 
 BIN_DIR ?= bin
 DATA_DIR ?= data
 DEBUG_DIR ?= debug
+MINI_DIR ?= tmp/mini
+CATALOG_CDN ?=
 LISTEN ?= 127.0.0.1:50051
 FRONTEND_HOST ?= 127.0.0.1
 FRONTEND_PORT ?= 3000
@@ -31,6 +33,8 @@ endif
 
 GARDEND := $(BIN_DIR)/gardend$(EXE)
 GARDENCTL := $(BIN_DIR)/gardenctl$(EXE)
+GARDENCAP := $(BIN_DIR)/gardencap$(EXE)
+GARDENCATALOG := $(BIN_DIR)/gardencatalog$(EXE)
 
 default: help
 
@@ -38,6 +42,8 @@ help:
 	@echo "Available targets:"
 	@echo "  install              Install gardend and gardenctl to GOPATH/bin"
 	@echo "  build                Build binaries to $(BIN_DIR)/"
+	@echo "  gardencap            Capture proxy binary is included in build"
+	@echo "  catalog-gen          Refresh catalog JSON from MINI_DIR"
 	@echo "  reset-data           Delete local DATA_DIR via gardend reset-data"
 	@echo "  backend | server     Start gardend API server"
 	@echo "  backend:debug        Start gardend with debug logs and JSONL output"
@@ -57,11 +63,18 @@ help:
 install:
 	go install ./cmd/gardend
 	go install ./cmd/gardenctl
+	go install ./cmd/gardencap
+	go install ./cmd/gardencatalog
 
 build:
 	$(MKDIR_BIN)
 	go build -o $(GARDEND) ./cmd/gardend
 	go build -o $(GARDENCTL) ./cmd/gardenctl
+	go build -o $(GARDENCAP) ./cmd/gardencap
+	go build -o $(GARDENCATALOG) ./cmd/gardencatalog
+
+catalog-gen:
+	go run ./cmd/gardencatalog --mini "$(MINI_DIR)" --cdn "$(CATALOG_CDN)" --state "internal/state/catalog_data.json" --web "web/src/lib/game/catalog.json"
 
 reset-data:
 	go run ./cmd/gardend reset-data --data-dir "$(DATA_DIR)" --yes

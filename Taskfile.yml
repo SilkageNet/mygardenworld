@@ -3,6 +3,8 @@ version: '3'
 vars:
   DATA_DIR: '{{default "data" .DATA_DIR}}'
   DEBUG_DIR: '{{default "debug" .DEBUG_DIR}}'
+  MINI_DIR: '{{default "tmp/mini" .MINI_DIR}}'
+  CATALOG_CDN: '{{default "" .CATALOG_CDN}}'
   LISTEN: '{{default "127.0.0.1:50051" .LISTEN}}'
   FRONTEND_HOST: '{{default "127.0.0.1" .FRONTEND_HOST}}'
   FRONTEND_PORT: '{{default "3000" .FRONTEND_PORT}}'
@@ -22,10 +24,12 @@ tasks:
       - task --list
 
   install:
-    desc: Install gardend and gardenctl to GOPATH/bin
+    desc: Install gardend, gardenctl, gardencap, and gardencatalog to GOPATH/bin
     cmds:
       - go install ./cmd/gardend
       - go install ./cmd/gardenctl
+      - go install ./cmd/gardencap
+      - go install ./cmd/gardencatalog
 
   build:
     desc: Build binaries to bin/
@@ -39,10 +43,28 @@ tasks:
         platforms: [windows]
       - cmd: go build -o bin/gardenctl.exe ./cmd/gardenctl
         platforms: [windows]
+      - cmd: go build -o bin/gardencap.exe ./cmd/gardencap
+        platforms: [windows]
+      - cmd: go build -o bin/gardencatalog.exe ./cmd/gardencatalog
+        platforms: [windows]
       - cmd: go build -o bin/gardend ./cmd/gardend
         platforms: [linux, darwin]
       - cmd: go build -o bin/gardenctl ./cmd/gardenctl
         platforms: [linux, darwin]
+      - cmd: go build -o bin/gardencap ./cmd/gardencap
+        platforms: [linux, darwin]
+      - cmd: go build -o bin/gardencatalog ./cmd/gardencatalog
+        platforms: [linux, darwin]
+
+  catalog-gen:
+    desc: Refresh catalog JSON from unpacked mini-program data
+    cmds:
+      - >-
+        go run ./cmd/gardencatalog
+        --mini "{{.MINI_DIR}}"
+        --cdn "{{.CATALOG_CDN}}"
+        --state "internal/state/catalog_data.json"
+        --web "web/src/lib/game/catalog.json"
 
   reset-data:
     desc: Delete local DATA_DIR via gardend reset-data

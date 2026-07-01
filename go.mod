@@ -6,6 +6,7 @@ require (
 	connectrpc.com/connect v1.19.2
 	github.com/andybalholm/brotli v1.2.1
 	github.com/coder/websocket v1.8.14
+	github.com/elazarl/goproxy v1.8.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.51.0

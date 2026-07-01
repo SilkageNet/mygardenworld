@@ -11,14 +11,13 @@ import {
   Activity,
   ArrowRight,
   DatabaseZap,
-  Flower2,
   KeyRound,
   LogIn,
   Radar,
   ShieldCheck,
   Sprout,
 } from "lucide-react";
-import { itemIconPath, itemName } from "@/lib/game/catalog";
+import { itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -185,15 +184,9 @@ export default function LoginPage() {
 }
 
 function BrandIcon({ className }: { className?: string }) {
-  const src = itemIconPath(23006);
   return (
-    <div className={cn("login-brand-icon flex items-center justify-center rounded-md bg-primary/10 p-1.5 ring-1 ring-primary/20", className)}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={itemName(23006)} className="size-full object-contain" />
-      ) : (
-        <Flower2 className="size-4 text-primary" />
-      )}
+    <div className={cn("login-brand-icon flex items-center justify-center rounded-md bg-primary/10 text-base font-semibold text-primary ring-1 ring-primary/20", className)}>
+      花
     </div>
   );
 }
@@ -202,7 +195,7 @@ function FlowerShowcase() {
   return (
     <div className="grid max-w-md grid-cols-6 gap-2">
       {SHOWCASE_FLOWERS.map((id, index) => {
-        const src = itemIconPath(id);
+        const name = itemName(id);
         return (
           <div
             key={id}
@@ -213,18 +206,23 @@ function FlowerShowcase() {
               index === 5 && "translate-y-2"
             )}
             style={{ animationDelay: `${index * 140}ms` }}
+            title={`${name} #${id}`}
           >
-            {src ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={src} alt={itemName(id)} className="size-full object-contain drop-shadow" />
-            ) : (
-              <Flower2 className="size-5 text-primary" />
-            )}
+            <span className="max-w-full truncate text-[11px] font-semibold leading-none text-primary dark:text-[#95e99e]">
+              {shortCatalogLabel(name, id)}
+            </span>
           </div>
         );
       })}
     </div>
   );
+}
+
+function shortCatalogLabel(name: string, id: number) {
+  if (name && !name.startsWith("#")) {
+    return Array.from(name).slice(0, 2).join("");
+  }
+  return `#${String(id).slice(-2)}`;
 }
 
 function LoginMotionStyles() {
@@ -378,8 +376,7 @@ function LoginMotionStyles() {
         animation-delay: 0.8s;
       }
 
-      .login-flower-tile > img,
-      .login-flower-tile > svg {
+      .login-flower-tile > span {
         animation: loginFloat 4.8s ease-in-out infinite;
         animation-delay: inherit;
         will-change: transform;
@@ -508,8 +505,7 @@ function LoginMotionStyles() {
         .login-brand-icon::after,
         .login-feature-tile::before,
         .login-card::before,
-        .login-flower-tile > img,
-        .login-flower-tile > svg,
+        .login-flower-tile > span,
         .login-primary-button::after {
           animation: none;
         }
