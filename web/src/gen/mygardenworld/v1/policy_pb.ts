@@ -11,7 +11,7 @@ import type { JsonObject, Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/policy.proto.
  */
 export const file_mygardenworld_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIsgBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSIgoVdGFza19wcmlvcml0eV9lbmFibGVkGAcgASgISACIAQESEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFQhgKFl90YXNrX3ByaW9yaXR5X2VuYWJsZWQiRAoLV2F0ZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgltYXhfYmF0Y2gYAiABKAUSEQoJbWluX2Ryb3BzGAMgASgFIvkECgpNaXNjUG9saWN5EhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYASABKAgSHAoUc3RvcnlfdW5sb2NrX2VuYWJsZWQYAiABKAgSGgoSd2F0ZXJ3aGVlbF9lbmFibGVkGAMgASgIEhkKEWN1bHRpdmF0ZV9lbmFibGVkGAQgASgIEh4KFmZsb3dlcl91cGdyYWRlX2VuYWJsZWQYBSABKAgSHgoWcmVzaWRlbnRfb3JkZXJfZW5hYmxlZBgGIAEoCBIeChZjdXN0b21lcl9vcmRlcl9lbmFibGVkGAcgASgIEiQKHGN1c3RvbWVyX29yZGVyX2NyYWZ0X2VuYWJsZWQYCCABKAgSJQodY3VzdG9tZXJfb3JkZXJfcmVqZWN0X2VuYWJsZWQYCSABKAgSJQodcmVzaWRlbnRfb3JkZXJfcmV3YXJkX2VuYWJsZWQYCiABKAgSIQoZcmVzaWRlbnRfb3JkZXJfYWRfZW5hYmxlZBgLIAEoCBIbChNmbG93ZXJfcmFja19lbmFibGVkGAwgASgIEiEKGWZsb3dlcl9yYWNrX2NyYWZ0X2VuYWJsZWQYDSABKAgSGgoSZnJlZV93YXRlcl9lbmFibGVkGA4gASgIEiAKGHRhc2tfbWFpbl9yZXdhcmRfZW5hYmxlZBgPIAEoCBIhChl0YXNrX2RhaWx5X3Jld2FyZF9lbmFibGVkGBAgASgIEiAKGHJvYWRfZ3Jvd19yZXdhcmRfZW5hYmxlZBgRIAEoCBIcChRyYW5kb21fZXZlbnRfZW5hYmxlZBgSIAEoCBIhChlmbG93ZXJfYXJ0X3Jld2FyZF9lbmFibGVkGBMgASgIQoQBChRjb20ubXlnYXJkZW53b3JsZC52MUILUG9saWN5UHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_struct]);
+  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIsgBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSIgoVdGFza19wcmlvcml0eV9lbmFibGVkGAcgASgISACIAQESEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFQhgKFl90YXNrX3ByaW9yaXR5X2VuYWJsZWQiZQoLV2F0ZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgltYXhfYmF0Y2gYAiABKAUSEQoJbWluX2Ryb3BzGAMgASgFEh8KF3ByZWZlcl9vbmVfa2V5X2lmX25vYmxlGAQgASgIIrcHCgpNaXNjUG9saWN5EhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYASABKAgSHAoUc3RvcnlfdW5sb2NrX2VuYWJsZWQYAiABKAgSGgoSd2F0ZXJ3aGVlbF9lbmFibGVkGAMgASgIEhkKEWN1bHRpdmF0ZV9lbmFibGVkGAQgASgIEh4KFmZsb3dlcl91cGdyYWRlX2VuYWJsZWQYBSABKAgSHgoWcmVzaWRlbnRfb3JkZXJfZW5hYmxlZBgGIAEoCBIeChZjdXN0b21lcl9vcmRlcl9lbmFibGVkGAcgASgIEiQKHGN1c3RvbWVyX29yZGVyX2NyYWZ0X2VuYWJsZWQYCCABKAgSJQodY3VzdG9tZXJfb3JkZXJfcmVqZWN0X2VuYWJsZWQYCSABKAgSJQodcmVzaWRlbnRfb3JkZXJfcmV3YXJkX2VuYWJsZWQYCiABKAgSIQoZcmVzaWRlbnRfb3JkZXJfYWRfZW5hYmxlZBgLIAEoCBIbChNmbG93ZXJfcmFja19lbmFibGVkGAwgASgIEiEKGWZsb3dlcl9yYWNrX2NyYWZ0X2VuYWJsZWQYDSABKAgSGgoSZnJlZV93YXRlcl9lbmFibGVkGA4gASgIEiAKGHRhc2tfbWFpbl9yZXdhcmRfZW5hYmxlZBgPIAEoCBIhChl0YXNrX2RhaWx5X3Jld2FyZF9lbmFibGVkGBAgASgIEiAKGHJvYWRfZ3Jvd19yZXdhcmRfZW5hYmxlZBgRIAEoCBIcChRyYW5kb21fZXZlbnRfZW5hYmxlZBgSIAEoCBIhChlmbG93ZXJfYXJ0X3Jld2FyZF9lbmFibGVkGBMgASgIEhsKE2JlbmVmaXRfYm94X2VuYWJsZWQYFCABKAgSGAoQc3BlZWRfdXBfZW5hYmxlZBgVIAEoCBIfChd0YXNrX2FjaF9yZXdhcmRfZW5hYmxlZBgWIAEoCBIcChRvcmRlcl9wYWxhY2VfZW5hYmxlZBgXIAEoCBIUCgxzaWduX2VuYWJsZWQYGCABKAgSGwoTZmxvd2VyX3Bhc3NfZW5hYmxlZBgZIAEoCBIhChlmbG93ZXJfZWx2ZXNfcGFzc19lbmFibGVkGBogASgIEhsKE3BsYXllcl9iYWNrX2VuYWJsZWQYGyABKAgSHwoXYWN0aXZpdHlfcmV3YXJkX2VuYWJsZWQYHCABKAgSGAoQem9vX3N5bmNfZW5hYmxlZBgdIAEoCBIYChB6b29fZmVlZF9lbmFibGVkGB4gASgIQoQBChRjb20ubXlnYXJkZW53b3JsZC52MUILUG9saWN5UHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_struct]);
 
 /**
  * Policy is a typed bag of switches and thresholds the automation engine
@@ -185,6 +185,14 @@ export type WaterPolicy = Message<"mygardenworld.v1.WaterPolicy"> & {
    * @generated from field: int32 min_drops = 3;
    */
   minDrops: number;
+
+  /**
+   * Use usrLand.waterOneKey only when the account is observed as noble/VIP.
+   * Non-noble or unknown accounts always fall back to water/waterBatch.
+   *
+   * @generated from field: bool prefer_one_key_if_noble = 4;
+   */
+  preferOneKeyIfNoble: boolean;
 };
 
 /**
@@ -292,6 +300,61 @@ export type MiscPolicy = Message<"mygardenworld.v1.MiscPolicy"> & {
    * @generated from field: bool flower_art_reward_enabled = 19;
    */
   flowerArtRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool benefit_box_enabled = 20;
+   */
+  benefitBoxEnabled: boolean;
+
+  /**
+   * @generated from field: bool speed_up_enabled = 21;
+   */
+  speedUpEnabled: boolean;
+
+  /**
+   * @generated from field: bool task_ach_reward_enabled = 22;
+   */
+  taskAchRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool order_palace_enabled = 23;
+   */
+  orderPalaceEnabled: boolean;
+
+  /**
+   * @generated from field: bool sign_enabled = 24;
+   */
+  signEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_pass_enabled = 25;
+   */
+  flowerPassEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_elves_pass_enabled = 26;
+   */
+  flowerElvesPassEnabled: boolean;
+
+  /**
+   * @generated from field: bool player_back_enabled = 27;
+   */
+  playerBackEnabled: boolean;
+
+  /**
+   * @generated from field: bool activity_reward_enabled = 28;
+   */
+  activityRewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool zoo_sync_enabled = 29;
+   */
+  zooSyncEnabled: boolean;
+
+  /**
+   * @generated from field: bool zoo_feed_enabled = 30;
+   */
+  zooFeedEnabled: boolean;
 };
 
 /**

@@ -18,7 +18,6 @@ import {
   Sprout,
 } from "lucide-react";
 import { itemName } from "@/lib/game/catalog";
-import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const FEATURE_ITEMS = [
@@ -71,7 +70,6 @@ export default function LoginPage() {
             <div className="absolute inset-x-0 bottom-0 h-44 bg-[linear-gradient(0deg,rgba(228,239,222,0.86),transparent)] dark:bg-[linear-gradient(0deg,rgba(5,10,7,0.78),transparent)]" />
             <div className="relative">
               <div className="flex items-center gap-3">
-                <BrandIcon className="size-12" />
                 <div>
                   <div className="text-base font-semibold">花园世界</div>
                   <div className="text-xs text-muted-foreground dark:text-white/58">本地自动化控制台</div>
@@ -112,7 +110,6 @@ export default function LoginPage() {
           <section className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center bg-card/92 p-5 sm:min-h-[620px] sm:p-8">
             <div className="w-full max-w-sm">
               <div className="mb-8 flex items-center gap-3 md:hidden">
-                <BrandIcon className="size-11" />
                 <div>
                   <div className="text-base font-semibold">花园世界</div>
                   <div className="text-xs text-muted-foreground">本地自动化控制台</div>
@@ -183,46 +180,24 @@ export default function LoginPage() {
   );
 }
 
-function BrandIcon({ className }: { className?: string }) {
-  return (
-    <div className={cn("login-brand-icon flex items-center justify-center rounded-md bg-primary/10 text-base font-semibold text-primary ring-1 ring-primary/20", className)}>
-      花
-    </div>
-  );
-}
-
 function FlowerShowcase() {
   return (
-    <div className="grid max-w-md grid-cols-6 gap-2">
-      {SHOWCASE_FLOWERS.map((id, index) => {
+    <div className="flex max-w-md flex-wrap gap-2">
+      {SHOWCASE_FLOWERS.map((id) => {
         const name = itemName(id);
         return (
           <div
             key={id}
-            className={cn(
-              "login-flower-tile flex aspect-square items-center justify-center rounded-md border border-emerald-950/10 bg-white/55 p-2 shadow-sm shadow-emerald-950/10 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/20",
-              index === 1 && "translate-y-4",
-              index === 3 && "-translate-y-3",
-              index === 5 && "translate-y-2"
-            )}
-            style={{ animationDelay: `${index * 140}ms` }}
+            className="login-flower-tile rounded-md border border-emerald-950/10 bg-white/55 px-2.5 py-1.5 shadow-sm shadow-emerald-950/10 dark:border-white/10 dark:bg-white/[0.055] dark:shadow-black/20"
             title={`${name} #${id}`}
           >
-            <span className="max-w-full truncate text-[11px] font-semibold leading-none text-primary dark:text-[#95e99e]">
-              {shortCatalogLabel(name, id)}
-            </span>
+            <span className="text-xs font-medium text-primary dark:text-[#95e99e]">{name}</span>
+            <span className="ml-1.5 text-[10px] text-muted-foreground dark:text-white/45">#{id}</span>
           </div>
         );
       })}
     </div>
   );
-}
-
-function shortCatalogLabel(name: string, id: number) {
-  if (name && !name.startsWith("#")) {
-    return Array.from(name).slice(0, 2).join("");
-  }
-  return `#${String(id).slice(-2)}`;
 }
 
 function LoginMotionStyles() {
@@ -327,29 +302,6 @@ function LoginMotionStyles() {
         animation: loginOrbit 14s linear infinite reverse;
       }
 
-      .login-brand-icon {
-        position: relative;
-        box-shadow: 0 0 24px rgba(64, 152, 84, 0.16);
-      }
-
-      .dark .login-brand-icon {
-        box-shadow: 0 0 24px rgba(101, 218, 126, 0.18);
-      }
-
-      .login-brand-icon::after {
-        content: "";
-        position: absolute;
-        inset: -7px;
-        border-radius: 0.65rem;
-        border: 1px solid rgba(52, 139, 72, 0.24);
-        opacity: 0.58;
-        animation: loginPulse 2.8s ease-in-out infinite;
-      }
-
-      .dark .login-brand-icon::after {
-        border-color: rgba(136, 238, 157, 0.28);
-      }
-
       .login-feature-tile,
       .login-card {
         position: relative;
@@ -374,12 +326,6 @@ function LoginMotionStyles() {
 
       .login-card::before {
         animation-delay: 0.8s;
-      }
-
-      .login-flower-tile > span {
-        animation: loginFloat 4.8s ease-in-out infinite;
-        animation-delay: inherit;
-        will-change: transform;
       }
 
       .login-primary-button {
@@ -453,18 +399,6 @@ function LoginMotionStyles() {
         }
       }
 
-      @keyframes loginPulse {
-        0%,
-        100% {
-          transform: scale(0.95);
-          opacity: 0.38;
-        }
-        50% {
-          transform: scale(1.08);
-          opacity: 0.78;
-        }
-      }
-
       @keyframes loginSheen {
         0%,
         54% {
@@ -473,16 +407,6 @@ function LoginMotionStyles() {
         76%,
         100% {
           transform: translateX(120%);
-        }
-      }
-
-      @keyframes loginFloat {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(-0.42rem);
         }
       }
 
@@ -502,10 +426,8 @@ function LoginMotionStyles() {
         .login-shell::before,
         .login-light-ribbon,
         .login-orbit,
-        .login-brand-icon::after,
         .login-feature-tile::before,
         .login-card::before,
-        .login-flower-tile > span,
         .login-primary-button::after {
           animation: none;
         }

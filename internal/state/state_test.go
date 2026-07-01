@@ -16,6 +16,33 @@ func applyMap(t *testing.T, s *State, top map[string]any) {
 	s.ApplyV(raw)
 }
 
+func TestApplyV_DiagnosticsTrackNamespacesAndNoble(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"0": map[string]any{
+				"36": 1,
+				"37": 240,
+			},
+		},
+		"777": map[string]any{"0": map[string]any{"1": "raw-only"}},
+	})
+
+	vip, vipExp := s.Vip()
+	if vip != 1 || vipExp != 240 {
+		t.Fatalf("Vip() = (%d,%d), want (1,240)", vip, vipExp)
+	}
+	if !s.NobleEligible() {
+		t.Fatal("NobleEligible() = false, want true when vip is observed")
+	}
+	if got := s.ObservedNamespaces(); len(got) != 2 || got[0] != "7" || got[1] != "777" {
+		t.Fatalf("ObservedNamespaces() = %v, want [7 777]", got)
+	}
+	if got := s.UnknownNamespaceCount(); got != 1 {
+		t.Fatalf("UnknownNamespaceCount() = %d, want 1", got)
+	}
+}
+
 func TestApplyV_RosterPopulatesLands(t *testing.T) {
 	// Cold-start `index.reLogin` shape: 100.0.1.<id> carries the full
 	// per-land state for every land in the player's roster. We verify both

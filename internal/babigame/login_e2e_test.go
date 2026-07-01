@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientrpc"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -60,7 +62,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("ws connect: %v", err)
 	}
-	rpc := babigame.NewRPCClient(client, session, babigame.WithServerErrorsAsResults())
+	rpc := clientrpc.NewClient(babigame.NewRPCClient(client, session, babigame.WithServerErrorsAsResults()))
 	time.Sleep(300 * time.Millisecond)
 
 	// ReLogin
@@ -94,7 +96,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// Heartbeat
 	t.Log("usr.heartTick...")
-	heartTickResp, err := rpc.Usr().HeartTick(ctx, babigame.UsrHeartTickRequest{}, babigame.WithTimeout(10*time.Second))
+	heartTickResp, err := rpc.Usr().HeartTick(ctx, clientproto.UsrHeartTickRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("usr.heartTick: %v", err)
 	}
@@ -102,7 +104,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// im.getChannelId
 	t.Log("im.getChannelId...")
-	imResp, err := rpc.Im().GetChannelId(ctx, babigame.ImGetChannelIdRequest{}, babigame.WithTimeout(10*time.Second))
+	imResp, err := rpc.Im().GetChannelId(ctx, clientproto.ImGetChannelIdRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("im.getChannelId: %v", err)
 	}
@@ -110,7 +112,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// frd.enter
 	t.Log("frd.enter...")
-	frdResp, err := rpc.Frd().Enter(ctx, babigame.FrdEnterRequest{
+	frdResp, err := rpc.Frd().Enter(ctx, clientproto.FrdEnterRequest{
 		NeedBlackList:  1,
 		NeedApplyList:  1,
 		NeedFriendList: 1,
@@ -122,7 +124,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// homeRqst.showBird
 	t.Log("homeRqst.showBird...")
-	birdResp, err := rpc.HomeRqst().ShowBird(ctx, babigame.HomeRqstShowBirdRequest{Time: 1}, babigame.WithTimeout(10*time.Second))
+	birdResp, err := rpc.HomeRqst().ShowBird(ctx, clientproto.HomeRqstShowBirdRequest{Time: 1}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("homeRqst.showBird: %v", err)
 	}
@@ -130,7 +132,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// sdk.sendGoods
 	t.Log("sdk.sendGoods...")
-	sdkResp, err := rpc.Sdk().SendGoods(ctx, babigame.SdkSendGoodsRequest{}, babigame.WithTimeout(10*time.Second))
+	sdkResp, err := rpc.Sdk().SendGoods(ctx, clientproto.SdkSendGoodsRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("sdk.sendGoods: %v", err)
 	}
@@ -138,7 +140,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// mail.getList
 	t.Log("mail.getList...")
-	mailResp, err := rpc.Mail().GetList(ctx, babigame.MailGetListRequest{}, babigame.WithTimeout(10*time.Second))
+	mailResp, err := rpc.Mail().GetList(ctx, clientproto.MailGetListRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("mail.getList: %v", err)
 	}
@@ -146,7 +148,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// randomEvent.enter
 	t.Log("randomEvent.enter...")
-	reResp, err := rpc.RandomEvent().Enter(ctx, babigame.RandomEventEnterRequest{}, babigame.WithTimeout(10*time.Second))
+	reResp, err := rpc.RandomEvent().Enter(ctx, clientproto.RandomEventEnterRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
@@ -155,7 +157,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// waterwheel.enter
 	t.Log("waterwheel.enter...")
-	wwResp, err := rpc.Waterwheel().Enter(ctx, babigame.WaterwheelEnterRequest{}, babigame.WithTimeout(10*time.Second))
+	wwResp, err := rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
@@ -165,7 +167,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 	// Test land operations (read-only: we don't want to mutate game state destructively)
 	// usrLand.harvestOneKey - safe to call even if nothing to harvest
 	t.Log("usrLand.harvestOneKey...")
-	harvestResp, err := rpc.UsrLand().HarvestOneKey(ctx, babigame.UsrLandHarvestOneKeyRequest{}, babigame.WithTimeout(10*time.Second))
+	harvestResp, err := rpc.UsrLand().HarvestOneKey(ctx, clientproto.UsrLandHarvestOneKeyRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
@@ -174,7 +176,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// usrLand.waterOneKey - safe to call
 	t.Log("usrLand.waterOneKey...")
-	waterResp, err := rpc.UsrLand().WaterOneKey(ctx, babigame.UsrLandWaterOneKeyRequest{}, babigame.WithTimeout(10*time.Second))
+	waterResp, err := rpc.UsrLand().WaterOneKey(ctx, clientproto.UsrLandWaterOneKeyRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {

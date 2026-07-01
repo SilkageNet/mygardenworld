@@ -57,7 +57,7 @@ tasks:
         platforms: [linux, darwin]
 
   catalog-gen:
-    desc: Refresh catalog JSON from unpacked mini-program data
+    desc: Refresh client-derived protocol and catalog artifacts from unpacked mini-program data
     cmds:
       - >-
         go run ./cmd/gardencatalog
@@ -65,6 +65,8 @@ tasks:
         --cdn "{{.CATALOG_CDN}}"
         --state "internal/state/catalog_data.json"
         --web "web/src/lib/game/catalog.json"
+        --protocol-package "internal/babigame/clientproto"
+        --rpc-facade "internal/babigame/clientrpc/rpc_facade.go"
 
   reset-data:
     desc: Delete local DATA_DIR via gardend reset-data

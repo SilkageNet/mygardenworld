@@ -2,6 +2,7 @@ package cataloggen
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -57,4 +58,138 @@ func TestAssetFieldDetectionCoversResourceIdentifiers(t *testing.T) {
 			t.Fatalf("isAssetField(%q)=true", field)
 		}
 	}
+}
+
+func TestExtractClientProtocolFromTextSchemasAndRPCs(t *testing.T) {
+	fixture := `
+mo.DS.setSingle("G.ISyncData", {$usrTot:"7:IUsrTot", usrLandTot:"100:IUsrLandTot", waterwheel:"114:IWaterwheel", benefitBoxTot:"116:IBenefitBoxTot"});
+mo.DS.setSingle("G.ILand", {flowerId:0, state:1, lvl:2, harvestCnt:3, nextTime:"5:Date", plantTime:"7:Date"});
+mo.DS.setSingle("G.IBenefitBox", {uid:0, drawCnt:1, resetCntTime:"2:Date", uTime:"3:Date", cTime:"4:Date"});
+mo.DS.setSingle("G.GS.usrLandIface.IArg_plant", {landId:0, flowerId:1});
+mo.DS.setSingle("G.GS.waterwheelIface.IArg_recv", {});
+this.request2("gs.usrLand.plant", {landId:t, flowerId:e}, cb);
+this.request2("gs.waterwheel.recv", {}, cb);
+`
+	protocol, err := ExtractClientProtocolFromText(fixture)
+	if err != nil {
+		t.Fatalf("ExtractClientProtocolFromText: %v", err)
+	}
+	land := findProtocolSchema(protocol.Schemas, "G.ILand")
+	if land == nil {
+		t.Fatal("G.ILand schema missing")
+	}
+	if field := findProtocolField(land.Fields, "nextTime"); field == nil || field.Index != 5 || field.Type != "Date" {
+		t.Fatalf("G.ILand.nextTime = %+v", field)
+	}
+	box := findProtocolSchema(protocol.Schemas, "G.IBenefitBox")
+	if box == nil {
+		t.Fatal("G.IBenefitBox schema missing")
+	}
+	if field := findProtocolField(box.Fields, "resetCntTime"); field == nil || field.Index != 2 || field.Type != "Date" {
+		t.Fatalf("G.IBenefitBox.resetCntTime = %+v", field)
+	}
+	ns := findNamespaceSchema(protocol.NamespaceSchemas, "100")
+	if ns == nil || ns.Schema != "G.IUsrLandTot" {
+		t.Fatalf("namespace 100 = %+v", ns)
+	}
+	plant := findProtocolRPC(protocol.RPCs, "usrLand.plant")
+	if plant == nil {
+		t.Fatal("usrLand.plant missing")
+	}
+	if plant.RequestShape != protocolRequestFields || len(plant.RequestFields) != 2 ||
+		plant.RequestFields[0].Name != "landId" || plant.RequestFields[1].Name != "flowerId" {
+		t.Fatalf("usrLand.plant = %+v", plant)
+	}
+	recv := findProtocolRPC(protocol.RPCs, "waterwheel.recv")
+	if recv == nil || recv.RequestShape != protocolRequestEmpty {
+		t.Fatalf("waterwheel.recv = %+v", recv)
+	}
+}
+
+func TestProtocolGeneratorsStableFixture(t *testing.T) {
+	fixture := `
+mo.DS.setSingle("G.ISyncData", {usrLandTot:"100:IUsrLandTot", benefitBoxTot:"116:IBenefitBoxTot"});
+mo.DS.setSingle("G.ILand", {flowerId:0, state:1});
+mo.DS.setSingle("G.IBenefitBox", {uid:0, drawCnt:1, resetCntTime:"2:Date", uTime:"3:Date", cTime:"4:Date"});
+mo.DS.setSingle("G.GS.usrLandIface.IArg_plant", {landId:0, flowerId:1});
+mo.DS.setSingle("G.GS.waterwheelIface.IArg_recv", {});
+this.request2("gs.usrLand.plant", {landId:t, flowerId:e}, cb);
+this.request2("gs.waterwheel.recv", {}, cb);
+`
+	protocol, err := ExtractClientProtocolFromText(fixture)
+	if err != nil {
+		t.Fatalf("ExtractClientProtocolFromText: %v", err)
+	}
+	clientTypesGo, err := GenerateClientProtocolTypesGo(protocol)
+	if err != nil {
+		t.Fatalf("GenerateClientProtocolTypesGo: %v", err)
+	}
+	clientSchemaGo, err := GenerateClientProtocolSchemaGo(protocol)
+	if err != nil {
+		t.Fatalf("GenerateClientProtocolSchemaGo: %v", err)
+	}
+	clientRPCGo, err := GenerateClientRPCNamesGo(protocol)
+	if err != nil {
+		t.Fatalf("GenerateClientRPCNamesGo: %v", err)
+	}
+	facadeGo, err := GenerateRPCFacadeGo(protocol)
+	if err != nil {
+		t.Fatalf("GenerateRPCFacadeGo: %v", err)
+	}
+	for _, want := range []string{`type ILand struct`, `FlowerId int32 ` + "`json:\"0,omitempty\"`", `type IBenefitBox struct`, `ResetCntTime int64 ` + "`json:\"2,omitempty\"`", `type UsrLandPlantRequest struct`} {
+		if !strings.Contains(string(clientTypesGo), want) {
+			t.Fatalf("client protocol types output missing %q\n%s", want, clientTypesGo)
+		}
+	}
+	for _, want := range []string{`Name: "G.ILand"`, `Key: "100"`, `Schema: "G.IUsrLandTot"`} {
+		if !strings.Contains(string(clientSchemaGo), want) {
+			t.Fatalf("client protocol schema output missing %q\n%s", want, clientSchemaGo)
+		}
+	}
+	for _, want := range []string{`RPCUsrLandPlant`, `"usrLand.plant"`, `RequestFields: []string{"landId", "flowerId"}`} {
+		if !strings.Contains(string(clientRPCGo), want) {
+			t.Fatalf("client rpc names output missing %q\n%s", want, clientRPCGo)
+		}
+	}
+	for _, want := range []string{`package clientrpc`, `func NewClient(c *babigame.RPCClient) *Client`, `req clientproto.UsrLandPlantRequest`, `babigame.CallRPC[clientproto.StateDelta]`} {
+		if !strings.Contains(string(facadeGo), want) {
+			t.Fatalf("rpc facade output missing %q\n%s", want, facadeGo)
+		}
+	}
+}
+
+func findProtocolSchema(schemas []ProtocolSchema, name string) *ProtocolSchema {
+	for i := range schemas {
+		if schemas[i].Name == name {
+			return &schemas[i]
+		}
+	}
+	return nil
+}
+
+func findProtocolField(fields []ProtocolField, name string) *ProtocolField {
+	for i := range fields {
+		if fields[i].Name == name {
+			return &fields[i]
+		}
+	}
+	return nil
+}
+
+func findNamespaceSchema(schemas []NamespaceSchema, key string) *NamespaceSchema {
+	for i := range schemas {
+		if schemas[i].Key == key {
+			return &schemas[i]
+		}
+	}
+	return nil
+}
+
+func findProtocolRPC(rpcs []ProtocolRPC, name string) *ProtocolRPC {
+	for i := range rpcs {
+		if rpcs[i].Name == name {
+			return &rpcs[i]
+		}
+	}
+	return nil
 }

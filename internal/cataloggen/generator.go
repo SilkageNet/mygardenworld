@@ -22,27 +22,34 @@ const defaultCDNBase = "https://hygncdn.babigame.cn"
 
 // Options controls catalog generation from an unpacked mini program.
 type Options struct {
-	MiniRoot    string
-	CDNBase     string
-	StateOutput string
-	WebOutput   string
-	HTTPClient  *http.Client
+	MiniRoot           string
+	CDNBase            string
+	StateOutput        string
+	WebOutput          string
+	ProtocolPackageDir string
+	RPCFacadeOutput    string
+	HTTPClient         *http.Client
 }
 
 // Result describes the source data and generated catalog sizes.
 type Result struct {
-	MiniRoot          string
-	Version           string
-	CDNBase           string
-	ResourceConfigURL string
-	GameDataURL       string
-	StateOutput       string
-	WebOutput         string
-	Tables            int
-	Items             int
-	Flowers           int
-	FarmLands         int
-	RemovedAssets     int
+	MiniRoot           string
+	Version            string
+	CDNBase            string
+	ResourceConfigURL  string
+	GameDataURL        string
+	StateOutput        string
+	WebOutput          string
+	ProtocolPackageDir string
+	RPCFacadeOutput    string
+	Tables             int
+	Items              int
+	Flowers            int
+	FarmLands          int
+	RemovedAssets      int
+	StateSchemas       int
+	NamespaceSchemas   int
+	RPCs               int
 }
 
 type catalogData struct {
@@ -102,6 +109,12 @@ func Generate(ctx context.Context, opts Options) (Result, error) {
 	if opts.WebOutput == "" {
 		opts.WebOutput = filepath.Join("web", "src", "lib", "game", "catalog.json")
 	}
+	if opts.ProtocolPackageDir == "" {
+		opts.ProtocolPackageDir = filepath.Join("internal", "babigame", "clientproto")
+	}
+	if opts.RPCFacadeOutput == "" {
+		opts.RPCFacadeOutput = filepath.Join("internal", "babigame", "clientrpc", "rpc_facade.go")
+	}
 	httpc := opts.HTTPClient
 	if httpc == nil {
 		httpc = &http.Client{Timeout: 45 * time.Second}
@@ -110,6 +123,10 @@ func Generate(ctx context.Context, opts Options) (Result, error) {
 	miniRoot, err := findMiniRoot(opts.MiniRoot)
 	if err != nil {
 		return Result{}, err
+	}
+	protocol, err := ExtractClientProtocol(miniRoot)
+	if err != nil {
+		return Result{}, fmt.Errorf("extract client protocol: %w", err)
 	}
 	index, err := readMiniIndex(miniRoot)
 	if err != nil {
@@ -163,20 +180,56 @@ func Generate(ctx context.Context, opts Options) (Result, error) {
 	if err := writeJSON(opts.WebOutput, webCatalog); err != nil {
 		return Result{}, fmt.Errorf("write web catalog: %w", err)
 	}
+	if err := os.MkdirAll(opts.ProtocolPackageDir, 0o755); err != nil {
+		return Result{}, fmt.Errorf("create protocol package dir: %w", err)
+	}
+	protocolTypesGo, err := GenerateClientProtocolTypesGo(protocol)
+	if err != nil {
+		return Result{}, fmt.Errorf("generate client protocol types: %w", err)
+	}
+	if err := writeGeneratedGo(filepath.Join(opts.ProtocolPackageDir, "types.go"), protocolTypesGo); err != nil {
+		return Result{}, fmt.Errorf("write client protocol types: %w", err)
+	}
+	clientSchemaGo, err := GenerateClientProtocolSchemaGo(protocol)
+	if err != nil {
+		return Result{}, fmt.Errorf("generate client protocol schema: %w", err)
+	}
+	if err := writeGeneratedGo(filepath.Join(opts.ProtocolPackageDir, "schema.go"), clientSchemaGo); err != nil {
+		return Result{}, fmt.Errorf("write client protocol schema: %w", err)
+	}
+	clientRPCNamesGo, err := GenerateClientRPCNamesGo(protocol)
+	if err != nil {
+		return Result{}, fmt.Errorf("generate client rpc names: %w", err)
+	}
+	if err := writeGeneratedGo(filepath.Join(opts.ProtocolPackageDir, "rpc_names.go"), clientRPCNamesGo); err != nil {
+		return Result{}, fmt.Errorf("write client rpc names: %w", err)
+	}
+	rpcFacadeGo, err := GenerateRPCFacadeGo(protocol)
+	if err != nil {
+		return Result{}, fmt.Errorf("generate rpc facade: %w", err)
+	}
+	if err := writeGeneratedGo(opts.RPCFacadeOutput, rpcFacadeGo); err != nil {
+		return Result{}, fmt.Errorf("write rpc facade: %w", err)
+	}
 
 	return Result{
-		MiniRoot:          miniRoot,
-		Version:           index.Version,
-		CDNBase:           index.CDNBase,
-		ResourceConfigURL: resourceURL,
-		GameDataURL:       dataURL,
-		StateOutput:       opts.StateOutput,
-		WebOutput:         opts.WebOutput,
-		Tables:            len(tables),
-		Items:             len(items),
-		Flowers:           len(flowers),
-		FarmLands:         len(farmLands),
-		RemovedAssets:     removed,
+		MiniRoot:           miniRoot,
+		Version:            index.Version,
+		CDNBase:            index.CDNBase,
+		ResourceConfigURL:  resourceURL,
+		GameDataURL:        dataURL,
+		StateOutput:        opts.StateOutput,
+		WebOutput:          opts.WebOutput,
+		ProtocolPackageDir: opts.ProtocolPackageDir,
+		RPCFacadeOutput:    opts.RPCFacadeOutput,
+		Tables:             len(tables),
+		Items:              len(items),
+		Flowers:            len(flowers),
+		FarmLands:          len(farmLands),
+		RemovedAssets:      removed,
+		StateSchemas:       len(protocol.Schemas),
+		NamespaceSchemas:   len(protocol.NamespaceSchemas),
+		RPCs:               len(protocol.RPCs),
 	}, nil
 }
 

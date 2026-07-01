@@ -43,7 +43,7 @@ help:
 	@echo "  install              Install gardend and gardenctl to GOPATH/bin"
 	@echo "  build                Build binaries to $(BIN_DIR)/"
 	@echo "  gardencap            Capture proxy binary is included in build"
-	@echo "  catalog-gen          Refresh catalog JSON from MINI_DIR"
+	@echo "  catalog-gen          Refresh client-derived protocol and catalog artifacts from MINI_DIR"
 	@echo "  reset-data           Delete local DATA_DIR via gardend reset-data"
 	@echo "  backend | server     Start gardend API server"
 	@echo "  backend:debug        Start gardend with debug logs and JSONL output"
@@ -74,7 +74,7 @@ build:
 	go build -o $(GARDENCATALOG) ./cmd/gardencatalog
 
 catalog-gen:
-	go run ./cmd/gardencatalog --mini "$(MINI_DIR)" --cdn "$(CATALOG_CDN)" --state "internal/state/catalog_data.json" --web "web/src/lib/game/catalog.json"
+	go run ./cmd/gardencatalog --mini "$(MINI_DIR)" --cdn "$(CATALOG_CDN)" --state "internal/state/catalog_data.json" --web "web/src/lib/game/catalog.json" --protocol-package "internal/babigame/clientproto" --rpc-facade "internal/babigame/clientrpc/rpc_facade.go"
 
 reset-data:
 	go run ./cmd/gardend reset-data --data-dir "$(DATA_DIR)" --yes

@@ -289,9 +289,12 @@ type WaterPolicy struct {
 	Enabled  bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	MaxBatch int32                  `protobuf:"varint,2,opt,name=max_batch,json=maxBatch,proto3" json:"max_batch,omitempty"`
 	// Preserve at least this many water drops before watering. Default: 5.
-	MinDrops      int32 `protobuf:"varint,3,opt,name=min_drops,json=minDrops,proto3" json:"min_drops,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MinDrops int32 `protobuf:"varint,3,opt,name=min_drops,json=minDrops,proto3" json:"min_drops,omitempty"`
+	// Use usrLand.waterOneKey only when the account is observed as noble/VIP.
+	// Non-noble or unknown accounts always fall back to water/waterBatch.
+	PreferOneKeyIfNoble bool `protobuf:"varint,4,opt,name=prefer_one_key_if_noble,json=preferOneKeyIfNoble,proto3" json:"prefer_one_key_if_noble,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *WaterPolicy) Reset() {
@@ -345,6 +348,13 @@ func (x *WaterPolicy) GetMinDrops() int32 {
 	return 0
 }
 
+func (x *WaterPolicy) GetPreferOneKeyIfNoble() bool {
+	if x != nil {
+		return x.PreferOneKeyIfNoble
+	}
+	return false
+}
+
 type MiscPolicy struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	LandUnlockEnabled          bool                   `protobuf:"varint,1,opt,name=land_unlock_enabled,json=landUnlockEnabled,proto3" json:"land_unlock_enabled,omitempty"`
@@ -369,6 +379,14 @@ type MiscPolicy struct {
 	BenefitBoxEnabled          bool                   `protobuf:"varint,20,opt,name=benefit_box_enabled,json=benefitBoxEnabled,proto3" json:"benefit_box_enabled,omitempty"`
 	SpeedUpEnabled             bool                   `protobuf:"varint,21,opt,name=speed_up_enabled,json=speedUpEnabled,proto3" json:"speed_up_enabled,omitempty"`
 	TaskAchRewardEnabled       bool                   `protobuf:"varint,22,opt,name=task_ach_reward_enabled,json=taskAchRewardEnabled,proto3" json:"task_ach_reward_enabled,omitempty"`
+	OrderPalaceEnabled         bool                   `protobuf:"varint,23,opt,name=order_palace_enabled,json=orderPalaceEnabled,proto3" json:"order_palace_enabled,omitempty"`
+	SignEnabled                bool                   `protobuf:"varint,24,opt,name=sign_enabled,json=signEnabled,proto3" json:"sign_enabled,omitempty"`
+	FlowerPassEnabled          bool                   `protobuf:"varint,25,opt,name=flower_pass_enabled,json=flowerPassEnabled,proto3" json:"flower_pass_enabled,omitempty"`
+	FlowerElvesPassEnabled     bool                   `protobuf:"varint,26,opt,name=flower_elves_pass_enabled,json=flowerElvesPassEnabled,proto3" json:"flower_elves_pass_enabled,omitempty"`
+	PlayerBackEnabled          bool                   `protobuf:"varint,27,opt,name=player_back_enabled,json=playerBackEnabled,proto3" json:"player_back_enabled,omitempty"`
+	ActivityRewardEnabled      bool                   `protobuf:"varint,28,opt,name=activity_reward_enabled,json=activityRewardEnabled,proto3" json:"activity_reward_enabled,omitempty"`
+	ZooSyncEnabled             bool                   `protobuf:"varint,29,opt,name=zoo_sync_enabled,json=zooSyncEnabled,proto3" json:"zoo_sync_enabled,omitempty"`
+	ZooFeedEnabled             bool                   `protobuf:"varint,30,opt,name=zoo_feed_enabled,json=zooFeedEnabled,proto3" json:"zoo_feed_enabled,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -557,6 +575,62 @@ func (x *MiscPolicy) GetTaskAchRewardEnabled() bool {
 	return false
 }
 
+func (x *MiscPolicy) GetOrderPalaceEnabled() bool {
+	if x != nil {
+		return x.OrderPalaceEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetSignEnabled() bool {
+	if x != nil {
+		return x.SignEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetFlowerPassEnabled() bool {
+	if x != nil {
+		return x.FlowerPassEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetFlowerElvesPassEnabled() bool {
+	if x != nil {
+		return x.FlowerElvesPassEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetPlayerBackEnabled() bool {
+	if x != nil {
+		return x.PlayerBackEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetActivityRewardEnabled() bool {
+	if x != nil {
+		return x.ActivityRewardEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetZooSyncEnabled() bool {
+	if x != nil {
+		return x.ZooSyncEnabled
+	}
+	return false
+}
+
+func (x *MiscPolicy) GetZooFeedEnabled() bool {
+	if x != nil {
+		return x.ZooFeedEnabled
+	}
+	return false
+}
+
 var File_mygardenworld_v1_policy_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_policy_proto_rawDesc = "" +
@@ -582,11 +656,12 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x12allowed_flower_ids\x18\x03 \x03(\x05R\x10allowedFlowerIds\x12,\n" +
 	"\x12blocked_flower_ids\x18\x04 \x03(\x05R\x10blockedFlowerIds\x12\x1b\n" +
 	"\tmax_batch\x18\x05 \x01(\x05R\bmaxBatchB\x18\n" +
-	"\x16_task_priority_enabled\"a\n" +
+	"\x16_task_priority_enabled\"\x97\x01\n" +
 	"\vWaterPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1b\n" +
 	"\tmax_batch\x18\x02 \x01(\x05R\bmaxBatch\x12\x1b\n" +
-	"\tmin_drops\x18\x03 \x01(\x05R\bminDrops\"\xb2\t\n" +
+	"\tmin_drops\x18\x03 \x01(\x05R\bminDrops\x124\n" +
+	"\x17prefer_one_key_if_noble\x18\x04 \x01(\bR\x13preferOneKeyIfNoble\"\xae\f\n" +
 	"\n" +
 	"MiscPolicy\x12.\n" +
 	"\x13land_unlock_enabled\x18\x01 \x01(\bR\x11landUnlockEnabled\x120\n" +
@@ -611,7 +686,15 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x19flower_art_reward_enabled\x18\x13 \x01(\bR\x16flowerArtRewardEnabled\x12.\n" +
 	"\x13benefit_box_enabled\x18\x14 \x01(\bR\x11benefitBoxEnabled\x12(\n" +
 	"\x10speed_up_enabled\x18\x15 \x01(\bR\x0espeedUpEnabled\x125\n" +
-	"\x17task_ach_reward_enabled\x18\x16 \x01(\bR\x14taskAchRewardEnabledB\xce\x01\n" +
+	"\x17task_ach_reward_enabled\x18\x16 \x01(\bR\x14taskAchRewardEnabled\x120\n" +
+	"\x14order_palace_enabled\x18\x17 \x01(\bR\x12orderPalaceEnabled\x12!\n" +
+	"\fsign_enabled\x18\x18 \x01(\bR\vsignEnabled\x12.\n" +
+	"\x13flower_pass_enabled\x18\x19 \x01(\bR\x11flowerPassEnabled\x129\n" +
+	"\x19flower_elves_pass_enabled\x18\x1a \x01(\bR\x16flowerElvesPassEnabled\x12.\n" +
+	"\x13player_back_enabled\x18\x1b \x01(\bR\x11playerBackEnabled\x126\n" +
+	"\x17activity_reward_enabled\x18\x1c \x01(\bR\x15activityRewardEnabled\x12(\n" +
+	"\x10zoo_sync_enabled\x18\x1d \x01(\bR\x0ezooSyncEnabled\x12(\n" +
+	"\x10zoo_feed_enabled\x18\x1e \x01(\bR\x0ezooFeedEnabledB\xce\x01\n" +
 	"\x14com.mygardenworld.v1B\vPolicyProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (

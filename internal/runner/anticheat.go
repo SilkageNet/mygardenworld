@@ -6,12 +6,14 @@ import (
 	"strings"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
 // Anti-cheat verification point types observed from captures.
 const (
 	rqstPointHarvest       = 2
 	rqstPointPlant         = 1
+	rqstPointWater         = 3
 	rqstPointCustomerOrder = 4
 	rqstPointFlowerOrder   = 5
 )
@@ -30,18 +32,20 @@ func (r *Runner) sendRqstVerification(ctx context.Context, rpcName string, point
 
 	fingerprint := buildDeviceFingerprint(session.DeviceID)
 	point := []any{pointType, fingerprint}
-	rpc := runnerRPC(client, session)
+	rpc := r.runnerRPC(client, session)
 	var d babigame.WSResponseD
 	var err error
 	switch rpcName {
-	case babigame.RPCReapPopupShjm.String():
-		_, d, err = rpcResult(rpc.ReapPopup().Shjm(ctx, babigame.ReapPopupShjmRequest{Point: point}))
-	case babigame.RPCPlantRqstZhtc.String():
-		_, d, err = rpcResult(rpc.PlantRqst().Zhtc(ctx, babigame.PlantRqstZhtcRequest{Point: point}))
-	case babigame.RPCCustomerOrderRqstDkgkck.String():
-		_, d, err = rpcResult(rpc.CustomerOrderRqst().Dkgkck(ctx, babigame.CustomerOrderRqstDkgkckRequest{Point: point}))
-	case babigame.RPCFlowerOrderRqstShowR.String():
-		_, d, err = rpcResult(rpc.FlowerOrderRqst().ShowR(ctx, babigame.FlowerOrderRqstShowRRequest{Point: point}))
+	case clientproto.RPCReapPopupShjm.String():
+		_, d, err = rpcResult(rpc.ReapPopup().Shjm(ctx, clientproto.ReapPopupShjmRequest{Point: point}))
+	case clientproto.RPCPlantRqstZhtc.String():
+		_, d, err = rpcResult(rpc.PlantRqst().Zhtc(ctx, clientproto.PlantRqstZhtcRequest{Point: point}))
+	case clientproto.RPCCustomerOrderRqstDkgkck.String():
+		_, d, err = rpcResult(rpc.CustomerOrderRqst().Dkgkck(ctx, clientproto.CustomerOrderRqstDkgkckRequest{Point: point}))
+	case clientproto.RPCFlowerOrderRqstShowR.String():
+		_, d, err = rpcResult(rpc.FlowerOrderRqst().ShowR(ctx, clientproto.FlowerOrderRqstShowRRequest{Point: point}))
+	case clientproto.RPCWaterRqstDjst.String():
+		_, d, err = rpcResult(rpc.WaterRqst().Djst(ctx, clientproto.WaterRqstDjstRequest{Point: point}))
 	default:
 		return fmt.Errorf("unknown rqst rpc %s", rpcName)
 	}
@@ -62,6 +66,11 @@ func (r *Runner) sendHarvestVerification(ctx context.Context) error {
 // sendPlantVerification sends PlantRqst.zhtc before plant operations.
 func (r *Runner) sendPlantVerification(ctx context.Context) error {
 	return r.sendRqstVerification(ctx, "PlantRqst.zhtc", rqstPointPlant)
+}
+
+// sendWaterVerification sends waterRqst.djst before water operations.
+func (r *Runner) sendWaterVerification(ctx context.Context) error {
+	return r.sendRqstVerification(ctx, "waterRqst.djst", rqstPointWater)
 }
 
 // sendCustomerOrderVerification sends customerOrderRqst.dkgkck before customer order operations.
@@ -102,8 +111,8 @@ func (r *Runner) sendHomeVerification(ctx context.Context) error {
 	if client == nil || session == nil {
 		return nil
 	}
-	rpc := runnerRPC(client, session)
-	_, d, err := rpcResult(rpc.HomeRqst().ShowBird(ctx, babigame.HomeRqstShowBirdRequest{Time: 1}))
+	rpc := r.runnerRPC(client, session)
+	_, d, err := rpcResult(rpc.HomeRqst().ShowBird(ctx, clientproto.HomeRqstShowBirdRequest{Time: 1}))
 	if err != nil {
 		return fmt.Errorf("homeRqst.showBird: %w", err)
 	}
@@ -117,6 +126,7 @@ func (r *Runner) sendHomeVerification(ctx context.Context) error {
 type rqstState struct {
 	harvestSent       bool
 	plantSent         bool
+	waterSent         bool
 	customerOrderSent bool
 	flowerOrderSent   bool
 	homeSent          bool
@@ -152,6 +162,23 @@ func (r *Runner) ensurePlantRqst(ctx context.Context) error {
 	}
 	r.mu.Lock()
 	r.rqst.plantSent = true
+	r.mu.Unlock()
+	return nil
+}
+
+// ensureWaterRqst sends water verification once per session cycle.
+func (r *Runner) ensureWaterRqst(ctx context.Context) error {
+	r.mu.RLock()
+	sent := r.rqst.waterSent
+	r.mu.RUnlock()
+	if sent {
+		return nil
+	}
+	if err := r.sendWaterVerification(ctx); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	r.rqst.waterSent = true
 	r.mu.Unlock()
 	return nil
 }

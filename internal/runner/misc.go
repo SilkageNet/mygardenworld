@@ -8,26 +8,34 @@ import (
 	"strings"
 	"time"
 
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientrpc"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 const (
-	flowerUpgradeRetryWait = 30 * time.Minute
-	cultivateRetryWait     = 30 * time.Minute
+	flowerUpgradeRetryWait  = 30 * time.Minute
+	cultivateRetryWait      = 30 * time.Minute
+	residentOrderDrainLimit = 24
+	residentOrderDrainDelay = 500 * time.Millisecond
 )
 
 func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, session *babigame.Session) {
 	r.mu.RLock()
 	policy := r.policy
 	r.mu.RUnlock()
-	misc := policy.GetMisc()
+	misc := (*pb.MiscPolicy)(nil)
+	if policy != nil {
+		misc = policy.GetMisc()
+	}
 	cultivateEnabled := misc != nil && misc.GetCultivateEnabled()
 	flowerUpgradeEnabled := misc != nil && misc.GetFlowerUpgradeEnabled()
 	if !cultivateEnabled && !flowerUpgradeEnabled {
 		return
 	}
-	rpc := runnerRPC(client, session)
+	rpc := r.runnerRPC(client, session)
 
 	cultivations := r.state.Cultivations()
 	cultivationIDs := make([]int32, 0, len(cultivations))
@@ -43,7 +51,7 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 			cv := cultivations[fid]
 			// 自动领取：培育中且完成时间已到
 			if cv.Status == 1 && cv.CulTimeMs > 0 && cv.CulTimeMs <= now {
-				v, d, err := rpcResult(rpc.Cultivate().Recv(ctx, babigame.CultivateRecvRequest{FlowerId: fid}))
+				v, d, err := rpcResult(rpc.Cultivate().Recv(ctx, clientproto.CultivateRecvRequest{FlowerId: fid}))
 				if r.isSessionInvalidated() {
 					return
 				}
@@ -77,7 +85,7 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 					continue
 				}
 				prevLvl := cv.Lvl
-				v, d, err := rpcResult(rpc.Cultivate().Upgrade(ctx, babigame.CultivateUpgradeRequest{FlowerId: fid}))
+				v, d, err := rpcResult(rpc.Cultivate().Upgrade(ctx, clientproto.CultivateUpgradeRequest{FlowerId: fid}))
 				if r.isSessionInvalidated() {
 					return
 				}
@@ -160,8 +168,8 @@ func (r *Runner) canStartCultivate(fid int32) bool {
 }
 
 func (r *Runner) startCultivate(ctx context.Context, client *babigame.Client, session *babigame.Session, fid int32) {
-	rpc := runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.Cultivate().Cultivate(ctx, babigame.CultivateCultivateRequest{FlowerId: fid}))
+	rpc := r.runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.Cultivate().Cultivate(ctx, clientproto.CultivateCultivateRequest{FlowerId: fid}))
 	if r.isSessionInvalidated() {
 		return
 	}
@@ -190,13 +198,19 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	dailyTaskBlockedUntil := r.dailyTaskBlockedUntil
 	residentOrderBlockedUntil := r.residentOrderBlockedUntil
 	r.mu.RUnlock()
-	misc := policy.GetMisc()
-	rpc := runnerRPC(client, session)
+	misc := (*pb.MiscPolicy)(nil)
+	if policy != nil {
+		misc = policy.GetMisc()
+	}
+	if misc == nil {
+		return
+	}
+	rpc := r.runnerRPC(client, session)
 
 	// 水资源奖励
 	if misc.GetWaterwheelEnabled() && r.state.WaterwheelCooldownReady() {
 		prevWW := r.state.WaterwheelClaimedCount()
-		v, d, err := rpcResult(rpc.Waterwheel().Recv(ctx, babigame.WaterwheelRecvRequest{}))
+		v, d, err := rpcResult(rpc.Waterwheel().Recv(ctx, clientproto.WaterwheelRecvRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -209,7 +223,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			newWW := r.state.WaterwheelClaimedCount()
 			if newWW > prevWW {
 				r.emit(Event{Kind: "waterwheel", Message: fmt.Sprintf("成功领取水车奖励 (第%d次)", newWW)})
-				v2, _, _ := rpcResult(rpc.Waterwheel().Skip(ctx, babigame.WaterwheelSkipRequest{}))
+				v2, _, _ := rpcResult(rpc.Waterwheel().Skip(ctx, clientproto.WaterwheelSkipRequest{}))
 				if r.isSessionInvalidated() {
 					return
 				}
@@ -221,7 +235,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetFreeWaterEnabled() && time.Now().After(freeWaterBlockedUntil) {
 		if idx, ok := r.state.NextFreeWaterIndex(); ok {
-			v, d, err := rpcResult(rpc.FreeWater().Recv(ctx, babigame.FreeWaterRecvRequest{Idx: idx}))
+			v, d, err := rpcResult(rpc.FreeWater().Recv(ctx, clientproto.FreeWaterRecvRequest{Idx: idx}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -241,7 +255,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 福利箱
 	if misc.GetBenefitBoxEnabled() && r.state.BenefitBoxReady() {
-		v, d, err := rpcResult(rpc.BenefitBox().Draw(ctx, babigame.BenefitBoxDrawRequest{}))
+		v, d, err := rpcResult(rpc.BenefitBox().Draw(ctx, clientproto.BenefitBoxDrawRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -265,54 +279,9 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 居民订单
 	if misc.GetResidentOrderEnabled() && time.Now().After(residentOrderBlockedUntil) {
-		if err := r.ensureFlowerOrderRqst(ctx); err != nil {
-			r.log.Debug("flower order rqst failed", "err", err)
-		}
-		inv := r.state.FlowerInventory()
-		orders := r.state.FlowerOrders()
-		for boxID := int32(1); boxID <= 6; boxID++ {
-			order, exists := orders[boxID]
-			if !exists || len(order.Requires) == 0 {
-				continue
-			}
-			canFulfill := true
-			for _, req := range order.Requires {
-				if inv[req.FlowerID] < req.Count {
-					canFulfill = false
-					break
-				}
-			}
-			if !canFulfill {
-				continue
-			}
-			v, d, err := rpcResult(rpc.OrderFlower().FinishOrder(ctx, babigame.OrderFlowerFinishOrderRequest{BoxId: boxID}))
-			if r.isSessionInvalidated() {
-				return
-			}
-			if err != nil {
-				r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("完成居民订单 #%d 失败: %v", boxID, err)})
-				break
-			}
-			if d.IsError() {
-				msg := d.ErrorMsg()
-				if isResidentOrderDailyLimit(msg) {
-					until := nextLocalDay(time.Now())
-					r.setResidentOrderBlockedUntil(until)
-					r.emit(Event{
-						Kind:    "order_finish",
-						Message: fmt.Sprintf("居民订单今日次数已达上限，暂停到 %s 后重试", until.Format("2006-01-02 15:04")),
-						Level:   "warn",
-					})
-					break
-				}
-				r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("完成居民订单 #%d: %s", boxID, msg)})
-				continue
-			}
-			if babigame.HasPayload(v) {
-				r.state.ApplyV(v)
-				r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("成功完成居民订单 #%d", boxID)})
-				inv = r.state.FlowerInventory()
-			}
+		r.tickResidentOrders(ctx, rpc)
+		if r.isSessionInvalidated() {
+			return
 		}
 	}
 
@@ -346,7 +315,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			}
 			if !canFulfillCustomerOrder(order, inventory) {
 				if misc.GetCustomerOrderRejectEnabled() {
-					v, d, err := rpcResult(rpc.OrderCustomer().RejectOrder(ctx, babigame.OrderCustomerRejectOrderRequest{NPCId: npcId}))
+					v, d, err := rpcResult(rpc.OrderCustomer().RejectOrder(ctx, clientproto.OrderCustomerRejectOrderRequest{NPCId: npcId}))
 					if r.isSessionInvalidated() {
 						return
 					}
@@ -366,7 +335,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 				}
 				continue
 			}
-			v, d, err := rpcResult(rpc.OrderCustomer().FinishOrder(ctx, babigame.OrderCustomerFinishOrderRequest{NPCId: npcId}))
+			v, d, err := rpcResult(rpc.OrderCustomer().FinishOrder(ctx, clientproto.OrderCustomerFinishOrderRequest{NPCId: npcId}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -387,7 +356,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	if misc.GetFlowerRackEnabled() {
 		// 一键收取花架收入
-		v, d, err := rpcResult(rpc.FlowerRack().RecvOneKey(ctx, babigame.FlowerRackRecvOneKeyRequest{}))
+		v, d, err := rpcResult(rpc.FlowerRack().RecvOneKey(ctx, clientproto.FlowerRackRecvOneKeyRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -402,7 +371,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	if misc.GetResidentOrderRewardEnabled() {
 		for _, target := range r.state.ReadyFlowerOrderRewardTargets() {
-			v, d, err := rpcResult(rpc.OrderFlower().RecvOrderRwd(ctx, babigame.OrderFlowerRecvOrderRwdRequest{Target: target}))
+			v, d, err := rpcResult(rpc.OrderFlower().RecvOrderRwd(ctx, clientproto.OrderFlowerRecvOrderRwdRequest{Target: target}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -424,7 +393,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	if misc.GetResidentOrderAdEnabled() {
 		for _, boxID := range r.state.ReadyFlowerOrderAdBoxIDs() {
 			beforeOrder := r.state.FlowerOrders()[boxID]
-			v, d, err := rpcResult(rpc.Usr().Share(ctx, babigame.UsrShareRequest{
+			v, d, err := rpcResult(rpc.Usr().Share(ctx, clientproto.UsrShareRequest{
 				ShareId: 5,
 				Ext: map[string]any{
 					"opType": 1,
@@ -455,7 +424,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	// 土地开垦
 	if misc.LandUnlockEnabled && !landUnlockBlocked {
 		if nextLandID, ok := nextLandUnlockCandidate(r.state); ok {
-			v, d, err := rpcResult(rpc.UsrLand().UnlockLand(ctx, babigame.UsrLandUnlockLandRequest{LandId: nextLandID}))
+			v, d, err := rpcResult(rpc.UsrLand().UnlockLand(ctx, clientproto.UsrLandUnlockLandRequest{LandId: nextLandID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -475,7 +444,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 主线任务奖励
 	if misc.GetTaskMainRewardEnabled() && !taskRecvBlocked {
-		v, d, err := rpcResult(rpc.TaskMain().Recv(ctx, babigame.TaskMainRecvRequest{}))
+		v, d, err := rpcResult(rpc.TaskMain().Recv(ctx, clientproto.TaskMainRecvRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -492,7 +461,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetTaskDailyRewardEnabled() && time.Now().After(dailyTaskBlockedUntil) {
 		for _, taskID := range r.state.ReadyDailyTaskIDs() {
-			v, d, err := rpcResult(rpc.TaskDly().Recv(ctx, babigame.TaskDlyRecvRequest{ID: taskID}))
+			v, d, err := rpcResult(rpc.TaskDly().Recv(ctx, clientproto.TaskDlyRecvRequest{ID: taskID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -516,7 +485,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetRoadGrowRewardEnabled() {
 		for _, taskID := range r.state.ReadyRoadGrowTaskIDs() {
-			v, d, err := rpcResult(rpc.RoadGrow().Recv(ctx, babigame.RoadGrowRecvRequest{ID: taskID}))
+			v, d, err := rpcResult(rpc.RoadGrow().Recv(ctx, clientproto.RoadGrowRecvRequest{ID: taskID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -535,8 +504,12 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 		}
 	}
 	if misc.GetRandomEventEnabled() {
+		_, _, _ = rpcResult(rpc.RandomEvent().Enter(ctx, clientproto.RandomEventEnterRequest{}))
+		if r.isSessionInvalidated() {
+			return
+		}
 		for _, eventID := range r.state.ReadyRandomEventIDs() {
-			v, d, err := rpcResult(rpc.RandomEvent().DoAffair(ctx, babigame.RandomEventDoAffairRequest{EventId: eventID}))
+			v, d, err := rpcResult(rpc.RandomEvent().DoAffair(ctx, clientproto.RandomEventDoAffairRequest{EventId: eventID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -555,6 +528,11 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 		}
 	}
 
+	r.tickCaptureAlignedDomains(ctx, rpc, misc)
+	if r.isSessionInvalidated() {
+		return
+	}
+
 	// 成就任务奖励
 	if misc.GetTaskAchRewardEnabled() {
 		r.tickTaskAchRewards(ctx, client, session)
@@ -565,7 +543,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 主线剧情解锁
 	if misc.StoryUnlockEnabled && !storyUnlockBlocked {
-		v, d, err := rpcResult(rpc.StoryMain().Unlock(ctx, babigame.StoryMainUnlockRequest{}))
+		v, d, err := rpcResult(rpc.StoryMain().Unlock(ctx, clientproto.StoryMainUnlockRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -579,6 +557,71 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 		} else {
 			r.setStoryUnlockBlocked(true)
 		}
+	}
+}
+
+func (r *Runner) tickCaptureAlignedDomains(ctx context.Context, rpc *clientrpc.Client, misc *pb.MiscPolicy) {
+	if misc == nil {
+		return
+	}
+	if misc.GetOrderPalaceEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderPalaceEnter.String(), map[string]any{})
+		if r.isSessionInvalidated() {
+			return
+		}
+		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderPalaceGetOrderRcdList.String(), map[string]any{})
+	}
+	if misc.GetCustomerOrderEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderCustomerGenOrder.String(), map[string]any{"guestNpcIdList": []int32{}})
+	}
+	if misc.GetPlayerBackEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCPlayerBackPlayerBackPassEnter.String(), map[string]any{})
+		if r.isSessionInvalidated() {
+			return
+		}
+		r.observeStateDelta(ctx, rpc, clientproto.RPCPlayerBackSignEnter.String(), map[string]any{})
+	}
+	if misc.GetSignEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCSignTypeEnter.String(), map[string]any{"type": int32(1)})
+	}
+	if misc.GetZooSyncEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCZooEnterZoo.String(), map[string]any{})
+		if r.isSessionInvalidated() {
+			return
+		}
+		r.observeStateDelta(ctx, rpc, clientproto.RPCZooFindPetByUsrBack.String(), map[string]any{"petId": int32(1)})
+		if r.isSessionInvalidated() {
+			return
+		}
+		r.observeStateDelta(ctx, rpc, clientproto.RPCZooRefreshPetStatus.String(), map[string]any{"petIdList": []int32{1}})
+		if r.isSessionInvalidated() {
+			return
+		}
+		r.observeStateDelta(ctx, rpc, clientproto.RPCZooReadLog.String(), map[string]any{"petId": int32(1)})
+	}
+	if misc.GetActivityRewardEnabled() {
+		// Activity enter/claim RPCs are batch-scoped. The analyzer records
+		// redacted samples, but captured batch ids may be stale, so leave these
+		// read-only until runtime activity state is modeled.
+		r.log.Debug("activity reward sync waits for runtime activity state")
+	}
+	if misc.GetFlowerPassEnabled() || misc.GetFlowerElvesPassEnabled() || misc.GetZooFeedEnabled() {
+		r.log.Debug("capture-aligned domain has no safe claimable state yet")
+	}
+}
+
+func (r *Runner) observeStateDelta(ctx context.Context, rpc *clientrpc.Client, name string, args map[string]any) {
+	r.recordRPCName(name)
+	_, d, err := rpcResult(rpc.CallStateDelta(ctx, name, args))
+	if r.isSessionInvalidated() {
+		return
+	}
+	if err != nil {
+		r.log.Debug("capture-aligned rpc failed", "rpc", name, "err", err)
+		return
+	}
+	if d.IsError() {
+		r.log.Debug("capture-aligned rpc rejected", "rpc", name, "msg", d.ErrorMsg())
 	}
 }
 
@@ -680,6 +723,104 @@ func flowerLabel(fid int32) string {
 		return name
 	}
 	return fmt.Sprintf("#%d", fid)
+}
+
+func (r *Runner) tickResidentOrders(ctx context.Context, rpc *clientrpc.Client) {
+	if err := r.ensureFlowerOrderRqst(ctx); err != nil {
+		r.log.Debug("flower order rqst failed", "err", err)
+	}
+	skipped := make(map[int32]bool)
+	completed := 0
+	for completed < residentOrderDrainLimit {
+		boxID, ok := nextFulfillableFlowerOrderBox(r.state.FlowerOrders(), r.state.FlowerInventory(), skipped)
+		if !ok {
+			return
+		}
+		v, d, err := rpcResult(rpc.OrderFlower().FinishOrder(ctx, clientproto.OrderFlowerFinishOrderRequest{BoxId: boxID}))
+		if r.isSessionInvalidated() {
+			return
+		}
+		if err != nil {
+			r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("完成居民订单 #%d 失败: %v", boxID, err)})
+			return
+		}
+		if d.IsError() {
+			msg := d.ErrorMsg()
+			if isResidentOrderDailyLimit(msg) {
+				until := nextLocalDay(time.Now())
+				r.setResidentOrderBlockedUntil(until)
+				r.emit(Event{
+					Kind:    "order_finish",
+					Message: fmt.Sprintf("居民订单今日次数已达上限，暂停到 %s 后重试", until.Format("2006-01-02 15:04")),
+					Level:   "warn",
+				})
+				return
+			}
+			r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("完成居民订单 #%d: %s", boxID, msg)})
+			skipped[boxID] = true
+			continue
+		}
+		if !babigame.HasPayload(v) {
+			skipped[boxID] = true
+			continue
+		}
+		r.state.ApplyV(v)
+		completed++
+		skipped = make(map[int32]bool)
+		r.emit(Event{Kind: "order_finish", Message: fmt.Sprintf("成功完成居民订单 #%d", boxID)})
+		if completed >= residentOrderDrainLimit {
+			r.emit(Event{
+				Kind:    "order_finish",
+				Message: fmt.Sprintf("居民订单本轮已提交 %d 个，达到保护上限，下轮继续", completed),
+				Level:   "warn",
+			})
+			return
+		}
+		if !sleepContext(ctx, residentOrderDrainDelay) {
+			return
+		}
+	}
+}
+
+func nextFulfillableFlowerOrderBox(orders map[int32]*state.FlowerOrder, inventory map[int32]int32, skipped map[int32]bool) (int32, bool) {
+	boxIDs := make([]int32, 0, len(orders))
+	for boxID, order := range orders {
+		if skipped[boxID] || !canFulfillFlowerOrder(order, inventory) {
+			continue
+		}
+		boxIDs = append(boxIDs, boxID)
+	}
+	if len(boxIDs) == 0 {
+		return 0, false
+	}
+	sort.Slice(boxIDs, func(i, j int) bool { return boxIDs[i] < boxIDs[j] })
+	return boxIDs[0], true
+}
+
+func canFulfillFlowerOrder(order *state.FlowerOrder, inventory map[int32]int32) bool {
+	if order == nil || len(order.Requires) == 0 {
+		return false
+	}
+	for _, req := range order.Requires {
+		if req.FlowerID == 0 || req.Count <= 0 || inventory[req.FlowerID] < req.Count {
+			return false
+		}
+	}
+	return true
+}
+
+func sleepContext(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return true
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }
 
 func canFulfillCustomerOrder(order *state.CustomerOrder, inventory map[int32]int32) bool {
@@ -804,8 +945,8 @@ func bestCraftableFlowerArtForRack(inventory map[int32]int32, flowerDeficits map
 }
 
 func (r *Runner) makeFlowerArtForRack(ctx context.Context, client *babigame.Client, session *babigame.Session, recipe state.FlowerArtRecipe, rewardEnabled bool) bool {
-	rpc := runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, babigame.FlowerArtMakeFlowerArtRequest{
+	rpc := r.runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, clientproto.FlowerArtMakeFlowerArtRequest{
 		VaseId:     recipe.VaseID,
 		FlowersIds: recipe.Flowers,
 		Num:        1,
@@ -839,8 +980,8 @@ func (r *Runner) sellFlowerArtOnRack(ctx context.Context, client *babigame.Clien
 	if rackID <= 0 || artID <= 0 || num <= 0 {
 		return false
 	}
-	rpc := runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.FlowerRack().Sell(ctx, babigame.FlowerRackSellRequest{
+	rpc := r.runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.FlowerRack().Sell(ctx, clientproto.FlowerRackSellRequest{
 		RackId: rackID,
 		Iid:    artID,
 		Num:    num,
@@ -886,8 +1027,8 @@ func (r *Runner) tryCraftCustomerOrderArt(ctx context.Context, client *babigame.
 				return false, false
 			}
 		}
-		rpc := runnerRPC(client, session)
-		v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, babigame.FlowerArtMakeFlowerArtRequest{
+		rpc := r.runnerRPC(client, session)
+		v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, clientproto.FlowerArtMakeFlowerArtRequest{
 			VaseId:     recipe.VaseID,
 			FlowersIds: recipe.Flowers,
 			Num:        missingArt,
@@ -920,13 +1061,13 @@ func (r *Runner) tryCraftCustomerOrderArt(ctx context.Context, client *babigame.
 }
 
 func (r *Runner) claimFlowerArtPostCraftRewards(ctx context.Context, client *babigame.Client, session *babigame.Session, artID int32) {
-	rpc := runnerRPC(client, session)
+	rpc := r.runnerRPC(client, session)
 	for _, call := range []func() (json.RawMessage, babigame.WSResponseD, error){
 		func() (json.RawMessage, babigame.WSResponseD, error) {
-			return rpcResult(rpc.CollectRwd().RecvArtCreateRwd(ctx, babigame.CollectRwdRecvArtCreateRwdRequest{FlowerArtId: artID}))
+			return rpcResult(rpc.CollectRwd().RecvArtCreateRwd(ctx, clientproto.CollectRwdRecvArtCreateRwdRequest{FlowerArtId: artID}))
 		},
 		func() (json.RawMessage, babigame.WSResponseD, error) {
-			return rpcResult(rpc.Usr().Share(ctx, babigame.UsrShareRequest{
+			return rpcResult(rpc.Usr().Share(ctx, clientproto.UsrShareRequest{
 				ShareId: 6,
 				Ext: map[string]any{
 					"opType": 2,
@@ -1034,9 +1175,9 @@ func (r *Runner) tickTaskAchRewards(ctx context.Context, client *babigame.Client
 	if blocked {
 		return
 	}
-	rpc := runnerRPC(client, session)
+	rpc := r.runnerRPC(client, session)
 	for _, id := range taskAchMilestoneIDs {
-		v, d, err := rpcResult(rpc.TaskAch().Recv(ctx, babigame.TaskAchRecvRequest{ID: id}))
+		v, d, err := rpcResult(rpc.TaskAch().Recv(ctx, clientproto.TaskAchRecvRequest{ID: id}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -1087,8 +1228,8 @@ func (r *Runner) tickSpeedUp(ctx context.Context, client *babigame.Client, sessi
 		want = speedUpMaxBatch
 	}
 	batch := candidates[:want]
-	rpc := runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.UsrLand().SpeedUpBatch(ctx, babigame.UsrLandSpeedUpBatchRequest{LandIds: batch}))
+	rpc := r.runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.UsrLand().SpeedUpBatch(ctx, clientproto.UsrLandSpeedUpBatchRequest{LandIds: batch}))
 	if r.isSessionInvalidated() {
 		return
 	}

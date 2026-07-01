@@ -12,6 +12,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 )
 
 // FlowerSeedLow is the inclusive lower itemId for flower seeds.
@@ -151,7 +153,9 @@ type MainTaskView struct {
 	Finished int32 `json:"finished"`
 }
 
-// RandomEventView is the tracked subset of namespace 129 map events.
+// RandomEventView is the tracked subset of namespace 129 map events. Static
+// client schema names 129.IRandomEventInfo.1/2 as posIdx/dialogId; current
+// status/affair semantics are capture-derived and pending revalidation.
 type RandomEventView struct {
 	EventID int32 `json:"event_id"`
 	Status  int32 `json:"status"`
@@ -170,10 +174,16 @@ type State struct {
 	gold               int32           // 7.0.44 金币
 	level              int32           // 7.0.34 等级
 	experience         int32           // 7.0.35 经验
+	vip                int32           // 7.0.36 VIP level
+	vipExp             int32           // 7.0.37 VIP exp
 	diamondsFree       int32           // 7.0.41 免费钻石
 	diamondsPaid       int32           // 7.0.42 付费钻石
 	roleID             int64
 	roleName           string
+
+	rawNamespaces   map[string]json.RawMessage
+	namespaceCounts map[string]int32
+	unknownNSCounts map[string]int32
 
 	hasWaterDropsItem  bool  // whether namespace 7 has carried itemId=7 at least once
 	waterDropsTotal    int32 // 7.0.33.7.1 observed water-drop capacity / total
@@ -201,10 +211,10 @@ type State struct {
 	freeWaterRecvIdx  int32 // 117.1 last observed free-water receive index
 	freeWaterResetMs  int64 // 117.2 reset timestamp
 
-	benefitBoxDraws     int32 // 116.0.1 remaining draws
-	benefitBoxLastDraw  int64 // 116.0.2 last draw time ms
-	benefitBoxRefreshMs int64 // 116.0.3 refresh time ms
-	benefitBoxObserved  bool  // namespace 116 has been observed at least once
+	benefitBoxDrawCnt    int32 // 116.0.1 drawCnt
+	benefitBoxResetCntMs int64 // 116.0.2 resetCntTime
+	benefitBoxUTimeMs    int64 // 116.0.3 uTime
+	benefitBoxObserved   bool  // namespace 116 has been observed at least once
 
 	// Recent server-side activity timestamp; updated on every apply.
 	lastApplyMs int64
@@ -236,6 +246,9 @@ type ResourceSnapshot struct {
 	WaterDropsNextMs int64 `json:"water_drops_next_ms"`
 	Level            int32 `json:"level"`
 	Experience       int32 `json:"experience"`
+	Vip              int32 `json:"vip"`
+	VipExp           int32 `json:"vip_exp"`
+	NobleEligible    bool  `json:"noble_eligible"`
 	DiamondsFree     int32 `json:"diamonds_free"`
 	DiamondsPaid     int32 `json:"diamonds_paid"`
 }
@@ -259,6 +272,9 @@ func New() *State {
 		lands:                      make(map[int32]LandView),
 		farmLands:                  make(map[int32]FarmLandInfo),
 		inventory:                  make(map[int32]int32),
+		rawNamespaces:              make(map[string]json.RawMessage),
+		namespaceCounts:            make(map[string]int32),
+		unknownNSCounts:            make(map[string]int32),
 		cultivations:               make(map[int32]*CultivateView),
 		customerOrders:             make(map[int32]*CustomerOrder),
 		flowerRack:                 make(map[int32]*FlowerRackSlot),
@@ -330,11 +346,27 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	s.lastApplyMs = now
 
 	var changes []LandChange
+	if s.rawNamespaces == nil {
+		s.rawNamespaces = make(map[string]json.RawMessage)
+	}
+	if s.namespaceCounts == nil {
+		s.namespaceCounts = make(map[string]int32)
+	}
+	if s.unknownNSCounts == nil {
+		s.unknownNSCounts = make(map[string]int32)
+	}
+	for ns, raw := range top {
+		s.rawNamespaces[ns] = append(json.RawMessage(nil), raw...)
+		s.namespaceCounts[ns]++
+		if !babigame.IsModeledNamespace(ns) {
+			s.unknownNSCounts[ns]++
+		}
+	}
 
 	// Capture resource state before NS7 apply for change detection.
 	prevGold := s.gold
 	prevWaterDrops, prevWaterDropsTotal, prevWaterDropsNext := s.currentWaterDropsLocked(), s.waterDropsTotal, s.waterDropsNextMs
-	prevLevel, prevExp := s.level, s.experience
+	prevLevel, prevExp, prevVip, prevVipExp := s.level, s.experience, s.vip, s.vipExp
 	prevDFree, prevDPaid := s.diamondsFree, s.diamondsPaid
 	var prevInventory map[int32]int32
 	if _, ok := top["7"]; ok {
@@ -386,13 +418,14 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 
 	resourcesChanged := s.gold != prevGold || s.currentWaterDropsLocked() != prevWaterDrops ||
 		s.waterDropsTotal != prevWaterDropsTotal || s.waterDropsNextMs != prevWaterDropsNext || s.level != prevLevel ||
-		s.experience != prevExp || s.diamondsFree != prevDFree || s.diamondsPaid != prevDPaid
+		s.experience != prevExp || s.vip != prevVip || s.vipExp != prevVipExp ||
+		s.diamondsFree != prevDFree || s.diamondsPaid != prevDPaid
 	var resourceSnap ResourceSnapshot
 	var resourceCb func(ResourceSnapshot)
 	if resourcesChanged {
 		resourceSnap = ResourceSnapshot{
 			Gold: s.gold, WaterDrops: s.currentWaterDropsLocked(), WaterDropsTotal: s.waterDropsTotal, WaterDropsNextMs: s.waterDropsNextMs,
-			Level: s.level, Experience: s.experience,
+			Level: s.level, Experience: s.experience, Vip: s.vip, VipExp: s.vipExp, NobleEligible: s.nobleEligibleLocked(),
 			DiamondsFree: s.diamondsFree, DiamondsPaid: s.diamondsPaid,
 		}
 		resourceCb = s.onResourceChange
@@ -529,6 +562,18 @@ func (s *State) applyInventoryLocked(ns7 map[string]json.RawMessage) {
 				var n int32
 				if json.Unmarshal(raw35, &n) == nil {
 					s.experience = n
+				}
+			}
+			if raw36, ok := s0["36"]; ok {
+				var n int32
+				if json.Unmarshal(raw36, &n) == nil {
+					s.vip = n
+				}
+			}
+			if raw37, ok := s0["37"]; ok {
+				var n int32
+				if json.Unmarshal(raw37, &n) == nil {
+					s.vipExp = n
 				}
 			}
 			if raw41, ok := s0["41"]; ok {
@@ -1156,7 +1201,7 @@ func (s *State) applyFreeWaterLocked(raw json.RawMessage) {
 }
 
 func (s *State) applyBenefitBoxLocked(raw json.RawMessage) {
-	// NS 116 structure: {"0": {"1": remaining_draws, "2": lastDrawTimeMs, "3": refreshTimeMs}}
+	// NS 116 client schema: {"0": {"1": drawCnt, "2": resetCntTime, "3": uTime, "4": cTime}}
 	var ns116 map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &ns116); err != nil {
 		return
@@ -1173,19 +1218,19 @@ func (s *State) applyBenefitBoxLocked(raw json.RawMessage) {
 	if v, ok := sub["1"]; ok {
 		var n int32
 		if json.Unmarshal(v, &n) == nil {
-			s.benefitBoxDraws = n
+			s.benefitBoxDrawCnt = n
 		}
 	}
 	if v, ok := sub["2"]; ok {
 		var n int64
 		if json.Unmarshal(v, &n) == nil {
-			s.benefitBoxLastDraw = n
+			s.benefitBoxResetCntMs = n
 		}
 	}
 	if v, ok := sub["3"]; ok {
 		var n int64
 		if json.Unmarshal(v, &n) == nil {
-			s.benefitBoxRefreshMs = n
+			s.benefitBoxUTimeMs = n
 		}
 	}
 }
@@ -1194,14 +1239,14 @@ func (s *State) applyBenefitBoxLocked(raw json.RawMessage) {
 func (s *State) BenefitBoxDrawsRemaining() int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.benefitBoxDraws
+	return s.benefitBoxDrawCnt
 }
 
 // BenefitBoxReady returns true if there are draws available.
 func (s *State) BenefitBoxReady() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.benefitBoxObserved && s.benefitBoxDraws > 0
+	return s.benefitBoxObserved && s.benefitBoxDrawCnt > 0
 }
 
 // Lands returns a copy of the land map.
@@ -1318,7 +1363,7 @@ func (s *State) MarkLandsWatered(landIDs []int32) {
 	}
 	resourceSnap := ResourceSnapshot{
 		Gold: s.gold, WaterDrops: s.currentWaterDropsLocked(), WaterDropsTotal: s.waterDropsTotal, WaterDropsNextMs: s.waterDropsNextMs,
-		Level: s.level, Experience: s.experience,
+		Level: s.level, Experience: s.experience, Vip: s.vip, VipExp: s.vipExp, NobleEligible: s.nobleEligibleLocked(),
 		DiamondsFree: s.diamondsFree, DiamondsPaid: s.diamondsPaid,
 	}
 	invChanges := inventoryChanges(prevInventory, s.inventory)
@@ -1520,7 +1565,7 @@ func (s *State) projectedWaterDropsLocked(now time.Time) (drops int32, nextMs in
 func (s *State) resourceSnapshotLocked() ResourceSnapshot {
 	return ResourceSnapshot{
 		Gold: s.gold, WaterDrops: s.currentWaterDropsLocked(), WaterDropsTotal: s.waterDropsTotal, WaterDropsNextMs: s.waterDropsNextMs,
-		Level: s.level, Experience: s.experience,
+		Level: s.level, Experience: s.experience, Vip: s.vip, VipExp: s.vipExp, NobleEligible: s.nobleEligibleLocked(),
 		DiamondsFree: s.diamondsFree, DiamondsPaid: s.diamondsPaid,
 	}
 }
@@ -1658,6 +1703,56 @@ func (s *State) Resources() ResourceSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.resourceSnapshotLocked()
+}
+
+func (s *State) nobleEligibleLocked() bool {
+	return s.vip > 0
+}
+
+// Vip returns the observed VIP level and experience from namespace 7.
+func (s *State) Vip() (level int32, exp int32) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.vip, s.vipExp
+}
+
+// NobleEligible reports whether the account has the observed client-side
+// privilege gate needed for noble-only actions such as usrLand.waterOneKey.
+func (s *State) NobleEligible() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.nobleEligibleLocked()
+}
+
+// ObservedNamespaces returns every v namespace key observed by this state.
+func (s *State) ObservedNamespaces() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	keys := make([]string, 0, len(s.namespaceCounts))
+	for k := range s.namespaceCounts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// UnknownNamespaceCount returns how many namespace keys have been observed
+// without a typed state model.
+func (s *State) UnknownNamespaceCount() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return int32(len(s.unknownNSCounts))
+}
+
+// NamespaceCounts returns a copy of namespace observation counts.
+func (s *State) NamespaceCounts() map[string]int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]int32, len(s.namespaceCounts))
+	for k, v := range s.namespaceCounts {
+		out[k] = v
+	}
+	return out
 }
 
 // WaterwheelClaimedCount returns the total number of waterwheel claims made.

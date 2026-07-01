@@ -14,6 +14,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/policycfg"
+	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -56,15 +57,17 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) *pb.Acco
 		return out
 	}
 	out.Connected = r.Connected()
+	now := time.Now()
 	if last := r.LastEventAt(); !last.IsZero() {
 		out.LastEventAt = timestamppb.New(last)
 	}
 	out.AutomationEnabled = r.Policy().GetAutomationEnabled()
+	out.Diagnostics = runnerDiagnosticsProto(r.Diagnostics(now))
 	lands := r.State().Lands()
 	out.KnownLands = int32(len(lands))
 	byKind := map[string]int32{}
 	for _, l := range lands {
-		kind, _ := automation.Recommend(l, time.Now())
+		kind, _ := automation.Recommend(l, now)
 		byKind[kind]++
 	}
 	out.ByKind = byKind
@@ -89,24 +92,59 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	lands := st.Lands()
 	waterDrops, waterDropsTotal, waterDropsNextMs := st.WaterDrops()
 	diamondsFree, diamondsPaid := st.Diamonds()
+	vip, vipExp := st.Vip()
+	diag := r.Diagnostics(now)
 	resp := &pb.GetSnapshotResponse{
-		AccountId:        fmt.Sprintf("%d", acc.ID),
-		AccountName:      acc.Name,
-		Inventory:        st.Inventory(),
-		RoleId:           st.RoleID(),
-		CapturedAt:       timestamppb.Now(),
-		Gold:             st.Gold(),
-		WaterDrops:       waterDrops,
-		WaterDropsTotal:  waterDropsTotal,
-		WaterDropsNextMs: waterDropsNextMs,
-		Level:            st.Level(),
-		Experience:       st.Experience(),
-		DiamondsFree:     diamondsFree,
-		DiamondsPaid:     diamondsPaid,
-		PendingTasks:     buildPendingTasks(st),
+		AccountId:             fmt.Sprintf("%d", acc.ID),
+		AccountName:           acc.Name,
+		Inventory:             st.Inventory(),
+		RoleId:                st.RoleID(),
+		CapturedAt:            timestamppb.Now(),
+		Gold:                  st.Gold(),
+		WaterDrops:            waterDrops,
+		WaterDropsTotal:       waterDropsTotal,
+		WaterDropsNextMs:      waterDropsNextMs,
+		Level:                 st.Level(),
+		Experience:            st.Experience(),
+		DiamondsFree:          diamondsFree,
+		DiamondsPaid:          diamondsPaid,
+		PendingTasks:          buildPendingTasks(st),
+		Vip:                   vip,
+		VipExp:                vipExp,
+		NobleEligible:         st.NobleEligible(),
+		ObservedNamespaces:    diag.ObservedNamespaces,
+		UnknownRpcCount:       diag.UnknownRPCCount,
+		UnknownNamespaceCount: diag.UnknownNamespaceCount,
+		Diagnostics:           runnerDiagnosticsProto(diag),
 	}
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
 	return connect.NewResponse(resp), nil
+}
+
+func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {
+	return &pb.RunnerDiagnostics{
+		CurrentOperation:          d.CurrentOperation,
+		CurrentOperationStartedAt: timestampOrNil(d.CurrentOperationStartedAt),
+		LastOperation:             d.LastOperation,
+		LastOperationAt:           timestampOrNil(d.LastOperationAt),
+		LastOperationError:        d.LastOperationError,
+		LastOperationErrorAt:      timestampOrNil(d.LastOperationErrorAt),
+		NextDecisionAt:            timestampOrNil(d.NextDecisionAt),
+		NextMiscAt:                timestampOrNil(d.NextMiscAt),
+		NextCultivateAt:           timestampOrNil(d.NextCultivateAt),
+		SessionInvalidatedReason:  d.SessionInvalidatedReason,
+		BlockedReasons:            append([]string(nil), d.BlockedReasons...),
+		UnknownRpcCount:           d.UnknownRPCCount,
+		UnknownNamespaceCount:     d.UnknownNamespaceCount,
+		ObservedNamespaces:        append([]string(nil), d.ObservedNamespaces...),
+	}
+}
+
+func timestampOrNil(t time.Time) *timestamppb.Timestamp {
+	if t.IsZero() {
+		return nil
+	}
+	return timestamppb.New(t)
 }
 
 func (svc *Services) GetHarvestStats(ctx context.Context, req *connect.Request[pb.GetHarvestStatsRequest]) (*connect.Response[pb.GetHarvestStatsResponse], error) {

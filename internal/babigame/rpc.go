@@ -5,108 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
+
+	clientproto "github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
-
-// RPCName is the server-side interface name without the client-side "gs."
-// prefix. game.js calls request2("gs.usrLand.plant", ...); the websocket
-// payload uses "usrLand.plant".
-type RPCName string
-
-func (n RPCName) String() string { return string(n) }
-
-// RPCID is the usual numeric identifier used by game RPCs for item, task,
-// land, activity, slot, and similar ids observed in game.js.
-type RPCID = int32
-
-// RPCUID is a user/account identifier. These values can be larger than
-// content ids, so uid-like request fields use int64.
-type RPCUID = int64
-
-// RPCInt is a numeric argument that is not itself an id, such as count, index,
-// type, mode, or a 0/1 flag that game.js sends numerically.
-type RPCInt = int32
-
-// RPCBool is a boolean argument that game.js sends as true/false.
-type RPCBool = bool
-
-// RPCString is a text argument in an RPC request.
-type RPCString = string
-
-// RPCIDList and RPCUIDList are the common list forms used by request bodies.
-type RPCIDList = []int32
-type RPCUIDList = []int64
-type RPCStringList = []string
-
-// RPCObject is a structured JSON object whose keys vary by caller.
-type RPCObject = map[string]any
-
-// RPCArray is a structured JSON array whose element shape varies by caller.
-type RPCArray = []any
-
-// RPCValue is intentionally dynamic JSON. Use it only when game.js forwards a
-// caller-supplied scalar/object/array without a stable DTO.
-type RPCValue = any
-
-// RPCPoint is the anti-cheat point payload shape used by *Rqst verification
-// RPCs. Captures show it as [pointType, fingerprint].
-type RPCPoint = []any
 
 // RPCResult is the normalized result of one websocket RPC.
 type RPCResult struct {
-	Name     RPCName
+	Name     clientproto.RPCName
 	Payload  json.RawMessage
 	Envelope WSResponseD
 }
 
 // HasPayload reports whether the server returned a non-empty v payload.
 func (r RPCResult) HasPayload() bool { return HasPayload(r.Payload) }
-
-// StateDelta is the normal response payload shape for game RPCs: a map keyed
-// by numeric namespace id ("7", "100", "114", ...), with each namespace value
-// left raw so the state package can merge only the fragments it understands.
-type StateDelta map[string]json.RawMessage
-
-// Namespace returns one namespace fragment from a decoded StateDelta.
-func (d StateDelta) Namespace(key string) json.RawMessage {
-	if d == nil {
-		return nil
-	}
-	return d[key]
-}
-
-// RawRequest is the fallback request container for RPCs whose exact request
-// object could not be recovered from static game.js analysis. It is still a
-// typed per-method parameter in the facade, but callers provide JSON-shaped
-// fields explicitly.
-type RawRequest map[string]any
-
-// RPCRequestShape records how confident the static extractor was about a
-// request object.
-type RPCRequestShape string
-
-const (
-	// RPCRequestEmpty means game.js called the RPC with an empty object.
-	RPCRequestEmpty RPCRequestShape = "empty"
-	// RPCRequestFields means game.js exposed a stable object literal, and
-	// RequestFields lists the JSON keys observed in that literal.
-	RPCRequestFields RPCRequestShape = "fields"
-	// RPCRequestRaw means game.js passed a prebuilt value or dynamic route, so
-	// callers should provide a RawRequest-compatible JSON object.
-	RPCRequestRaw RPCRequestShape = "raw"
-)
-
-// RPCSpec describes one RPC observed in game.js. It is metadata for discovery
-// and tooling; the typed facade methods remain the preferred call sites.
-type RPCSpec struct {
-	Name           RPCName
-	Group          string
-	Method         string
-	RequestShape   RPCRequestShape
-	RequestFields  []string
-	ResponseSchema string
-}
 
 // RPCResponse is a typed view over RPCResult. Payload always keeps the raw v
 // bytes, while Data contains the same payload decoded into T when present.
@@ -118,7 +30,7 @@ type RPCResponse[T any] struct {
 // RPCServerError wraps a successful websocket round trip whose server envelope
 // carried an m/error field.
 type RPCServerError struct {
-	Name     RPCName
+	Name     clientproto.RPCName
 	Envelope WSResponseD
 }
 
@@ -269,7 +181,7 @@ func (c *RPCClient) rawCall(ctx context.Context, name string, args any, opts ...
 	if c == nil || c.client == nil {
 		return RPCResult{}, errors.New("nil RPC client")
 	}
-	rpcName, err := NormalizeRPCName(name)
+	rpcName, err := normalizeRPCName(name)
 	if err != nil {
 		return RPCResult{}, err
 	}
@@ -304,7 +216,7 @@ func (c *RPCClient) call(ctx context.Context, name string, args any, opts ...Req
 // callRPC sends one RPC and decodes the returned v payload into T. Most game
 // RPCs use StateDelta because responses are namespace-keyed state fragments
 // rather than endpoint-specific DTOs.
-func callRPC[T any](ctx context.Context, c *RPCClient, name RPCName, args any, opts ...RequestOption) (RPCResponse[T], error) {
+func CallRPC[T any](ctx context.Context, c *RPCClient, name clientproto.RPCName, args any, opts ...RequestOption) (RPCResponse[T], error) {
 	result, err := c.call(ctx, name.String(), args, opts...)
 	out := RPCResponse[T]{RPCResult: result}
 	if err != nil {
@@ -317,6 +229,16 @@ func callRPC[T any](ctx context.Context, c *RPCClient, name RPCName, args any, o
 		return out, fmt.Errorf("rpc %s: decode payload: %w", result.Name, err)
 	}
 	return out, nil
+}
+
+// CallStateDelta sends a normalized RPC name whose generated facade is not
+// available yet, returning the raw namespace-delta response.
+func (c *RPCClient) CallStateDelta(ctx context.Context, name string, args any, opts ...RequestOption) (RPCResponse[clientproto.StateDelta], error) {
+	normalized, err := normalizeRPCName(name)
+	if err != nil {
+		return RPCResponse[clientproto.StateDelta]{}, err
+	}
+	return CallRPC[clientproto.StateDelta](ctx, c, normalized, args, opts...)
 }
 
 func (c *RPCClient) requestOptions(opts ...RequestOption) requestOptions {
@@ -341,16 +263,8 @@ func (o requestOptions) shouldReturnServerErrors() bool {
 	return o.serverErrorsAsResults != nil && *o.serverErrorsAsResults
 }
 
-// NormalizeRPCName accepts either "usrLand.plant" or the client-side
+// normalizeRPCName accepts either "usrLand.plant" or the client-side
 // "gs.usrLand.plant" spelling from game.js.
-func NormalizeRPCName(name string) (RPCName, error) {
-	name = strings.TrimSpace(name)
-	name = strings.TrimPrefix(name, "gs.")
-	if name == "" {
-		return "", errors.New("empty RPC name")
-	}
-	if !strings.Contains(name, ".") {
-		return "", fmt.Errorf("invalid RPC name %q", name)
-	}
-	return RPCName(name), nil
+func normalizeRPCName(name string) (clientproto.RPCName, error) {
+	return clientproto.NormalizeRPCName(name)
 }

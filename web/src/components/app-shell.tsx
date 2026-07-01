@@ -13,7 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { LogOut, Shield } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserManagementPanel } from "@/components/user-management-panel";
 
@@ -49,8 +48,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-background text-foreground xl:h-screen xl:overflow-hidden">
       <header className="shrink-0 border-b border-border/70 bg-card/92 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 2xl:px-10">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <BrandMark className="size-8" />
+          <Link href="/" className="min-w-0">
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">花园世界</div>
             </div>
@@ -86,14 +84,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-function BrandMark({ className }: { className?: string }) {
-  return (
-    <div className={cn("flex items-center justify-center rounded-md bg-primary/10 text-sm font-semibold text-primary ring-1 ring-primary/20", className)}>
-      花
     </div>
   );
 }

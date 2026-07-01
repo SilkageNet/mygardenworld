@@ -217,6 +217,14 @@ func setWaterDropsWithNext(s *state.State, count int, nextMs int64) {
 	})
 }
 
+func setNoble(s *state.State, vip int32) {
+	s.ApplyVMap(map[string]any{
+		"7": map[string]any{
+			"0": map[string]any{"36": vip},
+		},
+	})
+}
+
 // TestPlan_HarvestPriorityWithOneKey verifies the highest-priority kind
 // (harvest) takes precedence and uses the one-key RPC when policy says so.
 func TestPlan_HarvestPriorityWithOneKey(t *testing.T) {
@@ -415,6 +423,54 @@ func TestPlan_WaterBatch(t *testing.T) {
 	}
 	if len(op.LandIDs) != 3 {
 		t.Errorf("got %d lands, want 3", len(op.LandIDs))
+	}
+}
+
+func TestPlan_WaterOneKeyRequiresNobleAndPolicy(t *testing.T) {
+	now := time.Now()
+	newWaterState := func() *state.State {
+		s := state.New()
+		applyLands(s, map[int32]state.LandView{
+			1001: {Observed: true, FlowerID: 23001, State: 1},
+			1002: {Observed: true, FlowerID: 23001, State: 1},
+		})
+		setInventory(s, map[int32]int32{23001: 100})
+		setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
+		setWaterDrops(s, 100)
+		return s
+	}
+
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Water.PreferOneKeyIfNoble = true
+	op := Plan(newWaterState(), policy, now)
+	if op == nil {
+		t.Fatal("expected water op")
+	}
+	if op.Kind == "usrLand.waterOneKey" {
+		t.Fatalf("non-noble account planned one-key water: %+v", op)
+	}
+
+	nobleNoPolicy := newWaterState()
+	setNoble(nobleNoPolicy, 1)
+	policy.Water.PreferOneKeyIfNoble = false
+	op = Plan(nobleNoPolicy, policy, now)
+	if op == nil {
+		t.Fatal("expected water op")
+	}
+	if op.Kind == "usrLand.waterOneKey" {
+		t.Fatalf("noble account planned one-key water while policy is off: %+v", op)
+	}
+
+	nobleWithPolicy := newWaterState()
+	setNoble(nobleWithPolicy, 1)
+	policy.Water.PreferOneKeyIfNoble = true
+	op = Plan(nobleWithPolicy, policy, now)
+	if op == nil {
+		t.Fatal("expected water op")
+	}
+	if op.Kind != "usrLand.waterOneKey" {
+		t.Fatalf("kind=%q want usrLand.waterOneKey", op.Kind)
 	}
 }
 

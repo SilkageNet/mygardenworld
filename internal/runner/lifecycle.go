@@ -14,6 +14,7 @@ import (
 const (
 	reconnectInitialWait = 2 * time.Second
 	reconnectMaxWait     = 30 * time.Second
+	waterDropsItemID     = int32(7)
 )
 
 // Start kicks off the runner. Blocks until login completes (or fails); the
@@ -100,11 +101,12 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	r.rqst = rqstState{}
 	r.mu.Unlock()
 
-	// reLogin to populate full 100.0.1.
-	if v, err := client.ReLogin(ctx, 1); err == nil {
+	// The official client sends index.login as the first WS initialization
+	// call after the HTTP login and route-token bootstrap.
+	if v, err := client.Login(ctx, 1); err == nil {
 		r.state.ApplyV(v)
 	} else {
-		r.log.Warn("relogin failed", "err", err)
+		r.log.Warn("ws index.login failed", "err", err)
 	}
 	if r.isSessionInvalidated() {
 		return nil, errors.New("session invalidated during startup")
@@ -129,7 +131,7 @@ func (r *Runner) newClient(session *babigame.Session) *babigame.Client {
 	client.OnSessionExpired(func(d babigame.WSResponseD) {
 		r.markSessionInvalidated(d.ErrorMsg())
 	})
-	for _, ns := range []string{"7", "22", "100", "101", "105", "109", "114", "117"} {
+	for _, ns := range observedCaptureNamespaces() {
 		ns := ns
 		client.OnNamespace(ns, func(_ string, raw json.RawMessage, _ babigame.WSResponseD) {
 			fragment, _ := json.Marshal(map[string]json.RawMessage{ns: raw})
@@ -137,6 +139,10 @@ func (r *Runner) newClient(session *babigame.Session) *babigame.Client {
 		})
 	}
 	return client
+}
+
+func observedCaptureNamespaces() []string {
+	return babigame.ObservedNamespaceKeys()
 }
 
 func (r *Runner) installStateHandlers() {
@@ -168,8 +174,10 @@ func (r *Runner) installStateHandlers() {
 			r.waterBlocked = false
 			r.waterBlockedUntil = time.Time{}
 		}
-		r.flowerUpgradeBlocked = make(map[int32]flowerUpgradeBlock)
-		r.cultivateBlocked = make(map[int32]time.Time)
+		if snap.Gold > r.prevGold && r.prevGold > 0 {
+			r.clearFlowerUpgradeGoldBlocksLocked()
+		}
+		r.prevGold = snap.Gold
 		r.prevLevel = snap.Level
 		r.mu.Unlock()
 	})
@@ -180,7 +188,34 @@ func (r *Runner) installStateHandlers() {
 			Message:     inventoryChangeMessage(snap),
 			PayloadJSON: string(raw),
 		})
+		if inventoryAffectsMaterialBlocks(snap) {
+			r.clearMaterialBlocks()
+		}
 	})
+}
+
+func inventoryAffectsMaterialBlocks(snap state.InventorySnapshot) bool {
+	for _, change := range snap.Changes {
+		if change.ItemID != waterDropsItemID {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runner) clearMaterialBlocks() {
+	r.mu.Lock()
+	r.flowerUpgradeBlocked = make(map[int32]flowerUpgradeBlock)
+	r.cultivateBlocked = make(map[int32]time.Time)
+	r.mu.Unlock()
+}
+
+func (r *Runner) clearFlowerUpgradeGoldBlocksLocked() {
+	for fid, block := range r.flowerUpgradeBlocked {
+		if block.ItemID == 0 {
+			delete(r.flowerUpgradeBlocked, fid)
+		}
+	}
 }
 
 func (r *Runner) connectionLoop(ctx context.Context, username, password string, client *babigame.Client) {

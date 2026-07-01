@@ -13,12 +13,15 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
 const (
 	RPCIndexFile = "rpc.jsonl"
 	ReportFile   = "analysis.json"
 )
+
+var sampleKeyNormalizer = strings.NewReplacer("_", "", "-", "", ".", "")
 
 type RecordWriter interface {
 	Write(any)
@@ -42,26 +45,28 @@ type WSFrame struct {
 }
 
 type RPCIndexRecord struct {
-	TS           string   `json:"ts"`
-	Type         string   `json:"type"`
-	FlowID       string   `json:"flow_id,omitempty"`
-	FrameNo      int64    `json:"frame_no,omitempty"`
-	Direction    string   `json:"direction,omitempty"`
-	URL          string   `json:"url,omitempty"`
-	OpcodeText   string   `json:"opcode_text,omitempty"`
-	Length       int      `json:"length,omitempty"`
-	K            string   `json:"k,omitempty"`
-	RPC          string   `json:"rpc,omitempty"`
-	ArgShape     string   `json:"arg_shape,omitempty"`
-	ArgKeys      []string `json:"arg_keys,omitempty"`
-	RoutePresent bool     `json:"route_present,omitempty"`
-	Namespaces   []string `json:"namespaces,omitempty"`
-	HasError     bool     `json:"has_error,omitempty"`
-	ErrorType    int      `json:"error_type,omitempty"`
-	BinaryType   string   `json:"binary_type,omitempty"`
-	SchemaName   string   `json:"schema_name,omitempty"`
-	Keys         []string `json:"keys,omitempty"`
-	Error        string   `json:"error,omitempty"`
+	TS             string              `json:"ts"`
+	Type           string              `json:"type"`
+	FlowID         string              `json:"flow_id,omitempty"`
+	FrameNo        int64               `json:"frame_no,omitempty"`
+	Direction      string              `json:"direction,omitempty"`
+	URL            string              `json:"url,omitempty"`
+	OpcodeText     string              `json:"opcode_text,omitempty"`
+	Length         int                 `json:"length,omitempty"`
+	K              string              `json:"k,omitempty"`
+	RPC            string              `json:"rpc,omitempty"`
+	ArgShape       string              `json:"arg_shape,omitempty"`
+	ArgKeys        []string            `json:"arg_keys,omitempty"`
+	ArgSample      any                 `json:"arg_sample,omitempty"`
+	RoutePresent   bool                `json:"route_present,omitempty"`
+	Namespaces     []string            `json:"namespaces,omitempty"`
+	NamespaceShape map[string][]string `json:"namespace_shape,omitempty"`
+	HasError       bool                `json:"has_error,omitempty"`
+	ErrorType      int                 `json:"error_type,omitempty"`
+	BinaryType     string              `json:"binary_type,omitempty"`
+	SchemaName     string              `json:"schema_name,omitempty"`
+	Keys           []string            `json:"keys,omitempty"`
+	Error          string              `json:"error,omitempty"`
 }
 
 type Decoder struct {
@@ -145,8 +150,9 @@ func (d *Decoder) processClientText(frame WSFrame, text string) {
 		return
 	}
 	argShape, argKeys := "", []string(nil)
+	var argSample any
 	if len(tuple) > 1 {
-		argShape, argKeys = summarizeArg(tuple[1])
+		argShape, argKeys, argSample = summarizeArg(tuple[1])
 	}
 	rec := RPCIndexRecord{
 		TS:           frame.TS,
@@ -161,6 +167,7 @@ func (d *Decoder) processClientText(frame WSFrame, text string) {
 		RPC:          rpc,
 		ArgShape:     argShape,
 		ArgKeys:      argKeys,
+		ArgSample:    argSample,
 		RoutePresent: len(tuple) > 2 && string(tuple[2]) != "null",
 	}
 	if out.K != "" {
@@ -190,20 +197,22 @@ func (d *Decoder) processServerText(frame WSFrame, text string) {
 	}
 	req := d.pending[in.K]
 	namespaces := namespaceKeys(in.V)
+	nsShape := namespaceShape(in.V)
 	rec := RPCIndexRecord{
-		TS:         frame.TS,
-		Type:       "rpc_response",
-		FlowID:     frame.FlowID,
-		FrameNo:    frame.FrameNo,
-		Direction:  frame.Direction,
-		URL:        frame.URL,
-		OpcodeText: frame.OpcodeText,
-		Length:     frame.Length,
-		K:          in.K,
-		RPC:        req.RPC,
-		Namespaces: namespaces,
-		HasError:   in.IsError(),
-		ErrorType:  in.ErrorType(),
+		TS:             frame.TS,
+		Type:           "rpc_response",
+		FlowID:         frame.FlowID,
+		FrameNo:        frame.FrameNo,
+		Direction:      frame.Direction,
+		URL:            frame.URL,
+		OpcodeText:     frame.OpcodeText,
+		Length:         frame.Length,
+		K:              in.K,
+		RPC:            req.RPC,
+		Namespaces:     namespaces,
+		NamespaceShape: nsShape,
+		HasError:       in.IsError(),
+		ErrorType:      in.ErrorType(),
 	}
 	d.writer.Write(rec)
 }
@@ -332,12 +341,16 @@ func BuildRPCIndex(sessionDir string, opts Options) (string, error) {
 }
 
 type Report struct {
-	SessionDir string             `json:"session_dir"`
-	Generated  string             `json:"generated"`
-	Files      map[string]int64   `json:"files"`
-	HTTP       HTTPSummary        `json:"http"`
-	WS         WSSummary          `json:"ws"`
-	Top        map[string][]Count `json:"top"`
+	SessionDir        string               `json:"session_dir"`
+	Generated         string               `json:"generated"`
+	Files             map[string]int64     `json:"files"`
+	Protocol          map[string]string    `json:"protocol,omitempty"`
+	HTTP              HTTPSummary          `json:"http"`
+	WS                WSSummary            `json:"ws"`
+	Top               map[string][]Count   `json:"top"`
+	RPCSamples        map[string]RPCSample `json:"rpc_samples,omitempty"`
+	UnknownRPCs       []string             `json:"unknown_rpcs,omitempty"`
+	UnknownNamespaces []string             `json:"unknown_namespaces,omitempty"`
 }
 
 type HTTPSummary struct {
@@ -358,15 +371,29 @@ type Count struct {
 	Count int    `json:"count"`
 }
 
+type RPCSample struct {
+	Count              int                 `json:"count"`
+	Known              bool                `json:"known"`
+	ArgShape           string              `json:"arg_shape,omitempty"`
+	ArgKeys            []string            `json:"arg_keys,omitempty"`
+	ArgSample          any                 `json:"arg_sample,omitempty"`
+	ResponseNamespaces []string            `json:"response_namespaces,omitempty"`
+	NamespaceShape     map[string][]string `json:"namespace_shape,omitempty"`
+}
+
 func AnalyzeSession(sessionDir string, opts Options) (Report, error) {
-	if _, err := BuildRPCIndex(sessionDir, opts); err != nil {
+	buildOpts := opts
+	buildOpts.Rewrite = true
+	if _, err := BuildRPCIndex(sessionDir, buildOpts); err != nil {
 		return Report{}, err
 	}
 	report := Report{
 		SessionDir: sessionDir,
 		Generated:  time.Now().Format(time.RFC3339Nano),
 		Files:      make(map[string]int64),
+		Protocol:   make(map[string]string),
 		Top:        make(map[string][]Count),
+		RPCSamples: make(map[string]RPCSample),
 	}
 	for _, name := range []string{"flows.jsonl", "websocket.jsonl", RPCIndexFile, "session.json"} {
 		if st, err := os.Stat(filepath.Join(sessionDir, name)); err == nil {
@@ -390,12 +417,18 @@ func AnalyzeSession(sessionDir string, opts Options) (Report, error) {
 }
 
 type flowRecord struct {
-	Type      string `json:"type"`
-	Method    string `json:"method"`
-	URL       string `json:"url"`
-	Host      string `json:"host"`
-	Status    int    `json:"status"`
-	WebSocket bool   `json:"websocket"`
+	Type      string              `json:"type"`
+	Method    string              `json:"method"`
+	URL       string              `json:"url"`
+	Host      string              `json:"host"`
+	Status    int                 `json:"status"`
+	WebSocket bool                `json:"websocket"`
+	Headers   map[string][]string `json:"headers"`
+	Body      *flowBody           `json:"body"`
+}
+
+type flowBody struct {
+	Text string `json:"text"`
 }
 
 func summarizeFlows(sessionDir string, report *Report) error {
@@ -427,6 +460,7 @@ func summarizeFlows(sessionDir string, report *Report) error {
 		if rec.WebSocket {
 			wsUpgrades[scrubURL(rec.URL)]++
 		}
+		collectProtocolHints(rec, report.Protocol)
 		if rec.URL != "" && isBabigameHost(rec.Host) {
 			babigamePaths[rec.Method+" "+scrubURL(rec.URL)]++
 		}
@@ -453,6 +487,8 @@ func summarizeRPCIndex(sessionDir string, report *Report) error {
 	rpcNamespaces := make(map[string]int)
 	namespaces := make(map[string]int)
 	binaryItems := make(map[string]int)
+	unknownRPCs := make(map[string]bool)
+	unknownNamespaces := make(map[string]bool)
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 1024*1024), 16*1024*1024)
 	for sc.Scan() {
@@ -466,6 +502,18 @@ func summarizeRPCIndex(sessionDir string, report *Report) error {
 		case "rpc_request":
 			report.WS.ClientRPCs++
 			rpcs[rec.RPC]++
+			if rec.RPC != "" && !clientproto.IsKnownRPCName(rec.RPC) {
+				unknownRPCs[rec.RPC] = true
+			}
+			sample := report.RPCSamples[rec.RPC]
+			sample.Count++
+			sample.Known = rec.RPC != "" && clientproto.IsKnownRPCName(rec.RPC)
+			if sample.ArgShape == "" {
+				sample.ArgShape = rec.ArgShape
+				sample.ArgKeys = append([]string(nil), rec.ArgKeys...)
+				sample.ArgSample = rec.ArgSample
+			}
+			report.RPCSamples[rec.RPC] = sample
 		case "rpc_response":
 			report.WS.ServerResponses++
 			if rec.HasError {
@@ -476,11 +524,25 @@ func summarizeRPCIndex(sessionDir string, report *Report) error {
 				ns = strings.Join(rec.Namespaces, ",")
 				for _, key := range rec.Namespaces {
 					namespaces[key]++
+					if !babigame.IsKnownNamespace(key) {
+						unknownNamespaces[key] = true
+					}
 				}
 			}
 			rpc := rec.RPC
 			if rpc == "" {
 				rpc = "(unknown)"
+			}
+			sample := report.RPCSamples[rec.RPC]
+			sample.Known = rec.RPC != "" && clientproto.IsKnownRPCName(rec.RPC)
+			if len(sample.ResponseNamespaces) == 0 && len(rec.Namespaces) > 0 {
+				sample.ResponseNamespaces = append([]string(nil), rec.Namespaces...)
+			}
+			if len(sample.NamespaceShape) == 0 && len(rec.NamespaceShape) > 0 {
+				sample.NamespaceShape = cloneNamespaceShape(rec.NamespaceShape)
+			}
+			if rec.RPC != "" {
+				report.RPCSamples[rec.RPC] = sample
 			}
 			rpcNamespaces[rpc+" -> "+ns]++
 		case "decode_error":
@@ -499,7 +561,153 @@ func summarizeRPCIndex(sessionDir string, report *Report) error {
 	report.Top["rpc_namespaces"] = topCounts(rpcNamespaces, 120)
 	report.Top["namespaces"] = topCounts(namespaces, 100)
 	report.Top["binary_items"] = topCounts(binaryItems, 80)
+	report.UnknownRPCs = sortedBoolKeys(unknownRPCs)
+	report.UnknownNamespaces = sortedBoolKeys(unknownNamespaces)
 	return nil
+}
+
+func collectProtocolHints(rec flowRecord, out map[string]string) {
+	if out == nil {
+		return
+	}
+	for name, vals := range rec.Headers {
+		if len(vals) == 0 {
+			continue
+		}
+		switch {
+		case strings.EqualFold(name, "User-Agent"):
+			ua := vals[0]
+			if ua == "" {
+				continue
+			}
+			if _, ok := out["user_agent"]; !ok {
+				out["user_agent"] = ua
+			}
+			if app := parseUserAgentAppVersion(ua); app != "" {
+				setProtocolHint(out, "user_agent_app_version", app, false)
+				if looksAppVersion(app) {
+					setProtocolHint(out, "app_version", app, true)
+				}
+			}
+		case strings.EqualFold(name, "Version"):
+			if looksAppVersion(vals[0]) {
+				setProtocolHint(out, "app_version", vals[0], true)
+			}
+		}
+	}
+	if rec.Body == nil || rec.Body.Text == "" {
+		return
+	}
+	text := rec.Body.Text
+	if v := findJSONTextValue(text, "version"); v != "" {
+		if rec.Method == "POST" && strings.Contains(rec.URL, "/pack/queryPackageConfig") {
+			out["app_version_code"] = v
+		} else if looksAppVersion(v) {
+			setProtocolHint(out, "app_version", v, true)
+		}
+	}
+	if v := findJSONTextValue(text, "gameVersion"); v != "" {
+		out["game_version"] = v
+		out["client_version"] = v
+	}
+	if v := findQueryValueInText(text, "appVersion"); v != "" {
+		setProtocolHint(out, "app_version", v, true)
+	}
+	if v := firstNonEmpty(findJSONTextValue(text, "_rn_version"), findEscapedJSONTextValue(text, "_rn_version")); v != "" {
+		out["rn_version"] = v
+	}
+	if v := firstNonEmpty(findJSONTextValue(text, "_package_version"), findEscapedJSONTextValue(text, "_package_version")); v != "" && looksAppVersion(v) {
+		setProtocolHint(out, "app_version", v, true)
+	}
+}
+
+func setProtocolHint(out map[string]string, key, value string, overwrite bool) {
+	value = normalizeVersion(value)
+	if value == "" {
+		return
+	}
+	if !overwrite {
+		if _, ok := out[key]; ok {
+			return
+		}
+	}
+	out[key] = value
+}
+
+func normalizeVersion(v string) string {
+	v = strings.TrimSpace(v)
+	if len(v) > 1 && (v[0] == 'v' || v[0] == 'V') && v[1] >= '0' && v[1] <= '9' {
+		v = v[1:]
+	}
+	return v
+}
+
+func looksAppVersion(v string) bool {
+	v = normalizeVersion(v)
+	return strings.Count(v, ".") >= 2
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, val := range vals {
+		if strings.TrimSpace(val) != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+func parseUserAgentAppVersion(ua string) string {
+	const prefix = "HuaYuann/"
+	i := strings.Index(ua, prefix)
+	if i < 0 {
+		return ""
+	}
+	rest := ua[i+len(prefix):]
+	if j := strings.IndexAny(rest, " ("); j >= 0 {
+		rest = rest[:j]
+	}
+	return strings.TrimSpace(rest)
+}
+
+func findJSONTextValue(text, key string) string {
+	needle := `"` + key + `":"`
+	i := strings.Index(text, needle)
+	if i < 0 {
+		return ""
+	}
+	rest := text[i+len(needle):]
+	j := strings.Index(rest, `"`)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
+}
+
+func findEscapedJSONTextValue(text, key string) string {
+	needle := `\"` + key + `\":\"`
+	i := strings.Index(text, needle)
+	if i < 0 {
+		return ""
+	}
+	rest := text[i+len(needle):]
+	j := strings.Index(rest, `\"`)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
+}
+
+func findQueryValueInText(text, key string) string {
+	needle := key + "="
+	i := strings.Index(text, needle)
+	if i < 0 {
+		return ""
+	}
+	rest := text[i+len(needle):]
+	if j := strings.IndexAny(rest, `&"\`); j >= 0 {
+		rest = rest[:j]
+	}
+	return strings.TrimSpace(rest)
 }
 
 func PrintReport(report Report) {
@@ -509,12 +717,38 @@ func PrintReport(report Report) {
 	fmt.Printf("http records: %d\n", report.HTTP.Records)
 	fmt.Printf("client RPCs: %d, responses: %d, server errors: %d, binary items: %d, decode errors: %d\n\n",
 		report.WS.ClientRPCs, report.WS.ServerResponses, report.WS.ServerErrors, report.WS.BinaryItems, report.WS.DecodeErrors)
+	if len(report.Protocol) > 0 {
+		fmt.Println("Protocol hints:")
+		keys := make([]string, 0, len(report.Protocol))
+		for key := range report.Protocol {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			fmt.Printf("  %s: %s\n", key, report.Protocol[key])
+		}
+		fmt.Println()
+	}
 	printTop("HTTP hosts", report.Top["http_hosts"], 12)
 	printTop("Babigame paths", report.Top["http_babigame_paths"], 12)
 	printTop("RPC counts", report.Top["rpc_counts"], 20)
 	printTop("RPC namespaces", report.Top["rpc_namespaces"], 20)
 	printTop("Namespaces", report.Top["namespaces"], 20)
 	printTop("Binary items", report.Top["binary_items"], 12)
+	if len(report.UnknownRPCs) > 0 {
+		fmt.Println("Unknown RPCs:")
+		for _, name := range report.UnknownRPCs {
+			fmt.Printf("  %s\n", name)
+		}
+		fmt.Println()
+	}
+	if len(report.UnknownNamespaces) > 0 {
+		fmt.Println("Unknown namespaces:")
+		for _, name := range report.UnknownNamespaces {
+			fmt.Printf("  %s\n", name)
+		}
+		fmt.Println()
+	}
 	fmt.Printf("wrote: %s\n", filepath.Join(report.SessionDir, ReportFile))
 }
 
@@ -529,9 +763,9 @@ func printTop(title string, counts []Count, limit int) {
 	fmt.Println()
 }
 
-func summarizeArg(raw json.RawMessage) (string, []string) {
+func summarizeArg(raw json.RawMessage) (string, []string, any) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return "null", nil
+		return "null", nil, nil
 	}
 	var obj map[string]json.RawMessage
 	if json.Unmarshal(raw, &obj) == nil {
@@ -540,17 +774,113 @@ func summarizeArg(raw json.RawMessage) (string, []string) {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		return "object", keys
+		return "object", keys, sanitizeObject(obj)
 	}
 	var arr []json.RawMessage
 	if json.Unmarshal(raw, &arr) == nil {
-		return fmt.Sprintf("array[%d]", len(arr)), nil
+		return fmt.Sprintf("array[%d]", len(arr)), nil, summarizeArray(arr)
 	}
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
-		return "string", nil
+		return "string", nil, sanitizeScalar("", s)
 	}
-	return "scalar", nil
+	var v any
+	if json.Unmarshal(raw, &v) == nil {
+		return "scalar", nil, sanitizeScalar("", v)
+	}
+	return "scalar", nil, nil
+}
+
+func sanitizeObject(obj map[string]json.RawMessage) map[string]any {
+	out := make(map[string]any, len(obj))
+	for key, raw := range obj {
+		var v any
+		if json.Unmarshal(raw, &v) != nil {
+			out[key] = "unreadable"
+			continue
+		}
+		out[key] = sanitizeScalar(key, v)
+	}
+	return out
+}
+
+func summarizeArray(arr []json.RawMessage) []any {
+	limit := len(arr)
+	if limit > 8 {
+		limit = 8
+	}
+	out := make([]any, 0, limit)
+	for i := 0; i < limit; i++ {
+		var v any
+		if json.Unmarshal(arr[i], &v) == nil {
+			out = append(out, sanitizeScalar("", v))
+		}
+	}
+	return out
+}
+
+func sanitizeScalar(key string, v any) any {
+	if isSensitiveSampleKey(key) {
+		return "<redacted>"
+	}
+	switch x := v.(type) {
+	case string:
+		if len(x) > 96 {
+			return x[:96] + "..."
+		}
+		return x
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, vv := range x {
+			out[k] = sanitizeScalar(k, vv)
+		}
+		return out
+	case []any:
+		limit := len(x)
+		if limit > 8 {
+			limit = 8
+		}
+		out := make([]any, 0, limit)
+		for i := 0; i < limit; i++ {
+			out = append(out, sanitizeScalar("", x[i]))
+		}
+		return out
+	default:
+		return x
+	}
+}
+
+func isSensitiveSampleKey(key string) bool {
+	lower := strings.ToLower(key)
+	norm := sampleKeyNormalizer.Replace(lower)
+	if strings.Contains(norm, "token") ||
+		strings.Contains(norm, "password") ||
+		strings.Contains(norm, "passwd") ||
+		strings.Contains(norm, "secret") ||
+		strings.Contains(norm, "session") ||
+		strings.Contains(norm, "route") ||
+		strings.Contains(norm, "device") ||
+		strings.Contains(norm, "idfa") ||
+		strings.Contains(norm, "idfv") ||
+		strings.Contains(norm, "imei") ||
+		strings.Contains(norm, "oaid") ||
+		strings.Contains(norm, "openid") ||
+		strings.Contains(norm, "roleid") ||
+		strings.Contains(norm, "phone") ||
+		strings.Contains(norm, "mobile") ||
+		strings.Contains(norm, "email") ||
+		strings.Contains(norm, "address") ||
+		strings.Contains(norm, "latitude") ||
+		strings.Contains(norm, "longitude") ||
+		strings.Contains(norm, "signature") ||
+		strings.Contains(norm, "auth") ||
+		strings.Contains(norm, "sign") {
+		return true
+	}
+	return norm == "uid" || norm == "userid" || norm == "aid" ||
+		strings.HasSuffix(norm, "uid") ||
+		strings.HasSuffix(norm, "lat") ||
+		strings.HasSuffix(norm, "lng")
 }
 
 func namespaceKeys(raw json.RawMessage) []string {
@@ -567,6 +897,78 @@ func namespaceKeys(raw json.RawMessage) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func namespaceShape(raw json.RawMessage) map[string][]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var ns map[string]json.RawMessage
+	if json.Unmarshal(raw, &ns) != nil {
+		return nil
+	}
+	out := make(map[string][]string, len(ns))
+	for nsKey, payload := range ns {
+		keys := valueShapeKeys(payload)
+		if len(keys) > 0 {
+			out[nsKey] = keys
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func valueShapeKeys(raw json.RawMessage) []string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(raw, &obj) == nil {
+		keys := make([]string, 0, len(obj))
+		for key, nested := range obj {
+			keys = append(keys, key)
+			if nestedKeys := valueShapeKeys(nested); len(nestedKeys) > 0 && len(nestedKeys) <= 8 {
+				for _, nestedKey := range nestedKeys {
+					keys = append(keys, key+"."+nestedKey)
+				}
+			}
+		}
+		sort.Strings(keys)
+		return keys
+	}
+	var arr []json.RawMessage
+	if json.Unmarshal(raw, &arr) == nil {
+		seen := make(map[string]struct{})
+		limit := len(arr)
+		if limit > 8 {
+			limit = 8
+		}
+		for i := 0; i < limit; i++ {
+			for _, key := range valueShapeKeys(arr[i]) {
+				seen[key] = struct{}{}
+			}
+		}
+		keys := make([]string, 0, len(seen))
+		for key := range seen {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		return keys
+	}
+	return nil
+}
+
+func cloneNamespaceShape(in map[string][]string) map[string][]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string][]string, len(in))
+	for key, vals := range in {
+		out[key] = append([]string(nil), vals...)
+	}
+	return out
 }
 
 func binaryItemSummary(raw json.RawMessage) (string, string, []string) {
@@ -632,6 +1034,18 @@ func topCounts(m map[string]int, limit int) []Count {
 	if len(out) > limit {
 		out = out[:limit]
 	}
+	return out
+}
+
+func sortedBoolKeys(m map[string]bool) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for key := range m {
+		out = append(out, key)
+	}
+	sort.Strings(out)
 	return out
 }
 

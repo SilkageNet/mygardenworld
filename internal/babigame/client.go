@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	clientproto "github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/coder/websocket"
 )
 
@@ -153,8 +154,10 @@ func (c *Client) rpc(ctx context.Context, name string, args any, routeArg string
 	}
 	ch := make(chan rpcResult, 1)
 	c.mu.Lock()
-	c.pending[k] = ch
 	conn := c.conn
+	if conn != nil {
+		c.pending[k] = ch
+	}
 	c.mu.Unlock()
 	if conn == nil {
 		return nil, WSResponseD{}, errors.New("not connected")
@@ -302,18 +305,15 @@ func (c *Client) heartbeat() {
 			return
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, _ = NewRPCClient(c, c.Session).Usr().HeartTick(ctx, UsrHeartTickRequest{}, WithTimeout(10*time.Second))
+			_, _ = CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCUsrHeartTick, clientproto.UsrHeartTickRequest{}, WithTimeout(10*time.Second))
 			cancel()
 		}
 	}
 }
 
-// ReLogin issues index.reLogin on the live WS. Idempotent on first call;
-// the second call on the same WS won't refresh server-pushed state, so
-// callers that want a refresh should reconnect instead.
-func (c *Client) ReLogin(ctx context.Context, isSimulator int) (json.RawMessage, error) {
+func (c *Client) indexLoginRequest(isSimulator int) clientproto.IndexLoginRequest {
 	s := c.Session
-	req := IndexReLoginRequest{
+	return clientproto.IndexLoginRequest{
 		AID:         s.AID,
 		GsIdx:       int32(s.GsIdx),
 		Token:       s.RouteToken,
@@ -321,7 +321,7 @@ func (c *Client) ReLogin(ctx context.Context, isSimulator int) (json.RawMessage,
 		IsNative:    true,
 		DeviceID:    s.DeviceID,
 		IsSimulator: int32(isSimulator),
-		DeviceInfo: IndexDeviceInfo{
+		DeviceInfo: clientproto.IndexDeviceInfo{
 			OSType:         "iOS",
 			DeviceID:       s.DeviceID,
 			IsEmulator:     "0",
@@ -340,13 +340,28 @@ func (c *Client) ReLogin(ctx context.Context, isSimulator int) (json.RawMessage,
 		Area:    s.Cfg.Area,
 		ChnID:   int32(s.Cfg.ChannelID),
 	}
-	resp, err := NewRPCClient(c, s).Index().ReLogin(ctx, req, WithTimeout(30*time.Second))
+}
+
+// Login issues index.login on the live WS, matching the official client's
+// first post-connect initialization call.
+func (c *Client) Login(ctx context.Context, isSimulator int) (json.RawMessage, error) {
+	req := c.indexLoginRequest(isSimulator)
+	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCIndexLogin, req, WithTimeout(30*time.Second))
+	return resp.Payload, err
+}
+
+// ReLogin issues index.reLogin on the live WS. Idempotent on first call;
+// the second call on the same WS won't refresh server-pushed state, so
+// callers that want a refresh should reconnect instead.
+func (c *Client) ReLogin(ctx context.Context, isSimulator int) (json.RawMessage, error) {
+	req := clientproto.IndexReLoginRequest(c.indexLoginRequest(isSimulator))
+	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCIndexReLogin, req, WithTimeout(30*time.Second))
 	return resp.Payload, err
 }
 
 // LazySync pulls module init data (namespaces 111/122/129/139/155/161 in
 // captures - generic activity / quests / mail). Doesn't refresh 100/7.
 func (c *Client) LazySync(ctx context.Context) (json.RawMessage, error) {
-	resp, err := NewRPCClient(c, c.Session).Usr().LazySync(ctx, UsrLazySyncRequest{}, WithTimeout(15*time.Second))
+	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCUsrLazySync, clientproto.UsrLazySyncRequest{}, WithTimeout(15*time.Second))
 	return resp.Payload, err
 }

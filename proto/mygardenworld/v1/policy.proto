@@ -70,6 +70,10 @@ message WaterPolicy {
 
   // Preserve at least this many water drops before watering. Default: 5.
   int32 min_drops = 3;
+
+  // Use usrLand.waterOneKey only when the account is observed as noble/VIP.
+  // Non-noble or unknown accounts always fall back to water/waterBatch.
+  bool prefer_one_key_if_noble = 4;
 }
 
 message MiscPolicy {
@@ -95,4 +99,12 @@ message MiscPolicy {
   bool benefit_box_enabled = 20;
   bool speed_up_enabled = 21;
   bool task_ach_reward_enabled = 22;
+  bool order_palace_enabled = 23;
+  bool sign_enabled = 24;
+  bool flower_pass_enabled = 25;
+  bool flower_elves_pass_enabled = 26;
+  bool player_back_enabled = 27;
+  bool activity_reward_enabled = 28;
+  bool zoo_sync_enabled = 29;
+  bool zoo_feed_enabled = 30;
 }

@@ -42,6 +42,24 @@ message AccountStatus {
   int32 flower_stock_total = 8;
   // Persisted user intent: true when automation should run once the account is started.
   bool automation_enabled = 9;
+  RunnerDiagnostics diagnostics = 10;
+}
+
+message RunnerDiagnostics {
+  string current_operation = 1;
+  google.protobuf.Timestamp current_operation_started_at = 2;
+  string last_operation = 3;
+  google.protobuf.Timestamp last_operation_at = 4;
+  string last_operation_error = 5;
+  google.protobuf.Timestamp last_operation_error_at = 6;
+  google.protobuf.Timestamp next_decision_at = 7;
+  google.protobuf.Timestamp next_misc_at = 8;
+  google.protobuf.Timestamp next_cultivate_at = 9;
+  string session_invalidated_reason = 10;
+  repeated string blocked_reasons = 11;
+  int32 unknown_rpc_count = 12;
+  int32 unknown_namespace_count = 13;
+  repeated string observed_namespaces = 14;
 }
 
 message GetSnapshotRequest {
@@ -69,6 +87,13 @@ message GetSnapshotResponse {
   int32 diamonds_free = 14;
   int32 diamonds_paid = 15;
   repeated PendingTaskView pending_tasks = 16;
+  int32 vip = 17;
+  int32 vip_exp = 18;
+  bool noble_eligible = 19;
+  repeated string observed_namespaces = 20;
+  int32 unknown_rpc_count = 21;
+  int32 unknown_namespace_count = 22;
+  RunnerDiagnostics diagnostics = 23;
 }
 
 message LandView {

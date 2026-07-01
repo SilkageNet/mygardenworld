@@ -27,6 +27,7 @@ const (
 	KeyWaterEnabled                   = "water.enabled"
 	KeyWaterMaxBatch                  = "water.max_batch"
 	KeyWaterMinDrops                  = "water.min_drops"
+	KeyWaterPreferOneKeyIfNoble       = "water.prefer_one_key_if_noble"
 	KeyMiscLandUnlockEnabled          = "misc.land_unlock_enabled"
 	KeyMiscStoryUnlockEnabled         = "misc.story_unlock_enabled"
 	KeyMiscWaterwheelEnabled          = "misc.waterwheel_enabled"
@@ -49,6 +50,14 @@ const (
 	KeyMiscBenefitBoxEnabled          = "misc.benefit_box_enabled"
 	KeyMiscSpeedUpEnabled             = "misc.speed_up_enabled"
 	KeyMiscTaskAchRewardEnabled       = "misc.task_ach_reward_enabled"
+	KeyMiscOrderPalaceEnabled         = "misc.order_palace_enabled"
+	KeyMiscSignEnabled                = "misc.sign_enabled"
+	KeyMiscFlowerPassEnabled          = "misc.flower_pass_enabled"
+	KeyMiscFlowerElvesPassEnabled     = "misc.flower_elves_pass_enabled"
+	KeyMiscPlayerBackEnabled          = "misc.player_back_enabled"
+	KeyMiscActivityRewardEnabled      = "misc.activity_reward_enabled"
+	KeyMiscZooSyncEnabled             = "misc.zoo_sync_enabled"
+	KeyMiscZooFeedEnabled             = "misc.zoo_feed_enabled"
 )
 
 func Normalize(p *pb.Policy) *pb.Policy {
@@ -115,6 +124,7 @@ func Flatten(p *pb.Policy) map[string]string {
 		KeyWaterEnabled:                   fmt.Sprintf("%t", p.GetWater().GetEnabled()),
 		KeyWaterMaxBatch:                  fmt.Sprintf("%d", p.GetWater().GetMaxBatch()),
 		KeyWaterMinDrops:                  fmt.Sprintf("%d", p.GetWater().GetMinDrops()),
+		KeyWaterPreferOneKeyIfNoble:       fmt.Sprintf("%t", p.GetWater().GetPreferOneKeyIfNoble()),
 		KeyMiscLandUnlockEnabled:          fmt.Sprintf("%t", p.GetMisc().GetLandUnlockEnabled()),
 		KeyMiscStoryUnlockEnabled:         fmt.Sprintf("%t", p.GetMisc().GetStoryUnlockEnabled()),
 		KeyMiscWaterwheelEnabled:          fmt.Sprintf("%t", p.GetMisc().GetWaterwheelEnabled()),
@@ -137,6 +147,14 @@ func Flatten(p *pb.Policy) map[string]string {
 		KeyMiscBenefitBoxEnabled:          fmt.Sprintf("%t", p.GetMisc().GetBenefitBoxEnabled()),
 		KeyMiscSpeedUpEnabled:             fmt.Sprintf("%t", p.GetMisc().GetSpeedUpEnabled()),
 		KeyMiscTaskAchRewardEnabled:       fmt.Sprintf("%t", p.GetMisc().GetTaskAchRewardEnabled()),
+		KeyMiscOrderPalaceEnabled:         fmt.Sprintf("%t", p.GetMisc().GetOrderPalaceEnabled()),
+		KeyMiscSignEnabled:                fmt.Sprintf("%t", p.GetMisc().GetSignEnabled()),
+		KeyMiscFlowerPassEnabled:          fmt.Sprintf("%t", p.GetMisc().GetFlowerPassEnabled()),
+		KeyMiscFlowerElvesPassEnabled:     fmt.Sprintf("%t", p.GetMisc().GetFlowerElvesPassEnabled()),
+		KeyMiscPlayerBackEnabled:          fmt.Sprintf("%t", p.GetMisc().GetPlayerBackEnabled()),
+		KeyMiscActivityRewardEnabled:      fmt.Sprintf("%t", p.GetMisc().GetActivityRewardEnabled()),
+		KeyMiscZooSyncEnabled:             fmt.Sprintf("%t", p.GetMisc().GetZooSyncEnabled()),
+		KeyMiscZooFeedEnabled:             fmt.Sprintf("%t", p.GetMisc().GetZooFeedEnabled()),
 	}
 }
 
@@ -239,6 +257,13 @@ func SetKey(p *pb.Policy, key, value string) error {
 			return err
 		}
 		p.Water.MinDrops = int32(n)
+	case KeyWaterPreferOneKeyIfNoble:
+		ensureWater(p)
+		b, err := parseBool(value)
+		if err != nil {
+			return err
+		}
+		p.Water.PreferOneKeyIfNoble = b
 	case KeyMiscLandUnlockEnabled:
 		ensureMisc(p)
 		b, err := parseBool(value)
@@ -308,6 +333,22 @@ func SetKey(p *pb.Policy, key, value string) error {
 		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.SpeedUpEnabled = b })
 	case KeyMiscTaskAchRewardEnabled:
 		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.TaskAchRewardEnabled = b })
+	case KeyMiscOrderPalaceEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.OrderPalaceEnabled = b })
+	case KeyMiscSignEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.SignEnabled = b })
+	case KeyMiscFlowerPassEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FlowerPassEnabled = b })
+	case KeyMiscFlowerElvesPassEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.FlowerElvesPassEnabled = b })
+	case KeyMiscPlayerBackEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.PlayerBackEnabled = b })
+	case KeyMiscActivityRewardEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.ActivityRewardEnabled = b })
+	case KeyMiscZooSyncEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.ZooSyncEnabled = b })
+	case KeyMiscZooFeedEnabled:
+		return setMiscBool(p, value, func(m *pb.MiscPolicy, b bool) { m.ZooFeedEnabled = b })
 	default:
 		if p.Extras == nil {
 			p.Extras = &structpb.Struct{Fields: map[string]*structpb.Value{}}

@@ -182,6 +182,12 @@ waterPath:
 		if want <= 0 {
 			return nil
 		}
+		if policy.GetWater().GetPreferOneKeyIfNoble() && s.NobleEligible() && int32(len(b.water)) == want {
+			return &PlannedOp{
+				Kind:    "usrLand.waterOneKey",
+				LandIDs: b.water[:want],
+			}
+		}
 		picks := b.water[:want]
 		if len(picks) > 1 {
 			return &PlannedOp{

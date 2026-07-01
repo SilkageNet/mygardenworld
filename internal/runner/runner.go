@@ -71,6 +71,14 @@ type Runner struct {
 	lastCultivateTick time.Time // 节流培育操作
 	lastWaterSyncTick time.Time // 节流水资源状态刷新
 	lastEventAt       time.Time // latest event emitted by this runner
+	nextDecisionAt    time.Time // next scheduled decision-loop tick
+
+	currentOperation          string
+	currentOperationStartedAt time.Time
+	lastOperation             string
+	lastOperationAt           time.Time
+	lastOperationError        string
+	lastOperationErrorAt      time.Time
 
 	landUnlockBlocked         bool // 上次尝试无效果，等待条件变化
 	taskRecvBlocked           bool
@@ -84,8 +92,10 @@ type Runner struct {
 	residentOrderBlockedUntil time.Time                    // 居民订单达到当天上限后的下一次试探时间
 	flowerUpgradeBlocked      map[int32]flowerUpgradeBlock // 升级材料不足，等待材料变化或短期冷却
 	cultivateBlocked          map[int32]time.Time          // 培育材料不足或配置未知，短期冷却
+	prevGold                  int32                        // 用于检测金币增长，解除金币相关升级阻塞
 	prevLevel                 int32                        // 用于检测升级
 	rqst                      rqstState                    // 反作弊验证状态
+	unknownRPCCounts          map[string]int32             // runtime RPC names missing from the catalog
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -113,6 +123,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		harvestBlockedUntil:  make(map[int32]time.Time),
 		flowerUpgradeBlocked: make(map[int32]flowerUpgradeBlock),
 		cultivateBlocked:     make(map[int32]time.Time),
+		unknownRPCCounts:     make(map[string]int32),
 		done:                 make(chan struct{}),
 		bus:                  bus,
 	}

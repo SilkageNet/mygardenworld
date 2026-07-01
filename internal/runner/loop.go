@@ -9,6 +9,8 @@ import (
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientrpc"
 )
 
 const (
@@ -21,7 +23,9 @@ const (
 
 func (r *Runner) decisionLoop(ctx context.Context) {
 	for {
-		timer := time.NewTimer(r.tickInterval())
+		interval := r.tickInterval()
+		r.setNextDecisionAt(time.Now().Add(interval))
+		timer := time.NewTimer(interval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -96,16 +100,20 @@ func (r *Runner) tick(ctx context.Context) {
 		return
 	}
 
-	// Anti-cheat verification: send once per session before the first
-	// harvest or plant batch.
-	if isHarvestOp(op.Kind) {
-		if err := r.ensureHarvestRqst(ctx); err != nil {
-			r.log.Debug("harvest rqst failed", "err", err)
-		}
-	} else if op.Kind == "usrLand.plant" || op.Kind == "usrLand.plantBatch" {
-		if err := r.ensurePlantRqst(ctx); err != nil {
-			r.log.Debug("plant rqst failed", "err", err)
-		}
+	var opErr error
+	finishOperation := r.beginOperation(op.Kind)
+	defer func() { finishOperation(opErr) }()
+
+	if err := r.ensurePlannedOperationRqst(ctx, op); err != nil {
+		opErr = fmt.Errorf("rqst: %w", err)
+		r.emit(Event{
+			Kind:        "operation_failed",
+			Message:     fmt.Sprintf("%s 已跳过: 前置校验失败: %v", opDesc(op), err),
+			PayloadJSON: operationPayload(op, nil, nil, err),
+			Level:       "warn",
+		})
+		_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, nil, map[string]any{"error": err.Error(), "stage": "rqst"})
+		return
 	}
 
 	// Skip water operations if blocked (water drops exhausted).
@@ -113,22 +121,25 @@ func (r *Runner) tick(ctx context.Context) {
 	waterBlocked := r.waterBlocked
 	waterBlockedUntil := r.waterBlockedUntil
 	r.mu.RUnlock()
-	if waterBlocked && (op.Kind == "usrLand.water" || op.Kind == "usrLand.waterBatch") {
+	if waterBlocked && isWaterOp(op.Kind) {
 		if time.Now().Before(waterBlockedUntil) {
+			opErr = fmt.Errorf("water blocked until %s", waterBlockedUntil.Format(time.RFC3339))
 			return
 		}
 		r.setWaterBlocked(false)
 	}
 	reservedWaterDrops := int32(0)
-	if op.Kind == "usrLand.water" || op.Kind == "usrLand.waterBatch" {
+	if isWaterOp(op.Kind) {
 		reservedWaterDrops = int32(len(op.LandIDs))
 		if !r.state.ReserveWaterDrops(reservedWaterDrops, now) {
+			opErr = fmt.Errorf("insufficient local water drops")
 			return
 		}
 		defer r.state.ReleaseWaterDropsReservation(reservedWaterDrops)
 	}
 	args, err := operationArgs(op)
 	if err != nil {
+		opErr = err
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
@@ -144,6 +155,7 @@ func (r *Runner) tick(ctx context.Context) {
 	})
 	v, err := r.executePlannedOp(ctx, client, session, op)
 	if err != nil {
+		opErr = err
 		if isHarvestOp(op.Kind) && isFlowerNotMatureError(err) {
 			r.setHarvestBlockedUntil(op.LandIDs, time.Now().Add(harvestRetryWait))
 			r.emit(Event{
@@ -162,7 +174,7 @@ func (r *Runner) tick(ctx context.Context) {
 		})
 		_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error()})
 		// Block water operations on server error (likely water drops exhausted).
-		if op.Kind == "usrLand.water" || op.Kind == "usrLand.waterBatch" {
+		if isWaterOp(op.Kind) {
 			r.setWaterBlockedUntil(time.Now().Add(waterRetryWait))
 		}
 		return
@@ -177,7 +189,7 @@ func (r *Runner) tick(ctx context.Context) {
 	// Some successful water RPC responses omit inventory deltas. When the
 	// server did include item 7, ApplyV has already installed the authoritative
 	// remaining drop count, so do not spend it locally again.
-	if (op.Kind == "usrLand.water" || op.Kind == "usrLand.waterBatch") && !waterResponseIncludesDrops(v) {
+	if isWaterOp(op.Kind) && !waterResponseIncludesDrops(v) {
 		r.state.MarkLandsWatered(op.LandIDs)
 	}
 }
@@ -224,30 +236,30 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
 	}
-	rpc := babigame.NewRPCClient(
+	rpc := clientrpc.NewClient(babigame.NewRPCClient(
 		client,
 		session,
 		babigame.WithDefaultTimeout(30*time.Second),
 		babigame.WithApplyV(r.state.ApplyV),
-	)
+	))
 	switch op.Kind {
-	case babigame.RPCUsrLandHarvestOneKey.String():
-		resp, err := rpc.UsrLand().HarvestOneKey(ctx, babigame.UsrLandHarvestOneKeyRequest{})
+	case clientproto.RPCUsrLandHarvestOneKey.String():
+		resp, err := rpc.UsrLand().HarvestOneKey(ctx, clientproto.UsrLandHarvestOneKeyRequest{})
 		return resp.Payload, err
-	case babigame.RPCUsrLandHarvest.String():
+	case clientproto.RPCUsrLandHarvest.String():
 		landID, err := plannedOpSingleLandID(op)
 		if err != nil {
 			return nil, err
 		}
-		resp, err := rpc.UsrLand().Harvest(ctx, babigame.UsrLandHarvestRequest{LandId: landID})
+		resp, err := rpc.UsrLand().Harvest(ctx, clientproto.UsrLandHarvestRequest{LandId: landID})
 		return resp.Payload, err
-	case babigame.RPCUsrLandPlantBatch.String():
+	case clientproto.RPCUsrLandPlantBatch.String():
 		if op.FlowerID == 0 {
 			return nil, fmt.Errorf("plantBatch missing flower id")
 		}
-		resp, err := rpc.UsrLand().PlantBatch(ctx, babigame.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID})
+		resp, err := rpc.UsrLand().PlantBatch(ctx, clientproto.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID})
 		return resp.Payload, err
-	case babigame.RPCUsrLandPlant.String():
+	case clientproto.RPCUsrLandPlant.String():
 		if op.FlowerID == 0 {
 			return nil, fmt.Errorf("plant missing flower id")
 		}
@@ -255,17 +267,20 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 		if err != nil {
 			return nil, err
 		}
-		resp, err := rpc.UsrLand().Plant(ctx, babigame.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID})
+		resp, err := rpc.UsrLand().Plant(ctx, clientproto.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID})
 		return resp.Payload, err
-	case babigame.RPCUsrLandWaterBatch.String():
-		resp, err := rpc.UsrLand().WaterBatch(ctx, babigame.UsrLandWaterBatchRequest{LandIds: op.LandIDs})
+	case clientproto.RPCUsrLandWaterBatch.String():
+		resp, err := rpc.UsrLand().WaterBatch(ctx, clientproto.UsrLandWaterBatchRequest{LandIds: op.LandIDs})
 		return resp.Payload, err
-	case babigame.RPCUsrLandWater.String():
+	case clientproto.RPCUsrLandWaterOneKey.String():
+		resp, err := rpc.UsrLand().WaterOneKey(ctx, clientproto.UsrLandWaterOneKeyRequest{})
+		return resp.Payload, err
+	case clientproto.RPCUsrLandWater.String():
 		landID, err := plannedOpSingleLandID(op)
 		if err != nil {
 			return nil, err
 		}
-		resp, err := rpc.UsrLand().Water(ctx, babigame.UsrLandWaterRequest{LandId: landID})
+		resp, err := rpc.UsrLand().Water(ctx, clientproto.UsrLandWaterRequest{LandId: landID})
 		return resp.Payload, err
 	default:
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
@@ -277,20 +292,20 @@ func operationArgs(op *automation.PlannedOp) (any, error) {
 		return nil, fmt.Errorf("nil planned operation")
 	}
 	switch op.Kind {
-	case babigame.RPCUsrLandHarvestOneKey.String():
-		return babigame.UsrLandHarvestOneKeyRequest{}, nil
-	case babigame.RPCUsrLandHarvest.String():
+	case clientproto.RPCUsrLandHarvestOneKey.String():
+		return clientproto.UsrLandHarvestOneKeyRequest{}, nil
+	case clientproto.RPCUsrLandHarvest.String():
 		landID, err := plannedOpSingleLandID(op)
 		if err != nil {
 			return nil, err
 		}
-		return babigame.UsrLandHarvestRequest{LandId: landID}, nil
-	case babigame.RPCUsrLandPlantBatch.String():
+		return clientproto.UsrLandHarvestRequest{LandId: landID}, nil
+	case clientproto.RPCUsrLandPlantBatch.String():
 		if op.FlowerID == 0 {
 			return nil, fmt.Errorf("plantBatch missing flower id")
 		}
-		return babigame.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID}, nil
-	case babigame.RPCUsrLandPlant.String():
+		return clientproto.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID}, nil
+	case clientproto.RPCUsrLandPlant.String():
 		if op.FlowerID == 0 {
 			return nil, fmt.Errorf("plant missing flower id")
 		}
@@ -298,18 +313,26 @@ func operationArgs(op *automation.PlannedOp) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return babigame.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID}, nil
-	case babigame.RPCUsrLandWaterBatch.String():
-		return babigame.UsrLandWaterBatchRequest{LandIds: op.LandIDs}, nil
-	case babigame.RPCUsrLandWater.String():
+		return clientproto.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID}, nil
+	case clientproto.RPCUsrLandWaterBatch.String():
+		return clientproto.UsrLandWaterBatchRequest{LandIds: op.LandIDs}, nil
+	case clientproto.RPCUsrLandWaterOneKey.String():
+		return clientproto.UsrLandWaterOneKeyRequest{}, nil
+	case clientproto.RPCUsrLandWater.String():
 		landID, err := plannedOpSingleLandID(op)
 		if err != nil {
 			return nil, err
 		}
-		return babigame.UsrLandWaterRequest{LandId: landID}, nil
+		return clientproto.UsrLandWaterRequest{LandId: landID}, nil
 	default:
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
 	}
+}
+
+func isWaterOp(kind string) bool {
+	return kind == clientproto.RPCUsrLandWater.String() ||
+		kind == clientproto.RPCUsrLandWaterBatch.String() ||
+		kind == clientproto.RPCUsrLandWaterOneKey.String()
 }
 
 func plannedOpSingleLandID(op *automation.PlannedOp) (int32, error) {
@@ -335,6 +358,24 @@ func (r *Runner) setHarvestBlockedUntil(landIDs []int32, until time.Time) {
 
 func isHarvestOp(kind string) bool {
 	return kind == "usrLand.harvest" || kind == "usrLand.harvestOneKey"
+}
+
+func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.PlannedOp) error {
+	if op == nil {
+		return nil
+	}
+	if isHarvestOp(op.Kind) {
+		return r.ensureHarvestRqst(ctx)
+	}
+	if op.Kind == clientproto.RPCUsrLandPlant.String() ||
+		op.Kind == clientproto.RPCUsrLandPlantBatch.String() ||
+		op.Kind == clientproto.RPCUsrLandPlantOneKey.String() {
+		return r.ensurePlantRqst(ctx)
+	}
+	if isWaterOp(op.Kind) {
+		return r.ensureWaterRqst(ctx)
+	}
+	return nil
 }
 
 func isFlowerNotMatureError(err error) bool {
@@ -387,8 +428,8 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	}
 	r.lastWaterSyncTick = time.Now()
 
-	rpc := runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, babigame.WaterwheelEnterRequest{}))
+	rpc := r.runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
 	if r.isSessionInvalidated() {
 		return
 	}

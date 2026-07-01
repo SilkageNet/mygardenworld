@@ -41,7 +41,8 @@
 //	109        | Customer orders                  | orderCustomer.*
 //	112        | Gift bag shop                    | shopGiftbag.enter
 //	114        | Waterwheel state (see below)     | waterwheel.*
-//	117        | Free-water reward state           | freeWater.recv
+//	116        | Benefit-box state (see below)    | benefitBox.draw
+//	117        | Free-water state (see below)     | freeWater.recv
 //	119        | High-freq task counters          | Most RPCs
 //	124        | Daily summary / popup rewards    | harvest, orders
 //	131        | Observed high-frequency delta     | land, task, pass, random-event RPCs
@@ -105,11 +106,34 @@
 //
 // # Waterwheel (Namespace 114)
 //
-// Structure: {"0": aid, "1": claimedCount, "2": advList, "3": rTime, "4": uTime, "5": cTime}
+// Structure: {"0": uid, "1": count, "2": advList, "3": rTime, "4": uTime, "5": cTime}
 //
 // Each waterwheel.recv increments field "1" and grants water drops. The client
 // generates clickable buckets locally using c_waterwheel.$bucketCreateCd.
 // waterwheel.skip advances to the next slot without waiting.
+//
+// # Benefit Box (Namespace 116)
+//
+// Structure: {"0": {"0": uid, "1": drawCnt, "2": resetCntTime, "3": uTime, "4": cTime}}
+//
+// The client uses drawCnt as the currently available free draw count. When it
+// is positive, benefitBox.draw can claim one reward; resetCntTime is the
+// client-visible reset/cooldown timestamp.
+//
+// # Free Water (Namespace 117)
+//
+// Structure: {"0": uid, "1": recvIdx, "2": rTime, "3": uTime, "4": cTime}
+//
+// freeWater.recv sends {idx}; the static client schema names that argument and
+// the namespace field recvIdx, so the observed recvIdx is the next candidate
+// index unless a capture shows a channel-specific divergence.
+//
+// # Random Event (Namespace 129)
+//
+// Static client schema names IRandomEventInfo fields as eventId/posIdx/dialogId.
+// The current state model still treats fields 1/2 as capture-derived
+// status/affair markers; keep that behavior until fresh captures resolve the
+// semantic mismatch.
 //
 // # Key RPCs
 //

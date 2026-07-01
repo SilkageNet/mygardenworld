@@ -23,6 +23,9 @@ func TestBuildRPCIndexFromWebSocketJSONL(t *testing.T) {
 	if records[0].Type != "rpc_request" || records[0].RPC != "usrLand.harvest" {
 		t.Fatalf("bad request record: %+v", records[0])
 	}
+	if records[0].ArgShape != "object" || len(records[0].ArgKeys) != 1 || records[0].ArgKeys[0] != "landId" {
+		t.Fatalf("bad request arg summary: %+v", records[0])
+	}
 	if records[1].Type != "rpc_response" || records[1].RPC != "usrLand.harvest" {
 		t.Fatalf("bad response record: %+v", records[1])
 	}
@@ -40,8 +43,58 @@ func TestAnalyzeSessionWritesReport(t *testing.T) {
 	if report.WS.ClientRPCs != 1 || report.WS.ServerResponses != 1 {
 		t.Fatalf("unexpected ws summary: %+v", report.WS)
 	}
+	if report.Protocol["app_version"] != "1.1.17" {
+		t.Fatalf("app_version protocol hint = %q, want 1.1.17", report.Protocol["app_version"])
+	}
+	sample := report.RPCSamples["usrLand.harvest"]
+	if sample.Count != 1 || !sample.Known || sample.ArgShape != "object" {
+		t.Fatalf("bad rpc sample: %+v", sample)
+	}
+	if len(report.UnknownRPCs) != 0 || len(report.UnknownNamespaces) != 0 {
+		t.Fatalf("unexpected unknown diff: rpc=%v ns=%v", report.UnknownRPCs, report.UnknownNamespaces)
+	}
 	if _, err := os.Stat(filepath.Join(dir, ReportFile)); err != nil {
 		t.Fatalf("analysis report missing: %v", err)
+	}
+}
+
+func TestSanitizeScalarRedactsIdentityAndSessionKeys(t *testing.T) {
+	sample := map[string]any{
+		"open_id":    "openid-value",
+		"roleId":     "role-value",
+		"routeToken": "route-value",
+		"session1":   "session-value",
+		"idfa":       "device-value",
+		"mobile":     "13800000000",
+		"nested": map[string]any{
+			"uid": "uid-value",
+		},
+	}
+
+	got := sanitizeScalar("", sample).(map[string]any)
+	for _, key := range []string{"open_id", "roleId", "routeToken", "session1", "idfa", "mobile"} {
+		if got[key] != "<redacted>" {
+			t.Fatalf("%s was not redacted: %+v", key, got[key])
+		}
+	}
+	nested := got["nested"].(map[string]any)
+	if nested["uid"] != "<redacted>" {
+		t.Fatalf("nested uid was not redacted: %+v", nested)
+	}
+}
+
+func TestSanitizeScalarKeepsBusinessIDs(t *testing.T) {
+	sample := map[string]any{
+		"itemId":   float64(23001),
+		"flowerId": float64(23005),
+		"landId":   float64(1001),
+	}
+
+	got := sanitizeScalar("", sample).(map[string]any)
+	for key, want := range sample {
+		if got[key] != want {
+			t.Fatalf("%s=%v, want %v", key, got[key], want)
+		}
 	}
 }
 
@@ -86,7 +139,14 @@ func writeSampleSession(t *testing.T) string {
 	}
 	flowLines := []string{
 		mustJSON(t, map[string]any{"type": "session_start"}),
-		mustJSON(t, map[string]any{"type": "http_request", "method": "POST", "host": "hygnhf2.babigame.cn", "url": "https://hygnhf2.babigame.cn/gw"}),
+		mustJSON(t, map[string]any{
+			"type":    "http_request",
+			"method":  "POST",
+			"host":    "hygnhf2.babigame.cn",
+			"url":     "https://hygnhf2.babigame.cn/pack/queryPackageConfig",
+			"headers": map[string][]string{"User-Agent": {"HuaYuann/1.1.17 (iPhone)"}},
+			"body":    map[string]any{"text": `{"version":"1001017","gameVersion":"1.0.0"}`},
+		}),
 		mustJSON(t, map[string]any{"type": "http_response", "method": "POST", "host": "hygnhf2.babigame.cn", "url": "https://hygnhf2.babigame.cn/gw", "status": 200}),
 	}
 	if err := os.WriteFile(filepath.Join(dir, "flows.jsonl"), []byte(strings.Join(flowLines, "\n")+"\n"), 0o644); err != nil {

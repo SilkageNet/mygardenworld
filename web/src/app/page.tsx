@@ -26,14 +26,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Activity,
+  AlertTriangle,
   ArrowDownToLine,
+  Clock3,
   Coins,
   ChevronDown,
   Droplets,
-  Flower2,
   Gem,
   Check,
-  LockKeyhole,
   LayoutList,
   ListChecks,
   LogIn,
@@ -43,7 +44,6 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Shovel,
   SlidersHorizontal,
   Sprout,
   Square,
@@ -111,6 +111,7 @@ function DashboardContent() {
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
   const [deleteAccountTarget, setDeleteAccountTarget] = useState<Account | null>(null);
   const [busyAccountId, setBusyAccountId] = useState("");
   const [workspaceBusy, setWorkspaceBusy] = useState("");
@@ -592,8 +593,8 @@ function DashboardContent() {
       )}
 
       {accounts.length > 0 ? (
-        <div className="grid min-w-0 gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[280px_minmax(0,1fr)] xl:overflow-hidden">
-          <Card className="max-h-[46vh] bg-card/95 shadow-sm shadow-black/5 sm:max-h-none xl:min-h-0">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+          <Card className="hidden bg-card/95 shadow-sm shadow-black/5 lg:flex lg:flex-col xl:min-h-0">
             <CardHeader className="space-y-3 border-b border-border/70 pb-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -654,13 +655,13 @@ function DashboardContent() {
             onStart={() => runSelectedAction("start")}
             onStop={() => runSelectedAction("stop")}
             onOpenSettings={() => setSettingsOpen(true)}
+            onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
             onDelete={() => selectedAccount && setDeleteAccountTarget(selectedAccount)}
           />
         </div>
       ) : (
         <Card className="border-dashed bg-card/70 xl:flex-1">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <CatalogBadge itemId={23006} className="mb-4 size-14 rounded-md bg-muted p-2 text-sm" fallback={<Sprout className="size-6 text-muted-foreground" />} />
             <p className="font-medium">还没有游戏账号</p>
             <p className="mt-1 text-sm text-muted-foreground">添加账号后就能在首页切换查看状态。</p>
             <Button className="mt-5" onClick={() => setShowAddDialog(true)}>
@@ -675,6 +676,28 @@ function DashboardContent() {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onSuccess={fetchData}
+      />
+      <AccountSwitcherDialog
+        open={accountSwitcherOpen}
+        onOpenChange={setAccountSwitcherOpen}
+        accounts={accounts}
+        statuses={statuses}
+        selectedAccountId={selectedAccountId}
+        busyAccountId={busyAccountId}
+        maxAccounts={maxAccounts}
+        onlineCount={onlineCount}
+        offlineCount={offlineCount}
+        onRefresh={fetchData}
+        onAdd={() => {
+          setAccountSwitcherOpen(false);
+          setShowAddDialog(true);
+        }}
+        onSelect={(account) => {
+          setSelectedAccountId(account.id);
+          setAccountSwitcherOpen(false);
+        }}
+        onLogin={(account) => loginAccount(account.id, account.name)}
+        onLogout={(account) => logoutAccount(account.id, account.name)}
       />
       <DeleteAccountDialog
         account={deleteAccountTarget}
@@ -704,6 +727,78 @@ function HeaderMetric({ label, value }: { label: string; value: ReactNode }) {
       <div className="text-[10px] text-muted-foreground">{label}</div>
       <div className="text-sm font-semibold tabular-nums">{value}</div>
     </div>
+  );
+}
+
+function AccountSwitcherDialog({
+  open,
+  onOpenChange,
+  accounts,
+  statuses,
+  selectedAccountId,
+  busyAccountId,
+  maxAccounts,
+  onlineCount,
+  offlineCount,
+  onRefresh,
+  onAdd,
+  onSelect,
+  onLogin,
+  onLogout,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  accounts: Account[];
+  statuses: Map<string, AccountStatus>;
+  selectedAccountId: string;
+  busyAccountId: string;
+  maxAccounts: number;
+  onlineCount: number;
+  offlineCount: number;
+  onRefresh: () => void;
+  onAdd: () => void;
+  onSelect: (account: Account) => void;
+  onLogin: (account: Account) => void;
+  onLogout: (account: Account) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[86vh] flex-col overflow-hidden sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>切换账号</DialogTitle>
+          <DialogDescription>选择后返回当前账号详情。</DialogDescription>
+        </DialogHeader>
+        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <div className="grid grid-cols-3 overflow-hidden rounded-md border border-border/70 bg-muted/20 text-center">
+            <HeaderMetric label="配额" value={`${accounts.length}/${maxAccounts}`} />
+            <HeaderMetric label="在线" value={onlineCount} />
+            <HeaderMetric label="未登录" value={offlineCount} />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="icon-sm" onClick={onRefresh} aria-label="刷新账号列表">
+              <RefreshCw className="size-3.5" />
+            </Button>
+            <Button size="icon-sm" onClick={onAdd} disabled={accounts.length >= maxAccounts} aria-label="添加账号">
+              <Plus className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+        <div className="dark-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pt-3">
+          {accounts.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              status={statuses.get(account.id)}
+              selected={account.id === selectedAccountId}
+              busy={busyAccountId === account.id}
+              onSelect={() => onSelect(account)}
+              onLogin={() => onLogin(account)}
+              onLogout={() => onLogout(account)}
+            />
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -952,6 +1047,7 @@ function AccountWorkspace({
   onStart,
   onStop,
   onOpenSettings,
+  onOpenAccountSwitcher,
   onDelete,
 }: {
   account: Account | null;
@@ -974,13 +1070,18 @@ function AccountWorkspace({
   onStart: () => void;
   onStop: () => void;
   onOpenSettings: () => void;
+  onOpenAccountSwitcher: () => void;
   onDelete: () => void;
 }) {
   if (!account) {
     return (
       <Card className="bg-card/95 xl:min-h-0">
-        <CardContent className="flex min-h-64 items-center justify-center text-sm text-muted-foreground xl:h-full xl:min-h-0">
-          选择一个账号
+        <CardContent className="flex min-h-64 flex-col items-center justify-center text-sm text-muted-foreground xl:h-full xl:min-h-0">
+          <span>选择一个账号</span>
+          <Button className="mt-4 lg:hidden" size="sm" variant="outline" onClick={onOpenAccountSwitcher}>
+            <ChevronDown className="size-3.5" />
+            选择账号
+          </Button>
         </CardContent>
       </Card>
     );
@@ -993,17 +1094,23 @@ function AccountWorkspace({
     <Card className="bg-card/95 shadow-sm shadow-black/5 xl:min-h-0">
       <CardHeader className="border-b border-border/70 pb-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <AccountAvatar account={account} connected={connected} className="size-11 rounded-md" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="truncate text-lg">{account.name}</CardTitle>
-                <StatusBadge connected={connected} />
+          <div className="flex min-w-0 items-start justify-between gap-3 lg:items-center">
+            <div className="flex min-w-0 items-center gap-3">
+              <AccountAvatar account={account} connected={connected} className="size-11 rounded-md" />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="truncate text-lg">{account.name}</CardTitle>
+                  <StatusBadge connected={connected} />
+                </div>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {account.username || "未记录用户名"}
+                </p>
               </div>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {account.username || "未记录用户名"}
-              </p>
             </div>
+            <Button variant="outline" size="sm" className="h-8 shrink-0 lg:hidden" onClick={onOpenAccountSwitcher}>
+              <ChevronDown className="size-3.5" />
+              切换账号
+            </Button>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             {connected ? (
@@ -1073,7 +1180,7 @@ function AccountWorkspace({
           <div className="flex min-h-72 flex-col items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/15 text-center xl:h-full xl:min-h-0">
             <WifiOff className="mb-3 size-7 text-muted-foreground" />
             <p className="font-medium">暂无运行快照</p>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">账号登录并启动 runner 后，田地、库存和资源会直接显示在这里。</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">账号登录并启动 runner 后，资源、田地和自动待办会显示在这里，库存可按需打开查看。</p>
             {!connected && (
               <Button className="mt-5" onClick={onLogin} disabled={busy}>
                 <LogIn className="size-4" />
@@ -1110,6 +1217,7 @@ function SnapshotOverview({
   onClearLog: () => void;
   onScrollLogToBottom: () => void;
 }) {
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const landTiles = [...snapshot.lands]
     .sort((a, b) => a.landId - b.landId)
     .map((land) => {
@@ -1143,18 +1251,18 @@ function SnapshotOverview({
         <ResourceChip icon={<TrendingUp className="size-4" />} label="等级" value={`Lv.${snapshot.level} · ${formatCount(snapshot.experience)} EXP`} tone="green" />
       </div>
 
-      <TaskPanel tasks={snapshot.pendingTasks ?? []} />
+      <RunnerDiagnosticsPanel snapshot={snapshot} />
 
-      <div className="grid gap-4 xl:h-[340px] xl:shrink-0 xl:grid-cols-[320px_minmax(0,1fr)] xl:overflow-hidden 2xl:h-[360px] 2xl:grid-cols-[340px_minmax(0,1fr)]">
-        <InventoryPanel inventory={inventory} />
+      <TaskPanel tasks={snapshot.pendingTasks ?? []} diagnostics={snapshot.diagnostics} />
 
-        <section className="flex flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:min-h-0">
+      <div className="xl:h-[340px] xl:shrink-0 xl:overflow-hidden 2xl:h-[360px]">
+        <section className="flex h-full flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:min-h-0">
           <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 font-medium">
               <MapIcon className="size-4 text-primary" />
               田地
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-foreground/65">土地</span>
                 <LandLegend tone="opened" label={`已开垦 ${opened}`} />
@@ -1168,6 +1276,10 @@ function SnapshotOverview({
                 <PlantingLegend tone="growing" label={`生长中 ${growing}`} />
                 <PlantingLegend tone="ready" label={`可收获 ${ready}`} />
               </div>
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setInventoryOpen(true)}>
+                <Package className="size-3.5" />
+                库存 {inventory.length}
+              </Button>
             </div>
           </div>
           {landTiles.length > 0 ? (
@@ -1184,6 +1296,8 @@ function SnapshotOverview({
         </section>
       </div>
 
+      <InventoryDialog open={inventoryOpen} onOpenChange={setInventoryOpen} inventory={inventory} />
+
       <EventLog
         events={events}
         harvestStats={harvestStats}
@@ -1195,6 +1309,69 @@ function SnapshotOverview({
         onClear={onClearLog}
         onScrollToBottom={onScrollLogToBottom}
       />
+    </div>
+  );
+}
+
+function RunnerDiagnosticsPanel({ snapshot }: { snapshot: GetSnapshotResponse }) {
+  const diagnostics = snapshot.diagnostics;
+  const blockedReasons = diagnostics?.blockedReasons ?? [];
+  const unknownRPCs = diagnostics?.unknownRpcCount ?? snapshot.unknownRpcCount;
+  const unknownNamespaces = diagnostics?.unknownNamespaceCount ?? snapshot.unknownNamespaceCount;
+  const observedNamespaces = diagnostics?.observedNamespaces?.length ?? snapshot.observedNamespaces.length;
+  const hasProtocolDrift = unknownRPCs > 0 || unknownNamespaces > 0;
+  const currentOperation = diagnostics?.currentOperation ? rpcDisplayName(diagnostics.currentOperation) : "空闲";
+  const lastOperation = diagnostics?.lastOperation ? rpcDisplayName(diagnostics.lastOperation) : "暂无";
+  const lastError = diagnostics?.lastOperationError || diagnostics?.sessionInvalidatedReason || "";
+
+  return (
+    <section className="shrink-0 rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 font-medium">
+          <Activity className="size-4 text-primary" />
+          运行状态
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>{observedNamespaces} 个 namespace</span>
+          <span className={cn("inline-flex items-center gap-1 rounded border px-2 py-1", hasProtocolDrift ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-700 dark:text-yellow-300" : "border-primary/20 bg-primary/10 text-primary")}>
+            {hasProtocolDrift && <AlertTriangle className="size-3" />}
+            未知 RPC {unknownRPCs} · 未建模 NS {unknownNamespaces}
+          </span>
+        </div>
+      </div>
+      <div className="grid gap-2 md:grid-cols-4">
+        <DiagnosticsMetric label="当前" value={currentOperation} />
+        <DiagnosticsMetric label="上次" value={lastOperation} />
+        <DiagnosticsMetric label="下次扫描" value={formatFutureTimestamp(diagnostics?.nextDecisionAt)} icon={<Clock3 className="size-3.5" />} />
+        <DiagnosticsMetric label="下次待办" value={formatFutureTimestamp(diagnostics?.nextMiscAt)} icon={<Clock3 className="size-3.5" />} />
+      </div>
+      {(lastError || blockedReasons.length > 0) && (
+        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          {lastError && (
+            <span className="min-w-0 max-w-full truncate rounded border border-red-400/25 bg-red-400/10 px-2 py-1 text-red-700 dark:text-red-300">
+              {lastError}
+            </span>
+          )}
+          {blockedReasons.slice(0, 3).map((reason) => (
+            <span key={reason} className="min-w-0 max-w-full truncate rounded border border-yellow-400/25 bg-yellow-400/10 px-2 py-1 text-yellow-700 dark:text-yellow-300">
+              {reason}
+            </span>
+          ))}
+          {blockedReasons.length > 3 && <span className="rounded border border-border/70 bg-muted/25 px-2 py-1 text-muted-foreground">另 {blockedReasons.length - 3} 项</span>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiagnosticsMetric({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border/60 bg-background/55 px-2.5 py-2">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        {icon}
+        {label}
+      </div>
+      <div className="mt-0.5 truncate text-sm font-semibold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -1229,17 +1406,17 @@ function HarvestMetric({ label, value }: { label: string; value: ReactNode }) {
 
 function HarvestItemPill({ item }: { item: HarvestItemTotal }) {
   return (
-    <div className="grid max-w-full grid-cols-[28px_minmax(0,1fr)] items-center gap-1.5 rounded-md border border-border/70 bg-background/70 px-2 py-1">
-      <CatalogBadge itemId={item.itemId} className="size-7 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
+    <div className="flex max-w-full min-w-32 items-center justify-between gap-3 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5">
       <div className="min-w-0">
-        <div className="truncate text-[11px] font-medium">{item.itemName}</div>
-        <div className="text-[10px] tabular-nums text-muted-foreground">x{formatCount(Number(item.count))}</div>
+        <div className="truncate text-xs font-medium">{item.itemName || itemName(item.itemId)}</div>
+        <div className="text-[10px] tabular-nums text-muted-foreground">#{item.itemId}</div>
       </div>
+      <div className="shrink-0 text-xs font-semibold tabular-nums">x{formatCount(Number(item.count))}</div>
     </div>
   );
 }
 
-function TaskPanel({ tasks }: { tasks: PendingTaskView[] }) {
+function TaskPanel({ tasks, diagnostics }: { tasks: PendingTaskView[]; diagnostics?: GetSnapshotResponse["diagnostics"] }) {
   const groups = useMemo(() => groupPendingTasks(tasks), [tasks]);
   const plantMissing = useMemo(() => {
     const byItem = new Map<number, { itemId: number; itemName: string; missing: number }>();
@@ -1265,6 +1442,12 @@ function TaskPanel({ tasks }: { tasks: PendingTaskView[] }) {
           自动待办
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {diagnostics?.nextMiscAt && (
+            <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/20 px-2 py-1">
+              <Clock3 className="size-3" />
+              下次待办 {formatFutureTimestamp(diagnostics.nextMiscAt)}
+            </span>
+          )}
           {plantMissing.length > 0 && (
             <span className="inline-flex items-center gap-1 rounded border border-primary/20 bg-primary/10 px-2 py-1 text-primary">
               <Sprout className="size-3" />
@@ -1319,7 +1502,7 @@ function TaskRow({ task }: { task: PendingTaskView }) {
             </div>
           )}
         </div>
-        <TaskStatusBadge status={task.status} />
+        <TaskStatusBadge status={task.status} category={task.category} />
       </div>
       {task.requirements.length > 0 && (
         <div className={cn("mt-2 grid gap-1", task.category === "居民订单" && "grid-cols-[repeat(auto-fit,minmax(0,1fr))]")}>
@@ -1363,8 +1546,7 @@ function taskDisplayTitle(task: PendingTaskView): string {
 
 function RequirementRow({ req }: { req: RequirementView }) {
   return (
-    <div className="grid grid-cols-[26px_minmax(0,1fr)_auto] items-center gap-1.5 rounded border border-border/45 bg-background/55 px-1.5 py-1">
-      <CatalogBadge itemId={req.itemId} className="size-6 rounded bg-muted/45 p-0.5" fallback={<Package className="size-3.5 text-muted-foreground" />} />
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded border border-border/45 bg-background/55 px-2 py-1">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-1">
           <span className="truncate text-[11px] font-medium">{req.itemName || itemName(req.itemId)}</span>
@@ -1381,8 +1563,8 @@ function RequirementRow({ req }: { req: RequirementView }) {
   );
 }
 
-function TaskStatusBadge({ status }: { status: string }) {
-  const label = status === "ready" ? "可提交" : status === "missing" ? "缺材料" : "进行中";
+function TaskStatusBadge({ status, category }: { status: string; category: string }) {
+  const label = status === "ready" ? (category === "居民订单" ? "待自动提交" : "可提交") : status === "missing" ? "缺材料" : "进行中";
   return (
     <span
       className={cn(
@@ -1394,6 +1576,21 @@ function TaskStatusBadge({ status }: { status: string }) {
     >
       {label}
     </span>
+  );
+}
+
+function InventoryDialog({ open, onOpenChange, inventory }: { open: boolean; onOpenChange: (open: boolean) => void; inventory: InventoryEntry[] }) {
+  const groups = useMemo(() => groupInventoryEntries(inventory), [inventory]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[86vh] flex-col overflow-hidden sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>库存</DialogTitle>
+          <DialogDescription>{groups.length} 类 · {inventory.length} 项</DialogDescription>
+        </DialogHeader>
+        <InventoryPanel inventory={inventory} />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1410,22 +1607,20 @@ function InventoryPanel({ inventory }: { inventory: InventoryEntry[] }) {
   const groups = useMemo(() => groupInventoryEntries(filteredInventory), [filteredInventory]);
 
   return (
-    <section className="flex max-h-80 flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:max-h-none xl:min-h-0">
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
-          <Package className="size-4 text-primary" />
-          库存
-        </div>
-        <div className="text-xs text-muted-foreground">{groups.length} 类 · {filteredInventory.length} 项</div>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <Input
         className="mb-2 h-8 shrink-0 text-xs"
         placeholder="搜索库存名称、ID 或分类"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
       />
+      {keyword.trim() && (
+        <div className="mb-2 shrink-0 text-right text-xs text-muted-foreground">
+          当前显示 {groups.length} 类 · {filteredInventory.length} 项
+        </div>
+      )}
       {inventory.length > 0 ? (
-        <div className="dark-scrollbar min-h-0 overflow-y-auto pr-1 xl:flex-1">
+        <div className="dark-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
           {filteredInventory.length > 0 ? (
             <div className="grid gap-2">
               {groups.map((group) => {
@@ -1461,21 +1656,20 @@ function InventoryPanel({ inventory }: { inventory: InventoryEntry[] }) {
           )}
         </div>
       ) : (
-        <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground xl:min-h-0 xl:flex-1">
+        <div className="flex min-h-32 flex-1 items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground">
           暂无库存数据
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
 function InventoryItemRow({ entry }: { entry: InventoryEntry }) {
   return (
-    <div className="grid grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border/60 bg-background/55 px-2 py-1.5">
-      <CatalogBadge itemId={entry.id} className="size-8 rounded-md bg-muted/45 p-1" fallback={<Package className="size-4 text-muted-foreground" />} />
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border/60 bg-background/55 px-2.5 py-2">
       <div className="min-w-0">
         <div className="truncate text-sm font-medium">{entry.name}</div>
-        <div className="text-[11px] text-muted-foreground">#{entry.id}</div>
+        <div className="truncate text-[11px] text-muted-foreground">#{entry.id} · {entry.category}</div>
       </div>
       <div className="text-sm font-semibold tabular-nums">{formatCount(entry.count)}</div>
     </div>
@@ -1563,7 +1757,7 @@ function LandCell({ tile }: { tile: LandTile }) {
   return (
     <div
       className={cn(
-        "group/land relative flex min-h-[72px] flex-col overflow-hidden rounded-lg border px-1.5 py-1.5 text-[10px] tabular-nums transition-colors duration-150 hover:border-primary/45 hover:bg-primary/5 xl:h-full xl:min-h-0",
+        "group/land relative flex min-h-[68px] flex-col overflow-hidden rounded-lg border px-1.5 py-1.5 text-[10px] tabular-nums transition-colors duration-150 hover:border-primary/45 hover:bg-primary/5 xl:h-full xl:min-h-0",
         landState === "opened" && "border-primary/25 bg-emerald-50/70 text-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-50",
         landState === "unopened" && "border-amber-400/35 bg-amber-50/70 text-amber-900 dark:bg-amber-950/20 dark:text-amber-100",
         landState === "locked" && "border-border/60 bg-background/45 text-muted-foreground/70"
@@ -1582,21 +1776,12 @@ function LandCell({ tile }: { tile: LandTile }) {
           )}
         />
       </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        {planted && land ? (
-          <CatalogBadge itemId={land.flowerId} className="size-8 transition-transform group-hover/land:scale-110" fallback={<Flower2 className="size-5" />} />
-        ) : landState === "locked" ? (
-          <LockKeyhole className="size-4 opacity-75" />
-        ) : landState === "unopened" ? (
-          <Shovel className="size-5 opacity-85" />
-        ) : (
-          <Sprout className="size-5 opacity-85" />
-        )}
-      </div>
-      <div className="grid shrink-0 gap-0.5 text-center leading-3">
-        <span className={cn("block truncate text-[9px] transition-colors group-hover/land:text-foreground", planted ? "font-medium text-foreground/80" : "text-muted-foreground")}>
+      <div className="flex min-h-0 flex-1 items-center justify-center px-0.5 text-center leading-3">
+        <span className={cn("line-clamp-2 break-words text-[10px] transition-colors group-hover/land:text-foreground", planted ? "font-medium text-foreground/85" : "text-muted-foreground")}>
           {planted ? flower : landLabel}
         </span>
+      </div>
+      <div className="grid shrink-0 gap-0.5 text-center leading-3">
         {landState === "opened" && (
           <span
             className={cn(
@@ -1780,8 +1965,8 @@ function eventMatchesLogFilter(event: Event, category: string): boolean {
 }
 
 const PLANT_MODE_OPTIONS = [
+  { value: "low_stock", label: "低库存优先", description: "优先补当前库存最低的花。" },
   { value: "high_value", label: "高价值", description: "按金币收益和经验选择花。" },
-  { value: "low_stock", label: "低库存", description: "优先补当前库存最低的花。" },
   { value: "selected", label: "自选", description: "只从你勾选的花里选择种植。" },
 ] as const;
 
@@ -2014,11 +2199,10 @@ function FlowerOptionButton({ flower, selected, onToggle }: { flower: FlowerInfo
       type="button"
       onClick={onToggle}
       className={cn(
-        "grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border/70 bg-card/70 px-2 py-2 text-left transition-all hover:border-primary/35 hover:bg-primary/5",
+        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border/70 bg-card/70 px-3 py-2 text-left transition-all hover:border-primary/35 hover:bg-primary/5",
         selected && "border-primary/55 bg-primary/10 ring-1 ring-primary/20"
       )}
     >
-      <CatalogBadge itemId={flower.id} className="size-9 rounded-md bg-muted/45 p-1" fallback={<Flower2 className="size-4 text-muted-foreground" />} />
       <span className="min-w-0">
         <span className="block truncate text-xs font-medium">{itemName(flower.id)}</span>
         <span className="block truncate text-[10px] text-muted-foreground">#{flower.id} · {formatCount(flower.gold || 0)} 金币</span>
@@ -2201,36 +2385,6 @@ function DeleteAccountDialog({
   );
 }
 
-function CatalogBadge({ itemId, className, fallback }: { itemId: number; className?: string; fallback: ReactNode }) {
-  const label = catalogBadgeLabel(itemId);
-  const title = itemName(itemId);
-  return (
-    <div
-      className={cn(
-        "flex shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40 text-[10px] font-semibold leading-none text-foreground/75",
-        className
-      )}
-      title={title ? `${title} #${itemId}` : `#${itemId}`}
-      aria-hidden="true"
-    >
-      {label ? <span className="max-w-full truncate px-0.5">{label}</span> : fallback}
-    </div>
-  );
-}
-
-function catalogBadgeLabel(itemId: number) {
-  if (itemId === 1) return "元";
-  if (itemId === 7) return "水";
-  if (itemId === 11) return "金";
-  if (itemId >= 23000 && itemId < 24000) return "花";
-  if (itemId >= 22000 && itemId < 23000) return "精";
-  const name = itemName(itemId);
-  if (name && !name.startsWith("#")) {
-    return Array.from(name).slice(0, 2).join("");
-  }
-  return `#${String(itemId).slice(-2)}`;
-}
-
 function StatusBadge({ connected }: { connected: boolean }) {
   if (connected) {
     return (
@@ -2391,9 +2545,27 @@ function formatCount(value: number): string {
   return new Intl.NumberFormat("zh-CN").format(value);
 }
 
+function timestampMillis(ts: AccountHarvestStats["firstHarvestAt"]): number | null {
+  if (!ts) return null;
+  return Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1_000_000);
+}
+
+function formatFutureTimestamp(ts: AccountHarvestStats["firstHarvestAt"]): string {
+  const millis = timestampMillis(ts);
+  if (!millis) return "--";
+  const diffMs = millis - Date.now();
+  if (diffMs <= 0) return "即将";
+  const seconds = Math.ceil(diffMs / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
 function formatShortTime(ts: AccountHarvestStats["firstHarvestAt"]): string {
-  if (!ts) return "--";
-  const millis = Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1_000_000);
+  const millis = timestampMillis(ts);
+  if (!millis) return "--";
   return new Date(millis).toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
@@ -2401,6 +2573,29 @@ function formatShortTime(ts: AccountHarvestStats["firstHarvestAt"]): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function rpcDisplayName(rpc: string): string {
+  switch (rpc) {
+    case "usrLand.harvest":
+      return "收获";
+    case "usrLand.harvestOneKey":
+      return "一键收获";
+    case "usrLand.plant":
+      return "种植";
+    case "usrLand.plantBatch":
+      return "批量种植";
+    case "usrLand.plantOneKey":
+      return "一键种植";
+    case "usrLand.water":
+      return "浇水";
+    case "usrLand.waterBatch":
+      return "批量浇水";
+    case "usrLand.waterOneKey":
+      return "一键浇水";
+    default:
+      return rpc;
+  }
 }
 
 function eventColor(event: Event): string {
