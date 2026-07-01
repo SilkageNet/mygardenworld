@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -87,7 +88,6 @@ func TestApplyHarvestBlocksSkipsBlockedSingleLand(t *testing.T) {
 	op := &automation.PlannedOp{
 		Kind:    "usrLand.harvest",
 		LandIDs: []int32{1002},
-		Args:    map[string]any{"landId": 1002},
 	}
 
 	if got := r.applyHarvestBlocks(op, now); got != nil {
@@ -101,7 +101,6 @@ func TestApplyHarvestBlocksDowngradesOneKeyWhenSomeLandsBlocked(t *testing.T) {
 	op := &automation.PlannedOp{
 		Kind:    "usrLand.harvestOneKey",
 		LandIDs: []int32{1001, 1002, 1003},
-		Args:    map[string]any{},
 	}
 
 	got := r.applyHarvestBlocks(op, now)
@@ -114,8 +113,16 @@ func TestApplyHarvestBlocksDowngradesOneKeyWhenSomeLandsBlocked(t *testing.T) {
 	if len(got.LandIDs) != 1 || got.LandIDs[0] != 1001 {
 		t.Fatalf("landIDs=%v, want [1001]", got.LandIDs)
 	}
-	if got.Args["landId"] != 1001 {
-		t.Fatalf("landId arg=%v, want 1001", got.Args["landId"])
+	args, err := operationArgs(got)
+	if err != nil {
+		t.Fatalf("operationArgs() error: %v", err)
+	}
+	req, ok := args.(babigame.UsrLandHarvestRequest)
+	if !ok {
+		t.Fatalf("operationArgs()=%T, want UsrLandHarvestRequest", args)
+	}
+	if req.LandId != 1001 {
+		t.Fatalf("LandId=%v, want 1001", req.LandId)
 	}
 }
 
@@ -125,7 +132,6 @@ func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 	op := &automation.PlannedOp{
 		Kind:    "usrLand.harvest",
 		LandIDs: []int32{1002},
-		Args:    map[string]any{"landId": 1002},
 	}
 
 	if got := r.applyHarvestBlocks(op, now); got != op {

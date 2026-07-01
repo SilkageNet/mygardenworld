@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -26,6 +27,7 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 	if !cultivateEnabled && !flowerUpgradeEnabled {
 		return
 	}
+	rpc := runnerRPC(client, session)
 
 	cultivations := r.state.Cultivations()
 	cultivationIDs := make([]int32, 0, len(cultivations))
@@ -41,7 +43,7 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 			cv := cultivations[fid]
 			// 自动领取：培育中且完成时间已到
 			if cv.Status == 1 && cv.CulTimeMs > 0 && cv.CulTimeMs <= now {
-				v, d, err := client.RPC(ctx, "cultivate.recv", map[string]any{"flowerId": int(fid)}, session.RouteArg(), 10*time.Second)
+				v, d, err := rpcResult(rpc.Cultivate().Recv(ctx, babigame.CultivateRecvRequest{FlowerId: fid}))
 				if r.isSessionInvalidated() {
 					return
 				}
@@ -75,7 +77,7 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 					continue
 				}
 				prevLvl := cv.Lvl
-				v, d, err := client.RPC(ctx, "cultivate.upgrade", map[string]any{"flowerId": int(fid)}, session.RouteArg(), 10*time.Second)
+				v, d, err := rpcResult(rpc.Cultivate().Upgrade(ctx, babigame.CultivateUpgradeRequest{FlowerId: fid}))
 				if r.isSessionInvalidated() {
 					return
 				}
@@ -158,7 +160,8 @@ func (r *Runner) canStartCultivate(fid int32) bool {
 }
 
 func (r *Runner) startCultivate(ctx context.Context, client *babigame.Client, session *babigame.Session, fid int32) {
-	v, d, err := client.RPC(ctx, "cultivate.cultivate", map[string]any{"flowerId": int(fid)}, session.RouteArg(), 10*time.Second)
+	rpc := runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.Cultivate().Cultivate(ctx, babigame.CultivateCultivateRequest{FlowerId: fid}))
 	if r.isSessionInvalidated() {
 		return
 	}
@@ -188,11 +191,12 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	residentOrderBlockedUntil := r.residentOrderBlockedUntil
 	r.mu.RUnlock()
 	misc := policy.GetMisc()
+	rpc := runnerRPC(client, session)
 
 	// 水资源奖励
 	if misc.GetWaterwheelEnabled() && r.state.WaterwheelCooldownReady() {
 		prevWW := r.state.WaterwheelClaimedCount()
-		v, d, err := client.RPC(ctx, "waterwheel.recv", map[string]any{}, session.RouteArg(), 10*time.Second)
+		v, d, err := rpcResult(rpc.Waterwheel().Recv(ctx, babigame.WaterwheelRecvRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -205,7 +209,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			newWW := r.state.WaterwheelClaimedCount()
 			if newWW > prevWW {
 				r.emit(Event{Kind: "waterwheel", Message: fmt.Sprintf("成功领取水车奖励 (第%d次)", newWW)})
-				v2, _, _ := client.RPC(ctx, "waterwheel.skip", map[string]any{}, session.RouteArg(), 10*time.Second)
+				v2, _, _ := rpcResult(rpc.Waterwheel().Skip(ctx, babigame.WaterwheelSkipRequest{}))
 				if r.isSessionInvalidated() {
 					return
 				}
@@ -217,7 +221,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetFreeWaterEnabled() && time.Now().After(freeWaterBlockedUntil) {
 		if idx, ok := r.state.NextFreeWaterIndex(); ok {
-			v, d, err := client.RPC(ctx, "freeWater.recv", map[string]any{"idx": int(idx)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.FreeWater().Recv(ctx, babigame.FreeWaterRecvRequest{Idx: idx}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -237,7 +241,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 福利箱
 	if misc.GetBenefitBoxEnabled() && r.state.BenefitBoxReady() {
-		v, d, err := client.RPC(ctx, "benefitBox.draw", map[string]any{}, session.RouteArg(), 10*time.Second)
+		v, d, err := rpcResult(rpc.BenefitBox().Draw(ctx, babigame.BenefitBoxDrawRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -281,7 +285,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			if !canFulfill {
 				continue
 			}
-			v, d, err := client.RPC(ctx, "orderFlower.finishOrder", map[string]any{"boxId": int(boxID)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.OrderFlower().FinishOrder(ctx, babigame.OrderFlowerFinishOrderRequest{BoxId: boxID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -342,7 +346,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			}
 			if !canFulfillCustomerOrder(order, inventory) {
 				if misc.GetCustomerOrderRejectEnabled() {
-					v, d, err := client.RPC(ctx, "orderCustomer.rejectOrder", map[string]any{"npcId": int(npcId)}, session.RouteArg(), 10*time.Second)
+					v, d, err := rpcResult(rpc.OrderCustomer().RejectOrder(ctx, babigame.OrderCustomerRejectOrderRequest{NPCId: npcId}))
 					if r.isSessionInvalidated() {
 						return
 					}
@@ -362,7 +366,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 				}
 				continue
 			}
-			v, d, err := client.RPC(ctx, "orderCustomer.finishOrder", map[string]any{"npcId": int(npcId)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.OrderCustomer().FinishOrder(ctx, babigame.OrderCustomerFinishOrderRequest{NPCId: npcId}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -383,7 +387,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	if misc.GetFlowerRackEnabled() {
 		// 一键收取花架收入
-		v, d, err := client.RPC(ctx, "flowerRack.recvOneKey", map[string]any{}, session.RouteArg(), 10*time.Second)
+		v, d, err := rpcResult(rpc.FlowerRack().RecvOneKey(ctx, babigame.FlowerRackRecvOneKeyRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -398,7 +402,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	if misc.GetResidentOrderRewardEnabled() {
 		for _, target := range r.state.ReadyFlowerOrderRewardTargets() {
-			v, d, err := client.RPC(ctx, "orderFlower.recvOrderRwd", map[string]any{"target": int(target)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.OrderFlower().RecvOrderRwd(ctx, babigame.OrderFlowerRecvOrderRwdRequest{Target: target}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -420,13 +424,13 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	if misc.GetResidentOrderAdEnabled() {
 		for _, boxID := range r.state.ReadyFlowerOrderAdBoxIDs() {
 			beforeOrder := r.state.FlowerOrders()[boxID]
-			v, d, err := client.RPC(ctx, "usr.share", map[string]any{
-				"shareId": 5,
-				"ext": map[string]any{
+			v, d, err := rpcResult(rpc.Usr().Share(ctx, babigame.UsrShareRequest{
+				ShareId: 5,
+				Ext: map[string]any{
 					"opType": 1,
 					"id":     int(boxID),
 				},
-			}, session.RouteArg(), 10*time.Second)
+			}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -451,7 +455,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	// 土地开垦
 	if misc.LandUnlockEnabled && !landUnlockBlocked {
 		if nextLandID, ok := nextLandUnlockCandidate(r.state); ok {
-			v, d, err := client.RPC(ctx, "usrLand.unlockLand", map[string]any{"landId": int(nextLandID)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.UsrLand().UnlockLand(ctx, babigame.UsrLandUnlockLandRequest{LandId: nextLandID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -471,7 +475,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 主线任务奖励
 	if misc.GetTaskMainRewardEnabled() && !taskRecvBlocked {
-		v, d, err := client.RPC(ctx, "taskMain.recv", map[string]any{}, session.RouteArg(), 10*time.Second)
+		v, d, err := rpcResult(rpc.TaskMain().Recv(ctx, babigame.TaskMainRecvRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -488,7 +492,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetTaskDailyRewardEnabled() && time.Now().After(dailyTaskBlockedUntil) {
 		for _, taskID := range r.state.ReadyDailyTaskIDs() {
-			v, d, err := client.RPC(ctx, "taskDly.recv", map[string]any{"id": int(taskID)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.TaskDly().Recv(ctx, babigame.TaskDlyRecvRequest{ID: taskID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -512,7 +516,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetRoadGrowRewardEnabled() {
 		for _, taskID := range r.state.ReadyRoadGrowTaskIDs() {
-			v, d, err := client.RPC(ctx, "roadGrow.recv", map[string]any{"id": int(taskID)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.RoadGrow().Recv(ctx, babigame.RoadGrowRecvRequest{ID: taskID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -532,7 +536,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 	if misc.GetRandomEventEnabled() {
 		for _, eventID := range r.state.ReadyRandomEventIDs() {
-			v, d, err := client.RPC(ctx, "randomEvent.doAffair", map[string]any{"eventId": int(eventID)}, session.RouteArg(), 10*time.Second)
+			v, d, err := rpcResult(rpc.RandomEvent().DoAffair(ctx, babigame.RandomEventDoAffairRequest{EventId: eventID}))
 			if r.isSessionInvalidated() {
 				return
 			}
@@ -561,7 +565,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 
 	// 主线剧情解锁
 	if misc.StoryUnlockEnabled && !storyUnlockBlocked {
-		v, d, err := client.RPC(ctx, "storyMain.unlock", map[string]any{}, session.RouteArg(), 10*time.Second)
+		v, d, err := rpcResult(rpc.StoryMain().Unlock(ctx, babigame.StoryMainUnlockRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -800,11 +804,12 @@ func bestCraftableFlowerArtForRack(inventory map[int32]int32, flowerDeficits map
 }
 
 func (r *Runner) makeFlowerArtForRack(ctx context.Context, client *babigame.Client, session *babigame.Session, recipe state.FlowerArtRecipe, rewardEnabled bool) bool {
-	v, d, err := client.RPC(ctx, "flowerArt.makeFlowerArt", map[string]any{
-		"vaseId":     int(recipe.VaseID),
-		"flowersIds": recipe.Flowers,
-		"num":        1,
-	}, session.RouteArg(), 10*time.Second)
+	rpc := runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, babigame.FlowerArtMakeFlowerArtRequest{
+		VaseId:     recipe.VaseID,
+		FlowersIds: recipe.Flowers,
+		Num:        1,
+	}))
 	if r.isSessionInvalidated() {
 		return false
 	}
@@ -834,11 +839,12 @@ func (r *Runner) sellFlowerArtOnRack(ctx context.Context, client *babigame.Clien
 	if rackID <= 0 || artID <= 0 || num <= 0 {
 		return false
 	}
-	v, d, err := client.RPC(ctx, "flowerRack.sell", map[string]any{
-		"rackId": int(rackID),
-		"iid":    int(artID),
-		"num":    int(num),
-	}, session.RouteArg(), 10*time.Second)
+	rpc := runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.FlowerRack().Sell(ctx, babigame.FlowerRackSellRequest{
+		RackId: rackID,
+		Iid:    artID,
+		Num:    num,
+	}))
 	if r.isSessionInvalidated() {
 		return true
 	}
@@ -880,11 +886,12 @@ func (r *Runner) tryCraftCustomerOrderArt(ctx context.Context, client *babigame.
 				return false, false
 			}
 		}
-		v, d, err := client.RPC(ctx, "flowerArt.makeFlowerArt", map[string]any{
-			"vaseId":     int(recipe.VaseID),
-			"flowersIds": recipe.Flowers,
-			"num":        int(missingArt),
-		}, session.RouteArg(), 10*time.Second)
+		rpc := runnerRPC(client, session)
+		v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, babigame.FlowerArtMakeFlowerArtRequest{
+			VaseId:     recipe.VaseID,
+			FlowersIds: recipe.Flowers,
+			Num:        missingArt,
+		}))
 		if r.isSessionInvalidated() {
 			return false, true
 		}
@@ -913,20 +920,22 @@ func (r *Runner) tryCraftCustomerOrderArt(ctx context.Context, client *babigame.
 }
 
 func (r *Runner) claimFlowerArtPostCraftRewards(ctx context.Context, client *babigame.Client, session *babigame.Session, artID int32) {
-	for _, call := range []struct {
-		name string
-		args map[string]any
-	}{
-		{name: "collectRwd.recvArtCreateRwd", args: map[string]any{"flowerArtId": int(artID)}},
-		{name: "usr.share", args: map[string]any{
-			"shareId": 6,
-			"ext": map[string]any{
-				"opType": 2,
-				"id":     int(artID),
-			},
-		}},
+	rpc := runnerRPC(client, session)
+	for _, call := range []func() (json.RawMessage, babigame.WSResponseD, error){
+		func() (json.RawMessage, babigame.WSResponseD, error) {
+			return rpcResult(rpc.CollectRwd().RecvArtCreateRwd(ctx, babigame.CollectRwdRecvArtCreateRwdRequest{FlowerArtId: artID}))
+		},
+		func() (json.RawMessage, babigame.WSResponseD, error) {
+			return rpcResult(rpc.Usr().Share(ctx, babigame.UsrShareRequest{
+				ShareId: 6,
+				Ext: map[string]any{
+					"opType": 2,
+					"id":     int(artID),
+				},
+			}))
+		},
 	} {
-		v, d, err := client.RPC(ctx, call.name, call.args, session.RouteArg(), 10*time.Second)
+		v, d, err := call()
 		if r.isSessionInvalidated() || err != nil || d.IsError() {
 			return
 		}
@@ -1016,7 +1025,7 @@ func (r *Runner) setCultivateBlocked(fid int32, v bool) {
 const speedUpItemID int32 = 1001
 const speedUpMaxBatch = 5
 
-var taskAchMilestoneIDs = []int{10001, 10002, 10003, 10004, 10005, 20001, 20002, 20003, 20004, 20005}
+var taskAchMilestoneIDs = []int32{10001, 10002, 10003, 10004, 10005, 20001, 20002, 20003, 20004, 20005}
 
 func (r *Runner) tickTaskAchRewards(ctx context.Context, client *babigame.Client, session *babigame.Session) {
 	r.mu.RLock()
@@ -1025,8 +1034,9 @@ func (r *Runner) tickTaskAchRewards(ctx context.Context, client *babigame.Client
 	if blocked {
 		return
 	}
+	rpc := runnerRPC(client, session)
 	for _, id := range taskAchMilestoneIDs {
-		v, d, err := client.RPC(ctx, "taskAch.recv", map[string]any{"id": id}, session.RouteArg(), 10*time.Second)
+		v, d, err := rpcResult(rpc.TaskAch().Recv(ctx, babigame.TaskAchRecvRequest{ID: id}))
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -1077,11 +1087,8 @@ func (r *Runner) tickSpeedUp(ctx context.Context, client *babigame.Client, sessi
 		want = speedUpMaxBatch
 	}
 	batch := candidates[:want]
-	ids := make([]any, len(batch))
-	for i, id := range batch {
-		ids[i] = int(id)
-	}
-	v, d, err := client.RPC(ctx, "usrLand.speedUpBatch", map[string]any{"landIds": ids}, session.RouteArg(), 10*time.Second)
+	rpc := runnerRPC(client, session)
+	v, d, err := rpcResult(rpc.UsrLand().SpeedUpBatch(ctx, babigame.UsrLandSpeedUpBatchRequest{LandIds: batch}))
 	if r.isSessionInvalidated() {
 		return
 	}

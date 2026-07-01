@@ -51,7 +51,7 @@ func TestWSResponseDSessionExpired(t *testing.T) {
 }
 
 func TestClientDispatchTextFiresSessionExpired(t *testing.T) {
-	c := NewClient(&Session{Cfg: DefaultConfig()})
+	c := NewClient(&Session{Cfg: testConfig(t)})
 	called := false
 	c.OnSessionExpired(func(env WSResponseD) {
 		called = true

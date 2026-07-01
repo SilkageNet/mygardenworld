@@ -139,10 +139,10 @@ func (c *Client) Done() <-chan struct{} { return c.closedCh }
 // treating a dead websocket as a live connection while reconnect handling runs.
 func (c *Client) Closed() bool { return c.closed.Load() }
 
-// RPC sends a typed RPC and blocks until the matching response arrives or
-// the context expires. Pass routeArg empty to send a 2-tuple call (some RPCs
-// don't need it); pass session.RouteArg() for the standard route.
-func (c *Client) RPC(ctx context.Context, name string, args any, routeArg string, timeout time.Duration) (json.RawMessage, WSResponseD, error) {
+// rpc sends one websocket RPC and blocks until the matching response arrives.
+// Higher layers should use RPCClient so route, timeout, and DTO handling stay
+// centralized.
+func (c *Client) rpc(ctx context.Context, name string, args any, routeArg string, timeout time.Duration) (json.RawMessage, WSResponseD, error) {
 	if c.closed.Load() {
 		return nil, WSResponseD{}, errors.New("client closed")
 	}
@@ -190,25 +190,6 @@ func (c *Client) RPC(ctx context.Context, name string, args any, routeArg string
 	case <-c.closedCh:
 		return nil, WSResponseD{}, errors.New("client closed")
 	}
-}
-
-// Send fires an RPC without waiting for the response. Used by the heartbeat.
-func (c *Client) Send(ctx context.Context, name string, args any, routeArg string) error {
-	if c.closed.Load() {
-		return errors.New("client closed")
-	}
-	seq := c.seq.Add(1)
-	frame, _, err := BuildRequest(name, args, routeArg, seq, c.Cfg)
-	if err != nil {
-		return err
-	}
-	c.mu.Lock()
-	conn := c.conn
-	c.mu.Unlock()
-	if conn == nil {
-		return errors.New("not connected")
-	}
-	return conn.Write(ctx, websocket.MessageText, []byte(frame))
 }
 
 // reader pulls every frame, dispatches to pending RPC waiters and namespace
@@ -321,7 +302,7 @@ func (c *Client) heartbeat() {
 			return
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_ = c.Send(ctx, "usr.heartTick", map[string]any{}, c.Session.RouteArg())
+			_, _ = NewRPCClient(c, c.Session).Usr().HeartTick(ctx, UsrHeartTickRequest{}, WithTimeout(10*time.Second))
 			cancel()
 		}
 	}
@@ -332,40 +313,40 @@ func (c *Client) heartbeat() {
 // callers that want a refresh should reconnect instead.
 func (c *Client) ReLogin(ctx context.Context, isSimulator int) (json.RawMessage, error) {
 	s := c.Session
-	args := map[string]any{
-		"aid":         s.AID,
-		"gsIdx":       s.GsIdx,
-		"token":       s.RouteToken,
-		"osType":      1,
-		"isNative":    true,
-		"deviceId":    s.DeviceID,
-		"isSimulator": isSimulator,
-		"deviceInfo": map[string]any{
-			"osType":         "iOS",
-			"deviceId":       s.DeviceID,
-			"isEmulator":     "0",
-			"osVersion":      s.Cfg.OSVersion,
-			"brand":          s.Cfg.DeviceBrand,
-			"model":          s.Cfg.DeviceModel,
-			"networkType":    s.Cfg.NetworkType,
-			"sysLanguage":    s.Cfg.SysLanguage,
-			"screenWidthPx":  s.Cfg.ScreenWidthPx,
-			"screenHeightPx": s.Cfg.ScreenHeightPx,
-			"deviceType":     "Phone",
-			"appVersion":     s.Cfg.AppVersion,
+	req := IndexReLoginRequest{
+		AID:         s.AID,
+		GsIdx:       int32(s.GsIdx),
+		Token:       s.RouteToken,
+		OSType:      1,
+		IsNative:    true,
+		DeviceID:    s.DeviceID,
+		IsSimulator: int32(isSimulator),
+		DeviceInfo: IndexDeviceInfo{
+			OSType:         "iOS",
+			DeviceID:       s.DeviceID,
+			IsEmulator:     "0",
+			OSVersion:      s.Cfg.OSVersion,
+			Brand:          s.Cfg.DeviceBrand,
+			Model:          s.Cfg.DeviceModel,
+			NetworkType:    s.Cfg.NetworkType,
+			SysLanguage:    s.Cfg.SysLanguage,
+			ScreenWidthPx:  s.Cfg.ScreenWidthPx,
+			ScreenHeightPx: s.Cfg.ScreenHeightPx,
+			DeviceType:     "Phone",
+			AppVersion:     s.Cfg.AppVersion,
 		},
-		"inviter": map[string]any{},
-		"version": s.Cfg.ClientVersion,
-		"area":    s.Cfg.Area,
-		"chnId":   s.Cfg.ChannelID,
+		Inviter: map[string]any{},
+		Version: s.Cfg.ClientVersion,
+		Area:    s.Cfg.Area,
+		ChnID:   int32(s.Cfg.ChannelID),
 	}
-	v, _, err := c.RPC(ctx, "index.reLogin", args, s.RouteArg(), 30*time.Second)
-	return v, err
+	resp, err := NewRPCClient(c, s).Index().ReLogin(ctx, req, WithTimeout(30*time.Second))
+	return resp.Payload, err
 }
 
 // LazySync pulls module init data (namespaces 111/122/129/139/155/161 in
 // captures - generic activity / quests / mail). Doesn't refresh 100/7.
 func (c *Client) LazySync(ctx context.Context) (json.RawMessage, error) {
-	v, _, err := c.RPC(ctx, "usr.lazySync", map[string]any{}, c.Session.RouteArg(), 15*time.Second)
-	return v, err
+	resp, err := NewRPCClient(c, c.Session).Usr().LazySync(ctx, UsrLazySyncRequest{}, WithTimeout(15*time.Second))
+	return resp.Payload, err
 }

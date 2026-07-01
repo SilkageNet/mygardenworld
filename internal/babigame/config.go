@@ -55,13 +55,3 @@ type Config struct {
 	RuntimeLanguage string
 	TimeZoneHour    string
 }
-
-// DefaultConfig returns the iOS configuration. Kept around so existing tests
-// that don't care about channel selection keep compiling. Production code
-// should call ConfigForChannel with an explicit Channel value.
-//
-// Deprecated: use ConfigForChannel(ChannelIOS) instead.
-func DefaultConfig() Config {
-	cfg, _ := ConfigForChannel(ChannelIOS)
-	return cfg
-}

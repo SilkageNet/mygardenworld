@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 )
 
 // Anti-cheat verification point types observed from captures.
@@ -28,10 +29,22 @@ func (r *Runner) sendRqstVerification(ctx context.Context, rpcName string, point
 	}
 
 	fingerprint := buildDeviceFingerprint(session.DeviceID)
-	args := map[string]any{
-		"point": []any{pointType, fingerprint},
+	point := []any{pointType, fingerprint}
+	rpc := runnerRPC(client, session)
+	var d babigame.WSResponseD
+	var err error
+	switch rpcName {
+	case babigame.RPCReapPopupShjm.String():
+		_, d, err = rpcResult(rpc.ReapPopup().Shjm(ctx, babigame.ReapPopupShjmRequest{Point: point}))
+	case babigame.RPCPlantRqstZhtc.String():
+		_, d, err = rpcResult(rpc.PlantRqst().Zhtc(ctx, babigame.PlantRqstZhtcRequest{Point: point}))
+	case babigame.RPCCustomerOrderRqstDkgkck.String():
+		_, d, err = rpcResult(rpc.CustomerOrderRqst().Dkgkck(ctx, babigame.CustomerOrderRqstDkgkckRequest{Point: point}))
+	case babigame.RPCFlowerOrderRqstShowR.String():
+		_, d, err = rpcResult(rpc.FlowerOrderRqst().ShowR(ctx, babigame.FlowerOrderRqstShowRRequest{Point: point}))
+	default:
+		return fmt.Errorf("unknown rqst rpc %s", rpcName)
 	}
-	_, d, err := client.RPC(ctx, rpcName, args, session.RouteArg(), 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("rqst %s: %w", rpcName, err)
 	}
@@ -89,8 +102,8 @@ func (r *Runner) sendHomeVerification(ctx context.Context) error {
 	if client == nil || session == nil {
 		return nil
 	}
-	args := map[string]any{"time": 1}
-	_, d, err := client.RPC(ctx, "homeRqst.showBird", args, session.RouteArg(), 10*time.Second)
+	rpc := runnerRPC(client, session)
+	_, d, err := rpcResult(rpc.HomeRqst().ShowBird(ctx, babigame.HomeRqstShowBirdRequest{Time: 1}))
 	if err != nil {
 		return fmt.Errorf("homeRqst.showBird: %w", err)
 	}

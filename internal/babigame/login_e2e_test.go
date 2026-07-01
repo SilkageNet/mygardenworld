@@ -16,7 +16,7 @@ import (
 func TestAccountLoginE2E(t *testing.T) {
 	username, password := e2eCredentials(t)
 
-	cfg := babigame.DefaultConfig()
+	cfg := testConfig(t)
 	httpc := babigame.NewHTTPClient(cfg, "", "", "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -41,7 +41,7 @@ func TestAccountLoginE2E(t *testing.T) {
 func TestWSFullSessionE2E(t *testing.T) {
 	username, password := e2eCredentials(t)
 
-	cfg := babigame.DefaultConfig()
+	cfg := testConfig(t)
 	httpc := babigame.NewHTTPClient(cfg, "", "", "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -60,6 +60,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("ws connect: %v", err)
 	}
+	rpc := babigame.NewRPCClient(client, session, babigame.WithServerErrorsAsResults())
 	time.Sleep(300 * time.Millisecond)
 
 	// ReLogin
@@ -91,95 +92,93 @@ func TestWSFullSessionE2E(t *testing.T) {
 	}
 	t.Logf("  OK: %d bytes", len(lsV))
 
-	// Heartbeat (fire-and-forget)
+	// Heartbeat
 	t.Log("usr.heartTick...")
-	err = client.Send(ctx, "usr.heartTick", map[string]any{}, session.RouteArg())
+	heartTickResp, err := rpc.Usr().HeartTick(ctx, babigame.UsrHeartTickRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
-		t.Fatalf("heartTick send: %v", err)
+		t.Fatalf("usr.heartTick: %v", err)
 	}
-	t.Log("  OK: sent")
+	t.Logf("  OK: %d bytes", len(heartTickResp.Payload))
 
 	// im.getChannelId
 	t.Log("im.getChannelId...")
-	imV, _, err := client.RPC(ctx, "im.getChannelId", map[string]any{}, session.RouteArg(), 10*time.Second)
+	imResp, err := rpc.Im().GetChannelId(ctx, babigame.ImGetChannelIdRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("im.getChannelId: %v", err)
 	}
-	t.Logf("  OK: %d bytes", len(imV))
+	t.Logf("  OK: %d bytes", len(imResp.Payload))
 
 	// frd.enter
 	t.Log("frd.enter...")
-	frdV, _, err := client.RPC(ctx, "frd.enter", map[string]any{
-		"needBlackList":  1,
-		"needApplyList":  1,
-		"needFriendList": 1,
-	}, session.RouteArg(), 10*time.Second)
+	frdResp, err := rpc.Frd().Enter(ctx, babigame.FrdEnterRequest{
+		NeedBlackList:  1,
+		NeedApplyList:  1,
+		NeedFriendList: 1,
+	}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("frd.enter: %v", err)
 	}
-	t.Logf("  OK: %d bytes", len(frdV))
+	t.Logf("  OK: %d bytes", len(frdResp.Payload))
 
 	// homeRqst.showBird
 	t.Log("homeRqst.showBird...")
-	birdV, _, err := client.RPC(ctx, "homeRqst.showBird", map[string]any{
-		"time": 1,
-	}, session.RouteArg(), 10*time.Second)
+	birdResp, err := rpc.HomeRqst().ShowBird(ctx, babigame.HomeRqstShowBirdRequest{Time: 1}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("homeRqst.showBird: %v", err)
 	}
-	t.Logf("  OK: %d bytes", len(birdV))
+	t.Logf("  OK: %d bytes", len(birdResp.Payload))
 
 	// sdk.sendGoods
 	t.Log("sdk.sendGoods...")
-	sdkV, _, err := client.RPC(ctx, "sdk.sendGoods", map[string]any{}, session.RouteArg(), 10*time.Second)
+	sdkResp, err := rpc.Sdk().SendGoods(ctx, babigame.SdkSendGoodsRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("sdk.sendGoods: %v", err)
 	}
-	t.Logf("  OK: %d bytes", len(sdkV))
+	t.Logf("  OK: %d bytes", len(sdkResp.Payload))
 
 	// mail.getList
 	t.Log("mail.getList...")
-	mailV, _, err := client.RPC(ctx, "mail.getList", map[string]any{}, session.RouteArg(), 10*time.Second)
+	mailResp, err := rpc.Mail().GetList(ctx, babigame.MailGetListRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Fatalf("mail.getList: %v", err)
 	}
-	t.Logf("  OK: %d bytes", len(mailV))
+	t.Logf("  OK: %d bytes", len(mailResp.Payload))
 
 	// randomEvent.enter
 	t.Log("randomEvent.enter...")
-	reV, _, err := client.RPC(ctx, "randomEvent.enter", map[string]any{}, session.RouteArg(), 10*time.Second)
+	reResp, err := rpc.RandomEvent().Enter(ctx, babigame.RandomEventEnterRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
-		t.Logf("  OK: %d bytes", len(reV))
+		t.Logf("  OK: %d bytes", len(reResp.Payload))
 	}
 
 	// waterwheel.enter
 	t.Log("waterwheel.enter...")
-	wwV, _, err := client.RPC(ctx, "waterwheel.enter", map[string]any{}, session.RouteArg(), 10*time.Second)
+	wwResp, err := rpc.Waterwheel().Enter(ctx, babigame.WaterwheelEnterRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
-		t.Logf("  OK: %d bytes", len(wwV))
+		t.Logf("  OK: %d bytes", len(wwResp.Payload))
 	}
 
 	// Test land operations (read-only: we don't want to mutate game state destructively)
 	// usrLand.harvestOneKey - safe to call even if nothing to harvest
 	t.Log("usrLand.harvestOneKey...")
-	harvestV, _, err := client.RPC(ctx, "usrLand.harvestOneKey", map[string]any{}, session.RouteArg(), 10*time.Second)
+	harvestResp, err := rpc.UsrLand().HarvestOneKey(ctx, babigame.UsrLandHarvestOneKeyRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
-		t.Logf("  OK: %d bytes", len(harvestV))
+		t.Logf("  OK: %d bytes", len(harvestResp.Payload))
 	}
 
 	// usrLand.waterOneKey - safe to call
 	t.Log("usrLand.waterOneKey...")
-	waterV, _, err := client.RPC(ctx, "usrLand.waterOneKey", map[string]any{}, session.RouteArg(), 10*time.Second)
+	waterResp, err := rpc.UsrLand().WaterOneKey(ctx, babigame.UsrLandWaterOneKeyRequest{}, babigame.WithTimeout(10*time.Second))
 	if err != nil {
 		t.Logf("  WARN (non-fatal): %v", err)
 	} else {
-		t.Logf("  OK: %d bytes", len(waterV))
+		t.Logf("  OK: %d bytes", len(waterResp.Payload))
 	}
 
 	t.Log("all RPCs completed successfully")
@@ -189,7 +188,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 func TestHTTPEndpointsE2E(t *testing.T) {
 	username, password := e2eCredentials(t)
 
-	cfg := babigame.DefaultConfig()
+	cfg := testConfig(t)
 	httpc := babigame.NewHTTPClient(cfg, "", "", "")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -259,7 +258,7 @@ func TestHTTPEndpointsE2E(t *testing.T) {
 func TestCultivateAndAssetsE2E(t *testing.T) {
 	username, password := e2eCredentials(t)
 
-	cfg := babigame.DefaultConfig()
+	cfg := testConfig(t)
 	httpc := babigame.NewHTTPClient(cfg, "", "", "")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -325,6 +324,15 @@ func e2eCredentials(t *testing.T) (string, string) {
 		t.Skip("E2E_USERNAME / E2E_PASSWORD not set; skipping live E2E test")
 	}
 	return username, password
+}
+
+func testConfig(t *testing.T) babigame.Config {
+	t.Helper()
+	cfg, err := babigame.ConfigForChannel(babigame.ChannelIOS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
 }
 
 func mapKeysStr(m map[string]any) []string {

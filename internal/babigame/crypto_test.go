@@ -10,7 +10,7 @@ import (
 // testdata_captured.go so we can keep this test file readable.
 
 func TestGWVerifyCapturedFrame(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig(t)
 	body := GWBody{Sign: capturedSign, A: capturedA, L: "zh"}
 	if !VerifyGWBody(body, cfg) {
 		t.Fatalf("captured /gw frame fails MD5 sign verification")
@@ -18,7 +18,7 @@ func TestGWVerifyCapturedFrame(t *testing.T) {
 }
 
 func TestGWDecodeCapturedFrame(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig(t)
 	clear, err := GWDecode(capturedA, cfg.GWXorMask)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
@@ -41,7 +41,7 @@ func TestGWDecodeCapturedFrame(t *testing.T) {
 }
 
 func TestGWEncodeRoundTrip(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig(t)
 	src := []any{
 		"usrLand.harvest",
 		map[string]any{"landId": 1017},
@@ -74,7 +74,7 @@ func TestGWEncodeRoundTrip(t *testing.T) {
 }
 
 func TestBuildRequestEnvelope(t *testing.T) {
-	cfg := DefaultConfig()
+	cfg := testConfig(t)
 	frame, k, err := BuildRequest("usrLand.harvest", map[string]any{"landId": 1017}, "tok|2482", 12, cfg)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -102,4 +102,13 @@ func TestBuildRequestEnvelope(t *testing.T) {
 	if !VerifyGWBody(d.P, cfg) {
 		t.Fatalf("inner gw body sign fails")
 	}
+}
+
+func testConfig(t *testing.T) Config {
+	t.Helper()
+	cfg, err := ConfigForChannel(ChannelIOS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return cfg
 }

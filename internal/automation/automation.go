@@ -57,7 +57,7 @@ func Recommend(land state.LandView, now time.Time) (kind, reason string) {
 }
 
 // PlannedOp is the next operation the runner should send. The runner converts
-// this to the appropriate babigame WS RPC.
+// this semantic plan to the appropriate babigame WS RPC request.
 type PlannedOp struct {
 	// Kind is the babigame RPC name (e.g. "usrLand.harvestOneKey",
 	// "usrLand.plantBatch", "usrLand.water").
@@ -66,9 +66,6 @@ type PlannedOp struct {
 	// LandIDs is the list this op covers; one element for single-land ops,
 	// many for batch / one-key ops.
 	LandIDs []int32
-
-	// Args is the JSON-shaped argument passed to the WS RPC.
-	Args map[string]any
 
 	// FlowerID, when non-zero, is the seed used by a plant op. Recorded for
 	// logging.
@@ -115,13 +112,11 @@ func Plan(s *state.State, policy *pb.Policy, now time.Time) *PlannedOp {
 			return &PlannedOp{
 				Kind:    "usrLand.harvestOneKey",
 				LandIDs: b.harvest,
-				Args:    map[string]any{},
 			}
 		}
 		return &PlannedOp{
 			Kind:    "usrLand.harvest",
 			LandIDs: []int32{b.harvest[0]},
-			Args:    map[string]any{"landId": int(b.harvest[0])},
 		}
 	}
 
@@ -149,22 +144,16 @@ func Plan(s *state.State, policy *pb.Policy, now time.Time) *PlannedOp {
 		}
 		picks := b.plant[:want]
 		if len(picks) > 1 {
-			ids := intsToAny(picks)
 			return &PlannedOp{
 				Kind:     "usrLand.plantBatch",
 				LandIDs:  picks,
 				FlowerID: flowerID,
-				Args: map[string]any{
-					"landIds":  ids,
-					"flowerId": int(flowerID),
-				},
 			}
 		}
 		return &PlannedOp{
 			Kind:     "usrLand.plant",
 			LandIDs:  picks,
 			FlowerID: flowerID,
-			Args:     map[string]any{"landId": int(picks[0]), "flowerId": int(flowerID)},
 		}
 	}
 
@@ -198,13 +187,11 @@ waterPath:
 			return &PlannedOp{
 				Kind:    "usrLand.waterBatch",
 				LandIDs: picks,
-				Args:    map[string]any{"landIds": intsToAny(picks)},
 			}
 		}
 		return &PlannedOp{
 			Kind:    "usrLand.water",
 			LandIDs: picks,
-			Args:    map[string]any{"landId": int(picks[0])},
 		}
 	}
 	return nil
@@ -300,14 +287,6 @@ func normalizePlantMode(mode string) string {
 	default:
 		return PlantModeHighValue
 	}
-}
-
-func intsToAny(xs []int32) []any {
-	out := make([]any, len(xs))
-	for i, x := range xs {
-		out[i] = int(x)
-	}
-	return out
 }
 
 // DefaultPolicy returns a Policy with conservative safety defaults:
