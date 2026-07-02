@@ -253,94 +253,6 @@ func (x *ListUsersResponse) GetTotal() int32 {
 	return 0
 }
 
-type GetUserRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetUserRequest) Reset() {
-	*x = GetUserRequest{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetUserRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetUserRequest) ProtoMessage() {}
-
-func (x *GetUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetUserRequest.ProtoReflect.Descriptor instead.
-func (*GetUserRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *GetUserRequest) GetUserId() int64 {
-	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-type GetUserResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetUserResponse) Reset() {
-	*x = GetUserResponse{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetUserResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetUserResponse) ProtoMessage() {}
-
-func (x *GetUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetUserResponse.ProtoReflect.Descriptor instead.
-func (*GetUserResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *GetUserResponse) GetUser() *User {
-	if x != nil {
-		return x.User
-	}
-	return nil
-}
-
 type UpdateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -353,7 +265,7 @@ type UpdateUserRequest struct {
 
 func (x *UpdateUserRequest) Reset() {
 	*x = UpdateUserRequest{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -365,7 +277,7 @@ func (x *UpdateUserRequest) String() string {
 func (*UpdateUserRequest) ProtoMessage() {}
 
 func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -378,7 +290,7 @@ func (x *UpdateUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserRequest.ProtoReflect.Descriptor instead.
 func (*UpdateUserRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{6}
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *UpdateUserRequest) GetUserId() int64 {
@@ -418,7 +330,7 @@ type UpdateUserResponse struct {
 
 func (x *UpdateUserResponse) Reset() {
 	*x = UpdateUserResponse{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -430,7 +342,7 @@ func (x *UpdateUserResponse) String() string {
 func (*UpdateUserResponse) ProtoMessage() {}
 
 func (x *UpdateUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -443,7 +355,7 @@ func (x *UpdateUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUserResponse.ProtoReflect.Descriptor instead.
 func (*UpdateUserResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{7}
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpdateUserResponse) GetUser() *User {
@@ -451,86 +363,6 @@ func (x *UpdateUserResponse) GetUser() *User {
 		return x.User
 	}
 	return nil
-}
-
-type DeleteUserRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeleteUserRequest) Reset() {
-	*x = DeleteUserRequest{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeleteUserRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeleteUserRequest) ProtoMessage() {}
-
-func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeleteUserRequest.ProtoReflect.Descriptor instead.
-func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *DeleteUserRequest) GetUserId() int64 {
-	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-type DeleteUserResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeleteUserResponse) Reset() {
-	*x = DeleteUserResponse{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeleteUserResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeleteUserResponse) ProtoMessage() {}
-
-func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
-func (*DeleteUserResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{9}
 }
 
 type GetSystemStatsRequest struct {
@@ -541,7 +373,7 @@ type GetSystemStatsRequest struct {
 
 func (x *GetSystemStatsRequest) Reset() {
 	*x = GetSystemStatsRequest{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -553,7 +385,7 @@ func (x *GetSystemStatsRequest) String() string {
 func (*GetSystemStatsRequest) ProtoMessage() {}
 
 func (x *GetSystemStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,7 +398,7 @@ func (x *GetSystemStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetSystemStatsRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{10}
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{6}
 }
 
 type GetSystemStatsResponse struct {
@@ -581,7 +413,7 @@ type GetSystemStatsResponse struct {
 
 func (x *GetSystemStatsResponse) Reset() {
 	*x = GetSystemStatsResponse{}
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -593,7 +425,7 @@ func (x *GetSystemStatsResponse) String() string {
 func (*GetSystemStatsResponse) ProtoMessage() {}
 
 func (x *GetSystemStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_admin_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -606,7 +438,7 @@ func (x *GetSystemStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSystemStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetSystemStatsResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{11}
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetSystemStatsResponse) GetTotalUsers() int32 {
@@ -659,11 +491,7 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\"W\n" +
 	"\x11ListUsersResponse\x12,\n" +
 	"\x05users\x18\x01 \x03(\v2\x16.mygardenworld.v1.UserR\x05users\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\")\n" +
-	"\x0eGetUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"=\n" +
-	"\x0fGetUserResponse\x12*\n" +
-	"\x04user\x18\x01 \x01(\v2\x16.mygardenworld.v1.UserR\x04user\"\xaf\x01\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xaf\x01\n" +
 	"\x11UpdateUserRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x17\n" +
 	"\x04role\x18\x02 \x01(\tH\x00R\x04role\x88\x01\x01\x12&\n" +
@@ -673,26 +501,20 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\r_max_accountsB\t\n" +
 	"\a_status\"@\n" +
 	"\x12UpdateUserResponse\x12*\n" +
-	"\x04user\x18\x01 \x01(\v2\x16.mygardenworld.v1.UserR\x04user\",\n" +
-	"\x11DeleteUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\"\x14\n" +
-	"\x12DeleteUserResponse\"\x17\n" +
+	"\x04user\x18\x01 \x01(\v2\x16.mygardenworld.v1.UserR\x04user\"\x17\n" +
 	"\x15GetSystemStatsRequest\"\xbd\x01\n" +
 	"\x16GetSystemStatsResponse\x12\x1f\n" +
 	"\vtotal_users\x18\x01 \x01(\x05R\n" +
 	"totalUsers\x12.\n" +
 	"\x13total_game_accounts\x18\x02 \x01(\x05R\x11totalGameAccounts\x12%\n" +
 	"\x0eactive_runners\x18\x03 \x01(\x05R\ractiveRunners\x12+\n" +
-	"\x11connected_runners\x18\x04 \x01(\x05R\x10connectedRunners2\xa4\x04\n" +
+	"\x11connected_runners\x18\x04 \x01(\x05R\x10connectedRunners2\xfb\x02\n" +
 	"\fAdminService\x12W\n" +
 	"\n" +
 	"CreateUser\x12#.mygardenworld.v1.CreateUserRequest\x1a$.mygardenworld.v1.CreateUserResponse\x12T\n" +
-	"\tListUsers\x12\".mygardenworld.v1.ListUsersRequest\x1a#.mygardenworld.v1.ListUsersResponse\x12N\n" +
-	"\aGetUser\x12 .mygardenworld.v1.GetUserRequest\x1a!.mygardenworld.v1.GetUserResponse\x12W\n" +
+	"\tListUsers\x12\".mygardenworld.v1.ListUsersRequest\x1a#.mygardenworld.v1.ListUsersResponse\x12W\n" +
 	"\n" +
-	"UpdateUser\x12#.mygardenworld.v1.UpdateUserRequest\x1a$.mygardenworld.v1.UpdateUserResponse\x12W\n" +
-	"\n" +
-	"DeleteUser\x12#.mygardenworld.v1.DeleteUserRequest\x1a$.mygardenworld.v1.DeleteUserResponse\x12c\n" +
+	"UpdateUser\x12#.mygardenworld.v1.UpdateUserRequest\x1a$.mygardenworld.v1.UpdateUserResponse\x12c\n" +
 	"\x0eGetSystemStats\x12'.mygardenworld.v1.GetSystemStatsRequest\x1a(.mygardenworld.v1.GetSystemStatsResponseB\xcd\x01\n" +
 	"\x14com.mygardenworld.v1B\n" +
 	"AdminProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
@@ -709,44 +531,35 @@ func file_mygardenworld_v1_admin_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_admin_proto_rawDescData
 }
 
-var file_mygardenworld_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_mygardenworld_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_mygardenworld_v1_admin_proto_goTypes = []any{
 	(*CreateUserRequest)(nil),      // 0: mygardenworld.v1.CreateUserRequest
 	(*CreateUserResponse)(nil),     // 1: mygardenworld.v1.CreateUserResponse
 	(*ListUsersRequest)(nil),       // 2: mygardenworld.v1.ListUsersRequest
 	(*ListUsersResponse)(nil),      // 3: mygardenworld.v1.ListUsersResponse
-	(*GetUserRequest)(nil),         // 4: mygardenworld.v1.GetUserRequest
-	(*GetUserResponse)(nil),        // 5: mygardenworld.v1.GetUserResponse
-	(*UpdateUserRequest)(nil),      // 6: mygardenworld.v1.UpdateUserRequest
-	(*UpdateUserResponse)(nil),     // 7: mygardenworld.v1.UpdateUserResponse
-	(*DeleteUserRequest)(nil),      // 8: mygardenworld.v1.DeleteUserRequest
-	(*DeleteUserResponse)(nil),     // 9: mygardenworld.v1.DeleteUserResponse
-	(*GetSystemStatsRequest)(nil),  // 10: mygardenworld.v1.GetSystemStatsRequest
-	(*GetSystemStatsResponse)(nil), // 11: mygardenworld.v1.GetSystemStatsResponse
-	(*User)(nil),                   // 12: mygardenworld.v1.User
+	(*UpdateUserRequest)(nil),      // 4: mygardenworld.v1.UpdateUserRequest
+	(*UpdateUserResponse)(nil),     // 5: mygardenworld.v1.UpdateUserResponse
+	(*GetSystemStatsRequest)(nil),  // 6: mygardenworld.v1.GetSystemStatsRequest
+	(*GetSystemStatsResponse)(nil), // 7: mygardenworld.v1.GetSystemStatsResponse
+	(*User)(nil),                   // 8: mygardenworld.v1.User
 }
 var file_mygardenworld_v1_admin_proto_depIdxs = []int32{
-	12, // 0: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
-	12, // 1: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
-	12, // 2: mygardenworld.v1.GetUserResponse.user:type_name -> mygardenworld.v1.User
-	12, // 3: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
-	0,  // 4: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
-	2,  // 5: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
-	4,  // 6: mygardenworld.v1.AdminService.GetUser:input_type -> mygardenworld.v1.GetUserRequest
-	6,  // 7: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
-	8,  // 8: mygardenworld.v1.AdminService.DeleteUser:input_type -> mygardenworld.v1.DeleteUserRequest
-	10, // 9: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
-	1,  // 10: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
-	3,  // 11: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
-	5,  // 12: mygardenworld.v1.AdminService.GetUser:output_type -> mygardenworld.v1.GetUserResponse
-	7,  // 13: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
-	9,  // 14: mygardenworld.v1.AdminService.DeleteUser:output_type -> mygardenworld.v1.DeleteUserResponse
-	11, // 15: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
-	10, // [10:16] is the sub-list for method output_type
-	4,  // [4:10] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	8, // 0: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
+	8, // 1: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
+	8, // 2: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
+	0, // 3: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
+	2, // 4: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
+	4, // 5: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
+	6, // 6: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
+	1, // 7: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
+	3, // 8: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
+	5, // 9: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
+	7, // 10: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
+	7, // [7:11] is the sub-list for method output_type
+	3, // [3:7] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_admin_proto_init() }
@@ -756,14 +569,14 @@ func file_mygardenworld_v1_admin_proto_init() {
 	}
 	file_mygardenworld_v1_auth_proto_init()
 	file_mygardenworld_v1_admin_proto_msgTypes[0].OneofWrappers = []any{}
-	file_mygardenworld_v1_admin_proto_msgTypes[6].OneofWrappers = []any{}
+	file_mygardenworld_v1_admin_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_admin_proto_rawDesc), len(file_mygardenworld_v1_admin_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

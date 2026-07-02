@@ -42,9 +42,6 @@ const (
 	// AccountServiceListAccountsProcedure is the fully-qualified name of the AccountService's
 	// ListAccounts RPC.
 	AccountServiceListAccountsProcedure = "/mygardenworld.v1.AccountService/ListAccounts"
-	// AccountServiceGetAccountProcedure is the fully-qualified name of the AccountService's GetAccount
-	// RPC.
-	AccountServiceGetAccountProcedure = "/mygardenworld.v1.AccountService/GetAccount"
 	// AccountServiceLoginAccountProcedure is the fully-qualified name of the AccountService's
 	// LoginAccount RPC.
 	AccountServiceLoginAccountProcedure = "/mygardenworld.v1.AccountService/LoginAccount"
@@ -61,7 +58,6 @@ type AccountServiceClient interface {
 	// Soft-delete: stops the runner and removes the row + sessions/policies.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
-	GetAccount(context.Context, *connect.Request[v1.GetAccountRequest]) (*connect.Response[v1.GetAccountResponse], error)
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error)
@@ -99,12 +95,6 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(accountServiceMethods.ByName("ListAccounts")),
 			connect.WithClientOptions(opts...),
 		),
-		getAccount: connect.NewClient[v1.GetAccountRequest, v1.GetAccountResponse](
-			httpClient,
-			baseURL+AccountServiceGetAccountProcedure,
-			connect.WithSchema(accountServiceMethods.ByName("GetAccount")),
-			connect.WithClientOptions(opts...),
-		),
 		loginAccount: connect.NewClient[v1.LoginAccountRequest, v1.LoginAccountResponse](
 			httpClient,
 			baseURL+AccountServiceLoginAccountProcedure,
@@ -125,7 +115,6 @@ type accountServiceClient struct {
 	createAccount *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
 	deleteAccount *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
 	listAccounts  *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	getAccount    *connect.Client[v1.GetAccountRequest, v1.GetAccountResponse]
 	loginAccount  *connect.Client[v1.LoginAccountRequest, v1.LoginAccountResponse]
 	logoutAccount *connect.Client[v1.LogoutAccountRequest, v1.LogoutAccountResponse]
 }
@@ -143,11 +132,6 @@ func (c *accountServiceClient) DeleteAccount(ctx context.Context, req *connect.R
 // ListAccounts calls mygardenworld.v1.AccountService.ListAccounts.
 func (c *accountServiceClient) ListAccounts(ctx context.Context, req *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error) {
 	return c.listAccounts.CallUnary(ctx, req)
-}
-
-// GetAccount calls mygardenworld.v1.AccountService.GetAccount.
-func (c *accountServiceClient) GetAccount(ctx context.Context, req *connect.Request[v1.GetAccountRequest]) (*connect.Response[v1.GetAccountResponse], error) {
-	return c.getAccount.CallUnary(ctx, req)
 }
 
 // LoginAccount calls mygardenworld.v1.AccountService.LoginAccount.
@@ -168,7 +152,6 @@ type AccountServiceHandler interface {
 	// Soft-delete: stops the runner and removes the row + sessions/policies.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
-	GetAccount(context.Context, *connect.Request[v1.GetAccountRequest]) (*connect.Response[v1.GetAccountResponse], error)
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error)
@@ -202,12 +185,6 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 		connect.WithSchema(accountServiceMethods.ByName("ListAccounts")),
 		connect.WithHandlerOptions(opts...),
 	)
-	accountServiceGetAccountHandler := connect.NewUnaryHandler(
-		AccountServiceGetAccountProcedure,
-		svc.GetAccount,
-		connect.WithSchema(accountServiceMethods.ByName("GetAccount")),
-		connect.WithHandlerOptions(opts...),
-	)
 	accountServiceLoginAccountHandler := connect.NewUnaryHandler(
 		AccountServiceLoginAccountProcedure,
 		svc.LoginAccount,
@@ -228,8 +205,6 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 			accountServiceDeleteAccountHandler.ServeHTTP(w, r)
 		case AccountServiceListAccountsProcedure:
 			accountServiceListAccountsHandler.ServeHTTP(w, r)
-		case AccountServiceGetAccountProcedure:
-			accountServiceGetAccountHandler.ServeHTTP(w, r)
 		case AccountServiceLoginAccountProcedure:
 			accountServiceLoginAccountHandler.ServeHTTP(w, r)
 		case AccountServiceLogoutAccountProcedure:
@@ -253,10 +228,6 @@ func (UnimplementedAccountServiceHandler) DeleteAccount(context.Context, *connec
 
 func (UnimplementedAccountServiceHandler) ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.ListAccounts is not implemented"))
-}
-
-func (UnimplementedAccountServiceHandler) GetAccount(context.Context, *connect.Request[v1.GetAccountRequest]) (*connect.Response[v1.GetAccountResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.GetAccount is not implemented"))
 }
 
 func (UnimplementedAccountServiceHandler) LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error) {

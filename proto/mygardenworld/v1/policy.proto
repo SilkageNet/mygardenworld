@@ -3,7 +3,8 @@ syntax = "proto3";
 package mygardenworld.v1;
 
 // Policy is the full automation configuration for one game account. It is
-// stored as one protojson blob.
+// stored as one protojson blob and intentionally models the strategy/settings
+// surface, not the account system.
 message Policy {
   bool automation_enabled = 1;
 
@@ -12,95 +13,216 @@ message Policy {
   OrderPolicy order = 4;
   UnionPolicy union = 5;
   ActivityPolicy activity = 6;
-  SafetyPolicy safety = 7;
 
   // Seconds between decision ticks. Default 4.
   double decision_interval_seconds = 10;
 }
 
 message BasicPolicy {
-  bool reputation_enabled = 1;
-  int32 reputation_threshold = 2;
+  ReputationPolicy reputation = 1;
+  double reconnect_interval_seconds = 2;
+  bool item_log_enabled = 3;
+  BasicTaskPolicy task = 4;
+  bool random_event_enabled = 5;
+  bool mail_enabled = 6;
+  BenefitPolicy benefit = 7;
+  SignPolicy sign = 8;
+  PearlPolicy pearl = 9;
+  ShopPolicy shop = 10;
+  FeedCatPolicy feed_cat = 11;
 
-  bool main_task_enabled = 3;
-  bool daily_task_enabled = 4;
-  bool weekly_task_enabled = 5;
-  bool achievement_task_enabled = 6;
-  bool story_enabled = 7;
-  bool mail_enabled = 8;
-  bool welfare_enabled = 9;
-  bool sign_enabled = 10;
-
-  bool free_water_enabled = 11;
+  // Resource claim settings kept in the basic category because they create
+  // usable water drops; plant.flower controls whether drops are spent.
   bool waterwheel_enabled = 12;
-  bool benefit_box_enabled = 13;
-  bool random_event_enabled = 14;
+  bool free_water_enabled = 13;
+  int32 water_claim_threshold = 14;
   bool road_grow_reward_enabled = 15;
+}
 
-  PearlPolicy pearl = 20;
-  ShopPolicy shop = 21;
-  ZooPolicy zoo = 22;
+message ReputationPolicy {
+  bool enabled = 1;
+  int32 threshold = 2;
+}
+
+message BasicTaskPolicy {
+  bool main_enabled = 1;
+  bool daily_enabled = 2;
+  bool weekly_enabled = 3;
+  bool story_enabled = 4;
+  bool achievement_enabled = 5;
+}
+
+message BenefitPolicy {
+  bool double_coin_enabled = 1;
+  bool box_enabled = 2;
+  bool share_reward_enabled = 3;
+  bool anti_scam_box_enabled = 4;
+}
+
+message SignPolicy {
+  bool daily_enabled = 1;
+  bool patch_enabled = 2;
 }
 
 message PearlPolicy {
-  bool enabled = 1;
-  bool free_pearl = 2;
-  bool auto_hire = 3;
-  bool auto_draw = 4;
-  bool protect_enabled = 5;
-  int32 max_hire_level = 6;
-  int32 max_hire_ticket_usage = 7;
-  int32 max_spend_diamonds = 8;
+  bool free_enabled = 1;
+  bool auto_hire_enabled = 2;
+  int32 max_hire_level = 3;
+  int32 max_hire_ticket_usage = 4;
+  bool draw_enabled = 5;
+  bool protect_enabled = 6;
+  bool auto_buy_hire_ticket = 7;
+  int64 max_spend_diamond = 8;
 }
 
 message ShopPolicy {
-  bool video_gift_enabled = 1;
-  bool cultivate_shop_enabled = 2;
-  int32 cultivate_shop_max_spend_gold = 3;
-  bool vip_shop_enabled = 4;
-  int32 vip_shop_max_spend_diamonds = 5;
-  int32 vip_shop_max_spend_floral_coin = 6;
-  bool material_shop_enabled = 7;
+  bool video_free_gift_enabled = 1;
+  ShopBuyPolicy cultivate_shop = 2;
+  VipShopPolicy vip_shop = 3;
 }
 
-message ZooPolicy {
+message ShopBuyPolicy {
+  bool auto_buy = 1;
+  int64 max_spend_gold = 2;
+  int64 max_spend_diamond = 3;
+  repeated int32 item_ids = 4;
+}
+
+message VipShopPolicy {
+  bool auto_buy = 1;
+  int64 max_spend_diamond = 2;
+  int64 max_spend_floral_coin = 3;
+  repeated int32 item_ids = 4;
+}
+
+message FeedCatPolicy {
   bool enabled = 1;
   bool auto_recall = 2;
   bool auto_buy_food = 3;
   bool auto_feed = 4;
   bool auto_stroke = 5;
-  bool sync_enabled = 6;
-  bool game_enabled = 7;
+  int64 max_spend_gold = 6;
+  int64 max_spend_diamond = 7;
 }
 
 message PlantPolicy {
-  bool harvest_enabled = 1;
-  bool harvest_prefer_one_key = 2;
+  CultivatePolicy cultivate = 1;
+  FlowerPlantPolicy flower = 2;
+  FriendStealPolicy friend_steal = 3;
+  FlowerElvesPolicy elves = 4;
+  FlowerMarketPolicy market = 5;
+}
 
-  bool plant_enabled = 3;
-  string planting_mode = 4;
-  bool task_priority_enabled = 5;
-  map<string, int32> task_priority = 6;
-  repeated int32 allowed_flower_ids = 7;
-  repeated int32 blocked_flower_ids = 8;
-  repeated int32 qualities = 9;
-  int32 min_flower_level = 10;
-  int32 flower_count = 11;
-  int32 plant_max_batch = 12;
+message CultivatePolicy {
+  bool enabled = 1;
+  bool video_speed_up_enabled = 2;
+  bool upgrade_enabled = 3;
+  int32 target_level = 4;
+}
 
-  bool water_enabled = 13;
-  int32 water_max_batch = 14;
-  int32 min_water_drops = 15;
-  int32 water_threshold = 16;
-  bool timed_water_enabled = 17;
-  bool water_prefer_one_key_if_noble = 18;
+message FlowerPlantPolicy {
+  bool auto_unlock_land = 1;
+  bool harvest_enabled = 2;
+  bool harvest_prefer_one_key = 3;
+  bool plant_enabled = 4;
+  bool water_enabled = 5;
+  int32 min_water_drops = 6;
+  int32 water_max_batch = 7;
+  bool water_prefer_one_key_if_noble = 8;
 
-  bool speed_up_enabled = 19;
-  int32 speed_up_ticket_max = 20;
-  bool video_speed_up = 21;
-  bool land_unlock_enabled = 22;
-  bool cultivate_enabled = 23;
-  bool flower_upgrade_enabled = 24;
+  bool video_speed_up_enabled = 9;
+  bool use_speed_up_ticket = 10;
+  int32 speed_up_ticket_max = 11;
+
+  bool task_priority_enabled = 12;
+  bool task_log_enabled = 13;
+  map<string, int32> goal_priority = 14;
+
+  PlantingMode planting_mode = 15;
+  repeated int32 allowed_qualities = 16;
+  int32 flower_kind_count = 17;
+  repeated int32 specified_flower_ids = 18;
+  repeated int32 blocked_flower_ids = 19;
+  int32 min_flower_level = 20;
+
+  // Planner controls that keep the local daemon's execution bounded.
+  int32 plant_max_batch = 21;
+  int32 max_per_flower_per_cycle = 22;
+  int32 fallback_stock_floor = 23;
+}
+
+enum PlantingMode {
+  PLANTING_MODE_UNSPECIFIED = 0;
+  PLANTING_MODE_QUALITY = 1;
+  PLANTING_MODE_COUNT = 2;
+  PLANTING_MODE_SPECIFIC = 3;
+}
+
+message FriendStealPolicy {
+  bool enabled = 1;
+  bool steal_elves = 2;
+  SelectionMode mode = 3;
+  repeated int32 qualities = 4;
+  repeated int32 flower_ids = 5;
+  repeated int32 exclude_flower_ids = 6;
+  bool auto_buy_times = 7;
+  int32 buy_count = 8;
+  int64 max_spend_diamond = 9;
+}
+
+message FlowerElvesPolicy {
+  bool enabled = 1;
+  repeated int32 selected_ids = 2;
+  bool request_aid = 3;
+  bool receive_aid = 4;
+  bool help_friend = 5;
+  bool dispatch = 6;
+  bool dispatch_only_double_buff = 7;
+  bool speed_up_dispatch = 8;
+  bool receive_dispatch_reward = 9;
+  bool pass_reward_enabled = 10;
+  bool pass_task_reward_enabled = 11;
+  bool flower_pass_reward_enabled = 12;
+  bool flower_pass_task_reward_enabled = 13;
+  int64 max_spend_diamond = 14;
+}
+
+message FlowerMarketPolicy {
+  bool auto_unlock_shelf = 1;
+  bool put_enabled = 2;
+  MarketPutMode put_mode = 3;
+  repeated int32 specific_flower_ids = 4;
+  int32 price_index = 5;
+  int32 max_sell = 6;
+  string put_flower_password = 7;
+  bool auto_buy_from_friend = 8;
+  MarketBuyMode buy_mode = 9;
+  repeated int32 buy_specific_flower_ids = 10;
+  repeated int32 buy_qualities = 11;
+  int32 min_put_time_seconds = 12;
+  int64 max_spend_diamond = 13;
+  int64 max_spend_gold = 14;
+}
+
+enum SelectionMode {
+  SELECTION_MODE_UNSPECIFIED = 0;
+  SELECTION_MODE_ALL = 1;
+  SELECTION_MODE_QUALITY = 2;
+  SELECTION_MODE_SPECIFIC = 3;
+  SELECTION_MODE_EXCLUDE = 4;
+}
+
+enum MarketPutMode {
+  MARKET_PUT_MODE_UNSPECIFIED = 0;
+  MARKET_PUT_MODE_INVENTORY = 1;
+  MARKET_PUT_MODE_SPECIFIC = 2;
+}
+
+enum MarketBuyMode {
+  MARKET_BUY_MODE_UNSPECIFIED = 0;
+  MARKET_BUY_MODE_ALL = 1;
+  MARKET_BUY_MODE_SPECIFIC = 2;
+  MARKET_BUY_MODE_QUALITY = 3;
 }
 
 message OrderPolicy {
@@ -115,19 +237,17 @@ message CustomerOrderPolicy {
   bool enabled = 1;
   bool reject_enabled = 2;
   bool craft_enabled = 3;
-  int32 max_finish_per_tick = 4;
 }
 
 message ResidentOrderPolicy {
   bool normal_enabled = 1;
-  int32 normal_max_num = 2;
+  int32 normal_daily_limit = 2;
   bool decorate_enabled = 3;
-  int32 decorate_max_num = 4;
+  int32 decorate_daily_limit = 4;
   bool satin_enabled = 5;
-  int32 satin_max_num = 6;
+  int32 satin_daily_limit = 6;
   repeated int32 qualities = 7;
   bool reward_enabled = 8;
-  bool ad_refresh_enabled = 9;
 }
 
 message PalaceOrderPolicy {
@@ -137,55 +257,72 @@ message PalaceOrderPolicy {
 
 message TeamOrderPolicy {
   bool enabled = 1;
-  bool one_more = 2;
-  bool submit_only_cultivated_flowers = 3;
+  bool one_more_enabled = 2;
+  bool submit_only_cultivated = 3;
   repeated int32 qualities = 4;
+  int64 max_spend_diamond = 5;
 }
 
 message FlowerArtPolicy {
-  bool sell_enabled = 1;
-  bool craft_enabled = 2;
-  bool reward_enabled = 3;
-  bool auto_unlock_stand = 4;
-  bool early_cancel = 5;
-  int32 flower_art_per_rack = 6;
-  repeated int32 specified_art_ids = 7;
+  bool auto_unlock_stand = 1;
+  bool sell_enabled = 2;
+  bool craft_enabled = 3;
+  bool early_cancel_enabled = 4;
+  repeated int32 specified_art_ids = 5;
+  int32 per_rack_count = 6;
+  bool create_reward_enabled = 7;
+  bool collect_reward_enabled = 8;
 }
 
 message UnionPolicy {
-  bool build_free_enabled = 1;
-  bool build_gold_enabled = 2;
-  bool build_diamond_enabled = 3;
+  UnionBuildPolicy build = 1;
+  UnionFlowerPolicy flower = 2;
+  UnionRacePolicy race = 3;
+  UnionLandPolicy land = 4;
+  bool red_packet_enabled = 5;
+  bool forest_enabled = 6;
+}
 
-  bool flower_share_enabled = 4;
-  string flower_share_mode = 5;
-  repeated int32 share_flower_ids = 6;
-  repeated int32 share_qualities = 7;
+message UnionBuildPolicy {
+  bool free_enabled = 1;
+  bool gold_enabled = 2;
+  bool diamond_enabled = 3;
+  int64 max_spend_gold = 4;
+  int64 max_spend_diamond = 5;
+}
 
-  bool flower_take_enabled = 8;
-  string flower_take_mode = 9;
-  repeated int32 take_flower_ids = 10;
-  repeated int32 take_qualities = 11;
+message UnionFlowerPolicy {
+  bool share_enabled = 1;
+  SelectionMode share_mode = 2;
+  repeated int32 share_qualities = 3;
+  repeated int32 share_flower_ids = 4;
+  bool take_enabled = 5;
+  SelectionMode take_mode = 6;
+  repeated int32 take_qualities = 7;
+  repeated int32 take_flower_ids = 8;
+}
 
-  bool race_enabled = 12;
-  bool race_auto_enable_modules = 13;
-  bool race_delete_task = 14;
-  int32 race_delete_task_max_score = 15;
-  int32 race_min_task_score = 16;
-  bool race_only_upgrade_task = 17;
-  bool race_upgrade_task = 18;
-  bool race_use_speed_up_ticket = 19;
-  map<string, int32> race_task_type_priority = 20;
+message UnionRacePolicy {
+  bool enabled = 1;
+  bool auto_enable_modules = 2;
+  bool use_speedup_ticket_in_task = 3;
+  int32 min_task_score = 4;
+  bool only_upgrade_task = 5;
+  bool exclude_others_upgrade_task = 6;
+  map<int32, int32> task_type_priority = 7;
+  bool upgrade_task = 8;
+  bool delete_low_score_task = 9;
+  int32 delete_task_max_score = 10;
+  int64 max_spend_diamond = 11;
+}
 
-  bool land_auto_plant = 21;
-  bool land_harvest = 22;
-  string land_plant_mode = 23;
-  repeated int32 land_flower_ids = 24;
-  repeated int32 land_specific_flower_ids = 25;
-  int32 land_max_flower_level = 26;
-
-  bool red_packet_enabled = 27;
-  bool forest_enabled = 28;
+message UnionLandPolicy {
+  bool harvest_enabled = 1;
+  bool auto_plant_enabled = 2;
+  PlantingMode plant_mode = 3;
+  repeated int32 qualities = 4;
+  repeated int32 flower_ids = 5;
+  int32 max_flower_level = 6;
 }
 
 message ActivityPolicy {
@@ -195,23 +332,12 @@ message ActivityPolicy {
 
 message ActivityModulePolicy {
   bool enabled = 1;
-  int32 speed = 2;
-  bool auto_claim_energy = 3;
-  bool use_items = 4;
-  bool auto_restart = 5;
-  bool show_result = 6;
-  bool refresh_enabled = 7;
-  bool unlock_slot = 8;
-  int32 max_finish_count_per_batch = 9;
+  map<string, int64> int_params = 2;
+  map<string, bool> bool_params = 3;
+  map<string, string> string_params = 4;
+  map<string, IntList> int_list_params = 5;
 }
 
-message SafetyPolicy {
-  bool require_observed_state = 1;
-  bool stop_on_session_invalidated = 2;
-  int32 max_consecutive_errors = 3;
-  int32 domain_backoff_seconds = 4;
-  int32 max_gold_spend_per_tick = 5;
-  int32 max_diamond_spend_per_tick = 6;
-  int32 max_item_spend_per_tick = 7;
-  bool block_on_daily_limit = 8;
+message IntList {
+  repeated int32 values = 1;
 }

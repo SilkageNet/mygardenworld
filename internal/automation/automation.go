@@ -1,16 +1,17 @@
 // Package automation is the pure decision engine. It turns observed state and
-// the domain policy into an ordered, categorized plan. Runners execute only
-// operations they have a concrete RPC implementation for; the full plan is
-// exposed to the UI for transparency.
+// user-enabled goals into demands, a cycle-local inventory ledger, and an
+// ordered operation queue.
 package automation
 
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -33,13 +34,176 @@ const (
 )
 
 const (
-	PlantModeLowStock  = "low_stock"
-	PlantModeHighValue = "high_value"
-	PlantModeSelected  = "selected"
+	DemandKindFlower    = "flower"
+	DemandKindFlowerArt = "flower_art"
+	DemandKindVase      = "vase"
+	DemandKindAction    = "action"
 )
 
-// PlannedOp is one categorized operation candidate.
+const (
+	GoalResidentOrder = "order.resident"
+	GoalCustomerOrder = "order.customer"
+	GoalFlowerArt     = "order.flower_art"
+	GoalMainTask      = "basic.task.main"
+	GoalDailyTask     = "basic.task.daily"
+	GoalWeeklyTask    = "basic.task.weekly"
+	GoalFallback      = "fallback.low_stock"
+)
+
+// Goal is one enabled product objective. Feature enablement is still owned by
+// policy sections; goals only give the planner a unified priority surface.
+type Goal struct {
+	ID       string
+	Category string
+	Domain   string
+	Label    string
+	Priority int32
+}
+
+// Demand is an item/capability requirement emitted by enabled goals.
+type Demand struct {
+	ID             string
+	GoalID         string
+	Category       string
+	Domain         string
+	EntityID       string
+	Source         string
+	Label          string
+	Kind           string
+	ItemID         int32
+	Count          int32
+	Have           int32
+	Allocated      int32
+	Available      int32
+	Missing        int32
+	Priority       int32
+	BlockedReasons []string
+}
+
+// InventoryLedger is the single inventory accounting surface for one planning
+// cycle. All demand fulfillment and lower-priority inventory consumers must use
+// it instead of reading raw State.Inventory directly.
+type InventoryLedger struct {
+	owned     map[int32]int32
+	allocated map[int32]int32
+	byDemand  map[string]map[int32]int32
+}
+
+// ArtAvailability describes whether a flower-art recipe can be crafted now.
+type ArtAvailability struct {
+	Recipe         state.FlowerArtRecipe
+	LevelOK        bool
+	VaseUnlocked   bool
+	Craftable      bool
+	Requirements   []Demand
+	BlockedReasons []string
+}
+
+// PlanResult is the full explainable output of one decision pass.
+type PlanResult struct {
+	Goals      []Goal
+	Demands    []Demand
+	Ledger     *InventoryLedger
+	Operations []PlannedOp
+}
+
+func NewInventoryLedger(inventory map[int32]int32) *InventoryLedger {
+	owned := make(map[int32]int32, len(inventory))
+	for itemID, count := range inventory {
+		if count > 0 {
+			owned[itemID] = count
+		}
+	}
+	return &InventoryLedger{
+		owned:     owned,
+		allocated: map[int32]int32{},
+		byDemand:  map[string]map[int32]int32{},
+	}
+}
+
+func (l *InventoryLedger) Owned(itemID int32) int32 {
+	if l == nil {
+		return 0
+	}
+	return l.owned[itemID]
+}
+
+func (l *InventoryLedger) Allocated(itemID int32) int32 {
+	if l == nil {
+		return 0
+	}
+	return l.allocated[itemID]
+}
+
+func (l *InventoryLedger) Available(itemID int32) int32 {
+	if l == nil {
+		return 0
+	}
+	available := l.owned[itemID] - l.allocated[itemID]
+	if available < 0 {
+		return 0
+	}
+	return available
+}
+
+func (l *InventoryLedger) Allocate(demand Demand) int32 {
+	if l == nil || demand.ID == "" || demand.ItemID <= 0 || demand.Count <= 0 || len(demand.BlockedReasons) > 0 {
+		return 0
+	}
+	if demand.Kind != DemandKindFlower && demand.Kind != DemandKindFlowerArt {
+		return 0
+	}
+	count := demand.Count
+	if available := l.Available(demand.ItemID); count > available {
+		count = available
+	}
+	if count <= 0 {
+		return 0
+	}
+	l.allocated[demand.ItemID] += count
+	if l.byDemand[demand.ID] == nil {
+		l.byDemand[demand.ID] = map[int32]int32{}
+	}
+	l.byDemand[demand.ID][demand.ItemID] += count
+	return count
+}
+
+func (l *InventoryLedger) AllocatedForDemand(demandID string, itemID int32) int32 {
+	if l == nil || demandID == "" {
+		return 0
+	}
+	return l.byDemand[demandID][itemID]
+}
+
+func (l *InventoryLedger) CanSpendItems(items map[int32]int32) bool {
+	if l == nil {
+		return len(items) == 0
+	}
+	for itemID, count := range items {
+		if count > 0 && l.Available(itemID) < count {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *InventoryLedger) AllocatedItems() map[int32]int32 {
+	if l == nil || len(l.allocated) == 0 {
+		return nil
+	}
+	out := make(map[int32]int32, len(l.allocated))
+	for itemID, count := range l.allocated {
+		out[itemID] = count
+	}
+	return out
+}
+
+// PlannedOp is one operation candidate. Runners execute only operations marked
+// executable and supported by their operation registry.
 type PlannedOp struct {
+	OperationID    string
+	GoalID         string
+	DemandID       string
 	Kind           string
 	FeatureID      string
 	Category       string
@@ -53,7 +217,14 @@ type PlannedOp struct {
 	BlockedReasons []string
 	Priority       int32
 	LandIDs        []int32
+	SlotIDs        []int32
 	FlowerID       int32
+	TargetUID      int64
+	TargetID       int32
+	ItemID         int32
+	Count          int32
+	VaseID         int32
+	FlowerIDs      []int32
 	GoldCost       int32
 	DiamondCost    int32
 	ItemCost       map[int32]int32
@@ -81,10 +252,11 @@ func Recommend(land state.LandView, now time.Time) (kind, reason string) {
 	return KindWait, fmt.Sprintf("state=%d not actionable", land.State)
 }
 
-// Plan returns the highest-priority directly executable farm RPC operation.
+// Plan returns the first directly executable operation from the full queue.
 func Plan(s *state.State, policy *pb.Policy, now time.Time) *PlannedOp {
-	for _, op := range PlanOperations(s, policy, now) {
-		if strings.HasPrefix(op.Kind, "usrLand.") {
+	result := BuildPlan(s, policy, now)
+	for _, op := range result.Operations {
+		if op.Executable && !op.SyncOnly && op.Status != PlanStatusAdapterMissing && op.Status != "blocked" && len(op.BlockedReasons) == 0 {
 			cp := op
 			return &cp
 		}
@@ -94,39 +266,252 @@ func Plan(s *state.State, policy *pb.Policy, now time.Time) *PlannedOp {
 
 // PlanOperations returns the categorized operation list in execution order.
 func PlanOperations(s *state.State, policy *pb.Policy, now time.Time) []PlannedOp {
-	if policy == nil || !policy.GetAutomationEnabled() {
+	return BuildPlan(s, policy, now).Operations
+}
+
+// BuildPlan produces enabled goals, ledger-accounted demands, and the full
+// ranked operation queue.
+func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
+	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
+		return PlanResult{}
+	}
+	policy = DefaultPolicyIfNil(policy)
+	goals := enabledGoals(policy)
+	ledger := NewInventoryLedger(s.Inventory())
+	demands := buildDirectDemands(s, goals)
+	applyLedgerAllocations(demands, ledger)
+	production := buildProductionDemands(s, policy, goals, demands)
+	applyLedgerAllocations(production, ledger)
+	demands = append(demands, production...)
+	sortDemands(demands)
+	ops := buildOperations(s, policy, goals, demands, ledger, now)
+	sortOperations(ops)
+	return PlanResult{
+		Goals:      goals,
+		Demands:    demands,
+		Ledger:     ledger,
+		Operations: ops,
+	}
+}
+
+func enabledGoals(policy *pb.Policy) []Goal {
+	plant := policy.GetPlant()
+	priorities := plant.GetFlower().GetGoalPriority()
+	var goals []Goal
+	add := func(enabled bool, id, category, domain, label string) {
+		if !enabled {
+			return
+		}
+		goals = append(goals, Goal{
+			ID:       id,
+			Category: category,
+			Domain:   domain,
+			Label:    label,
+			Priority: priorityFor(priorities, id),
+		})
+	}
+	basic := policy.GetBasic()
+	task := basic.GetTask()
+	order := policy.GetOrder()
+	add(order.GetResident().GetNormalEnabled() || order.GetResident().GetDecorateEnabled() || order.GetResident().GetSatinEnabled(), GoalResidentOrder, CategoryOrder, "order.resident", "居民订单")
+	add(order.GetCustomer().GetEnabled(), GoalCustomerOrder, CategoryOrder, "order.customer", "顾客订单")
+	flowerArt := order.GetFlowerArt()
+	add(flowerArt.GetSellEnabled() || flowerArt.GetCraftEnabled() || flowerArt.GetCreateRewardEnabled() || flowerArt.GetCollectRewardEnabled(), GoalFlowerArt, CategoryOrder, "order.flower_art", "花艺/花架")
+	add(task.GetMainEnabled(), GoalMainTask, CategoryBasic, "basic.task.main", "主线任务")
+	add(task.GetDailyEnabled(), GoalDailyTask, CategoryBasic, "basic.task.daily", "每日任务")
+	add(task.GetWeeklyEnabled(), GoalWeeklyTask, CategoryBasic, "basic.task.weekly", "每周任务")
+	return goals
+}
+
+func priorityFor(priorities map[string]int32, id string) int32 {
+	if v := priorities[id]; v != 0 {
+		return v
+	}
+	return defaultGoalPriority()[id]
+}
+
+func goalByID(goals []Goal, id string) (Goal, bool) {
+	for _, goal := range goals {
+		if goal.ID == id {
+			return goal, true
+		}
+	}
+	return Goal{}, false
+}
+
+func buildDirectDemands(s *state.State, goals []Goal) []Demand {
+	inventory := s.Inventory()
+	var out []Demand
+	add := func(goal Goal, source, kind string, itemID, count int32, entityID, label string, blocked []string) {
+		if itemID <= 0 || count <= 0 {
+			return
+		}
+		have := inventory[itemID]
+		missing := count - have
+		if missing < 0 {
+			missing = 0
+		}
+		out = append(out, Demand{
+			ID:             demandID(goal.ID, entityID, source, kind, itemID),
+			GoalID:         goal.ID,
+			Category:       goal.Category,
+			Domain:         goal.Domain,
+			EntityID:       entityID,
+			Source:         source,
+			Label:          label,
+			Kind:           kind,
+			ItemID:         itemID,
+			Count:          count,
+			Have:           have,
+			Available:      have,
+			Missing:        missing,
+			Priority:       goal.Priority,
+			BlockedReasons: append([]string(nil), blocked...),
+		})
+	}
+	if goal, ok := goalByID(goals, GoalResidentOrder); ok {
+		for boxID, order := range s.FlowerOrders() {
+			if order == nil {
+				continue
+			}
+			entityID := strconv.FormatInt(int64(boxID), 10)
+			for _, req := range order.Requires {
+				add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, entityID, fmt.Sprintf("居民订单 #%d", boxID), nil)
+			}
+		}
+	}
+	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {
+		for npcID, order := range s.CustomerOrderDetails() {
+			if order == nil {
+				continue
+			}
+			entityID := strconv.FormatInt(int64(npcID), 10)
+			label := fmt.Sprintf("顾客订单 NPC=%d", npcID)
+			for _, req := range order.Requires {
+				add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, entityID, label, nil)
+			}
+			for _, req := range order.ItemRequires {
+				if req.ItemID <= 0 || req.Count <= 0 {
+					continue
+				}
+				missingArt := req.Count - inventory[req.ItemID]
+				if missingArt < 0 {
+					missingArt = 0
+				}
+				recipe, ok := state.FlowerArtRecipeByID(req.ItemID)
+				if !ok {
+					add(goal, "direct", DemandKindFlowerArt, req.ItemID, req.Count, entityID, label, []string{"缺少花艺配方"})
+					continue
+				}
+				var blocked []string
+				if missingArt > 0 {
+					blocked = artBlockedReasons(s, recipe)
+				}
+				add(goal, "direct", DemandKindFlowerArt, req.ItemID, req.Count, entityID, label, blocked)
+			}
+		}
+	}
+	if goal, ok := goalByID(goals, GoalMainTask); ok {
+		if task, taskOK := s.MainTask(); taskOK {
+			if flowerID, missing, reqOK := state.MainTaskFlowerRequirement(task.TaskID, task.Finished); reqOK {
+				add(goal, "direct", DemandKindFlower, flowerID, missing, strconv.FormatInt(int64(task.TaskID), 10), state.MainTaskTitle(task.TaskID), nil)
+			}
+		}
+	}
+	sortDemands(out)
+	return out
+}
+
+func buildProductionDemands(s *state.State, policy *pb.Policy, goals []Goal, direct []Demand) []Demand {
+	if !policy.GetOrder().GetCustomer().GetCraftEnabled() {
 		return nil
 	}
-	var ops []PlannedOp
-	ops = append(ops, farmOps(s, policy.GetPlant(), now)...)
-	ops = append(ops, orderOps(policy.GetOrder())...)
-	ops = append(ops, plantMaintenanceOps(policy.GetPlant())...)
-	ops = append(ops, basicOps(policy.GetBasic())...)
-	ops = append(ops, unionOps(policy.GetUnion())...)
-	ops = append(ops, activityOps(policy.GetActivity())...)
-	sort.SliceStable(ops, func(i, j int) bool {
-		if ops[i].Priority != ops[j].Priority {
-			return ops[i].Priority > ops[j].Priority
+	goal, ok := goalByID(goals, GoalCustomerOrder)
+	if !ok {
+		return nil
+	}
+	inventory := s.Inventory()
+	var out []Demand
+	for _, demand := range direct {
+		if demand.GoalID != goal.ID || demand.Kind != DemandKindFlowerArt || demand.Missing <= 0 || len(demand.BlockedReasons) > 0 {
+			continue
 		}
-		if ops[i].Category != ops[j].Category {
-			return categoryRank(ops[i].Category) < categoryRank(ops[j].Category)
+		recipe, ok := state.FlowerArtRecipeByID(demand.ItemID)
+		if !ok {
+			continue
 		}
-		return ops[i].Domain < ops[j].Domain
+		for flowerID, count := range recipeFlowerCounts(recipe) {
+			required := count * demand.Missing
+			have := inventory[flowerID]
+			missing := required - have
+			if missing < 0 {
+				missing = 0
+			}
+			out = append(out, Demand{
+				ID:        demandID(goal.ID, demand.EntityID, "craft:"+strconv.FormatInt(int64(demand.ItemID), 10), DemandKindFlower, flowerID),
+				GoalID:    goal.ID,
+				Category:  goal.Category,
+				Domain:    goal.Domain,
+				EntityID:  demand.EntityID,
+				Source:    "craft",
+				Label:     fmt.Sprintf("%s 制作 %s", demand.Label, itemLabel(demand.ItemID)),
+				Kind:      DemandKindFlower,
+				ItemID:    flowerID,
+				Count:     required,
+				Have:      have,
+				Available: have,
+				Missing:   missing,
+				Priority:  goal.Priority,
+			})
+		}
+	}
+	sortDemands(out)
+	return out
+}
+
+func applyLedgerAllocations(demands []Demand, ledger *InventoryLedger) {
+	for i := range demands {
+		demands[i].Have = ledger.Owned(demands[i].ItemID)
+		demands[i].Allocated = ledger.Allocate(demands[i])
+		demands[i].Available = ledger.Available(demands[i].ItemID)
+		demands[i].Missing = demands[i].Count - demands[i].Allocated
+		if demands[i].Missing < 0 {
+			demands[i].Missing = 0
+		}
+	}
+}
+
+func sortDemands(demands []Demand) {
+	sort.SliceStable(demands, func(i, j int) bool {
+		if demands[i].Priority != demands[j].Priority {
+			return demands[i].Priority > demands[j].Priority
+		}
+		if demands[i].Missing != demands[j].Missing {
+			return demands[i].Missing > demands[j].Missing
+		}
+		return demands[i].ID < demands[j].ID
 	})
+}
+
+func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, ledger *InventoryLedger, now time.Time) []PlannedOp {
+	var ops []PlannedOp
+	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now)...)
+	ops = append(ops, orderOperations(s, policy, goals, demands, ledger)...)
+	ops = append(ops, basicOperations(s, policy, goals, now)...)
+	ops = append(ops, shopOperations(s, policy)...)
+	ops = append(ops, maintenanceOperations(s, policy, ledger, now)...)
+	ops = append(ops, unionOperations(s, policy.GetUnion())...)
+	ops = append(ops, blockedUnknownOperations(policy)...)
 	return ops
 }
 
-func farmOps(s *state.State, policy *pb.PlantPolicy, now time.Time) []PlannedOp {
+func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time) []PlannedOp {
 	if policy == nil {
 		return nil
 	}
+	flowerPolicy := policy.GetFlower()
 	lands := s.Lands()
-	type bucket struct {
-		harvest []int32
-		water   []int32
-		plant   []int32
-	}
-	var b bucket
+	var harvest, water, plant []int32
 	ids := make([]int32, 0, len(lands))
 	for id := range lands {
 		ids = append(ids, id)
@@ -136,61 +521,54 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, now time.Time) []PlannedOp 
 		kind, _ := Recommend(lands[id], now)
 		switch kind {
 		case KindHarvest:
-			b.harvest = append(b.harvest, id)
+			harvest = append(harvest, id)
 		case KindWater:
-			b.water = append(b.water, id)
+			water = append(water, id)
 		case KindPlant:
-			b.plant = append(b.plant, id)
+			plant = append(plant, id)
 		}
 	}
-
 	var ops []PlannedOp
-	if len(b.harvest) > 0 && policy.GetHarvestEnabled() {
-		if len(b.harvest) > 1 && policy.GetHarvestPreferOneKey() {
-			ops = append(ops, landOp("usrLand.harvestOneKey", "farm.harvest", "harvest", "ready lands", 1000, b.harvest, 0))
+	if len(harvest) > 0 && flowerPolicy.GetHarvestEnabled() {
+		if len(harvest) > 1 && flowerPolicy.GetHarvestPreferOneKey() {
+			ops = append(ops, landOp(clientproto.RPCUsrLandHarvestOneKey.String(), "farm.harvest", "harvest", "ready lands", 10000, harvest, 0, "", ""))
 		} else {
-			ops = append(ops, landOp("usrLand.harvest", "farm.harvest", "harvest", "ready land", 1000, []int32{b.harvest[0]}, 0))
+			ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", "ready land", 10000, []int32{harvest[0]}, 0, "", ""))
 		}
 	}
-
-	if len(b.plant) > 0 && policy.GetPlantEnabled() {
-		flowerID, _, plantLimit := selectPlantFlower(s, policy)
-		if flowerID != 0 {
-			maxBatch := policy.GetPlantMaxBatch()
-			if maxBatch <= 0 {
-				maxBatch = 8
+	if len(plant) > 0 && flowerPolicy.GetPlantEnabled() {
+		assignments := plantAssignments(s, policy, demands, int32(len(plant)))
+		cursor := 0
+		for _, assignment := range assignments {
+			if cursor >= len(plant) {
+				break
 			}
-			want := int32(len(b.plant))
-			if want > maxBatch {
-				want = maxBatch
+			count := int(assignment.Count)
+			if count > len(plant)-cursor {
+				count = len(plant) - cursor
 			}
-			if plantLimit > 0 && want > plantLimit {
-				want = plantLimit
+			picks := append([]int32(nil), plant[cursor:cursor+count]...)
+			cursor += count
+			kind := clientproto.RPCUsrLandPlant.String()
+			if len(picks) > 1 {
+				kind = clientproto.RPCUsrLandPlantBatch.String()
 			}
-			if want > 0 {
-				picks := b.plant[:want]
-				if len(picks) > 1 {
-					ops = append(ops, landOp("usrLand.plantBatch", "farm.plant", "plant", "empty lands", 900, picks, flowerID))
-				} else {
-					ops = append(ops, landOp("usrLand.plant", "farm.plant", "plant", "empty land", 900, picks, flowerID))
-				}
-			}
+			ops = append(ops, landOp(kind, "farm.plant", "plant", assignment.Reason, assignment.Priority, picks, assignment.FlowerID, assignment.GoalID, assignment.DemandID))
 		}
 	}
-
-	if len(b.water) > 0 && policy.GetWaterEnabled() {
+	if len(water) > 0 && flowerPolicy.GetWaterEnabled() {
 		waterDrops, _, _ := s.AvailableWaterDrops(now)
-		minDrops := policy.GetMinWaterDrops()
+		minDrops := flowerPolicy.GetMinWaterDrops()
 		if minDrops < 0 {
 			minDrops = 0
 		}
 		usableDrops := waterDrops - minDrops
 		if usableDrops > 0 {
-			maxBatch := policy.GetWaterMaxBatch()
+			maxBatch := flowerPolicy.GetWaterMaxBatch()
 			if maxBatch <= 0 {
 				maxBatch = 8
 			}
-			want := int32(len(b.water))
+			want := int32(len(water))
 			if want > maxBatch {
 				want = maxBatch
 			}
@@ -198,14 +576,14 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, now time.Time) []PlannedOp 
 				want = usableDrops
 			}
 			if want > 0 {
-				picks := b.water[:want]
+				picks := water[:want]
 				switch {
-				case policy.GetWaterPreferOneKeyIfNoble() && s.NobleEligible() && int32(len(b.water)) == want:
-					ops = append(ops, landOp("usrLand.waterOneKey", "farm.water", "water", "noble one-key water", 800, picks, 0))
+				case flowerPolicy.GetWaterPreferOneKeyIfNoble() && s.NobleEligible() && int32(len(water)) == want:
+					ops = append(ops, landOp(clientproto.RPCUsrLandWaterOneKey.String(), "farm.water", "water", "noble one-key water", 8000, picks, 0, "", ""))
 				case len(picks) > 1:
-					ops = append(ops, landOp("usrLand.waterBatch", "farm.water", "water", "lands need water", 800, picks, 0))
+					ops = append(ops, landOp(clientproto.RPCUsrLandWaterBatch.String(), "farm.water", "water", "lands need water", 8000, picks, 0, "", ""))
 				default:
-					ops = append(ops, landOp("usrLand.water", "farm.water", "water", "land needs water", 800, picks, 0))
+					ops = append(ops, landOp(clientproto.RPCUsrLandWater.String(), "farm.water", "water", "land needs water", 8000, picks, 0, "", ""))
 				}
 			}
 		}
@@ -213,236 +591,1210 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, now time.Time) []PlannedOp 
 	return ops
 }
 
-func plantMaintenanceOps(policy *pb.PlantPolicy) []PlannedOp {
-	if policy == nil {
-		return nil
-	}
-	var ops []PlannedOp
-	if policy.GetLandUnlockEnabled() {
-		ops = append(ops, markerOp(CategoryPlant, "farm.land", "unlock", "land unlock enabled", 760))
-	}
-	if policy.GetSpeedUpEnabled() {
-		ops = append(ops, markerOp(CategoryPlant, "farm.speed_up", "speed_up", "speed-up enabled", 740))
-	}
-	if policy.GetCultivateEnabled() {
-		ops = append(ops, markerOp(CategoryPlant, "farm.cultivate", "cultivate", "cultivation enabled", 720))
-	}
-	if policy.GetFlowerUpgradeEnabled() {
-		ops = append(ops, markerOp(CategoryPlant, "farm.upgrade", "upgrade", "flower upgrade enabled", 710))
-	}
-	return ops
+type plantAssignment struct {
+	FlowerID int32
+	Count    int32
+	Priority int32
+	GoalID   string
+	DemandID string
+	Reason   string
 }
 
-func basicOps(policy *pb.BasicPolicy) []PlannedOp {
-	if policy == nil {
+func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, emptyCount int32) []plantAssignment {
+	if emptyCount <= 0 {
 		return nil
 	}
-	var ops []PlannedOp
-	add := func(enabled bool, domain, action, reason string, priority int32) {
-		if enabled {
-			ops = append(ops, markerOp(CategoryBasic, domain, action, reason, priority))
+	flowerPolicy := policy.GetFlower()
+	maxBatch := positiveOr(flowerPolicy.GetPlantMaxBatch(), 8)
+	maxPerFlower := positiveOr(flowerPolicy.GetMaxPerFlowerPerCycle(), 4)
+	if maxBatch > emptyCount {
+		maxBatch = emptyCount
+	}
+	allowed := flowerPolicy.GetSpecifiedFlowerIds()
+	if flowerPolicy.GetPlantingMode() != pb.PlantingMode_PLANTING_MODE_SPECIFIC && len(allowed) == 0 {
+		allowed = nil
+	}
+	candidates := s.PlantableFlowers(allowed, flowerPolicy.GetBlockedFlowerIds())
+	plantable := map[int32]state.PlantableFlower{}
+	for _, candidate := range candidates {
+		plantable[candidate.FlowerID] = candidate
+	}
+	var out []plantAssignment
+	remaining := maxBatch
+	for _, demand := range demands {
+		if remaining <= 0 {
+			break
+		}
+		if demand.Kind != DemandKindFlower || demand.Missing <= 0 || len(demand.BlockedReasons) > 0 {
+			continue
+		}
+		if _, ok := plantable[demand.ItemID]; !ok {
+			out = append(out, plantAssignment{
+				FlowerID: demand.ItemID,
+				Priority: demand.Priority*100 + 500,
+				GoalID:   demand.GoalID,
+				DemandID: demand.ID,
+				Reason:   "需求花朵尚未培育，无法种植",
+			})
+			continue
+		}
+		count := demand.Missing
+		if count > maxPerFlower {
+			count = maxPerFlower
+		}
+		if count > remaining {
+			count = remaining
+		}
+		if count <= 0 {
+			continue
+		}
+		out = append(out, plantAssignment{
+			FlowerID: demand.ItemID,
+			Count:    count,
+			Priority: demand.Priority*100 + 500,
+			GoalID:   demand.GoalID,
+			DemandID: demand.ID,
+			Reason:   demand.Label,
+		})
+		remaining -= count
+	}
+	if len(executableAssignments(out)) > 0 || remaining <= 0 {
+		return executableAssignments(out)
+	}
+	return lowStockBalancedAssignments(candidates, remaining, maxPerFlower, flowerPolicy.GetFallbackStockFloor())
+}
+
+func executableAssignments(in []plantAssignment) []plantAssignment {
+	out := in[:0]
+	for _, assignment := range in {
+		if assignment.Count > 0 {
+			out = append(out, assignment)
 		}
 	}
-	add(policy.GetWaterwheelEnabled(), "basic.waterwheel", "claim", "waterwheel enabled", 650)
-	add(policy.GetFreeWaterEnabled(), "basic.free_water", "claim", "free water enabled", 645)
-	add(policy.GetBenefitBoxEnabled(), "basic.benefit", "claim", "benefit box enabled", 640)
-	add(policy.GetMailEnabled(), "basic.mail", "claim", "mail enabled", 635)
-	add(policy.GetWelfareEnabled(), "basic.welfare", "claim", "welfare enabled", 632)
-	add(policy.GetMainTaskEnabled(), "basic.task.main", "claim", "main task rewards enabled", 630)
-	add(policy.GetDailyTaskEnabled(), "basic.task.daily", "claim", "daily task rewards enabled", 625)
-	add(policy.GetWeeklyTaskEnabled(), "basic.task.weekly", "claim", "weekly task rewards enabled", 620)
-	add(policy.GetAchievementTaskEnabled(), "basic.task.achievement", "claim", "achievement rewards enabled", 615)
-	add(policy.GetStoryEnabled(), "basic.story", "unlock", "story unlock enabled", 610)
-	add(policy.GetSignEnabled(), "basic.sign", "claim", "sign enabled", 600)
-	add(policy.GetRoadGrowRewardEnabled(), "basic.road_grow", "claim", "road grow rewards enabled", 598)
-	add(policy.GetRandomEventEnabled(), "basic.random_event", "claim", "random events enabled", 596)
-	if policy.GetPearl().GetEnabled() {
-		ops = append(ops, markerOp(CategoryBasic, "basic.pearl", "run", "pearl enabled", 590))
-	}
-	if policy.GetShop().GetVideoGiftEnabled() || policy.GetShop().GetCultivateShopEnabled() || policy.GetShop().GetVipShopEnabled() {
-		ops = append(ops, markerOp(CategoryBasic, "basic.shop", "buy", "shop automation enabled", 580))
-	}
-	if policy.GetZoo().GetEnabled() || policy.GetZoo().GetSyncEnabled() {
-		ops = append(ops, markerOp(CategoryBasic, "basic.zoo", "run", "zoo automation enabled", 570))
-	}
-	return ops
+	return out
 }
 
-func orderOps(policy *pb.OrderPolicy) []PlannedOp {
-	if policy == nil {
+func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit, maxPerFlower, stockFloor int32) []plantAssignment {
+	if len(candidates) == 0 || limit <= 0 {
 		return nil
 	}
+	if stockFloor < 0 {
+		stockFloor = 0
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Stock != candidates[j].Stock {
+			return candidates[i].Stock < candidates[j].Stock
+		}
+		if candidates[i].Gold != candidates[j].Gold {
+			return candidates[i].Gold > candidates[j].Gold
+		}
+		return candidates[i].FlowerID < candidates[j].FlowerID
+	})
+	remainingByFlower := map[int32]int32{}
+	for _, candidate := range candidates {
+		remainingByFlower[candidate.FlowerID] = maxPerFlower
+	}
+	var out []plantAssignment
+	remaining := limit
+	for remaining > 0 {
+		minStock := candidates[0].Stock
+		if stockFloor > 0 && minStock >= stockFloor {
+			break
+		}
+		nextStock := minStock + 1
+		for _, candidate := range candidates {
+			if candidate.Stock > minStock {
+				nextStock = candidate.Stock
+				break
+			}
+		}
+		if stockFloor > 0 && nextStock > stockFloor {
+			nextStock = stockFloor
+		}
+		advanced := false
+		for i := range candidates {
+			if remaining <= 0 {
+				break
+			}
+			if candidates[i].Stock > minStock {
+				break
+			}
+			if stockFloor > 0 && candidates[i].Stock >= stockFloor {
+				continue
+			}
+			if remainingByFlower[candidates[i].FlowerID] <= 0 {
+				continue
+			}
+			count := nextStock - candidates[i].Stock
+			if count <= 0 {
+				count = 1
+			}
+			if count > remainingByFlower[candidates[i].FlowerID] {
+				count = remainingByFlower[candidates[i].FlowerID]
+			}
+			if count > remaining {
+				count = remaining
+			}
+			out = append(out, plantAssignment{
+				FlowerID: candidates[i].FlowerID,
+				Count:    count,
+				Priority: priorityFor(defaultGoalPriority(), GoalFallback)*100 + 100,
+				GoalID:   GoalFallback,
+				Reason:   "低库存水位均衡补种",
+			})
+			candidates[i].Stock += count
+			remainingByFlower[candidates[i].FlowerID] -= count
+			remaining -= count
+			advanced = true
+		}
+		if !advanced {
+			break
+		}
+		sort.Slice(candidates, func(i, j int) bool {
+			if candidates[i].Stock != candidates[j].Stock {
+				return candidates[i].Stock < candidates[j].Stock
+			}
+			if candidates[i].Gold != candidates[j].Gold {
+				return candidates[i].Gold > candidates[j].Gold
+			}
+			return candidates[i].FlowerID < candidates[j].FlowerID
+		})
+	}
+	return out
+}
+
+func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, ledger *InventoryLedger) []PlannedOp {
 	var ops []PlannedOp
-	if policy.GetCustomer().GetEnabled() {
-		ops = append(ops, markerOp(CategoryOrder, "order.customer", "finish", "customer orders enabled", 780))
+	order := policy.GetOrder()
+	if goal, ok := goalByID(goals, GoalResidentOrder); ok {
+		for boxID, flowerOrder := range s.FlowerOrders() {
+			if canFulfillFlowerOrder(flowerOrder, boxID, goal, ledger) {
+				ops = append(ops, op(clientproto.RPCOrderFlowerFinishOrder.String(), goal, "finish", "居民订单可交付", goal.Priority*100+700, boxID, 0, 0))
+			}
+		}
+		if order.GetResident().GetRewardEnabled() {
+			for _, target := range s.ReadyFlowerOrderRewardTargets() {
+				ops = append(ops, op(clientproto.RPCOrderFlowerRecvOrderRwd.String(), goal, "reward", "居民订单阶段奖励可领取", goal.Priority*100+620, target, 0, 0))
+			}
+		}
 	}
-	if policy.GetResident().GetNormalEnabled() || policy.GetResident().GetDecorateEnabled() || policy.GetResident().GetSatinEnabled() {
-		ops = append(ops, markerOp(CategoryOrder, "order.resident", "finish", "resident orders enabled", 775))
+	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {
+		for npcID, customerOrder := range s.CustomerOrderDetails() {
+			if canFulfillCustomerOrder(customerOrder, npcID, goal, ledger) {
+				ops = append(ops, op(clientproto.RPCOrderCustomerFinishOrder.String(), goal, "finish", "顾客订单可交付", goal.Priority*100+700, npcID, 0, 0))
+				continue
+			}
+			if order.GetCustomer().GetCraftEnabled() {
+				if craft, ok := craftOperationForCustomerOrder(s, customerOrder, npcID, goal, demands, ledger); ok {
+					ops = append(ops, craft)
+				}
+			}
+			if order.GetCustomer().GetRejectEnabled() {
+				blocked := op(clientproto.RPCOrderCustomerRejectOrder.String(), goal, "reject", "顾客订单缺少库存，拒单需人工确认策略", goal.Priority*100+100, npcID, 0, 0)
+				blocked.Status = PlanStatusAdapterMissing
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{"拒单属于高影响动作，本轮重构先不自动执行"}
+				ops = append(ops, blocked)
+			}
+		}
 	}
-	if policy.GetFlowerArt().GetSellEnabled() || policy.GetFlowerArt().GetCraftEnabled() {
-		ops = append(ops, markerOp(CategoryOrder, "order.flower_art", "sell", "flower art enabled", 770))
-	}
-	if policy.GetPalace().GetEnabled() {
-		ops = append(ops, markerOp(CategoryOrder, "order.palace", "finish", "palace orders enabled", 760))
-	}
-	if policy.GetTeam().GetEnabled() {
-		ops = append(ops, markerOp(CategoryOrder, "order.team", "submit", "team orders enabled", 755))
+	if goal, ok := goalByID(goals, GoalFlowerArt); ok {
+		if order.GetFlowerArt().GetCreateRewardEnabled() {
+			for _, vaseID := range s.ReadyArtCreateRewardVaseIDs() {
+				claim := domainOp(clientproto.RPCCollectRwdRecvArtCreateRwdByVase.String(), goal, "order.flower_art.create_reward", "claim", "花艺制作经验奖励可领取", goal.Priority*100+670, vaseID, 0, 0)
+				ops = append(ops, claim)
+				break
+			}
+		}
+		if order.GetFlowerArt().GetCollectRewardEnabled() {
+			for _, typeID := range s.ReadyCollectRewardTypes(11, 12, 13) {
+				claim := domainOp(clientproto.RPCCollectRwdRecv.String(), goal, "order.flower_art.collect_reward", "claim", "图鉴奖励可领取", goal.Priority*100+660, typeID, 0, 0)
+				ops = append(ops, claim)
+				break
+			}
+		}
+		if order.GetFlowerArt().GetSellEnabled() {
+			for _, rackID := range s.EmptyFlowerRackSlotIDs() {
+				if artID, count, ok := bestRackArt(ledger); ok {
+					sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
+					ops = append(ops, sell)
+					break
+				}
+			}
+			for _, slot := range s.FlowerRackSlots() {
+				if slot.ItemID > 0 && slot.Count > 0 {
+					ops = append(ops, op(clientproto.RPCFlowerRackRecvOneKey.String(), goal, "claim", "花架存在上架花艺，可尝试收取收入", goal.Priority*100+300, 0, 0, 0))
+					break
+				}
+			}
+		}
 	}
 	return ops
 }
 
-func unionOps(policy *pb.UnionPolicy) []PlannedOp {
-	if policy == nil {
-		return nil
+func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, npcID int32, goal Goal, demands []Demand, ledger *InventoryLedger) (PlannedOp, bool) {
+	if order == nil {
+		return PlannedOp{}, false
 	}
+	entityID := strconv.FormatInt(int64(npcID), 10)
+	for _, req := range order.ItemRequires {
+		demand, ok := demandByID(demands, demandID(goal.ID, entityID, "direct", DemandKindFlowerArt, req.ItemID))
+		if !ok || demand.Missing <= 0 {
+			continue
+		}
+		availability := FlowerArtAvailability(s, req.ItemID, demand.Missing, ledger)
+		if !availability.Craftable {
+			blocked := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单花艺暂不可制作", goal.Priority*100+500, npcID, req.ItemID, demand.Missing)
+			blocked.Status = PlanStatusAdapterMissing
+			blocked.Executable = false
+			blocked.VaseID = availability.Recipe.VaseID
+			blocked.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
+			blocked.BlockedReasons = append([]string(nil), availability.BlockedReasons...)
+			return blocked, true
+		}
+		craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单缺少花艺成品，材料已满足", goal.Priority*100+650, npcID, req.ItemID, demand.Missing)
+		craft.VaseID = availability.Recipe.VaseID
+		craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
+		return craft, true
+	}
+	return PlannedOp{}, false
+}
+
+func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.Time) []PlannedOp {
 	var ops []PlannedOp
-	if policy.GetBuildFreeEnabled() || policy.GetBuildGoldEnabled() || policy.GetBuildDiamondEnabled() {
-		ops = append(ops, markerOp(CategoryUnion, "union.build", "build", "union build enabled", 500))
+	basic := policy.GetBasic()
+	task := basic.GetTask()
+	benefit := basic.GetBenefit()
+	sign := basic.GetSign()
+	add := func(enabled bool, kind, domain, action, reason string, priority int32, targetID int32) {
+		if !enabled {
+			return
+		}
+		goal := Goal{ID: domain, Category: CategoryBasic, Domain: domain, Label: domain, Priority: priority / 100}
+		ops = append(ops, op(kind, goal, action, reason, priority, targetID, 0, 0))
 	}
-	if policy.GetFlowerShareEnabled() || policy.GetFlowerTakeEnabled() {
-		ops = append(ops, markerOp(CategoryUnion, "union.flower", "share_take", "union flower enabled", 490))
+	if basic.GetWaterwheelEnabled() && s.WaterwheelCooldownReady() {
+		add(true, clientproto.RPCWaterwheelRecv.String(), "basic.waterwheel", "claim", "水车水滴可领取", 6500, 0)
 	}
-	if policy.GetRaceEnabled() {
-		ops = append(ops, markerOp(CategoryUnion, "union.race", "race", "union race enabled", 480))
+	if basic.GetFreeWaterEnabled() {
+		if idx, ok := s.NextFreeWaterIndex(); ok {
+			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx)
+		}
 	}
-	if policy.GetLandAutoPlant() || policy.GetLandHarvest() {
-		ops = append(ops, markerOp(CategoryUnion, "union.land", "run", "union land enabled", 470))
+	if benefit.GetBoxEnabled() && s.BenefitBoxReady() {
+		add(true, clientproto.RPCBenefitBoxDraw.String(), "basic.benefit", "claim", "福利宝箱可领取", 6400, 0)
 	}
-	if policy.GetRedPacketEnabled() {
-		ops = append(ops, markerOp(CategoryUnion, "union.red_packet", "claim", "union red packet enabled", 460))
+	if benefit.GetDoubleCoinEnabled() && !s.VideoDoubleActive(now) {
+		reason := "双倍金币未生效，看视频奖励需要客户端 SDK token"
+		if !s.VideoDoubleObserved() {
+			reason = "双倍金币状态未同步，看视频奖励需要客户端 SDK token"
+		}
+		blocked := markerOp(CategoryBasic, "basic.benefit.double_coin", "claim", reason, 6385)
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"客户端通过 UT.share(11,{opType:1}) 完成激励视频后调用 usr.share；本地 runner 不伪造视频完成或 SDK token"}
+		ops = append(ops, blocked)
 	}
-	if policy.GetForestEnabled() {
-		ops = append(ops, markerOp(CategoryUnion, "union.forest", "run", "union forest enabled", 450))
+	if benefit.GetAntiScamBoxEnabled() {
+		if status, ok := s.AntiFraudQAStatus(); ok && status != state.AntiFraudQAStatusClaimed {
+			if status == 1 {
+				add(true, clientproto.RPCUsrExtraRecvAntiFraudQARwd.String(), "basic.benefit.anti_scam", "claim", "防骗宝箱问答奖励可领取", 6370, 0)
+			} else {
+				add(true, clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(), "basic.benefit.anti_scam", "answer", "防骗宝箱问答未完成，更新问答状态", 6375, 0)
+			}
+		}
 	}
+	if task.GetDailyEnabled() {
+		for _, id := range s.ReadyDailyTaskIDs() {
+			add(true, clientproto.RPCTaskDlyRecv.String(), "basic.task.daily", "claim", "每日任务奖励可领取", 6250, id)
+			break
+		}
+	}
+	if task.GetWeeklyEnabled() {
+		for _, id := range s.ReadyWeeklyTaskIDs() {
+			add(true, clientproto.RPCTaskWeekRecv.String(), "basic.task.weekly", "claim", "每周任务奖励可领取", 6200, id)
+			break
+		}
+	}
+	if basic.GetRoadGrowRewardEnabled() {
+		for _, id := range s.ReadyRoadGrowTaskIDs() {
+			add(true, clientproto.RPCRoadGrowRecv.String(), "basic.road_grow", "claim", "成长之路奖励可领取", 5980, id)
+			break
+		}
+	}
+	if basic.GetRandomEventEnabled() {
+		for _, id := range s.ReadyRandomEventIDs() {
+			add(true, clientproto.RPCRandomEventDoAffair.String(), "basic.random_event", "claim", "地图事件可处理", 5960, id)
+			break
+		}
+	}
+	ops = append(ops, zooOperations(s, basic.GetFeedCat(), now)...)
+	if basic.GetMailEnabled() {
+		add(true, clientproto.RPCMailPickOneKey.String(), "basic.mail", "claim", "邮件一键领取由调度退避控制", 5700, 0)
+	}
+	if sign.GetDailyEnabled() {
+		add(true, clientproto.RPCSignTypeSign.String(), "basic.sign", "claim", "签到由调度退避控制", 5600, 1)
+	}
+	ops = append(ops, pearlOperations(s, basic.GetPearl(), now)...)
 	return ops
 }
 
-func activityOps(policy *pb.ActivityPolicy) []PlannedOp {
+func zooOperations(s *state.State, policy *pb.FeedCatPolicy, now time.Time) []PlannedOp {
 	if policy == nil || !policy.GetEnabled() {
 		return nil
 	}
-	keys := make([]string, 0, len(policy.Modules))
-	for name, module := range policy.Modules {
-		if module != nil && module.GetEnabled() {
-			keys = append(keys, name)
+	goal := Goal{ID: "basic.zoo", Category: CategoryBasic, Domain: "basic.zoo", Label: "喂猫撸猫", Priority: 57}
+	var ops []PlannedOp
+	if !s.ZooObserved() {
+		return []PlannedOp{domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "动物/猫状态未同步，先进入动物园", 5690, 0, 0, 0)}
+	}
+	if policy.GetAutoFeed() {
+		for _, petID := range s.ReadyZooFeedPetIDs() {
+			ops = append(ops, domainOp(clientproto.RPCZooFeedPets.String(), goal, "basic.zoo.feed", "feed", "猫碗中已有食物且当前状态可进食", 5680, petID, 0, 0))
+			break
 		}
 	}
-	sort.Strings(keys)
-	ops := make([]PlannedOp, 0, len(keys))
-	for _, name := range keys {
-		ops = append(ops, markerOp(CategoryActivity, "activity."+name, "run", "activity module enabled", 300))
+	if policy.GetAutoStroke() {
+		for _, petID := range s.ReadyZooStrokePetIDs(now) {
+			ops = append(ops, domainOp(clientproto.RPCZooStrokePet.String(), goal, "basic.zoo.stroke", "stroke", "猫当前可撸且心情未满", 5670, petID, 0, 0))
+			break
+		}
+	}
+	if policy.GetAutoBuyFood() {
+		blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", "购买猫粮涉及成本和商品选择，暂不自动执行", 5660)
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"猫粮购买成本和商品选择尚未放开自动执行"}
+		ops = append(ops, blocked)
+	}
+	if policy.GetAutoRecall() {
+		blocked := markerOp(CategoryBasic, "basic.zoo.recall", "recall", "自动召回猫的事件链路尚未确认，暂不自动执行", 5650)
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"召回事件链路与成本尚未确认"}
+		ops = append(ops, blocked)
 	}
 	return ops
 }
 
-func landOp(kind, domain, action, reason string, priority int32, landIDs []int32, flowerID int32) PlannedOp {
+func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []PlannedOp {
+	if policy == nil || !pearlPolicyEnabled(policy) {
+		return nil
+	}
+	goal := Goal{ID: "basic.pearl", Category: CategoryBasic, Domain: "basic.pearl", Label: "珍珠", Priority: 55}
+	if !s.PearlObserved() {
+		return []PlannedOp{domainOp(clientproto.RPCPearlRefresh.String(), goal, "basic.pearl", "sync", "珍珠状态未同步，先刷新珍珠数据", 5590, 0, 0, 0)}
+	}
+	var ops []PlannedOp
+	if policy.GetFreeEnabled() && s.PearlDailyFreeReady(now) {
+		ops = append(ops, domainOp(clientproto.RPCPearlRecvDailyFree.String(), goal, "basic.pearl.free", "claim", "每日免费珍珠可领取", 5580, 0, 0, 0))
+	}
+	for _, placeID := range s.ReadyPearlPlaceIDs() {
+		ops = append(ops, domainOp(clientproto.RPCPearlPlaceRecv.String(), goal, "basic.pearl.place", "claim", "珍珠位产出可收取", 5570, placeID, 0, 0))
+		break
+	}
+	pearl := s.Pearl()
+	if policy.GetProtectEnabled() && pearl.ProtectState != 1 {
+		protect := domainOp(clientproto.RPCPearlSetProtectState.String(), goal, "basic.pearl.protect", "enable", "珍珠防身未开启", 5560, 1, 0, 0)
+		if pearl.ProtectNum <= 0 {
+			protect.Status = PlanStatusAdapterMissing
+			protect.Executable = false
+			protect.BlockedReasons = []string{"防身符不足或未观测"}
+		}
+		ops = append(ops, protect)
+	}
+	if policy.GetDrawEnabled() {
+		if count := s.PearlDrawCount(); count > 0 {
+			draw := domainOp(clientproto.RPCPearlDraw.String(), goal, "basic.pearl.draw", "draw", "存在可开启珍珠", 5550, 0, 0, 1)
+			if count < draw.Count {
+				draw.Count = count
+			}
+			ops = append(ops, draw)
+		}
+	}
+	if policy.GetAutoHireEnabled() {
+		hire := markerOp(CategoryBasic, "basic.pearl.hire", "hire", "珍珠雇佣需要候选用户与成本确认", 120)
+		hire.Label = "雇佣劳工"
+		hire.Status = PlanStatusAdapterMissing
+		hire.Executable = false
+		hire.BlockedReasons = []string{"自动雇佣需要好友/推荐 UID、雇佣券消耗与等级过滤的协议确认"}
+		ops = append(ops, hire)
+	}
+	if policy.GetAutoBuyHireTicket() {
+		buy := markerOp(CategoryBasic, "basic.pearl.buy_hire_ticket", "buy", "购买雇佣书涉及元宝成本", 110)
+		buy.Label = "购买雇佣书"
+		buy.Status = PlanStatusAdapterMissing
+		buy.Executable = false
+		if policy.GetMaxSpendDiamond() <= 0 {
+			buy.BlockedReasons = []string{"购买雇佣书需要先设置元宝上限"}
+		} else {
+			buy.BlockedReasons = []string{"元宝成本操作尚未放开自动执行"}
+		}
+		ops = append(ops, buy)
+	}
+	return ops
+}
+
+func pearlPolicyEnabled(policy *pb.PearlPolicy) bool {
+	return policy.GetFreeEnabled() || policy.GetAutoHireEnabled() || policy.GetDrawEnabled() ||
+		policy.GetProtectEnabled() || policy.GetAutoBuyHireTicket()
+}
+
+func shopOperations(s *state.State, policy *pb.Policy) []PlannedOp {
+	shop := policy.GetBasic().GetShop()
+	var ops []PlannedOp
+	ops = append(ops, giftbagOperations(s, shop)...)
+	ops = append(ops, cultivateShopOperations(s, shop)...)
+	vipShop := shop.GetVipShop()
+	if vipShop.GetAutoBuy() {
+		blocked := markerOp(CategoryBasic, "basic.shop.vip", "buy", "VIP 商店购买需要成本和状态确认", 115)
+		blocked.Label = "VIP 商店"
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"VIP 商店商品状态、花坊币/元宝成本尚未完成协议确认"}
+		ops = append(ops, blocked)
+	}
+	return ops
+}
+
+func giftbagOperations(s *state.State, shop *pb.ShopPolicy) []PlannedOp {
+	if !shop.GetVideoFreeGiftEnabled() {
+		return nil
+	}
+	goal := Goal{ID: "basic.shop.giftbag", Category: CategoryBasic, Domain: "basic.shop.giftbag", Label: "视频礼包", Priority: 54}
+	if !s.ShopGiftbagObserved() {
+		return []PlannedOp{domainOp(clientproto.RPCShopGiftbagEnter.String(), goal, "basic.shop.giftbag", "sync", "礼包商店状态未同步，先进入商店获取购买记录", 5480, 0, 0, 0)}
+	}
+	for _, offer := range s.ShopGiftbagOffers() {
+		if !freeVideoGiftbag(offer) || offer.Remaining <= 0 {
+			continue
+		}
+		buy := domainOp(clientproto.RPCShopGiftbagBuy.String(), goal, "basic.shop.video_gift", "claim", "视频免费礼包可领取", 5470, offer.ShopID, 0, 1)
+		return []PlannedOp{buy}
+	}
+	return nil
+}
+
+func freeVideoGiftbag(offer state.ShopGiftbagOfferView) bool {
+	return offer.Type == 1 && offer.ShareID > 0 && offer.RchgID == 0 &&
+		offer.MoneyID == 0 && offer.Price == 0 && offer.PriceMax == 0
+}
+
+func cultivateShopOperations(s *state.State, shop *pb.ShopPolicy) []PlannedOp {
+	cultivateShop := shop.GetCultivateShop()
+	if !cultivateShop.GetAutoBuy() {
+		return nil
+	}
+	goal := Goal{ID: "basic.shop.cultivate", Category: CategoryBasic, Domain: "basic.shop.cultivate", Label: "材料商店", Priority: 54}
+	if !s.ShopCultivateObserved() {
+		return []PlannedOp{domainOp(clientproto.RPCShopCultivateEnter.String(), goal, "basic.shop.cultivate", "sync", "材料商店状态未同步，先进入商店获取价格", 5450, 0, 0, 0)}
+	}
+	allowed := int32Set(cultivateShop.GetItemIds())
+	inventory := s.Inventory()
+	var firstBlocked *PlannedOp
+	for _, offer := range s.ShopCultivateOffers() {
+		if offer.ShopID <= 0 || offer.Remaining <= 0 {
+			continue
+		}
+		if len(allowed) > 0 && !allowed[offer.ShopID] && !allowed[offer.ItemID] {
+			continue
+		}
+		buy := domainOp(clientproto.RPCShopCultivateBuy.String(), goal, "basic.shop.cultivate", "buy", "材料商店白名单商品可购买", 5400, offer.ShopID, offer.ItemID, offer.ItemCount)
+		buy.ItemCost = map[int32]int32{}
+		if blocked := applyShopCultivateCostGate(&buy, offer, cultivateShop, s, inventory); len(blocked) > 0 {
+			buy.Status = PlanStatusAdapterMissing
+			buy.Executable = false
+			buy.BlockedReasons = blocked
+			if firstBlocked == nil {
+				cp := buy
+				firstBlocked = &cp
+			}
+			continue
+		}
+		if len(buy.ItemCost) == 0 {
+			buy.ItemCost = nil
+		}
+		return []PlannedOp{buy}
+	}
+	if firstBlocked != nil {
+		return []PlannedOp{*firstBlocked}
+	}
+	return nil
+}
+
+func applyShopCultivateCostGate(op *PlannedOp, offer state.ShopCultivateOfferView, policy *pb.ShopBuyPolicy, s *state.State, inventory map[int32]int32) []string {
+	if offer.CostItemID <= 0 || offer.CostCount <= 0 {
+		return []string{"材料商店价格未观测"}
+	}
+	switch offer.CostItemID {
+	case 11:
+		if policy.GetMaxSpendGold() <= 0 {
+			return []string{"材料商店金币预算未设置"}
+		}
+		if int64(offer.CostCount) > policy.GetMaxSpendGold() {
+			return []string{"材料商店金币成本超过策略上限"}
+		}
+		if s.Gold() < offer.CostCount {
+			return []string{"金币不足"}
+		}
+		op.GoldCost = offer.CostCount
+	case 1:
+		op.DiamondCost = offer.CostCount
+		if policy.GetMaxSpendDiamond() <= 0 {
+			return []string{"材料商店元宝预算未设置"}
+		}
+		if int64(offer.CostCount) > policy.GetMaxSpendDiamond() {
+			return []string{"材料商店元宝成本超过策略上限"}
+		}
+		return []string{"元宝成本操作尚未放开自动执行"}
+	default:
+		if inventory[offer.CostItemID] < offer.CostCount {
+			return []string{"成本物品不足或未观测"}
+		}
+		op.ItemCost[offer.CostItemID] = offer.CostCount
+	}
+	return nil
+}
+
+func unionOperations(s *state.State, union *pb.UnionPolicy) []PlannedOp {
+	if union == nil {
+		return nil
+	}
+	var ops []PlannedOp
+	ops = append(ops, unionBuildOperations(s, union.GetBuild())...)
+	ops = append(ops, unionFlowerOperations(s, union.GetFlower())...)
+	ops = append(ops, unionLandOperations(s, union.GetLand())...)
+	ops = append(ops, unionForestOperations(s, union.GetForestEnabled())...)
+	return ops
+}
+
+func unionFlowerOperations(s *state.State, policy *pb.UnionFlowerPolicy) []PlannedOp {
+	if policy == nil || (!policy.GetShareEnabled() && !policy.GetTakeEnabled()) {
+		return nil
+	}
+	goal := Goal{ID: "union.flower", Category: CategoryUnion, Domain: "union.flower", Label: "公会鲜花共享", Priority: 44}
+	var ops []PlannedOp
+	if policy.GetShareEnabled() {
+		if !s.FmlFlowerShareObserved() {
+			sync := domainOp(clientproto.RPCFmlFlowerShareRefresh.String(), goal, "union.flower.reward", "claim", "公会分享状态未观测，先刷新", 4470, 0, 0, 0)
+			ops = append(ops, sync)
+		} else if slotIDs := s.ReadyFmlFlowerShareRewardSlotIDs(); len(slotIDs) > 0 {
+			claim := domainOp(clientproto.RPCFmlFlowerShareRecvRwd.String(), goal, "union.flower.reward", "claim", "公会分享槽位有可领取奖励", 4470, 0, 0, int32(len(slotIDs)))
+			claim.SlotIDs = slotIDs
+			ops = append(ops, claim)
+		}
+	}
+	if policy.GetTakeEnabled() {
+		if !s.OtherFmlFlowerSharesObserved() {
+			sync := domainOp(clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String(), goal, "union.flower.take", "take", "公会摸花列表未观测，先同步", 4460, 0, 0, 0)
+			ops = append(ops, sync)
+		} else {
+			for _, candidate := range s.FmlFlowerTakeCandidates() {
+				if !unionFlowerTakeAllowed(candidate, policy) {
+					continue
+				}
+				take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", "公会成员分享鲜花可摸取", 4460, candidate.SlotID, 0, 1)
+				take.TargetUID = candidate.UID
+				take.FlowerID = candidate.FlowerID
+				ops = append(ops, take)
+				break
+			}
+		}
+	}
+	return ops
+}
+
+func unionFlowerTakeAllowed(candidate state.FmlFlowerTakeCandidate, policy *pb.UnionFlowerPolicy) bool {
+	if candidate.FlowerID <= 0 {
+		return false
+	}
+	mode := policy.GetTakeMode()
+	flowers := int32Set(policy.GetTakeFlowerIds())
+	qualities := int32Set(policy.GetTakeQualities())
+	switch mode {
+	case pb.SelectionMode_SELECTION_MODE_SPECIFIC:
+		return len(flowers) == 0 || flowers[candidate.FlowerID]
+	case pb.SelectionMode_SELECTION_MODE_EXCLUDE:
+		return !flowers[candidate.FlowerID]
+	case pb.SelectionMode_SELECTION_MODE_QUALITY:
+		return len(qualities) == 0 || qualities[flowerQuality(candidate.FlowerID)]
+	case pb.SelectionMode_SELECTION_MODE_ALL:
+		return true
+	default:
+		if len(flowers) > 0 && !flowers[candidate.FlowerID] {
+			return false
+		}
+		if len(qualities) > 0 && !qualities[flowerQuality(candidate.FlowerID)] {
+			return false
+		}
+		return true
+	}
+}
+
+func flowerQuality(flowerID int32) int32 {
+	item, ok := state.ItemInfoByID(flowerID)
+	if !ok {
+		return 0
+	}
+	return item.Color
+}
+
+func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []PlannedOp {
+	if policy == nil || !unionBuildPolicyEnabled(policy) {
+		return nil
+	}
+	goal := Goal{ID: "union.build", Category: CategoryUnion, Domain: "union.build", Label: "公会建设", Priority: 45}
+	if !s.FmlBuildObserved() {
+		blocked := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", "公会建设状态未观测", 4590, 0, 0, 0)
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"未观察到公会 namespace 25，需先进入公会或补充 fml.enter 同步链路"}
+		return []PlannedOp{blocked}
+	}
+	build := s.FmlBuild()
+	if !build.BuildCountsObserved {
+		blocked := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", "公会建设次数未观测", 4590, 0, 0, 0)
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"未观察到 bldCountMap，无法确认今日建设次数"}
+		return []PlannedOp{blocked}
+	}
+	inventory := s.Inventory()
+	var firstBlocked *PlannedOp
+	for _, id := range unionBuildOptionIDs(policy) {
+		option, ok := state.FmlBuildOptionByID(id)
+		if !ok {
+			blocked := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", "公会建设档位配置缺失", 4500-id, id, 0, 0)
+			blocked.Status = PlanStatusAdapterMissing
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{"缺少 c_fmlBld 静态配置"}
+			if firstBlocked == nil {
+				firstBlocked = &blocked
+			}
+			continue
+		}
+		if option.DailyLimit > 0 && build.BuildCounts[id] >= option.DailyLimit {
+			continue
+		}
+		reason := strings.TrimSpace(option.Name)
+		if reason == "" {
+			reason = fmt.Sprintf("公会建设 #%d", id)
+		}
+		buildOp := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", reason+"可执行", 4500-id, id, 0, 1)
+		if blocked := applyUnionBuildCostGate(&buildOp, option, policy, s, inventory); len(blocked) > 0 {
+			buildOp.Status = PlanStatusAdapterMissing
+			buildOp.Executable = false
+			buildOp.BlockedReasons = blocked
+			if firstBlocked == nil {
+				cp := buildOp
+				firstBlocked = &cp
+			}
+			continue
+		}
+		if len(buildOp.ItemCost) == 0 {
+			buildOp.ItemCost = nil
+		}
+		return []PlannedOp{buildOp}
+	}
+	if firstBlocked != nil {
+		return []PlannedOp{*firstBlocked}
+	}
+	return nil
+}
+
+func unionBuildPolicyEnabled(policy *pb.UnionBuildPolicy) bool {
+	return policy.GetFreeEnabled() || policy.GetGoldEnabled() || policy.GetDiamondEnabled()
+}
+
+func unionBuildOptionIDs(policy *pb.UnionBuildPolicy) []int32 {
+	var ids []int32
+	if policy.GetFreeEnabled() {
+		ids = append(ids, 1)
+	}
+	if policy.GetGoldEnabled() {
+		ids = append(ids, 2)
+	}
+	if policy.GetDiamondEnabled() {
+		ids = append(ids, 3)
+	}
+	return ids
+}
+
+func applyUnionBuildCostGate(op *PlannedOp, option state.FmlBuildOption, policy *pb.UnionBuildPolicy, s *state.State, inventory map[int32]int32) []string {
+	if option.ItemID <= 0 || option.Cost <= 0 {
+		return nil
+	}
+	switch option.ItemID {
+	case 11:
+		if policy.GetMaxSpendGold() <= 0 {
+			return []string{"公会金币建设预算未设置"}
+		}
+		if int64(option.Cost) > policy.GetMaxSpendGold() {
+			return []string{"公会金币建设成本超过策略上限"}
+		}
+		if s.Gold() < option.Cost {
+			return []string{"金币不足"}
+		}
+		op.GoldCost = option.Cost
+	case 1:
+		op.DiamondCost = option.Cost
+		if policy.GetMaxSpendDiamond() <= 0 {
+			return []string{"公会元宝建设预算未设置"}
+		}
+		if int64(option.Cost) > policy.GetMaxSpendDiamond() {
+			return []string{"公会元宝建设成本超过策略上限"}
+		}
+		free, paid := s.Diamonds()
+		if free+paid < option.Cost {
+			return []string{"元宝不足"}
+		}
+		return []string{"元宝成本操作尚未放开自动执行"}
+	default:
+		if inventory[option.ItemID] < option.Cost {
+			return []string{"公会建设成本物品不足或未观测"}
+		}
+		op.ItemCost = map[int32]int32{option.ItemID: option.Cost}
+	}
+	return nil
+}
+
+func unionLandOperations(s *state.State, policy *pb.UnionLandPolicy) []PlannedOp {
+	if policy == nil || !policy.GetHarvestEnabled() {
+		return nil
+	}
+	goal := Goal{ID: "union.land", Category: CategoryUnion, Domain: "union.land", Label: "公会土地", Priority: 44}
+	if !s.FmlLandObserved() {
+		blocked := domainOp(clientproto.RPCFmlLandHarvest.String(), goal, "union.land.harvest", "harvest", "公会土地状态未观测", 4480, 0, 0, 0)
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"未观察到 25.102.fmlLand，需先进入公会土地或等待同步"}
+		return []PlannedOp{blocked}
+	}
+	landIDs := s.ReadyFmlLandHarvestIDs()
+	if len(landIDs) == 0 {
+		return nil
+	}
+	harvest := domainOp(clientproto.RPCFmlLandHarvest.String(), goal, "union.land.harvest", "harvest", "公会土地有成熟鲜花可收获", 4480, 0, 0, int32(len(landIDs)))
+	harvest.LandIDs = landIDs
+	return []PlannedOp{harvest}
+}
+
+func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
+	if !enabled {
+		return nil
+	}
+	goal := Goal{ID: "union.forest", Category: CategoryUnion, Domain: "union.forest", Label: "能量森林", Priority: 43}
+	if !s.FmlForestEnergyObserved() {
+		sync := domainOp(clientproto.RPCFmlForestRefresh.String(), goal, "union.forest", "collect", "能量森林状态未观测，先刷新并自动收集", 4430, 1, 0, 0)
+		return []PlannedOp{sync}
+	}
+	energy := s.FmlForestEnergy()
+	types := s.ReadyFmlForestEnergyTypes()
+	if len(types) == 0 {
+		return nil
+	}
+	collect := domainOp(clientproto.RPCFmlForestRefresh.String(), goal, "union.forest", "collect", "能量森林有临时能量可收集", 4430, 1, 0, energy.PendingTempEnergyTotal)
+	return []PlannedOp{collect}
+}
+
+func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryLedger, now time.Time) []PlannedOp {
+	plant := policy.GetPlant()
+	flower := plant.GetFlower()
+	cultivate := plant.GetCultivate()
+	var ops []PlannedOp
+	goal := Goal{ID: "farm.maintenance", Category: CategoryPlant, Domain: "farm.maintenance", Label: "农场维护", Priority: 55}
+	if flower.GetAutoUnlockLand() {
+		if landID, goldCost, ok := nextLandUnlockCandidate(s); ok {
+			unlock := op(clientproto.RPCUsrLandUnlockLand.String(), goal, "unlock", "有可开垦土地", 7600, landID, 0, 0)
+			unlock.GoldCost = goldCost
+			ops = append(ops, unlock)
+		}
+	}
+	if flower.GetUseSpeedUpTicket() {
+		if lands, count := speedUpCandidates(s, now); count > 0 {
+			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", "存在可加速土地", 7400, 0, 0, count)
+			speed.LandIDs = lands
+			speed.ItemCost = map[int32]int32{1001: count}
+			ops = append(ops, speed)
+		}
+	}
+	if cultivate.GetEnabled() || cultivate.GetUpgradeEnabled() {
+		if cultivate, ok := cultivateOperation(s, plant, ledger, now); ok {
+			ops = append(ops, cultivate)
+		}
+	}
+	return ops
+}
+
+func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
+	var ops []PlannedOp
+	add := func(enabled bool, category, domain, label string) {
+		if !enabled {
+			return
+		}
+		op := markerOp(category, domain, "blocked", "协议或状态不明确，已按计划阻塞", 100)
+		op.Label = label
+		op.Status = PlanStatusAdapterMissing
+		op.Executable = false
+		op.BlockedReasons = []string{"该领域尚未完成协议确认，先记录文档，不自动执行"}
+		ops = append(ops, op)
+	}
+	add(policy.GetOrder().GetPalace().GetEnabled(), CategoryOrder, "order.palace", "宫廷订单")
+	add(policy.GetOrder().GetTeam().GetEnabled(), CategoryOrder, "order.team", "组团订单")
+	union := policy.GetUnion()
+	unionFlower := union.GetFlower()
+	unionRace := union.GetRace()
+	unionLand := union.GetLand()
+	add(unionFlower.GetShareEnabled() || unionRace.GetEnabled() ||
+		unionLand.GetAutoPlantEnabled() ||
+		union.GetRedPacketEnabled(), CategoryUnion, "union.unknown", "公会扩展功能")
+	if policy.GetActivity().GetEnabled() {
+		for name, module := range policy.GetActivity().GetModules() {
+			if module != nil && module.GetEnabled() {
+				add(true, CategoryActivity, "activity."+name, "活动 "+name)
+			}
+		}
+	}
+	return ops
+}
+
+func FlowerArtAvailability(s *state.State, artID, count int32, ledger *InventoryLedger) ArtAvailability {
+	recipe, ok := state.FlowerArtRecipeByID(artID)
+	if !ok {
+		return ArtAvailability{BlockedReasons: []string{"缺少花艺配方"}}
+	}
+	availability := ArtAvailability{Recipe: recipe}
+	availability.LevelOK = recipe.Level <= 0 || s.Level() >= recipe.Level
+	availability.VaseUnlocked = s.HasVase(recipe.VaseID)
+	if !availability.LevelOK {
+		availability.BlockedReasons = append(availability.BlockedReasons, fmt.Sprintf("等级不足，需要 %d 级", recipe.Level))
+	}
+	if !s.VaseObserved() {
+		availability.BlockedReasons = append(availability.BlockedReasons, "未观察到花瓶状态 namespace 102")
+	} else if !availability.VaseUnlocked {
+		availability.BlockedReasons = append(availability.BlockedReasons, fmt.Sprintf("花瓶 #%d 未解锁", recipe.VaseID))
+	}
+	if ledger == nil {
+		ledger = NewInventoryLedger(s.Inventory())
+	}
+	for flowerID, needEach := range recipeFlowerCounts(recipe) {
+		required := needEach * count
+		have := ledger.Owned(flowerID)
+		available := ledger.Available(flowerID)
+		missing := required - available
+		if missing < 0 {
+			missing = 0
+		}
+		demand := Demand{
+			ID:        demandID("flower_art.availability", strconv.FormatInt(int64(artID), 10), "availability", DemandKindFlower, flowerID),
+			Kind:      DemandKindFlower,
+			ItemID:    flowerID,
+			Count:     required,
+			Have:      have,
+			Available: available,
+			Missing:   missing,
+			Label:     fmt.Sprintf("制作 %s", itemLabel(artID)),
+			Priority:  0,
+		}
+		if missing > 0 {
+			demand.BlockedReasons = append(demand.BlockedReasons, "花朵库存不足")
+			availability.BlockedReasons = append(availability.BlockedReasons, fmt.Sprintf("%s 缺少 %d", itemLabel(flowerID), missing))
+		}
+		availability.Requirements = append(availability.Requirements, demand)
+	}
+	availability.Craftable = len(availability.BlockedReasons) == 0
+	return availability
+}
+
+func artBlockedReasons(s *state.State, recipe state.FlowerArtRecipe) []string {
+	var blocked []string
+	if recipe.Level > 0 && s.Level() < recipe.Level {
+		blocked = append(blocked, fmt.Sprintf("等级不足，需要 %d 级", recipe.Level))
+	}
+	if !s.VaseObserved() {
+		blocked = append(blocked, "未观察到花瓶状态 namespace 102")
+	} else if !s.HasVase(recipe.VaseID) {
+		blocked = append(blocked, fmt.Sprintf("花瓶 #%d 未解锁", recipe.VaseID))
+	}
+	return blocked
+}
+
+func recipeFlowerCounts(recipe state.FlowerArtRecipe) map[int32]int32 {
+	out := make(map[int32]int32)
+	for _, flowerID := range recipe.Flowers {
+		if flowerID > 0 {
+			out[flowerID]++
+		}
+	}
+	return out
+}
+
+func bestRackArt(ledger *InventoryLedger) (int32, int32, bool) {
+	var best state.FlowerArtRecipe
+	var bestCount int32
+	if ledger == nil {
+		return 0, 0, false
+	}
+	for itemID := range ledger.owned {
+		available := ledger.Available(itemID)
+		if available <= 0 {
+			continue
+		}
+		recipe, ok := state.FlowerArtRecipeByID(itemID)
+		if !ok {
+			continue
+		}
+		if best.ArtID == 0 || recipe.SaleValue > best.SaleValue || (recipe.SaleValue == best.SaleValue && recipe.ArtID > best.ArtID) {
+			best = recipe
+			bestCount = available
+		}
+	}
+	if best.ArtID == 0 {
+		return 0, 0, false
+	}
+	return best.ArtID, bestCount, true
+}
+
+func canFulfillFlowerOrder(order *state.FlowerOrder, boxID int32, goal Goal, ledger *InventoryLedger) bool {
+	if order == nil || len(order.Requires) == 0 {
+		return false
+	}
+	entityID := strconv.FormatInt(int64(boxID), 10)
+	for _, req := range order.Requires {
+		id := demandID(goal.ID, entityID, "direct", DemandKindFlower, req.FlowerID)
+		if req.FlowerID == 0 || req.Count <= 0 || ledger.AllocatedForDemand(id, req.FlowerID) < req.Count {
+			return false
+		}
+	}
+	return true
+}
+
+func canFulfillCustomerOrder(order *state.CustomerOrder, npcID int32, goal Goal, ledger *InventoryLedger) bool {
+	if order == nil {
+		return false
+	}
+	hasRequirements := false
+	entityID := strconv.FormatInt(int64(npcID), 10)
+	for _, req := range order.Requires {
+		if req.FlowerID == 0 || req.Count <= 0 {
+			continue
+		}
+		hasRequirements = true
+		id := demandID(goal.ID, entityID, "direct", DemandKindFlower, req.FlowerID)
+		if ledger.AllocatedForDemand(id, req.FlowerID) < req.Count {
+			return false
+		}
+	}
+	for _, req := range order.ItemRequires {
+		if req.ItemID == 0 || req.Count <= 0 {
+			continue
+		}
+		hasRequirements = true
+		id := demandID(goal.ID, entityID, "direct", DemandKindFlowerArt, req.ItemID)
+		if ledger.AllocatedForDemand(id, req.ItemID) < req.Count {
+			return false
+		}
+	}
+	return hasRequirements
+}
+
+func speedUpCandidates(s *state.State, now time.Time) ([]int32, int32) {
+	available := s.Inventory()[1001]
+	if available <= 0 {
+		return nil, 0
+	}
+	var ids []int32
+	for id, land := range s.Lands() {
+		if land.State == 2 && land.NextTimeMs > now.UnixMilli() {
+			ids = append(ids, id)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	want := int32(len(ids))
+	if want > available {
+		want = available
+	}
+	if want > 5 {
+		want = 5
+	}
+	return ids[:want], want
+}
+
+func cultivateOperation(s *state.State, policy *pb.PlantPolicy, ledger *InventoryLedger, now time.Time) (PlannedOp, bool) {
+	goal := Goal{ID: "farm.cultivate", Category: CategoryPlant, Domain: "farm.cultivate", Label: "培育", Priority: 55}
+	cultivatePolicy := policy.GetCultivate()
+	cultivations := s.Cultivations()
+	ids := make([]int32, 0, len(cultivations))
+	for id := range cultivations {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	if cultivatePolicy.GetEnabled() {
+		nowMs := now.UnixMilli()
+		for _, id := range ids {
+			cv := cultivations[id]
+			if cv.Status == 1 && cv.CulTimeMs > 0 && cv.CulTimeMs <= nowMs {
+				op := op(clientproto.RPCCultivateRecv.String(), goal, "recv", "培育完成可领取", 7200, 0, 0, 0)
+				op.FlowerID = id
+				return op, true
+			}
+		}
+	}
+	if cultivatePolicy.GetUpgradeEnabled() {
+		targetLevel := cultivatePolicy.GetTargetLevel()
+		for _, id := range ids {
+			cv := cultivations[id]
+			if cv.Status != 2 || cv.Lvl <= 0 {
+				continue
+			}
+			if targetLevel > 0 && cv.Lvl >= targetLevel {
+				continue
+			}
+			cost, ok := state.FlowerUpgradeCostForLevel(id, cv.Lvl)
+			if !ok || s.Inventory()[cost.ItemID] < cost.Count || s.Gold() < cost.Gold {
+				continue
+			}
+			op := op(clientproto.RPCCultivateUpgrade.String(), goal, "upgrade", "鲜花培育等级可升级", 7100, 0, 0, 0)
+			op.FlowerID = id
+			op.GoldCost = cost.Gold
+			op.ItemCost = map[int32]int32{cost.ItemID: cost.Count}
+			return op, true
+		}
+	}
+	if cultivatePolicy.GetEnabled() {
+		for _, flower := range s.PlantableFlowers(nil, nil) {
+			if _, exists := cultivations[flower.FlowerID]; exists {
+				continue
+			}
+			costs, ok := state.CultivateCost(flower.FlowerID)
+			if !ok {
+				blocked := op(clientproto.RPCCultivateCultivate.String(), goal, "cultivate", "培育材料配置未确认", 7050, 0, 0, 0)
+				blocked.FlowerID = flower.FlowerID
+				blocked.Status = PlanStatusAdapterMissing
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{"缺少培育材料静态配置，已阻塞等待确认"}
+				return blocked, true
+			}
+			itemCost := map[int32]int32{}
+			for _, cost := range costs {
+				if cost.ItemID > 0 && cost.Count > 0 {
+					itemCost[cost.ItemID] += cost.Count
+				}
+			}
+			if !ledger.CanSpendItems(itemCost) {
+				continue
+			}
+			op := op(clientproto.RPCCultivateCultivate.String(), goal, "cultivate", "有未培育花朵", 7050, 0, 0, 0)
+			op.FlowerID = flower.FlowerID
+			op.ItemCost = itemCost
+			return op, true
+		}
+	}
+	return PlannedOp{}, false
+}
+
+func nextLandUnlockCandidate(st *state.State) (int32, int32, bool) {
+	if !st.LandRosterObserved() || !st.FarmLandConfigObserved() {
+		return 0, 0, false
+	}
+	opened := st.Lands()
+	reclaimable := 0
+	for _, land := range st.FarmLands() {
+		if _, ok := opened[land.ID]; ok {
+			continue
+		}
+		reclaimable++
+		if reclaimable > 6 {
+			break
+		}
+		if len(land.Cost) < 2 {
+			continue
+		}
+		actualCost := land.Cost[1] - land.Cost[0] + 11
+		if st.Level() >= land.OpenLevel && st.Gold() >= actualCost {
+			return land.ID, actualCost, true
+		}
+	}
+	return 0, 0, false
+}
+
+func landOp(kind, domain, action, reason string, priority int32, landIDs []int32, flowerID int32, goalID, demandID string) PlannedOp {
 	op := PlannedOp{
-		Kind:     kind,
-		Category: CategoryPlant,
-		Domain:   domain,
-		Action:   action,
-		Reason:   reason,
-		Priority: priority,
-		LandIDs:  append([]int32(nil), landIDs...),
-		FlowerID: flowerID,
+		OperationID: operationID(kind, landIDs, flowerID, 0, 0),
+		GoalID:      goalID,
+		DemandID:    demandID,
+		Kind:        kind,
+		Category:    CategoryPlant,
+		Domain:      domain,
+		Action:      action,
+		Reason:      reason,
+		Priority:    priority,
+		LandIDs:     append([]int32(nil), landIDs...),
+		FlowerID:    flowerID,
 	}
 	return enrichPlannedOp(op)
 }
 
 func markerOp(category, domain, action, reason string, priority int32) PlannedOp {
 	op := PlannedOp{
-		Kind:     domain + "." + action,
-		Category: category,
-		Domain:   domain,
-		Action:   action,
-		Reason:   reason,
-		Priority: priority,
+		OperationID: operationID(domain+"."+action, nil, 0, 0, 0),
+		Kind:        domain + "." + action,
+		Category:    category,
+		Domain:      domain,
+		Action:      action,
+		Reason:      reason,
+		Priority:    priority,
 	}
 	return enrichPlannedOp(op)
 }
 
-func selectPlantFlower(s *state.State, policy *pb.PlantPolicy) (int32, int32, int32) {
-	if policy == nil {
-		return 0, 0, 0
+func op(kind string, goal Goal, action, reason string, priority, targetID, itemID, count int32) PlannedOp {
+	out := PlannedOp{
+		OperationID: operationID(kind, nil, 0, targetID, itemID),
+		GoalID:      goal.ID,
+		Kind:        kind,
+		Category:    goal.Category,
+		Domain:      goal.Domain,
+		Action:      action,
+		Reason:      reason,
+		Priority:    priority,
+		TargetID:    targetID,
+		ItemID:      itemID,
+		Count:       count,
 	}
-	mode := normalizePlantMode(policy.GetPlantingMode())
-	if mode == PlantModeSelected && len(policy.GetAllowedFlowerIds()) == 0 {
-		return 0, 0, 0
-	}
-	candidates := s.PlantableFlowers(policy.GetAllowedFlowerIds(), policy.GetBlockedFlowerIds())
-	if len(candidates) == 0 {
-		return 0, 0, 0
-	}
-	if policy.GetTaskPriorityEnabled() {
-		deficits := s.FlowerOrderDeficits()
-		if candidate, deficit, ok := bestDeficitCandidate(candidates, deficits); ok {
-			return candidate.FlowerID, candidate.Stock, deficit
-		}
-	}
-	if mode == PlantModeHighValue || mode == PlantModeSelected {
-		candidate := bestValueCandidate(candidates)
-		return candidate.FlowerID, candidate.Stock, 0
-	}
-	candidate := lowestStockCandidate(candidates)
-	return candidate.FlowerID, candidate.Stock, 0
+	return enrichPlannedOp(out)
 }
 
-func bestDeficitCandidate(candidates []state.PlantableFlower, deficits map[int32]int32) (state.PlantableFlower, int32, bool) {
-	var best state.PlantableFlower
-	var bestDeficit int32
-	for _, candidate := range candidates {
-		deficit := deficits[candidate.FlowerID]
-		if deficit <= 0 {
-			continue
-		}
-		if best.FlowerID == 0 ||
-			deficit > bestDeficit ||
-			(deficit == bestDeficit && candidate.Gold > best.Gold) ||
-			(deficit == bestDeficit && candidate.Gold == best.Gold && candidate.FlowerID < best.FlowerID) {
-			best = candidate
-			bestDeficit = deficit
-		}
+func domainOp(kind string, goal Goal, domain, action, reason string, priority, targetID, itemID, count int32) PlannedOp {
+	out := PlannedOp{
+		OperationID: operationID(kind, nil, 0, targetID, itemID),
+		GoalID:      goal.ID,
+		Kind:        kind,
+		Category:    goal.Category,
+		Domain:      domain,
+		Action:      action,
+		Reason:      reason,
+		Priority:    priority,
+		TargetID:    targetID,
+		ItemID:      itemID,
+		Count:       count,
 	}
-	return best, bestDeficit, best.FlowerID != 0
+	return enrichPlannedOp(out)
 }
 
-func bestValueCandidate(candidates []state.PlantableFlower) state.PlantableFlower {
-	best := candidates[0]
-	for _, candidate := range candidates[1:] {
-		if candidate.Gold > best.Gold ||
-			(candidate.Gold == best.Gold && candidate.Experience > best.Experience) ||
-			(candidate.Gold == best.Gold && candidate.Experience == best.Experience && candidate.FlowerID < best.FlowerID) {
-			best = candidate
+func sortOperations(ops []PlannedOp) {
+	sort.SliceStable(ops, func(i, j int) bool {
+		if ops[i].Priority != ops[j].Priority {
+			return ops[i].Priority > ops[j].Priority
 		}
-	}
-	return best
-}
-
-func lowestStockCandidate(candidates []state.PlantableFlower) state.PlantableFlower {
-	best := candidates[0]
-	for _, candidate := range candidates[1:] {
-		if candidate.Stock < best.Stock ||
-			(candidate.Stock == best.Stock && candidate.Gold > best.Gold) ||
-			(candidate.Stock == best.Stock && candidate.Gold == best.Gold && candidate.FlowerID < best.FlowerID) {
-			best = candidate
+		if ops[i].Category != ops[j].Category {
+			return categoryRank(ops[i].Category) < categoryRank(ops[j].Category)
 		}
-	}
-	return best
-}
-
-func normalizePlantMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case PlantModeLowStock:
-		return PlantModeLowStock
-	case PlantModeHighValue:
-		return PlantModeHighValue
-	case PlantModeSelected:
-		return PlantModeSelected
-	case "":
-		return PlantModeLowStock
-	default:
-		return PlantModeLowStock
-	}
+		if ops[i].Domain != ops[j].Domain {
+			return ops[i].Domain < ops[j].Domain
+		}
+		return ops[i].OperationID < ops[j].OperationID
+	})
 }
 
 func categoryRank(category string) int {
@@ -464,52 +1816,75 @@ func categoryRank(category string) int {
 	}
 }
 
+func int32Set(ids []int32) map[int32]bool {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make(map[int32]bool, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			out[id] = true
+		}
+	}
+	return out
+}
+
 func DefaultPolicy() *pb.Policy {
 	return &pb.Policy{
 		AutomationEnabled: false,
 		Basic: &pb.BasicPolicy{
-			ReputationEnabled:   true,
-			ReputationThreshold: 80,
-			Pearl:               &pb.PearlPolicy{},
-			Shop:                &pb.ShopPolicy{},
-			Zoo:                 &pb.ZooPolicy{},
+			Reputation: &pb.ReputationPolicy{Threshold: 80},
+			Task:       &pb.BasicTaskPolicy{},
+			Benefit:    &pb.BenefitPolicy{},
+			Sign:       &pb.SignPolicy{},
+			Pearl:      &pb.PearlPolicy{},
+			Shop: &pb.ShopPolicy{
+				CultivateShop: &pb.ShopBuyPolicy{},
+				VipShop:       &pb.VipShopPolicy{},
+			},
+			FeedCat: &pb.FeedCatPolicy{},
 		},
 		Plant: &pb.PlantPolicy{
-			HarvestEnabled:           true,
-			HarvestPreferOneKey:      true,
-			PlantEnabled:             true,
-			PlantingMode:             PlantModeLowStock,
-			TaskPriorityEnabled:      true,
-			TaskPriority:             defaultTaskPriority(),
-			PlantMaxBatch:            8,
-			WaterEnabled:             true,
-			WaterMaxBatch:            8,
-			MinWaterDrops:            5,
-			WaterPreferOneKeyIfNoble: false,
+			Cultivate: &pb.CultivatePolicy{
+				TargetLevel: 20,
+			},
+			Flower: &pb.FlowerPlantPolicy{
+				HarvestEnabled:           true,
+				HarvestPreferOneKey:      true,
+				PlantEnabled:             true,
+				PlantMaxBatch:            8,
+				MaxPerFlowerPerCycle:     4,
+				GoalPriority:             defaultGoalPriority(),
+				WaterEnabled:             true,
+				WaterMaxBatch:            8,
+				MinWaterDrops:            5,
+				WaterPreferOneKeyIfNoble: false,
+				PlantingMode:             pb.PlantingMode_PLANTING_MODE_COUNT,
+				FlowerKindCount:          4,
+			},
+			FriendSteal: &pb.FriendStealPolicy{},
+			Elves:       &pb.FlowerElvesPolicy{},
+			Market: &pb.FlowerMarketPolicy{
+				PutMode:    pb.MarketPutMode_MARKET_PUT_MODE_INVENTORY,
+				BuyMode:    pb.MarketBuyMode_MARKET_BUY_MODE_ALL,
+				PriceIndex: 2,
+				MaxSell:    25,
+			},
 		},
 		Order: &pb.OrderPolicy{
 			Customer:  &pb.CustomerOrderPolicy{},
-			Resident:  &pb.ResidentOrderPolicy{},
+			Resident:  &pb.ResidentOrderPolicy{NormalDailyLimit: 1200, DecorateDailyLimit: 120, SatinDailyLimit: 120},
 			Palace:    &pb.PalaceOrderPolicy{},
 			Team:      &pb.TeamOrderPolicy{},
-			FlowerArt: &pb.FlowerArtPolicy{},
+			FlowerArt: &pb.FlowerArtPolicy{PerRackCount: 12},
 		},
 		Union: &pb.UnionPolicy{
-			FlowerShareMode:      "quality",
-			FlowerTakeMode:       "quality",
-			LandPlantMode:        PlantModeLowStock,
-			RaceTaskTypePriority: defaultUnionTaskPriority(),
+			Build:  &pb.UnionBuildPolicy{},
+			Flower: &pb.UnionFlowerPolicy{},
+			Race:   &pb.UnionRacePolicy{TaskTypePriority: defaultUnionRacePriority()},
+			Land:   &pb.UnionLandPolicy{},
 		},
-		Activity: &pb.ActivityPolicy{
-			Modules: defaultActivityModules(),
-		},
-		Safety: &pb.SafetyPolicy{
-			RequireObservedState:     true,
-			StopOnSessionInvalidated: true,
-			MaxConsecutiveErrors:     3,
-			DomainBackoffSeconds:     1800,
-			BlockOnDailyLimit:        true,
-		},
+		Activity:                &pb.ActivityPolicy{},
 		DecisionIntervalSeconds: 4,
 	}
 }
@@ -521,34 +1896,80 @@ func DefaultPolicyIfNil(p *pb.Policy) *pb.Policy {
 	return p
 }
 
-func defaultTaskPriority() map[string]int32 {
+func defaultGoalPriority() map[string]int32 {
 	return map[string]int32{
-		"公会竞赛": 90,
-		"宫廷订单": 80,
-		"居民订单": 70,
-		"顾客订单": 60,
-		"花艺售卖": 50,
-		"莳花纪闻": 40,
+		GoalCustomerOrder: 90,
+		GoalResidentOrder: 80,
+		GoalMainTask:      70,
+		GoalDailyTask:     60,
+		GoalWeeklyTask:    55,
+		GoalFlowerArt:     40,
+		GoalFallback:      10,
 	}
 }
 
-func defaultUnionTaskPriority() map[string]int32 {
-	return map[string]int32{
-		"2004": 50, "3006": 50, "3016": 50, "3017": 50, "3018": 50,
-		"3023": 50, "3024": 50, "3030": 50, "3034": 50, "3035": 50,
-		"3036": 50, "3044": 50, "3052": 50,
+func defaultUnionRacePriority() map[int32]int32 {
+	return map[int32]int32{
+		2004: 0,
+		3006: 2,
+		3016: 2,
+		3017: 3,
+		3018: 2,
+		3023: 3,
+		3024: 3,
+		3030: 2,
+		3034: 2,
+		3035: 3,
+		3036: 1,
+		3044: 3,
+		3052: 3,
 	}
 }
 
-func defaultActivityModules() map[string]*pb.ActivityModulePolicy {
-	names := []string{
-		"actCyclicStory", "actDessert", "actDuanWu", "actElim", "actMerge2",
-		"actSpool", "cyclicNote", "fishFun", "fishMerge", "lanternFestival",
-		"magicBubble", "moneyTree", "recvLuck", "redPacket", "yzCall", "zooGameElim",
+func positiveOr(v, fallback int32) int32 {
+	if v <= 0 {
+		return fallback
 	}
-	out := make(map[string]*pb.ActivityModulePolicy, len(names))
-	for _, name := range names {
-		out[name] = &pb.ActivityModulePolicy{Speed: 1}
+	return v
+}
+
+func demandByID(demands []Demand, id string) (Demand, bool) {
+	for _, demand := range demands {
+		if demand.ID == id {
+			return demand, true
+		}
 	}
-	return out
+	return Demand{}, false
+}
+
+func demandID(goalID, entityID, source, kind string, itemID int32) string {
+	return goalID + ":" + entityID + ":" + source + ":" + kind + ":" + strconv.FormatInt(int64(itemID), 10)
+}
+
+func operationID(kind string, landIDs []int32, flowerID, targetID, itemID int32) string {
+	parts := []string{kind}
+	if targetID != 0 {
+		parts = append(parts, "target="+strconv.FormatInt(int64(targetID), 10))
+	}
+	if itemID != 0 {
+		parts = append(parts, "item="+strconv.FormatInt(int64(itemID), 10))
+	}
+	if flowerID != 0 {
+		parts = append(parts, "flower="+strconv.FormatInt(int64(flowerID), 10))
+	}
+	if len(landIDs) > 0 {
+		ids := make([]string, 0, len(landIDs))
+		for _, id := range landIDs {
+			ids = append(ids, strconv.FormatInt(int64(id), 10))
+		}
+		parts = append(parts, "lands="+strings.Join(ids, ","))
+	}
+	return strings.Join(parts, "|")
+}
+
+func itemLabel(itemID int32) string {
+	if name := state.ItemName(itemID); name != "" {
+		return name
+	}
+	return fmt.Sprintf("#%d", itemID)
 }

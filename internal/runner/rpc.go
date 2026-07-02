@@ -9,13 +9,17 @@ import (
 )
 
 func (r *Runner) runnerRPC(client *babigame.Client, session *babigame.Session) *clientrpc.Client {
-	return clientrpc.NewClient(babigame.NewRPCClient(
+	return clientrpc.NewClient(r.runnerRawRPC(client, session))
+}
+
+func (r *Runner) runnerRawRPC(client *babigame.Client, session *babigame.Session) *babigame.RPCClient {
+	return babigame.NewRPCClient(
 		client,
 		session,
 		babigame.WithDefaultTimeout(10*time.Second),
 		babigame.WithServerErrorsAsResults(),
 		babigame.WithApplyV(r.state.ApplyV),
-	))
+	)
 }
 
 func rpcResult[T any](resp babigame.RPCResponse[T], err error) (json.RawMessage, babigame.WSResponseD, error) {

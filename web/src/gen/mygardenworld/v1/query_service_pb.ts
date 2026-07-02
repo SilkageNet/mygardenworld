@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/query_service.proto.
  */
 export const file_mygardenworld_v1_query_service: GenFile = /*@__PURE__*/
-  fileDesc("CiRteWdhcmRlbndvcmxkL3YxL3F1ZXJ5X3NlcnZpY2UucHJvdG8SEG15Z2FyZGVud29ybGQudjEiPAoQR2V0U3RhdHVzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSJGChFHZXRTdGF0dXNSZXNwb25zZRIxCghhY2NvdW50cxgBIAMoCzIfLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cyLQAwoNQWNjb3VudFN0YXR1cxISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIRCgljb25uZWN0ZWQYAyABKAgSMQoNbGFzdF9ldmVudF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLa25vd25fbGFuZHMYBSABKAUSPAoHYnlfa2luZBgHIAMoCzIrLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cy5CeUtpbmRFbnRyeRIaChJmbG93ZXJfc3RvY2tfdG90YWwYCCABKAUSGgoSYXV0b21hdGlvbl9lbmFibGVkGAkgASgIEjgKC2RpYWdub3N0aWNzGAogASgLMiMubXlnYXJkZW53b3JsZC52MS5SdW5uZXJEaWFnbm9zdGljcxI3Cg9kb21haW5fc3RhdHVzZXMYCyADKAsyHi5teWdhcmRlbndvcmxkLnYxLkRvbWFpblN0YXR1cxIOCgZoZWFsdGgYDCABKAkSEgoKbGFzdF9lcnJvchgNIAEoCRotCgtCeUtpbmRFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAU6AjgBItYEChFSdW5uZXJEaWFnbm9zdGljcxIZChFjdXJyZW50X29wZXJhdGlvbhgBIAEoCRJAChxjdXJyZW50X29wZXJhdGlvbl9zdGFydGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5sYXN0X29wZXJhdGlvbhgDIAEoCRI1ChFsYXN0X29wZXJhdGlvbl9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASHAoUbGFzdF9vcGVyYXRpb25fZXJyb3IYBSABKAkSOwoXbGFzdF9vcGVyYXRpb25fZXJyb3JfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjQKEG5leHRfZGVjaXNpb25fYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjcKE25leHRfZG9tYWluX3RpY2tfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjUKEW5leHRfY3VsdGl2YXRlX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIiChpzZXNzaW9uX2ludmFsaWRhdGVkX3JlYXNvbhgKIAEoCRIXCg9ibG9ja2VkX3JlYXNvbnMYCyADKAkSGQoRdW5rbm93bl9ycGNfY291bnQYDCABKAUSHwoXdW5rbm93bl9uYW1lc3BhY2VfY291bnQYDSABKAUSGwoTb2JzZXJ2ZWRfbmFtZXNwYWNlcxgOIAMoCSI+ChJHZXRTbmFwc2hvdFJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAki4gYKE0dldFNuYXBzaG90UmVzcG9uc2USEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSKQoFbGFuZHMYAyADKAsyGi5teWdhcmRlbndvcmxkLnYxLkxhbmRWaWV3EkcKCWludmVudG9yeRgEIAMoCzI0Lm15Z2FyZGVud29ybGQudjEuR2V0U25hcHNob3RSZXNwb25zZS5JbnZlbnRvcnlFbnRyeRIPCgdyb2xlX2lkGAUgASgDEhEKCXJvbGVfbmFtZRgGIAEoCRIvCgtjYXB0dXJlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEZ29sZBgIIAEoBRITCgt3YXRlcl9kcm9wcxgJIAEoBRIZChF3YXRlcl9kcm9wc190b3RhbBgKIAEoBRIbChN3YXRlcl9kcm9wc19uZXh0X21zGAsgASgDEg0KBWxldmVsGAwgASgFEhIKCmV4cGVyaWVuY2UYDSABKAUSFQoNZGlhbW9uZHNfZnJlZRgOIAEoBRIVCg1kaWFtb25kc19wYWlkGA8gASgFEjgKDXBlbmRpbmdfdGFza3MYECADKAsyIS5teWdhcmRlbndvcmxkLnYxLlBlbmRpbmdUYXNrVmlldxILCgN2aXAYESABKAUSDwoHdmlwX2V4cBgSIAEoBRIWCg5ub2JsZV9lbGlnaWJsZRgTIAEoCBIbChNvYnNlcnZlZF9uYW1lc3BhY2VzGBQgAygJEhkKEXVua25vd25fcnBjX2NvdW50GBUgASgFEh8KF3Vua25vd25fbmFtZXNwYWNlX2NvdW50GBYgASgFEjgKC2RpYWdub3N0aWNzGBcgASgLMiMubXlnYXJkZW53b3JsZC52MS5SdW5uZXJEaWFnbm9zdGljcxI3Cg9kb21haW5fc3RhdHVzZXMYGCADKAsyHi5teWdhcmRlbndvcmxkLnYxLkRvbWFpblN0YXR1cxI+ChJwbGFubmVkX29wZXJhdGlvbnMYGSADKAsyIi5teWdhcmRlbndvcmxkLnYxLlBsYW5uZWRPcGVyYXRpb24aMAoOSW52ZW50b3J5RW50cnkSCwoDa2V5GAEgASgFEg0KBXZhbHVlGAIgASgFOgI4ASKXAgoITGFuZFZpZXcSDwoHbGFuZF9pZBgBIAEoBRIRCglmbG93ZXJfaWQYAiABKAUSDQoFc3RhdGUYAyABKAUSCwoDbHZsGAQgASgFEhMKC2hhcnZlc3RfY250GAUgASgFEhQKDG5leHRfdGltZV9tcxgGIAEoAxIVCg1wbGFudF90aW1lX21zGAcgASgDEhYKDnJlY29tbWVuZGF0aW9uGAggASgJEg4KBnJlYXNvbhgJIAEoCRITCgtsYW5kX3N0YXR1cxgKIAEoCRIQCghvYnNlcnZlZBgLIAEoCBISCgpvcGVuX2xldmVsGAwgASgFEhMKC3VubG9ja19jb3N0GA0gAygFEhEKCXdhc3RlbGFuZBgOIAMoBSKpAQoPUGVuZGluZ1Rhc2tWaWV3EhAKCGNhdGVnb3J5GAEgASgJEgoKAmlkGAIgASgJEg0KBXRpdGxlGAMgASgJEhAKCGZpbmlzaGVkGAQgASgFEg4KBnRhcmdldBgFIAEoBRIOCgZzdGF0dXMYBiABKAkSNwoMcmVxdWlyZW1lbnRzGAcgAygLMiEubXlnYXJkZW53b3JsZC52MS5SZXF1aXJlbWVudFZpZXciOgoOR2V0UGxhblJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkirAEKD0dldFBsYW5SZXNwb25zZRISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRI2CgpvcGVyYXRpb25zGAMgAygLMiIubXlnYXJkZW53b3JsZC52MS5QbGFubmVkT3BlcmF0aW9uEjcKD2RvbWFpbl9zdGF0dXNlcxgEIAMoCzIeLm15Z2FyZGVud29ybGQudjEuRG9tYWluU3RhdHVzIqoDChBQbGFubmVkT3BlcmF0aW9uEhAKCGNhdGVnb3J5GAEgASgJEg4KBmRvbWFpbhgCIAEoCRIOCgZhY3Rpb24YAyABKAkSCwoDcnBjGAQgASgJEg4KBnJlYXNvbhgFIAEoCRIQCghsYW5kX2lkcxgGIAMoBRIRCglmbG93ZXJfaWQYByABKAUSEAoIcHJpb3JpdHkYCCABKAUSEQoJZ29sZF9jb3N0GAkgASgFEhQKDGRpYW1vbmRfY29zdBgKIAEoBRJDCglpdGVtX2Nvc3QYCyADKAsyMC5teWdhcmRlbndvcmxkLnYxLlBsYW5uZWRPcGVyYXRpb24uSXRlbUNvc3RFbnRyeRISCgpmZWF0dXJlX2lkGAwgASgJEg0KBWxhYmVsGA0gASgJEg4KBnN0YXR1cxgOIAEoCRISCgpleGVjdXRhYmxlGA8gASgIEhEKCXN5bmNfb25seRgQIAEoCBIXCg9ibG9ja2VkX3JlYXNvbnMYESADKAkaLwoNSXRlbUNvc3RFbnRyeRILCgNrZXkYASABKAUSDQoFdmFsdWUYAiABKAU6AjgBIn8KDERvbWFpblN0YXR1cxIQCghjYXRlZ29yeRgBIAEoCRIOCgZkb21haW4YAiABKAkSEAoIb2JzZXJ2ZWQYAyABKAgSDgoGc3RhdHVzGAQgASgJEhcKD2Jsb2NrZWRfcmVhc29ucxgFIAMoCRISCgpsYXN0X2Vycm9yGAYgASgJIoIBCg9SZXF1aXJlbWVudFZpZXcSDwoHaXRlbV9pZBgBIAEoBRIRCglpdGVtX25hbWUYAiABKAkSEAoIcmVxdWlyZWQYAyABKAUSDQoFb3duZWQYBCABKAUSDwoHbWlzc2luZxgFIAEoBRIZChFwbGFudGluZ19yZWxldmFudBgGIAEoCCJwChZHZXRIYXJ2ZXN0U3RhdHNSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEhcKD3J1bl9nYXBfc2Vjb25kcxgDIAEoBRITCgtsaW1pdF9pdGVtcxgEIAEoBSLiAQoXR2V0SGFydmVzdFN0YXRzUmVzcG9uc2USMAoMd2luZG93X3N0YXJ0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp3aW5kb3dfZW5kGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIXCg9ydW5fZ2FwX3NlY29uZHMYAyABKAUSEwoLaGFydmVzdF9vcHMYBCABKAUSNwoIYWNjb3VudHMYBSADKAsyJS5teWdhcmRlbndvcmxkLnYxLkFjY291bnRIYXJ2ZXN0U3RhdHMizgIKE0FjY291bnRIYXJ2ZXN0U3RhdHMSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSNAoQZmlyc3RfaGFydmVzdF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbGFzdF9oYXJ2ZXN0X2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtoYXJ2ZXN0X29wcxgFIAEoBRIYChBleHBlcmllbmNlX3RvdGFsGAYgASgDEhQKDGZsb3dlcl90b3RhbBgHIAEoAxIVCg1lc3NlbmNlX3RvdGFsGAggASgDEhMKC290aGVyX3RvdGFsGAkgASgDEjEKBWl0ZW1zGAogAygLMiIubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0SXRlbVRvdGFsIlcKEEhhcnZlc3RJdGVtVG90YWwSDwoHaXRlbV9pZBgBIAEoBRIRCglpdGVtX25hbWUYAiABKAkSDQoFY291bnQYAyABKAMSEAoIY2F0ZWdvcnkYBCABKAkiTgoTU3RyZWFtRXZlbnRzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRINCgVraW5kcxgDIAMoCSLeAQoFRXZlbnQSJgoCdHMYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmFjY291bnRfaWQYAiABKAkSFAoMYWNjb3VudF9uYW1lGAMgASgJEgwKBGtpbmQYBCABKAkSDwoHbWVzc2FnZRgFIAEoCRIUCgxwYXlsb2FkX2pzb24YBiABKAkSEAoIY2F0ZWdvcnkYByABKAkSDQoFbGFiZWwYCCABKAkSDQoFbGV2ZWwYCSABKAkSDgoGZG9tYWluGAogASgJEg4KBmFjdGlvbhgLIAEoCTLKAwoMUXVlcnlTZXJ2aWNlElQKCUdldFN0YXR1cxIiLm15Z2FyZGVud29ybGQudjEuR2V0U3RhdHVzUmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuR2V0U3RhdHVzUmVzcG9uc2USWgoLR2V0U25hcHNob3QSJC5teWdhcmRlbndvcmxkLnYxLkdldFNuYXBzaG90UmVxdWVzdBolLm15Z2FyZGVud29ybGQudjEuR2V0U25hcHNob3RSZXNwb25zZRJmCg9HZXRIYXJ2ZXN0U3RhdHMSKC5teWdhcmRlbndvcmxkLnYxLkdldEhhcnZlc3RTdGF0c1JlcXVlc3QaKS5teWdhcmRlbndvcmxkLnYxLkdldEhhcnZlc3RTdGF0c1Jlc3BvbnNlEk4KB0dldFBsYW4SIC5teWdhcmRlbndvcmxkLnYxLkdldFBsYW5SZXF1ZXN0GiEubXlnYXJkZW53b3JsZC52MS5HZXRQbGFuUmVzcG9uc2USUAoMU3RyZWFtRXZlbnRzEiUubXlnYXJkZW53b3JsZC52MS5TdHJlYW1FdmVudHNSZXF1ZXN0GhcubXlnYXJkZW53b3JsZC52MS5FdmVudDABQooBChRjb20ubXlnYXJkZW53b3JsZC52MUIRUXVlcnlTZXJ2aWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp]);
+  fileDesc("CiRteWdhcmRlbndvcmxkL3YxL3F1ZXJ5X3NlcnZpY2UucHJvdG8SEG15Z2FyZGVud29ybGQudjEiPAoQR2V0U3RhdHVzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSJGChFHZXRTdGF0dXNSZXNwb25zZRIxCghhY2NvdW50cxgBIAMoCzIfLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cyLQAwoNQWNjb3VudFN0YXR1cxISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIRCgljb25uZWN0ZWQYAyABKAgSMQoNbGFzdF9ldmVudF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEwoLa25vd25fbGFuZHMYBSABKAUSPAoHYnlfa2luZBgHIAMoCzIrLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cy5CeUtpbmRFbnRyeRIaChJmbG93ZXJfc3RvY2tfdG90YWwYCCABKAUSGgoSYXV0b21hdGlvbl9lbmFibGVkGAkgASgIEjgKC2RpYWdub3N0aWNzGAogASgLMiMubXlnYXJkZW53b3JsZC52MS5SdW5uZXJEaWFnbm9zdGljcxI3Cg9kb21haW5fc3RhdHVzZXMYCyADKAsyHi5teWdhcmRlbndvcmxkLnYxLkRvbWFpblN0YXR1cxIOCgZoZWFsdGgYDCABKAkSEgoKbGFzdF9lcnJvchgNIAEoCRotCgtCeUtpbmRFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAU6AjgBIuYDChFSdW5uZXJEaWFnbm9zdGljcxIZChFjdXJyZW50X29wZXJhdGlvbhgBIAEoCRJAChxjdXJyZW50X29wZXJhdGlvbl9zdGFydGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5sYXN0X29wZXJhdGlvbhgDIAEoCRI1ChFsYXN0X29wZXJhdGlvbl9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASHAoUbGFzdF9vcGVyYXRpb25fZXJyb3IYBSABKAkSOwoXbGFzdF9vcGVyYXRpb25fZXJyb3JfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjQKEG5leHRfZGVjaXNpb25fYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiIKGnNlc3Npb25faW52YWxpZGF0ZWRfcmVhc29uGAogASgJEhcKD2Jsb2NrZWRfcmVhc29ucxgLIAMoCRIZChF1bmtub3duX3JwY19jb3VudBgMIAEoBRIfChd1bmtub3duX25hbWVzcGFjZV9jb3VudBgNIAEoBRIbChNvYnNlcnZlZF9uYW1lc3BhY2VzGA4gAygJIj4KEkdldFNuYXBzaG90UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSKKCAoTR2V0U25hcHNob3RSZXNwb25zZRISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIpCgVsYW5kcxgDIAMoCzIaLm15Z2FyZGVud29ybGQudjEuTGFuZFZpZXcSRwoJaW52ZW50b3J5GAQgAygLMjQubXlnYXJkZW53b3JsZC52MS5HZXRTbmFwc2hvdFJlc3BvbnNlLkludmVudG9yeUVudHJ5Eg8KB3JvbGVfaWQYBSABKAMSEQoJcm9sZV9uYW1lGAYgASgJEi8KC2NhcHR1cmVkX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIMCgRnb2xkGAggASgFEhMKC3dhdGVyX2Ryb3BzGAkgASgFEhkKEXdhdGVyX2Ryb3BzX3RvdGFsGAogASgFEhsKE3dhdGVyX2Ryb3BzX25leHRfbXMYCyABKAMSDQoFbGV2ZWwYDCABKAUSEgoKZXhwZXJpZW5jZRgNIAEoBRIVCg1kaWFtb25kc19mcmVlGA4gASgFEhUKDWRpYW1vbmRzX3BhaWQYDyABKAUSOAoNcGVuZGluZ190YXNrcxgQIAMoCzIhLm15Z2FyZGVud29ybGQudjEuUGVuZGluZ1Rhc2tWaWV3EgsKA3ZpcBgRIAEoBRIPCgd2aXBfZXhwGBIgASgFEhYKDm5vYmxlX2VsaWdpYmxlGBMgASgIEhsKE29ic2VydmVkX25hbWVzcGFjZXMYFCADKAkSGQoRdW5rbm93bl9ycGNfY291bnQYFSABKAUSHwoXdW5rbm93bl9uYW1lc3BhY2VfY291bnQYFiABKAUSOAoLZGlhZ25vc3RpY3MYFyABKAsyIy5teWdhcmRlbndvcmxkLnYxLlJ1bm5lckRpYWdub3N0aWNzEjcKD2RvbWFpbl9zdGF0dXNlcxgYIAMoCzIeLm15Z2FyZGVud29ybGQudjEuRG9tYWluU3RhdHVzEj4KEnBsYW5uZWRfb3BlcmF0aW9ucxgZIAMoCzIiLm15Z2FyZGVud29ybGQudjEuUGxhbm5lZE9wZXJhdGlvbhItCgdkZW1hbmRzGBogAygLMhwubXlnYXJkZW53b3JsZC52MS5EZW1hbmRWaWV3EikKBXZhc2VzGBwgAygLMhoubXlnYXJkZW53b3JsZC52MS5WYXNlVmlldxJMChdmbG93ZXJfYXJ0X2F2YWlsYWJpbGl0eRgdIAMoCzIrLm15Z2FyZGVud29ybGQudjEuRmxvd2VyQXJ0QXZhaWxhYmlsaXR5VmlldxowCg5JbnZlbnRvcnlFbnRyeRILCgNrZXkYASABKAUSDQoFdmFsdWUYAiABKAU6AjgBIpcCCghMYW5kVmlldxIPCgdsYW5kX2lkGAEgASgFEhEKCWZsb3dlcl9pZBgCIAEoBRINCgVzdGF0ZRgDIAEoBRILCgNsdmwYBCABKAUSEwoLaGFydmVzdF9jbnQYBSABKAUSFAoMbmV4dF90aW1lX21zGAYgASgDEhUKDXBsYW50X3RpbWVfbXMYByABKAMSFgoOcmVjb21tZW5kYXRpb24YCCABKAkSDgoGcmVhc29uGAkgASgJEhMKC2xhbmRfc3RhdHVzGAogASgJEhAKCG9ic2VydmVkGAsgASgIEhIKCm9wZW5fbGV2ZWwYDCABKAUSEwoLdW5sb2NrX2Nvc3QYDSADKAUSEQoJd2FzdGVsYW5kGA4gAygFIqkBCg9QZW5kaW5nVGFza1ZpZXcSEAoIY2F0ZWdvcnkYASABKAkSCgoCaWQYAiABKAkSDQoFdGl0bGUYAyABKAkSEAoIZmluaXNoZWQYBCABKAUSDgoGdGFyZ2V0GAUgASgFEg4KBnN0YXR1cxgGIAEoCRI3CgxyZXF1aXJlbWVudHMYByADKAsyIS5teWdhcmRlbndvcmxkLnYxLlJlcXVpcmVtZW50VmlldyK8BAoQUGxhbm5lZE9wZXJhdGlvbhIQCghjYXRlZ29yeRgBIAEoCRIOCgZkb21haW4YAiABKAkSDgoGYWN0aW9uGAMgASgJEgsKA3JwYxgEIAEoCRIOCgZyZWFzb24YBSABKAkSEAoIbGFuZF9pZHMYBiADKAUSEQoJZmxvd2VyX2lkGAcgASgFEhAKCHByaW9yaXR5GAggASgFEhEKCWdvbGRfY29zdBgJIAEoBRIUCgxkaWFtb25kX2Nvc3QYCiABKAUSQwoJaXRlbV9jb3N0GAsgAygLMjAubXlnYXJkZW53b3JsZC52MS5QbGFubmVkT3BlcmF0aW9uLkl0ZW1Db3N0RW50cnkSEgoKZmVhdHVyZV9pZBgMIAEoCRINCgVsYWJlbBgNIAEoCRIOCgZzdGF0dXMYDiABKAkSEgoKZXhlY3V0YWJsZRgPIAEoCBIRCglzeW5jX29ubHkYECABKAgSFwoPYmxvY2tlZF9yZWFzb25zGBEgAygJEhQKDG9wZXJhdGlvbl9pZBgSIAEoCRIPCgdnb2FsX2lkGBMgASgJEhEKCWRlbWFuZF9pZBgUIAEoCRIRCgl0YXJnZXRfaWQYFSABKAUSDwoHaXRlbV9pZBgWIAEoBRINCgVjb3VudBgXIAEoBRIPCgd2YXNlX2lkGBggASgFEhIKCmZsb3dlcl9pZHMYGSADKAUaLwoNSXRlbUNvc3RFbnRyeRILCgNrZXkYASABKAUSDQoFdmFsdWUYAiABKAU6AjgBIn8KDERvbWFpblN0YXR1cxIQCghjYXRlZ29yeRgBIAEoCRIOCgZkb21haW4YAiABKAkSEAoIb2JzZXJ2ZWQYAyABKAgSDgoGc3RhdHVzGAQgASgJEhcKD2Jsb2NrZWRfcmVhc29ucxgFIAMoCRISCgpsYXN0X2Vycm9yGAYgASgJIqsBCg9SZXF1aXJlbWVudFZpZXcSDwoHaXRlbV9pZBgBIAEoBRIRCglpdGVtX25hbWUYAiABKAkSEAoIcmVxdWlyZWQYAyABKAUSDQoFb3duZWQYBCABKAUSDwoHbWlzc2luZxgFIAEoBRIZChFwbGFudGluZ19yZWxldmFudBgGIAEoCBIOCgZzb3VyY2UYByABKAkSFwoPYmxvY2tlZF9yZWFzb25zGAggAygJIrICCgpEZW1hbmRWaWV3EgoKAmlkGAEgASgJEg8KB2dvYWxfaWQYAiABKAkSEAoIY2F0ZWdvcnkYAyABKAkSDgoGZG9tYWluGAQgASgJEhEKCWVudGl0eV9pZBgFIAEoCRINCgVsYWJlbBgGIAEoCRIPCgdpdGVtX2lkGAcgASgFEhEKCWl0ZW1fbmFtZRgIIAEoCRIQCghyZXF1aXJlZBgJIAEoBRINCgVvd25lZBgKIAEoBRIRCglhbGxvY2F0ZWQYCyABKAUSEQoJYXZhaWxhYmxlGAwgASgFEg8KB21pc3NpbmcYDSABKAUSEAoIcHJpb3JpdHkYDiABKAUSDAoEa2luZBgPIAEoCRIOCgZzb3VyY2UYECABKAkSFwoPYmxvY2tlZF9yZWFzb25zGBEgAygJIkEKCFZhc2VWaWV3Eg8KB3Zhc2VfaWQYASABKAUSEQoJdV90aW1lX21zGAIgASgDEhEKCWNfdGltZV9tcxgDIAEoAyL/AQoZRmxvd2VyQXJ0QXZhaWxhYmlsaXR5VmlldxIOCgZhcnRfaWQYASABKAUSEAoIYXJ0X25hbWUYAiABKAkSDwoHdmFzZV9pZBgDIAEoBRINCgVsZXZlbBgEIAEoBRISCgpzYWxlX3ZhbHVlGAUgASgFEhAKCGxldmVsX29rGAYgASgIEhUKDXZhc2VfdW5sb2NrZWQYByABKAgSEQoJY3JhZnRhYmxlGAggASgIEjcKDHJlcXVpcmVtZW50cxgJIAMoCzIhLm15Z2FyZGVud29ybGQudjEuUmVxdWlyZW1lbnRWaWV3EhcKD2Jsb2NrZWRfcmVhc29ucxgKIAMoCSJOChNTdHJlYW1FdmVudHNSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEg0KBWtpbmRzGAMgAygJIt4BCgVFdmVudBImCgJ0cxgBIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKYWNjb3VudF9pZBgCIAEoCRIUCgxhY2NvdW50X25hbWUYAyABKAkSDAoEa2luZBgEIAEoCRIPCgdtZXNzYWdlGAUgASgJEhQKDHBheWxvYWRfanNvbhgGIAEoCRIQCghjYXRlZ29yeRgHIAEoCRINCgVsYWJlbBgIIAEoCRINCgVsZXZlbBgJIAEoCRIOCgZkb21haW4YCiABKAkSDgoGYWN0aW9uGAsgASgJMpICCgxRdWVyeVNlcnZpY2USVAoJR2V0U3RhdHVzEiIubXlnYXJkZW53b3JsZC52MS5HZXRTdGF0dXNSZXF1ZXN0GiMubXlnYXJkZW53b3JsZC52MS5HZXRTdGF0dXNSZXNwb25zZRJaCgtHZXRTbmFwc2hvdBIkLm15Z2FyZGVud29ybGQudjEuR2V0U25hcHNob3RSZXF1ZXN0GiUubXlnYXJkZW53b3JsZC52MS5HZXRTbmFwc2hvdFJlc3BvbnNlElAKDFN0cmVhbUV2ZW50cxIlLm15Z2FyZGVud29ybGQudjEuU3RyZWFtRXZlbnRzUmVxdWVzdBoXLm15Z2FyZGVud29ybGQudjEuRXZlbnQwAUKKAQoUY29tLm15Z2FyZGVud29ybGQudjFCEVF1ZXJ5U2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * @generated from message mygardenworld.v1.GetStatusRequest
@@ -171,16 +171,6 @@ export type RunnerDiagnostics = Message<"mygardenworld.v1.RunnerDiagnostics"> & 
    * @generated from field: google.protobuf.Timestamp next_decision_at = 7;
    */
   nextDecisionAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp next_domain_tick_at = 8;
-   */
-  nextDomainTickAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp next_cultivate_at = 9;
-   */
-  nextCultivateAt?: Timestamp | undefined;
 
   /**
    * @generated from field: string session_invalidated_reason = 10;
@@ -369,6 +359,21 @@ export type GetSnapshotResponse = Message<"mygardenworld.v1.GetSnapshotResponse"
    * @generated from field: repeated mygardenworld.v1.PlannedOperation planned_operations = 25;
    */
   plannedOperations: PlannedOperation[];
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.DemandView demands = 26;
+   */
+  demands: DemandView[];
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.VaseView vases = 28;
+   */
+  vases: VaseView[];
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.FlowerArtAvailabilityView flower_art_availability = 29;
+   */
+  flowerArtAvailability: FlowerArtAvailabilityView[];
 };
 
 /**
@@ -527,60 +532,6 @@ export const PendingTaskViewSchema: GenMessage<PendingTaskView> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_query_service, 7);
 
 /**
- * @generated from message mygardenworld.v1.GetPlanRequest
- */
-export type GetPlanRequest = Message<"mygardenworld.v1.GetPlanRequest"> & {
-  /**
-   * @generated from field: string account_id = 1;
-   */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
-};
-
-/**
- * Describes the message mygardenworld.v1.GetPlanRequest.
- * Use `create(GetPlanRequestSchema)` to create a new message.
- */
-export const GetPlanRequestSchema: GenMessage<GetPlanRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 8);
-
-/**
- * @generated from message mygardenworld.v1.GetPlanResponse
- */
-export type GetPlanResponse = Message<"mygardenworld.v1.GetPlanResponse"> & {
-  /**
-   * @generated from field: string account_id = 1;
-   */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.PlannedOperation operations = 3;
-   */
-  operations: PlannedOperation[];
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.DomainStatus domain_statuses = 4;
-   */
-  domainStatuses: DomainStatus[];
-};
-
-/**
- * Describes the message mygardenworld.v1.GetPlanResponse.
- * Use `create(GetPlanResponseSchema)` to create a new message.
- */
-export const GetPlanResponseSchema: GenMessage<GetPlanResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 9);
-
-/**
  * @generated from message mygardenworld.v1.PlannedOperation
  */
 export type PlannedOperation = Message<"mygardenworld.v1.PlannedOperation"> & {
@@ -670,6 +621,46 @@ export type PlannedOperation = Message<"mygardenworld.v1.PlannedOperation"> & {
    * @generated from field: repeated string blocked_reasons = 17;
    */
   blockedReasons: string[];
+
+  /**
+   * @generated from field: string operation_id = 18;
+   */
+  operationId: string;
+
+  /**
+   * @generated from field: string goal_id = 19;
+   */
+  goalId: string;
+
+  /**
+   * @generated from field: string demand_id = 20;
+   */
+  demandId: string;
+
+  /**
+   * @generated from field: int32 target_id = 21;
+   */
+  targetId: number;
+
+  /**
+   * @generated from field: int32 item_id = 22;
+   */
+  itemId: number;
+
+  /**
+   * @generated from field: int32 count = 23;
+   */
+  count: number;
+
+  /**
+   * @generated from field: int32 vase_id = 24;
+   */
+  vaseId: number;
+
+  /**
+   * @generated from field: repeated int32 flower_ids = 25;
+   */
+  flowerIds: number[];
 };
 
 /**
@@ -677,7 +668,7 @@ export type PlannedOperation = Message<"mygardenworld.v1.PlannedOperation"> & {
  * Use `create(PlannedOperationSchema)` to create a new message.
  */
 export const PlannedOperationSchema: GenMessage<PlannedOperation> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 10);
+  messageDesc(file_mygardenworld_v1_query_service, 8);
 
 /**
  * @generated from message mygardenworld.v1.DomainStatus
@@ -719,7 +710,7 @@ export type DomainStatus = Message<"mygardenworld.v1.DomainStatus"> & {
  * Use `create(DomainStatusSchema)` to create a new message.
  */
 export const DomainStatusSchema: GenMessage<DomainStatus> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 11);
+  messageDesc(file_mygardenworld_v1_query_service, 9);
 
 /**
  * @generated from message mygardenworld.v1.RequirementView
@@ -757,6 +748,16 @@ export type RequirementView = Message<"mygardenworld.v1.RequirementView"> & {
    * @generated from field: bool planting_relevant = 6;
    */
   plantingRelevant: boolean;
+
+  /**
+   * @generated from field: string source = 7;
+   */
+  source: string;
+
+  /**
+   * @generated from field: repeated string blocked_reasons = 8;
+   */
+  blockedReasons: string[];
 };
 
 /**
@@ -764,178 +765,193 @@ export type RequirementView = Message<"mygardenworld.v1.RequirementView"> & {
  * Use `create(RequirementViewSchema)` to create a new message.
  */
 export const RequirementViewSchema: GenMessage<RequirementView> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 12);
+  messageDesc(file_mygardenworld_v1_query_service, 10);
 
 /**
- * @generated from message mygardenworld.v1.GetHarvestStatsRequest
+ * @generated from message mygardenworld.v1.DemandView
  */
-export type GetHarvestStatsRequest = Message<"mygardenworld.v1.GetHarvestStatsRequest"> & {
+export type DemandView = Message<"mygardenworld.v1.DemandView"> & {
   /**
-   * Optional: limit to one account. Empty = all visible accounts.
-   *
-   * @generated from field: string account_id = 1;
+   * @generated from field: string id = 1;
    */
-  accountId: string;
+  id: string;
 
   /**
-   * @generated from field: string account_name = 2;
+   * @generated from field: string goal_id = 2;
    */
-  accountName: string;
+  goalId: string;
 
   /**
-   * Empty/zero uses the daemon default of 1800 seconds.
-   *
-   * @generated from field: int32 run_gap_seconds = 3;
+   * @generated from field: string category = 3;
    */
-  runGapSeconds: number;
+  category: string;
 
   /**
-   * Optional per-account item cap. Zero returns all items.
-   *
-   * @generated from field: int32 limit_items = 4;
+   * @generated from field: string domain = 4;
    */
-  limitItems: number;
-};
+  domain: string;
 
-/**
- * Describes the message mygardenworld.v1.GetHarvestStatsRequest.
- * Use `create(GetHarvestStatsRequestSchema)` to create a new message.
- */
-export const GetHarvestStatsRequestSchema: GenMessage<GetHarvestStatsRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 13);
-
-/**
- * @generated from message mygardenworld.v1.GetHarvestStatsResponse
- */
-export type GetHarvestStatsResponse = Message<"mygardenworld.v1.GetHarvestStatsResponse"> & {
   /**
-   * @generated from field: google.protobuf.Timestamp window_start = 1;
+   * @generated from field: string entity_id = 5;
    */
-  windowStart?: Timestamp | undefined;
+  entityId: string;
 
   /**
-   * @generated from field: google.protobuf.Timestamp window_end = 2;
+   * @generated from field: string label = 6;
    */
-  windowEnd?: Timestamp | undefined;
+  label: string;
 
   /**
-   * @generated from field: int32 run_gap_seconds = 3;
-   */
-  runGapSeconds: number;
-
-  /**
-   * @generated from field: int32 harvest_ops = 4;
-   */
-  harvestOps: number;
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.AccountHarvestStats accounts = 5;
-   */
-  accounts: AccountHarvestStats[];
-};
-
-/**
- * Describes the message mygardenworld.v1.GetHarvestStatsResponse.
- * Use `create(GetHarvestStatsResponseSchema)` to create a new message.
- */
-export const GetHarvestStatsResponseSchema: GenMessage<GetHarvestStatsResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 14);
-
-/**
- * @generated from message mygardenworld.v1.AccountHarvestStats
- */
-export type AccountHarvestStats = Message<"mygardenworld.v1.AccountHarvestStats"> & {
-  /**
-   * @generated from field: string account_id = 1;
-   */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp first_harvest_at = 3;
-   */
-  firstHarvestAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp last_harvest_at = 4;
-   */
-  lastHarvestAt?: Timestamp | undefined;
-
-  /**
-   * @generated from field: int32 harvest_ops = 5;
-   */
-  harvestOps: number;
-
-  /**
-   * @generated from field: int64 experience_total = 6;
-   */
-  experienceTotal: bigint;
-
-  /**
-   * @generated from field: int64 flower_total = 7;
-   */
-  flowerTotal: bigint;
-
-  /**
-   * @generated from field: int64 essence_total = 8;
-   */
-  essenceTotal: bigint;
-
-  /**
-   * @generated from field: int64 other_total = 9;
-   */
-  otherTotal: bigint;
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.HarvestItemTotal items = 10;
-   */
-  items: HarvestItemTotal[];
-};
-
-/**
- * Describes the message mygardenworld.v1.AccountHarvestStats.
- * Use `create(AccountHarvestStatsSchema)` to create a new message.
- */
-export const AccountHarvestStatsSchema: GenMessage<AccountHarvestStats> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 15);
-
-/**
- * @generated from message mygardenworld.v1.HarvestItemTotal
- */
-export type HarvestItemTotal = Message<"mygardenworld.v1.HarvestItemTotal"> & {
-  /**
-   * @generated from field: int32 item_id = 1;
+   * @generated from field: int32 item_id = 7;
    */
   itemId: number;
 
   /**
-   * @generated from field: string item_name = 2;
+   * @generated from field: string item_name = 8;
    */
   itemName: string;
 
   /**
-   * @generated from field: int64 count = 3;
+   * @generated from field: int32 required = 9;
    */
-  count: bigint;
+  required: number;
 
   /**
-   * experience|flower|essence|item
-   *
-   * @generated from field: string category = 4;
+   * @generated from field: int32 owned = 10;
    */
-  category: string;
+  owned: number;
+
+  /**
+   * @generated from field: int32 allocated = 11;
+   */
+  allocated: number;
+
+  /**
+   * @generated from field: int32 available = 12;
+   */
+  available: number;
+
+  /**
+   * @generated from field: int32 missing = 13;
+   */
+  missing: number;
+
+  /**
+   * @generated from field: int32 priority = 14;
+   */
+  priority: number;
+
+  /**
+   * @generated from field: string kind = 15;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string source = 16;
+   */
+  source: string;
+
+  /**
+   * @generated from field: repeated string blocked_reasons = 17;
+   */
+  blockedReasons: string[];
 };
 
 /**
- * Describes the message mygardenworld.v1.HarvestItemTotal.
- * Use `create(HarvestItemTotalSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.DemandView.
+ * Use `create(DemandViewSchema)` to create a new message.
  */
-export const HarvestItemTotalSchema: GenMessage<HarvestItemTotal> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 16);
+export const DemandViewSchema: GenMessage<DemandView> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 11);
+
+/**
+ * @generated from message mygardenworld.v1.VaseView
+ */
+export type VaseView = Message<"mygardenworld.v1.VaseView"> & {
+  /**
+   * @generated from field: int32 vase_id = 1;
+   */
+  vaseId: number;
+
+  /**
+   * @generated from field: int64 u_time_ms = 2;
+   */
+  uTimeMs: bigint;
+
+  /**
+   * @generated from field: int64 c_time_ms = 3;
+   */
+  cTimeMs: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.VaseView.
+ * Use `create(VaseViewSchema)` to create a new message.
+ */
+export const VaseViewSchema: GenMessage<VaseView> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 12);
+
+/**
+ * @generated from message mygardenworld.v1.FlowerArtAvailabilityView
+ */
+export type FlowerArtAvailabilityView = Message<"mygardenworld.v1.FlowerArtAvailabilityView"> & {
+  /**
+   * @generated from field: int32 art_id = 1;
+   */
+  artId: number;
+
+  /**
+   * @generated from field: string art_name = 2;
+   */
+  artName: string;
+
+  /**
+   * @generated from field: int32 vase_id = 3;
+   */
+  vaseId: number;
+
+  /**
+   * @generated from field: int32 level = 4;
+   */
+  level: number;
+
+  /**
+   * @generated from field: int32 sale_value = 5;
+   */
+  saleValue: number;
+
+  /**
+   * @generated from field: bool level_ok = 6;
+   */
+  levelOk: boolean;
+
+  /**
+   * @generated from field: bool vase_unlocked = 7;
+   */
+  vaseUnlocked: boolean;
+
+  /**
+   * @generated from field: bool craftable = 8;
+   */
+  craftable: boolean;
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.RequirementView requirements = 9;
+   */
+  requirements: RequirementView[];
+
+  /**
+   * @generated from field: repeated string blocked_reasons = 10;
+   */
+  blockedReasons: string[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.FlowerArtAvailabilityView.
+ * Use `create(FlowerArtAvailabilityViewSchema)` to create a new message.
+ */
+export const FlowerArtAvailabilityViewSchema: GenMessage<FlowerArtAvailabilityView> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_query_service, 13);
 
 /**
  * @generated from message mygardenworld.v1.StreamEventsRequest
@@ -967,7 +983,7 @@ export type StreamEventsRequest = Message<"mygardenworld.v1.StreamEventsRequest"
  * Use `create(StreamEventsRequestSchema)` to create a new message.
  */
 export const StreamEventsRequestSchema: GenMessage<StreamEventsRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 17);
+  messageDesc(file_mygardenworld_v1_query_service, 14);
 
 /**
  * @generated from message mygardenworld.v1.Event
@@ -1054,7 +1070,7 @@ export type Event = Message<"mygardenworld.v1.Event"> & {
  * Use `create(EventSchema)` to create a new message.
  */
 export const EventSchema: GenMessage<Event> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_query_service, 18);
+  messageDesc(file_mygardenworld_v1_query_service, 15);
 
 /**
  * @generated from service mygardenworld.v1.QueryService
@@ -1080,26 +1096,6 @@ export const QueryService: GenService<{
     methodKind: "unary";
     input: typeof GetSnapshotRequestSchema;
     output: typeof GetSnapshotResponseSchema;
-  },
-  /**
-   * Summarise harvested rewards from the most recent contiguous harvest run.
-   *
-   * @generated from rpc mygardenworld.v1.QueryService.GetHarvestStats
-   */
-  getHarvestStats: {
-    methodKind: "unary";
-    input: typeof GetHarvestStatsRequestSchema;
-    output: typeof GetHarvestStatsResponseSchema;
-  },
-  /**
-   * Preview the current ordered automation plan without mutating game state.
-   *
-   * @generated from rpc mygardenworld.v1.QueryService.GetPlan
-   */
-  getPlan: {
-    methodKind: "unary";
-    input: typeof GetPlanRequestSchema;
-    output: typeof GetPlanResponseSchema;
   },
   /**
    * Stream of every event the runner emits (analogous to the Python bot's

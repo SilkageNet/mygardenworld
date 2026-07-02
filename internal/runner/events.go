@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -169,6 +170,16 @@ func opKindDesc(kind string) string {
 		return "一键加速"
 	case "usrLand.unlockLand":
 		return "解锁田地"
+	case clientproto.RPCZooEnterZoo.String():
+		return "进入动物园"
+	case clientproto.RPCZooFeedPets.String():
+		return "喂猫"
+	case clientproto.RPCZooStrokePet.String():
+		return "撸猫"
+	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():
+		return "防骗问答"
+	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
+		return "领取防骗宝箱"
 	default:
 		return kind
 	}

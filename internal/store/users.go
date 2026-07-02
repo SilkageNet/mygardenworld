@@ -106,18 +106,6 @@ func (d *DB) UpdateUser(ctx context.Context, id int64, role *string, maxAccounts
 	return d.GetUserByID(ctx, id)
 }
 
-func (d *DB) DeleteUser(ctx context.Context, id int64) error {
-	res, err := d.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
-	if err != nil {
-		return err
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return ErrUserNotFound
-	}
-	return nil
-}
-
 func scanUser(s scannable) (*User, error) {
 	var u User
 	if err := s.Scan(

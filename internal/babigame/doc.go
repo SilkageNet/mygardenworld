@@ -29,20 +29,24 @@
 //	22         | Daily/weekly task progress       | plant/water/harvest/cultivate
 //	23         | Activity stats                   | harvest, act.getStat
 //	24         | Friend list                      | frd.enter
+//	25         | Guild / union state              | fml.*, Fml.build
 //	27         | IM channel                       | im.getChannelId
 //	31         | Share state                      | usr.share
 //	33         | Zoo state                         | zoo.*
 //	100        | Land state (see below)           | plant/water/harvest/unlock
 //	101        | Cultivation state (see below)    | cultivate.*
-//	103        | Collection rewards               | cultivate.recv
+//	103        | Collection rewards               | cultivate.recv, collectRwd.recv
 //	104        | Flower-art rack/shelves          | flowerRack.sell
 //	105        | Flower orders                    | orderFlower.finishOrder
 //	106        | Flower art / share state          | flowerArt.makeFlowerArt, usr.share
 //	109        | Customer orders                  | orderCustomer.*
-//	112        | Gift bag shop                    | shopGiftbag.enter
+//	112        | Gift bag shop                    | shopGiftbag.enter/buy
+//	113        | Cultivation material shop        | shopCultivate.enter/buy
 //	114        | Waterwheel state (see below)     | waterwheel.*
+//	115        | Pearl state                       | pearl.*, pearlPlace.*
 //	116        | Benefit-box state (see below)    | benefitBox.draw
 //	117        | Free-water state (see below)     | freeWater.recv
+//	118        | Double-coin video timer           | usr.share(shareId=11) after SDK video
 //	119        | High-freq task counters          | Most RPCs
 //	124        | Daily summary / popup rewards    | harvest, orders
 //	131        | Observed high-frequency delta     | land, task, pass, random-event RPCs
@@ -66,6 +70,8 @@
 //	7.0.41     int                Diamonds (free)
 //	7.0.42     int                Diamonds (paid)
 //	7.0.44     int                Gold coins
+//	7.13.1.104 int                usrExtra.antiFraudQAStatus; 2 means the QA reward is claimed
+//	7.13.1.105 int64              usrExtra.lastAntiFraudQATime timestamp (ms)
 //
 // # Land State (Namespace 100)
 //
@@ -128,6 +134,20 @@
 // the namespace field recvIdx, so the observed recvIdx is the next candidate
 // index unless a capture shows a channel-specific divergence.
 //
+// # Zoo / Cat State (Namespace 33)
+//
+// Structure:
+//
+//	33.0              G.IZoo, including comfort and petIdList
+//	33.1.<petId>      G.IZooPet, including moodValue, satietyValue,
+//	                  foodstuffArr, status, strokeCdTime, statusCdTime,
+//	                  goOutCdTime
+//
+// The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and
+// strokeCdTime to decide whether strokePet is available. Feed execution is
+// limited to pets with existing foodstuffArr and c_zooState.isEat; adding or
+// buying food is a separate cost-bearing path.
+//
 // # Random Event (Namespace 129)
 //
 // Static client schema names IRandomEventInfo fields as eventId/posIdx/dialogId.
@@ -161,12 +181,35 @@
 //
 // Flower art:
 //
-//	flowerArt.makeFlowerArt {vaseId, flowersIds, num} → {7,119}
-//	flowerRack.sell        {rackId, iid, num}         → {7,22,104,119}
+//	flowerArt.makeFlowerArt              {vaseId, flowersIds, num} → {7,119}
+//	flowerRack.sell                     {rackId, iid, num}         → {7,22,104,119}
+//	collectRwd.recv                     {type}                     → {7,103,...}
+//	collectRwd.recvArtCreateRwdByVase   {flowerArtId:<vaseId>}     → {7,103,...}
 //
 // Misc:
 //
 //	freeWater.recv       {idx}                     → {7,117,119}
+//	usrExtra.updateAntiFraudQAStatus {}            → {7}
+//	usrExtra.recvAntiFraudQARwd {}                 → {7}
+//	zoo.enterZoo       {}                          → {33}
+//	zoo.feedPets       {petIdList:[id]}            → {33}
+//	zoo.strokePet      {petId:id}                  → {33}
+//	pearl.refresh        {}                        → {115}
+//	pearl.recvDailyFree  {}                        → {7,115}
+//	pearl.draw           {count}                   → {7,115}
+//	pearl.setProtectState {protectState}           → {115}
+//	pearlPlace.recv      {placeId}                 → {7,115}
+//	shopGiftbag.enter    {}                        → {112}
+//	shopGiftbag.buy      {shopId,num}              → {7,112}
+//	shopCultivate.enter  {}                        → {113}
+//	shopCultivate.buy    {shopId}                  → {7,113}
+//	Fml.build            {id}                      → {7,25}           guild build/donation
+//	fmlLand.harvest      {landIds}                 → {7,25}
+//	fmlFlowerShare.refresh {}                      → {25}
+//	fmlFlowerShare.getFmlOtherShareList {}         → {25}
+//	fmlFlowerShare.recvRwd {slotIds}               → {7,25}
+//	fmlFlowerShare.take   {dstUid,slotId}          → {7,25}
+//	fmlForest.refresh    {isAutoCollect}           → {25}             sync/collect forest energy
 //	waterwheel.enter      {}                        → {114}
 //	waterwheel.recv       {}                        → {7,114,119}
 //	waterwheel.skip       {}                        → {114}

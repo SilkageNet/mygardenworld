@@ -71,8 +71,6 @@ type Runner struct {
 	state   *state.State
 	policy  *pb.Policy
 
-	lastDomainTick    time.Time // 节流基础/订单/公会/活动域操作
-	lastCultivateTick time.Time // 节流培育操作
 	lastWaterSyncTick time.Time // 节流水资源状态刷新
 	lastEventAt       time.Time // latest event emitted by this runner
 	nextDecisionAt    time.Time // next scheduled decision-loop tick
@@ -84,27 +82,9 @@ type Runner struct {
 	lastOperationError        string
 	lastOperationErrorAt      time.Time
 
-	landUnlockBlocked          bool // 上次尝试无效果，等待条件变化
-	taskRecvBlocked            bool
-	taskAchBlocked             bool
-	storyUnlockBlocked         bool
-	waterBlocked               bool                         // 水滴不足，冷却后重试
-	waterBlockedUntil          time.Time                    // 缺水后下一次允许试探浇水的时间
-	harvestBlockedUntil        map[int32]time.Time          // 服务端提示未成熟后，按田地短期冷却
-	freeWaterBlockedUntil      time.Time                    // freeWater.recv 失败后的下一次试探时间
-	dailyTaskBlockedUntil      time.Time                    // taskDly.recv 失败后的下一次试探时间
-	weeklyTaskBlockedUntil     time.Time                    // taskWeek.recv 失败后的下一次试探时间
-	mailBlockedUntil           time.Time                    // mail.pickOneKey 失败后的下一次试探时间
-	signBlockedUntil           time.Time                    // signType.sign/recv 失败后的下一次试探时间
-	unionBuildBlockedUntil     time.Time                    // fml build 达到上限或失败后的下一次试探时间
-	unionBuildFreeBlockedUntil time.Time                    // 视频/分享建设成功后的下一次试探时间
-	residentOrderBlockedUntil  time.Time                    // 居民订单达到当天上限后的下一次试探时间
-	flowerUpgradeBlocked       map[int32]flowerUpgradeBlock // 升级材料不足，等待材料变化或短期冷却
-	cultivateBlocked           map[int32]time.Time          // 培育材料不足或配置未知，短期冷却
-	prevGold                   int32                        // 用于检测金币增长，解除金币相关升级阻塞
-	prevLevel                  int32                        // 用于检测升级
-	rqst                       rqstState                    // 反作弊验证状态
-	unknownRPCCounts           map[string]int32             // runtime RPC names missing from the catalog
+	harvestBlockedUntil map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
+	rqst                rqstState           // 反作弊验证状态
+	unknownRPCCounts    map[string]int32    // runtime RPC names missing from the catalog
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -123,18 +103,16 @@ type Runner struct {
 // Manager.Start.
 func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, log *slog.Logger) *Runner {
 	return &Runner{
-		cfg:                  cfg,
-		db:                   db,
-		account:              account,
-		log:                  log.With("account", account.Name, "channel", account.Channel),
-		state:                state.New(),
-		policy:               automation.DefaultPolicy(),
-		harvestBlockedUntil:  make(map[int32]time.Time),
-		flowerUpgradeBlocked: make(map[int32]flowerUpgradeBlock),
-		cultivateBlocked:     make(map[int32]time.Time),
-		unknownRPCCounts:     make(map[string]int32),
-		done:                 make(chan struct{}),
-		bus:                  bus,
+		cfg:                 cfg,
+		db:                  db,
+		account:             account,
+		log:                 log.With("account", account.Name, "channel", account.Channel),
+		state:               state.New(),
+		policy:              automation.DefaultPolicy(),
+		harvestBlockedUntil: make(map[int32]time.Time),
+		unknownRPCCounts:    make(map[string]int32),
+		done:                make(chan struct{}),
+		bus:                 bus,
 	}
 }
 

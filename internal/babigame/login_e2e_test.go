@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientrpc"
@@ -318,6 +319,105 @@ func TestCultivateAndAssetsE2E(t *testing.T) {
 	t.Logf("水车可领: %d", wwReady)
 }
 
+// TestReadOnlyPlanningE2E uses one live login to verify the safe production
+// path: HTTP login, WS connect, non-mutating sync/read RPCs, state parsing, and
+// local planner construction. It intentionally does not harvest, water, claim,
+// craft, sell, finish orders, or mutate account resources.
+func TestReadOnlyPlanningE2E(t *testing.T) {
+	username, password := e2eCredentials(t)
+
+	cfg := testConfig(t)
+	httpc := babigame.NewHTTPClient(cfg, "", "", "")
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	session, err := babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+
+	client := babigame.NewClient(session)
+	defer func() { _ = client.Close() }()
+	if err := client.Connect(ctx); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+
+	st := state.New()
+	loginV, err := client.Login(ctx, 1)
+	if err != nil {
+		t.Fatalf("index.login: %v", err)
+	}
+	st.ApplyV(loginV)
+	lazyV, err := client.LazySync(ctx)
+	if err != nil {
+		t.Fatalf("usr.lazySync: %v", err)
+	}
+	st.ApplyV(lazyV)
+
+	rpc := clientrpc.NewClient(babigame.NewRPCClient(client, session, babigame.WithServerErrorsAsResults()))
+	if v, d, err := rpcResultForE2E(rpc.Mail().GetList(ctx, clientproto.MailGetListRequest{}, babigame.WithTimeout(10*time.Second))); err != nil {
+		t.Fatalf("mail.getList: %v", err)
+	} else if d.IsError() {
+		t.Logf("mail.getList returned server error: %s", d.ErrorMsg())
+	} else if babigame.HasPayload(v) {
+		st.ApplyV(v)
+	}
+	if v, d, err := rpcResultForE2E(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}, babigame.WithTimeout(10*time.Second))); err != nil {
+		t.Fatalf("waterwheel.enter: %v", err)
+	} else if d.IsError() {
+		t.Logf("waterwheel.enter returned server error: %s", d.ErrorMsg())
+	} else if babigame.HasPayload(v) {
+		st.ApplyV(v)
+	}
+
+	if len(st.Lands()) == 0 {
+		t.Fatal("no lands parsed from live state")
+	}
+	if len(st.Inventory()) == 0 {
+		t.Fatal("no inventory parsed from live state")
+	}
+	if !containsString(st.ObservedNamespaces(), "7") || !containsString(st.ObservedNamespaces(), "100") {
+		t.Fatalf("missing core namespaces, observed=%v", st.ObservedNamespaces())
+	}
+	t.Logf("observed namespaces=%v unknown=%d", st.ObservedNamespaces(), st.UnknownNamespaceCount())
+	t.Logf("lands=%d inventory=%d flowerOrders=%d customerOrders=%d vasesObserved=%t vases=%d flowerArtObserved=%t",
+		len(st.Lands()), len(st.Inventory()), len(st.FlowerOrders()), len(st.CustomerOrderDetails()), st.VaseObserved(), len(st.Vases()), st.FlowerArt().Observed)
+
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Order.Customer.Enabled = true
+	policy.Order.Customer.CraftEnabled = true
+	policy.Order.Resident.NormalEnabled = true
+	policy.Order.Resident.RewardEnabled = true
+	policy.Order.FlowerArt.SellEnabled = true
+
+	plan := automation.BuildPlan(st, policy, time.Now())
+	if plan.Ledger == nil {
+		t.Fatal("planner did not create inventory ledger")
+	}
+	for itemID, allocated := range plan.Ledger.AllocatedItems() {
+		if owned := plan.Ledger.Owned(itemID); allocated > owned {
+			t.Fatalf("ledger over-allocated item %d: allocated=%d owned=%d", itemID, allocated, owned)
+		}
+	}
+	for _, demand := range plan.Demands {
+		wantMissing := demand.Count - demand.Allocated
+		if wantMissing < 0 {
+			wantMissing = 0
+		}
+		if demand.Missing != wantMissing {
+			t.Fatalf("demand %s has inconsistent missing=%d want=%d demand=%+v", demand.ID, demand.Missing, wantMissing, demand)
+		}
+	}
+	for _, op := range plan.Operations {
+		if op.Kind == clientproto.RPCFlowerRackSell.String() && op.ItemID > 0 && plan.Ledger.Available(op.ItemID) < op.Count {
+			t.Fatalf("rack sell exceeds ledger availability: op=%+v available=%d", op, plan.Ledger.Available(op.ItemID))
+		}
+	}
+	t.Logf("planner goals=%d demands=%d operations=%d allocatedItems=%d", len(plan.Goals), len(plan.Demands), len(plan.Operations), len(plan.Ledger.AllocatedItems()))
+}
+
 func e2eCredentials(t *testing.T) (string, string) {
 	t.Helper()
 	username := os.Getenv("E2E_USERNAME")
@@ -355,4 +455,17 @@ func summarizeMap(m map[string]any) string {
 		return s[:200] + "..."
 	}
 	return s
+}
+
+func rpcResultForE2E[T any](resp babigame.RPCResponse[T], err error) (json.RawMessage, babigame.WSResponseD, error) {
+	return resp.Payload, resp.Envelope, err
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

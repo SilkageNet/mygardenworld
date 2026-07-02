@@ -165,23 +165,6 @@ func (r *Runner) installStateHandlers() {
 			Message:     fmt.Sprintf("资源更新: 金币=%d 水滴=%d/%d Lv.%d", snap.Gold, snap.WaterDrops, snap.WaterDropsTotal, snap.Level),
 			PayloadJSON: string(raw),
 		})
-		// Reset blocked flags when the relevant condition changes.
-		r.mu.Lock()
-		if snap.Level > r.prevLevel && r.prevLevel > 0 {
-			r.taskRecvBlocked = false
-			r.storyUnlockBlocked = false
-			r.landUnlockBlocked = false
-		}
-		if snap.WaterDrops > 0 {
-			r.waterBlocked = false
-			r.waterBlockedUntil = time.Time{}
-		}
-		if snap.Gold > r.prevGold && r.prevGold > 0 {
-			r.clearFlowerUpgradeGoldBlocksLocked()
-		}
-		r.prevGold = snap.Gold
-		r.prevLevel = snap.Level
-		r.mu.Unlock()
 	})
 	r.state.SetOnInventoryChange(func(snap state.InventorySnapshot) {
 		raw, _ := json.Marshal(snap)
@@ -190,34 +173,7 @@ func (r *Runner) installStateHandlers() {
 			Message:     inventoryChangeMessage(snap),
 			PayloadJSON: string(raw),
 		})
-		if inventoryAffectsMaterialBlocks(snap) {
-			r.clearMaterialBlocks()
-		}
 	})
-}
-
-func inventoryAffectsMaterialBlocks(snap state.InventorySnapshot) bool {
-	for _, change := range snap.Changes {
-		if change.ItemID != waterDropsItemID {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *Runner) clearMaterialBlocks() {
-	r.mu.Lock()
-	r.flowerUpgradeBlocked = make(map[int32]flowerUpgradeBlock)
-	r.cultivateBlocked = make(map[int32]time.Time)
-	r.mu.Unlock()
-}
-
-func (r *Runner) clearFlowerUpgradeGoldBlocksLocked() {
-	for fid, block := range r.flowerUpgradeBlocked {
-		if block.ItemID == 0 {
-			delete(r.flowerUpgradeBlocked, fid)
-		}
-	}
 }
 
 func (r *Runner) connectionLoop(ctx context.Context, username, password string, client *babigame.Client) {

@@ -1,822 +1,946 @@
 package automation
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
-// TestRecommend covers the per-land state machine. The mapping is anchored
-// in scripts/tools/garden_bot.py and the analysis report; any future change
-// here is a behavior change and must come with a capture-driven justification.
-func TestRecommend(t *testing.T) {
-	now := time.Unix(1_000_000, 0)
-	cases := []struct {
-		name   string
-		land   state.LandView
-		want   string
-		reason string // substring expected
-	}{
-		{
-			name: "never observed",
-			land: state.LandView{Observed: false},
-			want: KindUnknown,
-		},
-		{
-			name: "observed empty (post harvest, fresh slot)",
-			land: state.LandView{Observed: true},
-			want: KindPlant,
-		},
-		{
-			name: "state=1, awaiting first water",
-			land: state.LandView{Observed: true, FlowerID: 23001, State: 1},
-			want: KindWater,
-		},
-		{
-			name: "state=3, initial bloom ready",
-			land: state.LandView{Observed: true, FlowerID: 23001, State: 3},
-			want: KindHarvest,
-		},
-		{
-			name: "state=2 + nextTime in past -> harvest",
-			land: state.LandView{
-				Observed: true, FlowerID: 23001, State: 2,
-				NextTimeMs: now.Add(-1 * time.Minute).UnixMilli(),
-			},
-			want: KindHarvest,
-		},
-		{
-			name: "state=2 + nextTime in future -> wait",
-			land: state.LandView{
-				Observed: true, FlowerID: 23001, State: 2,
-				NextTimeMs: now.Add(time.Hour).UnixMilli(),
-			},
-			want: KindWait,
-		},
-		{
-			name: "state=2 + nextTime unset -> wait (server hasn't scheduled regrow yet)",
-			land: state.LandView{Observed: true, FlowerID: 23001, State: 2, NextTimeMs: 0},
-			want: KindWait,
-		},
-		{
-			name: "unrecognized state -> wait (don't act on what we don't understand)",
-			land: state.LandView{Observed: true, FlowerID: 23001, State: 99},
-			want: KindWait,
-		},
+func applyMap(t *testing.T, s *state.State, top map[string]any) {
+	t.Helper()
+	s.ApplyVMap(top)
+}
+
+func emptyLands(n int) map[string]any {
+	lands := make(map[string]any, n)
+	for i := 0; i < n; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
 	}
+	return lands
+}
+
+func cultivate(flowers ...int32) map[string]any {
+	out := make(map[string]any, len(flowers))
+	for _, id := range flowers {
+		out[itoa32(id)] = map[string]any{"1": id, "2": 1, "4": 2}
+	}
+	return out
+}
+
+func itoa(v int) string {
+	return strconv.Itoa(v)
+}
+
+func itoa32(v int32) string {
+	return strconv.FormatInt(int64(v), 10)
+}
+
+func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 0, "23007": 0, "23008": 0},
+			"34": 12,
+		}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(3)}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.CraftEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var planted bool
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" && op.FlowerID != 0 {
+			planted = true
+			break
+		}
+	}
+	if !planted {
+		t.Fatalf("expected customer art flower demand to produce plant op, ops=%+v demands=%+v", result.Operations, result.Demands)
+	}
+}
+
+func TestBuildPlan_CustomerArtBlockedByMissingVase(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 2, "23007": 2, "23008": 2},
+			"34": 12,
+		}},
+		"102": map[string]any{"0": map[string]any{"3001": map[string]any{"1": 3001}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.CraftEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && len(op.BlockedReasons) == 0 {
+			t.Fatalf("craft op should be blocked by missing vase: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_FlowerRackRespectsCustomerLedgerAllocation(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"300208": 1}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.FlowerArt.SellEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerRackSell.String() {
+			t.Fatalf("customer art allocation should not be sold on rack: %+v demands=%+v", op, result.Demands)
+		}
+	}
+}
+
+func TestBuildPlan_FlowerArtRewardsProduceClaimOps(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"103": map[string]any{
+			"0": map[string]any{
+				"11": map[string]any{"1": 11, "2": 0, "3": 5, "4": []int32{}},
+				"13": map[string]any{"1": 13, "2": 0, "3": 70, "4": []int32{}, "7": []int32{}},
+			},
+		},
+		"106": map[string]any{"0": map[string]any{"2": []int32{300101}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.CreateRewardEnabled = true
+	p.Order.FlowerArt.CollectRewardEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var createReward, collectReward bool
+	for _, op := range result.Operations {
+		if op.Domain == "order.flower_art.create_reward" {
+			createReward = true
+			if op.Kind != clientproto.RPCCollectRwdRecvArtCreateRwdByVase.String() || op.TargetID != 3001 || !op.Executable || op.SyncOnly {
+				t.Fatalf("create reward op mismatch: %+v", op)
+			}
+		}
+		if op.Domain == "order.flower_art.collect_reward" {
+			collectReward = true
+			if op.Kind != clientproto.RPCCollectRwdRecv.String() || op.TargetID != 11 || !op.Executable || op.SyncOnly {
+				t.Fatalf("collect reward op mismatch: %+v", op)
+			}
+		}
+	}
+	if !createReward || !collectReward {
+		t.Fatalf("missing reward ops create=%t collect=%t ops=%+v", createReward, collectReward, result.Operations)
+	}
+}
+
+func TestBuildPlan_ShopCultivateEnterBeforeObserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Kind != clientproto.RPCShopCultivateEnter.String() || op.Action != "sync" || !op.Executable || op.SyncOnly {
+				t.Fatalf("shop cultivate sync op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop cultivate sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopGiftbagEnterBeforeObserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.VideoFreeGiftEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.giftbag" {
+			if op.Kind != clientproto.RPCShopGiftbagEnter.String() || op.Action != "sync" || !op.Executable || op.SyncOnly {
+				t.Fatalf("shop giftbag sync op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop giftbag sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopGiftbagVideoGift(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"112": map[string]any{
+			"1": map[string]any{"1": 3},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.VideoFreeGiftEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.video_gift" {
+			if op.Kind != clientproto.RPCShopGiftbagBuy.String() || op.TargetID != 1 || op.Count != 1 || !op.Executable || op.SyncOnly {
+				t.Fatalf("shop giftbag buy op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop giftbag buy op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopGiftbagPaidGiftIgnoredAndVipBlocked(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"112": map[string]any{
+			"1": map[string]any{"1": 4},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.VideoFreeGiftEnabled = true
+	p.Basic.Shop.VipShop.AutoBuy = true
+
+	result := BuildPlan(s, p, time.Now())
+	var vipBlocked bool
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.video_gift" {
+			t.Fatalf("paid or exhausted giftbag should not produce buy op: %+v", op)
+		}
+		if op.Domain == "basic.shop.vip" {
+			vipBlocked = !op.Executable && len(op.BlockedReasons) > 0
+		}
+	}
+	if !vipBlocked {
+		t.Fatalf("missing blocked vip shop op: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_AntiScamBoxLifecycle(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int32
+		wantKind   string
+		wantAction string
+		wantOp     bool
+	}{
+		{name: "not answered", status: 0, wantKind: clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(), wantAction: "answer", wantOp: true},
+		{name: "ready to claim", status: 1, wantKind: clientproto.RPCUsrExtraRecvAntiFraudQARwd.String(), wantAction: "claim", wantOp: true},
+		{name: "claimed", status: state.AntiFraudQAStatusClaimed, wantOp: false},
+	}
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, _ := Recommend(tc.land, now)
-			if got != tc.want {
-				t.Errorf("got %q want %q", got, tc.want)
+			s := state.New()
+			applyMap(t, s, map[string]any{
+				"7": map[string]any{
+					"13": map[string]any{
+						"1": map[string]any{"104": tc.status},
+					},
+				},
+			})
+			p := DefaultPolicy()
+			p.AutomationEnabled = true
+			p.Basic.Benefit.AntiScamBoxEnabled = true
+
+			result := BuildPlan(s, p, time.Now())
+			for _, op := range result.Operations {
+				if op.Domain != "basic.benefit.anti_scam" {
+					continue
+				}
+				if !tc.wantOp {
+					t.Fatalf("claimed anti-scam reward should not produce op: %+v", op)
+				}
+				if op.Kind != tc.wantKind || op.Action != tc.wantAction || op.FeatureID != "basic.anti_scam_box" || !op.Executable || op.SyncOnly {
+					t.Fatalf("anti-scam op mismatch: %+v", op)
+				}
+				return
+			}
+			if tc.wantOp {
+				t.Fatalf("missing anti-scam op: %+v", result.Operations)
 			}
 		})
 	}
 }
 
-func TestFeatureRegistryEnrichesPlannedOps(t *testing.T) {
-	harvest := landOp("usrLand.harvest", "farm.harvest", "harvest", "ready land", 1000, []int32{1001}, 0)
-	if harvest.FeatureID != "plant.harvest" || harvest.Label != "收获" || harvest.Status != PlanStatusExecutable || !harvest.Executable || harvest.SyncOnly {
-		t.Fatalf("harvest feature metadata = %+v", harvest)
-	}
+func TestBuildPlan_DoubleCoinBlockedUnlessActive(t *testing.T) {
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Benefit.DoubleCoinEnabled = true
 
-	weekly := markerOp(CategoryBasic, "basic.task.weekly", "claim", "weekly task rewards enabled", 620)
-	if weekly.FeatureID != "basic.task_weekly" || weekly.Status != PlanStatusManaged || !weekly.Executable || len(weekly.BlockedReasons) != 0 {
-		t.Fatalf("weekly feature metadata = %+v", weekly)
-	}
-
-	welfare := markerOp(CategoryBasic, "basic.welfare", "claim", "welfare enabled", 632)
-	if welfare.FeatureID != "basic.welfare" || welfare.Status != PlanStatusAdapterMissing || welfare.Executable || len(welfare.BlockedReasons) == 0 {
-		t.Fatalf("welfare feature metadata = %+v", welfare)
-	}
-
-	palace := markerOp(CategoryOrder, "order.palace", "finish", "palace orders enabled", 760)
-	if palace.FeatureID != "order.palace" || palace.Status != PlanStatusSyncOnly || !palace.SyncOnly || palace.Executable {
-		t.Fatalf("palace feature metadata = %+v", palace)
-	}
-}
-
-func TestPlanOperationsExposeFeatureStatuses(t *testing.T) {
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Basic.WeeklyTaskEnabled = true
-	policy.Basic.WelfareEnabled = true
-	policy.Order.Palace.Enabled = true
-	policy.Activity.Enabled = true
-	policy.Activity.Modules["fishFun"].Enabled = true
-
-	ops := PlanOperations(state.New(), policy, time.Now())
-	weekly := findPlannedDomain(ops, "basic.task.weekly")
-	if weekly == nil || weekly.Status != PlanStatusManaged || !weekly.Executable {
-		t.Fatalf("weekly plan = %+v", weekly)
-	}
-	welfare := findPlannedDomain(ops, "basic.welfare")
-	if welfare == nil || welfare.Status != PlanStatusAdapterMissing || len(welfare.BlockedReasons) == 0 {
-		t.Fatalf("welfare plan = %+v", welfare)
-	}
-	palace := findPlannedDomain(ops, "order.palace")
-	if palace == nil || palace.Status != PlanStatusSyncOnly || !palace.SyncOnly {
-		t.Fatalf("palace plan = %+v", palace)
-	}
-	fish := findPlannedDomain(ops, "activity.fishFun")
-	if fish == nil || fish.Status != PlanStatusAdapterMissing || len(fish.BlockedReasons) == 0 {
-		t.Fatalf("fishFun plan = %+v", fish)
-	}
-}
-
-func findPlannedDomain(ops []PlannedOp, domain string) *PlannedOp {
-	for i := range ops {
-		if ops[i].Domain == domain {
-			return &ops[i]
+	s := state.New()
+	result := BuildPlan(s, p, now)
+	var blocked PlannedOp
+	for _, op := range result.Operations {
+		if op.Domain == "basic.benefit.double_coin" {
+			blocked = op
+			break
 		}
 	}
-	return nil
-}
-
-// applyLands stuffs raw LandView entries into a State for plan tests.
-// Bypasses ApplyV because we want to control fields precisely.
-func applyLands(s *state.State, lands map[int32]state.LandView) {
-	// state.State has no setter; use ApplyV with a synthesized 100.0.1
-	// roster shape. Each value is the LandView marshaled into the wire's
-	// numeric-key shape.
-	roster := map[string]any{}
-	for id, l := range lands {
-		entry := map[string]any{}
-		if l.FlowerID != 0 {
-			entry["0"] = l.FlowerID
-		}
-		entry["1"] = l.State
-		entry["2"] = l.Lvl
-		entry["3"] = l.HarvestCnt
-		if l.NextTimeMs != 0 {
-			entry["5"] = l.NextTimeMs
-		}
-		if l.PlantTimeMs != 0 {
-			entry["7"] = l.PlantTimeMs
-		}
-		if !l.Observed {
-			continue // skip unobserved entries entirely
-		}
-		if !l.IsPlanted() && l.State == 0 {
-			roster[itoa(id)] = map[string]any{} // observed-empty
-		} else {
-			roster[itoa(id)] = entry
-		}
+	if blocked.Domain == "" || blocked.Executable || blocked.Status != PlanStatusAdapterMissing || blocked.FeatureID != "basic.double_coin" || len(blocked.BlockedReasons) == 0 {
+		t.Fatalf("double coin blocked op mismatch: %+v", blocked)
 	}
-	s.ApplyVMap(map[string]any{
-		"100": map[string]any{
-			"0": map[string]any{"1": roster},
+	if got := Plan(s, p, now); got != nil && got.Domain == "basic.benefit.double_coin" {
+		t.Fatalf("Plan returned blocked double coin op: %+v", got)
+	}
+
+	applyMap(t, s, map[string]any{
+		"118": map[string]any{
+			"1": 1,
+			"2": now.Add(time.Hour).UnixMilli(),
 		},
 	})
-}
-
-func itoa(n int32) string {
-	if n == 0 {
-		return "0"
-	}
-	digits := []byte{}
-	negative := n < 0
-	if negative {
-		n = -n
-	}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	if negative {
-		digits = append([]byte{'-'}, digits...)
-	}
-	return string(digits)
-}
-
-func setInventory(s *state.State, kv map[int32]int32) {
-	cell := map[string]any{}
-	for id, count := range kv {
-		cell[itoa(id)] = count
-	}
-	s.ApplyVMap(map[string]any{
-		"7": map[string]any{
-			"0": map[string]any{"32": cell},
-		},
-	})
-}
-
-func setCultivations(s *state.State, kv map[int32]state.CultivateView) {
-	cell := map[string]any{}
-	for id, cv := range kv {
-		cell[itoa(id)] = map[string]any{
-			"2": cv.Lvl,
-			"3": cv.CulTimeMs,
-			"4": cv.Status,
-			"5": cv.UTimeMs,
+	result = BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "basic.benefit.double_coin" {
+			t.Fatalf("active double coin should not produce op: %+v", op)
 		}
 	}
-	s.ApplyVMap(map[string]any{
-		"101": map[string]any{
-			"0": cell,
-		},
-	})
 }
 
-func setFlowerOrders(s *state.State, orders map[int32][]state.FlowerRequire) {
-	boxes := map[string]any{}
-	for boxID, reqs := range orders {
-		rawReqs := make([][]int32, 0, len(reqs))
-		for _, req := range reqs {
-			rawReqs = append(rawReqs, []int32{req.FlowerID, req.Count})
+func TestBuildPlan_ZooSyncWhenUnobserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.FeedCat.Enabled = true
+	p.Basic.FeedCat.AutoFeed = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.zoo" {
+			if op.Kind != clientproto.RPCZooEnterZoo.String() || op.Action != "sync" || !op.Executable || op.SyncOnly {
+				t.Fatalf("zoo sync op mismatch: %+v", op)
+			}
+			return
 		}
-		boxes[itoa(boxID)] = map[string]any{"2": rawReqs}
 	}
-	s.ApplyVMap(map[string]any{
-		"105": map[string]any{
-			"0": map[string]any{"1": boxes},
-		},
-	})
+	t.Fatalf("missing zoo sync op: %+v", result.Operations)
 }
 
-func setCustomerOrders(s *state.State, orders map[int32][]state.FlowerRequire) {
-	orderMap := map[string]any{}
-	for npcID, reqs := range orders {
-		rawReqs := make([][]int32, 0, len(reqs))
-		for _, req := range reqs {
-			rawReqs = append(rawReqs, []int32{req.FlowerID, req.Count})
-		}
-		orderMap[itoa(npcID)] = map[string]any{"0": rawReqs, "1": npcID}
-	}
-	s.ApplyVMap(map[string]any{
-		"109": map[string]any{
-			"0": map[string]any{"1": orderMap},
-		},
-	})
-}
-
-func setMainTask(s *state.State, taskID, finished int32) {
-	s.ApplyVMap(map[string]any{
-		"22": map[string]any{
-			"0": map[string]any{"1": taskID, "2": finished},
-		},
-	})
-}
-
-func setWaterDrops(s *state.State, count int) {
-	setWaterDropsWithNext(s, count, 0)
-}
-
-func setWaterDropsWithNext(s *state.State, count int, nextMs int64) {
-	s.ApplyVMap(map[string]any{
-		"7": map[string]any{
-			"0": map[string]any{
-				"32": map[string]any{"7": count},
-				"33": map[string]any{"7": map[string]any{"1": 130, "5": nextMs}},
+func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	applyMap(t, s, map[string]any{
+		"33": map[string]any{
+			"0": map[string]any{"0": 77900091102482},
+			"1": map[string]any{
+				"1": map[string]any{
+					"1":  1,
+					"2":  50,
+					"3":  20,
+					"4":  []int32{1501},
+					"5":  2,
+					"12": now.Add(-time.Minute).UnixMilli(),
+				},
 			},
 		},
 	})
-}
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.FeedCat.Enabled = true
+	p.Basic.FeedCat.AutoFeed = true
+	p.Basic.FeedCat.AutoStroke = true
 
-func setNoble(s *state.State, vip int32) {
-	s.ApplyVMap(map[string]any{
-		"7": map[string]any{
-			"0": map[string]any{"36": vip},
-		},
-	})
-}
-
-// TestPlan_HarvestPriorityWithOneKey verifies the highest-priority kind
-// (harvest) takes precedence and uses the one-key RPC when policy says so.
-func TestPlan_HarvestPriorityWithOneKey(t *testing.T) {
-	s := state.New()
-	now := time.Now()
-	pastMs := now.Add(-time.Minute).UnixMilli()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},                                                // plant candidate
-		1002: {Observed: true, FlowerID: 23001, State: 1},                     // water candidate
-		1003: {Observed: true, FlowerID: 23001, State: 3},                     // harvest (initial bloom)
-		1004: {Observed: true, FlowerID: 23001, State: 2, NextTimeMs: pastMs}, // harvest (regrow)
-	})
-	setInventory(s, map[int32]int32{23001: 100})
-	setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.HarvestPreferOneKey = true
-
-	op := Plan(s, policy, now)
-	if op == nil {
-		t.Fatal("expected an operation")
+	result := BuildPlan(s, p, now)
+	want := map[string]string{
+		"basic.zoo.feed":   clientproto.RPCZooFeedPets.String(),
+		"basic.zoo.stroke": clientproto.RPCZooStrokePet.String(),
 	}
-	if op.Kind != "usrLand.harvestOneKey" {
-		t.Errorf("kind=%q, want usrLand.harvestOneKey", op.Kind)
-	}
-	if len(op.LandIDs) != 2 {
-		t.Errorf("expected 2 lands in batch, got %d (%v)", len(op.LandIDs), op.LandIDs)
-	}
-}
-
-// TestPlan_HarvestSingleWhenOneKeyDisabled verifies policy.prefer_one_key=false
-// falls through to per-land usrLand.harvest.
-func TestPlan_HarvestSingleWhenOneKeyDisabled(t *testing.T) {
-	s := state.New()
-	now := time.Now()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true, FlowerID: 23001, State: 3},
-		1002: {Observed: true, FlowerID: 23001, State: 3},
-	})
-	setInventory(s, map[int32]int32{23001: 100})
-	setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.HarvestPreferOneKey = false
-
-	op := Plan(s, policy, now)
-	if op == nil {
-		t.Fatal("expected an op")
-	}
-	if op.Kind != "usrLand.harvest" {
-		t.Errorf("kind=%q want usrLand.harvest", op.Kind)
-	}
-	if len(op.LandIDs) != 1 {
-		t.Errorf("single op should target one land, got %d", len(op.LandIDs))
-	}
-}
-
-// TestPlan_PlantBatchHonorsMaxBatch verifies the batch is capped by max_batch
-// and uses the lowest-stock cultivated flower.
-func TestPlan_PlantBatchHonorsMaxBatch(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-		1002: {Observed: true},
-		1003: {Observed: true},
-		1004: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23001: 50, 23005: 3})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23005: {Lvl: 1, Status: 2},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeLowStock
-	policy.Plant.PlantMaxBatch = 3
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.Kind != "usrLand.plantBatch" {
-		t.Errorf("kind=%q want usrLand.plantBatch", op.Kind)
-	}
-	if op.FlowerID != 23005 {
-		t.Errorf("expected lowest-stock flower 23005, got %d", op.FlowerID)
-	}
-	if len(op.LandIDs) != 3 {
-		t.Errorf("expected 3 lands (max_batch cap), got %d", len(op.LandIDs))
-	}
-}
-
-// TestPlan_PlantsCultivatedFlowerWithZeroInventory captures the protocol fact
-// that planting does not consume 230xx flower inventory. A cultivated flower
-// can be planted even when current owned count is zero.
-func TestPlan_PlantsCultivatedFlowerWithZeroInventory(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23005: 0})
-	setCultivations(s, map[int32]state.CultivateView{23005: {Lvl: 1, Status: 2}})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeHighValue
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23005 {
-		t.Fatalf("flower=%d, want zero-stock cultivated flower 23005", op.FlowerID)
-	}
-}
-
-// TestPlan_RespectsPlantAllowList verifies plant.allowed_flower_ids restricts
-// flower selection - even when a non-allowed flower has lower stock.
-func TestPlan_RespectsPlantAllowList(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{
-		23001: 100, // not allowed
-		23005: 50,  // allowed but higher
-	})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23005: {Lvl: 1, Status: 2},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeSelected
-	policy.Plant.AllowedFlowerIds = []int32{23005}
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23005 {
-		t.Errorf("got flower=%d, want 23005 (allow-list)", op.FlowerID)
-	}
-}
-
-// TestPlan_DisabledPolicyReturnsNil verifies the master switch wins over
-// everything else.
-func TestPlan_DisabledPolicyReturnsNil(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true, FlowerID: 23001, State: 3},
-	})
-	setInventory(s, map[int32]int32{23001: 100})
-	setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-
-	policy := DefaultPolicy() // automation_enabled=false by default
-	if op := Plan(s, policy, time.Now()); op != nil {
-		t.Errorf("disabled policy should return nil, got %+v", op)
-	}
-}
-
-// TestPlan_NilPolicyReturnsNil avoids panics when callers haven't loaded a
-// policy yet.
-func TestPlan_NilPolicyReturnsNil(t *testing.T) {
-	s := state.New()
-	if op := Plan(s, (*pb.Policy)(nil), time.Now()); op != nil {
-		t.Errorf("nil policy should return nil")
-	}
-}
-
-// TestPlan_WaterBatch verifies water-only state plans a batch.
-func TestPlan_WaterBatch(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true, FlowerID: 23001, State: 1},
-		1002: {Observed: true, FlowerID: 23001, State: 1},
-		1003: {Observed: true, FlowerID: 23001, State: 1},
-	})
-	setInventory(s, map[int32]int32{23001: 100})
-	setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-	setWaterDrops(s, 100)
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected water op")
-	}
-	if op.Kind != "usrLand.waterBatch" {
-		t.Errorf("kind=%q want usrLand.waterBatch", op.Kind)
-	}
-	if len(op.LandIDs) != 3 {
-		t.Errorf("got %d lands, want 3", len(op.LandIDs))
-	}
-}
-
-func TestPlan_WaterOneKeyRequiresNobleAndPolicy(t *testing.T) {
-	now := time.Now()
-	newWaterState := func() *state.State {
-		s := state.New()
-		applyLands(s, map[int32]state.LandView{
-			1001: {Observed: true, FlowerID: 23001, State: 1},
-			1002: {Observed: true, FlowerID: 23001, State: 1},
-		})
-		setInventory(s, map[int32]int32{23001: 100})
-		setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-		setWaterDrops(s, 100)
-		return s
-	}
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.WaterPreferOneKeyIfNoble = true
-	op := Plan(newWaterState(), policy, now)
-	if op == nil {
-		t.Fatal("expected water op")
-	}
-	if op.Kind == "usrLand.waterOneKey" {
-		t.Fatalf("non-noble account planned one-key water: %+v", op)
-	}
-
-	nobleNoPolicy := newWaterState()
-	setNoble(nobleNoPolicy, 1)
-	policy.Plant.WaterPreferOneKeyIfNoble = false
-	op = Plan(nobleNoPolicy, policy, now)
-	if op == nil {
-		t.Fatal("expected water op")
-	}
-	if op.Kind == "usrLand.waterOneKey" {
-		t.Fatalf("noble account planned one-key water while policy is off: %+v", op)
-	}
-
-	nobleWithPolicy := newWaterState()
-	setNoble(nobleWithPolicy, 1)
-	policy.Plant.WaterPreferOneKeyIfNoble = true
-	op = Plan(nobleWithPolicy, policy, now)
-	if op == nil {
-		t.Fatal("expected water op")
-	}
-	if op.Kind != "usrLand.waterOneKey" {
-		t.Fatalf("kind=%q want usrLand.waterOneKey", op.Kind)
-	}
-}
-
-func TestPlan_WaterAfterRecoveryTimestamp(t *testing.T) {
-	s := state.New()
-	now := time.Now()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true, FlowerID: 23001, State: 1},
-		1002: {Observed: true, FlowerID: 23001, State: 1},
-	})
-	setInventory(s, map[int32]int32{23001: 100})
-	setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-	setWaterDropsWithNext(s, 0, now.Add(-time.Minute).UnixMilli())
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.MinWaterDrops = 0
-
-	op := Plan(s, policy, now)
-	if op == nil {
-		t.Fatal("expected one water op after recovery timestamp")
-	}
-	if op.Kind != "usrLand.water" || len(op.LandIDs) != 1 {
-		t.Fatalf("got %+v, want single water op", op)
-	}
-}
-
-func TestPlan_WaterHonorsMinDrops(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true, FlowerID: 23001, State: 1},
-		1002: {Observed: true, FlowerID: 23001, State: 1},
-	})
-	setInventory(s, map[int32]int32{23001: 100})
-	setCultivations(s, map[int32]state.CultivateView{23001: {Lvl: 1, Status: 2}})
-	setWaterDrops(s, 6)
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.MinWaterDrops = 5
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected one water op above the reserve threshold")
-	}
-	if len(op.LandIDs) != 1 {
-		t.Fatalf("got %d lands, want exactly one usable drop beyond the reserve", len(op.LandIDs))
-	}
-
-	setWaterDrops(s, 5)
-	if op := Plan(s, policy, time.Now()); op != nil {
-		t.Fatalf("expected no water op at the reserve threshold, got %+v", op)
-	}
-}
-
-func TestPlan_TaskPriorityPrioritizesOrderDeficit(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23001: 100, 23005: 50})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23005: {Lvl: 1, Status: 2},
-	})
-	setFlowerOrders(s, map[int32][]state.FlowerRequire{
-		1: {{FlowerID: 23005, Count: 80}},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeLowStock
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23005 {
-		t.Fatalf("got flower=%d, want deficit flower 23005", op.FlowerID)
-	}
-}
-
-func TestPlan_TaskPriorityIgnoresCustomerOrderDeficit(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23001: 100, 23005: 50})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23005: {Lvl: 1, Status: 2},
-	})
-	setCustomerOrders(s, map[int32][]state.FlowerRequire{
-		7: {{FlowerID: 23001, Count: 120}},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeLowStock
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23005 {
-		t.Fatalf("got flower=%d, want low-stock flower 23005 instead of customer-order deficit", op.FlowerID)
-	}
-}
-
-func TestPlan_TaskPriorityPrioritizesMainTaskFlower(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23001: 100, 23058: 1})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23058: {Lvl: 1, Status: 2},
-	})
-	setMainTask(s, 10001, 1)
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeLowStock
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23058 {
-		t.Fatalf("got flower=%d, want main-task flower 23058", op.FlowerID)
-	}
-}
-
-func TestPlan_TaskPriorityUsesModeWithoutDeficit(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23001: 100, 23004: 100, 23005: 100})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23004: {Lvl: 1, Status: 2},
-		23005: {Lvl: 1, Status: 2},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeHighValue
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	want := highestValueFlower([]int32{23001, 23004, 23005})
-	if op.FlowerID != want {
-		t.Fatalf("got flower=%d, want highest value flower %d", op.FlowerID, want)
-	}
-}
-
-func TestPlan_TaskPriorityCapsBatchByDeficit(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-		1002: {Observed: true},
-		1003: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23005: 9})
-	setCultivations(s, map[int32]state.CultivateView{
-		23005: {Lvl: 1, Status: 2},
-	})
-	setFlowerOrders(s, map[int32][]state.FlowerRequire{
-		1: {{FlowerID: 23005, Count: 10}},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeHighValue
-	policy.Plant.PlantMaxBatch = 8
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.Kind != "usrLand.plant" {
-		t.Fatalf("kind=%q want usrLand.plant for one missing flower", op.Kind)
-	}
-	if op.FlowerID != 23005 || len(op.LandIDs) != 1 {
-		t.Fatalf("op=%+v, want one land planted with deficit flower 23005", op)
-	}
-}
-
-func TestPlan_TaskPriorityPrioritizesZeroStockDeficit(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-		1002: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23007: 3000, 23008: 0})
-	setCultivations(s, map[int32]state.CultivateView{
-		23007: {Lvl: 1, Status: 2},
-		23008: {Lvl: 1, Status: 2},
-	})
-	setFlowerOrders(s, map[int32][]state.FlowerRequire{
-		6: {{FlowerID: 23008, Count: 2}},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeHighValue
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23008 {
-		t.Fatalf("got flower=%d, want missing zero-stock order flower 23008", op.FlowerID)
-	}
-	if len(op.LandIDs) != 2 {
-		t.Fatalf("lands=%v, want capped to deficit 2", op.LandIDs)
-	}
-}
-
-func TestPlan_TaskPriorityCanBeDisabled(t *testing.T) {
-	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-	})
-	setInventory(s, map[int32]int32{23001: 1, 23005: 100})
-	setCultivations(s, map[int32]state.CultivateView{
-		23001: {Lvl: 1, Status: 2},
-		23005: {Lvl: 1, Status: 2},
-	})
-	setFlowerOrders(s, map[int32][]state.FlowerRequire{
-		1: {{FlowerID: 23005, Count: 120}},
-	})
-
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.PlantingMode = PlantModeLowStock
-	policy.Plant.TaskPriorityEnabled = false
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected plant op")
-	}
-	if op.FlowerID != 23001 {
-		t.Fatalf("got flower=%d, want low-stock flower 23001 when task priority is disabled", op.FlowerID)
-	}
-}
-
-func highestValueFlower(ids []int32) int32 {
-	var best int32
-	var bestGold int32
-	var bestExp int32
-	for _, id := range ids {
-		info, _ := state.FlowerInfoByID(id)
-		if best == 0 ||
-			info.Gold > bestGold ||
-			(info.Gold == bestGold && info.Experience > bestExp) ||
-			(info.Gold == bestGold && info.Experience == bestExp && id < best) {
-			best = id
-			bestGold = info.Gold
-			bestExp = info.Experience
+	seen := map[string]bool{}
+	for _, op := range result.Operations {
+		if kind, ok := want[op.Domain]; ok {
+			seen[op.Domain] = true
+			if op.Kind != kind || op.TargetID != 1 || !op.Executable || op.SyncOnly {
+				t.Fatalf("zoo op mismatch for %s: %+v", op.Domain, op)
+			}
 		}
 	}
-	return best
+	for domain := range want {
+		if !seen[domain] {
+			t.Fatalf("missing %s op: %+v", domain, result.Operations)
+		}
+	}
 }
 
-func TestPlan_PlantSkippedWhenFlowerNotCultivated(t *testing.T) {
+func TestBuildPlan_ZooCostAndRecallBlocked(t *testing.T) {
 	s := state.New()
-	applyLands(s, map[int32]state.LandView{
-		1001: {Observed: true},
-		1002: {Observed: true, FlowerID: 23001, State: 1},
-	})
-	setInventory(s, map[int32]int32{23005: 5})
-	setCultivations(s, map[int32]state.CultivateView{23005: {Lvl: 1, Status: 1}})
-	setWaterDrops(s, 100)
+	applyMap(t, s, map[string]any{"33": map[string]any{"0": map[string]any{"0": 1}}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.FeedCat.Enabled = true
+	p.Basic.FeedCat.AutoBuyFood = true
+	p.Basic.FeedCat.AutoRecall = true
 
-	policy := DefaultPolicy()
-	policy.AutomationEnabled = true
-	policy.Plant.WaterEnabled = true
-
-	op := Plan(s, policy, time.Now())
-	if op == nil {
-		t.Fatal("expected fallback to water op")
+	result := BuildPlan(s, p, time.Now())
+	want := map[string]bool{"basic.zoo.buy_food": false, "basic.zoo.recall": false}
+	for _, op := range result.Operations {
+		if _, ok := want[op.Domain]; ok {
+			if op.Executable || op.Status != PlanStatusAdapterMissing || len(op.BlockedReasons) == 0 {
+				t.Fatalf("zoo blocked op mismatch: %+v", op)
+			}
+			want[op.Domain] = true
+		}
 	}
-	if op.Kind != "usrLand.water" && op.Kind != "usrLand.waterBatch" {
-		t.Errorf("expected water op when flower is not cultivated; got %s", op.Kind)
+	for domain, seen := range want {
+		if !seen {
+			t.Fatalf("missing blocked %s op: %+v", domain, result.Operations)
+		}
+	}
+}
+
+func TestBuildPlan_PearlRefreshBeforeObserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Pearl.FreeEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.pearl" {
+			if op.Kind != clientproto.RPCPearlRefresh.String() || op.Action != "sync" || !op.Executable || op.SyncOnly {
+				t.Fatalf("pearl sync op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing pearl sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_PearlExecutableOps(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	applyMap(t, s, map[string]any{
+		"115": map[string]any{
+			"0": map[string]any{"1": map[string]any{"1": 1, "8": 2}},
+			"1": map[string]any{"1": 0, "2": 1, "6": now.Add(-24 * time.Hour).UnixMilli()},
+			"2": []int32{101, 102},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Pearl.FreeEnabled = true
+	p.Basic.Pearl.DrawEnabled = true
+	p.Basic.Pearl.ProtectEnabled = true
+
+	result := BuildPlan(s, p, now)
+	want := map[string]string{
+		"basic.pearl.free":    clientproto.RPCPearlRecvDailyFree.String(),
+		"basic.pearl.place":   clientproto.RPCPearlPlaceRecv.String(),
+		"basic.pearl.protect": clientproto.RPCPearlSetProtectState.String(),
+		"basic.pearl.draw":    clientproto.RPCPearlDraw.String(),
+	}
+	seen := map[string]bool{}
+	for _, op := range result.Operations {
+		if kind, ok := want[op.Domain]; ok {
+			seen[op.Domain] = true
+			if op.Kind != kind || !op.Executable || op.SyncOnly {
+				t.Fatalf("pearl op mismatch for %s: %+v", op.Domain, op)
+			}
+			if op.Domain == "basic.pearl.place" && op.TargetID != 1 {
+				t.Fatalf("pearl place target=%d, want 1", op.TargetID)
+			}
+			if op.Domain == "basic.pearl.protect" && op.TargetID != 1 {
+				t.Fatalf("pearl protect target=%d, want 1", op.TargetID)
+			}
+			if op.Domain == "basic.pearl.draw" && op.Count != 1 {
+				t.Fatalf("pearl draw count=%d, want 1", op.Count)
+			}
+		}
+	}
+	for domain := range want {
+		if !seen[domain] {
+			t.Fatalf("missing pearl op %s: %+v", domain, result.Operations)
+		}
+	}
+}
+
+func TestBuildPlan_PearlHireAndBuyTicketBlocked(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{"115": map[string]any{"1": map[string]any{}}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Pearl.AutoHireEnabled = true
+	p.Basic.Pearl.AutoBuyHireTicket = true
+	p.Basic.Pearl.MaxSpendDiamond = 25
+
+	result := BuildPlan(s, p, time.Now())
+	var hireBlocked, buyBlocked bool
+	for _, op := range result.Operations {
+		switch op.Domain {
+		case "basic.pearl.hire":
+			hireBlocked = !op.Executable && len(op.BlockedReasons) > 0
+		case "basic.pearl.buy_hire_ticket":
+			buyBlocked = !op.Executable && len(op.BlockedReasons) > 0
+		}
+	}
+	if !hireBlocked || !buyBlocked {
+		t.Fatalf("expected pearl blocked ops hire=%t buy=%t ops=%+v", hireBlocked, buyBlocked, result.Operations)
+	}
+}
+
+func TestBuildPlan_ShopCultivateBuyWithGoldBudget(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 5000}},
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 3214}},
+			"6": map[string]any{"10001": 0},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+	p.Basic.Shop.CultivateShop.MaxSpendGold = 4000
+	p.Basic.Shop.CultivateShop.ItemIds = []int32{1423}
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || op.ItemID != 1423 || op.GoldCost != 3214 || !op.Executable || op.SyncOnly {
+				t.Fatalf("shop cultivate buy op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop cultivate buy op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopCultivateDiamondCostBlocked(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{1, 10}},
+			"6": map[string]any{"10001": 0},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+	p.Basic.Shop.CultivateShop.MaxSpendDiamond = 20
+	p.Basic.Shop.CultivateShop.ItemIds = []int32{10001}
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Executable || len(op.BlockedReasons) == 0 {
+				t.Fatalf("diamond shop cultivate op should be blocked: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing blocked shop cultivate op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionBuildFreeAndGold(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 20000}},
+		"25": map[string]any{
+			"133": map[string]any{"1": 88, "5": map[string]any{"1": 0, "2": 0}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Build.FreeEnabled = true
+	p.Union.Build.GoldEnabled = true
+	p.Union.Build.MaxSpendGold = 12000
+
+	result := BuildPlan(s, p, time.Now())
+	var freeSeen bool
+	for _, op := range result.Operations {
+		if op.Domain == "union.build" {
+			freeSeen = true
+			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 1 || !op.Executable || op.SyncOnly || op.GoldCost != 0 {
+				t.Fatalf("free union build op mismatch: %+v", op)
+			}
+			break
+		}
+	}
+	if !freeSeen {
+		t.Fatalf("missing free union build op: %+v", result.Operations)
+	}
+
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"133": map[string]any{"1": 88, "5": map[string]any{"1": 1, "2": 0}},
+		},
+	})
+	result = BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.build" {
+			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 2 || op.GoldCost != 10095 || !op.Executable || op.SyncOnly {
+				t.Fatalf("gold union build op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union build op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionBuildDiamondBlocked(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"41": 200}},
+		"25": map[string]any{
+			"133": map[string]any{"1": 88, "5": map[string]any{"3": 0}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Build.DiamondEnabled = true
+	p.Union.Build.MaxSpendDiamond = 200
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.build" {
+			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 106 || op.Executable || len(op.BlockedReasons) == 0 {
+				t.Fatalf("diamond union build op should be blocked: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing blocked union build op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionBuildRequiresObservedCounts(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{"0": map[string]any{"0": 88}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Build.FreeEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.build" {
+			if op.Executable || len(op.BlockedReasons) == 0 {
+				t.Fatalf("union build without count map should be blocked: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing blocked union build op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandHarvest(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"1": 23005, "3": 6, "4": 2},
+					"2": map[string]any{"1": 23007, "3": 4, "4": 4},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.HarvestEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.harvest" {
+			if op.Kind != clientproto.RPCFmlLandHarvest.String() || !op.Executable || op.SyncOnly {
+				t.Fatalf("union land harvest op mismatch: %+v", op)
+			}
+			if len(op.LandIDs) != 1 || op.LandIDs[0] != 1 || op.Count != 1 {
+				t.Fatalf("union land harvest ids/count mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land harvest op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandHarvestRequiresObservedState(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.HarvestEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.harvest" {
+			if op.Executable || len(op.BlockedReasons) == 0 {
+				t.Fatalf("unobserved union land should be blocked: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing blocked union land harvest op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerShareReward(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{
+					"1": map[string]any{"0": 23005, "1": 10, "2": 3},
+					"2": map[string]any{"0": 23007, "1": 10, "2": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.ShareEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.reward" {
+			if op.Kind != clientproto.RPCFmlFlowerShareRecvRwd.String() || !op.Executable || op.SyncOnly {
+				t.Fatalf("union flower reward op mismatch: %+v", op)
+			}
+			if len(op.SlotIDs) != 1 || op.SlotIDs[0] != 1 || op.Count != 1 {
+				t.Fatalf("union flower reward slot ids/count mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union flower reward op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerTakeSyncWhenUnobserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			if op.Kind != clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String() || !op.Executable || op.SyncOnly {
+				t.Fatalf("union flower take sync op mismatch: %+v", op)
+			}
+			return
+		}
+		if op.Domain == "union.unknown" {
+			t.Fatalf("take should not be folded into union.unknown: %+v", op)
+		}
+	}
+	t.Fatalf("missing union flower take sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerTakeSpecificFlower(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"108": []any{
+				map[string]any{
+					"0": 77900091102483,
+					"1": map[string]any{
+						"1": map[string]any{"0": 23009, "1": 8, "2": 7},
+					},
+				},
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 1},
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Union.Flower.TakeFlowerIds = []int32{23011}
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			if op.Kind != clientproto.RPCFmlFlowerShareTake.String() || !op.Executable || op.SyncOnly {
+				t.Fatalf("union flower take op mismatch: %+v", op)
+			}
+			if op.TargetUID != 77900091102484 || op.TargetID != 2 || op.FlowerID != 23011 || op.Count != 1 {
+				t.Fatalf("union flower take target mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union flower take op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionForestSyncWhenUnobserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.ForestEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.forest" {
+			if op.Kind != clientproto.RPCFmlForestRefresh.String() || op.TargetID != 1 || !op.Executable || op.SyncOnly {
+				t.Fatalf("union forest sync op mismatch: %+v", op)
+			}
+			return
+		}
+		if op.Domain == "union.unknown" {
+			t.Fatalf("forest should not be folded into union.unknown: %+v", op)
+		}
+	}
+	t.Fatalf("missing union forest sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionForestCollect(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"127": map[string]any{
+				"1": 88,
+				"8": map[string]any{
+					"88": map[string]any{"1": 5},
+					"99": map[string]any{"1": 4, "3": 2},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.ForestEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.forest" {
+			if op.Kind != clientproto.RPCFmlForestRefresh.String() || op.TargetID != 1 || !op.Executable || op.SyncOnly {
+				t.Fatalf("union forest collect op mismatch: %+v", op)
+			}
+			if op.Count != 11 {
+				t.Fatalf("union forest collect count=%d, want 11: %+v", op.Count, op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union forest collect op: %+v", result.Operations)
+}
+
+func TestBuildPlan_LowStockFallbackBalancesMultipleFlowers(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 0,
+			"23002": 1,
+			"23003": 5,
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(6)}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Flower.PlantMaxBatch = 6
+	p.Plant.Flower.MaxPerFlowerPerCycle = 4
+
+	result := BuildPlan(s, p, time.Now())
+	countByFlower := map[int32]int32{}
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" {
+			countByFlower[op.FlowerID] += int32(len(op.LandIDs))
+		}
+	}
+	if countByFlower[23001] == 0 || countByFlower[23002] == 0 {
+		t.Fatalf("fallback should split across low-stock flowers, got %v ops=%+v", countByFlower, result.Operations)
+	}
+	if countByFlower[23001] > 4 {
+		t.Fatalf("fallback exceeded max_per_flower_per_cycle: %v", countByFlower)
+	}
+}
+
+func TestBuildPlan_LowStockFallbackHonorsStockFloor(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 0,
+			"23002": 2,
+			"23003": 5,
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(6)}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Flower.PlantMaxBatch = 6
+	p.Plant.Flower.MaxPerFlowerPerCycle = 6
+	p.Plant.Flower.FallbackStockFloor = 2
+
+	result := BuildPlan(s, p, time.Now())
+	countByFlower := map[int32]int32{}
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" {
+			countByFlower[op.FlowerID] += int32(len(op.LandIDs))
+		}
+	}
+	if countByFlower[23001] != 2 {
+		t.Fatalf("fallback should fill 23001 to floor 2, got %v ops=%+v", countByFlower, result.Operations)
+	}
+	if countByFlower[23002] != 0 || countByFlower[23003] != 0 {
+		t.Fatalf("fallback should not plant flowers already at/above floor, got %v", countByFlower)
+	}
+}
+
+func TestNextLandUnlockCandidateDoesNotInventNextFourLands(t *testing.T) {
+	s := state.New()
+	roster := map[string]any{}
+	for id := int32(1001); id <= 1024; id++ {
+		roster[itoa32(id)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": roster}},
+		"7":   map[string]any{"0": map[string]any{"34": 13, "44": 999999}},
+	})
+
+	if id, _, ok := nextLandUnlockCandidate(s); ok {
+		t.Fatalf("nextLandUnlockCandidate()=(%d,true), want no guessed candidate", id)
+	}
+}
+
+func TestNextLandUnlockCandidateUsesRuntimeLandConfig(t *testing.T) {
+	s := state.New()
+	roster := map[string]any{}
+	for id := int32(1001); id <= 1024; id++ {
+		roster[itoa32(id)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": roster}},
+		"7":   map[string]any{"0": map[string]any{"34": 13, "44": 1500}},
+	})
+	s.SetFarmLands([]state.FarmLandInfo{{ID: 1025, OpenLevel: 13, Cost: []int32{37, 1500}}})
+
+	id, cost, ok := nextLandUnlockCandidate(s)
+	if !ok || id != 1025 {
+		t.Fatalf("nextLandUnlockCandidate()=(%d,%t), want (1025,true)", id, ok)
+	}
+	if cost != 1474 {
+		t.Fatalf("nextLandUnlockCandidate cost=%d, want 1474", cost)
 	}
 }

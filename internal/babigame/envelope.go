@@ -108,10 +108,10 @@ func (d WSResponseD) IsSessionExpired() bool {
 // requestSeq is a process-wide counter used as a fallback if the WS client's
 // internal sequence is missing. The server doesn't care about the value; it
 // just echoes the K back.
-var requestSeq int64
+var requestSeq atomic.Int64
 
 // nextSeq atomically advances the seq counter and returns the new value.
-func nextSeq() int64 { return atomic.AddInt64(&requestSeq, 1) }
+func nextSeq() int64 { return requestSeq.Add(1) }
 
 // nowMs returns wall-clock milliseconds. Captures matched on this format.
 func nowMs() int64 { return time.Now().UnixMilli() }

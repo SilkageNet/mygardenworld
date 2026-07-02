@@ -1,107 +1,276 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type ReactNode, type RefObject } from "react";
-import { createClient } from "@connectrpc/connect";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { create } from "@bufbuild/protobuf";
-import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
-import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
-import { AutomationService } from "@/gen/mygardenworld/v1/automation_service_pb";
-import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
-import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountHarvestStats, AccountStatus, DomainStatus, Event, GetHarvestStatsResponse, GetSnapshotResponse, HarvestItemTotal, LandView, PendingTaskView, PlannedOperation, RequirementView } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { createClient } from "@connectrpc/connect";
 import {
-  ActivityModulePolicySchema,
-  ActivityPolicySchema,
-  BasicPolicySchema,
-  CustomerOrderPolicySchema,
-  FlowerArtPolicySchema,
-  OrderPolicySchema,
-  PalaceOrderPolicySchema,
-  PearlPolicySchema,
-  ResidentOrderPolicySchema,
-  SafetyPolicySchema,
-  ShopPolicySchema,
-  TeamOrderPolicySchema,
-  UnionPolicySchema,
-  ZooPolicySchema,
-} from "@/gen/mygardenworld/v1/policy_pb";
-import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import { transport } from "@/lib/api/client";
-import { useAuth } from "@/lib/auth/context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Activity,
   AlertTriangle,
-  ArrowDownToLine,
-  Clock3,
+  BadgeCheck,
+  Building2,
+  CalendarDays,
   Coins,
-  ChevronDown,
-  Droplets,
+  Flower2,
   Gem,
-  Check,
-  LayoutList,
+  HandCoins,
   ListChecks,
   LogIn,
   LogOut,
-  MapIcon,
   Package,
   Play,
   Plus,
   RefreshCw,
-  SlidersHorizontal,
-  Sprout,
+  Save,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
   Square,
-  TrendingUp,
+  Sprout,
   Trash2,
-  Wifi,
-  WifiOff,
+  Trophy,
+  Users,
+  Waves,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { allFlowers, itemCategory, itemInfo, itemName, type FlowerInfo, type ItemInfo } from "@/lib/game/catalog";
+
+import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
+import type { Account } from "@/gen/mygardenworld/v1/account_pb";
+import { AutomationService } from "@/gen/mygardenworld/v1/automation_service_pb";
+import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
+import {
+  ActivityModulePolicySchema,
+  ActivityPolicySchema,
+  BasicPolicySchema,
+  BasicTaskPolicySchema,
+  BenefitPolicySchema,
+  CultivatePolicySchema,
+  CustomerOrderPolicySchema,
+  FeedCatPolicySchema,
+  FlowerElvesPolicySchema,
+  FlowerMarketPolicySchema,
+  FlowerPlantPolicySchema,
+  FlowerArtPolicySchema,
+  FriendStealPolicySchema,
+  IntListSchema,
+  MarketBuyMode,
+  MarketPutMode,
+  OrderPolicySchema,
+  PalaceOrderPolicySchema,
+  PearlPolicySchema,
+  PlantPolicySchema,
+  PlantingMode,
+  PolicySchema,
+  ReputationPolicySchema,
+  ResidentOrderPolicySchema,
+  SelectionMode,
+  SignPolicySchema,
+  ShopBuyPolicySchema,
+  ShopPolicySchema,
+  TeamOrderPolicySchema,
+  UnionBuildPolicySchema,
+  UnionFlowerPolicySchema,
+  UnionLandPolicySchema,
+  UnionPolicySchema,
+  UnionRacePolicySchema,
+  VipShopPolicySchema,
+} from "@/gen/mygardenworld/v1/policy_pb";
+import type {
+  ActivityModulePolicy,
+  ActivityPolicy,
+  BasicPolicy,
+  BasicTaskPolicy,
+  BenefitPolicy,
+  CultivatePolicy,
+  CustomerOrderPolicy,
+  FeedCatPolicy,
+  FlowerElvesPolicy,
+  FlowerMarketPolicy,
+  FlowerArtPolicy,
+  FlowerPlantPolicy,
+  FriendStealPolicy,
+  OrderPolicy,
+  PalaceOrderPolicy,
+  PearlPolicy,
+  PlantPolicy,
+  Policy,
+  ReputationPolicy,
+  ResidentOrderPolicy,
+  ShopBuyPolicy,
+  ShopPolicy,
+  SignPolicy,
+  TeamOrderPolicy,
+  UnionBuildPolicy,
+  UnionFlowerPolicy,
+  UnionLandPolicy,
+  UnionPolicy,
+  UnionRacePolicy,
+  VipShopPolicy,
+} from "@/gen/mygardenworld/v1/policy_pb";
+import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
+import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
+import type {
+  AccountStatus,
+  DemandView,
+  DomainStatus,
+  Event,
+  FlowerArtAvailabilityView,
+  GetSnapshotResponse,
+  PlannedOperation,
+  VaseView,
+} from "@/gen/mygardenworld/v1/query_service_pb";
 import AppShell from "@/components/app-shell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { transport } from "@/lib/api/client";
+import { itemName } from "@/lib/game/catalog";
+import { cn } from "@/lib/utils";
 
 const accountClient = createClient(AccountService, transport);
-const queryClient = createClient(QueryService, transport);
 const automationClient = createClient(AutomationService, transport);
 const policyClient = createClient(PolicyService, transport);
-const MAX_EVENT_ROWS = 300;
-const SNAPSHOT_REFRESH_DELAY_MS = 350;
-const FLOWER_OPTIONS = allFlowers();
+const queryClient = createClient(QueryService, transport);
+
+const EVENT_LIMIT = 120;
+const STATUS_POLL_MS = 5000;
 const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
+  "operation_ack",
   "resource_changed",
   "inventory_changed",
   "land_changed",
-  "land_unlock",
-  "operation_ack",
-  "task_recv",
-  "task_daily",
-  "road_grow",
-  "random_event",
-  "story_unlock",
   "order_finish",
   "order_customer",
   "flower_art",
   "flower_rack",
-  "cultivate_recv",
-  "cultivate_new",
-  "flower_upgrade",
+  "task_recv",
   "waterwheel",
   "free_water",
+  "benefit_box",
 ]);
-const SNAPSHOT_REFRESH_EVENT_CATEGORIES = new Set(["basic", "plant", "order", "union", "activity"]);
+
+const GOAL_OPTIONS = [
+  { id: "order.customer", label: "顾客订单", defaultPriority: 10 },
+  { id: "order.resident", label: "居民任务", defaultPriority: 20 },
+  { id: "order.flower_art", label: "花艺/花架", defaultPriority: 30 },
+  { id: "basic.task.main", label: "主线任务", defaultPriority: 40 },
+  { id: "basic.task.daily", label: "日常任务", defaultPriority: 50 },
+  { id: "basic.task.weekly", label: "周常任务", defaultPriority: 60 },
+  { id: "fallback.low_stock", label: "低库存补种", defaultPriority: 1000 },
+];
+
+type PolicyTabId = "basic" | "plant" | "order" | "union" | "activity";
+
+const POLICY_TABS: { id: PolicyTabId; label: string; icon: ReactNode }[] = [
+  { id: "basic", label: "基础", icon: <ShieldCheck /> },
+  { id: "plant", label: "种植", icon: <Sprout /> },
+  { id: "order", label: "订单", icon: <ListChecks /> },
+  { id: "union", label: "公会", icon: <Users /> },
+  { id: "activity", label: "活动", icon: <CalendarDays /> },
+];
+
+const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
+
+const PLANTING_MODE_OPTIONS = [
+  { value: PlantingMode.QUALITY, label: "品质" },
+  { value: PlantingMode.COUNT, label: "数量" },
+  { value: PlantingMode.SPECIFIC, label: "指定" },
+];
+
+const SELECTION_MODE_OPTIONS = [
+  { value: SelectionMode.ALL, label: "全部" },
+  { value: SelectionMode.QUALITY, label: "品质" },
+  { value: SelectionMode.SPECIFIC, label: "指定" },
+  { value: SelectionMode.EXCLUDE, label: "排除" },
+];
+
+const MARKET_PUT_MODE_OPTIONS = [
+  { value: MarketPutMode.INVENTORY, label: "库存最多" },
+  { value: MarketPutMode.SPECIFIC, label: "指定花朵" },
+];
+
+const MARKET_BUY_MODE_OPTIONS = [
+  { value: MarketBuyMode.ALL, label: "全部" },
+  { value: MarketBuyMode.SPECIFIC, label: "指定花朵" },
+  { value: MarketBuyMode.QUALITY, label: "指定品质" },
+];
+
+const UNION_RACE_TASKS = [2004, 3006, 3016, 3017, 3018, 3023, 3024, 3030, 3034, 3035, 3036, 3044, 3052];
+
+type SettingStatusKind = "sync_only" | "adapter_missing" | "paused";
+
+type SettingStatus = {
+  kind: SettingStatusKind;
+  label: string;
+  detail: string;
+};
+
+const SETTING_STATUS = {
+  syncOnly: { kind: "sync_only", label: "同步", detail: "策略项已登记，当前只做状态/需求展示，暂不自动执行。" },
+  adapterMissing: { kind: "adapter_missing", label: "阻塞", detail: "需要补协议、状态或成本门槛，暂不自动执行。" },
+  videoTokenMissing: { kind: "adapter_missing", label: "阻塞", detail: "依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成。" },
+  paused: { kind: "paused", label: "暂停", detail: "本阶段不继续拓展该功能，已接入能力保留运行。" },
+} satisfies Record<string, SettingStatus>;
+
+type ActivityModuleMeta = {
+  id: string;
+  label: string;
+  status?: SettingStatus;
+  boolParams?: { key: string; label: string }[];
+  intParams?: { key: string; label: string; min?: number }[];
+  stringParams?: { key: string; label: string }[];
+};
+
+const ACTIVITY_MODULES: ActivityModuleMeta[] = [
+  { id: "cyclicNote", label: "花笺集芳", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "unlock_slot", label: "解锁任务槽" }, { key: "auto_enable_modules", label: "自动启用模块" }] },
+  { id: "actCyclicStory", label: "莳花纪闻", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "refresh_enabled", label: "自动刷新" }], intParams: [{ key: "max_finish_count_per_batch", label: "每批完成数", min: 0 }] },
+  { id: "fishMerge", label: "丰仓鱼干", status: SETTING_STATUS.adapterMissing, boolParams: [{ key: "show_result", label: "显示结果" }, { key: "auto_restart", label: "自动重开" }] },
+  { id: "magicBubble", label: "奇妙泡泡", status: SETTING_STATUS.adapterMissing },
+  { id: "zooGameElim", label: "花香满园", status: SETTING_STATUS.syncOnly },
+  { id: "fishFun", label: "鱼乐无穷", status: SETTING_STATUS.adapterMissing, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }, { key: "show_result", label: "显示结果" }, { key: "auto_restart", label: "自动重开" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
+  { id: "actElim", label: "花漾物语", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
+  { id: "actSpool", label: "梳丝引线", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
+  { id: "redPacket", label: "红包雨", status: SETTING_STATUS.syncOnly },
+  { id: "recvLuck", label: "迎新接福", status: SETTING_STATUS.adapterMissing },
+  { id: "yzCall", label: "为紫打 call", status: SETTING_STATUS.adapterMissing },
+  { id: "moneyTree", label: "摇钱树", status: SETTING_STATUS.syncOnly },
+  { id: "lanternFestival", label: "元宵灯谜", status: SETTING_STATUS.adapterMissing },
+  { id: "actDuanWu", label: "龙舟竞渡", status: SETTING_STATUS.adapterMissing, boolParams: [{ key: "claim_box", label: "领取进度宝箱" }, { key: "open_box", label: "打开舟赛宝箱" }] },
+  { id: "actDessert", label: "香卉甜糕", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }, { key: "use_items", label: "使用道具" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
+  { id: "actMerge2", label: "田园奇趣", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
+];
+
+const EMPTY_ADD_FORM = {
+  name: "",
+  username: "",
+  password: "",
+  loginNow: true,
+};
+
+type AddAccountForm = typeof EMPTY_ADD_FORM;
+
+type BlockedItem = {
+  source: string;
+  label: string;
+  reasons: string[];
+};
 
 export default function HomePage() {
   return (
@@ -112,481 +281,230 @@ export default function HomePage() {
 }
 
 function DashboardContent() {
-  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
   const [selectedAccountId, setSelectedAccountId] = useState("");
-  const [selectedSnapshot, setSelectedSnapshot] = useState<GetSnapshotResponse | null>(null);
-  const [harvestStats, setHarvestStats] = useState<GetHarvestStatsResponse | null>(null);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [streaming, setStreaming] = useState(false);
+  const [snapshot, setSnapshot] = useState<GetSnapshotResponse | null>(null);
   const [policy, setPolicy] = useState<Policy | null>(null);
-  const [policyAccountId, setPolicyAccountId] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [savingPolicy, setSavingPolicy] = useState(false);
-  const [policyMessage, setPolicyMessage] = useState("");
-  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
-  const [deleteAccountTarget, setDeleteAccountTarget] = useState<Account | null>(null);
-  const [busyAccountId, setBusyAccountId] = useState("");
-  const [workspaceBusy, setWorkspaceBusy] = useState("");
+  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [busyAction, setBusyAction] = useState("");
   const [error, setError] = useState("");
-  const logViewportRef = useRef<HTMLDivElement>(null);
-  const autoScrollLogRef = useRef(true);
-  const accountsRef = useRef<Account[]>([]);
-  const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
-  const selectedAccountIdRef = useRef("");
-  const didInitialFetchRef = useRef(false);
-  const eventKeysRef = useRef<Set<string>>(new Set());
-  const snapshotRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [policyMessage, setPolicyMessage] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
 
-  const fetchData = useCallback(async () => {
-    try {
-      setError("");
-      const [accRes, statusRes, harvestRes] = await Promise.all([
-        accountClient.listAccounts({}),
-        queryClient.getStatus({}),
-        queryClient.getHarvestStats({ limitItems: 24 }).catch(() => null),
-      ]);
-      setAccounts(accRes.accounts);
-      if (harvestRes) {
-        setHarvestStats(harvestRes);
-      }
-      const statusMap = new Map<string, AccountStatus>();
-      for (const status of statusRes.accounts) {
-        statusMap.set(status.accountId, status);
-      }
-      setStatuses(statusMap);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "刷新数据失败");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const refreshHarvestStats = useCallback(async () => {
-    try {
-      setHarvestStats(await queryClient.getHarvestStats({ limitItems: 24 }));
-    } catch {
-      // Recent harvest totals are a secondary panel; keep the last good view.
-    }
-  }, []);
+  const selectedAccount = useMemo(
+    () => accounts.find((account) => account.id === selectedAccountId) ?? null,
+    [accounts, selectedAccountId],
+  );
+  const selectedStatus = selectedAccountId ? statuses.get(selectedAccountId) : undefined;
 
   const refreshStatus = useCallback(async () => {
-    try {
-      const statusRes = await queryClient.getStatus({});
-      const statusMap = new Map<string, AccountStatus>();
-      for (const status of statusRes.accounts) {
-        statusMap.set(status.accountId, status);
-      }
-      setStatuses(statusMap);
-    } catch {
-      // The event stream is the primary live signal; keep the current view if a background refresh fails.
+    const [accountRes, statusRes] = await Promise.all([
+      accountClient.listAccounts({}),
+      queryClient.getStatus({}),
+    ]);
+    const nextStatuses = new Map<string, AccountStatus>();
+    for (const status of statusRes.accounts) {
+      nextStatuses.set(status.accountId, status);
     }
+    setAccounts(accountRes.accounts);
+    setStatuses(nextStatuses);
   }, []);
 
-  const refreshSelectedSnapshot = useCallback(async (options?: {
-    accountId?: string;
-    showLoading?: boolean;
-    clearOnError?: boolean;
-    skipConnectedCheck?: boolean;
-  }) => {
-    const accountId = options?.accountId ?? selectedAccountId;
+  const refreshSnapshot = useCallback(async (accountId: string, showLoading = false) => {
     if (!accountId) {
-      setSelectedSnapshot(null);
+      setSnapshot(null);
       return;
     }
-    if (!options?.skipConnectedCheck) {
-      const account = accountsRef.current.find((item) => item.id === accountId);
-      const status = statusesRef.current.get(accountId);
-      const connected = status?.connected ?? account?.connected ?? false;
-      if (!connected) {
-        setSelectedSnapshot(null);
-        setSnapshotLoading(false);
-        return;
-      }
-    }
-    if (options?.showLoading) {
+    if (showLoading) {
       setSnapshotLoading(true);
     }
     try {
-      const snapshot = await queryClient.getSnapshot({ accountId });
-      setSelectedSnapshot(snapshot);
-    } catch {
-      if (options?.clearOnError) {
-        setSelectedSnapshot(null);
-      }
+      setSnapshot(await queryClient.getSnapshot({ accountId }));
+    } catch (err) {
+      setSnapshot(null);
+      setError(err instanceof Error ? err.message : "读取快照失败");
     } finally {
-      if (options?.showLoading) {
-        setSnapshotLoading(false);
-      }
-    }
-  }, [selectedAccountId]);
-
-  const refreshPolicy = useCallback(async (accountId = selectedAccountId) => {
-    if (!accountId) {
-      setPolicy(null);
-      setPolicyAccountId("");
-      return;
-    }
-    setPolicy(null);
-    setPolicyAccountId(accountId);
-    try {
-      const res = await policyClient.getPolicy({ accountId });
-      setPolicy(res.policy ?? null);
-      setPolicyAccountId(accountId);
-    } catch {
-      setPolicy(null);
-      setPolicyAccountId(accountId);
-    }
-  }, [selectedAccountId]);
-
-  const scheduleSnapshotRefresh = useCallback((accountId: string) => {
-    if (!accountId || accountId !== selectedAccountIdRef.current) return;
-    if (snapshotRefreshTimerRef.current) return;
-    snapshotRefreshTimerRef.current = setTimeout(() => {
-      snapshotRefreshTimerRef.current = null;
-      if (accountId !== selectedAccountIdRef.current) return;
-      refreshSelectedSnapshot({ accountId, skipConnectedCheck: true });
-      refreshStatus();
-    }, SNAPSHOT_REFRESH_DELAY_MS);
-  }, [refreshSelectedSnapshot, refreshStatus]);
-
-  const applyEventToLocalState = useCallback((event: Event) => {
-    setStatuses((prev) => {
-      const current = prev.get(event.accountId);
-      if (!current) return prev;
-      const next = new Map(prev);
-      next.set(event.accountId, { ...current, lastEventAt: event.ts });
-      return next;
-    });
-
-    if (event.kind === "session" || event.kind === "ws_disconnected" || event.kind === "session_expired") {
-      setStatuses((prev) => {
-        const current = prev.get(event.accountId);
-        if (!current) return prev;
-        const next = new Map(prev);
-        next.set(event.accountId, {
-          ...current,
-          connected: event.kind === "session",
-        });
-        return next;
-      });
-    }
-
-    const payload = parseEventPayload(event.payloadJson);
-    if (event.kind === "policy_changed") {
-      const enabled = booleanField(payload, "automation_enabled", undefined);
-      if (enabled !== undefined) {
-        setStatuses((prev) => {
-          const current = prev.get(event.accountId);
-          if (!current) return prev;
-          const next = new Map(prev);
-          next.set(event.accountId, { ...current, automationEnabled: enabled });
-          return next;
-        });
-        if (event.accountId === selectedAccountIdRef.current) {
-          setPolicy((prev) => prev ? { ...prev, automationEnabled: enabled } : prev);
-        }
-      }
-    }
-
-    if (event.accountId !== selectedAccountIdRef.current) return;
-    if (!payload) return;
-
-    if (event.kind === "resource_changed") {
-      setSelectedSnapshot((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          gold: numberField(payload, "gold", prev.gold),
-          waterDrops: numberField(payload, "water_drops", prev.waterDrops),
-          waterDropsTotal: numberField(payload, "water_drops_total", prev.waterDropsTotal),
-          waterDropsNextMs: bigintField(payload, "water_drops_next_ms", prev.waterDropsNextMs),
-          level: numberField(payload, "level", prev.level),
-          experience: numberField(payload, "experience", prev.experience),
-          diamondsFree: numberField(payload, "diamonds_free", prev.diamondsFree),
-          diamondsPaid: numberField(payload, "diamonds_paid", prev.diamondsPaid),
-        };
-      });
-      return;
-    }
-
-    if (event.kind === "inventory_changed") {
-      setSelectedSnapshot((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          inventory: inventoryField(payload, "inventory", prev.inventory),
-        };
-      });
-      return;
-    }
-
-    if (event.kind === "land_changed") {
-      const changes = arrayField(payload, "changes");
-      if (changes.length > 0) {
-        setSelectedSnapshot((prev) => {
-          if (!prev) return prev;
-          const lands = [...prev.lands];
-          const byId = new Map<number, number>();
-          lands.forEach((land, index) => byId.set(land.landId, index));
-          let touched = false;
-          for (const change of changes) {
-            const landId = numberField(change, "landId", 0);
-            const after = recordField(change, "after");
-            const index = byId.get(landId);
-            if (!landId || !after || index === undefined) continue;
-            lands[index] = applyLandAfter(lands[index], after);
-            touched = true;
-          }
-          return touched ? { ...prev, lands } : prev;
-        });
-        return;
-      }
-      const landId = numberField(payload, "landId", 0);
-      const after = recordField(payload, "after");
-      if (!landId || !after) return;
-      setSelectedSnapshot((prev) => {
-        if (!prev) return prev;
-        const index = prev.lands.findIndex((land) => land.landId === landId);
-        if (index < 0) return prev;
-        const current = prev.lands[index];
-        const lands = [...prev.lands];
-        lands[index] = applyLandAfter(current, after);
-        return { ...prev, lands };
-      });
+      setSnapshotLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    accountsRef.current = accounts;
-  }, [accounts]);
-
-  useEffect(() => {
-    statusesRef.current = statuses;
-  }, [statuses]);
-
-  useEffect(() => {
-    selectedAccountIdRef.current = selectedAccountId;
-    setPolicy(null);
-    setPolicyAccountId(selectedAccountId);
-    setPolicyMessage("");
-  }, [selectedAccountId]);
-
-  useEffect(() => {
-    if (didInitialFetchRef.current) return;
-    didInitialFetchRef.current = true;
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (accounts.length === 0) {
-      setSelectedAccountId("");
+  const refreshPolicy = useCallback(async (accountId: string) => {
+    if (!accountId) {
+      setPolicy(null);
       return;
     }
-    if (!accounts.some((account) => account.id === selectedAccountId)) {
+    setPolicyLoading(true);
+    try {
+      const res = await policyClient.getPolicy({ accountId });
+      setPolicy(res.policy ?? create(PolicySchema));
+      setPolicyMessage("");
+    } catch (err) {
+      setPolicy(null);
+      setPolicyMessage(err instanceof Error ? err.message : "读取策略失败");
+    } finally {
+      setPolicyLoading(false);
+    }
+  }, []);
+
+  const refreshWorkspace = useCallback(async () => {
+    setError("");
+    try {
+      await refreshStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "刷新失败");
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshStatus]);
+
+  useEffect(() => {
+    void refreshWorkspace();
+  }, [refreshWorkspace]);
+
+  useEffect(() => {
+    if (!selectedAccountId && accounts.length > 0) {
       setSelectedAccountId(accounts[0].id);
     }
   }, [accounts, selectedAccountId]);
 
   useEffect(() => {
-    refreshSelectedSnapshot({ showLoading: true, clearOnError: true });
-  }, [selectedAccountId, refreshSelectedSnapshot]);
-
-  useEffect(() => {
-    refreshPolicy();
-  }, [refreshPolicy]);
-
-  useEffect(() => {
-    const abort = new AbortController();
-    let stopped = false;
-
-    (async () => {
-      let retryMs = 1000;
-      while (!stopped) {
-        try {
-          setStreaming(true);
-          const stream = queryClient.streamEvents({}, { signal: abort.signal });
-          for await (const event of stream) {
-            retryMs = 1000;
-            const key = eventStableKey(event);
-            if (eventKeysRef.current.has(key)) continue;
-            eventKeysRef.current.add(key);
-            setEvents((prev) => {
-              const next = [...prev.slice(-(MAX_EVENT_ROWS * 3 - 1)), event];
-              if (eventKeysRef.current.size > MAX_EVENT_ROWS * 4) {
-                eventKeysRef.current = new Set(next.map(eventStableKey));
-              }
-              return next;
-            });
-            applyEventToLocalState(event);
-            if (event.kind === "operation_ack" && event.payloadJson.includes("usrLand.harvest")) {
-              void refreshHarvestStats();
-            }
-            if (eventNeedsSnapshotRefresh(event)) {
-              scheduleSnapshotRefresh(event.accountId);
-            }
-          }
-        } catch {
-          // Page navigation, auth refresh, daemon restart, and transient network loss all land here.
-        } finally {
-          if (!stopped) {
-            setStreaming(false);
-          }
-        }
-        if (!stopped) {
-          await sleep(retryMs);
-          retryMs = Math.min(retryMs * 2, 10000);
-        }
-      }
-    })();
-
-    return () => {
-      stopped = true;
-      abort.abort();
-    };
-  }, [applyEventToLocalState, refreshHarvestStats, scheduleSnapshotRefresh]);
-
-  useEffect(() => {
-    return () => {
-      if (snapshotRefreshTimerRef.current) {
-        clearTimeout(snapshotRefreshTimerRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!selectedAccountId) {
+      setSnapshot(null);
+      setPolicy(null);
+      setEvents([]);
       return;
     }
-    autoScrollLogRef.current = true;
-  }, [selectedAccountId]);
+    void refreshSnapshot(selectedAccountId, true);
+    void refreshPolicy(selectedAccountId);
+  }, [refreshPolicy, refreshSnapshot, selectedAccountId]);
 
   useEffect(() => {
-    const viewport = logViewportRef.current;
-    if (!viewport || !autoScrollLogRef.current) return;
-    const frame = requestAnimationFrame(() => {
-      viewport.scrollTop = viewport.scrollHeight;
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [events.length, selectedAccountId]);
+    const timer = window.setInterval(() => {
+      void refreshStatus().catch(() => undefined);
+      if (selectedAccountId) {
+        void refreshSnapshot(selectedAccountId).catch(() => undefined);
+      }
+    }, STATUS_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [refreshSnapshot, refreshStatus, selectedAccountId]);
 
-  const handleLogScroll = useCallback(() => {
-    const viewport = logViewportRef.current;
-    if (!viewport) return;
-    autoScrollLogRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 32;
-  }, []);
-
-  const scrollLogToBottom = useCallback(() => {
-    const viewport = logViewportRef.current;
-    if (!viewport) return;
-    autoScrollLogRef.current = true;
-    requestAnimationFrame(() => {
-      viewport.scrollTo({ top: viewport.scrollHeight, behavior: "smooth" });
-    });
-  }, []);
-
-  const clearSelectedLogs = useCallback(() => {
+  useEffect(() => {
     if (!selectedAccountId) return;
-    autoScrollLogRef.current = true;
-    setEvents((prev) => prev.filter((event) => event.accountId !== selectedAccountId));
-  }, [selectedAccountId]);
+    const controller = new AbortController();
+    let active = true;
+    setEvents([]);
 
-  async function loginAccount(accountId: string, accountName: string) {
-    setBusyAccountId(accountId);
-    setError("");
-    try {
-      await accountClient.loginAccount({ id: accountId, name: accountName });
-      setSelectedAccountId(accountId);
-      await fetchData();
-      await Promise.all([
-        refreshSelectedSnapshot({ accountId, showLoading: true, clearOnError: true, skipConnectedCheck: true }),
-        refreshPolicy(accountId),
-      ]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "登录账号失败");
-    } finally {
-      setBusyAccountId("");
-    }
-  }
-
-  async function logoutAccount(accountId: string, accountName: string) {
-    setBusyAccountId(accountId);
-    setError("");
-    try {
-      await accountClient.logoutAccount({ id: accountId, name: accountName });
-      await fetchData();
-      if (accountId === selectedAccountId) {
-        setSelectedSnapshot(null);
-        await refreshPolicy();
+    async function readEvents() {
+      try {
+        for await (const event of queryClient.streamEvents(
+          { accountId: selectedAccountId },
+          { signal: controller.signal },
+        )) {
+          if (!active) return;
+          setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
+          if (SNAPSHOT_REFRESH_EVENT_KINDS.has(event.kind)) {
+            void refreshSnapshot(selectedAccountId).catch(() => undefined);
+          }
+        }
+      } catch (err) {
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : "事件流中断");
+        }
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "退出登录失败");
-    } finally {
-      setBusyAccountId("");
     }
-  }
 
-  async function deleteAccount(account: Account) {
-    setBusyAccountId(account.id);
-    setError("");
-    try {
-      await accountClient.deleteAccount({ id: account.id, name: account.name });
-      setDeleteAccountTarget(null);
-      setEvents((prev) => prev.filter((event) => event.accountId !== account.id));
-      if (selectedAccountIdRef.current === account.id) {
-        const nextAccount = accountsRef.current.find((item) => item.id !== account.id);
-        setSelectedAccountId(nextAccount?.id ?? "");
-        setSelectedSnapshot(null);
-        setPolicy(null);
-        setPolicyAccountId(nextAccount?.id ?? "");
-      }
-      await fetchData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "删除账号失败");
-    } finally {
-      setBusyAccountId("");
-    }
-  }
+    void readEvents();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [refreshSnapshot, selectedAccountId]);
 
-  async function runSelectedAction(action: "start" | "stop") {
+  async function runAccountAction(action: "login" | "logout" | "start" | "stop" | "reload") {
     if (!selectedAccount) return;
-    setWorkspaceBusy(action);
+    setBusyAction(action);
     setError("");
     try {
-      if (action === "start") {
-        await automationClient.start({ accountId: selectedAccount.id, accountName: selectedAccount.name });
-      } else {
-        await automationClient.stop({ accountId: selectedAccount.id, accountName: selectedAccount.name });
-      }
-      await Promise.all([
-        fetchData(),
-        refreshSelectedSnapshot({ showLoading: true, clearOnError: true, skipConnectedCheck: action === "start" }),
-        refreshPolicy(),
-      ]);
+      if (action === "login") await accountClient.loginAccount({ id: selectedAccount.id });
+      if (action === "logout") await accountClient.logoutAccount({ id: selectedAccount.id });
+      if (action === "start") await automationClient.start({ accountId: selectedAccount.id });
+      if (action === "stop") await automationClient.stop({ accountId: selectedAccount.id });
+      if (action === "reload") await automationClient.reload({ accountId: selectedAccount.id });
+      await refreshStatus();
+      await refreshSnapshot(selectedAccount.id);
+      await refreshPolicy(selectedAccount.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "操作失败");
     } finally {
-      setWorkspaceBusy("");
+      setBusyAction("");
     }
   }
 
-  async function saveSelectedPolicy() {
-    if (!policy || !selectedAccount) return;
-    if (policyAccountId !== selectedAccount.id) {
-      setPolicyMessage("策略仍在加载，请稍后再保存");
-      return;
+  async function createAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!addForm.name.trim() || !addForm.username.trim() || !addForm.password) return;
+    setBusyAction("create");
+    setError("");
+    try {
+      const res = await accountClient.createAccount({
+        name: addForm.name.trim(),
+        username: addForm.username.trim(),
+        password: addForm.password,
+        channel: Channel.IOS,
+        loginNow: addForm.loginNow,
+      });
+      setAddOpen(false);
+      setAddForm(EMPTY_ADD_FORM);
+      await refreshStatus();
+      if (res.account?.id) {
+        setSelectedAccountId(res.account.id);
+      }
+      if (res.loginError) {
+        setError(res.loginError);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "新增账号失败");
+    } finally {
+      setBusyAction("");
     }
+  }
+
+  async function deleteSelectedAccount() {
+    if (!selectedAccount) return;
+    const confirmed = window.confirm(`确认删除账号「${selectedAccount.name}」？此操作会移除本地账号、会话和策略。`);
+    if (!confirmed) return;
+    setBusyAction("delete");
+    setError("");
+    try {
+      await accountClient.deleteAccount({ id: selectedAccount.id });
+      const nextAccounts = accounts.filter((account) => account.id !== selectedAccount.id);
+      setSelectedAccountId(nextAccounts[0]?.id ?? "");
+      setSnapshot(null);
+      setPolicy(null);
+      await refreshStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除账号失败");
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function savePolicy() {
+    if (!selectedAccount || !policy) return;
     setSavingPolicy(true);
     setPolicyMessage("");
     try {
-      await policyClient.setPolicy({ accountId: selectedAccount.id, policy });
+      const res = await policyClient.setPolicy({ accountId: selectedAccount.id, policy });
+      setPolicy(res.policy ?? policy);
       setPolicyMessage("已保存");
-      await Promise.all([refreshStatus(), refreshPolicy()]);
-      setTimeout(() => setPolicyMessage(""), 1800);
+      await refreshStatus();
+      await refreshSnapshot(selectedAccount.id);
     } catch (err) {
       setPolicyMessage(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -594,626 +512,465 @@ function DashboardContent() {
     }
   }
 
-  const maxAccounts = user?.maxAccounts ?? 5;
-  const onlineCount = Array.from(statuses.values()).filter((status) => status.connected).length;
-  const offlineCount = Math.max(accounts.length - onlineCount, 0);
-  const selectedAccount = accounts.find((account) => account.id === selectedAccountId) ?? null;
-  const selectedStatus = selectedAccount ? statuses.get(selectedAccount.id) : undefined;
-  const selectedPolicy = policyAccountId === selectedAccountId ? policy : null;
-  const selectedHarvestStats = selectedAccountId
-    ? harvestStats?.accounts.find((account) => account.accountId === selectedAccountId) ?? null
-    : null;
-  const selectedEvents = selectedAccountId
-    ? events.filter((event) => event.accountId === selectedAccountId).slice(-MAX_EVENT_ROWS)
-    : [];
-
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
+  const blockedItems = useMemo(() => collectBlocked(snapshot, selectedStatus), [snapshot, selectedStatus]);
 
   return (
-    <div className="flex min-h-full flex-col gap-4 xl:h-full xl:min-h-0 xl:overflow-hidden">
-      {error && (
-        <div className="shrink-0 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      )}
-
-      {accounts.length > 0 ? (
-        <div className="grid min-w-0 gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-          <Card className="hidden bg-card/95 shadow-sm shadow-black/5 lg:flex lg:flex-col xl:min-h-0">
-            <CardHeader className="space-y-3 border-b border-border/70 pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <LayoutList className="size-4 text-primary" />
-                    账号
-                  </CardTitle>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button variant="outline" size="icon-sm" onClick={fetchData} aria-label="刷新账号列表">
-                    <RefreshCw className="size-3.5" />
-                  </Button>
-                  <Button size="icon-sm" onClick={() => setShowAddDialog(true)} disabled={accounts.length >= maxAccounts} aria-label="添加账号">
-                    <Plus className="size-3.5" />
-                  </Button>
-                </div>
+    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="min-h-0 xl:overflow-hidden">
+        <Card className="h-full min-h-[480px]">
+          <CardHeader className="border-b border-border/70 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>账号</CardTitle>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => void refreshWorkspace()}
+                  aria-label="刷新"
+                  disabled={loading}
+                >
+                  <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+                </Button>
+                <Button type="button" variant="outline" size="icon-sm" onClick={() => setAddOpen(true)} aria-label="新增账号">
+                  <Plus className="size-4" />
+                </Button>
               </div>
-              <div className="grid grid-cols-3 overflow-hidden rounded-md border border-border/70 bg-muted/20 text-center">
-                <HeaderMetric label="配额" value={`${accounts.length}/${maxAccounts}`} />
-                <HeaderMetric label="在线" value={onlineCount} />
-                <HeaderMetric label="未登录" value={offlineCount} />
+            </div>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+            {accounts.length === 0 ? (
+              <EmptyState title="暂无账号" detail="本地库未配置游戏账号。" />
+            ) : (
+              <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-1">
+                {accounts.map((account) => {
+                  const status = statuses.get(account.id);
+                  const selected = account.id === selectedAccountId;
+                  return (
+                    <button
+                      key={account.id}
+                      type="button"
+                      className={cn(
+                        "w-full rounded-md border p-3 text-left transition-colors",
+                        selected
+                          ? "border-primary/60 bg-primary/10"
+                          : "border-border/70 bg-muted/20 hover:bg-muted/45",
+                      )}
+                      onClick={() => setSelectedAccountId(account.id)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{account.name}</div>
+                          <div className="truncate text-xs text-muted-foreground">{account.username}</div>
+                        </div>
+                        <HealthBadge status={status} account={account} />
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                        <MetricMini label="土地" value={status?.knownLands ?? 0} />
+                        <MetricMini label="库存" value={status?.flowerStockTotal ?? 0} />
+                        <MetricMini label="自动" value={status?.automationEnabled ? "开" : "关"} />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </CardHeader>
-            <CardContent className="dark-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
-              {accounts.map((account) => (
-                <AccountRow
-                  key={account.id}
-                  account={account}
-                  status={statuses.get(account.id)}
-                  selected={account.id === selectedAccountId}
-                  busy={busyAccountId === account.id}
-                  onSelect={() => setSelectedAccountId(account.id)}
-                  onLogin={() => loginAccount(account.id, account.name)}
-                  onLogout={() => logoutAccount(account.id, account.name)}
-                />
-              ))}
-            </CardContent>
-          </Card>
-
-          <AccountWorkspace
-            account={selectedAccount}
-            status={selectedStatus}
-            snapshot={selectedSnapshot}
-            harvestStats={selectedHarvestStats}
-            harvestWindow={harvestStats}
-            policy={selectedPolicy}
-            events={selectedEvents}
-            streaming={streaming}
-            logViewportRef={logViewportRef}
-            onLogScroll={handleLogScroll}
-            onClearLog={clearSelectedLogs}
-            onScrollLogToBottom={scrollLogToBottom}
-            loading={snapshotLoading}
-            busy={selectedAccount ? busyAccountId === selectedAccount.id || !!workspaceBusy : false}
-            onRefresh={refreshSelectedSnapshot}
-            onLogin={() => selectedAccount && loginAccount(selectedAccount.id, selectedAccount.name)}
-            onLogout={() => selectedAccount && logoutAccount(selectedAccount.id, selectedAccount.name)}
-            onStart={() => runSelectedAction("start")}
-            onStop={() => runSelectedAction("stop")}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onOpenAccountSwitcher={() => setAccountSwitcherOpen(true)}
-            onDelete={() => selectedAccount && setDeleteAccountTarget(selectedAccount)}
-          />
-        </div>
-      ) : (
-        <Card className="border-dashed bg-card/70 xl:flex-1">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="font-medium">还没有游戏账号</p>
-            <p className="mt-1 text-sm text-muted-foreground">添加账号后就能在首页切换查看状态。</p>
-            <Button className="mt-5" onClick={() => setShowAddDialog(true)}>
-              <Plus className="size-4" />
-              添加第一个账号
-            </Button>
+            )}
           </CardContent>
         </Card>
-      )}
+      </aside>
 
-      <AddAccountDialog
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSuccess={fetchData}
-      />
-      <AccountSwitcherDialog
-        open={accountSwitcherOpen}
-        onOpenChange={setAccountSwitcherOpen}
-        accounts={accounts}
-        statuses={statuses}
-        selectedAccountId={selectedAccountId}
-        busyAccountId={busyAccountId}
-        maxAccounts={maxAccounts}
-        onlineCount={onlineCount}
-        offlineCount={offlineCount}
-        onRefresh={fetchData}
-        onAdd={() => {
-          setAccountSwitcherOpen(false);
-          setShowAddDialog(true);
-        }}
-        onSelect={(account) => {
-          setSelectedAccountId(account.id);
-          setAccountSwitcherOpen(false);
-        }}
-        onLogin={(account) => loginAccount(account.id, account.name)}
-        onLogout={(account) => logoutAccount(account.id, account.name)}
-      />
-      <DeleteAccountDialog
-        account={deleteAccountTarget}
-        deleting={deleteAccountTarget ? busyAccountId === deleteAccountTarget.id : false}
-        onOpenChange={(open) => {
-          if (!open) setDeleteAccountTarget(null);
-        }}
-        onConfirm={() => deleteAccountTarget && deleteAccount(deleteAccountTarget)}
-      />
-      <SettingsDialog
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        accountName={selectedAccount?.name ?? ""}
-        policy={selectedPolicy}
-        setPolicy={setPolicy}
-        saving={savingPolicy}
-        message={policyMessage}
-        onSave={saveSelectedPolicy}
-      />
-    </div>
-  );
-}
+      <section className="dark-scrollbar min-h-0 overflow-y-auto pr-1">
+        <div className="space-y-4 pb-2">
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          )}
 
-function HeaderMetric({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="min-w-16 border-r border-border/70 px-3 py-1.5 last:border-r-0">
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="text-sm font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
+          <HeaderPanel
+            account={selectedAccount}
+            status={selectedStatus}
+            snapshot={snapshot}
+            snapshotLoading={snapshotLoading}
+            busyAction={busyAction}
+            onRefresh={() => selectedAccount && void refreshSnapshot(selectedAccount.id, true)}
+            onAction={runAccountAction}
+            onDelete={() => void deleteSelectedAccount()}
+          />
 
-function AccountSwitcherDialog({
-  open,
-  onOpenChange,
-  accounts,
-  statuses,
-  selectedAccountId,
-  busyAccountId,
-  maxAccounts,
-  onlineCount,
-  offlineCount,
-  onRefresh,
-  onAdd,
-  onSelect,
-  onLogin,
-  onLogout,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  accounts: Account[];
-  statuses: Map<string, AccountStatus>;
-  selectedAccountId: string;
-  busyAccountId: string;
-  maxAccounts: number;
-  onlineCount: number;
-  offlineCount: number;
-  onRefresh: () => void;
-  onAdd: () => void;
-  onSelect: (account: Account) => void;
-  onLogin: (account: Account) => void;
-  onLogout: (account: Account) => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[86vh] flex-col overflow-hidden sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>切换账号</DialogTitle>
-          <DialogDescription>选择后返回当前账号详情。</DialogDescription>
-        </DialogHeader>
-        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <div className="grid grid-cols-3 overflow-hidden rounded-md border border-border/70 bg-muted/20 text-center">
-            <HeaderMetric label="配额" value={`${accounts.length}/${maxAccounts}`} />
-            <HeaderMetric label="在线" value={onlineCount} />
-            <HeaderMetric label="未登录" value={offlineCount} />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon-sm" onClick={onRefresh} aria-label="刷新账号列表">
-              <RefreshCw className="size-3.5" />
-            </Button>
-            <Button size="icon-sm" onClick={onAdd} disabled={accounts.length >= maxAccounts} aria-label="添加账号">
-              <Plus className="size-3.5" />
-            </Button>
+          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
+            <div className="space-y-4">
+              <SnapshotSummary snapshot={snapshot} status={selectedStatus} />
+              <DemandPanel demands={snapshot?.demands ?? []} />
+              <OperationPanel operations={snapshot?.plannedOperations ?? []} />
+              <EventPanel events={events} />
+            </div>
+            <div className="space-y-4">
+              <BlockedPanel items={blockedItems} />
+              <FlowerArtPanel
+                vases={snapshot?.vases ?? []}
+                availability={snapshot?.flowerArtAvailability ?? []}
+              />
+              <PolicyPanel
+                policy={policy}
+                loading={policyLoading}
+                saving={savingPolicy}
+                message={policyMessage}
+                onPolicyChange={setPolicy}
+                onSave={() => void savePolicy()}
+              />
+            </div>
           </div>
         </div>
-        <div className="dark-scrollbar min-h-0 flex-1 space-y-1.5 overflow-y-auto pt-3">
-          {accounts.map((account) => (
-            <AccountRow
-              key={account.id}
-              account={account}
-              status={statuses.get(account.id)}
-              selected={account.id === selectedAccountId}
-              busy={busyAccountId === account.id}
-              onSelect={() => onSelect(account)}
-              onLogin={() => onLogin(account)}
-              onLogout={() => onLogout(account)}
+      </section>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>新增账号</DialogTitle>
+            <DialogDescription>本地保存凭据，当前协议通道固定为 iOS。</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={createAccount}>
+            <Field label="名称">
+              <Input
+                value={addForm.name}
+                onChange={(event) => setAddForm((prev) => ({ ...prev, name: event.target.value }))}
+                autoComplete="off"
+              />
+            </Field>
+            <Field label="账号">
+              <Input
+                value={addForm.username}
+                onChange={(event) => setAddForm((prev) => ({ ...prev, username: event.target.value }))}
+                autoComplete="username"
+              />
+            </Field>
+            <Field label="密码">
+              <Input
+                type="password"
+                value={addForm.password}
+                onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
+                autoComplete="current-password"
+              />
+            </Field>
+            <ToggleRow
+              label="立即登录"
+              checked={addForm.loginNow}
+              onChange={(checked) => setAddForm((prev) => ({ ...prev, loginNow: checked }))}
             />
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function parseEventPayload(payloadJson: string): Record<string, unknown> | null {
-  try {
-    const parsed = JSON.parse(payloadJson || "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
-  } catch {
-    return null;
-  }
-}
-
-function recordField(source: Record<string, unknown>, key: string): Record<string, unknown> | null {
-  const value = source[key];
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-}
-
-function arrayField(source: Record<string, unknown>, key: string): Record<string, unknown>[] {
-  const value = source[key];
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item));
-}
-
-function numberField(source: Record<string, unknown>, key: string, fallback: number): number {
-  const value = source[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
-}
-
-function numberFieldAny(source: Record<string, unknown>, keys: string[], fallback: number): number {
-  for (const key of keys) {
-    const value = numberField(source, key, Number.NaN);
-    if (Number.isFinite(value)) return value;
-  }
-  return fallback;
-}
-
-function booleanField(source: Record<string, unknown> | null, key: string, fallback: boolean | undefined): boolean | undefined {
-  if (!source) return fallback;
-  const value = source[key];
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    if (value === "true") return true;
-    if (value === "false") return false;
-  }
-  return fallback;
-}
-
-function bigintField(source: Record<string, unknown>, key: string, fallback: bigint): bigint {
-  const value = source[key];
-  if (typeof value === "bigint") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return BigInt(Math.trunc(value));
-  if (typeof value === "string" && value.trim() !== "") {
-    try {
-      return BigInt(value);
-    } catch {
-      return fallback;
-    }
-  }
-  return fallback;
-}
-
-function bigintFieldAny(source: Record<string, unknown>, keys: string[], fallback: bigint): bigint {
-  for (const key of keys) {
-    const value = bigintField(source, key, fallback);
-    if (value !== fallback || source[key] !== undefined) return value;
-  }
-  return fallback;
-}
-
-function applyLandAfter(current: LandView, after: Record<string, unknown>): LandView {
-  const next = {
-    ...current,
-    flowerId: numberFieldAny(after, ["flowerId", "flower_id"], current.flowerId),
-    state: numberField(after, "state", current.state),
-    lvl: numberField(after, "lvl", current.lvl),
-    harvestCnt: numberFieldAny(after, ["harvestCnt", "harvest_cnt"], current.harvestCnt),
-    nextTimeMs: bigintFieldAny(after, ["nextTime", "next_time_ms"], current.nextTimeMs),
-    plantTimeMs: bigintFieldAny(after, ["plantTime", "plant_time_ms"], current.plantTimeMs),
-    observed: true,
-    landStatus: "opened",
-  };
-  return {
-    ...next,
-    ...landRecommendation(next),
-  };
-}
-
-function landRecommendation(land: LandView): Pick<LandView, "recommendation" | "reason"> {
-  if (!land.observed) {
-    return { recommendation: "unknown", reason: "no observed primary state" };
-  }
-  if (land.flowerId <= 0) {
-    return { recommendation: "plant", reason: "land is empty" };
-  }
-  if (land.state === 3) {
-    return { recommendation: "harvest", reason: "state=3 (initial bloom ready)" };
-  }
-  if (land.state === 2) {
-    const nextTime = Number(land.nextTimeMs);
-    if (nextTime > 0 && nextTime <= Date.now()) {
-      return { recommendation: "harvest", reason: `state=2, nextTime(${nextTime}) elapsed` };
-    }
-    return { recommendation: "wait", reason: `state=2 regrowing; nextTime=${nextTime}` };
-  }
-  if (land.state === 1) {
-    return { recommendation: "water", reason: "state=1, awaiting first water" };
-  }
-  return { recommendation: "wait", reason: `state=${land.state} not actionable` };
-}
-
-function inventoryField(source: Record<string, unknown>, key: string, fallback: GetSnapshotResponse["inventory"]): GetSnapshotResponse["inventory"] {
-  const value = source[key];
-  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
-  const next: Record<number, number> = {};
-  for (const [rawId, rawCount] of Object.entries(value)) {
-    const id = Number(rawId);
-    const count = typeof rawCount === "number" ? rawCount : typeof rawCount === "string" ? Number(rawCount) : NaN;
-    if (Number.isFinite(id) && Number.isFinite(count)) {
-      next[id] = count;
-    }
-  }
-  return next;
-}
-
-function eventNeedsSnapshotRefresh(event: Event): boolean {
-  return SNAPSHOT_REFRESH_EVENT_KINDS.has(event.kind) || SNAPSHOT_REFRESH_EVENT_CATEGORIES.has(event.category);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function AccountRow({
-  account,
-  status,
-  selected,
-  busy,
-  onSelect,
-  onLogin,
-  onLogout,
-}: {
-  account: Account;
-  status?: AccountStatus;
-  selected: boolean;
-  busy: boolean;
-  onSelect: () => void;
-  onLogin: () => void;
-  onLogout: () => void;
-}) {
-  const connected = status?.connected ?? account.connected;
-  const username = account.username && account.username !== account.name ? account.username : "";
-
-  return (
-    <div className={cn("flex items-center gap-2 rounded-md border border-border/70 bg-card/70 p-1.5 transition-colors hover:border-primary/25 hover:bg-muted/20", selected && "border-primary/45 bg-primary/8 ring-1 ring-primary/20")}>
-      <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={onSelect}>
-        <AccountAvatar account={account} connected={connected} className="size-8 rounded-md" />
-        <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5">
-          <div className="grid min-w-0 gap-0.5">
-            <span className="min-w-0 truncate text-sm font-semibold leading-4">{account.name}</span>
-            {username && <div className="truncate text-[11px] leading-3 text-muted-foreground">{username}</div>}
-          </div>
-          <StatusDot connected={connected} />
-        </div>
-      </button>
-
-      {connected ? (
-        <Button variant="outline" size="sm" className="h-8 shrink-0 px-2.5" disabled={busy} onClick={onLogout}>
-          <LogOut className="size-3.5" />
-          {busy ? "退出中" : "退出"}
-        </Button>
-      ) : (
-        <Button size="sm" className="h-8 shrink-0 px-2.5" disabled={busy} onClick={onLogin}>
-          <LogIn className="size-3.5" />
-          {busy ? "登录中" : "登录"}
-        </Button>
-      )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+                取消
+              </Button>
+              <Button type="submit" disabled={busyAction === "create"}>
+                <Plus className="size-4" />
+                新增
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-const ACCOUNT_AVATAR_PALETTE = [
-  ["#16a34a", "#bbf7d0", "#052e16"],
-  ["#0891b2", "#cffafe", "#083344"],
-  ["#ca8a04", "#fef3c7", "#422006"],
-  ["#db2777", "#fce7f3", "#500724"],
-  ["#7c3aed", "#ede9fe", "#2e1065"],
-  ["#0f766e", "#ccfbf1", "#042f2e"],
-  ["#ea580c", "#ffedd5", "#431407"],
-  ["#2563eb", "#dbeafe", "#172554"],
-];
-
-function AccountAvatar({ account, connected, className }: { account: Account; connected: boolean; className?: string }) {
-  const aid = account.aid.toString();
-  const seed = aid !== "0" ? aid : `${account.id}:${account.name}:${account.username}`;
-  const hash = hashString(seed);
-  const [solid, soft, text] = ACCOUNT_AVATAR_PALETTE[hash % ACCOUNT_AVATAR_PALETTE.length];
-  const initial = (account.name || account.username || "?").trim().slice(0, 1).toUpperCase();
-
-  return (
-    <div
-      className={cn("relative grid shrink-0 place-items-center overflow-hidden ring-1 ring-border/70", className)}
-      style={{
-        background: `radial-gradient(circle at 30% 24%, ${soft} 0, ${soft} 28%, transparent 29%), linear-gradient(135deg, ${solid}, ${soft})`,
-        color: text,
-      }}
-      aria-hidden="true"
-    >
-      <span className="text-sm font-semibold leading-none">{initial}</span>
-      <span className={cn("absolute bottom-0.5 right-0.5 size-2 rounded-full ring-1 ring-background", connected ? "bg-primary" : "bg-muted-foreground/45")} />
-    </div>
-  );
-}
-
-function hashString(value: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-function AccountWorkspace({
+function HeaderPanel({
   account,
   status,
   snapshot,
-  harvestStats,
-  harvestWindow,
-  policy,
-  events,
-  streaming,
-  logViewportRef,
-  onLogScroll,
-  onClearLog,
-  onScrollLogToBottom,
-  loading,
-  busy,
+  snapshotLoading,
+  busyAction,
   onRefresh,
-  onLogin,
-  onLogout,
-  onStart,
-  onStop,
-  onOpenSettings,
-  onOpenAccountSwitcher,
+  onAction,
   onDelete,
 }: {
   account: Account | null;
   status?: AccountStatus;
   snapshot: GetSnapshotResponse | null;
-  harvestStats: AccountHarvestStats | null;
-  harvestWindow: GetHarvestStatsResponse | null;
-  policy: Policy | null;
-  events: Event[];
-  streaming: boolean;
-  logViewportRef: RefObject<HTMLDivElement | null>;
-  onLogScroll: () => void;
-  onClearLog: () => void;
-  onScrollLogToBottom: () => void;
-  loading: boolean;
-  busy: boolean;
+  snapshotLoading: boolean;
+  busyAction: string;
   onRefresh: () => void;
-  onLogin: () => void;
-  onLogout: () => void;
-  onStart: () => void;
-  onStop: () => void;
-  onOpenSettings: () => void;
-  onOpenAccountSwitcher: () => void;
+  onAction: (action: "login" | "logout" | "start" | "stop" | "reload") => Promise<void>;
   onDelete: () => void;
 }) {
-  if (!account) {
-    return (
-      <Card className="bg-card/95 xl:min-h-0">
-        <CardContent className="flex min-h-64 flex-col items-center justify-center text-sm text-muted-foreground xl:h-full xl:min-h-0">
-          <span>选择一个账号</span>
-          <Button className="mt-4 lg:hidden" size="sm" variant="outline" onClick={onOpenAccountSwitcher}>
-            <ChevronDown className="size-3.5" />
-            选择账号
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const connected = status?.connected ?? account.connected;
-  const automationEnabled = policy?.automationEnabled ?? status?.automationEnabled ?? false;
-
   return (
-    <Card className="bg-card/95 shadow-sm shadow-black/5 xl:min-h-0">
-      <CardHeader className="border-b border-border/70 pb-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-start justify-between gap-3 lg:items-center">
-            <div className="flex min-w-0 items-center gap-3">
-              <AccountAvatar account={account} connected={connected} className="size-11 rounded-md" />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle className="truncate text-lg">{account.name}</CardTitle>
-                  <StatusBadge connected={connected} />
-                </div>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {account.username || "未记录用户名"}
-                </p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="h-8 shrink-0 lg:hidden" onClick={onOpenAccountSwitcher}>
-              <ChevronDown className="size-3.5" />
-              切换账号
-            </Button>
+    <Card>
+      <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="truncate text-xl font-semibold">{account?.name ?? "未选择账号"}</h1>
+            {account && <HealthBadge account={account} status={status} />}
+            {status?.automationEnabled && <Badge variant="secondary">自动化已启用</Badge>}
           </div>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            {connected ? (
-              <Button variant="outline" size="sm" disabled={busy} onClick={onLogout}>
-                <LogOut className="size-3.5" />
-                退出登录
-              </Button>
-            ) : (
-              <Button size="sm" disabled={busy} onClick={onLogin}>
-                <LogIn className="size-3.5" />
-                登录
-              </Button>
-            )}
-            {automationEnabled ? (
-              <Button variant="outline" size="sm" disabled={busy} onClick={onStop}>
-                <Square className="size-3.5" />
-                停止
-              </Button>
-            ) : (
-              <Button size="sm" disabled={busy} onClick={onStart}>
-                <Play className="size-3.5" />
-                启动
-              </Button>
-            )}
-            <Button variant="outline" size="sm" disabled={loading} onClick={onRefresh}>
-              <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-              刷新
-            </Button>
-            <Button variant="outline" size="sm" onClick={onOpenSettings}>
-              <SlidersHorizontal className="size-3.5" />
-              设置
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="justify-self-start text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:justify-self-auto"
-              disabled={busy}
-              onClick={onDelete}
-              aria-label={`删除账号 ${account.name}`}
-              title="删除账号"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
+          <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
+            <span>角色：{snapshot?.roleName || "-"}</span>
+            <span>等级：{snapshot?.level || 0}</span>
+            <span>最近事件：{formatTimestamp(status?.lastEventAt)}</span>
+            <span>健康：{status?.health || "-"}</span>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={onRefresh} disabled={!account || snapshotLoading}>
+            <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
+            刷新
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void onAction("reload")}
+            disabled={!account || busyAction === "reload"}
+          >
+            <RefreshCw className="size-4" />
+            重载
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void onAction("login")}
+            disabled={!account || busyAction === "login"}
+          >
+            <LogIn className="size-4" />
+            登录
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void onAction("logout")}
+            disabled={!account || busyAction === "logout"}
+          >
+            <LogOut className="size-4" />
+            断开
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void onAction("start")}
+            disabled={!account || busyAction === "start"}
+          >
+            <Play className="size-4" />
+            启动
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void onAction("stop")}
+            disabled={!account || busyAction === "stop"}
+          >
+            <Square className="size-4" />
+            停止
+          </Button>
+          <Button type="button" variant="destructive" onClick={onDelete} disabled={!account || busyAction === "delete"}>
+            <Trash2 className="size-4" />
+            删除
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SnapshotSummary({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
+  const recommendationStats = useMemo(() => {
+    const stats = new Map<string, number>();
+    for (const land of snapshot?.lands ?? []) {
+      stats.set(land.recommendation || "unknown", (stats.get(land.recommendation || "unknown") ?? 0) + 1);
+    }
+    return [...stats.entries()].sort((a, b) => b[1] - a[1]);
+  }, [snapshot]);
+
+  const inventoryTop = useMemo(() => {
+    if (!snapshot) return [];
+    return Object.entries(snapshot.inventory)
+      .map(([id, count]) => ({ id: Number(id), count }))
+      .filter((item) => item.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [snapshot]);
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-4">
+      <MetricCard icon={<Coins />} label="金币" value={snapshot?.gold ?? 0} />
+      <MetricCard icon={<Gem />} label="钻石" value={(snapshot?.diamondsFree ?? 0) + (snapshot?.diamondsPaid ?? 0)} />
+      <MetricCard icon={<Waves />} label="水滴" value={`${snapshot?.waterDrops ?? 0}/${snapshot?.waterDropsTotal ?? 0}`} />
+      <MetricCard icon={<Sprout />} label="土地" value={status?.knownLands ?? snapshot?.lands.length ?? 0} />
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>土地状态</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recommendationStats.length === 0 ? (
+            <EmptyState title="暂无土地快照" />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {recommendationStats.map(([key, count]) => (
+                <Badge key={key} variant="outline">
+                  {recommendationLabel(key)} · {count}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle>库存 Top</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {inventoryTop.length === 0 ? (
+            <EmptyState title="暂无库存数据" />
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {inventoryTop.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2">
+                  <span className="truncate text-sm">{itemName(item.id)}</span>
+                  <span className="font-mono text-sm">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function DemandPanel({ demands }: { demands: DemandView[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>需求缺口</CardTitle>
+          <Badge variant="secondary">{demands.length}</Badge>
+        </div>
       </CardHeader>
-      <CardContent className="p-4 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-        {loading ? (
-          <div className="grid gap-3">
-            <div className="h-20 animate-pulse rounded-md bg-muted/35" />
-            <div className="h-72 animate-pulse rounded-md bg-muted/25" />
-          </div>
-        ) : snapshot ? (
-          <SnapshotOverview
-            snapshot={snapshot}
-            harvestStats={harvestStats}
-            harvestWindow={harvestWindow}
-            events={events}
-            streaming={streaming}
-            logScrollKey={account.id}
-            logViewportRef={logViewportRef}
-            onLogScroll={onLogScroll}
-            onClearLog={onClearLog}
-            onScrollLogToBottom={onScrollLogToBottom}
-          />
+      <CardContent>
+        {demands.length === 0 ? (
+          <EmptyState title="当前无需求" />
         ) : (
-          <div className="flex min-h-72 flex-col items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/15 text-center xl:h-full xl:min-h-0">
-            <WifiOff className="mb-3 size-7 text-muted-foreground" />
-            <p className="font-medium">暂无运行快照</p>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">账号登录并启动 runner 后，资源、田地和自动待办会显示在这里，库存可按需打开查看。</p>
-            {!connected && (
-              <Button className="mt-5" onClick={onLogin} disabled={busy}>
-                <LogIn className="size-4" />
-                登录账号
-              </Button>
-            )}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>来源</TableHead>
+                <TableHead>物品</TableHead>
+                <TableHead>需求</TableHead>
+                <TableHead>库存</TableHead>
+                <TableHead>分配</TableHead>
+                <TableHead>可用</TableHead>
+                <TableHead>缺口</TableHead>
+                <TableHead>优先级</TableHead>
+                <TableHead>状态</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {demands.slice(0, 16).map((demand) => (
+                <TableRow key={demand.id}>
+                  <TableCell>
+                    <div className="font-medium">{goalLabel(demand.goalId)}</div>
+                    <div className="text-xs text-muted-foreground">{demand.label || demand.entityId}</div>
+                  </TableCell>
+                  <TableCell>{demand.itemName || itemName(demand.itemId)}</TableCell>
+                  <TableCell>{demand.required}</TableCell>
+                  <TableCell>{demand.owned}</TableCell>
+                  <TableCell>{demand.allocated}</TableCell>
+                  <TableCell>{demand.available}</TableCell>
+                  <TableCell className={cn(demand.missing > 0 && "text-destructive")}>{demand.missing}</TableCell>
+                  <TableCell>{demand.priority}</TableCell>
+                  <TableCell>
+                    <ReasonList reasons={demand.blockedReasons} fallback="可执行" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>执行队列</CardTitle>
+          <Badge variant="secondary">{operations.length}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {operations.length === 0 ? (
+          <EmptyState title="当前无计划操作" />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>状态</TableHead>
+                <TableHead>操作</TableHead>
+                <TableHead>目标</TableHead>
+                <TableHead>成本</TableHead>
+                <TableHead>原因</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {operations.slice(0, 18).map((operation, index) => (
+                <TableRow key={operation.operationId || `${operation.rpc}-${index}`}>
+                  <TableCell>
+                    <OperationStatusBadge operation={operation} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{operation.label || `${operation.domain}.${operation.action}`}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {goalLabel(operation.goalId)} · {operation.rpc || "local"}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <OperationTarget operation={operation} />
+                  </TableCell>
+                  <TableCell>
+                    <CostView operation={operation} />
+                  </TableCell>
+                  <TableCell className="max-w-[280px] whitespace-normal text-muted-foreground">
+                    {operation.reason || <ReasonList reasons={operation.blockedReasons} fallback="-" />}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BlockedPanel({ items }: { items: BlockedItem[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>阻塞原因</CardTitle>
+          <Badge variant={items.length ? "destructive" : "secondary"}>{items.length}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <EmptyState title="无阻塞" />
+        ) : (
+          <div className="space-y-2">
+            {items.slice(0, 12).map((item, index) => (
+              <div key={`${item.source}-${index}`} className="rounded-md border border-destructive/30 bg-destructive/10 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <AlertTriangle className="size-4" />
+                  {item.label}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{item.source}</div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {item.reasons.map((reason) => (
+                    <Badge key={reason} variant="outline">
+                      {reason}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
@@ -1221,1951 +978,1175 @@ function AccountWorkspace({
   );
 }
 
-function SnapshotOverview({
-  snapshot,
-  harvestStats,
-  harvestWindow,
-  events,
-  streaming,
-  logScrollKey,
-  logViewportRef,
-  onLogScroll,
-  onClearLog,
-  onScrollLogToBottom,
+function FlowerArtPanel({
+  vases,
+  availability,
 }: {
-  snapshot: GetSnapshotResponse;
-  harvestStats: AccountHarvestStats | null;
-  harvestWindow: GetHarvestStatsResponse | null;
-  events: Event[];
-  streaming: boolean;
-  logScrollKey: string;
-  logViewportRef: RefObject<HTMLDivElement | null>;
-  onLogScroll: () => void;
-  onClearLog: () => void;
-  onScrollLogToBottom: () => void;
+  vases: VaseView[];
+  availability: FlowerArtAvailabilityView[];
 }) {
-  const [inventoryOpen, setInventoryOpen] = useState(false);
-  const landTiles = [...snapshot.lands]
-    .sort((a, b) => a.landId - b.landId)
-    .map((land) => {
-      const landState = landStatus(land);
-      return {
-        land,
-        landState,
-        plantingState: plantingStatus(land, landState),
-      } satisfies LandTile;
-    });
-  const opened = landTiles.filter((tile) => tile.landState === "opened").length;
-  const unopened = landTiles.filter((tile) => tile.landState === "unopened").length;
-  const locked = landTiles.filter((tile) => tile.landState === "locked").length;
-  const empty = landTiles.filter((tile) => tile.plantingState === "empty").length;
-  const needsWater = landTiles.filter((tile) => tile.plantingState === "needs_water").length;
-  const growing = landTiles.filter((tile) => tile.plantingState === "growing").length;
-  const ready = landTiles.filter((tile) => tile.plantingState === "ready").length;
-  const inventory = inventoryEntries(snapshot.inventory);
-
   return (
-    <div className="flex flex-col gap-4 xl:h-full xl:min-h-0 xl:overflow-hidden">
-      <div className="grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <ResourceChip icon={<Coins className="size-4" />} label={itemName(11)} value={formatCount(snapshot.gold)} tone="amber" />
-        <ResourceChip
-          icon={<Droplets className="size-4" />}
-          label={itemName(7)}
-          value={snapshot.waterDropsTotal > 0 ? `${formatCount(snapshot.waterDrops)}/${formatCount(snapshot.waterDropsTotal)}` : formatCount(snapshot.waterDrops)}
-          tone="cyan"
-        />
-        <ResourceChip icon={<Gem className="size-4" />} label={itemName(1)} value={formatCount(snapshot.diamondsFree + snapshot.diamondsPaid)} tone="rose" />
-        <ResourceChip icon={<TrendingUp className="size-4" />} label="等级" value={`Lv.${snapshot.level} · ${formatCount(snapshot.experience)} EXP`} tone="green" />
-      </div>
-
-      <RunnerDiagnosticsPanel snapshot={snapshot} />
-
-      <div className="grid shrink-0 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
-        <PlanPanel operations={snapshot.plannedOperations ?? []} domainStatuses={snapshot.domainStatuses ?? []} />
-        <TaskPanel tasks={snapshot.pendingTasks ?? []} diagnostics={snapshot.diagnostics} />
-      </div>
-
-      <div className="xl:h-[340px] xl:shrink-0 xl:overflow-hidden 2xl:h-[360px]">
-        <section className="flex h-full flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:min-h-0">
-          <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 font-medium">
-              <MapIcon className="size-4 text-primary" />
-              田地
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-xs text-muted-foreground">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-foreground/65">土地</span>
-                <LandLegend tone="opened" label={`已开垦 ${opened}`} />
-                <LandLegend tone="unopened" label={`可开垦 ${unopened}`} />
-                <LandLegend tone="locked" label={`未开放 ${locked}`} />
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-foreground/65">种植</span>
-                <PlantingLegend tone="empty" label={`空地 ${empty}`} />
-                <PlantingLegend tone="needs_water" label={`待浇水 ${needsWater}`} />
-                <PlantingLegend tone="growing" label={`生长中 ${growing}`} />
-                <PlantingLegend tone="ready" label={`可收获 ${ready}`} />
-              </div>
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setInventoryOpen(true)}>
-                <Package className="size-3.5" />
-                库存 {inventory.length}
-              </Button>
-            </div>
-          </div>
-          {landTiles.length > 0 ? (
-            <div className="rounded-lg border border-border/60 bg-muted/10 p-2 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-8 xl:h-full xl:grid-cols-16 xl:auto-rows-fr">
-                {landTiles.map((tile) => <LandCell key={tile.land.landId} tile={tile} />)}
-              </div>
-            </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>花艺能力</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">已解锁花瓶</div>
+          {vases.length === 0 ? (
+            <EmptyState title="未观察到花瓶状态" />
           ) : (
-            <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground xl:min-h-0 xl:flex-1">
-              暂无田地数据
-            </div>
-          )}
-        </section>
-      </div>
-
-      <InventoryDialog open={inventoryOpen} onOpenChange={setInventoryOpen} inventory={inventory} />
-
-      <EventLog
-        events={events}
-        harvestStats={harvestStats}
-        harvestWindow={harvestWindow}
-        streaming={streaming}
-        scrollKey={logScrollKey}
-        logViewportRef={logViewportRef}
-        onScroll={onLogScroll}
-        onClear={onClearLog}
-        onScrollToBottom={onScrollLogToBottom}
-      />
-    </div>
-  );
-}
-
-function RunnerDiagnosticsPanel({ snapshot }: { snapshot: GetSnapshotResponse }) {
-  const diagnostics = snapshot.diagnostics;
-  const blockedReasons = diagnostics?.blockedReasons ?? [];
-  const unknownRPCs = diagnostics?.unknownRpcCount ?? snapshot.unknownRpcCount;
-  const unknownNamespaces = diagnostics?.unknownNamespaceCount ?? snapshot.unknownNamespaceCount;
-  const observedNamespaces = diagnostics?.observedNamespaces?.length ?? snapshot.observedNamespaces.length;
-  const hasProtocolDrift = unknownRPCs > 0 || unknownNamespaces > 0;
-  const currentOperation = diagnostics?.currentOperation ? rpcDisplayName(diagnostics.currentOperation) : "空闲";
-  const lastOperation = diagnostics?.lastOperation ? rpcDisplayName(diagnostics.lastOperation) : "暂无";
-  const lastError = diagnostics?.lastOperationError || diagnostics?.sessionInvalidatedReason || "";
-
-  return (
-    <section className="shrink-0 rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
-          <Activity className="size-4 text-primary" />
-          运行状态
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{observedNamespaces} 个 namespace</span>
-          <span className={cn("inline-flex items-center gap-1 rounded border px-2 py-1", hasProtocolDrift ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-700 dark:text-yellow-300" : "border-primary/20 bg-primary/10 text-primary")}>
-            {hasProtocolDrift && <AlertTriangle className="size-3" />}
-            未知 RPC {unknownRPCs} · 未建模 NS {unknownNamespaces}
-          </span>
-        </div>
-      </div>
-      <div className="grid gap-2 md:grid-cols-4">
-        <DiagnosticsMetric label="当前" value={currentOperation} />
-        <DiagnosticsMetric label="上次" value={lastOperation} />
-        <DiagnosticsMetric label="下次扫描" value={formatFutureTimestamp(diagnostics?.nextDecisionAt)} icon={<Clock3 className="size-3.5" />} />
-        <DiagnosticsMetric label="下次领域" value={formatFutureTimestamp(diagnostics?.nextDomainTickAt)} icon={<Clock3 className="size-3.5" />} />
-      </div>
-      {(lastError || blockedReasons.length > 0) && (
-        <div className="mt-2 flex flex-wrap gap-2 text-xs">
-          {lastError && (
-            <span className="min-w-0 max-w-full truncate rounded border border-red-400/25 bg-red-400/10 px-2 py-1 text-red-700 dark:text-red-300">
-              {lastError}
-            </span>
-          )}
-          {blockedReasons.slice(0, 3).map((reason) => (
-            <span key={reason} className="min-w-0 max-w-full truncate rounded border border-yellow-400/25 bg-yellow-400/10 px-2 py-1 text-yellow-700 dark:text-yellow-300">
-              {reason}
-            </span>
-          ))}
-          {blockedReasons.length > 3 && <span className="rounded border border-border/70 bg-muted/25 px-2 py-1 text-muted-foreground">另 {blockedReasons.length - 3} 项</span>}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function DiagnosticsMetric({ label, value, icon }: { label: string; value: ReactNode; icon?: ReactNode }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border/60 bg-background/55 px-2.5 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        {icon}
-        {label}
-      </div>
-      <div className="mt-0.5 truncate text-sm font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-type LandTile = {
-  land: LandView;
-  landState: "opened" | "unopened" | "locked";
-  plantingState: "unavailable" | "empty" | "needs_water" | "growing" | "ready" | "unknown";
-};
-
-type InventoryEntry = {
-  id: number;
-  name: string;
-  count: number;
-  item?: ItemInfo;
-  category: string;
-};
-
-type InventoryGroup = {
-  category: string;
-  entries: InventoryEntry[];
-};
-
-function HarvestMetric({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-md border border-border/70 bg-background/60 px-3 py-2">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div className="mt-0.5 truncate text-sm font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function HarvestItemPill({ item }: { item: HarvestItemTotal }) {
-  return (
-    <div className="flex max-w-full min-w-32 items-center justify-between gap-3 rounded-md border border-border/70 bg-background/70 px-2.5 py-1.5">
-      <div className="min-w-0">
-        <div className="truncate text-xs font-medium">{item.itemName || itemName(item.itemId)}</div>
-        <div className="text-[10px] tabular-nums text-muted-foreground">#{item.itemId}</div>
-      </div>
-      <div className="shrink-0 text-xs font-semibold tabular-nums">x{formatCount(Number(item.count))}</div>
-    </div>
-  );
-}
-
-function PlanPanel({ operations, domainStatuses }: { operations: PlannedOperation[]; domainStatuses: DomainStatus[] }) {
-  const groups = useMemo(() => groupPlannedOperations(operations, domainStatuses), [operations, domainStatuses]);
-  const executableCount = operations.filter((op) => op.executable).length;
-  const missingCount = operations.filter((op) => op.status === "adapter_missing").length;
-  const blockedCount = operations.filter((op) => op.status === "blocked" || op.blockedReasons.length > 0).length;
-
-  return (
-    <section className="min-w-0 rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
-          <LayoutList className="size-4 text-primary" />
-          执行计划
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>{operations.length} 项</span>
-          {executableCount > 0 && <span className="rounded border border-primary/20 bg-primary/10 px-2 py-1 text-primary">{executableCount} 可执行</span>}
-          {missingCount > 0 && <span className="rounded border border-yellow-400/25 bg-yellow-400/10 px-2 py-1 text-yellow-700 dark:text-yellow-300">{missingCount} 缺 adapter</span>}
-          {blockedCount > 0 && <span className="rounded border border-red-400/25 bg-red-400/10 px-2 py-1 text-red-700 dark:text-red-300">{blockedCount} 阻塞</span>}
-        </div>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
-        {groups.map((group) => (
-          <div key={group.category} className="flex min-h-32 min-w-0 flex-col rounded-md border border-border/60 bg-background/45 p-2">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-              <span className="truncate text-xs font-medium">{group.label}</span>
-              <DomainStatusBadge status={group.status} />
-            </div>
-            {group.operations.length > 0 ? (
-              <div className="dark-scrollbar grid max-h-44 gap-1.5 overflow-y-auto pr-1">
-                {group.operations.map((op) => (
-                  <PlanOperationRow key={`${op.category}:${op.domain}:${op.action}:${op.rpc}:${op.priority}`} operation={op} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex min-h-20 flex-1 items-center justify-center rounded border border-dashed border-border/70 px-2 text-center text-xs text-muted-foreground">
-                {group.status?.status === "disabled" ? "未启用" : "暂无计划"}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function PlanOperationRow({ operation }: { operation: PlannedOperation }) {
-  const label = operation.label || operation.featureId || operation.domain || operation.rpc || operation.action;
-  const detail = operation.reason || operation.rpc || operation.domain;
-  const costText = plannedCostText(operation);
-  const landText = operation.landIds.length > 0 ? `${operation.landIds.length} 块田` : "";
-
-  return (
-    <div className="rounded-md border border-border/50 bg-card/55 p-2">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-xs font-medium">{label}</div>
-          <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{detail}</div>
-        </div>
-        <PlanStatusBadge status={operation.status} executable={operation.executable} syncOnly={operation.syncOnly} />
-      </div>
-      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
-        {operation.priority > 0 && <span className="rounded border border-border/60 bg-background/50 px-1.5 py-0.5">P{operation.priority}</span>}
-        {landText && <span className="rounded border border-border/60 bg-background/50 px-1.5 py-0.5">{landText}</span>}
-        {operation.flowerId > 0 && <span className="max-w-full truncate rounded border border-border/60 bg-background/50 px-1.5 py-0.5">{itemName(operation.flowerId)}</span>}
-        {costText && <span className="max-w-full truncate rounded border border-yellow-400/25 bg-yellow-400/10 px-1.5 py-0.5 text-yellow-700 dark:text-yellow-300">{costText}</span>}
-      </div>
-      {operation.blockedReasons.length > 0 && (
-        <div className="mt-1.5 grid gap-1">
-          {operation.blockedReasons.slice(0, 2).map((reason) => (
-            <div key={reason} className="truncate rounded border border-yellow-400/25 bg-yellow-400/10 px-1.5 py-0.5 text-[10px] text-yellow-700 dark:text-yellow-300">
-              {reason}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PlanStatusBadge({ status, executable, syncOnly }: { status: string; executable: boolean; syncOnly: boolean }) {
-  const effectiveStatus = status || (syncOnly ? "sync_only" : executable ? "executable" : "blocked");
-  return (
-    <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px]", planStatusTone(effectiveStatus))}>
-      {planStatusLabel(effectiveStatus)}
-    </span>
-  );
-}
-
-function DomainStatusBadge({ status }: { status?: DomainStatus }) {
-  const value = status?.status || "disabled";
-  return (
-    <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px]", domainStatusTone(value))}>
-      {domainStatusLabel(value)}
-    </span>
-  );
-}
-
-function TaskPanel({ tasks, diagnostics }: { tasks: PendingTaskView[]; diagnostics?: GetSnapshotResponse["diagnostics"] }) {
-  const groups = useMemo(() => groupPendingTasks(tasks), [tasks]);
-  const plantMissing = useMemo(() => {
-    const byItem = new Map<number, { itemId: number; itemName: string; missing: number }>();
-    for (const task of tasks) {
-      for (const req of task.requirements) {
-        if (!req.plantingRelevant || req.missing <= 0) continue;
-        const current = byItem.get(req.itemId);
-        if (current) {
-          current.missing += req.missing;
-        } else {
-          byItem.set(req.itemId, { itemId: req.itemId, itemName: req.itemName, missing: req.missing });
-        }
-      }
-    }
-    return Array.from(byItem.values()).sort((a, b) => b.missing - a.missing || a.itemId - b.itemId);
-  }, [tasks]);
-
-  return (
-    <section className="shrink-0 rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 font-medium">
-          <ListChecks className="size-4 text-primary" />
-          自动待办
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {diagnostics?.nextDomainTickAt && (
-            <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/20 px-2 py-1">
-              <Clock3 className="size-3" />
-              下次领域 {formatFutureTimestamp(diagnostics.nextDomainTickAt)}
-            </span>
-          )}
-          {plantMissing.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded border border-primary/20 bg-primary/10 px-2 py-1 text-primary">
-              <Sprout className="size-3" />
-              {plantMissing.length} 种鲜花缺口
-            </span>
-          )}
-          <span>{tasks.length} 项</span>
-        </div>
-      </div>
-
-      {groups.length > 0 ? (
-        <div className="grid gap-2 lg:grid-cols-2 2xl:grid-cols-4">
-          {groups.map((group) => (
-            <div key={group.category} className="flex max-h-48 min-w-0 flex-col rounded-md border border-border/60 bg-background/45 p-2">
-              <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-                <span className="truncate text-xs font-medium">{group.category}</span>
-                <span className="text-[10px] text-muted-foreground">{group.tasks.length}</span>
-              </div>
-              {group.tasks.length > 0 ? (
-                <div className="dark-scrollbar grid gap-1.5 overflow-y-auto pr-1">
-                  {group.tasks.map((task) => (
-                    <TaskRow key={`${task.category}:${task.id}`} task={task} />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex min-h-20 items-center justify-center rounded-md border border-dashed border-border/70 px-3 text-center text-xs text-muted-foreground">
-                  {emptyTaskGroupText(group.category)}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex min-h-20 items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground">
-          暂无任务数据
-        </div>
-      )}
-    </section>
-  );
-}
-
-function TaskRow({ task }: { task: PendingTaskView }) {
-  const title = taskDisplayTitle(task);
-  return (
-    <div className="rounded-md border border-border/50 bg-card/55 p-2">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-xs font-medium">{title}</div>
-          {task.target > 0 && (
-            <div className="mt-0.5 text-[10px] tabular-nums text-muted-foreground">
-              {formatCount(task.finished)}/{formatCount(task.target)}
+            <div className="flex flex-wrap gap-2">
+              {vases.map((vase) => (
+                <Badge key={vase.vaseId} variant="outline">
+                  花瓶 {vase.vaseId}
+                </Badge>
+              ))}
             </div>
           )}
         </div>
-        <TaskStatusBadge status={task.status} category={task.category} />
-      </div>
-      {task.requirements.length > 0 && (
-        <div className={cn("mt-2 grid gap-1", task.category === "居民订单" && "grid-cols-[repeat(auto-fit,minmax(0,1fr))]")}>
-          {task.requirements.map((req) => (
-            <RequirementRow key={`${task.category}:${task.id}:${req.itemId}`} req={req} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const dailyTaskTitleTemplates: Record<string, string> = {
-  "40001": "消耗${value}个剧情星星",
-  "30060001": "完成${value}次居民订单",
-  "30140001": "浇水${value}块田地",
-  "30150001": "在花架出售${value}件花艺品",
-  "30160001": "完成${value}次顾客订单",
-  "30170001": "在材料商店购买${value}次道具",
-  "30180001": "完成${value}次宫廷特供",
-  "30230001": "采集珍珠雇佣${value}次",
-  "30240001": "摘取好友${value}朵花",
-  "30250001": "观看${value}次视频",
-  "30520001": "和小动物互动${value}次",
-};
-
-function taskDisplayTitle(task: PendingTaskView): string {
-  const title = task.title || "";
-  const fallbackTitle = `${task.category} #${task.id}`;
-  if (task.category !== "日常任务") {
-    return title || fallbackTitle;
-  }
-  const match = title.match(/^日常任务 #(\d+)$/);
-  const taskID = match?.[1] || task.id;
-  const template = dailyTaskTitleTemplates[taskID];
-  if (!template) {
-    return title || fallbackTitle;
-  }
-  return template.replace("${value}", formatCount(task.target));
-}
-
-function RequirementRow({ req }: { req: RequirementView }) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded border border-border/45 bg-background/55 px-2 py-1">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-1">
-          <span className="truncate text-[11px] font-medium">{req.itemName || itemName(req.itemId)}</span>
-          {req.plantingRelevant && <Sprout className="size-3 shrink-0 text-primary" />}
-        </div>
-        <div className="text-[10px] tabular-nums text-muted-foreground">
-          {formatCount(req.owned)}/{formatCount(req.required)}
-        </div>
-      </div>
-      <div className={cn("text-[11px] font-semibold tabular-nums", req.missing > 0 ? "text-rose-600 dark:text-rose-300" : "text-primary")}>
-        {req.missing > 0 ? `缺 ${formatCount(req.missing)}` : "可交"}
-      </div>
-    </div>
-  );
-}
-
-function TaskStatusBadge({ status, category }: { status: string; category: string }) {
-  const label = status === "ready" ? (category === "居民订单" ? "待自动提交" : "可提交") : status === "missing" ? "缺材料" : "进行中";
-  return (
-    <span
-      className={cn(
-        "shrink-0 rounded border px-1.5 py-0.5 text-[10px]",
-        status === "ready" && "border-primary/25 bg-primary/10 text-primary",
-        status === "missing" && "border-rose-400/25 bg-rose-400/10 text-rose-700 dark:text-rose-200",
-        status !== "ready" && status !== "missing" && "border-border/70 bg-muted/30 text-muted-foreground"
-      )}
-    >
-      {label}
-    </span>
-  );
-}
-
-function InventoryDialog({ open, onOpenChange, inventory }: { open: boolean; onOpenChange: (open: boolean) => void; inventory: InventoryEntry[] }) {
-  const groups = useMemo(() => groupInventoryEntries(inventory), [inventory]);
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[86vh] flex-col overflow-hidden sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>库存</DialogTitle>
-          <DialogDescription>{groups.length} 类 · {inventory.length} 项</DialogDescription>
-        </DialogHeader>
-        <InventoryPanel inventory={inventory} />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function InventoryPanel({ inventory }: { inventory: InventoryEntry[] }) {
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [keyword, setKeyword] = useState("");
-  const filteredInventory = useMemo(() => {
-    const q = keyword.trim().toLowerCase();
-    if (!q) return inventory;
-    return inventory.filter((entry) => {
-      return String(entry.id).includes(q) || entry.name.toLowerCase().includes(q) || entry.category.toLowerCase().includes(q);
-    });
-  }, [inventory, keyword]);
-  const groups = useMemo(() => groupInventoryEntries(filteredInventory), [filteredInventory]);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <Input
-        className="mb-2 h-8 shrink-0 text-xs"
-        placeholder="搜索库存名称、ID 或分类"
-        value={keyword}
-        onChange={(e) => setKeyword(e.target.value)}
-      />
-      {keyword.trim() && (
-        <div className="mb-2 shrink-0 text-right text-xs text-muted-foreground">
-          当前显示 {groups.length} 类 · {filteredInventory.length} 项
-        </div>
-      )}
-      {inventory.length > 0 ? (
-        <div className="dark-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
-          {filteredInventory.length > 0 ? (
-            <div className="grid gap-2">
-              {groups.map((group) => {
-                const isCollapsed = collapsed[group.category] ?? false;
-                return (
-                  <div key={group.category} className="overflow-hidden rounded-lg border border-border/70 bg-card/50">
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between gap-2 bg-muted/20 px-2.5 py-2 text-left transition-colors hover:bg-muted/35"
-                      onClick={() => setCollapsed((prev) => ({ ...prev, [group.category]: !isCollapsed }))}
-                    >
-                      <span className="min-w-0 truncate text-xs font-medium">{group.category}</span>
-                      <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                        {group.entries.length}
-                        <ChevronDown className={cn("size-3.5 transition-transform", isCollapsed && "-rotate-90")} />
-                      </span>
-                    </button>
-                    {!isCollapsed && (
-                      <div className="grid gap-1.5 p-1.5">
-                        {group.entries.map((entry) => (
-                          <InventoryItemRow key={entry.id} entry={entry} />
-                        ))}
+        <div>
+          <div className="mb-2 text-xs font-medium text-muted-foreground">可制作性</div>
+          {availability.length === 0 ? (
+            <EmptyState title="暂无花艺配方视图" />
+          ) : (
+            <div className="space-y-2">
+              {availability.slice(0, 8).map((art) => (
+                <div key={art.artId} className="rounded-md border border-border/70 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{art.artName || itemName(art.artId)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        花瓶 {art.vaseId} · 等级 {art.level} · 价值 {art.saleValue}
                       </div>
-                    )}
+                    </div>
+                    <Badge variant={art.craftable ? "secondary" : "outline"}>
+                      {art.craftable ? "可制作" : "受限"}
+                    </Badge>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex h-full min-h-28 items-center justify-center rounded-md border border-dashed border-border/70 text-xs text-muted-foreground">
-              没有匹配的库存
+                  {art.blockedReasons.length > 0 && (
+                    <div className="mt-2">
+                      <ReasonList reasons={art.blockedReasons} fallback="-" />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
-      ) : (
-        <div className="flex min-h-32 flex-1 items-center justify-center rounded-md border border-dashed border-border/70 text-sm text-muted-foreground">
-          暂无库存数据
-        </div>
-      )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
-function InventoryItemRow({ entry }: { entry: InventoryEntry }) {
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border/60 bg-background/55 px-2.5 py-2">
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium">{entry.name}</div>
-        <div className="truncate text-[11px] text-muted-foreground">#{entry.id} · {entry.category}</div>
-      </div>
-      <div className="text-sm font-semibold tabular-nums">{formatCount(entry.count)}</div>
-    </div>
-  );
-}
-
-function landStatus(land: LandView): LandTile["landState"] {
-  if (land.landStatus === "locked" || land.landStatus === "unopened" || land.landStatus === "opened") {
-    return land.landStatus;
-  }
-  return land.observed ? "opened" : "locked";
-}
-
-function plantingStatus(land: LandView, landState: LandTile["landState"]): LandTile["plantingState"] {
-  if (landState !== "opened") return "unavailable";
-  if (land.flowerId <= 0) return "empty";
-  if (land.state === 1) return "needs_water";
-  if (land.state === 3) return "ready";
-  if (land.state === 2) {
-    const nextTime = Number(land.nextTimeMs);
-    return nextTime > 0 && nextTime <= Date.now() ? "ready" : "growing";
-  }
-  if (land.recommendation === "harvest") return "ready";
-  if (land.recommendation === "water") return "needs_water";
-  return "unknown";
-}
-
-function landStateLabel(state: LandTile["landState"]) {
-  return state === "locked" ? "未开放" : state === "unopened" ? "可开垦" : "已开垦";
-}
-
-function plantingStateLabel(state: LandTile["plantingState"]) {
-  const labels = {
-    unavailable: "不可种植",
-    empty: "空地",
-    needs_water: "待浇水",
-    growing: "生长中",
-    ready: "可收获",
-    unknown: "未知",
-  };
-  return labels[state];
-}
-
-function LandLegend({ tone, label }: { tone: LandTile["landState"]; label: string }) {
-  const toneClass = {
-    opened: "bg-primary",
-    unopened: "bg-amber-400",
-    locked: "bg-muted-foreground/45",
-  }[tone];
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className={cn("size-1.5 rounded-full", toneClass)} />
-      {label}
-    </span>
-  );
-}
-
-function PlantingLegend({ tone, label }: { tone: Exclude<LandTile["plantingState"], "unavailable" | "unknown">; label: string }) {
-  const toneClass = {
-    empty: "bg-muted-foreground/45",
-    needs_water: "bg-cyan-500",
-    growing: "bg-amber-500",
-    ready: "bg-emerald-500",
-  }[tone];
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className={cn("size-1.5 rounded-full", toneClass)} />
-      {label}
-    </span>
-  );
-}
-
-function LandCell({ tile }: { tile: LandTile }) {
-  const { land, landState, plantingState } = tile;
-  const planted = land.flowerId > 0;
-  const landLabel = landStateLabel(landState);
-  const plantingLabel = plantingStateLabel(plantingState);
-  const flower = planted ? itemName(land.flowerId) : "";
-  const titleParts = [`${land.landId}`, `土地：${landLabel}`];
-  if (land.openLevel) titleParts.push(`开放 Lv.${land.openLevel}`);
-  if (land.unlockCost.length >= 2) titleParts.push(`开垦消耗 ${itemName(land.unlockCost[0]) || `#${land.unlockCost[0]}`} x${land.unlockCost[1]}`);
-  if (landState === "opened") titleParts.push(`种植：${plantingLabel}`);
-  if (flower) titleParts.push(`作物：${flower}`);
-
-  return (
-    <div
-      className={cn(
-        "group/land relative flex min-h-[68px] flex-col overflow-hidden rounded-lg border px-1.5 py-1.5 text-[10px] tabular-nums transition-colors duration-150 hover:border-primary/45 hover:bg-primary/5 xl:h-full xl:min-h-0",
-        landState === "opened" && "border-primary/25 bg-emerald-50/70 text-emerald-950 dark:bg-emerald-950/20 dark:text-emerald-50",
-        landState === "unopened" && "border-amber-400/35 bg-amber-50/70 text-amber-900 dark:bg-amber-950/20 dark:text-amber-100",
-        landState === "locked" && "border-border/60 bg-background/45 text-muted-foreground/70"
-      )}
-      title={titleParts.join(" · ")}
-      aria-label={titleParts.join(" · ")}
-    >
-      <div className="flex shrink-0 items-center justify-between gap-1 leading-none">
-        <span className="font-medium text-foreground/75">{land.landId}</span>
-        <span
-          className={cn(
-            "size-1.5 rounded-full transition-transform group-hover/land:scale-125",
-            landState === "opened" && "bg-primary",
-            landState === "unopened" && "bg-amber-400",
-            landState === "locked" && "bg-muted-foreground/45"
-          )}
-        />
-      </div>
-      <div className="flex min-h-0 flex-1 items-center justify-center px-0.5 text-center leading-3">
-        <span className={cn("line-clamp-2 break-words text-[10px] transition-colors group-hover/land:text-foreground", planted ? "font-medium text-foreground/85" : "text-muted-foreground")}>
-          {planted ? flower : landLabel}
-        </span>
-      </div>
-      <div className="grid shrink-0 gap-0.5 text-center leading-3">
-        {landState === "opened" && (
-          <span
-            className={cn(
-              "mx-auto max-w-full rounded-full border px-1.5 py-px text-[8px] leading-none",
-              plantingState === "empty" && "border-border/70 bg-background/70 text-muted-foreground",
-              plantingState === "needs_water" && "border-cyan-400/35 bg-cyan-400/15 text-cyan-700 dark:text-cyan-200",
-              plantingState === "growing" && "border-amber-400/35 bg-amber-400/15 text-amber-700 dark:text-amber-200",
-              plantingState === "ready" && "border-emerald-500/35 bg-emerald-500/15 text-emerald-700 dark:text-emerald-200",
-              plantingState === "unknown" && "border-border/70 bg-muted/40 text-muted-foreground"
-            )}
-          >
-            {plantingLabel}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EventLog({
-  events,
-  harvestStats,
-  harvestWindow,
-  streaming,
-  scrollKey,
-  logViewportRef,
-  onScroll,
-  onClear,
-  onScrollToBottom,
-}: {
-  events: Event[];
-  harvestStats: AccountHarvestStats | null;
-  harvestWindow: GetHarvestStatsResponse | null;
-  streaming: boolean;
-  scrollKey: string;
-  logViewportRef: RefObject<HTMLDivElement | null>;
-  onScroll: () => void;
-  onClear: () => void;
-  onScrollToBottom: () => void;
-}) {
-  const [tab, setTab] = useState<"events" | "harvest">("events");
-  const [category, setCategory] = useState("all");
-  const filteredEvents = events.filter((event) => eventMatchesLogFilter(event, category));
-
-  useLayoutEffect(() => {
-    if (tab !== "events") return;
-    const viewport = logViewportRef.current;
-    if (!viewport) return;
-    viewport.scrollTop = viewport.scrollHeight;
-  }, [scrollKey, category, logViewportRef, tab]);
-
-  return (
-    <section className="flex h-80 flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:h-auto xl:min-h-0 xl:flex-1">
-      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 font-medium">
-            <ListChecks className="size-4 text-primary" />
-            日志
-          </div>
-          <div className="flex overflow-hidden rounded-md border border-border/70 bg-muted/20 p-0.5">
-            <button
-              type="button"
-              className={cn(
-                "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
-                tab === "events" && "bg-background text-foreground shadow-sm"
-              )}
-              onClick={() => setTab("events")}
-            >
-              日志
-            </button>
-            <button
-              type="button"
-              className={cn(
-                "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
-                tab === "harvest" && "bg-background text-foreground shadow-sm"
-              )}
-              onClick={() => setTab("harvest")}
-            >
-              收获
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {tab === "events" && (
-            <>
-              <div className="flex overflow-hidden rounded-md border border-border/70 bg-muted/20 p-0.5">
-                {LOG_FILTERS.map((filter) => (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    className={cn(
-                      "rounded px-2 py-1 text-[10px] leading-none text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground",
-                      category === filter.value && "bg-background text-foreground shadow-sm"
-                    )}
-                    onClick={() => setCategory(filter.value)}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-              <Badge variant="secondary" className="text-[10px]">
-                <span className={cn("mr-1 size-1.5 rounded-full", streaming ? "animate-pulse bg-emerald-400" : "bg-muted-foreground")} />
-                {streaming ? "实时" : "断开"}
-              </Badge>
-              <Button variant="outline" size="icon-sm" onClick={onScrollToBottom} disabled={events.length === 0} aria-label="滚动到日志底部" title="滚动到底部">
-                <ArrowDownToLine className="size-3.5" />
-              </Button>
-              <Button variant="outline" size="icon-sm" onClick={onClear} disabled={events.length === 0} aria-label="清空当前账号日志" title="清空日志">
-                <Trash2 className="size-3.5" />
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-      {tab === "harvest" ? (
-        <HarvestStatsLogView stats={harvestStats} window={harvestWindow} />
-      ) : (
-        <div ref={logViewportRef} onScroll={onScroll} className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 bg-background/70 p-2 font-mono text-[11px]">
-          {events.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">等待事件...</div>
-          ) : filteredEvents.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">当前分类暂无日志</div>
-          ) : filteredEvents.map((event, index) => (
-            <div key={`${event.kind}-${index}`} className="grid grid-cols-[48px_92px_minmax(0,1fr)] gap-1.5 rounded px-1 leading-5 hover:bg-muted/45 sm:grid-cols-[54px_112px_minmax(0,1fr)]">
-              <span className="text-muted-foreground">{event.ts ? new Date(Number(event.ts.seconds) * 1000).toLocaleTimeString("zh-CN", { hour12: false }) : "--:--"}</span>
-              <span className={cn("truncate", eventColor(event))}>[{event.label || eventLabel(event.kind)}]</span>
-              <span className="break-all text-foreground/80">{event.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function HarvestStatsLogView({ stats, window }: { stats: AccountHarvestStats | null; window: GetHarvestStatsResponse | null }) {
-  if (!stats || stats.harvestOps === 0) {
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center rounded-md border border-border/70 bg-background/70 text-xs text-muted-foreground">
-        暂无最近收获统计
-      </div>
-    );
-  }
-  return (
-    <div className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 bg-background/70 p-3">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{formatShortTime(stats.firstHarvestAt)} - {formatShortTime(stats.lastHarvestAt)}</span>
-        <span>{window?.runGapSeconds ? `${Math.round(window.runGapSeconds / 60)} 分钟窗口` : ""}</span>
-      </div>
-      <div className="grid gap-2 sm:grid-cols-4">
-        <HarvestMetric label="次数" value={formatCount(stats.harvestOps)} />
-        <HarvestMetric label="经验" value={formatCount(Number(stats.experienceTotal))} />
-        <HarvestMetric label="鲜花" value={formatCount(Number(stats.flowerTotal))} />
-        <HarvestMetric label="精华" value={formatCount(Number(stats.essenceTotal))} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {stats.items.map((item) => (
-          <HarvestItemPill key={`${item.itemId}-${item.category}`} item={item} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const LOG_FILTERS = [
-  { value: "all", label: "全部" },
-  { value: "error", label: "错误" },
-  { value: "account", label: "账号" },
-  { value: "basic", label: "基础" },
-  { value: "plant", label: "种植" },
-  { value: "order", label: "订单" },
-  { value: "union", label: "公会" },
-  { value: "activity", label: "活动" },
-  { value: "system", label: "系统" },
-] as const;
-
-function eventMatchesLogFilter(event: Event, category: string): boolean {
-  if (category === "all") return true;
-  if (category === "error") return event.level === "error";
-  return event.category === category;
-}
-
-function eventStableKey(event: Event): string {
-  const seconds = event.ts ? String(event.ts.seconds) : "";
-  const nanos = event.ts ? String(event.ts.nanos ?? 0) : "";
-  return [
-    seconds,
-    nanos,
-    event.accountId,
-    event.kind,
-    event.category,
-    event.domain,
-    event.action,
-    event.message,
-    event.payloadJson,
-  ].join("\u001f");
-}
-
-const PLANT_MODE_OPTIONS = [
-  { value: "low_stock", label: "低库存优先", description: "优先补当前库存最低的花。" },
-  { value: "high_value", label: "高价值", description: "按金币收益和经验选择花。" },
-  { value: "selected", label: "自选", description: "只从你勾选的花里选择种植。" },
-] as const;
-
-const POLICY_TABS = [
-  { value: "basic", label: "基础" },
-  { value: "plant", label: "种植" },
-  { value: "order", label: "订单" },
-  { value: "union", label: "公会" },
-  { value: "activity", label: "活动" },
-] as const;
-
-type PolicyTab = typeof POLICY_TABS[number]["value"];
-
-const ACTIVITY_MODULE_OPTIONS = [
-  { value: "actCyclicStory", label: "周期剧情" },
-  { value: "actDessert", label: "甜品" },
-  { value: "actDuanWu", label: "端午" },
-  { value: "actElim", label: "消除" },
-  { value: "actMerge2", label: "合成" },
-  { value: "actSpool", label: "线轴" },
-  { value: "cyclicNote", label: "周期笔记" },
-  { value: "fishFun", label: "钓鱼" },
-  { value: "fishMerge", label: "鱼类合成" },
-  { value: "lanternFestival", label: "灯会" },
-  { value: "magicBubble", label: "魔法泡泡" },
-  { value: "moneyTree", label: "摇钱树" },
-  { value: "recvLuck", label: "福利领奖" },
-  { value: "redPacket", label: "红包" },
-  { value: "yzCall", label: "云栈召唤" },
-  { value: "zooGameElim", label: "动物消除" },
-] as const;
-
-function SettingsDialog({
-  open,
-  onOpenChange,
-  accountName,
+function PolicyPanel({
   policy,
-  setPolicy,
+  loading,
   saving,
   message,
+  onPolicyChange,
   onSave,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  accountName: string;
   policy: Policy | null;
-  setPolicy: (policy: Policy) => void;
+  loading: boolean;
   saving: boolean;
   message: string;
+  onPolicyChange: (policy: Policy | null) => void;
   onSave: () => void;
 }) {
-  const [activePolicyTab, setActivePolicyTab] = useState<PolicyTab>("basic");
-  const plantMode = policy?.plant?.plantingMode || "low_stock";
-  const plantTaskPriorityEnabled = policy?.plant?.taskPriorityEnabled ?? true;
-  const [flowerQuery, setFlowerQuery] = useState("");
-  const selectedFlowerIds = useMemo(() => new Set(policy?.plant?.allowedFlowerIds ?? []), [policy?.plant?.allowedFlowerIds]);
-  const activityModules = policy?.activity?.modules ?? {};
-  const visibleFlowers = useMemo(() => {
-    const keyword = flowerQuery.trim().toLowerCase();
-    if (!keyword) return FLOWER_OPTIONS;
-    return FLOWER_OPTIONS.filter((flower) => {
-      const id = String(flower.id);
-      const name = itemName(flower.id).toLowerCase();
-      return id.includes(keyword) || name.includes(keyword);
-    });
-  }, [flowerQuery]);
-  const updatePlant = (patch: Partial<NonNullable<Policy["plant"]>>) => {
+  const [activeTab, setActiveTab] = useState<PolicyTabId>("basic");
+  const plant = policy?.plant;
+  const flower = plant?.flower;
+  const cultivate = plant?.cultivate;
+  const friendSteal = plant?.friendSteal;
+  const elves = plant?.elves;
+  const market = plant?.market;
+  const basic = policy?.basic;
+  const reputation = basic?.reputation;
+  const task = basic?.task;
+  const benefit = basic?.benefit;
+  const sign = basic?.sign;
+  const pearl = basic?.pearl;
+  const shop = basic?.shop;
+  const cultivateShop = shop?.cultivateShop;
+  const vipShop = shop?.vipShop;
+  const feedCat = basic?.feedCat;
+  const order = policy?.order;
+  const customer = order?.customer;
+  const resident = order?.resident;
+  const palace = order?.palace;
+  const team = order?.team;
+  const flowerArt = order?.flowerArt;
+  const union = policy?.union;
+  const unionBuild = union?.build;
+  const unionFlower = union?.flower;
+  const unionRace = union?.race;
+  const unionLand = union?.land;
+  const activity = policy?.activity;
+
+  const updatePolicy = (patch: Partial<Policy>) => {
     if (!policy) return;
-    setPolicy({ ...policy, plant: { ...policy.plant!, ...patch } });
+    onPolicyChange({ ...policy, ...patch });
   };
-  const updateBasic = (patch: Partial<NonNullable<Policy["basic"]>>) => {
+  const updatePlant = (patch: Partial<PlantPolicy>) => {
     if (!policy) return;
-    const basic = policy.basic ?? create(BasicPolicySchema);
-    setPolicy({ ...policy, basic: { ...basic, ...patch } });
+    const current = policy.plant ?? create(PlantPolicySchema);
+    onPolicyChange({ ...policy, plant: { ...current, ...patch } });
   };
-  const updatePearl = (patch: Partial<NonNullable<NonNullable<Policy["basic"]>["pearl"]>>) => {
+  const updateBasic = (patch: Partial<BasicPolicy>) => {
     if (!policy) return;
-    const basic = policy.basic ?? create(BasicPolicySchema);
-    const pearl = basic.pearl ?? create(PearlPolicySchema);
-    setPolicy({ ...policy, basic: { ...basic, pearl: { ...pearl, ...patch } } });
+    const current = policy.basic ?? create(BasicPolicySchema);
+    onPolicyChange({ ...policy, basic: { ...current, ...patch } });
   };
-  const updateShop = (patch: Partial<NonNullable<NonNullable<Policy["basic"]>["shop"]>>) => {
+  const updateReputation = (patch: Partial<ReputationPolicy>) => {
     if (!policy) return;
-    const basic = policy.basic ?? create(BasicPolicySchema);
-    const shop = basic.shop ?? create(ShopPolicySchema);
-    setPolicy({ ...policy, basic: { ...basic, shop: { ...shop, ...patch } } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.reputation ?? create(ReputationPolicySchema);
+    updateBasic({ reputation: { ...current, ...patch } });
   };
-  const updateZoo = (patch: Partial<NonNullable<NonNullable<Policy["basic"]>["zoo"]>>) => {
+  const updateBasicTask = (patch: Partial<BasicTaskPolicy>) => {
     if (!policy) return;
-    const basic = policy.basic ?? create(BasicPolicySchema);
-    const zoo = basic.zoo ?? create(ZooPolicySchema);
-    setPolicy({ ...policy, basic: { ...basic, zoo: { ...zoo, ...patch } } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.task ?? create(BasicTaskPolicySchema);
+    updateBasic({ task: { ...current, ...patch } });
   };
-  const updateCustomerOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["customer"]>>) => {
+  const updateBenefit = (patch: Partial<BenefitPolicy>) => {
     if (!policy) return;
-    const order = policy.order ?? create(OrderPolicySchema);
-    const current = order.customer ?? create(CustomerOrderPolicySchema);
-    setPolicy({ ...policy, order: { ...order, customer: { ...current, ...patch } } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.benefit ?? create(BenefitPolicySchema);
+    updateBasic({ benefit: { ...current, ...patch } });
   };
-  const updateResidentOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["resident"]>>) => {
+  const updateSign = (patch: Partial<SignPolicy>) => {
     if (!policy) return;
-    const order = policy.order ?? create(OrderPolicySchema);
-    const current = order.resident ?? create(ResidentOrderPolicySchema);
-    setPolicy({ ...policy, order: { ...order, resident: { ...current, ...patch } } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.sign ?? create(SignPolicySchema);
+    updateBasic({ sign: { ...current, ...patch } });
   };
-  const updatePalaceOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["palace"]>>) => {
+  const updatePearl = (patch: Partial<PearlPolicy>) => {
     if (!policy) return;
-    const order = policy.order ?? create(OrderPolicySchema);
-    const current = order.palace ?? create(PalaceOrderPolicySchema);
-    setPolicy({ ...policy, order: { ...order, palace: { ...current, ...patch } } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.pearl ?? create(PearlPolicySchema);
+    updateBasic({ pearl: { ...current, ...patch } });
   };
-  const updateTeamOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["team"]>>) => {
+  const updateShop = (patch: Partial<ShopPolicy>) => {
     if (!policy) return;
-    const order = policy.order ?? create(OrderPolicySchema);
-    const current = order.team ?? create(TeamOrderPolicySchema);
-    setPolicy({ ...policy, order: { ...order, team: { ...current, ...patch } } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.shop ?? create(ShopPolicySchema);
+    updateBasic({ shop: { ...current, ...patch } });
   };
-  const updateFlowerArt = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["flowerArt"]>>) => {
+  const updateCultivateShop = (patch: Partial<ShopBuyPolicy>) => {
     if (!policy) return;
-    const order = policy.order ?? create(OrderPolicySchema);
-    const current = order.flowerArt ?? create(FlowerArtPolicySchema);
-    setPolicy({ ...policy, order: { ...order, flowerArt: { ...current, ...patch } } });
+    const currentShop = (policy.basic ?? create(BasicPolicySchema)).shop ?? create(ShopPolicySchema);
+    const current = currentShop.cultivateShop ?? create(ShopBuyPolicySchema);
+    updateShop({ cultivateShop: { ...current, ...patch } });
   };
-  const updateUnion = (patch: Partial<NonNullable<Policy["union"]>>) => {
+  const updateVipShop = (patch: Partial<VipShopPolicy>) => {
     if (!policy) return;
-    const union = policy.union ?? create(UnionPolicySchema);
-    setPolicy({ ...policy, union: { ...union, ...patch } });
+    const currentShop = (policy.basic ?? create(BasicPolicySchema)).shop ?? create(ShopPolicySchema);
+    const current = currentShop.vipShop ?? create(VipShopPolicySchema);
+    updateShop({ vipShop: { ...current, ...patch } });
   };
-  const updateActivity = (patch: Partial<NonNullable<Policy["activity"]>>) => {
+  const updateFeedCat = (patch: Partial<FeedCatPolicy>) => {
     if (!policy) return;
-    const activity = policy.activity ?? create(ActivityPolicySchema);
-    setPolicy({ ...policy, activity: { ...activity, ...patch } });
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.feedCat ?? create(FeedCatPolicySchema);
+    updateBasic({ feedCat: { ...current, ...patch } });
   };
-  const updateActivityModule = (name: string, patch: Partial<NonNullable<NonNullable<Policy["activity"]>["modules"][string]>>) => {
+  const updateFlower = (patch: Partial<FlowerPlantPolicy>) => {
     if (!policy) return;
-    const activity = policy.activity ?? create(ActivityPolicySchema);
-    const current = activity.modules[name] ?? create(ActivityModulePolicySchema);
-    setPolicy({
-      ...policy,
-      activity: {
-        ...activity,
-        modules: {
-          ...activity.modules,
-          [name]: { ...current, ...patch },
-        },
+    const currentPlant = policy.plant ?? create(PlantPolicySchema);
+    const current = currentPlant.flower ?? create(FlowerPlantPolicySchema);
+    updatePlant({ flower: { ...current, ...patch } });
+  };
+  const updateCultivate = (patch: Partial<CultivatePolicy>) => {
+    if (!policy) return;
+    const currentPlant = policy.plant ?? create(PlantPolicySchema);
+    const current = currentPlant.cultivate ?? create(CultivatePolicySchema);
+    updatePlant({ cultivate: { ...current, ...patch } });
+  };
+  const updateFriendSteal = (patch: Partial<FriendStealPolicy>) => {
+    if (!policy) return;
+    const currentPlant = policy.plant ?? create(PlantPolicySchema);
+    const current = currentPlant.friendSteal ?? create(FriendStealPolicySchema);
+    updatePlant({ friendSteal: { ...current, ...patch } });
+  };
+  const updateElves = (patch: Partial<FlowerElvesPolicy>) => {
+    if (!policy) return;
+    const currentPlant = policy.plant ?? create(PlantPolicySchema);
+    const current = currentPlant.elves ?? create(FlowerElvesPolicySchema);
+    updatePlant({ elves: { ...current, ...patch } });
+  };
+  const updateMarket = (patch: Partial<FlowerMarketPolicy>) => {
+    if (!policy) return;
+    const currentPlant = policy.plant ?? create(PlantPolicySchema);
+    const current = currentPlant.market ?? create(FlowerMarketPolicySchema);
+    updatePlant({ market: { ...current, ...patch } });
+  };
+  const updateOrder = (patch: Partial<OrderPolicy>) => {
+    if (!policy) return;
+    const current = policy.order ?? create(OrderPolicySchema);
+    onPolicyChange({ ...policy, order: { ...current, ...patch } });
+  };
+  const updateCustomer = (patch: Partial<CustomerOrderPolicy>) => {
+    if (!policy) return;
+    const currentOrder = policy.order ?? create(OrderPolicySchema);
+    const current = currentOrder.customer ?? create(CustomerOrderPolicySchema);
+    updateOrder({ customer: { ...current, ...patch } });
+  };
+  const updateResident = (patch: Partial<ResidentOrderPolicy>) => {
+    if (!policy) return;
+    const currentOrder = policy.order ?? create(OrderPolicySchema);
+    const current = currentOrder.resident ?? create(ResidentOrderPolicySchema);
+    updateOrder({ resident: { ...current, ...patch } });
+  };
+  const updatePalace = (patch: Partial<PalaceOrderPolicy>) => {
+    if (!policy) return;
+    const currentOrder = policy.order ?? create(OrderPolicySchema);
+    const current = currentOrder.palace ?? create(PalaceOrderPolicySchema);
+    updateOrder({ palace: { ...current, ...patch } });
+  };
+  const updateTeam = (patch: Partial<TeamOrderPolicy>) => {
+    if (!policy) return;
+    const currentOrder = policy.order ?? create(OrderPolicySchema);
+    const current = currentOrder.team ?? create(TeamOrderPolicySchema);
+    updateOrder({ team: { ...current, ...patch } });
+  };
+  const updateFlowerArt = (patch: Partial<FlowerArtPolicy>) => {
+    if (!policy) return;
+    const currentOrder = policy.order ?? create(OrderPolicySchema);
+    const current = currentOrder.flowerArt ?? create(FlowerArtPolicySchema);
+    updateOrder({ flowerArt: { ...current, ...patch } });
+  };
+  const updateUnion = (patch: Partial<UnionPolicy>) => {
+    if (!policy) return;
+    const current = policy.union ?? create(UnionPolicySchema);
+    onPolicyChange({ ...policy, union: { ...current, ...patch } });
+  };
+  const updateUnionBuild = (patch: Partial<UnionBuildPolicy>) => {
+    if (!policy) return;
+    const currentUnion = policy.union ?? create(UnionPolicySchema);
+    const current = currentUnion.build ?? create(UnionBuildPolicySchema);
+    updateUnion({ build: { ...current, ...patch } });
+  };
+  const updateUnionFlower = (patch: Partial<UnionFlowerPolicy>) => {
+    if (!policy) return;
+    const currentUnion = policy.union ?? create(UnionPolicySchema);
+    const current = currentUnion.flower ?? create(UnionFlowerPolicySchema);
+    updateUnion({ flower: { ...current, ...patch } });
+  };
+  const updateUnionRace = (patch: Partial<UnionRacePolicy>) => {
+    if (!policy) return;
+    const currentUnion = policy.union ?? create(UnionPolicySchema);
+    const current = currentUnion.race ?? create(UnionRacePolicySchema);
+    updateUnion({ race: { ...current, ...patch } });
+  };
+  const updateUnionLand = (patch: Partial<UnionLandPolicy>) => {
+    if (!policy) return;
+    const currentUnion = policy.union ?? create(UnionPolicySchema);
+    const current = currentUnion.land ?? create(UnionLandPolicySchema);
+    updateUnion({ land: { ...current, ...patch } });
+  };
+  const updateActivity = (patch: Partial<ActivityPolicy>) => {
+    if (!policy) return;
+    const current = policy.activity ?? create(ActivityPolicySchema);
+    onPolicyChange({ ...policy, activity: { ...current, ...patch } });
+  };
+  const updateActivityModule = (moduleID: string, patch: Partial<ActivityModulePolicy>) => {
+    if (!policy) return;
+    const currentActivity = policy.activity ?? create(ActivityPolicySchema);
+    const current = currentActivity.modules[moduleID] ?? create(ActivityModulePolicySchema);
+    updateActivity({
+      modules: {
+        ...currentActivity.modules,
+        [moduleID]: { ...current, ...patch },
       },
     });
   };
-  const updateSafety = (patch: Partial<NonNullable<Policy["safety"]>>) => {
-    if (!policy) return;
-    const safety = policy.safety ?? create(SafetyPolicySchema);
-    setPolicy({ ...policy, safety: { ...safety, ...patch } });
+  const updateActivityBoolParam = (moduleID: string, key: string, value: boolean) => {
+    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
+    updateActivityModule(moduleID, { boolParams: { ...current.boolParams, [key]: value } });
   };
-  const updateWater = (patch: Partial<{ enabled: boolean; minDrops: number; maxBatch: number }>) => {
-    updatePlant({
-      waterEnabled: patch.enabled ?? policy?.plant?.waterEnabled ?? true,
-      minWaterDrops: patch.minDrops ?? policy?.plant?.minWaterDrops ?? 5,
-      waterMaxBatch: patch.maxBatch ?? policy?.plant?.waterMaxBatch ?? 8,
+  const updateActivityIntParam = (moduleID: string, key: string, value: bigint) => {
+    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
+    updateActivityModule(moduleID, { intParams: { ...current.intParams, [key]: value } });
+  };
+  const updateActivityStringParam = (moduleID: string, key: string, value: string) => {
+    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
+    updateActivityModule(moduleID, { stringParams: { ...current.stringParams, [key]: value } });
+  };
+  const updateActivityIntListParam = (moduleID: string, key: string, values: number[]) => {
+    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
+    updateActivityModule(moduleID, {
+      intListParams: {
+        ...current.intListParams,
+        [key]: create(IntListSchema, { values }),
+      },
     });
   };
-  const toggleFlower = (flowerId: number) => {
-    const ids = new Set(policy?.plant?.allowedFlowerIds ?? []);
-    if (ids.has(flowerId)) {
-      ids.delete(flowerId);
-    } else {
-      ids.add(flowerId);
-    }
-    updatePlant({ allowedFlowerIds: Array.from(ids).sort((a, b) => a - b) });
-  };
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>策略</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EmptyState title="策略加载中" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!policy) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>策略</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EmptyState title="未加载策略" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] overflow-hidden sm:max-w-6xl">
-        <DialogHeader>
-          <DialogTitle>策略设置</DialogTitle>
-          <DialogDescription>{accountName ? `调整「${accountName}」的自动化策略` : "选择账号后调整策略"}</DialogDescription>
-        </DialogHeader>
-        {!policy ? (
-          <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">加载策略中...</div>
-        ) : (
-          <>
-            <div className="dark-scrollbar max-h-[66vh] overflow-y-auto pr-1">
-              <div className="grid gap-4">
-                <Card size="sm">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">运行与安全</CardTitle></CardHeader>
-                  <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                    <Row label="自动化"><Switch checked={policy.automationEnabled} onCheckedChange={(v: boolean) => setPolicy({ ...policy, automationEnabled: v })} /></Row>
-                    <Row label="决策间隔"><Input type="number" min={1} className="h-8 w-24 text-xs" value={policy.decisionIntervalSeconds || 4} onChange={(e) => setPolicy({ ...policy, decisionIntervalSeconds: parseNumberAtLeast(e.target.value, 4, 1) })} /></Row>
-                    <Row label="要求已观测"><Switch checked={policy.safety?.requireObservedState ?? true} onCheckedChange={(v: boolean) => updateSafety({ requireObservedState: v })} /></Row>
-                    <Row label="会话失效停止"><Switch checked={policy.safety?.stopOnSessionInvalidated ?? true} onCheckedChange={(v: boolean) => updateSafety({ stopOnSessionInvalidated: v })} /></Row>
-                    <Row label="连续错误"><Input type="number" min={1} className="h-8 w-20 text-xs" value={policy.safety?.maxConsecutiveErrors || 3} onChange={(e) => updateSafety({ maxConsecutiveErrors: parseNumberAtLeast(e.target.value, 3, 1) })} /></Row>
-                    <Row label="域退避秒"><Input type="number" min={0} className="h-8 w-24 text-xs" value={policy.safety?.domainBackoffSeconds ?? 1800} onChange={(e) => updateSafety({ domainBackoffSeconds: parseNumberAtLeast(e.target.value, 1800, 0) })} /></Row>
-                    <Row label="金币预算"><Input type="number" min={0} className="h-8 w-24 text-xs" value={policy.safety?.maxGoldSpendPerTick ?? 0} onChange={(e) => updateSafety({ maxGoldSpendPerTick: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                    <Row label="钻石预算"><Input type="number" min={0} className="h-8 w-24 text-xs" value={policy.safety?.maxDiamondSpendPerTick ?? 0} onChange={(e) => updateSafety({ maxDiamondSpendPerTick: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                  </CardContent>
-                </Card>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>策略</CardTitle>
+          <Button type="button" size="sm" onClick={onSave} disabled={saving}>
+            <Save className="size-4" />
+            保存
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {message && <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">{message}</div>}
 
-                <div className="flex flex-wrap gap-2 rounded-lg border border-border/70 bg-muted/15 p-1">
-                  {POLICY_TABS.map((item) => (
-                    <button
-                      key={item.value}
-                      type="button"
-                      className={cn(
-                        "min-w-20 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground",
-                        activePolicyTab === item.value && "bg-background text-foreground shadow-sm"
-                      )}
-                      onClick={() => setActivePolicyTab(item.value)}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+        <section className="space-y-3">
+          <SectionTitle icon={<ShieldCheck />}>总开关</SectionTitle>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <ToggleRow label="自动化" checked={policy.automationEnabled} onChange={(checked) => updatePolicy({ automationEnabled: checked })} />
+            <NumberRow label="决策间隔" value={policy.decisionIntervalSeconds || 4} min={1} onChange={(value) => updatePolicy({ decisionIntervalSeconds: value })} />
+          </div>
+        </section>
 
-                {activePolicyTab === "basic" && (
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">任务与奖励</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2">
-                        <Row label="礼仪监控"><Switch checked={policy.basic?.reputationEnabled ?? true} onCheckedChange={(v: boolean) => updateBasic({ reputationEnabled: v })} /></Row>
-                        <Row label="礼仪阈值"><Input type="number" className="h-8 w-20 text-xs" value={policy.basic?.reputationThreshold || 80} onChange={(e) => updateBasic({ reputationThreshold: parseNumberAtLeast(e.target.value, 80, 0) })} /></Row>
-                        <Row label="主线任务"><Switch checked={policy.basic?.mainTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ mainTaskEnabled: v })} /></Row>
-                        <Row label="每日任务"><Switch checked={policy.basic?.dailyTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ dailyTaskEnabled: v })} /></Row>
-                        <Row label="每周任务"><Switch checked={policy.basic?.weeklyTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ weeklyTaskEnabled: v })} /></Row>
-                        <Row label="成就任务"><Switch checked={policy.basic?.achievementTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ achievementTaskEnabled: v })} /></Row>
-                        <Row label="剧情"><Switch checked={policy.basic?.storyEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ storyEnabled: v })} /></Row>
-                        <Row label="邮件"><Switch checked={policy.basic?.mailEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ mailEnabled: v })} /></Row>
-                        <Row label="福利"><Switch checked={policy.basic?.welfareEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ welfareEnabled: v })} /></Row>
-                        <Row label="签到"><Switch checked={policy.basic?.signEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ signEnabled: v })} /></Row>
-                        <Row label="成长之路"><Switch checked={policy.basic?.roadGrowRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ roadGrowRewardEnabled: v })} /></Row>
-                        <Row label="地图事件"><Switch checked={policy.basic?.randomEventEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ randomEventEnabled: v })} /></Row>
-                        <Row label="水车"><Switch checked={policy.basic?.waterwheelEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ waterwheelEnabled: v })} /></Row>
-                        <Row label="免费水滴"><Switch checked={policy.basic?.freeWaterEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ freeWaterEnabled: v })} /></Row>
-                        <Row label="福利箱"><Switch checked={policy.basic?.benefitBoxEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ benefitBoxEnabled: v })} /></Row>
-                      </CardContent>
-                    </Card>
+        <div className="flex gap-1 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-1">
+          {POLICY_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex min-h-9 shrink-0 items-center gap-2 rounded px-3 text-sm font-medium transition-colors [&_svg]:size-4",
+                activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">珍珠、商城、动物</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2">
-                        <Row label="珍珠"><Switch checked={policy.basic?.pearl?.enabled ?? false} onCheckedChange={(v: boolean) => updatePearl({ enabled: v })} /></Row>
-                        <Row label="免费珍珠"><Switch checked={policy.basic?.pearl?.freePearl ?? false} onCheckedChange={(v: boolean) => updatePearl({ freePearl: v })} /></Row>
-                        <Row label="雇佣精灵"><Switch checked={policy.basic?.pearl?.autoHire ?? false} onCheckedChange={(v: boolean) => updatePearl({ autoHire: v })} /></Row>
-                        <Row label="珍珠抽取"><Switch checked={policy.basic?.pearl?.autoDraw ?? false} onCheckedChange={(v: boolean) => updatePearl({ autoDraw: v })} /></Row>
-                        <Row label="视频礼包"><Switch checked={policy.basic?.shop?.videoGiftEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ videoGiftEnabled: v })} /></Row>
-                        <Row label="培育商店"><Switch checked={policy.basic?.shop?.cultivateShopEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ cultivateShopEnabled: v })} /></Row>
-                        <Row label="VIP 商店"><Switch checked={policy.basic?.shop?.vipShopEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ vipShopEnabled: v })} /></Row>
-                        <Row label="材料商店"><Switch checked={policy.basic?.shop?.materialShopEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ materialShopEnabled: v })} /></Row>
-                        <Row label="动物"><Switch checked={policy.basic?.zoo?.enabled ?? false} onCheckedChange={(v: boolean) => updateZoo({ enabled: v })} /></Row>
-                        <Row label="动物同步"><Switch checked={policy.basic?.zoo?.syncEnabled ?? false} onCheckedChange={(v: boolean) => updateZoo({ syncEnabled: v })} /></Row>
-                        <Row label="自动喂食"><Switch checked={policy.basic?.zoo?.autoFeed ?? false} onCheckedChange={(v: boolean) => updateZoo({ autoFeed: v })} /></Row>
-                        <Row label="动物小游戏"><Switch checked={policy.basic?.zoo?.gameEnabled ?? false} onCheckedChange={(v: boolean) => updateZoo({ gameEnabled: v })} /></Row>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {activePolicyTab === "plant" && (
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-                    <Card size="sm" className="min-w-0">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">收获与种植</CardTitle></CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <Row label="自动收获"><Switch checked={policy.plant?.harvestEnabled ?? true} onCheckedChange={(v: boolean) => updatePlant({ harvestEnabled: v })} /></Row>
-                          <Row label="一键收获"><Switch checked={policy.plant?.harvestPreferOneKey ?? true} onCheckedChange={(v: boolean) => updatePlant({ harvestPreferOneKey: v })} /></Row>
-                          <Row label="自动种植"><Switch checked={policy.plant?.plantEnabled ?? true} onCheckedChange={(v: boolean) => updatePlant({ plantEnabled: v })} /></Row>
-                          <Row label="任务优先"><Switch checked={plantTaskPriorityEnabled} onCheckedChange={(v: boolean) => updatePlant({ taskPriorityEnabled: v })} /></Row>
-                          <Row label="批量上限"><Input type="number" className="h-8 w-20 text-xs" value={policy.plant?.plantMaxBatch ?? 8} onChange={(e) => updatePlant({ plantMaxBatch: parseNumber(e.target.value, 8) })} /></Row>
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-3">
-                          {PLANT_MODE_OPTIONS.map((option) => (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => updatePlant({ plantingMode: option.value })}
-                              className={cn(
-                                "rounded-lg border border-border/70 bg-muted/15 p-3 text-left transition-all hover:border-primary/35 hover:bg-primary/5",
-                                plantMode === option.value && "border-primary/55 bg-primary/10 shadow-sm ring-1 ring-primary/20"
-                              )}
-                            >
-                              <div className="mb-1 flex items-center justify-between gap-2">
-                                <span className="text-sm font-medium">{option.label}</span>
-                                {plantMode === option.value && <Check className="size-4 text-primary" />}
-                              </div>
-                              <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
-                            </button>
-                          ))}
-                        </div>
-
-                        {plantMode === "selected" && (
-                          <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
-                            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <div className="text-sm font-medium">选择种子</div>
-                                <div className="text-xs text-muted-foreground">已选择 {selectedFlowerIds.size} 种</div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Input className="h-8 w-full text-xs sm:w-48" placeholder="搜索名称或 ID" value={flowerQuery} onChange={(e) => setFlowerQuery(e.target.value)} />
-                                <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" onClick={() => updatePlant({ allowedFlowerIds: [] })}>清空</Button>
-                              </div>
-                            </div>
-                            <div className="dark-scrollbar max-h-64 overflow-y-auto pr-1">
-                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                {visibleFlowers.map((flower) => (
-                                  <FlowerOptionButton
-                                    key={flower.id}
-                                    flower={flower}
-                                    selected={selectedFlowerIds.has(flower.id)}
-                                    onToggle={() => toggleFlower(flower.id)}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <div className="grid gap-4">
-                      <Card size="sm">
-                        <CardHeader className="pb-2"><CardTitle className="text-sm">浇水</CardTitle></CardHeader>
-                        <CardContent className="space-y-2">
-                          <Row label="自动浇水"><Switch checked={policy.plant?.waterEnabled ?? true} onCheckedChange={(v: boolean) => updateWater({ enabled: v })} /></Row>
-                          <Row label="保留水滴"><Input type="number" min={1} className="h-8 w-24 text-xs" value={policy.plant?.minWaterDrops || 5} onChange={(e) => updateWater({ minDrops: parseNumberAtLeast(e.target.value, 5, 1) })} /></Row>
-                          <Row label="批量上限"><Input type="number" className="h-8 w-24 text-xs" value={policy.plant?.waterMaxBatch ?? 8} onChange={(e) => updateWater({ maxBatch: parseNumber(e.target.value, 8) })} /></Row>
-                          <Row label="贵族一键"><Switch checked={policy.plant?.waterPreferOneKeyIfNoble ?? false} onCheckedChange={(v: boolean) => updatePlant({ waterPreferOneKeyIfNoble: v })} /></Row>
-                        </CardContent>
-                      </Card>
-
-                      <Card size="sm">
-                        <CardHeader className="pb-2"><CardTitle className="text-sm">开垦、加速、培育</CardTitle></CardHeader>
-                        <CardContent className="space-y-2">
-                          <Row label="自动开垦"><Switch checked={policy.plant?.landUnlockEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ landUnlockEnabled: v })} /></Row>
-                          <Row label="自动加速"><Switch checked={policy.plant?.speedUpEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ speedUpEnabled: v })} /></Row>
-                          <Row label="视频加速"><Switch checked={policy.plant?.videoSpeedUp ?? false} onCheckedChange={(v: boolean) => updatePlant({ videoSpeedUp: v })} /></Row>
-                          <Row label="加速券上限"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.plant?.speedUpTicketMax ?? 0} onChange={(e) => updatePlant({ speedUpTicketMax: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                          <Row label="自动培育"><Switch checked={policy.plant?.cultivateEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ cultivateEnabled: v })} /></Row>
-                          <Row label="自动升级"><Switch checked={policy.plant?.flowerUpgradeEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ flowerUpgradeEnabled: v })} /></Row>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                )}
-
-                {activePolicyTab === "order" && (
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">居民与顾客</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2">
-                        <Row label="居民订单"><Switch checked={policy.order?.resident?.normalEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ normalEnabled: v })} /></Row>
-                        <Row label="居民次数"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.order?.resident?.normalMaxNum ?? 0} onChange={(e) => updateResidentOrder({ normalMaxNum: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                        <Row label="装饰订单"><Switch checked={policy.order?.resident?.decorateEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ decorateEnabled: v })} /></Row>
-                        <Row label="绸缎订单"><Switch checked={policy.order?.resident?.satinEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ satinEnabled: v })} /></Row>
-                        <Row label="阶段奖励"><Switch checked={policy.order?.resident?.rewardEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ rewardEnabled: v })} /></Row>
-                        <Row label="广告刷新"><Switch checked={policy.order?.resident?.adRefreshEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ adRefreshEnabled: v })} /></Row>
-                        <Row label="顾客订单"><Switch checked={policy.order?.customer?.enabled ?? false} onCheckedChange={(v: boolean) => updateCustomerOrder({ enabled: v })} /></Row>
-                        <Row label="顾客拒单"><Switch checked={policy.order?.customer?.rejectEnabled ?? false} onCheckedChange={(v: boolean) => updateCustomerOrder({ rejectEnabled: v })} /></Row>
-                        <Row label="顾客花艺"><Switch checked={policy.order?.customer?.craftEnabled ?? false} onCheckedChange={(v: boolean) => updateCustomerOrder({ craftEnabled: v })} /></Row>
-                        <Row label="每轮完成"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.order?.customer?.maxFinishPerTick ?? 0} onChange={(e) => updateCustomerOrder({ maxFinishPerTick: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                      </CardContent>
-                    </Card>
-
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">宫廷、组队、花艺</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2">
-                        <Row label="宫廷订单"><Switch checked={policy.order?.palace?.enabled ?? false} onCheckedChange={(v: boolean) => updatePalaceOrder({ enabled: v })} /></Row>
-                        <Row label="组队订单"><Switch checked={policy.order?.team?.enabled ?? false} onCheckedChange={(v: boolean) => updateTeamOrder({ enabled: v })} /></Row>
-                        <Row label="组队再来一次"><Switch checked={policy.order?.team?.oneMore ?? false} onCheckedChange={(v: boolean) => updateTeamOrder({ oneMore: v })} /></Row>
-                        <Row label="只交培育花"><Switch checked={policy.order?.team?.submitOnlyCultivatedFlowers ?? false} onCheckedChange={(v: boolean) => updateTeamOrder({ submitOnlyCultivatedFlowers: v })} /></Row>
-                        <Row label="花架售卖"><Switch checked={policy.order?.flowerArt?.sellEnabled ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ sellEnabled: v })} /></Row>
-                        <Row label="花艺制作"><Switch checked={policy.order?.flowerArt?.craftEnabled ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ craftEnabled: v })} /></Row>
-                        <Row label="制作奖励"><Switch checked={policy.order?.flowerArt?.rewardEnabled ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ rewardEnabled: v })} /></Row>
-                        <Row label="自动解锁花架"><Switch checked={policy.order?.flowerArt?.autoUnlockStand ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ autoUnlockStand: v })} /></Row>
-                        <Row label="每架花艺"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.order?.flowerArt?.flowerArtPerRack ?? 0} onChange={(e) => updateFlowerArt({ flowerArtPerRack: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {activePolicyTab === "union" && (
-                  <div className="grid gap-4 xl:grid-cols-2">
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">建设与共享</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2">
-                        <Row label="免费建设"><Switch checked={policy.union?.buildFreeEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ buildFreeEnabled: v })} /></Row>
-                        <Row label="金币建设"><Switch checked={policy.union?.buildGoldEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ buildGoldEnabled: v })} /></Row>
-                        <Row label="钻石建设"><Switch checked={policy.union?.buildDiamondEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ buildDiamondEnabled: v })} /></Row>
-                        <Row label="共享鲜花"><Switch checked={policy.union?.flowerShareEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ flowerShareEnabled: v })} /></Row>
-                        <Row label="共享模式"><Input className="h-8 w-24 text-xs" value={policy.union?.flowerShareMode || "quality"} onChange={(e) => updateUnion({ flowerShareMode: e.target.value })} /></Row>
-                        <Row label="领取共享"><Switch checked={policy.union?.flowerTakeEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ flowerTakeEnabled: v })} /></Row>
-                        <Row label="领取模式"><Input className="h-8 w-24 text-xs" value={policy.union?.flowerTakeMode || "quality"} onChange={(e) => updateUnion({ flowerTakeMode: e.target.value })} /></Row>
-                        <Row label="公会红包"><Switch checked={policy.union?.redPacketEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ redPacketEnabled: v })} /></Row>
-                        <Row label="公会森林"><Switch checked={policy.union?.forestEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ forestEnabled: v })} /></Row>
-                      </CardContent>
-                    </Card>
-
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">竞赛与土地</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2">
-                        <Row label="公会竞赛"><Switch checked={policy.union?.raceEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceEnabled: v })} /></Row>
-                        <Row label="自动模块"><Switch checked={policy.union?.raceAutoEnableModules ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceAutoEnableModules: v })} /></Row>
-                        <Row label="删除低分任务"><Switch checked={policy.union?.raceDeleteTask ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceDeleteTask: v })} /></Row>
-                        <Row label="最低分"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.union?.raceMinTaskScore ?? 0} onChange={(e) => updateUnion({ raceMinTaskScore: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                        <Row label="只做升级任务"><Switch checked={policy.union?.raceOnlyUpgradeTask ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceOnlyUpgradeTask: v })} /></Row>
-                        <Row label="升级竞赛任务"><Switch checked={policy.union?.raceUpgradeTask ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceUpgradeTask: v })} /></Row>
-                        <Row label="竞赛加速券"><Switch checked={policy.union?.raceUseSpeedUpTicket ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceUseSpeedUpTicket: v })} /></Row>
-                        <Row label="公会土地种植"><Switch checked={policy.union?.landAutoPlant ?? false} onCheckedChange={(v: boolean) => updateUnion({ landAutoPlant: v })} /></Row>
-                        <Row label="公会土地收获"><Switch checked={policy.union?.landHarvest ?? false} onCheckedChange={(v: boolean) => updateUnion({ landHarvest: v })} /></Row>
-                        <Row label="土地模式"><Input className="h-8 w-24 text-xs" value={policy.union?.landPlantMode || "low_stock"} onChange={(e) => updateUnion({ landPlantMode: e.target.value })} /></Row>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {activePolicyTab === "activity" && (
-                  <div className="grid gap-4">
-                    <Card size="sm">
-                      <CardHeader className="pb-2"><CardTitle className="text-sm">活动总控</CardTitle></CardHeader>
-                      <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                        <Row label="周期活动"><Switch checked={policy.activity?.enabled ?? false} onCheckedChange={(v: boolean) => updateActivity({ enabled: v })} /></Row>
-                      </CardContent>
-                    </Card>
-
-                    <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-                      {ACTIVITY_MODULE_OPTIONS.map((module) => {
-                        const modulePolicy = activityModules[module.value];
-                        return (
-                          <div key={module.value} className="rounded-lg border border-border/70 bg-card/55 p-3">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-medium">{module.label}</div>
-                                <div className="truncate text-[10px] text-muted-foreground">{module.value}</div>
-                              </div>
-                              <Switch checked={modulePolicy?.enabled ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { enabled: v })} />
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              <Row label="领能量"><Switch checked={modulePolicy?.autoClaimEnergy ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { autoClaimEnergy: v })} /></Row>
-                              <Row label="用道具"><Switch checked={modulePolicy?.useItems ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { useItems: v })} /></Row>
-                              <Row label="自动重开"><Switch checked={modulePolicy?.autoRestart ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { autoRestart: v })} /></Row>
-                              <Row label="刷新"><Switch checked={modulePolicy?.refreshEnabled ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { refreshEnabled: v })} /></Row>
-                              <Row label="速度"><Input type="number" min={0} className="h-8 w-16 text-xs" value={modulePolicy?.speed ?? 1} onChange={(e) => updateActivityModule(module.value, { speed: parseNumberAtLeast(e.target.value, 1, 0) })} /></Row>
-                              <Row label="批量次数"><Input type="number" min={0} className="h-8 w-16 text-xs" value={modulePolicy?.maxFinishCountPerBatch ?? 0} onChange={(e) => updateActivityModule(module.value, { maxFinishCountPerBatch: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+        {activeTab === "basic" && (
+          <div className="space-y-4">
+            <PolicyGroup title="基础配置" icon={<ShieldCheck />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="礼仪分监控" checked={reputation?.enabled ?? false} onChange={(checked) => updateReputation({ enabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <NumberRow label="礼仪分阈值" value={reputation?.threshold || 80} min={0} onChange={(value) => updateReputation({ threshold: value })} />
+                <ToggleRow label="道具日志" checked={basic?.itemLogEnabled ?? false} onChange={(checked) => updateBasic({ itemLogEnabled: checked })} />
+                <NumberRow label="重连间隔秒" value={basic?.reconnectIntervalSeconds || 300} min={1} onChange={(value) => updateBasic({ reconnectIntervalSeconds: value })} />
               </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="任务与剧情" icon={<ListChecks />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="主线任务" checked={task?.mainEnabled ?? false} onChange={(checked) => updateBasicTask({ mainEnabled: checked })} />
+                <ToggleRow label="每日任务" checked={task?.dailyEnabled ?? false} onChange={(checked) => updateBasicTask({ dailyEnabled: checked })} />
+                <ToggleRow label="每周任务" checked={task?.weeklyEnabled ?? false} onChange={(checked) => updateBasicTask({ weeklyEnabled: checked })} />
+                <ToggleRow label="主线剧情" checked={task?.storyEnabled ?? false} onChange={(checked) => updateBasicTask({ storyEnabled: checked })} />
+                <ToggleRow label="花坊悬赏" checked={task?.achievementEnabled ?? false} onChange={(checked) => updateBasicTask({ achievementEnabled: checked })} />
+                <ToggleRow label="动物/地图事件" checked={basic?.randomEventEnabled ?? false} onChange={(checked) => updateBasic({ randomEventEnabled: checked })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="邮件、福利、祈愿" icon={<BadgeCheck />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="邮件" checked={basic?.mailEnabled ?? false} onChange={(checked) => updateBasic({ mailEnabled: checked })} />
+                <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} />
+                <ToggleRow label="限时水滴" checked={basic?.freeWaterEnabled ?? false} onChange={(checked) => updateBasic({ freeWaterEnabled: checked })} />
+                <NumberRow label="水滴领取阈值" value={basic?.waterClaimThreshold || 0} min={0} onChange={(value) => updateBasic({ waterClaimThreshold: value })} />
+                <ToggleRow label="双倍金币" checked={benefit?.doubleCoinEnabled ?? false} onChange={(checked) => updateBenefit({ doubleCoinEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />
+                <ToggleRow label="福利宝箱" checked={benefit?.boxEnabled ?? false} onChange={(checked) => updateBenefit({ boxEnabled: checked })} />
+                <ToggleRow label="分享奖励" checked={benefit?.shareRewardEnabled ?? false} onChange={(checked) => updateBenefit({ shareRewardEnabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <ToggleRow label="防骗宝箱" checked={benefit?.antiScamBoxEnabled ?? false} onChange={(checked) => updateBenefit({ antiScamBoxEnabled: checked })} />
+                <ToggleRow label="每日祈愿" checked={sign?.dailyEnabled ?? false} onChange={(checked) => updateSign({ dailyEnabled: checked })} />
+                <ToggleRow label="自动补签" checked={sign?.patchEnabled ?? false} onChange={(checked) => updateSign({ patchEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="成长之路" checked={basic?.roadGrowRewardEnabled ?? false} onChange={(checked) => updateBasic({ roadGrowRewardEnabled: checked })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="珍珠" icon={<Gem />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="免费珍珠" checked={pearl?.freeEnabled ?? false} onChange={(checked) => updatePearl({ freeEnabled: checked })} />
+                <ToggleRow label="雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <NumberRow label="雇佣等级上限" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />
+                <NumberRow label="雇佣券上限" value={pearl?.maxHireTicketUsage || 0} min={0} onChange={(value) => updatePearl({ maxHireTicketUsage: value })} />
+                <ToggleRow label="自动开珍珠" checked={pearl?.drawEnabled ?? false} onChange={(checked) => updatePearl({ drawEnabled: checked })} />
+                <ToggleRow label="开启防身" checked={pearl?.protectEnabled ?? false} onChange={(checked) => updatePearl({ protectEnabled: checked })} />
+                <ToggleRow label="买雇佣书" checked={pearl?.autoBuyHireTicket ?? false} onChange={(checked) => updatePearl({ autoBuyHireTicket: checked })} status={SETTING_STATUS.adapterMissing} />
+                <BigIntNumberRow label="元宝上限" value={pearl?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updatePearl({ maxSpendDiamond: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="商城与喂猫" icon={<ShoppingBag />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="视频礼包" checked={shop?.videoFreeGiftEnabled ?? false} onChange={(checked) => updateShop({ videoFreeGiftEnabled: checked })} />
+                <ToggleRow label="材料商店" checked={cultivateShop?.autoBuy ?? false} onChange={(checked) => updateCultivateShop({ autoBuy: checked })} />
+                <BigIntNumberRow label="材料金币上限" value={cultivateShop?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateCultivateShop({ maxSpendGold: value })} />
+                <IntListRow label="材料商品 ID" value={cultivateShop?.itemIds ?? []} onChange={(value) => updateCultivateShop({ itemIds: value })} />
+                <ToggleRow label="VIP 商店" checked={vipShop?.autoBuy ?? false} onChange={(checked) => updateVipShop({ autoBuy: checked })} status={SETTING_STATUS.adapterMissing} />
+                <BigIntNumberRow label="VIP 元宝上限" value={vipShop?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateVipShop({ maxSpendDiamond: value })} />
+                <BigIntNumberRow label="VIP 花坊币上限" value={vipShop?.maxSpendFloralCoin ?? BigInt(0)} min={0} onChange={(value) => updateVipShop({ maxSpendFloralCoin: value })} />
+                <IntListRow label="VIP 商品 ID" value={vipShop?.itemIds ?? []} onChange={(value) => updateVipShop({ itemIds: value })} />
+                <ToggleRow label="喂猫模块" checked={feedCat?.enabled ?? false} onChange={(checked) => updateFeedCat({ enabled: checked })} />
+                <ToggleRow label="自动召回" checked={feedCat?.autoRecall ?? false} onChange={(checked) => updateFeedCat({ autoRecall: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="购买猫粮" checked={feedCat?.autoBuyFood ?? false} onChange={(checked) => updateFeedCat({ autoBuyFood: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="自动喂猫" checked={feedCat?.autoFeed ?? false} onChange={(checked) => updateFeedCat({ autoFeed: checked })} />
+                <ToggleRow label="自动撸猫" checked={feedCat?.autoStroke ?? false} onChange={(checked) => updateFeedCat({ autoStroke: checked })} />
+                <BigIntNumberRow label="猫金币上限" value={feedCat?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateFeedCat({ maxSpendGold: value })} />
+                <BigIntNumberRow label="猫元宝上限" value={feedCat?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateFeedCat({ maxSpendDiamond: value })} />
+              </div>
+            </PolicyGroup>
+          </div>
+        )}
+
+        {activeTab === "plant" && (
+          <div className="space-y-4">
+            <PolicyGroup title="培育配置" icon={<Flower2 />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动培育" checked={cultivate?.enabled ?? false} onChange={(checked) => updateCultivate({ enabled: checked })} />
+                <ToggleRow label="视频加速培育" checked={cultivate?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateCultivate({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />
+                <ToggleRow label="鲜花升级" checked={cultivate?.upgradeEnabled ?? false} onChange={(checked) => updateCultivate({ upgradeEnabled: checked })} />
+                <NumberRow label="目标等级" value={cultivate?.targetLevel || 20} min={1} onChange={(value) => updateCultivate({ targetLevel: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="土地与种植" icon={<Sprout />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="解锁土地" checked={flower?.autoUnlockLand ?? false} onChange={(checked) => updateFlower({ autoUnlockLand: checked })} />
+                <ToggleRow label="自动收获" checked={flower?.harvestEnabled ?? false} onChange={(checked) => updateFlower({ harvestEnabled: checked })} />
+                <ToggleRow label="一键收获" checked={flower?.harvestPreferOneKey ?? false} onChange={(checked) => updateFlower({ harvestPreferOneKey: checked })} />
+                <ToggleRow label="自动种植" checked={flower?.plantEnabled ?? false} onChange={(checked) => updateFlower({ plantEnabled: checked })} />
+                <ToggleRow label="自动浇水" checked={flower?.waterEnabled ?? false} onChange={(checked) => updateFlower({ waterEnabled: checked })} />
+                <ToggleRow label="视频加速" checked={flower?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateFlower({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />
+                <ToggleRow label="使用加速券" checked={flower?.useSpeedUpTicket ?? false} onChange={(checked) => updateFlower({ useSpeedUpTicket: checked })} />
+                <NumberRow label="加速券上限" value={flower?.speedUpTicketMax || 0} min={0} onChange={(value) => updateFlower({ speedUpTicketMax: value })} />
+                <NumberRow label="保留水滴" value={flower?.minWaterDrops || 0} min={0} onChange={(value) => updateFlower({ minWaterDrops: value })} />
+                <NumberRow label="浇水批量" value={flower?.waterMaxBatch || 8} min={1} onChange={(value) => updateFlower({ waterMaxBatch: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="种植策略" icon={<Package />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="任务优先" checked={flower?.taskPriorityEnabled ?? false} onChange={(checked) => updateFlower({ taskPriorityEnabled: checked })} />
+                <ToggleRow label="任务日志" checked={flower?.taskLogEnabled ?? false} onChange={(checked) => updateFlower({ taskLogEnabled: checked })} />
+                <SegmentedRow label="种植模式" value={flower?.plantingMode || PlantingMode.COUNT} options={PLANTING_MODE_OPTIONS} onChange={(value) => updateFlower({ plantingMode: value })} />
+                <QualityRow label="选择品质" value={flower?.allowedQualities ?? []} onChange={(value) => updateFlower({ allowedQualities: value })} />
+                <NumberRow label="选择数量" value={flower?.flowerKindCount || 4} min={1} onChange={(value) => updateFlower({ flowerKindCount: value })} />
+                <IntListRow label="指定花朵" value={flower?.specifiedFlowerIds ?? []} onChange={(value) => updateFlower({ specifiedFlowerIds: value })} />
+                <IntListRow label="排除花朵" value={flower?.blockedFlowerIds ?? []} onChange={(value) => updateFlower({ blockedFlowerIds: value })} />
+                <NumberRow label="最低花朵等级" value={flower?.minFlowerLevel || 0} min={0} onChange={(value) => updateFlower({ minFlowerLevel: value })} />
+                <NumberRow label="每轮种植" value={flower?.plantMaxBatch || 8} min={1} onChange={(value) => updateFlower({ plantMaxBatch: value })} />
+                <NumberRow label="单花上限" value={flower?.maxPerFlowerPerCycle || 4} min={1} onChange={(value) => updateFlower({ maxPerFlowerPerCycle: value })} />
+                <NumberRow label="补种水位" value={flower?.fallbackStockFloor || 0} min={0} onChange={(value) => updateFlower({ fallbackStockFloor: value })} />
+              </div>
+              <div className="mt-3 grid gap-2">
+                {GOAL_OPTIONS.map((goal) => (
+                  <NumberRow
+                    key={goal.id}
+                    label={`${goal.label}优先级`}
+                    value={flower?.goalPriority?.[goal.id] ?? goal.defaultPriority}
+                    min={1}
+                    onChange={(value) => updateFlower({ goalPriority: { ...(flower?.goalPriority ?? {}), [goal.id]: value } })}
+                  />
+                ))}
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="好友偷花" icon={<HandCoins />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动偷花" checked={friendSteal?.enabled ?? false} onChange={(checked) => updateFriendSteal({ enabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <ToggleRow label="偷取花灵" checked={friendSteal?.stealElves ?? false} onChange={(checked) => updateFriendSteal({ stealElves: checked })} />
+                <SegmentedRow label="偷花模式" value={friendSteal?.mode || SelectionMode.ALL} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateFriendSteal({ mode: value })} />
+                <QualityRow label="指定品质" value={friendSteal?.qualities ?? []} onChange={(value) => updateFriendSteal({ qualities: value })} />
+                <IntListRow label="指定花朵" value={friendSteal?.flowerIds ?? []} onChange={(value) => updateFriendSteal({ flowerIds: value })} />
+                <IntListRow label="排除花朵" value={friendSteal?.excludeFlowerIds ?? []} onChange={(value) => updateFriendSteal({ excludeFlowerIds: value })} />
+                <ToggleRow label="购买偷取次数" checked={friendSteal?.autoBuyTimes ?? false} onChange={(checked) => updateFriendSteal({ autoBuyTimes: checked })} status={SETTING_STATUS.adapterMissing} />
+                <NumberRow label="购买次数" value={friendSteal?.buyCount || 0} min={0} onChange={(value) => updateFriendSteal({ buyCount: value })} />
+                <BigIntNumberRow label="元宝上限" value={friendSteal?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateFriendSteal({ maxSpendDiamond: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="花灵与密令" icon={<Sparkles />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动种花灵" checked={elves?.enabled ?? false} onChange={(checked) => updateElves({ enabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <IntListRow label="指定花灵" value={elves?.selectedIds ?? []} onChange={(value) => updateElves({ selectedIds: value })} />
+                <ToggleRow label="申请协助" checked={elves?.requestAid ?? false} onChange={(checked) => updateElves({ requestAid: checked })} />
+                <ToggleRow label="领取协助" checked={elves?.receiveAid ?? false} onChange={(checked) => updateElves({ receiveAid: checked })} />
+                <ToggleRow label="协助好友" checked={elves?.helpFriend ?? false} onChange={(checked) => updateElves({ helpFriend: checked })} />
+                <ToggleRow label="派遣花灵" checked={elves?.dispatch ?? false} onChange={(checked) => updateElves({ dispatch: checked })} />
+                <ToggleRow label="仅双倍花灵" checked={elves?.dispatchOnlyDoubleBuff ?? false} onChange={(checked) => updateElves({ dispatchOnlyDoubleBuff: checked })} />
+                <ToggleRow label="加速派遣" checked={elves?.speedUpDispatch ?? false} onChange={(checked) => updateElves({ speedUpDispatch: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="派遣奖励" checked={elves?.receiveDispatchReward ?? false} onChange={(checked) => updateElves({ receiveDispatchReward: checked })} />
+                <ToggleRow label="花灵密令等级" checked={elves?.passRewardEnabled ?? false} onChange={(checked) => updateElves({ passRewardEnabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <ToggleRow label="花灵密令任务" checked={elves?.passTaskRewardEnabled ?? false} onChange={(checked) => updateElves({ passTaskRewardEnabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <ToggleRow label="花之密令等级" checked={elves?.flowerPassRewardEnabled ?? false} onChange={(checked) => updateElves({ flowerPassRewardEnabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <ToggleRow label="花之密令任务" checked={elves?.flowerPassTaskRewardEnabled ?? false} onChange={(checked) => updateElves({ flowerPassTaskRewardEnabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <BigIntNumberRow label="元宝上限" value={elves?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateElves({ maxSpendDiamond: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="花贸市场" icon={<ShoppingBag />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="解锁货架" checked={market?.autoUnlockShelf ?? false} onChange={(checked) => updateMarket({ autoUnlockShelf: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="自动上架" checked={market?.putEnabled ?? false} onChange={(checked) => updateMarket({ putEnabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <SegmentedRow label="上架策略" value={market?.putMode || MarketPutMode.INVENTORY} options={MARKET_PUT_MODE_OPTIONS} onChange={(value) => updateMarket({ putMode: value })} />
+                <IntListRow label="上架花朵" value={market?.specificFlowerIds ?? []} onChange={(value) => updateMarket({ specificFlowerIds: value })} />
+                <NumberRow label="上架价格" value={market?.priceIndex ?? 2} min={0} onChange={(value) => updateMarket({ priceIndex: value })} />
+                <NumberRow label="上架数量" value={market?.maxSell || 25} min={1} onChange={(value) => updateMarket({ maxSell: value })} />
+                <TextRow label="上架密码" value={market?.putFlowerPassword ?? ""} onChange={(value) => updateMarket({ putFlowerPassword: value })} />
+                <ToggleRow label="好友摊位扫货" checked={market?.autoBuyFromFriend ?? false} onChange={(checked) => updateMarket({ autoBuyFromFriend: checked })} status={SETTING_STATUS.syncOnly} />
+                <SegmentedRow label="扫货策略" value={market?.buyMode || MarketBuyMode.ALL} options={MARKET_BUY_MODE_OPTIONS} onChange={(value) => updateMarket({ buyMode: value })} />
+                <IntListRow label="扫货花朵" value={market?.buySpecificFlowerIds ?? []} onChange={(value) => updateMarket({ buySpecificFlowerIds: value })} />
+                <QualityRow label="扫货品质" value={market?.buyQualities ?? []} onChange={(value) => updateMarket({ buyQualities: value })} />
+                <NumberRow label="最小上架秒" value={market?.minPutTimeSeconds || 0} min={0} onChange={(value) => updateMarket({ minPutTimeSeconds: value })} />
+                <BigIntNumberRow label="元宝上限" value={market?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateMarket({ maxSpendDiamond: value })} />
+                <BigIntNumberRow label="金币上限" value={market?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateMarket({ maxSpendGold: value })} />
+              </div>
+            </PolicyGroup>
+          </div>
+        )}
+
+        {activeTab === "order" && (
+          <div className="space-y-4">
+            <PolicyGroup title="居民订单" icon={<ListChecks />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="普通居民订单" checked={resident?.normalEnabled ?? false} onChange={(checked) => updateResident({ normalEnabled: checked })} />
+                <NumberRow label="普通订单上限" value={resident?.normalDailyLimit || 1200} min={0} onChange={(value) => updateResident({ normalDailyLimit: value })} />
+                <ToggleRow label="绸缎订单" checked={resident?.satinEnabled ?? false} onChange={(checked) => updateResident({ satinEnabled: checked })} />
+                <NumberRow label="绸缎订单上限" value={resident?.satinDailyLimit || 120} min={0} onChange={(value) => updateResident({ satinDailyLimit: value })} />
+                <ToggleRow label="建材订单" checked={resident?.decorateEnabled ?? false} onChange={(checked) => updateResident({ decorateEnabled: checked })} />
+                <NumberRow label="建材订单上限" value={resident?.decorateDailyLimit || 120} min={0} onChange={(value) => updateResident({ decorateDailyLimit: value })} />
+                <ToggleRow label="居民领奖" checked={resident?.rewardEnabled ?? false} onChange={(checked) => updateResident({ rewardEnabled: checked })} />
+                <QualityRow label="品质限定" value={resident?.qualities ?? []} onChange={(value) => updateResident({ qualities: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="顾客、宫廷、组团" icon={<Package />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="顾客订单" checked={customer?.enabled ?? false} onChange={(checked) => updateCustomer({ enabled: checked })} />
+                <ToggleRow label="自动拒绝" checked={customer?.rejectEnabled ?? false} onChange={(checked) => updateCustomer({ rejectEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="自动制作花艺" checked={customer?.craftEnabled ?? false} onChange={(checked) => updateCustomer({ craftEnabled: checked })} />
+                <ToggleRow label="宫廷订单" checked={palace?.enabled ?? false} onChange={(checked) => updatePalace({ enabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <QualityRow label="宫廷品质" value={palace?.qualities ?? []} onChange={(value) => updatePalace({ qualities: value })} />
+                <ToggleRow label="组团订单" checked={team?.enabled ?? false} onChange={(checked) => updateTeam({ enabled: checked })} status={SETTING_STATUS.syncOnly} />
+                <ToggleRow label="再来一单" checked={team?.oneMoreEnabled ?? false} onChange={(checked) => updateTeam({ oneMoreEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="仅已培育" checked={team?.submitOnlyCultivated ?? false} onChange={(checked) => updateTeam({ submitOnlyCultivated: checked })} />
+                <QualityRow label="组团品质" value={team?.qualities ?? []} onChange={(value) => updateTeam({ qualities: value })} />
+                <BigIntNumberRow label="组团元宝上限" value={team?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateTeam({ maxSpendDiamond: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="花艺上架" icon={<Flower2 />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="解锁花架" checked={flowerArt?.autoUnlockStand ?? false} onChange={(checked) => updateFlowerArt({ autoUnlockStand: checked })} status={SETTING_STATUS.adapterMissing} />
+                <ToggleRow label="自动上架" checked={flowerArt?.sellEnabled ?? false} onChange={(checked) => updateFlowerArt({ sellEnabled: checked })} />
+                <ToggleRow label="自动制作" checked={flowerArt?.craftEnabled ?? false} onChange={(checked) => updateFlowerArt({ craftEnabled: checked })} />
+                <ToggleRow label="提前下架" checked={flowerArt?.earlyCancelEnabled ?? false} onChange={(checked) => updateFlowerArt({ earlyCancelEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <IntListRow label="指定花艺" value={flowerArt?.specifiedArtIds ?? []} onChange={(value) => updateFlowerArt({ specifiedArtIds: value })} />
+                <NumberRow label="每架数量" value={flowerArt?.perRackCount || 12} min={0} onChange={(value) => updateFlowerArt({ perRackCount: value })} />
+                <ToggleRow label="花艺经验" checked={flowerArt?.createRewardEnabled ?? false} onChange={(checked) => updateFlowerArt({ createRewardEnabled: checked })} />
+                <ToggleRow label="图鉴奖励" checked={flowerArt?.collectRewardEnabled ?? false} onChange={(checked) => updateFlowerArt({ collectRewardEnabled: checked })} />
+              </div>
+            </PolicyGroup>
+          </div>
+        )}
+
+        {activeTab === "union" && (
+          <div className="space-y-4">
+            <PolicyGroup title="公会土地" icon={<Building2 />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动收获" checked={unionLand?.harvestEnabled ?? false} onChange={(checked) => updateUnionLand({ harvestEnabled: checked })} />
+                <ToggleRow label="自动种植" checked={unionLand?.autoPlantEnabled ?? false} onChange={(checked) => updateUnionLand({ autoPlantEnabled: checked })} status={SETTING_STATUS.paused} />
+                <SegmentedRow label="种植策略" value={unionLand?.plantMode || PlantingMode.QUALITY} options={PLANTING_MODE_OPTIONS} onChange={(value) => updateUnionLand({ plantMode: value })} />
+                <QualityRow label="指定品质" value={unionLand?.qualities ?? []} onChange={(value) => updateUnionLand({ qualities: value })} />
+                <IntListRow label="指定花朵" value={unionLand?.flowerIds ?? []} onChange={(value) => updateUnionLand({ flowerIds: value })} />
+                <NumberRow label="最高花朵等级" value={unionLand?.maxFlowerLevel || 0} min={0} onChange={(value) => updateUnionLand({ maxFlowerLevel: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="公会建设" icon={<Coins />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="视频建设" checked={unionBuild?.freeEnabled ?? false} onChange={(checked) => updateUnionBuild({ freeEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />
+                <ToggleRow label="金币建设" checked={unionBuild?.goldEnabled ?? false} onChange={(checked) => updateUnionBuild({ goldEnabled: checked })} />
+                <ToggleRow label="元宝建设" checked={unionBuild?.diamondEnabled ?? false} onChange={(checked) => updateUnionBuild({ diamondEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
+                <BigIntNumberRow label="金币上限" value={unionBuild?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateUnionBuild({ maxSpendGold: value })} />
+                <BigIntNumberRow label="元宝上限" value={unionBuild?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionBuild({ maxSpendDiamond: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="公会分享与摸花" icon={<HandCoins />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动分享" checked={unionFlower?.shareEnabled ?? false} onChange={(checked) => updateUnionFlower({ shareEnabled: checked })} status={SETTING_STATUS.paused} />
+                <SegmentedRow label="分享模式" value={unionFlower?.shareMode || SelectionMode.QUALITY} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateUnionFlower({ shareMode: value })} />
+                <QualityRow label="分享品质" value={unionFlower?.shareQualities ?? []} onChange={(value) => updateUnionFlower({ shareQualities: value })} />
+                <IntListRow label="分享花朵" value={unionFlower?.shareFlowerIds ?? []} onChange={(value) => updateUnionFlower({ shareFlowerIds: value })} />
+                <ToggleRow label="自动摸花" checked={unionFlower?.takeEnabled ?? false} onChange={(checked) => updateUnionFlower({ takeEnabled: checked })} />
+                <SegmentedRow label="摸花模式" value={unionFlower?.takeMode || SelectionMode.QUALITY} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateUnionFlower({ takeMode: value })} />
+                <QualityRow label="摸花品质" value={unionFlower?.takeQualities ?? []} onChange={(value) => updateUnionFlower({ takeQualities: value })} />
+                <IntListRow label="摸花花朵" value={unionFlower?.takeFlowerIds ?? []} onChange={(value) => updateUnionFlower({ takeFlowerIds: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="公会竞赛" icon={<Trophy />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动完成" checked={unionRace?.enabled ?? false} onChange={(checked) => updateUnionRace({ enabled: checked })} status={SETTING_STATUS.paused} />
+                <ToggleRow label="自动启用模块" checked={unionRace?.autoEnableModules ?? false} onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} status={SETTING_STATUS.paused} />
+                <ToggleRow label="任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} status={SETTING_STATUS.paused} />
+                <NumberRow label="最低任务分" value={unionRace?.minTaskScore || 0} min={0} onChange={(value) => updateUnionRace({ minTaskScore: value })} />
+                <ToggleRow label="只接已升级" checked={unionRace?.onlyUpgradeTask ?? false} onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
+                <ToggleRow label="排除他人升级" checked={unionRace?.excludeOthersUpgradeTask ?? false} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
+                <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={SETTING_STATUS.paused} />
+                <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} status={SETTING_STATUS.paused} />
+                <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore || 0} min={0} onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
+                <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {UNION_RACE_TASKS.map((taskID) => (
+                  <NumberRow
+                    key={taskID}
+                    label={`任务 ${taskID}`}
+                    value={unionRace?.taskTypePriority?.[taskID] ?? 0}
+                    min={0}
+                    onChange={(value) => updateUnionRace({ taskTypePriority: { ...(unionRace?.taskTypePriority ?? {}), [taskID]: value } })}
+                  />
+                ))}
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="公会其他" icon={<Sparkles />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="公会红包" checked={union?.redPacketEnabled ?? false} onChange={(checked) => updateUnion({ redPacketEnabled: checked })} status={SETTING_STATUS.paused} />
+                <ToggleRow label="能量森林" checked={union?.forestEnabled ?? false} onChange={(checked) => updateUnion({ forestEnabled: checked })} />
+              </div>
+            </PolicyGroup>
+          </div>
+        )}
+
+        {activeTab === "activity" && (
+          <div className="space-y-4">
+            <PolicyGroup title="活动总开关" icon={<CalendarDays />}>
+              <ToggleRow label="活动自动化" checked={activity?.enabled ?? false} onChange={(checked) => updateActivity({ enabled: checked })} />
+            </PolicyGroup>
+            <div className="grid gap-3">
+              {ACTIVITY_MODULES.map((module) => {
+                const modulePolicy = activity?.modules[module.id];
+                return (
+                  <PolicyGroup key={module.id} title={module.label} icon={<Play />}>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <ToggleRow label="启用" checked={modulePolicy?.enabled ?? false} onChange={(checked) => updateActivityModule(module.id, { enabled: checked })} status={module.status} />
+                      {module.boolParams?.map((param) => (
+                        <ToggleRow
+                          key={param.key}
+                          label={param.label}
+                          checked={modulePolicy?.boolParams?.[param.key] ?? false}
+                          onChange={(checked) => updateActivityBoolParam(module.id, param.key, checked)}
+                        />
+                      ))}
+                      {module.intParams?.map((param) => (
+                        <BigIntNumberRow
+                          key={param.key}
+                          label={param.label}
+                          value={modulePolicy?.intParams?.[param.key] ?? BigInt(0)}
+                          min={param.min ?? 0}
+                          onChange={(value) => updateActivityIntParam(module.id, param.key, value)}
+                        />
+                      ))}
+                      {module.stringParams?.map((param) => (
+                        <TextRow
+                          key={param.key}
+                          label={param.label}
+                          value={modulePolicy?.stringParams?.[param.key] ?? ""}
+                          onChange={(value) => updateActivityStringParam(module.id, param.key, value)}
+                        />
+                      ))}
+                      {module.id === "cyclicNote" && (
+                        <IntListRow
+                          label="临时启用模块"
+                          value={modulePolicy?.intListParams?.auto_enable_feature_ids?.values ?? []}
+                          onChange={(value) => updateActivityIntListParam(module.id, "auto_enable_feature_ids", value)}
+                        />
+                      )}
+                    </div>
+                  </PolicyGroup>
+                );
+              })}
             </div>
-            <DialogFooter className="flex-col-reverse items-stretch gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center">
-              {message && <span className="text-xs text-muted-foreground sm:mr-auto">{message}</span>}
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>关闭</Button>
-              <Button type="button" disabled={saving} onClick={onSave}>{saving ? "保存中..." : "保存策略"}</Button>
-            </DialogFooter>
-          </>
+          </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </CardContent>
+    </Card>
   );
 }
 
-function parseNumber(value: string, fallback: number): number {
-	const n = parseInt(value, 10);
-	return Number.isFinite(n) ? n : fallback;
-}
-
-function parseNumberAtLeast(value: string, fallback: number, min: number): number {
-	const n = parseNumber(value, fallback);
-	return n < min ? min : n;
-}
-
-function FlowerOptionButton({ flower, selected, onToggle }: { flower: FlowerInfo; selected: boolean; onToggle: () => void }) {
+function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={cn(
-        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border/70 bg-card/70 px-3 py-2 text-left transition-all hover:border-primary/35 hover:bg-primary/5",
-        selected && "border-primary/55 bg-primary/10 ring-1 ring-primary/20"
-      )}
-    >
-      <span className="min-w-0">
-        <span className="block truncate text-xs font-medium">{itemName(flower.id)}</span>
-        <span className="block truncate text-[10px] text-muted-foreground">#{flower.id} · {formatCount(flower.gold || 0)} 金币</span>
-      </span>
-      <span
-        className={cn(
-          "flex size-5 items-center justify-center rounded-full border border-border/70 text-[10px]",
-          selected ? "border-primary bg-primary text-primary-foreground" : "bg-background text-transparent"
-        )}
-      >
-        <Check className="size-3" />
-      </span>
-    </button>
+    <section className="space-y-3 rounded-md border border-border/70 p-3">
+      <SectionTitle icon={icon}>{title}</SectionTitle>
+      {children}
+    </section>
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function TextRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/20 px-3 py-1.5">
-      <Label className="text-xs">{label}</Label>
-      <div className="shrink-0">{children}</div>
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+      <Label className="min-w-0 text-sm">{label}</Label>
+      <Input className="h-8 w-36 text-right text-sm" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
 
-function AddAccountDialog({
-  open,
-  onOpenChange,
-  onSuccess,
+function BigIntNumberRow({
+  label,
+  value,
+  min,
+  onChange,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  label: string;
+  value: bigint;
+  min: number;
+  onChange: (value: bigint) => void;
 }) {
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [channel, setChannel] = useState(1);
-  const [loginNow, setLoginNow] = useState(true);
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !username.trim() || !password) {
-      setError("请填写所有字段");
-      return;
-    }
-    setError("");
-    setSubmitting(true);
-    try {
-      const res = await accountClient.createAccount({
-        name: name.trim(),
-        username: username.trim(),
-        password,
-        channel,
-        loginNow,
-      });
-      if (res.loginError) {
-        setError(`账号已创建，但登录失败：${res.loginError}`);
-        onSuccess();
-      } else {
-        onOpenChange(false);
-        setName("");
-        setUsername("");
-        setPassword("");
-        onSuccess();
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "创建失败");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>添加游戏账号</DialogTitle>
-          <DialogDescription>输入登录账号信息</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="acc-name">账号别名</Label>
-            <Input
-              id="acc-name"
-              placeholder="例如：主号"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="acc-username">游戏用户名</Label>
-            <Input
-              id="acc-username"
-              placeholder="babigame 登录用户名"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="acc-password">游戏密码</Label>
-            <Input
-              id="acc-password"
-              type="password"
-              placeholder="登录密码"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>渠道</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Button type="button" variant={channel === 1 ? "default" : "outline"} onClick={() => setChannel(1)}>
-                iOS
-              </Button>
-              <Button type="button" variant="outline" disabled>
-                Android 待支持
-              </Button>
-            </div>
-          </div>
-          <div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/25 px-3 py-2">
-            <Label htmlFor="login-now">立即登录并连接</Label>
-            <Switch id="login-now" checked={loginNow} onCheckedChange={(v: boolean) => setLoginNow(v)} />
-          </div>
-          {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-          <DialogFooter className="flex-col-reverse sm:flex-row">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              取消
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "创建中..." : "创建账号"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+      <Label className="min-w-0 text-sm">{label}</Label>
+      <Input
+        type="number"
+        className="h-8 w-28 text-right text-sm"
+        min={min}
+        value={value.toString()}
+        onChange={(event) => onChange(parseBigInt(event.target.value, min))}
+      />
+    </div>
   );
 }
 
-function DeleteAccountDialog({
-  account,
-  deleting,
-  onOpenChange,
-  onConfirm,
-}: {
-  account: Account | null;
-  deleting: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-}) {
+function IntListRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
   return (
-    <Dialog open={Boolean(account)} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>删除游戏账号</DialogTitle>
-          <DialogDescription>
-            {account ? `确定删除「${account.name}」吗？已保存的凭据、会话和策略会一起移除。` : "确定删除这个账号吗？"}
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="flex-col-reverse sm:flex-row">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={deleting}>
-            取消
-          </Button>
-          <Button type="button" variant="destructive" onClick={onConfirm} disabled={deleting}>
-            <Trash2 className="size-4" />
-            {deleting ? "删除中..." : "删除账号"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div className="space-y-2 rounded-md border border-border/70 px-3 py-2">
+      <Label className="text-sm">{label}</Label>
+      <Input
+        className="h-8 text-sm"
+        value={formatIntList(value)}
+        onChange={(event) => onChange(parseIntList(event.target.value))}
+        placeholder="用逗号分隔 ID"
+      />
+    </div>
   );
 }
 
-function StatusBadge({ connected }: { connected: boolean }) {
-  if (connected) {
-    return (
-      <Badge className="w-fit border-primary/20 bg-primary/10 text-primary">
-        <Wifi className="size-3" />
-        在线
-      </Badge>
-    );
-  }
+function QualityRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
   return (
-    <Badge variant="secondary" className="w-fit">
-      <WifiOff className="size-3" />
-      离线
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+      <Label className="min-w-0 text-sm">{label}</Label>
+      <div className="flex gap-1">
+        {QUALITY_OPTIONS.map((quality) => {
+          const selected = value.includes(quality);
+          return (
+            <button
+              key={quality}
+              type="button"
+              onClick={() => onChange(toggleNumber(value, quality))}
+              className={cn(
+                "flex size-7 items-center justify-center rounded border text-xs font-medium",
+                selected ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {quality}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SegmentedRow<T extends number>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 px-3 py-2">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex flex-wrap gap-1">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "min-h-8 rounded border px-2 text-xs font-medium",
+              option.value === value ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EventPanel({ events }: { events: Event[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle>操作日志</CardTitle>
+          <Badge variant="secondary">{events.length}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {events.length === 0 ? (
+          <EmptyState title="暂无日志" />
+        ) : (
+          <div className="dark-scrollbar max-h-80 space-y-2 overflow-y-auto pr-1">
+            {events.map((event, index) => (
+              <div key={`${event.kind}-${index}-${event.message}`} className="rounded-md border border-border/70 px-3 py-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{event.label || event.kind}</div>
+                    <div className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.message || event.payloadJson}</div>
+                  </div>
+                  <Badge variant={event.level === "error" ? "destructive" : "outline"}>{event.category || event.domain || "system"}</Badge>
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{formatTimestamp(event.ts)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3">
+        <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-4">{icon}</div>
+        <div>
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div className="text-lg font-semibold">{value}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MetricMini({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-md bg-background/35 px-2 py-1">
+      <div className="truncate">{label}</div>
+      <div className="truncate font-medium text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function ToggleRow({
+  label,
+  checked,
+  onChange,
+  status,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  status?: SettingStatus;
+}) {
+  return (
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+      <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+        <span>{label}</span>
+        {status && <SettingStatusBadge status={status} />}
+      </span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+function SettingStatusBadge({ status }: { status: SettingStatus }) {
+  const variant = status.kind === "adapter_missing" ? "destructive" : "outline";
+  return (
+    <Badge variant={variant} title={status.detail} className="shrink-0">
+      {status.label}
     </Badge>
   );
 }
 
-function StatusDot({ connected }: { connected: boolean }) {
-  return (
-    <span className={cn("inline-flex h-4 shrink-0 items-center gap-1 rounded-full px-1.5 text-[10px] leading-none", connected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
-      <span className={cn("size-1.5 rounded-full", connected ? "bg-primary" : "bg-muted-foreground/60")} />
-      {connected ? "在线" : "离线"}
-    </span>
-  );
-}
-
-function ResourceChip({
-  icon,
+function NumberRow({
   label,
   value,
-  tone,
+  min,
+  onChange,
 }: {
-  icon: ReactNode;
   label: string;
-  value: ReactNode;
-  tone: "amber" | "cyan" | "green" | "rose" | "slate";
+  value: number;
+  min: number;
+  onChange: (value: number) => void;
 }) {
-  const toneClass = {
-    amber: "border-amber-400/25 bg-amber-400/10 text-amber-700 dark:text-amber-200",
-    cyan: "border-cyan-400/25 bg-cyan-400/10 text-cyan-700 dark:text-cyan-200",
-    green: "border-primary/25 bg-primary/10 text-primary",
-    rose: "border-rose-400/25 bg-rose-400/10 text-rose-700 dark:text-rose-200",
-    slate: "border-border/70 bg-muted/25 text-muted-foreground",
-  }[tone];
-
   return (
-    <div className={cn("grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2 rounded-md border px-2 py-2", toneClass)}>
-      <span className="flex size-7 items-center justify-center rounded bg-background/60">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <div className="truncate text-[11px] opacity-80">{label}</div>
-        <div className="truncate text-sm font-semibold tabular-nums text-foreground">{value}</div>
-      </div>
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+      <Label className="min-w-0 text-sm">{label}</Label>
+      <Input
+        type="number"
+        className="h-8 w-24 text-right text-sm"
+        min={min}
+        value={Number.isFinite(value) ? value : min}
+        onChange={(event) => onChange(parseNumber(event.target.value, min))}
+      />
     </div>
   );
 }
 
-function inventoryEntries(inventory: Record<string, number> | Record<number, number>): InventoryEntry[] {
-  return Object.entries(inventory)
-    .map(([rawId, count]) => {
-      const id = Number(rawId);
-      const item = itemInfo(id);
-      return {
-        id,
-        name: itemName(id),
-        count,
-        item,
-        category: itemCategory(item),
-      };
-    })
-    .filter((entry) => Number.isFinite(entry.id) && entry.count > 0)
-    .sort((a, b) => {
-      const categoryDiff = inventoryCategoryRank(a.category) - inventoryCategoryRank(b.category);
-      if (categoryDiff !== 0) return categoryDiff;
-      if (b.count !== a.count) return b.count - a.count;
-      return a.id - b.id;
-    });
+function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 text-sm font-semibold">
+      <span className="text-primary [&_svg]:size-4">{icon}</span>
+      {children}
+    </div>
+  );
 }
 
-function groupInventoryEntries(entries: InventoryEntry[]): InventoryGroup[] {
-  const groups = new Map<string, InventoryEntry[]>();
-  for (const entry of entries) {
-    const group = groups.get(entry.category) ?? [];
-    group.push(entry);
-    groups.set(entry.category, group);
-  }
-  return Array.from(groups, ([category, groupEntries]) => ({ category, entries: groupEntries }))
-    .sort((a, b) => inventoryCategoryRank(a.category) - inventoryCategoryRank(b.category));
+function EmptyState({ title, detail }: { title: string; detail?: string }) {
+  return (
+    <div className="rounded-md border border-dashed border-border/80 px-3 py-4 text-center">
+      <div className="text-sm text-muted-foreground">{title}</div>
+      {detail && <div className="mt-1 text-xs text-muted-foreground/80">{detail}</div>}
+    </div>
+  );
 }
 
-const PLAN_CATEGORY_ORDER = ["basic", "plant", "order", "union", "activity"] as const;
-const PLAN_CATEGORY_LABELS: Record<string, string> = {
-  basic: "基础",
-  plant: "种植",
-  order: "订单",
-  union: "公会",
-  activity: "活动",
-};
-
-type PlannedOperationGroup = {
-  category: string;
-  label: string;
-  status?: DomainStatus;
-  operations: PlannedOperation[];
-};
-
-function groupPlannedOperations(operations: PlannedOperation[], domainStatuses: DomainStatus[]): PlannedOperationGroup[] {
-  const statusByCategory = new Map(domainStatuses.map((status) => [status.category || status.domain, status]));
-  const groups = new Map<string, PlannedOperation[]>();
-  for (const op of operations) {
-    const category = PLAN_CATEGORY_LABELS[op.category] ? op.category : "basic";
-    const group = groups.get(category) ?? [];
-    group.push(op);
-    groups.set(category, group);
-  }
-  return PLAN_CATEGORY_ORDER.map((category) => ({
-    category,
-    label: PLAN_CATEGORY_LABELS[category],
-    status: statusByCategory.get(category),
-    operations: [...(groups.get(category) ?? [])].sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label, "zh-CN")),
-  }));
+function HealthBadge({ account, status }: { account: Account; status?: AccountStatus }) {
+  const connected = status?.connected ?? account.connected;
+  if (!connected) return <Badge variant="outline">离线</Badge>;
+  if (status?.health === "blocked" || status?.lastError) return <Badge variant="destructive">异常</Badge>;
+  if (status?.automationEnabled) return <Badge variant="secondary">运行</Badge>;
+  return <Badge>在线</Badge>;
 }
 
-function plannedCostText(operation: PlannedOperation): string {
-  const parts: string[] = [];
-  if (operation.goldCost > 0) parts.push(`${itemName(11)} ${formatCount(operation.goldCost)}`);
-  if (operation.diamondCost > 0) parts.push(`${itemName(1)} ${formatCount(operation.diamondCost)}`);
-  for (const [rawId, count] of Object.entries(operation.itemCost ?? {})) {
-    const id = Number(rawId);
-    if (count > 0) parts.push(`${itemName(id)} ${formatCount(count)}`);
-  }
-  return parts.join(" · ");
+function OperationStatusBadge({ operation }: { operation: PlannedOperation }) {
+  if (operation.status === "blocked") return <Badge variant="destructive">阻塞</Badge>;
+  if (operation.syncOnly) return <Badge variant="outline">同步</Badge>;
+  if (!operation.executable) return <Badge variant="outline">{operation.status || "等待"}</Badge>;
+  if (operation.status === "managed") return <Badge variant="secondary">调度</Badge>;
+  return <Badge>可执行</Badge>;
 }
 
-function planStatusLabel(status: string): string {
-  switch (status) {
-    case "executable":
-      return "可执行";
-    case "managed":
-      return "托管";
-    case "sync_only":
-      return "仅同步";
-    case "adapter_missing":
-      return "缺 adapter";
-    case "blocked":
-      return "阻塞";
-    default:
-      return status || "未知";
-  }
+function ReasonList({ reasons, fallback }: { reasons: string[]; fallback: string }) {
+  if (reasons.length === 0) return <span className="text-muted-foreground">{fallback}</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {reasons.map((reason) => (
+        <Badge key={reason} variant="outline">
+          {reason}
+        </Badge>
+      ))}
+    </div>
+  );
 }
 
-function planStatusTone(status: string): string {
-  switch (status) {
-    case "executable":
-    case "managed":
-      return "border-primary/25 bg-primary/10 text-primary";
-    case "sync_only":
-      return "border-sky-400/25 bg-sky-400/10 text-sky-700 dark:text-sky-300";
-    case "adapter_missing":
-      return "border-yellow-400/25 bg-yellow-400/10 text-yellow-700 dark:text-yellow-300";
-    case "blocked":
-      return "border-red-400/25 bg-red-400/10 text-red-700 dark:text-red-300";
-    default:
-      return "border-border/70 bg-muted/30 text-muted-foreground";
-  }
+function OperationTarget({ operation }: { operation: PlannedOperation }) {
+  const parts = [
+    operation.targetId ? `目标 ${operation.targetId}` : "",
+    operation.itemId ? itemName(operation.itemId) : "",
+    operation.flowerId ? itemName(operation.flowerId) : "",
+    operation.count ? `x${operation.count}` : "",
+    operation.landIds.length ? `土地 ${operation.landIds.join(",")}` : "",
+  ].filter(Boolean);
+  return <span className="text-sm">{parts.join(" · ") || "-"}</span>;
 }
 
-function domainStatusLabel(status: string): string {
-  switch (status) {
-    case "ready":
-      return "就绪";
-    case "syncing":
-      return "同步中";
-    case "blocked":
-      return "阻塞";
-    case "disabled":
-      return "未启用";
-    default:
-      return status || "未知";
-  }
+function CostView({ operation }: { operation: PlannedOperation }) {
+  const itemCosts = Object.entries(operation.itemCost)
+    .filter(([, count]) => count > 0)
+    .map(([id, count]) => `${itemName(Number(id))}x${count}`);
+  const costs = [
+    operation.goldCost ? `金币 ${operation.goldCost}` : "",
+    operation.diamondCost ? `钻石 ${operation.diamondCost}` : "",
+    ...itemCosts,
+  ].filter(Boolean);
+  return <span className="text-sm text-muted-foreground">{costs.join(" · ") || "-"}</span>;
 }
 
-function domainStatusTone(status: string): string {
-  switch (status) {
-    case "ready":
-      return "border-primary/25 bg-primary/10 text-primary";
-    case "syncing":
-      return "border-sky-400/25 bg-sky-400/10 text-sky-700 dark:text-sky-300";
-    case "blocked":
-      return "border-red-400/25 bg-red-400/10 text-red-700 dark:text-red-300";
-    default:
-      return "border-border/70 bg-muted/30 text-muted-foreground";
-  }
-}
-
-function groupPendingTasks(tasks: PendingTaskView[]): { category: string; tasks: PendingTaskView[] }[] {
-  const rank = new Map([
-    ["主线任务", 0],
-    ["日常任务", 1],
-    ["居民订单", 2],
-    ["顾客订单", 3],
-    ["地图事件", 4],
-  ]);
-  const groups = new Map<string, PendingTaskView[]>();
-  for (const task of tasks) {
-    const category = task.category || "其他任务";
-    const group = groups.get(category) ?? [];
-    group.push(task);
-    groups.set(category, group);
-  }
-  for (const category of ["居民订单", "顾客订单"]) {
-    if (!groups.has(category)) {
-      groups.set(category, []);
+function collectBlocked(snapshot: GetSnapshotResponse | null, status?: AccountStatus): BlockedItem[] {
+  const items: BlockedItem[] = [];
+  for (const domain of [...(status?.domainStatuses ?? []), ...(snapshot?.domainStatuses ?? [])]) {
+    if (domain.blockedReasons.length || domain.lastError) {
+      items.push({
+        source: `domain:${domain.domain}`,
+        label: domainStatusLabel(domain),
+        reasons: [...domain.blockedReasons, domain.lastError].filter(Boolean),
+      });
     }
   }
-  return Array.from(groups, ([category, groupTasks]) => ({
-    category,
-    tasks: [...groupTasks].sort((a, b) => taskStatusRank(a.status) - taskStatusRank(b.status) || a.id.localeCompare(b.id, "zh-CN", { numeric: true })),
-  })).sort((a, b) => (rank.get(a.category) ?? 99) - (rank.get(b.category) ?? 99) || a.category.localeCompare(b.category, "zh-CN"));
+  for (const demand of snapshot?.demands ?? []) {
+    if (demand.blockedReasons.length) {
+      items.push({
+        source: `demand:${demand.id}`,
+        label: demand.label || itemName(demand.itemId),
+        reasons: demand.blockedReasons,
+      });
+    }
+  }
+  for (const operation of snapshot?.plannedOperations ?? []) {
+    if (operation.blockedReasons.length) {
+      items.push({
+        source: `operation:${operation.operationId || operation.rpc}`,
+        label: operation.label || `${operation.domain}.${operation.action}`,
+        reasons: operation.blockedReasons,
+      });
+    }
+  }
+  return dedupeBlocked(items);
 }
 
-function emptyTaskGroupText(category: string): string {
+function dedupeBlocked(items: BlockedItem[]) {
+  const seen = new Set<string>();
+  const deduped: BlockedItem[] = [];
+  for (const item of items) {
+    const key = `${item.source}:${item.reasons.join("|")}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+  return deduped;
+}
+
+function domainStatusLabel(domain: DomainStatus) {
+  return `${categoryLabel(domain.category)} / ${domain.domain || "unknown"}`;
+}
+
+function categoryLabel(category: string) {
   switch (category) {
-    case "居民订单":
-      return "暂无居民订单";
-    case "顾客订单":
-      return "暂无顾客订单";
+    case "basic":
+      return "基础";
+    case "plant":
+      return "种植";
+    case "order":
+      return "订单";
+    case "union":
+      return "公会";
+    case "activity":
+      return "活动";
+    case "account":
+      return "账号";
+    case "system":
+      return "系统";
     default:
-      return "暂无待办";
+      return category || "-";
   }
 }
 
-function taskStatusRank(status: string): number {
-  if (status === "missing") return 0;
-  if (status === "progress") return 1;
-  if (status === "ready") return 2;
-  return 3;
+function goalLabel(goalId: string) {
+  return GOAL_OPTIONS.find((goal) => goal.id === goalId)?.label || goalId || "-";
 }
 
-function inventoryCategoryRank(category: string): number {
-  switch (category) {
-    case "核心资源":
-      return 0;
-    case "货币资源":
-      return 1;
-    case "鲜花":
-      return 2;
-    case "花朵精华":
-      return 3;
-    case "培育材料":
-      return 4;
-    case "可用道具":
-      return 5;
-    case "其他库存":
-      return 6;
+function recommendationLabel(value: string) {
+  switch (value) {
+    case "harvest":
+      return "可采收";
+    case "plant":
+      return "可种植";
+    case "water":
+      return "可浇水";
+    case "wait":
+      return "等待";
     default:
-      return 99;
+      return value || "未知";
   }
 }
 
-function formatCount(value: number): string {
-  return new Intl.NumberFormat("zh-CN").format(value);
-}
-
-function timestampMillis(ts: AccountHarvestStats["firstHarvestAt"]): number | null {
-  if (!ts) return null;
-  return Number(ts.seconds) * 1000 + Math.floor(Number(ts.nanos ?? 0) / 1_000_000);
-}
-
-function formatFutureTimestamp(ts: AccountHarvestStats["firstHarvestAt"]): string {
-  const millis = timestampMillis(ts);
-  if (!millis) return "--";
-  const diffMs = millis - Date.now();
-  if (diffMs <= 0) return "即将";
-  const seconds = Math.ceil(diffMs / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.ceil(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
-}
-
-function formatShortTime(ts: AccountHarvestStats["firstHarvestAt"]): string {
-  const millis = timestampMillis(ts);
-  if (!millis) return "--";
-  return new Date(millis).toLocaleString("zh-CN", {
+function formatTimestamp(ts?: Timestamp) {
+  if (!ts) return "-";
+  const milliseconds = Number(ts.seconds) * 1000 + Math.floor(ts.nanos / 1_000_000);
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "-";
+  return new Intl.DateTimeFormat("zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
-  });
+    second: "2-digit",
+  }).format(new Date(milliseconds));
 }
 
-function rpcDisplayName(rpc: string): string {
-  switch (rpc) {
-    case "usrLand.harvest":
-      return "收获";
-    case "usrLand.harvestOneKey":
-      return "一键收获";
-    case "usrLand.plant":
-      return "种植";
-    case "usrLand.plantBatch":
-      return "批量种植";
-    case "usrLand.plantOneKey":
-      return "一键种植";
-    case "usrLand.water":
-      return "浇水";
-    case "usrLand.waterBatch":
-      return "批量浇水";
-    case "usrLand.waterOneKey":
-      return "一键浇水";
-    default:
-      return rpc;
+function parseNumber(value: string, min: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return min;
+  return Math.max(min, Math.trunc(parsed));
+}
+
+function parseBigInt(value: string, min: number) {
+  const cleaned = value.trim();
+  if (!cleaned) return BigInt(min);
+  try {
+    const parsed = BigInt(cleaned);
+    const floor = BigInt(min);
+    return parsed < floor ? floor : parsed;
+  } catch {
+    return BigInt(min);
   }
 }
 
-function eventColor(event: Event): string {
-  if (event.level === "error") return "text-red-600 dark:text-red-300";
-  if (event.level === "warn") return "text-yellow-700 dark:text-yellow-300";
-  switch (event.category) {
-    case "account":
-      return "text-muted-foreground";
-    case "basic":
-      return "text-emerald-600 dark:text-emerald-300";
-    case "plant":
-      return "text-lime-700 dark:text-lime-300";
-    case "order":
-      return "text-orange-600 dark:text-orange-300";
-    case "union":
-      return "text-sky-600 dark:text-sky-300";
-    case "activity":
-      return "text-rose-600 dark:text-rose-300";
-    case "system":
-      return "text-cyan-600 dark:text-cyan-300";
-    default:
-      return fallbackKindColor(event.kind);
+function parseIntList(value: string) {
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const part of value.split(/[,\s，、]+/)) {
+    const parsed = Number(part.trim());
+    if (!Number.isInteger(parsed) || parsed <= 0 || seen.has(parsed)) {
+      continue;
+    }
+    seen.add(parsed);
+    out.push(parsed);
   }
+  return out;
 }
 
-function fallbackKindColor(kind: string): string {
-  switch (kind) {
-    case "waterwheel":
-    case "free_water":
-      return "text-cyan-600 dark:text-cyan-300";
-    case "cultivate_recv":
-    case "cultivate_new":
-    case "flower_upgrade":
-      return "text-rose-600 dark:text-rose-300";
-    case "order_finish":
-    case "order_customer":
-    case "flower_rack":
-      return "text-orange-600 dark:text-orange-300";
-    case "land_unlock":
-    case "task_daily":
-    case "task_recv":
-      return "text-yellow-700 dark:text-yellow-300";
-    case "resource_changed":
-      return "text-emerald-600 dark:text-emerald-300";
-    default:
-      return "text-muted-foreground";
-  }
+function formatIntList(value: number[]) {
+  return value.join(", ");
 }
 
-function eventLabel(kind: string): string {
-  switch (kind) {
-    case "resource_changed":
-      return "资源";
-    case "land_changed":
-      return "田地";
-    case "session":
-      return "连接";
-    case "session_expired":
-      return "过期";
-    case "ws_disconnected":
-      return "断开";
-    default:
-      return kind;
+function toggleNumber(values: number[], value: number) {
+  if (values.includes(value)) {
+    return values.filter((item) => item !== value);
   }
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="flex min-h-full flex-col gap-4 xl:h-full xl:min-h-0 xl:overflow-hidden">
-      <div className="h-20 animate-pulse rounded-lg bg-muted/35" />
-      <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[280px_minmax(0,1fr)] xl:overflow-hidden">
-        <div className="min-h-64 animate-pulse rounded-lg bg-muted/30 xl:min-h-0" />
-        <div className="min-h-96 animate-pulse rounded-lg bg-muted/25 xl:min-h-0" />
-      </div>
-    </div>
-  );
+  return [...values, value].sort((a, b) => a - b);
 }

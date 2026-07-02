@@ -1,8 +1,6 @@
 package policycfg
 
 import (
-	"strings"
-
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -16,7 +14,7 @@ var jsonMarshal = protojson.MarshalOptions{
 }
 
 var jsonUnmarshal = protojson.UnmarshalOptions{
-	DiscardUnknown: false,
+	DiscardUnknown: true,
 }
 
 func Normalize(p *pb.Policy) *pb.Policy {
@@ -28,35 +26,94 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic == nil {
 		cp.Basic = proto.Clone(def.Basic).(*pb.BasicPolicy)
 	}
+	if cp.Basic.Reputation == nil {
+		cp.Basic.Reputation = proto.Clone(def.Basic.Reputation).(*pb.ReputationPolicy)
+	}
+	if cp.Basic.Reputation.Threshold <= 0 {
+		cp.Basic.Reputation.Threshold = def.Basic.Reputation.Threshold
+	}
+	if cp.Basic.Task == nil {
+		cp.Basic.Task = proto.Clone(def.Basic.Task).(*pb.BasicTaskPolicy)
+	}
+	if cp.Basic.Benefit == nil {
+		cp.Basic.Benefit = proto.Clone(def.Basic.Benefit).(*pb.BenefitPolicy)
+	}
+	if cp.Basic.Sign == nil {
+		cp.Basic.Sign = proto.Clone(def.Basic.Sign).(*pb.SignPolicy)
+	}
 	if cp.Basic.Pearl == nil {
 		cp.Basic.Pearl = proto.Clone(def.Basic.Pearl).(*pb.PearlPolicy)
 	}
 	if cp.Basic.Shop == nil {
 		cp.Basic.Shop = proto.Clone(def.Basic.Shop).(*pb.ShopPolicy)
 	}
-	if cp.Basic.Zoo == nil {
-		cp.Basic.Zoo = proto.Clone(def.Basic.Zoo).(*pb.ZooPolicy)
+	if cp.Basic.Shop.CultivateShop == nil {
+		cp.Basic.Shop.CultivateShop = proto.Clone(def.Basic.Shop.CultivateShop).(*pb.ShopBuyPolicy)
+	}
+	if cp.Basic.Shop.VipShop == nil {
+		cp.Basic.Shop.VipShop = proto.Clone(def.Basic.Shop.VipShop).(*pb.VipShopPolicy)
+	}
+	if cp.Basic.FeedCat == nil {
+		cp.Basic.FeedCat = proto.Clone(def.Basic.FeedCat).(*pb.FeedCatPolicy)
 	}
 	if cp.Plant == nil {
 		cp.Plant = proto.Clone(def.Plant).(*pb.PlantPolicy)
 	}
-	cp.Plant.PlantingMode = normalizeMode(cp.Plant.GetPlantingMode(), def.Plant.GetPlantingMode())
-	if cp.Plant.PlantMaxBatch <= 0 {
-		cp.Plant.PlantMaxBatch = def.Plant.PlantMaxBatch
+	if cp.Plant.Cultivate == nil {
+		cp.Plant.Cultivate = proto.Clone(def.Plant.Cultivate).(*pb.CultivatePolicy)
 	}
-	if cp.Plant.WaterMaxBatch <= 0 {
-		cp.Plant.WaterMaxBatch = def.Plant.WaterMaxBatch
+	if cp.Plant.Cultivate.TargetLevel <= 0 {
+		cp.Plant.Cultivate.TargetLevel = def.Plant.Cultivate.TargetLevel
 	}
-	if cp.Plant.MinWaterDrops <= 0 {
-		cp.Plant.MinWaterDrops = def.Plant.MinWaterDrops
+	if cp.Plant.Flower == nil {
+		cp.Plant.Flower = proto.Clone(def.Plant.Flower).(*pb.FlowerPlantPolicy)
 	}
-	if cp.Plant.TaskPriority == nil {
-		cp.Plant.TaskPriority = map[string]int32{}
+	if cp.Plant.Flower.PlantMaxBatch <= 0 {
+		cp.Plant.Flower.PlantMaxBatch = def.Plant.Flower.PlantMaxBatch
 	}
-	for k, v := range def.Plant.TaskPriority {
-		if _, ok := cp.Plant.TaskPriority[k]; !ok {
-			cp.Plant.TaskPriority[k] = v
+	if cp.Plant.Flower.MaxPerFlowerPerCycle <= 0 {
+		cp.Plant.Flower.MaxPerFlowerPerCycle = def.Plant.Flower.MaxPerFlowerPerCycle
+	}
+	if cp.Plant.Flower.WaterMaxBatch <= 0 {
+		cp.Plant.Flower.WaterMaxBatch = def.Plant.Flower.WaterMaxBatch
+	}
+	if cp.Plant.Flower.MinWaterDrops <= 0 {
+		cp.Plant.Flower.MinWaterDrops = def.Plant.Flower.MinWaterDrops
+	}
+	if cp.Plant.Flower.GoalPriority == nil {
+		cp.Plant.Flower.GoalPriority = map[string]int32{}
+	}
+	for k, v := range def.Plant.Flower.GoalPriority {
+		if _, ok := cp.Plant.Flower.GoalPriority[k]; !ok {
+			cp.Plant.Flower.GoalPriority[k] = v
 		}
+	}
+	if cp.Plant.Flower.PlantingMode == pb.PlantingMode_PLANTING_MODE_UNSPECIFIED {
+		cp.Plant.Flower.PlantingMode = def.Plant.Flower.PlantingMode
+	}
+	if cp.Plant.Flower.FlowerKindCount <= 0 {
+		cp.Plant.Flower.FlowerKindCount = def.Plant.Flower.FlowerKindCount
+	}
+	if cp.Plant.FriendSteal == nil {
+		cp.Plant.FriendSteal = proto.Clone(def.Plant.FriendSteal).(*pb.FriendStealPolicy)
+	}
+	if cp.Plant.Elves == nil {
+		cp.Plant.Elves = proto.Clone(def.Plant.Elves).(*pb.FlowerElvesPolicy)
+	}
+	if cp.Plant.Market == nil {
+		cp.Plant.Market = proto.Clone(def.Plant.Market).(*pb.FlowerMarketPolicy)
+	}
+	if cp.Plant.Market.PutMode == pb.MarketPutMode_MARKET_PUT_MODE_UNSPECIFIED {
+		cp.Plant.Market.PutMode = def.Plant.Market.PutMode
+	}
+	if cp.Plant.Market.BuyMode == pb.MarketBuyMode_MARKET_BUY_MODE_UNSPECIFIED {
+		cp.Plant.Market.BuyMode = def.Plant.Market.BuyMode
+	}
+	if cp.Plant.Market.PriceIndex == 0 {
+		cp.Plant.Market.PriceIndex = def.Plant.Market.PriceIndex
+	}
+	if cp.Plant.Market.MaxSell <= 0 {
+		cp.Plant.Market.MaxSell = def.Plant.Market.MaxSell
 	}
 	if cp.Order == nil {
 		cp.Order = proto.Clone(def.Order).(*pb.OrderPolicy)
@@ -67,6 +124,15 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Order.Resident == nil {
 		cp.Order.Resident = proto.Clone(def.Order.Resident).(*pb.ResidentOrderPolicy)
 	}
+	if cp.Order.Resident.NormalDailyLimit <= 0 {
+		cp.Order.Resident.NormalDailyLimit = def.Order.Resident.NormalDailyLimit
+	}
+	if cp.Order.Resident.DecorateDailyLimit <= 0 {
+		cp.Order.Resident.DecorateDailyLimit = def.Order.Resident.DecorateDailyLimit
+	}
+	if cp.Order.Resident.SatinDailyLimit <= 0 {
+		cp.Order.Resident.SatinDailyLimit = def.Order.Resident.SatinDailyLimit
+	}
 	if cp.Order.Palace == nil {
 		cp.Order.Palace = proto.Clone(def.Order.Palace).(*pb.PalaceOrderPolicy)
 	}
@@ -76,39 +142,37 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Order.FlowerArt == nil {
 		cp.Order.FlowerArt = proto.Clone(def.Order.FlowerArt).(*pb.FlowerArtPolicy)
 	}
+	if cp.Order.FlowerArt.PerRackCount <= 0 {
+		cp.Order.FlowerArt.PerRackCount = def.Order.FlowerArt.PerRackCount
+	}
 	if cp.Union == nil {
 		cp.Union = proto.Clone(def.Union).(*pb.UnionPolicy)
 	}
-	cp.Union.FlowerShareMode = normalizeMode(cp.Union.GetFlowerShareMode(), def.Union.GetFlowerShareMode())
-	cp.Union.FlowerTakeMode = normalizeMode(cp.Union.GetFlowerTakeMode(), def.Union.GetFlowerTakeMode())
-	cp.Union.LandPlantMode = normalizeMode(cp.Union.GetLandPlantMode(), def.Union.GetLandPlantMode())
-	if cp.Union.RaceTaskTypePriority == nil {
-		cp.Union.RaceTaskTypePriority = map[string]int32{}
+	if cp.Union.Build == nil {
+		cp.Union.Build = proto.Clone(def.Union.Build).(*pb.UnionBuildPolicy)
 	}
-	for k, v := range def.Union.RaceTaskTypePriority {
-		if _, ok := cp.Union.RaceTaskTypePriority[k]; !ok {
-			cp.Union.RaceTaskTypePriority[k] = v
+	if cp.Union.Flower == nil {
+		cp.Union.Flower = proto.Clone(def.Union.Flower).(*pb.UnionFlowerPolicy)
+	}
+	if cp.Union.Race == nil {
+		cp.Union.Race = proto.Clone(def.Union.Race).(*pb.UnionRacePolicy)
+	}
+	if cp.Union.Race.TaskTypePriority == nil {
+		cp.Union.Race.TaskTypePriority = map[int32]int32{}
+	}
+	for k, v := range def.Union.Race.TaskTypePriority {
+		if _, ok := cp.Union.Race.TaskTypePriority[k]; !ok {
+			cp.Union.Race.TaskTypePriority[k] = v
 		}
+	}
+	if cp.Union.Land == nil {
+		cp.Union.Land = proto.Clone(def.Union.Land).(*pb.UnionLandPolicy)
 	}
 	if cp.Activity == nil {
 		cp.Activity = proto.Clone(def.Activity).(*pb.ActivityPolicy)
 	}
 	if cp.Activity.Modules == nil {
 		cp.Activity.Modules = map[string]*pb.ActivityModulePolicy{}
-	}
-	for k, v := range def.Activity.Modules {
-		if _, ok := cp.Activity.Modules[k]; !ok {
-			cp.Activity.Modules[k] = proto.Clone(v).(*pb.ActivityModulePolicy)
-		}
-	}
-	if cp.Safety == nil {
-		cp.Safety = proto.Clone(def.Safety).(*pb.SafetyPolicy)
-	}
-	if cp.Safety.MaxConsecutiveErrors <= 0 {
-		cp.Safety.MaxConsecutiveErrors = def.Safety.MaxConsecutiveErrors
-	}
-	if cp.Safety.DomainBackoffSeconds <= 0 {
-		cp.Safety.DomainBackoffSeconds = def.Safety.DomainBackoffSeconds
 	}
 	if cp.DecisionIntervalSeconds <= 0 {
 		cp.DecisionIntervalSeconds = def.DecisionIntervalSeconds
@@ -130,19 +194,11 @@ func ToJSON(p *pb.Policy) (string, error) {
 
 func FromJSON(raw string) (*pb.Policy, error) {
 	p := automation.DefaultPolicy()
-	if strings.TrimSpace(raw) == "" {
+	if raw == "" {
 		return p, nil
 	}
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
 	}
 	return Normalize(p), nil
-}
-
-func normalizeMode(value, fallback string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "" {
-		return fallback
-	}
-	return value
 }

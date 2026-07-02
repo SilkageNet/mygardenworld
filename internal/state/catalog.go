@@ -120,10 +120,11 @@ type WeeklyTask struct {
 
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
-	ID     int32
-	Name   string
-	ItemID int32
-	Cost   int32
+	ID         int32
+	Name       string
+	ItemID     int32
+	Cost       int32
+	DailyLimit int32
 }
 
 // ItemInfoByID returns a defensive copy of a c_item catalog row.
@@ -368,13 +369,14 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 		return FmlBuildOption{}, false
 	}
 	var row struct {
-		Name  string    `json:"name"`
-		Items [][]int32 `json:"items"`
+		Name       string    `json:"name"`
+		Items      [][]int32 `json:"items"`
+		DailyCount int32     `json:"dailyCount"`
 	}
 	if json.Unmarshal(raw, &row) != nil {
 		return FmlBuildOption{}, false
 	}
-	out := FmlBuildOption{ID: id, Name: strings.TrimSpace(row.Name)}
+	out := FmlBuildOption{ID: id, Name: strings.TrimSpace(row.Name), DailyLimit: row.DailyCount}
 	if len(row.Items) > 0 && len(row.Items[0]) >= 2 {
 		out.ItemID = row.Items[0][0]
 		if id == 2 {

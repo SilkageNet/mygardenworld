@@ -157,18 +157,6 @@ func (svc *Services) ListAccounts(ctx context.Context, _ *connect.Request[pb.Lis
 	return connect.NewResponse(resp), nil
 }
 
-func (svc *Services) GetAccount(ctx context.Context, req *connect.Request[pb.GetAccountRequest]) (*connect.Response[pb.GetAccountResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetId(), req.Msg.GetName())
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	p := store.AccountToProto(acc)
-	if r := svc.Manager.Get(acc.ID); r != nil {
-		p.Connected = r.Connected()
-	}
-	return connect.NewResponse(&pb.GetAccountResponse{Account: p}), nil
-}
-
 func (svc *Services) LoginAccount(ctx context.Context, req *connect.Request[pb.LoginAccountRequest]) (*connect.Response[pb.LoginAccountResponse], error) {
 	acc, err := svc.resolveAccount(ctx, req.Msg.GetId(), req.Msg.GetName())
 	if err != nil {

@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account_service.proto.
  */
 export const file_mygardenworld_v1_account_service: GenFile = /*@__PURE__*/
-  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKHAQoUQ3JlYXRlQWNjb3VudFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIqCgdjaGFubmVsGAUgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhEKCWxvZ2luX25vdxgEIAEoCCJYChVDcmVhdGVBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudBITCgtsb2dpbl9lcnJvchgCIAEoCSIwChREZWxldGVBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50Ii0KEUdldEFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkiQAoSR2V0QWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQiLwoTTG9naW5BY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJInQKFExvZ2luQWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSMAoMbG9nZ2VkX2luX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIwChRMb2dvdXRBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIkMKFUxvZ291dEFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50Ms0ECg5BY2NvdW50U2VydmljZRJgCg1DcmVhdGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5DcmVhdGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEmAKDURlbGV0ZUFjY291bnQSJi5teWdhcmRlbndvcmxkLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GicubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USXQoMTGlzdEFjY291bnRzEiUubXlnYXJkZW53b3JsZC52MS5MaXN0QWNjb3VudHNSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5MaXN0QWNjb3VudHNSZXNwb25zZRJXCgpHZXRBY2NvdW50EiMubXlnYXJkZW53b3JsZC52MS5HZXRBY2NvdW50UmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuR2V0QWNjb3VudFJlc3BvbnNlEl0KDExvZ2luQWNjb3VudBIlLm15Z2FyZGVud29ybGQudjEuTG9naW5BY2NvdW50UmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTG9naW5BY2NvdW50UmVzcG9uc2USYAoNTG9nb3V0QWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuTG9nb3V0QWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkxvZ291dEFjY291bnRSZXNwb25zZUKMAQoUY29tLm15Z2FyZGVud29ybGQudjFCE0FjY291bnRTZXJ2aWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
+  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKHAQoUQ3JlYXRlQWNjb3VudFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIqCgdjaGFubmVsGAUgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhEKCWxvZ2luX25vdxgEIAEoCCJYChVDcmVhdGVBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudBITCgtsb2dpbl9lcnJvchgCIAEoCSIwChREZWxldGVBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50Ii8KE0xvZ2luQWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJ0ChRMb2dpbkFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EjAKDGxvZ2dlZF9pbl9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMAoUTG9nb3V0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJDChVMb2dvdXRBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudDL0AwoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USXQoMTG9naW5BY2NvdW50EiUubXlnYXJkZW53b3JsZC52MS5Mb2dpbkFjY291bnRSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5Mb2dpbkFjY291bnRSZXNwb25zZRJgCg1Mb2dvdXRBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5Mb2dvdXRBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuTG9nb3V0QWNjb3VudFJlc3BvbnNlQowBChRjb20ubXlnYXJkZW53b3JsZC52MUITQWNjb3VudFNlcnZpY2VQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.CreateAccountRequest
@@ -151,45 +151,6 @@ export const ListAccountsResponseSchema: GenMessage<ListAccountsResponse> = /*@_
   messageDesc(file_mygardenworld_v1_account_service, 5);
 
 /**
- * @generated from message mygardenworld.v1.GetAccountRequest
- */
-export type GetAccountRequest = Message<"mygardenworld.v1.GetAccountRequest"> & {
-  /**
-   * @generated from field: string id = 1;
-   */
-  id: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
-};
-
-/**
- * Describes the message mygardenworld.v1.GetAccountRequest.
- * Use `create(GetAccountRequestSchema)` to create a new message.
- */
-export const GetAccountRequestSchema: GenMessage<GetAccountRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 6);
-
-/**
- * @generated from message mygardenworld.v1.GetAccountResponse
- */
-export type GetAccountResponse = Message<"mygardenworld.v1.GetAccountResponse"> & {
-  /**
-   * @generated from field: mygardenworld.v1.Account account = 1;
-   */
-  account?: Account | undefined;
-};
-
-/**
- * Describes the message mygardenworld.v1.GetAccountResponse.
- * Use `create(GetAccountResponseSchema)` to create a new message.
- */
-export const GetAccountResponseSchema: GenMessage<GetAccountResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 7);
-
-/**
  * @generated from message mygardenworld.v1.LoginAccountRequest
  */
 export type LoginAccountRequest = Message<"mygardenworld.v1.LoginAccountRequest"> & {
@@ -209,7 +170,7 @@ export type LoginAccountRequest = Message<"mygardenworld.v1.LoginAccountRequest"
  * Use `create(LoginAccountRequestSchema)` to create a new message.
  */
 export const LoginAccountRequestSchema: GenMessage<LoginAccountRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 8);
+  messageDesc(file_mygardenworld_v1_account_service, 6);
 
 /**
  * @generated from message mygardenworld.v1.LoginAccountResponse
@@ -231,7 +192,7 @@ export type LoginAccountResponse = Message<"mygardenworld.v1.LoginAccountRespons
  * Use `create(LoginAccountResponseSchema)` to create a new message.
  */
 export const LoginAccountResponseSchema: GenMessage<LoginAccountResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 9);
+  messageDesc(file_mygardenworld_v1_account_service, 7);
 
 /**
  * @generated from message mygardenworld.v1.LogoutAccountRequest
@@ -253,7 +214,7 @@ export type LogoutAccountRequest = Message<"mygardenworld.v1.LogoutAccountReques
  * Use `create(LogoutAccountRequestSchema)` to create a new message.
  */
 export const LogoutAccountRequestSchema: GenMessage<LogoutAccountRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 10);
+  messageDesc(file_mygardenworld_v1_account_service, 8);
 
 /**
  * @generated from message mygardenworld.v1.LogoutAccountResponse
@@ -270,7 +231,7 @@ export type LogoutAccountResponse = Message<"mygardenworld.v1.LogoutAccountRespo
  * Use `create(LogoutAccountResponseSchema)` to create a new message.
  */
 export const LogoutAccountResponseSchema: GenMessage<LogoutAccountResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 11);
+  messageDesc(file_mygardenworld_v1_account_service, 9);
 
 /**
  * @generated from service mygardenworld.v1.AccountService
@@ -304,14 +265,6 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof ListAccountsRequestSchema;
     output: typeof ListAccountsResponseSchema;
-  },
-  /**
-   * @generated from rpc mygardenworld.v1.AccountService.GetAccount
-   */
-  getAccount: {
-    methodKind: "unary";
-    input: typeof GetAccountRequestSchema;
-    output: typeof GetAccountResponseSchema;
   },
   /**
    * Force a fresh username+password login for the account. Refreshes

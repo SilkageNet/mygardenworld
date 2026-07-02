@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/admin.proto.
  */
 export const file_mygardenworld_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChxteWdhcmRlbndvcmxkL3YxL2FkbWluLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIq4BChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRINCgVlbWFpbBgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIRCgRyb2xlGAQgASgJSACIAQESGQoMbWF4X2FjY291bnRzGAUgASgFSAGIAQESEwoGc3RhdHVzGAYgASgJSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKEkNyZWF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIjMKEExpc3RVc2Vyc1JlcXVlc3QSDAoEcGFnZRgBIAEoBRIRCglwYWdlX3NpemUYAiABKAUiSQoRTGlzdFVzZXJzUmVzcG9uc2USJQoFdXNlcnMYASADKAsyFi5teWdhcmRlbndvcmxkLnYxLlVzZXISDQoFdG90YWwYAiABKAUiIQoOR2V0VXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyI3Cg9HZXRVc2VyUmVzcG9uc2USJAoEdXNlchgBIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciKMAQoRVXBkYXRlVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIRCgRyb2xlGAIgASgJSACIAQESGQoMbWF4X2FjY291bnRzGAMgASgFSAGIAQESEwoGc3RhdHVzGAQgASgJSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKElVwZGF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIhcKFUdldFN5c3RlbVN0YXRzUmVxdWVzdCJ9ChZHZXRTeXN0ZW1TdGF0c1Jlc3BvbnNlEhMKC3RvdGFsX3VzZXJzGAEgASgFEhsKE3RvdGFsX2dhbWVfYWNjb3VudHMYAiABKAUSFgoOYWN0aXZlX3J1bm5lcnMYAyABKAUSGQoRY29ubmVjdGVkX3J1bm5lcnMYBCABKAUypAQKDEFkbWluU2VydmljZRJXCgpDcmVhdGVVc2VyEiMubXlnYXJkZW53b3JsZC52MS5DcmVhdGVVc2VyUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlVXNlclJlc3BvbnNlElQKCUxpc3RVc2VycxIiLm15Z2FyZGVud29ybGQudjEuTGlzdFVzZXJzUmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuTGlzdFVzZXJzUmVzcG9uc2USTgoHR2V0VXNlchIgLm15Z2FyZGVud29ybGQudjEuR2V0VXNlclJlcXVlc3QaIS5teWdhcmRlbndvcmxkLnYxLkdldFVzZXJSZXNwb25zZRJXCgpVcGRhdGVVc2VyEiMubXlnYXJkZW53b3JsZC52MS5VcGRhdGVVc2VyUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuVXBkYXRlVXNlclJlc3BvbnNlElcKCkRlbGV0ZVVzZXISIy5teWdhcmRlbndvcmxkLnYxLkRlbGV0ZVVzZXJSZXF1ZXN0GiQubXlnYXJkZW53b3JsZC52MS5EZWxldGVVc2VyUmVzcG9uc2USYwoOR2V0U3lzdGVtU3RhdHMSJy5teWdhcmRlbndvcmxkLnYxLkdldFN5c3RlbVN0YXRzUmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuR2V0U3lzdGVtU3RhdHNSZXNwb25zZUKDAQoUY29tLm15Z2FyZGVud29ybGQudjFCCkFkbWluUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_mygardenworld_v1_auth]);
+  fileDesc("ChxteWdhcmRlbndvcmxkL3YxL2FkbWluLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIq4BChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRINCgVlbWFpbBgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIRCgRyb2xlGAQgASgJSACIAQESGQoMbWF4X2FjY291bnRzGAUgASgFSAGIAQESEwoGc3RhdHVzGAYgASgJSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKEkNyZWF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIjMKEExpc3RVc2Vyc1JlcXVlc3QSDAoEcGFnZRgBIAEoBRIRCglwYWdlX3NpemUYAiABKAUiSQoRTGlzdFVzZXJzUmVzcG9uc2USJQoFdXNlcnMYASADKAsyFi5teWdhcmRlbndvcmxkLnYxLlVzZXISDQoFdG90YWwYAiABKAUijAEKEVVwZGF0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSEQoEcm9sZRgCIAEoCUgAiAEBEhkKDG1heF9hY2NvdW50cxgDIAEoBUgBiAEBEhMKBnN0YXR1cxgEIAEoCUgCiAEBQgcKBV9yb2xlQg8KDV9tYXhfYWNjb3VudHNCCQoHX3N0YXR1cyI6ChJVcGRhdGVVc2VyUmVzcG9uc2USJAoEdXNlchgBIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciIXChVHZXRTeXN0ZW1TdGF0c1JlcXVlc3QifQoWR2V0U3lzdGVtU3RhdHNSZXNwb25zZRITCgt0b3RhbF91c2VycxgBIAEoBRIbChN0b3RhbF9nYW1lX2FjY291bnRzGAIgASgFEhYKDmFjdGl2ZV9ydW5uZXJzGAMgASgFEhkKEWNvbm5lY3RlZF9ydW5uZXJzGAQgASgFMvsCCgxBZG1pblNlcnZpY2USVwoKQ3JlYXRlVXNlchIjLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlVXNlclJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJUCglMaXN0VXNlcnMSIi5teWdhcmRlbndvcmxkLnYxLkxpc3RVc2Vyc1JlcXVlc3QaIy5teWdhcmRlbndvcmxkLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlElcKClVwZGF0ZVVzZXISIy5teWdhcmRlbndvcmxkLnYxLlVwZGF0ZVVzZXJSZXF1ZXN0GiQubXlnYXJkZW53b3JsZC52MS5VcGRhdGVVc2VyUmVzcG9uc2USYwoOR2V0U3lzdGVtU3RhdHMSJy5teWdhcmRlbndvcmxkLnYxLkdldFN5c3RlbVN0YXRzUmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuR2V0U3lzdGVtU3RhdHNSZXNwb25zZUKDAQoUY29tLm15Z2FyZGVud29ybGQudjFCCkFkbWluUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_mygardenworld_v1_auth]);
 
 /**
  * @generated from message mygardenworld.v1.CreateUserRequest
@@ -118,40 +118,6 @@ export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE_
   messageDesc(file_mygardenworld_v1_admin, 3);
 
 /**
- * @generated from message mygardenworld.v1.GetUserRequest
- */
-export type GetUserRequest = Message<"mygardenworld.v1.GetUserRequest"> & {
-  /**
-   * @generated from field: int64 user_id = 1;
-   */
-  userId: bigint;
-};
-
-/**
- * Describes the message mygardenworld.v1.GetUserRequest.
- * Use `create(GetUserRequestSchema)` to create a new message.
- */
-export const GetUserRequestSchema: GenMessage<GetUserRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 4);
-
-/**
- * @generated from message mygardenworld.v1.GetUserResponse
- */
-export type GetUserResponse = Message<"mygardenworld.v1.GetUserResponse"> & {
-  /**
-   * @generated from field: mygardenworld.v1.User user = 1;
-   */
-  user?: User | undefined;
-};
-
-/**
- * Describes the message mygardenworld.v1.GetUserResponse.
- * Use `create(GetUserResponseSchema)` to create a new message.
- */
-export const GetUserResponseSchema: GenMessage<GetUserResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 5);
-
-/**
  * @generated from message mygardenworld.v1.UpdateUserRequest
  */
 export type UpdateUserRequest = Message<"mygardenworld.v1.UpdateUserRequest"> & {
@@ -181,7 +147,7 @@ export type UpdateUserRequest = Message<"mygardenworld.v1.UpdateUserRequest"> & 
  * Use `create(UpdateUserRequestSchema)` to create a new message.
  */
 export const UpdateUserRequestSchema: GenMessage<UpdateUserRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 6);
+  messageDesc(file_mygardenworld_v1_admin, 4);
 
 /**
  * @generated from message mygardenworld.v1.UpdateUserResponse
@@ -198,37 +164,7 @@ export type UpdateUserResponse = Message<"mygardenworld.v1.UpdateUserResponse"> 
  * Use `create(UpdateUserResponseSchema)` to create a new message.
  */
 export const UpdateUserResponseSchema: GenMessage<UpdateUserResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 7);
-
-/**
- * @generated from message mygardenworld.v1.DeleteUserRequest
- */
-export type DeleteUserRequest = Message<"mygardenworld.v1.DeleteUserRequest"> & {
-  /**
-   * @generated from field: int64 user_id = 1;
-   */
-  userId: bigint;
-};
-
-/**
- * Describes the message mygardenworld.v1.DeleteUserRequest.
- * Use `create(DeleteUserRequestSchema)` to create a new message.
- */
-export const DeleteUserRequestSchema: GenMessage<DeleteUserRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 8);
-
-/**
- * @generated from message mygardenworld.v1.DeleteUserResponse
- */
-export type DeleteUserResponse = Message<"mygardenworld.v1.DeleteUserResponse"> & {
-};
-
-/**
- * Describes the message mygardenworld.v1.DeleteUserResponse.
- * Use `create(DeleteUserResponseSchema)` to create a new message.
- */
-export const DeleteUserResponseSchema: GenMessage<DeleteUserResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 9);
+  messageDesc(file_mygardenworld_v1_admin, 5);
 
 /**
  * @generated from message mygardenworld.v1.GetSystemStatsRequest
@@ -241,7 +177,7 @@ export type GetSystemStatsRequest = Message<"mygardenworld.v1.GetSystemStatsRequ
  * Use `create(GetSystemStatsRequestSchema)` to create a new message.
  */
 export const GetSystemStatsRequestSchema: GenMessage<GetSystemStatsRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 10);
+  messageDesc(file_mygardenworld_v1_admin, 6);
 
 /**
  * @generated from message mygardenworld.v1.GetSystemStatsResponse
@@ -273,7 +209,7 @@ export type GetSystemStatsResponse = Message<"mygardenworld.v1.GetSystemStatsRes
  * Use `create(GetSystemStatsResponseSchema)` to create a new message.
  */
 export const GetSystemStatsResponseSchema: GenMessage<GetSystemStatsResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_admin, 11);
+  messageDesc(file_mygardenworld_v1_admin, 7);
 
 /**
  * @generated from service mygardenworld.v1.AdminService
@@ -296,28 +232,12 @@ export const AdminService: GenService<{
     output: typeof ListUsersResponseSchema;
   },
   /**
-   * @generated from rpc mygardenworld.v1.AdminService.GetUser
-   */
-  getUser: {
-    methodKind: "unary";
-    input: typeof GetUserRequestSchema;
-    output: typeof GetUserResponseSchema;
-  },
-  /**
    * @generated from rpc mygardenworld.v1.AdminService.UpdateUser
    */
   updateUser: {
     methodKind: "unary";
     input: typeof UpdateUserRequestSchema;
     output: typeof UpdateUserResponseSchema;
-  },
-  /**
-   * @generated from rpc mygardenworld.v1.AdminService.DeleteUser
-   */
-  deleteUser: {
-    methodKind: "unary";
-    input: typeof DeleteUserRequestSchema;
-    output: typeof DeleteUserResponseSchema;
   },
   /**
    * @generated from rpc mygardenworld.v1.AdminService.GetSystemStats

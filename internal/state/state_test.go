@@ -43,6 +43,300 @@ func TestApplyV_DiagnosticsTrackNamespacesAndNoble(t *testing.T) {
 	}
 }
 
+func TestApplyV_UsrExtraTracksAntiFraudQA(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"13": map[string]any{
+				"1": map[string]any{
+					"104": 1,
+					"105": 1779290172000,
+				},
+			},
+		},
+	})
+
+	extra := s.UsrExtra()
+	if !extra.Observed || extra.AntiFraudQAStatus != 1 || extra.LastAntiFraudQATimeMs != 1779290172000 {
+		t.Fatalf("UsrExtra()=%+v, want observed status=1 time=1779290172000", extra)
+	}
+	status, ok := s.AntiFraudQAStatus()
+	if !ok || status != 1 {
+		t.Fatalf("AntiFraudQAStatus()=(%d,%t), want (1,true)", status, ok)
+	}
+
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"13": map[string]any{
+				"1": map[string]any{"104": 2},
+			},
+		},
+	})
+	extra = s.UsrExtra()
+	if extra.AntiFraudQAStatus != AntiFraudQAStatusClaimed || extra.LastAntiFraudQATimeMs != 1779290172000 {
+		t.Fatalf("UsrExtra delta=%+v, want status=2 and preserved time", extra)
+	}
+}
+
+func TestApplyV_VideoDoubleState(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	applyMap(t, s, map[string]any{
+		"118": map[string]any{
+			"0": 77900091102482,
+			"1": 2,
+			"2": now.Add(time.Hour).UnixMilli(),
+			"3": now.UnixMilli(),
+			"4": now.Add(-time.Hour).UnixMilli(),
+		},
+	})
+
+	view := s.VideoDouble()
+	if !view.Observed || view.UID != 77900091102482 || view.VideoCount != 2 || view.EndTimeMs != now.Add(time.Hour).UnixMilli() {
+		t.Fatalf("VideoDouble()=%+v", view)
+	}
+	if !s.VideoDoubleObserved() {
+		t.Fatal("VideoDoubleObserved()=false, want true")
+	}
+	if !s.VideoDoubleActive(now) {
+		t.Fatal("VideoDoubleActive()=false, want true before eTime")
+	}
+	if s.VideoDoubleActive(now.Add(2 * time.Hour)) {
+		t.Fatal("VideoDoubleActive()=true, want false after eTime")
+	}
+
+	applyMap(t, s, map[string]any{
+		"118": map[string]any{"1": 3},
+	})
+	view = s.VideoDouble()
+	if view.VideoCount != 3 || view.EndTimeMs != now.Add(time.Hour).UnixMilli() {
+		t.Fatalf("VideoDouble delta=%+v, want count updated and eTime preserved", view)
+	}
+}
+
+func TestApplyV_ZooState(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	applyMap(t, s, map[string]any{
+		"33": map[string]any{
+			"0": map[string]any{
+				"0": 77900091102482,
+				"3": []int32{1, 2},
+				"6": 120,
+				"8": 1779290172000,
+			},
+			"1": map[string]any{
+				"1": map[string]any{
+					"0":  77900091102482,
+					"1":  1,
+					"2":  50,
+					"3":  20,
+					"4":  []int32{1501},
+					"5":  2,
+					"12": now.Add(-time.Minute).UnixMilli(),
+				},
+				"2": map[string]any{
+					"1":  2,
+					"2":  ZooMoodMax(),
+					"3":  80,
+					"4":  []int32{1502},
+					"5":  5,
+					"12": now.Add(time.Minute).UnixMilli(),
+				},
+			},
+		},
+	})
+
+	if !s.ZooObserved() {
+		t.Fatal("ZooObserved()=false, want true")
+	}
+	zoo := s.Zoo()
+	if !zoo.Observed || zoo.UID != 77900091102482 || zoo.Comfort != 120 || len(zoo.PetIDs) != 2 {
+		t.Fatalf("Zoo()=%+v", zoo)
+	}
+	pets := s.ZooPets()
+	if len(pets) != 2 {
+		t.Fatalf("ZooPets len=%d, want 2", len(pets))
+	}
+	if pets[1].MoodValue != 50 || pets[1].SatietyValue != 20 || len(pets[1].FoodstuffIDs) != 1 || pets[1].FoodstuffIDs[0] != 1501 {
+		t.Fatalf("Zoo pet 1 = %+v", pets[1])
+	}
+	feed := s.ReadyZooFeedPetIDs()
+	if len(feed) != 1 || feed[0] != 1 {
+		t.Fatalf("ReadyZooFeedPetIDs()=%v, want [1]", feed)
+	}
+	stroke := s.ReadyZooStrokePetIDs(now)
+	if len(stroke) != 1 || stroke[0] != 1 {
+		t.Fatalf("ReadyZooStrokePetIDs()=%v, want [1]", stroke)
+	}
+
+	applyMap(t, s, map[string]any{
+		"33": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"1": 1, "2": 70, "5": 2},
+			},
+		},
+	})
+	pets = s.ZooPets()
+	if len(pets) != 2 || pets[1].MoodValue != 70 || len(pets[1].FoodstuffIDs) != 1 || pets[2].PetID != 2 {
+		t.Fatalf("ZooPets after delta=%+v, want pet 2 preserved and pet 1 updated", pets)
+	}
+}
+
+func TestApplyV_FmlBuildState(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"0": map[string]any{
+				"0":  88,
+				"19": 2,
+				"20": 1779290172000,
+				"30": map[string]any{"1": 1, "2": 1},
+			},
+			"133": map[string]any{
+				"1": 88,
+				"4": 1779291172000,
+				"5": map[string]any{"1": 1, "2": 2, "3": 0},
+			},
+		},
+	})
+
+	got := s.FmlBuild()
+	if !got.Observed || !got.BuildCountsObserved {
+		t.Fatalf("FmlBuild observed flags = %+v, want observed build counts", got)
+	}
+	if got.FmlID != 88 || got.TodayBuildNum != 2 || got.LastBuildTimeMs != 1779291172000 {
+		t.Fatalf("FmlBuild scalar fields = %+v", got)
+	}
+	if got.BuildCounts[1] != 1 || got.BuildCounts[2] != 2 || got.BuildCounts[3] != 0 {
+		t.Fatalf("FmlBuild counts = %+v", got.BuildCounts)
+	}
+}
+
+func TestApplyV_FmlLandState(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 2, "1": 23005, "2": 1779290000000, "3": 5, "4": 2, "5": 1779290100000},
+					"2": map[string]any{"0": 1, "1": 23007, "3": 3, "4": 3},
+				},
+			},
+		},
+	})
+
+	if !s.FmlLandObserved() {
+		t.Fatal("FmlLandObserved()=false, want true")
+	}
+	lands := s.FmlLands()
+	if len(lands) != 2 {
+		t.Fatalf("FmlLands len=%d, want 2", len(lands))
+	}
+	if lands[1].FlowerID != 23005 || lands[1].MatureFlowerCnt != 5 || lands[1].HarvestedCnt != 2 {
+		t.Fatalf("FmlLand #1 = %+v", lands[1])
+	}
+	ready := s.ReadyFmlLandHarvestIDs()
+	if len(ready) != 1 || ready[0] != 1 {
+		t.Fatalf("ReadyFmlLandHarvestIDs()=%v, want [1]", ready)
+	}
+}
+
+func TestApplyV_FmlForestEnergyState(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"127": map[string]any{
+				"0": 77900091102482,
+				"1": 88,
+				"2": map[string]any{"1": 10, "2": "7"},
+				"4": 1779290100000,
+				"6": map[string]any{"1": 3},
+				"7": 1779290000000,
+				"8": map[string]any{
+					"88": map[string]any{"1": 5, "2": 0},
+					"99": map[string]any{"1": 4, "3": 2},
+				},
+			},
+		},
+	})
+
+	if !s.FmlForestEnergyObserved() {
+		t.Fatal("FmlForestEnergyObserved()=false, want true")
+	}
+	got := s.FmlForestEnergy()
+	if got.UID != 77900091102482 || got.FmlID != 88 || got.UpdatedAtMs != 1779290100000 {
+		t.Fatalf("FmlForestEnergy scalar fields = %+v", got)
+	}
+	if got.EnergyByType[1] != 10 || got.EnergyByType[2] != 7 || got.DailyEnergyByType[1] != 3 {
+		t.Fatalf("FmlForestEnergy maps = %+v daily=%+v", got.EnergyByType, got.DailyEnergyByType)
+	}
+	if got.PendingTempEnergyByType[1] != 9 || got.PendingTempEnergyByType[3] != 2 || got.PendingTempEnergyTotal != 11 {
+		t.Fatalf("FmlForestEnergy pending = %+v total=%d", got.PendingTempEnergyByType, got.PendingTempEnergyTotal)
+	}
+	ready := s.ReadyFmlForestEnergyTypes()
+	if len(ready) != 2 || ready[0] != 1 || ready[1] != 3 {
+		t.Fatalf("ReadyFmlForestEnergyTypes()=%v, want [1 3]", ready)
+	}
+}
+
+func TestApplyV_FmlFlowerShareState(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{
+					"1": map[string]any{"0": 23005, "1": 10, "2": 3, "3": 1779290000000},
+					"2": map[string]any{"0": 23007, "1": 10, "2": 0},
+				},
+				"2": 4,
+				"3": 1779290100000,
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102483,
+					"1": map[string]any{
+						"1": map[string]any{"0": 23009, "1": 8, "2": 7},
+						"2": map[string]any{"0": 23010, "1": 4, "2": 4},
+					},
+				},
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"3": map[string]any{"0": 23011, "1": 6, "2": 1},
+					},
+				},
+			},
+		},
+	})
+
+	if !s.FmlFlowerShareObserved() || !s.OtherFmlFlowerSharesObserved() {
+		t.Fatal("flower share observed flags = false, want true")
+	}
+	share := s.FmlFlowerShare()
+	if share.UID != 77900091102482 || share.TdyTakeCnt != 4 || share.LastTakeTimeMs != 1779290100000 {
+		t.Fatalf("FmlFlowerShare scalar fields = %+v", share)
+	}
+	if share.Slots[1].FlowerID != 23005 || share.Slots[1].TakeNum != 3 {
+		t.Fatalf("FmlFlowerShare slot 1 = %+v", share.Slots[1])
+	}
+	rewards := s.ReadyFmlFlowerShareRewardSlotIDs()
+	if len(rewards) != 1 || rewards[0] != 1 {
+		t.Fatalf("ReadyFmlFlowerShareRewardSlotIDs()=%v, want [1]", rewards)
+	}
+	candidates := s.FmlFlowerTakeCandidates()
+	if len(candidates) != 2 {
+		t.Fatalf("FmlFlowerTakeCandidates len=%d, want 2: %+v", len(candidates), candidates)
+	}
+	if candidates[0].UID != 77900091102483 || candidates[0].SlotID != 1 || candidates[0].FlowerID != 23009 || candidates[0].Available != 1 {
+		t.Fatalf("candidate[0]=%+v", candidates[0])
+	}
+	if candidates[1].UID != 77900091102484 || candidates[1].SlotID != 3 || candidates[1].FlowerID != 23011 || candidates[1].Available != 5 {
+		t.Fatalf("candidate[1]=%+v", candidates[1])
+	}
+}
+
 func TestApplyV_RosterPopulatesLands(t *testing.T) {
 	// Cold-start `index.reLogin` shape: 100.0.1.<id> carries the full
 	// per-land state for every land in the player's roster. We verify both
@@ -315,7 +609,7 @@ func TestAvailableWaterDropsAfterRecoveryTimestamp(t *testing.T) {
 	}
 }
 
-func TestReserveWaterDropsReducesAvailableUntilReleased(t *testing.T) {
+func TestLockWaterDropsReducesAvailableUntilReleased(t *testing.T) {
 	s := New()
 	now := time.Now()
 	applyMap(t, s, map[string]any{
@@ -325,17 +619,17 @@ func TestReserveWaterDropsReducesAvailableUntilReleased(t *testing.T) {
 		}},
 	})
 
-	if !s.ReserveWaterDrops(4, now) {
-		t.Fatal("ReserveWaterDrops returned false, want true")
+	if !s.LockWaterDrops(4, now) {
+		t.Fatal("LockWaterDrops returned false, want true")
 	}
 	available, _, _ := s.AvailableWaterDrops(now)
 	if available != 2 {
 		t.Fatalf("available after reserve = %d, want 2", available)
 	}
-	if s.ReserveWaterDrops(3, now) {
-		t.Fatal("ReserveWaterDrops allowed spending reserved drops")
+	if s.LockWaterDrops(3, now) {
+		t.Fatal("LockWaterDrops allowed spending in-flight drops")
 	}
-	s.ReleaseWaterDropsReservation(4)
+	s.ReleaseWaterDropsLock(4)
 	available, _, _ = s.AvailableWaterDrops(now)
 	if available != 6 {
 		t.Fatalf("available after release = %d, want 6", available)
@@ -686,6 +980,210 @@ func TestApplyV_FlowerRackTracksSlots(t *testing.T) {
 	}
 	if got := s.EmptyFlowerRackSlotIDs(); len(got) != 0 {
 		t.Fatalf("empty slots after listing=%v, want none", got)
+	}
+}
+
+func TestApplyV_VasesAndFlowerArtState(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"102": map[string]any{
+			"0": map[string]any{
+				"3001": map[string]any{"0": 1, "1": 3001, "2": 1779290172000, "3": 1779290171000},
+				"3002": map[string]any{},
+			},
+		},
+		"106": map[string]any{
+			"0": map[string]any{
+				"1": 25,
+				"2": []int32{300208},
+				"3": map[string]any{"300208": 1},
+				"4": 1779290173000,
+				"5": 1779290170000,
+			},
+		},
+	})
+	if !s.VaseObserved() {
+		t.Fatal("VaseObserved=false, want true")
+	}
+	vases := s.Vases()
+	if len(vases) != 2 || vases[3001].UTimeMs != 1779290172000 || !s.HasVase(3002) {
+		t.Fatalf("Vases mismatch: %+v", vases)
+	}
+	art := s.FlowerArt()
+	if !art.Observed || art.Exp != 25 || len(art.MakeListRaw) == 0 || len(art.SRecvListRaw) == 0 {
+		t.Fatalf("FlowerArt mismatch: %+v", art)
+	}
+	if len(art.MakeList) != 1 || art.MakeList[0] != 300208 {
+		t.Fatalf("FlowerArt MakeList=%v, want [300208]", art.MakeList)
+	}
+	if len(art.SRecvList) != 1 || art.SRecvList[0] != 300208 {
+		t.Fatalf("FlowerArt SRecvList=%v, want [300208]", art.SRecvList)
+	}
+}
+
+func TestApplyV_CollectRewardsAndFlowerArtRewardReadiness(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"103": map[string]any{
+			"0": map[string]any{
+				"11": map[string]any{"1": 11, "2": 0, "3": 5, "4": []int32{}},
+				"13": map[string]any{"1": 13, "2": 0, "3": 70, "4": []int32{}, "7": []int32{300101}},
+			},
+		},
+		"106": map[string]any{
+			"0": map[string]any{
+				"2": []int32{300101, 300102, 300201},
+			},
+		},
+	})
+	if !s.CollectRewardObserved() {
+		t.Fatal("CollectRewardObserved=false, want true")
+	}
+	rewards := s.CollectRewards()
+	if rewards[13].Exp != 70 || len(rewards[13].ArtCreateRewardIDs) != 1 || rewards[13].ArtCreateRewardIDs[0] != 300101 {
+		t.Fatalf("collect reward 13 mismatch: %+v", rewards[13])
+	}
+	if got := s.ReadyCollectRewardTypes(11, 12, 13); len(got) != 2 || got[0] != 11 || got[1] != 13 {
+		t.Fatalf("ReadyCollectRewardTypes=%v, want [11 13]", got)
+	}
+	if got := s.ReadyArtCreateRewardVaseIDs(); len(got) != 2 || got[0] != 3001 || got[1] != 3002 {
+		t.Fatalf("ReadyArtCreateRewardVaseIDs=%v, want [3001 3002]", got)
+	}
+
+	applyMap(t, s, map[string]any{
+		"103": map[string]any{
+			"0": map[string]any{
+				"11": map[string]any{"1": 11, "2": 1, "3": 5, "4": []int32{110001}},
+			},
+		},
+	})
+	if got := s.ReadyCollectRewardTypes(11); len(got) != 0 {
+		t.Fatalf("ReadyCollectRewardTypes after recv=%v, want none", got)
+	}
+}
+
+func TestApplyV_ShopCultivateOffers(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{
+				"10001": []int32{11, 3214},
+				"10002": []int32{11, 4215},
+			},
+			"6": map[string]any{"10001": 0},
+		},
+	})
+	if !s.ShopCultivateObserved() {
+		t.Fatal("ShopCultivateObserved=false, want true")
+	}
+	offers := s.ShopCultivateOffers()
+	if len(offers) != 2 {
+		t.Fatalf("ShopCultivateOffers len=%d, want 2: %+v", len(offers), offers)
+	}
+	first := offers[0]
+	if first.ShopID != 10001 || first.ItemID != 1423 || first.ItemCount != 1 || first.CostItemID != 11 || first.CostCount != 3214 || first.BuyLimit != 1 || first.Remaining != 1 {
+		t.Fatalf("first shop cultivate offer mismatch: %+v", first)
+	}
+
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"6": map[string]any{"10001": 1},
+		},
+	})
+	offers = s.ShopCultivateOffers()
+	if len(offers) != 2 {
+		t.Fatalf("partial bRecord update should preserve infoMap, got %+v", offers)
+	}
+	if offers[0].Remaining != 0 {
+		t.Fatalf("remaining after bRecord update=%d, want 0: %+v", offers[0].Remaining, offers[0])
+	}
+}
+
+func TestApplyV_ShopGiftbagOffers(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"112": map[string]any{
+			"1": map[string]any{"1": 2},
+		},
+	})
+	if !s.ShopGiftbagObserved() {
+		t.Fatal("ShopGiftbagObserved=false, want true")
+	}
+	var freeGift ShopGiftbagOfferView
+	for _, offer := range s.ShopGiftbagOffers() {
+		if offer.ShopID == 1 {
+			freeGift = offer
+			break
+		}
+	}
+	if freeGift.ShopID != 1 {
+		t.Fatalf("missing free giftbag offer")
+	}
+	if freeGift.Type != 1 || freeGift.ShareID != 8 || freeGift.DailyLimit != 4 || freeGift.DailyBought != 2 || freeGift.Remaining != 2 {
+		t.Fatalf("free giftbag offer mismatch: %+v", freeGift)
+	}
+	if len(freeGift.Rewards) != 4 || freeGift.Rewards[0].ItemID != 1 || freeGift.Rewards[0].Count != 5 {
+		t.Fatalf("free giftbag rewards mismatch: %+v", freeGift.Rewards)
+	}
+
+	applyMap(t, s, map[string]any{
+		"112": map[string]any{
+			"1": map[string]any{"1": 4},
+		},
+	})
+	for _, offer := range s.ShopGiftbagOffers() {
+		if offer.ShopID == 1 && offer.Remaining != 0 {
+			t.Fatalf("remaining after dRecord update=%d, want 0: %+v", offer.Remaining, offer)
+		}
+	}
+}
+
+func TestApplyV_PearlState(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	yesterday := now.Add(-24 * time.Hour).UnixMilli()
+	applyMap(t, s, map[string]any{
+		"115": map[string]any{
+			"0": map[string]any{
+				"1": map[string]any{"1": 1, "2": 10001, "8": 2},
+				"2": map[string]any{"1": 2, "8": 0},
+			},
+			"1": map[string]any{"1": 0, "2": 3, "6": yesterday, "8": 1},
+			"2": []int32{101, 102},
+		},
+	})
+	if !s.PearlObserved() {
+		t.Fatal("PearlObserved=false, want true")
+	}
+	if !s.PearlDailyFreeReady(now) {
+		t.Fatal("PearlDailyFreeReady=false, want true for yesterday recv date")
+	}
+	if got := s.PearlDrawCount(); got != 2 {
+		t.Fatalf("PearlDrawCount=%d, want 2", got)
+	}
+	if got := s.ReadyPearlPlaceIDs(); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("ReadyPearlPlaceIDs=%v, want [1]", got)
+	}
+	pearl := s.Pearl()
+	if pearl.ProtectState != 0 || pearl.ProtectNum != 3 || pearl.SmallDrawCnt != 1 {
+		t.Fatalf("Pearl() mismatch: %+v", pearl)
+	}
+
+	applyMap(t, s, map[string]any{
+		"115": map[string]any{
+			"0": map[string]any{"1": map[string]any{"8": 0}},
+			"1": map[string]any{"1": 1, "6": now.UnixMilli()},
+		},
+	})
+	if s.PearlDailyFreeReady(now) {
+		t.Fatal("PearlDailyFreeReady=true, want false for same-day recv date")
+	}
+	if got := s.ReadyPearlPlaceIDs(); len(got) != 0 {
+		t.Fatalf("ReadyPearlPlaceIDs after partial update=%v, want none", got)
+	}
+	places := s.PearlPlaces()
+	if len(places) != 2 {
+		t.Fatalf("partial pearl update should preserve other places, got %+v", places)
 	}
 }
 

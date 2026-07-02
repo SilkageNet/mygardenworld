@@ -7,9 +7,7 @@ import "mygardenworld/v1/auth.proto";
 service AdminService {
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
-  rpc GetUser(GetUserRequest) returns (GetUserResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
-  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
   rpc GetSystemStats(GetSystemStatsRequest) returns (GetSystemStatsResponse);
 }
 
@@ -36,14 +34,6 @@ message ListUsersResponse {
   int32 total = 2;
 }
 
-message GetUserRequest {
-  int64 user_id = 1;
-}
-
-message GetUserResponse {
-  User user = 1;
-}
-
 message UpdateUserRequest {
   int64 user_id = 1;
   optional string role = 2;
@@ -54,12 +44,6 @@ message UpdateUserRequest {
 message UpdateUserResponse {
   User user = 1;
 }
-
-message DeleteUserRequest {
-  int64 user_id = 1;
-}
-
-message DeleteUserResponse {}
 
 message GetSystemStatsRequest {}
 

@@ -22,7 +22,6 @@ const (
 	AccountService_CreateAccount_FullMethodName = "/mygardenworld.v1.AccountService/CreateAccount"
 	AccountService_DeleteAccount_FullMethodName = "/mygardenworld.v1.AccountService/DeleteAccount"
 	AccountService_ListAccounts_FullMethodName  = "/mygardenworld.v1.AccountService/ListAccounts"
-	AccountService_GetAccount_FullMethodName    = "/mygardenworld.v1.AccountService/GetAccount"
 	AccountService_LoginAccount_FullMethodName  = "/mygardenworld.v1.AccountService/LoginAccount"
 	AccountService_LogoutAccount_FullMethodName = "/mygardenworld.v1.AccountService/LogoutAccount"
 )
@@ -37,7 +36,6 @@ type AccountServiceClient interface {
 	// Soft-delete: stops the runner and removes the row + sessions/policies.
 	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error)
-	GetAccount(ctx context.Context, in *GetAccountRequest, opts ...grpc.CallOption) (*GetAccountResponse, error)
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(ctx context.Context, in *LoginAccountRequest, opts ...grpc.CallOption) (*LoginAccountResponse, error)
@@ -84,16 +82,6 @@ func (c *accountServiceClient) ListAccounts(ctx context.Context, in *ListAccount
 	return out, nil
 }
 
-func (c *accountServiceClient) GetAccount(ctx context.Context, in *GetAccountRequest, opts ...grpc.CallOption) (*GetAccountResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetAccountResponse)
-	err := c.cc.Invoke(ctx, AccountService_GetAccount_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *accountServiceClient) LoginAccount(ctx context.Context, in *LoginAccountRequest, opts ...grpc.CallOption) (*LoginAccountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoginAccountResponse)
@@ -124,7 +112,6 @@ type AccountServiceServer interface {
 	// Soft-delete: stops the runner and removes the row + sessions/policies.
 	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
 	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error)
-	GetAccount(context.Context, *GetAccountRequest) (*GetAccountResponse, error)
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *LoginAccountRequest) (*LoginAccountResponse, error)
@@ -148,9 +135,6 @@ func (UnimplementedAccountServiceServer) DeleteAccount(context.Context, *DeleteA
 }
 func (UnimplementedAccountServiceServer) ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAccounts not implemented")
-}
-func (UnimplementedAccountServiceServer) GetAccount(context.Context, *GetAccountRequest) (*GetAccountResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetAccount not implemented")
 }
 func (UnimplementedAccountServiceServer) LoginAccount(context.Context, *LoginAccountRequest) (*LoginAccountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LoginAccount not implemented")
@@ -232,24 +216,6 @@ func _AccountService_ListAccounts_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_GetAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetAccountRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountServiceServer).GetAccount(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountService_GetAccount_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).GetAccount(ctx, req.(*GetAccountRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AccountService_LoginAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LoginAccountRequest)
 	if err := dec(in); err != nil {
@@ -304,10 +270,6 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListAccounts",
 			Handler:    _AccountService_ListAccounts_Handler,
-		},
-		{
-			MethodName: "GetAccount",
-			Handler:    _AccountService_GetAccount_Handler,
 		},
 		{
 			MethodName: "LoginAccount",

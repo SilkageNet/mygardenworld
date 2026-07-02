@@ -37,12 +37,8 @@ const (
 	AdminServiceCreateUserProcedure = "/mygardenworld.v1.AdminService/CreateUser"
 	// AdminServiceListUsersProcedure is the fully-qualified name of the AdminService's ListUsers RPC.
 	AdminServiceListUsersProcedure = "/mygardenworld.v1.AdminService/ListUsers"
-	// AdminServiceGetUserProcedure is the fully-qualified name of the AdminService's GetUser RPC.
-	AdminServiceGetUserProcedure = "/mygardenworld.v1.AdminService/GetUser"
 	// AdminServiceUpdateUserProcedure is the fully-qualified name of the AdminService's UpdateUser RPC.
 	AdminServiceUpdateUserProcedure = "/mygardenworld.v1.AdminService/UpdateUser"
-	// AdminServiceDeleteUserProcedure is the fully-qualified name of the AdminService's DeleteUser RPC.
-	AdminServiceDeleteUserProcedure = "/mygardenworld.v1.AdminService/DeleteUser"
 	// AdminServiceGetSystemStatsProcedure is the fully-qualified name of the AdminService's
 	// GetSystemStats RPC.
 	AdminServiceGetSystemStatsProcedure = "/mygardenworld.v1.AdminService/GetSystemStats"
@@ -52,9 +48,7 @@ const (
 type AdminServiceClient interface {
 	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
-	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
-	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
 	GetSystemStats(context.Context, *connect.Request[v1.GetSystemStatsRequest]) (*connect.Response[v1.GetSystemStatsResponse], error)
 }
 
@@ -81,22 +75,10 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("ListUsers")),
 			connect.WithClientOptions(opts...),
 		),
-		getUser: connect.NewClient[v1.GetUserRequest, v1.GetUserResponse](
-			httpClient,
-			baseURL+AdminServiceGetUserProcedure,
-			connect.WithSchema(adminServiceMethods.ByName("GetUser")),
-			connect.WithClientOptions(opts...),
-		),
 		updateUser: connect.NewClient[v1.UpdateUserRequest, v1.UpdateUserResponse](
 			httpClient,
 			baseURL+AdminServiceUpdateUserProcedure,
 			connect.WithSchema(adminServiceMethods.ByName("UpdateUser")),
-			connect.WithClientOptions(opts...),
-		),
-		deleteUser: connect.NewClient[v1.DeleteUserRequest, v1.DeleteUserResponse](
-			httpClient,
-			baseURL+AdminServiceDeleteUserProcedure,
-			connect.WithSchema(adminServiceMethods.ByName("DeleteUser")),
 			connect.WithClientOptions(opts...),
 		),
 		getSystemStats: connect.NewClient[v1.GetSystemStatsRequest, v1.GetSystemStatsResponse](
@@ -112,9 +94,7 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 type adminServiceClient struct {
 	createUser     *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
 	listUsers      *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
-	getUser        *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
 	updateUser     *connect.Client[v1.UpdateUserRequest, v1.UpdateUserResponse]
-	deleteUser     *connect.Client[v1.DeleteUserRequest, v1.DeleteUserResponse]
 	getSystemStats *connect.Client[v1.GetSystemStatsRequest, v1.GetSystemStatsResponse]
 }
 
@@ -128,19 +108,9 @@ func (c *adminServiceClient) ListUsers(ctx context.Context, req *connect.Request
 	return c.listUsers.CallUnary(ctx, req)
 }
 
-// GetUser calls mygardenworld.v1.AdminService.GetUser.
-func (c *adminServiceClient) GetUser(ctx context.Context, req *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
-	return c.getUser.CallUnary(ctx, req)
-}
-
 // UpdateUser calls mygardenworld.v1.AdminService.UpdateUser.
 func (c *adminServiceClient) UpdateUser(ctx context.Context, req *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error) {
 	return c.updateUser.CallUnary(ctx, req)
-}
-
-// DeleteUser calls mygardenworld.v1.AdminService.DeleteUser.
-func (c *adminServiceClient) DeleteUser(ctx context.Context, req *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error) {
-	return c.deleteUser.CallUnary(ctx, req)
 }
 
 // GetSystemStats calls mygardenworld.v1.AdminService.GetSystemStats.
@@ -152,9 +122,7 @@ func (c *adminServiceClient) GetSystemStats(ctx context.Context, req *connect.Re
 type AdminServiceHandler interface {
 	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
-	GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error)
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
-	DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error)
 	GetSystemStats(context.Context, *connect.Request[v1.GetSystemStatsRequest]) (*connect.Response[v1.GetSystemStatsResponse], error)
 }
 
@@ -177,22 +145,10 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("ListUsers")),
 		connect.WithHandlerOptions(opts...),
 	)
-	adminServiceGetUserHandler := connect.NewUnaryHandler(
-		AdminServiceGetUserProcedure,
-		svc.GetUser,
-		connect.WithSchema(adminServiceMethods.ByName("GetUser")),
-		connect.WithHandlerOptions(opts...),
-	)
 	adminServiceUpdateUserHandler := connect.NewUnaryHandler(
 		AdminServiceUpdateUserProcedure,
 		svc.UpdateUser,
 		connect.WithSchema(adminServiceMethods.ByName("UpdateUser")),
-		connect.WithHandlerOptions(opts...),
-	)
-	adminServiceDeleteUserHandler := connect.NewUnaryHandler(
-		AdminServiceDeleteUserProcedure,
-		svc.DeleteUser,
-		connect.WithSchema(adminServiceMethods.ByName("DeleteUser")),
 		connect.WithHandlerOptions(opts...),
 	)
 	adminServiceGetSystemStatsHandler := connect.NewUnaryHandler(
@@ -207,12 +163,8 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceCreateUserHandler.ServeHTTP(w, r)
 		case AdminServiceListUsersProcedure:
 			adminServiceListUsersHandler.ServeHTTP(w, r)
-		case AdminServiceGetUserProcedure:
-			adminServiceGetUserHandler.ServeHTTP(w, r)
 		case AdminServiceUpdateUserProcedure:
 			adminServiceUpdateUserHandler.ServeHTTP(w, r)
-		case AdminServiceDeleteUserProcedure:
-			adminServiceDeleteUserHandler.ServeHTTP(w, r)
 		case AdminServiceGetSystemStatsProcedure:
 			adminServiceGetSystemStatsHandler.ServeHTTP(w, r)
 		default:
@@ -232,16 +184,8 @@ func (UnimplementedAdminServiceHandler) ListUsers(context.Context, *connect.Requ
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.ListUsers is not implemented"))
 }
 
-func (UnimplementedAdminServiceHandler) GetUser(context.Context, *connect.Request[v1.GetUserRequest]) (*connect.Response[v1.GetUserResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.GetUser is not implemented"))
-}
-
 func (UnimplementedAdminServiceHandler) UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.UpdateUser is not implemented"))
-}
-
-func (UnimplementedAdminServiceHandler) DeleteUser(context.Context, *connect.Request[v1.DeleteUserRequest]) (*connect.Response[v1.DeleteUserResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.DeleteUser is not implemented"))
 }
 
 func (UnimplementedAdminServiceHandler) GetSystemStats(context.Context, *connect.Request[v1.GetSystemStatsRequest]) (*connect.Response[v1.GetSystemStatsResponse], error) {

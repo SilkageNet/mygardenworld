@@ -11,15 +11,6 @@ service PolicyService {
 
   // Replaces the entire policy struct.
   rpc SetPolicy(SetPolicyRequest) returns (SetPolicyResponse);
-
-  // Exports the full policy as protojson for backup or copying outside the UI.
-  rpc ExportPolicy(ExportPolicyRequest) returns (ExportPolicyResponse);
-
-  // Imports a full protojson policy. This replaces the account policy.
-  rpc ImportPolicy(ImportPolicyRequest) returns (ImportPolicyResponse);
-
-  // Copies one account's full policy to another account.
-  rpc CopyPolicy(CopyPolicyRequest) returns (CopyPolicyResponse);
 }
 
 message GetPolicyRequest {
@@ -38,35 +29,5 @@ message SetPolicyRequest {
 }
 
 message SetPolicyResponse {
-  Policy policy = 1;
-}
-
-message ExportPolicyRequest {
-  string account_id = 1;
-  string account_name = 2;
-}
-
-message ExportPolicyResponse {
-  string policy_json = 1;
-}
-
-message ImportPolicyRequest {
-  string account_id = 1;
-  string account_name = 2;
-  string policy_json = 3;
-}
-
-message ImportPolicyResponse {
-  Policy policy = 1;
-}
-
-message CopyPolicyRequest {
-  string source_account_id = 1;
-  string source_account_name = 2;
-  string target_account_id = 3;
-  string target_account_name = 4;
-}
-
-message CopyPolicyResponse {
   Policy policy = 1;
 }

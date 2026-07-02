@@ -2,16 +2,11 @@ package runner
 
 import (
 	"encoding/json"
-	"fmt"
-	"io"
-	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
-	"github.com/SilkageNet/mygardenworld/internal/state"
-	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 func TestWaterResponseIncludesDrops(t *testing.T) {
@@ -64,38 +59,219 @@ func TestWaterOneKeyUsesWaterOperationPath(t *testing.T) {
 	}
 }
 
-func TestNextLandUnlockCandidateDoesNotInventNextFourLands(t *testing.T) {
-	st := state.New()
-	roster := map[string]any{}
-	for id := int32(1001); id <= 1024; id++ {
-		roster[fmt.Sprint(id)] = map[string]any{}
+func TestCollectRewardOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCCollectRwdRecv.String(), TargetID: 11})
+	if err != nil {
+		t.Fatalf("operationArgs(collectRwd.recv): %v", err)
 	}
-	st.ApplyVMap(map[string]any{
-		"100": map[string]any{"0": map[string]any{"1": roster}},
-		"7":   map[string]any{"0": map[string]any{"34": 13, "44": 999999}},
-	})
+	recv, ok := args.(clientproto.CollectRwdRecvRequest)
+	if !ok {
+		t.Fatalf("operationArgs(collectRwd.recv)=%T, want CollectRwdRecvRequest", args)
+	}
+	if recv.Type != 11 {
+		t.Fatalf("CollectRwdRecvRequest.Type=%d, want 11", recv.Type)
+	}
 
-	if id, ok := nextLandUnlockCandidate(st); ok {
-		t.Fatalf("nextLandUnlockCandidate()=(%d,true), want no guessed candidate", id)
+	args, err = operationArgs(&automation.PlannedOp{Kind: clientproto.RPCCollectRwdRecvArtCreateRwdByVase.String(), TargetID: 3001})
+	if err != nil {
+		t.Fatalf("operationArgs(collectRwd.recvArtCreateRwdByVase): %v", err)
+	}
+	byVase, ok := args.(clientproto.CollectRwdRecvArtCreateRwdByVaseRequest)
+	if !ok {
+		t.Fatalf("operationArgs(collectRwd.recvArtCreateRwdByVase)=%T, want CollectRwdRecvArtCreateRwdByVaseRequest", args)
+	}
+	if byVase["flowerArtId"] != int32(3001) {
+		t.Fatalf("flowerArtId=%v, want 3001", byVase["flowerArtId"])
 	}
 }
 
-func TestNextLandUnlockCandidateUsesRuntimeLandConfig(t *testing.T) {
-	st := state.New()
-	roster := map[string]any{}
-	for id := int32(1001); id <= 1024; id++ {
-		roster[fmt.Sprint(id)] = map[string]any{}
+func TestShopCultivateOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopCultivateEnter.String()})
+	if err != nil {
+		t.Fatalf("operationArgs(shopCultivate.enter): %v", err)
 	}
-	st.ApplyVMap(map[string]any{
-		"100": map[string]any{"0": map[string]any{"1": roster}},
-		"7":   map[string]any{"0": map[string]any{"34": 13, "44": 1500}},
-	})
-	st.SetFarmLands([]state.FarmLandInfo{{ID: 1025, OpenLevel: 13, Cost: []int32{37, 1500}}})
+	if _, ok := args.(clientproto.ShopCultivateEnterRequest); !ok {
+		t.Fatalf("operationArgs(shopCultivate.enter)=%T, want ShopCultivateEnterRequest", args)
+	}
 
-	id, ok := nextLandUnlockCandidate(st)
-	if !ok || id != 1025 {
-		t.Fatalf("nextLandUnlockCandidate()=(%d,%t), want (1025,true)", id, ok)
+	args, err = operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopCultivateBuy.String(), TargetID: 10001})
+	if err != nil {
+		t.Fatalf("operationArgs(shopCultivate.buy): %v", err)
 	}
+	buy, ok := args.(clientproto.ShopCultivateBuyRequest)
+	if !ok {
+		t.Fatalf("operationArgs(shopCultivate.buy)=%T, want ShopCultivateBuyRequest", args)
+	}
+	if buy.ShopId != 10001 {
+		t.Fatalf("ShopCultivateBuyRequest.ShopId=%d, want 10001", buy.ShopId)
+	}
+}
+
+func TestShopGiftbagOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopGiftbagEnter.String()})
+	if err != nil {
+		t.Fatalf("operationArgs(shopGiftbag.enter): %v", err)
+	}
+	if _, ok := args.(clientproto.ShopGiftbagEnterRequest); !ok {
+		t.Fatalf("operationArgs(shopGiftbag.enter)=%T, want ShopGiftbagEnterRequest", args)
+	}
+
+	args, err = operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopGiftbagBuy.String(), TargetID: 1, Count: 1})
+	if err != nil {
+		t.Fatalf("operationArgs(shopGiftbag.buy): %v", err)
+	}
+	buy, ok := args.(clientproto.ShopGiftbagBuyRequest)
+	if !ok {
+		t.Fatalf("operationArgs(shopGiftbag.buy)=%T, want ShopGiftbagBuyRequest", args)
+	}
+	if buy.ShopId != 1 || buy.Num != 1 {
+		t.Fatalf("ShopGiftbagBuyRequest=%+v, want shopId=1 num=1", buy)
+	}
+}
+
+func TestUsrExtraAntiFraudOperationArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "update status", op: automation.PlannedOp{Kind: clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String()}, want: clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}},
+		{name: "recv reward", op: automation.PlannedOp{Kind: clientproto.RPCUsrExtraRecvAntiFraudQARwd.String()}, want: clientproto.UsrExtraRecvAntiFraudQARwdRequest{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
+	}
+}
+
+func TestZooOperationArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "enter", op: automation.PlannedOp{Kind: clientproto.RPCZooEnterZoo.String()}, want: clientproto.ZooEnterZooRequest{}},
+		{name: "feed", op: automation.PlannedOp{Kind: clientproto.RPCZooFeedPets.String(), TargetID: 1}, want: map[string]any{"petIdList": []int32{1}}},
+		{name: "stroke", op: automation.PlannedOp{Kind: clientproto.RPCZooStrokePet.String(), TargetID: 1}, want: map[string]any{"petId": int32(1)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
+	}
+}
+
+func TestPearlOperationArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "refresh", op: automation.PlannedOp{Kind: clientproto.RPCPearlRefresh.String()}, want: clientproto.PearlRefreshRequest{}},
+		{name: "daily free", op: automation.PlannedOp{Kind: clientproto.RPCPearlRecvDailyFree.String()}, want: clientproto.PearlRecvDailyFreeRequest{}},
+		{name: "place recv", op: automation.PlannedOp{Kind: clientproto.RPCPearlPlaceRecv.String(), TargetID: 2}, want: clientproto.PearlPlaceRecvRequest{PlaceId: 2}},
+		{name: "protect", op: automation.PlannedOp{Kind: clientproto.RPCPearlSetProtectState.String(), TargetID: 1}, want: clientproto.PearlSetProtectStateRequest{ProtectState: 1}},
+		{name: "draw", op: automation.PlannedOp{Kind: clientproto.RPCPearlDraw.String(), Count: 1}, want: clientproto.PearlDrawRequest{Count: 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
+	}
+}
+
+func TestFmlBuildOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlBuild.String(), TargetID: 2})
+	if err != nil {
+		t.Fatalf("operationArgs(Fml.build): %v", err)
+	}
+	build, ok := args.(clientproto.FmlBuildRequest)
+	if !ok {
+		t.Fatalf("operationArgs(Fml.build)=%T, want FmlBuildRequest", args)
+	}
+	if build.ID != 2 {
+		t.Fatalf("FmlBuildRequest.ID=%d, want 2", build.ID)
+	}
+}
+
+func TestFmlLandHarvestOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlLandHarvest.String(), LandIDs: []int32{1, 3}})
+	if err != nil {
+		t.Fatalf("operationArgs(fmlLand.harvest): %v", err)
+	}
+	harvest, ok := args.(clientproto.FmlLandHarvestRequest)
+	if !ok {
+		t.Fatalf("operationArgs(fmlLand.harvest)=%T, want FmlLandHarvestRequest", args)
+	}
+	if len(harvest.LandIds) != 2 || harvest.LandIds[0] != 1 || harvest.LandIds[1] != 3 {
+		t.Fatalf("FmlLandHarvestRequest.LandIds=%v, want [1 3]", harvest.LandIds)
+	}
+}
+
+func TestFmlForestRefreshOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlForestRefresh.String(), TargetID: 1})
+	if err != nil {
+		t.Fatalf("operationArgs(fmlForest.refresh): %v", err)
+	}
+	refresh, ok := args.(clientproto.FmlForestRefreshRequest)
+	if !ok {
+		t.Fatalf("operationArgs(fmlForest.refresh)=%T, want FmlForestRefreshRequest", args)
+	}
+	if refresh.IsAutoCollect != 1 {
+		t.Fatalf("FmlForestRefreshRequest.IsAutoCollect=%d, want 1", refresh.IsAutoCollect)
+	}
+}
+
+func TestFmlFlowerShareOperationArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "refresh", op: automation.PlannedOp{Kind: clientproto.RPCFmlFlowerShareRefresh.String()}, want: clientproto.FmlFlowerShareRefreshRequest{}},
+		{name: "other list", op: automation.PlannedOp{Kind: clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String()}, want: clientproto.FmlFlowerShareGetFmlOtherShareListRequest{}},
+		{name: "recv reward", op: automation.PlannedOp{Kind: clientproto.RPCFmlFlowerShareRecvRwd.String(), SlotIDs: []int32{1, 3}}, want: clientproto.FmlFlowerShareRecvRwdRequest{SlotIds: []int32{1, 3}}},
+		{name: "take", op: automation.PlannedOp{Kind: clientproto.RPCFmlFlowerShareTake.String(), TargetUID: 77900091102484, TargetID: 2}, want: clientproto.FmlFlowerShareTakeRequest{DstUid: 77900091102484, SlotId: 2}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
+	}
+}
+
+func jsonString(t *testing.T, v any) string {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal %T: %v", v, err)
+	}
+	return string(raw)
 }
 
 func TestApplyHarvestBlocksSkipsBlockedSingleLand(t *testing.T) {
@@ -152,132 +328,5 @@ func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 
 	if got := r.applyHarvestBlocks(op, now); got != op {
 		t.Fatalf("applyHarvestBlocks()=%+v, want original op", got)
-	}
-}
-
-func TestStateHandlersDoNotClearMaterialBlocksForWaterDropOnly(t *testing.T) {
-	r := newStateHandlerTestRunner()
-	r.installStateHandlers()
-	r.flowerUpgradeBlocked[23001] = flowerUpgradeBlock{Until: time.Now().Add(time.Hour)}
-	r.cultivateBlocked[23001] = time.Now().Add(time.Hour)
-
-	r.state.ApplyVMap(map[string]any{
-		"7": map[string]any{
-			"0": map[string]any{
-				"32": map[string]any{"7": 1},
-			},
-		},
-	})
-
-	if len(r.flowerUpgradeBlocked) != 1 {
-		t.Fatalf("flowerUpgradeBlocked was cleared by water-drop-only inventory change")
-	}
-	if len(r.cultivateBlocked) != 1 {
-		t.Fatalf("cultivateBlocked was cleared by water-drop-only inventory change")
-	}
-}
-
-func TestStateHandlersClearMaterialBlocksForMaterialInventoryChange(t *testing.T) {
-	r := newStateHandlerTestRunner()
-	r.installStateHandlers()
-	r.flowerUpgradeBlocked[23001] = flowerUpgradeBlock{Until: time.Now().Add(time.Hour)}
-	r.cultivateBlocked[23001] = time.Now().Add(time.Hour)
-
-	r.state.ApplyVMap(map[string]any{
-		"7": map[string]any{
-			"0": map[string]any{
-				"32": map[string]any{"23001": 1},
-			},
-		},
-	})
-
-	if len(r.flowerUpgradeBlocked) != 0 {
-		t.Fatalf("flowerUpgradeBlocked=%v, want cleared after material inventory change", r.flowerUpgradeBlocked)
-	}
-	if len(r.cultivateBlocked) != 0 {
-		t.Fatalf("cultivateBlocked=%v, want cleared after material inventory change", r.cultivateBlocked)
-	}
-}
-
-func TestStateHandlersClearOnlyFlowerUpgradeBlocksWhenGoldIncreases(t *testing.T) {
-	r := newStateHandlerTestRunner()
-	r.installStateHandlers()
-	r.prevGold = 100
-	r.flowerUpgradeBlocked[23001] = flowerUpgradeBlock{Until: time.Now().Add(time.Hour)}
-	r.flowerUpgradeBlocked[23002] = flowerUpgradeBlock{Until: time.Now().Add(time.Hour), ItemID: 3001, Have: 0}
-	r.cultivateBlocked[23001] = time.Now().Add(time.Hour)
-
-	r.state.ApplyVMap(map[string]any{
-		"7": map[string]any{
-			"0": map[string]any{
-				"44": 120,
-			},
-		},
-	})
-
-	if len(r.flowerUpgradeBlocked) != 1 {
-		t.Fatalf("flowerUpgradeBlocked=%v, want only item-specific block preserved after gold increase", r.flowerUpgradeBlocked)
-	}
-	if _, ok := r.flowerUpgradeBlocked[23002]; !ok {
-		t.Fatalf("item-specific flower upgrade block was cleared after gold increase: %v", r.flowerUpgradeBlocked)
-	}
-	if len(r.cultivateBlocked) != 1 {
-		t.Fatalf("cultivateBlocked=%v, want preserved after gold increase", r.cultivateBlocked)
-	}
-}
-
-func newStateHandlerTestRunner() *Runner {
-	return &Runner{
-		account:              &store.Account{ID: 1, Name: "test"},
-		log:                  slog.New(slog.NewTextHandler(io.Discard, nil)),
-		state:                state.New(),
-		harvestBlockedUntil:  make(map[int32]time.Time),
-		flowerUpgradeBlocked: make(map[int32]flowerUpgradeBlock),
-		cultivateBlocked:     make(map[int32]time.Time),
-	}
-}
-
-func TestResidentOrderDailyLimitHelpers(t *testing.T) {
-	if !isResidentOrderDailyLimit("今日完成订单次数已达上限") {
-		t.Fatal("daily limit message was not recognized")
-	}
-	if isResidentOrderDailyLimit("鲜花数量不足") {
-		t.Fatal("unrelated order error was recognized as daily limit")
-	}
-
-	loc := time.FixedZone("CST", 8*60*60)
-	got := nextLocalDay(time.Date(2026, 5, 21, 8, 19, 50, 0, loc))
-	want := time.Date(2026, 5, 22, 0, 5, 0, 0, loc)
-	if !got.Equal(want) {
-		t.Fatalf("nextLocalDay()=%s, want %s", got, want)
-	}
-}
-
-func TestNextFulfillableFlowerOrderBox(t *testing.T) {
-	orders := map[int32]*state.FlowerOrder{
-		1: {BoxID: 1, Requires: []state.FlowerRequire{{FlowerID: 23001, Count: 2}}},
-		2: {BoxID: 2, Requires: []state.FlowerRequire{{FlowerID: 23002, Count: 5}}},
-		3: {BoxID: 3, Requires: nil},
-		4: {BoxID: 4, Requires: []state.FlowerRequire{{FlowerID: 23003, Count: 2}}},
-	}
-	inventory := map[int32]int32{
-		23001: 2,
-		23002: 8,
-		23003: 1,
-	}
-
-	got, ok := nextFulfillableFlowerOrderBox(orders, inventory, nil)
-	if !ok || got != 1 {
-		t.Fatalf("nextFulfillableFlowerOrderBox()=(%d,%t), want (1,true)", got, ok)
-	}
-
-	got, ok = nextFulfillableFlowerOrderBox(orders, inventory, map[int32]bool{1: true})
-	if !ok || got != 2 {
-		t.Fatalf("nextFulfillableFlowerOrderBox(skip 1)=(%d,%t), want (2,true)", got, ok)
-	}
-
-	got, ok = nextFulfillableFlowerOrderBox(orders, inventory, map[int32]bool{1: true, 2: true})
-	if ok {
-		t.Fatalf("nextFulfillableFlowerOrderBox(skip ready boxes)=(%d,%t), want no match", got, ok)
 	}
 }

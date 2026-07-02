@@ -16,8 +16,6 @@ service AccountService {
 
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
 
-  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
-
   // Force a fresh username+password login for the account. Refreshes
   // session token, routeToken, gsHost. Daemon will rebuild the WS.
   rpc LoginAccount(LoginAccountRequest) returns (LoginAccountResponse);
@@ -55,15 +53,6 @@ message ListAccountsRequest {}
 
 message ListAccountsResponse {
   repeated Account accounts = 1;
-}
-
-message GetAccountRequest {
-  string id = 1;
-  string name = 2;
-}
-
-message GetAccountResponse {
-  Account account = 1;
 }
 
 message LoginAccountRequest {

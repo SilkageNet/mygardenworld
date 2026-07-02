@@ -117,6 +117,166 @@ type FlowerRackSlot struct {
 	UpdatedAtMs int64 `json:"updated_at_ms,omitempty"`
 }
 
+// VaseView represents one unlocked vase from namespace 102 (vaseTot).
+type VaseView struct {
+	VaseID  int32 `json:"vase_id"`
+	UTimeMs int64 `json:"u_time_ms,omitempty"`
+	CTimeMs int64 `json:"c_time_ms,omitempty"`
+}
+
+// FlowerArtView is the tracked subset of namespace 106 (flowerArtTot).
+type FlowerArtView struct {
+	Exp          int32           `json:"exp,omitempty"`
+	MakeList     []int32         `json:"make_list,omitempty"`
+	MakeListRaw  json.RawMessage `json:"make_list_raw,omitempty"`
+	SRecvList    []int32         `json:"s_recv_list,omitempty"`
+	SRecvListRaw json.RawMessage `json:"s_recv_list_raw,omitempty"`
+	UTimeMs      int64           `json:"u_time_ms,omitempty"`
+	CTimeMs      int64           `json:"c_time_ms,omitempty"`
+	Observed     bool            `json:"observed,omitempty"`
+}
+
+// CollectRewardView is the tracked subset of namespace 103 (collectRwdTot).
+type CollectRewardView struct {
+	Type               int32   `json:"type"`
+	Lvl                int32   `json:"lvl,omitempty"`
+	Exp                int32   `json:"exp,omitempty"`
+	RecvIDs            []int32 `json:"recv_ids,omitempty"`
+	ArtCreateRewardIDs []int32 `json:"art_create_reward_ids,omitempty"`
+	UTimeMs            int64   `json:"u_time_ms,omitempty"`
+	CTimeMs            int64   `json:"c_time_ms,omitempty"`
+}
+
+// FmlBuildView is the tracked subset of namespace 25 (fmlTot) needed for
+// guild build automation.
+type FmlBuildView struct {
+	Observed            bool            `json:"observed,omitempty"`
+	FmlID               int32           `json:"fml_id,omitempty"`
+	TodayBuildNum       int32           `json:"today_build_num,omitempty"`
+	LastBuildTimeMs     int64           `json:"last_build_time_ms,omitempty"`
+	BuildCountsObserved bool            `json:"build_counts_observed,omitempty"`
+	BuildCounts         map[int32]int32 `json:"build_counts,omitempty"`
+}
+
+// FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
+type FmlLandView struct {
+	LandID          int32 `json:"land_id"`
+	Level           int32 `json:"level,omitempty"`
+	FlowerID        int32 `json:"flower_id,omitempty"`
+	StartTimeMs     int64 `json:"start_time_ms,omitempty"`
+	MatureFlowerCnt int32 `json:"mature_flower_count,omitempty"`
+	HarvestedCnt    int32 `json:"harvested_count,omitempty"`
+	LastCalcTimeMs  int64 `json:"last_calc_time_ms,omitempty"`
+}
+
+// FmlForestEnergyView is the tracked subset of namespace 25.127
+// (fmlForestEnergy) needed for no-cost energy collection.
+type FmlForestEnergyView struct {
+	Observed                bool            `json:"observed,omitempty"`
+	UID                     int64           `json:"uid,omitempty"`
+	FmlID                   int32           `json:"fml_id,omitempty"`
+	EnergyByType            map[int32]int32 `json:"energy_by_type,omitempty"`
+	DailyEnergyByType       map[int32]int32 `json:"daily_energy_by_type,omitempty"`
+	PendingTempEnergyByType map[int32]int32 `json:"pending_temp_energy_by_type,omitempty"`
+	PendingTempEnergyTotal  int32           `json:"pending_temp_energy_total,omitempty"`
+	UpdatedAtMs             int64           `json:"updated_at_ms,omitempty"`
+	LastDailyRefreshTimeMs  int64           `json:"last_daily_refresh_time_ms,omitempty"`
+}
+
+// FmlFlowerShareSlotView is one guild flower-share slot.
+type FmlFlowerShareSlotView struct {
+	SlotID           int32 `json:"slot_id"`
+	FlowerID         int32 `json:"flower_id,omitempty"`
+	ShareNum         int32 `json:"share_num,omitempty"`
+	TakeNum          int32 `json:"take_num,omitempty"`
+	ShareStartTimeMs int64 `json:"share_start_time_ms,omitempty"`
+}
+
+// FmlFlowerShareView is namespace 25.107/25.108 guild flower sharing state.
+type FmlFlowerShareView struct {
+	Observed       bool                             `json:"observed,omitempty"`
+	UID            int64                            `json:"uid,omitempty"`
+	TdyTakeCnt     int32                            `json:"today_take_count,omitempty"`
+	LastTakeTimeMs int64                            `json:"last_take_time_ms,omitempty"`
+	UpdatedAtMs    int64                            `json:"updated_at_ms,omitempty"`
+	CreatedAtMs    int64                            `json:"created_at_ms,omitempty"`
+	Slots          map[int32]FmlFlowerShareSlotView `json:"slots,omitempty"`
+}
+
+// FmlFlowerTakeCandidate is one no-cost guild flower-share take candidate.
+type FmlFlowerTakeCandidate struct {
+	UID       int64 `json:"uid,omitempty"`
+	SlotID    int32 `json:"slot_id"`
+	FlowerID  int32 `json:"flower_id,omitempty"`
+	ShareNum  int32 `json:"share_num,omitempty"`
+	TakeNum   int32 `json:"take_num,omitempty"`
+	Available int32 `json:"available,omitempty"`
+}
+
+// ShopCultivateOfferView is one buyable material-shop offer from namespace 113.
+type ShopCultivateOfferView struct {
+	ShopID     int32 `json:"shop_id"`
+	ItemID     int32 `json:"item_id,omitempty"`
+	ItemCount  int32 `json:"item_count,omitempty"`
+	CostItemID int32 `json:"cost_item_id,omitempty"`
+	CostCount  int32 `json:"cost_count,omitempty"`
+	Bought     int32 `json:"bought,omitempty"`
+	BuyLimit   int32 `json:"buy_limit,omitempty"`
+	Remaining  int32 `json:"remaining,omitempty"`
+	Sort       int32 `json:"sort,omitempty"`
+}
+
+// ShopGiftbagOfferView is one configured gift-bag shop item enriched with
+// namespace 112 purchase records.
+type ShopGiftbagOfferView struct {
+	ShopID      int32       `json:"shop_id"`
+	Type        int32       `json:"type,omitempty"`
+	ShareID     int32       `json:"share_id,omitempty"`
+	RchgID      int32       `json:"rchg_id,omitempty"`
+	MoneyID     int32       `json:"money_id,omitempty"`
+	Price       int32       `json:"price,omitempty"`
+	PriceMax    int32       `json:"price_max,omitempty"`
+	DailyLimit  int32       `json:"daily_limit,omitempty"`
+	WeeklyLimit int32       `json:"weekly_limit,omitempty"`
+	MonthLimit  int32       `json:"month_limit,omitempty"`
+	TotalLimit  int32       `json:"total_limit,omitempty"`
+	DailyBought int32       `json:"daily_bought,omitempty"`
+	WeekBought  int32       `json:"week_bought,omitempty"`
+	MonthBought int32       `json:"month_bought,omitempty"`
+	TotalBought int32       `json:"total_bought,omitempty"`
+	Remaining   int32       `json:"remaining,omitempty"`
+	Sort        int32       `json:"sort,omitempty"`
+	Rewards     []ItemCount `json:"rewards,omitempty"`
+}
+
+// PearlView is the tracked subset of namespace 115.1 (pearl).
+type PearlView struct {
+	ProtectState  int32 `json:"protect_state,omitempty"`
+	ProtectNum    int32 `json:"protect_num,omitempty"`
+	OwnerUID      int64 `json:"owner_uid,omitempty"`
+	LaborEndTime  int64 `json:"labor_end_time_ms,omitempty"`
+	RecvDailyDate int64 `json:"recv_daily_date_ms,omitempty"`
+	HireState     int32 `json:"hire_state,omitempty"`
+	SmallDrawCnt  int32 `json:"small_draw_cnt,omitempty"`
+	UTimeMs       int64 `json:"u_time_ms,omitempty"`
+	CTimeMs       int64 `json:"c_time_ms,omitempty"`
+	Observed      bool  `json:"observed,omitempty"`
+}
+
+// PearlPlaceView is one pearl labor/production slot from namespace 115.0.
+type PearlPlaceView struct {
+	PlaceID        int32 `json:"place_id"`
+	LaborUID       int64 `json:"labor_uid,omitempty"`
+	LaborEndTime   int64 `json:"labor_end_time_ms,omitempty"`
+	HireFailCnt    int32 `json:"hire_fail_cnt,omitempty"`
+	EventID        int32 `json:"event_id,omitempty"`
+	EveryMakeNum   int32 `json:"every_make_num,omitempty"`
+	RecvCnt        int32 `json:"recv_cnt,omitempty"`
+	SurplusRecvNum int32 `json:"surplus_recv_num,omitempty"`
+	UTimeMs        int64 `json:"u_time_ms,omitempty"`
+	CTimeMs        int64 `json:"c_time_ms,omitempty"`
+}
+
 // FlowerRequire is a single flower requirement in an order.
 type FlowerRequire struct {
 	FlowerID int32 `json:"flower_id"`
@@ -172,6 +332,56 @@ type RandomEventView struct {
 	Affair  int32 `json:"affair"`
 }
 
+const (
+	// AntiFraudQAStatusClaimed is the client-observed terminal state for the
+	// anti-fraud QA reward. Any other observed state keeps the red-dot entry
+	// visible in game.js.
+	AntiFraudQAStatusClaimed int32 = 2
+)
+
+// UsrExtraView is the tracked subset of 7.13.1 (G.IUsrExtra).
+type UsrExtraView struct {
+	Observed              bool  `json:"observed,omitempty"`
+	AntiFraudQAStatus     int32 `json:"anti_fraud_qa_status,omitempty"`
+	LastAntiFraudQATimeMs int64 `json:"last_anti_fraud_qa_time_ms,omitempty"`
+}
+
+// VideoDoubleView is the tracked subset of namespace 118 (G.IVideoDouble).
+type VideoDoubleView struct {
+	Observed    bool  `json:"observed,omitempty"`
+	UID         int64 `json:"uid,omitempty"`
+	VideoCount  int32 `json:"video_count,omitempty"`
+	EndTimeMs   int64 `json:"end_time_ms,omitempty"`
+	UpdatedAtMs int64 `json:"updated_at_ms,omitempty"`
+	CreatedAtMs int64 `json:"created_at_ms,omitempty"`
+}
+
+// ZooView is the tracked subset of namespace 33.0 (G.IZoo).
+type ZooView struct {
+	Observed          bool    `json:"observed,omitempty"`
+	UID               int64   `json:"uid,omitempty"`
+	Comfort           int32   `json:"comfort,omitempty"`
+	PetIDs            []int32 `json:"pet_ids,omitempty"`
+	ReadLogTimeMs     int64   `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs       int64   `json:"updated_at_ms,omitempty"`
+	SouvenirRewardIDs []int32 `json:"souvenir_reward_ids,omitempty"`
+}
+
+// ZooPetView is one pet from namespace 33.1.<petId> (G.IZooPet).
+type ZooPetView struct {
+	PetID          int32   `json:"pet_id"`
+	UID            int64   `json:"uid,omitempty"`
+	MoodValue      int32   `json:"mood_value,omitempty"`
+	SatietyValue   int32   `json:"satiety_value,omitempty"`
+	FoodstuffIDs   []int32 `json:"foodstuff_ids,omitempty"`
+	Status         int32   `json:"status,omitempty"`
+	StrokeCdTimeMs int64   `json:"stroke_cd_time_ms,omitempty"`
+	StatusCdTimeMs int64   `json:"status_cd_time_ms,omitempty"`
+	GoOutCdTimeMs  int64   `json:"go_out_cd_time_ms,omitempty"`
+	GetHomeTimeMs  int64   `json:"get_home_time_ms,omitempty"`
+	UpdatedAtMs    int64   `json:"updated_at_ms,omitempty"`
+}
+
 // State is the per-account in-memory tracker.
 type State struct {
 	mu sync.RWMutex
@@ -197,15 +407,40 @@ type State struct {
 	hasWaterDropsItem  bool  // whether namespace 7 has carried itemId=7 at least once
 	waterDropsTotal    int32 // 7.0.33.7.1 observed water-drop capacity / total
 	waterDropsNextMs   int64 // 7.0.33.7.5 下次恢复时间 ms
-	waterDropsReserved int32 // drops committed to in-flight water RPCs
+	waterDropsInFlight int32 // drops committed to in-flight water RPCs
 
 	wwClaimedCount int32 // 114.1 水车已领取总次数
 	wwLastRecvTs   int64 // 114.4 uTime; used as the latest observed claim/update timestamp
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
 
-	customerOrders map[int32]*CustomerOrder  // 109.0.1.<npcId> 当前活跃顾客订单
-	flowerRack     map[int32]*FlowerRackSlot // 104.0.<rackId> 花艺货架
+	customerOrders        map[int32]*CustomerOrder  // 109.0.1.<npcId> 当前活跃顾客订单
+	flowerRack            map[int32]*FlowerRackSlot // 104.0.<rackId> 花艺货架
+	vases                 map[int32]*VaseView       // 102.0.<vaseId> 已解锁花瓶
+	vaseObserved          bool
+	collectRewards        map[int32]*CollectRewardView // 103.0.<type> 图鉴/制作奖励状态
+	collectRewardObserved bool
+	flowerArt             FlowerArtView // 106.0 花艺制作/分享状态
+	fmlBuild              FmlBuildView  // 25.0/25.133 公会建设状态
+	fmlLandObserved       bool
+	fmlLands              map[int32]*FmlLandView // 25.102.1.<landId> 公会土地
+	fmlForestEnergy       FmlForestEnergyView    // 25.127 能量森林
+	fmlFlowerShare        FmlFlowerShareView     // 25.107 自己的公会鲜花分享
+	fmlOtherFlowerShares  map[int64]*FmlFlowerShareView
+	fmlOtherShareObserved bool
+	shopGiftbagDRecord    map[int32]int32 // 112.1 daily purchase counts
+	shopGiftbagWRecord    map[int32]int32 // 112.2 weekly purchase counts
+	shopGiftbagMRecord    map[int32]int32 // 112.3 monthly purchase counts
+	shopGiftbagTRecord    map[int32]int32 // 112.4 total purchase counts
+	shopGiftbagObserved   bool
+	shopCultivateCosts    map[int32]ItemCount // 113.1.<shopId> material-shop dynamic cost
+	shopCultivateBought   map[int32]int32     // 113.6.<shopId> bought count
+	shopCultivateObserved bool
+	pearl                 PearlView
+	pearlPlaces           map[int32]*PearlPlaceView // 115.0.<placeId>
+	pearlDrawCount        int32                     // count derived from 115.2 drawList
+	pearlDrawRaw          json.RawMessage
+	pearlObserved         bool
 
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
@@ -225,6 +460,11 @@ type State struct {
 	benefitBoxResetCntMs int64 // 116.0.2 resetCntTime
 	benefitBoxUTimeMs    int64 // 116.0.3 uTime
 	benefitBoxObserved   bool  // namespace 116 has been observed at least once
+	usrExtra             UsrExtraView
+	videoDouble          VideoDoubleView
+	zoo                  ZooView
+	zooPets              map[int32]*ZooPetView
+	zooObserved          bool
 
 	// Recent server-side activity timestamp; updated on every apply.
 	lastApplyMs int64
@@ -288,12 +528,27 @@ func New() *State {
 		cultivations:               make(map[int32]*CultivateView),
 		customerOrders:             make(map[int32]*CustomerOrder),
 		flowerRack:                 make(map[int32]*FlowerRackSlot),
+		vases:                      make(map[int32]*VaseView),
+		collectRewards:             make(map[int32]*CollectRewardView),
+		fmlBuild:                   FmlBuildView{BuildCounts: make(map[int32]int32)},
+		fmlLands:                   make(map[int32]*FmlLandView),
+		fmlForestEnergy:            FmlForestEnergyView{EnergyByType: make(map[int32]int32), DailyEnergyByType: make(map[int32]int32), PendingTempEnergyByType: make(map[int32]int32)},
+		fmlFlowerShare:             FmlFlowerShareView{Slots: make(map[int32]FmlFlowerShareSlotView)},
+		fmlOtherFlowerShares:       make(map[int64]*FmlFlowerShareView),
+		shopGiftbagDRecord:         make(map[int32]int32),
+		shopGiftbagWRecord:         make(map[int32]int32),
+		shopGiftbagMRecord:         make(map[int32]int32),
+		shopGiftbagTRecord:         make(map[int32]int32),
+		shopCultivateCosts:         make(map[int32]ItemCount),
+		shopCultivateBought:        make(map[int32]int32),
+		pearlPlaces:                make(map[int32]*PearlPlaceView),
 		flowerOrders:               make(map[int32]*FlowerOrder),
 		flowerOrderRewardsReceived: make(map[int32]bool),
 		dailyTasks:                 make(map[int32]*DailyTaskView),
 		weeklyTasks:                make(map[int32]*WeeklyTaskView),
 		roadGrowReceived:           make(map[int32]bool),
 		randomEvents:               make(map[int32]*RandomEventView),
+		zooPets:                    make(map[int32]*ZooPetView),
 	}
 }
 
@@ -394,13 +649,23 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 		var ns map[string]json.RawMessage
 		if err := json.Unmarshal(rawNS7, &ns); err == nil {
 			s.applyInventoryLocked(ns)
+			s.applyUsrExtraLocked(ns)
 		}
 	}
 	if rawNS114, ok := top["114"]; ok {
 		s.applyWaterwheelLocked(rawNS114)
 	}
+	if rawNS115, ok := top["115"]; ok {
+		s.applyPearlLocked(rawNS115)
+	}
 	if rawNS101, ok := top["101"]; ok {
 		s.applyCultivationsLocked(rawNS101)
+	}
+	if rawNS102, ok := top["102"]; ok {
+		s.applyVasesLocked(rawNS102)
+	}
+	if rawNS103, ok := top["103"]; ok {
+		s.applyCollectRewardsLocked(rawNS103)
 	}
 	if rawNS109, ok := top["109"]; ok {
 		s.applyCustomerOrdersLocked(rawNS109)
@@ -411,6 +676,18 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	if rawNS105, ok := top["105"]; ok {
 		s.applyFlowerOrdersLocked(rawNS105)
 	}
+	if rawNS106, ok := top["106"]; ok {
+		s.applyFlowerArtLocked(rawNS106)
+	}
+	if rawNS25, ok := top["25"]; ok {
+		s.applyFmlLocked(rawNS25)
+	}
+	if rawNS112, ok := top["112"]; ok {
+		s.applyShopGiftbagLocked(rawNS112)
+	}
+	if rawNS113, ok := top["113"]; ok {
+		s.applyShopCultivateLocked(rawNS113)
+	}
 	if rawNS22, ok := top["22"]; ok {
 		s.applyTasksLocked(rawNS22)
 	}
@@ -420,11 +697,17 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	if rawNS116, ok := top["116"]; ok {
 		s.applyBenefitBoxLocked(rawNS116)
 	}
+	if rawNS118, ok := top["118"]; ok {
+		s.applyVideoDoubleLocked(rawNS118)
+	}
 	if rawNS119, ok := top["119"]; ok {
 		s.applyRoadGrowLocked(rawNS119)
 	}
 	if rawNS129, ok := top["129"]; ok {
 		s.applyRandomEventsLocked(rawNS129)
+	}
+	if rawNS33, ok := top["33"]; ok {
+		s.applyZooLocked(rawNS33)
 	}
 
 	resourcesChanged := s.gold != prevGold || s.currentWaterDropsLocked() != prevWaterDrops ||
@@ -611,6 +894,155 @@ func (s *State) applyInventoryLocked(ns7 map[string]json.RawMessage) {
 	}
 }
 
+func (s *State) applyUsrExtraLocked(ns7 map[string]json.RawMessage) {
+	raw13, ok := ns7["13"]
+	if !ok {
+		return
+	}
+	var usrExtTot map[string]json.RawMessage
+	if err := json.Unmarshal(raw13, &usrExtTot); err != nil {
+		return
+	}
+	rawExtra, ok := usrExtTot["1"]
+	if !ok {
+		return
+	}
+	var extra map[string]json.RawMessage
+	if err := json.Unmarshal(rawExtra, &extra); err != nil {
+		return
+	}
+	s.usrExtra.Observed = true
+	if rawStatus, ok := extra["104"]; ok {
+		var n int32
+		if json.Unmarshal(rawStatus, &n) == nil {
+			s.usrExtra.AntiFraudQAStatus = n
+		}
+	}
+	if rawTime, ok := extra["105"]; ok {
+		var n int64
+		if json.Unmarshal(rawTime, &n) == nil {
+			s.usrExtra.LastAntiFraudQATimeMs = n
+		}
+	}
+}
+
+func (s *State) applyZooLocked(raw json.RawMessage) {
+	var ns33 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns33); err != nil {
+		return
+	}
+	s.zooObserved = true
+	if rawData, ok := ns33["0"]; ok {
+		if zoo, ok := parseZooView(rawData); ok {
+			s.zoo = zoo
+		}
+	}
+	if rawPets, ok := ns33["1"]; ok {
+		s.applyZooPetMapLocked(rawPets)
+	}
+}
+
+func parseZooView(raw json.RawMessage) (ZooView, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ZooView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ZooView{}, false
+	}
+	view := ZooView{Observed: true}
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if rawPetIDs, ok := fields["3"]; ok {
+		view.PetIDs = readInt32ListRaw(rawPetIDs)
+	}
+	if n, ok := readInt64JSONField(fields, "2"); ok {
+		view.ReadLogTimeMs = n
+	}
+	if n, ok := readInt32JSONField(fields, "6"); ok {
+		view.Comfort = n
+	}
+	if n, ok := readInt64JSONField(fields, "8"); ok {
+		view.UpdatedAtMs = n
+	}
+	if rawRewards, ok := fields["13"]; ok {
+		view.SouvenirRewardIDs = readInt32ListRaw(rawRewards)
+	}
+	return view, true
+}
+
+func (s *State) applyZooPetMapLocked(raw json.RawMessage) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var petMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &petMap); err != nil {
+		return
+	}
+	if s.zooPets == nil {
+		s.zooPets = make(map[int32]*ZooPetView)
+	}
+	for petIDStr, rawPet := range petMap {
+		petID := atoi32(petIDStr)
+		base := ZooPetView{PetID: petID}
+		if old := s.zooPets[petID]; old != nil {
+			base = cloneZooPetView(*old)
+		}
+		pet, ok := parseZooPetView(rawPet, base)
+		if !ok || pet.PetID <= 0 {
+			continue
+		}
+		cp := pet
+		s.zooPets[pet.PetID] = &cp
+	}
+}
+
+func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ZooPetView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ZooPetView{}, false
+	}
+	pet := base
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		pet.UID = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
+		pet.PetID = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		pet.MoodValue = n
+	}
+	if n, ok := readInt32JSONField(fields, "3"); ok {
+		pet.SatietyValue = n
+	}
+	if rawFood, ok := fields["4"]; ok {
+		pet.FoodstuffIDs = readInt32OrderedListRaw(rawFood)
+	}
+	if n, ok := readInt32JSONField(fields, "5"); ok {
+		pet.Status = n
+	}
+	if n, ok := readInt64JSONField(fields, "12"); ok {
+		pet.StrokeCdTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "13"); ok {
+		pet.GetHomeTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "14"); ok {
+		pet.StatusCdTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "15"); ok {
+		pet.GoOutCdTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "23"); ok {
+		pet.UpdatedAtMs = n
+	}
+	return pet, true
+}
+
 func (s *State) applyInventoryCountsLocked(raw json.RawMessage, absolute bool) {
 	var inv map[string]any
 	if err := json.Unmarshal(raw, &inv); err != nil {
@@ -700,6 +1132,28 @@ func cloneInt32Map(src map[int32]int32) map[int32]int32 {
 		dst[k] = v
 	}
 	return dst
+}
+
+func cloneFmlFlowerShareView(src FmlFlowerShareView) FmlFlowerShareView {
+	out := src
+	out.Slots = make(map[int32]FmlFlowerShareSlotView, len(src.Slots))
+	for slotID, slot := range src.Slots {
+		out.Slots[slotID] = slot
+	}
+	return out
+}
+
+func cloneZooView(src ZooView) ZooView {
+	out := src
+	out.PetIDs = append([]int32(nil), src.PetIDs...)
+	out.SouvenirRewardIDs = append([]int32(nil), src.SouvenirRewardIDs...)
+	return out
+}
+
+func cloneZooPetView(src ZooPetView) ZooPetView {
+	out := src
+	out.FoodstuffIDs = append([]int32(nil), src.FoodstuffIDs...)
+	return out
 }
 
 func inventoryChanges(before, after map[int32]int32) []InventoryItemDelta {
@@ -939,6 +1393,587 @@ func (s *State) applyFlowerRackLocked(raw json.RawMessage) {
 			slot.ItemID = 0
 			slot.Count = 0
 		}
+	}
+}
+
+func (s *State) applyVasesLocked(raw json.RawMessage) {
+	var ns102 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns102); err != nil {
+		return
+	}
+	raw0, ok := ns102["0"]
+	if !ok {
+		return
+	}
+	var vaseMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &vaseMap); err != nil {
+		return
+	}
+	s.vaseObserved = true
+	next := make(map[int32]*VaseView, len(vaseMap))
+	for vaseIDStr, rawVase := range vaseMap {
+		vaseID := atoi32(vaseIDStr)
+		if vaseID <= 0 {
+			continue
+		}
+		view := &VaseView{VaseID: vaseID}
+		if len(rawVase) > 0 && string(rawVase) != "{}" {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(rawVase, &fields); err == nil {
+				if rawID, ok := fields["1"]; ok {
+					var n int32
+					if json.Unmarshal(rawID, &n) == nil && n > 0 {
+						view.VaseID = n
+					}
+				}
+				if rawUTime, ok := fields["2"]; ok {
+					_ = json.Unmarshal(rawUTime, &view.UTimeMs)
+				}
+				if rawCTime, ok := fields["3"]; ok {
+					_ = json.Unmarshal(rawCTime, &view.CTimeMs)
+				}
+			}
+		}
+		next[view.VaseID] = view
+	}
+	s.vases = next
+}
+
+func (s *State) applyFlowerArtLocked(raw json.RawMessage) {
+	var ns106 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns106); err != nil {
+		return
+	}
+	raw0, ok := ns106["0"]
+	if !ok {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &fields); err != nil {
+		return
+	}
+	s.flowerArt.Observed = true
+	if rawExp, ok := fields["1"]; ok {
+		_ = json.Unmarshal(rawExp, &s.flowerArt.Exp)
+	}
+	if rawMakeList, ok := fields["2"]; ok {
+		s.flowerArt.MakeListRaw = cloneRaw(rawMakeList)
+		s.flowerArt.MakeList = readInt32ListRaw(rawMakeList)
+	}
+	if rawSRecvList, ok := fields["3"]; ok {
+		s.flowerArt.SRecvListRaw = cloneRaw(rawSRecvList)
+		s.flowerArt.SRecvList = readInt32ListRaw(rawSRecvList)
+	}
+	if rawUTime, ok := fields["4"]; ok {
+		_ = json.Unmarshal(rawUTime, &s.flowerArt.UTimeMs)
+	}
+	if rawCTime, ok := fields["5"]; ok {
+		_ = json.Unmarshal(rawCTime, &s.flowerArt.CTimeMs)
+	}
+}
+
+func (s *State) applyFmlLocked(raw json.RawMessage) {
+	var ns25 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns25); err != nil {
+		return
+	}
+	s.fmlBuild.Observed = true
+	if s.fmlBuild.BuildCounts == nil {
+		s.fmlBuild.BuildCounts = make(map[int32]int32)
+	}
+	if rawFml, ok := ns25["0"]; ok {
+		s.applyFmlObjectLocked(rawFml)
+	}
+	if rawBuild, ok := ns25["133"]; ok {
+		s.applyFmlBuildObjectLocked(rawBuild)
+	}
+	if rawLand, ok := ns25["102"]; ok {
+		s.applyFmlLandObjectLocked(rawLand)
+	}
+	if rawForestEnergy, ok := ns25["127"]; ok {
+		s.applyFmlForestEnergyObjectLocked(rawForestEnergy)
+	}
+	if rawShare, ok := ns25["107"]; ok {
+		if view, ok := parseFmlFlowerShare(rawShare); ok {
+			s.fmlFlowerShare = view
+		}
+	}
+	if rawOtherShares, ok := ns25["108"]; ok {
+		s.applyOtherFmlFlowerSharesObjectLocked(rawOtherShares)
+	}
+}
+
+func (s *State) applyFmlObjectLocked(raw json.RawMessage) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if id, ok := readInt32JSONField(fields, "0"); ok {
+		s.fmlBuild.FmlID = id
+	}
+	if count, ok := readInt32JSONField(fields, "19", "113"); ok {
+		s.fmlBuild.TodayBuildNum = count
+	}
+	if ts, ok := readInt64JSONField(fields, "20", "29"); ok {
+		s.fmlBuild.LastBuildTimeMs = ts
+	}
+	if rawCounts, ok := fields["30"]; ok {
+		s.setFmlBuildCountsLocked(rawCounts)
+	}
+}
+
+func (s *State) applyFmlBuildObjectLocked(raw json.RawMessage) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if id, ok := readInt32JSONField(fields, "1"); ok {
+		s.fmlBuild.FmlID = id
+	}
+	if ts, ok := readInt64JSONField(fields, "4"); ok {
+		s.fmlBuild.LastBuildTimeMs = ts
+	}
+	if rawCounts, ok := fields["5"]; ok {
+		s.setFmlBuildCountsLocked(rawCounts)
+	}
+}
+
+func (s *State) setFmlBuildCountsLocked(raw json.RawMessage) {
+	counts := readInt32RawMap(raw)
+	s.fmlBuild.BuildCountsObserved = true
+	s.fmlBuild.BuildCounts = counts
+}
+
+func (s *State) applyFmlLandObjectLocked(raw json.RawMessage) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	rawLandMap, ok := fields["1"]
+	if !ok {
+		return
+	}
+	var landMap map[string]json.RawMessage
+	if err := json.Unmarshal(rawLandMap, &landMap); err != nil {
+		return
+	}
+	next := make(map[int32]*FmlLandView, len(landMap))
+	for landIDStr, rawLand := range landMap {
+		landID := atoi32(landIDStr)
+		if landID <= 0 {
+			continue
+		}
+		view := &FmlLandView{LandID: landID}
+		if len(rawLand) > 0 && string(rawLand) != "{}" {
+			var landFields map[string]json.RawMessage
+			if err := json.Unmarshal(rawLand, &landFields); err == nil {
+				if n, ok := readInt32JSONField(landFields, "0"); ok {
+					view.Level = n
+				}
+				if n, ok := readInt32JSONField(landFields, "1"); ok {
+					view.FlowerID = n
+				}
+				if n, ok := readInt64JSONField(landFields, "2"); ok {
+					view.StartTimeMs = n
+				}
+				if n, ok := readInt32JSONField(landFields, "3"); ok {
+					view.MatureFlowerCnt = n
+				}
+				if n, ok := readInt32JSONField(landFields, "4"); ok {
+					view.HarvestedCnt = n
+				}
+				if n, ok := readInt64JSONField(landFields, "5"); ok {
+					view.LastCalcTimeMs = n
+				}
+			}
+		}
+		next[landID] = view
+	}
+	s.fmlLands = next
+	s.fmlLandObserved = true
+}
+
+func (s *State) applyFmlForestEnergyObjectLocked(raw json.RawMessage) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	view := FmlForestEnergyView{Observed: true}
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.FmlID = n
+	}
+	if rawEnergy, ok := fields["2"]; ok {
+		view.EnergyByType = readInt32RawMap(rawEnergy)
+	}
+	if rawDaily, ok := fields["6"]; ok {
+		view.DailyEnergyByType = readInt32RawMap(rawDaily)
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.UpdatedAtMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "7"); ok {
+		view.LastDailyRefreshTimeMs = n
+	}
+	if rawTemp, ok := fields["8"]; ok {
+		view.PendingTempEnergyByType, view.PendingTempEnergyTotal = readNestedInt32RawMapTotals(rawTemp)
+	}
+	if view.EnergyByType == nil {
+		view.EnergyByType = map[int32]int32{}
+	}
+	if view.DailyEnergyByType == nil {
+		view.DailyEnergyByType = map[int32]int32{}
+	}
+	if view.PendingTempEnergyByType == nil {
+		view.PendingTempEnergyByType = map[int32]int32{}
+	}
+	s.fmlForestEnergy = view
+}
+
+func (s *State) applyOtherFmlFlowerSharesObjectLocked(raw json.RawMessage) {
+	next := make(map[int64]*FmlFlowerShareView)
+	if len(raw) == 0 || string(raw) == "null" {
+		s.fmlOtherFlowerShares = next
+		s.fmlOtherShareObserved = true
+		return
+	}
+	var list []json.RawMessage
+	if err := json.Unmarshal(raw, &list); err == nil {
+		for _, rawShare := range list {
+			view, ok := parseFmlFlowerShare(rawShare)
+			if !ok || view.UID == 0 {
+				continue
+			}
+			cp := view
+			next[view.UID] = &cp
+		}
+		s.fmlOtherFlowerShares = next
+		s.fmlOtherShareObserved = true
+		return
+	}
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return
+	}
+	for uidStr, rawShare := range values {
+		view, ok := parseFmlFlowerShare(rawShare)
+		if !ok {
+			continue
+		}
+		if view.UID == 0 {
+			view.UID = atoi64(uidStr)
+		}
+		if view.UID == 0 {
+			continue
+		}
+		cp := view
+		next[view.UID] = &cp
+	}
+	s.fmlOtherFlowerShares = next
+	s.fmlOtherShareObserved = true
+}
+
+func parseFmlFlowerShare(raw json.RawMessage) (FmlFlowerShareView, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return FmlFlowerShareView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return FmlFlowerShareView{}, false
+	}
+	view := FmlFlowerShareView{Observed: true, Slots: make(map[int32]FmlFlowerShareSlotView)}
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if rawSlots, ok := fields["1"]; ok {
+		view.Slots = parseFmlFlowerShareSlots(rawSlots)
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.TdyTakeCnt = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.LastTakeTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.UpdatedAtMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "5"); ok {
+		view.CreatedAtMs = n
+	}
+	return view, true
+}
+
+func parseFmlFlowerShareSlots(raw json.RawMessage) map[int32]FmlFlowerShareSlotView {
+	out := make(map[int32]FmlFlowerShareSlotView)
+	if len(raw) == 0 || string(raw) == "null" {
+		return out
+	}
+	var slots map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &slots); err != nil {
+		return out
+	}
+	for slotIDStr, rawSlot := range slots {
+		slotID := atoi32(slotIDStr)
+		if slotID <= 0 {
+			continue
+		}
+		slot := FmlFlowerShareSlotView{SlotID: slotID}
+		if len(rawSlot) > 0 && string(rawSlot) != "{}" {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(rawSlot, &fields); err == nil {
+				if n, ok := readInt32JSONField(fields, "0"); ok {
+					slot.FlowerID = n
+				}
+				if n, ok := readInt32JSONField(fields, "1"); ok {
+					slot.ShareNum = n
+				}
+				if n, ok := readInt32JSONField(fields, "2"); ok {
+					slot.TakeNum = n
+				}
+				if n, ok := readInt64JSONField(fields, "3"); ok {
+					slot.ShareStartTimeMs = n
+				}
+			}
+		}
+		out[slotID] = slot
+	}
+	return out
+}
+
+func (s *State) applyCollectRewardsLocked(raw json.RawMessage) {
+	var ns103 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns103); err != nil {
+		return
+	}
+	raw0, ok := ns103["0"]
+	if !ok {
+		return
+	}
+	var rewards map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &rewards); err != nil {
+		return
+	}
+	next := make(map[int32]*CollectRewardView, len(rewards))
+	for typeStr, rawReward := range rewards {
+		typeID := atoi32(typeStr)
+		if typeID == 0 {
+			continue
+		}
+		view := &CollectRewardView{Type: typeID}
+		if len(rawReward) > 0 && string(rawReward) != "{}" {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(rawReward, &fields); err == nil {
+				if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
+					view.Type = n
+				}
+				if n, ok := readInt32JSONField(fields, "2"); ok {
+					view.Lvl = n
+				}
+				if n, ok := readInt32JSONField(fields, "3"); ok {
+					view.Exp = n
+				}
+				if rawRecv, ok := fields["4"]; ok {
+					view.RecvIDs = readInt32ListRaw(rawRecv)
+				}
+				if n, ok := readInt64JSONField(fields, "5"); ok {
+					view.UTimeMs = n
+				}
+				if n, ok := readInt64JSONField(fields, "6"); ok {
+					view.CTimeMs = n
+				}
+				if rawArtCreate, ok := fields["7"]; ok {
+					view.ArtCreateRewardIDs = readInt32ListRaw(rawArtCreate)
+				}
+			}
+		}
+		next[view.Type] = view
+	}
+	s.collectRewards = next
+	s.collectRewardObserved = true
+}
+
+func (s *State) applyShopCultivateLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if s.shopCultivateCosts == nil {
+		s.shopCultivateCosts = make(map[int32]ItemCount)
+	}
+	if s.shopCultivateBought == nil {
+		s.shopCultivateBought = make(map[int32]int32)
+	}
+	if rawInfo, ok := fields["1"]; ok {
+		var costs map[string]json.RawMessage
+		if err := json.Unmarshal(rawInfo, &costs); err == nil {
+			next := make(map[int32]ItemCount, len(costs))
+			for shopIDStr, rawCost := range costs {
+				shopID := atoi32(shopIDStr)
+				if shopID == 0 {
+					continue
+				}
+				parts := readInt32OrderedListRaw(rawCost)
+				if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
+					continue
+				}
+				next[shopID] = ItemCount{ItemID: parts[0], Count: parts[1]}
+			}
+			s.shopCultivateCosts = next
+		}
+	}
+	if rawBought, ok := fields["6"]; ok {
+		s.shopCultivateBought = readInt32RawMap(rawBought)
+	}
+	s.shopCultivateObserved = true
+}
+
+func (s *State) applyShopGiftbagLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if rawDRecord, ok := fields["1"]; ok {
+		s.shopGiftbagDRecord = readInt32RawMap(rawDRecord)
+	}
+	if rawWRecord, ok := fields["2"]; ok {
+		s.shopGiftbagWRecord = readInt32RawMap(rawWRecord)
+	}
+	if rawMRecord, ok := fields["3"]; ok {
+		s.shopGiftbagMRecord = readInt32RawMap(rawMRecord)
+	}
+	if rawTRecord, ok := fields["4"]; ok {
+		s.shopGiftbagTRecord = readInt32RawMap(rawTRecord)
+	}
+	s.shopGiftbagObserved = true
+}
+
+func (s *State) applyPearlLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if s.pearlPlaces == nil {
+		s.pearlPlaces = make(map[int32]*PearlPlaceView)
+	}
+	if rawPlaces, ok := fields["0"]; ok {
+		var places map[string]json.RawMessage
+		if err := json.Unmarshal(rawPlaces, &places); err == nil {
+			for placeIDStr, rawPlace := range places {
+				placeID := atoi32(placeIDStr)
+				if placeID == 0 {
+					continue
+				}
+				view := s.pearlPlaces[placeID]
+				if view == nil {
+					view = &PearlPlaceView{PlaceID: placeID}
+					s.pearlPlaces[placeID] = view
+				}
+				applyPearlPlaceFields(view, rawPlace)
+			}
+		}
+	}
+	if rawPearl, ok := fields["1"]; ok {
+		applyPearlFields(&s.pearl, rawPearl)
+	}
+	if rawDraw, ok := fields["2"]; ok {
+		s.pearlDrawRaw = cloneRaw(rawDraw)
+		s.pearlDrawCount = rawCollectionCount(rawDraw)
+	}
+	s.pearlObserved = true
+}
+
+func applyPearlFields(view *PearlView, raw json.RawMessage) {
+	if view == nil {
+		return
+	}
+	view.Observed = true
+	if len(raw) == 0 || string(raw) == "{}" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.ProtectState = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.ProtectNum = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.OwnerUID = n
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.LaborEndTime = n
+	}
+	if n, ok := readInt64JSONField(fields, "6"); ok {
+		view.RecvDailyDate = n
+	}
+	if n, ok := readInt32JSONField(fields, "7"); ok {
+		view.HireState = n
+	}
+	if n, ok := readInt32JSONField(fields, "8"); ok {
+		view.SmallDrawCnt = n
+	}
+	if n, ok := readInt64JSONField(fields, "9"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "10"); ok {
+		view.CTimeMs = n
+	}
+}
+
+func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
+	if view == nil || len(raw) == 0 || string(raw) == "{}" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
+		view.PlaceID = n
+	}
+	if n, ok := readInt64JSONField(fields, "2"); ok {
+		view.LaborUID = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.LaborEndTime = n
+	}
+	if n, ok := readInt32JSONField(fields, "4"); ok {
+		view.HireFailCnt = n
+	}
+	if n, ok := readInt32JSONField(fields, "5"); ok {
+		view.EventID = n
+	}
+	if n, ok := readInt32JSONField(fields, "6"); ok {
+		view.EveryMakeNum = n
+	}
+	if n, ok := readInt32JSONField(fields, "7"); ok {
+		view.RecvCnt = n
+	}
+	if n, ok := readInt32JSONField(fields, "8"); ok {
+		view.SurplusRecvNum = n
+	}
+	if n, ok := readInt64JSONField(fields, "9"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "10"); ok {
+		view.CTimeMs = n
 	}
 }
 
@@ -1259,6 +2294,31 @@ func (s *State) applyBenefitBoxLocked(raw json.RawMessage) {
 	}
 }
 
+func (s *State) applyVideoDoubleLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	view := s.videoDouble
+	view.Observed = true
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.VideoCount = n
+	}
+	if n, ok := readInt64JSONField(fields, "2"); ok {
+		view.EndTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.UpdatedAtMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.CreatedAtMs = n
+	}
+	s.videoDouble = view
+}
+
 // BenefitBoxDrawsRemaining returns the number of free draws available.
 func (s *State) BenefitBoxDrawsRemaining() int32 {
 	s.mu.RLock()
@@ -1271,6 +2331,166 @@ func (s *State) BenefitBoxReady() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.benefitBoxObserved && s.benefitBoxDrawCnt > 0
+}
+
+// UsrExtra returns the tracked account-extension state.
+func (s *State) UsrExtra() UsrExtraView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.usrExtra
+}
+
+// AntiFraudQAStatus returns the observed anti-fraud QA reward status.
+func (s *State) AntiFraudQAStatus() (int32, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.usrExtra.AntiFraudQAStatus, s.usrExtra.Observed
+}
+
+// VideoDouble returns the tracked double-coin video reward state.
+func (s *State) VideoDouble() VideoDoubleView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.videoDouble
+}
+
+// VideoDoubleObserved reports whether namespace 118 has been observed.
+func (s *State) VideoDoubleObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.videoDouble.Observed
+}
+
+// VideoDoubleActive reports whether the client-observed double-coin timer is active.
+func (s *State) VideoDoubleActive(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.videoDoubleActiveLocked(now)
+}
+
+func (s *State) videoDoubleActiveLocked(now time.Time) bool {
+	return s.videoDouble.Observed && s.videoDouble.EndTimeMs > now.UnixMilli()
+}
+
+// ZooObserved reports whether namespace 33 has been observed.
+func (s *State) ZooObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.zooObserved
+}
+
+// Zoo returns the tracked animal-home state.
+func (s *State) Zoo() ZooView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneZooView(s.zoo)
+}
+
+// ZooPets returns a defensive copy of the pet map.
+func (s *State) ZooPets() map[int32]ZooPetView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]ZooPetView, len(s.zooPets))
+	for id, pet := range s.zooPets {
+		if pet == nil {
+			continue
+		}
+		out[id] = cloneZooPetView(*pet)
+	}
+	return out
+}
+
+// ReadyZooFeedPetIDs returns pets with bowl food that can currently eat.
+func (s *State) ReadyZooFeedPetIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.zooPets))
+	for petID, pet := range s.zooPets {
+		if pet == nil || pet.PetID <= 0 || len(pet.FoodstuffIDs) == 0 {
+			continue
+		}
+		if zooPetCanEat(pet.Status) {
+			out = append(out, petID)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyZooStrokePetIDs returns pets that match the client's touch red-dot gate.
+func (s *State) ReadyZooStrokePetIDs(now time.Time) []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.zooPets))
+	nowMs := now.UnixMilli()
+	moodMax := ZooMoodMax()
+	for petID, pet := range s.zooPets {
+		if pet == nil || pet.PetID <= 0 || pet.Status <= 0 {
+			continue
+		}
+		if !zooPetTouchable(pet.Status) {
+			continue
+		}
+		if moodMax > 0 && pet.MoodValue >= moodMax {
+			continue
+		}
+		if pet.StrokeCdTimeMs > 0 && nowMs < pet.StrokeCdTimeMs {
+			continue
+		}
+		out = append(out, petID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ZooMoodMax returns the client-configured pet mood cap.
+func ZooMoodMax() int32 {
+	raw, ok := StaticRow("c_zoo", -1)
+	if !ok {
+		return 100
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return 100
+	}
+	if n, ok := readInt32JSONField(fields, "$moodMax1", "$moodMax"); ok && n > 0 {
+		return n
+	}
+	return 100
+}
+
+func zooPetTouchable(status int32) bool {
+	fields, ok := zooStateRow(status)
+	if !ok {
+		return true
+	}
+	if n, ok := readInt32JSONField(fields, "isTouch"); ok {
+		return n != 0
+	}
+	return true
+}
+
+func zooPetCanEat(status int32) bool {
+	fields, ok := zooStateRow(status)
+	if !ok {
+		return false
+	}
+	if n, ok := readInt32JSONField(fields, "isEat"); ok {
+		return n != 0
+	}
+	return false
+}
+
+func zooStateRow(status int32) (map[string]json.RawMessage, bool) {
+	raw, ok := StaticRow("c_zooState", status)
+	if !ok {
+		return nil, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, false
+	}
+	return fields, true
 }
 
 // Lands returns a copy of the land map.
@@ -1616,17 +2836,17 @@ func (s *State) AvailableWaterDrops(now time.Time) (int32, int32, int64) {
 	if s.waterDropsTotal > 0 && current > s.waterDropsTotal {
 		current = s.waterDropsTotal
 	}
-	current -= s.waterDropsReserved
+	current -= s.waterDropsInFlight
 	if current < 0 {
 		current = 0
 	}
 	return current, s.waterDropsTotal, nextMs
 }
 
-// ReserveWaterDrops marks drops as committed to an in-flight water RPC. This
+// LockWaterDrops marks drops as committed to an in-flight water RPC. This
 // keeps concurrent planners from spending them again before the server response
 // updates namespace 7.
-func (s *State) ReserveWaterDrops(n int32, now time.Time) bool {
+func (s *State) LockWaterDrops(n int32, now time.Time) bool {
 	if n <= 0 {
 		return true
 	}
@@ -1636,26 +2856,26 @@ func (s *State) ReserveWaterDrops(n int32, now time.Time) bool {
 	if s.waterDropsTotal > 0 && current > s.waterDropsTotal {
 		current = s.waterDropsTotal
 	}
-	if current-s.waterDropsReserved < n {
+	if current-s.waterDropsInFlight < n {
 		return false
 	}
-	s.waterDropsReserved += n
+	s.waterDropsInFlight += n
 	return true
 }
 
-// ReleaseWaterDropsReservation releases a previous reservation after the RPC
+// ReleaseWaterDropsLock releases a previous in-flight lock after the RPC
 // fails or after the response has been reconciled into state.
-func (s *State) ReleaseWaterDropsReservation(n int32) {
+func (s *State) ReleaseWaterDropsLock(n int32) {
 	if n <= 0 {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if n >= s.waterDropsReserved {
-		s.waterDropsReserved = 0
+	if n >= s.waterDropsInFlight {
+		s.waterDropsInFlight = 0
 		return
 	}
-	s.waterDropsReserved -= n
+	s.waterDropsInFlight -= n
 }
 
 // RefreshWaterDrops materializes elapsed natural water-drop recovery into
@@ -1890,6 +3110,450 @@ func (s *State) EmptyFlowerRackSlotIDs() []int32 {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+// Vases returns the currently observed unlocked vase set.
+func (s *State) Vases() map[int32]VaseView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]VaseView, len(s.vases))
+	for k, v := range s.vases {
+		if v != nil {
+			out[k] = *v
+		}
+	}
+	return out
+}
+
+// VaseObserved reports whether namespace 102 has been observed at least once.
+func (s *State) VaseObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.vaseObserved
+}
+
+// HasVase reports whether the account has the requested vase unlocked.
+func (s *State) HasVase(vaseID int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.vases[vaseID]
+	return ok
+}
+
+// FlowerArt returns the tracked namespace 106 flower-art state.
+func (s *State) FlowerArt() FlowerArtView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := s.flowerArt
+	out.MakeList = cloneInt32s(out.MakeList)
+	out.MakeListRaw = cloneRaw(out.MakeListRaw)
+	out.SRecvList = cloneInt32s(out.SRecvList)
+	out.SRecvListRaw = cloneRaw(out.SRecvListRaw)
+	return out
+}
+
+// FmlBuild returns the tracked namespace 25 guild-build state.
+func (s *State) FmlBuild() FmlBuildView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := s.fmlBuild
+	out.BuildCounts = cloneInt32Map(out.BuildCounts)
+	return out
+}
+
+// FmlBuildObserved reports whether namespace 25 has been observed.
+func (s *State) FmlBuildObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlBuild.Observed
+}
+
+// FmlLandObserved reports whether namespace 25.102 has been observed.
+func (s *State) FmlLandObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlLandObserved
+}
+
+// FmlLands returns a defensive copy of observed guild lands.
+func (s *State) FmlLands() map[int32]FmlLandView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]FmlLandView, len(s.fmlLands))
+	for id, land := range s.fmlLands {
+		if land == nil {
+			continue
+		}
+		out[id] = *land
+	}
+	return out
+}
+
+// ReadyFmlLandHarvestIDs returns guild lands with unclaimed mature flowers.
+func (s *State) ReadyFmlLandHarvestIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.fmlLands))
+	for id, land := range s.fmlLands {
+		if land == nil || land.MatureFlowerCnt <= land.HarvestedCnt {
+			continue
+		}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// FmlForestEnergy returns the tracked forest-energy state.
+func (s *State) FmlForestEnergy() FmlForestEnergyView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := s.fmlForestEnergy
+	out.EnergyByType = cloneInt32Map(out.EnergyByType)
+	out.DailyEnergyByType = cloneInt32Map(out.DailyEnergyByType)
+	out.PendingTempEnergyByType = cloneInt32Map(out.PendingTempEnergyByType)
+	return out
+}
+
+// FmlForestEnergyObserved reports whether namespace 25.127 has been observed.
+func (s *State) FmlForestEnergyObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlForestEnergy.Observed
+}
+
+// ReadyFmlForestEnergyTypes returns energy types with pending temporary energy.
+func (s *State) ReadyFmlForestEnergyTypes() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.fmlForestEnergy.PendingTempEnergyByType))
+	for typ, count := range s.fmlForestEnergy.PendingTempEnergyByType {
+		if count > 0 {
+			out = append(out, typ)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// FmlFlowerShareObserved reports whether namespace 25.107 has been observed.
+func (s *State) FmlFlowerShareObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlFlowerShare.Observed
+}
+
+// FmlFlowerShare returns a defensive copy of the account's own guild share.
+func (s *State) FmlFlowerShare() FmlFlowerShareView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneFmlFlowerShareView(s.fmlFlowerShare)
+}
+
+// OtherFmlFlowerSharesObserved reports whether namespace 25.108 has been observed.
+func (s *State) OtherFmlFlowerSharesObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlOtherShareObserved
+}
+
+// OtherFmlFlowerShares returns defensive copies of member guild shares.
+func (s *State) OtherFmlFlowerShares() map[int64]FmlFlowerShareView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int64]FmlFlowerShareView, len(s.fmlOtherFlowerShares))
+	for uid, share := range s.fmlOtherFlowerShares {
+		if share == nil {
+			continue
+		}
+		out[uid] = cloneFmlFlowerShareView(*share)
+	}
+	return out
+}
+
+// ReadyFmlFlowerShareRewardSlotIDs returns own share slots with take rewards.
+func (s *State) ReadyFmlFlowerShareRewardSlotIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.fmlFlowerShare.Slots))
+	for slotID, slot := range s.fmlFlowerShare.Slots {
+		if slot.FlowerID > 0 && slot.TakeNum > 0 {
+			out = append(out, slotID)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// FmlFlowerTakeCandidates returns member share slots that still have flowers.
+func (s *State) FmlFlowerTakeCandidates() []FmlFlowerTakeCandidate {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]FmlFlowerTakeCandidate, 0)
+	for uid, share := range s.fmlOtherFlowerShares {
+		if share == nil {
+			continue
+		}
+		actualUID := share.UID
+		if actualUID == 0 {
+			actualUID = uid
+		}
+		if actualUID == 0 {
+			continue
+		}
+		for slotID, slot := range share.Slots {
+			available := slot.ShareNum - slot.TakeNum
+			if slot.FlowerID <= 0 || available <= 0 {
+				continue
+			}
+			out = append(out, FmlFlowerTakeCandidate{
+				UID:       actualUID,
+				SlotID:    slotID,
+				FlowerID:  slot.FlowerID,
+				ShareNum:  slot.ShareNum,
+				TakeNum:   slot.TakeNum,
+				Available: available,
+			})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].FlowerID != out[j].FlowerID {
+			return out[i].FlowerID < out[j].FlowerID
+		}
+		if out[i].UID != out[j].UID {
+			return out[i].UID < out[j].UID
+		}
+		return out[i].SlotID < out[j].SlotID
+	})
+	return out
+}
+
+// CollectRewards returns the currently observed namespace 103 reward state.
+func (s *State) CollectRewards() map[int32]CollectRewardView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]CollectRewardView, len(s.collectRewards))
+	for k, v := range s.collectRewards {
+		if v == nil {
+			continue
+		}
+		cp := *v
+		cp.RecvIDs = cloneInt32s(v.RecvIDs)
+		cp.ArtCreateRewardIDs = cloneInt32s(v.ArtCreateRewardIDs)
+		out[k] = cp
+	}
+	return out
+}
+
+// CollectRewardObserved reports whether namespace 103 has been observed.
+func (s *State) CollectRewardObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.collectRewardObserved
+}
+
+// ReadyCollectRewardTypes returns collectRwd.recv types that have at least
+// one unclaimed c_flowerCollect reward at or below the observed exp.
+func (s *State) ReadyCollectRewardTypes(types ...int32) []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.collectRewards) == 0 {
+		return nil
+	}
+	filter := setOf(types)
+	out := make([]int32, 0, len(s.collectRewards))
+	for typeID, reward := range s.collectRewards {
+		if reward == nil {
+			continue
+		}
+		if len(filter) > 0 {
+			if _, ok := filter[typeID]; !ok {
+				continue
+			}
+		}
+		if collectRewardReady(*reward) {
+			out = append(out, typeID)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyArtCreateRewardVaseIDs returns vase ids whose flower-art creation
+// reward can be claimed through collectRwd.recvArtCreateRwdByVase.
+func (s *State) ReadyArtCreateRewardVaseIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	reward := s.collectRewards[13]
+	if reward == nil || len(s.flowerArt.MakeList) == 0 {
+		return nil
+	}
+	received := setOf(reward.ArtCreateRewardIDs)
+	ready := map[int32]struct{}{}
+	for _, artID := range s.flowerArt.MakeList {
+		if artID <= 0 {
+			continue
+		}
+		if _, ok := received[artID]; ok {
+			continue
+		}
+		vaseID := (artID - 1) / 100
+		if vaseID <= 0 {
+			continue
+		}
+		ready[vaseID] = struct{}{}
+	}
+	out := make([]int32, 0, len(ready))
+	for vaseID := range ready {
+		out = append(out, vaseID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ShopCultivateObserved reports whether namespace 113 has been observed.
+func (s *State) ShopCultivateObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shopCultivateObserved
+}
+
+// ShopCultivateOffers returns current material-shop offers enriched with the
+// static item/limit metadata from c_shop_cultivate.
+func (s *State) ShopCultivateOffers() []ShopCultivateOfferView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]ShopCultivateOfferView, 0, len(s.shopCultivateCosts))
+	for shopID, cost := range s.shopCultivateCosts {
+		view := ShopCultivateOfferView{
+			ShopID:     shopID,
+			CostItemID: cost.ItemID,
+			CostCount:  cost.Count,
+			Bought:     s.shopCultivateBought[shopID],
+		}
+		if itemID, itemCount, buyLimit, sortOrder, ok := shopCultivateStatic(shopID); ok {
+			view.ItemID = itemID
+			view.ItemCount = itemCount
+			view.BuyLimit = buyLimit
+			view.Sort = sortOrder
+		}
+		if view.BuyLimit > 0 {
+			view.Remaining = view.BuyLimit - view.Bought
+			if view.Remaining < 0 {
+				view.Remaining = 0
+			}
+		}
+		out = append(out, view)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Sort != out[j].Sort {
+			return out[i].Sort < out[j].Sort
+		}
+		return out[i].ShopID < out[j].ShopID
+	})
+	return out
+}
+
+// ShopGiftbagObserved reports whether namespace 112 has been observed.
+func (s *State) ShopGiftbagObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shopGiftbagObserved
+}
+
+// ShopGiftbagOffers returns static gift-bag shop rows enriched with observed
+// daily/weekly/monthly/total purchase records.
+func (s *State) ShopGiftbagOffers() []ShopGiftbagOfferView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	table, ok := StaticTableByName("c_shop_giftbag")
+	if !ok {
+		return nil
+	}
+	out := make([]ShopGiftbagOfferView, 0, len(table.Rows))
+	for idStr, rawRow := range table.Rows {
+		shopID := atoi32(idStr)
+		if shopID <= 0 {
+			continue
+		}
+		view, ok := shopGiftbagStatic(shopID, rawRow)
+		if !ok {
+			continue
+		}
+		view.DailyBought = s.shopGiftbagDRecord[shopID]
+		view.WeekBought = s.shopGiftbagWRecord[shopID]
+		view.MonthBought = s.shopGiftbagMRecord[shopID]
+		view.TotalBought = s.shopGiftbagTRecord[shopID]
+		view.Remaining = giftbagRemaining(view)
+		out = append(out, view)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Sort != out[j].Sort {
+			return out[i].Sort < out[j].Sort
+		}
+		return out[i].ShopID < out[j].ShopID
+	})
+	return out
+}
+
+// PearlObserved reports whether namespace 115 has been observed.
+func (s *State) PearlObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pearlObserved
+}
+
+// Pearl returns the currently observed pearl summary state.
+func (s *State) Pearl() PearlView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pearl
+}
+
+// PearlPlaces returns a defensive copy of observed pearl production slots.
+func (s *State) PearlPlaces() map[int32]PearlPlaceView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]PearlPlaceView, len(s.pearlPlaces))
+	for id, place := range s.pearlPlaces {
+		if place == nil {
+			continue
+		}
+		out[id] = *place
+	}
+	return out
+}
+
+// ReadyPearlPlaceIDs returns pearl slots with observed surplus to receive.
+func (s *State) ReadyPearlPlaceIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.pearlPlaces))
+	for id, place := range s.pearlPlaces {
+		if place != nil && place.SurplusRecvNum > 0 {
+			out = append(out, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// PearlDrawCount returns the number of pearl draw entries currently observed.
+func (s *State) PearlDrawCount() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pearlDrawCount
+}
+
+// PearlDailyFreeReady reports whether the daily free pearl has not been
+// observed as received for the local day represented by now.
+func (s *State) PearlDailyFreeReady(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.pearlObserved || !s.pearl.Observed {
+		return false
+	}
+	return !sameLocalDay(s.pearl.RecvDailyDate, now)
 }
 
 // ReadyFlowerOrderAdBoxIDs returns resident-order boxes that currently present
@@ -2162,6 +3826,378 @@ func taskClaimable(status, target, finished, receipted int32) bool {
 	return status == 1 || (status == 0 && target > 0 && finished >= target)
 }
 
+func collectRewardReady(view CollectRewardView) bool {
+	if view.Type <= 0 || view.Exp <= 0 {
+		return false
+	}
+	table, ok := StaticTableByName("c_flowerCollect")
+	if !ok {
+		return false
+	}
+	received := setOf(view.RecvIDs)
+	for idStr, rawRow := range table.Rows {
+		rowID := atoi32(idStr)
+		if rowID <= 0 || rowID/10000 != view.Type {
+			continue
+		}
+		if _, ok := received[rowID]; ok {
+			continue
+		}
+		var row map[string]json.RawMessage
+		if err := json.Unmarshal(rawRow, &row); err != nil {
+			continue
+		}
+		exp, ok := readInt32JSONField(row, "exp")
+		if !ok || exp <= 0 {
+			continue
+		}
+		if view.Exp >= exp {
+			return true
+		}
+	}
+	return false
+}
+
+func shopCultivateStatic(shopID int32) (itemID, itemCount, buyLimit, sortOrder int32, ok bool) {
+	rawRow, ok := StaticRow("c_shop_cultivate", shopID)
+	if !ok {
+		return 0, 0, 0, 0, false
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return 0, 0, 0, 0, false
+	}
+	if rawItems, ok := row["items"]; ok {
+		var stacks []json.RawMessage
+		if err := json.Unmarshal(rawItems, &stacks); err == nil && len(stacks) > 0 {
+			parts := readInt32OrderedListRaw(stacks[0])
+			if len(parts) >= 2 {
+				itemID = parts[0]
+				itemCount = parts[1]
+			}
+		}
+	}
+	if rawLimit, ok := row["bLimit"]; ok {
+		parts := readInt32OrderedListRaw(rawLimit)
+		if len(parts) > 0 {
+			buyLimit = parts[0]
+		}
+	}
+	if n, ok := readInt32JSONField(row, "sort"); ok {
+		sortOrder = n
+	}
+	return itemID, itemCount, buyLimit, sortOrder, itemID > 0
+}
+
+func shopGiftbagStatic(shopID int32, rawRow json.RawMessage) (ShopGiftbagOfferView, bool) {
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return ShopGiftbagOfferView{}, false
+	}
+	view := ShopGiftbagOfferView{ShopID: shopID}
+	if n, ok := readInt32JSONField(row, "type"); ok {
+		view.Type = n
+	}
+	if n, ok := readInt32JSONField(row, "shareId"); ok {
+		view.ShareID = n
+	}
+	if n, ok := readInt32JSONField(row, "rchgId"); ok {
+		view.RchgID = n
+	}
+	if n, ok := readInt32JSONField(row, "moneyId"); ok {
+		view.MoneyID = n
+	}
+	if n, ok := readInt32JSONField(row, "price"); ok {
+		view.Price = n
+	}
+	if n, ok := readInt32JSONField(row, "priceMax"); ok {
+		view.PriceMax = n
+	}
+	if n, ok := readInt32JSONField(row, "sort"); ok {
+		view.Sort = n
+	}
+	view.DailyLimit = firstInt32ListValue(row["dLimit"])
+	view.WeeklyLimit = firstInt32ListValue(row["wLimit"])
+	view.MonthLimit = firstInt32ListValue(row["mLimit"])
+	view.TotalLimit = firstInt32ListValue(row["tLimit"])
+	if rawItems, ok := row["items"]; ok {
+		view.Rewards = readItemCountsRaw(rawItems)
+	}
+	return view, true
+}
+
+func firstInt32ListValue(raw json.RawMessage) int32 {
+	parts := readInt32OrderedListRaw(raw)
+	if len(parts) == 0 {
+		return 0
+	}
+	return parts[0]
+}
+
+func giftbagRemaining(view ShopGiftbagOfferView) int32 {
+	remaining := int32(0)
+	applyLimit := func(limit, bought int32) {
+		if limit <= 0 {
+			return
+		}
+		left := limit - bought
+		if left < 0 {
+			left = 0
+		}
+		if remaining == 0 || left < remaining {
+			remaining = left
+		}
+	}
+	applyLimit(view.DailyLimit, view.DailyBought)
+	applyLimit(view.WeeklyLimit, view.WeekBought)
+	applyLimit(view.MonthLimit, view.MonthBought)
+	applyLimit(view.TotalLimit, view.TotalBought)
+	return remaining
+}
+
+func readItemCountsRaw(raw json.RawMessage) []ItemCount {
+	var stacks []json.RawMessage
+	if len(raw) == 0 || json.Unmarshal(raw, &stacks) != nil {
+		return nil
+	}
+	out := make([]ItemCount, 0, len(stacks))
+	for _, rawStack := range stacks {
+		parts := readInt32OrderedListRaw(rawStack)
+		if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
+			continue
+		}
+		out = append(out, ItemCount{ItemID: parts[0], Count: parts[1]})
+	}
+	return out
+}
+
+func readInt32OrderedListRaw(raw json.RawMessage) []int32 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		out := make([]int32, 0, len(arr))
+		for _, rawValue := range arr {
+			if n, ok := readInt32Raw(rawValue); ok {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
+	if n, ok := readInt32Raw(raw); ok {
+		return []int32{n}
+	}
+	return nil
+}
+
+func rawCollectionCount(raw json.RawMessage) int32 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		return int32(len(arr))
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err == nil {
+		return int32(len(m))
+	}
+	if n, ok := readInt32Raw(raw); ok && n > 0 {
+		return n
+	}
+	return 0
+}
+
+func readInt32ListRaw(raw json.RawMessage) []int32 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		out := make([]int32, 0, len(arr))
+		for _, rawValue := range arr {
+			if n, ok := readInt32Raw(rawValue); ok {
+				out = append(out, n)
+			}
+		}
+		return uniqueSortedInt32s(out)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err == nil {
+		out := make([]int32, 0, len(m))
+		if denseIndexMap(m) {
+			for i := 0; i < len(m); i++ {
+				if n, ok := readInt32Raw(m[itoaState(i)]); ok {
+					out = append(out, n)
+				}
+			}
+		} else {
+			for key, rawValue := range m {
+				id := atoi32(key)
+				if id == 0 || !truthyRaw(rawValue) {
+					continue
+				}
+				out = append(out, id)
+			}
+		}
+		return uniqueSortedInt32s(out)
+	}
+	if n, ok := readInt32Raw(raw); ok {
+		return []int32{n}
+	}
+	return nil
+}
+
+func readInt32JSONField(fields map[string]json.RawMessage, keys ...string) (int32, bool) {
+	for _, key := range keys {
+		if raw, ok := fields[key]; ok {
+			return readInt32Raw(raw)
+		}
+	}
+	return 0, false
+}
+
+func readInt64JSONField(fields map[string]json.RawMessage, keys ...string) (int64, bool) {
+	for _, key := range keys {
+		raw, ok := fields[key]
+		if !ok {
+			continue
+		}
+		var n int64
+		if err := json.Unmarshal(raw, &n); err == nil {
+			return n, true
+		}
+		var f float64
+		if err := json.Unmarshal(raw, &f); err == nil {
+			return int64(f), true
+		}
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			n := atoi64(s)
+			if n != 0 || s == "0" {
+				return n, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func readInt32Raw(raw json.RawMessage) (int32, bool) {
+	var n int32
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, true
+	}
+	var f float64
+	if err := json.Unmarshal(raw, &f); err == nil {
+		return int32(f), true
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		n := atoi32(s)
+		if n != 0 || s == "0" {
+			return n, true
+		}
+	}
+	return 0, false
+}
+
+func sameLocalDay(rawDate int64, now time.Time) bool {
+	if rawDate <= 0 {
+		return false
+	}
+	if rawDate >= 19000101 && rawDate <= 29991231 {
+		return now.Format("20060102") == itoa64State(rawDate)
+	}
+	var t time.Time
+	if rawDate > 1_000_000_000_000 {
+		t = time.UnixMilli(rawDate)
+	} else {
+		t = time.Unix(rawDate, 0)
+	}
+	y1, m1, d1 := t.Local().Date()
+	y2, m2, d2 := now.Local().Date()
+	return y1 == y2 && m1 == m2 && d1 == d2
+}
+
+func denseIndexMap(m map[string]json.RawMessage) bool {
+	if len(m) == 0 {
+		return false
+	}
+	for i := 0; i < len(m); i++ {
+		if _, ok := m[itoaState(i)]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func truthyRaw(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil {
+		return b
+	}
+	if n, ok := readInt32Raw(raw); ok {
+		return n != 0
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s != "" && s != "0" && s != "false"
+	}
+	return true
+}
+
+func uniqueSortedInt32s(in []int32) []int32 {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[int32]struct{}, len(in))
+	out := make([]int32, 0, len(in))
+	for _, id := range in {
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func itoaState(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}
+
+func itoa64State(n int64) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}
+
 func readInt32RawMap(raw json.RawMessage) map[int32]int32 {
 	out := map[int32]int32{}
 	if len(raw) == 0 {
@@ -2176,12 +4212,34 @@ func readInt32RawMap(raw json.RawMessage) map[int32]int32 {
 		if id == 0 {
 			continue
 		}
-		var n int32
-		if json.Unmarshal(rawValue, &n) == nil {
+		if n, ok := readInt32Raw(rawValue); ok {
 			out[id] = n
 		}
 	}
 	return out
+}
+
+func readNestedInt32RawMapTotals(raw json.RawMessage) (map[int32]int32, int32) {
+	out := map[int32]int32{}
+	if len(raw) == 0 || string(raw) == "null" {
+		return out, 0
+	}
+	var outer map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &outer); err != nil {
+		return out, 0
+	}
+	var total int32
+	for _, rawInner := range outer {
+		inner := readInt32RawMap(rawInner)
+		for typ, count := range inner {
+			if count <= 0 {
+				continue
+			}
+			out[typ] += count
+			total += count
+		}
+	}
+	return out, total
 }
 
 func readInt(m map[string]any, keys ...string) int {
@@ -2238,6 +4296,17 @@ func atoi32(s string) int32 {
 			return 0
 		}
 		n = n*10 + int32(c-'0')
+	}
+	return n
+}
+
+func atoi64(s string) int64 {
+	var n int64
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0
+		}
+		n = n*10 + int64(c-'0')
 	}
 	return n
 }

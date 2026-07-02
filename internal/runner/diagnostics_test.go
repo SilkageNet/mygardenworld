@@ -5,13 +5,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestDiagnosticsTracksOperationLifecycleAndBlocks(t *testing.T) {
-	r := newStateHandlerTestRunner()
+	r := &Runner{state: state.New()}
 	now := time.Now()
 	r.setNextDecisionAt(now.Add(4 * time.Second))
-	r.setWaterBlockedUntil(now.Add(5 * time.Minute))
 
 	finish := r.beginOperation("usrLand.waterBatch")
 	diag := r.Diagnostics(now)
@@ -20,9 +21,6 @@ func TestDiagnosticsTracksOperationLifecycleAndBlocks(t *testing.T) {
 	}
 	if diag.NextDecisionAt.IsZero() {
 		t.Fatal("NextDecisionAt was not set")
-	}
-	if !hasBlockedReason(diag.BlockedReasons, "缺水") {
-		t.Fatalf("BlockedReasons=%v, want water block", diag.BlockedReasons)
 	}
 
 	finish(errors.New("rqst failed"))
@@ -36,13 +34,4 @@ func TestDiagnosticsTracksOperationLifecycleAndBlocks(t *testing.T) {
 	if !strings.Contains(diag.LastOperationError, "rqst failed") {
 		t.Fatalf("LastOperationError=%q, want rqst failed", diag.LastOperationError)
 	}
-}
-
-func hasBlockedReason(reasons []string, want string) bool {
-	for _, reason := range reasons {
-		if strings.Contains(reason, want) {
-			return true
-		}
-	}
-	return false
 }

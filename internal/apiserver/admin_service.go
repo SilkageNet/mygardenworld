@@ -92,18 +92,6 @@ func (svc *Services) ListUsers(ctx context.Context, req *connect.Request[pb.List
 	return connect.NewResponse(resp), nil
 }
 
-func (svc *Services) GetUser(ctx context.Context, req *connect.Request[pb.GetUserRequest]) (*connect.Response[pb.GetUserResponse], error) {
-	if err := svc.requireAdmin(ctx); err != nil {
-		return nil, err
-	}
-	user, err := svc.DB.GetUserByID(ctx, req.Msg.GetUserId())
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
-	return connect.NewResponse(&pb.GetUserResponse{User: userToProto(user, count)}), nil
-}
-
 func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.UpdateUserRequest]) (*connect.Response[pb.UpdateUserResponse], error) {
 	if err := svc.requireAdmin(ctx); err != nil {
 		return nil, err
@@ -161,16 +149,6 @@ func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.Upd
 	}
 	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
 	return connect.NewResponse(&pb.UpdateUserResponse{User: userToProto(user, count)}), nil
-}
-
-func (svc *Services) DeleteUser(ctx context.Context, req *connect.Request[pb.DeleteUserRequest]) (*connect.Response[pb.DeleteUserResponse], error) {
-	if err := svc.requireAdmin(ctx); err != nil {
-		return nil, err
-	}
-	if err := svc.DB.DeleteUser(ctx, req.Msg.GetUserId()); err != nil {
-		return nil, mapErr(err)
-	}
-	return connect.NewResponse(&pb.DeleteUserResponse{}), nil
 }
 
 func (svc *Services) GetSystemStats(ctx context.Context, _ *connect.Request[pb.GetSystemStatsRequest]) (*connect.Response[pb.GetSystemStatsResponse], error) {

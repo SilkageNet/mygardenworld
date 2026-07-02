@@ -134,8 +134,12 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	}
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
 	policy := r.Policy()
+	plan := automation.BuildPlan(st, policy, now)
 	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
-	resp.PlannedOperations = plannedOperationsProto(automation.PlanOperations(st, policy, now))
+	resp.PlannedOperations = plannedOperationsProto(plan.Operations)
+	resp.Demands = demandsProto(plan.Demands)
+	resp.Vases = vasesProto(st.Vases())
+	resp.FlowerArtAvailability = flowerArtAvailabilityProto(st, plan)
 	return connect.NewResponse(resp), nil
 }
 
@@ -148,8 +152,6 @@ func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {
 		LastOperationError:        d.LastOperationError,
 		LastOperationErrorAt:      timestampOrNil(d.LastOperationErrorAt),
 		NextDecisionAt:            timestampOrNil(d.NextDecisionAt),
-		NextDomainTickAt:          timestampOrNil(d.NextDomainTickAt),
-		NextCultivateAt:           timestampOrNil(d.NextCultivateAt),
 		SessionInvalidatedReason:  d.SessionInvalidatedReason,
 		BlockedReasons:            append([]string(nil), d.BlockedReasons...),
 		UnknownRpcCount:           d.UnknownRPCCount,
@@ -163,148 +165,6 @@ func timestampOrNil(t time.Time) *timestamppb.Timestamp {
 		return nil
 	}
 	return timestamppb.New(t)
-}
-
-func (svc *Services) GetHarvestStats(ctx context.Context, req *connect.Request[pb.GetHarvestStatsRequest]) (*connect.Response[pb.GetHarvestStatsResponse], error) {
-	var accountIDs []int64
-	if req.Msg.GetAccountId() != "" || req.Msg.GetAccountName() != "" {
-		acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
-		if err != nil {
-			return nil, mapErr(err)
-		}
-		accountIDs = []int64{acc.ID}
-	}
-	var userID int64
-	if len(accountIDs) == 0 && !auth.IsAdmin(ctx) {
-		userID = auth.UserIDFromContext(ctx)
-	}
-	runGap := time.Duration(req.Msg.GetRunGapSeconds()) * time.Second
-	stats, err := svc.DB.LatestHarvestStats(ctx, store.HarvestStatsOptions{
-		AccountIDs: accountIDs,
-		UserID:     userID,
-		RunGap:     runGap,
-	})
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	return connect.NewResponse(harvestStatsProto(stats, req.Msg.GetLimitItems())), nil
-}
-
-func (svc *Services) GetPlan(ctx context.Context, req *connect.Request[pb.GetPlanRequest]) (*connect.Response[pb.GetPlanResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	resp := &pb.GetPlanResponse{
-		AccountId:   fmt.Sprintf("%d", acc.ID),
-		AccountName: acc.Name,
-	}
-	policy, err := svc.policyFor(ctx, acc.ID)
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	r := svc.Manager.Get(acc.ID)
-	if r == nil {
-		resp.DomainStatuses = buildDomainStatuses(policy, runner.Diagnostics{}, false)
-		return connect.NewResponse(resp), nil
-	}
-	now := time.Now()
-	resp.Operations = plannedOperationsProto(automation.PlanOperations(r.State(), policy, now))
-	resp.DomainStatuses = buildDomainStatuses(policy, r.Diagnostics(now), r.Connected())
-	return connect.NewResponse(resp), nil
-}
-
-func harvestStatsProto(stats *store.HarvestStats, limitItems int32) *pb.GetHarvestStatsResponse {
-	resp := &pb.GetHarvestStatsResponse{
-		RunGapSeconds: int32(stats.RunGap.Seconds()),
-		HarvestOps:    int32(stats.HarvestOps),
-	}
-	if !stats.WindowStart.IsZero() {
-		resp.WindowStart = timestamppb.New(stats.WindowStart)
-	}
-	if !stats.WindowEnd.IsZero() {
-		resp.WindowEnd = timestamppb.New(stats.WindowEnd)
-	}
-	for _, account := range stats.Accounts {
-		out := &pb.AccountHarvestStats{
-			AccountId:   fmt.Sprintf("%d", account.AccountID),
-			AccountName: account.AccountName,
-			HarvestOps:  int32(account.HarvestOps),
-		}
-		if !account.FirstHarvestAt.IsZero() {
-			out.FirstHarvestAt = timestamppb.New(account.FirstHarvestAt)
-		}
-		if !account.LastHarvestAt.IsZero() {
-			out.LastHarvestAt = timestamppb.New(account.LastHarvestAt)
-		}
-		items := append([]store.HarvestItemTotal(nil), account.Items...)
-		for _, item := range items {
-			switch harvestItemCategory(item.ItemID) {
-			case "experience":
-				out.ExperienceTotal += item.Count
-			case "flower":
-				out.FlowerTotal += item.Count
-			case "essence":
-				out.EssenceTotal += item.Count
-			default:
-				out.OtherTotal += item.Count
-			}
-		}
-		sort.Slice(items, func(i, j int) bool {
-			ci, cj := harvestItemCategory(items[i].ItemID), harvestItemCategory(items[j].ItemID)
-			if rankHarvestCategory(ci) != rankHarvestCategory(cj) {
-				return rankHarvestCategory(ci) < rankHarvestCategory(cj)
-			}
-			if items[i].Count != items[j].Count {
-				return items[i].Count > items[j].Count
-			}
-			return items[i].ItemID < items[j].ItemID
-		})
-		if limitItems > 0 && len(items) > int(limitItems) {
-			items = items[:limitItems]
-		}
-		for _, item := range items {
-			category := harvestItemCategory(item.ItemID)
-			name := state.ItemName(item.ItemID)
-			if name == "" {
-				name = fmt.Sprintf("#%d", item.ItemID)
-			}
-			out.Items = append(out.Items, &pb.HarvestItemTotal{
-				ItemId:   item.ItemID,
-				ItemName: name,
-				Count:    item.Count,
-				Category: category,
-			})
-		}
-		resp.Accounts = append(resp.Accounts, out)
-	}
-	return resp
-}
-
-func harvestItemCategory(itemID int32) string {
-	switch {
-	case itemID == 2:
-		return "experience"
-	case state.IsFlowerItemID(itemID):
-		return "flower"
-	case itemID >= 22000 && itemID < 23000:
-		return "essence"
-	default:
-		return "item"
-	}
-}
-
-func rankHarvestCategory(category string) int {
-	switch category {
-	case "experience":
-		return 0
-	case "flower":
-		return 1
-	case "essence":
-		return 2
-	default:
-		return 3
-	}
 }
 
 func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
@@ -500,9 +360,109 @@ func plannedOperationsProto(ops []automation.PlannedOp) []*pb.PlannedOperation {
 			Executable:     op.Executable,
 			SyncOnly:       op.SyncOnly,
 			BlockedReasons: append([]string(nil), op.BlockedReasons...),
+			OperationId:    op.OperationID,
+			GoalId:         op.GoalID,
+			DemandId:       op.DemandID,
+			TargetId:       op.TargetID,
+			ItemId:         op.ItemID,
+			Count:          op.Count,
+			VaseId:         op.VaseID,
+			FlowerIds:      append([]int32(nil), op.FlowerIDs...),
 		})
 	}
 	return out
+}
+
+func demandsProto(demands []automation.Demand) []*pb.DemandView {
+	out := make([]*pb.DemandView, 0, len(demands))
+	for _, demand := range demands {
+		out = append(out, &pb.DemandView{
+			Id:             demand.ID,
+			GoalId:         demand.GoalID,
+			Category:       demand.Category,
+			Domain:         demand.Domain,
+			EntityId:       demand.EntityID,
+			Label:          demand.Label,
+			ItemId:         demand.ItemID,
+			ItemName:       itemNameOrID(demand.ItemID),
+			Required:       demand.Count,
+			Owned:          demand.Have,
+			Allocated:      demand.Allocated,
+			Available:      demand.Available,
+			Missing:        demand.Missing,
+			Priority:       demand.Priority,
+			Kind:           demand.Kind,
+			Source:         demand.Source,
+			BlockedReasons: append([]string(nil), demand.BlockedReasons...),
+		})
+	}
+	return out
+}
+
+func vasesProto(vases map[int32]state.VaseView) []*pb.VaseView {
+	ids := make([]int32, 0, len(vases))
+	for id := range vases {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]*pb.VaseView, 0, len(ids))
+	for _, id := range ids {
+		vase := vases[id]
+		out = append(out, &pb.VaseView{VaseId: vase.VaseID, UTimeMs: vase.UTimeMs, CTimeMs: vase.CTimeMs})
+	}
+	return out
+}
+
+func flowerArtAvailabilityProto(st *state.State, plan automation.PlanResult) []*pb.FlowerArtAvailabilityView {
+	seen := map[int32]struct{}{}
+	for _, demand := range plan.Demands {
+		if demand.Kind == automation.DemandKindFlowerArt && demand.ItemID > 0 {
+			seen[demand.ItemID] = struct{}{}
+		}
+	}
+	for _, op := range plan.Operations {
+		if op.ItemID > 0 {
+			if _, ok := state.FlowerArtRecipeByID(op.ItemID); ok {
+				seen[op.ItemID] = struct{}{}
+			}
+		}
+	}
+	ids := make([]int32, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]*pb.FlowerArtAvailabilityView, 0, len(ids))
+	for _, id := range ids {
+		availability := automation.FlowerArtAvailability(st, id, 1, plan.Ledger)
+		if availability.Recipe.ArtID == 0 {
+			continue
+		}
+		view := &pb.FlowerArtAvailabilityView{
+			ArtId:          availability.Recipe.ArtID,
+			ArtName:        itemNameOrID(availability.Recipe.ArtID),
+			VaseId:         availability.Recipe.VaseID,
+			Level:          availability.Recipe.Level,
+			SaleValue:      availability.Recipe.SaleValue,
+			LevelOk:        availability.LevelOK,
+			VaseUnlocked:   availability.VaseUnlocked,
+			Craftable:      availability.Craftable,
+			BlockedReasons: append([]string(nil), availability.BlockedReasons...),
+		}
+		for _, req := range availability.Requirements {
+			view.Requirements = append(view.Requirements, requirementView(req.ItemID, req.Count, req.Have))
+		}
+		out = append(out, view)
+	}
+	return out
+}
+
+func itemNameOrID(itemID int32) string {
+	name := state.ItemName(itemID)
+	if name != "" {
+		return name
+	}
+	return fmt.Sprintf("#%d", itemID)
 }
 
 func buildDomainStatuses(policy *pb.Policy, diag runner.Diagnostics, connected bool) []*pb.DomainStatus {
@@ -559,17 +519,27 @@ func accountHealth(connected bool, diag runner.Diagnostics) string {
 }
 
 func basicEnabled(p *pb.BasicPolicy) bool {
-	return p != nil && (p.GetMainTaskEnabled() || p.GetDailyTaskEnabled() || p.GetWeeklyTaskEnabled() ||
-		p.GetAchievementTaskEnabled() || p.GetStoryEnabled() || p.GetMailEnabled() || p.GetWelfareEnabled() ||
-		p.GetSignEnabled() || p.GetFreeWaterEnabled() || p.GetWaterwheelEnabled() || p.GetBenefitBoxEnabled() ||
-		p.GetRandomEventEnabled() || p.GetRoadGrowRewardEnabled() || p.GetPearl().GetEnabled() ||
-		p.GetShop().GetVideoGiftEnabled() || p.GetShop().GetCultivateShopEnabled() || p.GetShop().GetVipShopEnabled() ||
-		p.GetZoo().GetEnabled() || p.GetZoo().GetSyncEnabled())
+	task := p.GetTask()
+	benefit := p.GetBenefit()
+	sign := p.GetSign()
+	return p != nil && (task.GetMainEnabled() || task.GetDailyEnabled() || task.GetWeeklyEnabled() ||
+		task.GetStoryEnabled() || task.GetAchievementEnabled() || p.GetMailEnabled() ||
+		sign.GetDailyEnabled() || sign.GetPatchEnabled() || p.GetFreeWaterEnabled() ||
+		p.GetWaterwheelEnabled() || benefit.GetBoxEnabled() || benefit.GetDoubleCoinEnabled() ||
+		benefit.GetShareRewardEnabled() || benefit.GetAntiScamBoxEnabled() ||
+		p.GetRandomEventEnabled() || p.GetRoadGrowRewardEnabled() ||
+		p.GetPearl().GetFreeEnabled() || p.GetShop().GetVideoFreeGiftEnabled() ||
+		p.GetFeedCat().GetEnabled())
 }
 
 func plantEnabled(p *pb.PlantPolicy) bool {
-	return p != nil && (p.GetHarvestEnabled() || p.GetPlantEnabled() || p.GetWaterEnabled() || p.GetSpeedUpEnabled() ||
-		p.GetLandUnlockEnabled() || p.GetCultivateEnabled() || p.GetFlowerUpgradeEnabled())
+	flower := p.GetFlower()
+	cultivate := p.GetCultivate()
+	return p != nil && (flower.GetHarvestEnabled() || flower.GetPlantEnabled() || flower.GetWaterEnabled() ||
+		flower.GetUseSpeedUpTicket() || flower.GetVideoSpeedUpEnabled() || flower.GetAutoUnlockLand() ||
+		cultivate.GetEnabled() || cultivate.GetUpgradeEnabled() || cultivate.GetVideoSpeedUpEnabled() ||
+		p.GetFriendSteal().GetEnabled() || p.GetElves().GetEnabled() || p.GetMarket().GetPutEnabled() ||
+		p.GetMarket().GetAutoBuyFromFriend())
 }
 
 func orderEnabled(p *pb.OrderPolicy) bool {
@@ -580,13 +550,18 @@ func orderEnabled(p *pb.OrderPolicy) bool {
 
 func residentOrderEnabledProto(p *pb.ResidentOrderPolicy) bool {
 	return p != nil && (p.GetNormalEnabled() || p.GetDecorateEnabled() || p.GetSatinEnabled() ||
-		p.GetRewardEnabled() || p.GetAdRefreshEnabled())
+		p.GetRewardEnabled())
 }
 
 func unionEnabled(p *pb.UnionPolicy) bool {
-	return p != nil && (p.GetBuildFreeEnabled() || p.GetBuildGoldEnabled() || p.GetBuildDiamondEnabled() ||
-		p.GetFlowerShareEnabled() || p.GetFlowerTakeEnabled() || p.GetRaceEnabled() || p.GetLandAutoPlant() ||
-		p.GetLandHarvest() || p.GetRedPacketEnabled() || p.GetForestEnabled())
+	build := p.GetBuild()
+	flower := p.GetFlower()
+	race := p.GetRace()
+	land := p.GetLand()
+	return p != nil && (build.GetFreeEnabled() || build.GetGoldEnabled() || build.GetDiamondEnabled() ||
+		flower.GetShareEnabled() || flower.GetTakeEnabled() || race.GetEnabled() ||
+		land.GetAutoPlantEnabled() || land.GetHarvestEnabled() ||
+		p.GetRedPacketEnabled() || p.GetForestEnabled())
 }
 
 func activityEnabled(p *pb.ActivityPolicy) bool {

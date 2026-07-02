@@ -322,102 +322,6 @@ func (x *ListAccountsResponse) GetAccounts() []*Account {
 	return nil
 }
 
-type GetAccountRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetAccountRequest) Reset() {
-	*x = GetAccountRequest{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetAccountRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetAccountRequest) ProtoMessage() {}
-
-func (x *GetAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetAccountRequest.ProtoReflect.Descriptor instead.
-func (*GetAccountRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *GetAccountRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *GetAccountRequest) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-type GetAccountResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Account       *Account               `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetAccountResponse) Reset() {
-	*x = GetAccountResponse{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetAccountResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetAccountResponse) ProtoMessage() {}
-
-func (x *GetAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetAccountResponse.ProtoReflect.Descriptor instead.
-func (*GetAccountResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *GetAccountResponse) GetAccount() *Account {
-	if x != nil {
-		return x.Account
-	}
-	return nil
-}
-
 type LoginAccountRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -428,7 +332,7 @@ type LoginAccountRequest struct {
 
 func (x *LoginAccountRequest) Reset() {
 	*x = LoginAccountRequest{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +344,7 @@ func (x *LoginAccountRequest) String() string {
 func (*LoginAccountRequest) ProtoMessage() {}
 
 func (x *LoginAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -453,7 +357,7 @@ func (x *LoginAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginAccountRequest.ProtoReflect.Descriptor instead.
 func (*LoginAccountRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{8}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LoginAccountRequest) GetId() string {
@@ -480,7 +384,7 @@ type LoginAccountResponse struct {
 
 func (x *LoginAccountResponse) Reset() {
 	*x = LoginAccountResponse{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -492,7 +396,7 @@ func (x *LoginAccountResponse) String() string {
 func (*LoginAccountResponse) ProtoMessage() {}
 
 func (x *LoginAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -505,7 +409,7 @@ func (x *LoginAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginAccountResponse.ProtoReflect.Descriptor instead.
 func (*LoginAccountResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{9}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LoginAccountResponse) GetAccount() *Account {
@@ -532,7 +436,7 @@ type LogoutAccountRequest struct {
 
 func (x *LogoutAccountRequest) Reset() {
 	*x = LogoutAccountRequest{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +448,7 @@ func (x *LogoutAccountRequest) String() string {
 func (*LogoutAccountRequest) ProtoMessage() {}
 
 func (x *LogoutAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +461,7 @@ func (x *LogoutAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutAccountRequest.ProtoReflect.Descriptor instead.
 func (*LogoutAccountRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{10}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *LogoutAccountRequest) GetId() string {
@@ -583,7 +487,7 @@ type LogoutAccountResponse struct {
 
 func (x *LogoutAccountResponse) Reset() {
 	*x = LogoutAccountResponse{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -595,7 +499,7 @@ func (x *LogoutAccountResponse) String() string {
 func (*LogoutAccountResponse) ProtoMessage() {}
 
 func (x *LogoutAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -608,7 +512,7 @@ func (x *LogoutAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutAccountResponse.ProtoReflect.Descriptor instead.
 func (*LogoutAccountResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{11}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *LogoutAccountResponse) GetAccount() *Account {
@@ -639,12 +543,7 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\x15DeleteAccountResponse\"\x15\n" +
 	"\x13ListAccountsRequest\"M\n" +
 	"\x14ListAccountsResponse\x125\n" +
-	"\baccounts\x18\x01 \x03(\v2\x19.mygardenworld.v1.AccountR\baccounts\"7\n" +
-	"\x11GetAccountRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"I\n" +
-	"\x12GetAccountResponse\x123\n" +
-	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount\"9\n" +
+	"\baccounts\x18\x01 \x03(\v2\x19.mygardenworld.v1.AccountR\baccounts\"9\n" +
 	"\x13LoginAccountRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\x89\x01\n" +
@@ -656,13 +555,11 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"L\n" +
 	"\x15LogoutAccountResponse\x123\n" +
-	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount2\xcd\x04\n" +
+	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount2\xf4\x03\n" +
 	"\x0eAccountService\x12`\n" +
 	"\rCreateAccount\x12&.mygardenworld.v1.CreateAccountRequest\x1a'.mygardenworld.v1.CreateAccountResponse\x12`\n" +
 	"\rDeleteAccount\x12&.mygardenworld.v1.DeleteAccountRequest\x1a'.mygardenworld.v1.DeleteAccountResponse\x12]\n" +
-	"\fListAccounts\x12%.mygardenworld.v1.ListAccountsRequest\x1a&.mygardenworld.v1.ListAccountsResponse\x12W\n" +
-	"\n" +
-	"GetAccount\x12#.mygardenworld.v1.GetAccountRequest\x1a$.mygardenworld.v1.GetAccountResponse\x12]\n" +
+	"\fListAccounts\x12%.mygardenworld.v1.ListAccountsRequest\x1a&.mygardenworld.v1.ListAccountsResponse\x12]\n" +
 	"\fLoginAccount\x12%.mygardenworld.v1.LoginAccountRequest\x1a&.mygardenworld.v1.LoginAccountResponse\x12`\n" +
 	"\rLogoutAccount\x12&.mygardenworld.v1.LogoutAccountRequest\x1a'.mygardenworld.v1.LogoutAccountResponseB\xd6\x01\n" +
 	"\x14com.mygardenworld.v1B\x13AccountServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
@@ -679,7 +576,7 @@ func file_mygardenworld_v1_account_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_account_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_mygardenworld_v1_account_service_proto_goTypes = []any{
 	(*CreateAccountRequest)(nil),  // 0: mygardenworld.v1.CreateAccountRequest
 	(*CreateAccountResponse)(nil), // 1: mygardenworld.v1.CreateAccountResponse
@@ -687,41 +584,36 @@ var file_mygardenworld_v1_account_service_proto_goTypes = []any{
 	(*DeleteAccountResponse)(nil), // 3: mygardenworld.v1.DeleteAccountResponse
 	(*ListAccountsRequest)(nil),   // 4: mygardenworld.v1.ListAccountsRequest
 	(*ListAccountsResponse)(nil),  // 5: mygardenworld.v1.ListAccountsResponse
-	(*GetAccountRequest)(nil),     // 6: mygardenworld.v1.GetAccountRequest
-	(*GetAccountResponse)(nil),    // 7: mygardenworld.v1.GetAccountResponse
-	(*LoginAccountRequest)(nil),   // 8: mygardenworld.v1.LoginAccountRequest
-	(*LoginAccountResponse)(nil),  // 9: mygardenworld.v1.LoginAccountResponse
-	(*LogoutAccountRequest)(nil),  // 10: mygardenworld.v1.LogoutAccountRequest
-	(*LogoutAccountResponse)(nil), // 11: mygardenworld.v1.LogoutAccountResponse
-	(Channel)(0),                  // 12: mygardenworld.v1.Channel
-	(*Account)(nil),               // 13: mygardenworld.v1.Account
-	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
+	(*LoginAccountRequest)(nil),   // 6: mygardenworld.v1.LoginAccountRequest
+	(*LoginAccountResponse)(nil),  // 7: mygardenworld.v1.LoginAccountResponse
+	(*LogoutAccountRequest)(nil),  // 8: mygardenworld.v1.LogoutAccountRequest
+	(*LogoutAccountResponse)(nil), // 9: mygardenworld.v1.LogoutAccountResponse
+	(Channel)(0),                  // 10: mygardenworld.v1.Channel
+	(*Account)(nil),               // 11: mygardenworld.v1.Account
+	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_account_service_proto_depIdxs = []int32{
-	12, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
-	13, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
-	13, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
-	13, // 3: mygardenworld.v1.GetAccountResponse.account:type_name -> mygardenworld.v1.Account
-	13, // 4: mygardenworld.v1.LoginAccountResponse.account:type_name -> mygardenworld.v1.Account
-	14, // 5: mygardenworld.v1.LoginAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
-	13, // 6: mygardenworld.v1.LogoutAccountResponse.account:type_name -> mygardenworld.v1.Account
-	0,  // 7: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
-	2,  // 8: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
-	4,  // 9: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
-	6,  // 10: mygardenworld.v1.AccountService.GetAccount:input_type -> mygardenworld.v1.GetAccountRequest
-	8,  // 11: mygardenworld.v1.AccountService.LoginAccount:input_type -> mygardenworld.v1.LoginAccountRequest
-	10, // 12: mygardenworld.v1.AccountService.LogoutAccount:input_type -> mygardenworld.v1.LogoutAccountRequest
-	1,  // 13: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
-	3,  // 14: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
-	5,  // 15: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
-	7,  // 16: mygardenworld.v1.AccountService.GetAccount:output_type -> mygardenworld.v1.GetAccountResponse
-	9,  // 17: mygardenworld.v1.AccountService.LoginAccount:output_type -> mygardenworld.v1.LoginAccountResponse
-	11, // 18: mygardenworld.v1.AccountService.LogoutAccount:output_type -> mygardenworld.v1.LogoutAccountResponse
-	13, // [13:19] is the sub-list for method output_type
-	7,  // [7:13] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	10, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
+	11, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
+	11, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
+	11, // 3: mygardenworld.v1.LoginAccountResponse.account:type_name -> mygardenworld.v1.Account
+	12, // 4: mygardenworld.v1.LoginAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
+	11, // 5: mygardenworld.v1.LogoutAccountResponse.account:type_name -> mygardenworld.v1.Account
+	0,  // 6: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
+	2,  // 7: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
+	4,  // 8: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
+	6,  // 9: mygardenworld.v1.AccountService.LoginAccount:input_type -> mygardenworld.v1.LoginAccountRequest
+	8,  // 10: mygardenworld.v1.AccountService.LogoutAccount:input_type -> mygardenworld.v1.LogoutAccountRequest
+	1,  // 11: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
+	3,  // 12: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
+	5,  // 13: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
+	7,  // 14: mygardenworld.v1.AccountService.LoginAccount:output_type -> mygardenworld.v1.LoginAccountResponse
+	9,  // 15: mygardenworld.v1.AccountService.LogoutAccount:output_type -> mygardenworld.v1.LogoutAccountResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_account_service_proto_init() }
@@ -737,7 +629,7 @@ func file_mygardenworld_v1_account_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_account_service_proto_rawDesc), len(file_mygardenworld_v1_account_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
