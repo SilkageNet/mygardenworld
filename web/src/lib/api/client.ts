@@ -34,7 +34,7 @@ async function tryRefresh(): Promise<boolean> {
   const refreshToken = localStorage.getItem("refresh_token");
   if (!refreshToken) return false;
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/mygardenworld.v1.AuthService/Refresh`, {
+    const res = await fetch(`${apiBaseUrl()}/mygardenworld.v1.AuthService/Refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refreshToken }),

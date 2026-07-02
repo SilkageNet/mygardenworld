@@ -28,7 +28,7 @@ type Account struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable id (rowid as string) used everywhere else.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Human-friendly nickname; unique per data dir.
+	// Human-friendly nickname; unique per platform user.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Distribution channel the daemon should speak with for this account.
 	// The protocol layer picks host fronts, version pinning, and device

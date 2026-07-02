@@ -58,7 +58,7 @@ func TestWSFullSessionE2E(t *testing.T) {
 
 	// WS connect
 	client := babigame.NewClient(session)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("ws connect: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestCultivateAndAssetsE2E(t *testing.T) {
 	}
 
 	client := babigame.NewClient(session)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	if err := client.Connect(ctx); err != nil {
 		t.Fatalf("connect: %v", err)
 	}

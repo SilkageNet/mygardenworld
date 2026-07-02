@@ -42,14 +42,23 @@ func (svc *Services) CreateUser(ctx context.Context, req *connect.Request[pb.Cre
 	var status *string
 	if in.Role != nil {
 		v := in.GetRole()
+		if err := validateRole(v); err != nil {
+			return nil, err
+		}
 		role = &v
 	}
 	if in.MaxAccounts != nil {
 		v := int(in.GetMaxAccounts())
+		if err := validateMaxAccounts(v); err != nil {
+			return nil, err
+		}
 		maxAccounts = &v
 	}
 	if in.Status != nil {
 		v := in.GetStatus()
+		if err := validateStatus(v); err != nil {
+			return nil, err
+		}
 		status = &v
 	}
 	if role != nil || maxAccounts != nil || status != nil {
@@ -105,14 +114,23 @@ func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.Upd
 	var status *string
 	if in.Role != nil {
 		r := *in.Role
+		if err := validateRole(r); err != nil {
+			return nil, err
+		}
 		role = &r
 	}
 	if in.MaxAccounts != nil {
 		m := int(*in.MaxAccounts)
+		if err := validateMaxAccounts(m); err != nil {
+			return nil, err
+		}
 		maxAccounts = &m
 	}
 	if in.Status != nil {
 		s := *in.Status
+		if err := validateStatus(s); err != nil {
+			return nil, err
+		}
 		status = &s
 	}
 	if status != nil && *status == "disabled" {
@@ -126,6 +144,15 @@ func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.Upd
 		}
 		if effectiveRole == "admin" {
 			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("admin users cannot be disabled"))
+		}
+	}
+	if maxAccounts != nil {
+		count, err := svc.DB.CountAccountsByUser(ctx, in.GetUserId())
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		if *maxAccounts < count {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("max_accounts cannot be below current account count"))
 		}
 	}
 	user, err := svc.DB.UpdateUser(ctx, in.GetUserId(), role, maxAccounts, status)
@@ -174,4 +201,29 @@ func (svc *Services) GetSystemStats(ctx context.Context, _ *connect.Request[pb.G
 		ActiveRunners:     active,
 		ConnectedRunners:  connected,
 	}), nil
+}
+
+func validateRole(role string) error {
+	switch role {
+	case "admin", "user":
+		return nil
+	default:
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("role must be admin or user"))
+	}
+}
+
+func validateStatus(status string) error {
+	switch status {
+	case "active", "disabled":
+		return nil
+	default:
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("status must be active or disabled"))
+	}
+}
+
+func validateMaxAccounts(maxAccounts int) error {
+	if maxAccounts < 0 {
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("max_accounts must be non-negative"))
+	}
+	return nil
 }

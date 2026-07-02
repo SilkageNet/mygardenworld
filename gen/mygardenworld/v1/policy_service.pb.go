@@ -221,31 +221,28 @@ func (x *SetPolicyResponse) GetPolicy() *Policy {
 	return nil
 }
 
-type UpdatePolicyRequest struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	AccountId   string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AccountName string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
-	// Each entry is "dot.path=value". Parse errors surface per entry in the
-	// response so partial CLI patches stay debuggable.
-	Entries       []string `protobuf:"bytes,3,rep,name=entries,proto3" json:"entries,omitempty"`
+type ExportPolicyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdatePolicyRequest) Reset() {
-	*x = UpdatePolicyRequest{}
+func (x *ExportPolicyRequest) Reset() {
+	*x = ExportPolicyRequest{}
 	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdatePolicyRequest) String() string {
+func (x *ExportPolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdatePolicyRequest) ProtoMessage() {}
+func (*ExportPolicyRequest) ProtoMessage() {}
 
-func (x *UpdatePolicyRequest) ProtoReflect() protoreflect.Message {
+func (x *ExportPolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -257,54 +254,46 @@ func (x *UpdatePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdatePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpdatePolicyRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExportPolicyRequest.ProtoReflect.Descriptor instead.
+func (*ExportPolicyRequest) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *UpdatePolicyRequest) GetAccountId() string {
+func (x *ExportPolicyRequest) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
 	}
 	return ""
 }
 
-func (x *UpdatePolicyRequest) GetAccountName() string {
+func (x *ExportPolicyRequest) GetAccountName() string {
 	if x != nil {
 		return x.AccountName
 	}
 	return ""
 }
 
-func (x *UpdatePolicyRequest) GetEntries() []string {
-	if x != nil {
-		return x.Entries
-	}
-	return nil
-}
-
-type UpdatePolicyResponse struct {
+type ExportPolicyResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Policy        *Policy                `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
-	Errors        []*PolicyPatchError    `protobuf:"bytes,2,rep,name=errors,proto3" json:"errors,omitempty"`
+	PolicyJson    string                 `protobuf:"bytes,1,opt,name=policy_json,json=policyJson,proto3" json:"policy_json,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *UpdatePolicyResponse) Reset() {
-	*x = UpdatePolicyResponse{}
+func (x *ExportPolicyResponse) Reset() {
+	*x = ExportPolicyResponse{}
 	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *UpdatePolicyResponse) String() string {
+func (x *ExportPolicyResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*UpdatePolicyResponse) ProtoMessage() {}
+func (*ExportPolicyResponse) ProtoMessage() {}
 
-func (x *UpdatePolicyResponse) ProtoReflect() protoreflect.Message {
+func (x *ExportPolicyResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -316,48 +305,147 @@ func (x *UpdatePolicyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdatePolicyResponse.ProtoReflect.Descriptor instead.
-func (*UpdatePolicyResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ExportPolicyResponse.ProtoReflect.Descriptor instead.
+func (*ExportPolicyResponse) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *UpdatePolicyResponse) GetPolicy() *Policy {
+func (x *ExportPolicyResponse) GetPolicyJson() string {
+	if x != nil {
+		return x.PolicyJson
+	}
+	return ""
+}
+
+type ImportPolicyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	PolicyJson    string                 `protobuf:"bytes,3,opt,name=policy_json,json=policyJson,proto3" json:"policy_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportPolicyRequest) Reset() {
+	*x = ImportPolicyRequest{}
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportPolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportPolicyRequest) ProtoMessage() {}
+
+func (x *ImportPolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportPolicyRequest.ProtoReflect.Descriptor instead.
+func (*ImportPolicyRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ImportPolicyRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *ImportPolicyRequest) GetAccountName() string {
+	if x != nil {
+		return x.AccountName
+	}
+	return ""
+}
+
+func (x *ImportPolicyRequest) GetPolicyJson() string {
+	if x != nil {
+		return x.PolicyJson
+	}
+	return ""
+}
+
+type ImportPolicyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Policy        *Policy                `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImportPolicyResponse) Reset() {
+	*x = ImportPolicyResponse{}
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImportPolicyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImportPolicyResponse) ProtoMessage() {}
+
+func (x *ImportPolicyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImportPolicyResponse.ProtoReflect.Descriptor instead.
+func (*ImportPolicyResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ImportPolicyResponse) GetPolicy() *Policy {
 	if x != nil {
 		return x.Policy
 	}
 	return nil
 }
 
-func (x *UpdatePolicyResponse) GetErrors() []*PolicyPatchError {
-	if x != nil {
-		return x.Errors
-	}
-	return nil
+type CopyPolicyRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SourceAccountId   string                 `protobuf:"bytes,1,opt,name=source_account_id,json=sourceAccountId,proto3" json:"source_account_id,omitempty"`
+	SourceAccountName string                 `protobuf:"bytes,2,opt,name=source_account_name,json=sourceAccountName,proto3" json:"source_account_name,omitempty"`
+	TargetAccountId   string                 `protobuf:"bytes,3,opt,name=target_account_id,json=targetAccountId,proto3" json:"target_account_id,omitempty"`
+	TargetAccountName string                 `protobuf:"bytes,4,opt,name=target_account_name,json=targetAccountName,proto3" json:"target_account_name,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
-type PolicyPatchError struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Entry         string                 `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PolicyPatchError) Reset() {
-	*x = PolicyPatchError{}
-	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[6]
+func (x *CopyPolicyRequest) Reset() {
+	*x = CopyPolicyRequest{}
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PolicyPatchError) String() string {
+func (x *CopyPolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PolicyPatchError) ProtoMessage() {}
+func (*CopyPolicyRequest) ProtoMessage() {}
 
-func (x *PolicyPatchError) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[6]
+func (x *CopyPolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -368,23 +456,81 @@ func (x *PolicyPatchError) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PolicyPatchError.ProtoReflect.Descriptor instead.
-func (*PolicyPatchError) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use CopyPolicyRequest.ProtoReflect.Descriptor instead.
+func (*CopyPolicyRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *PolicyPatchError) GetEntry() string {
+func (x *CopyPolicyRequest) GetSourceAccountId() string {
 	if x != nil {
-		return x.Entry
+		return x.SourceAccountId
 	}
 	return ""
 }
 
-func (x *PolicyPatchError) GetMessage() string {
+func (x *CopyPolicyRequest) GetSourceAccountName() string {
 	if x != nil {
-		return x.Message
+		return x.SourceAccountName
 	}
 	return ""
+}
+
+func (x *CopyPolicyRequest) GetTargetAccountId() string {
+	if x != nil {
+		return x.TargetAccountId
+	}
+	return ""
+}
+
+func (x *CopyPolicyRequest) GetTargetAccountName() string {
+	if x != nil {
+		return x.TargetAccountName
+	}
+	return ""
+}
+
+type CopyPolicyResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Policy        *Policy                `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CopyPolicyResponse) Reset() {
+	*x = CopyPolicyResponse{}
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CopyPolicyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CopyPolicyResponse) ProtoMessage() {}
+
+func (x *CopyPolicyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_policy_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CopyPolicyResponse.ProtoReflect.Descriptor instead.
+func (*CopyPolicyResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CopyPolicyResponse) GetPolicy() *Policy {
+	if x != nil {
+		return x.Policy
+	}
+	return nil
 }
 
 var File_mygardenworld_v1_policy_service_proto protoreflect.FileDescriptor
@@ -404,22 +550,36 @@ const file_mygardenworld_v1_policy_service_proto_rawDesc = "" +
 	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x120\n" +
 	"\x06policy\x18\x03 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"E\n" +
 	"\x11SetPolicyResponse\x120\n" +
-	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"q\n" +
-	"\x13UpdatePolicyRequest\x12\x1d\n" +
+	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"W\n" +
+	"\x13ExportPolicyRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12\x18\n" +
-	"\aentries\x18\x03 \x03(\tR\aentries\"\x84\x01\n" +
-	"\x14UpdatePolicyResponse\x120\n" +
-	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\x12:\n" +
-	"\x06errors\x18\x02 \x03(\v2\".mygardenworld.v1.PolicyPatchErrorR\x06errors\"B\n" +
-	"\x10PolicyPatchError\x12\x14\n" +
-	"\x05entry\x18\x01 \x01(\tR\x05entry\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\x9a\x02\n" +
+	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"7\n" +
+	"\x14ExportPolicyResponse\x12\x1f\n" +
+	"\vpolicy_json\x18\x01 \x01(\tR\n" +
+	"policyJson\"x\n" +
+	"\x13ImportPolicyRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
+	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12\x1f\n" +
+	"\vpolicy_json\x18\x03 \x01(\tR\n" +
+	"policyJson\"H\n" +
+	"\x14ImportPolicyResponse\x120\n" +
+	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"\xcb\x01\n" +
+	"\x11CopyPolicyRequest\x12*\n" +
+	"\x11source_account_id\x18\x01 \x01(\tR\x0fsourceAccountId\x12.\n" +
+	"\x13source_account_name\x18\x02 \x01(\tR\x11sourceAccountName\x12*\n" +
+	"\x11target_account_id\x18\x03 \x01(\tR\x0ftargetAccountId\x12.\n" +
+	"\x13target_account_name\x18\x04 \x01(\tR\x11targetAccountName\"F\n" +
+	"\x12CopyPolicyResponse\x120\n" +
+	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy2\xd2\x03\n" +
 	"\rPolicyService\x12T\n" +
 	"\tGetPolicy\x12\".mygardenworld.v1.GetPolicyRequest\x1a#.mygardenworld.v1.GetPolicyResponse\x12T\n" +
 	"\tSetPolicy\x12\".mygardenworld.v1.SetPolicyRequest\x1a#.mygardenworld.v1.SetPolicyResponse\x12]\n" +
-	"\fUpdatePolicy\x12%.mygardenworld.v1.UpdatePolicyRequest\x1a&.mygardenworld.v1.UpdatePolicyResponseB\xd5\x01\n" +
+	"\fExportPolicy\x12%.mygardenworld.v1.ExportPolicyRequest\x1a&.mygardenworld.v1.ExportPolicyResponse\x12]\n" +
+	"\fImportPolicy\x12%.mygardenworld.v1.ImportPolicyRequest\x1a&.mygardenworld.v1.ImportPolicyResponse\x12W\n" +
+	"\n" +
+	"CopyPolicy\x12#.mygardenworld.v1.CopyPolicyRequest\x1a$.mygardenworld.v1.CopyPolicyResponseB\xd5\x01\n" +
 	"\x14com.mygardenworld.v1B\x12PolicyServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -434,34 +594,41 @@ func file_mygardenworld_v1_policy_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_policy_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_policy_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_mygardenworld_v1_policy_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_mygardenworld_v1_policy_service_proto_goTypes = []any{
 	(*GetPolicyRequest)(nil),     // 0: mygardenworld.v1.GetPolicyRequest
 	(*GetPolicyResponse)(nil),    // 1: mygardenworld.v1.GetPolicyResponse
 	(*SetPolicyRequest)(nil),     // 2: mygardenworld.v1.SetPolicyRequest
 	(*SetPolicyResponse)(nil),    // 3: mygardenworld.v1.SetPolicyResponse
-	(*UpdatePolicyRequest)(nil),  // 4: mygardenworld.v1.UpdatePolicyRequest
-	(*UpdatePolicyResponse)(nil), // 5: mygardenworld.v1.UpdatePolicyResponse
-	(*PolicyPatchError)(nil),     // 6: mygardenworld.v1.PolicyPatchError
-	(*Policy)(nil),               // 7: mygardenworld.v1.Policy
+	(*ExportPolicyRequest)(nil),  // 4: mygardenworld.v1.ExportPolicyRequest
+	(*ExportPolicyResponse)(nil), // 5: mygardenworld.v1.ExportPolicyResponse
+	(*ImportPolicyRequest)(nil),  // 6: mygardenworld.v1.ImportPolicyRequest
+	(*ImportPolicyResponse)(nil), // 7: mygardenworld.v1.ImportPolicyResponse
+	(*CopyPolicyRequest)(nil),    // 8: mygardenworld.v1.CopyPolicyRequest
+	(*CopyPolicyResponse)(nil),   // 9: mygardenworld.v1.CopyPolicyResponse
+	(*Policy)(nil),               // 10: mygardenworld.v1.Policy
 }
 var file_mygardenworld_v1_policy_service_proto_depIdxs = []int32{
-	7, // 0: mygardenworld.v1.GetPolicyResponse.policy:type_name -> mygardenworld.v1.Policy
-	7, // 1: mygardenworld.v1.SetPolicyRequest.policy:type_name -> mygardenworld.v1.Policy
-	7, // 2: mygardenworld.v1.SetPolicyResponse.policy:type_name -> mygardenworld.v1.Policy
-	7, // 3: mygardenworld.v1.UpdatePolicyResponse.policy:type_name -> mygardenworld.v1.Policy
-	6, // 4: mygardenworld.v1.UpdatePolicyResponse.errors:type_name -> mygardenworld.v1.PolicyPatchError
-	0, // 5: mygardenworld.v1.PolicyService.GetPolicy:input_type -> mygardenworld.v1.GetPolicyRequest
-	2, // 6: mygardenworld.v1.PolicyService.SetPolicy:input_type -> mygardenworld.v1.SetPolicyRequest
-	4, // 7: mygardenworld.v1.PolicyService.UpdatePolicy:input_type -> mygardenworld.v1.UpdatePolicyRequest
-	1, // 8: mygardenworld.v1.PolicyService.GetPolicy:output_type -> mygardenworld.v1.GetPolicyResponse
-	3, // 9: mygardenworld.v1.PolicyService.SetPolicy:output_type -> mygardenworld.v1.SetPolicyResponse
-	5, // 10: mygardenworld.v1.PolicyService.UpdatePolicy:output_type -> mygardenworld.v1.UpdatePolicyResponse
-	8, // [8:11] is the sub-list for method output_type
-	5, // [5:8] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	10, // 0: mygardenworld.v1.GetPolicyResponse.policy:type_name -> mygardenworld.v1.Policy
+	10, // 1: mygardenworld.v1.SetPolicyRequest.policy:type_name -> mygardenworld.v1.Policy
+	10, // 2: mygardenworld.v1.SetPolicyResponse.policy:type_name -> mygardenworld.v1.Policy
+	10, // 3: mygardenworld.v1.ImportPolicyResponse.policy:type_name -> mygardenworld.v1.Policy
+	10, // 4: mygardenworld.v1.CopyPolicyResponse.policy:type_name -> mygardenworld.v1.Policy
+	0,  // 5: mygardenworld.v1.PolicyService.GetPolicy:input_type -> mygardenworld.v1.GetPolicyRequest
+	2,  // 6: mygardenworld.v1.PolicyService.SetPolicy:input_type -> mygardenworld.v1.SetPolicyRequest
+	4,  // 7: mygardenworld.v1.PolicyService.ExportPolicy:input_type -> mygardenworld.v1.ExportPolicyRequest
+	6,  // 8: mygardenworld.v1.PolicyService.ImportPolicy:input_type -> mygardenworld.v1.ImportPolicyRequest
+	8,  // 9: mygardenworld.v1.PolicyService.CopyPolicy:input_type -> mygardenworld.v1.CopyPolicyRequest
+	1,  // 10: mygardenworld.v1.PolicyService.GetPolicy:output_type -> mygardenworld.v1.GetPolicyResponse
+	3,  // 11: mygardenworld.v1.PolicyService.SetPolicy:output_type -> mygardenworld.v1.SetPolicyResponse
+	5,  // 12: mygardenworld.v1.PolicyService.ExportPolicy:output_type -> mygardenworld.v1.ExportPolicyResponse
+	7,  // 13: mygardenworld.v1.PolicyService.ImportPolicy:output_type -> mygardenworld.v1.ImportPolicyResponse
+	9,  // 14: mygardenworld.v1.PolicyService.CopyPolicy:output_type -> mygardenworld.v1.CopyPolicyResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_policy_service_proto_init() }
@@ -476,7 +643,7 @@ func file_mygardenworld_v1_policy_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_policy_service_proto_rawDesc), len(file_mygardenworld_v1_policy_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -35,7 +35,7 @@ func TestUpstreamError_ErrorFormat(t *testing.T) {
 	}
 	// Critical: the formatted output must be valid UTF-8 (we're going to
 	// shove it into a proto string field).
-	if !strings.ContainsAny(got, "\xff\x80") {
+	if !strings.Contains(got, string([]byte{0xff, 0x80})) {
 		// Good - the raw invalid bytes were hex-encoded, not pasted in.
 	} else {
 		t.Errorf("formatted error contains raw invalid bytes: %q", got)

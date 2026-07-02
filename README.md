@@ -24,7 +24,7 @@ powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.c
 
 ## 使用
 
-`gardend` 是必须启动的本地服务进程；Web 控制台和 `gardenctl` 都只是操作入口，按你的习惯二选一或同时使用即可。
+`gardend` 是必须启动的本地服务进程，并内嵌 Web 控制台。日常管理都通过浏览器完成。
 
 启动本地服务：
 
@@ -33,7 +33,7 @@ JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="change-me-first" \
   gardend serve --data-dir ./data --listen 127.0.0.1:50051
 ```
 
-本地数据默认由 `gardend serve --data-dir` 决定；不传时是启动命令所在目录下的 `./data`，SQLite 文件为 `./data/garden.db`。一键安装只安装 `gardend` / `gardenctl` 二进制，不会额外切换数据目录。
+本地数据默认由 `gardend serve --data-dir` 决定；不传时使用系统用户配置目录下的 `mygardenworld/data`，SQLite 文件为 `garden.db`。一键安装只安装 `gardend` 二进制，不会额外切换数据目录。
 
 需要排查协议回包时，请用源码目录里的 debug 启动目标，而不是普通 `backend`：
 
@@ -57,38 +57,13 @@ gardend reset-data --data-dir ./data --yes
 http://127.0.0.1:50051
 ```
 
-Web 控制台适合日常可视化管理账号、查看田地/库存/任务、启停自动化和调整策略。只用 Web 控制台也可以完成主要操作，不要求必须使用 `gardenctl`。
+Web 控制台适合日常可视化管理账号、查看田地/库存/任务、启停自动化和调整策略。首次启动后使用启动参数里的 `--admin-username` 和 `--admin-password` 登录，然后在页面里添加游戏账号。
 
-`gardenctl` 是可选的命令行客户端，适合脚本化、远程终端、查看 JSON 输出、订阅事件流，或在没有浏览器环境时操作同一个 `gardend` 服务。
+自动化策略按 **基础、种植、订单、公会、活动** 五个业务域组织；账号会话与内部错误分别进入 **account** 和 **system** 日志分类。策略、执行计划、运行状态和日志过滤使用同一套分类。
 
-登录本地控制面：
-
-```sh
-gardenctl auth login --username admin --password change-me-first
-```
-
-添加账号：
+更新本地程序：
 
 ```sh
-gardenctl account add main \
-  --username "<account>" \
-  --password "<password>" \
-  --channel ios \
-  --login
-```
-
-查看状态：
-
-```sh
-gardenctl --account main status
-gardenctl --account main snapshot
-gardenctl --account main watch
-```
-
-更新命令行程序：
-
-```sh
-gardenctl update
 gardend update
 ```
 
@@ -97,7 +72,6 @@ gardend update
 ```sh
 gardend --help
 gardend serve --help
-gardenctl --help
 ```
 
 ## 从源码构建

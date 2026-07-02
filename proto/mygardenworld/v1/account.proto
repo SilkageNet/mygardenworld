@@ -11,7 +11,7 @@ message Account {
   // Stable id (rowid as string) used everywhere else.
   string id = 1;
 
-  // Human-friendly nickname; unique per data dir.
+  // Human-friendly nickname; unique per platform user.
   string name = 2;
 
   // Distribution channel the daemon should speak with for this account.

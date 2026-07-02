@@ -4,37 +4,30 @@
 
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import { file_google_protobuf_struct } from "@bufbuild/protobuf/wkt";
-import type { JsonObject, Message } from "@bufbuild/protobuf";
+import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file mygardenworld/v1/policy.proto.
  */
 export const file_mygardenworld_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKqAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIwCgdoYXJ2ZXN0GAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5IYXJ2ZXN0UG9saWN5EiwKBXBsYW50GAMgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QbGFudFBvbGljeRIsCgV3YXRlchgEIAEoCzIdLm15Z2FyZGVud29ybGQudjEuV2F0ZXJQb2xpY3kSKgoEbWlzYxgFIAEoCzIcLm15Z2FyZGVud29ybGQudjEuTWlzY1BvbGljeRIhChlkZWNpc2lvbl9pbnRlcnZhbF9zZWNvbmRzGAogASgBEicKBmV4dHJhcxhjIAEoCzIXLmdvb2dsZS5wcm90b2J1Zi5TdHJ1Y3QiOAoNSGFydmVzdFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnByZWZlcl9vbmVfa2V5GAIgASgIIsgBCgtQbGFudFBvbGljeRIPCgdlbmFibGVkGAEgASgIEgwKBG1vZGUYBiABKAkSIgoVdGFza19wcmlvcml0eV9lbmFibGVkGAcgASgISACIAQESEQoJbWluX3N0b2NrGAIgASgFEhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgDIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYBCADKAUSEQoJbWF4X2JhdGNoGAUgASgFQhgKFl90YXNrX3ByaW9yaXR5X2VuYWJsZWQiZQoLV2F0ZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgltYXhfYmF0Y2gYAiABKAUSEQoJbWluX2Ryb3BzGAMgASgFEh8KF3ByZWZlcl9vbmVfa2V5X2lmX25vYmxlGAQgASgIIrcHCgpNaXNjUG9saWN5EhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYASABKAgSHAoUc3RvcnlfdW5sb2NrX2VuYWJsZWQYAiABKAgSGgoSd2F0ZXJ3aGVlbF9lbmFibGVkGAMgASgIEhkKEWN1bHRpdmF0ZV9lbmFibGVkGAQgASgIEh4KFmZsb3dlcl91cGdyYWRlX2VuYWJsZWQYBSABKAgSHgoWcmVzaWRlbnRfb3JkZXJfZW5hYmxlZBgGIAEoCBIeChZjdXN0b21lcl9vcmRlcl9lbmFibGVkGAcgASgIEiQKHGN1c3RvbWVyX29yZGVyX2NyYWZ0X2VuYWJsZWQYCCABKAgSJQodY3VzdG9tZXJfb3JkZXJfcmVqZWN0X2VuYWJsZWQYCSABKAgSJQodcmVzaWRlbnRfb3JkZXJfcmV3YXJkX2VuYWJsZWQYCiABKAgSIQoZcmVzaWRlbnRfb3JkZXJfYWRfZW5hYmxlZBgLIAEoCBIbChNmbG93ZXJfcmFja19lbmFibGVkGAwgASgIEiEKGWZsb3dlcl9yYWNrX2NyYWZ0X2VuYWJsZWQYDSABKAgSGgoSZnJlZV93YXRlcl9lbmFibGVkGA4gASgIEiAKGHRhc2tfbWFpbl9yZXdhcmRfZW5hYmxlZBgPIAEoCBIhChl0YXNrX2RhaWx5X3Jld2FyZF9lbmFibGVkGBAgASgIEiAKGHJvYWRfZ3Jvd19yZXdhcmRfZW5hYmxlZBgRIAEoCBIcChRyYW5kb21fZXZlbnRfZW5hYmxlZBgSIAEoCBIhChlmbG93ZXJfYXJ0X3Jld2FyZF9lbmFibGVkGBMgASgIEhsKE2JlbmVmaXRfYm94X2VuYWJsZWQYFCABKAgSGAoQc3BlZWRfdXBfZW5hYmxlZBgVIAEoCBIfChd0YXNrX2FjaF9yZXdhcmRfZW5hYmxlZBgWIAEoCBIcChRvcmRlcl9wYWxhY2VfZW5hYmxlZBgXIAEoCBIUCgxzaWduX2VuYWJsZWQYGCABKAgSGwoTZmxvd2VyX3Bhc3NfZW5hYmxlZBgZIAEoCBIhChlmbG93ZXJfZWx2ZXNfcGFzc19lbmFibGVkGBogASgIEhsKE3BsYXllcl9iYWNrX2VuYWJsZWQYGyABKAgSHwoXYWN0aXZpdHlfcmV3YXJkX2VuYWJsZWQYHCABKAgSGAoQem9vX3N5bmNfZW5hYmxlZBgdIAEoCBIYChB6b29fZmVlZF9lbmFibGVkGB4gASgIQoQBChRjb20ubXlnYXJkZW53b3JsZC52MUILUG9saWN5UHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_struct]);
+  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLjAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIsCgViYXNpYxgCIAEoCzIdLm15Z2FyZGVud29ybGQudjEuQmFzaWNQb2xpY3kSLAoFcGxhbnQYAyABKAsyHS5teWdhcmRlbndvcmxkLnYxLlBsYW50UG9saWN5EiwKBW9yZGVyGAQgASgLMh0ubXlnYXJkZW53b3JsZC52MS5PcmRlclBvbGljeRIsCgV1bmlvbhgFIAEoCzIdLm15Z2FyZGVud29ybGQudjEuVW5pb25Qb2xpY3kSMgoIYWN0aXZpdHkYBiABKAsyIC5teWdhcmRlbndvcmxkLnYxLkFjdGl2aXR5UG9saWN5Ei4KBnNhZmV0eRgHIAEoCzIeLm15Z2FyZGVud29ybGQudjEuU2FmZXR5UG9saWN5EiEKGWRlY2lzaW9uX2ludGVydmFsX3NlY29uZHMYCiABKAEisgQKC0Jhc2ljUG9saWN5EhoKEnJlcHV0YXRpb25fZW5hYmxlZBgBIAEoCBIcChRyZXB1dGF0aW9uX3RocmVzaG9sZBgCIAEoBRIZChFtYWluX3Rhc2tfZW5hYmxlZBgDIAEoCBIaChJkYWlseV90YXNrX2VuYWJsZWQYBCABKAgSGwoTd2Vla2x5X3Rhc2tfZW5hYmxlZBgFIAEoCBIgChhhY2hpZXZlbWVudF90YXNrX2VuYWJsZWQYBiABKAgSFQoNc3RvcnlfZW5hYmxlZBgHIAEoCBIUCgxtYWlsX2VuYWJsZWQYCCABKAgSFwoPd2VsZmFyZV9lbmFibGVkGAkgASgIEhQKDHNpZ25fZW5hYmxlZBgKIAEoCBIaChJmcmVlX3dhdGVyX2VuYWJsZWQYCyABKAgSGgoSd2F0ZXJ3aGVlbF9lbmFibGVkGAwgASgIEhsKE2JlbmVmaXRfYm94X2VuYWJsZWQYDSABKAgSHAoUcmFuZG9tX2V2ZW50X2VuYWJsZWQYDiABKAgSIAoYcm9hZF9ncm93X3Jld2FyZF9lbmFibGVkGA8gASgIEiwKBXBlYXJsGBQgASgLMh0ubXlnYXJkZW53b3JsZC52MS5QZWFybFBvbGljeRIqCgRzaG9wGBUgASgLMhwubXlnYXJkZW53b3JsZC52MS5TaG9wUG9saWN5EigKA3pvbxgWIAEoCzIbLm15Z2FyZGVud29ybGQudjEuWm9vUG9saWN5IsQBCgtQZWFybFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhIKCmZyZWVfcGVhcmwYAiABKAgSEQoJYXV0b19oaXJlGAMgASgIEhEKCWF1dG9fZHJhdxgEIAEoCBIXCg9wcm90ZWN0X2VuYWJsZWQYBSABKAgSFgoObWF4X2hpcmVfbGV2ZWwYBiABKAUSHQoVbWF4X2hpcmVfdGlja2V0X3VzYWdlGAcgASgFEhoKEm1heF9zcGVuZF9kaWFtb25kcxgIIAEoBSL1AQoKU2hvcFBvbGljeRIaChJ2aWRlb19naWZ0X2VuYWJsZWQYASABKAgSHgoWY3VsdGl2YXRlX3Nob3BfZW5hYmxlZBgCIAEoCBIlCh1jdWx0aXZhdGVfc2hvcF9tYXhfc3BlbmRfZ29sZBgDIAEoBRIYChB2aXBfc2hvcF9lbmFibGVkGAQgASgIEiMKG3ZpcF9zaG9wX21heF9zcGVuZF9kaWFtb25kcxgFIAEoBRImCh52aXBfc2hvcF9tYXhfc3BlbmRfZmxvcmFsX2NvaW4YBiABKAUSHQoVbWF0ZXJpYWxfc2hvcF9lbmFibGVkGAcgASgIIpwBCglab29Qb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBITCgthdXRvX3JlY2FsbBgCIAEoCBIVCg1hdXRvX2J1eV9mb29kGAMgASgIEhEKCWF1dG9fZmVlZBgEIAEoCBITCgthdXRvX3N0cm9rZRgFIAEoCBIUCgxzeW5jX2VuYWJsZWQYBiABKAgSFAoMZ2FtZV9lbmFibGVkGAcgASgIIvEFCgtQbGFudFBvbGljeRIXCg9oYXJ2ZXN0X2VuYWJsZWQYASABKAgSHgoWaGFydmVzdF9wcmVmZXJfb25lX2tleRgCIAEoCBIVCg1wbGFudF9lbmFibGVkGAMgASgIEhUKDXBsYW50aW5nX21vZGUYBCABKAkSHQoVdGFza19wcmlvcml0eV9lbmFibGVkGAUgASgIEkYKDXRhc2tfcHJpb3JpdHkYBiADKAsyLy5teWdhcmRlbndvcmxkLnYxLlBsYW50UG9saWN5LlRhc2tQcmlvcml0eUVudHJ5EhoKEmFsbG93ZWRfZmxvd2VyX2lkcxgHIAMoBRIaChJibG9ja2VkX2Zsb3dlcl9pZHMYCCADKAUSEQoJcXVhbGl0aWVzGAkgAygFEhgKEG1pbl9mbG93ZXJfbGV2ZWwYCiABKAUSFAoMZmxvd2VyX2NvdW50GAsgASgFEhcKD3BsYW50X21heF9iYXRjaBgMIAEoBRIVCg13YXRlcl9lbmFibGVkGA0gASgIEhcKD3dhdGVyX21heF9iYXRjaBgOIAEoBRIXCg9taW5fd2F0ZXJfZHJvcHMYDyABKAUSFwoPd2F0ZXJfdGhyZXNob2xkGBAgASgFEhsKE3RpbWVkX3dhdGVyX2VuYWJsZWQYESABKAgSJQodd2F0ZXJfcHJlZmVyX29uZV9rZXlfaWZfbm9ibGUYEiABKAgSGAoQc3BlZWRfdXBfZW5hYmxlZBgTIAEoCBIbChNzcGVlZF91cF90aWNrZXRfbWF4GBQgASgFEhYKDnZpZGVvX3NwZWVkX3VwGBUgASgIEhsKE2xhbmRfdW5sb2NrX2VuYWJsZWQYFiABKAgSGQoRY3VsdGl2YXRlX2VuYWJsZWQYFyABKAgSHgoWZmxvd2VyX3VwZ3JhZGVfZW5hYmxlZBgYIAEoCBozChFUYXNrUHJpb3JpdHlFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAU6AjgBIpwCCgtPcmRlclBvbGljeRI3CghjdXN0b21lchgBIAEoCzIlLm15Z2FyZGVud29ybGQudjEuQ3VzdG9tZXJPcmRlclBvbGljeRI3CghyZXNpZGVudBgCIAEoCzIlLm15Z2FyZGVud29ybGQudjEuUmVzaWRlbnRPcmRlclBvbGljeRIzCgZwYWxhY2UYAyABKAsyIy5teWdhcmRlbndvcmxkLnYxLlBhbGFjZU9yZGVyUG9saWN5Ei8KBHRlYW0YBCABKAsyIS5teWdhcmRlbndvcmxkLnYxLlRlYW1PcmRlclBvbGljeRI1CgpmbG93ZXJfYXJ0GAUgASgLMiEubXlnYXJkZW53b3JsZC52MS5GbG93ZXJBcnRQb2xpY3kicgoTQ3VzdG9tZXJPcmRlclBvbGljeRIPCgdlbmFibGVkGAEgASgIEhYKDnJlamVjdF9lbmFibGVkGAIgASgIEhUKDWNyYWZ0X2VuYWJsZWQYAyABKAgSGwoTbWF4X2ZpbmlzaF9wZXJfdGljaxgEIAEoBSLuAQoTUmVzaWRlbnRPcmRlclBvbGljeRIWCg5ub3JtYWxfZW5hYmxlZBgBIAEoCBIWCg5ub3JtYWxfbWF4X251bRgCIAEoBRIYChBkZWNvcmF0ZV9lbmFibGVkGAMgASgIEhgKEGRlY29yYXRlX21heF9udW0YBCABKAUSFQoNc2F0aW5fZW5hYmxlZBgFIAEoCBIVCg1zYXRpbl9tYXhfbnVtGAYgASgFEhEKCXF1YWxpdGllcxgHIAMoBRIWCg5yZXdhcmRfZW5hYmxlZBgIIAEoCBIaChJhZF9yZWZyZXNoX2VuYWJsZWQYCSABKAgiNwoRUGFsYWNlT3JkZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCglxdWFsaXRpZXMYAiADKAUibwoPVGVhbU9yZGVyUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSEAoIb25lX21vcmUYAiABKAgSJgoec3VibWl0X29ubHlfY3VsdGl2YXRlZF9mbG93ZXJzGAMgASgIEhEKCXF1YWxpdGllcxgEIAMoBSK/AQoPRmxvd2VyQXJ0UG9saWN5EhQKDHNlbGxfZW5hYmxlZBgBIAEoCBIVCg1jcmFmdF9lbmFibGVkGAIgASgIEhYKDnJld2FyZF9lbmFibGVkGAMgASgIEhkKEWF1dG9fdW5sb2NrX3N0YW5kGAQgASgIEhQKDGVhcmx5X2NhbmNlbBgFIAEoCBIbChNmbG93ZXJfYXJ0X3Blcl9yYWNrGAYgASgFEhkKEXNwZWNpZmllZF9hcnRfaWRzGAcgAygFIpUHCgtVbmlvblBvbGljeRIaChJidWlsZF9mcmVlX2VuYWJsZWQYASABKAgSGgoSYnVpbGRfZ29sZF9lbmFibGVkGAIgASgIEh0KFWJ1aWxkX2RpYW1vbmRfZW5hYmxlZBgDIAEoCBIcChRmbG93ZXJfc2hhcmVfZW5hYmxlZBgEIAEoCBIZChFmbG93ZXJfc2hhcmVfbW9kZRgFIAEoCRIYChBzaGFyZV9mbG93ZXJfaWRzGAYgAygFEhcKD3NoYXJlX3F1YWxpdGllcxgHIAMoBRIbChNmbG93ZXJfdGFrZV9lbmFibGVkGAggASgIEhgKEGZsb3dlcl90YWtlX21vZGUYCSABKAkSFwoPdGFrZV9mbG93ZXJfaWRzGAogAygFEhYKDnRha2VfcXVhbGl0aWVzGAsgAygFEhQKDHJhY2VfZW5hYmxlZBgMIAEoCBIgChhyYWNlX2F1dG9fZW5hYmxlX21vZHVsZXMYDSABKAgSGAoQcmFjZV9kZWxldGVfdGFzaxgOIAEoCBIiChpyYWNlX2RlbGV0ZV90YXNrX21heF9zY29yZRgPIAEoBRIbChNyYWNlX21pbl90YXNrX3Njb3JlGBAgASgFEh4KFnJhY2Vfb25seV91cGdyYWRlX3Rhc2sYESABKAgSGQoRcmFjZV91cGdyYWRlX3Rhc2sYEiABKAgSIAoYcmFjZV91c2Vfc3BlZWRfdXBfdGlja2V0GBMgASgIElgKF3JhY2VfdGFza190eXBlX3ByaW9yaXR5GBQgAygLMjcubXlnYXJkZW53b3JsZC52MS5VbmlvblBvbGljeS5SYWNlVGFza1R5cGVQcmlvcml0eUVudHJ5EhcKD2xhbmRfYXV0b19wbGFudBgVIAEoCBIUCgxsYW5kX2hhcnZlc3QYFiABKAgSFwoPbGFuZF9wbGFudF9tb2RlGBcgASgJEhcKD2xhbmRfZmxvd2VyX2lkcxgYIAMoBRIgChhsYW5kX3NwZWNpZmljX2Zsb3dlcl9pZHMYGSADKAUSHQoVbGFuZF9tYXhfZmxvd2VyX2xldmVsGBogASgFEhoKEnJlZF9wYWNrZXRfZW5hYmxlZBgbIAEoCBIWCg5mb3Jlc3RfZW5hYmxlZBgcIAEoCBo7ChlSYWNlVGFza1R5cGVQcmlvcml0eUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBToCOAEiuQEKDkFjdGl2aXR5UG9saWN5Eg8KB2VuYWJsZWQYASABKAgSPgoHbW9kdWxlcxgCIAMoCzItLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdHlQb2xpY3kuTW9kdWxlc0VudHJ5GlYKDE1vZHVsZXNFbnRyeRILCgNrZXkYASABKAkSNQoFdmFsdWUYAiABKAsyJi5teWdhcmRlbndvcmxkLnYxLkFjdGl2aXR5TW9kdWxlUG9saWN5OgI4ASLhAQoUQWN0aXZpdHlNb2R1bGVQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBINCgVzcGVlZBgCIAEoBRIZChFhdXRvX2NsYWltX2VuZXJneRgDIAEoCBIRCgl1c2VfaXRlbXMYBCABKAgSFAoMYXV0b19yZXN0YXJ0GAUgASgIEhMKC3Nob3dfcmVzdWx0GAYgASgIEhcKD3JlZnJlc2hfZW5hYmxlZBgHIAEoCBITCgt1bmxvY2tfc2xvdBgIIAEoCBIiChptYXhfZmluaXNoX2NvdW50X3Blcl9iYXRjaBgJIAEoBSKXAgoMU2FmZXR5UG9saWN5Eh4KFnJlcXVpcmVfb2JzZXJ2ZWRfc3RhdGUYASABKAgSIwobc3RvcF9vbl9zZXNzaW9uX2ludmFsaWRhdGVkGAIgASgIEh4KFm1heF9jb25zZWN1dGl2ZV9lcnJvcnMYAyABKAUSHgoWZG9tYWluX2JhY2tvZmZfc2Vjb25kcxgEIAEoBRIfChdtYXhfZ29sZF9zcGVuZF9wZXJfdGljaxgFIAEoBRIiChptYXhfZGlhbW9uZF9zcGVuZF9wZXJfdGljaxgGIAEoBRIfChdtYXhfaXRlbV9zcGVuZF9wZXJfdGljaxgHIAEoBRIcChRibG9ja19vbl9kYWlseV9saW1pdBgIIAEoCEKEAQoUY29tLm15Z2FyZGVud29ybGQudjFCC1BvbGljeVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
 
 /**
- * Policy is a typed bag of switches and thresholds the automation engine
- * reads on every decision tick. Stored row-per-key for cheap partial updates.
- *
- * The schema below is what the daemon understands; unknown keys are kept
- * in the SQLite table but ignored at runtime.
+ * Policy is the full automation configuration for one game account. It is
+ * stored as one protojson blob.
  *
  * @generated from message mygardenworld.v1.Policy
  */
 export type Policy = Message<"mygardenworld.v1.Policy"> & {
   /**
-   * Master switch. When false, the runner stays connected and tracks state
-   * but never sends mutating RPCs.
-   *
    * @generated from field: bool automation_enabled = 1;
    */
   automationEnabled: boolean;
 
   /**
-   * @generated from field: mygardenworld.v1.HarvestPolicy harvest = 2;
+   * @generated from field: mygardenworld.v1.BasicPolicy basic = 2;
    */
-  harvest?: HarvestPolicy | undefined;
+  basic?: BasicPolicy | undefined;
 
   /**
    * @generated from field: mygardenworld.v1.PlantPolicy plant = 3;
@@ -42,14 +35,24 @@ export type Policy = Message<"mygardenworld.v1.Policy"> & {
   plant?: PlantPolicy | undefined;
 
   /**
-   * @generated from field: mygardenworld.v1.WaterPolicy water = 4;
+   * @generated from field: mygardenworld.v1.OrderPolicy order = 4;
    */
-  water?: WaterPolicy | undefined;
+  order?: OrderPolicy | undefined;
 
   /**
-   * @generated from field: mygardenworld.v1.MiscPolicy misc = 5;
+   * @generated from field: mygardenworld.v1.UnionPolicy union = 5;
    */
-  misc?: MiscPolicy | undefined;
+  union?: UnionPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.ActivityPolicy activity = 6;
+   */
+  activity?: ActivityPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.SafetyPolicy safety = 7;
+   */
+  safety?: SafetyPolicy | undefined;
 
   /**
    * Seconds between decision ticks. Default 4.
@@ -57,13 +60,6 @@ export type Policy = Message<"mygardenworld.v1.Policy"> & {
    * @generated from field: double decision_interval_seconds = 10;
    */
   decisionIntervalSeconds: number;
-
-  /**
-   * Unrecognized keys round-tripped from the policies table.
-   *
-   * @generated from field: google.protobuf.Struct extras = 99;
-   */
-  extras?: JsonObject | undefined;
 };
 
 /**
@@ -74,88 +70,376 @@ export const PolicySchema: GenMessage<Policy> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_policy, 0);
 
 /**
- * @generated from message mygardenworld.v1.HarvestPolicy
+ * @generated from message mygardenworld.v1.BasicPolicy
  */
-export type HarvestPolicy = Message<"mygardenworld.v1.HarvestPolicy"> & {
+export type BasicPolicy = Message<"mygardenworld.v1.BasicPolicy"> & {
+  /**
+   * @generated from field: bool reputation_enabled = 1;
+   */
+  reputationEnabled: boolean;
+
+  /**
+   * @generated from field: int32 reputation_threshold = 2;
+   */
+  reputationThreshold: number;
+
+  /**
+   * @generated from field: bool main_task_enabled = 3;
+   */
+  mainTaskEnabled: boolean;
+
+  /**
+   * @generated from field: bool daily_task_enabled = 4;
+   */
+  dailyTaskEnabled: boolean;
+
+  /**
+   * @generated from field: bool weekly_task_enabled = 5;
+   */
+  weeklyTaskEnabled: boolean;
+
+  /**
+   * @generated from field: bool achievement_task_enabled = 6;
+   */
+  achievementTaskEnabled: boolean;
+
+  /**
+   * @generated from field: bool story_enabled = 7;
+   */
+  storyEnabled: boolean;
+
+  /**
+   * @generated from field: bool mail_enabled = 8;
+   */
+  mailEnabled: boolean;
+
+  /**
+   * @generated from field: bool welfare_enabled = 9;
+   */
+  welfareEnabled: boolean;
+
+  /**
+   * @generated from field: bool sign_enabled = 10;
+   */
+  signEnabled: boolean;
+
+  /**
+   * @generated from field: bool free_water_enabled = 11;
+   */
+  freeWaterEnabled: boolean;
+
+  /**
+   * @generated from field: bool waterwheel_enabled = 12;
+   */
+  waterwheelEnabled: boolean;
+
+  /**
+   * @generated from field: bool benefit_box_enabled = 13;
+   */
+  benefitBoxEnabled: boolean;
+
+  /**
+   * @generated from field: bool random_event_enabled = 14;
+   */
+  randomEventEnabled: boolean;
+
+  /**
+   * @generated from field: bool road_grow_reward_enabled = 15;
+   */
+  roadGrowRewardEnabled: boolean;
+
+  /**
+   * @generated from field: mygardenworld.v1.PearlPolicy pearl = 20;
+   */
+  pearl?: PearlPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.ShopPolicy shop = 21;
+   */
+  shop?: ShopPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.ZooPolicy zoo = 22;
+   */
+  zoo?: ZooPolicy | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.BasicPolicy.
+ * Use `create(BasicPolicySchema)` to create a new message.
+ */
+export const BasicPolicySchema: GenMessage<BasicPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 1);
+
+/**
+ * @generated from message mygardenworld.v1.PearlPolicy
+ */
+export type PearlPolicy = Message<"mygardenworld.v1.PearlPolicy"> & {
   /**
    * @generated from field: bool enabled = 1;
    */
   enabled: boolean;
 
   /**
-   * Use usrLand.harvestOneKey when more than one land is ready. Falls back
-   * to per-land usrLand.harvest if disabled or only one is ready.
-   *
-   * @generated from field: bool prefer_one_key = 2;
+   * @generated from field: bool free_pearl = 2;
    */
-  preferOneKey: boolean;
+  freePearl: boolean;
+
+  /**
+   * @generated from field: bool auto_hire = 3;
+   */
+  autoHire: boolean;
+
+  /**
+   * @generated from field: bool auto_draw = 4;
+   */
+  autoDraw: boolean;
+
+  /**
+   * @generated from field: bool protect_enabled = 5;
+   */
+  protectEnabled: boolean;
+
+  /**
+   * @generated from field: int32 max_hire_level = 6;
+   */
+  maxHireLevel: number;
+
+  /**
+   * @generated from field: int32 max_hire_ticket_usage = 7;
+   */
+  maxHireTicketUsage: number;
+
+  /**
+   * @generated from field: int32 max_spend_diamonds = 8;
+   */
+  maxSpendDiamonds: number;
 };
 
 /**
- * Describes the message mygardenworld.v1.HarvestPolicy.
- * Use `create(HarvestPolicySchema)` to create a new message.
+ * Describes the message mygardenworld.v1.PearlPolicy.
+ * Use `create(PearlPolicySchema)` to create a new message.
  */
-export const HarvestPolicySchema: GenMessage<HarvestPolicy> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy, 1);
+export const PearlPolicySchema: GenMessage<PearlPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 2);
+
+/**
+ * @generated from message mygardenworld.v1.ShopPolicy
+ */
+export type ShopPolicy = Message<"mygardenworld.v1.ShopPolicy"> & {
+  /**
+   * @generated from field: bool video_gift_enabled = 1;
+   */
+  videoGiftEnabled: boolean;
+
+  /**
+   * @generated from field: bool cultivate_shop_enabled = 2;
+   */
+  cultivateShopEnabled: boolean;
+
+  /**
+   * @generated from field: int32 cultivate_shop_max_spend_gold = 3;
+   */
+  cultivateShopMaxSpendGold: number;
+
+  /**
+   * @generated from field: bool vip_shop_enabled = 4;
+   */
+  vipShopEnabled: boolean;
+
+  /**
+   * @generated from field: int32 vip_shop_max_spend_diamonds = 5;
+   */
+  vipShopMaxSpendDiamonds: number;
+
+  /**
+   * @generated from field: int32 vip_shop_max_spend_floral_coin = 6;
+   */
+  vipShopMaxSpendFloralCoin: number;
+
+  /**
+   * @generated from field: bool material_shop_enabled = 7;
+   */
+  materialShopEnabled: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ShopPolicy.
+ * Use `create(ShopPolicySchema)` to create a new message.
+ */
+export const ShopPolicySchema: GenMessage<ShopPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 3);
+
+/**
+ * @generated from message mygardenworld.v1.ZooPolicy
+ */
+export type ZooPolicy = Message<"mygardenworld.v1.ZooPolicy"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool auto_recall = 2;
+   */
+  autoRecall: boolean;
+
+  /**
+   * @generated from field: bool auto_buy_food = 3;
+   */
+  autoBuyFood: boolean;
+
+  /**
+   * @generated from field: bool auto_feed = 4;
+   */
+  autoFeed: boolean;
+
+  /**
+   * @generated from field: bool auto_stroke = 5;
+   */
+  autoStroke: boolean;
+
+  /**
+   * @generated from field: bool sync_enabled = 6;
+   */
+  syncEnabled: boolean;
+
+  /**
+   * @generated from field: bool game_enabled = 7;
+   */
+  gameEnabled: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ZooPolicy.
+ * Use `create(ZooPolicySchema)` to create a new message.
+ */
+export const ZooPolicySchema: GenMessage<ZooPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 4);
 
 /**
  * @generated from message mygardenworld.v1.PlantPolicy
  */
 export type PlantPolicy = Message<"mygardenworld.v1.PlantPolicy"> & {
   /**
-   * @generated from field: bool enabled = 1;
+   * @generated from field: bool harvest_enabled = 1;
    */
-  enabled: boolean;
+  harvestEnabled: boolean;
 
   /**
-   * Planting strategy:
-   *   high_value = highest value.
-   *   low_stock  = lowest stock.
-   *   selected   = highest value from allowed_flower_ids.
-   *
-   * Task/order deficits are controlled separately by task_priority_enabled.
-   *
-   * @generated from field: string mode = 6;
+   * @generated from field: bool harvest_prefer_one_key = 2;
    */
-  mode: string;
+  harvestPreferOneKey: boolean;
 
   /**
-   * When true, fill task/order flower deficits before applying mode. Default:
-   * true. Disable it to let mode fully control planting.
-   *
-   * @generated from field: optional bool task_priority_enabled = 7;
+   * @generated from field: bool plant_enabled = 3;
    */
-  taskPriorityEnabled?: boolean | undefined;
+  plantEnabled: boolean;
 
   /**
-   * Deprecated: planting does not consume 230xx flower inventory.
-   *
-   * @generated from field: int32 min_stock = 2;
+   * @generated from field: string planting_mode = 4;
    */
-  minStock: number;
+  plantingMode: string;
 
   /**
-   * If non-empty, only these flower ids are considered for planting (whitelist).
-   * Otherwise the runner picks the flower with the lowest stock from all
-   * 23000-23999 ids (= seed range).
-   *
-   * @generated from field: repeated int32 allowed_flower_ids = 3;
+   * @generated from field: bool task_priority_enabled = 5;
+   */
+  taskPriorityEnabled: boolean;
+
+  /**
+   * @generated from field: map<string, int32> task_priority = 6;
+   */
+  taskPriority: { [key: string]: number };
+
+  /**
+   * @generated from field: repeated int32 allowed_flower_ids = 7;
    */
   allowedFlowerIds: number[];
 
   /**
-   * If non-empty, ids in this list are *never* planted.
-   *
-   * @generated from field: repeated int32 blocked_flower_ids = 4;
+   * @generated from field: repeated int32 blocked_flower_ids = 8;
    */
   blockedFlowerIds: number[];
 
   /**
-   * Cap on lands per plantBatch RPC. Server-observed safe value: 8.
-   *
-   * @generated from field: int32 max_batch = 5;
+   * @generated from field: repeated int32 qualities = 9;
    */
-  maxBatch: number;
+  qualities: number[];
+
+  /**
+   * @generated from field: int32 min_flower_level = 10;
+   */
+  minFlowerLevel: number;
+
+  /**
+   * @generated from field: int32 flower_count = 11;
+   */
+  flowerCount: number;
+
+  /**
+   * @generated from field: int32 plant_max_batch = 12;
+   */
+  plantMaxBatch: number;
+
+  /**
+   * @generated from field: bool water_enabled = 13;
+   */
+  waterEnabled: boolean;
+
+  /**
+   * @generated from field: int32 water_max_batch = 14;
+   */
+  waterMaxBatch: number;
+
+  /**
+   * @generated from field: int32 min_water_drops = 15;
+   */
+  minWaterDrops: number;
+
+  /**
+   * @generated from field: int32 water_threshold = 16;
+   */
+  waterThreshold: number;
+
+  /**
+   * @generated from field: bool timed_water_enabled = 17;
+   */
+  timedWaterEnabled: boolean;
+
+  /**
+   * @generated from field: bool water_prefer_one_key_if_noble = 18;
+   */
+  waterPreferOneKeyIfNoble: boolean;
+
+  /**
+   * @generated from field: bool speed_up_enabled = 19;
+   */
+  speedUpEnabled: boolean;
+
+  /**
+   * @generated from field: int32 speed_up_ticket_max = 20;
+   */
+  speedUpTicketMax: number;
+
+  /**
+   * @generated from field: bool video_speed_up = 21;
+   */
+  videoSpeedUp: boolean;
+
+  /**
+   * @generated from field: bool land_unlock_enabled = 22;
+   */
+  landUnlockEnabled: boolean;
+
+  /**
+   * @generated from field: bool cultivate_enabled = 23;
+   */
+  cultivateEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_upgrade_enabled = 24;
+   */
+  flowerUpgradeEnabled: boolean;
 };
 
 /**
@@ -163,204 +447,515 @@ export type PlantPolicy = Message<"mygardenworld.v1.PlantPolicy"> & {
  * Use `create(PlantPolicySchema)` to create a new message.
  */
 export const PlantPolicySchema: GenMessage<PlantPolicy> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy, 2);
+  messageDesc(file_mygardenworld_v1_policy, 5);
 
 /**
- * @generated from message mygardenworld.v1.WaterPolicy
+ * @generated from message mygardenworld.v1.OrderPolicy
  */
-export type WaterPolicy = Message<"mygardenworld.v1.WaterPolicy"> & {
+export type OrderPolicy = Message<"mygardenworld.v1.OrderPolicy"> & {
+  /**
+   * @generated from field: mygardenworld.v1.CustomerOrderPolicy customer = 1;
+   */
+  customer?: CustomerOrderPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.ResidentOrderPolicy resident = 2;
+   */
+  resident?: ResidentOrderPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.PalaceOrderPolicy palace = 3;
+   */
+  palace?: PalaceOrderPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.TeamOrderPolicy team = 4;
+   */
+  team?: TeamOrderPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.FlowerArtPolicy flower_art = 5;
+   */
+  flowerArt?: FlowerArtPolicy | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.OrderPolicy.
+ * Use `create(OrderPolicySchema)` to create a new message.
+ */
+export const OrderPolicySchema: GenMessage<OrderPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 6);
+
+/**
+ * @generated from message mygardenworld.v1.CustomerOrderPolicy
+ */
+export type CustomerOrderPolicy = Message<"mygardenworld.v1.CustomerOrderPolicy"> & {
   /**
    * @generated from field: bool enabled = 1;
    */
   enabled: boolean;
 
   /**
-   * @generated from field: int32 max_batch = 2;
+   * @generated from field: bool reject_enabled = 2;
    */
-  maxBatch: number;
+  rejectEnabled: boolean;
 
   /**
-   * Preserve at least this many water drops before watering. Default: 5.
-   *
-   * @generated from field: int32 min_drops = 3;
+   * @generated from field: bool craft_enabled = 3;
    */
-  minDrops: number;
+  craftEnabled: boolean;
 
   /**
-   * Use usrLand.waterOneKey only when the account is observed as noble/VIP.
-   * Non-noble or unknown accounts always fall back to water/waterBatch.
-   *
-   * @generated from field: bool prefer_one_key_if_noble = 4;
+   * @generated from field: int32 max_finish_per_tick = 4;
    */
-  preferOneKeyIfNoble: boolean;
+  maxFinishPerTick: number;
 };
 
 /**
- * Describes the message mygardenworld.v1.WaterPolicy.
- * Use `create(WaterPolicySchema)` to create a new message.
+ * Describes the message mygardenworld.v1.CustomerOrderPolicy.
+ * Use `create(CustomerOrderPolicySchema)` to create a new message.
  */
-export const WaterPolicySchema: GenMessage<WaterPolicy> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy, 3);
+export const CustomerOrderPolicySchema: GenMessage<CustomerOrderPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 7);
 
 /**
- * @generated from message mygardenworld.v1.MiscPolicy
+ * @generated from message mygardenworld.v1.ResidentOrderPolicy
  */
-export type MiscPolicy = Message<"mygardenworld.v1.MiscPolicy"> & {
+export type ResidentOrderPolicy = Message<"mygardenworld.v1.ResidentOrderPolicy"> & {
   /**
-   * @generated from field: bool land_unlock_enabled = 1;
+   * @generated from field: bool normal_enabled = 1;
    */
-  landUnlockEnabled: boolean;
+  normalEnabled: boolean;
 
   /**
-   * @generated from field: bool story_unlock_enabled = 2;
+   * @generated from field: int32 normal_max_num = 2;
    */
-  storyUnlockEnabled: boolean;
+  normalMaxNum: number;
 
   /**
-   * @generated from field: bool waterwheel_enabled = 3;
+   * @generated from field: bool decorate_enabled = 3;
    */
-  waterwheelEnabled: boolean;
+  decorateEnabled: boolean;
 
   /**
-   * @generated from field: bool cultivate_enabled = 4;
+   * @generated from field: int32 decorate_max_num = 4;
    */
-  cultivateEnabled: boolean;
+  decorateMaxNum: number;
 
   /**
-   * @generated from field: bool flower_upgrade_enabled = 5;
+   * @generated from field: bool satin_enabled = 5;
    */
-  flowerUpgradeEnabled: boolean;
+  satinEnabled: boolean;
 
   /**
-   * @generated from field: bool resident_order_enabled = 6;
+   * @generated from field: int32 satin_max_num = 6;
    */
-  residentOrderEnabled: boolean;
+  satinMaxNum: number;
 
   /**
-   * @generated from field: bool customer_order_enabled = 7;
+   * @generated from field: repeated int32 qualities = 7;
    */
-  customerOrderEnabled: boolean;
+  qualities: number[];
 
   /**
-   * @generated from field: bool customer_order_craft_enabled = 8;
+   * @generated from field: bool reward_enabled = 8;
    */
-  customerOrderCraftEnabled: boolean;
+  rewardEnabled: boolean;
 
   /**
-   * @generated from field: bool customer_order_reject_enabled = 9;
+   * @generated from field: bool ad_refresh_enabled = 9;
    */
-  customerOrderRejectEnabled: boolean;
-
-  /**
-   * @generated from field: bool resident_order_reward_enabled = 10;
-   */
-  residentOrderRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool resident_order_ad_enabled = 11;
-   */
-  residentOrderAdEnabled: boolean;
-
-  /**
-   * @generated from field: bool flower_rack_enabled = 12;
-   */
-  flowerRackEnabled: boolean;
-
-  /**
-   * @generated from field: bool flower_rack_craft_enabled = 13;
-   */
-  flowerRackCraftEnabled: boolean;
-
-  /**
-   * @generated from field: bool free_water_enabled = 14;
-   */
-  freeWaterEnabled: boolean;
-
-  /**
-   * @generated from field: bool task_main_reward_enabled = 15;
-   */
-  taskMainRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool task_daily_reward_enabled = 16;
-   */
-  taskDailyRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool road_grow_reward_enabled = 17;
-   */
-  roadGrowRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool random_event_enabled = 18;
-   */
-  randomEventEnabled: boolean;
-
-  /**
-   * @generated from field: bool flower_art_reward_enabled = 19;
-   */
-  flowerArtRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool benefit_box_enabled = 20;
-   */
-  benefitBoxEnabled: boolean;
-
-  /**
-   * @generated from field: bool speed_up_enabled = 21;
-   */
-  speedUpEnabled: boolean;
-
-  /**
-   * @generated from field: bool task_ach_reward_enabled = 22;
-   */
-  taskAchRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool order_palace_enabled = 23;
-   */
-  orderPalaceEnabled: boolean;
-
-  /**
-   * @generated from field: bool sign_enabled = 24;
-   */
-  signEnabled: boolean;
-
-  /**
-   * @generated from field: bool flower_pass_enabled = 25;
-   */
-  flowerPassEnabled: boolean;
-
-  /**
-   * @generated from field: bool flower_elves_pass_enabled = 26;
-   */
-  flowerElvesPassEnabled: boolean;
-
-  /**
-   * @generated from field: bool player_back_enabled = 27;
-   */
-  playerBackEnabled: boolean;
-
-  /**
-   * @generated from field: bool activity_reward_enabled = 28;
-   */
-  activityRewardEnabled: boolean;
-
-  /**
-   * @generated from field: bool zoo_sync_enabled = 29;
-   */
-  zooSyncEnabled: boolean;
-
-  /**
-   * @generated from field: bool zoo_feed_enabled = 30;
-   */
-  zooFeedEnabled: boolean;
+  adRefreshEnabled: boolean;
 };
 
 /**
- * Describes the message mygardenworld.v1.MiscPolicy.
- * Use `create(MiscPolicySchema)` to create a new message.
+ * Describes the message mygardenworld.v1.ResidentOrderPolicy.
+ * Use `create(ResidentOrderPolicySchema)` to create a new message.
  */
-export const MiscPolicySchema: GenMessage<MiscPolicy> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy, 4);
+export const ResidentOrderPolicySchema: GenMessage<ResidentOrderPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 8);
+
+/**
+ * @generated from message mygardenworld.v1.PalaceOrderPolicy
+ */
+export type PalaceOrderPolicy = Message<"mygardenworld.v1.PalaceOrderPolicy"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: repeated int32 qualities = 2;
+   */
+  qualities: number[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.PalaceOrderPolicy.
+ * Use `create(PalaceOrderPolicySchema)` to create a new message.
+ */
+export const PalaceOrderPolicySchema: GenMessage<PalaceOrderPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 9);
+
+/**
+ * @generated from message mygardenworld.v1.TeamOrderPolicy
+ */
+export type TeamOrderPolicy = Message<"mygardenworld.v1.TeamOrderPolicy"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool one_more = 2;
+   */
+  oneMore: boolean;
+
+  /**
+   * @generated from field: bool submit_only_cultivated_flowers = 3;
+   */
+  submitOnlyCultivatedFlowers: boolean;
+
+  /**
+   * @generated from field: repeated int32 qualities = 4;
+   */
+  qualities: number[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.TeamOrderPolicy.
+ * Use `create(TeamOrderPolicySchema)` to create a new message.
+ */
+export const TeamOrderPolicySchema: GenMessage<TeamOrderPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 10);
+
+/**
+ * @generated from message mygardenworld.v1.FlowerArtPolicy
+ */
+export type FlowerArtPolicy = Message<"mygardenworld.v1.FlowerArtPolicy"> & {
+  /**
+   * @generated from field: bool sell_enabled = 1;
+   */
+  sellEnabled: boolean;
+
+  /**
+   * @generated from field: bool craft_enabled = 2;
+   */
+  craftEnabled: boolean;
+
+  /**
+   * @generated from field: bool reward_enabled = 3;
+   */
+  rewardEnabled: boolean;
+
+  /**
+   * @generated from field: bool auto_unlock_stand = 4;
+   */
+  autoUnlockStand: boolean;
+
+  /**
+   * @generated from field: bool early_cancel = 5;
+   */
+  earlyCancel: boolean;
+
+  /**
+   * @generated from field: int32 flower_art_per_rack = 6;
+   */
+  flowerArtPerRack: number;
+
+  /**
+   * @generated from field: repeated int32 specified_art_ids = 7;
+   */
+  specifiedArtIds: number[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.FlowerArtPolicy.
+ * Use `create(FlowerArtPolicySchema)` to create a new message.
+ */
+export const FlowerArtPolicySchema: GenMessage<FlowerArtPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 11);
+
+/**
+ * @generated from message mygardenworld.v1.UnionPolicy
+ */
+export type UnionPolicy = Message<"mygardenworld.v1.UnionPolicy"> & {
+  /**
+   * @generated from field: bool build_free_enabled = 1;
+   */
+  buildFreeEnabled: boolean;
+
+  /**
+   * @generated from field: bool build_gold_enabled = 2;
+   */
+  buildGoldEnabled: boolean;
+
+  /**
+   * @generated from field: bool build_diamond_enabled = 3;
+   */
+  buildDiamondEnabled: boolean;
+
+  /**
+   * @generated from field: bool flower_share_enabled = 4;
+   */
+  flowerShareEnabled: boolean;
+
+  /**
+   * @generated from field: string flower_share_mode = 5;
+   */
+  flowerShareMode: string;
+
+  /**
+   * @generated from field: repeated int32 share_flower_ids = 6;
+   */
+  shareFlowerIds: number[];
+
+  /**
+   * @generated from field: repeated int32 share_qualities = 7;
+   */
+  shareQualities: number[];
+
+  /**
+   * @generated from field: bool flower_take_enabled = 8;
+   */
+  flowerTakeEnabled: boolean;
+
+  /**
+   * @generated from field: string flower_take_mode = 9;
+   */
+  flowerTakeMode: string;
+
+  /**
+   * @generated from field: repeated int32 take_flower_ids = 10;
+   */
+  takeFlowerIds: number[];
+
+  /**
+   * @generated from field: repeated int32 take_qualities = 11;
+   */
+  takeQualities: number[];
+
+  /**
+   * @generated from field: bool race_enabled = 12;
+   */
+  raceEnabled: boolean;
+
+  /**
+   * @generated from field: bool race_auto_enable_modules = 13;
+   */
+  raceAutoEnableModules: boolean;
+
+  /**
+   * @generated from field: bool race_delete_task = 14;
+   */
+  raceDeleteTask: boolean;
+
+  /**
+   * @generated from field: int32 race_delete_task_max_score = 15;
+   */
+  raceDeleteTaskMaxScore: number;
+
+  /**
+   * @generated from field: int32 race_min_task_score = 16;
+   */
+  raceMinTaskScore: number;
+
+  /**
+   * @generated from field: bool race_only_upgrade_task = 17;
+   */
+  raceOnlyUpgradeTask: boolean;
+
+  /**
+   * @generated from field: bool race_upgrade_task = 18;
+   */
+  raceUpgradeTask: boolean;
+
+  /**
+   * @generated from field: bool race_use_speed_up_ticket = 19;
+   */
+  raceUseSpeedUpTicket: boolean;
+
+  /**
+   * @generated from field: map<string, int32> race_task_type_priority = 20;
+   */
+  raceTaskTypePriority: { [key: string]: number };
+
+  /**
+   * @generated from field: bool land_auto_plant = 21;
+   */
+  landAutoPlant: boolean;
+
+  /**
+   * @generated from field: bool land_harvest = 22;
+   */
+  landHarvest: boolean;
+
+  /**
+   * @generated from field: string land_plant_mode = 23;
+   */
+  landPlantMode: string;
+
+  /**
+   * @generated from field: repeated int32 land_flower_ids = 24;
+   */
+  landFlowerIds: number[];
+
+  /**
+   * @generated from field: repeated int32 land_specific_flower_ids = 25;
+   */
+  landSpecificFlowerIds: number[];
+
+  /**
+   * @generated from field: int32 land_max_flower_level = 26;
+   */
+  landMaxFlowerLevel: number;
+
+  /**
+   * @generated from field: bool red_packet_enabled = 27;
+   */
+  redPacketEnabled: boolean;
+
+  /**
+   * @generated from field: bool forest_enabled = 28;
+   */
+  forestEnabled: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.UnionPolicy.
+ * Use `create(UnionPolicySchema)` to create a new message.
+ */
+export const UnionPolicySchema: GenMessage<UnionPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 12);
+
+/**
+ * @generated from message mygardenworld.v1.ActivityPolicy
+ */
+export type ActivityPolicy = Message<"mygardenworld.v1.ActivityPolicy"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: map<string, mygardenworld.v1.ActivityModulePolicy> modules = 2;
+   */
+  modules: { [key: string]: ActivityModulePolicy };
+};
+
+/**
+ * Describes the message mygardenworld.v1.ActivityPolicy.
+ * Use `create(ActivityPolicySchema)` to create a new message.
+ */
+export const ActivityPolicySchema: GenMessage<ActivityPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 13);
+
+/**
+ * @generated from message mygardenworld.v1.ActivityModulePolicy
+ */
+export type ActivityModulePolicy = Message<"mygardenworld.v1.ActivityModulePolicy"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: int32 speed = 2;
+   */
+  speed: number;
+
+  /**
+   * @generated from field: bool auto_claim_energy = 3;
+   */
+  autoClaimEnergy: boolean;
+
+  /**
+   * @generated from field: bool use_items = 4;
+   */
+  useItems: boolean;
+
+  /**
+   * @generated from field: bool auto_restart = 5;
+   */
+  autoRestart: boolean;
+
+  /**
+   * @generated from field: bool show_result = 6;
+   */
+  showResult: boolean;
+
+  /**
+   * @generated from field: bool refresh_enabled = 7;
+   */
+  refreshEnabled: boolean;
+
+  /**
+   * @generated from field: bool unlock_slot = 8;
+   */
+  unlockSlot: boolean;
+
+  /**
+   * @generated from field: int32 max_finish_count_per_batch = 9;
+   */
+  maxFinishCountPerBatch: number;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ActivityModulePolicy.
+ * Use `create(ActivityModulePolicySchema)` to create a new message.
+ */
+export const ActivityModulePolicySchema: GenMessage<ActivityModulePolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 14);
+
+/**
+ * @generated from message mygardenworld.v1.SafetyPolicy
+ */
+export type SafetyPolicy = Message<"mygardenworld.v1.SafetyPolicy"> & {
+  /**
+   * @generated from field: bool require_observed_state = 1;
+   */
+  requireObservedState: boolean;
+
+  /**
+   * @generated from field: bool stop_on_session_invalidated = 2;
+   */
+  stopOnSessionInvalidated: boolean;
+
+  /**
+   * @generated from field: int32 max_consecutive_errors = 3;
+   */
+  maxConsecutiveErrors: number;
+
+  /**
+   * @generated from field: int32 domain_backoff_seconds = 4;
+   */
+  domainBackoffSeconds: number;
+
+  /**
+   * @generated from field: int32 max_gold_spend_per_tick = 5;
+   */
+  maxGoldSpendPerTick: number;
+
+  /**
+   * @generated from field: int32 max_diamond_spend_per_tick = 6;
+   */
+  maxDiamondSpendPerTick: number;
+
+  /**
+   * @generated from field: int32 max_item_spend_per_tick = 7;
+   */
+  maxItemSpendPerTick: number;
+
+  /**
+   * @generated from field: bool block_on_daily_limit = 8;
+   */
+  blockOnDailyLimit: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.SafetyPolicy.
+ * Use `create(SafetyPolicySchema)` to create a new message.
+ */
+export const SafetyPolicySchema: GenMessage<SafetyPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 15);
 

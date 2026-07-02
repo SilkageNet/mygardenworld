@@ -518,6 +518,46 @@ func TestApplyV_ReadyDailyTaskIDs(t *testing.T) {
 	}
 }
 
+func TestApplyV_ReadyWeeklyTaskIDs(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"22": map[string]any{
+			"100": map[string]any{
+				"1": map[string]any{
+					"3088": 163,
+					"3089": 999,
+				},
+				"3": map[string]any{
+					"30260002": 1,
+				},
+			},
+		},
+	})
+	ready := s.ReadyWeeklyTaskIDs()
+	if len(ready) != 1 || ready[0] != 30260001 {
+		t.Fatalf("ReadyWeeklyTaskIDs got %v, want [30260001]", ready)
+	}
+	tasks := s.WeeklyTasks()
+	if tasks[30260001].Finished != 163 || tasks[30260002].Receipted != 1 || tasks[30260002].Status != 3 {
+		t.Fatalf("weekly task copy mismatch: %+v", tasks)
+	}
+
+	applyMap(t, s, map[string]any{
+		"22": map[string]any{
+			"100": map[string]any{
+				"3": map[string]any{
+					"30260001": 1,
+					"30260002": 1,
+				},
+			},
+		},
+	})
+	tasks = s.WeeklyTasks()
+	if tasks[30260001].Finished != 163 || tasks[30260001].Receipted != 1 || tasks[30260001].Status != 3 {
+		t.Fatalf("weekly partial update lost progress: %+v", tasks[30260001])
+	}
+}
+
 func TestApplyV_CustomerOrdersDoNotCreatePlantingDeficits(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{

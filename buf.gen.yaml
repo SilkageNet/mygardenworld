@@ -28,10 +28,8 @@ plugins:
       - paths=source_relative
       - require_unimplemented_servers=false
 
-  # Connect-go bindings live alongside the gRPC ones. We don't depend on them
-  # at runtime today, but generating now means cmd/gardenctl can be migrated
-  # to Connect later (multi-machine + token auth) without a regen of the
-  # whole tree.
+  # Connect-go bindings live alongside the gRPC ones so browser and future
+  # service clients can share the same generated API surface.
   - local: protoc-gen-connect-go
     out: gen
     opt: paths=source_relative

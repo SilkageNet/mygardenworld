@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/policy_service.proto.
  */
 export const file_mygardenworld_v1_policy_service: GenFile = /*@__PURE__*/
-  fileDesc("CiVteWdhcmRlbndvcmxkL3YxL3BvbGljeV9zZXJ2aWNlLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIjwKEEdldFBvbGljeVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkiPQoRR2V0UG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kiZgoQU2V0UG9saWN5UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIoCgZwb2xpY3kYAyABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeSI9ChFTZXRQb2xpY3lSZXNwb25zZRIoCgZwb2xpY3kYASABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeSJQChNVcGRhdGVQb2xpY3lSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEg8KB2VudHJpZXMYAyADKAkidAoUVXBkYXRlUG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSMgoGZXJyb3JzGAIgAygLMiIubXlnYXJkZW53b3JsZC52MS5Qb2xpY3lQYXRjaEVycm9yIjIKEFBvbGljeVBhdGNoRXJyb3ISDQoFZW50cnkYASABKAkSDwoHbWVzc2FnZRgCIAEoCTKaAgoNUG9saWN5U2VydmljZRJUCglHZXRQb2xpY3kSIi5teWdhcmRlbndvcmxkLnYxLkdldFBvbGljeVJlcXVlc3QaIy5teWdhcmRlbndvcmxkLnYxLkdldFBvbGljeVJlc3BvbnNlElQKCVNldFBvbGljeRIiLm15Z2FyZGVud29ybGQudjEuU2V0UG9saWN5UmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuU2V0UG9saWN5UmVzcG9uc2USXQoMVXBkYXRlUG9saWN5EiUubXlnYXJkZW53b3JsZC52MS5VcGRhdGVQb2xpY3lSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5VcGRhdGVQb2xpY3lSZXNwb25zZUKLAQoUY29tLm15Z2FyZGVud29ybGQudjFCElBvbGljeVNlcnZpY2VQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_mygardenworld_v1_policy]);
+  fileDesc("CiVteWdhcmRlbndvcmxkL3YxL3BvbGljeV9zZXJ2aWNlLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIjwKEEdldFBvbGljeVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkiPQoRR2V0UG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kiZgoQU2V0UG9saWN5UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIoCgZwb2xpY3kYAyABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeSI9ChFTZXRQb2xpY3lSZXNwb25zZRIoCgZwb2xpY3kYASABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeSI/ChNFeHBvcnRQb2xpY3lSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJIisKFEV4cG9ydFBvbGljeVJlc3BvbnNlEhMKC3BvbGljeV9qc29uGAEgASgJIlQKE0ltcG9ydFBvbGljeVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkSEwoLcG9saWN5X2pzb24YAyABKAkiQAoUSW1wb3J0UG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kigwEKEUNvcHlQb2xpY3lSZXF1ZXN0EhkKEXNvdXJjZV9hY2NvdW50X2lkGAEgASgJEhsKE3NvdXJjZV9hY2NvdW50X25hbWUYAiABKAkSGQoRdGFyZ2V0X2FjY291bnRfaWQYAyABKAkSGwoTdGFyZ2V0X2FjY291bnRfbmFtZRgEIAEoCSI+ChJDb3B5UG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3ky0gMKDVBvbGljeVNlcnZpY2USVAoJR2V0UG9saWN5EiIubXlnYXJkZW53b3JsZC52MS5HZXRQb2xpY3lSZXF1ZXN0GiMubXlnYXJkZW53b3JsZC52MS5HZXRQb2xpY3lSZXNwb25zZRJUCglTZXRQb2xpY3kSIi5teWdhcmRlbndvcmxkLnYxLlNldFBvbGljeVJlcXVlc3QaIy5teWdhcmRlbndvcmxkLnYxLlNldFBvbGljeVJlc3BvbnNlEl0KDEV4cG9ydFBvbGljeRIlLm15Z2FyZGVud29ybGQudjEuRXhwb3J0UG9saWN5UmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuRXhwb3J0UG9saWN5UmVzcG9uc2USXQoMSW1wb3J0UG9saWN5EiUubXlnYXJkZW53b3JsZC52MS5JbXBvcnRQb2xpY3lSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5JbXBvcnRQb2xpY3lSZXNwb25zZRJXCgpDb3B5UG9saWN5EiMubXlnYXJkZW53b3JsZC52MS5Db3B5UG9saWN5UmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuQ29weVBvbGljeVJlc3BvbnNlQosBChRjb20ubXlnYXJkZW53b3JsZC52MUISUG9saWN5U2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_mygardenworld_v1_policy]);
 
 /**
  * @generated from message mygardenworld.v1.GetPolicyRequest
@@ -98,9 +98,48 @@ export const SetPolicyResponseSchema: GenMessage<SetPolicyResponse> = /*@__PURE_
   messageDesc(file_mygardenworld_v1_policy_service, 3);
 
 /**
- * @generated from message mygardenworld.v1.UpdatePolicyRequest
+ * @generated from message mygardenworld.v1.ExportPolicyRequest
  */
-export type UpdatePolicyRequest = Message<"mygardenworld.v1.UpdatePolicyRequest"> & {
+export type ExportPolicyRequest = Message<"mygardenworld.v1.ExportPolicyRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string account_name = 2;
+   */
+  accountName: string;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ExportPolicyRequest.
+ * Use `create(ExportPolicyRequestSchema)` to create a new message.
+ */
+export const ExportPolicyRequestSchema: GenMessage<ExportPolicyRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy_service, 4);
+
+/**
+ * @generated from message mygardenworld.v1.ExportPolicyResponse
+ */
+export type ExportPolicyResponse = Message<"mygardenworld.v1.ExportPolicyResponse"> & {
+  /**
+   * @generated from field: string policy_json = 1;
+   */
+  policyJson: string;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ExportPolicyResponse.
+ * Use `create(ExportPolicyResponseSchema)` to create a new message.
+ */
+export const ExportPolicyResponseSchema: GenMessage<ExportPolicyResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy_service, 5);
+
+/**
+ * @generated from message mygardenworld.v1.ImportPolicyRequest
+ */
+export type ImportPolicyRequest = Message<"mygardenworld.v1.ImportPolicyRequest"> & {
   /**
    * @generated from field: string account_id = 1;
    */
@@ -112,72 +151,91 @@ export type UpdatePolicyRequest = Message<"mygardenworld.v1.UpdatePolicyRequest"
   accountName: string;
 
   /**
-   * Each entry is "dot.path=value". Parse errors surface per entry in the
-   * response so partial CLI patches stay debuggable.
-   *
-   * @generated from field: repeated string entries = 3;
+   * @generated from field: string policy_json = 3;
    */
-  entries: string[];
+  policyJson: string;
 };
 
 /**
- * Describes the message mygardenworld.v1.UpdatePolicyRequest.
- * Use `create(UpdatePolicyRequestSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.ImportPolicyRequest.
+ * Use `create(ImportPolicyRequestSchema)` to create a new message.
  */
-export const UpdatePolicyRequestSchema: GenMessage<UpdatePolicyRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy_service, 4);
+export const ImportPolicyRequestSchema: GenMessage<ImportPolicyRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy_service, 6);
 
 /**
- * @generated from message mygardenworld.v1.UpdatePolicyResponse
+ * @generated from message mygardenworld.v1.ImportPolicyResponse
  */
-export type UpdatePolicyResponse = Message<"mygardenworld.v1.UpdatePolicyResponse"> & {
+export type ImportPolicyResponse = Message<"mygardenworld.v1.ImportPolicyResponse"> & {
   /**
    * @generated from field: mygardenworld.v1.Policy policy = 1;
    */
   policy?: Policy | undefined;
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.PolicyPatchError errors = 2;
-   */
-  errors: PolicyPatchError[];
 };
 
 /**
- * Describes the message mygardenworld.v1.UpdatePolicyResponse.
- * Use `create(UpdatePolicyResponseSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.ImportPolicyResponse.
+ * Use `create(ImportPolicyResponseSchema)` to create a new message.
  */
-export const UpdatePolicyResponseSchema: GenMessage<UpdatePolicyResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy_service, 5);
+export const ImportPolicyResponseSchema: GenMessage<ImportPolicyResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy_service, 7);
 
 /**
- * @generated from message mygardenworld.v1.PolicyPatchError
+ * @generated from message mygardenworld.v1.CopyPolicyRequest
  */
-export type PolicyPatchError = Message<"mygardenworld.v1.PolicyPatchError"> & {
+export type CopyPolicyRequest = Message<"mygardenworld.v1.CopyPolicyRequest"> & {
   /**
-   * @generated from field: string entry = 1;
+   * @generated from field: string source_account_id = 1;
    */
-  entry: string;
+  sourceAccountId: string;
 
   /**
-   * @generated from field: string message = 2;
+   * @generated from field: string source_account_name = 2;
    */
-  message: string;
+  sourceAccountName: string;
+
+  /**
+   * @generated from field: string target_account_id = 3;
+   */
+  targetAccountId: string;
+
+  /**
+   * @generated from field: string target_account_name = 4;
+   */
+  targetAccountName: string;
 };
 
 /**
- * Describes the message mygardenworld.v1.PolicyPatchError.
- * Use `create(PolicyPatchErrorSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.CopyPolicyRequest.
+ * Use `create(CopyPolicyRequestSchema)` to create a new message.
  */
-export const PolicyPatchErrorSchema: GenMessage<PolicyPatchError> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_policy_service, 6);
+export const CopyPolicyRequestSchema: GenMessage<CopyPolicyRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy_service, 8);
+
+/**
+ * @generated from message mygardenworld.v1.CopyPolicyResponse
+ */
+export type CopyPolicyResponse = Message<"mygardenworld.v1.CopyPolicyResponse"> & {
+  /**
+   * @generated from field: mygardenworld.v1.Policy policy = 1;
+   */
+  policy?: Policy | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.CopyPolicyResponse.
+ * Use `create(CopyPolicyResponseSchema)` to create a new message.
+ */
+export const CopyPolicyResponseSchema: GenMessage<CopyPolicyResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy_service, 9);
 
 /**
  * @generated from service mygardenworld.v1.PolicyService
  */
 export const PolicyService: GenService<{
   /**
-   * Returns the merged effective policy for the account. Unset typed fields
-   * are filled with defaults; raw key/value entries are surfaced via extras.
+   * Returns the full effective policy for the account. Unset typed fields are
+   * filled with current defaults.
    *
    * @generated from rpc mygardenworld.v1.PolicyService.GetPolicy
    */
@@ -187,7 +245,7 @@ export const PolicyService: GenService<{
     output: typeof GetPolicyResponseSchema;
   },
   /**
-   * Replaces the entire policy struct. Use UpdatePolicy for partial edits.
+   * Replaces the entire policy struct.
    *
    * @generated from rpc mygardenworld.v1.PolicyService.SetPolicy
    */
@@ -197,19 +255,34 @@ export const PolicyService: GenService<{
     output: typeof SetPolicyResponseSchema;
   },
   /**
-   * Patch a subset of policy keys, dot-path style. Examples:
-   *   "automation_enabled" = "true"
-   *   "plant.mode"         = "high_value"
-   *   "plant.task_priority_enabled" = "true"
-   *   "plant.allowed_flower_ids" = "23001,23005"
-   * Values are parsed against the proto field type.
+   * Exports the full policy as protojson for backup or copying outside the UI.
    *
-   * @generated from rpc mygardenworld.v1.PolicyService.UpdatePolicy
+   * @generated from rpc mygardenworld.v1.PolicyService.ExportPolicy
    */
-  updatePolicy: {
+  exportPolicy: {
     methodKind: "unary";
-    input: typeof UpdatePolicyRequestSchema;
-    output: typeof UpdatePolicyResponseSchema;
+    input: typeof ExportPolicyRequestSchema;
+    output: typeof ExportPolicyResponseSchema;
+  },
+  /**
+   * Imports a full protojson policy. This replaces the account policy.
+   *
+   * @generated from rpc mygardenworld.v1.PolicyService.ImportPolicy
+   */
+  importPolicy: {
+    methodKind: "unary";
+    input: typeof ImportPolicyRequestSchema;
+    output: typeof ImportPolicyResponseSchema;
+  },
+  /**
+   * Copies one account's full policy to another account.
+   *
+   * @generated from rpc mygardenworld.v1.PolicyService.CopyPolicy
+   */
+  copyPolicy: {
+    methodKind: "unary";
+    input: typeof CopyPolicyRequestSchema;
+    output: typeof CopyPolicyResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_mygardenworld_v1_policy_service, 0);

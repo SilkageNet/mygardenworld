@@ -3596,7 +3596,7 @@ type IActGiftCfg struct {
 	Ext           RawValue `json:"12,omitempty"`
 	ShowParam     RawValue `json:"100,omitempty"`
 	FlowerChange  int32    `json:"101,omitempty"`
-	ShareId       int32    `json:"101,omitempty"`
+	ShareId       int32    `json:"-"`
 	MId           int32    `json:"102,omitempty"`
 	GiveItems     int32    `json:"103,omitempty"`
 	ChkRepeat     int32    `json:"104,omitempty"`

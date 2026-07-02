@@ -198,7 +198,7 @@ func (c *Client) rpc(ctx context.Context, name string, args any, routeArg string
 // reader pulls every frame, dispatches to pending RPC waiters and namespace
 // subscribers. Returns when the connection closes.
 func (c *Client) reader() {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	ctx := context.Background()
 	for {
 		c.mu.Lock()

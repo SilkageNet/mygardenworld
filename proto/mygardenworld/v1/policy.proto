@@ -2,109 +2,216 @@ syntax = "proto3";
 
 package mygardenworld.v1;
 
-import "google/protobuf/struct.proto";
-
-// Policy is a typed bag of switches and thresholds the automation engine
-// reads on every decision tick. Stored row-per-key for cheap partial updates.
-//
-// The schema below is what the daemon understands; unknown keys are kept
-// in the SQLite table but ignored at runtime.
+// Policy is the full automation configuration for one game account. It is
+// stored as one protojson blob.
 message Policy {
-  // Master switch. When false, the runner stays connected and tracks state
-  // but never sends mutating RPCs.
   bool automation_enabled = 1;
 
-  HarvestPolicy harvest = 2;
+  BasicPolicy basic = 2;
   PlantPolicy plant = 3;
-  WaterPolicy water = 4;
-  MiscPolicy misc = 5;
+  OrderPolicy order = 4;
+  UnionPolicy union = 5;
+  ActivityPolicy activity = 6;
+  SafetyPolicy safety = 7;
 
   // Seconds between decision ticks. Default 4.
   double decision_interval_seconds = 10;
-
-  // Unrecognized keys round-tripped from the policies table.
-  google.protobuf.Struct extras = 99;
 }
 
-message HarvestPolicy {
-  bool enabled = 1;
+message BasicPolicy {
+  bool reputation_enabled = 1;
+  int32 reputation_threshold = 2;
 
-  // Use usrLand.harvestOneKey when more than one land is ready. Falls back
-  // to per-land usrLand.harvest if disabled or only one is ready.
-  bool prefer_one_key = 2;
+  bool main_task_enabled = 3;
+  bool daily_task_enabled = 4;
+  bool weekly_task_enabled = 5;
+  bool achievement_task_enabled = 6;
+  bool story_enabled = 7;
+  bool mail_enabled = 8;
+  bool welfare_enabled = 9;
+  bool sign_enabled = 10;
+
+  bool free_water_enabled = 11;
+  bool waterwheel_enabled = 12;
+  bool benefit_box_enabled = 13;
+  bool random_event_enabled = 14;
+  bool road_grow_reward_enabled = 15;
+
+  PearlPolicy pearl = 20;
+  ShopPolicy shop = 21;
+  ZooPolicy zoo = 22;
+}
+
+message PearlPolicy {
+  bool enabled = 1;
+  bool free_pearl = 2;
+  bool auto_hire = 3;
+  bool auto_draw = 4;
+  bool protect_enabled = 5;
+  int32 max_hire_level = 6;
+  int32 max_hire_ticket_usage = 7;
+  int32 max_spend_diamonds = 8;
+}
+
+message ShopPolicy {
+  bool video_gift_enabled = 1;
+  bool cultivate_shop_enabled = 2;
+  int32 cultivate_shop_max_spend_gold = 3;
+  bool vip_shop_enabled = 4;
+  int32 vip_shop_max_spend_diamonds = 5;
+  int32 vip_shop_max_spend_floral_coin = 6;
+  bool material_shop_enabled = 7;
+}
+
+message ZooPolicy {
+  bool enabled = 1;
+  bool auto_recall = 2;
+  bool auto_buy_food = 3;
+  bool auto_feed = 4;
+  bool auto_stroke = 5;
+  bool sync_enabled = 6;
+  bool game_enabled = 7;
 }
 
 message PlantPolicy {
-  bool enabled = 1;
+  bool harvest_enabled = 1;
+  bool harvest_prefer_one_key = 2;
 
-  // Planting strategy:
-  //   high_value = highest value.
-  //   low_stock  = lowest stock.
-  //   selected   = highest value from allowed_flower_ids.
-  //
-  // Task/order deficits are controlled separately by task_priority_enabled.
-  string mode = 6;
+  bool plant_enabled = 3;
+  string planting_mode = 4;
+  bool task_priority_enabled = 5;
+  map<string, int32> task_priority = 6;
+  repeated int32 allowed_flower_ids = 7;
+  repeated int32 blocked_flower_ids = 8;
+  repeated int32 qualities = 9;
+  int32 min_flower_level = 10;
+  int32 flower_count = 11;
+  int32 plant_max_batch = 12;
 
-  // When true, fill task/order flower deficits before applying mode. Default:
-  // true. Disable it to let mode fully control planting.
-  optional bool task_priority_enabled = 7;
+  bool water_enabled = 13;
+  int32 water_max_batch = 14;
+  int32 min_water_drops = 15;
+  int32 water_threshold = 16;
+  bool timed_water_enabled = 17;
+  bool water_prefer_one_key_if_noble = 18;
 
-  // Deprecated: planting does not consume 230xx flower inventory.
-  int32 min_stock = 2;
-
-  // If non-empty, only these flower ids are considered for planting (whitelist).
-  // Otherwise the runner picks the flower with the lowest stock from all
-  // 23000-23999 ids (= seed range).
-  repeated int32 allowed_flower_ids = 3;
-
-  // If non-empty, ids in this list are *never* planted.
-  repeated int32 blocked_flower_ids = 4;
-
-  // Cap on lands per plantBatch RPC. Server-observed safe value: 8.
-  int32 max_batch = 5;
+  bool speed_up_enabled = 19;
+  int32 speed_up_ticket_max = 20;
+  bool video_speed_up = 21;
+  bool land_unlock_enabled = 22;
+  bool cultivate_enabled = 23;
+  bool flower_upgrade_enabled = 24;
 }
 
-message WaterPolicy {
-  bool enabled = 1;
-  int32 max_batch = 2;
-
-  // Preserve at least this many water drops before watering. Default: 5.
-  int32 min_drops = 3;
-
-  // Use usrLand.waterOneKey only when the account is observed as noble/VIP.
-  // Non-noble or unknown accounts always fall back to water/waterBatch.
-  bool prefer_one_key_if_noble = 4;
+message OrderPolicy {
+  CustomerOrderPolicy customer = 1;
+  ResidentOrderPolicy resident = 2;
+  PalaceOrderPolicy palace = 3;
+  TeamOrderPolicy team = 4;
+  FlowerArtPolicy flower_art = 5;
 }
 
-message MiscPolicy {
-  bool land_unlock_enabled = 1;
-  bool story_unlock_enabled = 2;
-  bool waterwheel_enabled = 3;
-  bool cultivate_enabled = 4;
-  bool flower_upgrade_enabled = 5;
-  bool resident_order_enabled = 6;
-  bool customer_order_enabled = 7;
-  bool customer_order_craft_enabled = 8;
-  bool customer_order_reject_enabled = 9;
-  bool resident_order_reward_enabled = 10;
-  bool resident_order_ad_enabled = 11;
-  bool flower_rack_enabled = 12;
-  bool flower_rack_craft_enabled = 13;
-  bool free_water_enabled = 14;
-  bool task_main_reward_enabled = 15;
-  bool task_daily_reward_enabled = 16;
-  bool road_grow_reward_enabled = 17;
-  bool random_event_enabled = 18;
-  bool flower_art_reward_enabled = 19;
-  bool benefit_box_enabled = 20;
-  bool speed_up_enabled = 21;
-  bool task_ach_reward_enabled = 22;
-  bool order_palace_enabled = 23;
-  bool sign_enabled = 24;
-  bool flower_pass_enabled = 25;
-  bool flower_elves_pass_enabled = 26;
-  bool player_back_enabled = 27;
-  bool activity_reward_enabled = 28;
-  bool zoo_sync_enabled = 29;
-  bool zoo_feed_enabled = 30;
+message CustomerOrderPolicy {
+  bool enabled = 1;
+  bool reject_enabled = 2;
+  bool craft_enabled = 3;
+  int32 max_finish_per_tick = 4;
+}
+
+message ResidentOrderPolicy {
+  bool normal_enabled = 1;
+  int32 normal_max_num = 2;
+  bool decorate_enabled = 3;
+  int32 decorate_max_num = 4;
+  bool satin_enabled = 5;
+  int32 satin_max_num = 6;
+  repeated int32 qualities = 7;
+  bool reward_enabled = 8;
+  bool ad_refresh_enabled = 9;
+}
+
+message PalaceOrderPolicy {
+  bool enabled = 1;
+  repeated int32 qualities = 2;
+}
+
+message TeamOrderPolicy {
+  bool enabled = 1;
+  bool one_more = 2;
+  bool submit_only_cultivated_flowers = 3;
+  repeated int32 qualities = 4;
+}
+
+message FlowerArtPolicy {
+  bool sell_enabled = 1;
+  bool craft_enabled = 2;
+  bool reward_enabled = 3;
+  bool auto_unlock_stand = 4;
+  bool early_cancel = 5;
+  int32 flower_art_per_rack = 6;
+  repeated int32 specified_art_ids = 7;
+}
+
+message UnionPolicy {
+  bool build_free_enabled = 1;
+  bool build_gold_enabled = 2;
+  bool build_diamond_enabled = 3;
+
+  bool flower_share_enabled = 4;
+  string flower_share_mode = 5;
+  repeated int32 share_flower_ids = 6;
+  repeated int32 share_qualities = 7;
+
+  bool flower_take_enabled = 8;
+  string flower_take_mode = 9;
+  repeated int32 take_flower_ids = 10;
+  repeated int32 take_qualities = 11;
+
+  bool race_enabled = 12;
+  bool race_auto_enable_modules = 13;
+  bool race_delete_task = 14;
+  int32 race_delete_task_max_score = 15;
+  int32 race_min_task_score = 16;
+  bool race_only_upgrade_task = 17;
+  bool race_upgrade_task = 18;
+  bool race_use_speed_up_ticket = 19;
+  map<string, int32> race_task_type_priority = 20;
+
+  bool land_auto_plant = 21;
+  bool land_harvest = 22;
+  string land_plant_mode = 23;
+  repeated int32 land_flower_ids = 24;
+  repeated int32 land_specific_flower_ids = 25;
+  int32 land_max_flower_level = 26;
+
+  bool red_packet_enabled = 27;
+  bool forest_enabled = 28;
+}
+
+message ActivityPolicy {
+  bool enabled = 1;
+  map<string, ActivityModulePolicy> modules = 2;
+}
+
+message ActivityModulePolicy {
+  bool enabled = 1;
+  int32 speed = 2;
+  bool auto_claim_energy = 3;
+  bool use_items = 4;
+  bool auto_restart = 5;
+  bool show_result = 6;
+  bool refresh_enabled = 7;
+  bool unlock_slot = 8;
+  int32 max_finish_count_per_batch = 9;
+}
+
+message SafetyPolicy {
+  bool require_observed_state = 1;
+  bool stop_on_session_invalidated = 2;
+  int32 max_consecutive_errors = 3;
+  int32 domain_backoff_seconds = 4;
+  int32 max_gold_spend_per_tick = 5;
+  int32 max_diamond_spend_per_tick = 6;
+  int32 max_item_spend_per_tick = 7;
+  bool block_on_daily_limit = 8;
 }

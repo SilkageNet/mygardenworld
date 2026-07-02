@@ -26,8 +26,6 @@ import (
 
 	"connectrpc.com/connect"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
 	"github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1connect"
 	"github.com/SilkageNet/mygardenworld/internal/apiserver"
@@ -50,7 +48,7 @@ func main() {
 	}
 	rootCmd.AddCommand(newServeCmd(), newResetDataCmd(), newVersionCmd(), updatecmd.New("gardend"))
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -105,8 +103,8 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&adminUsername, "admin-username", "admin", "initial admin username")
 	cmd.Flags().StringVar(&adminPassword, "admin-password", "", "initial admin password (or ADMIN_PASSWORD env)")
 	cmd.Flags().StringVar(&adminEmail, "admin-email", "admin@localhost", "initial admin email")
-	cmd.Flags().StringVar(&corsOrigins, "cors-origins", "http://localhost:3000", "allowed CORS origins (comma-separated)")
-	cmd.Flags().StringVar(&debugDir, "debug-dir", defaultAppDir("debug"), "directory for debug JSONL logs (empty=disabled)")
+	cmd.Flags().StringVar(&corsOrigins, "cors-origins", "http://localhost:3000,http://127.0.0.1:3000", "allowed CORS origins (comma-separated)")
+	cmd.Flags().StringVar(&debugDir, "debug-dir", "", "directory for debug JSONL logs (empty=disabled)")
 	cmd.Flags().BoolVar(&webEnabled, "web", true, "serve the embedded web console")
 	return cmd
 }
@@ -135,8 +133,8 @@ func newResetDataCmd() *cobra.Command {
 				return err
 			}
 			if !yes {
-				fmt.Fprintf(cmd.OutOrStdout(), "Would delete local data directory: %s\n", absDataDir)
-				fmt.Fprintln(cmd.OutOrStdout(), "Re-run with --yes to confirm.")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Would delete local data directory: %s\n", absDataDir)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Re-run with --yes to confirm.")
 				return nil
 			}
 			removed, err := removeDataDir(absDataDir)
@@ -144,9 +142,9 @@ func newResetDataCmd() *cobra.Command {
 				return err
 			}
 			if removed {
-				fmt.Fprintf(cmd.OutOrStdout(), "Deleted local data directory: %s\n", absDataDir)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted local data directory: %s\n", absDataDir)
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "Local data directory did not exist: %s\n", absDataDir)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Local data directory did not exist: %s\n", absDataDir)
 			}
 			return nil
 		},
@@ -257,7 +255,7 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	log.Info("opened sqlite", "path", dbPath)
 
 	if err := seedAdmin(ctx, db, log, opts); err != nil {
@@ -316,9 +314,12 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	var handler2 http.Handler = mux
 	handler2 = corsMiddleware(handler2, opts.CORSOrigins)
 
-	h2s := &http2.Server{}
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
 	server := &http.Server{
-		Handler:           h2c.NewHandler(handler2, h2s),
+		Handler:           handler2,
+		Protocols:         protocols,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -358,15 +359,15 @@ func runServe(ctx context.Context, opts serveOpts) error {
 }
 
 func seedAdmin(ctx context.Context, db *store.DB, log *slog.Logger, opts serveOpts) error {
-	if opts.AdminPassword == "" {
-		return nil
-	}
 	_, err := db.GetUserByUsername(ctx, opts.AdminUsername)
 	if err == nil {
 		return nil
 	}
 	if !errors.Is(err, store.ErrUserNotFound) {
 		return err
+	}
+	if opts.AdminPassword == "" {
+		return errors.New("initial admin user is missing; set --admin-password or ADMIN_PASSWORD")
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(opts.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {

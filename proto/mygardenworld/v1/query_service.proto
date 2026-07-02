@@ -15,6 +15,9 @@ service QueryService {
   // Summarise harvested rewards from the most recent contiguous harvest run.
   rpc GetHarvestStats(GetHarvestStatsRequest) returns (GetHarvestStatsResponse);
 
+  // Preview the current ordered automation plan without mutating game state.
+  rpc GetPlan(GetPlanRequest) returns (GetPlanResponse);
+
   // Stream of every event the runner emits (analogous to the Python bot's
   // JSONL log). Supports filter + per-account scoping.
   rpc StreamEvents(StreamEventsRequest) returns (stream Event);
@@ -43,6 +46,9 @@ message AccountStatus {
   // Persisted user intent: true when automation should run once the account is started.
   bool automation_enabled = 9;
   RunnerDiagnostics diagnostics = 10;
+  repeated DomainStatus domain_statuses = 11;
+  string health = 12;
+  string last_error = 13;
 }
 
 message RunnerDiagnostics {
@@ -53,7 +59,7 @@ message RunnerDiagnostics {
   string last_operation_error = 5;
   google.protobuf.Timestamp last_operation_error_at = 6;
   google.protobuf.Timestamp next_decision_at = 7;
-  google.protobuf.Timestamp next_misc_at = 8;
+  google.protobuf.Timestamp next_domain_tick_at = 8;
   google.protobuf.Timestamp next_cultivate_at = 9;
   string session_invalidated_reason = 10;
   repeated string blocked_reasons = 11;
@@ -94,6 +100,8 @@ message GetSnapshotResponse {
   int32 unknown_rpc_count = 21;
   int32 unknown_namespace_count = 22;
   RunnerDiagnostics diagnostics = 23;
+  repeated DomainStatus domain_statuses = 24;
+  repeated PlannedOperation planned_operations = 25;
 }
 
 message LandView {
@@ -131,6 +139,48 @@ message PendingTaskView {
   // missing|ready|progress
   string status = 6;
   repeated RequirementView requirements = 7;
+}
+
+message GetPlanRequest {
+  string account_id = 1;
+  string account_name = 2;
+}
+
+message GetPlanResponse {
+  string account_id = 1;
+  string account_name = 2;
+  repeated PlannedOperation operations = 3;
+  repeated DomainStatus domain_statuses = 4;
+}
+
+message PlannedOperation {
+  string category = 1;
+  string domain = 2;
+  string action = 3;
+  string rpc = 4;
+  string reason = 5;
+  repeated int32 land_ids = 6;
+  int32 flower_id = 7;
+  int32 priority = 8;
+  int32 gold_cost = 9;
+  int32 diamond_cost = 10;
+  map<int32, int32> item_cost = 11;
+  string feature_id = 12;
+  string label = 13;
+  // executable|managed|sync_only|adapter_missing|blocked.
+  string status = 14;
+  bool executable = 15;
+  bool sync_only = 16;
+  repeated string blocked_reasons = 17;
+}
+
+message DomainStatus {
+  string category = 1;
+  string domain = 2;
+  bool observed = 3;
+  string status = 4;
+  repeated string blocked_reasons = 5;
+  string last_error = 6;
 }
 
 message RequirementView {
@@ -204,11 +254,16 @@ message Event {
   // Structured payload as JSON (so the daemon doesn't need a wire schema for
   // every internal event type). Contents stable per kind.
   string payload_json = 6;
-  // Coarse log grouping for UI filters: session|operation|land|resource|
-  // reward|task|order|cultivation|system.
+  // Coarse log grouping for UI filters:
+  // account|basic|plant|order|union|activity|system.
   string category = 7;
   // Short human-readable type label, e.g. "田地" or "操作失败".
   string label = 8;
   // info|warn|error. Derived by the daemon when callers do not set it.
   string level = 9;
+  // Stable feature domain within category, e.g. "farm.land" or
+  // "order.customer".
+  string domain = 10;
+  // Stable action within domain, e.g. "harvest", "sync", "blocked".
+  string action = 11;
 }

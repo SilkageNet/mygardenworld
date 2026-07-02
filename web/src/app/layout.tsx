@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "我的花园世界",
-  description: "花园自动化管理平台",
+  title: "花序",
+  description: "本地花园自动化",
 };
 
 export default function RootLayout({

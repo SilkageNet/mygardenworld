@@ -79,8 +79,6 @@ jobs:
 
             CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
               go build -trimpath -ldflags "${LDFLAGS}" -o "${OUTDIR}/gardend${EXT}" ./cmd/gardend
-            CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
-              go build -trimpath -ldflags "${LDFLAGS}" -o "${OUTDIR}/gardenctl${EXT}" ./cmd/gardenctl
 
             cp README.md "${OUTDIR}/README.md"
             cp scripts/install.sh "${OUTDIR}/install.sh"
@@ -90,11 +88,9 @@ jobs:
 
             if [ "${GOOS}" = "windows" ]; then
               test -x "${OUTDIR}/gardend.exe"
-              test -x "${OUTDIR}/gardenctl.exe"
               (cd dist && zip -r "${PKG}.zip" "${PKG}")
             else
               test -x "${OUTDIR}/gardend"
-              test -x "${OUTDIR}/gardenctl"
               tar -czf "dist/${PKG}.tar.gz" -C dist "${PKG}"
             fi
           done

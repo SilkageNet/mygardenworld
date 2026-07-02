@@ -94,6 +94,21 @@ func TestStaticTableAndRow(t *testing.T) {
 	}
 }
 
+func TestFmlBuildOptionByID(t *testing.T) {
+	video, ok := FmlBuildOptionByID(1)
+	if !ok || video.Cost != 0 || video.ItemID != 0 {
+		t.Fatalf("video build option=%+v ok=%t", video, ok)
+	}
+	gold, ok := FmlBuildOptionByID(2)
+	if !ok || gold.ItemID != 11 || gold.Cost <= 0 {
+		t.Fatalf("gold build option=%+v ok=%t", gold, ok)
+	}
+	diamond, ok := FmlBuildOptionByID(3)
+	if !ok || diamond.ItemID != 1 || diamond.Cost <= 0 {
+		t.Fatalf("diamond build option=%+v ok=%t", diamond, ok)
+	}
+}
+
 func TestFlowerBouquetItemID(t *testing.T) {
 	tests := map[int32]int32{
 		23006: 22006,

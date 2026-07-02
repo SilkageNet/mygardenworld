@@ -98,7 +98,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	archivePath := filepath.Join(tmpDir, asset.Name)
 	if err := downloadFile(ctx, opts, asset.BrowserDownloadURL, archivePath); err != nil {
@@ -189,7 +189,7 @@ func fetchRelease(ctx context.Context, opts Options) (*githubRelease, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fetch release: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return nil, fmt.Errorf("fetch release: %s: %s", resp.Status, strings.TrimSpace(string(body)))
@@ -288,7 +288,7 @@ func downloadFile(ctx context.Context, opts Options, url, dst string) error {
 	if err != nil {
 		return fmt.Errorf("download %s: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download %s: %s", url, resp.Status)
 	}
@@ -296,7 +296,7 @@ func downloadFile(ctx context.Context, opts Options, url, dst string) error {
 	if err != nil {
 		return fmt.Errorf("create archive: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	if _, err := io.Copy(out, resp.Body); err != nil {
 		return fmt.Errorf("write archive: %w", err)
 	}
@@ -323,7 +323,7 @@ func verifyChecksum(ctx context.Context, opts Options, release *githubRelease, a
 	if err != nil {
 		return false, fmt.Errorf("download checksums: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("download checksums: %s", resp.Status)
 	}
@@ -363,7 +363,7 @@ func fileSHA256(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open archive for checksum: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", fmt.Errorf("hash archive: %w", err)
@@ -386,7 +386,7 @@ func extractBinaryFromZip(archivePath, dstDir, binaryName string) (string, error
 	if err != nil {
 		return "", fmt.Errorf("open zip: %w", err)
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	for _, f := range zr.File {
 		if !entryMatchesBinary(f.Name, binaryName) {
 			continue
@@ -395,7 +395,7 @@ func extractBinaryFromZip(archivePath, dstDir, binaryName string) (string, error
 		if err != nil {
 			return "", fmt.Errorf("open zip entry: %w", err)
 		}
-		defer rc.Close()
+		defer func() { _ = rc.Close() }()
 		return writeExtractedBinary(rc, dstDir, binaryName)
 	}
 	return "", fmt.Errorf("%s not found in %s", binaryName, filepath.Base(archivePath))
@@ -406,12 +406,12 @@ func extractBinaryFromTarGz(archivePath, dstDir, binaryName string) (string, err
 	if err != nil {
 		return "", fmt.Errorf("open tar.gz: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	gzr, err := gzip.NewReader(file)
 	if err != nil {
 		return "", fmt.Errorf("open gzip: %w", err)
 	}
-	defer gzr.Close()
+	defer func() { _ = gzr.Close() }()
 	tr := tar.NewReader(gzr)
 	for {
 		header, err := tr.Next()
@@ -456,7 +456,7 @@ func writeExtractedBinary(src io.Reader, dstDir, binaryName string) (string, err
 	if err != nil {
 		return "", fmt.Errorf("create extracted binary: %w", err)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	if _, err := io.Copy(out, src); err != nil {
 		return "", fmt.Errorf("write extracted binary: %w", err)
 	}
@@ -468,7 +468,7 @@ func copyFile(src, dst string, perm os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, perm)
 	if err != nil {
 		return err

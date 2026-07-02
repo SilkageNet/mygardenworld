@@ -31,7 +31,7 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
   id: string;
 
   /**
-   * Human-friendly nickname; unique per data dir.
+   * Human-friendly nickname; unique per platform user.
    *
    * @generated from field: string name = 2;
    */

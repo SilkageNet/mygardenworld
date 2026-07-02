@@ -2,6 +2,7 @@ package cataloggen
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -155,6 +156,30 @@ this.request2("gs.waterwheel.recv", {}, cb);
 		if !strings.Contains(string(facadeGo), want) {
 			t.Fatalf("rpc facade output missing %q\n%s", want, facadeGo)
 		}
+	}
+}
+
+func TestProtocolGeneratorAvoidsDuplicateStateJSONTags(t *testing.T) {
+	fixture := `
+mo.DS.setSingle("G.IDupe", {first:1, second:1});
+`
+	protocol, err := ExtractClientProtocolFromText(fixture)
+	if err != nil {
+		t.Fatalf("ExtractClientProtocolFromText: %v", err)
+	}
+	clientTypesGo, err := GenerateClientProtocolTypesGo(protocol)
+	if err != nil {
+		t.Fatalf("GenerateClientProtocolTypesGo: %v", err)
+	}
+	got := string(clientTypesGo)
+	if !regexp.MustCompile("First\\s+int32 `json:\"1,omitempty\"`").MatchString(got) {
+		t.Fatalf("generated first field with wrong tag:\n%s", got)
+	}
+	if !regexp.MustCompile("Second\\s+int32 `json:\"-\"`").MatchString(got) {
+		t.Fatalf("generated duplicate-index field with wrong tag:\n%s", got)
+	}
+	if strings.Count(got, "`json:\"1,omitempty\"`") != 1 {
+		t.Fatalf("generated duplicate JSON tags:\n%s", got)
 	}
 }
 

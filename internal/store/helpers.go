@@ -15,6 +15,10 @@ var ErrAccountExists = errors.New("account already exists")
 // ErrAccountNotFound is returned when a lookup by id or name has no match.
 var ErrAccountNotFound = errors.New("account not found")
 
+// ErrAccountAmbiguous is returned when a global name lookup matches multiple
+// users. Callers should retry with an id or a user-scoped lookup.
+var ErrAccountAmbiguous = errors.New("account name is ambiguous")
+
 // scannable is satisfied by both *sql.Row and *sql.Rows.
 type scannable interface {
 	Scan(dest ...any) error

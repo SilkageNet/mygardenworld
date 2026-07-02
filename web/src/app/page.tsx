@@ -2,12 +2,29 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type FormEvent, type ReactNode, type RefObject } from "react";
 import { createClient } from "@connectrpc/connect";
+import { create } from "@bufbuild/protobuf";
 import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
 import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
 import { AutomationService } from "@/gen/mygardenworld/v1/automation_service_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountHarvestStats, AccountStatus, Event, GetHarvestStatsResponse, GetSnapshotResponse, HarvestItemTotal, LandView, PendingTaskView, RequirementView } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountHarvestStats, AccountStatus, DomainStatus, Event, GetHarvestStatsResponse, GetSnapshotResponse, HarvestItemTotal, LandView, PendingTaskView, PlannedOperation, RequirementView } from "@/gen/mygardenworld/v1/query_service_pb";
+import {
+  ActivityModulePolicySchema,
+  ActivityPolicySchema,
+  BasicPolicySchema,
+  CustomerOrderPolicySchema,
+  FlowerArtPolicySchema,
+  OrderPolicySchema,
+  PalaceOrderPolicySchema,
+  PearlPolicySchema,
+  ResidentOrderPolicySchema,
+  SafetyPolicySchema,
+  ShopPolicySchema,
+  TeamOrderPolicySchema,
+  UnionPolicySchema,
+  ZooPolicySchema,
+} from "@/gen/mygardenworld/v1/policy_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
@@ -84,7 +101,7 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "waterwheel",
   "free_water",
 ]);
-const SNAPSHOT_REFRESH_EVENT_CATEGORIES = new Set(["task", "order", "cultivation", "reward"]);
+const SNAPSHOT_REFRESH_EVENT_CATEGORIES = new Set(["basic", "plant", "order", "union", "activity"]);
 
 export default function HomePage() {
   return (
@@ -122,6 +139,7 @@ function DashboardContent() {
   const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
   const selectedAccountIdRef = useRef("");
   const didInitialFetchRef = useRef(false);
+  const eventKeysRef = useRef<Set<string>>(new Set());
   const snapshotRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -394,7 +412,16 @@ function DashboardContent() {
           const stream = queryClient.streamEvents({}, { signal: abort.signal });
           for await (const event of stream) {
             retryMs = 1000;
-            setEvents((prev) => [...prev.slice(-(MAX_EVENT_ROWS * 3 - 1)), event]);
+            const key = eventStableKey(event);
+            if (eventKeysRef.current.has(key)) continue;
+            eventKeysRef.current.add(key);
+            setEvents((prev) => {
+              const next = [...prev.slice(-(MAX_EVENT_ROWS * 3 - 1)), event];
+              if (eventKeysRef.current.size > MAX_EVENT_ROWS * 4) {
+                eventKeysRef.current = new Set(next.map(eventStableKey));
+              }
+              return next;
+            });
             applyEventToLocalState(event);
             if (event.kind === "operation_ack" && event.payloadJson.includes("usrLand.harvest")) {
               void refreshHarvestStats();
@@ -1253,7 +1280,10 @@ function SnapshotOverview({
 
       <RunnerDiagnosticsPanel snapshot={snapshot} />
 
-      <TaskPanel tasks={snapshot.pendingTasks ?? []} diagnostics={snapshot.diagnostics} />
+      <div className="grid shrink-0 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+        <PlanPanel operations={snapshot.plannedOperations ?? []} domainStatuses={snapshot.domainStatuses ?? []} />
+        <TaskPanel tasks={snapshot.pendingTasks ?? []} diagnostics={snapshot.diagnostics} />
+      </div>
 
       <div className="xl:h-[340px] xl:shrink-0 xl:overflow-hidden 2xl:h-[360px]">
         <section className="flex h-full flex-col rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5 xl:min-h-0">
@@ -1343,7 +1373,7 @@ function RunnerDiagnosticsPanel({ snapshot }: { snapshot: GetSnapshotResponse })
         <DiagnosticsMetric label="当前" value={currentOperation} />
         <DiagnosticsMetric label="上次" value={lastOperation} />
         <DiagnosticsMetric label="下次扫描" value={formatFutureTimestamp(diagnostics?.nextDecisionAt)} icon={<Clock3 className="size-3.5" />} />
-        <DiagnosticsMetric label="下次待办" value={formatFutureTimestamp(diagnostics?.nextMiscAt)} icon={<Clock3 className="size-3.5" />} />
+        <DiagnosticsMetric label="下次领域" value={formatFutureTimestamp(diagnostics?.nextDomainTickAt)} icon={<Clock3 className="size-3.5" />} />
       </div>
       {(lastError || blockedReasons.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
@@ -1416,6 +1446,104 @@ function HarvestItemPill({ item }: { item: HarvestItemTotal }) {
   );
 }
 
+function PlanPanel({ operations, domainStatuses }: { operations: PlannedOperation[]; domainStatuses: DomainStatus[] }) {
+  const groups = useMemo(() => groupPlannedOperations(operations, domainStatuses), [operations, domainStatuses]);
+  const executableCount = operations.filter((op) => op.executable).length;
+  const missingCount = operations.filter((op) => op.status === "adapter_missing").length;
+  const blockedCount = operations.filter((op) => op.status === "blocked" || op.blockedReasons.length > 0).length;
+
+  return (
+    <section className="min-w-0 rounded-lg border border-border/70 bg-card/55 p-3 shadow-sm shadow-black/5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 font-medium">
+          <LayoutList className="size-4 text-primary" />
+          执行计划
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>{operations.length} 项</span>
+          {executableCount > 0 && <span className="rounded border border-primary/20 bg-primary/10 px-2 py-1 text-primary">{executableCount} 可执行</span>}
+          {missingCount > 0 && <span className="rounded border border-yellow-400/25 bg-yellow-400/10 px-2 py-1 text-yellow-700 dark:text-yellow-300">{missingCount} 缺 adapter</span>}
+          {blockedCount > 0 && <span className="rounded border border-red-400/25 bg-red-400/10 px-2 py-1 text-red-700 dark:text-red-300">{blockedCount} 阻塞</span>}
+        </div>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+        {groups.map((group) => (
+          <div key={group.category} className="flex min-h-32 min-w-0 flex-col rounded-md border border-border/60 bg-background/45 p-2">
+            <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+              <span className="truncate text-xs font-medium">{group.label}</span>
+              <DomainStatusBadge status={group.status} />
+            </div>
+            {group.operations.length > 0 ? (
+              <div className="dark-scrollbar grid max-h-44 gap-1.5 overflow-y-auto pr-1">
+                {group.operations.map((op) => (
+                  <PlanOperationRow key={`${op.category}:${op.domain}:${op.action}:${op.rpc}:${op.priority}`} operation={op} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-20 flex-1 items-center justify-center rounded border border-dashed border-border/70 px-2 text-center text-xs text-muted-foreground">
+                {group.status?.status === "disabled" ? "未启用" : "暂无计划"}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PlanOperationRow({ operation }: { operation: PlannedOperation }) {
+  const label = operation.label || operation.featureId || operation.domain || operation.rpc || operation.action;
+  const detail = operation.reason || operation.rpc || operation.domain;
+  const costText = plannedCostText(operation);
+  const landText = operation.landIds.length > 0 ? `${operation.landIds.length} 块田` : "";
+
+  return (
+    <div className="rounded-md border border-border/50 bg-card/55 p-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-medium">{label}</div>
+          <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{detail}</div>
+        </div>
+        <PlanStatusBadge status={operation.status} executable={operation.executable} syncOnly={operation.syncOnly} />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+        {operation.priority > 0 && <span className="rounded border border-border/60 bg-background/50 px-1.5 py-0.5">P{operation.priority}</span>}
+        {landText && <span className="rounded border border-border/60 bg-background/50 px-1.5 py-0.5">{landText}</span>}
+        {operation.flowerId > 0 && <span className="max-w-full truncate rounded border border-border/60 bg-background/50 px-1.5 py-0.5">{itemName(operation.flowerId)}</span>}
+        {costText && <span className="max-w-full truncate rounded border border-yellow-400/25 bg-yellow-400/10 px-1.5 py-0.5 text-yellow-700 dark:text-yellow-300">{costText}</span>}
+      </div>
+      {operation.blockedReasons.length > 0 && (
+        <div className="mt-1.5 grid gap-1">
+          {operation.blockedReasons.slice(0, 2).map((reason) => (
+            <div key={reason} className="truncate rounded border border-yellow-400/25 bg-yellow-400/10 px-1.5 py-0.5 text-[10px] text-yellow-700 dark:text-yellow-300">
+              {reason}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlanStatusBadge({ status, executable, syncOnly }: { status: string; executable: boolean; syncOnly: boolean }) {
+  const effectiveStatus = status || (syncOnly ? "sync_only" : executable ? "executable" : "blocked");
+  return (
+    <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px]", planStatusTone(effectiveStatus))}>
+      {planStatusLabel(effectiveStatus)}
+    </span>
+  );
+}
+
+function DomainStatusBadge({ status }: { status?: DomainStatus }) {
+  const value = status?.status || "disabled";
+  return (
+    <span className={cn("shrink-0 rounded border px-1.5 py-0.5 text-[10px]", domainStatusTone(value))}>
+      {domainStatusLabel(value)}
+    </span>
+  );
+}
+
 function TaskPanel({ tasks, diagnostics }: { tasks: PendingTaskView[]; diagnostics?: GetSnapshotResponse["diagnostics"] }) {
   const groups = useMemo(() => groupPendingTasks(tasks), [tasks]);
   const plantMissing = useMemo(() => {
@@ -1442,10 +1570,10 @@ function TaskPanel({ tasks, diagnostics }: { tasks: PendingTaskView[]; diagnosti
           自动待办
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {diagnostics?.nextMiscAt && (
+          {diagnostics?.nextDomainTickAt && (
             <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/20 px-2 py-1">
               <Clock3 className="size-3" />
-              下次待办 {formatFutureTimestamp(diagnostics.nextMiscAt)}
+              下次领域 {formatFutureTimestamp(diagnostics.nextDomainTickAt)}
             </span>
           )}
           {plantMissing.length > 0 && (
@@ -1949,13 +2077,13 @@ function HarvestStatsLogView({ stats, window }: { stats: AccountHarvestStats | n
 const LOG_FILTERS = [
   { value: "all", label: "全部" },
   { value: "error", label: "错误" },
-  { value: "operation", label: "操作" },
-  { value: "land", label: "田地" },
-  { value: "resource", label: "资源" },
-  { value: "reward", label: "奖励" },
-  { value: "task", label: "任务" },
+  { value: "account", label: "账号" },
+  { value: "basic", label: "基础" },
+  { value: "plant", label: "种植" },
   { value: "order", label: "订单" },
-  { value: "cultivation", label: "培育" },
+  { value: "union", label: "公会" },
+  { value: "activity", label: "活动" },
+  { value: "system", label: "系统" },
 ] as const;
 
 function eventMatchesLogFilter(event: Event, category: string): boolean {
@@ -1964,10 +2092,55 @@ function eventMatchesLogFilter(event: Event, category: string): boolean {
   return event.category === category;
 }
 
+function eventStableKey(event: Event): string {
+  const seconds = event.ts ? String(event.ts.seconds) : "";
+  const nanos = event.ts ? String(event.ts.nanos ?? 0) : "";
+  return [
+    seconds,
+    nanos,
+    event.accountId,
+    event.kind,
+    event.category,
+    event.domain,
+    event.action,
+    event.message,
+    event.payloadJson,
+  ].join("\u001f");
+}
+
 const PLANT_MODE_OPTIONS = [
   { value: "low_stock", label: "低库存优先", description: "优先补当前库存最低的花。" },
   { value: "high_value", label: "高价值", description: "按金币收益和经验选择花。" },
   { value: "selected", label: "自选", description: "只从你勾选的花里选择种植。" },
+] as const;
+
+const POLICY_TABS = [
+  { value: "basic", label: "基础" },
+  { value: "plant", label: "种植" },
+  { value: "order", label: "订单" },
+  { value: "union", label: "公会" },
+  { value: "activity", label: "活动" },
+] as const;
+
+type PolicyTab = typeof POLICY_TABS[number]["value"];
+
+const ACTIVITY_MODULE_OPTIONS = [
+  { value: "actCyclicStory", label: "周期剧情" },
+  { value: "actDessert", label: "甜品" },
+  { value: "actDuanWu", label: "端午" },
+  { value: "actElim", label: "消除" },
+  { value: "actMerge2", label: "合成" },
+  { value: "actSpool", label: "线轴" },
+  { value: "cyclicNote", label: "周期笔记" },
+  { value: "fishFun", label: "钓鱼" },
+  { value: "fishMerge", label: "鱼类合成" },
+  { value: "lanternFestival", label: "灯会" },
+  { value: "magicBubble", label: "魔法泡泡" },
+  { value: "moneyTree", label: "摇钱树" },
+  { value: "recvLuck", label: "福利领奖" },
+  { value: "redPacket", label: "红包" },
+  { value: "yzCall", label: "云栈召唤" },
+  { value: "zooGameElim", label: "动物消除" },
 ] as const;
 
 function SettingsDialog({
@@ -1989,10 +2162,12 @@ function SettingsDialog({
   message: string;
   onSave: () => void;
 }) {
-  const plantMode = policy?.plant?.mode || "high_value";
+  const [activePolicyTab, setActivePolicyTab] = useState<PolicyTab>("basic");
+  const plantMode = policy?.plant?.plantingMode || "low_stock";
   const plantTaskPriorityEnabled = policy?.plant?.taskPriorityEnabled ?? true;
   const [flowerQuery, setFlowerQuery] = useState("");
   const selectedFlowerIds = useMemo(() => new Set(policy?.plant?.allowedFlowerIds ?? []), [policy?.plant?.allowedFlowerIds]);
+  const activityModules = policy?.activity?.modules ?? {};
   const visibleFlowers = useMemo(() => {
     const keyword = flowerQuery.trim().toLowerCase();
     if (!keyword) return FLOWER_OPTIONS;
@@ -2006,13 +2181,95 @@ function SettingsDialog({
     if (!policy) return;
     setPolicy({ ...policy, plant: { ...policy.plant!, ...patch } });
   };
-  const updateWater = (patch: Partial<NonNullable<Policy["water"]>>) => {
+  const updateBasic = (patch: Partial<NonNullable<Policy["basic"]>>) => {
     if (!policy) return;
-    setPolicy({ ...policy, water: { ...policy.water!, ...patch } });
+    const basic = policy.basic ?? create(BasicPolicySchema);
+    setPolicy({ ...policy, basic: { ...basic, ...patch } });
   };
-  const updateMisc = (patch: Partial<NonNullable<Policy["misc"]>>) => {
+  const updatePearl = (patch: Partial<NonNullable<NonNullable<Policy["basic"]>["pearl"]>>) => {
     if (!policy) return;
-    setPolicy({ ...policy, misc: { ...policy.misc!, ...patch } });
+    const basic = policy.basic ?? create(BasicPolicySchema);
+    const pearl = basic.pearl ?? create(PearlPolicySchema);
+    setPolicy({ ...policy, basic: { ...basic, pearl: { ...pearl, ...patch } } });
+  };
+  const updateShop = (patch: Partial<NonNullable<NonNullable<Policy["basic"]>["shop"]>>) => {
+    if (!policy) return;
+    const basic = policy.basic ?? create(BasicPolicySchema);
+    const shop = basic.shop ?? create(ShopPolicySchema);
+    setPolicy({ ...policy, basic: { ...basic, shop: { ...shop, ...patch } } });
+  };
+  const updateZoo = (patch: Partial<NonNullable<NonNullable<Policy["basic"]>["zoo"]>>) => {
+    if (!policy) return;
+    const basic = policy.basic ?? create(BasicPolicySchema);
+    const zoo = basic.zoo ?? create(ZooPolicySchema);
+    setPolicy({ ...policy, basic: { ...basic, zoo: { ...zoo, ...patch } } });
+  };
+  const updateCustomerOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["customer"]>>) => {
+    if (!policy) return;
+    const order = policy.order ?? create(OrderPolicySchema);
+    const current = order.customer ?? create(CustomerOrderPolicySchema);
+    setPolicy({ ...policy, order: { ...order, customer: { ...current, ...patch } } });
+  };
+  const updateResidentOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["resident"]>>) => {
+    if (!policy) return;
+    const order = policy.order ?? create(OrderPolicySchema);
+    const current = order.resident ?? create(ResidentOrderPolicySchema);
+    setPolicy({ ...policy, order: { ...order, resident: { ...current, ...patch } } });
+  };
+  const updatePalaceOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["palace"]>>) => {
+    if (!policy) return;
+    const order = policy.order ?? create(OrderPolicySchema);
+    const current = order.palace ?? create(PalaceOrderPolicySchema);
+    setPolicy({ ...policy, order: { ...order, palace: { ...current, ...patch } } });
+  };
+  const updateTeamOrder = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["team"]>>) => {
+    if (!policy) return;
+    const order = policy.order ?? create(OrderPolicySchema);
+    const current = order.team ?? create(TeamOrderPolicySchema);
+    setPolicy({ ...policy, order: { ...order, team: { ...current, ...patch } } });
+  };
+  const updateFlowerArt = (patch: Partial<NonNullable<NonNullable<Policy["order"]>["flowerArt"]>>) => {
+    if (!policy) return;
+    const order = policy.order ?? create(OrderPolicySchema);
+    const current = order.flowerArt ?? create(FlowerArtPolicySchema);
+    setPolicy({ ...policy, order: { ...order, flowerArt: { ...current, ...patch } } });
+  };
+  const updateUnion = (patch: Partial<NonNullable<Policy["union"]>>) => {
+    if (!policy) return;
+    const union = policy.union ?? create(UnionPolicySchema);
+    setPolicy({ ...policy, union: { ...union, ...patch } });
+  };
+  const updateActivity = (patch: Partial<NonNullable<Policy["activity"]>>) => {
+    if (!policy) return;
+    const activity = policy.activity ?? create(ActivityPolicySchema);
+    setPolicy({ ...policy, activity: { ...activity, ...patch } });
+  };
+  const updateActivityModule = (name: string, patch: Partial<NonNullable<NonNullable<Policy["activity"]>["modules"][string]>>) => {
+    if (!policy) return;
+    const activity = policy.activity ?? create(ActivityPolicySchema);
+    const current = activity.modules[name] ?? create(ActivityModulePolicySchema);
+    setPolicy({
+      ...policy,
+      activity: {
+        ...activity,
+        modules: {
+          ...activity.modules,
+          [name]: { ...current, ...patch },
+        },
+      },
+    });
+  };
+  const updateSafety = (patch: Partial<NonNullable<Policy["safety"]>>) => {
+    if (!policy) return;
+    const safety = policy.safety ?? create(SafetyPolicySchema);
+    setPolicy({ ...policy, safety: { ...safety, ...patch } });
+  };
+  const updateWater = (patch: Partial<{ enabled: boolean; minDrops: number; maxBatch: number }>) => {
+    updatePlant({
+      waterEnabled: patch.enabled ?? policy?.plant?.waterEnabled ?? true,
+      minWaterDrops: patch.minDrops ?? policy?.plant?.minWaterDrops ?? 5,
+      waterMaxBatch: patch.maxBatch ?? policy?.plant?.waterMaxBatch ?? 8,
+    });
   };
   const toggleFlower = (flowerId: number) => {
     const ids = new Set(policy?.plant?.allowedFlowerIds ?? []);
@@ -2037,138 +2294,272 @@ function SettingsDialog({
           <>
             <div className="dark-scrollbar max-h-[66vh] overflow-y-auto pr-1">
               <div className="grid gap-4">
-                <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">运行</CardTitle></CardHeader>
-                    <CardContent className="grid gap-3">
-                    <Row label="决策间隔">
-                      <Input type="number" className="h-8 w-24 text-xs" value={policy.decisionIntervalSeconds || 4} onChange={(e) => setPolicy({ ...policy, decisionIntervalSeconds: parseFloat(e.target.value) })} />
-                    </Row>
-                    </CardContent>
-                  </Card>
+                <Card size="sm">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">运行与安全</CardTitle></CardHeader>
+                  <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    <Row label="自动化"><Switch checked={policy.automationEnabled} onCheckedChange={(v: boolean) => setPolicy({ ...policy, automationEnabled: v })} /></Row>
+                    <Row label="决策间隔"><Input type="number" min={1} className="h-8 w-24 text-xs" value={policy.decisionIntervalSeconds || 4} onChange={(e) => setPolicy({ ...policy, decisionIntervalSeconds: parseNumberAtLeast(e.target.value, 4, 1) })} /></Row>
+                    <Row label="要求已观测"><Switch checked={policy.safety?.requireObservedState ?? true} onCheckedChange={(v: boolean) => updateSafety({ requireObservedState: v })} /></Row>
+                    <Row label="会话失效停止"><Switch checked={policy.safety?.stopOnSessionInvalidated ?? true} onCheckedChange={(v: boolean) => updateSafety({ stopOnSessionInvalidated: v })} /></Row>
+                    <Row label="连续错误"><Input type="number" min={1} className="h-8 w-20 text-xs" value={policy.safety?.maxConsecutiveErrors || 3} onChange={(e) => updateSafety({ maxConsecutiveErrors: parseNumberAtLeast(e.target.value, 3, 1) })} /></Row>
+                    <Row label="域退避秒"><Input type="number" min={0} className="h-8 w-24 text-xs" value={policy.safety?.domainBackoffSeconds ?? 1800} onChange={(e) => updateSafety({ domainBackoffSeconds: parseNumberAtLeast(e.target.value, 1800, 0) })} /></Row>
+                    <Row label="金币预算"><Input type="number" min={0} className="h-8 w-24 text-xs" value={policy.safety?.maxGoldSpendPerTick ?? 0} onChange={(e) => updateSafety({ maxGoldSpendPerTick: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                    <Row label="钻石预算"><Input type="number" min={0} className="h-8 w-24 text-xs" value={policy.safety?.maxDiamondSpendPerTick ?? 0} onChange={(e) => updateSafety({ maxDiamondSpendPerTick: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                  </CardContent>
+                </Card>
 
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">收获</CardTitle></CardHeader>
-                    <CardContent className="grid gap-2 sm:grid-cols-2">
-                      <Row label="自动收获"><Switch checked={policy.harvest?.enabled ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, harvest: { ...policy.harvest!, enabled: v } })} /></Row>
-                      <Row label="一键收获"><Switch checked={policy.harvest?.preferOneKey ?? true} onCheckedChange={(v: boolean) => setPolicy({ ...policy, harvest: { ...policy.harvest!, preferOneKey: v } })} /></Row>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-                  <Card size="sm" className="min-w-0">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">种植</CardTitle></CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <Row label="自动种植"><Switch checked={policy.plant?.enabled ?? true} onCheckedChange={(v: boolean) => updatePlant({ enabled: v })} /></Row>
-                        <Row label="任务优先"><Switch checked={plantTaskPriorityEnabled} onCheckedChange={(v: boolean) => updatePlant({ taskPriorityEnabled: v })} /></Row>
-                        <Row label="批量上限"><Input type="number" className="h-8 w-20 text-xs" value={policy.plant?.maxBatch ?? 8} onChange={(e) => updatePlant({ maxBatch: parseNumber(e.target.value, 8) })} /></Row>
-                      </div>
-
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        {PLANT_MODE_OPTIONS.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => updatePlant({ mode: option.value })}
-                            className={cn(
-                              "rounded-lg border border-border/70 bg-muted/15 p-3 text-left transition-all hover:border-primary/35 hover:bg-primary/5",
-                              plantMode === option.value && "border-primary/55 bg-primary/10 shadow-sm ring-1 ring-primary/20"
-                            )}
-                          >
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <span className="text-sm font-medium">{option.label}</span>
-                              {plantMode === option.value && <Check className="size-4 text-primary" />}
-                            </div>
-                            <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
-                          </button>
-                        ))}
-                      </div>
-
-                      {plantMode === "selected" && (
-                        <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
-                          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <div className="text-sm font-medium">选择种子</div>
-                              <div className="text-xs text-muted-foreground">已选择 {selectedFlowerIds.size} 种</div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Input className="h-8 w-full text-xs sm:w-48" placeholder="搜索名称或 ID" value={flowerQuery} onChange={(e) => setFlowerQuery(e.target.value)} />
-                              <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" onClick={() => updatePlant({ allowedFlowerIds: [] })}>清空</Button>
-                            </div>
-                          </div>
-                          <div className="dark-scrollbar max-h-64 overflow-y-auto pr-1">
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                              {visibleFlowers.map((flower) => (
-                                <FlowerOptionButton
-                                  key={flower.id}
-                                  flower={flower}
-                                  selected={selectedFlowerIds.has(flower.id)}
-                                  onToggle={() => toggleFlower(flower.id)}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
+                <div className="flex flex-wrap gap-2 rounded-lg border border-border/70 bg-muted/15 p-1">
+                  {POLICY_TABS.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={cn(
+                        "min-w-20 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground",
+                        activePolicyTab === item.value && "bg-background text-foreground shadow-sm"
                       )}
-                    </CardContent>
-                  </Card>
-
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">浇水</CardTitle></CardHeader>
-                    <CardContent className="space-y-2">
-                      <Row label="自动浇水"><Switch checked={policy.water?.enabled ?? true} onCheckedChange={(v: boolean) => updateWater({ ...policy.water!, enabled: v })} /></Row>
-                      <Row label="保留水滴"><Input type="number" min={1} className="h-8 w-24 text-xs" value={policy.water?.minDrops || 5} onChange={(e) => updateWater({ ...policy.water!, minDrops: parseNumberAtLeast(e.target.value, 5, 1) })} /></Row>
-                      <Row label="批量上限"><Input type="number" className="h-8 w-24 text-xs" value={policy.water?.maxBatch ?? 8} onChange={(e) => updateWater({ ...policy.water!, maxBatch: parseNumber(e.target.value, 8) })} /></Row>
-                    </CardContent>
-                  </Card>
+                      onClick={() => setActivePolicyTab(item.value)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">订单</CardTitle></CardHeader>
-                    <CardContent className="grid gap-2 sm:grid-cols-2">
-                      <Row label="居民订单"><Switch checked={policy.misc?.residentOrderEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ residentOrderEnabled: v })} /></Row>
-                      <Row label="顾客订单"><Switch checked={policy.misc?.customerOrderEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ customerOrderEnabled: v })} /></Row>
-                      <Row label="顾客缺货刷新"><Switch checked={policy.misc?.customerOrderRejectEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ customerOrderRejectEnabled: v })} /></Row>
-                      <Row label="订单阶段奖励"><Switch checked={policy.misc?.residentOrderRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ residentOrderRewardEnabled: v })} /></Row>
-                      <Row label="居民广告奖励"><Switch checked={policy.misc?.residentOrderAdEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ residentOrderAdEnabled: v })} /></Row>
-                    </CardContent>
-                  </Card>
+                {activePolicyTab === "basic" && (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">任务与奖励</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2">
+                        <Row label="礼仪监控"><Switch checked={policy.basic?.reputationEnabled ?? true} onCheckedChange={(v: boolean) => updateBasic({ reputationEnabled: v })} /></Row>
+                        <Row label="礼仪阈值"><Input type="number" className="h-8 w-20 text-xs" value={policy.basic?.reputationThreshold || 80} onChange={(e) => updateBasic({ reputationThreshold: parseNumberAtLeast(e.target.value, 80, 0) })} /></Row>
+                        <Row label="主线任务"><Switch checked={policy.basic?.mainTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ mainTaskEnabled: v })} /></Row>
+                        <Row label="每日任务"><Switch checked={policy.basic?.dailyTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ dailyTaskEnabled: v })} /></Row>
+                        <Row label="每周任务"><Switch checked={policy.basic?.weeklyTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ weeklyTaskEnabled: v })} /></Row>
+                        <Row label="成就任务"><Switch checked={policy.basic?.achievementTaskEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ achievementTaskEnabled: v })} /></Row>
+                        <Row label="剧情"><Switch checked={policy.basic?.storyEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ storyEnabled: v })} /></Row>
+                        <Row label="邮件"><Switch checked={policy.basic?.mailEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ mailEnabled: v })} /></Row>
+                        <Row label="福利"><Switch checked={policy.basic?.welfareEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ welfareEnabled: v })} /></Row>
+                        <Row label="签到"><Switch checked={policy.basic?.signEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ signEnabled: v })} /></Row>
+                        <Row label="成长之路"><Switch checked={policy.basic?.roadGrowRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ roadGrowRewardEnabled: v })} /></Row>
+                        <Row label="地图事件"><Switch checked={policy.basic?.randomEventEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ randomEventEnabled: v })} /></Row>
+                        <Row label="水车"><Switch checked={policy.basic?.waterwheelEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ waterwheelEnabled: v })} /></Row>
+                        <Row label="免费水滴"><Switch checked={policy.basic?.freeWaterEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ freeWaterEnabled: v })} /></Row>
+                        <Row label="福利箱"><Switch checked={policy.basic?.benefitBoxEnabled ?? false} onCheckedChange={(v: boolean) => updateBasic({ benefitBoxEnabled: v })} /></Row>
+                      </CardContent>
+                    </Card>
 
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">花艺与花架</CardTitle></CardHeader>
-                    <CardContent className="grid gap-2 sm:grid-cols-2">
-                      <Row label="订单花艺制作"><Switch checked={policy.misc?.customerOrderCraftEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ customerOrderCraftEnabled: v })} /></Row>
-                      <Row label="制作奖励"><Switch checked={policy.misc?.flowerArtRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerArtRewardEnabled: v })} /></Row>
-                      <Row label="空花架上架"><Switch checked={policy.misc?.flowerRackEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerRackEnabled: v })} /></Row>
-                      <Row label="花架自动制作"><Switch checked={policy.misc?.flowerRackCraftEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerRackCraftEnabled: v })} /></Row>
-                    </CardContent>
-                  </Card>
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">珍珠、商城、动物</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2">
+                        <Row label="珍珠"><Switch checked={policy.basic?.pearl?.enabled ?? false} onCheckedChange={(v: boolean) => updatePearl({ enabled: v })} /></Row>
+                        <Row label="免费珍珠"><Switch checked={policy.basic?.pearl?.freePearl ?? false} onCheckedChange={(v: boolean) => updatePearl({ freePearl: v })} /></Row>
+                        <Row label="雇佣精灵"><Switch checked={policy.basic?.pearl?.autoHire ?? false} onCheckedChange={(v: boolean) => updatePearl({ autoHire: v })} /></Row>
+                        <Row label="珍珠抽取"><Switch checked={policy.basic?.pearl?.autoDraw ?? false} onCheckedChange={(v: boolean) => updatePearl({ autoDraw: v })} /></Row>
+                        <Row label="视频礼包"><Switch checked={policy.basic?.shop?.videoGiftEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ videoGiftEnabled: v })} /></Row>
+                        <Row label="培育商店"><Switch checked={policy.basic?.shop?.cultivateShopEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ cultivateShopEnabled: v })} /></Row>
+                        <Row label="VIP 商店"><Switch checked={policy.basic?.shop?.vipShopEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ vipShopEnabled: v })} /></Row>
+                        <Row label="材料商店"><Switch checked={policy.basic?.shop?.materialShopEnabled ?? false} onCheckedChange={(v: boolean) => updateShop({ materialShopEnabled: v })} /></Row>
+                        <Row label="动物"><Switch checked={policy.basic?.zoo?.enabled ?? false} onCheckedChange={(v: boolean) => updateZoo({ enabled: v })} /></Row>
+                        <Row label="动物同步"><Switch checked={policy.basic?.zoo?.syncEnabled ?? false} onCheckedChange={(v: boolean) => updateZoo({ syncEnabled: v })} /></Row>
+                        <Row label="自动喂食"><Switch checked={policy.basic?.zoo?.autoFeed ?? false} onCheckedChange={(v: boolean) => updateZoo({ autoFeed: v })} /></Row>
+                        <Row label="动物小游戏"><Switch checked={policy.basic?.zoo?.gameEnabled ?? false} onCheckedChange={(v: boolean) => updateZoo({ gameEnabled: v })} /></Row>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">任务与事件</CardTitle></CardHeader>
-                    <CardContent className="grid gap-2 sm:grid-cols-2">
-                      <Row label="主线任务奖励"><Switch checked={policy.misc?.taskMainRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ taskMainRewardEnabled: v })} /></Row>
-                      <Row label="日常任务奖励"><Switch checked={policy.misc?.taskDailyRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ taskDailyRewardEnabled: v })} /></Row>
-                      <Row label="成长之路奖励"><Switch checked={policy.misc?.roadGrowRewardEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ roadGrowRewardEnabled: v })} /></Row>
-                      <Row label="地图随机事件"><Switch checked={policy.misc?.randomEventEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ randomEventEnabled: v })} /></Row>
-                    </CardContent>
-                  </Card>
+                {activePolicyTab === "plant" && (
+                  <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+                    <Card size="sm" className="min-w-0">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">收获与种植</CardTitle></CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <Row label="自动收获"><Switch checked={policy.plant?.harvestEnabled ?? true} onCheckedChange={(v: boolean) => updatePlant({ harvestEnabled: v })} /></Row>
+                          <Row label="一键收获"><Switch checked={policy.plant?.harvestPreferOneKey ?? true} onCheckedChange={(v: boolean) => updatePlant({ harvestPreferOneKey: v })} /></Row>
+                          <Row label="自动种植"><Switch checked={policy.plant?.plantEnabled ?? true} onCheckedChange={(v: boolean) => updatePlant({ plantEnabled: v })} /></Row>
+                          <Row label="任务优先"><Switch checked={plantTaskPriorityEnabled} onCheckedChange={(v: boolean) => updatePlant({ taskPriorityEnabled: v })} /></Row>
+                          <Row label="批量上限"><Input type="number" className="h-8 w-20 text-xs" value={policy.plant?.plantMaxBatch ?? 8} onChange={(e) => updatePlant({ plantMaxBatch: parseNumber(e.target.value, 8) })} /></Row>
+                        </div>
 
-                  <Card size="sm">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm">资源与养成</CardTitle></CardHeader>
-                    <CardContent className="grid gap-2 sm:grid-cols-2">
-                      <Row label="领取水车"><Switch checked={policy.misc?.waterwheelEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ waterwheelEnabled: v })} /></Row>
-                      <Row label="免费水滴"><Switch checked={policy.misc?.freeWaterEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ freeWaterEnabled: v })} /></Row>
-                      <Row label="自动开垦"><Switch checked={policy.misc?.landUnlockEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ landUnlockEnabled: v })} /></Row>
-                      <Row label="解锁剧情"><Switch checked={policy.misc?.storyUnlockEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ storyUnlockEnabled: v })} /></Row>
-                      <Row label="自动培育"><Switch checked={policy.misc?.cultivateEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ cultivateEnabled: v })} /></Row>
-                      <Row label="自动升级"><Switch checked={policy.misc?.flowerUpgradeEnabled ?? false} onCheckedChange={(v: boolean) => updateMisc({ flowerUpgradeEnabled: v })} /></Row>
-                    </CardContent>
-                  </Card>
-                </div>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                          {PLANT_MODE_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => updatePlant({ plantingMode: option.value })}
+                              className={cn(
+                                "rounded-lg border border-border/70 bg-muted/15 p-3 text-left transition-all hover:border-primary/35 hover:bg-primary/5",
+                                plantMode === option.value && "border-primary/55 bg-primary/10 shadow-sm ring-1 ring-primary/20"
+                              )}
+                            >
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium">{option.label}</span>
+                                {plantMode === option.value && <Check className="size-4 text-primary" />}
+                              </div>
+                              <p className="text-xs leading-5 text-muted-foreground">{option.description}</p>
+                            </button>
+                          ))}
+                        </div>
+
+                        {plantMode === "selected" && (
+                          <div className="rounded-lg border border-border/70 bg-muted/10 p-3">
+                            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <div className="text-sm font-medium">选择种子</div>
+                                <div className="text-xs text-muted-foreground">已选择 {selectedFlowerIds.size} 种</div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Input className="h-8 w-full text-xs sm:w-48" placeholder="搜索名称或 ID" value={flowerQuery} onChange={(e) => setFlowerQuery(e.target.value)} />
+                                <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" onClick={() => updatePlant({ allowedFlowerIds: [] })}>清空</Button>
+                              </div>
+                            </div>
+                            <div className="dark-scrollbar max-h-64 overflow-y-auto pr-1">
+                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                {visibleFlowers.map((flower) => (
+                                  <FlowerOptionButton
+                                    key={flower.id}
+                                    flower={flower}
+                                    selected={selectedFlowerIds.has(flower.id)}
+                                    onToggle={() => toggleFlower(flower.id)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid gap-4">
+                      <Card size="sm">
+                        <CardHeader className="pb-2"><CardTitle className="text-sm">浇水</CardTitle></CardHeader>
+                        <CardContent className="space-y-2">
+                          <Row label="自动浇水"><Switch checked={policy.plant?.waterEnabled ?? true} onCheckedChange={(v: boolean) => updateWater({ enabled: v })} /></Row>
+                          <Row label="保留水滴"><Input type="number" min={1} className="h-8 w-24 text-xs" value={policy.plant?.minWaterDrops || 5} onChange={(e) => updateWater({ minDrops: parseNumberAtLeast(e.target.value, 5, 1) })} /></Row>
+                          <Row label="批量上限"><Input type="number" className="h-8 w-24 text-xs" value={policy.plant?.waterMaxBatch ?? 8} onChange={(e) => updateWater({ maxBatch: parseNumber(e.target.value, 8) })} /></Row>
+                          <Row label="贵族一键"><Switch checked={policy.plant?.waterPreferOneKeyIfNoble ?? false} onCheckedChange={(v: boolean) => updatePlant({ waterPreferOneKeyIfNoble: v })} /></Row>
+                        </CardContent>
+                      </Card>
+
+                      <Card size="sm">
+                        <CardHeader className="pb-2"><CardTitle className="text-sm">开垦、加速、培育</CardTitle></CardHeader>
+                        <CardContent className="space-y-2">
+                          <Row label="自动开垦"><Switch checked={policy.plant?.landUnlockEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ landUnlockEnabled: v })} /></Row>
+                          <Row label="自动加速"><Switch checked={policy.plant?.speedUpEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ speedUpEnabled: v })} /></Row>
+                          <Row label="视频加速"><Switch checked={policy.plant?.videoSpeedUp ?? false} onCheckedChange={(v: boolean) => updatePlant({ videoSpeedUp: v })} /></Row>
+                          <Row label="加速券上限"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.plant?.speedUpTicketMax ?? 0} onChange={(e) => updatePlant({ speedUpTicketMax: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                          <Row label="自动培育"><Switch checked={policy.plant?.cultivateEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ cultivateEnabled: v })} /></Row>
+                          <Row label="自动升级"><Switch checked={policy.plant?.flowerUpgradeEnabled ?? false} onCheckedChange={(v: boolean) => updatePlant({ flowerUpgradeEnabled: v })} /></Row>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                )}
+
+                {activePolicyTab === "order" && (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">居民与顾客</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2">
+                        <Row label="居民订单"><Switch checked={policy.order?.resident?.normalEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ normalEnabled: v })} /></Row>
+                        <Row label="居民次数"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.order?.resident?.normalMaxNum ?? 0} onChange={(e) => updateResidentOrder({ normalMaxNum: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                        <Row label="装饰订单"><Switch checked={policy.order?.resident?.decorateEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ decorateEnabled: v })} /></Row>
+                        <Row label="绸缎订单"><Switch checked={policy.order?.resident?.satinEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ satinEnabled: v })} /></Row>
+                        <Row label="阶段奖励"><Switch checked={policy.order?.resident?.rewardEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ rewardEnabled: v })} /></Row>
+                        <Row label="广告刷新"><Switch checked={policy.order?.resident?.adRefreshEnabled ?? false} onCheckedChange={(v: boolean) => updateResidentOrder({ adRefreshEnabled: v })} /></Row>
+                        <Row label="顾客订单"><Switch checked={policy.order?.customer?.enabled ?? false} onCheckedChange={(v: boolean) => updateCustomerOrder({ enabled: v })} /></Row>
+                        <Row label="顾客拒单"><Switch checked={policy.order?.customer?.rejectEnabled ?? false} onCheckedChange={(v: boolean) => updateCustomerOrder({ rejectEnabled: v })} /></Row>
+                        <Row label="顾客花艺"><Switch checked={policy.order?.customer?.craftEnabled ?? false} onCheckedChange={(v: boolean) => updateCustomerOrder({ craftEnabled: v })} /></Row>
+                        <Row label="每轮完成"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.order?.customer?.maxFinishPerTick ?? 0} onChange={(e) => updateCustomerOrder({ maxFinishPerTick: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                      </CardContent>
+                    </Card>
+
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">宫廷、组队、花艺</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2">
+                        <Row label="宫廷订单"><Switch checked={policy.order?.palace?.enabled ?? false} onCheckedChange={(v: boolean) => updatePalaceOrder({ enabled: v })} /></Row>
+                        <Row label="组队订单"><Switch checked={policy.order?.team?.enabled ?? false} onCheckedChange={(v: boolean) => updateTeamOrder({ enabled: v })} /></Row>
+                        <Row label="组队再来一次"><Switch checked={policy.order?.team?.oneMore ?? false} onCheckedChange={(v: boolean) => updateTeamOrder({ oneMore: v })} /></Row>
+                        <Row label="只交培育花"><Switch checked={policy.order?.team?.submitOnlyCultivatedFlowers ?? false} onCheckedChange={(v: boolean) => updateTeamOrder({ submitOnlyCultivatedFlowers: v })} /></Row>
+                        <Row label="花架售卖"><Switch checked={policy.order?.flowerArt?.sellEnabled ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ sellEnabled: v })} /></Row>
+                        <Row label="花艺制作"><Switch checked={policy.order?.flowerArt?.craftEnabled ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ craftEnabled: v })} /></Row>
+                        <Row label="制作奖励"><Switch checked={policy.order?.flowerArt?.rewardEnabled ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ rewardEnabled: v })} /></Row>
+                        <Row label="自动解锁花架"><Switch checked={policy.order?.flowerArt?.autoUnlockStand ?? false} onCheckedChange={(v: boolean) => updateFlowerArt({ autoUnlockStand: v })} /></Row>
+                        <Row label="每架花艺"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.order?.flowerArt?.flowerArtPerRack ?? 0} onChange={(e) => updateFlowerArt({ flowerArtPerRack: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {activePolicyTab === "union" && (
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">建设与共享</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2">
+                        <Row label="免费建设"><Switch checked={policy.union?.buildFreeEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ buildFreeEnabled: v })} /></Row>
+                        <Row label="金币建设"><Switch checked={policy.union?.buildGoldEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ buildGoldEnabled: v })} /></Row>
+                        <Row label="钻石建设"><Switch checked={policy.union?.buildDiamondEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ buildDiamondEnabled: v })} /></Row>
+                        <Row label="共享鲜花"><Switch checked={policy.union?.flowerShareEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ flowerShareEnabled: v })} /></Row>
+                        <Row label="共享模式"><Input className="h-8 w-24 text-xs" value={policy.union?.flowerShareMode || "quality"} onChange={(e) => updateUnion({ flowerShareMode: e.target.value })} /></Row>
+                        <Row label="领取共享"><Switch checked={policy.union?.flowerTakeEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ flowerTakeEnabled: v })} /></Row>
+                        <Row label="领取模式"><Input className="h-8 w-24 text-xs" value={policy.union?.flowerTakeMode || "quality"} onChange={(e) => updateUnion({ flowerTakeMode: e.target.value })} /></Row>
+                        <Row label="公会红包"><Switch checked={policy.union?.redPacketEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ redPacketEnabled: v })} /></Row>
+                        <Row label="公会森林"><Switch checked={policy.union?.forestEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ forestEnabled: v })} /></Row>
+                      </CardContent>
+                    </Card>
+
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">竞赛与土地</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2">
+                        <Row label="公会竞赛"><Switch checked={policy.union?.raceEnabled ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceEnabled: v })} /></Row>
+                        <Row label="自动模块"><Switch checked={policy.union?.raceAutoEnableModules ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceAutoEnableModules: v })} /></Row>
+                        <Row label="删除低分任务"><Switch checked={policy.union?.raceDeleteTask ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceDeleteTask: v })} /></Row>
+                        <Row label="最低分"><Input type="number" min={0} className="h-8 w-20 text-xs" value={policy.union?.raceMinTaskScore ?? 0} onChange={(e) => updateUnion({ raceMinTaskScore: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                        <Row label="只做升级任务"><Switch checked={policy.union?.raceOnlyUpgradeTask ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceOnlyUpgradeTask: v })} /></Row>
+                        <Row label="升级竞赛任务"><Switch checked={policy.union?.raceUpgradeTask ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceUpgradeTask: v })} /></Row>
+                        <Row label="竞赛加速券"><Switch checked={policy.union?.raceUseSpeedUpTicket ?? false} onCheckedChange={(v: boolean) => updateUnion({ raceUseSpeedUpTicket: v })} /></Row>
+                        <Row label="公会土地种植"><Switch checked={policy.union?.landAutoPlant ?? false} onCheckedChange={(v: boolean) => updateUnion({ landAutoPlant: v })} /></Row>
+                        <Row label="公会土地收获"><Switch checked={policy.union?.landHarvest ?? false} onCheckedChange={(v: boolean) => updateUnion({ landHarvest: v })} /></Row>
+                        <Row label="土地模式"><Input className="h-8 w-24 text-xs" value={policy.union?.landPlantMode || "low_stock"} onChange={(e) => updateUnion({ landPlantMode: e.target.value })} /></Row>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {activePolicyTab === "activity" && (
+                  <div className="grid gap-4">
+                    <Card size="sm">
+                      <CardHeader className="pb-2"><CardTitle className="text-sm">活动总控</CardTitle></CardHeader>
+                      <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <Row label="周期活动"><Switch checked={policy.activity?.enabled ?? false} onCheckedChange={(v: boolean) => updateActivity({ enabled: v })} /></Row>
+                      </CardContent>
+                    </Card>
+
+                    <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+                      {ACTIVITY_MODULE_OPTIONS.map((module) => {
+                        const modulePolicy = activityModules[module.value];
+                        return (
+                          <div key={module.value} className="rounded-lg border border-border/70 bg-card/55 p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium">{module.label}</div>
+                                <div className="truncate text-[10px] text-muted-foreground">{module.value}</div>
+                              </div>
+                              <Switch checked={modulePolicy?.enabled ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { enabled: v })} />
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              <Row label="领能量"><Switch checked={modulePolicy?.autoClaimEnergy ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { autoClaimEnergy: v })} /></Row>
+                              <Row label="用道具"><Switch checked={modulePolicy?.useItems ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { useItems: v })} /></Row>
+                              <Row label="自动重开"><Switch checked={modulePolicy?.autoRestart ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { autoRestart: v })} /></Row>
+                              <Row label="刷新"><Switch checked={modulePolicy?.refreshEnabled ?? false} onCheckedChange={(v: boolean) => updateActivityModule(module.value, { refreshEnabled: v })} /></Row>
+                              <Row label="速度"><Input type="number" min={0} className="h-8 w-16 text-xs" value={modulePolicy?.speed ?? 1} onChange={(e) => updateActivityModule(module.value, { speed: parseNumberAtLeast(e.target.value, 1, 0) })} /></Row>
+                              <Row label="批量次数"><Input type="number" min={0} className="h-8 w-16 text-xs" value={modulePolicy?.maxFinishCountPerBatch ?? 0} onChange={(e) => updateActivityModule(module.value, { maxFinishCountPerBatch: parseNumberAtLeast(e.target.value, 0, 0) })} /></Row>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter className="flex-col-reverse items-stretch gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center">
@@ -2476,6 +2867,111 @@ function groupInventoryEntries(entries: InventoryEntry[]): InventoryGroup[] {
     .sort((a, b) => inventoryCategoryRank(a.category) - inventoryCategoryRank(b.category));
 }
 
+const PLAN_CATEGORY_ORDER = ["basic", "plant", "order", "union", "activity"] as const;
+const PLAN_CATEGORY_LABELS: Record<string, string> = {
+  basic: "基础",
+  plant: "种植",
+  order: "订单",
+  union: "公会",
+  activity: "活动",
+};
+
+type PlannedOperationGroup = {
+  category: string;
+  label: string;
+  status?: DomainStatus;
+  operations: PlannedOperation[];
+};
+
+function groupPlannedOperations(operations: PlannedOperation[], domainStatuses: DomainStatus[]): PlannedOperationGroup[] {
+  const statusByCategory = new Map(domainStatuses.map((status) => [status.category || status.domain, status]));
+  const groups = new Map<string, PlannedOperation[]>();
+  for (const op of operations) {
+    const category = PLAN_CATEGORY_LABELS[op.category] ? op.category : "basic";
+    const group = groups.get(category) ?? [];
+    group.push(op);
+    groups.set(category, group);
+  }
+  return PLAN_CATEGORY_ORDER.map((category) => ({
+    category,
+    label: PLAN_CATEGORY_LABELS[category],
+    status: statusByCategory.get(category),
+    operations: [...(groups.get(category) ?? [])].sort((a, b) => b.priority - a.priority || a.label.localeCompare(b.label, "zh-CN")),
+  }));
+}
+
+function plannedCostText(operation: PlannedOperation): string {
+  const parts: string[] = [];
+  if (operation.goldCost > 0) parts.push(`${itemName(11)} ${formatCount(operation.goldCost)}`);
+  if (operation.diamondCost > 0) parts.push(`${itemName(1)} ${formatCount(operation.diamondCost)}`);
+  for (const [rawId, count] of Object.entries(operation.itemCost ?? {})) {
+    const id = Number(rawId);
+    if (count > 0) parts.push(`${itemName(id)} ${formatCount(count)}`);
+  }
+  return parts.join(" · ");
+}
+
+function planStatusLabel(status: string): string {
+  switch (status) {
+    case "executable":
+      return "可执行";
+    case "managed":
+      return "托管";
+    case "sync_only":
+      return "仅同步";
+    case "adapter_missing":
+      return "缺 adapter";
+    case "blocked":
+      return "阻塞";
+    default:
+      return status || "未知";
+  }
+}
+
+function planStatusTone(status: string): string {
+  switch (status) {
+    case "executable":
+    case "managed":
+      return "border-primary/25 bg-primary/10 text-primary";
+    case "sync_only":
+      return "border-sky-400/25 bg-sky-400/10 text-sky-700 dark:text-sky-300";
+    case "adapter_missing":
+      return "border-yellow-400/25 bg-yellow-400/10 text-yellow-700 dark:text-yellow-300";
+    case "blocked":
+      return "border-red-400/25 bg-red-400/10 text-red-700 dark:text-red-300";
+    default:
+      return "border-border/70 bg-muted/30 text-muted-foreground";
+  }
+}
+
+function domainStatusLabel(status: string): string {
+  switch (status) {
+    case "ready":
+      return "就绪";
+    case "syncing":
+      return "同步中";
+    case "blocked":
+      return "阻塞";
+    case "disabled":
+      return "未启用";
+    default:
+      return status || "未知";
+  }
+}
+
+function domainStatusTone(status: string): string {
+  switch (status) {
+    case "ready":
+      return "border-primary/25 bg-primary/10 text-primary";
+    case "syncing":
+      return "border-sky-400/25 bg-sky-400/10 text-sky-700 dark:text-sky-300";
+    case "blocked":
+      return "border-red-400/25 bg-red-400/10 text-red-700 dark:text-red-300";
+    default:
+      return "border-border/70 bg-muted/30 text-muted-foreground";
+  }
+}
+
 function groupPendingTasks(tasks: PendingTaskView[]): { category: string; tasks: PendingTaskView[] }[] {
   const rank = new Map([
     ["主线任务", 0],
@@ -2602,28 +3098,26 @@ function eventColor(event: Event): string {
   if (event.level === "error") return "text-red-600 dark:text-red-300";
   if (event.level === "warn") return "text-yellow-700 dark:text-yellow-300";
   switch (event.category) {
-    case "resource":
+    case "account":
+      return "text-muted-foreground";
+    case "basic":
       return "text-emerald-600 dark:text-emerald-300";
-    case "operation":
-      return "text-sky-600 dark:text-sky-300";
-    case "land":
+    case "plant":
       return "text-lime-700 dark:text-lime-300";
-    case "reward":
-      return "text-cyan-600 dark:text-cyan-300";
-    case "cultivation":
-      return "text-rose-600 dark:text-rose-300";
     case "order":
       return "text-orange-600 dark:text-orange-300";
-    case "task":
-      return "text-yellow-700 dark:text-yellow-300";
-    case "session":
-      return "text-muted-foreground";
+    case "union":
+      return "text-sky-600 dark:text-sky-300";
+    case "activity":
+      return "text-rose-600 dark:text-rose-300";
+    case "system":
+      return "text-cyan-600 dark:text-cyan-300";
     default:
-      return legacyKindColor(event.kind);
+      return fallbackKindColor(event.kind);
   }
 }
 
-function legacyKindColor(kind: string): string {
+function fallbackKindColor(kind: string): string {
   switch (kind) {
     case "waterwheel":
     case "free_water":

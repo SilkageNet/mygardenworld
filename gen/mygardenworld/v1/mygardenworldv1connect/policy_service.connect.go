@@ -37,27 +37,30 @@ const (
 	PolicyServiceGetPolicyProcedure = "/mygardenworld.v1.PolicyService/GetPolicy"
 	// PolicyServiceSetPolicyProcedure is the fully-qualified name of the PolicyService's SetPolicy RPC.
 	PolicyServiceSetPolicyProcedure = "/mygardenworld.v1.PolicyService/SetPolicy"
-	// PolicyServiceUpdatePolicyProcedure is the fully-qualified name of the PolicyService's
-	// UpdatePolicy RPC.
-	PolicyServiceUpdatePolicyProcedure = "/mygardenworld.v1.PolicyService/UpdatePolicy"
+	// PolicyServiceExportPolicyProcedure is the fully-qualified name of the PolicyService's
+	// ExportPolicy RPC.
+	PolicyServiceExportPolicyProcedure = "/mygardenworld.v1.PolicyService/ExportPolicy"
+	// PolicyServiceImportPolicyProcedure is the fully-qualified name of the PolicyService's
+	// ImportPolicy RPC.
+	PolicyServiceImportPolicyProcedure = "/mygardenworld.v1.PolicyService/ImportPolicy"
+	// PolicyServiceCopyPolicyProcedure is the fully-qualified name of the PolicyService's CopyPolicy
+	// RPC.
+	PolicyServiceCopyPolicyProcedure = "/mygardenworld.v1.PolicyService/CopyPolicy"
 )
 
 // PolicyServiceClient is a client for the mygardenworld.v1.PolicyService service.
 type PolicyServiceClient interface {
-	// Returns the merged effective policy for the account. Unset typed fields
-	// are filled with defaults; raw key/value entries are surfaced via extras.
+	// Returns the full effective policy for the account. Unset typed fields are
+	// filled with current defaults.
 	GetPolicy(context.Context, *connect.Request[v1.GetPolicyRequest]) (*connect.Response[v1.GetPolicyResponse], error)
-	// Replaces the entire policy struct. Use UpdatePolicy for partial edits.
+	// Replaces the entire policy struct.
 	SetPolicy(context.Context, *connect.Request[v1.SetPolicyRequest]) (*connect.Response[v1.SetPolicyResponse], error)
-	// Patch a subset of policy keys, dot-path style. Examples:
-	//
-	//	"automation_enabled" = "true"
-	//	"plant.mode"         = "high_value"
-	//	"plant.task_priority_enabled" = "true"
-	//	"plant.allowed_flower_ids" = "23001,23005"
-	//
-	// Values are parsed against the proto field type.
-	UpdatePolicy(context.Context, *connect.Request[v1.UpdatePolicyRequest]) (*connect.Response[v1.UpdatePolicyResponse], error)
+	// Exports the full policy as protojson for backup or copying outside the UI.
+	ExportPolicy(context.Context, *connect.Request[v1.ExportPolicyRequest]) (*connect.Response[v1.ExportPolicyResponse], error)
+	// Imports a full protojson policy. This replaces the account policy.
+	ImportPolicy(context.Context, *connect.Request[v1.ImportPolicyRequest]) (*connect.Response[v1.ImportPolicyResponse], error)
+	// Copies one account's full policy to another account.
+	CopyPolicy(context.Context, *connect.Request[v1.CopyPolicyRequest]) (*connect.Response[v1.CopyPolicyResponse], error)
 }
 
 // NewPolicyServiceClient constructs a client for the mygardenworld.v1.PolicyService service. By
@@ -83,10 +86,22 @@ func NewPolicyServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(policyServiceMethods.ByName("SetPolicy")),
 			connect.WithClientOptions(opts...),
 		),
-		updatePolicy: connect.NewClient[v1.UpdatePolicyRequest, v1.UpdatePolicyResponse](
+		exportPolicy: connect.NewClient[v1.ExportPolicyRequest, v1.ExportPolicyResponse](
 			httpClient,
-			baseURL+PolicyServiceUpdatePolicyProcedure,
-			connect.WithSchema(policyServiceMethods.ByName("UpdatePolicy")),
+			baseURL+PolicyServiceExportPolicyProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("ExportPolicy")),
+			connect.WithClientOptions(opts...),
+		),
+		importPolicy: connect.NewClient[v1.ImportPolicyRequest, v1.ImportPolicyResponse](
+			httpClient,
+			baseURL+PolicyServiceImportPolicyProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("ImportPolicy")),
+			connect.WithClientOptions(opts...),
+		),
+		copyPolicy: connect.NewClient[v1.CopyPolicyRequest, v1.CopyPolicyResponse](
+			httpClient,
+			baseURL+PolicyServiceCopyPolicyProcedure,
+			connect.WithSchema(policyServiceMethods.ByName("CopyPolicy")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -96,7 +111,9 @@ func NewPolicyServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 type policyServiceClient struct {
 	getPolicy    *connect.Client[v1.GetPolicyRequest, v1.GetPolicyResponse]
 	setPolicy    *connect.Client[v1.SetPolicyRequest, v1.SetPolicyResponse]
-	updatePolicy *connect.Client[v1.UpdatePolicyRequest, v1.UpdatePolicyResponse]
+	exportPolicy *connect.Client[v1.ExportPolicyRequest, v1.ExportPolicyResponse]
+	importPolicy *connect.Client[v1.ImportPolicyRequest, v1.ImportPolicyResponse]
+	copyPolicy   *connect.Client[v1.CopyPolicyRequest, v1.CopyPolicyResponse]
 }
 
 // GetPolicy calls mygardenworld.v1.PolicyService.GetPolicy.
@@ -109,27 +126,34 @@ func (c *policyServiceClient) SetPolicy(ctx context.Context, req *connect.Reques
 	return c.setPolicy.CallUnary(ctx, req)
 }
 
-// UpdatePolicy calls mygardenworld.v1.PolicyService.UpdatePolicy.
-func (c *policyServiceClient) UpdatePolicy(ctx context.Context, req *connect.Request[v1.UpdatePolicyRequest]) (*connect.Response[v1.UpdatePolicyResponse], error) {
-	return c.updatePolicy.CallUnary(ctx, req)
+// ExportPolicy calls mygardenworld.v1.PolicyService.ExportPolicy.
+func (c *policyServiceClient) ExportPolicy(ctx context.Context, req *connect.Request[v1.ExportPolicyRequest]) (*connect.Response[v1.ExportPolicyResponse], error) {
+	return c.exportPolicy.CallUnary(ctx, req)
+}
+
+// ImportPolicy calls mygardenworld.v1.PolicyService.ImportPolicy.
+func (c *policyServiceClient) ImportPolicy(ctx context.Context, req *connect.Request[v1.ImportPolicyRequest]) (*connect.Response[v1.ImportPolicyResponse], error) {
+	return c.importPolicy.CallUnary(ctx, req)
+}
+
+// CopyPolicy calls mygardenworld.v1.PolicyService.CopyPolicy.
+func (c *policyServiceClient) CopyPolicy(ctx context.Context, req *connect.Request[v1.CopyPolicyRequest]) (*connect.Response[v1.CopyPolicyResponse], error) {
+	return c.copyPolicy.CallUnary(ctx, req)
 }
 
 // PolicyServiceHandler is an implementation of the mygardenworld.v1.PolicyService service.
 type PolicyServiceHandler interface {
-	// Returns the merged effective policy for the account. Unset typed fields
-	// are filled with defaults; raw key/value entries are surfaced via extras.
+	// Returns the full effective policy for the account. Unset typed fields are
+	// filled with current defaults.
 	GetPolicy(context.Context, *connect.Request[v1.GetPolicyRequest]) (*connect.Response[v1.GetPolicyResponse], error)
-	// Replaces the entire policy struct. Use UpdatePolicy for partial edits.
+	// Replaces the entire policy struct.
 	SetPolicy(context.Context, *connect.Request[v1.SetPolicyRequest]) (*connect.Response[v1.SetPolicyResponse], error)
-	// Patch a subset of policy keys, dot-path style. Examples:
-	//
-	//	"automation_enabled" = "true"
-	//	"plant.mode"         = "high_value"
-	//	"plant.task_priority_enabled" = "true"
-	//	"plant.allowed_flower_ids" = "23001,23005"
-	//
-	// Values are parsed against the proto field type.
-	UpdatePolicy(context.Context, *connect.Request[v1.UpdatePolicyRequest]) (*connect.Response[v1.UpdatePolicyResponse], error)
+	// Exports the full policy as protojson for backup or copying outside the UI.
+	ExportPolicy(context.Context, *connect.Request[v1.ExportPolicyRequest]) (*connect.Response[v1.ExportPolicyResponse], error)
+	// Imports a full protojson policy. This replaces the account policy.
+	ImportPolicy(context.Context, *connect.Request[v1.ImportPolicyRequest]) (*connect.Response[v1.ImportPolicyResponse], error)
+	// Copies one account's full policy to another account.
+	CopyPolicy(context.Context, *connect.Request[v1.CopyPolicyRequest]) (*connect.Response[v1.CopyPolicyResponse], error)
 }
 
 // NewPolicyServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -151,10 +175,22 @@ func NewPolicyServiceHandler(svc PolicyServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(policyServiceMethods.ByName("SetPolicy")),
 		connect.WithHandlerOptions(opts...),
 	)
-	policyServiceUpdatePolicyHandler := connect.NewUnaryHandler(
-		PolicyServiceUpdatePolicyProcedure,
-		svc.UpdatePolicy,
-		connect.WithSchema(policyServiceMethods.ByName("UpdatePolicy")),
+	policyServiceExportPolicyHandler := connect.NewUnaryHandler(
+		PolicyServiceExportPolicyProcedure,
+		svc.ExportPolicy,
+		connect.WithSchema(policyServiceMethods.ByName("ExportPolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
+	policyServiceImportPolicyHandler := connect.NewUnaryHandler(
+		PolicyServiceImportPolicyProcedure,
+		svc.ImportPolicy,
+		connect.WithSchema(policyServiceMethods.ByName("ImportPolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
+	policyServiceCopyPolicyHandler := connect.NewUnaryHandler(
+		PolicyServiceCopyPolicyProcedure,
+		svc.CopyPolicy,
+		connect.WithSchema(policyServiceMethods.ByName("CopyPolicy")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/mygardenworld.v1.PolicyService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -163,8 +199,12 @@ func NewPolicyServiceHandler(svc PolicyServiceHandler, opts ...connect.HandlerOp
 			policyServiceGetPolicyHandler.ServeHTTP(w, r)
 		case PolicyServiceSetPolicyProcedure:
 			policyServiceSetPolicyHandler.ServeHTTP(w, r)
-		case PolicyServiceUpdatePolicyProcedure:
-			policyServiceUpdatePolicyHandler.ServeHTTP(w, r)
+		case PolicyServiceExportPolicyProcedure:
+			policyServiceExportPolicyHandler.ServeHTTP(w, r)
+		case PolicyServiceImportPolicyProcedure:
+			policyServiceImportPolicyHandler.ServeHTTP(w, r)
+		case PolicyServiceCopyPolicyProcedure:
+			policyServiceCopyPolicyHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -182,6 +222,14 @@ func (UnimplementedPolicyServiceHandler) SetPolicy(context.Context, *connect.Req
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.PolicyService.SetPolicy is not implemented"))
 }
 
-func (UnimplementedPolicyServiceHandler) UpdatePolicy(context.Context, *connect.Request[v1.UpdatePolicyRequest]) (*connect.Response[v1.UpdatePolicyResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.PolicyService.UpdatePolicy is not implemented"))
+func (UnimplementedPolicyServiceHandler) ExportPolicy(context.Context, *connect.Request[v1.ExportPolicyRequest]) (*connect.Response[v1.ExportPolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.PolicyService.ExportPolicy is not implemented"))
+}
+
+func (UnimplementedPolicyServiceHandler) ImportPolicy(context.Context, *connect.Request[v1.ImportPolicyRequest]) (*connect.Response[v1.ImportPolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.PolicyService.ImportPolicy is not implemented"))
+}
+
+func (UnimplementedPolicyServiceHandler) CopyPolicy(context.Context, *connect.Request[v1.CopyPolicyRequest]) (*connect.Response[v1.CopyPolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.PolicyService.CopyPolicy is not implemented"))
 }

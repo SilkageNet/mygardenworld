@@ -41,6 +41,8 @@ const (
 	// QueryServiceGetHarvestStatsProcedure is the fully-qualified name of the QueryService's
 	// GetHarvestStats RPC.
 	QueryServiceGetHarvestStatsProcedure = "/mygardenworld.v1.QueryService/GetHarvestStats"
+	// QueryServiceGetPlanProcedure is the fully-qualified name of the QueryService's GetPlan RPC.
+	QueryServiceGetPlanProcedure = "/mygardenworld.v1.QueryService/GetPlan"
 	// QueryServiceStreamEventsProcedure is the fully-qualified name of the QueryService's StreamEvents
 	// RPC.
 	QueryServiceStreamEventsProcedure = "/mygardenworld.v1.QueryService/StreamEvents"
@@ -55,6 +57,8 @@ type QueryServiceClient interface {
 	GetSnapshot(context.Context, *connect.Request[v1.GetSnapshotRequest]) (*connect.Response[v1.GetSnapshotResponse], error)
 	// Summarise harvested rewards from the most recent contiguous harvest run.
 	GetHarvestStats(context.Context, *connect.Request[v1.GetHarvestStatsRequest]) (*connect.Response[v1.GetHarvestStatsResponse], error)
+	// Preview the current ordered automation plan without mutating game state.
+	GetPlan(context.Context, *connect.Request[v1.GetPlanRequest]) (*connect.Response[v1.GetPlanResponse], error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
 	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.Event], error)
@@ -89,6 +93,12 @@ func NewQueryServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(queryServiceMethods.ByName("GetHarvestStats")),
 			connect.WithClientOptions(opts...),
 		),
+		getPlan: connect.NewClient[v1.GetPlanRequest, v1.GetPlanResponse](
+			httpClient,
+			baseURL+QueryServiceGetPlanProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetPlan")),
+			connect.WithClientOptions(opts...),
+		),
 		streamEvents: connect.NewClient[v1.StreamEventsRequest, v1.Event](
 			httpClient,
 			baseURL+QueryServiceStreamEventsProcedure,
@@ -103,6 +113,7 @@ type queryServiceClient struct {
 	getStatus       *connect.Client[v1.GetStatusRequest, v1.GetStatusResponse]
 	getSnapshot     *connect.Client[v1.GetSnapshotRequest, v1.GetSnapshotResponse]
 	getHarvestStats *connect.Client[v1.GetHarvestStatsRequest, v1.GetHarvestStatsResponse]
+	getPlan         *connect.Client[v1.GetPlanRequest, v1.GetPlanResponse]
 	streamEvents    *connect.Client[v1.StreamEventsRequest, v1.Event]
 }
 
@@ -121,6 +132,11 @@ func (c *queryServiceClient) GetHarvestStats(ctx context.Context, req *connect.R
 	return c.getHarvestStats.CallUnary(ctx, req)
 }
 
+// GetPlan calls mygardenworld.v1.QueryService.GetPlan.
+func (c *queryServiceClient) GetPlan(ctx context.Context, req *connect.Request[v1.GetPlanRequest]) (*connect.Response[v1.GetPlanResponse], error) {
+	return c.getPlan.CallUnary(ctx, req)
+}
+
 // StreamEvents calls mygardenworld.v1.QueryService.StreamEvents.
 func (c *queryServiceClient) StreamEvents(ctx context.Context, req *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.Event], error) {
 	return c.streamEvents.CallServerStream(ctx, req)
@@ -135,6 +151,8 @@ type QueryServiceHandler interface {
 	GetSnapshot(context.Context, *connect.Request[v1.GetSnapshotRequest]) (*connect.Response[v1.GetSnapshotResponse], error)
 	// Summarise harvested rewards from the most recent contiguous harvest run.
 	GetHarvestStats(context.Context, *connect.Request[v1.GetHarvestStatsRequest]) (*connect.Response[v1.GetHarvestStatsResponse], error)
+	// Preview the current ordered automation plan without mutating game state.
+	GetPlan(context.Context, *connect.Request[v1.GetPlanRequest]) (*connect.Response[v1.GetPlanResponse], error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
 	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.Event]) error
@@ -165,6 +183,12 @@ func NewQueryServiceHandler(svc QueryServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(queryServiceMethods.ByName("GetHarvestStats")),
 		connect.WithHandlerOptions(opts...),
 	)
+	queryServiceGetPlanHandler := connect.NewUnaryHandler(
+		QueryServiceGetPlanProcedure,
+		svc.GetPlan,
+		connect.WithSchema(queryServiceMethods.ByName("GetPlan")),
+		connect.WithHandlerOptions(opts...),
+	)
 	queryServiceStreamEventsHandler := connect.NewServerStreamHandler(
 		QueryServiceStreamEventsProcedure,
 		svc.StreamEvents,
@@ -179,6 +203,8 @@ func NewQueryServiceHandler(svc QueryServiceHandler, opts ...connect.HandlerOpti
 			queryServiceGetSnapshotHandler.ServeHTTP(w, r)
 		case QueryServiceGetHarvestStatsProcedure:
 			queryServiceGetHarvestStatsHandler.ServeHTTP(w, r)
+		case QueryServiceGetPlanProcedure:
+			queryServiceGetPlanHandler.ServeHTTP(w, r)
 		case QueryServiceStreamEventsProcedure:
 			queryServiceStreamEventsHandler.ServeHTTP(w, r)
 		default:
@@ -200,6 +226,10 @@ func (UnimplementedQueryServiceHandler) GetSnapshot(context.Context, *connect.Re
 
 func (UnimplementedQueryServiceHandler) GetHarvestStats(context.Context, *connect.Request[v1.GetHarvestStatsRequest]) (*connect.Response[v1.GetHarvestStatsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetHarvestStats is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetPlan(context.Context, *connect.Request[v1.GetPlanRequest]) (*connect.Response[v1.GetPlanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetPlan is not implemented"))
 }
 
 func (UnimplementedQueryServiceHandler) StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.Event]) error {

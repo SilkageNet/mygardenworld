@@ -23,11 +23,10 @@ func main() {
 	flag.Parse()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	result, err := cataloggen.Generate(ctx, opts)
+	cancel()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gardencatalog: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "gardencatalog: %v\n", err)
 		os.Exit(1)
 	}
 

@@ -148,9 +148,7 @@ func BuildRequest(rpcName string, args any, routeArg string, seq int64, cfg Conf
 // outer envelope. Server text frames typically lack the sentinel; client
 // frames always carry it.
 func ParseTextFrame(text string) (WSEnvelopeIn, error) {
-	if strings.HasPrefix(text, "$#|#$") {
-		text = text[len("$#|#$"):]
-	}
+	text = strings.TrimPrefix(text, "$#|#$")
 	var env WSEnvelopeIn
 	if err := json.Unmarshal([]byte(text), &env); err != nil {
 		return env, err

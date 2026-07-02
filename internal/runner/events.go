@@ -24,6 +24,13 @@ func (r *Runner) emit(e Event) {
 	if e.Category == "" {
 		e.Category = eventCategory(e.Kind)
 	}
+	e.Category = normalizeEventCategory(e.Category, e.Kind)
+	if e.Domain == "" {
+		e.Domain = eventDomain(e.Kind)
+	}
+	if e.Action == "" {
+		e.Action = eventAction(e.Kind)
+	}
 	if e.Label == "" {
 		e.Label = eventLabel(e.Kind)
 	}
@@ -192,25 +199,121 @@ func inventoryChangeMessage(snap state.InventorySnapshot) string {
 func eventCategory(kind string) string {
 	switch kind {
 	case "session", "session_expired", "ws_disconnected":
-		return "session"
+		return "account"
 	case "operation_planned", "operation_ack", "operation_failed":
-		return "operation"
+		return "plant"
 	case "policy_changed":
 		return "system"
 	case "land_changed", "land_unlock":
-		return "land"
+		return "plant"
 	case "resource_changed", "inventory_changed":
-		return "resource"
-	case "waterwheel", "free_water", "random_event":
-		return "reward"
-	case "task_recv", "task_daily", "road_grow", "story_unlock":
-		return "task"
+		return "basic"
+	case "waterwheel", "free_water", "benefit_box", "mail_claim", "sign_claim", "random_event":
+		return "basic"
+	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
+		return "basic"
 	case "order_finish", "order_customer", "order_reward", "order_ad", "flower_art", "flower_rack":
 		return "order"
+	case "union_build":
+		return "union"
 	case "cultivate_recv", "cultivate_new", "flower_upgrade":
-		return "cultivation"
+		return "plant"
 	default:
 		return "system"
+	}
+}
+
+func normalizeEventCategory(category, kind string) string {
+	switch category {
+	case "account", "basic", "plant", "order", "union", "activity", "system":
+		return category
+	case "session":
+		return "account"
+	case "operation", "land", "cultivation":
+		return "plant"
+	case "resource", "reward", "task":
+		return "basic"
+	default:
+		return eventCategory(kind)
+	}
+}
+
+func eventDomain(kind string) string {
+	switch kind {
+	case "session", "session_expired", "ws_disconnected":
+		return "account.session"
+	case "resource_changed":
+		return "basic.resource"
+	case "inventory_changed":
+		return "basic.inventory"
+	case "land_changed":
+		return "farm.land"
+	case "land_unlock":
+		return "farm.land"
+	case "operation_planned", "operation_ack", "operation_failed":
+		return "farm.operation"
+	case "waterwheel":
+		return "basic.waterwheel"
+	case "free_water":
+		return "basic.free_water"
+	case "benefit_box":
+		return "basic.benefit"
+	case "mail_claim":
+		return "basic.mail"
+	case "sign_claim":
+		return "basic.sign"
+	case "task_recv":
+		return "basic.task.main"
+	case "task_daily":
+		return "basic.task.daily"
+	case "task_weekly":
+		return "basic.task.weekly"
+	case "road_grow":
+		return "basic.road_grow"
+	case "random_event":
+		return "basic.random_event"
+	case "story_unlock":
+		return "basic.story"
+	case "order_finish", "order_reward", "order_ad":
+		return "order.resident"
+	case "order_customer":
+		return "order.customer"
+	case "flower_art", "flower_rack":
+		return "order.flower_art"
+	case "union_build":
+		return "union.build"
+	case "cultivate_recv", "cultivate_new":
+		return "farm.cultivate"
+	case "flower_upgrade":
+		return "farm.upgrade"
+	case "policy_changed":
+		return "policy"
+	default:
+		return "system"
+	}
+}
+
+func eventAction(kind string) string {
+	switch {
+	case strings.HasSuffix(kind, "_failed"):
+		return "failed"
+	case strings.Contains(kind, "changed"):
+		return "changed"
+	case strings.Contains(kind, "unlock"):
+		return "unlock"
+	case strings.HasPrefix(kind, "task_") || strings.Contains(kind, "claim") || strings.Contains(kind, "recv") || strings.Contains(kind, "reward") ||
+		strings.Contains(kind, "waterwheel") || strings.Contains(kind, "free_water") || strings.Contains(kind, "benefit_box"):
+		return "claim"
+	case strings.Contains(kind, "order"):
+		return "order"
+	case strings.Contains(kind, "build"):
+		return "build"
+	case strings.Contains(kind, "upgrade"):
+		return "upgrade"
+	case strings.Contains(kind, "cultivate"):
+		return "cultivate"
+	default:
+		return kind
 	}
 }
 
@@ -242,10 +345,18 @@ func eventLabel(kind string) string {
 		return "水车"
 	case "free_water":
 		return "水滴"
+	case "benefit_box":
+		return "福利箱"
+	case "mail_claim":
+		return "邮件"
+	case "sign_claim":
+		return "签到"
 	case "task_recv":
 		return "主线任务"
 	case "task_daily":
 		return "日常任务"
+	case "task_weekly":
+		return "每周任务"
 	case "road_grow":
 		return "成长之路"
 	case "random_event":
@@ -264,6 +375,8 @@ func eventLabel(kind string) string {
 		return "花艺"
 	case "flower_rack":
 		return "花架"
+	case "union_build":
+		return "公会建设"
 	case "cultivate_recv":
 		return "培育领取"
 	case "cultivate_new":

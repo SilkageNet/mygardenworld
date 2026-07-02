@@ -18,7 +18,7 @@ type Diagnostics struct {
 	LastOperationError        string
 	LastOperationErrorAt      time.Time
 	NextDecisionAt            time.Time
-	NextMiscAt                time.Time
+	NextDomainTickAt          time.Time
 	NextCultivateAt           time.Time
 	SessionInvalidatedReason  string
 	BlockedReasons            []string
@@ -40,19 +40,24 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 		SessionInvalidatedReason:  r.sessionInvalidatedReason,
 		UnknownRPCCount:           int32(len(r.unknownRPCCounts)),
 	}
-	lastMiscTick := r.lastMiscTick
+	lastDomainTick := r.lastDomainTick
 	lastCultivateTick := r.lastCultivateTick
 	waterBlocked, waterBlockedUntil := r.waterBlocked, r.waterBlockedUntil
 	residentOrderBlockedUntil := r.residentOrderBlockedUntil
 	freeWaterBlockedUntil := r.freeWaterBlockedUntil
 	dailyTaskBlockedUntil := r.dailyTaskBlockedUntil
+	weeklyTaskBlockedUntil := r.weeklyTaskBlockedUntil
+	mailBlockedUntil := r.mailBlockedUntil
+	signBlockedUntil := r.signBlockedUntil
+	unionBuildBlockedUntil := r.unionBuildBlockedUntil
+	unionBuildFreeBlockedUntil := r.unionBuildFreeBlockedUntil
 	sessionInvalidated := r.sessionInvalidated
 	connected := r.client != nil && !r.client.Closed()
 	materialBlockCount := len(r.flowerUpgradeBlocked) + len(r.cultivateBlocked)
 	r.mu.RUnlock()
 
-	if !lastMiscTick.IsZero() {
-		out.NextMiscAt = lastMiscTick.Add(60 * time.Second)
+	if !lastDomainTick.IsZero() {
+		out.NextDomainTickAt = lastDomainTick.Add(60 * time.Second)
 	}
 	if !lastCultivateTick.IsZero() {
 		out.NextCultivateAt = lastCultivateTick.Add(60 * time.Second)
@@ -74,6 +79,21 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	}
 	if now.Before(dailyTaskBlockedUntil) {
 		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("日常任务冷却至 %s", dailyTaskBlockedUntil.Local().Format("15:04:05")))
+	}
+	if now.Before(weeklyTaskBlockedUntil) {
+		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("每周任务冷却至 %s", weeklyTaskBlockedUntil.Local().Format("15:04:05")))
+	}
+	if now.Before(mailBlockedUntil) {
+		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("邮件冷却至 %s", mailBlockedUntil.Local().Format("15:04:05")))
+	}
+	if now.Before(signBlockedUntil) {
+		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("签到冷却至 %s", signBlockedUntil.Local().Format("15:04:05")))
+	}
+	if now.Before(unionBuildBlockedUntil) {
+		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("公会建设冷却至 %s", unionBuildBlockedUntil.Local().Format("15:04:05")))
+	}
+	if now.Before(unionBuildFreeBlockedUntil) {
+		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("公会免费建设冷却至 %s", unionBuildFreeBlockedUntil.Local().Format("15:04:05")))
 	}
 	if materialBlockCount > 0 {
 		out.BlockedReasons = append(out.BlockedReasons, fmt.Sprintf("材料相关冷却 %d 项", materialBlockCount))

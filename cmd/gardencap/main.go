@@ -20,7 +20,7 @@ import (
 
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -63,23 +63,23 @@ func newServeCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer proxy.Close()
+			defer func() { _ = proxy.Close() }()
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			fmt.Fprintf(cmd.OutOrStdout(), "capture session: %s\n", proxy.SessionDir())
-			fmt.Fprintf(cmd.OutOrStdout(), "CA certificate: %s\n", proxy.CACertPath())
-			fmt.Fprintf(cmd.OutOrStdout(), "proxy listen: http://%s\n", opts.Listen)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "capture session: %s\n", proxy.SessionDir())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "CA certificate: %s\n", proxy.CACertPath())
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "proxy listen: http://%s\n", opts.Listen)
 			printDeviceAccessHints(cmd, opts.Listen)
-			fmt.Fprintln(cmd.OutOrStdout(), "Open the certificate page on the test device, install/trust the CA, then keep this proxy configured.")
-			fmt.Fprintln(cmd.OutOrStdout(), "Press Ctrl+C to stop.")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Open the certificate page on the test device, install/trust the CA, then keep this proxy configured.")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Press Ctrl+C to stop.")
 			started := time.Now()
 			err = proxy.Run(ctx)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "capture stopped after %s\n", time.Since(started).Round(time.Second))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "capture stopped after %s\n", time.Since(started).Round(time.Second))
 			return nil
 		},
 	}
@@ -147,18 +147,18 @@ func splitCSV(s string) []string {
 func printDeviceAccessHints(cmd *cobra.Command, listen string) {
 	endpoints, phoneReachable := deviceProxyEndpoints(listen)
 	if len(endpoints) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "phone proxy candidates: none detected")
-		fmt.Fprintln(cmd.OutOrStdout(), "certificate page: "+displayHTTPURL(listen))
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "phone proxy candidates: none detected")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "certificate page: "+displayHTTPURL(listen))
 		return
 	}
 	if phoneReachable {
-		fmt.Fprintln(cmd.OutOrStdout(), "phone proxy candidates:")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "phone proxy candidates:")
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "phone proxy candidates: loopback only; use --listen 0.0.0.0:<port> for a separate phone")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "phone proxy candidates: loopback only; use --listen 0.0.0.0:<port> for a separate phone")
 	}
 	for _, endpoint := range endpoints {
-		fmt.Fprintf(cmd.OutOrStdout(), "  proxy: %s\n", endpoint)
-		fmt.Fprintf(cmd.OutOrStdout(), "  certificate page: http://%s/\n", endpoint)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  proxy: %s\n", endpoint)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  certificate page: http://%s/\n", endpoint)
 	}
 }
 

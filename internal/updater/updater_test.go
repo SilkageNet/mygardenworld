@@ -49,10 +49,10 @@ func TestPickAssetUsesCurrentPlatformShape(t *testing.T) {
 func TestExtractBinaryFromTarGz(t *testing.T) {
 	dir := t.TempDir()
 	archivePath := filepath.Join(dir, "mygardenworld_v1.0.0_linux_amd64.tar.gz")
-	if err := os.WriteFile(archivePath, tarGzArchive(t, "mygardenworld_v1.0.0_linux_amd64/gardenctl", "new-binary"), 0o644); err != nil {
+	if err := os.WriteFile(archivePath, tarGzArchive(t, "mygardenworld_v1.0.0_linux_amd64/gardend", "new-binary"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := extractBinary(archivePath, dir, "gardenctl")
+	got, err := extractBinary(archivePath, dir, "gardend")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,10 +68,10 @@ func TestExtractBinaryFromTarGz(t *testing.T) {
 func TestExtractBinaryFromZip(t *testing.T) {
 	dir := t.TempDir()
 	archivePath := filepath.Join(dir, "mygardenworld_v1.0.0_windows_amd64.zip")
-	if err := os.WriteFile(archivePath, zipArchive(t, "mygardenworld_v1.0.0_windows_amd64/gardenctl.exe", "new-binary"), 0o644); err != nil {
+	if err := os.WriteFile(archivePath, zipArchive(t, "mygardenworld_v1.0.0_windows_amd64/gardend.exe", "new-binary"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := extractBinary(archivePath, dir, "gardenctl.exe")
+	got, err := extractBinary(archivePath, dir, "gardend.exe")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,13 +101,14 @@ func TestRunDryRunFetchesReleaseAndSelectsAsset(t *testing.T) {
 			}},
 		})
 	}))
+	defer server.CloseClientConnections()
 	defer server.Close()
 
 	result, err := Run(context.Background(), Options{
 		APIBaseURL:     server.URL,
-		BinaryName:     "gardenctl",
+		BinaryName:     "gardend",
 		CurrentVersion: "v1.0.0",
-		TargetPath:     filepath.Join(t.TempDir(), "gardenctl"),
+		TargetPath:     filepath.Join(t.TempDir(), "gardend"),
 		DryRun:         true,
 	})
 	if err != nil {
@@ -127,7 +128,7 @@ func TestChecksumForAsset(t *testing.T) {
 
 func TestRunVerifiesChecksumWhenPresent(t *testing.T) {
 	dir := t.TempDir()
-	binaryName := "gardenctl"
+	binaryName := "gardend"
 	target := filepath.Join(dir, binaryName)
 	if runtime.GOOS == "windows" {
 		target += ".exe"
@@ -166,6 +167,7 @@ func TestRunVerifiesChecksumWhenPresent(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
+	defer server.CloseClientConnections()
 	defer server.Close()
 
 	result, err := Run(context.Background(), Options{

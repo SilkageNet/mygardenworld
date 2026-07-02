@@ -26,12 +26,12 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 	r.mu.RLock()
 	policy := r.policy
 	r.mu.RUnlock()
-	misc := (*pb.MiscPolicy)(nil)
+	plant := (*pb.PlantPolicy)(nil)
 	if policy != nil {
-		misc = policy.GetMisc()
+		plant = policy.GetPlant()
 	}
-	cultivateEnabled := misc != nil && misc.GetCultivateEnabled()
-	flowerUpgradeEnabled := misc != nil && misc.GetFlowerUpgradeEnabled()
+	cultivateEnabled := plant != nil && plant.GetCultivateEnabled()
+	flowerUpgradeEnabled := plant != nil && plant.GetFlowerUpgradeEnabled()
 	if !cultivateEnabled && !flowerUpgradeEnabled {
 		return
 	}
@@ -55,11 +55,12 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 				if r.isSessionInvalidated() {
 					return
 				}
-				if err != nil {
+				switch {
+				case err != nil:
 					r.emit(Event{Kind: "cultivate_recv", Message: fmt.Sprintf("领取培育 %s 失败: %v", state.FlowerName(fid), err)})
-				} else if d.IsError() {
+				case d.IsError():
 					r.emit(Event{Kind: "cultivate_recv", Message: fmt.Sprintf("领取培育 %s: %s", state.FlowerName(fid), d.ErrorMsg())})
-				} else if babigame.HasPayload(v) {
+				case babigame.HasPayload(v):
 					r.state.ApplyV(v)
 					r.emit(Event{Kind: "cultivate_recv", Message: fmt.Sprintf("成功领取培育 %s", state.FlowerName(fid))})
 				}
@@ -89,9 +90,10 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 				if r.isSessionInvalidated() {
 					return
 				}
-				if err != nil {
+				switch {
+				case err != nil:
 					r.emit(Event{Kind: "flower_upgrade", Message: fmt.Sprintf("升级 %s 失败: %v", state.FlowerName(fid), err)})
-				} else if d.IsError() {
+				case d.IsError():
 					if missingItemID := d.MissingItemID(); missingItemID > 0 {
 						have := r.state.Inventory()[missingItemID]
 						r.setFlowerUpgradeBlockedForItem(fid, missingItemID, have)
@@ -99,14 +101,13 @@ func (r *Runner) tickCultivate(ctx context.Context, client *babigame.Client, ses
 						r.setFlowerUpgradeBlocked(fid, true)
 						r.emit(Event{Kind: "flower_upgrade", Message: fmt.Sprintf("升级 %s: %s", state.FlowerName(fid), d.ErrorMsg())})
 					}
-				} else if babigame.HasPayload(v) {
+				case babigame.HasPayload(v):
 					r.state.ApplyV(v)
 					newCv := r.state.Cultivations()[fid]
 					if newCv.Lvl > prevLvl {
 						r.setFlowerUpgradeBlocked(fid, false)
 						r.emit(Event{Kind: "flower_upgrade", Message: fmt.Sprintf("成功升级 %s (等级 %d→%d)", state.FlowerName(fid), prevLvl, newCv.Lvl)})
 					}
-					gold = r.state.Gold()
 				}
 				return
 			}
@@ -173,21 +174,22 @@ func (r *Runner) startCultivate(ctx context.Context, client *babigame.Client, se
 	if r.isSessionInvalidated() {
 		return
 	}
-	if err != nil {
+	switch {
+	case err != nil:
 		r.emit(Event{Kind: "cultivate_new", Message: fmt.Sprintf("开始培育 %s 失败: %v", state.FlowerName(fid), err)})
-	} else if d.IsError() {
+	case d.IsError():
 		r.emit(Event{Kind: "cultivate_new", Message: fmt.Sprintf("开始培育 %s: %s", state.FlowerName(fid), d.ErrorMsg())})
-	} else if babigame.HasPayload(v) {
+	case babigame.HasPayload(v):
 		r.state.ApplyV(v)
 		r.emit(Event{Kind: "cultivate_new", Message: fmt.Sprintf("成功开始培育 %s", state.FlowerName(fid))})
 	}
 }
 
-func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session *babigame.Session) {
-	if time.Since(r.lastMiscTick) < 60*time.Second {
+func (r *Runner) tickDomainWork(ctx context.Context, client *babigame.Client, session *babigame.Session) {
+	if time.Since(r.lastDomainTick) < 60*time.Second {
 		return
 	}
-	r.lastMiscTick = time.Now()
+	r.lastDomainTick = time.Now()
 
 	r.mu.RLock()
 	policy := r.policy
@@ -196,29 +198,34 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	storyUnlockBlocked := r.storyUnlockBlocked
 	freeWaterBlockedUntil := r.freeWaterBlockedUntil
 	dailyTaskBlockedUntil := r.dailyTaskBlockedUntil
+	weeklyTaskBlockedUntil := r.weeklyTaskBlockedUntil
+	mailBlockedUntil := r.mailBlockedUntil
+	signBlockedUntil := r.signBlockedUntil
+	unionBuildBlockedUntil := r.unionBuildBlockedUntil
 	residentOrderBlockedUntil := r.residentOrderBlockedUntil
 	r.mu.RUnlock()
-	misc := (*pb.MiscPolicy)(nil)
-	if policy != nil {
-		misc = policy.GetMisc()
-	}
-	if misc == nil {
+	if policy == nil {
 		return
 	}
+	basic := policy.GetBasic()
+	plant := policy.GetPlant()
+	orderPolicy := policy.GetOrder()
+	unionPolicy := policy.GetUnion()
 	rpc := r.runnerRPC(client, session)
 
 	// 水资源奖励
-	if misc.GetWaterwheelEnabled() && r.state.WaterwheelCooldownReady() {
+	if basic.GetWaterwheelEnabled() && r.state.WaterwheelCooldownReady() {
 		prevWW := r.state.WaterwheelClaimedCount()
 		v, d, err := rpcResult(rpc.Waterwheel().Recv(ctx, clientproto.WaterwheelRecvRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
-		if err != nil {
+		switch {
+		case err != nil:
 			r.emit(Event{Kind: "waterwheel", Message: fmt.Sprintf("领取水车失败: %v", err)})
-		} else if d.IsError() {
+		case d.IsError():
 			// 冷却未到或无可领取，静默
-		} else if babigame.HasPayload(v) {
+		case babigame.HasPayload(v):
 			r.state.ApplyV(v)
 			newWW := r.state.WaterwheelClaimedCount()
 			if newWW > prevWW {
@@ -233,44 +240,53 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			}
 		}
 	}
-	if misc.GetFreeWaterEnabled() && time.Now().After(freeWaterBlockedUntil) {
+	if basic.GetFreeWaterEnabled() && time.Now().After(freeWaterBlockedUntil) {
 		if idx, ok := r.state.NextFreeWaterIndex(); ok {
 			v, d, err := rpcResult(rpc.FreeWater().Recv(ctx, clientproto.FreeWaterRecvRequest{Idx: idx}))
 			if r.isSessionInvalidated() {
 				return
 			}
-			if err != nil {
+			switch {
+			case err != nil:
 				r.setFreeWaterBlockedUntil(time.Now().Add(freeWaterRetryWait))
 				r.emit(Event{Kind: "free_water", Message: fmt.Sprintf("领取免费水滴 #%d 失败: %v", idx, err)})
-			} else if d.IsError() {
+			case d.IsError():
 				r.setFreeWaterBlockedUntil(time.Now().Add(freeWaterRetryWait))
-			} else if babigame.HasPayload(v) {
+			case babigame.HasPayload(v):
 				r.state.ApplyV(v)
 				r.emit(Event{Kind: "free_water", Message: fmt.Sprintf("成功领取免费水滴 #%d", idx)})
-			} else {
+			default:
 				r.setFreeWaterBlockedUntil(time.Now().Add(freeWaterRetryWait))
 			}
 		}
 	}
 
+	if basic.GetMailEnabled() && time.Now().After(mailBlockedUntil) {
+		r.tickMail(ctx, rpc)
+		if r.isSessionInvalidated() {
+			return
+		}
+	}
+
 	// 福利箱
-	if misc.GetBenefitBoxEnabled() && r.state.BenefitBoxReady() {
+	if basic.GetBenefitBoxEnabled() && r.state.BenefitBoxReady() {
 		v, d, err := rpcResult(rpc.BenefitBox().Draw(ctx, clientproto.BenefitBoxDrawRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
-		if err != nil {
+		switch {
+		case err != nil:
 			r.emit(Event{Kind: "benefit_box", Message: fmt.Sprintf("福利箱抽奖失败: %v", err)})
-		} else if d.IsError() {
+		case d.IsError():
 			// 无可领取，静默
-		} else if babigame.HasPayload(v) {
+		case babigame.HasPayload(v):
 			r.state.ApplyV(v)
 			r.emit(Event{Kind: "benefit_box", Message: fmt.Sprintf("成功领取福利箱 (剩余%d次)", r.state.BenefitBoxDrawsRemaining())})
 		}
 	}
 
 	// 批量加速
-	if misc.GetSpeedUpEnabled() {
+	if plant.GetSpeedUpEnabled() {
 		r.tickSpeedUp(ctx, client, session)
 		if r.isSessionInvalidated() {
 			return
@@ -278,7 +294,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 
 	// 居民订单
-	if misc.GetResidentOrderEnabled() && time.Now().After(residentOrderBlockedUntil) {
+	if residentOrderEnabled(orderPolicy.GetResident()) && time.Now().After(residentOrderBlockedUntil) {
 		r.tickResidentOrders(ctx, rpc)
 		if r.isSessionInvalidated() {
 			return
@@ -286,7 +302,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 
 	// 顾客订单
-	if misc.GetCustomerOrderEnabled() {
+	if orderPolicy.GetCustomer().GetEnabled() {
 		if err := r.ensureCustomerOrderRqst(ctx); err != nil {
 			r.log.Debug("customer order rqst failed", "err", err)
 		}
@@ -303,8 +319,8 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 				continue
 			}
 			if !canFulfillCustomerOrder(order, inventory) {
-				if misc.GetCustomerOrderCraftEnabled() {
-					crafted, stop := r.tryCraftCustomerOrderArt(ctx, client, session, npcId, order, inventory, misc.GetFlowerArtRewardEnabled())
+				if orderPolicy.GetCustomer().GetCraftEnabled() {
+					crafted, stop := r.tryCraftCustomerOrderArt(ctx, client, session, npcId, order, inventory, orderPolicy.GetFlowerArt().GetRewardEnabled())
 					if stop {
 						return
 					}
@@ -314,7 +330,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 				}
 			}
 			if !canFulfillCustomerOrder(order, inventory) {
-				if misc.GetCustomerOrderRejectEnabled() {
+				if orderPolicy.GetCustomer().GetRejectEnabled() {
 					v, d, err := rpcResult(rpc.OrderCustomer().RejectOrder(ctx, clientproto.OrderCustomerRejectOrderRequest{NPCId: npcId}))
 					if r.isSessionInvalidated() {
 						return
@@ -329,7 +345,6 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 					if babigame.HasPayload(v) {
 						r.state.ApplyV(v)
 						r.emit(Event{Kind: "order_customer", Message: fmt.Sprintf("顾客订单 NPC=%d 已标记暂时没货", npcId)})
-						inventory = r.state.Inventory()
 					}
 					return
 				}
@@ -354,7 +369,7 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 		}
 	}
 
-	if misc.GetFlowerRackEnabled() {
+	if orderPolicy.GetFlowerArt().GetSellEnabled() {
 		// 一键收取花架收入
 		v, d, err := rpcResult(rpc.FlowerRack().RecvOneKey(ctx, clientproto.FlowerRackRecvOneKeyRequest{}))
 		if r.isSessionInvalidated() {
@@ -364,34 +379,30 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			r.state.ApplyV(v)
 		}
 		// 上架花艺
-		if r.tryStockFlowerRack(ctx, client, session, misc.GetFlowerRackCraftEnabled(), misc.GetFlowerArtRewardEnabled()) {
+		if r.tryStockFlowerRack(ctx, client, session, orderPolicy.GetFlowerArt().GetCraftEnabled(), orderPolicy.GetFlowerArt().GetRewardEnabled()) {
 			return
 		}
 	}
 
-	if misc.GetResidentOrderRewardEnabled() {
-		for _, target := range r.state.ReadyFlowerOrderRewardTargets() {
+	if orderPolicy.GetResident().GetRewardEnabled() {
+		if targets := r.state.ReadyFlowerOrderRewardTargets(); len(targets) > 0 {
+			target := targets[0]
 			v, d, err := rpcResult(rpc.OrderFlower().RecvOrderRwd(ctx, clientproto.OrderFlowerRecvOrderRwdRequest{Target: target}))
 			if r.isSessionInvalidated() {
 				return
 			}
 			if err != nil {
 				r.emit(Event{Kind: "order_reward", Message: fmt.Sprintf("领取居民订单阶段奖励 #%d 失败: %v", target, err)})
-				break
-			}
-			if d.IsError() {
-				break
-			}
-			if babigame.HasPayload(v) {
+			} else if !d.IsError() && babigame.HasPayload(v) {
 				r.state.ApplyV(v)
 				r.emit(Event{Kind: "order_reward", Message: fmt.Sprintf("成功领取居民订单阶段奖励 #%d", target)})
 			}
-			break
 		}
 	}
 
-	if misc.GetResidentOrderAdEnabled() {
-		for _, boxID := range r.state.ReadyFlowerOrderAdBoxIDs() {
+	if orderPolicy.GetResident().GetAdRefreshEnabled() {
+		if boxIDs := r.state.ReadyFlowerOrderAdBoxIDs(); len(boxIDs) > 0 {
+			boxID := boxIDs[0]
 			beforeOrder := r.state.FlowerOrders()[boxID]
 			v, d, err := rpcResult(rpc.Usr().Share(ctx, clientproto.UsrShareRequest{
 				ShareId: 5,
@@ -405,136 +416,146 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 			}
 			if err != nil {
 				r.emit(Event{Kind: "order_ad", Message: fmt.Sprintf("刷新居民订单广告位 #%d 失败: %v", boxID, err)})
-				break
-			}
-			if d.IsError() {
-				break
-			}
-			if babigame.HasPayload(v) {
+			} else if !d.IsError() && babigame.HasPayload(v) {
 				r.state.ApplyV(v)
 				afterOrder := r.state.FlowerOrders()[boxID]
 				if residentAdSlotMaterialized(beforeOrder, afterOrder) {
 					r.emit(Event{Kind: "order_ad", Message: fmt.Sprintf("居民订单广告位 #%d 已刷新为订单", boxID)})
 				}
 			}
-			break
 		}
 	}
 
 	// 土地开垦
-	if misc.LandUnlockEnabled && !landUnlockBlocked {
+	if plant.GetLandUnlockEnabled() && !landUnlockBlocked {
 		if nextLandID, ok := nextLandUnlockCandidate(r.state); ok {
 			v, d, err := rpcResult(rpc.UsrLand().UnlockLand(ctx, clientproto.UsrLandUnlockLandRequest{LandId: nextLandID}))
 			if r.isSessionInvalidated() {
 				return
 			}
-			if err != nil {
+			switch {
+			case err != nil:
 				r.emit(Event{Kind: "land_unlock", Message: fmt.Sprintf("开垦 #%d 失败: %v", nextLandID, err)})
-			} else if d.IsError() {
+			case d.IsError():
 				r.setLandUnlockBlocked(true)
 				r.emit(Event{Kind: "land_unlock", Message: fmt.Sprintf("开垦 #%d: %s", nextLandID, d.ErrorMsg())})
-			} else if babigame.HasPayload(v) {
+			case babigame.HasPayload(v):
 				r.state.ApplyV(v)
 				r.emit(Event{Kind: "land_unlock", Message: fmt.Sprintf("成功开垦 #%d", nextLandID)})
-			} else {
+			default:
 				r.setLandUnlockBlocked(true)
 			}
 		}
 	}
 
 	// 主线任务奖励
-	if misc.GetTaskMainRewardEnabled() && !taskRecvBlocked {
+	if basic.GetMainTaskEnabled() && !taskRecvBlocked {
 		v, d, err := rpcResult(rpc.TaskMain().Recv(ctx, clientproto.TaskMainRecvRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
-		if err != nil {
+		switch {
+		case err != nil:
 			r.emit(Event{Kind: "task_recv", Message: fmt.Sprintf("领取任务奖励失败: %v", err)})
-		} else if d.IsError() {
+		case d.IsError():
 			r.setTaskRecvBlocked(true)
-		} else if babigame.HasPayload(v) {
+		case babigame.HasPayload(v):
 			r.state.ApplyV(v)
 			r.emit(Event{Kind: "task_recv", Message: "成功领取主线任务奖励"})
-		} else {
+		default:
 			r.setTaskRecvBlocked(true)
 		}
 	}
-	if misc.GetTaskDailyRewardEnabled() && time.Now().After(dailyTaskBlockedUntil) {
-		for _, taskID := range r.state.ReadyDailyTaskIDs() {
+	if basic.GetDailyTaskEnabled() && time.Now().After(dailyTaskBlockedUntil) {
+		if taskIDs := r.state.ReadyDailyTaskIDs(); len(taskIDs) > 0 {
+			taskID := taskIDs[0]
 			v, d, err := rpcResult(rpc.TaskDly().Recv(ctx, clientproto.TaskDlyRecvRequest{ID: taskID}))
 			if r.isSessionInvalidated() {
 				return
 			}
-			if err != nil {
+			switch {
+			case err != nil:
 				r.setDailyTaskBlockedUntil(time.Now().Add(dailyTaskRetryWait))
 				r.emit(Event{Kind: "task_daily", Message: fmt.Sprintf("领取日常任务 #%d 失败: %v", taskID, err)})
-				break
-			}
-			if d.IsError() {
+			case d.IsError():
 				r.setDailyTaskBlockedUntil(time.Now().Add(dailyTaskRetryWait))
-				break
-			}
-			if babigame.HasPayload(v) {
+			case babigame.HasPayload(v):
 				r.state.ApplyV(v)
 				r.emit(Event{Kind: "task_daily", Message: fmt.Sprintf("成功领取日常任务 #%d", taskID)})
-			} else {
+			default:
 				r.setDailyTaskBlockedUntil(time.Now().Add(dailyTaskRetryWait))
 			}
-			break
 		}
 	}
-	if misc.GetRoadGrowRewardEnabled() {
-		for _, taskID := range r.state.ReadyRoadGrowTaskIDs() {
+	if basic.GetWeeklyTaskEnabled() && time.Now().After(weeklyTaskBlockedUntil) {
+		if taskIDs := r.state.ReadyWeeklyTaskIDs(); len(taskIDs) > 0 {
+			taskID := taskIDs[0]
+			v, d, err := rpcResult(rpc.TaskWeek().Recv(ctx, clientproto.TaskWeekRecvRequest{ID: taskID}))
+			if r.isSessionInvalidated() {
+				return
+			}
+			switch {
+			case err != nil:
+				r.setWeeklyTaskBlockedUntil(time.Now().Add(weeklyTaskRetryWait))
+				r.emit(Event{Kind: "task_weekly", Message: fmt.Sprintf("领取每周任务 #%d 失败: %v", taskID, err)})
+			case d.IsError():
+				r.setWeeklyTaskBlockedUntil(time.Now().Add(weeklyTaskRetryWait))
+			case babigame.HasPayload(v):
+				r.state.ApplyV(v)
+				r.emit(Event{Kind: "task_weekly", Message: fmt.Sprintf("成功领取每周任务 #%d", taskID)})
+			default:
+				r.setWeeklyTaskBlockedUntil(time.Now().Add(weeklyTaskRetryWait))
+			}
+		}
+	}
+	if basic.GetRoadGrowRewardEnabled() {
+		if taskIDs := r.state.ReadyRoadGrowTaskIDs(); len(taskIDs) > 0 {
+			taskID := taskIDs[0]
 			v, d, err := rpcResult(rpc.RoadGrow().Recv(ctx, clientproto.RoadGrowRecvRequest{ID: taskID}))
 			if r.isSessionInvalidated() {
 				return
 			}
 			if err != nil {
 				r.emit(Event{Kind: "road_grow", Message: fmt.Sprintf("领取成长之路 #%d 失败: %v", taskID, err)})
-				break
-			}
-			if d.IsError() {
-				break
-			}
-			if babigame.HasPayload(v) {
+			} else if !d.IsError() && babigame.HasPayload(v) {
 				r.state.ApplyV(v)
 				r.emit(Event{Kind: "road_grow", Message: fmt.Sprintf("成功领取成长之路 #%d", taskID)})
 			}
-			break
 		}
 	}
-	if misc.GetRandomEventEnabled() {
+	if basic.GetSignEnabled() && time.Now().After(signBlockedUntil) {
+		r.tickSign(ctx, rpc)
+		if r.isSessionInvalidated() {
+			return
+		}
+	}
+	if basic.GetRandomEventEnabled() {
 		_, _, _ = rpcResult(rpc.RandomEvent().Enter(ctx, clientproto.RandomEventEnterRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
-		for _, eventID := range r.state.ReadyRandomEventIDs() {
+		if eventIDs := r.state.ReadyRandomEventIDs(); len(eventIDs) > 0 {
+			eventID := eventIDs[0]
 			v, d, err := rpcResult(rpc.RandomEvent().DoAffair(ctx, clientproto.RandomEventDoAffairRequest{EventId: eventID}))
 			if r.isSessionInvalidated() {
 				return
 			}
 			if err != nil {
 				r.emit(Event{Kind: "random_event", Message: fmt.Sprintf("领取地图事件 #%d 失败: %v", eventID, err)})
-				break
-			}
-			if d.IsError() {
-				break
-			}
-			if babigame.HasPayload(v) {
+			} else if !d.IsError() && babigame.HasPayload(v) {
 				r.state.ApplyV(v)
 				r.emit(Event{Kind: "random_event", Message: fmt.Sprintf("成功领取地图事件 #%d", eventID)})
 			}
-			break
 		}
 	}
 
-	r.tickCaptureAlignedDomains(ctx, rpc, misc)
+	r.tickCaptureAlignedDomains(ctx, rpc, policy)
 	if r.isSessionInvalidated() {
 		return
 	}
 
 	// 成就任务奖励
-	if misc.GetTaskAchRewardEnabled() {
+	if basic.GetAchievementTaskEnabled() {
 		r.tickTaskAchRewards(ctx, client, session)
 		if r.isSessionInvalidated() {
 			return
@@ -542,54 +563,281 @@ func (r *Runner) tickMisc(ctx context.Context, client *babigame.Client, session 
 	}
 
 	// 主线剧情解锁
-	if misc.StoryUnlockEnabled && !storyUnlockBlocked {
+	if basic.GetStoryEnabled() && !storyUnlockBlocked {
 		v, d, err := rpcResult(rpc.StoryMain().Unlock(ctx, clientproto.StoryMainUnlockRequest{}))
 		if r.isSessionInvalidated() {
 			return
 		}
-		if err != nil {
+		switch {
+		case err != nil:
 			r.emit(Event{Kind: "story_unlock", Message: fmt.Sprintf("解锁剧情失败: %v", err)})
-		} else if d.IsError() {
+		case d.IsError():
 			r.setStoryUnlockBlocked(true)
-		} else if babigame.HasPayload(v) {
+		case babigame.HasPayload(v):
 			r.state.ApplyV(v)
 			r.emit(Event{Kind: "story_unlock", Message: "成功解锁主线剧情"})
-		} else {
+		default:
 			r.setStoryUnlockBlocked(true)
+		}
+	}
+
+	if unionBuildEnabled(unionPolicy) && time.Now().After(unionBuildBlockedUntil) {
+		r.tickUnionBuild(ctx, rpc, policy)
+		if r.isSessionInvalidated() {
+			return
 		}
 	}
 }
 
-func (r *Runner) tickCaptureAlignedDomains(ctx context.Context, rpc *clientrpc.Client, misc *pb.MiscPolicy) {
-	if misc == nil {
+func unionBuildEnabled(policy *pb.UnionPolicy) bool {
+	return policy != nil && (policy.GetBuildFreeEnabled() || policy.GetBuildGoldEnabled() || policy.GetBuildDiamondEnabled())
+}
+
+func (r *Runner) tickUnionBuild(ctx context.Context, rpc *clientrpc.Client, policy *pb.Policy) {
+	union := policy.GetUnion()
+	if union.GetBuildFreeEnabled() && r.unionBuildFreeReady() {
+		r.runUnionBuildShare(ctx, rpc)
 		return
 	}
-	if misc.GetOrderPalaceEnabled() {
+	if union.GetBuildGoldEnabled() && r.canRunUnionBuildSpend(policy, 2) {
+		r.runUnionBuildSpend(ctx, rpc, 2)
+		return
+	}
+	if union.GetBuildDiamondEnabled() && r.canRunUnionBuildSpend(policy, 3) {
+		r.runUnionBuildSpend(ctx, rpc, 3)
+		return
+	}
+}
+
+func (r *Runner) runUnionBuildShare(ctx context.Context, rpc *clientrpc.Client) {
+	v, d, err := rpcResult(rpc.Usr().Share(ctx, clientproto.UsrShareRequest{
+		ShareId: 14,
+		Ext: map[string]any{
+			"opType": 1,
+			"id":     1,
+		},
+	}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	switch {
+	case err != nil:
+		r.setUnionBuildBlockedUntil(time.Now().Add(unionBuildRetryWait))
+		r.emit(Event{Kind: "union_build", Message: fmt.Sprintf("公会视频建设失败: %v", err)})
+	case d.IsError():
+		if unionBuildDailyLimitLike(d.ErrorMsg()) {
+			r.setUnionBuildFreeBlockedUntil(nextLocalDay(time.Now()))
+		} else {
+			r.setUnionBuildBlockedUntil(time.Now().Add(unionBuildRetryWait))
+		}
+	case babigame.HasPayload(v):
+		r.state.ApplyV(v)
+		r.setUnionBuildFreeBlockedUntil(nextLocalDay(time.Now()))
+		r.emit(Event{Kind: "union_build", Message: "成功完成公会视频建设"})
+	default:
+		r.setUnionBuildBlockedUntil(time.Now().Add(unionBuildRetryWait))
+	}
+}
+
+func (r *Runner) canRunUnionBuildSpend(policy *pb.Policy, buildID int32) bool {
+	option, ok := state.FmlBuildOptionByID(buildID)
+	if !ok || option.Cost <= 0 {
+		return false
+	}
+	switch option.ItemID {
+	case 11:
+		if policy.GetSafety().GetMaxGoldSpendPerTick() < option.Cost {
+			return false
+		}
+		return r.state.Gold() >= option.Cost
+	case 1:
+		if policy.GetSafety().GetMaxDiamondSpendPerTick() < option.Cost {
+			return false
+		}
+		free, paid := r.state.Diamonds()
+		return free+paid >= option.Cost
+	default:
+		if policy.GetSafety().GetMaxItemSpendPerTick() < option.Cost {
+			return false
+		}
+		return r.state.Inventory()[option.ItemID] >= option.Cost
+	}
+}
+
+func (r *Runner) runUnionBuildSpend(ctx context.Context, rpc *clientrpc.Client, buildID int32) {
+	option, _ := state.FmlBuildOptionByID(buildID)
+	v, d, err := rpcResult(rpc.Fml().Bld(ctx, clientproto.FmlBldRequest{"id": buildID}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	name := option.Name
+	if name == "" {
+		name = fmt.Sprintf("建设 #%d", buildID)
+	}
+	switch {
+	case err != nil:
+		r.setUnionBuildBlockedUntil(time.Now().Add(unionBuildRetryWait))
+		r.emit(Event{Kind: "union_build", Message: fmt.Sprintf("%s 失败: %v", name, err)})
+	case d.IsError():
+		if unionBuildDailyLimitLike(d.ErrorMsg()) {
+			r.setUnionBuildBlockedUntil(nextLocalDay(time.Now()))
+		} else {
+			r.setUnionBuildBlockedUntil(time.Now().Add(unionBuildRetryWait))
+		}
+	case babigame.HasPayload(v):
+		r.state.ApplyV(v)
+		r.emit(Event{Kind: "union_build", Message: fmt.Sprintf("成功完成%s", name)})
+	default:
+		r.setUnionBuildBlockedUntil(time.Now().Add(unionBuildRetryWait))
+	}
+}
+
+func (r *Runner) unionBuildFreeReady() bool {
+	r.mu.RLock()
+	blockedUntil := r.unionBuildFreeBlockedUntil
+	r.mu.RUnlock()
+	return time.Now().After(blockedUntil)
+}
+
+func unionBuildDailyLimitLike(msg string) bool {
+	if strings.Contains(msg, "今日") || strings.Contains(msg, "上限") || strings.Contains(msg, "次数") {
+		return true
+	}
+	return false
+}
+
+func (r *Runner) tickMail(ctx context.Context, rpc *clientrpc.Client) {
+	v, d, err := rpcResult(rpc.Mail().GetList(ctx, clientproto.MailGetListRequest{}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	switch {
+	case err != nil:
+		r.setMailBlockedUntil(time.Now().Add(mailRetryWait))
+		r.emit(Event{Kind: "mail_claim", Message: fmt.Sprintf("同步邮件失败: %v", err)})
+		return
+	case d.IsError():
+		r.setMailBlockedUntil(time.Now().Add(mailRetryWait))
+		return
+	case babigame.HasPayload(v):
+		r.state.ApplyV(v)
+	}
+
+	v, d, err = rpcResult(rpc.Mail().PickOneKey(ctx, clientproto.MailPickOneKeyRequest{}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	switch {
+	case err != nil:
+		r.setMailBlockedUntil(time.Now().Add(mailRetryWait))
+		r.emit(Event{Kind: "mail_claim", Message: fmt.Sprintf("一键领取邮件失败: %v", err)})
+	case d.IsError():
+		r.setMailBlockedUntil(time.Now().Add(mailRetryWait))
+	case babigame.HasPayload(v):
+		r.state.ApplyV(v)
+		r.emit(Event{Kind: "mail_claim", Message: "成功一键领取邮件附件"})
+	default:
+		r.setMailBlockedUntil(time.Now().Add(mailRetryWait))
+	}
+}
+
+func (r *Runner) tickSign(ctx context.Context, rpc *clientrpc.Client) {
+	v, d, err := rpcResult(rpc.SignType().Enter(ctx, clientproto.SignTypeEnterRequest{Type: 1}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	if err != nil {
+		r.setSignBlockedUntil(time.Now().Add(signRetryWait))
+		r.emit(Event{Kind: "sign_claim", Message: fmt.Sprintf("同步签到失败: %v", err)})
+		return
+	}
+	if !d.IsError() && babigame.HasPayload(v) {
+		r.state.ApplyV(v)
+	}
+
+	signed := false
+	v, d, err = rpcResult(rpc.SignType().Sign(ctx, clientproto.SignTypeSignRequest{Type: 1}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	switch {
+	case err != nil:
+		r.setSignBlockedUntil(time.Now().Add(signRetryWait))
+		r.emit(Event{Kind: "sign_claim", Message: fmt.Sprintf("签到失败: %v", err)})
+		return
+	case d.IsError():
+		r.setSignBlockedUntil(nextLocalDay(time.Now()))
+	case babigame.HasPayload(v):
+		r.state.ApplyV(v)
+		signed = true
+	}
+
+	v, d, err = rpcResult(rpc.SignType().Recv(ctx, clientproto.SignTypeRecvRequest{Type: 1}))
+	if r.isSessionInvalidated() {
+		return
+	}
+	switch {
+	case err != nil:
+		r.setSignBlockedUntil(time.Now().Add(signRetryWait))
+		r.emit(Event{Kind: "sign_claim", Message: fmt.Sprintf("领取签到奖励失败: %v", err)})
+	case d.IsError():
+		if signed {
+			r.emit(Event{Kind: "sign_claim", Message: "成功签到"})
+		}
+		r.setSignBlockedUntil(nextLocalDay(time.Now()))
+	case babigame.HasPayload(v):
+		r.state.ApplyV(v)
+		r.setSignBlockedUntil(nextLocalDay(time.Now()))
+		r.emit(Event{Kind: "sign_claim", Message: "成功领取签到/祈愿奖励"})
+	default:
+		r.setSignBlockedUntil(time.Now().Add(signRetryWait))
+	}
+}
+
+func residentOrderEnabled(policy *pb.ResidentOrderPolicy) bool {
+	return policy != nil && (policy.GetNormalEnabled() || policy.GetDecorateEnabled() || policy.GetSatinEnabled())
+}
+
+func (r *Runner) tickCaptureAlignedDomains(ctx context.Context, rpc *clientrpc.Client, policy *pb.Policy) {
+	if policy == nil {
+		return
+	}
+	basic := policy.GetBasic()
+	order := policy.GetOrder()
+	union := policy.GetUnion()
+	activity := policy.GetActivity()
+	if order.GetPalace().GetEnabled() {
 		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderPalaceEnter.String(), map[string]any{})
 		if r.isSessionInvalidated() {
 			return
 		}
 		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderPalaceGetOrderRcdList.String(), map[string]any{})
 	}
-	if misc.GetCustomerOrderEnabled() {
+	if order.GetCustomer().GetEnabled() {
 		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderCustomerGenOrder.String(), map[string]any{"guestNpcIdList": []int32{}})
 	}
-	if misc.GetPlayerBackEnabled() {
-		r.observeStateDelta(ctx, rpc, clientproto.RPCPlayerBackPlayerBackPassEnter.String(), map[string]any{})
+	if order.GetTeam().GetEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCOrderTeamRefreshOrder.String(), map[string]any{})
+	}
+	if basic.GetSignEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCSignTypeEnter.String(), map[string]any{"type": int32(1)})
+	}
+	if basic.GetPearl().GetEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCPearlRefresh.String(), map[string]any{})
 		if r.isSessionInvalidated() {
 			return
 		}
-		r.observeStateDelta(ctx, rpc, clientproto.RPCPlayerBackSignEnter.String(), map[string]any{})
+		r.observeStateDelta(ctx, rpc, clientproto.RPCPearlPlaceRecvOneKey.String(), map[string]any{})
 	}
-	if misc.GetSignEnabled() {
-		r.observeStateDelta(ctx, rpc, clientproto.RPCSignTypeEnter.String(), map[string]any{"type": int32(1)})
+	if basic.GetShop().GetCultivateShopEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCShopCultivateEnter.String(), map[string]any{})
 	}
-	if misc.GetZooSyncEnabled() {
+	if basic.GetZoo().GetSyncEnabled() || basic.GetZoo().GetEnabled() {
 		r.observeStateDelta(ctx, rpc, clientproto.RPCZooEnterZoo.String(), map[string]any{})
 		if r.isSessionInvalidated() {
 			return
 		}
-		r.observeStateDelta(ctx, rpc, clientproto.RPCZooFindPetByUsrBack.String(), map[string]any{"petId": int32(1)})
+		r.observeStateDelta(ctx, rpc, clientproto.RPCZooFindPetByUsrBack.String(), map[string]any{})
 		if r.isSessionInvalidated() {
 			return
 		}
@@ -599,14 +847,70 @@ func (r *Runner) tickCaptureAlignedDomains(ctx context.Context, rpc *clientrpc.C
 		}
 		r.observeStateDelta(ctx, rpc, clientproto.RPCZooReadLog.String(), map[string]any{"petId": int32(1)})
 	}
-	if misc.GetActivityRewardEnabled() {
-		// Activity enter/claim RPCs are batch-scoped. The analyzer records
-		// redacted samples, but captured batch ids may be stale, so leave these
-		// read-only until runtime activity state is modeled.
-		r.log.Debug("activity reward sync waits for runtime activity state")
+	if union.GetBuildFreeEnabled() || union.GetBuildGoldEnabled() || union.GetBuildDiamondEnabled() ||
+		union.GetFlowerShareEnabled() || union.GetFlowerTakeEnabled() || union.GetRaceEnabled() ||
+		union.GetLandAutoPlant() || union.GetLandHarvest() || union.GetForestEnabled() {
+		r.observeStateDelta(ctx, rpc, clientproto.RPCFmlEnter.String(), map[string]any{"fml": int32(1)})
+		if r.isSessionInvalidated() {
+			return
+		}
+		if union.GetRaceEnabled() {
+			r.observeStateDelta(ctx, rpc, clientproto.RPCFmlRaceEnter.String(), map[string]any{})
+			r.observeStateDelta(ctx, rpc, clientproto.RPCFmlRaceGetTaskList.String(), map[string]any{})
+		}
+		if union.GetFlowerShareEnabled() || union.GetFlowerTakeEnabled() {
+			r.observeStateDelta(ctx, rpc, clientproto.RPCFmlFlowerShareRefresh.String(), map[string]any{})
+		}
+		if union.GetForestEnabled() {
+			r.observeStateDelta(ctx, rpc, clientproto.RPCFmlForestEnter.String(), map[string]any{})
+		}
 	}
-	if misc.GetFlowerPassEnabled() || misc.GetFlowerElvesPassEnabled() || misc.GetZooFeedEnabled() {
-		r.log.Debug("capture-aligned domain has no safe claimable state yet")
+	if activity.GetEnabled() {
+		r.syncEnabledActivityModules(ctx, rpc, activity)
+	}
+}
+
+func (r *Runner) syncEnabledActivityModules(ctx context.Context, rpc *clientrpc.Client, policy *pb.ActivityPolicy) {
+	keys := make([]string, 0, len(policy.GetModules()))
+	for name, module := range policy.GetModules() {
+		if module != nil && module.GetEnabled() {
+			keys = append(keys, name)
+		}
+	}
+	sort.Strings(keys)
+	for _, name := range keys {
+		switch name {
+		case "actCyclicStory":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActCyclicStoryEnter.String(), map[string]any{})
+		case "actDessert":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActDessertEnter.String(), map[string]any{})
+		case "actElim":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActElimEnter.String(), map[string]any{})
+		case "actMerge2":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActMerge2Enter.String(), map[string]any{})
+		case "actSpool":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActSpoolEnter.String(), map[string]any{})
+		case "cyclicNote":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActCyclicNoteEnter.String(), map[string]any{})
+		case "moneyTree":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActMoneyTreeEnter.String(), map[string]any{})
+		case "redPacket":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCActRedpacketRedPacketRecv.String(), map[string]any{})
+		case "zooGameElim":
+			r.observeStateDelta(ctx, rpc, clientproto.RPCZooGameEnter.String(), map[string]any{"type": int32(1)})
+		default:
+			r.emit(Event{
+				Kind:     "activity_sync",
+				Category: "activity",
+				Domain:   "activity." + name,
+				Action:   "sync",
+				Message:  fmt.Sprintf("活动模块 %s 暂无安全同步入口", name),
+				Level:    "warn",
+			})
+		}
+		if r.isSessionInvalidated() || ctx.Err() != nil {
+			return
+		}
 	}
 }
 
@@ -702,6 +1006,36 @@ func (r *Runner) setDailyTaskBlockedUntil(until time.Time) {
 	r.mu.Unlock()
 }
 
+func (r *Runner) setWeeklyTaskBlockedUntil(until time.Time) {
+	r.mu.Lock()
+	r.weeklyTaskBlockedUntil = until
+	r.mu.Unlock()
+}
+
+func (r *Runner) setMailBlockedUntil(until time.Time) {
+	r.mu.Lock()
+	r.mailBlockedUntil = until
+	r.mu.Unlock()
+}
+
+func (r *Runner) setSignBlockedUntil(until time.Time) {
+	r.mu.Lock()
+	r.signBlockedUntil = until
+	r.mu.Unlock()
+}
+
+func (r *Runner) setUnionBuildBlockedUntil(until time.Time) {
+	r.mu.Lock()
+	r.unionBuildBlockedUntil = until
+	r.mu.Unlock()
+}
+
+func (r *Runner) setUnionBuildFreeBlockedUntil(until time.Time) {
+	r.mu.Lock()
+	r.unionBuildFreeBlockedUntil = until
+	r.mu.Unlock()
+}
+
 func (r *Runner) setResidentOrderBlockedUntil(until time.Time) {
 	r.mu.Lock()
 	r.residentOrderBlockedUntil = until
@@ -716,13 +1050,6 @@ func nextLocalDay(now time.Time) time.Time {
 	y, m, d := now.Date()
 	loc := now.Location()
 	return time.Date(y, m, d+1, 0, 5, 0, 0, loc)
-}
-
-func flowerLabel(fid int32) string {
-	if name := state.FlowerName(fid); name != "" {
-		return name
-	}
-	return fmt.Sprintf("#%d", fid)
 }
 
 func (r *Runner) tickResidentOrders(ctx context.Context, rpc *clientrpc.Client) {

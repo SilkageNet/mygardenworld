@@ -75,7 +75,7 @@ func (d *DB) ListUsers(ctx context.Context, offset, limit int) ([]*User, int, er
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*User
 	for rows.Next() {
 		u, err := scanUser(rows)

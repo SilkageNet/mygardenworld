@@ -112,7 +112,7 @@ func (c *HTTPClient) PostJSON(ctx context.Context, host, path string, body any, 
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, respBytes, &UpstreamError{
@@ -182,11 +182,11 @@ func decompressBody(data []byte, encoding string) ([]byte, error) {
 		if err != nil {
 			return data, err
 		}
-		defer r.Close()
+		defer func() { _ = r.Close() }()
 		return io.ReadAll(r)
 	case "deflate":
 		r := flate.NewReader(bytes.NewReader(data))
-		defer r.Close()
+		defer func() { _ = r.Close() }()
 		return io.ReadAll(r)
 	default:
 		return data, nil

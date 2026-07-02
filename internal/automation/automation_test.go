@@ -6,7 +6,6 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"google.golang.org/protobuf/proto"
 )
 
 // TestRecommend covers the per-land state machine. The mapping is anchored
@@ -75,6 +74,65 @@ func TestRecommend(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFeatureRegistryEnrichesPlannedOps(t *testing.T) {
+	harvest := landOp("usrLand.harvest", "farm.harvest", "harvest", "ready land", 1000, []int32{1001}, 0)
+	if harvest.FeatureID != "plant.harvest" || harvest.Label != "收获" || harvest.Status != PlanStatusExecutable || !harvest.Executable || harvest.SyncOnly {
+		t.Fatalf("harvest feature metadata = %+v", harvest)
+	}
+
+	weekly := markerOp(CategoryBasic, "basic.task.weekly", "claim", "weekly task rewards enabled", 620)
+	if weekly.FeatureID != "basic.task_weekly" || weekly.Status != PlanStatusManaged || !weekly.Executable || len(weekly.BlockedReasons) != 0 {
+		t.Fatalf("weekly feature metadata = %+v", weekly)
+	}
+
+	welfare := markerOp(CategoryBasic, "basic.welfare", "claim", "welfare enabled", 632)
+	if welfare.FeatureID != "basic.welfare" || welfare.Status != PlanStatusAdapterMissing || welfare.Executable || len(welfare.BlockedReasons) == 0 {
+		t.Fatalf("welfare feature metadata = %+v", welfare)
+	}
+
+	palace := markerOp(CategoryOrder, "order.palace", "finish", "palace orders enabled", 760)
+	if palace.FeatureID != "order.palace" || palace.Status != PlanStatusSyncOnly || !palace.SyncOnly || palace.Executable {
+		t.Fatalf("palace feature metadata = %+v", palace)
+	}
+}
+
+func TestPlanOperationsExposeFeatureStatuses(t *testing.T) {
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.WeeklyTaskEnabled = true
+	policy.Basic.WelfareEnabled = true
+	policy.Order.Palace.Enabled = true
+	policy.Activity.Enabled = true
+	policy.Activity.Modules["fishFun"].Enabled = true
+
+	ops := PlanOperations(state.New(), policy, time.Now())
+	weekly := findPlannedDomain(ops, "basic.task.weekly")
+	if weekly == nil || weekly.Status != PlanStatusManaged || !weekly.Executable {
+		t.Fatalf("weekly plan = %+v", weekly)
+	}
+	welfare := findPlannedDomain(ops, "basic.welfare")
+	if welfare == nil || welfare.Status != PlanStatusAdapterMissing || len(welfare.BlockedReasons) == 0 {
+		t.Fatalf("welfare plan = %+v", welfare)
+	}
+	palace := findPlannedDomain(ops, "order.palace")
+	if palace == nil || palace.Status != PlanStatusSyncOnly || !palace.SyncOnly {
+		t.Fatalf("palace plan = %+v", palace)
+	}
+	fish := findPlannedDomain(ops, "activity.fishFun")
+	if fish == nil || fish.Status != PlanStatusAdapterMissing || len(fish.BlockedReasons) == 0 {
+		t.Fatalf("fishFun plan = %+v", fish)
+	}
+}
+
+func findPlannedDomain(ops []PlannedOp, domain string) *PlannedOp {
+	for i := range ops {
+		if ops[i].Domain == domain {
+			return &ops[i]
+		}
+	}
+	return nil
 }
 
 // applyLands stuffs raw LandView entries into a State for plan tests.
@@ -242,7 +300,7 @@ func TestPlan_HarvestPriorityWithOneKey(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Harvest.PreferOneKey = true
+	policy.Plant.HarvestPreferOneKey = true
 
 	op := Plan(s, policy, now)
 	if op == nil {
@@ -270,7 +328,7 @@ func TestPlan_HarvestSingleWhenOneKeyDisabled(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Harvest.PreferOneKey = false
+	policy.Plant.HarvestPreferOneKey = false
 
 	op := Plan(s, policy, now)
 	if op == nil {
@@ -302,8 +360,8 @@ func TestPlan_PlantBatchHonorsMaxBatch(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeLowStock
-	policy.Plant.MaxBatch = 3
+	policy.Plant.PlantingMode = PlantModeLowStock
+	policy.Plant.PlantMaxBatch = 3
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -333,7 +391,7 @@ func TestPlan_PlantsCultivatedFlowerWithZeroInventory(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeHighValue
+	policy.Plant.PlantingMode = PlantModeHighValue
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -362,7 +420,7 @@ func TestPlan_RespectsPlantAllowList(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeSelected
+	policy.Plant.PlantingMode = PlantModeSelected
 	policy.Plant.AllowedFlowerIds = []int32{23005}
 
 	op := Plan(s, policy, time.Now())
@@ -442,7 +500,7 @@ func TestPlan_WaterOneKeyRequiresNobleAndPolicy(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Water.PreferOneKeyIfNoble = true
+	policy.Plant.WaterPreferOneKeyIfNoble = true
 	op := Plan(newWaterState(), policy, now)
 	if op == nil {
 		t.Fatal("expected water op")
@@ -453,7 +511,7 @@ func TestPlan_WaterOneKeyRequiresNobleAndPolicy(t *testing.T) {
 
 	nobleNoPolicy := newWaterState()
 	setNoble(nobleNoPolicy, 1)
-	policy.Water.PreferOneKeyIfNoble = false
+	policy.Plant.WaterPreferOneKeyIfNoble = false
 	op = Plan(nobleNoPolicy, policy, now)
 	if op == nil {
 		t.Fatal("expected water op")
@@ -464,7 +522,7 @@ func TestPlan_WaterOneKeyRequiresNobleAndPolicy(t *testing.T) {
 
 	nobleWithPolicy := newWaterState()
 	setNoble(nobleWithPolicy, 1)
-	policy.Water.PreferOneKeyIfNoble = true
+	policy.Plant.WaterPreferOneKeyIfNoble = true
 	op = Plan(nobleWithPolicy, policy, now)
 	if op == nil {
 		t.Fatal("expected water op")
@@ -487,7 +545,7 @@ func TestPlan_WaterAfterRecoveryTimestamp(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Water.MinDrops = 0
+	policy.Plant.MinWaterDrops = 0
 
 	op := Plan(s, policy, now)
 	if op == nil {
@@ -510,7 +568,7 @@ func TestPlan_WaterHonorsMinDrops(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Water.MinDrops = 5
+	policy.Plant.MinWaterDrops = 5
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -542,7 +600,7 @@ func TestPlan_TaskPriorityPrioritizesOrderDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeLowStock
+	policy.Plant.PlantingMode = PlantModeLowStock
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -569,7 +627,7 @@ func TestPlan_TaskPriorityIgnoresCustomerOrderDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeLowStock
+	policy.Plant.PlantingMode = PlantModeLowStock
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -594,7 +652,7 @@ func TestPlan_TaskPriorityPrioritizesMainTaskFlower(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeLowStock
+	policy.Plant.PlantingMode = PlantModeLowStock
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -619,7 +677,7 @@ func TestPlan_TaskPriorityUsesModeWithoutDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeHighValue
+	policy.Plant.PlantingMode = PlantModeHighValue
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -648,8 +706,8 @@ func TestPlan_TaskPriorityCapsBatchByDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeHighValue
-	policy.Plant.MaxBatch = 8
+	policy.Plant.PlantingMode = PlantModeHighValue
+	policy.Plant.PlantMaxBatch = 8
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -680,7 +738,7 @@ func TestPlan_TaskPriorityPrioritizesZeroStockDeficit(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeHighValue
+	policy.Plant.PlantingMode = PlantModeHighValue
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -710,8 +768,8 @@ func TestPlan_TaskPriorityCanBeDisabled(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Mode = PlantModeLowStock
-	policy.Plant.TaskPriorityEnabled = proto.Bool(false)
+	policy.Plant.PlantingMode = PlantModeLowStock
+	policy.Plant.TaskPriorityEnabled = false
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {
@@ -752,7 +810,7 @@ func TestPlan_PlantSkippedWhenFlowerNotCultivated(t *testing.T) {
 
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Water.Enabled = true
+	policy.Plant.WaterEnabled = true
 
 	op := Plan(s, policy, time.Now())
 	if op == nil {

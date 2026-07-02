@@ -55,7 +55,7 @@ func (w *DebugFrameWriter) Log(eventType, rpc, request, response string) {
 	}
 	data, _ := json.Marshal(record)
 	w.mu.Lock()
-	fmt.Fprintf(w.file, "%s\n", data)
+	_, _ = fmt.Fprintf(w.file, "%s\n", data)
 	w.mu.Unlock()
 }
 
@@ -90,7 +90,7 @@ func (w *DebugFrameWriter) LogHTTP(method, url string, reqBody, respBody []byte,
 	}
 	data, _ := json.Marshal(record)
 	w.mu.Lock()
-	fmt.Fprintf(w.file, "%s\n", data)
+	_, _ = fmt.Fprintf(w.file, "%s\n", data)
 	w.mu.Unlock()
 }
 
@@ -99,5 +99,5 @@ func (w *DebugFrameWriter) Close() {
 	if w == nil || w.file == nil {
 		return
 	}
-	w.file.Close()
+	_ = w.file.Close()
 }

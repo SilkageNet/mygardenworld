@@ -66,7 +66,7 @@ func (d *DB) LatestHarvestStats(ctx context.Context, opts HarvestStatsOptions) (
 	if err != nil {
 		return nil, fmt.Errorf("query harvest log: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	stats := &HarvestStats{RunGap: gap}
 	byAccount := map[int64]*accountHarvestAccumulator{}

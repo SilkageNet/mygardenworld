@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
 CREATE TABLE IF NOT EXISTS accounts (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name            TEXT    NOT NULL UNIQUE,
+    name            TEXT    NOT NULL,
     channel         TEXT    NOT NULL DEFAULT 'ios',
     username        TEXT    NOT NULL,
     password_enc    TEXT    NOT NULL,
@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     ws_url          TEXT    DEFAULT '',
     last_login_at   DATETIME,
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, name)
 );
 CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
 
@@ -62,12 +63,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS policies (
-    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    key        TEXT    NOT NULL,
-    value      TEXT    NOT NULL,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (account_id, key)
+CREATE TABLE IF NOT EXISTS account_policies (
+    account_id  INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    policy_json TEXT    NOT NULL,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS operation_log (
@@ -84,10 +83,11 @@ CREATE INDEX IF NOT EXISTS idx_oplog_account_ts ON operation_log(account_id, ts)
 // DB is the typed handle returned by Open.
 type DB struct {
 	*sql.DB
+	credentialKey []byte
 }
 
 // Open initialises the database file (creating it if needed) and applies the
-// schema. WAL is enabled so the daemon and an interactive gardenctl session
+// schema. WAL is enabled so the daemon's API handlers and background runners
 // don't block each other.
 func Open(ctx context.Context, path string) (*DB, error) {
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
@@ -101,15 +101,11 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	if _, err := sqldb.ExecContext(ctx, schema); err != nil {
 		return nil, fmt.Errorf("schema: %w", err)
 	}
-	if err := migratePolicyRows(ctx, sqldb); err != nil {
-		return nil, fmt.Errorf("policy migration: %w", err)
+	credentialKey, err := loadOrCreateCredentialKey(path)
+	if err != nil {
+		return nil, fmt.Errorf("credential key: %w", err)
 	}
-	return &DB{DB: sqldb}, nil
-}
-
-func migratePolicyRows(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `UPDATE policies SET value = 'high_value', updated_at = CURRENT_TIMESTAMP WHERE key = 'plant.mode' AND value = 'auto'`)
-	return err
+	return &DB{DB: sqldb, credentialKey: credentialKey}, nil
 }
 
 // Account is the row shape we hand to the API layer. Password is *not*
@@ -137,9 +133,13 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 		channel = "ios"
 	}
 	now := time.Now().UTC()
+	passwordEnc, err := d.encodePassword(password)
+	if err != nil {
+		return nil, fmt.Errorf("encode password: %w", err)
+	}
 	res, err := d.ExecContext(ctx,
 		`INSERT INTO accounts(user_id, name, channel, username, password_enc, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		userID, name, channel, username, encodePassword(password), now, now,
+		userID, name, channel, username, passwordEnc, now, now,
 	)
 	if err != nil {
 		if isUniqueErr(err) {
@@ -195,7 +195,7 @@ func (d *DB) ListAccounts(ctx context.Context, userID int64) ([]*Account, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*Account
 	for rows.Next() {
 		acc, err := scanAccount(rows)
@@ -219,16 +219,42 @@ func (d *DB) GetAccountByID(ctx context.Context, id int64) (*Account, error) {
 	return acc, err
 }
 
-// GetAccountByName resolves an account by its unique name.
-func (d *DB) GetAccountByName(ctx context.Context, name string) (*Account, error) {
-	row := d.QueryRowContext(ctx,
-		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
-         FROM accounts WHERE name = ?`, name)
-	acc, err := scanAccount(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrAccountNotFound
+// GetAccountByName resolves an account by user-scoped name. When userID is
+// zero, the lookup is global and returns ErrAccountAmbiguous if multiple users
+// have the same account name.
+func (d *DB) GetAccountByName(ctx context.Context, userID int64, name string) (*Account, error) {
+	query := `SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+         FROM accounts WHERE name = ? ORDER BY id ASC LIMIT 2`
+	args := []any{name}
+	if userID > 0 {
+		query = `SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+         FROM accounts WHERE user_id = ? AND name = ? ORDER BY id ASC LIMIT 2`
+		args = []any{userID, name}
 	}
-	return acc, err
+	rows, err := d.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var matches []*Account
+	for rows.Next() {
+		acc, err := scanAccount(rows)
+		if err != nil {
+			return nil, err
+		}
+		matches = append(matches, acc)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	switch len(matches) {
+	case 0:
+		return nil, ErrAccountNotFound
+	case 1:
+		return matches[0], nil
+	default:
+		return nil, ErrAccountAmbiguous
+	}
 }
 
 // GetCredentials returns the cleartext username and password. Used by the
@@ -244,7 +270,8 @@ func (d *DB) GetCredentials(ctx context.Context, id int64) (username, password s
 	if err != nil {
 		return "", "", err
 	}
-	return username, decodePassword(pwd), nil
+	password, err = d.decodePassword(pwd)
+	return username, password, err
 }
 
 // UpdateLogin stamps the post-login fields onto the account row.
@@ -290,36 +317,28 @@ func (d *DB) DeleteSession(ctx context.Context, accountID int64) error {
 	return err
 }
 
-// SetPolicyValue stores one key=value pair for an account. Values are stored
-// as JSON-encoded strings so we can round-trip through Update entries cleanly.
-func (d *DB) SetPolicyValue(ctx context.Context, accountID int64, key, value string) error {
+// SavePolicyJSON stores the full account policy as one protojson blob.
+func (d *DB) SavePolicyJSON(ctx context.Context, accountID int64, policyJSON string) error {
 	_, err := d.ExecContext(ctx,
-		`INSERT INTO policies(account_id, key, value, updated_at)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(account_id, key) DO UPDATE SET value = excluded.value,
-                                                      updated_at = excluded.updated_at`,
-		accountID, key, value, time.Now().UTC(),
+		`INSERT INTO account_policies(account_id, policy_json, updated_at)
+         VALUES (?, ?, ?)
+         ON CONFLICT(account_id) DO UPDATE SET policy_json = excluded.policy_json,
+                                                updated_at = excluded.updated_at`,
+		accountID, policyJSON, time.Now().UTC(),
 	)
 	return err
 }
 
-// LoadPolicyValues returns all stored policy entries for the account.
-func (d *DB) LoadPolicyValues(ctx context.Context, accountID int64) (map[string]string, error) {
-	rows, err := d.QueryContext(ctx,
-		`SELECT key, value FROM policies WHERE account_id = ?`, accountID)
-	if err != nil {
-		return nil, err
+// LoadPolicyJSON returns the full account policy blob. Empty string means the
+// account has not stored a policy yet and callers should use current defaults.
+func (d *DB) LoadPolicyJSON(ctx context.Context, accountID int64) (string, error) {
+	var policyJSON string
+	err := d.QueryRowContext(ctx,
+		`SELECT policy_json FROM account_policies WHERE account_id = ?`, accountID).Scan(&policyJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
 	}
-	defer rows.Close()
-	out := make(map[string]string)
-	for rows.Next() {
-		var k, v string
-		if err := rows.Scan(&k, &v); err != nil {
-			return nil, err
-		}
-		out[k] = v
-	}
-	return out, rows.Err()
+	return policyJSON, err
 }
 
 // LogOperation appends an audit row.
@@ -382,17 +401,4 @@ func (d *DB) CountAccountsByUser(ctx context.Context, userID int64) (int, error)
 	var n int
 	err := d.QueryRowContext(ctx, `SELECT COUNT(*) FROM accounts WHERE user_id = ?`, userID).Scan(&n)
 	return n, err
-}
-
-// Encode/decode are intentionally trivial right now. The version prefix gives
-// us a hook to swap in kdf-protected ciphertext later without a schema
-// migration; for now it is reversible by anyone with database access.
-func encodePassword(plain string) string  { return "v0:" + plain }
-func decodePassword(stored string) string { return stripPrefix(stored, "v0:") }
-
-func stripPrefix(s, prefix string) string {
-	if len(s) >= len(prefix) && s[:len(prefix)] == prefix {
-		return s[len(prefix):]
-	}
-	return s
 }

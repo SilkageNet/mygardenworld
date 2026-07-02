@@ -42,9 +42,8 @@ func finishLogin(ctx context.Context, http *HTTPClient, native NativeLogin, isSi
 	if err != nil {
 		return nil, err
 	}
-	if _, err := http.QueryLoginParams(ctx); err != nil {
-		// Non-fatal; server returns this for UI flags only.
-	}
+	// Non-fatal; server returns this for UI flags only.
+	_, _ = http.QueryLoginParams(ctx)
 
 	gw, err := http.GWIndexLogin(ctx, gameLogin, isSimulator)
 	if err != nil {

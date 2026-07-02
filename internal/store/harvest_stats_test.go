@@ -13,7 +13,7 @@ func TestLatestHarvestStatsUsesRecentContiguousWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
 	if err != nil {
 		t.Fatal(err)

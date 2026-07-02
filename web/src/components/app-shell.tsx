@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 2xl:px-10">
           <Link href="/" className="min-w-0">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">花园世界</div>
+              <div className="truncate text-sm font-semibold">花序</div>
             </div>
           </Link>
           <div className="flex items-center gap-2">

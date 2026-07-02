@@ -1,1 +1,0 @@
-Release builds copy the static web bundle into this directory before compiling gardend.

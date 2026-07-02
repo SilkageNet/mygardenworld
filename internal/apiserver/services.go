@@ -46,6 +46,7 @@ var (
 func (svc *Services) resolveAccount(ctx context.Context, id, name string) (*store.Account, error) {
 	var acc *store.Account
 	var err error
+	identity := auth.IdentityFromContext(ctx)
 	if id != "" {
 		n, parseErr := strconv.ParseInt(id, 10, 64)
 		if parseErr == nil && n > 0 {
@@ -53,7 +54,11 @@ func (svc *Services) resolveAccount(ctx context.Context, id, name string) (*stor
 		}
 	}
 	if acc == nil && name != "" {
-		acc, err = svc.DB.GetAccountByName(ctx, name)
+		var userID int64
+		if identity != nil && identity.Role != "admin" {
+			userID = identity.UserID
+		}
+		acc, err = svc.DB.GetAccountByName(ctx, userID, name)
 	}
 	if acc == nil && err == nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account id or name required"))
@@ -61,7 +66,6 @@ func (svc *Services) resolveAccount(ctx context.Context, id, name string) (*stor
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	identity := auth.IdentityFromContext(ctx)
 	if identity != nil && identity.Role != "admin" && acc.UserID != identity.UserID {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("not your account"))
 	}
@@ -199,6 +203,8 @@ func mapErr(err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, store.ErrAccountExists):
 		return connect.NewError(connect.CodeAlreadyExists, err)
+	case errors.Is(err, store.ErrAccountAmbiguous):
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("account name matches multiple users; use account id"))
 	case errors.Is(err, store.ErrUserNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, store.ErrUserExists):

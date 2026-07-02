@@ -3,6 +3,7 @@ package apiserver
 import (
 	"context"
 	"errors"
+	"time"
 
 	connect "connectrpc.com/connect"
 	"golang.org/x/crypto/bcrypt"
@@ -36,7 +37,7 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, pair.ExpiresAt.Add(auth.RefreshTokenDuration)); err != nil {
+	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
@@ -68,7 +69,7 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, pair.ExpiresAt.Add(auth.RefreshTokenDuration)); err != nil {
+	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)

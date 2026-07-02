@@ -108,11 +108,15 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 		return nil, fmt.Errorf("account %q: %w", acc.Name, err)
 	}
 	r := New(cfg, m.db, acc, m.bus, m.log)
-	if entries, err := m.db.LoadPolicyValues(ctx, acc.ID); err == nil {
-		r.SetPolicy(policycfg.FromEntries(entries))
-	} else {
-		m.log.Warn("load policy failed", "account", acc.Name, "err", err)
+	rawPolicy, err := m.db.LoadPolicyJSON(ctx, acc.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load policy for %q: %w", acc.Name, err)
 	}
+	policy, err := policycfg.FromJSON(rawPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("load policy for %q: %w", acc.Name, err)
+	}
+	r.SetPolicy(policy)
 	if m.DebugDir != "" {
 		path := fmt.Sprintf("%s/%s_debug.jsonl", m.DebugDir, acc.Name)
 		dw, err := babigame.NewDebugFrameWriter(path)

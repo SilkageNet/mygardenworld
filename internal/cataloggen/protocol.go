@@ -473,12 +473,23 @@ func writeClientStateTypes(b *bytes.Buffer, schemas []ProtocolSchema) {
 		typeName := stateSchemaTypeName(schema.Name)
 		fmt.Fprintf(b, "type %s struct {\n", typeName)
 		used := make(map[string]int)
+		usedIndexes := make(map[int]int)
 		for _, field := range schema.Fields {
 			fieldName := uniqueFieldName(used, exportFieldName(field.Name))
-			fmt.Fprintf(b, "\t%s %s `json:\"%d,omitempty\"`\n", fieldName, inferStateFieldType(field, known), field.Index)
+			jsonTag := stateJSONTag(field, usedIndexes)
+			fmt.Fprintf(b, "\t%s %s `json:\"%s\"`\n", fieldName, inferStateFieldType(field, known), jsonTag)
 		}
 		b.WriteString("}\n\n")
 	}
+}
+
+func stateJSONTag(field ProtocolField, usedIndexes map[int]int) string {
+	count := usedIndexes[field.Index]
+	usedIndexes[field.Index] = count + 1
+	if count > 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%d,omitempty", field.Index)
 }
 
 func stateSchemaTypeName(name string) string {

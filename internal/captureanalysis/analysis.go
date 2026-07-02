@@ -296,12 +296,12 @@ func BuildRPCIndex(sessionDir string, opts Options) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open websocket jsonl: %w", err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	out, err := newFileWriter(rpcPath)
 	if err != nil {
 		return "", err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	decoder, err := NewDecoder(opts.Channel, out)
 	if err != nil {
 		return "", err
@@ -436,7 +436,7 @@ func summarizeFlows(sessionDir string, report *Report) error {
 	if err != nil {
 		return fmt.Errorf("open flows jsonl: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	flowTypes := make(map[string]int)
 	hosts := make(map[string]int)
 	babigamePaths := make(map[string]int)
@@ -481,7 +481,7 @@ func summarizeRPCIndex(sessionDir string, report *Report) error {
 	if err != nil {
 		return fmt.Errorf("open rpc index: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	recordTypes := make(map[string]int)
 	rpcs := make(map[string]int)
 	rpcNamespaces := make(map[string]int)

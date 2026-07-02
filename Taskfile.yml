@@ -9,9 +9,9 @@ vars:
   FRONTEND_HOST: '{{default "127.0.0.1" .FRONTEND_HOST}}'
   FRONTEND_PORT: '{{default "3000" .FRONTEND_PORT}}'
   API_URL: '{{default "http://127.0.0.1:50051" .API_URL}}'
-  JWT_SECRET: '{{default "dev-secret" .JWT_SECRET}}'
+  JWT_SECRET: '{{default "" .JWT_SECRET}}'
   ADMIN_USERNAME: '{{default "admin" .ADMIN_USERNAME}}'
-  ADMIN_PASSWORD: '{{default "admin123" .ADMIN_PASSWORD}}'
+  ADMIN_PASSWORD: '{{default "" .ADMIN_PASSWORD}}'
   ADMIN_EMAIL: '{{default "admin@localhost" .ADMIN_EMAIL}}'
   CORS_ORIGINS: '{{default "http://localhost:3000,http://127.0.0.1:3000" .CORS_ORIGINS}}'
   SERVER_LOG_LEVEL: '{{default "info" .SERVER_LOG_LEVEL}}'
@@ -24,15 +24,12 @@ tasks:
       - task --list
 
   install:
-    desc: Install gardend, gardenctl, gardencap, and gardencatalog to GOPATH/bin
+    desc: Install gardend to GOPATH/bin
     cmds:
       - go install ./cmd/gardend
-      - go install ./cmd/gardenctl
-      - go install ./cmd/gardencap
-      - go install ./cmd/gardencatalog
 
   build:
-    desc: Build binaries to bin/
+    desc: Build gardend to bin/
     cmds:
       - cmd: mkdir bin
         platforms: [windows]
@@ -41,19 +38,7 @@ tasks:
         platforms: [linux, darwin]
       - cmd: go build -o bin/gardend.exe ./cmd/gardend
         platforms: [windows]
-      - cmd: go build -o bin/gardenctl.exe ./cmd/gardenctl
-        platforms: [windows]
-      - cmd: go build -o bin/gardencap.exe ./cmd/gardencap
-        platforms: [windows]
-      - cmd: go build -o bin/gardencatalog.exe ./cmd/gardencatalog
-        platforms: [windows]
       - cmd: go build -o bin/gardend ./cmd/gardend
-        platforms: [linux, darwin]
-      - cmd: go build -o bin/gardenctl ./cmd/gardenctl
-        platforms: [linux, darwin]
-      - cmd: go build -o bin/gardencap ./cmd/gardencap
-        platforms: [linux, darwin]
-      - cmd: go build -o bin/gardencatalog ./cmd/gardencatalog
         platforms: [linux, darwin]
 
   catalog-gen:
@@ -122,6 +107,11 @@ tasks:
     cmds:
       - golangci-lint run ./...
 
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
   proto-gen:
     desc: Generate Go code from proto
     cmds:
@@ -180,9 +170,11 @@ tasks:
       - task: frontend
 
   check:
-    desc: Run backend tests and frontend lint/build
+    desc: Run backend tests, Go vet/lint, and frontend lint/build
     cmds:
       - task: test
+      - task: vet
+      - task: lint
       - task: frontend:lint
       - task: frontend:build
 

@@ -21,27 +21,26 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	PolicyService_GetPolicy_FullMethodName    = "/mygardenworld.v1.PolicyService/GetPolicy"
 	PolicyService_SetPolicy_FullMethodName    = "/mygardenworld.v1.PolicyService/SetPolicy"
-	PolicyService_UpdatePolicy_FullMethodName = "/mygardenworld.v1.PolicyService/UpdatePolicy"
+	PolicyService_ExportPolicy_FullMethodName = "/mygardenworld.v1.PolicyService/ExportPolicy"
+	PolicyService_ImportPolicy_FullMethodName = "/mygardenworld.v1.PolicyService/ImportPolicy"
+	PolicyService_CopyPolicy_FullMethodName   = "/mygardenworld.v1.PolicyService/CopyPolicy"
 )
 
 // PolicyServiceClient is the client API for PolicyService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type PolicyServiceClient interface {
-	// Returns the merged effective policy for the account. Unset typed fields
-	// are filled with defaults; raw key/value entries are surfaced via extras.
+	// Returns the full effective policy for the account. Unset typed fields are
+	// filled with current defaults.
 	GetPolicy(ctx context.Context, in *GetPolicyRequest, opts ...grpc.CallOption) (*GetPolicyResponse, error)
-	// Replaces the entire policy struct. Use UpdatePolicy for partial edits.
+	// Replaces the entire policy struct.
 	SetPolicy(ctx context.Context, in *SetPolicyRequest, opts ...grpc.CallOption) (*SetPolicyResponse, error)
-	// Patch a subset of policy keys, dot-path style. Examples:
-	//
-	//	"automation_enabled" = "true"
-	//	"plant.mode"         = "high_value"
-	//	"plant.task_priority_enabled" = "true"
-	//	"plant.allowed_flower_ids" = "23001,23005"
-	//
-	// Values are parsed against the proto field type.
-	UpdatePolicy(ctx context.Context, in *UpdatePolicyRequest, opts ...grpc.CallOption) (*UpdatePolicyResponse, error)
+	// Exports the full policy as protojson for backup or copying outside the UI.
+	ExportPolicy(ctx context.Context, in *ExportPolicyRequest, opts ...grpc.CallOption) (*ExportPolicyResponse, error)
+	// Imports a full protojson policy. This replaces the account policy.
+	ImportPolicy(ctx context.Context, in *ImportPolicyRequest, opts ...grpc.CallOption) (*ImportPolicyResponse, error)
+	// Copies one account's full policy to another account.
+	CopyPolicy(ctx context.Context, in *CopyPolicyRequest, opts ...grpc.CallOption) (*CopyPolicyResponse, error)
 }
 
 type policyServiceClient struct {
@@ -72,10 +71,30 @@ func (c *policyServiceClient) SetPolicy(ctx context.Context, in *SetPolicyReques
 	return out, nil
 }
 
-func (c *policyServiceClient) UpdatePolicy(ctx context.Context, in *UpdatePolicyRequest, opts ...grpc.CallOption) (*UpdatePolicyResponse, error) {
+func (c *policyServiceClient) ExportPolicy(ctx context.Context, in *ExportPolicyRequest, opts ...grpc.CallOption) (*ExportPolicyResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(UpdatePolicyResponse)
-	err := c.cc.Invoke(ctx, PolicyService_UpdatePolicy_FullMethodName, in, out, cOpts...)
+	out := new(ExportPolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_ExportPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyServiceClient) ImportPolicy(ctx context.Context, in *ImportPolicyRequest, opts ...grpc.CallOption) (*ImportPolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ImportPolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_ImportPolicy_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *policyServiceClient) CopyPolicy(ctx context.Context, in *CopyPolicyRequest, opts ...grpc.CallOption) (*CopyPolicyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CopyPolicyResponse)
+	err := c.cc.Invoke(ctx, PolicyService_CopyPolicy_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,20 +105,17 @@ func (c *policyServiceClient) UpdatePolicy(ctx context.Context, in *UpdatePolicy
 // All implementations should embed UnimplementedPolicyServiceServer
 // for forward compatibility.
 type PolicyServiceServer interface {
-	// Returns the merged effective policy for the account. Unset typed fields
-	// are filled with defaults; raw key/value entries are surfaced via extras.
+	// Returns the full effective policy for the account. Unset typed fields are
+	// filled with current defaults.
 	GetPolicy(context.Context, *GetPolicyRequest) (*GetPolicyResponse, error)
-	// Replaces the entire policy struct. Use UpdatePolicy for partial edits.
+	// Replaces the entire policy struct.
 	SetPolicy(context.Context, *SetPolicyRequest) (*SetPolicyResponse, error)
-	// Patch a subset of policy keys, dot-path style. Examples:
-	//
-	//	"automation_enabled" = "true"
-	//	"plant.mode"         = "high_value"
-	//	"plant.task_priority_enabled" = "true"
-	//	"plant.allowed_flower_ids" = "23001,23005"
-	//
-	// Values are parsed against the proto field type.
-	UpdatePolicy(context.Context, *UpdatePolicyRequest) (*UpdatePolicyResponse, error)
+	// Exports the full policy as protojson for backup or copying outside the UI.
+	ExportPolicy(context.Context, *ExportPolicyRequest) (*ExportPolicyResponse, error)
+	// Imports a full protojson policy. This replaces the account policy.
+	ImportPolicy(context.Context, *ImportPolicyRequest) (*ImportPolicyResponse, error)
+	// Copies one account's full policy to another account.
+	CopyPolicy(context.Context, *CopyPolicyRequest) (*CopyPolicyResponse, error)
 }
 
 // UnimplementedPolicyServiceServer should be embedded to have
@@ -115,8 +131,14 @@ func (UnimplementedPolicyServiceServer) GetPolicy(context.Context, *GetPolicyReq
 func (UnimplementedPolicyServiceServer) SetPolicy(context.Context, *SetPolicyRequest) (*SetPolicyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetPolicy not implemented")
 }
-func (UnimplementedPolicyServiceServer) UpdatePolicy(context.Context, *UpdatePolicyRequest) (*UpdatePolicyResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UpdatePolicy not implemented")
+func (UnimplementedPolicyServiceServer) ExportPolicy(context.Context, *ExportPolicyRequest) (*ExportPolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExportPolicy not implemented")
+}
+func (UnimplementedPolicyServiceServer) ImportPolicy(context.Context, *ImportPolicyRequest) (*ImportPolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ImportPolicy not implemented")
+}
+func (UnimplementedPolicyServiceServer) CopyPolicy(context.Context, *CopyPolicyRequest) (*CopyPolicyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CopyPolicy not implemented")
 }
 func (UnimplementedPolicyServiceServer) testEmbeddedByValue() {}
 
@@ -174,20 +196,56 @@ func _PolicyService_SetPolicy_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PolicyService_UpdatePolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdatePolicyRequest)
+func _PolicyService_ExportPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExportPolicyRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PolicyServiceServer).UpdatePolicy(ctx, in)
+		return srv.(PolicyServiceServer).ExportPolicy(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PolicyService_UpdatePolicy_FullMethodName,
+		FullMethod: PolicyService_ExportPolicy_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PolicyServiceServer).UpdatePolicy(ctx, req.(*UpdatePolicyRequest))
+		return srv.(PolicyServiceServer).ExportPolicy(ctx, req.(*ExportPolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyService_ImportPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ImportPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).ImportPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_ImportPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).ImportPolicy(ctx, req.(*ImportPolicyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PolicyService_CopyPolicy_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CopyPolicyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PolicyServiceServer).CopyPolicy(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PolicyService_CopyPolicy_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PolicyServiceServer).CopyPolicy(ctx, req.(*CopyPolicyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -208,8 +266,16 @@ var PolicyService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _PolicyService_SetPolicy_Handler,
 		},
 		{
-			MethodName: "UpdatePolicy",
-			Handler:    _PolicyService_UpdatePolicy_Handler,
+			MethodName: "ExportPolicy",
+			Handler:    _PolicyService_ExportPolicy_Handler,
+		},
+		{
+			MethodName: "ImportPolicy",
+			Handler:    _PolicyService_ImportPolicy_Handler,
+		},
+		{
+			MethodName: "CopyPolicy",
+			Handler:    _PolicyService_CopyPolicy_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

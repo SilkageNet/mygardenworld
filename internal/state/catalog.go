@@ -109,6 +109,23 @@ type RoadGrowTask struct {
 	TargetLevel int32
 }
 
+// WeeklyTask describes one c_task_week row that can be evaluated from
+// namespace 22.100 progress and recv maps.
+type WeeklyTask struct {
+	TaskID       int32
+	Title        string
+	ProgressType int32
+	Target       int32
+}
+
+// FmlBuildOption describes one c_fmlBld donation/build option.
+type FmlBuildOption struct {
+	ID     int32
+	Name   string
+	ItemID int32
+	Cost   int32
+}
+
 // ItemInfoByID returns a defensive copy of a c_item catalog row.
 func ItemInfoByID(id int32) (ItemInfo, bool) {
 	item, ok := catalog.Items[id]
@@ -306,6 +323,66 @@ func DailyTaskProgressType(taskID int32) (int32, bool) {
 		return 0, false
 	}
 	return row.Type, true
+}
+
+// WeeklyTaskDefinitions returns weekly task rows sorted by task id.
+func WeeklyTaskDefinitions() []WeeklyTask {
+	table, ok := StaticTableByName("c_task_week")
+	if !ok {
+		return nil
+	}
+	out := make([]WeeklyTask, 0, len(table.Rows))
+	for idStr, raw := range table.Rows {
+		taskID := atoiCatalogID(idStr)
+		if taskID == 0 {
+			continue
+		}
+		var row struct {
+			Desc  string  `json:"desc"`
+			Type  int32   `json:"type"`
+			Value []int32 `json:"value"`
+		}
+		if json.Unmarshal(raw, &row) != nil || row.Type == 0 || len(row.Value) == 0 || row.Value[0] <= 0 {
+			continue
+		}
+		title := strings.TrimSpace(row.Desc)
+		if title != "" {
+			title = strings.ReplaceAll(title, "${value}", strconv.FormatInt(int64(row.Value[0]), 10))
+		}
+		out = append(out, WeeklyTask{
+			TaskID:       taskID,
+			Title:        title,
+			ProgressType: row.Type,
+			Target:       row.Value[0],
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TaskID < out[j].TaskID })
+	return out
+}
+
+// FmlBuildOptionByID returns the client-visible cost for one guild build
+// option. The video/share option has no item cost.
+func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
+	raw, ok := StaticRow("c_fmlBld", id)
+	if !ok {
+		return FmlBuildOption{}, false
+	}
+	var row struct {
+		Name  string    `json:"name"`
+		Items [][]int32 `json:"items"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return FmlBuildOption{}, false
+	}
+	out := FmlBuildOption{ID: id, Name: strings.TrimSpace(row.Name)}
+	if len(row.Items) > 0 && len(row.Items[0]) >= 2 {
+		out.ItemID = row.Items[0][0]
+		if id == 2 {
+			out.ItemID = 11
+		}
+		out.Cost = row.Items[0][1]
+	}
+	return out, true
 }
 
 func taskTitleFromTable(tableName string, taskID, target int32) string {

@@ -28,9 +28,8 @@ if ($ExpectedArch -ne "__MYGARDENWORLD_ARCH__" -and $ExpectedArch -ne $CurrentAr
 $InvocationPath = $MyInvocation.MyCommand.Path
 $ScriptDir = if ($InvocationPath) { Split-Path -Parent $InvocationPath } else { (Get-Location).Path }
 $Gardend = Join-Path $ScriptDir "gardend.exe"
-$Gardenctl = Join-Path $ScriptDir "gardenctl.exe"
 
-if (-not (Test-Path $Gardend) -or -not (Test-Path $Gardenctl)) {
+if (-not (Test-Path $Gardend)) {
     $DownloadOS = if ($ExpectedOS -ne "__MYGARDENWORLD_OS__") { $ExpectedOS } else { $CurrentOS }
     $DownloadArch = if ($ExpectedArch -ne "__MYGARDENWORLD_ARCH__") { $ExpectedArch } else { $CurrentArch }
     $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
@@ -47,12 +46,10 @@ if (-not (Test-Path $Gardend) -or -not (Test-Path $Gardenctl)) {
         Invoke-WebRequest -Uri $Asset.browser_download_url -OutFile $Archive
         Expand-Archive -Path $Archive -DestinationPath $TempDir -Force
         $DownloadedGardend = Get-ChildItem -Path $TempDir -Recurse -File -Filter "gardend.exe" | Select-Object -First 1
-        $DownloadedGardenctl = Get-ChildItem -Path $TempDir -Recurse -File -Filter "gardenctl.exe" | Select-Object -First 1
-        if (-not $DownloadedGardend -or -not $DownloadedGardenctl) {
-            throw "gardend.exe or gardenctl.exe not found in downloaded archive"
+        if (-not $DownloadedGardend) {
+            throw "gardend.exe not found in downloaded archive"
         }
         $Gardend = $DownloadedGardend.FullName
-        $Gardenctl = $DownloadedGardenctl.FullName
     } catch {
         Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
         throw
@@ -64,7 +61,6 @@ $InstallDir = if ($env:INSTALL_DIR) { $env:INSTALL_DIR } else { $DefaultInstallD
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
 Copy-Item -Force -Path $Gardend -Destination (Join-Path $InstallDir "gardend.exe")
-Copy-Item -Force -Path $Gardenctl -Destination (Join-Path $InstallDir "gardenctl.exe")
 if ($TempDir) {
     Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
 }
@@ -81,6 +77,5 @@ if ($PathParts -notcontains $InstallDir) {
     Write-Host "Added $InstallDir to your user PATH. Restart your terminal if gardend is not found."
 }
 
-Write-Host "Installed gardend and gardenctl to $InstallDir"
+Write-Host "Installed gardend to $InstallDir"
 Write-Host "Run: gardend --help"
-Write-Host "Run: gardenctl --help"

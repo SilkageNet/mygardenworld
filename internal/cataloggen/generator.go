@@ -474,7 +474,7 @@ func httpGet(ctx context.Context, httpc *http.Client, rawURL string) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return nil, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
@@ -669,8 +669,7 @@ func viewFieldName(tableName, field string) string {
 			return "elves_flower"
 		}
 	case "c_farmLand":
-		switch field {
-		case "openLvl":
+		if field == "openLvl" {
 			return "open_level"
 		}
 	}

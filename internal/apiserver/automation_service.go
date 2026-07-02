@@ -7,7 +7,6 @@ import (
 	connect "connectrpc.com/connect"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
-	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 )
 
@@ -23,7 +22,7 @@ func (svc *Services) Start(ctx context.Context, req *connect.Request[pb.StartReq
 	p := r.Policy()
 	p.AutomationEnabled = true
 	r.SetPolicy(p)
-	_ = svc.DB.SetPolicyValue(ctx, acc.ID, policycfg.KeyAutomationEnabled, "true")
+	_ = svc.persistPolicy(ctx, acc.ID, p)
 	r.Emit(policyEvent(true))
 	return connect.NewResponse(&pb.StartResponse{}), nil
 }
@@ -34,13 +33,16 @@ func (svc *Services) Stop(ctx context.Context, req *connect.Request[pb.StopReque
 		return nil, mapErr(err)
 	}
 	r := svc.Manager.Get(acc.ID)
+	p, err := svc.policyFor(ctx, acc.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	p.AutomationEnabled = false
 	if r != nil {
-		p := r.Policy()
-		p.AutomationEnabled = false
 		r.SetPolicy(p)
 		r.Emit(policyEvent(false))
 	}
-	_ = svc.DB.SetPolicyValue(ctx, acc.ID, policycfg.KeyAutomationEnabled, "false")
+	_ = svc.persistPolicy(ctx, acc.ID, p)
 	return connect.NewResponse(&pb.StopResponse{}), nil
 }
 
@@ -61,5 +63,5 @@ func policyEvent(enabled bool) runner.Event {
 	if enabled {
 		message = "自动化已启动"
 	}
-	return runner.Event{Kind: "policy_changed", Message: message, PayloadJSON: string(payload)}
+	return runner.Event{Kind: "policy_changed", Category: "system", Domain: "policy", Action: "set", Message: message, PayloadJSON: string(payload)}
 }

@@ -147,6 +147,16 @@ type DailyTaskView struct {
 	Receipted int32 `json:"receipted"`
 }
 
+// WeeklyTaskView is the tracked subset of c_task_week evaluated against
+// namespace 22.100 progress and receipt maps.
+type WeeklyTaskView struct {
+	TaskID    int32 `json:"task_id"`
+	Target    int32 `json:"target"`
+	Finished  int32 `json:"finished"`
+	Status    int32 `json:"status"`
+	Receipted int32 `json:"receipted"`
+}
+
 // MainTaskView is the tracked subset of G.ITaskMain from namespace 22.0.
 type MainTaskView struct {
 	TaskID   int32 `json:"task_id"`
@@ -179,7 +189,6 @@ type State struct {
 	diamondsFree       int32           // 7.0.41 免费钻石
 	diamondsPaid       int32           // 7.0.42 付费钻石
 	roleID             int64
-	roleName           string
 
 	rawNamespaces   map[string]json.RawMessage
 	namespaceCounts map[string]int32
@@ -201,8 +210,9 @@ type State struct {
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 
-	mainTask   *MainTaskView            // 22.0 当前主线任务
-	dailyTasks map[int32]*DailyTaskView // 22.1.100.<taskId>
+	mainTask    *MainTaskView             // 22.0 当前主线任务
+	dailyTasks  map[int32]*DailyTaskView  // 22.1.100.<taskId>
+	weeklyTasks map[int32]*WeeklyTaskView // 22.100 + c_task_week
 
 	roadGrowReceived map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents     map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
@@ -281,6 +291,7 @@ func New() *State {
 		flowerOrders:               make(map[int32]*FlowerOrder),
 		flowerOrderRewardsReceived: make(map[int32]bool),
 		dailyTasks:                 make(map[int32]*DailyTaskView),
+		weeklyTasks:                make(map[int32]*WeeklyTaskView),
 		roadGrowReceived:           make(map[int32]bool),
 		randomEvents:               make(map[int32]*RandomEventView),
 	}
@@ -1099,48 +1110,22 @@ func (s *State) applyTasksLocked(raw json.RawMessage) {
 			}
 		}
 	}
-	rawDaily, ok := ns22["1"]
-	if !ok {
-		return
+	if rawDaily, ok := ns22["1"]; ok {
+		s.applyDailyTasksLocked(rawDaily)
 	}
+	if rawWeekly, ok := ns22["100"]; ok {
+		s.applyWeeklyTasksLocked(rawWeekly)
+	}
+}
+
+func (s *State) applyDailyTasksLocked(rawDaily json.RawMessage) {
 	var daily map[string]json.RawMessage
 	if err := json.Unmarshal(rawDaily, &daily); err != nil {
 		return
 	}
 
-	progressMap := map[int32]int32{}
-	if rawProgress, ok := daily["1"]; ok {
-		var progress map[string]json.RawMessage
-		if err := json.Unmarshal(rawProgress, &progress); err == nil {
-			for typeStr, rawValue := range progress {
-				progressType := atoi32(typeStr)
-				if progressType == 0 {
-					continue
-				}
-				var n int32
-				if json.Unmarshal(rawValue, &n) == nil {
-					progressMap[progressType] = n
-				}
-			}
-		}
-	}
-
-	recvMap := map[int32]int32{}
-	if rawRecv, ok := daily["3"]; ok {
-		var recv map[string]json.RawMessage
-		if err := json.Unmarshal(rawRecv, &recv); err == nil {
-			for idStr, rawValue := range recv {
-				id := atoi32(idStr)
-				if id == 0 {
-					continue
-				}
-				var n int32
-				if json.Unmarshal(rawValue, &n) == nil {
-					recvMap[id] = n
-				}
-			}
-		}
-	}
+	progressMap := readInt32RawMap(daily["1"])
+	recvMap := readInt32RawMap(daily["3"])
 
 	rawTaskMap, ok := daily["100"]
 	if !ok {
@@ -1176,6 +1161,45 @@ func (s *State) applyTasksLocked(raw json.RawMessage) {
 			Finished:  finished,
 			Status:    readInt32Any(fields["4"]),
 			Receipted: recvMap[id],
+		}
+	}
+}
+
+func (s *State) applyWeeklyTasksLocked(rawWeekly json.RawMessage) {
+	var weekly map[string]json.RawMessage
+	if err := json.Unmarshal(rawWeekly, &weekly); err != nil {
+		return
+	}
+	rawProgress, progressObserved := weekly["1"]
+	rawRecv, recvObserved := weekly["3"]
+	progressMap := readInt32RawMap(rawProgress)
+	recvMap := readInt32RawMap(rawRecv)
+	defs := WeeklyTaskDefinitions()
+	prev := s.weeklyTasks
+	s.weeklyTasks = make(map[int32]*WeeklyTaskView, len(defs))
+	for _, def := range defs {
+		finished := progressMap[def.ProgressType]
+		receipted := recvMap[def.TaskID]
+		if old := prev[def.TaskID]; old != nil {
+			if !progressObserved {
+				finished = old.Finished
+			}
+			if !recvObserved {
+				receipted = old.Receipted
+			}
+		}
+		status := int32(2)
+		if receipted != 0 {
+			status = 3
+		} else if def.Target > 0 && finished >= def.Target {
+			status = 1
+		}
+		s.weeklyTasks[def.TaskID] = &WeeklyTaskView{
+			TaskID:    def.TaskID,
+			Target:    def.Target,
+			Finished:  finished,
+			Status:    status,
+			Receipted: receipted,
 		}
 	}
 }
@@ -1447,7 +1471,7 @@ func (s *State) PlantableFlowers(allowed []int32, blocked []int32) []PlantableFl
 		if _, ok := blockedSet[id]; ok {
 			continue
 		}
-		info, _ := catalog.Flowers[id]
+		info := catalog.Flowers[id]
 		out = append(out, PlantableFlower{
 			FlowerID:   id,
 			Stock:      s.inventory[id],
@@ -2001,10 +2025,22 @@ func (s *State) ReadyDailyTaskIDs() []int32 {
 	defer s.mu.RUnlock()
 	out := make([]int32, 0, len(s.dailyTasks))
 	for id, task := range s.dailyTasks {
-		if task == nil || task.Receipted != 0 {
-			continue
+		if task != nil && taskClaimable(task.Status, task.Target, task.Finished, task.Receipted) {
+			out = append(out, id)
 		}
-		if task.Status == 1 || (task.Status == 0 && task.Target > 0 && task.Finished >= task.Target) {
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyWeeklyTaskIDs returns weekly task ids that look claimable from namespace
+// 22.100 and the current c_task_week table.
+func (s *State) ReadyWeeklyTaskIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.weeklyTasks))
+	for id, task := range s.weeklyTasks {
+		if task != nil && taskClaimable(task.Status, task.Target, task.Finished, task.Receipted) {
 			out = append(out, id)
 		}
 	}
@@ -2082,6 +2118,19 @@ func (s *State) DailyTasks() map[int32]DailyTaskView {
 	return out
 }
 
+// WeeklyTasks returns a copy of tracked weekly task progress.
+func (s *State) WeeklyTasks() map[int32]WeeklyTaskView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]WeeklyTaskView, len(s.weeklyTasks))
+	for id, task := range s.weeklyTasks {
+		if task != nil {
+			out[id] = *task
+		}
+	}
+	return out
+}
+
 // NextFreeWaterIndex returns the next candidate idx for freeWater.recv.
 // The static client schema exposes IFreeWater.recvIdx and the RPC argument
 // is also named idx, so use the observed index directly and let the server
@@ -2104,6 +2153,35 @@ func setOf(ids []int32) map[int32]struct{} {
 		m[id] = struct{}{}
 	}
 	return m
+}
+
+func taskClaimable(status, target, finished, receipted int32) bool {
+	if receipted != 0 {
+		return false
+	}
+	return status == 1 || (status == 0 && target > 0 && finished >= target)
+}
+
+func readInt32RawMap(raw json.RawMessage) map[int32]int32 {
+	out := map[int32]int32{}
+	if len(raw) == 0 {
+		return out
+	}
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return out
+	}
+	for key, rawValue := range values {
+		id := atoi32(key)
+		if id == 0 {
+			continue
+		}
+		var n int32
+		if json.Unmarshal(rawValue, &n) == nil {
+			out[id] = n
+		}
+	}
+	return out
 }
 
 func readInt(m map[string]any, keys ...string) int {

@@ -119,7 +119,9 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	}
 
 	// Send home verification after login to satisfy anti-cheat.
-	r.ensureHomeRqst(ctx)
+	if err := r.ensureHomeRqst(ctx); err != nil {
+		r.log.Debug("home verification failed", "err", err)
+	}
 
 	r.emit(Event{Kind: "session", Message: fmt.Sprintf("已连接 (服务器=%s 区=%d)", session.GsHost, session.GsIdx)})
 	return client, nil

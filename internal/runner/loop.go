@@ -19,6 +19,10 @@ const (
 	waterSourceSyncPeriod = 60 * time.Second
 	freeWaterRetryWait    = time.Hour
 	dailyTaskRetryWait    = 30 * time.Minute
+	weeklyTaskRetryWait   = 30 * time.Minute
+	mailRetryWait         = 30 * time.Minute
+	signRetryWait         = 30 * time.Minute
+	unionBuildRetryWait   = 30 * time.Minute
 )
 
 func (r *Runner) decisionLoop(ctx context.Context) {
@@ -76,7 +80,7 @@ func (r *Runner) tick(ctx context.Context) {
 		return
 	}
 
-	// 培育自动化（60 秒节流，与 misc 独立计时）
+	// 培育自动化（60 秒节流，与领域后台任务独立计时）
 	if time.Since(r.lastCultivateTick) >= 60*time.Second {
 		r.lastCultivateTick = time.Now()
 		r.tickCultivate(ctx, client, session)
@@ -85,8 +89,8 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 	}
 
-	// 订单/任务/主线自动化
-	r.tickMisc(ctx, client, session)
+	// 基础/订单/公会/活动域后台自动化
+	r.tickDomainWork(ctx, client, session)
 	if r.isSessionInvalidated() {
 		return
 	}
@@ -108,6 +112,9 @@ func (r *Runner) tick(ctx context.Context) {
 		opErr = fmt.Errorf("rqst: %w", err)
 		r.emit(Event{
 			Kind:        "operation_failed",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
 			Message:     fmt.Sprintf("%s 已跳过: 前置校验失败: %v", opDesc(op), err),
 			PayloadJSON: operationPayload(op, nil, nil, err),
 			Level:       "warn",
@@ -142,6 +149,9 @@ func (r *Runner) tick(ctx context.Context) {
 		opErr = err
 		r.emit(Event{
 			Kind:        "operation_failed",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "failed",
 			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
 			PayloadJSON: operationPayload(op, nil, nil, err),
 		})
@@ -150,6 +160,9 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 	r.emit(Event{
 		Kind:        "operation_planned",
+		Category:    op.Category,
+		Domain:      op.Domain,
+		Action:      op.Action,
 		Message:     fmt.Sprintf("计划执行 %s (田地=%v)", opDesc(op), op.LandIDs),
 		PayloadJSON: operationPayload(op, args, nil, nil),
 	})
@@ -160,6 +173,9 @@ func (r *Runner) tick(ctx context.Context) {
 			r.setHarvestBlockedUntil(op.LandIDs, time.Now().Add(harvestRetryWait))
 			r.emit(Event{
 				Kind:        "operation_failed",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
 				Message:     fmt.Sprintf("%s 暂缓: 服务端提示鲜花尚未成熟，稍后重试 (田地=%v)", opDesc(op), op.LandIDs),
 				PayloadJSON: operationPayload(op, args, nil, err),
 				Level:       "warn",
@@ -169,6 +185,9 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 		r.emit(Event{
 			Kind:        "operation_failed",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "failed",
 			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
 			PayloadJSON: operationPayload(op, args, nil, err),
 		})
@@ -181,6 +200,9 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 	r.emit(Event{
 		Kind:        "operation_ack",
+		Category:    op.Category,
+		Domain:      op.Domain,
+		Action:      op.Action,
 		Message:     fmt.Sprintf("%s 完成 (田地=%v)", opDesc(op), op.LandIDs),
 		PayloadJSON: operationPayload(op, args, v, nil),
 	})
@@ -225,8 +247,13 @@ func (r *Runner) applyHarvestBlocks(op *automation.PlannedOp, now time.Time) *au
 			continue
 		}
 		return &automation.PlannedOp{
-			Kind:    "usrLand.harvest",
-			LandIDs: []int32{id},
+			Kind:     "usrLand.harvest",
+			Category: op.Category,
+			Domain:   op.Domain,
+			Action:   op.Action,
+			Reason:   op.Reason,
+			Priority: op.Priority,
+			LandIDs:  []int32{id},
 		}
 	}
 	return nil
@@ -448,6 +475,11 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, err error) string {
 	payload := map[string]any{
 		"rpc":      op.Kind,
+		"category": op.Category,
+		"domain":   op.Domain,
+		"action":   op.Action,
+		"priority": op.Priority,
+		"reason":   op.Reason,
 		"label":    opDesc(op),
 		"landIds":  op.LandIDs,
 		"args":     args,

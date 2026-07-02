@@ -40,7 +40,7 @@ if [ "$EXPECTED_OS" != "__MYGARDENWORLD_OS__" ]; then DOWNLOAD_OS="$EXPECTED_OS"
 if [ "$EXPECTED_ARCH" != "__MYGARDENWORLD_ARCH__" ]; then DOWNLOAD_ARCH="$EXPECTED_ARCH"; fi
 
 TMP_DIR=""
-if [ ! -f "${SCRIPT_DIR}/gardend" ] || [ ! -f "${SCRIPT_DIR}/gardenctl" ]; then
+if [ ! -f "${SCRIPT_DIR}/gardend" ]; then
   TMP_DIR=$(mktemp -d)
   trap 'rm -rf "$TMP_DIR"' EXIT INT TERM
 
@@ -64,8 +64,7 @@ fi
 
 mkdir -p "$DEST_DIR"
 cp "${SCRIPT_DIR}/gardend" "${DEST_DIR}/gardend"
-cp "${SCRIPT_DIR}/gardenctl" "${DEST_DIR}/gardenctl"
-chmod 755 "${DEST_DIR}/gardend" "${DEST_DIR}/gardenctl"
+chmod 755 "${DEST_DIR}/gardend"
 
 case ":$PATH:" in
   *":$DEST_DIR:"*) PATH_UPDATED="false" ;;
@@ -92,9 +91,8 @@ case ":$PATH:" in
     ;;
 esac
 
-echo "Installed gardend and gardenctl to ${DEST_DIR}"
+echo "Installed gardend to ${DEST_DIR}"
 if [ "${PATH_UPDATED:-false}" = "true" ]; then
   echo "Added ${DEST_DIR} to ${PROFILE}. Restart your terminal or run: export PATH=\"${DEST_DIR}:\$PATH\""
 fi
 echo "Run: gardend --help"
-echo "Run: gardenctl --help"

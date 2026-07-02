@@ -1,11 +1,11 @@
 # mygardenworld
 
-Personal local automation prototype. Daemon + CLI architecture.
+Personal local automation prototype. Daemon + embedded Web UI architecture.
 
 ## Build
 
 ```sh
-make build        # → bin/gardend, bin/gardenctl
+make build        # → bin/gardend
 make test         # go test ./...
 make lint         # golangci-lint (install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 make proto-gen    # buf generate (requires buf CLI)
@@ -15,7 +15,6 @@ make proto-gen    # buf generate (requires buf CLI)
 
 ```
 cmd/gardend      — Long-running daemon (gRPC server on 127.0.0.1:50051)
-cmd/gardenctl    — Operator CLI (talks to gardend via Connect/gRPC)
 internal/
   babigame/      — Protocol layer: HTTP login, WS client, envelope crypto
   state/         — In-memory land + inventory + water drops + cultivation tracker
@@ -31,9 +30,11 @@ gen/             — Generated code (do not edit)
 
 - Observed protocol behavior is source of truth. See `doc.go` in the protocol package.
 - Channel-scoped config: no global defaults. Each account resolves its own Config via ConfigForChannel.
-- State is fed namespace fragments from WS responses. Namespaces 7, 100, 101, 109, 114 are tracked.
-- Automation runs every 4s (configurable). Priority: harvest > plant > water. Misc ops (orders, tasks, cultivation) run every 60s.
-- Water drops are checked before watering. Each land costs 1 drop.
+- State is fed namespace fragments from WS responses. Known typed state is domain-oriented and keeps raw snapshots for protocol gaps.
+- Policy, planner, runner events, and Web filters share one category set: `basic`, `plant`, `order`, `union`, `activity`, plus operational `account` and `system`.
+- Policy is stored as one protojson blob in `account_policies.policy_json`; public policy APIs replace/import/export/copy the whole policy.
+- Automation runs every 4s (configurable). Priority: safety checks > harvest > plant/order deficits > water > orders/flower art > cultivate/upgrade > basic rewards > union > market/pearl/shop/zoo > activity.
+- Every mutating action with gold, diamond, item, or count cost must pass the policy safety budget and observed-state gates. Each land watering costs 1 drop.
 
 ## Testing
 

@@ -13,7 +13,6 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
-	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -27,7 +26,11 @@ func (svc *Services) GetStatus(ctx context.Context, req *connect.Request[pb.GetS
 		if err != nil {
 			return nil, mapErr(err)
 		}
-		resp.Accounts = append(resp.Accounts, svc.statusFor(ctx, acc))
+		status, err := svc.statusFor(ctx, acc)
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		resp.Accounts = append(resp.Accounts, status)
 		return connect.NewResponse(resp), nil
 	}
 	var userID int64
@@ -39,22 +42,30 @@ func (svc *Services) GetStatus(ctx context.Context, req *connect.Request[pb.GetS
 		return nil, mapErr(err)
 	}
 	for _, a := range accs {
-		resp.Accounts = append(resp.Accounts, svc.statusFor(ctx, a))
+		status, err := svc.statusFor(ctx, a)
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		resp.Accounts = append(resp.Accounts, status)
 	}
 	return connect.NewResponse(resp), nil
 }
 
-func (svc *Services) statusFor(ctx context.Context, acc *store.Account) *pb.AccountStatus {
+func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.AccountStatus, error) {
 	out := &pb.AccountStatus{
 		AccountId:   fmt.Sprintf("%d", acc.ID),
 		AccountName: acc.Name,
 	}
 	r := svc.Manager.Get(acc.ID)
 	if r == nil {
-		entries, _ := svc.DB.LoadPolicyValues(ctx, acc.ID)
-		policy := policycfg.FromEntries(entries)
+		policy, err := svc.policyFor(ctx, acc.ID)
+		if err != nil {
+			return nil, err
+		}
 		out.AutomationEnabled = policy.GetAutomationEnabled()
-		return out
+		out.DomainStatuses = buildDomainStatuses(policy, runner.Diagnostics{}, false)
+		out.Health = "offline"
+		return out, nil
 	}
 	out.Connected = r.Connected()
 	now := time.Now()
@@ -62,7 +73,11 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) *pb.Acco
 		out.LastEventAt = timestamppb.New(last)
 	}
 	out.AutomationEnabled = r.Policy().GetAutomationEnabled()
-	out.Diagnostics = runnerDiagnosticsProto(r.Diagnostics(now))
+	diag := r.Diagnostics(now)
+	out.Diagnostics = runnerDiagnosticsProto(diag)
+	out.DomainStatuses = buildDomainStatuses(r.Policy(), diag, out.Connected)
+	out.Health = accountHealth(out.Connected, diag)
+	out.LastError = diag.LastOperationError
 	lands := r.State().Lands()
 	out.KnownLands = int32(len(lands))
 	byKind := map[string]int32{}
@@ -74,7 +89,7 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) *pb.Acco
 	for _, count := range r.State().FlowerInventory() {
 		out.FlowerStockTotal += count
 	}
-	return out
+	return out, nil
 }
 
 func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.GetSnapshotRequest]) (*connect.Response[pb.GetSnapshotResponse], error) {
@@ -118,6 +133,9 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Diagnostics:           runnerDiagnosticsProto(diag),
 	}
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
+	policy := r.Policy()
+	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
+	resp.PlannedOperations = plannedOperationsProto(automation.PlanOperations(st, policy, now))
 	return connect.NewResponse(resp), nil
 }
 
@@ -130,7 +148,7 @@ func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {
 		LastOperationError:        d.LastOperationError,
 		LastOperationErrorAt:      timestampOrNil(d.LastOperationErrorAt),
 		NextDecisionAt:            timestampOrNil(d.NextDecisionAt),
-		NextMiscAt:                timestampOrNil(d.NextMiscAt),
+		NextDomainTickAt:          timestampOrNil(d.NextDomainTickAt),
 		NextCultivateAt:           timestampOrNil(d.NextCultivateAt),
 		SessionInvalidatedReason:  d.SessionInvalidatedReason,
 		BlockedReasons:            append([]string(nil), d.BlockedReasons...),
@@ -170,6 +188,30 @@ func (svc *Services) GetHarvestStats(ctx context.Context, req *connect.Request[p
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(harvestStatsProto(stats, req.Msg.GetLimitItems())), nil
+}
+
+func (svc *Services) GetPlan(ctx context.Context, req *connect.Request[pb.GetPlanRequest]) (*connect.Response[pb.GetPlanResponse], error) {
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	resp := &pb.GetPlanResponse{
+		AccountId:   fmt.Sprintf("%d", acc.ID),
+		AccountName: acc.Name,
+	}
+	policy, err := svc.policyFor(ctx, acc.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	r := svc.Manager.Get(acc.ID)
+	if r == nil {
+		resp.DomainStatuses = buildDomainStatuses(policy, runner.Diagnostics{}, false)
+		return connect.NewResponse(resp), nil
+	}
+	now := time.Now()
+	resp.Operations = plannedOperationsProto(automation.PlanOperations(r.State(), policy, now))
+	resp.DomainStatuses = buildDomainStatuses(policy, r.Diagnostics(now), r.Connected())
+	return connect.NewResponse(resp), nil
 }
 
 func harvestStatsProto(stats *store.HarvestStats, limitItems int32) *pb.GetHarvestStatsResponse {
@@ -437,6 +479,160 @@ func requirementsStatus(reqs []*pb.RequirementView) string {
 	return "ready"
 }
 
+func plannedOperationsProto(ops []automation.PlannedOp) []*pb.PlannedOperation {
+	out := make([]*pb.PlannedOperation, 0, len(ops))
+	for _, op := range ops {
+		out = append(out, &pb.PlannedOperation{
+			Category:       op.Category,
+			Domain:         op.Domain,
+			Action:         op.Action,
+			Rpc:            op.Kind,
+			Reason:         op.Reason,
+			LandIds:        append([]int32(nil), op.LandIDs...),
+			FlowerId:       op.FlowerID,
+			Priority:       op.Priority,
+			GoldCost:       op.GoldCost,
+			DiamondCost:    op.DiamondCost,
+			ItemCost:       cloneInt32Map(op.ItemCost),
+			FeatureId:      op.FeatureID,
+			Label:          op.Label,
+			Status:         op.Status,
+			Executable:     op.Executable,
+			SyncOnly:       op.SyncOnly,
+			BlockedReasons: append([]string(nil), op.BlockedReasons...),
+		})
+	}
+	return out
+}
+
+func buildDomainStatuses(policy *pb.Policy, diag runner.Diagnostics, connected bool) []*pb.DomainStatus {
+	policy = automation.DefaultPolicyIfNil(policy)
+	observed := setOfStrings(diag.ObservedNamespaces)
+	blocked := append([]string(nil), diag.BlockedReasons...)
+	return []*pb.DomainStatus{
+		domainStatus("basic", "basic", basicEnabled(policy.GetBasic()), observedAny(observed, "7", "22", "116", "117", "119", "129"), blocked, diag.LastOperationError, connected),
+		domainStatus("plant", "plant", plantEnabled(policy.GetPlant()), observedAny(observed, "100", "101", "104", "105", "109", "114"), blocked, diag.LastOperationError, connected),
+		domainStatus("order", "order", orderEnabled(policy.GetOrder()), observedAny(observed, "104", "105", "107", "108", "109"), blocked, diag.LastOperationError, connected),
+		domainStatus("union", "union", unionEnabled(policy.GetUnion()), observedAny(observed, "25", "152"), blocked, diag.LastOperationError, connected),
+		domainStatus("activity", "activity", activityEnabled(policy.GetActivity()), observedActivity(observed), blocked, diag.LastOperationError, connected),
+	}
+}
+
+func domainStatus(category, domain string, enabled bool, observed bool, blocked []string, lastErr string, connected bool) *pb.DomainStatus {
+	status := "disabled"
+	var reasons []string
+	if enabled {
+		status = "ready"
+		if !connected {
+			status = "blocked"
+			reasons = append(reasons, "WebSocket 未连接")
+		}
+		if len(blocked) > 0 {
+			status = "blocked"
+			reasons = append(reasons, blocked...)
+		}
+		if !observed && connected {
+			status = "syncing"
+		}
+	}
+	return &pb.DomainStatus{
+		Category:       category,
+		Domain:         domain,
+		Observed:       observed,
+		Status:         status,
+		BlockedReasons: reasons,
+		LastError:      lastErr,
+	}
+}
+
+func accountHealth(connected bool, diag runner.Diagnostics) string {
+	switch {
+	case diag.SessionInvalidatedReason != "":
+		return "session_expired"
+	case len(diag.BlockedReasons) > 0:
+		return "blocked"
+	case connected:
+		return "online"
+	default:
+		return "offline"
+	}
+}
+
+func basicEnabled(p *pb.BasicPolicy) bool {
+	return p != nil && (p.GetMainTaskEnabled() || p.GetDailyTaskEnabled() || p.GetWeeklyTaskEnabled() ||
+		p.GetAchievementTaskEnabled() || p.GetStoryEnabled() || p.GetMailEnabled() || p.GetWelfareEnabled() ||
+		p.GetSignEnabled() || p.GetFreeWaterEnabled() || p.GetWaterwheelEnabled() || p.GetBenefitBoxEnabled() ||
+		p.GetRandomEventEnabled() || p.GetRoadGrowRewardEnabled() || p.GetPearl().GetEnabled() ||
+		p.GetShop().GetVideoGiftEnabled() || p.GetShop().GetCultivateShopEnabled() || p.GetShop().GetVipShopEnabled() ||
+		p.GetZoo().GetEnabled() || p.GetZoo().GetSyncEnabled())
+}
+
+func plantEnabled(p *pb.PlantPolicy) bool {
+	return p != nil && (p.GetHarvestEnabled() || p.GetPlantEnabled() || p.GetWaterEnabled() || p.GetSpeedUpEnabled() ||
+		p.GetLandUnlockEnabled() || p.GetCultivateEnabled() || p.GetFlowerUpgradeEnabled())
+}
+
+func orderEnabled(p *pb.OrderPolicy) bool {
+	return p != nil && (p.GetCustomer().GetEnabled() || residentOrderEnabledProto(p.GetResident()) ||
+		p.GetPalace().GetEnabled() || p.GetTeam().GetEnabled() || p.GetFlowerArt().GetSellEnabled() ||
+		p.GetFlowerArt().GetCraftEnabled())
+}
+
+func residentOrderEnabledProto(p *pb.ResidentOrderPolicy) bool {
+	return p != nil && (p.GetNormalEnabled() || p.GetDecorateEnabled() || p.GetSatinEnabled() ||
+		p.GetRewardEnabled() || p.GetAdRefreshEnabled())
+}
+
+func unionEnabled(p *pb.UnionPolicy) bool {
+	return p != nil && (p.GetBuildFreeEnabled() || p.GetBuildGoldEnabled() || p.GetBuildDiamondEnabled() ||
+		p.GetFlowerShareEnabled() || p.GetFlowerTakeEnabled() || p.GetRaceEnabled() || p.GetLandAutoPlant() ||
+		p.GetLandHarvest() || p.GetRedPacketEnabled() || p.GetForestEnabled())
+}
+
+func activityEnabled(p *pb.ActivityPolicy) bool {
+	if p == nil || !p.GetEnabled() {
+		return false
+	}
+	for _, module := range p.GetModules() {
+		if module != nil && module.GetEnabled() {
+			return true
+		}
+	}
+	return false
+}
+
+func observedActivity(observed map[string]struct{}) bool {
+	return observedAny(observed, "138", "139", "140", "152", "155", "160", "161", "162", "165")
+}
+
+func setOfStrings(xs []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(xs))
+	for _, x := range xs {
+		out[x] = struct{}{}
+	}
+	return out
+}
+
+func observedAny(set map[string]struct{}, keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := set[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneInt32Map(in map[int32]int32) map[int32]int32 {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[int32]int32, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
 func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandInfo, rosterObserved bool, farmLandObserved bool, level int32, now time.Time) []*pb.LandView {
 	out := make([]*pb.LandView, 0, len(lands))
 	seen := make(map[int32]struct{}, len(lands))
@@ -469,12 +665,13 @@ const maxReclaimableLands = 6
 func landViewProtoWithLimit(id int32, l state.LandView, info state.FarmLandInfo, observed bool, rosterObserved bool, farmLandObserved bool, level int32, now time.Time, unopenedIdx int) *pb.LandView {
 	kind, reason := "unknown", "等待服务端土地清单"
 	status := "locked"
-	if observed {
+	switch {
+	case observed:
 		kind, reason = automation.Recommend(l, now)
 		status = "opened"
-	} else if !farmLandObserved {
+	case !farmLandObserved:
 		kind, reason = "unknown", "等待当前客户端土地配置"
-	} else if rosterObserved {
+	case rosterObserved:
 		if unopenedIdx > 0 && unopenedIdx <= maxReclaimableLands {
 			status = "unopened"
 			if len(info.Cost) >= 2 {

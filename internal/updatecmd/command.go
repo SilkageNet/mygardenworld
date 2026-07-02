@@ -37,18 +37,18 @@ func New(binaryName string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(os.Stdout, result.Message)
+			_, _ = fmt.Fprintln(os.Stdout, result.Message)
 			if result.AssetName != "" {
-				fmt.Fprintf(os.Stdout, "asset: %s\n", result.AssetName)
+				_, _ = fmt.Fprintf(os.Stdout, "asset: %s\n", result.AssetName)
 			}
 			if result.TargetPath != "" {
-				fmt.Fprintf(os.Stdout, "target: %s\n", result.TargetPath)
+				_, _ = fmt.Fprintf(os.Stdout, "target: %s\n", result.TargetPath)
 			}
 			if result.BackupPath != "" {
-				fmt.Fprintf(os.Stdout, "backup: %s\n", result.BackupPath)
+				_, _ = fmt.Fprintf(os.Stdout, "backup: %s\n", result.BackupPath)
 			}
 			if result.ChecksumOK {
-				fmt.Fprintln(os.Stdout, "checksum: ok")
+				_, _ = fmt.Fprintln(os.Stdout, "checksum: ok")
 			}
 			return nil
 		},
