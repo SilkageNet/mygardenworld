@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 func (r *Runner) emit(e Event) {
@@ -38,10 +40,30 @@ func (r *Runner) emit(e Event) {
 	if e.Level == "" {
 		e.Level = eventLevel(e.Kind, e.Message)
 	}
+	log := r.log.With("event_kind", e.Kind, "category", e.Category, "label", e.Label)
+	if r.db != nil {
+		id, err := r.db.LogEvent(context.Background(), store.EventLog{
+			AccountID:   r.account.ID,
+			AccountName: e.AccountName,
+			TS:          e.TS,
+			Kind:        e.Kind,
+			Message:     e.Message,
+			PayloadJSON: e.PayloadJSON,
+			Category:    e.Category,
+			Domain:      e.Domain,
+			Action:      e.Action,
+			Label:       e.Label,
+			Level:       e.Level,
+		})
+		if err != nil {
+			log.Warn("persist event failed", "error", err)
+		} else {
+			e.ID = id
+		}
+	}
 	if r.bus != nil {
 		r.bus.Publish(e)
 	}
-	log := r.log.With("event_kind", e.Kind, "category", e.Category, "label", e.Label)
 	if isNoisyStateEvent(e) {
 		log.Debug(e.Message)
 		return

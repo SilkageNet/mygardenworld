@@ -64,6 +64,8 @@ const (
 	GoalFallback      = "fallback.low_stock"
 )
 
+const flowerRackPerSlotCount int32 = 12
+
 // Goal is one enabled product objective. Feature enablement is still owned by
 // policy sections; goals only give the planner a unified priority surface.
 type Goal struct {
@@ -767,10 +769,13 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
-	if len(harvest) > 0 && flowerPolicy.GetHarvestEnabled() {
+	if !flowerPolicy.GetAutoEnabled() {
+		return ops
+	}
+	if len(harvest) > 0 {
 		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", "ready land", 10000, []int32{harvest[0]}, 0, "", ""))
 	}
-	if len(plant) > 0 && flowerPolicy.GetPlantEnabled() {
+	if len(plant) > 0 {
 		assignments := plantAssignments(s, policy, demands, int32(len(plant)))
 		cursor := 0
 		for _, assignment := range assignments {
@@ -790,7 +795,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 			ops = append(ops, landOp(kind, "farm.plant", "plant", assignment.Reason, assignment.Priority, picks, assignment.FlowerID, assignment.GoalID, assignment.DemandID))
 		}
 	}
-	if len(water) > 0 && flowerPolicy.GetWaterEnabled() {
+	if len(water) > 0 {
 		waterDrops, _, _ := s.AvailableWaterDrops(now)
 		minDrops := flowerPolicy.GetMinWaterDrops()
 		if minDrops < 0 {
@@ -798,14 +803,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 		usableDrops := waterDrops - minDrops
 		if usableDrops > 0 {
-			maxBatch := flowerPolicy.GetWaterMaxBatch()
-			if maxBatch <= 0 {
-				maxBatch = 8
-			}
 			want := int32(len(water))
-			if want > maxBatch {
-				want = maxBatch
-			}
 			if want > usableDrops {
 				want = usableDrops
 			}
@@ -836,23 +834,13 @@ func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, 
 	if emptyCount <= 0 {
 		return nil
 	}
-	flowerPolicy := policy.GetFlower()
-	maxBatch := positiveOr(flowerPolicy.GetPlantMaxBatch(), 8)
-	maxPerFlower := positiveOr(flowerPolicy.GetMaxPerFlowerPerCycle(), 4)
-	if maxBatch > emptyCount {
-		maxBatch = emptyCount
-	}
-	allowed := flowerPolicy.GetSpecifiedFlowerIds()
-	if flowerPolicy.GetPlantingMode() != pb.PlantingMode_PLANTING_MODE_SPECIFIC && len(allowed) == 0 {
-		allowed = nil
-	}
-	candidates := s.PlantableFlowers(allowed, flowerPolicy.GetBlockedFlowerIds())
+	candidates := s.PlantableFlowers(nil, nil)
 	plantable := map[int32]state.PlantableFlower{}
 	for _, candidate := range candidates {
 		plantable[candidate.FlowerID] = candidate
 	}
 	var out []plantAssignment
-	remaining := maxBatch
+	remaining := emptyCount
 	for _, demand := range demands {
 		if remaining <= 0 {
 			break
@@ -871,9 +859,6 @@ func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, 
 			continue
 		}
 		count := demand.Missing
-		if count > maxPerFlower {
-			count = maxPerFlower
-		}
 		if count > remaining {
 			count = remaining
 		}
@@ -893,7 +878,7 @@ func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, 
 	if len(executableAssignments(out)) > 0 || remaining <= 0 {
 		return executableAssignments(out)
 	}
-	return lowStockBalancedAssignments(candidates, remaining, maxPerFlower, flowerPolicy.GetFallbackStockFloor())
+	return lowStockBalancedAssignments(candidates, remaining)
 }
 
 func executableAssignments(in []plantAssignment) []plantAssignment {
@@ -906,12 +891,9 @@ func executableAssignments(in []plantAssignment) []plantAssignment {
 	return out
 }
 
-func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit, maxPerFlower, stockFloor int32) []plantAssignment {
+func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit int32) []plantAssignment {
 	if len(candidates) == 0 || limit <= 0 {
 		return nil
-	}
-	if stockFloor < 0 {
-		stockFloor = 0
 	}
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].Stock != candidates[j].Stock {
@@ -922,26 +904,16 @@ func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit, maxP
 		}
 		return candidates[i].FlowerID < candidates[j].FlowerID
 	})
-	remainingByFlower := map[int32]int32{}
-	for _, candidate := range candidates {
-		remainingByFlower[candidate.FlowerID] = maxPerFlower
-	}
 	var out []plantAssignment
 	remaining := limit
 	for remaining > 0 {
 		minStock := candidates[0].Stock
-		if stockFloor > 0 && minStock >= stockFloor {
-			break
-		}
 		nextStock := minStock + 1
 		for _, candidate := range candidates {
 			if candidate.Stock > minStock {
 				nextStock = candidate.Stock
 				break
 			}
-		}
-		if stockFloor > 0 && nextStock > stockFloor {
-			nextStock = stockFloor
 		}
 		advanced := false
 		for i := range candidates {
@@ -951,18 +923,9 @@ func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit, maxP
 			if candidates[i].Stock > minStock {
 				break
 			}
-			if stockFloor > 0 && candidates[i].Stock >= stockFloor {
-				continue
-			}
-			if remainingByFlower[candidates[i].FlowerID] <= 0 {
-				continue
-			}
 			count := nextStock - candidates[i].Stock
 			if count <= 0 {
 				count = 1
-			}
-			if count > remainingByFlower[candidates[i].FlowerID] {
-				count = remainingByFlower[candidates[i].FlowerID]
 			}
 			if count > remaining {
 				count = remaining
@@ -972,10 +935,9 @@ func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit, maxP
 				Count:    count,
 				Priority: priorityFor(defaultGoalPriority(), GoalFallback)*100 + 100,
 				GoalID:   GoalFallback,
-				Reason:   "低库存水位均衡补种",
+				Reason:   "低库存均衡补种",
 			})
 			candidates[i].Stock += count
-			remainingByFlower[candidates[i].FlowerID] -= count
 			remaining -= count
 			advanced = true
 		}
@@ -1115,11 +1077,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				break
 			}
 			for _, rackID := range s.EmptyFlowerRackSlotIDs() {
-				if blocked, ok := flowerRackPolicyBlock(order.GetFlowerArt(), goal); ok {
-					ops = append(ops, blocked)
-					break
-				}
-				if artID, count, ok := bestRackArt(order.GetFlowerArt(), ledger); ok {
+				if artID, count, ok := bestRackArt(ledger); ok {
 					sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
 					ops = append(ops, sell)
 					break
@@ -1144,8 +1102,8 @@ func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, 
 		if !ok || demand.Missing <= 0 {
 			continue
 		}
-		reserved := reservedCraftFlowerAllocations(goal, entityID, req.ItemID, demands)
-		availability := FlowerArtAvailabilityWithReserved(s, req.ItemID, demand.Missing, ledger, reserved)
+		allocated := allocatedCraftFlowerCounts(goal, entityID, req.ItemID, demands)
+		availability := FlowerArtAvailabilityWithAllocated(s, req.ItemID, demand.Missing, ledger, allocated)
 		if !availability.Craftable {
 			blocked := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单花艺暂不可制作", goal.Priority*100+500, npcID, req.ItemID, demand.Missing)
 			blocked.Status = PlanStatusBlocked
@@ -1163,19 +1121,19 @@ func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, 
 	return PlannedOp{}, false
 }
 
-func reservedCraftFlowerAllocations(goal Goal, entityID string, artID int32, demands []Demand) map[int32]int32 {
+func allocatedCraftFlowerCounts(goal Goal, entityID string, artID int32, demands []Demand) map[int32]int32 {
 	source := "craft:" + strconv.FormatInt(int64(artID), 10)
-	var reserved map[int32]int32
+	var allocated map[int32]int32
 	for _, demand := range demands {
 		if demand.GoalID != goal.ID || demand.EntityID != entityID || demand.Source != source || demand.Kind != DemandKindFlower || demand.Allocated <= 0 {
 			continue
 		}
-		if reserved == nil {
-			reserved = make(map[int32]int32)
+		if allocated == nil {
+			allocated = make(map[int32]int32)
 		}
-		reserved[demand.ItemID] += demand.Allocated
+		allocated[demand.ItemID] += demand.Allocated
 	}
-	return reserved
+	return allocated
 }
 
 func customerOperationPriority(goal Goal, offset int32) int32 {
@@ -1807,10 +1765,10 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 }
 
 func FlowerArtAvailability(s *state.State, artID, count int32, ledger *InventoryLedger) ArtAvailability {
-	return FlowerArtAvailabilityWithReserved(s, artID, count, ledger, nil)
+	return FlowerArtAvailabilityWithAllocated(s, artID, count, ledger, nil)
 }
 
-func FlowerArtAvailabilityWithReserved(s *state.State, artID, count int32, ledger *InventoryLedger, reserved map[int32]int32) ArtAvailability {
+func FlowerArtAvailabilityWithAllocated(s *state.State, artID, count int32, ledger *InventoryLedger, allocated map[int32]int32) ArtAvailability {
 	recipe, ok := state.FlowerArtRecipeByID(artID)
 	if !ok {
 		return ArtAvailability{BlockedReasons: []string{"缺少花艺配方"}}
@@ -1828,7 +1786,7 @@ func FlowerArtAvailabilityWithReserved(s *state.State, artID, count int32, ledge
 	for flowerID, needEach := range recipeFlowerCounts(recipe) {
 		required := needEach * count
 		have := ledger.Owned(flowerID)
-		available := ledger.Available(flowerID) + reserved[flowerID]
+		available := ledger.Available(flowerID) + allocated[flowerID]
 		missing := required - available
 		if missing < 0 {
 			missing = 0
@@ -2135,37 +2093,25 @@ func maxCraftableCount(recipe state.FlowerArtRecipe, ledger *InventoryLedger) in
 	return max
 }
 
-func bestRackArt(policy *pb.FlowerArtPolicy, ledger *InventoryLedger) (int32, int32, bool) {
-	if policy == nil || ledger == nil || policy.GetPerRackCount() <= 0 {
+func bestRackArt(ledger *InventoryLedger) (int32, int32, bool) {
+	if ledger == nil {
 		return 0, 0, false
 	}
-	for _, recipe := range rackCandidateRecipes(policy) {
+	for _, recipe := range rackCandidateRecipes() {
 		available := ledger.Available(recipe.ArtID)
 		if available <= 0 {
 			continue
 		}
-		if perRack := policy.GetPerRackCount(); available > perRack {
-			available = perRack
+		if available > flowerRackPerSlotCount {
+			available = flowerRackPerSlotCount
 		}
 		return recipe.ArtID, available, true
 	}
 	return 0, 0, false
 }
 
-func flowerRackPolicyBlock(policy *pb.FlowerArtPolicy, goal Goal) (PlannedOp, bool) {
-	if policy.GetPerRackCount() > 0 {
-		return PlannedOp{}, false
-	}
-	blocked := markerOp(CategoryOrder, "order.flower_art", "sell", "花架每架数量未设置", goal.Priority*100+390)
-	blocked.GoalID = goal.ID
-	blocked.Status = PlanStatusBlocked
-	blocked.Executable = false
-	blocked.BlockedReasons = []string{"order.flower_art.per_rack_count 必须大于 0"}
-	return blocked, true
-}
-
 func rackCraftTarget(s *state.State, policy *pb.FlowerArtPolicy, ledger *InventoryLedger) (int32, int32, bool) {
-	if policy == nil || !policy.GetSellEnabled() || !policy.GetCraftEnabled() || policy.GetPerRackCount() <= 0 {
+	if policy == nil || !policy.GetSellEnabled() || !policy.GetCraftEnabled() {
 		return 0, 0, false
 	}
 	if len(s.EmptyFlowerRackSlotIDs()) == 0 {
@@ -2174,12 +2120,12 @@ func rackCraftTarget(s *state.State, policy *pb.FlowerArtPolicy, ledger *Invento
 	if ledger == nil {
 		ledger = NewInventoryLedger(s.Inventory())
 	}
-	for _, recipe := range rackCandidateRecipes(policy) {
+	for _, recipe := range rackCandidateRecipes() {
 		if ledger.Available(recipe.ArtID) > 0 {
 			return 0, 0, false
 		}
 	}
-	for _, recipe := range rackCandidateRecipes(policy) {
+	for _, recipe := range rackCandidateRecipes() {
 		if len(artBlockedReasons(s, recipe)) > 0 {
 			continue
 		}
@@ -2187,8 +2133,8 @@ func rackCraftTarget(s *state.State, policy *pb.FlowerArtPolicy, ledger *Invento
 		if count <= 0 {
 			continue
 		}
-		if perRack := policy.GetPerRackCount(); count > perRack {
-			count = perRack
+		if count > flowerRackPerSlotCount {
+			count = flowerRackPerSlotCount
 		}
 		if count > 0 {
 			return recipe.ArtID, count, true
@@ -2197,22 +2143,8 @@ func rackCraftTarget(s *state.State, policy *pb.FlowerArtPolicy, ledger *Invento
 	return 0, 0, false
 }
 
-func rackCandidateRecipes(policy *pb.FlowerArtPolicy) []state.FlowerArtRecipe {
-	if policy == nil {
-		return nil
-	}
-	allowed := int32Set(policy.GetAllowedArtIds())
-	recipes := state.AllFlowerArtRecipes()
-	if len(allowed) == 0 {
-		return recipes
-	}
-	out := make([]state.FlowerArtRecipe, 0, len(allowed))
-	for _, recipe := range recipes {
-		if allowed[recipe.ArtID] {
-			out = append(out, recipe)
-		}
-	}
-	return out
+func rackCandidateRecipes() []state.FlowerArtRecipe {
+	return state.AllFlowerArtRecipes()
 }
 
 func canFulfillFlowerOrder(order *state.FlowerOrder, boxID int32, goal Goal, ledger *InventoryLedger) bool {
@@ -2509,16 +2441,9 @@ func DefaultPolicy() *pb.Policy {
 				TargetLevel: 20,
 			},
 			Flower: &pb.FlowerPlantPolicy{
-				HarvestEnabled:       true,
-				PlantEnabled:         true,
-				PlantMaxBatch:        8,
-				MaxPerFlowerPerCycle: 4,
-				GoalPriority:         defaultGoalPriority(),
-				WaterEnabled:         true,
-				WaterMaxBatch:        8,
-				MinWaterDrops:        5,
-				PlantingMode:         pb.PlantingMode_PLANTING_MODE_COUNT,
-				FlowerKindCount:      4,
+				AutoEnabled:   true,
+				GoalPriority:  defaultGoalPriority(),
+				MinWaterDrops: 5,
 			},
 			FriendSteal: &pb.FriendStealPolicy{},
 			Elves:       &pb.FlowerElvesPolicy{},
@@ -2534,7 +2459,7 @@ func DefaultPolicy() *pb.Policy {
 			Resident:  &pb.ResidentOrderPolicy{NormalDailyLimit: 1200, DecorateDailyLimit: 120, SatinDailyLimit: 120},
 			Palace:    &pb.PalaceOrderPolicy{},
 			Team:      &pb.TeamOrderPolicy{},
-			FlowerArt: &pb.FlowerArtPolicy{PerRackCount: 12},
+			FlowerArt: &pb.FlowerArtPolicy{},
 		},
 		Union: &pb.UnionPolicy{
 			Build:  &pb.UnionBuildPolicy{},

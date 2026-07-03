@@ -20,10 +20,21 @@ func NewBus() *Bus {
 	return &Bus{subscribers: make(map[int]chan Event)}
 }
 
-// Subscribe returns a buffered channel that first receives recent events, then
-// every newly published event, plus a cancel func that unsubscribes and closes
-// the channel.
+// Subscribe returns a buffered channel that first receives in-memory recent
+// events, then every newly published event, plus a cancel func that
+// unsubscribes and closes the channel.
 func (b *Bus) Subscribe(buffer int) (<-chan Event, func()) {
+	return b.subscribe(buffer, true)
+}
+
+// SubscribeLive returns only newly published events. QueryService.StreamEvents
+// uses this variant because persisted event_log replay is the source of truth
+// for history.
+func (b *Bus) SubscribeLive(buffer int) (<-chan Event, func()) {
+	return b.subscribe(buffer, false)
+}
+
+func (b *Bus) subscribe(buffer int, replayRecent bool) (<-chan Event, func()) {
 	if buffer <= 0 {
 		buffer = 64
 	}
@@ -34,8 +45,10 @@ func (b *Bus) Subscribe(buffer int) (<-chan Event, func()) {
 	b.mu.Lock()
 	id := b.nextID
 	b.nextID++
-	for _, event := range b.recentEvents {
-		ch <- event
+	if replayRecent {
+		for _, event := range b.recentEvents {
+			ch <- event
+		}
 	}
 	b.subscribers[id] = ch
 	b.mu.Unlock()

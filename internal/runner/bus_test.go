@@ -39,3 +39,22 @@ func TestBusSubscribeContinuesWithLiveEventsAfterRecentEvents(t *testing.T) {
 		t.Fatalf("second event = %q, want live", event.Kind)
 	}
 }
+
+func TestBusSubscribeLiveSkipsRecentEvents(t *testing.T) {
+	bus := NewBus()
+	bus.Publish(Event{Kind: "recent"})
+
+	ch, cancel := bus.SubscribeLive(1)
+	defer cancel()
+
+	select {
+	case event := <-ch:
+		t.Fatalf("unexpected replayed event: %q", event.Kind)
+	default:
+	}
+
+	bus.Publish(Event{Kind: "live"})
+	if event := <-ch; event.Kind != "live" {
+		t.Fatalf("live event = %q, want live", event.Kind)
+	}
+}

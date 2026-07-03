@@ -121,42 +121,15 @@ message CultivatePolicy {
 }
 
 message FlowerPlantPolicy {
-  reserved 3, 8;
-  reserved "harvest_prefer_one_key", "water_prefer_one_key_if_noble";
-
-  bool auto_unlock_land = 1;
-  bool harvest_enabled = 2;
-  bool plant_enabled = 4;
-  bool water_enabled = 5;
+  bool auto_enabled = 1;
+  bool auto_unlock_land = 2;
   int32 min_water_drops = 6;
-  int32 water_max_batch = 7;
 
   bool video_speed_up_enabled = 9;
   bool use_speed_up_ticket = 10;
   int32 speed_up_ticket_max = 11;
 
-  bool task_priority_enabled = 12;
-  bool task_log_enabled = 13;
   map<string, int32> goal_priority = 14;
-
-  PlantingMode planting_mode = 15;
-  repeated int32 allowed_qualities = 16;
-  int32 flower_kind_count = 17;
-  repeated int32 specified_flower_ids = 18;
-  repeated int32 blocked_flower_ids = 19;
-  int32 min_flower_level = 20;
-
-  // Planner controls that keep the local daemon's execution bounded.
-  int32 plant_max_batch = 21;
-  int32 max_per_flower_per_cycle = 22;
-  int32 fallback_stock_floor = 23;
-}
-
-enum PlantingMode {
-  PLANTING_MODE_UNSPECIFIED = 0;
-  PLANTING_MODE_QUALITY = 1;
-  PLANTING_MODE_COUNT = 2;
-  PLANTING_MODE_SPECIFIC = 3;
 }
 
 message FriendStealPolicy {
@@ -235,9 +208,6 @@ message OrderPolicy {
 }
 
 message CustomerOrderPolicy {
-  reserved 3;
-  reserved "craft_enabled";
-
   bool enabled = 1;
   bool reject_unavailable_enabled = 2;
 }
@@ -271,8 +241,6 @@ message FlowerArtPolicy {
   bool sell_enabled = 2;
   bool craft_enabled = 3;
   bool early_cancel_enabled = 4;
-  repeated int32 allowed_art_ids = 5;
-  int32 per_rack_count = 6;
   bool create_reward_enabled = 7;
   bool collect_reward_enabled = 8;
 }
@@ -322,7 +290,6 @@ message UnionRacePolicy {
 message UnionLandPolicy {
   bool harvest_enabled = 1;
   bool auto_plant_enabled = 2;
-  PlantingMode plant_mode = 3;
   repeated int32 qualities = 4;
   repeated int32 flower_ids = 5;
   int32 max_flower_level = 6;

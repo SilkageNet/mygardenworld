@@ -381,7 +381,7 @@ func TestPlan_CustomerOrderGenerationBeatsHarvest(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.HarvestEnabled = true
+	p.Plant.Flower.AutoEnabled = true
 	p.Order.Customer.Enabled = true
 
 	op := Plan(s, p, now)
@@ -412,11 +412,10 @@ func TestBuildPlan_FlowerRackRespectsCustomerLedgerAllocation(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_FlowerRackSpecifiedArtAndPerRackCount(t *testing.T) {
+func TestBuildPlan_FlowerRackUsesFixedRackCount(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{"32": map[string]any{
-			"300103": 20,
 			"300208": 20,
 		}}},
 		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
@@ -424,22 +423,20 @@ func TestBuildPlan_FlowerRackSpecifiedArtAndPerRackCount(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
-	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
-	p.Order.FlowerArt.PerRackCount = 5
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCFlowerRackSell.String() {
-			if op.ItemID != 300208 || op.Count != 5 {
-				t.Fatalf("specified rack sell mismatch: %+v", op)
+			if op.ItemID != 300208 || op.Count != 12 {
+				t.Fatalf("fixed rack sell mismatch: %+v", op)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing specified rack sell op: %+v", result.Operations)
+	t.Fatalf("missing rack sell op: %+v", result.Operations)
 }
 
-func TestBuildPlan_FlowerRackSpecifiedArtCraftsWhenNoStock(t *testing.T) {
+func TestBuildPlan_FlowerRackCraftsWhenNoStock(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
@@ -454,22 +451,20 @@ func TestBuildPlan_FlowerRackSpecifiedArtCraftsWhenNoStock(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
 	p.Order.FlowerArt.CraftEnabled = true
-	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
-	p.Order.FlowerArt.PerRackCount = 2
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
-			if op.ItemID != 300208 || op.Count != 2 || op.VaseID != 3002 || !op.Executable {
-				t.Fatalf("specified rack craft mismatch: %+v", op)
+			if op.ItemID != 300208 || op.Count != 4 || op.VaseID != 3002 || !op.Executable {
+				t.Fatalf("rack craft mismatch: %+v", op)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing specified rack craft op: %+v", result.Operations)
+	t.Fatalf("missing rack craft op: %+v", result.Operations)
 }
 
-func TestBuildPlan_FlowerRackSpecifiedArtUsesCurrentCraftableCount(t *testing.T) {
+func TestBuildPlan_FlowerRackUsesCurrentCraftableCount(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
@@ -484,8 +479,6 @@ func TestBuildPlan_FlowerRackSpecifiedArtUsesCurrentCraftableCount(t *testing.T)
 	p.AutomationEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
 	p.Order.FlowerArt.CraftEnabled = true
-	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
-	p.Order.FlowerArt.PerRackCount = 5
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
@@ -499,7 +492,7 @@ func TestBuildPlan_FlowerRackSpecifiedArtUsesCurrentCraftableCount(t *testing.T)
 	t.Fatalf("missing partial rack craft op: %+v", result.Operations)
 }
 
-func TestBuildPlan_FlowerRackSpecifiedArtMissingMaterialsSkipsPlanting(t *testing.T) {
+func TestBuildPlan_FlowerRackMissingMaterialsSkipsPlanting(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
@@ -515,8 +508,6 @@ func TestBuildPlan_FlowerRackSpecifiedArtMissingMaterialsSkipsPlanting(t *testin
 	p.AutomationEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
 	p.Order.FlowerArt.CraftEnabled = true
-	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
-	p.Order.FlowerArt.PerRackCount = 1
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
@@ -529,7 +520,7 @@ func TestBuildPlan_FlowerRackSpecifiedArtMissingMaterialsSkipsPlanting(t *testin
 	}
 }
 
-func TestBuildPlan_FlowerRackSpecifiedArtMissingVaseSkipsCraft(t *testing.T) {
+func TestBuildPlan_FlowerRackMissingVaseSkipsCraft(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
@@ -544,8 +535,6 @@ func TestBuildPlan_FlowerRackSpecifiedArtMissingVaseSkipsCraft(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
 	p.Order.FlowerArt.CraftEnabled = true
-	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
-	p.Order.FlowerArt.PerRackCount = 1
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
@@ -597,7 +586,7 @@ func TestPlan_FlowerRackClaimBeatsHarvest(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.HarvestEnabled = true
+	p.Plant.Flower.AutoEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
 
 	op := Plan(s, p, now)
@@ -624,8 +613,7 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Basic.MailEnabled = true
-	p.Plant.Flower.HarvestEnabled = true
-	p.Plant.Flower.WaterEnabled = true
+	p.Plant.Flower.AutoEnabled = true
 
 	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
@@ -1428,8 +1416,6 @@ func TestBuildPlan_LowStockFallbackBalancesMultipleFlowers(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.PlantMaxBatch = 6
-	p.Plant.Flower.MaxPerFlowerPerCycle = 4
 
 	result := BuildPlan(s, p, time.Now())
 	countByFlower := map[int32]int32{}
@@ -1441,12 +1427,9 @@ func TestBuildPlan_LowStockFallbackBalancesMultipleFlowers(t *testing.T) {
 	if countByFlower[23001] == 0 || countByFlower[23002] == 0 {
 		t.Fatalf("fallback should split across low-stock flowers, got %v ops=%+v", countByFlower, result.Operations)
 	}
-	if countByFlower[23001] > 4 {
-		t.Fatalf("fallback exceeded max_per_flower_per_cycle: %v", countByFlower)
-	}
 }
 
-func TestBuildPlan_LowStockFallbackHonorsStockFloor(t *testing.T) {
+func TestBuildPlan_LowStockFallbackUsesAllEmptyLand(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{"32": map[string]any{
@@ -1459,22 +1442,43 @@ func TestBuildPlan_LowStockFallbackHonorsStockFloor(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.PlantMaxBatch = 6
-	p.Plant.Flower.MaxPerFlowerPerCycle = 6
-	p.Plant.Flower.FallbackStockFloor = 2
 
 	result := BuildPlan(s, p, time.Now())
 	countByFlower := map[int32]int32{}
+	var total int32
 	for _, op := range result.Operations {
 		if op.Domain == "farm.plant" {
-			countByFlower[op.FlowerID] += int32(len(op.LandIDs))
+			count := int32(len(op.LandIDs))
+			countByFlower[op.FlowerID] += count
+			total += count
 		}
 	}
-	if countByFlower[23001] != 2 {
-		t.Fatalf("fallback should fill 23001 to floor 2, got %v ops=%+v", countByFlower, result.Operations)
+	if total != 6 {
+		t.Fatalf("fallback should use all empty land, got total=%d counts=%v ops=%+v", total, countByFlower, result.Operations)
 	}
-	if countByFlower[23002] != 0 || countByFlower[23003] != 0 {
-		t.Fatalf("fallback should not plant flowers already at/above floor, got %v", countByFlower)
+	if countByFlower[23001] == 0 || countByFlower[23002] == 0 {
+		t.Fatalf("fallback should prefer low-stock flowers, got %v", countByFlower)
+	}
+}
+
+func TestPlantAssignments_TaskDemandFillsAvailableEmptyLand(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": cultivate(23001)},
+	})
+	p := DefaultPolicy()
+
+	assignments := plantAssignments(s, p.Plant, []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  6,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}, 6)
+	if len(assignments) != 1 || assignments[0].FlowerID != 23001 || assignments[0].Count != 6 {
+		t.Fatalf("task demand should fill available empty land, got %+v", assignments)
 	}
 }
 

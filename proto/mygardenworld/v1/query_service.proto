@@ -315,9 +315,16 @@ message StreamEventsRequest {
   // Optional: only emit these event kinds (e.g. "operation_planned",
   // "operation_ack", "land_changed", "snapshot"). Empty = all.
   repeated string kinds = 3;
+  // Number of persisted historical events to replay before live events.
+  // Default is server-defined; negative disables replay.
+  int32 replay_limit = 4;
+  // Optional cursor. When set, replay only events with id greater than this.
+  int64 after_event_id = 5;
 }
 
 message Event {
+  // Monotonic SQLite event_log id. Zero means the event was not persisted.
+  int64 id = 12;
   google.protobuf.Timestamp ts = 1;
   string account_id = 2;
   string account_name = 3;

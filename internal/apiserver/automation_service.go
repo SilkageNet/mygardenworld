@@ -19,11 +19,7 @@ func (svc *Services) Start(ctx context.Context, req *connect.Request[pb.StartReq
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	p := r.Policy()
-	p.AutomationEnabled = true
-	r.SetPolicy(p)
-	_ = svc.persistPolicy(ctx, acc.ID, p)
-	r.Emit(policyEvent(true))
+	svc.enableAutomation(ctx, acc.ID, r)
 	return connect.NewResponse(&pb.StartResponse{}), nil
 }
 
@@ -64,4 +60,18 @@ func policyEvent(enabled bool) runner.Event {
 		message = "自动化已启动"
 	}
 	return runner.Event{Kind: "policy_changed", Category: "system", Domain: "policy", Action: "set", Message: message, PayloadJSON: string(payload)}
+}
+
+func (svc *Services) enableAutomation(ctx context.Context, accountID int64, r *runner.Runner) {
+	if r == nil {
+		return
+	}
+	p := r.Policy()
+	if p.GetAutomationEnabled() {
+		return
+	}
+	p.AutomationEnabled = true
+	r.SetPolicy(p)
+	_ = svc.persistPolicy(ctx, accountID, p)
+	r.Emit(policyEvent(true))
 }

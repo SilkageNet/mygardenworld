@@ -1,18 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type PointerEvent, type ReactNode } from "react";
 import { create } from "@bufbuild/protobuf";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import {
+  ArrowLeft,
   BadgeCheck,
   Building2,
   CalendarDays,
   Coins,
   Flower2,
   Gem,
+  GripVertical,
   HandCoins,
   ListChecks,
+  Loader2,
   LogIn,
   LogOut,
   Package,
@@ -23,7 +26,6 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
-  Square,
   Sprout,
   Trash2,
   Trophy,
@@ -33,7 +35,6 @@ import {
 
 import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import { AutomationService } from "@/gen/mygardenworld/v1/automation_service_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import {
   ActivityModulePolicySchema,
@@ -56,7 +57,6 @@ import {
   PalaceOrderPolicySchema,
   PearlPolicySchema,
   PlantPolicySchema,
-  PlantingMode,
   PolicySchema,
   ReputationPolicySchema,
   ResidentOrderPolicySchema,
@@ -108,15 +108,11 @@ import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
 import { PlanStatus, QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
 import type {
   AccountStatus,
-  BlockingSummary,
-  DemandView,
   Event,
-  FlowerArtAvailabilityView,
   GetSnapshotResponse,
   InventoryLedgerView,
-  OrderStatisticsView,
+  LandView,
   PlannedOperation,
-  VaseView,
 } from "@/gen/mygardenworld/v1/query_service_pb";
 import AppShell from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -125,7 +121,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -141,12 +136,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { transport } from "@/lib/api/client";
+import { useAuth } from "@/lib/auth/context";
 import { itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 
 const accountClient = createClient(AccountService, transport);
-const automationClient = createClient(AutomationService, transport);
 const policyClient = createClient(PolicyService, transport);
 const queryClient = createClient(QueryService, transport);
 
@@ -168,34 +164,40 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
 ]);
 
 const GOAL_OPTIONS = [
-  { id: "order.customer", label: "顾客订单", defaultPriority: 10 },
-  { id: "order.resident", label: "居民任务", defaultPriority: 20 },
-  { id: "order.flower_art", label: "花艺/花架", defaultPriority: 30 },
-  { id: "basic.task.main", label: "主线任务", defaultPriority: 40 },
-  { id: "basic.task.daily", label: "日常任务", defaultPriority: 50 },
-  { id: "basic.task.weekly", label: "周常任务", defaultPriority: 60 },
-  { id: "fallback.low_stock", label: "低库存补种", defaultPriority: 1000 },
+  { id: "order.customer", label: "顾客订单", defaultPriority: 90 },
+  { id: "order.resident", label: "居民订单", defaultPriority: 80 },
+  { id: "basic.task.main", label: "主线任务", defaultPriority: 70 },
+  { id: "basic.task.daily", label: "日常任务", defaultPriority: 60 },
+  { id: "basic.task.weekly", label: "周常任务", defaultPriority: 55 },
+  { id: "order.flower_art", label: "花艺/花架", defaultPriority: 40 },
+  { id: "fallback.low_stock", label: "低库存补种", defaultPriority: 10 },
 ];
 
-type PolicyTabId = "basic" | "plant" | "order" | "union" | "activity";
+type DashboardTabId = "monitor" | "settings" | "logs";
+type PolicyTabId = "basic" | "order" | "union" | "other" | "activity";
+type AccountQuota = {
+  current: number;
+  max: number;
+  reached: boolean;
+};
 
 const SHOW_UNSUPPORTED_SETTINGS = false;
 
 const POLICY_TABS: { id: PolicyTabId; label: string; icon: ReactNode }[] = [
-  { id: "basic", label: "基础", icon: <ShieldCheck /> },
-  { id: "plant", label: "种植", icon: <Sprout /> },
+  { id: "basic", label: "基础", icon: <Sprout /> },
   { id: "order", label: "订单", icon: <ListChecks /> },
   { id: "union", label: "公会", icon: <Users /> },
+  { id: "other", label: "其他", icon: <ShoppingBag /> },
   ...(SHOW_UNSUPPORTED_SETTINGS ? [{ id: "activity" as const, label: "活动", icon: <CalendarDays /> }] : []),
 ];
 
-const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
-
-const PLANTING_MODE_OPTIONS = [
-  { value: PlantingMode.QUALITY, label: "品质" },
-  { value: PlantingMode.COUNT, label: "数量" },
-  { value: PlantingMode.SPECIFIC, label: "指定" },
+const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
+  { id: "monitor", label: "监控", icon: <BadgeCheck /> },
+  { id: "settings", label: "设置", icon: <ShieldCheck /> },
+  { id: "logs", label: "日志", icon: <CalendarDays /> },
 ];
+
+const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
 
 const SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
@@ -261,10 +263,9 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
 ];
 
 const EMPTY_ADD_FORM = {
-  name: "",
+  channel: Channel.IOS,
   username: "",
   password: "",
-  loginNow: true,
 };
 
 type AddAccountForm = typeof EMPTY_ADD_FORM;
@@ -278,6 +279,7 @@ export default function HomePage() {
 }
 
 function DashboardContent() {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -293,12 +295,37 @@ function DashboardContent() {
   const [policyMessage, setPolicyMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
+  const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("monitor");
+  const didAutoSelectAccount = useRef(false);
+  const accountsRef = useRef<Account[]>([]);
+  const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
   );
   const selectedStatus = selectedAccountId ? statuses.get(selectedAccountId) : undefined;
+  const selectedConnected = selectedAccount ? accountConnected(selectedAccount, selectedStatus) : false;
+  const hasAccounts = accounts.length > 0;
+  const creatingAccount = busyAction === "create";
+  const accountQuota = useMemo<AccountQuota | null>(() => {
+    if (!user) return null;
+    const current = accounts.length;
+    const max = user.maxAccounts;
+    return {
+      current,
+      max,
+      reached: current >= max,
+    };
+  }, [accounts.length, user]);
+
+  useEffect(() => {
+    accountsRef.current = accounts;
+  }, [accounts]);
+
+  useEffect(() => {
+    statusesRef.current = statuses;
+  }, [statuses]);
 
   const refreshStatus = useCallback(async () => {
     const [accountRes, statusRes] = await Promise.all([
@@ -313,9 +340,21 @@ function DashboardContent() {
     setStatuses(nextStatuses);
   }, []);
 
-  const refreshSnapshot = useCallback(async (accountId: string, showLoading = false) => {
+  const canReadSnapshot = useCallback((accountId: string) => {
+    const account = accountsRef.current.find((item) => item.id === accountId);
+    if (!account) return false;
+    return accountConnected(account, statusesRef.current.get(accountId));
+  }, []);
+
+  const refreshSnapshot = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean }) => {
     if (!accountId) {
       setSnapshot(null);
+      return;
+    }
+    if (!options?.force && !canReadSnapshot(accountId)) {
+      setSnapshot(null);
+      setSnapshotLoading(false);
+      setError((current) => (isRunnerNotStartedError(current) ? "" : current));
       return;
     }
     if (showLoading) {
@@ -325,11 +364,15 @@ function DashboardContent() {
       setSnapshot(await queryClient.getSnapshot({ accountId }));
     } catch (err) {
       setSnapshot(null);
-      setError(err instanceof Error ? err.message : "读取快照失败");
+      if (!isRunnerNotStartedError(err)) {
+        setError(err instanceof Error ? err.message : "读取快照失败");
+      } else {
+        setError((current) => (isRunnerNotStartedError(current) ? "" : current));
+      }
     } finally {
       setSnapshotLoading(false);
     }
-  }, []);
+  }, [canReadSnapshot]);
 
   const refreshPolicy = useCallback(async (accountId: string) => {
     if (!accountId) {
@@ -365,8 +408,19 @@ function DashboardContent() {
   }, [refreshWorkspace]);
 
   useEffect(() => {
-    if (!selectedAccountId && accounts.length > 0) {
+    if (accounts.length === 0) {
+      setSelectedAccountId("");
+      didAutoSelectAccount.current = false;
+      return;
+    }
+    if (selectedAccountId && !accounts.some((account) => account.id === selectedAccountId)) {
       setSelectedAccountId(accounts[0].id);
+      didAutoSelectAccount.current = true;
+      return;
+    }
+    if (!selectedAccountId && !didAutoSelectAccount.current) {
+      setSelectedAccountId(accounts[0].id);
+      didAutoSelectAccount.current = true;
     }
   }, [accounts, selectedAccountId]);
 
@@ -377,9 +431,16 @@ function DashboardContent() {
       setEvents([]);
       return;
     }
-    void refreshSnapshot(selectedAccountId, true);
+    setDashboardTab("monitor");
+    if (selectedConnected) {
+      void refreshSnapshot(selectedAccountId, true);
+    } else {
+      setSnapshot(null);
+      setSnapshotLoading(false);
+      setError((current) => (isRunnerNotStartedError(current) ? "" : current));
+    }
     void refreshPolicy(selectedAccountId);
-  }, [refreshPolicy, refreshSnapshot, selectedAccountId]);
+  }, [refreshPolicy, refreshSnapshot, selectedAccountId, selectedConnected]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -392,7 +453,10 @@ function DashboardContent() {
   }, [refreshSnapshot, refreshStatus, selectedAccountId]);
 
   useEffect(() => {
-    if (!selectedAccountId) return;
+    if (!selectedAccountId || !selectedConnected) {
+      setEvents([]);
+      return;
+    }
     const controller = new AbortController();
     let active = true;
     setEvents([]);
@@ -421,20 +485,17 @@ function DashboardContent() {
       active = false;
       controller.abort();
     };
-  }, [refreshSnapshot, selectedAccountId]);
+  }, [refreshSnapshot, selectedAccountId, selectedConnected]);
 
-  async function runAccountAction(action: "login" | "logout" | "start" | "stop" | "reload") {
+  async function runAccountAction(action: "login" | "logout") {
     if (!selectedAccount) return;
     setBusyAction(action);
     setError("");
     try {
       if (action === "login") await accountClient.loginAccount({ id: selectedAccount.id });
       if (action === "logout") await accountClient.logoutAccount({ id: selectedAccount.id });
-      if (action === "start") await automationClient.start({ accountId: selectedAccount.id });
-      if (action === "stop") await automationClient.stop({ accountId: selectedAccount.id });
-      if (action === "reload") await automationClient.reload({ accountId: selectedAccount.id });
       await refreshStatus();
-      await refreshSnapshot(selectedAccount.id);
+      await refreshSnapshot(selectedAccount.id, action === "login", { force: action === "login" });
       await refreshPolicy(selectedAccount.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "操作失败");
@@ -445,16 +506,19 @@ function DashboardContent() {
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!addForm.name.trim() || !addForm.username.trim() || !addForm.password) return;
+    if (!addForm.username.trim() || !addForm.password) return;
+    if (accountQuota?.reached) {
+      setError(`账号已满（${accountQuota.current}/${accountQuota.max}）`);
+      return;
+    }
     setBusyAction("create");
     setError("");
     try {
       const res = await accountClient.createAccount({
-        name: addForm.name.trim(),
         username: addForm.username.trim(),
         password: addForm.password,
-        channel: Channel.IOS,
-        loginNow: addForm.loginNow,
+        channel: addForm.channel,
+        loginNow: true,
       });
       setAddOpen(false);
       setAddForm(EMPTY_ADD_FORM);
@@ -499,7 +563,7 @@ function DashboardContent() {
     try {
       const res = await policyClient.setPolicy({ accountId: selectedAccount.id, policy });
       setPolicy(res.policy ?? policy);
-      setPolicyMessage("已保存");
+      setPolicyMessage("");
       await refreshStatus();
       await refreshSnapshot(selectedAccount.id);
     } catch (err) {
@@ -510,137 +574,107 @@ function DashboardContent() {
   }
 
   return (
-    <div className="grid h-full min-h-0 gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="min-h-0 xl:overflow-hidden">
-        <Card className="h-full min-h-[480px]">
-          <CardHeader className="border-b border-border/70 pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>账号</CardTitle>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => void refreshWorkspace()}
-                  aria-label="刷新"
-                  disabled={loading}
-                >
-                  <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-                </Button>
-                <Button type="button" variant="outline" size="icon-sm" onClick={() => setAddOpen(true)} aria-label="新增账号">
-                  <Plus className="size-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-            {accounts.length === 0 ? (
-              <EmptyState title="暂无账号" detail="本地库未配置游戏账号。" />
-            ) : (
-              <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-1">
-                {accounts.map((account) => {
-                  const status = statuses.get(account.id);
-                  const selected = account.id === selectedAccountId;
-                  return (
-                    <button
-                      key={account.id}
-                      type="button"
-                      className={cn(
-                        "w-full rounded-md border p-3 text-left transition-colors",
-                        selected
-                          ? "border-primary/60 bg-primary/10"
-                          : "border-border/70 bg-muted/20 hover:bg-muted/45",
-                      )}
-                      onClick={() => setSelectedAccountId(account.id)}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium">{account.name}</div>
-                          <div className="truncate text-xs text-muted-foreground">{account.username}</div>
-                        </div>
-                        <HealthBadge status={status} account={account} />
-                      </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                        <MetricMini label="土地" value={status?.knownLands ?? 0} />
-                        <MetricMini label="库存" value={status?.flowerStockTotal ?? 0} />
-                        <MetricMini label="自动" value={status?.automationEnabled ? "开" : "关"} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </aside>
-
-      <section className="dark-scrollbar min-h-0 overflow-y-auto pr-1">
-        <div className="space-y-4 pb-2">
-          {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          <HeaderPanel
-            account={selectedAccount}
-            status={selectedStatus}
-            snapshot={snapshot}
-            snapshotLoading={snapshotLoading}
-            busyAction={busyAction}
-            onRefresh={() => selectedAccount && void refreshSnapshot(selectedAccount.id, true)}
-            onAction={runAccountAction}
-            onDelete={() => void deleteSelectedAccount()}
-          />
-
-          <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
-            <div className="space-y-4">
-              <SnapshotSummary snapshot={snapshot} status={selectedStatus} />
-              <OrderStatisticsPanel stats={snapshot?.orderStatistics} />
-              <DemandPanel demands={snapshot?.demands ?? []} />
-              <OperationPanel operations={snapshot?.plannedOperations ?? []} />
-              <EventPanel events={events} />
-            </div>
-            <div className="space-y-4">
-              <BlockingSummaryPanel summary={snapshot?.blockingSummary} />
-              <InventoryLedgerPanel ledger={snapshot?.inventoryLedger} />
-              <FlowerArtPanel
-                vases={snapshot?.vases ?? []}
-                availability={snapshot?.flowerArtAvailability ?? []}
-              />
-              <PolicyPanel
-                policy={policy}
-                snapshot={snapshot}
-                loading={policyLoading}
-                saving={savingPolicy}
-                message={policyMessage}
-                onPolicyChange={setPolicy}
-                onSave={() => void savePolicy()}
-              />
-            </div>
-          </div>
+    <div className="h-full min-h-0">
+      {error && (
+        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
         </div>
-      </section>
+      )}
+
+      <div
+        className={cn(
+          "h-full min-h-0 gap-4",
+          hasAccounts ? "grid xl:grid-cols-[320px_minmax(0,1fr)]" : "flex justify-center",
+        )}
+      >
+        <aside className={cn("min-h-0", selectedAccount && "hidden xl:block", !hasAccounts && "w-full max-w-md")}>
+          <AccountListPanel
+            accounts={accounts}
+            statuses={statuses}
+            selectedAccountId={selectedAccountId}
+            loading={loading}
+            quota={accountQuota}
+            onRefresh={() => void refreshWorkspace()}
+            onAdd={() => setAddOpen(true)}
+            onSelect={setSelectedAccountId}
+          />
+        </aside>
+
+        {hasAccounts && (
+          <section className={cn("dark-scrollbar h-full min-h-0 overflow-y-auto pr-1", !selectedAccount && "hidden xl:block")}>
+            {selectedAccount ? (
+              <AccountDetailView
+                account={selectedAccount}
+                status={selectedStatus}
+                snapshot={snapshot}
+                snapshotLoading={snapshotLoading}
+                busyAction={busyAction}
+                activeTab={dashboardTab}
+                events={events}
+                policy={policy}
+                policyLoading={policyLoading}
+                savingPolicy={savingPolicy}
+                policyMessage={policyMessage}
+                onBack={() => setSelectedAccountId("")}
+                onTabChange={setDashboardTab}
+                onRefresh={() => void refreshSnapshot(selectedAccount.id, true)}
+                onAction={runAccountAction}
+                onDelete={() => void deleteSelectedAccount()}
+                onPolicyChange={setPolicy}
+                onPolicySave={() => void savePolicy()}
+              />
+            ) : (
+              <SelectAccountPlaceholder />
+            )}
+          </section>
+        )}
+      </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
-            <DialogDescription>本地保存凭据，当前协议通道固定为 iOS。</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={createAccount}>
-            <Field label="名称">
-              <Input
-                value={addForm.name}
-                onChange={(event) => setAddForm((prev) => ({ ...prev, name: event.target.value }))}
-                autoComplete="off"
-              />
+            <Field label="渠道">
+              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="渠道">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={addForm.channel === Channel.IOS}
+                  className={cn(
+                    "h-10 rounded-md border px-3 text-sm font-medium transition-colors",
+                    addForm.channel === Channel.IOS
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={() => setAddForm((prev) => ({ ...prev, channel: Channel.IOS }))}
+                  disabled={creatingAccount}
+                >
+                  iOS
+                </button>
+                <button
+                  type="button"
+                  className="h-10 cursor-not-allowed rounded-md border border-border/70 px-3 text-sm font-medium text-muted-foreground/50"
+                  disabled
+                >
+                  安卓
+                </button>
+                <button
+                  type="button"
+                  className="h-10 cursor-not-allowed rounded-md border border-border/70 px-3 text-sm font-medium text-muted-foreground/50"
+                  disabled
+                >
+                  微信
+                </button>
+              </div>
             </Field>
             <Field label="账号">
               <Input
                 value={addForm.username}
                 onChange={(event) => setAddForm((prev) => ({ ...prev, username: event.target.value }))}
                 autoComplete="username"
+                disabled={creatingAccount}
               />
             </Field>
             <Field label="密码">
@@ -649,20 +683,16 @@ function DashboardContent() {
                 value={addForm.password}
                 onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
                 autoComplete="current-password"
+                disabled={creatingAccount}
               />
             </Field>
-            <ToggleRow
-              label="立即登录"
-              checked={addForm.loginNow}
-              onChange={(checked) => setAddForm((prev) => ({ ...prev, loginNow: checked }))}
-            />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)} disabled={creatingAccount}>
                 取消
               </Button>
-              <Button type="submit" disabled={busyAction === "create"}>
-                <Plus className="size-4" />
-                新增
+              <Button type="submit" disabled={creatingAccount || accountQuota?.reached}>
+                {creatingAccount ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                {creatingAccount ? "添加中" : "新增"}
               </Button>
             </DialogFooter>
           </form>
@@ -672,203 +702,436 @@ function DashboardContent() {
   );
 }
 
-function HeaderPanel({
+function AccountListPanel({
+  accounts,
+  statuses,
+  selectedAccountId,
+  loading,
+  quota,
+  onRefresh,
+  onAdd,
+  onSelect,
+}: {
+  accounts: Account[];
+  statuses: Map<string, AccountStatus>;
+  selectedAccountId: string;
+  loading: boolean;
+  quota: AccountQuota | null;
+  onRefresh: () => void;
+  onAdd: () => void;
+  onSelect: (accountId: string) => void;
+}) {
+  const hasAccounts = accounts.length > 0;
+  const quotaReached = quota?.reached ?? false;
+  return (
+    <Card className={cn("min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
+      <CardHeader className="border-b border-border/70 pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CardTitle>账号</CardTitle>
+            {quota ? (
+              <Badge variant={quotaReached ? "destructive" : "secondary"}>{quota.current}/{quota.max}</Badge>
+            ) : (
+              hasAccounts && <Badge variant="secondary">{accounts.length}</Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button type="button" variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="刷新" disabled={loading}>
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            </Button>
+            {hasAccounts && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                onClick={onAdd}
+                aria-label="新增账号"
+                disabled={quotaReached}
+              >
+                <Plus className="size-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+        {!hasAccounts ? (
+          <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+            <div className="mb-4 flex size-12 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Users className="size-5" />
+            </div>
+            <div className="text-base font-semibold">还没有账号</div>
+            <div className="mt-1 text-sm text-muted-foreground">添加后开始监控。</div>
+            <Button type="button" className="mt-5 w-full max-w-xs" onClick={onAdd} disabled={quotaReached}>
+              <Plus className="size-4" />
+              添加账号
+            </Button>
+          </div>
+        ) : (
+          <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-1">
+            {accounts.map((account) => {
+              const status = statuses.get(account.id);
+              const selected = account.id === selectedAccountId;
+              const identity = accountIdentity(account);
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  className={cn(
+                    "w-full rounded-md border p-3 text-left transition-colors",
+                    selected ? "border-primary/60 bg-primary/10" : "border-border/70 bg-muted/20 hover:bg-muted/45",
+                  )}
+                  onClick={() => onSelect(account.id)}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{identity.nickname}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                        <span>{identity.area}</span>
+                        <span>{identity.channel}</span>
+                      </div>
+                    </div>
+                    <HealthBadge status={status} account={account} />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SelectAccountPlaceholder() {
+  return (
+    <Card className="flex h-full min-h-[480px] items-center justify-center">
+      <CardContent className="max-w-md text-center">
+        <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <Users className="size-5" />
+        </div>
+        <div className="text-base font-semibold">选择账号</div>
+        <div className="mt-1 text-sm text-muted-foreground">从左侧进入监控。</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccountDetailView({
   account,
   status,
   snapshot,
   snapshotLoading,
   busyAction,
+  activeTab,
+  events,
+  policy,
+  policyLoading,
+  savingPolicy,
+  policyMessage,
+  onBack,
+  onTabChange,
   onRefresh,
   onAction,
   onDelete,
+  onPolicyChange,
+  onPolicySave,
 }: {
-  account: Account | null;
+  account: Account;
   status?: AccountStatus;
   snapshot: GetSnapshotResponse | null;
   snapshotLoading: boolean;
   busyAction: string;
+  activeTab: DashboardTabId;
+  events: Event[];
+  policy: Policy | null;
+  policyLoading: boolean;
+  savingPolicy: boolean;
+  policyMessage: string;
+  onBack: () => void;
+  onTabChange: (tab: DashboardTabId) => void;
   onRefresh: () => void;
-  onAction: (action: "login" | "logout" | "start" | "stop" | "reload") => Promise<void>;
+  onAction: (action: "login" | "logout") => Promise<void>;
   onDelete: () => void;
+  onPolicyChange: (policy: Policy | null) => void;
+  onPolicySave: () => void;
 }) {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-xl font-semibold">{account?.name ?? "未选择账号"}</h1>
-            {account && <HealthBadge account={account} status={status} />}
-            {status?.automationEnabled && <Badge variant="secondary">自动化已启用</Badge>}
-          </div>
-          <div className="mt-1 flex flex-wrap gap-3 text-sm text-muted-foreground">
-            <span>角色：{snapshot?.roleName || "-"}</span>
-            <span>等级：{snapshot?.level || 0}</span>
-            <span>最近事件：{formatTimestamp(status?.lastEventAt)}</span>
-            <span>健康：{status?.health || "-"}</span>
-          </div>
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="shrink-0">
+        <HeaderPanel
+          account={account}
+          status={status}
+          snapshotLoading={snapshotLoading}
+          busyAction={busyAction}
+          onBack={onBack}
+          onRefresh={onRefresh}
+          onAction={onAction}
+          onDelete={onDelete}
+        />
+      </div>
+      <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
+      {activeTab === "monitor" && (
+        <div className="min-h-0">
+          <MonitorTab snapshot={snapshot} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" onClick={onRefresh} disabled={!account || snapshotLoading}>
-            <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
-            刷新
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void onAction("reload")}
-            disabled={!account || busyAction === "reload"}
-          >
-            <RefreshCw className="size-4" />
-            重载
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void onAction("login")}
-            disabled={!account || busyAction === "login"}
-          >
-            <LogIn className="size-4" />
-            登录
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void onAction("logout")}
-            disabled={!account || busyAction === "logout"}
-          >
-            <LogOut className="size-4" />
-            断开
-          </Button>
-          <Button
-            type="button"
-            onClick={() => void onAction("start")}
-            disabled={!account || busyAction === "start"}
-          >
-            <Play className="size-4" />
-            启动
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void onAction("stop")}
-            disabled={!account || busyAction === "stop"}
-          >
-            <Square className="size-4" />
-            停止
-          </Button>
-          <Button type="button" variant="destructive" onClick={onDelete} disabled={!account || busyAction === "delete"}>
-            <Trash2 className="size-4" />
-            删除
-          </Button>
+      )}
+      {activeTab === "logs" && (
+        <div className="flex min-h-0 flex-1">
+          <EventPanel events={events} />
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SnapshotSummary({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
-  const recommendationStats = useMemo(() => {
-    const stats = new Map<string, number>();
-    for (const land of snapshot?.lands ?? []) {
-      stats.set(land.recommendation || "unknown", (stats.get(land.recommendation || "unknown") ?? 0) + 1);
-    }
-    return [...stats.entries()].sort((a, b) => b[1] - a[1]);
-  }, [snapshot]);
-
-  const inventoryTop = useMemo(() => {
-    if (!snapshot) return [];
-    return Object.entries(snapshot.inventory)
-      .map(([id, count]) => ({ id: Number(id), count }))
-      .filter((item) => item.count > 0)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }, [snapshot]);
-
-  return (
-    <div className="grid gap-4 lg:grid-cols-4">
-      <MetricCard icon={<Coins />} label="金币" value={snapshot?.gold ?? 0} />
-      <MetricCard icon={<Gem />} label="钻石" value={(snapshot?.diamondsFree ?? 0) + (snapshot?.diamondsPaid ?? 0)} />
-      <MetricCard icon={<Waves />} label="水滴" value={`${snapshot?.waterDrops ?? 0}/${snapshot?.waterDropsTotal ?? 0}`} />
-      <MetricCard icon={<Sprout />} label="土地" value={status?.knownLands ?? snapshot?.lands.length ?? 0} />
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>土地状态</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recommendationStats.length === 0 ? (
-            <EmptyState title="暂无土地快照" />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {recommendationStats.map(([key, count]) => (
-                <Badge key={key} variant="outline">
-                  {recommendationLabel(key)} · {count}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>库存 Top</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {inventoryTop.length === 0 ? (
-            <EmptyState title="暂无库存数据" />
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2">
-              {inventoryTop.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2">
-                  <span className="truncate text-sm">{itemName(item.id)}</span>
-                  <span className="font-mono text-sm">{item.count}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      )}
+      {activeTab === "settings" && (
+        <div className="min-h-0">
+          <PolicyPanel
+            policy={policy}
+            snapshot={snapshot}
+            loading={policyLoading}
+            saving={savingPolicy}
+            message={policyMessage}
+            onPolicyChange={onPolicyChange}
+            onSave={onPolicySave}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
-function OrderStatisticsPanel({ stats }: { stats?: OrderStatisticsView }) {
-  const observed = Boolean(stats?.observed);
-  const badgeLabel = orderStatisticsBadgeLabel(stats);
-  const rows = [
-    { label: "居民普通", value: stats?.residentNormalFinished ?? 0 },
-    { label: "顾客订单", value: stats?.customerFinished ?? 0 },
-    { label: "宫廷订单", value: stats?.palaceFinished ?? 0 },
-    { label: "丝带订单", value: stats?.residentSatinFinished ?? 0 },
-    { label: "装扮订单", value: stats?.residentDecorateFinished ?? 0 },
-    { label: "花架售出", value: stats?.flowerArtSold ?? 0 },
-  ];
+function DashboardTabBar({
+  activeTab,
+  onChange,
+}: {
+  activeTab: DashboardTabId;
+  onChange: (tab: DashboardTabId) => void;
+}) {
+  return (
+    <div className="dark-scrollbar flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/70 bg-card p-1">
+      {DASHBOARD_TABS.map((tab) => (
+        <button
+          key={tab.id}
+          type="button"
+          className={cn(
+            "flex h-9 min-w-20 shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors",
+            activeTab === tab.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          )}
+          onClick={() => onChange(tab.id)}
+        >
+          <span className="[&_svg]:size-4">{tab.icon}</span>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
+function MonitorTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  return (
+    <div className="space-y-4">
+      <CoreAssetsPanel snapshot={snapshot} />
+      <OperationPanel operations={snapshot?.plannedOperations ?? []} />
+      <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
+        <LandStatusPanel lands={snapshot?.lands ?? []} />
+        <InventoryLedgerPanel ledger={snapshot?.inventoryLedger} />
+      </div>
+    </div>
+  );
+}
+
+function HeaderPanel({
+  account,
+  status,
+  snapshotLoading,
+  busyAction,
+  onBack,
+  onRefresh,
+  onAction,
+  onDelete,
+}: {
+  account: Account;
+  status?: AccountStatus;
+  snapshotLoading: boolean;
+  busyAction: string;
+  onBack: () => void;
+  onRefresh: () => void;
+  onAction: (action: "login" | "logout") => Promise<void>;
+  onDelete: () => void;
+}) {
+  const connected = accountConnected(account, status);
+  const sessionAction = connected ? "logout" : "login";
+  const identity = accountIdentity(account);
   return (
     <Card>
+      <CardContent className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div className="min-w-0">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <h1 className="truncate text-xl font-semibold">{identity.nickname}</h1>
+              <span className="text-sm text-muted-foreground">-</span>
+              <span className="text-sm text-muted-foreground">{identity.area}</span>
+              <span className="text-sm text-muted-foreground">-</span>
+              <span className="text-sm text-muted-foreground">{identity.channel}</span>
+              <HealthBadge account={account} status={status} />
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={snapshotLoading || !connected}>
+            <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
+          </IconButtonWithTooltip>
+          <IconButtonWithTooltip
+            label={connected ? "退出登录" : "登录"}
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            onClick={() => void onAction(sessionAction)}
+            disabled={busyAction === sessionAction}
+          >
+            {busyAction === sessionAction ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : connected ? (
+              <LogOut className="size-4" />
+            ) : (
+              <LogIn className="size-4" />
+            )}
+          </IconButtonWithTooltip>
+          <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
+            <Trash2 className="size-4" />
+          </IconButtonWithTooltip>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function IconButtonWithTooltip({
+  label,
+  children,
+  ...props
+}: ComponentProps<typeof Button> & { label: string }) {
+  return (
+    <Tooltip disabled={props.disabled}>
+      <TooltipTrigger
+        render={
+          <Button {...props} aria-label={props["aria-label"] ?? label}>
+            {children}
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function accountIdentity(account: Account) {
+  return {
+    nickname: accountNickname(account),
+    area: accountAreaLabel(account),
+    channel: channelLabel(account.channel),
+  };
+}
+
+function accountNickname(account: Account) {
+  const withoutArea = account.name
+    .replace(/\s*·\s*第\s*\d+\s*区(?:\s*#\d+)?\s*$/, "")
+    .replace(/\s+第\s*\d+\s*区(?:\s*#\d+)?\s*$/, "")
+    .trim();
+  const withoutServerPrefix = withoutArea.replace(/^s\d{2,}[.．·\s_-]+/i, "").trim();
+  return withoutServerPrefix || withoutArea || account.name || "账号";
+}
+
+function accountAreaLabel(account: Account) {
+  if (account.gsIdx > 0) return `第${account.gsIdx}区`;
+  const match = account.name.match(/第\s*(\d+)\s*区/);
+  if (match) return `第${match[1]}区`;
+  const serverMatch = account.name.match(/^s(\d{2,})[.．·\s_-]+/i);
+  if (serverMatch) return `第${serverMatch[1]}区`;
+  return "未知区";
+}
+
+function channelLabel(channel: Channel) {
+  switch (channel) {
+    case Channel.IOS:
+      return "iOS";
+    default:
+      return "未知渠道";
+  }
+}
+
+function accountConnected(account: Account, status?: AccountStatus) {
+  return status?.connected ?? account.connected;
+}
+
+function isRunnerNotStartedError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return message.includes("runner not started") || message.includes("failed_precondition");
+}
+
+const FLORAL_COIN_ITEM_ID = 1002;
+
+function CoreAssetsPanel({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  const floralCoins = snapshot?.inventory[FLORAL_COIN_ITEM_ID] ?? 0;
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <MetricCard icon={<Coins />} label="金币" value={snapshot?.gold ?? 0} />
+      <MetricCard icon={<Gem />} label="元宝" value={(snapshot?.diamondsFree ?? 0) + (snapshot?.diamondsPaid ?? 0)} />
+      <MetricCard icon={<Waves />} label="水滴" value={`${snapshot?.waterDrops ?? 0}/${snapshot?.waterDropsTotal ?? 0}`} />
+      <MetricCard icon={<HandCoins />} label="花坊币" value={floralCoins} />
+    </div>
+  );
+}
+
+function LandStatusPanel({ lands }: { lands: LandView[] }) {
+  const visibleLands = useMemo(
+    () => lands.filter((land) => land.landStatus === "opened").sort((a, b) => a.landId - b.landId),
+    [lands],
+  );
+  const recommendationStats = useMemo(() => {
+    const stats = new Map<string, number>();
+    for (const land of visibleLands) {
+      stats.set(land.recommendation || "unknown", (stats.get(land.recommendation || "unknown") ?? 0) + 1);
+    }
+    const visibleKeys = new Set(["harvest", "plant", "water", "wait"]);
+    return [...stats.entries()].filter(([key]) => visibleKeys.has(key)).sort((a, b) => b[1] - a[1]);
+  }, [visibleLands]);
+  const openedCount = lands.filter((land) => land.landStatus === "opened").length;
+  const unopenedCount = lands.filter((land) => land.landStatus === "unopened").length;
+  const lockedCount = lands.filter((land) => land.landStatus === "locked").length;
+
+  return (
+    <Card className="h-full">
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>订单统计</CardTitle>
-          <Badge variant={observed ? "secondary" : "outline"}>{badgeLabel}</Badge>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>土地</CardTitle>
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <Badge variant="secondary">已开 {openedCount}</Badge>
+            {unopenedCount > 0 && <Badge variant="outline">未开 {unopenedCount}</Badge>}
+            {lockedCount > 0 && <Badge variant="outline">锁定 {lockedCount}</Badge>}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {!stats || !observed ? (
-          <EmptyState title="暂无订单统计" detail={stats?.blockedReasons.join(" · ") || "等待 namespace 124 快照。"} />
+        {lands.length === 0 ? (
+          <EmptyState title="暂无土地快照" />
+        ) : visibleLands.length === 0 ? (
+          <EmptyState title="暂无已开放土地" />
         ) : (
-          <div className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              {rows.map((row) => (
-                <div key={row.label} className="rounded-md border border-border/70 px-3 py-2">
-                  <div className="text-xs text-muted-foreground">{row.label}</div>
-                  <div className="font-mono text-base font-semibold">{row.value}</div>
-                </div>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {recommendationStats.map(([key, count]) => (
+                <Badge key={key} variant="outline">
+                  {recommendationLabel(key)} {count}
+                </Badge>
               ))}
             </div>
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span>创建：{formatUnixMs(stats.createdAtMs)}</span>
-              <span>更新：{formatUnixMs(stats.updatedAtMs)}</span>
+            <div className="dark-scrollbar grid h-[560px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {visibleLands.map((land) => (
+                <LandTile key={land.landId} land={land} />
+              ))}
             </div>
-            {stats.blockedReasons.length > 0 && <ReasonList reasons={stats.blockedReasons} fallback="-" />}
           </div>
         )}
       </CardContent>
@@ -876,156 +1139,94 @@ function OrderStatisticsPanel({ stats }: { stats?: OrderStatisticsView }) {
   );
 }
 
-function orderStatisticsBadgeLabel(stats?: OrderStatisticsView) {
-  if (!stats?.observed) return "未观测";
-  const dayId = stats.dayId;
-  if (dayId >= 19000101 && dayId <= 29991231) return `日 ${dayId}`;
-  return "已同步";
-}
-
-function DemandPanel({ demands }: { demands: DemandView[] }) {
+function LandTile({ land }: { land: LandView }) {
+  const planted = land.flowerId > 0;
+  const status = land.landStatus || (land.observed ? "opened" : "unknown");
+  const recommendation = recommendationLabel(land.recommendation);
+  const timing = landTimingLabel(land, status);
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>需求缺口</CardTitle>
-          <Badge variant="secondary">{demands.length}</Badge>
+    <div
+      className={cn(
+        "min-h-[78px] rounded-md border border-border/70 bg-background/60 p-2",
+        land.recommendation === "harvest" && "border-primary/60 bg-primary/5",
+        land.recommendation === "water" && "border-sky-300/70 bg-sky-50/60",
+        land.recommendation === "plant" && "border-amber-300/70 bg-amber-50/60",
+        !land.observed && "opacity-70",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-mono text-sm font-medium">{landDisplayName(land.landId)}</div>
         </div>
-      </CardHeader>
-      <CardContent>
-        {demands.length === 0 ? (
-          <EmptyState title="当前无需求" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>来源</TableHead>
-                <TableHead>物品</TableHead>
-                <TableHead>需求</TableHead>
-                <TableHead>库存</TableHead>
-                <TableHead>分配</TableHead>
-                <TableHead>可用</TableHead>
-                <TableHead>缺口</TableHead>
-                <TableHead>优先级</TableHead>
-                <TableHead>状态</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {demands.slice(0, 16).map((demand) => (
-                <TableRow key={demand.id}>
-                  <TableCell>
-                    <div className="font-medium">{goalLabel(demand.goalId)}</div>
-                    <div className="text-xs text-muted-foreground">{demand.label || demand.entityId}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{demand.itemName || itemName(demand.itemId)}</div>
-                    <div className="text-xs text-muted-foreground">{demandKindLabel(demand)}</div>
-                  </TableCell>
-                  <TableCell>{formatDemandCount(demand, demand.required)}</TableCell>
-                  <TableCell>{demand.owned}</TableCell>
-                  <TableCell>{demand.allocated}</TableCell>
-                  <TableCell>{demand.available}</TableCell>
-                  <TableCell className={cn(demand.missing > 0 && "text-destructive")}>{formatDemandCount(demand, demand.missing)}</TableCell>
-                  <TableCell>{demand.priority}</TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <DemandStatusBadge demand={demand} />
-                      <ReasonList reasons={demand.blockedReasons} fallback={demand.blockingStage || "-"} />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+        <Badge variant={land.recommendation === "harvest" ? "secondary" : "outline"} className="h-5 px-1.5 text-[11px]">
+          {recommendation}
+        </Badge>
+      </div>
+      <div className="mt-1 truncate text-sm">{planted ? itemName(land.flowerId) : "空地"}</div>
+      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="truncate">
+          {land.lvl ? `${land.lvl}级` : "-"}
+          {planted ? ` · 收${land.harvestCnt || 0}` : ""}
+        </span>
+        <span className="shrink-0">{timing}</span>
+      </div>
+    </div>
   );
 }
 
 function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
-  const items = useMemo(() => {
+  const inventoryItems = useMemo(() => {
     return [...(ledger?.items ?? [])]
       .filter((item) => item.owned > 0 || item.allocated > 0)
-      .sort((a, b) => b.allocated - a.allocated || b.owned - a.owned || a.itemId - b.itemId)
-      .slice(0, 14);
+      .sort((a, b) => b.owned - a.owned || b.allocated - a.allocated || a.itemId - b.itemId);
   }, [ledger]);
+  const totalOwned = inventoryItems.reduce((sum, item) => sum + item.owned, 0);
+  const allocatedCount = inventoryItems.filter((item) => item.allocated > 0).length;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>库存账本</CardTitle>
-          <Badge variant="secondary">{ledger?.items.length ?? 0}</Badge>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle>库存</CardTitle>
+          {inventoryItems.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">物品 {inventoryItems.length}</Badge>
+              <Badge variant="outline">总数 {totalOwned}</Badge>
+              {allocatedCount > 0 && <Badge variant="outline">预留 {allocatedCount}</Badge>}
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
-        {items.length === 0 ? (
-          <EmptyState title="暂无账本分配" />
+        {inventoryItems.length === 0 ? (
+          <EmptyState title="暂无库存数据" />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>物品</TableHead>
-                <TableHead>库存</TableHead>
-                <TableHead>预留</TableHead>
-                <TableHead>可用</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.itemId}>
-                  <TableCell>
-                    <div className="font-medium">{item.itemName || itemName(item.itemId)}</div>
-                    <div className="text-xs text-muted-foreground">{item.itemId}</div>
-                  </TableCell>
-                  <TableCell>{item.owned}</TableCell>
-                  <TableCell className={cn(item.allocated > 0 && "text-primary")}>{item.allocated}</TableCell>
-                  <TableCell className={cn(item.available < 0 && "text-destructive")}>{item.available}</TableCell>
+          <div className="dark-scrollbar h-[560px] overflow-y-auto rounded-md border border-border/70">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>物品</TableHead>
+                  <TableHead>库存</TableHead>
+                  <TableHead>预留</TableHead>
+                  <TableHead>可用</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function BlockingSummaryPanel({ summary }: { summary?: BlockingSummary }) {
-  const groups = summary?.groups ?? [];
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>阻塞汇总</CardTitle>
-          <Badge variant={summary?.total ? "destructive" : "secondary"}>{summary?.total ?? 0}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {groups.length === 0 ? (
-          <EmptyState title="无聚合阻塞" />
-        ) : (
-          <div className="space-y-2">
-            {groups.slice(0, 10).map((group, index) => (
-              <div key={`${group.category}-${group.domain}-${group.stage}-${index}`} className="rounded-md border border-border/70 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {categoryLabel(group.category)} / {group.domain || "unknown"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{group.stage || "plan"}</div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Badge variant="outline">{planStatusLabel(group.status)}</Badge>
-                    <Badge variant="secondary">{group.count}</Badge>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <ReasonList reasons={group.reasons.slice(0, 4)} fallback="-" />
-                </div>
-              </div>
-            ))}
+              </TableHeader>
+              <TableBody>
+                {inventoryItems.map((item) => (
+                  <TableRow key={item.itemId}>
+                    <TableCell className="min-w-0">
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        <span className="truncate font-medium">{item.itemName || itemName(item.itemId)}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{item.itemId}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{item.owned}</TableCell>
+                    <TableCell className={cn(item.allocated > 0 && "text-primary")}>{item.allocated}</TableCell>
+                    <TableCell className={cn(item.available < 0 && "text-destructive")}>{item.available}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         )}
       </CardContent>
@@ -1043,103 +1244,33 @@ function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
         </div>
       </CardHeader>
       <CardContent>
-        {operations.length === 0 ? (
-          <EmptyState title="当前无计划操作" />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>状态</TableHead>
-                <TableHead>操作</TableHead>
-                <TableHead>目标</TableHead>
-                <TableHead>成本</TableHead>
-                <TableHead>原因</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {operations.slice(0, 18).map((operation, index) => (
-                <TableRow key={operation.operationId || `${operation.rpc}-${index}`}>
-                  <TableCell>
-                    <OperationStatusBadge operation={operation} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{operation.label || `${operation.domain}.${operation.action}`}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {goalLabel(operation.goalId)} · {operation.rpc || "local"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <OperationTarget operation={operation} />
-                  </TableCell>
-                  <TableCell>
-                    <CostView operation={operation} />
-                  </TableCell>
-                  <TableCell className="max-w-[280px] whitespace-normal text-muted-foreground">
-                    {operation.reason || <ReasonList reasons={operation.blockedReasons} fallback="-" />}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function FlowerArtPanel({
-  vases,
-  availability,
-}: {
-  vases: VaseView[];
-  availability: FlowerArtAvailabilityView[];
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>花艺能力</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <div className="mb-2 text-xs font-medium text-muted-foreground">已解锁花瓶类型</div>
-          {vases.length === 0 ? (
-            <EmptyState title="未观察到花瓶状态" />
+        <div className="dark-scrollbar h-[172px] overflow-auto rounded-md border border-border/70">
+          {operations.length === 0 ? (
+            <div className="flex h-full items-center justify-center px-3 text-sm text-muted-foreground">当前无计划操作</div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {vases.map((vase) => (
-                <Badge key={vase.vaseId} variant="outline">
-                  类型 {vase.vaseId}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <div className="mb-2 text-xs font-medium text-muted-foreground">可制作性</div>
-          {availability.length === 0 ? (
-            <EmptyState title="暂无花艺配方视图" />
-          ) : (
-            <div className="space-y-2">
-              {availability.slice(0, 8).map((art) => (
-                <div key={art.artId} className="rounded-md border border-border/70 p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{art.artName || itemName(art.artId)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        花瓶类型 {art.vaseId} · 配置等级 {art.level} · 价值 {art.saleValue}
-                      </div>
+            <div className="divide-y divide-border/70">
+              {operations.map((operation, index) => {
+                const target = operationTargetLabel(operation);
+                const cost = operationCostLabel(operation);
+                const note = operationNoteLabel(operation);
+                return (
+                  <div
+                    key={operation.operationId || `${operation.rpc}-${index}`}
+                    className="flex min-h-12 items-center gap-3 px-3 py-2"
+                    title={[operation.rpc, operation.domain, operation.reason].filter(Boolean).join(" · ")}
+                  >
+                    <div className="shrink-0">
+                      <OperationStatusBadge operation={operation} />
                     </div>
-                    <Badge variant={art.craftable ? "secondary" : "outline"}>
-                      {art.craftable ? "可制作" : "受限"}
-                    </Badge>
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                      <span className="font-medium">{operationTitle(operation)}</span>
+                      {target && <span className="text-muted-foreground">{target}</span>}
+                      {cost && <span className="text-muted-foreground">{cost}</span>}
+                      {note && <span className="text-muted-foreground">{note}</span>}
+                    </div>
                   </div>
-                  {art.blockedReasons.length > 0 && (
-                    <div className="mt-2">
-                      <ReasonList reasons={art.blockedReasons} fallback="-" />
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1438,8 +1569,8 @@ function PolicyPanel({
         <div className="flex items-center justify-between gap-2">
           <CardTitle>策略</CardTitle>
           <Button type="button" size="sm" onClick={onSave} disabled={saving}>
-            <Save className="size-4" />
-            保存
+            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            {saving ? "保存中" : "保存"}
           </Button>
         </div>
       </CardHeader>
@@ -1447,9 +1578,8 @@ function PolicyPanel({
         {message && <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">{message}</div>}
 
         <section className="space-y-3">
-          <SectionTitle icon={<ShieldCheck />}>总开关</SectionTitle>
+          <SectionTitle icon={<ShieldCheck />}>运行参数</SectionTitle>
           <div className="grid gap-2 sm:grid-cols-2">
-            <ToggleRow label="自动化" checked={policy.automationEnabled} onChange={(checked) => updatePolicy({ automationEnabled: checked })} />
             <NumberRow label="决策间隔" value={policy.decisionIntervalSeconds || 4} min={1} onChange={(value) => updatePolicy({ decisionIntervalSeconds: value })} />
           </div>
         </section>
@@ -1473,6 +1603,30 @@ function PolicyPanel({
 
         {activeTab === "basic" && (
           <div className="space-y-4">
+            <PolicyGroup title="土地与种植" icon={<Sprout />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动种植" checked={flower?.autoEnabled ?? false} onChange={(checked) => updateFlower({ autoEnabled: checked })} />
+                <ToggleRow label="解锁土地" checked={flower?.autoUnlockLand ?? false} onChange={(checked) => updateFlower({ autoUnlockLand: checked })} />
+                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={flower?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateFlower({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
+                <ToggleRow label="使用加速券" checked={flower?.useSpeedUpTicket ?? false} onChange={(checked) => updateFlower({ useSpeedUpTicket: checked })} />
+                <NumberRow label="加速券上限" value={flower?.speedUpTicketMax || 0} min={0} onChange={(value) => updateFlower({ speedUpTicketMax: value })} />
+                <NumberRow label="保留水滴" value={flower?.minWaterDrops || 0} min={0} onChange={(value) => updateFlower({ minWaterDrops: value })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="种植策略" icon={<Package />}>
+              <GoalPriorityEditor value={flower?.goalPriority ?? {}} onChange={(goalPriority) => updateFlower({ goalPriority })} />
+            </PolicyGroup>
+
+            <PolicyGroup title="培育配置" icon={<Flower2 />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动培育" checked={cultivate?.enabled ?? false} onChange={(checked) => updateCultivate({ enabled: checked })} />
+                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速培育" checked={cultivate?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateCultivate({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
+                <ToggleRow label="鲜花升级" checked={cultivate?.upgradeEnabled ?? false} onChange={(checked) => updateCultivate({ upgradeEnabled: checked })} />
+                <NumberRow label="目标等级" value={cultivate?.targetLevel || 20} min={1} onChange={(value) => updateCultivate({ targetLevel: value })} />
+              </div>
+            </PolicyGroup>
+
             <PolicyGroup title="基础配置" icon={<ShieldCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 {SHOW_UNSUPPORTED_SETTINGS && (
@@ -1481,7 +1635,6 @@ function PolicyPanel({
                     <NumberRow label="礼仪分阈值" value={reputation?.threshold || 80} min={0} onChange={(value) => updateReputation({ threshold: value })} />
                   </>
                 )}
-                <ToggleRow label="道具日志" checked={basic?.itemLogEnabled ?? false} onChange={(checked) => updateBasic({ itemLogEnabled: checked })} />
                 <NumberRow label="重连间隔秒" value={basic?.reconnectIntervalSeconds || 300} min={1} onChange={(value) => updateBasic({ reconnectIntervalSeconds: value })} />
               </div>
             </PolicyGroup>
@@ -1497,6 +1650,11 @@ function PolicyPanel({
               </div>
             </PolicyGroup>
 
+          </div>
+        )}
+
+        {activeTab === "other" && (
+          <div className="space-y-4">
             <PolicyGroup title="邮件、福利、祈愿" icon={<BadgeCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="邮件" checked={basic?.mailEnabled ?? false} onChange={(checked) => updateBasic({ mailEnabled: checked })} />
@@ -1563,60 +1721,6 @@ function PolicyPanel({
                     <BigIntNumberRow label="猫元宝上限" value={feedCat?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateFeedCat({ maxSpendDiamond: value })} />
                   </>
                 )}
-              </div>
-            </PolicyGroup>
-          </div>
-        )}
-
-        {activeTab === "plant" && (
-          <div className="space-y-4">
-            <PolicyGroup title="培育配置" icon={<Flower2 />}>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="自动培育" checked={cultivate?.enabled ?? false} onChange={(checked) => updateCultivate({ enabled: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速培育" checked={cultivate?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateCultivate({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
-                <ToggleRow label="鲜花升级" checked={cultivate?.upgradeEnabled ?? false} onChange={(checked) => updateCultivate({ upgradeEnabled: checked })} />
-                <NumberRow label="目标等级" value={cultivate?.targetLevel || 20} min={1} onChange={(value) => updateCultivate({ targetLevel: value })} />
-              </div>
-            </PolicyGroup>
-
-            <PolicyGroup title="土地与种植" icon={<Sprout />}>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="解锁土地" checked={flower?.autoUnlockLand ?? false} onChange={(checked) => updateFlower({ autoUnlockLand: checked })} />
-                <ToggleRow label="自动收获" checked={flower?.harvestEnabled ?? false} onChange={(checked) => updateFlower({ harvestEnabled: checked })} />
-                <ToggleRow label="自动种植" checked={flower?.plantEnabled ?? false} onChange={(checked) => updateFlower({ plantEnabled: checked })} />
-                <ToggleRow label="自动浇水" checked={flower?.waterEnabled ?? false} onChange={(checked) => updateFlower({ waterEnabled: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={flower?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateFlower({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
-                <ToggleRow label="使用加速券" checked={flower?.useSpeedUpTicket ?? false} onChange={(checked) => updateFlower({ useSpeedUpTicket: checked })} />
-                <NumberRow label="加速券上限" value={flower?.speedUpTicketMax || 0} min={0} onChange={(value) => updateFlower({ speedUpTicketMax: value })} />
-                <NumberRow label="保留水滴" value={flower?.minWaterDrops || 0} min={0} onChange={(value) => updateFlower({ minWaterDrops: value })} />
-                <NumberRow label="浇水批量" value={flower?.waterMaxBatch || 8} min={1} onChange={(value) => updateFlower({ waterMaxBatch: value })} />
-              </div>
-            </PolicyGroup>
-
-            <PolicyGroup title="种植策略" icon={<Package />}>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="任务优先" checked={flower?.taskPriorityEnabled ?? false} onChange={(checked) => updateFlower({ taskPriorityEnabled: checked })} />
-                <ToggleRow label="任务日志" checked={flower?.taskLogEnabled ?? false} onChange={(checked) => updateFlower({ taskLogEnabled: checked })} />
-                <SegmentedRow label="种植模式" value={flower?.plantingMode || PlantingMode.COUNT} options={PLANTING_MODE_OPTIONS} onChange={(value) => updateFlower({ plantingMode: value })} />
-                <QualityRow label="选择品质" value={flower?.allowedQualities ?? []} onChange={(value) => updateFlower({ allowedQualities: value })} />
-                <NumberRow label="选择数量" value={flower?.flowerKindCount || 4} min={1} onChange={(value) => updateFlower({ flowerKindCount: value })} />
-                <IntListRow label="指定花朵" value={flower?.specifiedFlowerIds ?? []} onChange={(value) => updateFlower({ specifiedFlowerIds: value })} />
-                <IntListRow label="排除花朵" value={flower?.blockedFlowerIds ?? []} onChange={(value) => updateFlower({ blockedFlowerIds: value })} />
-                <NumberRow label="最低花朵等级" value={flower?.minFlowerLevel || 0} min={0} onChange={(value) => updateFlower({ minFlowerLevel: value })} />
-                <NumberRow label="每轮种植" value={flower?.plantMaxBatch || 8} min={1} onChange={(value) => updateFlower({ plantMaxBatch: value })} />
-                <NumberRow label="单花上限" value={flower?.maxPerFlowerPerCycle || 4} min={1} onChange={(value) => updateFlower({ maxPerFlowerPerCycle: value })} />
-                <NumberRow label="补种水位" value={flower?.fallbackStockFloor || 0} min={0} onChange={(value) => updateFlower({ fallbackStockFloor: value })} />
-              </div>
-              <div className="mt-3 grid gap-2">
-                {GOAL_OPTIONS.map((goal) => (
-                  <NumberRow
-                    key={goal.id}
-                    label={`${goal.label}优先级`}
-                    value={flower?.goalPriority?.[goal.id] ?? goal.defaultPriority}
-                    min={1}
-                    onChange={(value) => updateFlower({ goalPriority: { ...(flower?.goalPriority ?? {}), [goal.id]: value } })}
-                  />
-                ))}
               </div>
             </PolicyGroup>
 
@@ -1725,8 +1829,6 @@ function PolicyPanel({
                 <ToggleRow label="自动上架花艺" checked={flowerArt?.sellEnabled ?? false} onChange={(checked) => updateFlowerArt({ sellEnabled: checked })} />
                 <ToggleRow label="自动制作" checked={flowerArt?.craftEnabled ?? false} onChange={(checked) => updateFlowerArt({ craftEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="提前下架" checked={flowerArt?.earlyCancelEnabled ?? false} onChange={(checked) => updateFlowerArt({ earlyCancelEnabled: checked })} status={SETTING_STATUS.adapterMissing} />}
-                <IntListRow label="花艺白名单" value={flowerArt?.allowedArtIds ?? []} onChange={(value) => updateFlowerArt({ allowedArtIds: value })} />
-                <NumberRow label="每架数量" value={flowerArt?.perRackCount || 12} min={0} onChange={(value) => updateFlowerArt({ perRackCount: value })} />
                 <ToggleRow label="花艺经验" checked={flowerArt?.createRewardEnabled ?? false} onChange={(checked) => updateFlowerArt({ createRewardEnabled: checked })} />
                 <ToggleRow label="图鉴奖励" checked={flowerArt?.collectRewardEnabled ?? false} onChange={(checked) => updateFlowerArt({ collectRewardEnabled: checked })} />
               </div>
@@ -1742,7 +1844,6 @@ function PolicyPanel({
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
                     <ToggleRow label="自动种植" checked={unionLand?.autoPlantEnabled ?? false} onChange={(checked) => updateUnionLand({ autoPlantEnabled: checked })} status={SETTING_STATUS.paused} />
-                    <SegmentedRow label="种植策略" value={unionLand?.plantMode || PlantingMode.QUALITY} options={PLANTING_MODE_OPTIONS} onChange={(value) => updateUnionLand({ plantMode: value })} />
                     <QualityRow label="指定品质" value={unionLand?.qualities ?? []} onChange={(value) => updateUnionLand({ qualities: value })} />
                     <IntListRow label="指定花朵" value={unionLand?.flowerIds ?? []} onChange={(value) => updateUnionLand({ flowerIds: value })} />
                     <NumberRow label="最高花朵等级" value={unionLand?.maxFlowerLevel || 0} min={0} onChange={(value) => updateUnionLand({ maxFlowerLevel: value })} />
@@ -1996,30 +2097,187 @@ function SegmentedRow<T extends number>({
   );
 }
 
-function EventPanel({ events }: { events: Event[] }) {
+function GoalPriorityEditor({
+  value,
+  onChange,
+}: {
+  value: Record<string, number>;
+  onChange: (value: Record<string, number>) => void;
+}) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const orderedGoals = useMemo(() => {
+    return [...GOAL_OPTIONS].sort((a, b) => {
+      const priorityDelta = priorityForGoal(value, b) - priorityForGoal(value, a);
+      if (priorityDelta !== 0) return priorityDelta;
+      return GOAL_OPTIONS.findIndex((goal) => goal.id === a.id) - GOAL_OPTIONS.findIndex((goal) => goal.id === b.id);
+    });
+  }, [value]);
+
+  const commitOrder = (goals: typeof GOAL_OPTIONS) => {
+    const total = goals.length;
+    onChange(Object.fromEntries(goals.map((goal, index) => [goal.id, (total - index) * 10])));
+  };
+
+  const moveGoal = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    const from = orderedGoals.findIndex((goal) => goal.id === sourceId);
+    const to = orderedGoals.findIndex((goal) => goal.id === targetId);
+    if (from < 0 || to < 0) return;
+    const next = [...orderedGoals];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    commitOrder(next);
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>, sourceId: string) => {
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-goal-id]");
+    const targetId = target?.dataset.goalId;
+    if (targetId) moveGoal(sourceId, targetId);
+    setDraggingId(null);
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>操作日志</CardTitle>
-          <Badge variant="secondary">{events.length}</Badge>
-        </div>
+    <div className="mt-3 space-y-2 rounded-md border border-border/70 px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label className="text-sm">目标优先级</Label>
+        <span className="text-xs text-muted-foreground">高到低</span>
+      </div>
+      <div
+        className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
+        onMouseUp={(event) => {
+          if (!draggingId) return;
+          const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-goal-id]");
+          const targetId = target?.dataset.goalId;
+          if (targetId) moveGoal(draggingId, targetId);
+          setDraggingId(null);
+        }}
+        onMouseLeave={(event) => {
+          if (event.buttons === 0) setDraggingId(null);
+        }}
+      >
+        {orderedGoals.map((goal, index) => (
+          <div
+            key={goal.id}
+            data-goal-id={goal.id}
+            aria-grabbed={draggingId === goal.id}
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              setDraggingId(goal.id);
+            }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.currentTarget.setPointerCapture(event.pointerId);
+              setDraggingId(goal.id);
+            }}
+            onPointerUp={(event) => handlePointerUp(event, goal.id)}
+            onPointerCancel={() => setDraggingId(null)}
+            className={cn(
+              "flex min-h-11 cursor-grab touch-none items-center gap-2 rounded-md border border-border/70 bg-card px-2.5 py-2 text-sm shadow-sm transition active:cursor-grabbing",
+              draggingId === goal.id ? "opacity-60 ring-1 ring-primary" : "hover:border-primary/50 hover:bg-muted/40",
+            )}
+          >
+            <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{index + 1}</span>
+            <span className="min-w-0 flex-1 truncate font-medium">{goal.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function priorityForGoal(value: Record<string, number>, goal: (typeof GOAL_OPTIONS)[number]) {
+  return value[goal.id] || goal.defaultPriority;
+}
+
+function EventPanel({ events }: { events: Event[] }) {
+  const [activeCategory, setActiveCategory] = useState("all");
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const event of events) {
+      const category = eventCategory(event);
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+    return counts;
+  }, [events]);
+  const categories = useMemo(() => {
+    const order = ["basic", "plant", "order", "union", "activity", "account", "system"];
+    return [...categoryCounts.keys()].sort((a, b) => {
+      const ai = order.indexOf(a);
+      const bi = order.indexOf(b);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return a.localeCompare(b);
+    });
+  }, [categoryCounts]);
+  const visibleEvents = useMemo(() => {
+    if (activeCategory === "all") return events;
+    return events.filter((event) => eventCategory(event) === activeCategory);
+  }, [activeCategory, events]);
+
+  useEffect(() => {
+    if (activeCategory !== "all" && !categoryCounts.has(activeCategory)) {
+      setActiveCategory("all");
+    }
+  }, [activeCategory, categoryCounts]);
+
+  return (
+    <Card className="min-h-0 flex-1">
+      <CardHeader className="shrink-0">
+        <CardTitle>日志</CardTitle>
       </CardHeader>
-      <CardContent>
-        {events.length === 0 ? (
-          <EmptyState title="暂无日志" />
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="dark-scrollbar flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-1">
+          <button
+            type="button"
+            className={cn(
+              "flex h-8 shrink-0 items-center gap-2 rounded px-3 text-xs font-medium transition-colors",
+              activeCategory === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => setActiveCategory("all")}
+          >
+            全部
+          </button>
+          {categories.map((category) => (
+            <button
+              key={category}
+              type="button"
+              className={cn(
+                "flex h-8 shrink-0 items-center gap-2 rounded px-3 text-xs font-medium transition-colors",
+                activeCategory === category ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setActiveCategory(category)}
+            >
+              {categoryLabel(category)}
+            </button>
+          ))}
+        </div>
+
+        {visibleEvents.length === 0 ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <EmptyState title="暂无日志" />
+          </div>
         ) : (
-          <div className="dark-scrollbar max-h-80 space-y-2 overflow-y-auto pr-1">
-            {events.map((event, index) => (
-              <div key={`${event.kind}-${index}-${event.message}`} className="rounded-md border border-border/70 px-3 py-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{event.label || event.kind}</div>
-                    <div className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.message || event.payloadJson}</div>
-                  </div>
-                  <Badge variant={event.level === "error" ? "destructive" : "outline"}>{event.category || event.domain || "system"}</Badge>
+          <div className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 font-mono text-xs">
+            {visibleEvents.map((event, index) => (
+              <div
+                key={event.id || `${event.kind}-${index}-${event.message}`}
+                className="grid gap-1 border-b border-border/60 px-3 py-2 last:border-b-0 sm:grid-cols-[108px_64px_minmax(0,1fr)] sm:gap-3"
+              >
+                <span className="text-muted-foreground">{formatTimestamp(event.ts)}</span>
+                <span
+                  className={cn(
+                    "font-sans text-xs font-medium",
+                    event.level === "error" ? "text-destructive" : event.level === "warn" ? "text-amber-600" : "text-primary",
+                  )}
+                >
+                  {categoryLabel(eventCategory(event))}
+                </span>
+                <div className="min-w-0 whitespace-pre-wrap break-words text-foreground">
+                  <span className="font-semibold">{eventTitle(event)}</span>
+                  {eventMessage(event) && <span className="text-muted-foreground"> - {eventMessage(event)}</span>}
                 </div>
-                <div className="mt-1 text-xs text-muted-foreground">{formatTimestamp(event.ts)}</div>
               </div>
             ))}
           </div>
@@ -2040,15 +2298,6 @@ function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; va
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function MetricMini({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="min-w-0 rounded-md bg-background/35 px-2 py-1">
-      <div className="truncate">{label}</div>
-      <div className="truncate font-medium text-foreground">{value}</div>
-    </div>
   );
 }
 
@@ -2136,11 +2385,10 @@ function EmptyState({ title, detail }: { title: string; detail?: string }) {
 }
 
 function HealthBadge({ account, status }: { account: Account; status?: AccountStatus }) {
-  const connected = status?.connected ?? account.connected;
+  const connected = accountConnected(account, status);
   if (!connected) return <Badge variant="outline">离线</Badge>;
   if (status?.health === "blocked" || status?.lastError) return <Badge variant="destructive">异常</Badge>;
-  if (status?.automationEnabled) return <Badge variant="secondary">运行</Badge>;
-  return <Badge>在线</Badge>;
+  return <Badge variant="secondary">在线</Badge>;
 }
 
 function OperationStatusBadge({ operation }: { operation: PlannedOperation }) {
@@ -2149,13 +2397,6 @@ function OperationStatusBadge({ operation }: { operation: PlannedOperation }) {
   if (!operation.executable) return <Badge variant="outline">{planStatusLabel(operation.status)}</Badge>;
   if (operation.status === PlanStatus.MANAGED) return <Badge variant="secondary">调度</Badge>;
   return <Badge>可执行</Badge>;
-}
-
-function DemandStatusBadge({ demand }: { demand: DemandView }) {
-  if (demand.status === PlanStatus.BLOCKED || demand.blockedReasons.length > 0) return <Badge variant="destructive">阻塞</Badge>;
-  if (demand.status === PlanStatus.MANAGED || demand.missing > 0) return <Badge variant="secondary">生产中</Badge>;
-  if (demand.status === PlanStatus.READY || demand.missing === 0) return <Badge>已满足</Badge>;
-  return <Badge variant="outline">{planStatusLabel(demand.status)}</Badge>;
 }
 
 function planStatusLabel(status: PlanStatus) {
@@ -2177,55 +2418,34 @@ function planStatusLabel(status: PlanStatus) {
   }
 }
 
-function ReasonList({ reasons, fallback }: { reasons: string[]; fallback: string }) {
-  if (reasons.length === 0) return <span className="text-muted-foreground">{fallback}</span>;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {reasons.map((reason) => (
-        <Badge key={reason} variant="outline">
-          {reason}
-        </Badge>
-      ))}
-    </div>
-  );
+function operationTitle(operation: PlannedOperation) {
+  return operation.label || operationActionLabel(operation.action) || operation.domain || operation.rpc || "操作";
 }
 
-function OperationTarget({ operation }: { operation: PlannedOperation }) {
+function operationTargetLabel(operation: PlannedOperation) {
+  const landIds = operationLandIds(operation);
+  if (landIds.length > 0) {
+    return landIds.map(landDisplayName).join("、");
+  }
   if (operation.rpc === "flowerArt.makeFlowerArt") {
     const art = operation.itemId ? itemName(operation.itemId) : "花艺";
-    const count = operation.count ? `${operation.count} 份` : "";
-    const prefix = operation.domain === "order.customer" && operation.targetId ? `NPC ${operation.targetId}：` : "";
-    return <span className="text-sm">{`${prefix}制作 ${art}${count ? ` ${count}` : ""}`}</span>;
+    const count = operation.count ? `x${operation.count}` : "";
+    const prefix = operation.domain === "order.customer" && operation.targetId ? `NPC ${operation.targetId}` : "";
+    return [prefix, art, count].filter(Boolean).join(" ");
   }
   if (operation.rpc === "orderCustomer.finishOrder" || operation.rpc === "orderCustomer.rejectOrder") {
-    return <span className="text-sm">{operation.targetId ? `NPC ${operation.targetId}` : "-"}</span>;
+    return operation.targetId ? `NPC ${operation.targetId}` : "";
   }
   const parts = [
-    operation.targetId ? `目标 ${operation.targetId}` : "",
+    operation.targetId ? operationTargetIdLabel(operation) : "",
     operation.itemId ? itemName(operation.itemId) : "",
     operation.flowerId ? itemName(operation.flowerId) : "",
     operation.count ? `x${operation.count}` : "",
-    operation.landIds.length ? `土地 ${operation.landIds.join(",")}` : "",
   ].filter(Boolean);
-  return <span className="text-sm">{parts.join(" · ") || "-"}</span>;
+  return parts.join(" ");
 }
 
-function demandKindLabel(demand: DemandView) {
-  if (demand.kind === "flower_art") return "花艺成品";
-  if (demand.kind === "flower" && demand.source.startsWith("craft:")) return "制作用花";
-  if (demand.kind === "flower") return "鲜花";
-  if (demand.kind === "vase") return "花瓶类型";
-  return demand.kind || "物品";
-}
-
-function formatDemandCount(demand: DemandView, count: number) {
-  if (!count) return "0";
-  if (demand.kind === "flower_art") return `${count} 份`;
-  if (demand.kind === "flower") return `${count} 朵`;
-  return String(count);
-}
-
-function CostView({ operation }: { operation: PlannedOperation }) {
+function operationCostLabel(operation: PlannedOperation) {
   if (operation.costGates.length > 0) {
     const gateCosts = operation.costGates
       .filter((gate) => Number(gate.required) > 0)
@@ -2237,7 +2457,7 @@ function CostView({ operation }: { operation: PlannedOperation }) {
         return `${label} ${required}${availability}`;
       });
     if (gateCosts.length > 0) {
-      return <span className="text-sm text-muted-foreground">{gateCosts.join(" · ")}</span>;
+      return `成本 ${gateCosts.join("、")}`;
     }
   }
   const itemCosts = Object.entries(operation.itemCost)
@@ -2245,10 +2465,89 @@ function CostView({ operation }: { operation: PlannedOperation }) {
     .map(([id, count]) => `${itemName(Number(id))}x${count}`);
   const costs = [
     operation.goldCost ? `金币 ${operation.goldCost}` : "",
-    operation.diamondCost ? `钻石 ${operation.diamondCost}` : "",
+    operation.diamondCost ? `元宝 ${operation.diamondCost}` : "",
     ...itemCosts,
   ].filter(Boolean);
-  return <span className="text-sm text-muted-foreground">{costs.join(" · ") || "-"}</span>;
+  return costs.length > 0 ? `成本 ${costs.join("、")}` : "";
+}
+
+function operationNoteLabel(operation: PlannedOperation) {
+  const raw = operation.blockedReasons.length > 0 ? operation.blockedReasons.join("、") : operation.reason;
+  return operationReasonLabel(raw);
+}
+
+function operationLandIds(operation: PlannedOperation) {
+  if (operation.landIds.length > 0) return operation.landIds;
+  if ((operation.domain.startsWith("farm.") || operation.rpc.startsWith("usrLand.")) && operation.targetId > 0) {
+    return [operation.targetId];
+  }
+  return [];
+}
+
+function operationTargetIdLabel(operation: PlannedOperation) {
+  if (operation.domain === "order.customer") return `NPC ${operation.targetId}`;
+  if (operation.domain.startsWith("order.flower_art")) return `花架 ${operation.targetId}`;
+  if (operation.domain.startsWith("union.")) return `目标 ${operation.targetId}`;
+  return `#${operation.targetId}`;
+}
+
+function operationActionLabel(action: string) {
+  switch (action) {
+    case "harvest":
+      return "收获";
+    case "plant":
+      return "种植";
+    case "water":
+      return "浇水";
+    case "finish":
+    case "submit":
+      return "提交";
+    case "reject":
+      return "暂时无货";
+    case "claim":
+      return "领取";
+    case "craft":
+      return "制作";
+    case "sell":
+      return "上架";
+    case "sync":
+      return "同步";
+    case "buy":
+      return "购买";
+    case "unlock":
+      return "解锁";
+    case "feed":
+      return "喂猫";
+    case "stroke":
+      return "撸猫";
+    default:
+      return action;
+  }
+}
+
+function operationReasonLabel(reason: string) {
+  if (!reason) return "";
+  if (reason === "ready land" || reason.includes("initial bloom ready") || reason.includes("elapsed")) return "可收获";
+  if (reason === "land is empty") return "空地";
+  if (reason.includes("awaiting first water")) return "待浇水";
+  if (reason.includes("regrowing")) return "成长中";
+  if (reason.includes("not actionable")) return "等待";
+  if (reason.includes("no observed")) return "未同步";
+  return reason;
+}
+
+function eventCategory(event: Event) {
+  if (event.category) return event.category;
+  if (event.domain) return event.domain.split(".")[0] || "system";
+  return "system";
+}
+
+function eventTitle(event: Event) {
+  return event.label || [event.domain, event.action].filter(Boolean).join(".") || event.kind || "-";
+}
+
+function eventMessage(event: Event) {
+  return event.message || event.payloadJson || "";
 }
 
 function categoryLabel(category: string) {
@@ -2272,10 +2571,6 @@ function categoryLabel(category: string) {
   }
 }
 
-function goalLabel(goalId: string) {
-  return GOAL_OPTIONS.find((goal) => goal.id === goalId)?.label || goalId || "-";
-}
-
 function recommendationLabel(value: string) {
   switch (value) {
     case "harvest":
@@ -2286,9 +2581,50 @@ function recommendationLabel(value: string) {
       return "可浇水";
     case "wait":
       return "等待";
+    case "unlock":
+      return "待开";
+    case "locked":
+      return "锁定";
+    case "unknown":
+      return "未知";
     default:
       return value || "未知";
   }
+}
+
+function landStatusLabel(status: string) {
+  switch (status) {
+    case "opened":
+      return "已开";
+    case "unopened":
+      return "未开";
+    case "locked":
+      return "锁定";
+    default:
+      return status || "未知";
+  }
+}
+
+function landDisplayName(landId: number) {
+  if (landId >= 1001 && landId < 2000) return `#${landId - 1000}`;
+  return `#${landId}`;
+}
+
+function landTimingLabel(land: LandView, status: string) {
+  switch (land.recommendation) {
+    case "harvest":
+      return "可收获";
+    case "water":
+      return "待浇水";
+    case "plant":
+      return "待种植";
+  }
+  if (status !== "opened") {
+    return landStatusLabel(status);
+  }
+  const nextTime = formatUnixTime(land.nextTimeMs);
+  if (nextTime !== "-") return `成熟 ${nextTime}`;
+  return land.flowerId > 0 ? "成长中" : "待同步";
 }
 
 function formatTimestamp(ts?: Timestamp) {
@@ -2304,12 +2640,10 @@ function formatTimestamp(ts?: Timestamp) {
   }).format(new Date(milliseconds));
 }
 
-function formatUnixMs(value?: bigint) {
+function formatUnixTime(value?: bigint) {
   const milliseconds = Number(value ?? BigInt(0));
   if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "-";
   return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(milliseconds));

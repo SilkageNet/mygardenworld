@@ -3,6 +3,8 @@ package apiserver
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	connect "connectrpc.com/connect"
@@ -14,6 +16,8 @@ import (
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+const refreshCookieName = "mgw_refresh_token"
 
 func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginRequest]) (*connect.Response[pb.AuthResponse], error) {
 	in := req.Msg
@@ -41,15 +45,16 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
-	return connect.NewResponse(&pb.AuthResponse{
-		AccessToken:  pair.AccessToken,
-		RefreshToken: pair.RefreshToken,
-		User:         userToProto(user, count),
-	}), nil
+	resp := connect.NewResponse(&pb.AuthResponse{
+		AccessToken: pair.AccessToken,
+		User:        userToProto(user, count),
+	})
+	setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
+	return resp, nil
 }
 
 func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.RefreshRequest]) (*connect.Response[pb.AuthResponse], error) {
-	token := req.Msg.GetRefreshToken()
+	token := refreshTokenFromRequest(req.Header(), req.Msg.GetRefreshToken())
 	if token == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("refresh_token required"))
 	}
@@ -73,18 +78,21 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
-	return connect.NewResponse(&pb.AuthResponse{
-		AccessToken:  pair.AccessToken,
-		RefreshToken: pair.RefreshToken,
-		User:         userToProto(user, count),
-	}), nil
+	resp := connect.NewResponse(&pb.AuthResponse{
+		AccessToken: pair.AccessToken,
+		User:        userToProto(user, count),
+	})
+	setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
+	return resp, nil
 }
 
 func (svc *Services) Logout(ctx context.Context, req *connect.Request[pb.LogoutRequest]) (*connect.Response[pb.LogoutResponse], error) {
-	if token := req.Msg.GetRefreshToken(); token != "" {
+	if token := refreshTokenFromRequest(req.Header(), req.Msg.GetRefreshToken()); token != "" {
 		_ = svc.DB.RevokeRefreshToken(ctx, token)
 	}
-	return connect.NewResponse(&pb.LogoutResponse{}), nil
+	resp := connect.NewResponse(&pb.LogoutResponse{})
+	clearRefreshCookie(resp.Header(), req.Header())
+	return resp, nil
 }
 
 func (svc *Services) GetMe(ctx context.Context, _ *connect.Request[pb.GetMeRequest]) (*connect.Response[pb.GetMeResponse], error) {
@@ -116,3 +124,64 @@ func userToProto(u *store.User, accountCount int) *pb.User {
 		UpdatedAt:       timestamppb.New(u.UpdatedAt),
 	}
 }
+
+func refreshTokenFromRequest(headers http.Header, explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	req := http.Request{Header: headers}
+	cookie, err := req.Cookie(refreshCookieName)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func setRefreshCookie(headers http.Header, token string, reqHeaders http.Header) {
+	http.SetCookie(&headerResponseWriter{headers: headers}, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    token,
+		Path:     "/mygardenworld.v1.AuthService",
+		Expires:  time.Now().Add(auth.RefreshTokenDuration),
+		MaxAge:   int(auth.RefreshTokenDuration.Seconds()),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestLooksHTTPS(reqHeaders),
+	})
+}
+
+func clearRefreshCookie(headers http.Header, reqHeaders http.Header) {
+	http.SetCookie(&headerResponseWriter{headers: headers}, &http.Cookie{
+		Name:     refreshCookieName,
+		Value:    "",
+		Path:     "/mygardenworld.v1.AuthService",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestLooksHTTPS(reqHeaders),
+	})
+}
+
+func requestLooksHTTPS(headers http.Header) bool {
+	if strings.EqualFold(headers.Get("X-Forwarded-Proto"), "https") {
+		return true
+	}
+	if forwarded := headers.Get("Forwarded"); strings.Contains(strings.ToLower(forwarded), "proto=https") {
+		return true
+	}
+	return false
+}
+
+type headerResponseWriter struct {
+	headers http.Header
+}
+
+func (w *headerResponseWriter) Header() http.Header {
+	return w.headers
+}
+
+func (w *headerResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("headerResponseWriter does not write bodies")
+}
+
+func (w *headerResponseWriter) WriteHeader(int) {}

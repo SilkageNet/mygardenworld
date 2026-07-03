@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { createClient } from "@connectrpc/connect";
 import { AuthService } from "@/gen/mygardenworld/v1/auth_pb";
 import type { User } from "@/gen/mygardenworld/v1/auth_pb";
-import { transport } from "@/lib/api/client";
+import { clearClientAuthState, getAccessToken, refreshAccessToken, setAccessToken, transport } from "@/lib/api/client";
 
 interface AuthState {
   user: User | null;
@@ -16,33 +16,6 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 const authClient = createClient(AuthService, transport);
-
-function getStoredToken(key: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function setStoredToken(key: string, value: string) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
-}
-
-function removeStoredToken(key: string) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -56,34 +29,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!mounted) return;
 
-    const token = getStoredToken("access_token");
-    if (!token) {
-      setLoading(false);
-      return;
+    let active = true;
+    async function bootstrapSession() {
+      try {
+        if (!getAccessToken()) {
+          const refreshed = await refreshAccessToken();
+          if (!refreshed) {
+            if (active) setUser(null);
+            return;
+          }
+        }
+        const res = await authClient.getMe({});
+        if (active) setUser(res.user ?? null);
+      } catch {
+        clearClientAuthState();
+        if (active) setUser(null);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
 
-    authClient.getMe({}).then((res) => {
-      setUser(res.user ?? null);
-    }).catch(() => {
-      removeStoredToken("access_token");
-      removeStoredToken("refresh_token");
-    }).finally(() => setLoading(false));
+    void bootstrapSession();
+    return () => {
+      active = false;
+    };
   }, [mounted]);
 
   const login = useCallback(async (username: string, password: string) => {
     const res = await authClient.login({ username, password });
-    setStoredToken("access_token", res.accessToken);
-    setStoredToken("refresh_token", res.refreshToken);
+    setAccessToken(res.accessToken);
     setUser(res.user ?? null);
   }, []);
 
   const logout = useCallback(() => {
-    const refreshToken = getStoredToken("refresh_token");
-    if (refreshToken) {
-      authClient.logout({ refreshToken }).catch(() => {});
-    }
-    removeStoredToken("access_token");
-    removeStoredToken("refresh_token");
+    authClient.logout({}).catch(() => {});
+    clearClientAuthState();
     setUser(null);
   }, []);
 

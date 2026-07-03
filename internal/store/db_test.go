@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAccountNamesAreScopedByUser(t *testing.T) {
@@ -44,6 +45,51 @@ func TestAccountNamesAreScopedByUser(t *testing.T) {
 	}
 }
 
+func TestUniqueAccountNameAndRename(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc, err := db.CreateAccount(ctx, user.ID, "茉莉 · 第3区", "ios", "game1", "pw1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.CreateAccount(ctx, user.ID, "茉莉 · 第3区 #2", "ios", "game2", "pw2"); err != nil {
+		t.Fatal(err)
+	}
+
+	name, err := db.UniqueAccountName(ctx, user.ID, 0, " 茉莉   ·   第3区 ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "茉莉 · 第3区 #3" {
+		t.Fatalf("unique name=%q, want 茉莉 · 第3区 #3", name)
+	}
+
+	same, err := db.UniqueAccountName(ctx, user.ID, acc.ID, "茉莉 · 第3区")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same != "茉莉 · 第3区" {
+		t.Fatalf("same-account unique name=%q, want original", same)
+	}
+
+	renamed, err := db.RenameAccount(ctx, acc.ID, "  海棠   ·   第4区 ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renamed.Name != "海棠 · 第4区" {
+		t.Fatalf("renamed name=%q, want 海棠 · 第4区", renamed.Name)
+	}
+}
+
 func TestAccountPasswordIsEncryptedAtRest(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
@@ -77,5 +123,56 @@ func TestAccountPasswordIsEncryptedAtRest(t *testing.T) {
 	}
 	if username != "game" || password != "secret-password" {
 		t.Fatalf("credentials=(%q,%q), want game/secret-password", username, password)
+	}
+}
+
+func TestEventLogPersistsAndFilters(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc1, err := db.CreateAccount(ctx, user.ID, "main", "ios", "game1", "pw1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc2, err := db.CreateAccount(ctx, user.ID, "alt", "ios", "game2", "pw2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	base := time.Unix(100, 0).UTC()
+	id1, err := db.LogEvent(ctx, EventLog{AccountID: acc1.ID, AccountName: acc1.Name, TS: base, Kind: "session", Message: "connected"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := db.LogEvent(ctx, EventLog{AccountID: acc1.ID, AccountName: acc1.Name, TS: base.Add(time.Second), Kind: "operation_ack", Message: "done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.LogEvent(ctx, EventLog{AccountID: acc2.ID, AccountName: acc2.Name, TS: base.Add(2 * time.Second), Kind: "operation_ack", Message: "other"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.ListEventLogs(ctx, ListEventLogsOptions{AccountIDs: []int64{acc1.ID}, Kinds: []string{"operation_ack"}, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != id2 || got[0].Message != "done" {
+		t.Fatalf("filtered events=%+v, want only account1 operation_ack", got)
+	}
+
+	got, err = db.ListEventLogs(ctx, ListEventLogsOptions{AfterID: id1, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != id2 {
+		t.Fatalf("after-id events=%+v, want chronological ids after %d", got, id1)
 	}
 }

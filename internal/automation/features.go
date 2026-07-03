@@ -35,7 +35,6 @@ var featureSpecs = []FeatureSpec{
 	{ID: "plant.cultivate", Label: "培育", Category: CategoryPlant, Domain: "farm.cultivate", Action: "cultivate", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.cultivate_recv", Label: "培育领取", Category: CategoryPlant, Domain: "farm.cultivate", Action: "recv", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.upgrade", Label: "鲜花升级", Category: CategoryPlant, Domain: "farm.upgrade", Action: "upgrade", Status: PlanStatusManaged, Executable: true},
-	{ID: "plant.task_priority", Label: "任务优先种植", Category: CategoryPlant, Domain: "farm.plant.priority", Action: "plan", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.friend_steal", Label: "好友偷花", Category: CategoryPlant, Domain: "farm.friend_steal", Action: "steal", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "plant.elves", Label: "花灵", Category: CategoryPlant, Domain: "farm.elves", Action: "run", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "plant.elves_pass", Label: "花灵密令", Category: CategoryPlant, Domain: "farm.elves.pass", Action: "claim", Status: PlanStatusSyncOnly, SyncOnly: true},

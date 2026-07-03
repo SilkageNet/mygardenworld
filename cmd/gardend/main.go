@@ -281,8 +281,8 @@ func runServe(ctx context.Context, opts serveOpts) error {
 
 	mux := http.NewServeMux()
 
-	// AuthService uses the same interceptor: login/refresh are
-	// explicitly public, while logout/get-me still receive identity context.
+	// AuthService uses the same interceptor: login/refresh/logout are
+	// explicitly public, while get-me still receives identity context.
 	path, handler := mygardenworldv1connect.NewAuthServiceHandler(svc, protectedOpts)
 	mux.Handle(path, handler)
 
@@ -405,10 +405,13 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
 			if allowAnyOrigin {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			} else if _, ok := allowedOrigins[origin]; ok {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Add("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

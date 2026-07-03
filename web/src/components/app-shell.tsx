@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/lib/auth/context";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,10 +49,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-background text-foreground xl:h-screen xl:overflow-hidden">
       <header className="shrink-0 border-b border-border/70 bg-card/92 backdrop-blur">
         <div className="flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 2xl:px-10">
-          <Link href="/" className="min-w-0">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">花序</div>
-            </div>
+          <Link href="/" className="relative h-9 w-24 shrink-0 overflow-hidden rounded-md bg-white/95 shadow-[0_4px_14px_rgba(12,35,17,0.10)]">
+            <Image
+              src="/brand/huaxu-logo-integrated-concept.png"
+              alt="花序"
+              fill
+              priority
+              unoptimized
+              sizes="6rem"
+              className="scale-[2.45] object-contain"
+            />
           </Link>
           <div className="flex items-center gap-2">
             {isAdmin && (

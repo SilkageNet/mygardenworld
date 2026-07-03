@@ -2417,7 +2417,12 @@ type StreamEventsRequest struct {
 	AccountName string `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
 	// Optional: only emit these event kinds (e.g. "operation_planned",
 	// "operation_ack", "land_changed", "snapshot"). Empty = all.
-	Kinds         []string `protobuf:"bytes,3,rep,name=kinds,proto3" json:"kinds,omitempty"`
+	Kinds []string `protobuf:"bytes,3,rep,name=kinds,proto3" json:"kinds,omitempty"`
+	// Number of persisted historical events to replay before live events.
+	// Default is server-defined; negative disables replay.
+	ReplayLimit int32 `protobuf:"varint,4,opt,name=replay_limit,json=replayLimit,proto3" json:"replay_limit,omitempty"`
+	// Optional cursor. When set, replay only events with id greater than this.
+	AfterEventId  int64 `protobuf:"varint,5,opt,name=after_event_id,json=afterEventId,proto3" json:"after_event_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2473,8 +2478,24 @@ func (x *StreamEventsRequest) GetKinds() []string {
 	return nil
 }
 
+func (x *StreamEventsRequest) GetReplayLimit() int32 {
+	if x != nil {
+		return x.ReplayLimit
+	}
+	return 0
+}
+
+func (x *StreamEventsRequest) GetAfterEventId() int64 {
+	if x != nil {
+		return x.AfterEventId
+	}
+	return 0
+}
+
 type Event struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Monotonic SQLite event_log id. Zero means the event was not persisted.
+	Id          int64                  `protobuf:"varint,12,opt,name=id,proto3" json:"id,omitempty"`
 	Ts          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=ts,proto3" json:"ts,omitempty"`
 	AccountId   string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	AccountName string                 `protobuf:"bytes,3,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
@@ -2530,6 +2551,13 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *Event) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
 }
 
 func (x *Event) GetTs() *timestamppb.Timestamp {
@@ -2865,13 +2893,16 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x05stage\x18\x03 \x01(\tR\x05stage\x124\n" +
 	"\x06status\x18\x04 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12\x14\n" +
 	"\x05count\x18\x05 \x01(\x05R\x05count\x12\x18\n" +
-	"\areasons\x18\x06 \x03(\tR\areasons\"m\n" +
+	"\areasons\x18\x06 \x03(\tR\areasons\"\xb6\x01\n" +
 	"\x13StreamEventsRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
 	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12\x14\n" +
-	"\x05kinds\x18\x03 \x03(\tR\x05kinds\"\xbe\x02\n" +
-	"\x05Event\x12*\n" +
+	"\x05kinds\x18\x03 \x03(\tR\x05kinds\x12!\n" +
+	"\freplay_limit\x18\x04 \x01(\x05R\vreplayLimit\x12$\n" +
+	"\x0eafter_event_id\x18\x05 \x01(\x03R\fafterEventId\"\xce\x02\n" +
+	"\x05Event\x12\x0e\n" +
+	"\x02id\x18\f \x01(\x03R\x02id\x12*\n" +
 	"\x02ts\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\x12!\n" +

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -78,6 +79,23 @@ CREATE TABLE IF NOT EXISTS operation_log (
     result_json TEXT    NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_oplog_account_ts ON operation_log(account_id, ts);
+
+CREATE TABLE IF NOT EXISTS event_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    account_name TEXT    NOT NULL DEFAULT '',
+    ts           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    kind         TEXT    NOT NULL,
+    message      TEXT    NOT NULL DEFAULT '',
+    payload_json TEXT    NOT NULL DEFAULT '{}',
+    category     TEXT    NOT NULL DEFAULT '',
+    domain       TEXT    NOT NULL DEFAULT '',
+    action       TEXT    NOT NULL DEFAULT '',
+    label        TEXT    NOT NULL DEFAULT '',
+    level        TEXT    NOT NULL DEFAULT 'info'
+);
+CREATE INDEX IF NOT EXISTS idx_event_log_account_id ON event_log(account_id, id);
+CREATE INDEX IF NOT EXISTS idx_event_log_kind_id ON event_log(kind, id);
 `
 
 // DB is the typed handle returned by Open.
@@ -148,6 +166,58 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 		return nil, fmt.Errorf("insert account: %w", err)
 	}
 	id, _ := res.LastInsertId()
+	return d.GetAccountByID(ctx, id)
+}
+
+// UniqueAccountName returns base, or base with a numeric suffix, scoped to the
+// owning user. excludeID lets callers keep an existing account's current name.
+func (d *DB) UniqueAccountName(ctx context.Context, userID, excludeID int64, base string) (string, error) {
+	base = strings.Join(strings.Fields(strings.TrimSpace(base)), " ")
+	if base == "" {
+		base = "账号"
+	}
+	for i := 0; i < 100; i++ {
+		candidate := base
+		if i > 0 {
+			candidate = fmt.Sprintf("%s #%d", base, i+1)
+		}
+		acc, err := d.GetAccountByName(ctx, userID, candidate)
+		if errors.Is(err, ErrAccountNotFound) {
+			return candidate, nil
+		}
+		if err != nil {
+			if errors.Is(err, ErrAccountAmbiguous) {
+				continue
+			}
+			return "", err
+		}
+		if acc.ID == excludeID {
+			return candidate, nil
+		}
+	}
+	return fmt.Sprintf("%s #%d", base, time.Now().Unix()), nil
+}
+
+// RenameAccount updates the local display name for one account.
+func (d *DB) RenameAccount(ctx context.Context, id int64, name string) (*Account, error) {
+	name = strings.Join(strings.Fields(strings.TrimSpace(name)), " ")
+	if id == 0 || name == "" {
+		return nil, errors.New("RenameAccount: id and name required")
+	}
+	res, err := d.ExecContext(ctx,
+		`UPDATE accounts SET name = ?, updated_at = ? WHERE id = ?`,
+		name, time.Now().UTC(), id,
+	)
+	if err != nil {
+		if isUniqueErr(err) {
+			return nil, ErrAccountExists
+		}
+		return nil, fmt.Errorf("rename account: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return nil, ErrAccountNotFound
+	}
 	return d.GetAccountByID(ctx, id)
 }
 

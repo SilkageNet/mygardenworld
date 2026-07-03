@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	connect "connectrpc.com/connect"
 
@@ -74,8 +75,10 @@ func (svc *Services) resolveAccount(ctx context.Context, id, name string) (*stor
 
 func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.CreateAccountRequest]) (*connect.Response[pb.CreateAccountResponse], error) {
 	in := req.Msg
-	if in.GetName() == "" || in.GetUsername() == "" || in.GetPassword() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name/username/password required"))
+	username := strings.TrimSpace(in.GetUsername())
+	password := in.GetPassword()
+	if username == "" || password == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("username/password required"))
 	}
 	channelStr := store.ChannelFromProto(in.GetChannel())
 	if channelStr == "" {
@@ -98,14 +101,39 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 			return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("account quota reached (%d/%d)", count, user.MaxAccounts))
 		}
 	}
-	acc, err := svc.DB.CreateAccount(ctx, userID, in.GetName(), channelStr, in.GetUsername(), in.GetPassword())
+	name := strings.TrimSpace(in.GetName())
+	nameWasDerived := name == ""
+	var probedSession *babigame.Session
+	if nameWasDerived {
+		session, err := svc.probeAccountIdentity(ctx, channelStr, username, password)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("login: %s", formatLoginErr(err)))
+		}
+		probedSession = session
+		name, err = svc.DB.UniqueAccountName(ctx, userID, 0, babigame.DisplayNameFromSession(session, username))
+		if err != nil {
+			return nil, mapErr(err)
+		}
+	}
+	acc, err := svc.DB.CreateAccount(ctx, userID, name, channelStr, username, password)
 	if err != nil {
 		return nil, mapErr(err)
 	}
+	svc.saveLoginProbe(ctx, acc.ID, probedSession)
+	if probedSession != nil {
+		if updated, err := svc.DB.GetAccountByID(ctx, acc.ID); err == nil {
+			acc = updated
+		}
+	}
 	resp := &pb.CreateAccountResponse{Account: store.AccountToProto(acc)}
-	if in.GetLoginNow() {
-		if _, err := svc.Manager.Start(ctx, acc.ID); err != nil {
+	if in.GetLoginNow() || nameWasDerived {
+		if r, err := svc.Manager.Start(ctx, acc.ID); err != nil {
 			resp.LoginError = formatLoginErr(err)
+		} else {
+			svc.enableAutomation(ctx, acc.ID, r)
+			out := store.AccountToProto(r.Account())
+			out.Connected = r.Connected()
+			resp.Account = out
 		}
 	}
 	return connect.NewResponse(resp), nil
@@ -166,6 +194,7 @@ func (svc *Services) LoginAccount(ctx context.Context, req *connect.Request[pb.L
 	if err != nil {
 		return nil, mapErr(err)
 	}
+	svc.enableAutomation(ctx, acc.ID, r)
 	out := store.AccountToProto(r.Account())
 	out.Connected = r.Connected()
 	return connect.NewResponse(&pb.LoginAccountResponse{

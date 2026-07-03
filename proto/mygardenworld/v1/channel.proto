@@ -16,7 +16,5 @@ enum Channel {
   // verified, May 2026.
   CHANNEL_IOS = 1;
 
-  // Reserved for future Android variants. Add concrete values once a
-  // capture exists for each: CHANNEL_ANDROID_OFFICIAL, CHANNEL_ANDROID_WEIXIN,
-  // CHANNEL_ANDROID_ALIPAY, etc.
+  // Add Android channel values only after each variant has a verified capture.
 }

@@ -10,6 +10,7 @@ import (
 var publicProcedures = map[string]bool{
 	"/mygardenworld.v1.AuthService/Login":   true,
 	"/mygardenworld.v1.AuthService/Refresh": true,
+	"/mygardenworld.v1.AuthService/Logout":  true,
 }
 
 type Interceptor struct {

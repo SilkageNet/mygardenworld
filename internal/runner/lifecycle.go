@@ -105,6 +105,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	// call after the HTTP login and route-token bootstrap.
 	if v, err := client.Login(ctx, 1); err == nil {
 		r.state.ApplyV(v)
+		r.syncAccountDisplayName(ctx, v, session)
 	} else {
 		r.log.Warn("ws index.login failed", "err", err)
 	}
@@ -125,6 +126,30 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 
 	r.emit(Event{Kind: "session", Message: fmt.Sprintf("已连接 (服务器=%s 区=%d)", session.GsHost, session.GsIdx)})
 	return client, nil
+}
+
+func (r *Runner) syncAccountDisplayName(ctx context.Context, rawV json.RawMessage, session *babigame.Session) {
+	desired := babigame.DisplayNameFromState(rawV, session.GsIdx, r.account.Name)
+	if desired == "" || desired == r.account.Name {
+		return
+	}
+	name, err := r.db.UniqueAccountName(ctx, r.account.UserID, r.account.ID, desired)
+	if err != nil {
+		r.log.Warn("choose account display name failed", "err", err, "desired", desired)
+		return
+	}
+	if name == r.account.Name {
+		return
+	}
+	acc, err := r.db.RenameAccount(ctx, r.account.ID, name)
+	if err != nil {
+		r.log.Warn("sync account display name failed", "err", err, "desired", name)
+		return
+	}
+	r.mu.Lock()
+	r.account = acc
+	r.mu.Unlock()
+	r.log.Info("synced account display name", "name", name)
 }
 
 func (r *Runner) newClient(session *babigame.Session) *babigame.Client {

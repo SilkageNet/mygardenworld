@@ -29,6 +29,7 @@ func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetP
 		return nil, mapErr(err)
 	}
 	policy := policycfg.Normalize(req.Msg.GetPolicy())
+	policy.AutomationEnabled = true
 	if err := svc.persistPolicy(ctx, acc.ID, policy); err != nil {
 		return nil, mapErr(err)
 	}

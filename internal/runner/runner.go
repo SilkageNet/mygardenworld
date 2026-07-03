@@ -22,6 +22,7 @@ import (
 // Event mirrors the proto Event for in-process broadcast. Stored shape is
 // stable; gRPC subscribers receive it directly via QueryService.StreamEvents.
 type Event struct {
+	ID          int64
 	TS          time.Time
 	AccountID   string
 	AccountName string
@@ -38,6 +39,7 @@ type Event struct {
 // ToProto converts the in-process event to the wire format.
 func (e Event) ToProto() *pb.Event {
 	return &pb.Event{
+		Id:          e.ID,
 		Ts:          timestamppb.New(e.TS),
 		AccountId:   e.AccountID,
 		AccountName: e.AccountName,
