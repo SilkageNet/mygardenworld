@@ -116,11 +116,19 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 
 	tasks := buildPendingTasks(st)
 	byCategory := map[string]int{}
+	statusByCategory := map[string]pb.PlanStatus{}
 	for _, task := range tasks {
 		byCategory[task.GetCategory()]++
+		statusByCategory[task.GetCategory()] = task.GetStatus()
 	}
 	if byCategory["居民订单"] != 1 || byCategory["顾客订单"] != 1 || byCategory["主线任务"] != 1 || byCategory["日常任务"] != 1 || byCategory["地图事件"] != 1 {
 		t.Fatalf("task categories = %+v, want all tracked categories once", byCategory)
+	}
+	if statusByCategory["居民订单"] != pb.PlanStatus_PLAN_STATUS_MANAGED {
+		t.Fatalf("resident task status=%s, want MANAGED", statusByCategory["居民订单"])
+	}
+	if statusByCategory["地图事件"] != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("random event status=%s, want READY", statusByCategory["地图事件"])
 	}
 
 	var flowerReq, artReq, recipeReq *pb.RequirementView
@@ -144,5 +152,29 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 	}
 	if recipeReq == nil || !recipeReq.GetPlantingRelevant() || recipeReq.GetMissing() != 2 {
 		t.Fatalf("recipe requirement = %+v, want planting-relevant missing 2", recipeReq)
+	}
+}
+
+func TestDomainStatusUsesPlanStatus(t *testing.T) {
+	cases := []struct {
+		name      string
+		enabled   bool
+		observed  bool
+		connected bool
+		blocked   []string
+		want      pb.PlanStatus
+	}{
+		{name: "ready", enabled: true, observed: true, connected: true, want: pb.PlanStatus_PLAN_STATUS_READY},
+		{name: "syncing", enabled: true, observed: false, connected: true, want: pb.PlanStatus_PLAN_STATUS_SYNC_ONLY},
+		{name: "blocked", enabled: true, observed: true, connected: true, blocked: []string{"limited"}, want: pb.PlanStatus_PLAN_STATUS_BLOCKED},
+		{name: "disabled", enabled: false, observed: true, connected: true, want: pb.PlanStatus_PLAN_STATUS_SKIPPED},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := domainStatus("order", "order", tc.enabled, tc.observed, tc.blocked, "", tc.connected)
+			if got.GetStatus() != tc.want {
+				t.Fatalf("status=%s, want %s", got.GetStatus(), tc.want)
+			}
+		})
 	}
 }

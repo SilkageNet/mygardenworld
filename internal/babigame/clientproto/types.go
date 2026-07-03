@@ -2103,7 +2103,7 @@ type OrderCustomerFinishOrderRequest struct {
 }
 
 type OrderCustomerGenOrderRequest struct {
-	GuestNpcIdList RPCIDList `json:"guestNpcIdList,omitempty"`
+	GuestNpcIdList RPCIDList `json:"guestNpcIdList"`
 }
 
 type OrderCustomerRejectOrderRequest struct {

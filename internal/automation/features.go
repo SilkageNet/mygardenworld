@@ -3,10 +3,12 @@ package automation
 import "strings"
 
 const (
-	PlanStatusExecutable     = "executable"
+	PlanStatusReady          = "ready"
 	PlanStatusManaged        = "managed"
 	PlanStatusSyncOnly       = "sync_only"
 	PlanStatusAdapterMissing = "adapter_missing"
+	PlanStatusBlocked        = "blocked"
+	PlanStatusSkipped        = "skipped"
 )
 
 // FeatureSpec is the shared feature catalog used by plan generation and UI
@@ -25,9 +27,9 @@ type FeatureSpec struct {
 }
 
 var featureSpecs = []FeatureSpec{
-	{ID: "plant.harvest", Label: "收获", Category: CategoryPlant, Domain: "farm.harvest", Action: "harvest", Status: PlanStatusExecutable, Executable: true},
-	{ID: "plant.plant", Label: "种植", Category: CategoryPlant, Domain: "farm.plant", Action: "plant", Status: PlanStatusExecutable, Executable: true},
-	{ID: "plant.water", Label: "浇水", Category: CategoryPlant, Domain: "farm.water", Action: "water", Status: PlanStatusExecutable, Executable: true},
+	{ID: "plant.harvest", Label: "收获", Category: CategoryPlant, Domain: "farm.harvest", Action: "harvest", Status: PlanStatusReady, Executable: true},
+	{ID: "plant.plant", Label: "种植", Category: CategoryPlant, Domain: "farm.plant", Action: "plant", Status: PlanStatusReady, Executable: true},
+	{ID: "plant.water", Label: "浇水", Category: CategoryPlant, Domain: "farm.water", Action: "water", Status: PlanStatusReady, Executable: true},
 	{ID: "plant.land_unlock", Label: "土地开垦", Category: CategoryPlant, Domain: "farm.land", Action: "unlock", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.speed_up", Label: "加速", Category: CategoryPlant, Domain: "farm.speed_up", Action: "speed_up", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.cultivate", Label: "培育", Category: CategoryPlant, Domain: "farm.cultivate", Action: "cultivate", Status: PlanStatusManaged, Executable: true},
@@ -45,6 +47,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.benefit_box", Label: "福利宝箱", Category: CategoryBasic, Domain: "basic.benefit", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.reputation", Label: "礼仪分监控", Category: CategoryBasic, Domain: "basic.reputation", Action: "guard", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"缺少礼仪分状态来源"}},
 	{ID: "basic.item_log", Label: "道具日志", Category: CategoryBasic, Domain: "basic.item_log", Action: "observe", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.mail_sync", Label: "邮件同步", Category: CategoryBasic, Domain: "basic.mail", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.mail", Label: "邮件", Category: CategoryBasic, Domain: "basic.mail", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.welfare", Label: "福利", Category: CategoryBasic, Domain: "basic.welfare", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"缺少福利执行 adapter"}},
 	{ID: "basic.double_coin", Label: "双倍金币", Category: CategoryBasic, Domain: "basic.benefit.double_coin", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"看视频双倍金币需要客户端 SDK 广告 token，暂不自动执行"}},
@@ -80,13 +83,19 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.zoo_recall", Label: "自动召回猫", Category: CategoryBasic, Domain: "basic.zoo.recall", Action: "recall", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"召回事件链路与成本尚未确认"}},
 
 	{ID: "order.customer", Label: "顾客订单", Category: CategoryOrder, Domain: "order.customer", Action: "finish", Status: PlanStatusManaged, Executable: true},
+	{ID: "order.customer_craft", Label: "顾客订单花艺制作", Category: CategoryOrder, Domain: "order.customer", Action: "craft", Status: PlanStatusManaged, Executable: true},
+	{ID: "order.customer_generate", Label: "顾客订单生成", Category: CategoryOrder, Domain: "order.customer", Action: "generate", Status: PlanStatusManaged, Executable: true},
+	{ID: "order.customer_reject", Label: "顾客订单暂时无货", Category: CategoryOrder, Domain: "order.customer", Action: "reject", Status: PlanStatusManaged, Executable: true},
 	{ID: "order.resident", Label: "居民订单", Category: CategoryOrder, Domain: "order.resident", Action: "finish", Status: PlanStatusManaged, Executable: true},
 	{ID: "order.flower_art", Label: "花艺/花架", Category: CategoryOrder, Domain: "order.flower_art", Action: "sell", Status: PlanStatusManaged, Executable: true},
 	{ID: "order.flower_art_craft", Label: "花艺制作", Category: CategoryOrder, Domain: "order.flower_art", Action: "craft", Status: PlanStatusManaged, Executable: true},
+	{ID: "order.flower_art_claim", Label: "花架收益", Category: CategoryOrder, Domain: "order.flower_art", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "order.flower_art_stand", Label: "花架解锁", Category: CategoryOrder, Domain: "order.flower_art.stand", Action: "unlock", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"花架解锁成本尚未确认"}},
 	{ID: "order.flower_art_create_reward", Label: "花艺经验奖励", Category: CategoryOrder, Domain: "order.flower_art.create_reward", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "order.flower_art_collect_reward", Label: "图鉴奖励", Category: CategoryOrder, Domain: "order.flower_art.collect_reward", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "order.palace_sync", Label: "宫廷订单同步", Category: CategoryOrder, Domain: "order.palace", Action: "sync", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "order.palace", Label: "宫廷订单", Category: CategoryOrder, Domain: "order.palace", Action: "finish", Status: PlanStatusSyncOnly, SyncOnly: true},
+	{ID: "order.team_sync", Label: "组团订单同步", Category: CategoryOrder, Domain: "order.team", Action: "sync", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "order.team", Label: "组团订单", Category: CategoryOrder, Domain: "order.team", Action: "submit", Status: PlanStatusSyncOnly, SyncOnly: true},
 
 	{ID: "union.build", Label: "公会建设", Category: CategoryUnion, Domain: "union.build", Action: "build", Status: PlanStatusManaged, Executable: true},
@@ -177,7 +186,7 @@ func enrichPlannedOp(op PlannedOp) PlannedOp {
 	}
 	if op.Status == "" {
 		if strings.HasPrefix(op.Kind, "usrLand.") {
-			op.Status = PlanStatusExecutable
+			op.Status = PlanStatusReady
 			op.Executable = true
 		} else {
 			op.Status = PlanStatusAdapterMissing

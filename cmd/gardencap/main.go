@@ -41,6 +41,8 @@ func newServeCmd() *cobra.Command {
 		listen          string
 		outDir          string
 		sessionName     string
+		caCertPath      string
+		caKeyPath       string
 		hosts           string
 		maxBodyBytes    int64
 		maxWSFrameBytes int64
@@ -54,6 +56,8 @@ func newServeCmd() *cobra.Command {
 				Listen:          listen,
 				OutDir:          outDir,
 				SessionName:     sessionName,
+				CACertPath:      caCertPath,
+				CAKeyPath:       caKeyPath,
 				HostPatterns:    splitCSV(hosts),
 				MaxBodyBytes:    maxBodyBytes,
 				MaxWSFrameBytes: maxWSFrameBytes,
@@ -86,6 +90,8 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&listen, "listen", captureproxy.DefaultListen, "proxy listen address")
 	cmd.Flags().StringVar(&outDir, "out-dir", captureproxy.DefaultOutDir, "capture output directory")
 	cmd.Flags().StringVar(&sessionName, "session", "", "session name suffix")
+	cmd.Flags().StringVar(&caCertPath, "ca-cert", "", "PEM CA certificate path; defaults to generated CA under out-dir")
+	cmd.Flags().StringVar(&caKeyPath, "ca-key", "", "PEM CA private key path; required with --ca-cert")
 	cmd.Flags().StringVar(&hosts, "hosts", captureproxy.DefaultHostPatterns, "comma-separated host filters; supports exact, *.domain, .domain, *")
 	cmd.Flags().Int64Var(&maxBodyBytes, "max-body-bytes", captureproxy.DefaultMaxBodyBytes, "max HTTP body bytes stored per record")
 	cmd.Flags().Int64Var(&maxWSFrameBytes, "max-ws-frame-bytes", captureproxy.DefaultMaxWSFrameBytes, "max WebSocket payload bytes stored per frame")

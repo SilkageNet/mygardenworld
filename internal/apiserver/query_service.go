@@ -140,6 +140,9 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	resp.Demands = demandsProto(plan.Demands)
 	resp.Vases = vasesProto(st.Vases())
 	resp.FlowerArtAvailability = flowerArtAvailabilityProto(st, plan)
+	resp.OrderStatistics = orderStatisticsProto(st.Statistics())
+	resp.InventoryLedger = inventoryLedgerProto(st.Inventory(), plan.Ledger)
+	resp.BlockingSummary = blockingSummaryProto(resp.DomainStatuses, plan)
 	return connect.NewResponse(resp), nil
 }
 
@@ -226,7 +229,7 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 			Id:       strconv.FormatInt(int64(task.TaskID), 10),
 			Title:    title,
 			Finished: task.Finished,
-			Status:   "progress",
+			Status:   pb.PlanStatus_PLAN_STATUS_MANAGED,
 		}
 		if flowerID, target, ok := state.MainTaskFlowerTarget(task.TaskID); ok {
 			view.Target = target
@@ -247,9 +250,9 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 	sort.Slice(taskIDs, func(i, j int) bool { return taskIDs[i] < taskIDs[j] })
 	for _, id := range taskIDs {
 		task := dailyTasks[id]
-		status := "progress"
+		status := pb.PlanStatus_PLAN_STATUS_MANAGED
 		if task.Status == 1 || (task.Status == 0 && task.Target > 0 && task.Finished >= task.Target) {
-			status = "ready"
+			status = pb.PlanStatus_PLAN_STATUS_READY
 		}
 		title := state.DailyTaskTitle(task.TaskID, task.Target)
 		if title == "" {
@@ -270,7 +273,7 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 			Category: "地图事件",
 			Id:       strconv.FormatInt(int64(id), 10),
 			Title:    fmt.Sprintf("地图事件 #%d", id),
-			Status:   "ready",
+			Status:   pb.PlanStatus_PLAN_STATUS_READY,
 		})
 	}
 
@@ -330,13 +333,13 @@ func requirementView(itemID, required, owned int32) *pb.RequirementView {
 	}
 }
 
-func requirementsStatus(reqs []*pb.RequirementView) string {
+func requirementsStatus(reqs []*pb.RequirementView) pb.PlanStatus {
 	for _, req := range reqs {
 		if req.GetMissing() > 0 {
-			return "missing"
+			return pb.PlanStatus_PLAN_STATUS_MANAGED
 		}
 	}
-	return "ready"
+	return pb.PlanStatus_PLAN_STATUS_READY
 }
 
 func plannedOperationsProto(ops []automation.PlannedOp) []*pb.PlannedOperation {
@@ -356,7 +359,7 @@ func plannedOperationsProto(ops []automation.PlannedOp) []*pb.PlannedOperation {
 			ItemCost:       cloneInt32Map(op.ItemCost),
 			FeatureId:      op.FeatureID,
 			Label:          op.Label,
-			Status:         op.Status,
+			Status:         planStatusProto(op.Status),
 			Executable:     op.Executable,
 			SyncOnly:       op.SyncOnly,
 			BlockedReasons: append([]string(nil), op.BlockedReasons...),
@@ -368,6 +371,8 @@ func plannedOperationsProto(ops []automation.PlannedOp) []*pb.PlannedOperation {
 			Count:          op.Count,
 			VaseId:         op.VaseID,
 			FlowerIds:      append([]int32(nil), op.FlowerIDs...),
+			CostGates:      costGatesProto(op.CostGates),
+			BlockingStage:  op.BlockingStage,
 		})
 	}
 	return out
@@ -394,9 +399,78 @@ func demandsProto(demands []automation.Demand) []*pb.DemandView {
 			Kind:           demand.Kind,
 			Source:         demand.Source,
 			BlockedReasons: append([]string(nil), demand.BlockedReasons...),
+			Status:         planStatusProto(demand.Status),
+			BlockingStage:  demand.BlockingStage,
+			CostGates:      costGatesProto(demand.CostGates),
 		})
 	}
 	return out
+}
+
+func costGatesProto(gates []automation.CostGate) []*pb.CostGate {
+	if len(gates) == 0 {
+		return nil
+	}
+	out := make([]*pb.CostGate, 0, len(gates))
+	for _, gate := range gates {
+		out = append(out, &pb.CostGate{
+			Id:             gate.ID,
+			ResourceKind:   gateResourceKindProto(gate.ResourceKind),
+			Label:          gate.Label,
+			ItemId:         gate.ItemID,
+			Required:       gate.Required,
+			Available:      gate.Available,
+			Status:         planStatusProto(gate.Status),
+			BlockedReasons: append([]string(nil), gate.BlockedReasons...),
+			Hard:           gate.Hard,
+			Source:         gate.Source,
+		})
+	}
+	return out
+}
+
+func planStatusProto(status string) pb.PlanStatus {
+	switch status {
+	case automation.PlanStatusReady:
+		return pb.PlanStatus_PLAN_STATUS_READY
+	case automation.PlanStatusManaged:
+		return pb.PlanStatus_PLAN_STATUS_MANAGED
+	case automation.PlanStatusSyncOnly:
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	case automation.PlanStatusAdapterMissing:
+		return pb.PlanStatus_PLAN_STATUS_ADAPTER_MISSING
+	case automation.PlanStatusBlocked:
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	case automation.PlanStatusSkipped:
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	default:
+		return pb.PlanStatus_PLAN_STATUS_UNSPECIFIED
+	}
+}
+
+func gateResourceKindProto(kind string) pb.GateResourceKind {
+	switch kind {
+	case automation.GateResourceGold:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_GOLD
+	case automation.GateResourceDiamond:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_DIAMOND
+	case automation.GateResourceItem:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_ITEM
+	case automation.GateResourceWaterDrop:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_WATER_DROP
+	case automation.GateResourceLevel:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_LEVEL
+	case automation.GateResourceVase:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_VASE
+	case automation.GateResourcePolicy:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_POLICY
+	case automation.GateResourceState:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_STATE
+	case automation.GateResourceAdapter:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_ADAPTER
+	default:
+		return pb.GateResourceKind_GATE_RESOURCE_KIND_UNSPECIFIED
+	}
 }
 
 func vasesProto(vases map[int32]state.VaseView) []*pb.VaseView {
@@ -414,27 +488,43 @@ func vasesProto(vases map[int32]state.VaseView) []*pb.VaseView {
 }
 
 func flowerArtAvailabilityProto(st *state.State, plan automation.PlanResult) []*pb.FlowerArtAvailabilityView {
-	seen := map[int32]struct{}{}
+	countByArt := map[int32]int32{}
 	for _, demand := range plan.Demands {
 		if demand.Kind == automation.DemandKindFlowerArt && demand.ItemID > 0 {
-			seen[demand.ItemID] = struct{}{}
+			count := demand.Missing
+			if count <= 0 {
+				count = demand.Count
+			}
+			if count > countByArt[demand.ItemID] {
+				countByArt[demand.ItemID] = count
+			}
 		}
 	}
 	for _, op := range plan.Operations {
 		if op.ItemID > 0 {
 			if _, ok := state.FlowerArtRecipeByID(op.ItemID); ok {
-				seen[op.ItemID] = struct{}{}
+				count := op.Count
+				if count <= 0 {
+					count = 1
+				}
+				if count > countByArt[op.ItemID] {
+					countByArt[op.ItemID] = count
+				}
 			}
 		}
 	}
-	ids := make([]int32, 0, len(seen))
-	for id := range seen {
+	ids := make([]int32, 0, len(countByArt))
+	for id := range countByArt {
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	out := make([]*pb.FlowerArtAvailabilityView, 0, len(ids))
 	for _, id := range ids {
-		availability := automation.FlowerArtAvailability(st, id, 1, plan.Ledger)
+		count := countByArt[id]
+		if count <= 0 {
+			count = 1
+		}
+		availability := automation.FlowerArtAvailability(st, id, count, plan.Ledger)
 		if availability.Recipe.ArtID == 0 {
 			continue
 		}
@@ -444,7 +534,7 @@ func flowerArtAvailabilityProto(st *state.State, plan automation.PlanResult) []*
 			VaseId:         availability.Recipe.VaseID,
 			Level:          availability.Recipe.Level,
 			SaleValue:      availability.Recipe.SaleValue,
-			LevelOk:        availability.LevelOK,
+			LevelOk:        true,
 			VaseUnlocked:   availability.VaseUnlocked,
 			Craftable:      availability.Craftable,
 			BlockedReasons: append([]string(nil), availability.BlockedReasons...),
@@ -455,6 +545,139 @@ func flowerArtAvailabilityProto(st *state.State, plan automation.PlanResult) []*
 		out = append(out, view)
 	}
 	return out
+}
+
+func orderStatisticsProto(stats state.StatisticsView) *pb.OrderStatisticsView {
+	out := &pb.OrderStatisticsView{
+		Observed:                 stats.Observed,
+		DayId:                    stats.DayID,
+		ResidentNormalFinished:   stats.OrderFlowerFinishNum,
+		PalaceFinished:           stats.OrderPalaceFinishNum,
+		CustomerFinished:         stats.OrderCustomerFinishNum,
+		ResidentSatinFinished:    stats.OrderSatinFinishNum,
+		ResidentDecorateFinished: stats.OrderDecorateFinishNum,
+		FlowerArtSold:            stats.FlowerArtSellNum,
+		UpdatedAtMs:              stats.UTimeMs,
+		CreatedAtMs:              stats.CTimeMs,
+	}
+	if !stats.Observed {
+		out.BlockedReasons = []string{"未观察到订单统计 namespace 124"}
+	}
+	return out
+}
+
+func inventoryLedgerProto(inventory map[int32]int32, ledger *automation.InventoryLedger) *pb.InventoryLedgerView {
+	ids := make([]int32, 0, len(inventory))
+	seen := map[int32]struct{}{}
+	for itemID, count := range inventory {
+		if count <= 0 {
+			continue
+		}
+		ids = append(ids, itemID)
+		seen[itemID] = struct{}{}
+	}
+	for itemID := range ledger.AllocatedItems() {
+		if _, ok := seen[itemID]; ok {
+			continue
+		}
+		ids = append(ids, itemID)
+		seen[itemID] = struct{}{}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := &pb.InventoryLedgerView{Items: make([]*pb.InventoryLedgerItem, 0, len(ids))}
+	for _, itemID := range ids {
+		owned := inventory[itemID]
+		allocated := int32(0)
+		available := owned
+		if ledger != nil {
+			owned = ledger.Owned(itemID)
+			allocated = ledger.Allocated(itemID)
+			available = ledger.Available(itemID)
+		}
+		out.Items = append(out.Items, &pb.InventoryLedgerItem{
+			ItemId:    itemID,
+			ItemName:  itemNameOrID(itemID),
+			Owned:     owned,
+			Allocated: allocated,
+			Available: available,
+		})
+	}
+	return out
+}
+
+func blockingSummaryProto(domainStatuses []*pb.DomainStatus, plan automation.PlanResult) *pb.BlockingSummary {
+	type groupKey struct {
+		category string
+		domain   string
+		stage    string
+		status   pb.PlanStatus
+	}
+	groups := map[groupKey]*pb.BlockingGroup{}
+	add := func(category, domain, stage string, status pb.PlanStatus, reasons []string) {
+		if len(reasons) == 0 {
+			return
+		}
+		if stage == "" {
+			stage = "unknown"
+		}
+		key := groupKey{category: category, domain: domain, stage: stage, status: status}
+		group := groups[key]
+		if group == nil {
+			group = &pb.BlockingGroup{Category: category, Domain: domain, Stage: stage, Status: status}
+			groups[key] = group
+		}
+		group.Count++
+		for _, reason := range reasons {
+			if reason == "" || containsString(group.Reasons, reason) {
+				continue
+			}
+			group.Reasons = append(group.Reasons, reason)
+		}
+	}
+	for _, domain := range domainStatuses {
+		add(domain.GetCategory(), domain.GetDomain(), "domain", pb.PlanStatus_PLAN_STATUS_BLOCKED, domain.GetBlockedReasons())
+	}
+	for _, demand := range plan.Demands {
+		add(demand.Category, demand.Domain, demand.BlockingStage, planStatusProto(demand.Status), demand.BlockedReasons)
+	}
+	for _, op := range plan.Operations {
+		add(op.Category, op.Domain, op.BlockingStage, planStatusProto(op.Status), op.BlockedReasons)
+		for _, gate := range op.CostGates {
+			add(op.Category, op.Domain, gate.Source, planStatusProto(gate.Status), gate.BlockedReasons)
+		}
+	}
+	keys := make([]groupKey, 0, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].category != keys[j].category {
+			return keys[i].category < keys[j].category
+		}
+		if keys[i].domain != keys[j].domain {
+			return keys[i].domain < keys[j].domain
+		}
+		if keys[i].stage != keys[j].stage {
+			return keys[i].stage < keys[j].stage
+		}
+		return keys[i].status < keys[j].status
+	})
+	out := &pb.BlockingSummary{}
+	for _, key := range keys {
+		group := groups[key]
+		out.Total += group.Count
+		out.Groups = append(out.Groups, group)
+	}
+	return out
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }
 
 func itemNameOrID(itemID int32) string {
@@ -470,29 +693,29 @@ func buildDomainStatuses(policy *pb.Policy, diag runner.Diagnostics, connected b
 	observed := setOfStrings(diag.ObservedNamespaces)
 	blocked := append([]string(nil), diag.BlockedReasons...)
 	return []*pb.DomainStatus{
-		domainStatus("basic", "basic", basicEnabled(policy.GetBasic()), observedAny(observed, "7", "22", "116", "117", "119", "129"), blocked, diag.LastOperationError, connected),
-		domainStatus("plant", "plant", plantEnabled(policy.GetPlant()), observedAny(observed, "100", "101", "104", "105", "109", "114"), blocked, diag.LastOperationError, connected),
-		domainStatus("order", "order", orderEnabled(policy.GetOrder()), observedAny(observed, "104", "105", "107", "108", "109"), blocked, diag.LastOperationError, connected),
-		domainStatus("union", "union", unionEnabled(policy.GetUnion()), observedAny(observed, "25", "152"), blocked, diag.LastOperationError, connected),
-		domainStatus("activity", "activity", activityEnabled(policy.GetActivity()), observedActivity(observed), blocked, diag.LastOperationError, connected),
+		domainStatus("basic", "basic", basicEnabled(policy.GetBasic()), observedAny(observed, "7", "22", "116", "117", "119", "129"), blocked, "", connected),
+		domainStatus("plant", "plant", plantEnabled(policy.GetPlant()), observedAny(observed, "100", "101", "104", "105", "109", "114"), blocked, "", connected),
+		domainStatus("order", "order", orderEnabled(policy.GetOrder()), observedAny(observed, "104", "105", "107", "108", "109"), blocked, "", connected),
+		domainStatus("union", "union", unionEnabled(policy.GetUnion()), observedAny(observed, "25", "152"), blocked, "", connected),
+		domainStatus("activity", "activity", activityEnabled(policy.GetActivity()), observedActivity(observed), blocked, "", connected),
 	}
 }
 
 func domainStatus(category, domain string, enabled bool, observed bool, blocked []string, lastErr string, connected bool) *pb.DomainStatus {
-	status := "disabled"
+	status := pb.PlanStatus_PLAN_STATUS_SKIPPED
 	var reasons []string
 	if enabled {
-		status = "ready"
+		status = pb.PlanStatus_PLAN_STATUS_READY
 		if !connected {
-			status = "blocked"
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
 			reasons = append(reasons, "WebSocket 未连接")
 		}
 		if len(blocked) > 0 {
-			status = "blocked"
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
 			reasons = append(reasons, blocked...)
 		}
 		if !observed && connected {
-			status = "syncing"
+			status = pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
 		}
 	}
 	return &pb.DomainStatus{

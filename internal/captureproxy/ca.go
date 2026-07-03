@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -41,6 +42,18 @@ func ensureCA(dir string) (caFiles, error) {
 	}
 	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
 		return caFiles{}, fmt.Errorf("write ca key: %w", err)
+	}
+	return loadCA(certPath, keyPath)
+}
+
+func loadOrEnsureCA(defaultDir, certPath, keyPath string) (caFiles, error) {
+	certPath = strings.TrimSpace(certPath)
+	keyPath = strings.TrimSpace(keyPath)
+	if certPath == "" && keyPath == "" {
+		return ensureCA(defaultDir)
+	}
+	if certPath == "" || keyPath == "" {
+		return caFiles{}, fmt.Errorf("both ca cert and ca key must be provided")
 	}
 	return loadCA(certPath, keyPath)
 }

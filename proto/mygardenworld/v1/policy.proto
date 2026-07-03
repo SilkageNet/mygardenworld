@@ -121,14 +121,15 @@ message CultivatePolicy {
 }
 
 message FlowerPlantPolicy {
+  reserved 3, 8;
+  reserved "harvest_prefer_one_key", "water_prefer_one_key_if_noble";
+
   bool auto_unlock_land = 1;
   bool harvest_enabled = 2;
-  bool harvest_prefer_one_key = 3;
   bool plant_enabled = 4;
   bool water_enabled = 5;
   int32 min_water_drops = 6;
   int32 water_max_batch = 7;
-  bool water_prefer_one_key_if_noble = 8;
 
   bool video_speed_up_enabled = 9;
   bool use_speed_up_ticket = 10;
@@ -234,9 +235,11 @@ message OrderPolicy {
 }
 
 message CustomerOrderPolicy {
+  reserved 3;
+  reserved "craft_enabled";
+
   bool enabled = 1;
-  bool reject_enabled = 2;
-  bool craft_enabled = 3;
+  bool reject_unavailable_enabled = 2;
 }
 
 message ResidentOrderPolicy {
@@ -268,7 +271,7 @@ message FlowerArtPolicy {
   bool sell_enabled = 2;
   bool craft_enabled = 3;
   bool early_cancel_enabled = 4;
-  repeated int32 specified_art_ids = 5;
+  repeated int32 allowed_art_ids = 5;
   int32 per_rack_count = 6;
   bool create_reward_enabled = 7;
   bool collect_reward_enabled = 8;

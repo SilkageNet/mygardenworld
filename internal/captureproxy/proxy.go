@@ -41,7 +41,7 @@ func New(opts Options) (*Proxy, error) {
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		return nil, fmt.Errorf("mkdir session dir: %w", err)
 	}
-	ca, err := ensureCA(filepath.Join(opts.OutDir, "ca"))
+	ca, err := loadOrEnsureCA(filepath.Join(opts.OutDir, "ca"), opts.CACertPath, opts.CAKeyPath)
 	if err != nil {
 		return nil, err
 	}

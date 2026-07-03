@@ -195,6 +195,11 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 	if op == nil {
 		return nil
 	}
+	for _, gate := range op.CostGates {
+		if err := r.checkCostGate(gate, now); err != nil {
+			return err
+		}
+	}
 	if op.DiamondCost > 0 {
 		return fmt.Errorf("钻石消耗操作默认不自动执行: %d", op.DiamondCost)
 	}
@@ -225,6 +230,52 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 	return nil
 }
 
+func (r *Runner) checkCostGate(gate automation.CostGate, now time.Time) error {
+	required := gate.Required
+	if required <= 0 {
+		return nil
+	}
+	switch gate.ResourceKind {
+	case automation.GateResourceGold:
+		available := int64(r.state.Gold())
+		if available < required {
+			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "金币"), required, available)
+		}
+	case automation.GateResourceDiamond:
+		free, paid := r.state.Diamonds()
+		available := int64(free + paid)
+		if available < required {
+			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "元宝"), required, available)
+		}
+		return fmt.Errorf("元宝成本操作默认不自动执行: %d", required)
+	case automation.GateResourceItem:
+		available := int64(r.state.Inventory()[gate.ItemID])
+		if available < required {
+			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, flowerName(int(gate.ItemID))), required, available)
+		}
+	case automation.GateResourceWaterDrop:
+		available, _, _ := r.state.AvailableWaterDrops(now)
+		if int64(available) < required {
+			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "水滴"), required, available)
+		}
+	default:
+		if gate.Blocking() {
+			if len(gate.BlockedReasons) > 0 {
+				return fmt.Errorf("%s", strings.Join(gate.BlockedReasons, "; "))
+			}
+			return fmt.Errorf("%s 未满足", gateLabel(gate, "前置条件"))
+		}
+	}
+	return nil
+}
+
+func gateLabel(gate automation.CostGate, fallback string) string {
+	if strings.TrimSpace(gate.Label) != "" {
+		return gate.Label
+	}
+	return fallback
+}
+
 func (r *Runner) applyHarvestBlocks(op *automation.PlannedOp, now time.Time) *automation.PlannedOp {
 	if op == nil || !isHarvestOp(op.Kind) {
 		return op
@@ -247,239 +298,530 @@ func (r *Runner) applyHarvestBlocks(op *automation.PlannedOp, now time.Time) *au
 	if !anyBlocked {
 		return op
 	}
-	if op.Kind == "usrLand.harvest" {
-		return nil
-	}
-
-	for _, id := range op.LandIDs {
-		if blocked[id] {
-			continue
-		}
-		return &automation.PlannedOp{
-			Kind:     "usrLand.harvest",
-			Category: op.Category,
-			Domain:   op.Domain,
-			Action:   op.Action,
-			Reason:   op.Reason,
-			Priority: op.Priority,
-			LandIDs:  []int32{id},
-		}
-	}
 	return nil
+}
+
+type operationRuntime struct {
+	runner *Runner
+	rpc    *clientrpc.Client
+	rawRPC *babigame.RPCClient
+}
+
+type operationSpec struct {
+	args func(*automation.PlannedOp) (any, error)
+	run  func(context.Context, operationRuntime, *automation.PlannedOp) (json.RawMessage, error)
+}
+
+var plannedOperationSpecs = map[string]operationSpec{
+	clientproto.RPCUsrLandHarvest.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandHarvestRequest, error) {
+			landID, err := plannedOpSingleLandID(op)
+			if err != nil {
+				return clientproto.UsrLandHarvestRequest{}, err
+			}
+			return clientproto.UsrLandHarvestRequest{LandId: landID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandHarvestRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().Harvest(ctx, req)
+		},
+	),
+	clientproto.RPCUsrLandPlantBatch.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandPlantBatchRequest, error) {
+			if op.FlowerID == 0 {
+				return clientproto.UsrLandPlantBatchRequest{}, fmt.Errorf("plantBatch missing flower id")
+			}
+			return clientproto.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandPlantBatchRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().PlantBatch(ctx, req)
+		},
+	),
+	clientproto.RPCUsrLandPlant.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandPlantRequest, error) {
+			if op.FlowerID == 0 {
+				return clientproto.UsrLandPlantRequest{}, fmt.Errorf("plant missing flower id")
+			}
+			landID, err := plannedOpSingleLandID(op)
+			if err != nil {
+				return clientproto.UsrLandPlantRequest{}, err
+			}
+			return clientproto.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandPlantRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().Plant(ctx, req)
+		},
+	),
+	clientproto.RPCUsrLandWaterBatch.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandWaterBatchRequest, error) {
+			return clientproto.UsrLandWaterBatchRequest{LandIds: op.LandIDs}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandWaterBatchRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().WaterBatch(ctx, req)
+		},
+	),
+	clientproto.RPCUsrLandWater.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandWaterRequest, error) {
+			landID, err := plannedOpSingleLandID(op)
+			if err != nil {
+				return clientproto.UsrLandWaterRequest{}, err
+			}
+			return clientproto.UsrLandWaterRequest{LandId: landID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandWaterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().Water(ctx, req)
+		},
+	),
+	clientproto.RPCUsrLandUnlockLand.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandUnlockLandRequest, error) {
+			return clientproto.UsrLandUnlockLandRequest{LandId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandUnlockLandRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().UnlockLand(ctx, req)
+		},
+	),
+	clientproto.RPCUsrLandSpeedUpBatch.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.UsrLandSpeedUpBatchRequest, error) {
+			return clientproto.UsrLandSpeedUpBatchRequest{LandIds: op.LandIDs}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandSpeedUpBatchRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrLand().SpeedUpBatch(ctx, req)
+		},
+	),
+	clientproto.RPCCultivateRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.CultivateRecvRequest, error) {
+			return clientproto.CultivateRecvRequest{FlowerId: op.FlowerID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.CultivateRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Cultivate().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCCultivateUpgrade.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.CultivateUpgradeRequest, error) {
+			return clientproto.CultivateUpgradeRequest{FlowerId: op.FlowerID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.CultivateUpgradeRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Cultivate().Upgrade(ctx, req)
+		},
+	),
+	clientproto.RPCCultivateCultivate.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.CultivateCultivateRequest, error) {
+			return clientproto.CultivateCultivateRequest{FlowerId: op.FlowerID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.CultivateCultivateRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Cultivate().Cultivate(ctx, req)
+		},
+	),
+	clientproto.RPCOrderFlowerFinishOrder.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.OrderFlowerFinishOrderRequest, error) {
+			return clientproto.OrderFlowerFinishOrderRequest{BoxId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderFlowerFinishOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderFlower().FinishOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderFlowerRecvOrderRwd.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.OrderFlowerRecvOrderRwdRequest, error) {
+			return clientproto.OrderFlowerRecvOrderRwdRequest{Target: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderFlowerRecvOrderRwdRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderFlower().RecvOrderRwd(ctx, req)
+		},
+	),
+	clientproto.RPCOrderCustomerFinishOrder.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.OrderCustomerFinishOrderRequest, error) {
+			return clientproto.OrderCustomerFinishOrderRequest{NPCId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderCustomerFinishOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderCustomer().FinishOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderCustomerGenOrder.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderCustomerGenOrderRequest{GuestNpcIdList: clientproto.RPCIDList{}}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderCustomerGenOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderCustomer().GenOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderCustomerRejectOrder.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.OrderCustomerRejectOrderRequest, error) {
+			return clientproto.OrderCustomerRejectOrderRequest{NPCId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderCustomerRejectOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderCustomer().RejectOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderPalaceEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderPalaceEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderPalaceEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderPalace().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCOrderPalaceFinishOrder.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderPalaceFinishOrderRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderPalaceFinishOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderPalace().FinishOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderTeamRefreshOrder.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderTeamRefreshOrderRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderTeamRefreshOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderTeam().RefreshOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderTeamSubmitOrder.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderTeamSubmitOrderRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderTeamSubmitOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderTeam().SubmitOrder(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerArtMakeFlowerArt.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerArtMakeFlowerArtRequest, error) {
+			if op.VaseID <= 0 || len(op.FlowerIDs) == 0 || op.Count <= 0 {
+				return clientproto.FlowerArtMakeFlowerArtRequest{}, fmt.Errorf("flower art craft missing vase/flowers/count")
+			}
+			return clientproto.FlowerArtMakeFlowerArtRequest{VaseId: op.VaseID, FlowersIds: op.FlowerIDs, Num: op.Count}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerArtMakeFlowerArtRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerArt().MakeFlowerArt(ctx, req)
+		},
+	),
+	clientproto.RPCCollectRwdRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.CollectRwdRecvRequest, error) {
+			return clientproto.CollectRwdRecvRequest{Type: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.CollectRwdRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.CollectRwd().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCCollectRwdRecvArtCreateRwdByVase.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.CollectRwdRecvArtCreateRwdByVaseRequest, error) {
+			return clientproto.CollectRwdRecvArtCreateRwdByVaseRequest{"flowerArtId": op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.CollectRwdRecvArtCreateRwdByVaseRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.CollectRwd().RecvArtCreateRwdByVase(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerRackSell.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerRackSellRequest, error) {
+			return clientproto.FlowerRackSellRequest{RackId: op.TargetID, Iid: op.ItemID, Num: op.Count}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerRackSellRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerRack().Sell(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerRackRecvSellMoney.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerRackRecvSellMoneyRequest, error) {
+			return clientproto.FlowerRackRecvSellMoneyRequest{RackId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerRackRecvSellMoneyRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerRack().RecvSellMoney(ctx, req)
+		},
+	),
+	clientproto.RPCWaterwheelRecv.String(): stateDeltaOperation(
+		staticRequest(clientproto.WaterwheelRecvRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.WaterwheelRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Waterwheel().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCFreeWaterRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FreeWaterRecvRequest, error) {
+			return clientproto.FreeWaterRecvRequest{Idx: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FreeWaterRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FreeWater().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCBenefitBoxDraw.String(): stateDeltaOperation(
+		staticRequest(clientproto.BenefitBoxDrawRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.BenefitBoxDrawRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.BenefitBox().Draw(ctx, req)
+		},
+	),
+	clientproto.RPCZooEnterZoo.String(): stateDeltaOperation(
+		staticRequest(clientproto.ZooEnterZooRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ZooEnterZooRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Zoo().EnterZoo(ctx, req)
+		},
+	),
+	clientproto.RPCZooFeedPets.String(): rawStateDeltaOperation(
+		func(op *automation.PlannedOp) (map[string]any, error) {
+			return map[string]any{"petIdList": []int32{op.TargetID}}, nil
+		},
+		clientproto.RPCZooFeedPets,
+	),
+	clientproto.RPCZooStrokePet.String(): rawStateDeltaOperation(
+		func(op *automation.PlannedOp) (map[string]any, error) {
+			return map[string]any{"petId": op.TargetID}, nil
+		},
+		clientproto.RPCZooStrokePet,
+	),
+	clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(): stateDeltaOperation(
+		staticRequest(clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrExtraUpdateAntiFraudQAStatusRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrExtra().UpdateAntiFraudQAStatus(ctx, req)
+		},
+	),
+	clientproto.RPCUsrExtraRecvAntiFraudQARwd.String(): stateDeltaOperation(
+		staticRequest(clientproto.UsrExtraRecvAntiFraudQARwdRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrExtraRecvAntiFraudQARwdRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.UsrExtra().RecvAntiFraudQARwd(ctx, req)
+		},
+	),
+	clientproto.RPCShopCultivateEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.ShopCultivateEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopCultivateEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.ShopCultivate().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCShopCultivateBuy.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ShopCultivateBuyRequest, error) {
+			return clientproto.ShopCultivateBuyRequest{ShopId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopCultivateBuyRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.ShopCultivate().Buy(ctx, req)
+		},
+	),
+	clientproto.RPCShopGiftbagEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.ShopGiftbagEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopGiftbagEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.ShopGiftbag().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCShopGiftbagBuy.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ShopGiftbagBuyRequest, error) {
+			return clientproto.ShopGiftbagBuyRequest{ShopId: op.TargetID, Num: op.Count}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopGiftbagBuyRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.ShopGiftbag().Buy(ctx, req)
+		},
+	),
+	clientproto.RPCPearlRefresh.String(): stateDeltaOperation(
+		staticRequest(clientproto.PearlRefreshRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Pearl().Refresh(ctx, req)
+		},
+	),
+	clientproto.RPCPearlRecvDailyFree.String(): stateDeltaOperation(
+		staticRequest(clientproto.PearlRecvDailyFreeRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlRecvDailyFreeRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Pearl().RecvDailyFree(ctx, req)
+		},
+	),
+	clientproto.RPCPearlPlaceRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.PearlPlaceRecvRequest, error) {
+			return clientproto.PearlPlaceRecvRequest{PlaceId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlPlaceRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.PearlPlace().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCPearlSetProtectState.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.PearlSetProtectStateRequest, error) {
+			return clientproto.PearlSetProtectStateRequest{ProtectState: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlSetProtectStateRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Pearl().SetProtectState(ctx, req)
+		},
+	),
+	clientproto.RPCPearlDraw.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.PearlDrawRequest, error) {
+			return clientproto.PearlDrawRequest{Count: op.Count}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlDrawRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Pearl().Draw(ctx, req)
+		},
+	),
+	clientproto.RPCFmlBuild.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlBuildRequest, error) {
+			return clientproto.FmlBuildRequest{ID: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlBuildRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Fml().Build(ctx, req)
+		},
+	),
+	clientproto.RPCFmlLandHarvest.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlLandHarvestRequest, error) {
+			return clientproto.FmlLandHarvestRequest{LandIds: op.LandIDs}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlLandHarvestRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlLand().Harvest(ctx, req)
+		},
+	),
+	clientproto.RPCFmlForestRefresh.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlForestRefreshRequest, error) {
+			return clientproto.FmlForestRefreshRequest{IsAutoCollect: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlForestRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlForest().Refresh(ctx, req)
+		},
+	),
+	clientproto.RPCFmlFlowerShareRefresh.String(): stateDeltaOperation(
+		staticRequest(clientproto.FmlFlowerShareRefreshRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlFlowerShareRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlFlowerShare().Refresh(ctx, req)
+		},
+	),
+	clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String(): stateDeltaOperation(
+		staticRequest(clientproto.FmlFlowerShareGetFmlOtherShareListRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlFlowerShareGetFmlOtherShareListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlFlowerShare().GetFmlOtherShareList(ctx, req)
+		},
+	),
+	clientproto.RPCFmlFlowerShareRecvRwd.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlFlowerShareRecvRwdRequest, error) {
+			return clientproto.FmlFlowerShareRecvRwdRequest{SlotIds: op.SlotIDs}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlFlowerShareRecvRwdRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlFlowerShare().RecvRwd(ctx, req)
+		},
+	),
+	clientproto.RPCFmlFlowerShareTake.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlFlowerShareTakeRequest, error) {
+			return clientproto.FmlFlowerShareTakeRequest{DstUid: op.TargetUID, SlotId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlFlowerShareTakeRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlFlowerShare().Take(ctx, req)
+		},
+	),
+	clientproto.RPCTaskDlyRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.TaskDlyRecvRequest, error) {
+			return clientproto.TaskDlyRecvRequest{ID: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.TaskDlyRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.TaskDly().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCTaskWeekRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.TaskWeekRecvRequest, error) {
+			return clientproto.TaskWeekRecvRequest{ID: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.TaskWeekRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.TaskWeek().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCRoadGrowRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.RoadGrowRecvRequest, error) {
+			return clientproto.RoadGrowRecvRequest{ID: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RoadGrowRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.RoadGrow().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCRandomEventDoAffair.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.RandomEventDoAffairRequest, error) {
+			return clientproto.RandomEventDoAffairRequest{EventId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventDoAffairRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.RandomEvent().DoAffair(ctx, req)
+		},
+	),
+	clientproto.RPCMailGetList.String(): stateDeltaOperation(
+		staticRequest(clientproto.MailGetListRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.MailGetListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Mail().GetList(ctx, req)
+		},
+	),
+	clientproto.RPCMailPick.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.MailPickRequest, error) {
+			return clientproto.MailPickRequest{MsId: op.TargetID, AllId: op.ItemID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.MailPickRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Mail().Pick(ctx, req)
+		},
+	),
+	clientproto.RPCSignTypeSign.String(): {
+		args: staticAnyRequest(clientproto.SignTypeSignRequest{Type: 1}),
+		run:  runSignTypeSign,
+	},
+}
+
+func operationSpecFor(kind string) (operationSpec, bool) {
+	spec, ok := plannedOperationSpecs[kind]
+	return spec, ok
+}
+
+func staticRequest[Req any](req Req) func(*automation.PlannedOp) (Req, error) {
+	return func(*automation.PlannedOp) (Req, error) {
+		return req, nil
+	}
+}
+
+func staticAnyRequest(req any) func(*automation.PlannedOp) (any, error) {
+	return func(*automation.PlannedOp) (any, error) {
+		return req, nil
+	}
+}
+
+func stateDeltaOperation[Req any](
+	build func(*automation.PlannedOp) (Req, error),
+	call func(context.Context, *clientrpc.Client, Req) (babigame.RPCResponse[clientproto.StateDelta], error),
+) operationSpec {
+	return operationSpec{
+		args: func(op *automation.PlannedOp) (any, error) {
+			return build(op)
+		},
+		run: func(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+			req, err := build(op)
+			if err != nil {
+				return nil, err
+			}
+			return checkedStateDelta(call(ctx, rt.rpc, req))
+		},
+	}
+}
+
+func rawStateDeltaOperation(
+	build func(*automation.PlannedOp) (map[string]any, error),
+	name clientproto.RPCName,
+) operationSpec {
+	return operationSpec{
+		args: func(op *automation.PlannedOp) (any, error) {
+			return build(op)
+		},
+		run: func(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+			req, err := build(op)
+			if err != nil {
+				return nil, err
+			}
+			return checkedStateDelta(babigame.CallRPC[clientproto.StateDelta](ctx, rt.rawRPC, name, req))
+		},
+	}
+}
+
+func checkedStateDelta(resp babigame.RPCResponse[clientproto.StateDelta], err error) (json.RawMessage, error) {
+	v, d, err := rpcResult(resp, err)
+	return checkedPayload(v, d, err)
+}
+
+func runSignTypeSign(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
+	if v, d, err := rpcResult(rt.rpc.SignType().Enter(ctx, clientproto.SignTypeEnterRequest{Type: 1})); err != nil || d.IsError() {
+		return checkedPayload(v, d, err)
+	} else if babigame.HasPayload(v) {
+		rt.runner.state.ApplyV(v)
+	}
+	if v, d, err := rpcResult(rt.rpc.SignType().Sign(ctx, clientproto.SignTypeSignRequest{Type: 1})); err != nil || d.IsError() {
+		return checkedPayload(v, d, err)
+	} else if babigame.HasPayload(v) {
+		rt.runner.state.ApplyV(v)
+	}
+	return checkedStateDelta(rt.rpc.SignType().Recv(ctx, clientproto.SignTypeRecvRequest{Type: 1}))
 }
 
 func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp) (json.RawMessage, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
 	}
-	rpc := clientrpc.NewClient(babigame.NewRPCClient(
-		client,
-		session,
-		babigame.WithDefaultTimeout(30*time.Second),
-		babigame.WithApplyV(r.state.ApplyV),
-	))
+	spec, ok := operationSpecFor(op.Kind)
+	if !ok {
+		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
+	}
 	rawRPC := babigame.NewRPCClient(
 		client,
 		session,
 		babigame.WithDefaultTimeout(30*time.Second),
 		babigame.WithApplyV(r.state.ApplyV),
 	)
-	switch op.Kind {
-	case clientproto.RPCUsrLandHarvestOneKey.String():
-		resp, err := rpc.UsrLand().HarvestOneKey(ctx, clientproto.UsrLandHarvestOneKeyRequest{})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandHarvest.String():
-		landID, err := plannedOpSingleLandID(op)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := rpc.UsrLand().Harvest(ctx, clientproto.UsrLandHarvestRequest{LandId: landID})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandPlantBatch.String():
-		if op.FlowerID == 0 {
-			return nil, fmt.Errorf("plantBatch missing flower id")
-		}
-		resp, err := rpc.UsrLand().PlantBatch(ctx, clientproto.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandPlant.String():
-		if op.FlowerID == 0 {
-			return nil, fmt.Errorf("plant missing flower id")
-		}
-		landID, err := plannedOpSingleLandID(op)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := rpc.UsrLand().Plant(ctx, clientproto.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandWaterBatch.String():
-		resp, err := rpc.UsrLand().WaterBatch(ctx, clientproto.UsrLandWaterBatchRequest{LandIds: op.LandIDs})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandWaterOneKey.String():
-		resp, err := rpc.UsrLand().WaterOneKey(ctx, clientproto.UsrLandWaterOneKeyRequest{})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandWater.String():
-		landID, err := plannedOpSingleLandID(op)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := rpc.UsrLand().Water(ctx, clientproto.UsrLandWaterRequest{LandId: landID})
-		return resp.Payload, err
-	case clientproto.RPCUsrLandUnlockLand.String():
-		v, d, err := rpcResult(rpc.UsrLand().UnlockLand(ctx, clientproto.UsrLandUnlockLandRequest{LandId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCUsrLandSpeedUpBatch.String():
-		v, d, err := rpcResult(rpc.UsrLand().SpeedUpBatch(ctx, clientproto.UsrLandSpeedUpBatchRequest{LandIds: op.LandIDs}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCCultivateRecv.String():
-		v, d, err := rpcResult(rpc.Cultivate().Recv(ctx, clientproto.CultivateRecvRequest{FlowerId: op.FlowerID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCCultivateUpgrade.String():
-		v, d, err := rpcResult(rpc.Cultivate().Upgrade(ctx, clientproto.CultivateUpgradeRequest{FlowerId: op.FlowerID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCCultivateCultivate.String():
-		v, d, err := rpcResult(rpc.Cultivate().Cultivate(ctx, clientproto.CultivateCultivateRequest{FlowerId: op.FlowerID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCOrderFlowerFinishOrder.String():
-		v, d, err := rpcResult(rpc.OrderFlower().FinishOrder(ctx, clientproto.OrderFlowerFinishOrderRequest{BoxId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCOrderFlowerRecvOrderRwd.String():
-		v, d, err := rpcResult(rpc.OrderFlower().RecvOrderRwd(ctx, clientproto.OrderFlowerRecvOrderRwdRequest{Target: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCOrderCustomerFinishOrder.String():
-		v, d, err := rpcResult(rpc.OrderCustomer().FinishOrder(ctx, clientproto.OrderCustomerFinishOrderRequest{NPCId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFlowerArtMakeFlowerArt.String():
-		if op.VaseID <= 0 || len(op.FlowerIDs) == 0 || op.Count <= 0 {
-			return nil, fmt.Errorf("flower art craft missing vase/flowers/count")
-		}
-		v, d, err := rpcResult(rpc.FlowerArt().MakeFlowerArt(ctx, clientproto.FlowerArtMakeFlowerArtRequest{
-			VaseId:     op.VaseID,
-			FlowersIds: op.FlowerIDs,
-			Num:        op.Count,
-		}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCCollectRwdRecv.String():
-		v, d, err := rpcResult(rpc.CollectRwd().Recv(ctx, clientproto.CollectRwdRecvRequest{Type: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCCollectRwdRecvArtCreateRwdByVase.String():
-		v, d, err := rpcResult(rpc.CollectRwd().RecvArtCreateRwdByVase(ctx, clientproto.CollectRwdRecvArtCreateRwdByVaseRequest{"flowerArtId": op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFlowerRackSell.String():
-		v, d, err := rpcResult(rpc.FlowerRack().Sell(ctx, clientproto.FlowerRackSellRequest{RackId: op.TargetID, Iid: op.ItemID, Num: op.Count}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFlowerRackRecvOneKey.String():
-		v, d, err := rpcResult(rpc.FlowerRack().RecvOneKey(ctx, clientproto.FlowerRackRecvOneKeyRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCWaterwheelRecv.String():
-		v, d, err := rpcResult(rpc.Waterwheel().Recv(ctx, clientproto.WaterwheelRecvRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFreeWaterRecv.String():
-		v, d, err := rpcResult(rpc.FreeWater().Recv(ctx, clientproto.FreeWaterRecvRequest{Idx: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCBenefitBoxDraw.String():
-		v, d, err := rpcResult(rpc.BenefitBox().Draw(ctx, clientproto.BenefitBoxDrawRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCZooEnterZoo.String():
-		v, d, err := rpcResult(rpc.Zoo().EnterZoo(ctx, clientproto.ZooEnterZooRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCZooFeedPets.String():
-		args := map[string]any{"petIdList": []int32{op.TargetID}}
-		v, d, err := rpcResult(babigame.CallRPC[clientproto.StateDelta](ctx, rawRPC, clientproto.RPCZooFeedPets, args))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCZooStrokePet.String():
-		args := map[string]any{"petId": op.TargetID}
-		v, d, err := rpcResult(babigame.CallRPC[clientproto.StateDelta](ctx, rawRPC, clientproto.RPCZooStrokePet, args))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():
-		v, d, err := rpcResult(rpc.UsrExtra().UpdateAntiFraudQAStatus(ctx, clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
-		v, d, err := rpcResult(rpc.UsrExtra().RecvAntiFraudQARwd(ctx, clientproto.UsrExtraRecvAntiFraudQARwdRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCShopCultivateEnter.String():
-		v, d, err := rpcResult(rpc.ShopCultivate().Enter(ctx, clientproto.ShopCultivateEnterRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCShopCultivateBuy.String():
-		v, d, err := rpcResult(rpc.ShopCultivate().Buy(ctx, clientproto.ShopCultivateBuyRequest{ShopId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCShopGiftbagEnter.String():
-		v, d, err := rpcResult(rpc.ShopGiftbag().Enter(ctx, clientproto.ShopGiftbagEnterRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCShopGiftbagBuy.String():
-		v, d, err := rpcResult(rpc.ShopGiftbag().Buy(ctx, clientproto.ShopGiftbagBuyRequest{ShopId: op.TargetID, Num: op.Count}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCPearlRefresh.String():
-		v, d, err := rpcResult(rpc.Pearl().Refresh(ctx, clientproto.PearlRefreshRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCPearlRecvDailyFree.String():
-		v, d, err := rpcResult(rpc.Pearl().RecvDailyFree(ctx, clientproto.PearlRecvDailyFreeRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCPearlPlaceRecv.String():
-		v, d, err := rpcResult(rpc.PearlPlace().Recv(ctx, clientproto.PearlPlaceRecvRequest{PlaceId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCPearlSetProtectState.String():
-		v, d, err := rpcResult(rpc.Pearl().SetProtectState(ctx, clientproto.PearlSetProtectStateRequest{ProtectState: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCPearlDraw.String():
-		v, d, err := rpcResult(rpc.Pearl().Draw(ctx, clientproto.PearlDrawRequest{Count: op.Count}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlBuild.String():
-		v, d, err := rpcResult(rpc.Fml().Build(ctx, clientproto.FmlBuildRequest{ID: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlLandHarvest.String():
-		v, d, err := rpcResult(rpc.FmlLand().Harvest(ctx, clientproto.FmlLandHarvestRequest{LandIds: op.LandIDs}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlForestRefresh.String():
-		v, d, err := rpcResult(rpc.FmlForest().Refresh(ctx, clientproto.FmlForestRefreshRequest{IsAutoCollect: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlFlowerShareRefresh.String():
-		v, d, err := rpcResult(rpc.FmlFlowerShare().Refresh(ctx, clientproto.FmlFlowerShareRefreshRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String():
-		v, d, err := rpcResult(rpc.FmlFlowerShare().GetFmlOtherShareList(ctx, clientproto.FmlFlowerShareGetFmlOtherShareListRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlFlowerShareRecvRwd.String():
-		v, d, err := rpcResult(rpc.FmlFlowerShare().RecvRwd(ctx, clientproto.FmlFlowerShareRecvRwdRequest{SlotIds: op.SlotIDs}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCFmlFlowerShareTake.String():
-		v, d, err := rpcResult(rpc.FmlFlowerShare().Take(ctx, clientproto.FmlFlowerShareTakeRequest{DstUid: op.TargetUID, SlotId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCTaskDlyRecv.String():
-		v, d, err := rpcResult(rpc.TaskDly().Recv(ctx, clientproto.TaskDlyRecvRequest{ID: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCTaskWeekRecv.String():
-		v, d, err := rpcResult(rpc.TaskWeek().Recv(ctx, clientproto.TaskWeekRecvRequest{ID: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCRoadGrowRecv.String():
-		v, d, err := rpcResult(rpc.RoadGrow().Recv(ctx, clientproto.RoadGrowRecvRequest{ID: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCRandomEventDoAffair.String():
-		v, d, err := rpcResult(rpc.RandomEvent().DoAffair(ctx, clientproto.RandomEventDoAffairRequest{EventId: op.TargetID}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCMailPickOneKey.String():
-		if v, d, err := rpcResult(rpc.Mail().GetList(ctx, clientproto.MailGetListRequest{})); err != nil || d.IsError() {
-			return checkedPayload(v, d, err)
-		} else if babigame.HasPayload(v) {
-			r.state.ApplyV(v)
-		}
-		v, d, err := rpcResult(rpc.Mail().PickOneKey(ctx, clientproto.MailPickOneKeyRequest{}))
-		return checkedPayload(v, d, err)
-	case clientproto.RPCSignTypeSign.String():
-		if v, d, err := rpcResult(rpc.SignType().Enter(ctx, clientproto.SignTypeEnterRequest{Type: 1})); err != nil || d.IsError() {
-			return checkedPayload(v, d, err)
-		} else if babigame.HasPayload(v) {
-			r.state.ApplyV(v)
-		}
-		if v, d, err := rpcResult(rpc.SignType().Sign(ctx, clientproto.SignTypeSignRequest{Type: 1})); err != nil || d.IsError() {
-			return checkedPayload(v, d, err)
-		} else if babigame.HasPayload(v) {
-			r.state.ApplyV(v)
-		}
-		v, d, err := rpcResult(rpc.SignType().Recv(ctx, clientproto.SignTypeRecvRequest{Type: 1}))
-		return checkedPayload(v, d, err)
-	default:
-		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
-	}
+	rt := operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC), rawRPC: rawRPC}
+	return spec.run(ctx, rt, op)
 }
 
 func checkedPayload(v json.RawMessage, d babigame.WSResponseD, err error) (json.RawMessage, error) {
@@ -500,134 +842,16 @@ func operationArgs(op *automation.PlannedOp) (any, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
 	}
-	switch op.Kind {
-	case clientproto.RPCUsrLandHarvestOneKey.String():
-		return clientproto.UsrLandHarvestOneKeyRequest{}, nil
-	case clientproto.RPCUsrLandHarvest.String():
-		landID, err := plannedOpSingleLandID(op)
-		if err != nil {
-			return nil, err
-		}
-		return clientproto.UsrLandHarvestRequest{LandId: landID}, nil
-	case clientproto.RPCUsrLandPlantBatch.String():
-		if op.FlowerID == 0 {
-			return nil, fmt.Errorf("plantBatch missing flower id")
-		}
-		return clientproto.UsrLandPlantBatchRequest{LandIds: op.LandIDs, FlowerId: op.FlowerID}, nil
-	case clientproto.RPCUsrLandPlant.String():
-		if op.FlowerID == 0 {
-			return nil, fmt.Errorf("plant missing flower id")
-		}
-		landID, err := plannedOpSingleLandID(op)
-		if err != nil {
-			return nil, err
-		}
-		return clientproto.UsrLandPlantRequest{LandId: landID, FlowerId: op.FlowerID}, nil
-	case clientproto.RPCUsrLandWaterBatch.String():
-		return clientproto.UsrLandWaterBatchRequest{LandIds: op.LandIDs}, nil
-	case clientproto.RPCUsrLandWaterOneKey.String():
-		return clientproto.UsrLandWaterOneKeyRequest{}, nil
-	case clientproto.RPCUsrLandWater.String():
-		landID, err := plannedOpSingleLandID(op)
-		if err != nil {
-			return nil, err
-		}
-		return clientproto.UsrLandWaterRequest{LandId: landID}, nil
-	case clientproto.RPCUsrLandUnlockLand.String():
-		return clientproto.UsrLandUnlockLandRequest{LandId: op.TargetID}, nil
-	case clientproto.RPCUsrLandSpeedUpBatch.String():
-		return clientproto.UsrLandSpeedUpBatchRequest{LandIds: op.LandIDs}, nil
-	case clientproto.RPCCultivateRecv.String():
-		return clientproto.CultivateRecvRequest{FlowerId: op.FlowerID}, nil
-	case clientproto.RPCCultivateUpgrade.String():
-		return clientproto.CultivateUpgradeRequest{FlowerId: op.FlowerID}, nil
-	case clientproto.RPCCultivateCultivate.String():
-		return clientproto.CultivateCultivateRequest{FlowerId: op.FlowerID}, nil
-	case clientproto.RPCOrderFlowerFinishOrder.String():
-		return clientproto.OrderFlowerFinishOrderRequest{BoxId: op.TargetID}, nil
-	case clientproto.RPCOrderFlowerRecvOrderRwd.String():
-		return clientproto.OrderFlowerRecvOrderRwdRequest{Target: op.TargetID}, nil
-	case clientproto.RPCOrderCustomerFinishOrder.String():
-		return clientproto.OrderCustomerFinishOrderRequest{NPCId: op.TargetID}, nil
-	case clientproto.RPCFlowerArtMakeFlowerArt.String():
-		return clientproto.FlowerArtMakeFlowerArtRequest{VaseId: op.VaseID, FlowersIds: op.FlowerIDs, Num: op.Count}, nil
-	case clientproto.RPCCollectRwdRecv.String():
-		return clientproto.CollectRwdRecvRequest{Type: op.TargetID}, nil
-	case clientproto.RPCCollectRwdRecvArtCreateRwdByVase.String():
-		return clientproto.CollectRwdRecvArtCreateRwdByVaseRequest{"flowerArtId": op.TargetID}, nil
-	case clientproto.RPCFlowerRackSell.String():
-		return clientproto.FlowerRackSellRequest{RackId: op.TargetID, Iid: op.ItemID, Num: op.Count}, nil
-	case clientproto.RPCFlowerRackRecvOneKey.String():
-		return clientproto.FlowerRackRecvOneKeyRequest{}, nil
-	case clientproto.RPCWaterwheelRecv.String():
-		return clientproto.WaterwheelRecvRequest{}, nil
-	case clientproto.RPCFreeWaterRecv.String():
-		return clientproto.FreeWaterRecvRequest{Idx: op.TargetID}, nil
-	case clientproto.RPCBenefitBoxDraw.String():
-		return clientproto.BenefitBoxDrawRequest{}, nil
-	case clientproto.RPCZooEnterZoo.String():
-		return clientproto.ZooEnterZooRequest{}, nil
-	case clientproto.RPCZooFeedPets.String():
-		return map[string]any{"petIdList": []int32{op.TargetID}}, nil
-	case clientproto.RPCZooStrokePet.String():
-		return map[string]any{"petId": op.TargetID}, nil
-	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():
-		return clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}, nil
-	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
-		return clientproto.UsrExtraRecvAntiFraudQARwdRequest{}, nil
-	case clientproto.RPCShopCultivateEnter.String():
-		return clientproto.ShopCultivateEnterRequest{}, nil
-	case clientproto.RPCShopCultivateBuy.String():
-		return clientproto.ShopCultivateBuyRequest{ShopId: op.TargetID}, nil
-	case clientproto.RPCShopGiftbagEnter.String():
-		return clientproto.ShopGiftbagEnterRequest{}, nil
-	case clientproto.RPCShopGiftbagBuy.String():
-		return clientproto.ShopGiftbagBuyRequest{ShopId: op.TargetID, Num: op.Count}, nil
-	case clientproto.RPCPearlRefresh.String():
-		return clientproto.PearlRefreshRequest{}, nil
-	case clientproto.RPCPearlRecvDailyFree.String():
-		return clientproto.PearlRecvDailyFreeRequest{}, nil
-	case clientproto.RPCPearlPlaceRecv.String():
-		return clientproto.PearlPlaceRecvRequest{PlaceId: op.TargetID}, nil
-	case clientproto.RPCPearlSetProtectState.String():
-		return clientproto.PearlSetProtectStateRequest{ProtectState: op.TargetID}, nil
-	case clientproto.RPCPearlDraw.String():
-		return clientproto.PearlDrawRequest{Count: op.Count}, nil
-	case clientproto.RPCFmlBuild.String():
-		return clientproto.FmlBuildRequest{ID: op.TargetID}, nil
-	case clientproto.RPCFmlLandHarvest.String():
-		return clientproto.FmlLandHarvestRequest{LandIds: op.LandIDs}, nil
-	case clientproto.RPCFmlForestRefresh.String():
-		return clientproto.FmlForestRefreshRequest{IsAutoCollect: op.TargetID}, nil
-	case clientproto.RPCFmlFlowerShareRefresh.String():
-		return clientproto.FmlFlowerShareRefreshRequest{}, nil
-	case clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String():
-		return clientproto.FmlFlowerShareGetFmlOtherShareListRequest{}, nil
-	case clientproto.RPCFmlFlowerShareRecvRwd.String():
-		return clientproto.FmlFlowerShareRecvRwdRequest{SlotIds: op.SlotIDs}, nil
-	case clientproto.RPCFmlFlowerShareTake.String():
-		return clientproto.FmlFlowerShareTakeRequest{DstUid: op.TargetUID, SlotId: op.TargetID}, nil
-	case clientproto.RPCTaskDlyRecv.String():
-		return clientproto.TaskDlyRecvRequest{ID: op.TargetID}, nil
-	case clientproto.RPCTaskWeekRecv.String():
-		return clientproto.TaskWeekRecvRequest{ID: op.TargetID}, nil
-	case clientproto.RPCRoadGrowRecv.String():
-		return clientproto.RoadGrowRecvRequest{ID: op.TargetID}, nil
-	case clientproto.RPCRandomEventDoAffair.String():
-		return clientproto.RandomEventDoAffairRequest{EventId: op.TargetID}, nil
-	case clientproto.RPCMailPickOneKey.String():
-		return clientproto.MailPickOneKeyRequest{}, nil
-	case clientproto.RPCSignTypeSign.String():
-		return clientproto.SignTypeSignRequest{Type: 1}, nil
-	default:
+	spec, ok := operationSpecFor(op.Kind)
+	if !ok {
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
 	}
+	return spec.args(op)
 }
 
 func isWaterOp(kind string) bool {
 	return kind == clientproto.RPCUsrLandWater.String() ||
-		kind == clientproto.RPCUsrLandWaterBatch.String() ||
-		kind == clientproto.RPCUsrLandWaterOneKey.String()
+		kind == clientproto.RPCUsrLandWaterBatch.String()
 }
 
 func plannedOpSingleLandID(op *automation.PlannedOp) (int32, error) {
@@ -652,7 +876,7 @@ func (r *Runner) setHarvestBlockedUntil(landIDs []int32, until time.Time) {
 }
 
 func isHarvestOp(kind string) bool {
-	return kind == "usrLand.harvest" || kind == "usrLand.harvestOneKey"
+	return kind == clientproto.RPCUsrLandHarvest.String()
 }
 
 func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.PlannedOp) error {
@@ -663,8 +887,7 @@ func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.
 		return r.ensureHarvestRqst(ctx)
 	}
 	if op.Kind == clientproto.RPCUsrLandPlant.String() ||
-		op.Kind == clientproto.RPCUsrLandPlantBatch.String() ||
-		op.Kind == clientproto.RPCUsrLandPlantOneKey.String() {
+		op.Kind == clientproto.RPCUsrLandPlantBatch.String() {
 		return r.ensurePlantRqst(ctx)
 	}
 	if isWaterOp(op.Kind) {
@@ -675,6 +898,8 @@ func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.
 		return r.ensureFlowerOrderRqst(ctx)
 	}
 	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() ||
+		op.Kind == clientproto.RPCOrderCustomerGenOrder.String() ||
+		op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() ||
 		op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
 		return r.ensureCustomerOrderRqst(ctx)
 	}

@@ -20,6 +20,8 @@ type Options struct {
 	Listen          string
 	OutDir          string
 	SessionName     string
+	CACertPath      string
+	CAKeyPath       string
 	HostPatterns    []string
 	MaxBodyBytes    int64
 	MaxWSFrameBytes int64

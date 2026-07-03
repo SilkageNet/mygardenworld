@@ -192,6 +192,27 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 	return cloneRaw(row), true
 }
 
+// FlowerRackSellDurationMs returns the configured shelf sale window from
+// c_flowerRack.$sellTime. The client config stores this value in seconds.
+func FlowerRackSellDurationMs() int64 {
+	raw, ok := StaticRow("c_flowerRack", -1)
+	if !ok {
+		return 0
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return 0
+	}
+	var seconds int64
+	if rawSellTime, ok := row["$sellTime"]; ok {
+		_ = json.Unmarshal(rawSellTime, &seconds)
+	}
+	if seconds <= 0 {
+		return 0
+	}
+	return seconds * 1000
+}
+
 // AllFlowerArtRecipes returns every decoded c_flowerArt recipe. The list is
 // sorted from higher-value art to lower-value art for automation choices.
 func AllFlowerArtRecipes() []FlowerArtRecipe {

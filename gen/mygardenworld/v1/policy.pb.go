@@ -1264,27 +1264,25 @@ func (x *CultivatePolicy) GetTargetLevel() int32 {
 }
 
 type FlowerPlantPolicy struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
-	AutoUnlockLand           bool                   `protobuf:"varint,1,opt,name=auto_unlock_land,json=autoUnlockLand,proto3" json:"auto_unlock_land,omitempty"`
-	HarvestEnabled           bool                   `protobuf:"varint,2,opt,name=harvest_enabled,json=harvestEnabled,proto3" json:"harvest_enabled,omitempty"`
-	HarvestPreferOneKey      bool                   `protobuf:"varint,3,opt,name=harvest_prefer_one_key,json=harvestPreferOneKey,proto3" json:"harvest_prefer_one_key,omitempty"`
-	PlantEnabled             bool                   `protobuf:"varint,4,opt,name=plant_enabled,json=plantEnabled,proto3" json:"plant_enabled,omitempty"`
-	WaterEnabled             bool                   `protobuf:"varint,5,opt,name=water_enabled,json=waterEnabled,proto3" json:"water_enabled,omitempty"`
-	MinWaterDrops            int32                  `protobuf:"varint,6,opt,name=min_water_drops,json=minWaterDrops,proto3" json:"min_water_drops,omitempty"`
-	WaterMaxBatch            int32                  `protobuf:"varint,7,opt,name=water_max_batch,json=waterMaxBatch,proto3" json:"water_max_batch,omitempty"`
-	WaterPreferOneKeyIfNoble bool                   `protobuf:"varint,8,opt,name=water_prefer_one_key_if_noble,json=waterPreferOneKeyIfNoble,proto3" json:"water_prefer_one_key_if_noble,omitempty"`
-	VideoSpeedUpEnabled      bool                   `protobuf:"varint,9,opt,name=video_speed_up_enabled,json=videoSpeedUpEnabled,proto3" json:"video_speed_up_enabled,omitempty"`
-	UseSpeedUpTicket         bool                   `protobuf:"varint,10,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
-	SpeedUpTicketMax         int32                  `protobuf:"varint,11,opt,name=speed_up_ticket_max,json=speedUpTicketMax,proto3" json:"speed_up_ticket_max,omitempty"`
-	TaskPriorityEnabled      bool                   `protobuf:"varint,12,opt,name=task_priority_enabled,json=taskPriorityEnabled,proto3" json:"task_priority_enabled,omitempty"`
-	TaskLogEnabled           bool                   `protobuf:"varint,13,opt,name=task_log_enabled,json=taskLogEnabled,proto3" json:"task_log_enabled,omitempty"`
-	GoalPriority             map[string]int32       `protobuf:"bytes,14,rep,name=goal_priority,json=goalPriority,proto3" json:"goal_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	PlantingMode             PlantingMode           `protobuf:"varint,15,opt,name=planting_mode,json=plantingMode,proto3,enum=mygardenworld.v1.PlantingMode" json:"planting_mode,omitempty"`
-	AllowedQualities         []int32                `protobuf:"varint,16,rep,packed,name=allowed_qualities,json=allowedQualities,proto3" json:"allowed_qualities,omitempty"`
-	FlowerKindCount          int32                  `protobuf:"varint,17,opt,name=flower_kind_count,json=flowerKindCount,proto3" json:"flower_kind_count,omitempty"`
-	SpecifiedFlowerIds       []int32                `protobuf:"varint,18,rep,packed,name=specified_flower_ids,json=specifiedFlowerIds,proto3" json:"specified_flower_ids,omitempty"`
-	BlockedFlowerIds         []int32                `protobuf:"varint,19,rep,packed,name=blocked_flower_ids,json=blockedFlowerIds,proto3" json:"blocked_flower_ids,omitempty"`
-	MinFlowerLevel           int32                  `protobuf:"varint,20,opt,name=min_flower_level,json=minFlowerLevel,proto3" json:"min_flower_level,omitempty"`
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	AutoUnlockLand      bool                   `protobuf:"varint,1,opt,name=auto_unlock_land,json=autoUnlockLand,proto3" json:"auto_unlock_land,omitempty"`
+	HarvestEnabled      bool                   `protobuf:"varint,2,opt,name=harvest_enabled,json=harvestEnabled,proto3" json:"harvest_enabled,omitempty"`
+	PlantEnabled        bool                   `protobuf:"varint,4,opt,name=plant_enabled,json=plantEnabled,proto3" json:"plant_enabled,omitempty"`
+	WaterEnabled        bool                   `protobuf:"varint,5,opt,name=water_enabled,json=waterEnabled,proto3" json:"water_enabled,omitempty"`
+	MinWaterDrops       int32                  `protobuf:"varint,6,opt,name=min_water_drops,json=minWaterDrops,proto3" json:"min_water_drops,omitempty"`
+	WaterMaxBatch       int32                  `protobuf:"varint,7,opt,name=water_max_batch,json=waterMaxBatch,proto3" json:"water_max_batch,omitempty"`
+	VideoSpeedUpEnabled bool                   `protobuf:"varint,9,opt,name=video_speed_up_enabled,json=videoSpeedUpEnabled,proto3" json:"video_speed_up_enabled,omitempty"`
+	UseSpeedUpTicket    bool                   `protobuf:"varint,10,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
+	SpeedUpTicketMax    int32                  `protobuf:"varint,11,opt,name=speed_up_ticket_max,json=speedUpTicketMax,proto3" json:"speed_up_ticket_max,omitempty"`
+	TaskPriorityEnabled bool                   `protobuf:"varint,12,opt,name=task_priority_enabled,json=taskPriorityEnabled,proto3" json:"task_priority_enabled,omitempty"`
+	TaskLogEnabled      bool                   `protobuf:"varint,13,opt,name=task_log_enabled,json=taskLogEnabled,proto3" json:"task_log_enabled,omitempty"`
+	GoalPriority        map[string]int32       `protobuf:"bytes,14,rep,name=goal_priority,json=goalPriority,proto3" json:"goal_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	PlantingMode        PlantingMode           `protobuf:"varint,15,opt,name=planting_mode,json=plantingMode,proto3,enum=mygardenworld.v1.PlantingMode" json:"planting_mode,omitempty"`
+	AllowedQualities    []int32                `protobuf:"varint,16,rep,packed,name=allowed_qualities,json=allowedQualities,proto3" json:"allowed_qualities,omitempty"`
+	FlowerKindCount     int32                  `protobuf:"varint,17,opt,name=flower_kind_count,json=flowerKindCount,proto3" json:"flower_kind_count,omitempty"`
+	SpecifiedFlowerIds  []int32                `protobuf:"varint,18,rep,packed,name=specified_flower_ids,json=specifiedFlowerIds,proto3" json:"specified_flower_ids,omitempty"`
+	BlockedFlowerIds    []int32                `protobuf:"varint,19,rep,packed,name=blocked_flower_ids,json=blockedFlowerIds,proto3" json:"blocked_flower_ids,omitempty"`
+	MinFlowerLevel      int32                  `protobuf:"varint,20,opt,name=min_flower_level,json=minFlowerLevel,proto3" json:"min_flower_level,omitempty"`
 	// Planner controls that keep the local daemon's execution bounded.
 	PlantMaxBatch        int32 `protobuf:"varint,21,opt,name=plant_max_batch,json=plantMaxBatch,proto3" json:"plant_max_batch,omitempty"`
 	MaxPerFlowerPerCycle int32 `protobuf:"varint,22,opt,name=max_per_flower_per_cycle,json=maxPerFlowerPerCycle,proto3" json:"max_per_flower_per_cycle,omitempty"`
@@ -1337,13 +1335,6 @@ func (x *FlowerPlantPolicy) GetHarvestEnabled() bool {
 	return false
 }
 
-func (x *FlowerPlantPolicy) GetHarvestPreferOneKey() bool {
-	if x != nil {
-		return x.HarvestPreferOneKey
-	}
-	return false
-}
-
 func (x *FlowerPlantPolicy) GetPlantEnabled() bool {
 	if x != nil {
 		return x.PlantEnabled
@@ -1370,13 +1361,6 @@ func (x *FlowerPlantPolicy) GetWaterMaxBatch() int32 {
 		return x.WaterMaxBatch
 	}
 	return 0
-}
-
-func (x *FlowerPlantPolicy) GetWaterPreferOneKeyIfNoble() bool {
-	if x != nil {
-		return x.WaterPreferOneKeyIfNoble
-	}
-	return false
 }
 
 func (x *FlowerPlantPolicy) GetVideoSpeedUpEnabled() bool {
@@ -1965,12 +1949,11 @@ func (x *OrderPolicy) GetFlowerArt() *FlowerArtPolicy {
 }
 
 type CustomerOrderPolicy struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	RejectEnabled bool                   `protobuf:"varint,2,opt,name=reject_enabled,json=rejectEnabled,proto3" json:"reject_enabled,omitempty"`
-	CraftEnabled  bool                   `protobuf:"varint,3,opt,name=craft_enabled,json=craftEnabled,proto3" json:"craft_enabled,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Enabled                  bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	RejectUnavailableEnabled bool                   `protobuf:"varint,2,opt,name=reject_unavailable_enabled,json=rejectUnavailableEnabled,proto3" json:"reject_unavailable_enabled,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *CustomerOrderPolicy) Reset() {
@@ -2010,16 +1993,9 @@ func (x *CustomerOrderPolicy) GetEnabled() bool {
 	return false
 }
 
-func (x *CustomerOrderPolicy) GetRejectEnabled() bool {
+func (x *CustomerOrderPolicy) GetRejectUnavailableEnabled() bool {
 	if x != nil {
-		return x.RejectEnabled
-	}
-	return false
-}
-
-func (x *CustomerOrderPolicy) GetCraftEnabled() bool {
-	if x != nil {
-		return x.CraftEnabled
+		return x.RejectUnavailableEnabled
 	}
 	return false
 }
@@ -2258,7 +2234,7 @@ type FlowerArtPolicy struct {
 	SellEnabled          bool                   `protobuf:"varint,2,opt,name=sell_enabled,json=sellEnabled,proto3" json:"sell_enabled,omitempty"`
 	CraftEnabled         bool                   `protobuf:"varint,3,opt,name=craft_enabled,json=craftEnabled,proto3" json:"craft_enabled,omitempty"`
 	EarlyCancelEnabled   bool                   `protobuf:"varint,4,opt,name=early_cancel_enabled,json=earlyCancelEnabled,proto3" json:"early_cancel_enabled,omitempty"`
-	SpecifiedArtIds      []int32                `protobuf:"varint,5,rep,packed,name=specified_art_ids,json=specifiedArtIds,proto3" json:"specified_art_ids,omitempty"`
+	AllowedArtIds        []int32                `protobuf:"varint,5,rep,packed,name=allowed_art_ids,json=allowedArtIds,proto3" json:"allowed_art_ids,omitempty"`
 	PerRackCount         int32                  `protobuf:"varint,6,opt,name=per_rack_count,json=perRackCount,proto3" json:"per_rack_count,omitempty"`
 	CreateRewardEnabled  bool                   `protobuf:"varint,7,opt,name=create_reward_enabled,json=createRewardEnabled,proto3" json:"create_reward_enabled,omitempty"`
 	CollectRewardEnabled bool                   `protobuf:"varint,8,opt,name=collect_reward_enabled,json=collectRewardEnabled,proto3" json:"collect_reward_enabled,omitempty"`
@@ -2324,9 +2300,9 @@ func (x *FlowerArtPolicy) GetEarlyCancelEnabled() bool {
 	return false
 }
 
-func (x *FlowerArtPolicy) GetSpecifiedArtIds() []int32 {
+func (x *FlowerArtPolicy) GetAllowedArtIds() []int32 {
 	if x != nil {
-		return x.SpecifiedArtIds
+		return x.AllowedArtIds
 	}
 	return nil
 }
@@ -3088,16 +3064,14 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
 	"\x0fupgrade_enabled\x18\x03 \x01(\bR\x0eupgradeEnabled\x12!\n" +
-	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xbe\t\n" +
+	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\x8b\t\n" +
 	"\x11FlowerPlantPolicy\x12(\n" +
 	"\x10auto_unlock_land\x18\x01 \x01(\bR\x0eautoUnlockLand\x12'\n" +
-	"\x0fharvest_enabled\x18\x02 \x01(\bR\x0eharvestEnabled\x123\n" +
-	"\x16harvest_prefer_one_key\x18\x03 \x01(\bR\x13harvestPreferOneKey\x12#\n" +
+	"\x0fharvest_enabled\x18\x02 \x01(\bR\x0eharvestEnabled\x12#\n" +
 	"\rplant_enabled\x18\x04 \x01(\bR\fplantEnabled\x12#\n" +
 	"\rwater_enabled\x18\x05 \x01(\bR\fwaterEnabled\x12&\n" +
 	"\x0fmin_water_drops\x18\x06 \x01(\x05R\rminWaterDrops\x12&\n" +
-	"\x0fwater_max_batch\x18\a \x01(\x05R\rwaterMaxBatch\x12?\n" +
-	"\x1dwater_prefer_one_key_if_noble\x18\b \x01(\bR\x18waterPreferOneKeyIfNoble\x123\n" +
+	"\x0fwater_max_batch\x18\a \x01(\x05R\rwaterMaxBatch\x123\n" +
 	"\x16video_speed_up_enabled\x18\t \x01(\bR\x13videoSpeedUpEnabled\x12-\n" +
 	"\x13use_speed_up_ticket\x18\n" +
 	" \x01(\bR\x10useSpeedUpTicket\x12-\n" +
@@ -3116,7 +3090,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x14fallback_stock_floor\x18\x17 \x01(\x05R\x12fallbackStockFloor\x1a?\n" +
 	"\x11GoalPriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xdd\x02\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01J\x04\b\x03\x10\x04J\x04\b\b\x10\tR\x16harvest_prefer_one_keyR\x1dwater_prefer_one_key_if_noble\"\xdd\x02\n" +
 	"\x11FriendStealPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1f\n" +
 	"\vsteal_elves\x18\x02 \x01(\bR\n" +
@@ -3172,11 +3146,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x06palace\x18\x03 \x01(\v2#.mygardenworld.v1.PalaceOrderPolicyR\x06palace\x125\n" +
 	"\x04team\x18\x04 \x01(\v2!.mygardenworld.v1.TeamOrderPolicyR\x04team\x12@\n" +
 	"\n" +
-	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"{\n" +
+	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"\x82\x01\n" +
 	"\x13CustomerOrderPolicy\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12%\n" +
-	"\x0ereject_enabled\x18\x02 \x01(\bR\rrejectEnabled\x12#\n" +
-	"\rcraft_enabled\x18\x03 \x01(\bR\fcraftEnabled\"\xdd\x02\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12<\n" +
+	"\x1areject_unavailable_enabled\x18\x02 \x01(\bR\x18rejectUnavailableEnabledJ\x04\b\x03\x10\x04R\rcraft_enabled\"\xdd\x02\n" +
 	"\x13ResidentOrderPolicy\x12%\n" +
 	"\x0enormal_enabled\x18\x01 \x01(\bR\rnormalEnabled\x12,\n" +
 	"\x12normal_daily_limit\x18\x02 \x01(\x05R\x10normalDailyLimit\x12)\n" +
@@ -3194,13 +3167,13 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x10one_more_enabled\x18\x02 \x01(\bR\x0eoneMoreEnabled\x124\n" +
 	"\x16submit_only_cultivated\x18\x03 \x01(\bR\x14submitOnlyCultivated\x12\x1c\n" +
 	"\tqualities\x18\x04 \x03(\x05R\tqualities\x12*\n" +
-	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xf3\x02\n" +
+	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xef\x02\n" +
 	"\x0fFlowerArtPolicy\x12*\n" +
 	"\x11auto_unlock_stand\x18\x01 \x01(\bR\x0fautoUnlockStand\x12!\n" +
 	"\fsell_enabled\x18\x02 \x01(\bR\vsellEnabled\x12#\n" +
 	"\rcraft_enabled\x18\x03 \x01(\bR\fcraftEnabled\x120\n" +
-	"\x14early_cancel_enabled\x18\x04 \x01(\bR\x12earlyCancelEnabled\x12*\n" +
-	"\x11specified_art_ids\x18\x05 \x03(\x05R\x0fspecifiedArtIds\x12$\n" +
+	"\x14early_cancel_enabled\x18\x04 \x01(\bR\x12earlyCancelEnabled\x12&\n" +
+	"\x0fallowed_art_ids\x18\x05 \x03(\x05R\rallowedArtIds\x12$\n" +
 	"\x0eper_rack_count\x18\x06 \x01(\x05R\fperRackCount\x122\n" +
 	"\x15create_reward_enabled\x18\a \x01(\bR\x13createRewardEnabled\x124\n" +
 	"\x16collect_reward_enabled\x18\b \x01(\bR\x14collectRewardEnabled\"\xc7\x02\n" +

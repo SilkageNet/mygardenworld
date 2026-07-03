@@ -146,28 +146,18 @@ func opKindDesc(kind string) string {
 		return "播种"
 	case "usrLand.plantBatch":
 		return "批量播种"
-	case "usrLand.plantOneKey":
-		return "一键播种"
 	case "usrLand.water":
 		return "浇水"
 	case "usrLand.waterBatch":
 		return "批量浇水"
-	case "usrLand.waterOneKey":
-		return "一键浇水"
 	case "usrLand.harvest":
 		return "收获"
-	case "usrLand.harvestOneKey":
-		return "一键收获"
 	case "usrLand.clear":
 		return "铲除"
-	case "usrLand.clearOneKey":
-		return "一键铲除"
 	case "usrLand.speedUp":
 		return "加速"
 	case "usrLand.speedUpFree":
 		return "免费加速"
-	case "usrLand.speedUpOneKey":
-		return "一键加速"
 	case "usrLand.unlockLand":
 		return "解锁田地"
 	case clientproto.RPCZooEnterZoo.String():

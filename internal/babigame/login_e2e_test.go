@@ -387,7 +387,7 @@ func TestReadOnlyPlanningE2E(t *testing.T) {
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
 	policy.Order.Customer.Enabled = true
-	policy.Order.Customer.CraftEnabled = true
+	policy.Order.Customer.RejectUnavailableEnabled = true
 	policy.Order.Resident.NormalEnabled = true
 	policy.Order.Resident.RewardEnabled = true
 	policy.Order.FlowerArt.SellEnabled = true

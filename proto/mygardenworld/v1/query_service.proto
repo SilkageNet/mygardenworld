@@ -4,6 +4,29 @@ package mygardenworld.v1;
 
 import "google/protobuf/timestamp.proto";
 
+enum PlanStatus {
+  PLAN_STATUS_UNSPECIFIED = 0;
+  PLAN_STATUS_READY = 1;
+  PLAN_STATUS_MANAGED = 2;
+  PLAN_STATUS_SYNC_ONLY = 3;
+  PLAN_STATUS_ADAPTER_MISSING = 4;
+  PLAN_STATUS_BLOCKED = 5;
+  PLAN_STATUS_SKIPPED = 6;
+}
+
+enum GateResourceKind {
+  GATE_RESOURCE_KIND_UNSPECIFIED = 0;
+  GATE_RESOURCE_KIND_GOLD = 1;
+  GATE_RESOURCE_KIND_DIAMOND = 2;
+  GATE_RESOURCE_KIND_ITEM = 3;
+  GATE_RESOURCE_KIND_WATER_DROP = 4;
+  GATE_RESOURCE_KIND_LEVEL = 5;
+  GATE_RESOURCE_KIND_VASE = 6;
+  GATE_RESOURCE_KIND_POLICY = 7;
+  GATE_RESOURCE_KIND_STATE = 8;
+  GATE_RESOURCE_KIND_ADAPTER = 9;
+}
+
 service QueryService {
   // Lightweight summary: connected accounts and inventory totals. For dashboard polling.
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
@@ -97,6 +120,9 @@ message GetSnapshotResponse {
   repeated DemandView demands = 26;
   repeated VaseView vases = 28;
   repeated FlowerArtAvailabilityView flower_art_availability = 29;
+  OrderStatisticsView order_statistics = 30;
+  InventoryLedgerView inventory_ledger = 31;
+  BlockingSummary blocking_summary = 32;
 }
 
 message LandView {
@@ -131,8 +157,7 @@ message PendingTaskView {
   // Progress fields are populated for task-style entries.
   int32 finished = 4;
   int32 target = 5;
-  // missing|ready|progress
-  string status = 6;
+  PlanStatus status = 6;
   repeated RequirementView requirements = 7;
 }
 
@@ -150,8 +175,7 @@ message PlannedOperation {
   map<int32, int32> item_cost = 11;
   string feature_id = 12;
   string label = 13;
-  // executable|managed|sync_only|adapter_missing|blocked.
-  string status = 14;
+  PlanStatus status = 14;
   bool executable = 15;
   bool sync_only = 16;
   repeated string blocked_reasons = 17;
@@ -163,13 +187,15 @@ message PlannedOperation {
   int32 count = 23;
   int32 vase_id = 24;
   repeated int32 flower_ids = 25;
+  repeated CostGate cost_gates = 26;
+  string blocking_stage = 27;
 }
 
 message DomainStatus {
   string category = 1;
   string domain = 2;
   bool observed = 3;
-  string status = 4;
+  PlanStatus status = 4;
   repeated string blocked_reasons = 5;
   string last_error = 6;
 }
@@ -205,6 +231,22 @@ message DemandView {
   string kind = 15;
   string source = 16;
   repeated string blocked_reasons = 17;
+  PlanStatus status = 18;
+  string blocking_stage = 19;
+  repeated CostGate cost_gates = 20;
+}
+
+message CostGate {
+  string id = 1;
+  GateResourceKind resource_kind = 2;
+  string label = 3;
+  int32 item_id = 4;
+  int64 required = 5;
+  int64 available = 6;
+  PlanStatus status = 7;
+  repeated string blocked_reasons = 8;
+  bool hard = 9;
+  string source = 10;
 }
 
 message VaseView {
@@ -224,6 +266,46 @@ message FlowerArtAvailabilityView {
   bool craftable = 8;
   repeated RequirementView requirements = 9;
   repeated string blocked_reasons = 10;
+}
+
+message OrderStatisticsView {
+  bool observed = 1;
+  int32 day_id = 2;
+  int32 resident_normal_finished = 3;
+  int32 palace_finished = 4;
+  int32 customer_finished = 5;
+  int32 resident_satin_finished = 6;
+  int32 resident_decorate_finished = 7;
+  int32 flower_art_sold = 8;
+  int64 updated_at_ms = 9;
+  int64 created_at_ms = 10;
+  repeated string blocked_reasons = 11;
+}
+
+message InventoryLedgerView {
+  repeated InventoryLedgerItem items = 1;
+}
+
+message InventoryLedgerItem {
+  int32 item_id = 1;
+  string item_name = 2;
+  int32 owned = 3;
+  int32 allocated = 4;
+  int32 available = 5;
+}
+
+message BlockingSummary {
+  int32 total = 1;
+  repeated BlockingGroup groups = 2;
+}
+
+message BlockingGroup {
+  string category = 1;
+  string domain = 2;
+  string stage = 3;
+  PlanStatus status = 4;
+  int32 count = 5;
+  repeated string reasons = 6;
 }
 
 message StreamEventsRequest {

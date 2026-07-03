@@ -10,6 +10,7 @@ package state
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -108,13 +109,88 @@ type CustomerOrder struct {
 	FinishCnt    int32           `json:"finish_cnt,omitempty"`
 }
 
+// CustomerOrderSummary tracks namespace 109 metadata outside the active order
+// map. nextGenTime is the server/client cooldown used before genOrder.
+type CustomerOrderSummary struct {
+	Observed      bool  `json:"observed,omitempty"`
+	NextGenTimeMs int64 `json:"next_gen_time_ms,omitempty"`
+	UpdatedAtMs   int64 `json:"updated_at_ms,omitempty"`
+	CreatedAtMs   int64 `json:"created_at_ms,omitempty"`
+	CreateCount   int32 `json:"create_count,omitempty"`
+	ActiveCount   int32 `json:"active_count,omitempty"`
+}
+
+// ResidentSpecialOrder represents satin/decorate resident orders embedded in
+// namespace 105. The observed protocol currently exposes counters and NPC data
+// but not a reliable per-flower requirement list, so execution remains gated
+// until requirements are explicit.
+type ResidentSpecialOrder struct {
+	Observed  bool  `json:"observed,omitempty"`
+	Flowers   int32 `json:"flowers,omitempty"`
+	NPCID     int32 `json:"npc_id,omitempty"`
+	DialogID  int32 `json:"dialog_id,omitempty"`
+	FinishCnt int32 `json:"finish_cnt,omitempty"`
+	IsVideo   int32 `json:"is_video,omitempty"`
+	VideoRwd  int32 `json:"video_rwd,omitempty"`
+	CdTimeMs  int64 `json:"cd_time_ms,omitempty"`
+	CTimeMs   int64 `json:"c_time_ms,omitempty"`
+}
+
+// PalaceOrderView is the tracked subset of namespace 108 (orderPalaceTot).
+type PalaceOrderView struct {
+	Observed bool  `json:"observed,omitempty"`
+	UID      int64 `json:"uid,omitempty"`
+	FlowerID int32 `json:"flower_id,omitempty"`
+	Num      int32 `json:"num,omitempty"`
+	IsFinish int32 `json:"is_finish,omitempty"`
+	LTimeMs  int64 `json:"l_time_ms,omitempty"`
+	UTimeMs  int64 `json:"u_time_ms,omitempty"`
+	CTimeMs  int64 `json:"c_time_ms,omitempty"`
+}
+
+// TeamOrderView is the tracked subset of namespace 107 (orderTeamTot).
+type TeamOrderView struct {
+	Observed      bool  `json:"observed,omitempty"`
+	UID           int64 `json:"uid,omitempty"`
+	Status        int32 `json:"status,omitempty"`
+	StartTimeMs   int64 `json:"start_time_ms,omitempty"`
+	OrderNum      int32 `json:"order_num,omitempty"`
+	FlowerID      int32 `json:"flower_id,omitempty"`
+	Reward        int32 `json:"reward,omitempty"`
+	RemainingNum  int32 `json:"remaining_num,omitempty"`
+	RefreshNotCnt int32 `json:"refresh_not_cnt,omitempty"`
+	UTimeMs       int64 `json:"u_time_ms,omitempty"`
+	CTimeMs       int64 `json:"c_time_ms,omitempty"`
+	ActiveTimeMs  int64 `json:"active_time_ms,omitempty"`
+	ActiveCnt     int32 `json:"active_cnt,omitempty"`
+	NPCID         int32 `json:"npc_id,omitempty"`
+}
+
 // FlowerRackSlot represents one shelf slot from namespace 104 (flowerRack).
 type FlowerRackSlot struct {
-	RackID      int32 `json:"rack_id"`
-	ItemID      int32 `json:"item_id,omitempty"`
-	Count       int32 `json:"count,omitempty"`
-	ListedAtMs  int64 `json:"listed_at_ms,omitempty"`
-	UpdatedAtMs int64 `json:"updated_at_ms,omitempty"`
+	RackID        int32 `json:"rack_id"`
+	ItemID        int32 `json:"item_id,omitempty"`
+	Count         int32 `json:"count,omitempty"`
+	ListedAtMs    int64 `json:"listed_at_ms,omitempty"`
+	SellReadyAtMs int64 `json:"sell_ready_at_ms,omitempty"`
+	UpdatedAtMs   int64 `json:"updated_at_ms,omitempty"`
+}
+
+// MailView is the tracked subset of namespace 19 (mailTot.list) needed for
+// ordinary mail reward collection.
+type MailView struct {
+	MsID     int32           `json:"ms_id,omitempty"`
+	AllID    int32           `json:"all_id,omitempty"`
+	IsDel    int32           `json:"is_del,omitempty"`
+	IsRead   int32           `json:"is_read,omitempty"`
+	IsPick   int32           `json:"is_pick,omitempty"`
+	ItemsRaw json.RawMessage `json:"items_raw,omitempty"`
+}
+
+// MailPickTarget is the RPC key pair for mail.pick.
+type MailPickTarget struct {
+	MsID  int32 `json:"ms_id,omitempty"`
+	AllID int32 `json:"all_id,omitempty"`
 }
 
 // VaseView represents one unlocked vase from namespace 102 (vaseTot).
@@ -356,6 +432,20 @@ type VideoDoubleView struct {
 	CreatedAtMs int64 `json:"created_at_ms,omitempty"`
 }
 
+// StatisticsView is the tracked subset of namespace 124 (statisticsTot).
+type StatisticsView struct {
+	Observed               bool  `json:"observed,omitempty"`
+	DayID                  int32 `json:"day_id,omitempty"`
+	OrderFlowerFinishNum   int32 `json:"order_flower_finish_num,omitempty"`
+	OrderPalaceFinishNum   int32 `json:"order_palace_finish_num,omitempty"`
+	OrderCustomerFinishNum int32 `json:"order_customer_finish_num,omitempty"`
+	OrderSatinFinishNum    int32 `json:"order_satin_finish_num,omitempty"`
+	OrderDecorateFinishNum int32 `json:"order_decorate_finish_num,omitempty"`
+	FlowerArtSellNum       int32 `json:"flower_art_sell_num,omitempty"`
+	UTimeMs                int64 `json:"u_time_ms,omitempty"`
+	CTimeMs                int64 `json:"c_time_ms,omitempty"`
+}
+
 // ZooView is the tracked subset of namespace 33.0 (G.IZoo).
 type ZooView struct {
 	Observed          bool    `json:"observed,omitempty"`
@@ -414,9 +504,12 @@ type State struct {
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
 
+	customerOrderSummary  CustomerOrderSummary      // 109.0 顾客订单元信息
 	customerOrders        map[int32]*CustomerOrder  // 109.0.1.<npcId> 当前活跃顾客订单
 	flowerRack            map[int32]*FlowerRackSlot // 104.0.<rackId> 花艺货架
-	vases                 map[int32]*VaseView       // 102.0.<vaseId> 已解锁花瓶
+	mailObserved          bool
+	mails                 map[string]*MailView // 19.1[] keyed by msId/allId
+	vases                 map[int32]*VaseView  // 102.0.<vaseId> 已解锁花瓶
 	vaseObserved          bool
 	collectRewards        map[int32]*CollectRewardView // 103.0.<type> 图鉴/制作奖励状态
 	collectRewardObserved bool
@@ -444,6 +537,10 @@ type State struct {
 
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
+	residentSatinOrder         ResidentSpecialOrder
+	residentDecorateOrder      ResidentSpecialOrder
+	palaceOrder                PalaceOrderView // 108.0 宫廷订单
+	teamOrder                  TeamOrderView   // 107.0 组团订单
 
 	mainTask    *MainTaskView             // 22.0 当前主线任务
 	dailyTasks  map[int32]*DailyTaskView  // 22.1.100.<taskId>
@@ -462,6 +559,7 @@ type State struct {
 	benefitBoxObserved   bool  // namespace 116 has been observed at least once
 	usrExtra             UsrExtraView
 	videoDouble          VideoDoubleView
+	statistics           StatisticsView
 	zoo                  ZooView
 	zooPets              map[int32]*ZooPetView
 	zooObserved          bool
@@ -528,6 +626,7 @@ func New() *State {
 		cultivations:               make(map[int32]*CultivateView),
 		customerOrders:             make(map[int32]*CustomerOrder),
 		flowerRack:                 make(map[int32]*FlowerRackSlot),
+		mails:                      make(map[string]*MailView),
 		vases:                      make(map[int32]*VaseView),
 		collectRewards:             make(map[int32]*CollectRewardView),
 		fmlBuild:                   FmlBuildView{BuildCounts: make(map[int32]int32)},
@@ -652,6 +751,9 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 			s.applyUsrExtraLocked(ns)
 		}
 	}
+	if rawNS19, ok := top["19"]; ok {
+		s.applyMailLocked(rawNS19)
+	}
 	if rawNS114, ok := top["114"]; ok {
 		s.applyWaterwheelLocked(rawNS114)
 	}
@@ -679,6 +781,12 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	if rawNS106, ok := top["106"]; ok {
 		s.applyFlowerArtLocked(rawNS106)
 	}
+	if rawNS107, ok := top["107"]; ok {
+		s.applyTeamOrderLocked(rawNS107)
+	}
+	if rawNS108, ok := top["108"]; ok {
+		s.applyPalaceOrderLocked(rawNS108)
+	}
 	if rawNS25, ok := top["25"]; ok {
 		s.applyFmlLocked(rawNS25)
 	}
@@ -702,6 +810,9 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	}
 	if rawNS119, ok := top["119"]; ok {
 		s.applyRoadGrowLocked(rawNS119)
+	}
+	if rawNS124, ok := top["124"]; ok {
+		s.applyStatisticsLocked(rawNS124)
 	}
 	if rawNS129, ok := top["129"]; ok {
 		s.applyRandomEventsLocked(rawNS129)
@@ -1263,12 +1374,27 @@ func (s *State) applyCustomerOrdersLocked(raw json.RawMessage) {
 	if err := json.Unmarshal(raw0, &outer); err != nil {
 		return
 	}
+	s.customerOrderSummary.Observed = true
+	if n, ok := readInt64JSONField(outer, "2"); ok {
+		s.customerOrderSummary.NextGenTimeMs = n
+	}
+	if n, ok := readInt64JSONField(outer, "3"); ok {
+		s.customerOrderSummary.UpdatedAtMs = n
+	}
+	if n, ok := readInt64JSONField(outer, "4"); ok {
+		s.customerOrderSummary.CreatedAtMs = n
+	}
+	if n, ok := readInt32JSONField(outer, "5"); ok {
+		s.customerOrderSummary.CreateCount = n
+	}
 	raw1, ok := outer["1"]
 	if !ok {
+		s.customerOrderSummary.ActiveCount = int32(len(s.customerOrders))
 		return
 	}
 	var orders map[string]json.RawMessage
 	if err := json.Unmarshal(raw1, &orders); err != nil {
+		s.customerOrderSummary.ActiveCount = int32(len(s.customerOrders))
 		return
 	}
 	// Replace the full order set.
@@ -1330,6 +1456,7 @@ func (s *State) applyCustomerOrdersLocked(raw json.RawMessage) {
 		}
 		s.customerOrders[storeID] = order
 	}
+	s.customerOrderSummary.ActiveCount = int32(len(s.customerOrders))
 }
 
 func (s *State) applyFlowerRackLocked(raw json.RawMessage) {
@@ -1392,8 +1519,94 @@ func (s *State) applyFlowerRackLocked(raw json.RawMessage) {
 		if slot.ItemID == 0 || slot.Count == 0 {
 			slot.ItemID = 0
 			slot.Count = 0
+			slot.SellReadyAtMs = 0
+		} else if sellDurationMs := FlowerRackSellDurationMs(); sellDurationMs > 0 && slot.ListedAtMs > 0 {
+			slot.SellReadyAtMs = slot.ListedAtMs + int64(slot.Count)*sellDurationMs
 		}
 	}
+}
+
+func (s *State) applyMailLocked(raw json.RawMessage) {
+	var ns19 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns19); err != nil {
+		return
+	}
+	s.mailObserved = true
+	rawList, ok := ns19["1"]
+	if !ok || len(rawList) == 0 || string(rawList) == "null" {
+		return
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal(rawList, &entries); err != nil {
+		return
+	}
+	if s.mails == nil {
+		s.mails = make(map[string]*MailView)
+	}
+	for _, rawEntry := range entries {
+		mail, ok := parseMailView(rawEntry)
+		if !ok {
+			continue
+		}
+		key := mailKey(mail.MsID, mail.AllID)
+		if key == "" {
+			continue
+		}
+		next := mail
+		s.mails[key] = &next
+	}
+}
+
+func parseMailView(raw json.RawMessage) (MailView, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return MailView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return MailView{}, false
+	}
+	view := MailView{}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.MsID = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.AllID = n
+	}
+	if n, ok := readInt32JSONField(fields, "17"); ok {
+		view.IsDel = n
+	}
+	if n, ok := readInt32JSONField(fields, "18"); ok {
+		view.IsRead = n
+	}
+	if n, ok := readInt32JSONField(fields, "20"); ok {
+		view.IsPick = n
+	}
+	if rawItems, ok := fields["13"]; ok {
+		view.ItemsRaw = append(json.RawMessage(nil), rawItems...)
+	}
+	return view, view.MsID > 0 || view.AllID > 0
+}
+
+func mailKey(msID, allID int32) string {
+	if msID <= 0 && allID <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(int64(msID), 10) + ":" + strconv.FormatInt(int64(allID), 10)
+}
+
+func mailHasItems(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		return len(arr) > 0
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &obj); err == nil {
+		return len(obj) > 0
+	}
+	return true
 }
 
 func (s *State) applyVasesLocked(raw json.RawMessage) {
@@ -1470,6 +1683,96 @@ func (s *State) applyFlowerArtLocked(raw json.RawMessage) {
 	if rawCTime, ok := fields["5"]; ok {
 		_ = json.Unmarshal(rawCTime, &s.flowerArt.CTimeMs)
 	}
+}
+
+func (s *State) applyStatisticsLocked(raw json.RawMessage) {
+	var ns124 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns124); err != nil {
+		return
+	}
+	raw0, ok := ns124["0"]
+	if !ok {
+		return
+	}
+	if view, ok := parseStatisticsView(raw0); ok {
+		s.statistics = view
+	}
+}
+
+func parseStatisticsView(raw json.RawMessage) (StatisticsView, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return StatisticsView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return StatisticsView{}, false
+	}
+	if _, ok := fields["9"]; ok {
+		return parseStatisticsFields(fields)
+	}
+	var best StatisticsView
+	for dayIDStr, rawEntry := range fields {
+		var entryFields map[string]json.RawMessage
+		if err := json.Unmarshal(rawEntry, &entryFields); err != nil {
+			continue
+		}
+		entry, ok := parseStatisticsFields(entryFields)
+		if !ok {
+			continue
+		}
+		if entry.DayID == 0 {
+			entry.DayID = atoi32(dayIDStr)
+		}
+		if !best.Observed || entry.DayID >= best.DayID {
+			best = entry
+		}
+	}
+	if best.Observed {
+		return best, true
+	}
+	return StatisticsView{}, false
+}
+
+func parseStatisticsFields(fields map[string]json.RawMessage) (StatisticsView, bool) {
+	view := StatisticsView{Observed: true}
+	seen := false
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.DayID = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "8"); ok {
+		view.FlowerArtSellNum = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "9"); ok {
+		view.OrderFlowerFinishNum = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "10"); ok {
+		view.OrderPalaceFinishNum = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "11"); ok {
+		view.OrderCustomerFinishNum = n
+		seen = true
+	}
+	if n, ok := readInt64JSONField(fields, "12"); ok {
+		view.UTimeMs = n
+		seen = true
+	}
+	if n, ok := readInt64JSONField(fields, "13"); ok {
+		view.CTimeMs = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "14"); ok {
+		view.OrderSatinFinishNum = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "16"); ok {
+		view.OrderDecorateFinishNum = n
+		seen = true
+	}
+	return view, seen
 }
 
 func (s *State) applyFmlLocked(raw json.RawMessage) {
@@ -2027,6 +2330,147 @@ func (s *State) applyFlowerOrdersLocked(raw json.RawMessage) {
 			}
 		}
 	}
+	if rawSatin, ok := inner["6"]; ok {
+		s.residentSatinOrder = parseResidentSpecialOrder(rawSatin)
+	}
+	if rawDecorate, ok := inner["7"]; ok {
+		s.residentDecorateOrder = parseResidentSpecialOrder(rawDecorate)
+	}
+}
+
+func parseResidentSpecialOrder(raw json.RawMessage) ResidentSpecialOrder {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ResidentSpecialOrder{}
+	}
+	view := ResidentSpecialOrder{Observed: true}
+	if n, ok := readInt32JSONField(fields, "0"); ok {
+		view.Flowers = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.NPCID = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.DialogID = n
+	}
+	if n, ok := readInt32JSONField(fields, "3"); ok {
+		view.FinishCnt = n
+	}
+	if n, ok := readInt32JSONField(fields, "4"); ok {
+		view.IsVideo = n
+	}
+	if n, ok := readInt32JSONField(fields, "5"); ok {
+		view.VideoRwd = n
+	}
+	if n, ok := readInt64JSONField(fields, "6"); ok {
+		view.CdTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "7"); ok {
+		view.CTimeMs = n
+	}
+	return view
+}
+
+func (s *State) applyTeamOrderLocked(raw json.RawMessage) {
+	var ns107 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns107); err != nil {
+		return
+	}
+	raw0, ok := ns107["0"]
+	if !ok {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &fields); err != nil {
+		return
+	}
+	view := TeamOrderView{Observed: true}
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.Status = n
+	}
+	if n, ok := readInt64JSONField(fields, "2"); ok {
+		view.StartTimeMs = n
+	}
+	if n, ok := readInt32JSONField(fields, "3"); ok {
+		view.OrderNum = n
+	}
+	if n, ok := readInt32JSONField(fields, "4"); ok {
+		view.FlowerID = n
+	}
+	if n, ok := readInt32JSONField(fields, "5"); ok {
+		view.Reward = n
+	}
+	if n, ok := readInt32JSONField(fields, "6"); ok {
+		view.RemainingNum = n
+	}
+	if n, ok := readInt32JSONField(fields, "7"); ok {
+		view.RefreshNotCnt = n
+	}
+	if n, ok := readInt64JSONField(fields, "8"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "9"); ok {
+		view.CTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "10"); ok {
+		view.ActiveTimeMs = n
+	}
+	if n, ok := readInt32JSONField(fields, "11"); ok {
+		view.ActiveCnt = n
+	}
+	if n, ok := readInt32JSONField(fields, "14"); ok {
+		view.NPCID = n
+	}
+	s.teamOrder = view
+}
+
+func (s *State) applyPalaceOrderLocked(raw json.RawMessage) {
+	var ns108 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns108); err != nil {
+		return
+	}
+	raw0, ok := ns108["0"]
+	if !ok {
+		return
+	}
+	var outer map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &outer); err != nil {
+		return
+	}
+	rawOrder := raw0
+	if nested, ok := outer["0"]; ok {
+		rawOrder = nested
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(rawOrder, &fields); err != nil {
+		return
+	}
+	view := PalaceOrderView{Observed: true}
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.FlowerID = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.Num = n
+	}
+	if n, ok := readInt32JSONField(fields, "3"); ok {
+		view.IsFinish = n
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.LTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "5"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "6"); ok {
+		view.CTimeMs = n
+	}
+	s.palaceOrder = view
 }
 
 func (s *State) applyRoadGrowLocked(raw json.RawMessage) {
@@ -3084,6 +3528,41 @@ func (s *State) FlowerOrders() map[int32]*FlowerOrder {
 	return out
 }
 
+// ResidentSatinOrder returns the latest observed satin resident order state.
+func (s *State) ResidentSatinOrder() ResidentSpecialOrder {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.residentSatinOrder
+}
+
+// ResidentDecorateOrder returns the latest observed decorate resident order state.
+func (s *State) ResidentDecorateOrder() ResidentSpecialOrder {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.residentDecorateOrder
+}
+
+// PalaceOrder returns the current palace order state.
+func (s *State) PalaceOrder() PalaceOrderView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.palaceOrder
+}
+
+// TeamOrder returns the current team order state.
+func (s *State) TeamOrder() TeamOrderView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.teamOrder
+}
+
+// Statistics returns the latest observed daily statistics snapshot.
+func (s *State) Statistics() StatisticsView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.statistics
+}
+
 // FlowerRackSlots returns the current flower-art shelf slots.
 func (s *State) FlowerRackSlots() map[int32]FlowerRackSlot {
 	s.mu.RLock()
@@ -3094,6 +3573,24 @@ func (s *State) FlowerRackSlots() map[int32]FlowerRackSlot {
 			out[k] = *v
 		}
 	}
+	return out
+}
+
+// FlowerRackClaimableSlotIDs returns listed rack slots whose configured sale
+// window has elapsed. The client treats a rack as sold when:
+// now - sellStartTime >= num * c_flowerRack.$sellTime.
+func (s *State) FlowerRackClaimableSlotIDs(now time.Time) []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	nowMs := now.UnixMilli()
+	out := make([]int32, 0)
+	for rackID, slot := range s.flowerRack {
+		if slot == nil || slot.ItemID <= 0 || slot.Count <= 0 || slot.SellReadyAtMs <= 0 || nowMs < slot.SellReadyAtMs {
+			continue
+		}
+		out = append(out, rackID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 
@@ -3109,6 +3606,58 @@ func (s *State) EmptyFlowerRackSlotIDs() []int32 {
 		out = append(out, rackID)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// MailObserved reports whether namespace 19 has been observed at least once.
+func (s *State) MailObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.mailObserved
+}
+
+// Mails returns the currently tracked ordinary mail list.
+func (s *State) Mails() []MailView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]MailView, 0, len(s.mails))
+	for _, mail := range s.mails {
+		if mail == nil {
+			continue
+		}
+		cp := *mail
+		cp.ItemsRaw = append(json.RawMessage(nil), mail.ItemsRaw...)
+		out = append(out, cp)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].MsID != out[j].MsID {
+			return out[i].MsID < out[j].MsID
+		}
+		return out[i].AllID < out[j].AllID
+	})
+	return out
+}
+
+// ReadyMailPickTargets returns unpicked mail entries that carry rewards.
+func (s *State) ReadyMailPickTargets() []MailPickTarget {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]MailPickTarget, 0)
+	for _, mail := range s.mails {
+		if mail == nil || mail.IsDel != 0 || mail.IsPick != 0 || !mailHasItems(mail.ItemsRaw) {
+			continue
+		}
+		if mail.MsID <= 0 && mail.AllID <= 0 {
+			continue
+		}
+		out = append(out, MailPickTarget{MsID: mail.MsID, AllID: mail.AllID})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].MsID != out[j].MsID {
+			return out[i].MsID < out[j].MsID
+		}
+		return out[i].AllID < out[j].AllID
+	})
 	return out
 }
 
@@ -3651,6 +4200,27 @@ func (s *State) CustomerOrders() []int32 {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+// CustomerOrderSummary returns namespace 109 metadata.
+func (s *State) CustomerOrderSummary() CustomerOrderSummary {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	summary := s.customerOrderSummary
+	summary.ActiveCount = int32(len(s.customerOrders))
+	return summary
+}
+
+// CustomerOrderGenerationReady reports whether ordinary customer orders can be
+// requested now based on the observed client cooldown.
+func (s *State) CustomerOrderGenerationReady(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.customerOrderSummary.Observed || len(s.customerOrders) > 0 {
+		return false
+	}
+	next := s.customerOrderSummary.NextGenTimeMs
+	return next <= 0 || now.UnixMilli() >= next+1000
 }
 
 // CustomerOrderDetails returns the active customer order requirements.

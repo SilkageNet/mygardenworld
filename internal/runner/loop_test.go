@@ -7,6 +7,7 @@ import (
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestWaterResponseIncludesDrops(t *testing.T) {
@@ -46,16 +47,23 @@ func TestWaterResponseIncludesDrops(t *testing.T) {
 	}
 }
 
-func TestWaterOneKeyUsesWaterOperationPath(t *testing.T) {
-	if !isWaterOp(clientproto.RPCUsrLandWaterOneKey.String()) {
-		t.Fatal("waterOneKey should share water verification/reservation path")
+func TestWaterBatchUsesWaterOperationPath(t *testing.T) {
+	if !isWaterOp(clientproto.RPCUsrLandWaterBatch.String()) {
+		t.Fatal("waterBatch should share water verification/reservation path")
 	}
-	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCUsrLandWaterOneKey.String(), LandIDs: []int32{1001, 1002}})
+	if isWaterOp(clientproto.RPCUsrLandWaterOneKey.String()) {
+		t.Fatal("waterOneKey should not be part of the automation water path")
+	}
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCUsrLandWaterBatch.String(), LandIDs: []int32{1001, 1002}})
 	if err != nil {
-		t.Fatalf("operationArgs(waterOneKey): %v", err)
+		t.Fatalf("operationArgs(waterBatch): %v", err)
 	}
-	if _, ok := args.(clientproto.UsrLandWaterOneKeyRequest); !ok {
-		t.Fatalf("operationArgs(waterOneKey)=%T, want UsrLandWaterOneKeyRequest", args)
+	waterBatch, ok := args.(clientproto.UsrLandWaterBatchRequest)
+	if !ok {
+		t.Fatalf("operationArgs(waterBatch)=%T, want UsrLandWaterBatchRequest", args)
+	}
+	if len(waterBatch.LandIds) != 2 || waterBatch.LandIds[0] != 1001 || waterBatch.LandIds[1] != 1002 {
+		t.Fatalf("UsrLandWaterBatchRequest.LandIds=%v, want [1001 1002]", waterBatch.LandIds)
 	}
 }
 
@@ -82,6 +90,69 @@ func TestCollectRewardOperationArgs(t *testing.T) {
 	}
 	if byVase["flowerArtId"] != int32(3001) {
 		t.Fatalf("flowerArtId=%v, want 3001", byVase["flowerArtId"])
+	}
+}
+
+func TestOrderPalaceAndTeamOperationSpecs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "palace enter", op: automation.PlannedOp{Kind: clientproto.RPCOrderPalaceEnter.String()}, want: clientproto.OrderPalaceEnterRequest{}},
+		{name: "palace finish", op: automation.PlannedOp{Kind: clientproto.RPCOrderPalaceFinishOrder.String()}, want: clientproto.OrderPalaceFinishOrderRequest{}},
+		{name: "team refresh", op: automation.PlannedOp{Kind: clientproto.RPCOrderTeamRefreshOrder.String()}, want: clientproto.OrderTeamRefreshOrderRequest{}},
+		{name: "team submit", op: automation.PlannedOp{Kind: clientproto.RPCOrderTeamSubmitOrder.String()}, want: clientproto.OrderTeamSubmitOrderRequest{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec, ok := operationSpecFor(tc.op.Kind)
+			if !ok {
+				t.Fatalf("operationSpecFor(%s) not found", tc.op.Kind)
+			}
+			if spec.run == nil {
+				t.Fatalf("operationSpecFor(%s).run is nil", tc.op.Kind)
+			}
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
+	}
+}
+
+func TestOrderRackAndMailOperationArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "customer gen", op: automation.PlannedOp{Kind: clientproto.RPCOrderCustomerGenOrder.String()}, want: clientproto.OrderCustomerGenOrderRequest{GuestNpcIdList: clientproto.RPCIDList{}}},
+		{name: "customer reject", op: automation.PlannedOp{Kind: clientproto.RPCOrderCustomerRejectOrder.String(), TargetID: 7}, want: clientproto.OrderCustomerRejectOrderRequest{NPCId: 7}},
+		{name: "rack recv money", op: automation.PlannedOp{Kind: clientproto.RPCFlowerRackRecvSellMoney.String(), TargetID: 3}, want: clientproto.FlowerRackRecvSellMoneyRequest{RackId: 3}},
+		{name: "mail get list", op: automation.PlannedOp{Kind: clientproto.RPCMailGetList.String()}, want: clientproto.MailGetListRequest{}},
+		{name: "mail pick", op: automation.PlannedOp{Kind: clientproto.RPCMailPick.String(), TargetID: 101, ItemID: 202}, want: clientproto.MailPickRequest{MsId: 101, AllId: 202}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec, ok := operationSpecFor(tc.op.Kind)
+			if !ok {
+				t.Fatalf("operationSpecFor(%s) not found", tc.op.Kind)
+			}
+			if spec.run == nil {
+				t.Fatalf("operationSpecFor(%s).run is nil", tc.op.Kind)
+			}
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
 	}
 }
 
@@ -287,34 +358,17 @@ func TestApplyHarvestBlocksSkipsBlockedSingleLand(t *testing.T) {
 	}
 }
 
-func TestApplyHarvestBlocksDowngradesOneKeyWhenSomeLandsBlocked(t *testing.T) {
-	now := time.Now()
-	r := &Runner{harvestBlockedUntil: map[int32]time.Time{1002: now.Add(time.Minute)}}
-	op := &automation.PlannedOp{
-		Kind:    "usrLand.harvestOneKey",
-		LandIDs: []int32{1001, 1002, 1003},
-	}
-
-	got := r.applyHarvestBlocks(op, now)
-	if got == nil {
-		t.Fatal("applyHarvestBlocks()=nil, want single harvest op")
-	}
-	if got.Kind != "usrLand.harvest" {
-		t.Fatalf("kind=%q, want usrLand.harvest", got.Kind)
-	}
-	if len(got.LandIDs) != 1 || got.LandIDs[0] != 1001 {
-		t.Fatalf("landIDs=%v, want [1001]", got.LandIDs)
-	}
-	args, err := operationArgs(got)
-	if err != nil {
-		t.Fatalf("operationArgs() error: %v", err)
-	}
-	req, ok := args.(clientproto.UsrLandHarvestRequest)
-	if !ok {
-		t.Fatalf("operationArgs()=%T, want UsrLandHarvestRequest", args)
-	}
-	if req.LandId != 1001 {
-		t.Fatalf("LandId=%v, want 1001", req.LandId)
+func TestOneKeyOperationSpecsRemoved(t *testing.T) {
+	for _, kind := range []string{
+		clientproto.RPCUsrLandHarvestOneKey.String(),
+		clientproto.RPCUsrLandWaterOneKey.String(),
+		clientproto.RPCUsrLandPlantOneKey.String(),
+		clientproto.RPCFlowerRackRecvOneKey.String(),
+		clientproto.RPCMailPickOneKey.String(),
+	} {
+		if _, ok := operationSpecFor(kind); ok {
+			t.Fatalf("operationSpecFor(%s) should not be registered", kind)
+		}
 	}
 }
 
@@ -328,5 +382,28 @@ func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 
 	if got := r.applyHarvestBlocks(op, now); got != op {
 		t.Fatalf("applyHarvestBlocks()=%+v, want original op", got)
+	}
+}
+
+func TestCheckOperationResourcesUsesCostGates(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"1001": 1}}},
+	})
+	r := &Runner{state: st}
+	op := &automation.PlannedOp{
+		Kind: clientproto.RPCUsrLandSpeedUpBatch.String(),
+		CostGates: []automation.CostGate{{
+			ID:           "item:1001",
+			ResourceKind: automation.GateResourceItem,
+			Label:        "加速券",
+			ItemID:       1001,
+			Required:     2,
+			Status:       automation.PlanStatusReady,
+		}},
+	}
+
+	if err := r.checkOperationResources(op, time.Now()); err == nil {
+		t.Fatal("checkOperationResources() error=nil, want insufficient item gate error")
 	}
 }

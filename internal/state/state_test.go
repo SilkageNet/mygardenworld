@@ -881,6 +881,50 @@ func TestApplyV_CustomerOrdersDoNotCreatePlantingDeficits(t *testing.T) {
 	}
 }
 
+func TestApplyV_CustomerOrderGenerationMetadata(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.Local)
+	nextGen := now.Add(-2 * time.Second).UnixMilli()
+	applyMap(t, s, map[string]any{
+		"109": map[string]any{
+			"0": map[string]any{
+				"1": map[string]any{},
+				"2": nextGen,
+				"3": now.UnixMilli(),
+				"4": now.Add(-time.Hour).UnixMilli(),
+				"5": 3,
+			},
+		},
+	})
+
+	summary := s.CustomerOrderSummary()
+	if !summary.Observed || summary.NextGenTimeMs != nextGen || summary.ActiveCount != 0 || summary.CreateCount != 3 {
+		t.Fatalf("CustomerOrderSummary mismatch: %+v", summary)
+	}
+	if !s.CustomerOrderGenerationReady(now) {
+		t.Fatalf("CustomerOrderGenerationReady()=false, want true")
+	}
+
+	applyMap(t, s, map[string]any{
+		"109": map[string]any{"0": map[string]any{
+			"1": map[string]any{},
+			"2": now.Add(time.Minute).UnixMilli(),
+		}},
+	})
+	if s.CustomerOrderGenerationReady(now) {
+		t.Fatalf("CustomerOrderGenerationReady()=true during cooldown, want false")
+	}
+
+	applyMap(t, s, map[string]any{
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
+		}}},
+	})
+	if s.CustomerOrderGenerationReady(now) {
+		t.Fatalf("CustomerOrderGenerationReady()=true with active order, want false")
+	}
+}
+
 func TestApplyV_CustomerOrderMixedRequirementDeficits(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
@@ -962,9 +1006,21 @@ func TestApplyV_FlowerRackTracksSlots(t *testing.T) {
 	if slots[3].ItemID != 300207 || slots[3].Count != 6 || slots[3].ListedAtMs != 1779290145874 {
 		t.Fatalf("rack 3 mismatch: %+v", slots[3])
 	}
+	if slots[3].SellReadyAtMs != 1779290145874+int64(slots[3].Count)*FlowerRackSellDurationMs() {
+		t.Fatalf("rack 3 sell ready mismatch: %+v", slots[3])
+	}
+	if got := s.FlowerRackClaimableSlotIDs(time.UnixMilli(slots[3].ListedAtMs + FlowerRackSellDurationMs())); len(got) != 0 {
+		t.Fatalf("FlowerRackClaimableSlotIDs after one item window=%v, want none for count %d", got, slots[3].Count)
+	}
 	empty := s.EmptyFlowerRackSlotIDs()
 	if len(empty) != 1 || empty[0] != 1 {
 		t.Fatalf("EmptyFlowerRackSlotIDs=%v, want [1]", empty)
+	}
+	if got := s.FlowerRackClaimableSlotIDs(time.UnixMilli(slots[3].SellReadyAtMs - 1)); len(got) != 0 {
+		t.Fatalf("FlowerRackClaimableSlotIDs before ready=%v, want none", got)
+	}
+	if got := s.FlowerRackClaimableSlotIDs(time.UnixMilli(slots[3].SellReadyAtMs)); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("FlowerRackClaimableSlotIDs at ready=%v, want [3]", got)
 	}
 
 	applyMap(t, s, map[string]any{
@@ -980,6 +1036,33 @@ func TestApplyV_FlowerRackTracksSlots(t *testing.T) {
 	}
 	if got := s.EmptyFlowerRackSlotIDs(); len(got) != 0 {
 		t.Fatalf("empty slots after listing=%v, want none", got)
+	}
+}
+
+func TestApplyV_MailTracksPickTargets(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"19": map[string]any{
+			"1": []any{
+				map[string]any{"1": 101, "2": 201, "13": [][]int32{{1, 5}}, "17": 0, "18": 0, "20": 0},
+				map[string]any{"1": 102, "2": 202, "13": [][]int32{{7, 3}}, "17": 0, "18": 1, "20": 1},
+				map[string]any{"1": 103, "2": 203, "13": []any{}, "17": 0, "20": 0},
+			},
+		},
+	})
+	if !s.MailObserved() {
+		t.Fatal("MailObserved=false, want true")
+	}
+	mails := s.Mails()
+	if len(mails) != 3 {
+		t.Fatalf("Mails len=%d, want 3: %+v", len(mails), mails)
+	}
+	if mails[0].MsID != 101 || mails[0].AllID != 201 || mails[0].IsPick != 0 || len(mails[0].ItemsRaw) == 0 {
+		t.Fatalf("first mail mismatch: %+v", mails[0])
+	}
+	targets := s.ReadyMailPickTargets()
+	if len(targets) != 1 || targets[0].MsID != 101 || targets[0].AllID != 201 {
+		t.Fatalf("ReadyMailPickTargets=%+v, want msId=101 allId=201", targets)
 	}
 }
 
@@ -1212,6 +1295,57 @@ func TestApplyV_ResidentOrderRewardPartialUpdatePreservesOrders(t *testing.T) {
 	orders := s.FlowerOrders()
 	if orders[2] == nil || len(orders[2].Requires) != 1 {
 		t.Fatalf("partial reward update should preserve existing orders, got %+v", orders)
+	}
+}
+
+func TestApplyV_StatisticsTracksOrderFinishCounts(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260701": map[string]any{"1": 20260701, "9": 3, "11": 4, "14": 5, "16": 6},
+			"20260702": map[string]any{"1": 20260702, "9": 7, "10": 8, "12": 1779290172000},
+		}},
+	})
+
+	stats := s.Statistics()
+	if !stats.Observed {
+		t.Fatal("Statistics.Observed=false, want true")
+	}
+	if stats.DayID != 20260702 || stats.OrderFlowerFinishNum != 7 || stats.OrderPalaceFinishNum != 8 || stats.UTimeMs != 1779290172000 {
+		t.Fatalf("Statistics mismatch: %+v", stats)
+	}
+}
+
+func TestApplyV_OrderPalaceTeamAndResidentSpecialOrders(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"105": map[string]any{"0": map[string]any{
+			"6": map[string]any{"0": 3, "1": 201, "2": 301, "3": 2, "6": 1779290100000},
+			"7": map[string]any{"0": 4, "1": 202, "2": 302, "3": 1, "7": 1779290200000},
+		}},
+		"107": map[string]any{"0": map[string]any{
+			"0": 77900091102482, "1": 1, "3": 5, "4": 23005, "6": 2, "14": 99,
+		}},
+		"108": map[string]any{"0": map[string]any{"0": map[string]any{
+			"0": 77900091102482, "1": 23007, "2": 3, "3": 0, "5": 1779290300000,
+		}}},
+	})
+
+	satin := s.ResidentSatinOrder()
+	if !satin.Observed || satin.Flowers != 3 || satin.NPCID != 201 || satin.FinishCnt != 2 {
+		t.Fatalf("ResidentSatinOrder mismatch: %+v", satin)
+	}
+	decorate := s.ResidentDecorateOrder()
+	if !decorate.Observed || decorate.Flowers != 4 || decorate.NPCID != 202 || decorate.FinishCnt != 1 {
+		t.Fatalf("ResidentDecorateOrder mismatch: %+v", decorate)
+	}
+	team := s.TeamOrder()
+	if !team.Observed || team.FlowerID != 23005 || team.OrderNum != 5 || team.RemainingNum != 2 || team.NPCID != 99 {
+		t.Fatalf("TeamOrder mismatch: %+v", team)
+	}
+	palace := s.PalaceOrder()
+	if !palace.Observed || palace.FlowerID != 23007 || palace.Num != 3 || palace.IsFinish != 0 {
+		t.Fatalf("PalaceOrder mismatch: %+v", palace)
 	}
 }
 

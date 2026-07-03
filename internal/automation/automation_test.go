@@ -2,6 +2,7 @@ package automation
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,122 @@ func itoa32(v int32) string {
 	return strconv.FormatInt(int64(v), 10)
 }
 
+func oppositeQuality(flowerID int32) int32 {
+	q := flowerQuality(flowerID)
+	if q == 1 {
+		return 2
+	}
+	return q - 1
+}
+
+func hasReasonContaining(reasons []string, part string) bool {
+	for _, reason := range reasons {
+		if strings.Contains(reason, part) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBuildPlan_ResidentNormalDisabledDoesNotDemandOrSubmit(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = false
+
+	result := BuildPlan(s, p, time.Now())
+	for _, demand := range result.Demands {
+		if demand.GoalID == GoalResidentOrder {
+			t.Fatalf("resident demand should not be generated when normal order is disabled: %+v", demand)
+		}
+	}
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() {
+			t.Fatalf("resident submit should not be generated when normal order is disabled: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_ResidentNormalLimitBlocksSubmit(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+		"124": map[string]any{"0": map[string]any{"20260702": map[string]any{"1": 20260702, "9": 5}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 5
+
+	result := BuildPlan(s, p, time.Now())
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should be blocked after daily limit: %+v", op)
+		}
+		if op.Domain == "order.resident" && !op.Executable && hasReasonContaining(op.BlockedReasons, "5/5") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing resident limit block: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_ResidentQualityMismatchBlocksSubmit(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.Qualities = []int32{oppositeQuality(23005)}
+
+	result := BuildPlan(s, p, time.Now())
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should be blocked by quality policy: %+v", op)
+		}
+		if op.Domain == "order.resident" && !op.Executable && hasReasonContaining(op.BlockedReasons, "不在策略范围") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing resident quality block: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_ResidentMissingStatisticsStillSubmitsWithDiagnosticReason(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 1
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			if !strings.Contains(op.Reason, "namespace 124") {
+				t.Fatalf("resident submit should mention missing stats namespace: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing resident submit when statistics are absent: %+v", result.Operations)
+}
+
 func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -56,7 +173,6 @@ func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.Customer.Enabled = true
-	p.Order.Customer.CraftEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
 	var planted bool
@@ -78,6 +194,7 @@ func TestBuildPlan_CustomerArtBlockedByMissingVase(t *testing.T) {
 			"32": map[string]any{"23005": 2, "23007": 2, "23008": 2},
 			"34": 12,
 		}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
 		"102": map[string]any{"0": map[string]any{"3001": map[string]any{"1": 3001}}},
 		"109": map[string]any{"0": map[string]any{"1": map[string]any{
 			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
@@ -86,13 +203,190 @@ func TestBuildPlan_CustomerArtBlockedByMissingVase(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.Customer.Enabled = true
-	p.Order.Customer.CraftEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var blocked bool
+	for _, op := range result.Operations {
+		if !op.Executable && hasReasonContaining(op.BlockedReasons, "花瓶") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("expected missing vase block, ops=%+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_CustomerRejectUnavailableWhenUnlockedRequirementsMissing(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 2, "23007": 2, "23008": 2},
+			"34": 12,
+		}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3001": map[string]any{"1": 3001}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
-		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && len(op.BlockedReasons) == 0 {
-			t.Fatalf("craft op should be blocked by missing vase: %+v", op)
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
+			if !op.Executable || op.TargetID != 7 || !strings.Contains(op.Reason, "花瓶") {
+				t.Fatalf("reject op mismatch: %+v", op)
+			}
+			return
 		}
+	}
+	t.Fatalf("missing customer reject op: %+v", result.Operations)
+}
+
+func TestBuildPlan_CustomerMissingRecipeBlocksWithoutReject(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 399999, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && op.Executable {
+			t.Fatalf("missing recipe should not execute reject: %+v", op)
+		}
+		if !op.Executable && hasReasonContaining(op.BlockedReasons, "配方") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing recipe block not found: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_CustomerArtConfigLevelDoesNotReject(t *testing.T) {
+	recipe, ok := state.FlowerArtRecipeByID(301606)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(301606) ok=false")
+	}
+	stock := make(map[string]any, len(recipe.Flowers))
+	for _, flowerID := range recipe.Flowers {
+		stock[itoa32(flowerID)] = int32(1)
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": stock,
+			"34": recipe.Level - 1,
+		}},
+		"101": map[string]any{"0": cultivate(recipe.Flowers...)},
+		"102": map[string]any{"0": map[string]any{itoa32(recipe.VaseID): map[string]any{"1": recipe.VaseID}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"6": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if strings.Contains(op.Reason, "等级不足") || hasReasonContaining(op.BlockedReasons, "等级不足") {
+			t.Fatalf("flower art cfg lvl should not be treated as player level gate: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
+			t.Fatalf("customer order should not be rejected by flower art cfg lvl: %+v", op)
+		}
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.ItemID == recipe.ArtID {
+			if !op.Executable || op.Count != 1 {
+				t.Fatalf("customer craft op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing customer craft op: %+v", result.Operations)
+}
+
+func TestBuildPlan_CustomerEmptyOrdersGenerateWhenCooldownReady(t *testing.T) {
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.Local)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"109": map[string]any{"0": map[string]any{
+			"1": map[string]any{},
+			"2": now.Add(-2 * time.Second).UnixMilli(),
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerGenOrder.String() {
+			if !op.Executable || op.Action != "generate" {
+				t.Fatalf("customer gen op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing customer gen op: %+v", result.Operations)
+}
+
+func TestBuildPlan_CustomerEmptyOrdersRespectGenerationCooldown(t *testing.T) {
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.Local)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"109": map[string]any{"0": map[string]any{
+			"1": map[string]any{},
+			"2": now.Add(time.Minute).UnixMilli(),
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerGenOrder.String() {
+			t.Fatalf("customer gen should wait for cooldown: %+v", op)
+		}
+	}
+}
+
+func TestPlan_CustomerOrderGenerationBeatsHarvest(t *testing.T) {
+	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.Local)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"1": 23005, "2": 3, "4": now.Add(-time.Minute).UnixMilli()},
+		}}},
+		"109": map[string]any{"0": map[string]any{
+			"1": map[string]any{},
+			"2": now.Add(-2 * time.Second).UnixMilli(),
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Flower.HarvestEnabled = true
+	p.Order.Customer.Enabled = true
+
+	op := Plan(s, p, now)
+	if op == nil || op.Kind != clientproto.RPCOrderCustomerGenOrder.String() {
+		t.Fatalf("Plan()=%+v, want customer gen before harvest", op)
 	}
 }
 
@@ -115,6 +409,282 @@ func TestBuildPlan_FlowerRackRespectsCustomerLedgerAllocation(t *testing.T) {
 		if op.Kind == clientproto.RPCFlowerRackSell.String() {
 			t.Fatalf("customer art allocation should not be sold on rack: %+v demands=%+v", op, result.Demands)
 		}
+	}
+}
+
+func TestBuildPlan_FlowerRackSpecifiedArtAndPerRackCount(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"300103": 20,
+			"300208": 20,
+		}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
+	p.Order.FlowerArt.PerRackCount = 5
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerRackSell.String() {
+			if op.ItemID != 300208 || op.Count != 5 {
+				t.Fatalf("specified rack sell mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing specified rack sell op: %+v", result.Operations)
+}
+
+func TestBuildPlan_FlowerRackSpecifiedArtCraftsWhenNoStock(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 4, "23007": 4, "23008": 4},
+			"34": 12,
+		}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.CraftEnabled = true
+	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
+	p.Order.FlowerArt.PerRackCount = 2
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			if op.ItemID != 300208 || op.Count != 2 || op.VaseID != 3002 || !op.Executable {
+				t.Fatalf("specified rack craft mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing specified rack craft op: %+v", result.Operations)
+}
+
+func TestBuildPlan_FlowerRackSpecifiedArtUsesCurrentCraftableCount(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 1, "23007": 3, "23008": 3},
+			"34": 12,
+		}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.CraftEnabled = true
+	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
+	p.Order.FlowerArt.PerRackCount = 5
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			if op.ItemID != 300208 || op.Count != 1 || !op.Executable {
+				t.Fatalf("rack craft should use current craftable count: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing partial rack craft op: %+v", result.Operations)
+}
+
+func TestBuildPlan_FlowerRackSpecifiedArtMissingMaterialsSkipsPlanting(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 0, "23007": 0, "23008": 0},
+			"34": 12,
+		}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(3)}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.CraftEnabled = true
+	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
+	p.Order.FlowerArt.PerRackCount = 1
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" && op.GoalID == GoalFlowerArt && op.FlowerID != 0 {
+			t.Fatalf("flower rack missing materials should not drive planting: op=%+v ops=%+v demands=%+v", op, result.Operations, result.Demands)
+		}
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			t.Fatalf("flower rack should skip uncraftable art instead of blocking craft: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_FlowerRackSpecifiedArtMissingVaseSkipsCraft(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"23005": 4, "23007": 4, "23008": 4},
+			"34": 12,
+		}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3001": map[string]any{"1": 3001}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.CraftEnabled = true
+	p.Order.FlowerArt.AllowedArtIds = []int32{300208}
+	p.Order.FlowerArt.PerRackCount = 1
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			t.Fatalf("flower rack missing vase should skip craft instead of blocking: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_FlowerRackClaimUsesRecvSellMoney(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	listedAt := now.Add(-time.Duration(state.FlowerRackSellDurationMs()) * time.Millisecond).UnixMilli()
+	applyMap(t, s, map[string]any{
+		"104": map[string]any{"0": map[string]any{
+			"2": map[string]any{"1": 2, "2": 300208, "3": 1, "4": listedAt, "5": listedAt},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if strings.Contains(op.Kind, "OneKey") || strings.Contains(op.Kind, "oneKey") {
+			t.Fatalf("OneKey operation should not be generated: %+v", op)
+		}
+		if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
+			if !op.Executable || op.TargetID != 2 {
+				t.Fatalf("recvSellMoney op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing recvSellMoney op: %+v", result.Operations)
+}
+
+func TestPlan_FlowerRackClaimBeatsHarvest(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	listedAt := now.Add(-time.Duration(state.FlowerRackSellDurationMs()) * time.Millisecond).UnixMilli()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"1": 23005, "2": 3, "4": now.Add(-time.Minute).UnixMilli()},
+		}}},
+		"104": map[string]any{"0": map[string]any{
+			"1": map[string]any{"1": 1, "2": 300208, "3": 1, "4": listedAt, "5": listedAt},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Flower.HarvestEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+
+	op := Plan(s, p, now)
+	if op == nil || op.Kind != clientproto.RPCFlowerRackRecvSellMoney.String() {
+		t.Fatalf("Plan()=%+v, want rack claim before harvest", op)
+	}
+}
+
+func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"7": 10},
+		}},
+		"19": map[string]any{"1": []any{
+			map[string]any{"1": 101, "2": 201, "13": [][]int32{{1, 5}}, "20": 0},
+		}},
+		"100": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"1": 23005, "2": 3, "4": now.Add(-time.Minute).UnixMilli()},
+			"1002": map[string]any{"1": 23007, "2": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.MailEnabled = true
+	p.Plant.Flower.HarvestEnabled = true
+	p.Plant.Flower.WaterEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if strings.Contains(op.Kind, "OneKey") || strings.Contains(op.Kind, "oneKey") {
+			t.Fatalf("OneKey operation should not be generated: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_OrderPalaceAndTeamSyncWhenUnobserved(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Palace.Enabled = true
+	p.Order.Team.Enabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	want := map[string]string{"order.palace": clientproto.RPCOrderPalaceEnter.String(), "order.team": clientproto.RPCOrderTeamRefreshOrder.String()}
+	for _, op := range result.Operations {
+		kind, ok := want[op.Domain]
+		if !ok {
+			continue
+		}
+		if op.Kind != kind || op.Executable || !op.SyncOnly || op.Status != PlanStatusSyncOnly {
+			t.Fatalf("palace/team sync op mismatch: %+v", op)
+		}
+		delete(want, op.Domain)
+	}
+	if len(want) > 0 {
+		t.Fatalf("missing sync ops %v: %+v", want, result.Operations)
+	}
+}
+
+func TestBuildPlan_OrderPalaceAndTeamSubmitWhenStockAvailable(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 3, "23007": 2}}},
+		"107": map[string]any{"0": map[string]any{"1": 1, "3": 2, "4": 23007, "6": 2}},
+		"108": map[string]any{"0": map[string]any{"0": map[string]any{"1": 23005, "2": 3, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Palace.Enabled = true
+	p.Order.Team.Enabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	want := map[string]string{"order.palace": clientproto.RPCOrderPalaceFinishOrder.String(), "order.team": clientproto.RPCOrderTeamSubmitOrder.String()}
+	for _, op := range result.Operations {
+		kind, ok := want[op.Domain]
+		if !ok {
+			continue
+		}
+		if op.Kind != kind || op.Executable || !op.SyncOnly || op.Status != PlanStatusSyncOnly {
+			t.Fatalf("palace/team submit op mismatch: %+v", op)
+		}
+		delete(want, op.Domain)
+	}
+	if len(want) > 0 {
+		t.Fatalf("missing submit ops %v: %+v", want, result.Operations)
 	}
 }
 

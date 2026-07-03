@@ -2,7 +2,7 @@
 
 更新时间：2026-07-02
 
-本文根据 `garden.sea666.cn` 的设置页可见功能和本项目现有策略模型整理。目标是把“设置项清单”转成 mygardenworld 后续可实现、可解释、可维护的产品规格，而不是复制第三方前端资源或实现细节。
+本文根据已观测设置页功能和本项目现有策略模型整理。目标是把“设置项清单”转成 mygardenworld 后续可实现、可解释、可维护的产品规格，而不是复制第三方前端资源或实现细节。
 
 ## 产品定位
 
@@ -23,6 +23,8 @@
 - 自动化策略按 `basic`、`plant`、`order`、`union`、`activity` 五类承载完整设置项。
 - 原扁平策略字段已被 nested policy 取代，允许破坏性变更，不做旧策略 JSON 兼容迁移。
 - 当前已有执行器已适配新 schema：土地收获/种植/浇水、培育/升级、基础领奖、订单和花艺链路继续可运行。
+- 查询 schema 已引入 `PlanStatus` enum、`CostGate`、订单统计、库存账本和阻塞汇总；操作、需求、领域状态、待办任务共用同一状态枚举，Web UI 已展示这些结构化视图。
+- runner 已用 operation registry 承接计划操作的参数构造和 RPC 执行，新增执行器应优先登记到同一张表。
 - 未完成协议确认的功能先进入 schema 和 feature catalog，以 `sync_only` 或 `adapter_missing` 状态展示，后续补状态与执行器。
 
 ## 总体原则
@@ -56,7 +58,7 @@
 
 不是每个竞品功能都要立刻实现。可以先进入 Feature Catalog，状态标记为：
 
-- `executable`：已有直接执行能力。
+- `ready`：已满足条件，可直接执行。
 - `managed`：可由 runner 编排执行。
 - `sync_only`：只展示、只同步、暂不执行。
 - `adapter_missing`：需要补协议/状态/执行器。
@@ -67,7 +69,7 @@
 | --- | --- | --- |
 | 基础 | 任务领奖、邮件、福利、水滴、签到、剧情、珍珠、商城、动物/猫 | 部分已在 `BasicPolicy` 和 feature catalog 中存在 |
 | 种植 | 土地、收获、浇水、种植、加速、培育、升级、任务优先、花灵、花艺上架、花贸市场 | 核心土地/培育/升级已有雏形，任务优先需要继续强化 |
-| 订单 | 居民、顾客、宫廷、组团、花艺制作/提交 | 居民/顾客/花艺已有较强基础 |
+| 订单 | 居民、顾客、宫廷、组团、花艺制作/提交 | 普通居民、顾客、宫廷、组团、花艺/花架已进入需求、账本和执行链路；绸缎/建材仍阻塞解释 |
 | 公会 | 公会建设、土地、分享/摸花、竞赛、红包、森林 | 已接入能力保留；未完成公会扩展本阶段暂停 |
 | 活动 | 花笺集芳、莳花纪闻、小游戏、节日活动、红包雨等 | 应使用活动模块注册表逐步接入 |
 
@@ -247,10 +249,12 @@
 | 自动解锁花架 | `order.flower_art.auto_unlock_stand` | 花架解锁，成本需确认 |
 | 自动上架 | `order.flower_art.sell_enabled` | 上架花艺并领取金币收益 |
 | 提前下架 | `order.flower_art.early_cancel_enabled` | 下架售卖超过一定时间的花艺 |
-| 指定花艺 | `order.flower_art.specified_art_ids` | 优先库存，否则制作；缺花时转种植需求 |
+| 花艺白名单 | `order.flower_art.allowed_art_ids` | 非空时只允许这些花艺；为空时全花艺参与最高价值选择 |
 | 上架数量 | `order.flower_art.per_rack_count` | 每个花架数量，0-12 |
 | 花艺经验 | `order.flower_art.create_reward_enabled` | 基于 `106.makeList` + `103.artCreateRwdList` 自动领取制作经验 |
 | 图鉴奖励 | `order.flower_art.collect_reward_enabled` | 基于 `103` + `c_flowerCollect` 自动领取鲜花/花瓶/花艺图鉴奖励 |
+
+实现进度：`allowed_art_ids` 非空时只在白名单内选择，为空时全花艺按 `SaleValue` 参与最高价值选择。`per_rack_count > 0` 时按未预留库存上架 `min(per_rack_count, available)`，`<= 0` 会阻塞且不制作/不上架。花架会在 `sellStartTime + num * c_flowerRack.$sellTime` 到达后用普通 `flowerRack.recvSellMoney {rackId}` 领取已售收益，再上架未预留成品；无成品时，仅在已解锁配方/花瓶/鲜花且当前未预留鲜花库存足够的范围内选择最高价值可制作花艺，制作数量为 `min(per_rack_count, 当前可制作数量)`；若没有可制作项则跳过本轮，不为花架生成种植需求。花架解锁和提前下架继续 `adapter_missing`。
 
 ### 花贸市场
 
@@ -283,13 +287,16 @@
 | 建材订单上限 | `order.resident.decorate_daily_limit` | 默认可参考 120 |
 | 品质限定 | `order.resident.qualities` | 仅提交指定品质花朵 |
 
+实现进度：普通居民订单现在受 `normal_enabled`、`normal_daily_limit` 和 `qualities` 共同约束；`124.orderFlowerFinishNum` 已用于今日完成数判断，缺失 `124` 时不会误判达上限，并会留下诊断说明。`normal_daily_limit <= 0` 视为安全阻塞。绸缎/建材已接入 `105.0.6/7` 观察和日上限解释，但协议当前只暴露聚合 `flowers` 字段，缺少可安全提交的花朵需求列表，继续以专门 `adapter_missing` 阻塞项展示。
+
 ### 顾客订单
 
 | 功能 | 字段建议 | 说明 |
 | --- | --- | --- |
 | 自动完成 | `order.customer.enabled` | 自动完成顾客订单 |
-| 自动拒绝 | `order.customer.reject_enabled` | 拒绝无法培育且库存不足的订单 |
-| 自动制作花艺 | `order.customer.craft_enabled` | mygardenworld 已有字段；建议 UI 明示 |
+| 暂时无货 | `order.customer.reject_unavailable_enabled` | 花瓶未解锁、配方鲜花未培育时拒单；缺配方/未知状态只阻塞解释 |
+
+实现进度：顾客订单启用后，花艺制作是内建步骤，不再由 `craft_enabled` 独立控制。链路按“成品花艺 -> 配方 -> 花朵 -> 花瓶类型”解释实际数量缺口；成品足够直接 `orderCustomer.finishOrder {npcId}`，成品不足且材料满足时 `flowerArt.makeFlowerArt`，其中 `vaseId` 只是花瓶类型/解锁校验，`num` 才是制作份数。材料不足时生成种植需求。`reject_unavailable_enabled` 开启后，只对确定花瓶类型未解锁或配方鲜花未培育的订单执行 `orderCustomer.rejectOrder {npcId}`；缺配方或状态未观察到时只阻塞，不拒单。`c_flowerArt.lvl` 只作为花艺配置等级展示，不再当作玩家等级门槛。若 namespace `109` 已同步且当前订单为空，并且 `nextGenTime` 冷却已到，自动调用 `orderCustomer.genOrder {guestNpcIdList: []}` 生成普通顾客订单。
 
 ### 宫廷订单
 
@@ -297,6 +304,8 @@
 | --- | --- | --- |
 | 自动完成 | `order.palace.enabled` | 自动完成宫廷订单 |
 | 品质限定 | `order.palace.qualities` | 仅接受指定品质；不符合时可免费刷新一次 |
+
+实现进度：已接入 namespace `108` 解析，但本轮仍保持 `sync_only`。未观察、可交付或不符合策略时只生成同步/阻塞解释，不执行 `orderPalace.finishOrder`。
 
 ### 组团订单
 
@@ -306,6 +315,8 @@
 | 再来一单 | `order.team.one_more_enabled` | 元宝成本 |
 | 仅已培育 | `order.team.submit_only_cultivated` | 只提交已培育花朵 |
 | 品质限定 | `order.team.qualities` | 仅提交指定品质 |
+
+实现进度：已接入 namespace `107` 解析，但本轮仍保持 `sync_only`。未观察、可提交或不符合策略时只生成同步/阻塞解释，不执行 `orderTeam.submitOrder`。
 
 ## 公会 Union
 
@@ -448,10 +459,10 @@
 ### OrderPolicy 扩展
 
 - `ResidentOrderPolicy` 已包含 daily limit 和 qualities。
-- `CustomerOrderPolicy` 保留 `craft_enabled`。
+- `CustomerOrderPolicy` 已包含 `enabled`、`reject_unavailable_enabled`；花艺制作是顾客订单内建步骤。
 - `PalaceOrderPolicy` 已包含 qualities。
 - `TeamOrderPolicy` 已包含 `one_more_enabled`、`submit_only_cultivated`、qualities 和元宝上限。
-- `FlowerArtPolicy` 已包含指定花艺、花架数量、图鉴/经验奖励、提前下架。
+- `FlowerArtPolicy` 已包含 `allowed_art_ids`、花架数量、图鉴/经验奖励、提前下架。
 
 ### UnionPolicy 扩展
 
@@ -483,9 +494,10 @@ message ActivityModulePolicy {
 | --- | --- | --- |
 | 土地、浇水、收获、种植 | `100`、`7`、`114`、`117` | 核心已建模 |
 | 培育、升级 | `101`、`7` | 已有基础 |
-| 居民订单 | `105`、`7` | 已有基础 |
-| 顾客订单 | `109`、`101`、`7` | 已有基础，花艺链路需继续强化 |
-| 花艺/花架 | `102`、`103`、`104`、`106`、花艺/图鉴静态表、`7` | 花架解锁/提前下架成本仍需确认；花艺经验和图鉴奖励已接自动领取 |
+| 居民订单 | `105`、`124`、`7` | 普通订单开关、日上限和品质限定已接；绸缎/建材已观察但缺可提交需求列表，仍阻塞 |
+| 顾客订单 | `109`、`101`、`102`、`106`、`7` | 完成/制作/暂时无货链路已接；花艺成品、配方、花朵、花瓶链路按实际数量解释 |
+| 宫廷/组团订单 | `108`、`107`、`124`、`7`、`101` | 已接状态解析，但本轮保持 `sync_only`，不执行 finish/submit |
+| 花艺/花架 | `102`、`103`、`104`、`106`、花艺/图鉴静态表、`7` | `allowed_art_ids`、最高价值制作/上架、花架普通收益领取已接；花架解锁/提前下架成本仍需确认；花艺经验和图鉴奖励已接自动领取 |
 | 任务奖励 | `22`、`119`、`124` | 已有部分 |
 | 福利/宝箱 | `116`、`117`、`118`、`114`、`7.13.1 usrExtra` | 福利宝箱、限时水滴、水车、防骗宝箱已接入；双倍金币已接状态但执行受 SDK token 阻塞；分享奖励仍待确认 |
 | 商城材料 | `113`、`c_shop_cultivate`、`7` | 材料商店已接入 enter/buy；元宝成本仍默认阻塞 |
@@ -507,10 +519,39 @@ message ActivityModulePolicy {
 | 基础 | 雇佣劳工/买雇佣书 | `adapter_missing` | 候选 UID、雇佣券、元宝成本仍需确认 |
 | 基础 | 买猫粮/召回猫 | `adapter_missing` | 成本和事件链路未确认；喂猫/撸猫已可执行 |
 | 种植 | 好友偷花、花灵、花贸市场、花/花灵密令 | `sync_only` | 已登记产品能力，执行器未接 |
-| 订单 | 宫廷订单、组团订单 | `sync_only` | 协议丰富但尚未收敛成资源门槛和执行策略 |
+| 订单 | 居民绸缎订单、居民建材订单 | `adapter_missing` | 仅普通居民订单执行化；绸缎/建材开启时只展示阻塞解释 |
+| 订单 | 宫廷订单、组团订单 | `sync_only` | 状态解析保留，finish/submit 本轮不执行化 |
+| 订单 | 组团再来一单 | `adapter_missing` | 涉及元宝成本，默认不自动执行 |
 | 订单 | 花架解锁 | `adapter_missing` | 解锁成本未确认 |
 | 公会 | 竞赛、红包、自动分享花、公会土地种植 | `paused` | 按当前决策先不继续拓展公会相关功能 |
 | 活动 | 大多数活动模块 | `sync_only`/`adapter_missing` | 保留注册表方向，逐个按协议成熟度接入 |
+
+## ADAPTER_MISSING 抓包清单
+
+以下清单按“先非公会、先能转成确定执行”的顺序排列。抓包时每项至少记录：入口页面、触发前 namespace 快照、RPC 名称和参数、返回 `v` 片段、库存/金币/元宝/次数变化。
+
+| 优先级 | 功能 | 当前阻塞点 | 已知线索 | 抓包目标 |
+| --- | --- | --- | --- | --- |
+| P0 | 居民绸缎订单 | `105.0.6` 只解析到聚合 `flowers`，缺安全提交需求列表 | RPC 已知 `orderFlower.finishSatinOrder`，请求为 raw | 打开订单页、完成一次绸缎订单；确认请求字段、需求来源、统计 `124` 增量 |
+| P0 | 居民建材订单 | `105.0.7` 只解析到聚合 `flowers`，缺安全提交需求列表 | RPC 已知 `orderFlower.finishDecorateOrder`，请求为 raw | 打开订单页、完成一次建材订单；确认请求字段、需求来源、统计 `124` 增量 |
+| P0 | 花架解锁 | 成本和可解锁状态未确认 | RPC 已知 `flowerRack.unlockStand {standId}` | 点击解锁花架；确认 `standId`、金币/元宝/物品成本、`104` 状态变化 |
+| P0 | 花架提前下架 | 暂未形成策略和成本/返还规则 | RPC 已知 `flowerRack.cancelSell {rackId}` | 对上架中花艺执行下架；确认返还物品、收入损失、`104` 状态变化 |
+| P0 | 组团再来一单/接单 | 元宝成本和请求语义未放开 | RPC 已知 `orderTeam.takeOrder {isAgree,isCost}`、`storeOrder`、`takeStoredOrder` | 触发“再来一单”、存单、取存单；确认 `isCost` 与元宝/次数变化 |
+| P1 | 双倍金币/视频类奖励 | 依赖客户端 SDK token，本地 runner 不伪造 | `UT.share(11,{opType:1})` 后调用 `usr.share {shareId,ext}`，另有 `usr.afterShare` raw | 完整录一条视频成功链路；确认 `shareId`、`ext`、token 字段和服务端校验错误 |
+| P1 | 分享奖励 | 分享场景和领奖链路分散 | 已有 `usr.share`、`usr.afterShare`、`frdShare.*`、`usrExtra.shareMsg` | 分别抓普通分享、好友分享奖励、分享宝箱；确认可无 SDK 执行的奖励边界 |
+| P1 | 自动补签 | 补签成本未确认 | `signType.sign` 请求含 `patchDay` 字段；已有每日签到链路 | 对漏签日补签；确认 `patchDay`、金币/元宝/道具成本、`140` 状态变化 |
+| P1 | 珍珠雇佣劳工 | 候选 UID、雇佣券、成本和失败规则未确认 | 已知 `pearl.getRecommendList`、`pearl.getHireStateByUids`、`pearlPlace.hire` | 推荐列表、指定 UID 雇佣、雇佣失败各抓一次；确认 `placeId/dstUid` 和成本 |
+| P1 | 买雇佣书 | 元宝成本默认不放开 | 可能走珍珠或商店链路 | 点击购买雇佣书；确认 RPC、商品 ID、成本物品和购买次数 |
+| P1 | 珍珠防身符不足时启用防身 | 缺防身符来源和购买链路 | 已接 `pearl.setProtectState {protectState}`，缺来源 | 防身符不足时点击开启；确认是否弹购买、消耗什么、是否有独立 RPC |
+| P1 | VIP 商店 | 商品状态、花坊币/元宝成本未确认 | 已知 `vip.recv`、`actVipTimeShop.giftBuy`、`usr.updateVipService` 等相关 RPC | 进入 VIP/限时 VIP 商店并购买一项；确认商品 namespace、价格类型、领取/购买 RPC |
+| P1 | 买猫粮/加食物 | 商品选择和成本未确认 | 已知 `zoo.addFoodstuff {foodstuffIds}`，喂猫已可执行 | 猫碗无食物时购买/添加猫粮；确认食物 ID、来源库存、购买成本 |
+| P1 | 自动召回猫 | 事件链路和成本未确认 | 相关 RPC 包括 `zoo.findPet`、`zoo.handleEvent`，字段含 `isShareVideo` | 触发召回/寻找/事件处理；确认是否视频、金币、道具或免费 |
+| P2 | 花艺/培育静态配置缺口 | 缺配方或培育材料时会阻塞制作/培育 | 依赖花艺配方表、培育成本表和运行时 `102/103/106` | 优先补静态表来源；抓包只用于确认客户端实际选择的配方和材料扣减 |
+| P2 | 礼仪分监控 | 缺礼仪分状态来源和阈值语义 | schema 中有 `usrTot.reputationTot` 线索 | 打开礼仪分页面；确认 namespace、字段、扣分/恢复记录 |
+| P2 | 福利泛入口 | `basic.welfare` 仍是泛能力，缺具体可执行 adapter | 已接水车、限时水滴、福利宝箱、防骗宝箱，剩余需拆项 | 逐个点击福利页剩余红点；把泛入口拆成具体 RPC 和状态 |
+| P2 | 元宝成本放行模型 | 材料商店、买雇佣书、公会建设等元宝动作默认拦截 | `CostGate` 已能表达元宝成本，缺单功能授权和预算策略 | 不是单纯抓包项；需要为每个元宝功能确认成本、上限、回滚风险和 UI 二次授权 |
+| 暂停 | 公会竞赛升级/红包/自动分享/公会土地种植 | 当前阶段不继续拓展公会 | RPC/namespace 线索已存在但暂停 | 暂不主动抓；若顺手抓到，仅归档 |
+| 暂停 | 活动小游戏/节日模块 | 活动协议分散，优先级低于非公会订单链路 | feature catalog 已登记 adapter_missing/sync_only | 暂不主动抓；等核心链路稳定后按活动逐个拆 |
 
 ## UI 信息架构
 
@@ -543,16 +584,17 @@ message ActivityModulePolicy {
 - 基础：主线/每日/每周、邮件、水车、限时水滴、福利宝箱、随机事件。
 - 种植：收获、浇水、种植、土地解锁、培育、鲜花升级。
 - 订单：居民、顾客、花艺制作/上架。
-- UI：需求队列、资源账本、操作队列、跳过原因。
+- UI：需求队列、库存账本、操作队列、订单统计、阻塞汇总。
 
 ### P1：策略细化
 
 - 任务优先模式 UI。
 - 目标优先级配置。
-- 居民订单单日上限和品质限定。
-- 花艺指定上架、提前下架、图鉴/经验奖励。
-- 宫廷订单、组团订单。
-- 成本门槛体系：金币、元宝、道具、次数。
+- 居民订单单日上限和品质限定已接；绸缎/建材订单继续等待协议执行化。
+- 花艺指定上架、指定制作、花架数量、图鉴/经验奖励已接；提前下架待成本/协议确认。
+- 宫廷订单、组团订单已接状态同步、需求、账本和提交计划；组团再来一单待元宝成本策略。
+- 成本门槛体系：`PlanStatus` enum 与 `CostGate` 已进入查询 schema；操作、需求、领域状态、待办任务使用统一状态，金币、元宝、道具、水滴会形成结构化门槛。
+- 执行入口：runner operation registry 已承接计划操作的参数构造和实际 RPC 执行。
 
 ### P2：社交与公会（暂停拓展）
 
@@ -571,13 +613,14 @@ message ActivityModulePolicy {
 
 | 文件/模块 | 建议动作 |
 | --- | --- |
-| `proto/mygardenworld/v1/policy.proto` | 扩展策略结构，避免大量扁平字段继续膨胀 |
-| `internal/policycfg` | 增加默认值、normalize 和旧策略迁移 |
+| `proto/mygardenworld/v1/policy.proto` | 已完成树形策略 schema；后续允许合理破坏性调整 |
+| `proto/mygardenworld/v1/query_service.proto` | 已接 `PlanStatus`、`CostGate`、订单统计、库存账本、阻塞汇总 |
+| `internal/policycfg` | 继续维护默认值和 normalize；旧策略 JSON 不做兼容包袱 |
 | `internal/automation/features.go` | 将本文功能登记为 feature catalog |
-| `internal/automation/automation.go` | 继续让 demand/ledger 驱动种植与制作 |
-| `internal/state` | 补花瓶 `102`、花艺能力、公会/活动状态 |
-| `internal/runner` | 用 operation registry 承接新增执行器 |
-| `web/src/app/page.tsx` | 设置页改成五类 Tab + 功能状态 + 成本门槛 |
+| `internal/automation/automation.go` | 继续让 demand/ledger 驱动种植、制作、提交和阻塞解释 |
+| `internal/state` | 已补花瓶、花艺能力、订单统计、宫廷/组团状态；活动状态继续按协议推进 |
+| `internal/runner` | 已用 operation registry 承接新增执行器 |
+| `web/src/app/page.tsx` | 已有五类 Tab、功能状态、成本门槛、结构化账本和阻塞汇总 |
 
 ## 非目标
 
