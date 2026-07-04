@@ -73,9 +73,10 @@ type Runner struct {
 	state   *state.State
 	policy  *pb.Policy
 
-	lastWaterSyncTick time.Time // 节流水资源状态刷新
-	lastEventAt       time.Time // latest event emitted by this runner
-	nextDecisionAt    time.Time // next scheduled decision-loop tick
+	lastWaterSyncTick      time.Time // 节流水资源状态刷新
+	lastReputationSyncTick time.Time // 节流礼仪分/健康分刷新
+	lastEventAt            time.Time // latest event emitted by this runner
+	nextDecisionAt         time.Time // next scheduled decision-loop tick
 
 	currentOperation          string
 	currentOperationStartedAt time.Time

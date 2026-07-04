@@ -66,6 +66,15 @@ message AccountStatus {
   repeated DomainStatus domain_statuses = 11;
   string health = 12;
   string last_error = 13;
+  int32 level = 14;
+  int32 experience = 15;
+  int32 vip = 16;
+  int32 vip_exp = 17;
+  bool noble_eligible = 18;
+  bool reputation_observed = 19;
+  int32 reputation_score = 20;
+  int64 reputation_last_sync_time_ms = 21;
+  int64 reputation_last_view_time_ms = 22;
 }
 
 message RunnerDiagnostics {
@@ -123,6 +132,11 @@ message GetSnapshotResponse {
   OrderStatisticsView order_statistics = 30;
   InventoryLedgerView inventory_ledger = 31;
   BlockingSummary blocking_summary = 32;
+  bool reputation_observed = 33;
+  int32 reputation_score = 34;
+  int64 reputation_last_sync_time_ms = 35;
+  int64 reputation_last_view_time_ms = 36;
+  repeated PlantableFlowerView plantable_flowers = 37;
 }
 
 message LandView {
@@ -146,6 +160,14 @@ message LandView {
   int32 open_level = 12;
   repeated int32 unlock_cost = 13;
   repeated int32 wasteland = 14;
+}
+
+message PlantableFlowerView {
+  int32 flower_id = 1;
+  string flower_name = 2;
+  int32 stock = 3;
+  int32 gold = 4;
+  int32 experience = 5;
 }
 
 message PendingTaskView {

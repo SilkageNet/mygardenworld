@@ -442,6 +442,17 @@ type UsrExtraView struct {
 	LastAntiFraudQATimeMs int64 `json:"last_anti_fraud_qa_time_ms,omitempty"`
 }
 
+// ReputationView is the tracked subset of 7.17.0 (G.IReputationUsr).
+type ReputationView struct {
+	Observed       bool  `json:"observed,omitempty"`
+	UID            int64 `json:"uid,omitempty"`
+	Score          int32 `json:"score,omitempty"`
+	LastSyncTimeMs int64 `json:"last_sync_time_ms,omitempty"`
+	LastViewTimeMs int64 `json:"last_view_time_ms,omitempty"`
+	UTimeMs        int64 `json:"u_time_ms,omitempty"`
+	CTimeMs        int64 `json:"c_time_ms,omitempty"`
+}
+
 // VideoDoubleView is the tracked subset of namespace 118 (G.IVideoDouble).
 type VideoDoubleView struct {
 	Observed    bool  `json:"observed,omitempty"`
@@ -584,6 +595,7 @@ type State struct {
 	benefitBoxUTimeMs    int64 // 116.0.3 uTime
 	benefitBoxObserved   bool  // namespace 116 has been observed at least once
 	usrExtra             UsrExtraView
+	reputation           ReputationView
 	videoDouble          VideoDoubleView
 	statistics           StatisticsView
 	zoo                  ZooView
@@ -775,6 +787,7 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 		if err := json.Unmarshal(rawNS7, &ns); err == nil {
 			s.applyInventoryLocked(ns)
 			s.applyUsrExtraLocked(ns)
+			s.applyReputationLocked(ns)
 		}
 	}
 	if rawNS19, ok := top["19"]; ok {
@@ -1060,6 +1073,44 @@ func (s *State) applyUsrExtraLocked(ns7 map[string]json.RawMessage) {
 		if json.Unmarshal(rawTime, &n) == nil {
 			s.usrExtra.LastAntiFraudQATimeMs = n
 		}
+	}
+}
+
+func (s *State) applyReputationLocked(ns7 map[string]json.RawMessage) {
+	raw17, ok := ns7["17"]
+	if !ok {
+		return
+	}
+	var reputationTot map[string]json.RawMessage
+	if err := json.Unmarshal(raw17, &reputationTot); err != nil {
+		return
+	}
+	rawData, ok := reputationTot["0"]
+	if !ok {
+		return
+	}
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(rawData, &data); err != nil {
+		return
+	}
+	s.reputation.Observed = true
+	if n, ok := readInt64JSONField(data, "0"); ok {
+		s.reputation.UID = n
+	}
+	if n, ok := readInt32JSONField(data, "1"); ok {
+		s.reputation.Score = n
+	}
+	if n, ok := readInt64JSONField(data, "3"); ok {
+		s.reputation.LastSyncTimeMs = n
+	}
+	if n, ok := readInt64JSONField(data, "4"); ok {
+		s.reputation.LastViewTimeMs = n
+	}
+	if n, ok := readInt64JSONField(data, "5"); ok {
+		s.reputation.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(data, "6"); ok {
+		s.reputation.CTimeMs = n
 	}
 }
 
@@ -1352,6 +1403,9 @@ func (s *State) applyWaterwheelLocked(raw json.RawMessage) {
 		s.wwLocalGenMs = nowMs
 	}
 	if countObserved {
+		if nextCount < prevCount {
+			s.wwBackoffUntil = 0
+		}
 		if nextCount > prevCount {
 			available := s.waterwheelLocalBucketCountAtLocked(now, prevCount)
 			remaining := available - (nextCount - prevCount)
@@ -2855,6 +2909,13 @@ func (s *State) AntiFraudQAStatus() (int32, bool) {
 	return s.usrExtra.AntiFraudQAStatus, s.usrExtra.Observed
 }
 
+// Reputation returns the observed own-account 礼仪分/健康分 state.
+func (s *State) Reputation() (ReputationView, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.reputation, s.reputation.Observed
+}
+
 // VideoDouble returns the tracked double-coin video reward state.
 func (s *State) VideoDouble() VideoDoubleView {
 	s.mu.RLock()
@@ -3619,6 +3680,24 @@ func (s *State) MarkWaterwheelUnavailable(now time.Time) {
 	s.wwEntered = false
 	s.wwLocalGenMs = 0
 	s.wwBackoffUntil = now.Add(waterwheelBucketCreateInterval()).UnixMilli()
+}
+
+// MarkWaterwheelDailyLimitReached records the server-side daily cap so the
+// planner stops selecting waterwheel.recv until namespace 114 reports a reset.
+func (s *State) MarkWaterwheelDailyLimitReached(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wwObserved = true
+	if max := waterwheelBucketDailyMax(); max > 0 {
+		if s.wwClaimedCount < max {
+			s.wwClaimedCount = max
+		}
+		s.wwBackoffUntil = 0
+	} else {
+		s.wwBackoffUntil = now.Add(24 * time.Hour).UnixMilli()
+	}
+	s.wwEntered = false
+	s.wwLocalGenMs = 0
 }
 
 func waterwheelBucketCreateInterval() time.Duration {

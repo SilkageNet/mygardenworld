@@ -72,7 +72,15 @@ export function allFlowers(): FlowerInfo[] {
 
 export function itemName(id: number | string | bigint | undefined | null): string {
   const item = itemInfo(id);
-  return item?.display_name || item?.name || (id ? `#${id}` : "");
+  const displayName = normalizedCatalogName(item?.display_name);
+  const name = normalizedCatalogName(item?.name);
+  return displayName || name || (id ? `#${id}` : "");
+}
+
+function normalizedCatalogName(value?: string) {
+  const text = value?.trim();
+  if (!text || text === "0") return "";
+  return text;
 }
 
 export function flowerDisplay(flowerId: number | string | bigint | undefined | null) {

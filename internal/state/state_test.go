@@ -98,6 +98,43 @@ func TestApplyV_UsrExtraTracksAntiFraudQA(t *testing.T) {
 	}
 }
 
+func TestApplyV_ReputationTracksOwnScore(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"17": map[string]any{
+				"0": map[string]any{
+					"0": 77900091102482,
+					"1": 79,
+					"3": 1779290000000,
+					"4": 1779290100000,
+					"5": 1779290200000,
+					"6": 1779290300000,
+				},
+			},
+		},
+	})
+
+	rep, ok := s.Reputation()
+	if !ok || !rep.Observed || rep.UID != 77900091102482 || rep.Score != 79 ||
+		rep.LastSyncTimeMs != 1779290000000 || rep.LastViewTimeMs != 1779290100000 ||
+		rep.UTimeMs != 1779290200000 || rep.CTimeMs != 1779290300000 {
+		t.Fatalf("Reputation()=(%+v,%t), want observed score=79 with timestamps", rep, ok)
+	}
+
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"17": map[string]any{
+				"0": map[string]any{"1": 100},
+			},
+		},
+	})
+	rep, ok = s.Reputation()
+	if !ok || rep.Score != 100 || rep.UID != 77900091102482 {
+		t.Fatalf("Reputation() after delta=(%+v,%t), want score=100 and preserved uid", rep, ok)
+	}
+}
+
 func TestApplyV_VideoDoubleState(t *testing.T) {
 	s := New()
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
@@ -961,6 +998,48 @@ func TestWaterwheelCooldownUsesLocalBucketAndDailyLimit(t *testing.T) {
 	s.mu.Unlock()
 	if s.WaterwheelCooldownReady() {
 		t.Fatal("WaterwheelCooldownReady = true, want false after daily max is reached")
+	}
+}
+
+func TestWaterwheelDailyLimitErrorSuppressesClaimsUntilReset(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+	max := waterwheelBucketDailyMax()
+	if max <= 1 {
+		t.Fatalf("waterwheelBucketDailyMax = %d, want configured positive limit", max)
+	}
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": max - 1,
+		},
+	})
+	s.MarkWaterwheelEntered(now.Add(-interval - time.Second))
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false, want ready before the limit error")
+	}
+
+	s.MarkWaterwheelDailyLimitReached(now)
+	if got := s.WaterwheelClaimedCount(); got != max {
+		t.Fatalf("WaterwheelClaimedCount = %d, want daily max %d", got, max)
+	}
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true, want false after daily limit error")
+	}
+	if s.WaterwheelEnterDue(now.Add(interval + time.Second)) {
+		t.Fatal("WaterwheelEnterDue = true, want false while daily limit is recorded")
+	}
+
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 0,
+		},
+	})
+	if !s.WaterwheelEnterDue(now.Add(interval + time.Second)) {
+		t.Fatal("WaterwheelEnterDue = false, want true after server count reset")
 	}
 }
 

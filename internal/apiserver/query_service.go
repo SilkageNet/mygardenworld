@@ -78,7 +78,20 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	out.DomainStatuses = buildDomainStatuses(r.Policy(), diag, out.Connected)
 	out.Health = accountHealth(out.Connected, diag)
 	out.LastError = diag.LastOperationError
-	lands := r.State().Lands()
+	st := r.State()
+	vip, vipExp := st.Vip()
+	out.Level = st.Level()
+	out.Experience = st.Experience()
+	out.Vip = vip
+	out.VipExp = vipExp
+	out.NobleEligible = st.NobleEligible()
+	if rep, ok := st.Reputation(); ok {
+		out.ReputationObserved = true
+		out.ReputationScore = rep.Score
+		out.ReputationLastSyncTimeMs = rep.LastSyncTimeMs
+		out.ReputationLastViewTimeMs = rep.LastViewTimeMs
+	}
+	lands := st.Lands()
 	out.KnownLands = int32(len(lands))
 	byKind := map[string]int32{}
 	for _, l := range lands {
@@ -86,7 +99,7 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 		byKind[kind]++
 	}
 	out.ByKind = byKind
-	for _, count := range r.State().FlowerInventory() {
+	for _, count := range st.FlowerInventory() {
 		out.FlowerStockTotal += count
 	}
 	return out, nil
@@ -132,6 +145,13 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		UnknownNamespaceCount: diag.UnknownNamespaceCount,
 		Diagnostics:           runnerDiagnosticsProto(diag),
 	}
+	if rep, ok := st.Reputation(); ok {
+		resp.ReputationObserved = true
+		resp.ReputationScore = rep.Score
+		resp.ReputationLastSyncTimeMs = rep.LastSyncTimeMs
+		resp.ReputationLastViewTimeMs = rep.LastViewTimeMs
+	}
+	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
 	policy := r.Policy()
 	plan := automation.BuildPlan(st, policy, now)
@@ -600,6 +620,23 @@ func inventoryLedgerProto(inventory map[int32]int32, ledger *automation.Inventor
 			Owned:     owned,
 			Allocated: allocated,
 			Available: available,
+		})
+	}
+	return out
+}
+
+func plantableFlowersProto(flowers []state.PlantableFlower) []*pb.PlantableFlowerView {
+	if len(flowers) == 0 {
+		return nil
+	}
+	out := make([]*pb.PlantableFlowerView, 0, len(flowers))
+	for _, flower := range flowers {
+		out = append(out, &pb.PlantableFlowerView{
+			FlowerId:   flower.FlowerID,
+			FlowerName: itemNameOrID(flower.FlowerID),
+			Stock:      flower.Stock,
+			Gold:       flower.Gold,
+			Experience: flower.Experience,
 		})
 	}
 	return out

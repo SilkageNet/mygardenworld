@@ -72,6 +72,7 @@
 //	7.0.44     int                Gold coins
 //	7.13.1.104 int                usrExtra.antiFraudQAStatus; 2 means the QA reward is claimed
 //	7.13.1.105 int64              usrExtra.lastAntiFraudQATime timestamp (ms)
+//	7.17.0.1   int                Own reputation/礼仪分 score; active refresh uses reputation.view
 //
 // # Land State (Namespace 100)
 //
@@ -192,6 +193,7 @@
 //
 // Misc:
 //
+//	reputation.view     {}                        → {7}             refreshes own 礼仪分/健康分
 //	freeWater.recv       {idx}                     → {7,117,119}
 //	usrExtra.updateAntiFraudQAStatus {}            → {7}
 //	usrExtra.recvAntiFraudQARwd {}                 → {7}

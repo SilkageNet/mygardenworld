@@ -215,7 +215,7 @@ func TestBuildPlan_ResidentMissingStatisticsStillSubmitsWithDiagnosticReason(t *
 	t.Fatalf("missing resident submit when statistics are absent: %+v", result.Operations)
 }
 
-func TestBuildPlan_ResidentCooldownSkipsSubmit(t *testing.T) {
+func TestBuildPlan_ResidentCooldownOmitsSubmitUntilReady(t *testing.T) {
 	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -230,21 +230,19 @@ func TestBuildPlan_ResidentCooldownSkipsSubmit(t *testing.T) {
 	p.Order.Resident.NormalDailyLimit = 10
 
 	result := BuildPlan(s, p, now)
-	var sawCooldown bool
 	for _, op := range result.Operations {
-		if op.Kind != clientproto.RPCOrderFlowerFinishOrder.String() {
-			continue
-		}
-		if op.Executable {
-			t.Fatalf("resident submit should not execute during cooldown: %+v", op)
-		}
-		if op.TargetID == 1 && op.Status == PlanStatusSkipped && strings.Contains(op.Reason, "冷却中") {
-			sawCooldown = true
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.TargetID == 1 {
+			t.Fatalf("resident submit should be omitted during cooldown: %+v", op)
 		}
 	}
-	if !sawCooldown {
-		t.Fatalf("missing cooldown skip operation: %+v", result.Operations)
+
+	result = BuildPlan(s, p, now.Add(31*time.Second))
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.TargetID == 1 && op.Executable {
+			return
+		}
 	}
+	t.Fatalf("missing resident submit after cooldown: %+v", result.Operations)
 }
 
 func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
@@ -761,6 +759,79 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 				t.Fatalf("free water claim = %t, want %t; ops=%+v", gotFreeWater, tt.wantOps, result.Operations)
 			}
 		})
+	}
+}
+
+func TestAnnotateSequentialResourceBudgetBlocksCumulativeWaterDrops(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	applyMap(t, st, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"7": 5},
+			"33": map[string]any{"7": map[string]any{"1": 65, "5": int64(0)}}}},
+	})
+	ops := []PlannedOp{
+		{
+			Kind:       clientproto.RPCUsrLandWaterBatch.String(),
+			Executable: true,
+			CostGates:  []CostGate{resourceGate("water_drop", GateResourceWaterDrop, "水滴", 7, 3, 5, "operation.resource")},
+		},
+		{
+			Kind:       clientproto.RPCUsrLandWaterBatch.String(),
+			Executable: true,
+			CostGates:  []CostGate{resourceGate("water_drop", GateResourceWaterDrop, "水滴", 7, 3, 5, "operation.resource")},
+		},
+	}
+
+	annotateSequentialResourceBudget(st, ops, now)
+	if !ops[0].Executable {
+		t.Fatalf("first op executable = false, want true: %+v", ops[0])
+	}
+	if ops[1].Executable || ops[1].Status != PlanStatusBlocked || !hasReasonContaining(ops[1].BlockedReasons, "队列资源不足") {
+		t.Fatalf("second op = %+v, want queue resource block", ops[1])
+	}
+	if len(ops[1].CostGates) != 2 || ops[1].CostGates[1].Source != "operation.queue" {
+		t.Fatalf("second op gates = %+v, want operation.queue gate", ops[1].CostGates)
+	}
+}
+
+func TestAnnotateSequentialResourceBudgetBlocksCumulativeGoldAndItems(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	applyMap(t, st, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"1001": 3},
+			"44": 100,
+		}},
+	})
+	ops := []PlannedOp{
+		{
+			Kind:       clientproto.RPCShopCultivateBuy.String(),
+			Executable: true,
+			CostGates: []CostGate{
+				resourceGate("gold", GateResourceGold, "金币", 0, 70, 100, "operation.cost"),
+				resourceGate("item:1001", GateResourceItem, "加速券", 1001, 2, 3, "operation.cost"),
+			},
+		},
+		{
+			Kind:       clientproto.RPCShopCultivateBuy.String(),
+			Executable: true,
+			CostGates: []CostGate{
+				resourceGate("gold", GateResourceGold, "金币", 0, 40, 100, "operation.cost"),
+				resourceGate("item:1001", GateResourceItem, "加速券", 1001, 2, 3, "operation.cost"),
+			},
+		},
+	}
+
+	annotateSequentialResourceBudget(st, ops, now)
+	if !ops[0].Executable {
+		t.Fatalf("first op executable = false, want true: %+v", ops[0])
+	}
+	if ops[1].Executable || ops[1].Status != PlanStatusBlocked {
+		t.Fatalf("second op = %+v, want queue resource block", ops[1])
+	}
+	if !hasReasonContaining(ops[1].BlockedReasons, "金币") || !hasReasonContaining(ops[1].BlockedReasons, "加速卡") {
+		t.Fatalf("second op reasons = %v, want gold and item queue blocks", ops[1].BlockedReasons)
 	}
 }
 
@@ -1636,6 +1707,58 @@ func TestBuildPlan_LowStockFallbackUsesAllEmptyLand(t *testing.T) {
 	}
 	if countByFlower[23001] == 0 || countByFlower[23002] == 0 {
 		t.Fatalf("fallback should prefer low-stock flowers, got %v", countByFlower)
+	}
+}
+
+func TestBuildPlan_PlantSpecificFlowersRestrictsFallback(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 0,
+			"23002": 0,
+			"23003": 0,
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(4)}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Flower.Mode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Plant.Flower.FlowerIds = []int32{23002}
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" && op.FlowerID != 23002 {
+			t.Fatalf("specific planting should only use selected flowers, op=%+v ops=%+v", op, result.Operations)
+		}
+	}
+}
+
+func TestPlantAssignments_SpecificFlowersSkipUnselectedDemand(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": cultivate(23001, 23002)},
+	})
+	p := DefaultPolicy()
+	p.Plant.Flower.Mode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Plant.Flower.FlowerIds = []int32{23002}
+
+	assignments := plantAssignments(s, p.Plant, []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  6,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}, 3)
+	if len(assignments) == 0 {
+		t.Fatalf("expected selected fallback assignment, got none")
+	}
+	for _, assignment := range assignments {
+		if assignment.FlowerID != 23002 {
+			t.Fatalf("unselected demand should not be planted, assignments=%+v", assignments)
+		}
 	}
 }
 

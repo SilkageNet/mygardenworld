@@ -471,10 +471,14 @@ func ItemName(id int32) string {
 	if !ok {
 		return ""
 	}
-	if item.DisplayName != "" {
-		return item.DisplayName
+	if name := strings.TrimSpace(item.DisplayName); name != "" && name != "0" {
+		return name
 	}
-	return item.Name
+	name := strings.TrimSpace(item.Name)
+	if name == "0" {
+		return ""
+	}
+	return name
 }
 
 func LandUnlockOpenLevel(landID int32) (int32, bool) {

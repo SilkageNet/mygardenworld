@@ -10,6 +10,7 @@ import {
   BadgeCheck,
   Building2,
   CalendarDays,
+  Check,
   Coins,
   Flower2,
   Gem,
@@ -17,7 +18,6 @@ import {
   HandCoins,
   ListChecks,
   Loader2,
-  LogIn,
   LogOut,
   Package,
   Play,
@@ -115,6 +115,7 @@ import type {
   InventoryLedgerItem,
   InventoryLedgerView,
   LandView,
+  PlantableFlowerView,
   PlannedOperation,
 } from "@/gen/mygardenworld/v1/query_service_pb";
 import AppShell from "@/components/app-shell";
@@ -142,13 +143,14 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
-import { itemName } from "@/lib/game/catalog";
+import { flowerDisplay, itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 
 const accountClient = createClient(AccountService, transport);
 const policyClient = createClient(PolicyService, transport);
 const queryClient = createClient(QueryService, transport);
 
+const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
 const EVENT_LIMIT = 120;
 const STATUS_POLL_MS = 5000;
 const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
@@ -212,6 +214,12 @@ const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
 const SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.QUALITY, label: "品质" },
+  { value: SelectionMode.SPECIFIC, label: "指定" },
+  { value: SelectionMode.EXCLUDE, label: "排除" },
+];
+
+const PLANT_SELECTION_MODE_OPTIONS = [
+  { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.SPECIFIC, label: "指定" },
   { value: SelectionMode.EXCLUDE, label: "排除" },
 ];
@@ -883,7 +891,7 @@ function AccountDetailView({
       <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
       {activeTab === "monitor" && (
         <div className="min-h-0">
-          <MonitorTab snapshot={snapshot} />
+          <MonitorTab snapshot={snapshot} status={status} />
         </div>
       )}
       {activeTab === "logs" && (
@@ -935,10 +943,10 @@ function DashboardTabBar({
   );
 }
 
-function MonitorTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
   return (
     <div className="space-y-4">
-      <CoreAssetsPanel snapshot={snapshot} />
+      <StatusOverviewPanel snapshot={snapshot} status={status} />
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
       <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
         <LandStatusPanel lands={snapshot?.lands ?? []} />
@@ -1007,7 +1015,7 @@ function HeaderPanel({
               ) : connected ? (
                 <LogOut className="size-4" />
               ) : (
-                <LogIn className="size-4" />
+                <Play className="size-4" />
               )}
             </IconButtonWithTooltip>
             <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
@@ -1100,15 +1108,49 @@ function isRunnerNotStartedError(err: unknown) {
 
 const FLORAL_COIN_ITEM_ID = 1002;
 
-function CoreAssetsPanel({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
   const floralCoins = snapshot?.inventory[FLORAL_COIN_ITEM_ID] ?? 0;
+  const reputationObserved = snapshot?.reputationObserved ?? status?.reputationObserved ?? false;
+  const reputationScore = snapshot?.reputationScore ?? status?.reputationScore ?? 0;
+  const reputationTime = firstPositiveUnixTime(
+    snapshot?.reputationLastViewTimeMs,
+    snapshot?.reputationLastSyncTimeMs,
+    status?.reputationLastViewTimeMs,
+    status?.reputationLastSyncTimeMs,
+  );
+  const level = snapshot?.level ?? status?.level ?? 0;
+  const experience = snapshot?.experience ?? status?.experience ?? 0;
+  const vip = snapshot?.vip ?? status?.vip ?? 0;
+  const vipExp = snapshot?.vipExp ?? status?.vipExp ?? 0;
+  const nobleEligible = snapshot?.nobleEligible ?? status?.nobleEligible ?? false;
+  const reputationDetail = reputationObserved ? (reputationTime ? `同步 ${formatUnixTime(reputationTime)}` : "已同步") : "未同步";
+  const vipDetail = vipExp > 0 ? `经验 ${formatCount(vipExp)}` : nobleEligible ? "已开通" : "未开通";
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <MetricCard icon={<Coins />} label="金币" value={snapshot?.gold ?? 0} />
-      <MetricCard icon={<Gem />} label="元宝" value={snapshot?.diamondsFree ?? 0} />
-      <MetricCard icon={<Waves />} label="水滴" value={`${snapshot?.waterDrops ?? 0}/${snapshot?.waterDropsTotal ?? 0}`} />
-      <MetricCard icon={<HandCoins />} label="花坊币" value={floralCoins} />
-    </div>
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>监控概览</CardTitle>
+          {snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <OverviewStat
+            icon={<ShieldCheck />}
+            label="礼仪分"
+            value={reputationObserved ? formatCount(reputationScore) : "-"}
+            detail={reputationDetail}
+          />
+          <OverviewStat icon={<Trophy />} label="等级" value={level > 0 ? `${level}级` : "-"} detail={`经验 ${formatCount(experience)}`} />
+          <OverviewStat icon={<BadgeCheck />} label="VIP" value={`VIP ${vip}`} detail={vipDetail} />
+          <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
+          <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
+          <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
+          <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
+          <OverviewStat icon={<Package />} label="仓库种类" value={formatCount(snapshot?.inventoryLedger?.items.length ?? 0)} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1345,21 +1387,22 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
 }
 
 function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
+  const queueOperations = operations.filter(isRunnableOperation);
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>执行队列</CardTitle>
-          <Badge variant="secondary">{operations.length}</Badge>
+          <Badge variant="secondary">{queueOperations.length}</Badge>
         </div>
       </CardHeader>
       <CardContent>
         <div className="dark-scrollbar h-[172px] overflow-auto rounded-md border border-border/70">
-          {operations.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-3 text-sm text-muted-foreground">当前无计划操作</div>
+          {queueOperations.length === 0 ? (
+            <div className="flex h-full items-center justify-center px-3 text-sm text-muted-foreground">当前无可执行操作</div>
           ) : (
             <div className="divide-y divide-border/70">
-              {operations.map((operation, index) => {
+              {queueOperations.map((operation, index) => {
                 const target = operationTargetLabel(operation);
                 const cost = operationCostLabel(operation);
                 const note = operationNoteLabel(operation);
@@ -1386,6 +1429,16 @@ function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function isRunnableOperation(operation: PlannedOperation) {
+  return (
+    operation.executable &&
+    !operation.syncOnly &&
+    operation.status !== PlanStatus.ADAPTER_MISSING &&
+    operation.status !== PlanStatus.BLOCKED &&
+    operation.blockedReasons.length === 0
   );
 }
 
@@ -1725,6 +1778,25 @@ function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="种植策略" icon={<Package />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <SegmentedRow
+                  label="种植范围"
+                  value={flower?.mode || SelectionMode.ALL}
+                  options={PLANT_SELECTION_MODE_OPTIONS}
+                  onChange={(value) => updateFlower({ mode: value })}
+                />
+                <FlowerMultiSelectRow
+                  label={(flower?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? "排除花种" : "指定花种"}
+                  value={(flower?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? flower?.excludeFlowerIds ?? [] : flower?.flowerIds ?? []}
+                  plantableFlowers={snapshot?.plantableFlowers ?? []}
+                  synced={Boolean(snapshot)}
+                  onChange={(value) =>
+                    (flower?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE
+                      ? updateFlower({ excludeFlowerIds: value })
+                      : updateFlower({ flowerIds: value })
+                  }
+                />
+              </div>
               <GoalPriorityEditor value={flower?.goalPriority ?? {}} onChange={(goalPriority) => updateFlower({ goalPriority })} />
             </PolicyGroup>
 
@@ -1739,12 +1811,8 @@ function PolicyPanel({
 
             <PolicyGroup title="基础配置" icon={<ShieldCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
-                {SHOW_UNSUPPORTED_SETTINGS && (
-                  <>
-                    <ToggleRow label="礼仪分监控" checked={reputation?.enabled ?? false} onChange={(checked) => updateReputation({ enabled: checked })} status={SETTING_STATUS.adapterMissing} />
-                    <NumberRow label="礼仪分阈值" value={reputation?.threshold || 80} min={0} onChange={(value) => updateReputation({ threshold: value })} />
-                  </>
-                )}
+                <ToggleRow label="礼仪分监控" checked={reputation?.enabled ?? false} onChange={(checked) => updateReputation({ enabled: checked })} />
+                <NumberRow label="礼仪分阈值" value={reputation?.threshold || 80} min={0} onChange={(value) => updateReputation({ threshold: value })} />
                 <NumberRow label="重连间隔秒" value={basic?.reconnectIntervalSeconds || 300} min={1} onChange={(value) => updateBasic({ reconnectIntervalSeconds: value })} />
               </div>
             </PolicyGroup>
@@ -2148,6 +2216,173 @@ function IntListRow({ label, value, onChange }: { label: string; value: number[]
   );
 }
 
+type FlowerPickerOption = {
+  id: number;
+  name: string;
+  seedName: string;
+  stock: number;
+  gold: number;
+  experience: number;
+  plantable: boolean;
+};
+
+function FlowerMultiSelectRow({
+  label,
+  value,
+  plantableFlowers,
+  synced,
+  onChange,
+}: {
+  label: string;
+  value: number[];
+  plantableFlowers: PlantableFlowerView[];
+  synced: boolean;
+  onChange: (value: number[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selectedSet = useMemo(() => new Set(value), [value]);
+  const flowers = useMemo<FlowerPickerOption[]>(() => {
+    const options = plantableFlowers.map((flower) => {
+      const display = flowerDisplay(flower.flowerId);
+      return {
+        id: flower.flowerId,
+        name: flower.flowerName || display.name,
+        seedName: display.seedName,
+        stock: flower.stock,
+        gold: flower.gold,
+        experience: flower.experience,
+        plantable: true,
+      };
+    });
+    const known = new Set(options.map((option) => option.id));
+    for (const id of value) {
+      if (known.has(id)) continue;
+      const display = flowerDisplay(id);
+      options.push({
+        id,
+        name: display.name,
+        seedName: display.seedName,
+        stock: 0,
+        gold: display.flower?.gold ?? 0,
+        experience: display.flower?.experience ?? 0,
+        plantable: false,
+      });
+    }
+    return options.sort((a, b) => {
+      if (a.plantable !== b.plantable) return a.plantable ? -1 : 1;
+      return a.id - b.id;
+    });
+  }, [plantableFlowers, value]);
+  const visibleFlowers = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    if (!text) return flowers;
+    return flowers.filter((flower) => {
+      return String(flower.id).includes(text) || flower.name.toLowerCase().includes(text) || flower.seedName.toLowerCase().includes(text);
+    });
+  }, [flowers, query]);
+  const selectedPreview = value.slice(0, 4).map((id) => itemName(id)).filter(Boolean).join("、");
+  const extraCount = value.length > 4 ? value.length - 4 : 0;
+  const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <Label className="text-sm">{label}</Label>
+        <div className="flex gap-1">
+          <Badge variant="outline">可种 {plantableFlowers.length}</Badge>
+          <Badge variant={value.length > 0 ? "secondary" : "outline"}>{value.length > 0 ? `${value.length} 种` : "未选择"}</Badge>
+        </div>
+      </div>
+      <div className="flex min-h-8 items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-sm text-muted-foreground">
+          {value.length === 0 ? "未选择时不限制" : `${selectedPreview}${extraCount > 0 ? ` 等 ${extraCount} 种` : ""}`}
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Flower2 className="size-3.5" />
+          选择
+        </Button>
+      </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{label}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="relative min-w-56 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索花名、种子或 ID"
+                  className="h-9 pl-9"
+                />
+              </div>
+              <Badge variant="outline">已选 {value.length}</Badge>
+            </div>
+            <div className="dark-scrollbar h-[420px] overflow-y-auto rounded-md border border-border/70 bg-background/40 p-2">
+              {visibleFlowers.length === 0 ? (
+                <EmptyState title={synced ? "没有匹配花种" : "尚未同步可种花种"} detail={synced ? undefined : "登录账号并同步培育状态后可选择"} />
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {visibleFlowers.map((flower) => {
+                    const selected = selectedSet.has(flower.id);
+                    const display = flowerDisplay(flower.id);
+                    const color = display.item?.color;
+                    return (
+                      <button
+                        key={flower.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => toggleFlower(flower.id)}
+                        className={cn(
+                          "flex min-h-[72px] min-w-0 items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors",
+                          selected ? "border-primary bg-primary/10 text-foreground" : "border-border/70 bg-card hover:bg-muted/45",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border",
+                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-transparent",
+                          )}
+                        >
+                          <Check className="size-3" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-sm font-medium">{flower.name}</span>
+                            {!flower.plantable && <Badge variant="outline">当前不可种</Badge>}
+                          </span>
+                          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{flower.id}</span>
+                            {color ? <span>品质 {color}</span> : null}
+                            {flower.stock > 0 ? <span>库存 {formatCount(flower.stock)}</span> : null}
+                            {flower.gold ? <span>金币 {formatCount(flower.gold)}</span> : null}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="items-center justify-between">
+            <Button type="button" variant="ghost" onClick={() => onChange([])} disabled={value.length === 0}>
+              清空
+            </Button>
+            <Button type="button" onClick={() => setOpen(false)}>
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function QualityRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
   return (
     <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
@@ -2397,17 +2632,16 @@ function EventPanel({ events }: { events: Event[] }) {
   );
 }
 
-function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
+function OverviewStat({ icon, label, value, detail }: { icon: ReactNode; label: string; value: ReactNode; detail?: ReactNode }) {
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3">
-        <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-4">{icon}</div>
-        <div>
-          <div className="text-xs text-muted-foreground">{label}</div>
-          <div className="text-lg font-semibold">{value}</div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex min-h-[76px] min-w-0 items-center gap-3 rounded-md border border-border/70 bg-background/55 px-3 py-2">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-4">{icon}</div>
+      <div className="min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="truncate text-lg font-semibold tabular-nums">{value}</div>
+        {detail && <div className="truncate text-xs text-muted-foreground">{detail}</div>}
+      </div>
+    </div>
   );
 }
 
@@ -2776,6 +3010,16 @@ function formatUnixTime(value?: bigint) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(milliseconds));
+}
+
+function firstPositiveUnixTime(...values: (bigint | undefined)[]) {
+  return values.find((value) => Number(value ?? BigInt(0)) > 0);
+}
+
+function formatCount(value: number | bigint) {
+  const numeric = typeof value === "bigint" ? Number(value) : value;
+  if (!Number.isFinite(numeric)) return "0";
+  return NUMBER_FORMATTER.format(numeric);
 }
 
 function parseNumber(value: string, min: number) {

@@ -130,6 +130,9 @@ message FlowerPlantPolicy {
   int32 speed_up_ticket_max = 11;
 
   map<string, int32> goal_priority = 14;
+  SelectionMode mode = 15;
+  repeated int32 flower_ids = 16;
+  repeated int32 exclude_flower_ids = 17;
 }
 
 message FriendStealPolicy {

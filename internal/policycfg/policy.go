@@ -70,6 +70,9 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Flower == nil {
 		cp.Plant.Flower = proto.Clone(def.Plant.Flower).(*pb.FlowerPlantPolicy)
 	}
+	if cp.Plant.Flower.Mode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED || cp.Plant.Flower.Mode == pb.SelectionMode_SELECTION_MODE_QUALITY {
+		cp.Plant.Flower.Mode = def.Plant.Flower.Mode
+	}
 	if cp.Plant.Flower.MinWaterDrops <= 0 {
 		cp.Plant.Flower.MinWaterDrops = def.Plant.Flower.MinWaterDrops
 	}

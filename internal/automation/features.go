@@ -44,7 +44,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.waterwheel", Label: "水车水滴", Category: CategoryBasic, Domain: "basic.waterwheel", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.free_water", Label: "限时水滴", Category: CategoryBasic, Domain: "basic.free_water", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.benefit_box", Label: "福利宝箱", Category: CategoryBasic, Domain: "basic.benefit", Action: "claim", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.reputation", Label: "礼仪分监控", Category: CategoryBasic, Domain: "basic.reputation", Action: "guard", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"缺少礼仪分状态来源"}},
+	{ID: "basic.reputation", Label: "礼仪分监控", Category: CategoryBasic, Domain: "basic.reputation", Action: "guard", Status: PlanStatusManaged},
 	{ID: "basic.item_log", Label: "道具日志", Category: CategoryBasic, Domain: "basic.item_log", Action: "observe", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.mail_sync", Label: "邮件同步", Category: CategoryBasic, Domain: "basic.mail", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.mail", Label: "邮件", Category: CategoryBasic, Domain: "basic.mail", Action: "claim", Status: PlanStatusManaged, Executable: true},

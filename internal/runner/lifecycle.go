@@ -118,6 +118,11 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if r.isSessionInvalidated() {
 		return nil, errors.New("session invalidated during startup")
 	}
+	if err := r.enforceReputationGuard(ctx, client, session, "startup", time.Now()); err != nil {
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
+		return nil, err
+	}
 
 	// Send home verification after login to satisfy anti-cheat.
 	if err := r.ensureHomeRqst(ctx); err != nil {
@@ -224,6 +229,9 @@ func (r *Runner) connectionLoop(ctx context.Context, username, password string, 
 			if err == nil {
 				current = next
 				break
+			}
+			if isReputationGuardError(err) {
+				return
 			}
 			if ctx.Err() != nil || r.isSessionInvalidated() {
 				return

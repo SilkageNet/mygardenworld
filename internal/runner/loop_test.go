@@ -1,14 +1,18 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 func TestWaterResponseIncludesDrops(t *testing.T) {
@@ -88,6 +92,18 @@ func TestHarvestOperationArgsAllowsBatch(t *testing.T) {
 	req, ok := args.(clientproto.UsrLandHarvestRequest)
 	if !ok || req.LandId != 1003 {
 		t.Fatalf("operationArgs(harvest single)=%T %+v, want landId 1003", args, args)
+	}
+}
+
+func TestLandSuffixSuppressesEmptyLandIDs(t *testing.T) {
+	if got := landSuffix(nil); got != "" {
+		t.Fatalf("landSuffix(nil)=%q, want empty", got)
+	}
+	if got := landSuffix([]int32{}); got != "" {
+		t.Fatalf("landSuffix(empty)=%q, want empty", got)
+	}
+	if got := landSuffix([]int32{1001, 1002}); got != " (田地=[1001 1002])" {
+		t.Fatalf("landSuffix(ids)=%q", got)
 	}
 }
 
@@ -462,6 +478,98 @@ func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 	}
 }
 
+func TestNextRunnableOperationSkipsWaterwheelAfterDailyLimit(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"114": map[string]any{
+			"1": 1,
+		},
+		"117": map[string]any{
+			"1": 2,
+			"2": now.UnixMilli(),
+		},
+	})
+	st.MarkWaterwheelEntered(now.Add(-time.Hour))
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.WaterwheelEnabled = true
+	policy.Basic.FreeWaterEnabled = true
+	r := &Runner{state: st}
+
+	op := r.nextRunnableOperation(policy, now)
+	if op == nil || op.Kind != clientproto.RPCWaterwheelRecv.String() {
+		t.Fatalf("nextRunnableOperation()=%+v, want waterwheel before daily limit is recorded", op)
+	}
+
+	st.MarkWaterwheelDailyLimitReached(now)
+	op = r.nextRunnableOperation(policy, now)
+	if op == nil || op.Kind != clientproto.RPCFreeWaterRecv.String() {
+		t.Fatalf("nextRunnableOperation()=%+v, want free water after waterwheel daily limit", op)
+	}
+}
+
+func TestEnforceReputationGuardDisablesAutomationOnLowScore(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{
+			"17": map[string]any{"0": map[string]any{"1": 79}},
+		},
+	})
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.Reputation.Enabled = true
+	policy.Basic.Reputation.Threshold = 80
+	r := &Runner{
+		account:                &store.Account{ID: 1, Name: "test"},
+		log:                    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		state:                  st,
+		policy:                 policy,
+		lastReputationSyncTick: now,
+		harvestBlockedUntil:    map[int32]time.Time{},
+		unknownRPCCounts:       map[string]int32{},
+	}
+
+	err := r.enforceReputationGuard(context.Background(), nil, nil, "test", now)
+	if !isReputationGuardError(err) {
+		t.Fatalf("enforceReputationGuard() error=%v, want reputation guard error", err)
+	}
+	if r.Policy().GetAutomationEnabled() {
+		t.Fatal("automation enabled = true, want disabled after low reputation score")
+	}
+}
+
+func TestEnforceReputationGuardAllowsSafeScore(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{
+			"17": map[string]any{"0": map[string]any{"1": 90}},
+		},
+	})
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.Reputation.Enabled = true
+	policy.Basic.Reputation.Threshold = 80
+	r := &Runner{
+		account:                &store.Account{ID: 1, Name: "test"},
+		log:                    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		state:                  st,
+		policy:                 policy,
+		lastReputationSyncTick: now,
+		harvestBlockedUntil:    map[int32]time.Time{},
+		unknownRPCCounts:       map[string]int32{},
+	}
+
+	if err := r.enforceReputationGuard(context.Background(), nil, nil, "test", now); err != nil {
+		t.Fatalf("enforceReputationGuard() error=%v, want nil", err)
+	}
+	if !r.Policy().GetAutomationEnabled() {
+		t.Fatal("automation enabled = false, want unchanged for safe reputation score")
+	}
+}
+
 func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 	now := time.Now()
 	r := &Runner{harvestBlockedUntil: map[int32]time.Time{1002: now.Add(-time.Second)}}
@@ -482,6 +590,16 @@ func TestIsWaterwheelInvalidDataError(t *testing.T) {
 	}
 	if isWaterwheelInvalidDataError(clientproto.RPCFreeWaterRecv.String(), err) {
 		t.Fatal("isWaterwheelInvalidDataError matched the wrong rpc")
+	}
+}
+
+func TestIsWaterwheelDailyLimitError(t *testing.T) {
+	err := errors.New("rpc waterwheel.recv: server: 已达到领取上限")
+	if !isWaterwheelDailyLimitError(clientproto.RPCWaterwheelRecv.String(), err) {
+		t.Fatal("isWaterwheelDailyLimitError = false, want true")
+	}
+	if isWaterwheelDailyLimitError(clientproto.RPCFreeWaterRecv.String(), err) {
+		t.Fatal("isWaterwheelDailyLimitError matched the wrong rpc")
 	}
 }
 

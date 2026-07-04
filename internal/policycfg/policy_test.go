@@ -13,6 +13,9 @@ func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	if flower.GetGoalPriority()[automation.GoalCustomerOrder] == 0 {
 		t.Fatalf("goal priorities not populated: %+v", flower.GetGoalPriority())
 	}
+	if flower.GetMode() != pb.SelectionMode_SELECTION_MODE_ALL {
+		t.Fatalf("plant flower mode=%v, want ALL", flower.GetMode())
+	}
 }
 
 func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {

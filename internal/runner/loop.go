@@ -70,6 +70,12 @@ func (r *Runner) tick(ctx context.Context) {
 	if r.isSessionInvalidated() {
 		return
 	}
+	if err := r.enforceReputationGuard(ctx, client, session, "tick", now); err != nil {
+		if isReputationGuardError(err) {
+			r.Stop()
+		}
+		return
+	}
 	if p == nil || !p.AutomationEnabled {
 		return
 	}
@@ -141,7 +147,7 @@ func (r *Runner) tick(ctx context.Context) {
 		Category:    op.Category,
 		Domain:      op.Domain,
 		Action:      op.Action,
-		Message:     fmt.Sprintf("计划执行 %s (田地=%v)", opDesc(op), op.LandIDs),
+		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(op), landSuffix(op.LandIDs)),
 		PayloadJSON: operationPayload(op, args, nil, nil),
 	})
 	v, err := r.executePlannedOp(ctx, client, session, op)
@@ -192,6 +198,20 @@ func (r *Runner) tick(ctx context.Context) {
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "invalid_state"})
 			return
 		}
+		if isWaterwheelDailyLimitError(op.Kind, err) {
+			r.state.MarkWaterwheelDailyLimitReached(time.Now())
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Message:     fmt.Sprintf("%s 暂停: 服务端提示今日水车领取已达上限，已跳过水车以继续执行其他任务", opDesc(op)),
+				PayloadJSON: operationPayload(op, args, nil, err),
+				Level:       "warn",
+			})
+			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
+			return
+		}
 		if isWaterDropResourceRejectedError(op.Kind, err) {
 			r.state.MarkWaterDropsExhausted(time.Now())
 			r.emit(Event{
@@ -223,7 +243,7 @@ func (r *Runner) tick(ctx context.Context) {
 		Category:    op.Category,
 		Domain:      op.Domain,
 		Action:      op.Action,
-		Message:     fmt.Sprintf("%s 完成 (田地=%v)", opDesc(op), op.LandIDs),
+		Message:     fmt.Sprintf("%s 完成%s", opDesc(op), landSuffix(op.LandIDs)),
 		PayloadJSON: operationPayload(op, args, v, nil),
 	})
 	_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, json.RawMessage(v))
@@ -1075,6 +1095,10 @@ func isWaterwheelInvalidDataError(kind string, err error) bool {
 	return kind == clientproto.RPCWaterwheelRecv.String() && err != nil && strings.Contains(err.Error(), "数据有误")
 }
 
+func isWaterwheelDailyLimitError(kind string, err error) bool {
+	return kind == clientproto.RPCWaterwheelRecv.String() && err != nil && strings.Contains(err.Error(), "已达到领取上限")
+}
+
 func isWaterDropResourceRejectedError(kind string, err error) bool {
 	if !isWaterOp(kind) || err == nil {
 		return false
@@ -1187,4 +1211,11 @@ func opDesc(op *automation.PlannedOp) string {
 		return desc
 	}
 	return fmt.Sprintf("%s %s(#%d)", desc, flowerName(int(op.FlowerID)), op.FlowerID)
+}
+
+func landSuffix(landIDs []int32) string {
+	if len(landIDs) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (田地=%v)", landIDs)
 }
