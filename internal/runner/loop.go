@@ -192,6 +192,20 @@ func (r *Runner) tick(ctx context.Context) {
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "invalid_state"})
 			return
 		}
+		if isWaterDropResourceRejectedError(op.Kind, err) {
+			r.state.MarkWaterDropsExhausted(time.Now())
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Message:     fmt.Sprintf("%s 暂缓: 服务端提示水滴不足，已校正本地数量，等待恢复后重试", opDesc(op)),
+				PayloadJSON: operationPayload(op, args, nil, err),
+				Level:       "warn",
+			})
+			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "resource_stale"})
+			return
+		}
 		opErr = err
 		r.emit(Event{
 			Kind:        "operation_failed",
@@ -571,12 +585,10 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FlowerRack().RecvSellMoney(ctx, req)
 		},
 	),
-	clientproto.RPCWaterwheelRecv.String(): stateDeltaOperation(
-		staticRequest(clientproto.WaterwheelRecvRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.WaterwheelRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.Waterwheel().Recv(ctx, req)
-		},
-	),
+	clientproto.RPCWaterwheelRecv.String(): {
+		args: staticAnyRequest(clientproto.WaterwheelRecvRequest{}),
+		run:  runWaterwheelRecv,
+	},
 	clientproto.RPCFreeWaterRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FreeWaterRecvRequest, error) {
 			return clientproto.FreeWaterRecvRequest{Idx: op.TargetID}, nil
@@ -940,6 +952,17 @@ func runSignTypeSign(ctx context.Context, rt operationRuntime, _ *automation.Pla
 	return checkedStateDelta(rt.rpc.SignType().Recv(ctx, clientproto.SignTypeRecvRequest{Type: 1}))
 }
 
+func runWaterwheelRecv(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner != nil && rt.runner.state.WaterwheelNextClaimRequiresSkip() {
+		if v, d, err := rpcResult(rt.rpc.Waterwheel().Skip(ctx, clientproto.WaterwheelSkipRequest{})); err != nil || d.IsError() {
+			return checkedPayload(v, d, err)
+		} else if babigame.HasPayload(v) {
+			rt.runner.state.ApplyV(v)
+		}
+	}
+	return checkedStateDelta(rt.rpc.Waterwheel().Recv(ctx, clientproto.WaterwheelRecvRequest{}))
+}
+
 func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp) (json.RawMessage, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
@@ -1052,6 +1075,14 @@ func isWaterwheelInvalidDataError(kind string, err error) bool {
 	return kind == clientproto.RPCWaterwheelRecv.String() && err != nil && strings.Contains(err.Error(), "数据有误")
 }
 
+func isWaterDropResourceRejectedError(kind string, err error) bool {
+	if !isWaterOp(kind) || err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
+}
+
 func waterResponseIncludesDrops(raw json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {
@@ -1093,10 +1124,14 @@ func nestedMapHasItem(raw json.RawMessage, field, itemID string) bool {
 }
 
 func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Client, session *babigame.Session) {
-	if time.Since(r.lastWaterSyncTick) < waterSourceSyncPeriod {
+	now := time.Now()
+	if !r.state.WaterwheelEnterDue(now) {
 		return
 	}
-	r.lastWaterSyncTick = time.Now()
+	if !r.lastWaterSyncTick.IsZero() && now.Sub(r.lastWaterSyncTick) < waterSourceSyncPeriod {
+		return
+	}
+	r.lastWaterSyncTick = now
 
 	rpc := r.runnerRPC(client, session)
 	v, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
@@ -1110,6 +1145,7 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	if d.IsError() {
 		return
 	}
+	r.state.MarkWaterwheelEntered(now)
 	if babigame.HasPayload(v) {
 		r.state.ApplyV(v)
 	}

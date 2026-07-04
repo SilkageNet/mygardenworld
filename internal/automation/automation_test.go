@@ -736,10 +736,6 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 					"32": map[string]any{"7": tt.drops},
 					"33": map[string]any{"7": map[string]any{"1": tt.total}},
 				}},
-				"114": map[string]any{
-					"1": 1,
-					"4": now.Add(-time.Hour).UnixMilli(),
-				},
 				"117": map[string]any{
 					"1": 2,
 					"2": now.UnixMilli(),
@@ -758,8 +754,11 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 				gotWaterwheel = gotWaterwheel || op.Kind == clientproto.RPCWaterwheelRecv.String()
 				gotFreeWater = gotFreeWater || op.Kind == clientproto.RPCFreeWaterRecv.String()
 			}
-			if gotWaterwheel != tt.wantOps || gotFreeWater != tt.wantOps {
-				t.Fatalf("water claims = (%t,%t), want both %t; ops=%+v", gotWaterwheel, gotFreeWater, tt.wantOps, result.Operations)
+			if gotWaterwheel {
+				t.Fatalf("waterwheel should wait for local bucket generation, ops=%+v", result.Operations)
+			}
+			if gotFreeWater != tt.wantOps {
+				t.Fatalf("free water claim = %t, want %t; ops=%+v", gotFreeWater, tt.wantOps, result.Operations)
 			}
 		})
 	}

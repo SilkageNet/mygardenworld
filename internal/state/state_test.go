@@ -762,28 +762,77 @@ func TestMarkLandsWateredSpendsTrackedWaterDrops(t *testing.T) {
 	}
 }
 
+func TestMarkWaterDropsExhaustedClearsStaleDrops(t *testing.T) {
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"7": 3},
+			"33": map[string]any{"7": map[string]any{"1": 130, "5": now.Add(-time.Minute).UnixMilli()}}}},
+	})
+	if !s.LockWaterDrops(2, now) {
+		t.Fatal("LockWaterDrops = false, want true before server rejection")
+	}
+
+	var changed ResourceSnapshot
+	var inventoryChanged InventorySnapshot
+	s.SetOnResourceChange(func(snap ResourceSnapshot) {
+		changed = snap
+	})
+	s.SetOnInventoryChange(func(snap InventorySnapshot) {
+		inventoryChanged = snap
+	})
+	s.MarkWaterDropsExhausted(now)
+
+	waterDrops, _, nextMs := s.WaterDrops()
+	if waterDrops != 0 {
+		t.Fatalf("WaterDrops after exhausted = %d, want 0", waterDrops)
+	}
+	if nextMs <= now.UnixMilli() {
+		t.Fatalf("WaterDrops nextMs = %d, want future timestamp after %d", nextMs, now.UnixMilli())
+	}
+	available, _, _ := s.AvailableWaterDrops(now)
+	if available != 0 {
+		t.Fatalf("AvailableWaterDrops = %d, want 0", available)
+	}
+	if changed.WaterDrops != 0 {
+		t.Fatalf("resource callback WaterDrops = %d, want 0", changed.WaterDrops)
+	}
+	if inventoryChanged.Inventory[7] != 0 {
+		t.Fatalf("inventory callback water item = %d, want 0", inventoryChanged.Inventory[7])
+	}
+}
+
 func TestWaterwheelCooldownUsesBucketCreateInterval(t *testing.T) {
 	interval := waterwheelBucketCreateInterval()
 	if interval <= 0 || interval >= time.Hour {
 		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
 	}
 	s := New()
+	now := time.Now()
 	applyMap(t, s, map[string]any{
 		"114": map[string]any{
 			"1": 1,
-			"4": time.Now().Add(-interval - time.Second).UnixMilli(),
+			"4": now.Add(-interval - time.Second).UnixMilli(),
+			"5": now.Add(-10 * interval).UnixMilli(),
 		},
 	})
-	if !s.WaterwheelCooldownReady() {
-		t.Fatal("WaterwheelCooldownReady = false, want true after configured bucket interval")
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true immediately after observe, want false until local bucket is generated")
 	}
 
-	applyMap(t, s, map[string]any{
-		"114": map[string]any{
-			"1": 1,
-			"4": time.Now().UnixMilli(),
-		},
-	})
+	s.mu.Lock()
+	s.wwEntered = true
+	s.wwLocalGenMs = now.Add(-interval - time.Second).UnixMilli()
+	s.mu.Unlock()
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false, want true after local bucket interval")
+	}
+
+	s.mu.Lock()
+	s.wwEntered = true
+	s.wwLocalGenMs = now.UnixMilli()
+	s.mu.Unlock()
 	if s.WaterwheelCooldownReady() {
 		t.Fatal("WaterwheelCooldownReady = true, want false before next bucket interval")
 	}
@@ -798,9 +847,12 @@ func TestWaterwheelUnavailableBackoffSuppressesReady(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"114": map[string]any{
 			"1": 1,
-			"4": time.Now().Add(-interval - time.Second).UnixMilli(),
 		},
 	})
+	s.mu.Lock()
+	s.wwEntered = true
+	s.wwLocalGenMs = time.Now().Add(-interval - time.Second).UnixMilli()
+	s.mu.Unlock()
 	if !s.WaterwheelCooldownReady() {
 		t.Fatal("WaterwheelCooldownReady = false, want initially ready")
 	}
@@ -809,9 +861,75 @@ func TestWaterwheelUnavailableBackoffSuppressesReady(t *testing.T) {
 	if s.WaterwheelCooldownReady() {
 		t.Fatal("WaterwheelCooldownReady = true, want false during local backoff")
 	}
+	if s.WaterwheelEnterDue(time.Now()) {
+		t.Fatal("WaterwheelEnterDue = true, want false during local backoff")
+	}
+	if !s.WaterwheelEnterDue(time.Now().Add(interval + time.Second)) {
+		t.Fatal("WaterwheelEnterDue = false, want true after local backoff")
+	}
 }
 
-func TestWaterwheelCooldownUsesGeneratedBucketCount(t *testing.T) {
+func TestWaterwheelReadyRequiresEnterLifecycle(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 1,
+		},
+	})
+	s.mu.Lock()
+	s.wwLocalGenMs = now.Add(-2 * interval).UnixMilli()
+	s.mu.Unlock()
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true before waterwheel.enter, want false")
+	}
+
+	if !s.WaterwheelEnterDue(now) {
+		t.Fatal("WaterwheelEnterDue = false before enter, want true")
+	}
+	s.MarkWaterwheelEntered(now)
+	if s.WaterwheelEnterDue(now) {
+		t.Fatal("WaterwheelEnterDue = true after enter, want false")
+	}
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true immediately after enter, want false")
+	}
+
+	s.mu.Lock()
+	s.wwLocalGenMs = now.Add(-interval - time.Second).UnixMilli()
+	s.mu.Unlock()
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false after entered local interval, want true")
+	}
+}
+
+func TestWaterwheelNextClaimRequiresSkipUsesAdvList(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 2,
+			"2": []any{3, 8},
+		},
+	})
+	if !s.WaterwheelNextClaimRequiresSkip() {
+		t.Fatal("WaterwheelNextClaimRequiresSkip = false, want true for next advertised bucket")
+	}
+
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 3,
+		},
+	})
+	if s.WaterwheelNextClaimRequiresSkip() {
+		t.Fatal("WaterwheelNextClaimRequiresSkip = true, want false when next bucket is not advertised")
+	}
+}
+
+func TestWaterwheelCooldownUsesLocalBucketAndDailyLimit(t *testing.T) {
 	interval := waterwheelBucketCreateInterval()
 	if interval <= 0 || interval >= time.Hour {
 		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
@@ -821,21 +939,28 @@ func TestWaterwheelCooldownUsesGeneratedBucketCount(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"114": map[string]any{
 			"1": 2,
-			"5": now.Add(-2 * interval).UnixMilli(),
 		},
 	})
-	if s.WaterwheelCooldownReady() {
-		t.Fatal("WaterwheelCooldownReady = true, want false when claimed count has caught up to generated buckets")
+	s.mu.Lock()
+	s.wwEntered = true
+	s.wwLocalGenMs = now.Add(-2 * interval).UnixMilli()
+	s.mu.Unlock()
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false, want true with locally generated bucket")
 	}
 
+	max := waterwheelBucketDailyMax()
 	applyMap(t, s, map[string]any{
 		"114": map[string]any{
-			"1": 2,
-			"5": now.Add(-3 * interval).UnixMilli(),
+			"1": max,
 		},
 	})
-	if !s.WaterwheelCooldownReady() {
-		t.Fatal("WaterwheelCooldownReady = false, want true when generated bucket count exceeds claimed count")
+	s.mu.Lock()
+	s.wwEntered = true
+	s.wwLocalGenMs = now.Add(-2 * interval).UnixMilli()
+	s.mu.Unlock()
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true, want false after daily max is reached")
 	}
 }
 

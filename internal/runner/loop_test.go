@@ -437,7 +437,7 @@ func TestNextRunnableOperationFallsThroughBlockedHarvest(t *testing.T) {
 	}
 }
 
-func TestNextRunnableOperationFallsThroughWaterwheelBackoff(t *testing.T) {
+func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 	now := time.Now()
 	st := state.New()
 	st.ApplyVMap(map[string]any{
@@ -457,14 +457,8 @@ func TestNextRunnableOperationFallsThroughWaterwheelBackoff(t *testing.T) {
 	r := &Runner{state: st}
 
 	op := r.nextRunnableOperation(policy, now)
-	if op == nil || op.Kind != clientproto.RPCWaterwheelRecv.String() {
-		t.Fatalf("nextRunnableOperation()=%+v, want waterwheel before backoff", op)
-	}
-
-	st.MarkWaterwheelUnavailable(now)
-	op = r.nextRunnableOperation(policy, now)
 	if op == nil || op.Kind != clientproto.RPCFreeWaterRecv.String() {
-		t.Fatalf("nextRunnableOperation()=%+v, want free water while waterwheel is backed off", op)
+		t.Fatalf("nextRunnableOperation()=%+v, want free water while waterwheel waits for a local bucket", op)
 	}
 }
 
@@ -488,6 +482,19 @@ func TestIsWaterwheelInvalidDataError(t *testing.T) {
 	}
 	if isWaterwheelInvalidDataError(clientproto.RPCFreeWaterRecv.String(), err) {
 		t.Fatal("isWaterwheelInvalidDataError matched the wrong rpc")
+	}
+}
+
+func TestIsWaterDropResourceRejectedError(t *testing.T) {
+	err := errors.New(`rpc usrLand.waterBatch: server: {"code":301,"param":{"iid":7}}`)
+	if !isWaterDropResourceRejectedError(clientproto.RPCUsrLandWaterBatch.String(), err) {
+		t.Fatal("isWaterDropResourceRejectedError = false, want true")
+	}
+	if isWaterDropResourceRejectedError(clientproto.RPCWaterwheelRecv.String(), err) {
+		t.Fatal("isWaterDropResourceRejectedError matched the wrong rpc")
+	}
+	if isWaterDropResourceRejectedError(clientproto.RPCUsrLandWaterBatch.String(), errors.New(`{"code":301,"param":{"iid":1001}}`)) {
+		t.Fatal("isWaterDropResourceRejectedError matched a non-water-drop resource")
 	}
 }
 

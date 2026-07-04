@@ -114,9 +114,13 @@
 //
 // Structure: {"0": uid, "1": count, "2": advList, "3": rTime, "4": uTime, "5": cTime}
 //
-// Each waterwheel.recv increments field "1" and grants water drops. The client
-// generates clickable buckets locally using c_waterwheel.$bucketCreateCd.
-// waterwheel.skip advances to the next slot without waiting.
+// Each waterwheel.recv increments field "1" and grants water drops. The mini
+// client generates clickable buckets locally after waterwheel.enter using
+// c_waterwheel.$bucketCreateCd, persists positions in BucketPosUsed_<uid>, and
+// only calls waterwheel.recv after a local bucket click. If the next bucket
+// index is present in advList (field "2"), the client calls waterwheel.skip
+// before recv when no ad is played. waterwheel.skip advances to the next slot
+// without waiting.
 //
 // # Benefit Box (Namespace 116)
 //

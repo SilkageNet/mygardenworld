@@ -522,6 +522,10 @@ type State struct {
 	wwClaimedCount int32 // 114.1 水车已领取总次数
 	wwLastRecvTs   int64 // 114.4 uTime; used as the latest observed claim/update timestamp
 	wwCTimeMs      int64 // 114.5 cTime; bucket generation anchor
+	wwObserved     bool
+	wwEntered      bool
+	wwAdvList      []int32
+	wwLocalGenMs   int64 // local zero-bucket generation anchor, mirroring BucketMgr's client timer
 	wwBackoffUntil int64 // local guard after the server says the bucket state is invalid
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
@@ -1315,11 +1319,21 @@ func (s *State) applyWaterwheelLocked(raw json.RawMessage) {
 	if err := json.Unmarshal(raw, &ns114); err != nil {
 		return
 	}
+	now := time.Now()
+	nowMs := now.UnixMilli()
+	wasObserved := s.wwObserved
+	prevCount := s.wwClaimedCount
+	nextCount := s.wwClaimedCount
+	countObserved := false
 	if v, ok := ns114["1"]; ok {
 		var n int32
 		if json.Unmarshal(v, &n) == nil {
-			s.wwClaimedCount = n
+			nextCount = n
+			countObserved = true
 		}
+	}
+	if v, ok := ns114["2"]; ok {
+		s.wwAdvList = readInt32ListRaw(v)
 	}
 	if v, ok := ns114["4"]; ok {
 		var n int64
@@ -1332,6 +1346,22 @@ func (s *State) applyWaterwheelLocked(raw json.RawMessage) {
 		if json.Unmarshal(v, &n) == nil {
 			s.wwCTimeMs = n
 		}
+	}
+	s.wwObserved = true
+	if s.wwEntered && (!wasObserved || s.wwLocalGenMs == 0 || (countObserved && nextCount < prevCount)) {
+		s.wwLocalGenMs = nowMs
+	}
+	if countObserved {
+		if nextCount > prevCount {
+			available := s.waterwheelLocalBucketCountAtLocked(now, prevCount)
+			remaining := available - (nextCount - prevCount)
+			if remaining < 0 {
+				remaining = 0
+			}
+			s.wwLocalGenMs = nowMs - int64(waterwheelBucketCreateInterval()/time.Millisecond)*int64(remaining)
+			s.wwBackoffUntil = 0
+		}
+		s.wwClaimedCount = nextCount
 	}
 }
 
@@ -3110,6 +3140,42 @@ func (s *State) MarkLandsWatered(landIDs []int32) {
 	}
 }
 
+// MarkWaterDropsExhausted reconciles local state after the server rejects a
+// water RPC for item 7. The next authoritative namespace 7 update can still
+// correct the count or recovery clock.
+func (s *State) MarkWaterDropsExhausted(now time.Time) {
+	s.mu.Lock()
+	prevWaterDrops := s.currentWaterDropsLocked()
+	prevWaterNextMs := s.waterDropsNextMs
+	prevInventory := cloneInt32Map(s.inventory)
+	s.hasWaterDropsItem = true
+	s.inventory[7] = 0
+	s.waterDropsInFlight = 0
+	if s.waterDropsTotal > 0 {
+		next := now.UnixMilli() + waterDropRestoreIntervalMs()
+		if s.waterDropsNextMs <= now.UnixMilli() || s.waterDropsNextMs == 0 {
+			s.waterDropsNextMs = next
+		}
+	}
+	resourceSnap := s.resourceSnapshotLocked()
+	invChanges := inventoryChanges(prevInventory, s.inventory)
+	var inventorySnap InventorySnapshot
+	resourceCb := s.onResourceChange
+	inventoryCb := s.onInventoryChange
+	waterChanged := resourceSnap.WaterDrops != prevWaterDrops || resourceSnap.WaterDropsNextMs != prevWaterNextMs
+	if len(invChanges) > 0 {
+		inventorySnap = InventorySnapshot{Inventory: cloneInt32Map(s.inventory), Changes: invChanges}
+	}
+	s.mu.Unlock()
+
+	if waterChanged && resourceCb != nil {
+		resourceCb(resourceSnap)
+	}
+	if inventoryCb != nil && len(inventorySnap.Changes) > 0 {
+		inventoryCb(inventorySnap)
+	}
+}
+
 // Inventory returns a copy of the inventory map.
 func (s *State) Inventory() map[int32]int32 {
 	s.mu.RLock()
@@ -3493,6 +3559,21 @@ func (s *State) WaterwheelClaimedCount() int32 {
 	return s.wwClaimedCount
 }
 
+// WaterwheelNextClaimRequiresSkip reports whether the next bucket index is in
+// namespace 114.2 advList. The mini client calls waterwheel.skip before recv
+// for these buckets when it cannot or should not play the ad.
+func (s *State) WaterwheelNextClaimRequiresSkip() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	next := s.wwClaimedCount + 1
+	for _, id := range s.wwAdvList {
+		if id == next {
+			return true
+		}
+	}
+	return false
+}
+
 // WaterwheelReady is a compatibility accessor used by older diagnostics. It
 // returns 1 when the local cooldown view says a claim can be attempted, else 0.
 func (s *State) WaterwheelReady() int32 {
@@ -3502,16 +3583,42 @@ func (s *State) WaterwheelReady() int32 {
 	return 0
 }
 
+// WaterwheelEnterDue reports whether automation should call waterwheel.enter
+// to initialize the same client-side bucket lifecycle used by the mini client.
+func (s *State) WaterwheelEnterDue(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.wwEntered {
+		return false
+	}
+	nowMs := now.UnixMilli()
+	if s.wwBackoffUntil > nowMs {
+		return false
+	}
+	if max := waterwheelBucketDailyMax(); max > 0 && s.wwObserved && s.wwClaimedCount >= max {
+		return false
+	}
+	return true
+}
+
+// MarkWaterwheelEntered starts the local bucket-generation lifecycle after a
+// successful waterwheel.enter RPC.
+func (s *State) MarkWaterwheelEntered(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wwEntered = true
+	s.wwLocalGenMs = now.UnixMilli()
+	s.wwBackoffUntil = 0
+}
+
 // MarkWaterwheelUnavailable temporarily suppresses local waterwheel claim
 // attempts when the server says the generated bucket state is invalid.
 func (s *State) MarkWaterwheelUnavailable(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	nextMs := s.waterwheelNextReadyMsLocked(now)
-	if nextMs <= now.UnixMilli() {
-		nextMs = now.Add(waterwheelBucketCreateInterval()).UnixMilli()
-	}
-	s.wwBackoffUntil = nextMs
+	s.wwEntered = false
+	s.wwLocalGenMs = 0
+	s.wwBackoffUntil = now.Add(waterwheelBucketCreateInterval()).UnixMilli()
 }
 
 func waterwheelBucketCreateInterval() time.Duration {
@@ -3554,60 +3661,52 @@ func waterwheelBucketExistMax() int32 {
 	return readInt32Any(row["$bucketExistMax"])
 }
 
-// WaterwheelCooldownReady returns true if the local bucket-generation clock
-// says a waterwheel claim can be attempted. The client config uses
-// c_waterwheel.$bucketCreateCd seconds between generated buckets. Namespace
-// 114.1 tracks claimed buckets, and 114.5 anchors the generation clock; the
-// client only shows up to $bucketExistMax generated buckets at once.
+// WaterwheelCooldownReady returns true if the emulated client-side bucket
+// timer says a waterwheel claim can be attempted. The mini client generates
+// buckets locally after waterwheel.enter using c_waterwheel.$bucketCreateCd,
+// keeps positions in BucketPosUsed_<uid>, and only then calls waterwheel.recv.
 func (s *State) WaterwheelCooldownReady() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	nowMs := time.Now().UnixMilli()
+	if !s.wwObserved || !s.wwEntered {
+		return false
+	}
 	if s.wwBackoffUntil > nowMs {
 		return false
 	}
 	if max := waterwheelBucketDailyMax(); max > 0 && s.wwClaimedCount >= max {
 		return false
 	}
-	if s.wwCTimeMs > 0 {
-		return s.waterwheelGeneratedCountLocked(time.Now()) > s.wwClaimedCount
-	}
-	if s.wwLastRecvTs == 0 {
-		return true
-	}
-	return time.Duration(nowMs-s.wwLastRecvTs)*time.Millisecond >= waterwheelBucketCreateInterval()
+	return s.waterwheelLocalBucketCountAtLocked(time.Now(), s.wwClaimedCount) > 0
 }
 
-func (s *State) waterwheelGeneratedCountLocked(now time.Time) int32 {
-	if s.wwCTimeMs <= 0 {
+func (s *State) waterwheelLocalBucketCountAtLocked(now time.Time, claimedCount int32) int32 {
+	if s.wwLocalGenMs <= 0 {
 		return 0
 	}
 	interval := waterwheelBucketCreateInterval()
 	if interval <= 0 {
 		return 0
 	}
-	elapsed := time.Duration(now.UnixMilli()-s.wwCTimeMs) * time.Millisecond
+	elapsed := time.Duration(now.UnixMilli()-s.wwLocalGenMs) * time.Millisecond
 	if elapsed < 0 {
 		return 0
 	}
-	generated := int32(elapsed / interval)
-	if max := waterwheelBucketDailyMax(); max > 0 && generated > max {
-		generated = max
+	count := int32(elapsed / interval)
+	if existMax := waterwheelBucketExistMax(); existMax > 0 && count > existMax {
+		count = existMax
 	}
-	// $bucketExistMax caps how many unclaimed buckets the client displays, but
-	// it should not reduce total generated progress below buckets already claimed.
-	if existMax := waterwheelBucketExistMax(); existMax > 0 && generated-s.wwClaimedCount > existMax {
-		generated = s.wwClaimedCount + existMax
+	if max := waterwheelBucketDailyMax(); max > 0 {
+		remaining := max - claimedCount
+		if remaining < 0 {
+			remaining = 0
+		}
+		if count > remaining {
+			count = remaining
+		}
 	}
-	return generated
-}
-
-func (s *State) waterwheelNextReadyMsLocked(now time.Time) int64 {
-	if s.wwCTimeMs <= 0 {
-		return 0
-	}
-	nextClaimIndex := int64(s.wwClaimedCount + 1)
-	return s.wwCTimeMs + int64(waterwheelBucketCreateInterval()/time.Millisecond)*nextClaimIndex
+	return count
 }
 
 // MaxLandID returns the highest land ID currently tracked.
