@@ -5,6 +5,7 @@ import { create } from "@bufbuild/protobuf";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import {
+  AlertTriangle,
   ArrowLeft,
   BadgeCheck,
   Building2,
@@ -23,6 +24,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -110,6 +112,7 @@ import type {
   AccountStatus,
   Event,
   GetSnapshotResponse,
+  InventoryLedgerItem,
   InventoryLedgerView,
   LandView,
   PlannedOperation,
@@ -180,6 +183,13 @@ type AccountQuota = {
   max: number;
   reached: boolean;
 };
+type WarehouseCategory = "flower" | "art" | "item";
+
+const WAREHOUSE_CATEGORIES: { id: WarehouseCategory; label: string; icon: ReactNode }[] = [
+  { id: "flower", label: "鲜花", icon: <Flower2 /> },
+  { id: "art", label: "花艺", icon: <Sparkles /> },
+  { id: "item", label: "道具", icon: <Package /> },
+];
 
 const SHOW_UNSUPPORTED_SETTINGS = false;
 
@@ -453,7 +463,7 @@ function DashboardContent() {
   }, [refreshSnapshot, refreshStatus, selectedAccountId]);
 
   useEffect(() => {
-    if (!selectedAccountId || !selectedConnected) {
+    if (!selectedAccountId) {
       setEvents([]);
       return;
     }
@@ -464,7 +474,7 @@ function DashboardContent() {
     async function readEvents() {
       try {
         for await (const event of queryClient.streamEvents(
-          { accountId: selectedAccountId },
+          { accountId: selectedAccountId, replayLimit: EVENT_LIMIT },
           { signal: controller.signal },
         )) {
           if (!active) return;
@@ -485,7 +495,7 @@ function DashboardContent() {
       active = false;
       controller.abort();
     };
-  }, [refreshSnapshot, selectedAccountId, selectedConnected]);
+  }, [refreshSnapshot, selectedAccountId]);
 
   async function runAccountAction(action: "login" | "logout") {
     if (!selectedAccount) return;
@@ -960,48 +970,66 @@ function HeaderPanel({
   const connected = accountConnected(account, status);
   const sessionAction = connected ? "logout" : "login";
   const identity = accountIdentity(account);
+  const statusIssues = accountStatusIssues(status);
   return (
     <Card>
-      <CardContent className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
-            <ArrowLeft className="size-4" />
-          </Button>
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <h1 className="truncate text-xl font-semibold">{identity.nickname}</h1>
-              <span className="text-sm text-muted-foreground">-</span>
-              <span className="text-sm text-muted-foreground">{identity.area}</span>
-              <span className="text-sm text-muted-foreground">-</span>
-              <span className="text-sm text-muted-foreground">{identity.channel}</span>
-              <HealthBadge account={account} status={status} />
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <h1 className="truncate text-xl font-semibold">{identity.nickname}</h1>
+                <span className="text-sm text-muted-foreground">-</span>
+                <span className="text-sm text-muted-foreground">{identity.area}</span>
+                <span className="text-sm text-muted-foreground">-</span>
+                <span className="text-sm text-muted-foreground">{identity.channel}</span>
+                <HealthBadge account={account} status={status} />
+              </div>
             </div>
           </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={snapshotLoading || !connected}>
+              <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
+            </IconButtonWithTooltip>
+            <IconButtonWithTooltip
+              label={connected ? "退出登录" : "登录"}
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => void onAction(sessionAction)}
+              disabled={busyAction === sessionAction}
+            >
+              {busyAction === sessionAction ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : connected ? (
+                <LogOut className="size-4" />
+              ) : (
+                <LogIn className="size-4" />
+              )}
+            </IconButtonWithTooltip>
+            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
+              <Trash2 className="size-4" />
+            </IconButtonWithTooltip>
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={snapshotLoading || !connected}>
-            <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
-          </IconButtonWithTooltip>
-          <IconButtonWithTooltip
-            label={connected ? "退出登录" : "登录"}
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={() => void onAction(sessionAction)}
-            disabled={busyAction === sessionAction}
-          >
-            {busyAction === sessionAction ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : connected ? (
-              <LogOut className="size-4" />
-            ) : (
-              <LogIn className="size-4" />
-            )}
-          </IconButtonWithTooltip>
-          <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
-            <Trash2 className="size-4" />
-          </IconButtonWithTooltip>
-        </div>
+        {statusIssues.length > 0 && (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+              <div className="min-w-0 space-y-1">
+                <div className="font-medium">异常信息</div>
+                {statusIssues.map((issue) => (
+                  <div key={issue} className="break-words text-destructive/90">
+                    {issue}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1077,7 +1105,7 @@ function CoreAssetsPanel({ snapshot }: { snapshot: GetSnapshotResponse | null })
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard icon={<Coins />} label="金币" value={snapshot?.gold ?? 0} />
-      <MetricCard icon={<Gem />} label="元宝" value={(snapshot?.diamondsFree ?? 0) + (snapshot?.diamondsPaid ?? 0)} />
+      <MetricCard icon={<Gem />} label="元宝" value={snapshot?.diamondsFree ?? 0} />
       <MetricCard icon={<Waves />} label="水滴" value={`${snapshot?.waterDrops ?? 0}/${snapshot?.waterDropsTotal ?? 0}`} />
       <MetricCard icon={<HandCoins />} label="花坊币" value={floralCoins} />
     </div>
@@ -1174,46 +1202,128 @@ function LandTile({ land }: { land: LandView }) {
   );
 }
 
+function warehouseCategoryForItem(item: InventoryLedgerItem): WarehouseCategory {
+  const id = item.itemId;
+  if (id >= 23000 && id < 24000) return "flower";
+  if (id >= 300000 && id < 400000) return "art";
+  return "item";
+}
+
+function warehouseCategoryLabel(category: WarehouseCategory) {
+  return WAREHOUSE_CATEGORIES.find((entry) => entry.id === category)?.label ?? "仓库";
+}
+
+function warehouseSearchPlaceholder(category: WarehouseCategory) {
+  switch (category) {
+    case "flower":
+      return "搜索花朵或 ID";
+    case "art":
+      return "搜索花艺或 ID";
+    case "item":
+      return "搜索道具或 ID";
+  }
+}
+
 function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
+  const [inventoryQuery, setInventoryQuery] = useState("");
+  const [warehouseCategory, setWarehouseCategory] = useState<WarehouseCategory>("flower");
   const inventoryItems = useMemo(() => {
     return [...(ledger?.items ?? [])]
       .filter((item) => item.owned > 0 || item.allocated > 0)
       .sort((a, b) => b.owned - a.owned || b.allocated - a.allocated || a.itemId - b.itemId);
   }, [ledger]);
-  const totalOwned = inventoryItems.reduce((sum, item) => sum + item.owned, 0);
-  const allocatedCount = inventoryItems.filter((item) => item.allocated > 0).length;
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<WarehouseCategory, number>();
+    for (const category of WAREHOUSE_CATEGORIES) counts.set(category.id, 0);
+    for (const item of inventoryItems) {
+      const category = warehouseCategoryForItem(item);
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+    return counts;
+  }, [inventoryItems]);
+  const categoryItems = useMemo(() => {
+    return inventoryItems.filter((item) => warehouseCategoryForItem(item) === warehouseCategory);
+  }, [inventoryItems, warehouseCategory]);
+  const visibleItems = useMemo(() => {
+    const query = inventoryQuery.trim().toLowerCase();
+    if (!query) return categoryItems;
+    return categoryItems.filter((item) => {
+      const name = item.itemName || itemName(item.itemId);
+      return name.toLowerCase().includes(query) || String(item.itemId).includes(query);
+    });
+  }, [categoryItems, inventoryQuery]);
+  const categoryLabel = warehouseCategoryLabel(warehouseCategory);
 
   return (
     <Card className="h-full">
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle>库存</CardTitle>
+          <CardTitle>仓库</CardTitle>
           {inventoryItems.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">物品 {inventoryItems.length}</Badge>
-              <Badge variant="outline">总数 {totalOwned}</Badge>
-              {allocatedCount > 0 && <Badge variant="outline">预留 {allocatedCount}</Badge>}
+            <div className="flex flex-wrap justify-end gap-1.5">
+              <Badge variant="secondary">种类 {inventoryItems.length}</Badge>
+              {inventoryQuery.trim() && <Badge variant="outline">匹配 {visibleItems.length}</Badge>}
             </div>
           )}
         </div>
+        {inventoryItems.length > 0 && (
+          <div className="grid gap-2 lg:grid-cols-[minmax(296px,1fr)_minmax(150px,0.65fr)] lg:items-center">
+            <div className="grid min-w-0 grid-cols-3 rounded-md border border-border/70 bg-muted/30 p-1">
+              {WAREHOUSE_CATEGORIES.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  aria-pressed={warehouseCategory === category.id}
+                  onClick={() => {
+                    setWarehouseCategory(category.id);
+                    setInventoryQuery("");
+                  }}
+                  className={cn(
+                    "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+                    warehouseCategory === category.id
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+                  )}
+                >
+                  <span className="shrink-0 [&_svg]:size-3.5">{category.icon}</span>
+                  <span className="shrink-0 whitespace-nowrap">{category.label}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{categoryCounts.get(category.id) ?? 0}</span>
+                </button>
+              ))}
+            </div>
+            <div className="relative min-w-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={inventoryQuery}
+                onChange={(event) => setInventoryQuery(event.target.value)}
+                placeholder={warehouseSearchPlaceholder(warehouseCategory)}
+                className="h-10 rounded-md bg-background pl-9"
+              />
+            </div>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         {inventoryItems.length === 0 ? (
-          <EmptyState title="暂无库存数据" />
+          <EmptyState title="暂无仓库数据" />
+        ) : categoryItems.length === 0 ? (
+          <EmptyState title={`暂无${categoryLabel}`} />
+        ) : visibleItems.length === 0 ? (
+          <EmptyState title={`没有匹配${categoryLabel}`} detail="换个名称或 ID 再试试" />
         ) : (
-          <div className="dark-scrollbar h-[560px] overflow-y-auto rounded-md border border-border/70">
+          <div className="dark-scrollbar h-[560px] overflow-y-auto rounded-md border border-border/70 bg-background/50">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>物品</TableHead>
-                  <TableHead>库存</TableHead>
-                  <TableHead>预留</TableHead>
-                  <TableHead>可用</TableHead>
+              <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_var(--border)]">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="h-9 text-xs">名称</TableHead>
+                  <TableHead className="h-9 text-xs">数量</TableHead>
+                  <TableHead className="h-9 text-xs">预留</TableHead>
+                  <TableHead className="h-9 text-xs">可用</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inventoryItems.map((item) => (
-                  <TableRow key={item.itemId}>
+                {visibleItems.map((item) => (
+                  <TableRow key={item.itemId} className="h-10 hover:bg-muted/35">
                     <TableCell className="min-w-0">
                       <div className="flex min-w-0 items-baseline gap-2">
                         <span className="truncate font-medium">{item.itemName || itemName(item.itemId)}</span>
@@ -2386,9 +2496,28 @@ function EmptyState({ title, detail }: { title: string; detail?: string }) {
 
 function HealthBadge({ account, status }: { account: Account; status?: AccountStatus }) {
   const connected = accountConnected(account, status);
+  if (accountStatusIssues(status).length > 0) return <Badge variant="destructive">异常</Badge>;
   if (!connected) return <Badge variant="outline">离线</Badge>;
   if (status?.health === "blocked" || status?.lastError) return <Badge variant="destructive">异常</Badge>;
   return <Badge variant="secondary">在线</Badge>;
+}
+
+function accountStatusIssues(status?: AccountStatus) {
+  const diagnostics = status?.diagnostics;
+  const issues = [
+    status?.lastError,
+    diagnostics?.lastOperationError,
+    diagnostics?.sessionInvalidatedReason,
+    ...(diagnostics?.blockedReasons ?? []),
+  ]
+    .map((issue) => issue?.trim())
+    .filter((issue): issue is string => Boolean(issue));
+
+  if (status?.health === "blocked" && issues.length === 0) {
+    issues.push("账号处于异常状态，但后端未返回具体原因。");
+  }
+
+  return [...new Set(issues)];
 }
 
 function OperationStatusBadge({ operation }: { operation: PlannedOperation }) {

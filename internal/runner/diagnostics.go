@@ -70,6 +70,9 @@ func (r *Runner) beginOperation(kind string) func(error) {
 		if err != nil {
 			r.lastOperationError = err.Error()
 			r.lastOperationErrorAt = r.lastOperationAt
+			return
 		}
+		r.lastOperationError = ""
+		r.lastOperationErrorAt = time.Time{}
 	}
 }

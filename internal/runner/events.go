@@ -223,7 +223,7 @@ func eventCategory(kind string) string {
 	switch kind {
 	case "session", "session_expired", "ws_disconnected":
 		return "account"
-	case "operation_planned", "operation_ack", "operation_failed":
+	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
 		return "plant"
 	case "policy_changed":
 		return "system"
@@ -273,7 +273,7 @@ func eventDomain(kind string) string {
 		return "farm.land"
 	case "land_unlock":
 		return "farm.land"
-	case "operation_planned", "operation_ack", "operation_failed":
+	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
 		return "farm.operation"
 	case "waterwheel":
 		return "basic.waterwheel"
@@ -318,6 +318,8 @@ func eventDomain(kind string) string {
 
 func eventAction(kind string) string {
 	switch {
+	case kind == "operation_deferred":
+		return "blocked"
 	case strings.HasSuffix(kind, "_failed"):
 		return "failed"
 	case strings.Contains(kind, "changed"):
@@ -362,6 +364,8 @@ func eventLabel(kind string) string {
 		return "完成"
 	case "operation_failed":
 		return "失败"
+	case "operation_deferred":
+		return "暂缓"
 	case "policy_changed":
 		return "策略"
 	case "waterwheel":
@@ -415,7 +419,8 @@ func eventLevel(kind, message string) string {
 	if strings.Contains(kind, "failed") || strings.Contains(message, "失败") {
 		return "error"
 	}
-	if kind == "session_expired" ||
+	if kind == "operation_deferred" ||
+		kind == "session_expired" ||
 		strings.Contains(message, "跳过") ||
 		strings.Contains(message, "缺少") ||
 		strings.Contains(message, "需要") {

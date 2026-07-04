@@ -3,10 +3,12 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
@@ -15,6 +17,7 @@ import (
 
 const (
 	harvestRetryWait      = 30 * time.Second
+	harvestRPCInterval    = 120 * time.Millisecond
 	waterSourceSyncPeriod = 60 * time.Second
 )
 
@@ -71,11 +74,7 @@ func (r *Runner) tick(ctx context.Context) {
 		return
 	}
 
-	op := automation.Plan(r.state, p, now)
-	if op == nil {
-		return
-	}
-	op = r.applyHarvestBlocks(op, now)
+	op := r.nextRunnableOperation(p, now)
 	if op == nil {
 		return
 	}
@@ -147,21 +146,53 @@ func (r *Runner) tick(ctx context.Context) {
 	})
 	v, err := r.executePlannedOp(ctx, client, session, op)
 	if err != nil {
-		opErr = err
 		if isHarvestOp(op.Kind) && isFlowerNotMatureError(err) {
-			r.setHarvestBlockedUntil(op.LandIDs, time.Now().Add(harvestRetryWait))
+			landIDs := op.LandIDs
+			var landErr *harvestLandError
+			if errors.As(err, &landErr) && landErr.LandID != 0 {
+				landIDs = []int32{landErr.LandID}
+			}
+			r.setHarvestBlockedUntil(landIDs, time.Now().Add(harvestRetryWait))
 			r.emit(Event{
-				Kind:        "operation_failed",
+				Kind:        "operation_deferred",
 				Category:    op.Category,
 				Domain:      op.Domain,
 				Action:      "blocked",
-				Message:     fmt.Sprintf("%s 暂缓: 服务端提示鲜花尚未成熟，稍后重试 (田地=%v)", opDesc(op), op.LandIDs),
+				Message:     fmt.Sprintf("%s 暂缓: 服务端提示鲜花尚未成熟，稍后重试 (田地=%v)", opDesc(op), landIDs),
 				PayloadJSON: operationPayload(op, args, nil, err),
 				Level:       "warn",
 			})
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "retryAfterSeconds": int(harvestRetryWait.Seconds())})
 			return
 		}
+		if isResidentOrderCooldownError(op.Kind, err) {
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Message:     fmt.Sprintf("%s 暂缓: 服务端提示订单冷却中，稍后重试", opDesc(op)),
+				PayloadJSON: operationPayload(op, args, nil, err),
+				Level:       "warn",
+			})
+			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "cooldown"})
+			return
+		}
+		if isWaterwheelInvalidDataError(op.Kind, err) {
+			r.state.MarkWaterwheelUnavailable(time.Now())
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Message:     fmt.Sprintf("%s 暂缓: 服务端提示水车数据暂不可领取，稍后重试", opDesc(op)),
+				PayloadJSON: operationPayload(op, args, nil, err),
+				Level:       "warn",
+			})
+			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "invalid_state"})
+			return
+		}
+		opErr = err
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Category:    op.Category,
@@ -189,6 +220,27 @@ func (r *Runner) tick(ctx context.Context) {
 	if isWaterOp(op.Kind) && !waterResponseIncludesDrops(v) {
 		r.state.MarkLandsWatered(op.LandIDs)
 	}
+}
+
+func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automation.PlannedOp {
+	for _, candidate := range automation.PlanOperations(r.state, policy, now) {
+		if !runnablePlannedOp(candidate) {
+			continue
+		}
+		op := candidate
+		if filtered := r.applyHarvestBlocks(&op, now); filtered != nil {
+			return filtered
+		}
+	}
+	return nil
+}
+
+func runnablePlannedOp(op automation.PlannedOp) bool {
+	return op.Executable &&
+		!op.SyncOnly &&
+		op.Status != automation.PlanStatusAdapterMissing &&
+		op.Status != automation.PlanStatusBlocked &&
+		len(op.BlockedReasons) == 0
 }
 
 func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time) error {
@@ -242,8 +294,7 @@ func (r *Runner) checkCostGate(gate automation.CostGate, now time.Time) error {
 			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "金币"), required, available)
 		}
 	case automation.GateResourceDiamond:
-		free, paid := r.state.Diamonds()
-		available := int64(free + paid)
+		available := int64(r.state.SpendableDiamonds())
 		if available < required {
 			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "元宝"), required, available)
 		}
@@ -298,7 +349,19 @@ func (r *Runner) applyHarvestBlocks(op *automation.PlannedOp, now time.Time) *au
 	if !anyBlocked {
 		return op
 	}
-	return nil
+	landIDs := make([]int32, 0, len(op.LandIDs)-len(blocked))
+	for _, id := range op.LandIDs {
+		if !blocked[id] {
+			landIDs = append(landIDs, id)
+		}
+	}
+	if len(landIDs) == 0 {
+		return nil
+	}
+	cp := *op
+	cp.LandIDs = landIDs
+	cp.Count = int32(len(landIDs))
+	return &cp
 }
 
 type operationRuntime struct {
@@ -313,18 +376,10 @@ type operationSpec struct {
 }
 
 var plannedOperationSpecs = map[string]operationSpec{
-	clientproto.RPCUsrLandHarvest.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.UsrLandHarvestRequest, error) {
-			landID, err := plannedOpSingleLandID(op)
-			if err != nil {
-				return clientproto.UsrLandHarvestRequest{}, err
-			}
-			return clientproto.UsrLandHarvestRequest{LandId: landID}, nil
-		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrLandHarvestRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.UsrLand().Harvest(ctx, req)
-		},
-	),
+	clientproto.RPCUsrLandHarvest.String(): {
+		args: harvestOperationArgs,
+		run:  runUsrLandHarvest,
+	},
 	clientproto.RPCUsrLandPlantBatch.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.UsrLandPlantBatchRequest, error) {
 			if op.FlowerID == 0 {
@@ -751,6 +806,85 @@ func staticAnyRequest(req any) func(*automation.PlannedOp) (any, error) {
 	}
 }
 
+func harvestRequests(op *automation.PlannedOp) ([]clientproto.UsrLandHarvestRequest, error) {
+	if op == nil || len(op.LandIDs) == 0 {
+		return nil, fmt.Errorf("operation %s requires at least one land id", clientproto.RPCUsrLandHarvest.String())
+	}
+	reqs := make([]clientproto.UsrLandHarvestRequest, 0, len(op.LandIDs))
+	for _, landID := range op.LandIDs {
+		if landID == 0 {
+			return nil, fmt.Errorf("operation %s has empty land id", clientproto.RPCUsrLandHarvest.String())
+		}
+		reqs = append(reqs, clientproto.UsrLandHarvestRequest{LandId: landID})
+	}
+	return reqs, nil
+}
+
+func harvestOperationArgs(op *automation.PlannedOp) (any, error) {
+	reqs, err := harvestRequests(op)
+	if err != nil {
+		return nil, err
+	}
+	if len(reqs) == 1 {
+		return reqs[0], nil
+	}
+	return reqs, nil
+}
+
+type harvestCallResult struct {
+	LandID int32           `json:"landId"`
+	Raw    json.RawMessage `json:"raw,omitempty"`
+}
+
+type harvestLandError struct {
+	LandID int32
+	Err    error
+}
+
+func (e *harvestLandError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
+	}
+	return fmt.Sprintf("land %d: %v", e.LandID, e.Err)
+}
+
+func (e *harvestLandError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func runUsrLandHarvest(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	reqs, err := harvestRequests(op)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]harvestCallResult, 0, len(reqs))
+	for i, req := range reqs {
+		raw, err := checkedStateDelta(rt.rpc.UsrLand().Harvest(ctx, req))
+		if err != nil {
+			return nil, &harvestLandError{LandID: req.LandId, Err: err}
+		}
+		results = append(results, harvestCallResult{LandID: req.LandId, Raw: raw})
+		if i == len(reqs)-1 || harvestRPCInterval <= 0 {
+			continue
+		}
+		timer := time.NewTimer(harvestRPCInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	raw, err := json.Marshal(results)
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
 func stateDeltaOperation[Req any](
 	build func(*automation.PlannedOp) (Req, error),
 	call func(context.Context, *clientrpc.Client, Req) (babigame.RPCResponse[clientproto.StateDelta], error),
@@ -908,6 +1042,14 @@ func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.
 
 func isFlowerNotMatureError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "鲜花尚未成熟")
+}
+
+func isResidentOrderCooldownError(kind string, err error) bool {
+	return kind == clientproto.RPCOrderFlowerFinishOrder.String() && err != nil && strings.Contains(err.Error(), "冷却中")
+}
+
+func isWaterwheelInvalidDataError(kind string, err error) bool {
+	return kind == clientproto.RPCWaterwheelRecv.String() && err != nil && strings.Contains(err.Error(), "数据有误")
 }
 
 func waterResponseIncludesDrops(raw json.RawMessage) bool {

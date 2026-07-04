@@ -2,6 +2,7 @@ package runner
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -64,6 +65,29 @@ func TestWaterBatchUsesWaterOperationPath(t *testing.T) {
 	}
 	if len(waterBatch.LandIds) != 2 || waterBatch.LandIds[0] != 1001 || waterBatch.LandIds[1] != 1002 {
 		t.Fatalf("UsrLandWaterBatchRequest.LandIds=%v, want [1001 1002]", waterBatch.LandIds)
+	}
+}
+
+func TestHarvestOperationArgsAllowsBatch(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCUsrLandHarvest.String(), LandIDs: []int32{1001, 1002}})
+	if err != nil {
+		t.Fatalf("operationArgs(harvest batch): %v", err)
+	}
+	reqs, ok := args.([]clientproto.UsrLandHarvestRequest)
+	if !ok {
+		t.Fatalf("operationArgs(harvest batch)=%T, want []UsrLandHarvestRequest", args)
+	}
+	if len(reqs) != 2 || reqs[0].LandId != 1001 || reqs[1].LandId != 1002 {
+		t.Fatalf("harvest requests=%+v, want land IDs [1001 1002]", reqs)
+	}
+
+	args, err = operationArgs(&automation.PlannedOp{Kind: clientproto.RPCUsrLandHarvest.String(), LandIDs: []int32{1003}})
+	if err != nil {
+		t.Fatalf("operationArgs(harvest single): %v", err)
+	}
+	req, ok := args.(clientproto.UsrLandHarvestRequest)
+	if !ok || req.LandId != 1003 {
+		t.Fatalf("operationArgs(harvest single)=%T %+v, want landId 1003", args, args)
 	}
 }
 
@@ -358,6 +382,23 @@ func TestApplyHarvestBlocksSkipsBlockedSingleLand(t *testing.T) {
 	}
 }
 
+func TestApplyHarvestBlocksFiltersBlockedLandFromBatch(t *testing.T) {
+	now := time.Now()
+	r := &Runner{harvestBlockedUntil: map[int32]time.Time{1002: now.Add(time.Minute)}}
+	op := &automation.PlannedOp{
+		Kind:    "usrLand.harvest",
+		LandIDs: []int32{1001, 1002, 1003},
+	}
+
+	got := r.applyHarvestBlocks(op, now)
+	if got == nil {
+		t.Fatal("applyHarvestBlocks()=nil, want remaining harvest lands")
+	}
+	if len(got.LandIDs) != 2 || got.LandIDs[0] != 1001 || got.LandIDs[1] != 1003 {
+		t.Fatalf("filtered LandIDs=%v, want [1001 1003]", got.LandIDs)
+	}
+}
+
 func TestOneKeyOperationSpecsRemoved(t *testing.T) {
 	for _, kind := range []string{
 		clientproto.RPCUsrLandHarvestOneKey.String(),
@@ -372,6 +413,61 @@ func TestOneKeyOperationSpecsRemoved(t *testing.T) {
 	}
 }
 
+func TestNextRunnableOperationFallsThroughBlockedHarvest(t *testing.T) {
+	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"7": 6}}},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3},
+			"1002": map[string]any{"0": 23002, "1": 1},
+		}},
+	})
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Plant.Flower.AutoEnabled = true
+	r := &Runner{
+		state:               st,
+		harvestBlockedUntil: map[int32]time.Time{1001: now.Add(time.Minute)},
+	}
+
+	op := r.nextRunnableOperation(policy, now)
+	if op == nil || op.Kind != clientproto.RPCUsrLandWater.String() || len(op.LandIDs) != 1 || op.LandIDs[0] != 1002 {
+		t.Fatalf("nextRunnableOperation()=%+v, want water op for 1002", op)
+	}
+}
+
+func TestNextRunnableOperationFallsThroughWaterwheelBackoff(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"114": map[string]any{
+			"1": 1,
+			"4": now.Add(-time.Hour).UnixMilli(),
+		},
+		"117": map[string]any{
+			"1": 2,
+			"2": now.UnixMilli(),
+		},
+	})
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.WaterwheelEnabled = true
+	policy.Basic.FreeWaterEnabled = true
+	r := &Runner{state: st}
+
+	op := r.nextRunnableOperation(policy, now)
+	if op == nil || op.Kind != clientproto.RPCWaterwheelRecv.String() {
+		t.Fatalf("nextRunnableOperation()=%+v, want waterwheel before backoff", op)
+	}
+
+	st.MarkWaterwheelUnavailable(now)
+	op = r.nextRunnableOperation(policy, now)
+	if op == nil || op.Kind != clientproto.RPCFreeWaterRecv.String() {
+		t.Fatalf("nextRunnableOperation()=%+v, want free water while waterwheel is backed off", op)
+	}
+}
+
 func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 	now := time.Now()
 	r := &Runner{harvestBlockedUntil: map[int32]time.Time{1002: now.Add(-time.Second)}}
@@ -382,6 +478,16 @@ func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 
 	if got := r.applyHarvestBlocks(op, now); got != op {
 		t.Fatalf("applyHarvestBlocks()=%+v, want original op", got)
+	}
+}
+
+func TestIsWaterwheelInvalidDataError(t *testing.T) {
+	err := errors.New("rpc waterwheel.recv: server: 数据有误")
+	if !isWaterwheelInvalidDataError(clientproto.RPCWaterwheelRecv.String(), err) {
+		t.Fatal("isWaterwheelInvalidDataError = false, want true")
+	}
+	if isWaterwheelInvalidDataError(clientproto.RPCFreeWaterRecv.String(), err) {
+		t.Fatal("isWaterwheelInvalidDataError matched the wrong rpc")
 	}
 }
 

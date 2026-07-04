@@ -67,8 +67,8 @@
 //	7.0.33.7.5 int64              Water drops next recovery timestamp (ms)
 //	7.0.34     int                Player level
 //	7.0.35     int                Experience points
-//	7.0.41     int                Diamonds (free)
-//	7.0.42     int                Diamonds (paid)
+//	7.0.41     int                元宝 shown by the game top bar / spendable gate balance
+//	7.0.42     int                Secondary diamond balance; tracked separately, not added to 7.0.41
 //	7.0.44     int                Gold coins
 //	7.13.1.104 int                usrExtra.antiFraudQAStatus; 2 means the QA reward is claimed
 //	7.13.1.105 int64              usrExtra.lastAntiFraudQATime timestamp (ms)

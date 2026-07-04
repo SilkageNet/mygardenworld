@@ -15,3 +15,17 @@ func TestHostFilter(t *testing.T) {
 		}
 	}
 }
+
+func TestHostFilterGlob(t *testing.T) {
+	f := newHostFilter([]string{"hy2gnhf*.babigame.cn", "hygnhf*.babigame.cn"})
+	for _, host := range []string{"hy2gnhf118.babigame.cn:54825", "hygnhf2.babigame.cn"} {
+		if !f.Match(host) {
+			t.Fatalf("expected match for %s", host)
+		}
+	}
+	for _, host := range []string{"api.babigame.cn", "moac.babigame.cn", "babigame.cn"} {
+		if f.Match(host) {
+			t.Fatalf("unexpected match for %s", host)
+		}
+	}
+}

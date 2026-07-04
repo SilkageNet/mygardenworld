@@ -57,6 +57,65 @@ func hasReasonContaining(reasons []string, part string) bool {
 	return false
 }
 
+func TestRecommend_State2WaitsForHarvestGrace(t *testing.T) {
+	now := time.Date(2026, 7, 3, 15, 3, 59, 0, time.UTC)
+	land := state.LandView{
+		Observed:   true,
+		FlowerID:   23001,
+		State:      2,
+		NextTimeMs: now.Add(-1 * time.Second).UnixMilli(),
+	}
+
+	if kind, reason := Recommend(land, now); kind != KindWait {
+		t.Fatalf("state=2 should wait inside harvest grace, got kind=%s reason=%s", kind, reason)
+	}
+
+	land.NextTimeMs = now.Add(-harvestReadyGrace - time.Second).UnixMilli()
+	if kind, reason := Recommend(land, now); kind != KindHarvest {
+		t.Fatalf("state=2 should harvest after harvest grace, got kind=%s reason=%s", kind, reason)
+	}
+}
+
+func TestRecommend_State3HarvestsImmediately(t *testing.T) {
+	now := time.Date(2026, 7, 3, 15, 3, 59, 0, time.UTC)
+	land := state.LandView{
+		Observed: true,
+		FlowerID: 23001,
+		State:    3,
+	}
+
+	if kind, reason := Recommend(land, now); kind != KindHarvest {
+		t.Fatalf("state=3 should harvest immediately, got kind=%s reason=%s", kind, reason)
+	}
+}
+
+func TestBuildPlan_HarvestGroupsReadyLands(t *testing.T) {
+	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3},
+			"1002": map[string]any{"0": 23002, "1": 3},
+			"1003": map[string]any{"0": 23003, "1": 1},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Flower.AutoEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind != clientproto.RPCUsrLandHarvest.String() {
+			continue
+		}
+		if len(op.LandIDs) != 2 || op.LandIDs[0] != 1001 || op.LandIDs[1] != 1002 {
+			t.Fatalf("harvest LandIDs=%v, want [1001 1002]", op.LandIDs)
+		}
+		return
+	}
+	t.Fatalf("missing harvest op: %+v", result.Operations)
+}
+
 func TestBuildPlan_ResidentNormalDisabledDoesNotDemandOrSubmit(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -154,6 +213,38 @@ func TestBuildPlan_ResidentMissingStatisticsStillSubmitsWithDiagnosticReason(t *
 		}
 	}
 	t.Fatalf("missing resident submit when statistics are absent: %+v", result.Operations)
+}
+
+func TestBuildPlan_ResidentCooldownSkipsSubmit(t *testing.T) {
+	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}, "4": now.Add(30 * time.Second).UnixMilli(), "5": now.UnixMilli()},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 10
+
+	result := BuildPlan(s, p, now)
+	var sawCooldown bool
+	for _, op := range result.Operations {
+		if op.Kind != clientproto.RPCOrderFlowerFinishOrder.String() {
+			continue
+		}
+		if op.Executable {
+			t.Fatalf("resident submit should not execute during cooldown: %+v", op)
+		}
+		if op.TargetID == 1 && op.Status == PlanStatusSkipped && strings.Contains(op.Reason, "冷却中") {
+			sawCooldown = true
+		}
+	}
+	if !sawCooldown {
+		t.Fatalf("missing cooldown skip operation: %+v", result.Operations)
+	}
 }
 
 func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
@@ -605,10 +696,10 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 		"19": map[string]any{"1": []any{
 			map[string]any{"1": 101, "2": 201, "13": [][]int32{{1, 5}}, "20": 0},
 		}},
-		"100": map[string]any{"0": map[string]any{"1": map[string]any{
-			"1001": map[string]any{"1": 23005, "2": 3, "4": now.Add(-time.Minute).UnixMilli()},
-			"1002": map[string]any{"1": 23007, "2": 1},
-		}}},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23005, "1": 3, "5": now.Add(-time.Minute).UnixMilli()},
+			"1002": map[string]any{"0": 23007, "1": 1},
+		}},
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
@@ -620,6 +711,57 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 		if strings.Contains(op.Kind, "OneKey") || strings.Contains(op.Kind, "oneKey") {
 			t.Fatalf("OneKey operation should not be generated: %+v", op)
 		}
+	}
+}
+
+func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
+	now := time.Now()
+	cases := []struct {
+		name      string
+		drops     int32
+		total     int32
+		threshold int32
+		wantOps   bool
+	}{
+		{name: "below capacity", drops: 12, total: 130, wantOps: true},
+		{name: "at capacity", drops: 130, total: 130, wantOps: false},
+		{name: "above threshold", drops: 80, total: 130, threshold: 50, wantOps: false},
+		{name: "below threshold", drops: 20, total: 130, threshold: 50, wantOps: true},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			s := state.New()
+			applyMap(t, s, map[string]any{
+				"7": map[string]any{"0": map[string]any{
+					"32": map[string]any{"7": tt.drops},
+					"33": map[string]any{"7": map[string]any{"1": tt.total}},
+				}},
+				"114": map[string]any{
+					"1": 1,
+					"4": now.Add(-time.Hour).UnixMilli(),
+				},
+				"117": map[string]any{
+					"1": 2,
+					"2": now.UnixMilli(),
+				},
+			})
+			p := DefaultPolicy()
+			p.AutomationEnabled = true
+			p.Basic.WaterwheelEnabled = true
+			p.Basic.FreeWaterEnabled = true
+			p.Basic.WaterClaimThreshold = tt.threshold
+
+			result := BuildPlan(s, p, now)
+			gotWaterwheel := false
+			gotFreeWater := false
+			for _, op := range result.Operations {
+				gotWaterwheel = gotWaterwheel || op.Kind == clientproto.RPCWaterwheelRecv.String()
+				gotFreeWater = gotFreeWater || op.Kind == clientproto.RPCFreeWaterRecv.String()
+			}
+			if gotWaterwheel != tt.wantOps || gotFreeWater != tt.wantOps {
+				t.Fatalf("water claims = (%t,%t), want both %t; ops=%+v", gotWaterwheel, gotFreeWater, tt.wantOps, result.Operations)
+			}
+		})
 	}
 }
 
@@ -1182,6 +1324,43 @@ func TestBuildPlan_UnionBuildDiamondBlocked(t *testing.T) {
 			}
 			return
 		}
+	}
+	t.Fatalf("missing blocked union build op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionBuildDiamondUsesVisibleBalanceOnly(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"41": 50, "42": 1000}},
+		"25": map[string]any{
+			"133": map[string]any{"1": 88, "5": map[string]any{"3": 0}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Build.DiamondEnabled = true
+	p.Union.Build.MaxSpendDiamond = 200
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain != "union.build" {
+			continue
+		}
+		if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 106 || op.Executable {
+			t.Fatalf("diamond union build op mismatch: %+v", op)
+		}
+		if !hasReasonContaining(op.BlockedReasons, "元宝不足") {
+			t.Fatalf("blocked reasons = %v, want 元宝不足", op.BlockedReasons)
+		}
+		for _, gate := range op.CostGates {
+			if gate.ResourceKind == GateResourceDiamond {
+				if gate.Available != 50 {
+					t.Fatalf("diamond gate available = %d, want 50", gate.Available)
+				}
+				return
+			}
+		}
+		t.Fatalf("missing diamond cost gate: %+v", op)
 	}
 	t.Fatalf("missing blocked union build op: %+v", result.Operations)
 }

@@ -99,6 +99,26 @@ type FlowerOrder struct {
 	BoxID    int32           `json:"box_id"`
 	Mode     int32           `json:"mode,omitempty"`
 	Requires []FlowerRequire `json:"requires"`
+	CdTimeMs int64           `json:"cd_time_ms,omitempty"`
+	CTimeMs  int64           `json:"c_time_ms,omitempty"`
+}
+
+func (o *FlowerOrder) CooldownReady(now time.Time) bool {
+	if o == nil || o.CdTimeMs <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(o.CdTimeMs))
+}
+
+func (o *FlowerOrder) CooldownRemaining(now time.Time) time.Duration {
+	if o == nil || o.CdTimeMs <= 0 {
+		return 0
+	}
+	remaining := time.UnixMilli(o.CdTimeMs).Sub(now)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 // CustomerOrder represents a customer order from namespace 109 (orderCustomer).
@@ -486,8 +506,8 @@ type State struct {
 	experience         int32           // 7.0.35 经验
 	vip                int32           // 7.0.36 VIP level
 	vipExp             int32           // 7.0.37 VIP exp
-	diamondsFree       int32           // 7.0.41 免费钻石
-	diamondsPaid       int32           // 7.0.42 付费钻石
+	diamondsFree       int32           // 7.0.41 游戏顶部显示/可用于门槛的元宝
+	diamondsPaid       int32           // 7.0.42 observed secondary diamond balance; do not add to visible 元宝
 	roleID             int64
 
 	rawNamespaces   map[string]json.RawMessage
@@ -501,6 +521,8 @@ type State struct {
 
 	wwClaimedCount int32 // 114.1 水车已领取总次数
 	wwLastRecvTs   int64 // 114.4 uTime; used as the latest observed claim/update timestamp
+	wwCTimeMs      int64 // 114.5 cTime; bucket generation anchor
+	wwBackoffUntil int64 // local guard after the server says the bucket state is invalid
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
 
@@ -1303,6 +1325,12 @@ func (s *State) applyWaterwheelLocked(raw json.RawMessage) {
 		var n int64
 		if json.Unmarshal(v, &n) == nil {
 			s.wwLastRecvTs = n
+		}
+	}
+	if v, ok := ns114["5"]; ok {
+		var n int64
+		if json.Unmarshal(v, &n) == nil {
+			s.wwCTimeMs = n
 		}
 	}
 }
@@ -2314,6 +2342,12 @@ func (s *State) applyFlowerOrdersLocked(raw json.RawMessage) {
 				// field "2" = [[flowerId, count], ...]
 				if rawReqs, ok := fields["2"]; ok {
 					order.Requires = parseFlowerRequires(rawReqs)
+				}
+				if rawCdTime, ok := fields["4"]; ok {
+					_ = json.Unmarshal(rawCdTime, &order.CdTimeMs)
+				}
+				if rawCTime, ok := fields["5"]; ok {
+					_ = json.Unmarshal(rawCTime, &order.CTimeMs)
 				}
 				s.flowerOrders[boxID] = order
 			}
@@ -3379,11 +3413,20 @@ func (s *State) Experience() int32 {
 	return s.experience
 }
 
-// Diamonds returns free and paid diamond balances (7.0.41, 7.0.42).
-func (s *State) Diamonds() (free int32, paid int32) {
+// Diamonds returns visible and secondary diamond balances (7.0.41, 7.0.42).
+func (s *State) Diamonds() (visible int32, paid int32) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.diamondsFree, s.diamondsPaid
+}
+
+// SpendableDiamonds returns the 元宝 balance shown by the game client.
+// Observed clients display namespace 7.0.41; namespace 7.0.42 is tracked
+// separately and must not be added to the visible/spendable balance.
+func (s *State) SpendableDiamonds() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.diamondsFree
 }
 
 // Resources returns a snapshot of all tracked resource fields.
@@ -3459,6 +3502,18 @@ func (s *State) WaterwheelReady() int32 {
 	return 0
 }
 
+// MarkWaterwheelUnavailable temporarily suppresses local waterwheel claim
+// attempts when the server says the generated bucket state is invalid.
+func (s *State) MarkWaterwheelUnavailable(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nextMs := s.waterwheelNextReadyMsLocked(now)
+	if nextMs <= now.UnixMilli() {
+		nextMs = now.Add(waterwheelBucketCreateInterval()).UnixMilli()
+	}
+	s.wwBackoffUntil = nextMs
+}
+
 func waterwheelBucketCreateInterval() time.Duration {
 	raw, ok := catalog.Tables["c_waterwheel"].Rows["-1"]
 	if !ok {
@@ -3487,19 +3542,72 @@ func waterwheelBucketDailyMax() int32 {
 	return readInt32Any(row["$bucketGetMax"])
 }
 
+func waterwheelBucketExistMax() int32 {
+	raw, ok := catalog.Tables["c_waterwheel"].Rows["-1"]
+	if !ok {
+		return 0
+	}
+	var row map[string]any
+	if json.Unmarshal(raw, &row) != nil {
+		return 0
+	}
+	return readInt32Any(row["$bucketExistMax"])
+}
+
 // WaterwheelCooldownReady returns true if the local bucket-generation clock
 // says a waterwheel claim can be attempted. The client config uses
-// c_waterwheel.$bucketCreateCd seconds between generated buckets.
+// c_waterwheel.$bucketCreateCd seconds between generated buckets. Namespace
+// 114.1 tracks claimed buckets, and 114.5 anchors the generation clock; the
+// client only shows up to $bucketExistMax generated buckets at once.
 func (s *State) WaterwheelCooldownReady() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	nowMs := time.Now().UnixMilli()
+	if s.wwBackoffUntil > nowMs {
+		return false
+	}
 	if max := waterwheelBucketDailyMax(); max > 0 && s.wwClaimedCount >= max {
 		return false
+	}
+	if s.wwCTimeMs > 0 {
+		return s.waterwheelGeneratedCountLocked(time.Now()) > s.wwClaimedCount
 	}
 	if s.wwLastRecvTs == 0 {
 		return true
 	}
-	return time.Duration(time.Now().UnixMilli()-s.wwLastRecvTs)*time.Millisecond >= waterwheelBucketCreateInterval()
+	return time.Duration(nowMs-s.wwLastRecvTs)*time.Millisecond >= waterwheelBucketCreateInterval()
+}
+
+func (s *State) waterwheelGeneratedCountLocked(now time.Time) int32 {
+	if s.wwCTimeMs <= 0 {
+		return 0
+	}
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 {
+		return 0
+	}
+	elapsed := time.Duration(now.UnixMilli()-s.wwCTimeMs) * time.Millisecond
+	if elapsed < 0 {
+		return 0
+	}
+	generated := int32(elapsed / interval)
+	if max := waterwheelBucketDailyMax(); max > 0 && generated > max {
+		generated = max
+	}
+	// $bucketExistMax caps how many unclaimed buckets the client displays, but
+	// it should not reduce total generated progress below buckets already claimed.
+	if existMax := waterwheelBucketExistMax(); existMax > 0 && generated-s.wwClaimedCount > existMax {
+		generated = s.wwClaimedCount + existMax
+	}
+	return generated
+}
+
+func (s *State) waterwheelNextReadyMsLocked(now time.Time) int64 {
+	if s.wwCTimeMs <= 0 {
+		return 0
+	}
+	nextClaimIndex := int64(s.wwClaimedCount + 1)
+	return s.wwCTimeMs + int64(waterwheelBucketCreateInterval()/time.Millisecond)*nextClaimIndex
 }
 
 // MaxLandID returns the highest land ID currently tracked.

@@ -43,6 +43,26 @@ func TestApplyV_DiagnosticsTrackNamespacesAndNoble(t *testing.T) {
 	}
 }
 
+func TestSpendableDiamondsUsesVisibleBalanceOnly(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"0": map[string]any{
+				"41": 598,
+				"42": 3239,
+			},
+		},
+	})
+
+	visible, secondary := s.Diamonds()
+	if visible != 598 || secondary != 3239 {
+		t.Fatalf("Diamonds() = (%d,%d), want (598,3239)", visible, secondary)
+	}
+	if got := s.SpendableDiamonds(); got != 598 {
+		t.Fatalf("SpendableDiamonds() = %d, want 598", got)
+	}
+}
+
 func TestApplyV_UsrExtraTracksAntiFraudQA(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
@@ -769,6 +789,56 @@ func TestWaterwheelCooldownUsesBucketCreateInterval(t *testing.T) {
 	}
 }
 
+func TestWaterwheelUnavailableBackoffSuppressesReady(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 1,
+			"4": time.Now().Add(-interval - time.Second).UnixMilli(),
+		},
+	})
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false, want initially ready")
+	}
+
+	s.MarkWaterwheelUnavailable(time.Now())
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true, want false during local backoff")
+	}
+}
+
+func TestWaterwheelCooldownUsesGeneratedBucketCount(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 2,
+			"5": now.Add(-2 * interval).UnixMilli(),
+		},
+	})
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true, want false when claimed count has caught up to generated buckets")
+	}
+
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 2,
+			"5": now.Add(-3 * interval).UnixMilli(),
+		},
+	})
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false, want true when generated bucket count exceeds claimed count")
+	}
+}
+
 func TestApplyV_FreeWaterTracksNextIndex(t *testing.T) {
 	s := New()
 	if _, ok := s.NextFreeWaterIndex(); ok {
@@ -1295,6 +1365,34 @@ func TestApplyV_ResidentOrderRewardPartialUpdatePreservesOrders(t *testing.T) {
 	orders := s.FlowerOrders()
 	if orders[2] == nil || len(orders[2].Requires) != 1 {
 		t.Fatalf("partial reward update should preserve existing orders, got %+v", orders)
+	}
+}
+
+func TestApplyV_ResidentOrderTracksCooldownMetadata(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	cdTime := now.Add(42 * time.Second).UnixMilli()
+	applyMap(t, s, map[string]any{
+		"105": map[string]any{"0": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"0": 7, "1": 3, "2": [][]int32{{23010, 8}}, "4": cdTime, "5": now.UnixMilli()},
+			},
+		}},
+	})
+
+	orders := s.FlowerOrders()
+	order := orders[1]
+	if order == nil {
+		t.Fatalf("missing flower order: %+v", orders)
+	}
+	if order.CdTimeMs != cdTime || order.CTimeMs != now.UnixMilli() {
+		t.Fatalf("cooldown metadata = (%d,%d), want (%d,%d)", order.CdTimeMs, order.CTimeMs, cdTime, now.UnixMilli())
+	}
+	if order.CooldownReady(now) {
+		t.Fatalf("CooldownReady()=true before cd time")
+	}
+	if !order.CooldownReady(now.Add(42 * time.Second)) {
+		t.Fatalf("CooldownReady()=false at cd time")
 	}
 }
 

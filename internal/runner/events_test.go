@@ -15,6 +15,7 @@ func TestEventMetadataDefaults(t *testing.T) {
 		{kind: "resource_changed", category: "basic", domain: "basic.resource", action: "changed", label: "资源", level: "info"},
 		{kind: "land_changed", category: "plant", domain: "farm.land", action: "changed", label: "田地", level: "info"},
 		{kind: "operation_failed", message: "浇水 失败: server", category: "plant", domain: "farm.operation", action: "failed", label: "失败", level: "error"},
+		{kind: "operation_deferred", message: "水车暂缓", category: "plant", domain: "farm.operation", action: "blocked", label: "暂缓", level: "warn"},
 		{kind: "land_unlock", message: "跳过开垦 #1025：需要 Lv.42", category: "plant", domain: "farm.land", action: "unlock", label: "开垦", level: "warn"},
 		{kind: "cultivate_new", category: "plant", domain: "farm.cultivate", action: "cultivate", label: "培育", level: "info"},
 		{kind: "benefit_box", category: "basic", domain: "basic.benefit", action: "claim", label: "福利箱", level: "info"},

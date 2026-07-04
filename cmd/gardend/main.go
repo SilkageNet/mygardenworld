@@ -390,7 +390,7 @@ func seedAdmin(ctx context.Context, db *store.DB, log *slog.Logger, opts serveOp
 func corsMiddleware(next http.Handler, origins string) http.Handler {
 	allowedOrigins := make(map[string]struct{})
 	allowAnyOrigin := false
-	for _, origin := range strings.Split(origins, ",") {
+	for origin := range strings.SplitSeq(origins, ",") {
 		origin = strings.TrimSpace(origin)
 		if origin == "" {
 			continue

@@ -1,6 +1,9 @@
 package captureproxy
 
-import "strings"
+import (
+	"path"
+	"strings"
+)
 
 type hostFilter struct {
 	patterns []string
@@ -36,6 +39,10 @@ func (f hostFilter) Match(hostport string) bool {
 			}
 		case strings.HasPrefix(p, "."):
 			if strings.HasSuffix(host, p) || host == strings.TrimPrefix(p, ".") {
+				return true
+			}
+		case strings.Contains(p, "*"):
+			if ok, _ := path.Match(p, host); ok {
 				return true
 			}
 		case host == p:

@@ -34,4 +34,11 @@ func TestDiagnosticsTracksOperationLifecycleAndBlocks(t *testing.T) {
 	if !strings.Contains(diag.LastOperationError, "rqst failed") {
 		t.Fatalf("LastOperationError=%q, want rqst failed", diag.LastOperationError)
 	}
+
+	finish = r.beginOperation("usrLand.plantBatch")
+	finish(nil)
+	diag = r.Diagnostics(now)
+	if diag.LastOperationError != "" || !diag.LastOperationErrorAt.IsZero() {
+		t.Fatalf("success should clear LastOperationError, got error=%q at=%v", diag.LastOperationError, diag.LastOperationErrorAt)
+	}
 }

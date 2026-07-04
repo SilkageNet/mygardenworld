@@ -33,6 +33,8 @@ const (
 	KindUnknown = "unknown"
 )
 
+const harvestReadyGrace = 5 * time.Second
+
 const (
 	DemandKindFlower    = "flower"
 	DemandKindFlowerArt = "flower_art"
@@ -280,8 +282,12 @@ func Recommend(land state.LandView, now time.Time) (kind, reason string) {
 		return KindHarvest, "state=3 (initial bloom ready)"
 	}
 	if land.State == 2 {
-		if land.NextTimeMs > 0 && land.NextTimeMs <= now.UnixMilli() {
-			return KindHarvest, fmt.Sprintf("state=2, nextTime(%d) elapsed", land.NextTimeMs)
+		if land.NextTimeMs > 0 {
+			readyAt := time.UnixMilli(land.NextTimeMs).Add(harvestReadyGrace)
+			if !now.Before(readyAt) {
+				return KindHarvest, fmt.Sprintf("state=2, nextTime(%d)+grace elapsed", land.NextTimeMs)
+			}
+			return KindWait, fmt.Sprintf("state=2 regrowing; nextTime=%d graceUntil=%d", land.NextTimeMs, readyAt.UnixMilli())
 		}
 		return KindWait, fmt.Sprintf("state=2 regrowing; nextTime=%d", land.NextTimeMs)
 	}
@@ -609,8 +615,8 @@ func implicitOperationCostGates(s *state.State, op *PlannedOp, now time.Time) []
 		out = append(out, resourceGate("gold", GateResourceGold, "金币", 0, int64(op.GoldCost), int64(s.Gold()), "operation.cost"))
 	}
 	if op.DiamondCost > 0 {
-		free, paid := s.Diamonds()
-		gate := resourceGate("diamond", GateResourceDiamond, "元宝", 1, int64(op.DiamondCost), int64(free+paid), "operation.cost")
+		available := s.SpendableDiamonds()
+		gate := resourceGate("diamond", GateResourceDiamond, "元宝", 1, int64(op.DiamondCost), int64(available), "operation.cost")
 		if len(gate.BlockedReasons) == 0 {
 			gate.Status = PlanStatusAdapterMissing
 			gate.BlockedReasons = []string{"元宝成本操作默认不自动执行"}
@@ -773,7 +779,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		return ops
 	}
 	if len(harvest) > 0 {
-		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", "ready land", 10000, []int32{harvest[0]}, 0, "", ""))
+		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
 	}
 	if len(plant) > 0 {
 		assignments := plantAssignments(s, policy, demands, int32(len(plant)))
@@ -970,6 +976,10 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				for boxID, flowerOrder := range s.FlowerOrders() {
 					if !residentFlowerOrderAllowed(flowerOrder, resident) {
 						ops = append(ops, blockedResidentOrderOp(flowerOrder, boxID, goal, "居民订单品质不符合策略"))
+						continue
+					}
+					if !flowerOrder.CooldownReady(now) {
+						ops = append(ops, skippedResidentOrderCooldownOp(flowerOrder, boxID, goal, now))
 						continue
 					}
 					if canFulfillFlowerOrder(flowerOrder, boxID, goal, ledger) {
@@ -1172,10 +1182,10 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		goal := Goal{ID: domain, Category: CategoryBasic, Domain: domain, Label: domain, Priority: priority / 100}
 		ops = append(ops, op(kind, goal, action, reason, priority, targetID, 0, 0))
 	}
-	if basic.GetWaterwheelEnabled() && s.WaterwheelCooldownReady() {
+	if basic.GetWaterwheelEnabled() && waterClaimAllowed(s, basic, now) && s.WaterwheelCooldownReady() {
 		add(true, clientproto.RPCWaterwheelRecv.String(), "basic.waterwheel", "claim", "水车水滴可领取", 6500, 0)
 	}
-	if basic.GetFreeWaterEnabled() {
+	if basic.GetFreeWaterEnabled() && waterClaimAllowed(s, basic, now) {
 		if idx, ok := s.NextFreeWaterIndex(); ok {
 			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx)
 		}
@@ -1245,6 +1255,20 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	}
 	ops = append(ops, pearlOperations(s, basic.GetPearl(), now)...)
 	return ops
+}
+
+func waterClaimAllowed(s *state.State, basic *pb.BasicPolicy, now time.Time) bool {
+	if s == nil {
+		return false
+	}
+	waterDrops, total, _ := s.AvailableWaterDrops(now)
+	if total > 0 && waterDrops >= total {
+		return false
+	}
+	if threshold := basic.GetWaterClaimThreshold(); threshold > 0 && waterDrops >= threshold {
+		return false
+	}
+	return true
 }
 
 func zooOperations(s *state.State, policy *pb.FeedCatPolicy, now time.Time) []PlannedOp {
@@ -1652,8 +1676,7 @@ func applyUnionBuildCostGate(op *PlannedOp, option state.FmlBuildOption, policy 
 		if int64(option.Cost) > policy.GetMaxSpendDiamond() {
 			return []string{"公会元宝建设成本超过策略上限"}
 		}
-		free, paid := s.Diamonds()
-		if free+paid < option.Cost {
+		if s.SpendableDiamonds() < option.Cost {
 			return []string{"元宝不足"}
 		}
 		return []string{"元宝成本操作尚未放开自动执行"}
@@ -2016,6 +2039,18 @@ func blockedResidentOrderOp(order *state.FlowerOrder, boxID int32, goal Goal, re
 	}
 	blocked.BlockedReasons = reasons
 	return blocked
+}
+
+func skippedResidentOrderCooldownOp(order *state.FlowerOrder, boxID int32, goal Goal, now time.Time) PlannedOp {
+	reason := "居民订单冷却中"
+	if remaining := order.CooldownRemaining(now); remaining > 0 {
+		seconds := int64((remaining + time.Second - 1) / time.Second)
+		reason = fmt.Sprintf("居民订单冷却中，约 %d 秒后可交付", seconds)
+	}
+	skipped := op(clientproto.RPCOrderFlowerFinishOrder.String(), goal, "finish", reason, goal.Priority*100+610, boxID, 0, 0)
+	skipped.Status = PlanStatusSkipped
+	skipped.Executable = false
+	return skipped
 }
 
 func blockedPalaceOrderOp(order state.PalaceOrderView, goal Goal, policy *pb.PalaceOrderPolicy) PlannedOp {
