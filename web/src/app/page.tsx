@@ -49,7 +49,6 @@ import {
   FeedCatPolicySchema,
   FlowerElvesPolicySchema,
   FlowerMarketPolicySchema,
-  FlowerPlantPolicySchema,
   FlowerArtPolicySchema,
   FriendStealPolicySchema,
   IntListSchema,
@@ -59,6 +58,7 @@ import {
   PalaceOrderPolicySchema,
   PearlPolicySchema,
   PlantPolicySchema,
+  PlantingPolicySchema,
   PolicySchema,
   ReputationPolicySchema,
   ResidentOrderPolicySchema,
@@ -86,12 +86,12 @@ import type {
   FlowerElvesPolicy,
   FlowerMarketPolicy,
   FlowerArtPolicy,
-  FlowerPlantPolicy,
   FriendStealPolicy,
   OrderPolicy,
   PalaceOrderPolicy,
   PearlPolicy,
   PlantPolicy,
+  PlantingPolicy,
   Policy,
   ReputationPolicy,
   ResidentOrderPolicy,
@@ -175,7 +175,7 @@ const GOAL_OPTIONS = [
   { id: "basic.task.daily", label: "日常任务", defaultPriority: 60 },
   { id: "basic.task.weekly", label: "周常任务", defaultPriority: 55 },
   { id: "order.flower_art", label: "花艺/花架", defaultPriority: 40 },
-  { id: "fallback.low_stock", label: "低库存补种", defaultPriority: 10 },
+  { id: "fallback.auto_replant", label: "自主补种", defaultPriority: 10 },
 ];
 
 type DashboardTabId = "monitor" | "settings" | "logs";
@@ -218,7 +218,7 @@ const SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.EXCLUDE, label: "排除" },
 ];
 
-const PLANT_SELECTION_MODE_OPTIONS = [
+const AUTO_REPLANT_SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.SPECIFIC, label: "指定" },
   { value: SelectionMode.EXCLUDE, label: "排除" },
@@ -1466,7 +1466,7 @@ function PolicyPanel({
     }
   }, [activeTab]);
   const plant = policy?.plant;
-  const flower = plant?.flower;
+  const planting = plant?.planting;
   const cultivate = plant?.cultivate;
   const friendSteal = plant?.friendSteal;
   const elves = plant?.elves;
@@ -1569,11 +1569,11 @@ function PolicyPanel({
     const current = currentBasic.feedCat ?? create(FeedCatPolicySchema);
     updateBasic({ feedCat: { ...current, ...patch } });
   };
-  const updateFlower = (patch: Partial<FlowerPlantPolicy>) => {
+  const updatePlanting = (patch: Partial<PlantingPolicy>) => {
     if (!policy) return;
     const currentPlant = policy.plant ?? create(PlantPolicySchema);
-    const current = currentPlant.flower ?? create(FlowerPlantPolicySchema);
-    updatePlant({ flower: { ...current, ...patch } });
+    const current = currentPlant.planting ?? create(PlantingPolicySchema);
+    updatePlant({ planting: { ...current, ...patch } });
   };
   const updateCultivate = (patch: Partial<CultivatePolicy>) => {
     if (!policy) return;
@@ -1768,36 +1768,36 @@ function PolicyPanel({
           <div className="space-y-4">
             <PolicyGroup title="土地与种植" icon={<Sprout />}>
               <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="自动种植" checked={flower?.autoEnabled ?? false} onChange={(checked) => updateFlower({ autoEnabled: checked })} />
-                <ToggleRow label="解锁土地" checked={flower?.autoUnlockLand ?? false} onChange={(checked) => updateFlower({ autoUnlockLand: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={flower?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateFlower({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
-                <ToggleRow label="使用加速券" checked={flower?.useSpeedUpTicket ?? false} onChange={(checked) => updateFlower({ useSpeedUpTicket: checked })} />
-                <NumberRow label="加速券上限" value={flower?.speedUpTicketMax || 0} min={0} onChange={(value) => updateFlower({ speedUpTicketMax: value })} />
-                <NumberRow label="保留水滴" value={flower?.minWaterDrops || 0} min={0} onChange={(value) => updateFlower({ minWaterDrops: value })} />
+                <ToggleRow label="自动种植" checked={planting?.autoEnabled ?? false} onChange={(checked) => updatePlanting({ autoEnabled: checked })} />
+                <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
+                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={planting?.videoSpeedUpEnabled ?? false} onChange={(checked) => updatePlanting({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
+                <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
+                <NumberRow label="加速券上限" value={planting?.speedUpTicketMax || 0} min={0} onChange={(value) => updatePlanting({ speedUpTicketMax: value })} />
+                <NumberRow label="保留水滴" value={planting?.minWaterDrops || 0} min={0} onChange={(value) => updatePlanting({ minWaterDrops: value })} />
               </div>
             </PolicyGroup>
 
-            <PolicyGroup title="种植策略" icon={<Package />}>
+            <PolicyGroup title="自主补种" icon={<Package />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <SegmentedRow
-                  label="种植范围"
-                  value={flower?.mode || SelectionMode.ALL}
-                  options={PLANT_SELECTION_MODE_OPTIONS}
-                  onChange={(value) => updateFlower({ mode: value })}
+                  label="补种范围"
+                  value={planting?.autoReplantMode || SelectionMode.ALL}
+                  options={AUTO_REPLANT_SELECTION_MODE_OPTIONS}
+                  onChange={(value) => updatePlanting({ autoReplantMode: value })}
                 />
                 <FlowerMultiSelectRow
-                  label={(flower?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? "排除花种" : "指定花种"}
-                  value={(flower?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? flower?.excludeFlowerIds ?? [] : flower?.flowerIds ?? []}
+                  label={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? "排除补种" : "指定补种"}
+                  value={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? planting?.autoReplantExcludeFlowerIds ?? [] : planting?.autoReplantFlowerIds ?? []}
                   plantableFlowers={snapshot?.plantableFlowers ?? []}
                   synced={Boolean(snapshot)}
                   onChange={(value) =>
-                    (flower?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE
-                      ? updateFlower({ excludeFlowerIds: value })
-                      : updateFlower({ flowerIds: value })
+                    (planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE
+                      ? updatePlanting({ autoReplantExcludeFlowerIds: value })
+                      : updatePlanting({ autoReplantFlowerIds: value })
                   }
                 />
               </div>
-              <GoalPriorityEditor value={flower?.goalPriority ?? {}} onChange={(goalPriority) => updateFlower({ goalPriority })} />
+              <GoalPriorityEditor value={planting?.goalPriority ?? {}} onChange={(goalPriority) => updatePlanting({ goalPriority })} />
             </PolicyGroup>
 
             <PolicyGroup title="培育配置" icon={<Flower2 />}>

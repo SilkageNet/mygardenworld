@@ -258,7 +258,7 @@ func (p *Proxy) onRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Reque
 
 func (p *Proxy) onResponse(res *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
 	if res == nil {
-		return res
+		return nil
 	}
 	state, _ := ctx.UserData.(*flowState)
 	if state == nil || !state.Captured {

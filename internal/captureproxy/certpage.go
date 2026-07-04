@@ -202,7 +202,7 @@ func (p *Proxy) serveCertPage(w http.ResponseWriter, req *http.Request) {
 
 func (p *Proxy) serveCACertPEM(w http.ResponseWriter, filename string) {
 	w.Header().Set("Content-Type", "application/x-x509-ca-cert")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(p.ca.CertPEM)
 }
@@ -215,7 +215,7 @@ func (p *Proxy) serveCAPEM(w http.ResponseWriter) {
 
 func (p *Proxy) serveCACertDER(w http.ResponseWriter, filename string) {
 	w.Header().Set("Content-Type", "application/x-x509-ca-cert")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(p.ca.Cert.Certificate[0])
 }

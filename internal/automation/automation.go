@@ -63,7 +63,7 @@ const (
 	GoalMainTask      = "basic.task.main"
 	GoalDailyTask     = "basic.task.daily"
 	GoalWeeklyTask    = "basic.task.weekly"
-	GoalFallback      = "fallback.low_stock"
+	GoalAutoReplant   = "fallback.auto_replant"
 )
 
 const flowerRackPerSlotCount int32 = 12
@@ -344,7 +344,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 
 func enabledGoals(policy *pb.Policy) []Goal {
 	plant := policy.GetPlant()
-	priorities := plant.GetFlower().GetGoalPriority()
+	priorities := plant.GetPlanting().GetGoalPriority()
 	var goals []Goal
 	add := func(enabled bool, id, category, domain, label string) {
 		if !enabled {
@@ -912,7 +912,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	if policy == nil {
 		return nil
 	}
-	flowerPolicy := policy.GetFlower()
+	plantingPolicy := policy.GetPlanting()
 	lands := s.Lands()
 	var harvest, water, plant []int32
 	ids := make([]int32, 0, len(lands))
@@ -932,7 +932,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
-	if !flowerPolicy.GetAutoEnabled() {
+	if !plantingPolicy.GetAutoEnabled() {
 		return ops
 	}
 	if len(harvest) > 0 {
@@ -960,7 +960,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	}
 	if len(water) > 0 {
 		waterDrops, _, _ := s.AvailableWaterDrops(now)
-		minDrops := flowerPolicy.GetMinWaterDrops()
+		minDrops := plantingPolicy.GetMinWaterDrops()
 		if minDrops < 0 {
 			minDrops = 0
 		}
@@ -997,11 +997,11 @@ func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, 
 	if emptyCount <= 0 {
 		return nil
 	}
-	flowerPolicy := policy.GetFlower()
-	allowed, blocked := plantingFlowerFilters(flowerPolicy)
+	plantingPolicy := policy.GetPlanting()
+	allowed, blocked := autoReplantFlowerFilters(plantingPolicy)
 	candidates := s.PlantableFlowers(allowed, blocked)
 	plantable := map[int32]state.PlantableFlower{}
-	for _, candidate := range candidates {
+	for _, candidate := range s.PlantableFlowers(nil, nil) {
 		plantable[candidate.FlowerID] = candidate
 	}
 	var out []plantAssignment
@@ -1011,9 +1011,6 @@ func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, 
 			break
 		}
 		if demand.Kind != DemandKindFlower || demand.Missing <= 0 || len(demand.BlockedReasons) > 0 {
-			continue
-		}
-		if !plantingFlowerAllowed(demand.ItemID, flowerPolicy) {
 			continue
 		}
 		if _, ok := plantable[demand.ItemID]; !ok {
@@ -1046,7 +1043,7 @@ func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, 
 	if len(executableAssignments(out)) > 0 || remaining <= 0 {
 		return executableAssignments(out)
 	}
-	return lowStockBalancedAssignments(candidates, remaining)
+	return autoReplantAssignments(candidates, remaining)
 }
 
 func executableAssignments(in []plantAssignment) []plantAssignment {
@@ -1059,7 +1056,7 @@ func executableAssignments(in []plantAssignment) []plantAssignment {
 	return out
 }
 
-func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit int32) []plantAssignment {
+func autoReplantAssignments(candidates []state.PlantableFlower, limit int32) []plantAssignment {
 	if len(candidates) == 0 || limit <= 0 {
 		return nil
 	}
@@ -1101,9 +1098,9 @@ func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit int32
 			out = append(out, plantAssignment{
 				FlowerID: candidates[i].FlowerID,
 				Count:    count,
-				Priority: priorityFor(defaultGoalPriority(), GoalFallback)*100 + 100,
-				GoalID:   GoalFallback,
-				Reason:   "低库存均衡补种",
+				Priority: priorityFor(defaultGoalPriority(), GoalAutoReplant)*100 + 100,
+				GoalID:   GoalAutoReplant,
+				Reason:   "自主补种",
 			})
 			candidates[i].Stock += count
 			remaining -= count
@@ -1125,33 +1122,17 @@ func lowStockBalancedAssignments(candidates []state.PlantableFlower, limit int32
 	return out
 }
 
-func plantingFlowerFilters(policy *pb.FlowerPlantPolicy) (allowed []int32, blocked []int32) {
+func autoReplantFlowerFilters(policy *pb.PlantingPolicy) (allowed []int32, blocked []int32) {
 	if policy == nil {
 		return nil, nil
 	}
-	switch policy.GetMode() {
+	switch policy.GetAutoReplantMode() {
 	case pb.SelectionMode_SELECTION_MODE_SPECIFIC:
-		return uniquePositiveInt32s(policy.GetFlowerIds()), nil
+		return uniquePositiveInt32s(policy.GetAutoReplantFlowerIds()), nil
 	case pb.SelectionMode_SELECTION_MODE_EXCLUDE:
-		return nil, uniquePositiveInt32s(policy.GetExcludeFlowerIds())
+		return nil, uniquePositiveInt32s(policy.GetAutoReplantExcludeFlowerIds())
 	default:
 		return nil, nil
-	}
-}
-
-func plantingFlowerAllowed(flowerID int32, policy *pb.FlowerPlantPolicy) bool {
-	if flowerID <= 0 || policy == nil {
-		return flowerID > 0
-	}
-	switch policy.GetMode() {
-	case pb.SelectionMode_SELECTION_MODE_SPECIFIC:
-		allowed := int32Set(policy.GetFlowerIds())
-		return len(allowed) == 0 || allowed[flowerID]
-	case pb.SelectionMode_SELECTION_MODE_EXCLUDE:
-		blocked := int32Set(policy.GetExcludeFlowerIds())
-		return !blocked[flowerID]
-	default:
-		return true
 	}
 }
 
@@ -1934,18 +1915,18 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 
 func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	plant := policy.GetPlant()
-	flower := plant.GetFlower()
+	planting := plant.GetPlanting()
 	cultivate := plant.GetCultivate()
 	var ops []PlannedOp
 	goal := Goal{ID: "farm.maintenance", Category: CategoryPlant, Domain: "farm.maintenance", Label: "农场维护", Priority: 55}
-	if flower.GetAutoUnlockLand() {
+	if planting.GetAutoUnlockLand() {
 		if landID, goldCost, ok := nextLandUnlockCandidate(s); ok {
 			unlock := op(clientproto.RPCUsrLandUnlockLand.String(), goal, "unlock", "有可开垦土地", 7600, landID, 0, 0)
 			unlock.GoldCost = goldCost
 			ops = append(ops, unlock)
 		}
 	}
-	if flower.GetUseSpeedUpTicket() {
+	if planting.GetUseSpeedUpTicket() {
 		if lands, count := speedUpCandidates(s, now); count > 0 {
 			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", "存在可加速土地", 7400, 0, 0, count)
 			speed.LandIDs = lands
@@ -2667,11 +2648,11 @@ func DefaultPolicy() *pb.Policy {
 			Cultivate: &pb.CultivatePolicy{
 				TargetLevel: 20,
 			},
-			Flower: &pb.FlowerPlantPolicy{
-				AutoEnabled:   true,
-				GoalPriority:  defaultGoalPriority(),
-				MinWaterDrops: 5,
-				Mode:          pb.SelectionMode_SELECTION_MODE_ALL,
+			Planting: &pb.PlantingPolicy{
+				AutoEnabled:     true,
+				GoalPriority:    defaultGoalPriority(),
+				MinWaterDrops:   5,
+				AutoReplantMode: pb.SelectionMode_SELECTION_MODE_ALL,
 			},
 			FriendSteal: &pb.FriendStealPolicy{},
 			Elves:       &pb.FlowerElvesPolicy{},
@@ -2715,7 +2696,7 @@ func defaultGoalPriority() map[string]int32 {
 		GoalDailyTask:     60,
 		GoalWeeklyTask:    55,
 		GoalFlowerArt:     40,
-		GoalFallback:      10,
+		GoalAutoReplant:   10,
 	}
 }
 
@@ -2735,13 +2716,6 @@ func defaultUnionRacePriority() map[int32]int32 {
 		3044: 3,
 		3052: 3,
 	}
-}
-
-func positiveOr(v, fallback int32) int32 {
-	if v <= 0 {
-		return fallback
-	}
-	return v
 }
 
 func demandByID(demands []Demand, id string) (Demand, bool) {

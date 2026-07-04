@@ -2,6 +2,7 @@ package babigame
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,18 +20,39 @@ type PackageConfig struct {
 // this launch. The returned gameVersion is the current client protocol version
 // that the official app uses for /game/login and /gw index.login.
 func (c *HTTPClient) QueryPackageConfig(ctx context.Context) (PackageConfig, error) {
-	equipmentInfo := fmt.Sprintf(`{"equipmentBrand":"%s","pushDeviceId":"","idfa":"","netWorkType":"%s","ram":"%s","deviceId":"%s","osVersion":"%s","os":"iOS","screenHeight":"%s","equipmentModel":"%s","idfv":"%s","screenDensity":"3","screenWidth":"%s","cpuType":"%s"}`,
-		c.Cfg.DeviceBrand,
-		c.Cfg.NetworkType,
-		c.Cfg.RAMMB,
-		c.DeviceID,
-		c.Cfg.OSVersion,
-		c.Cfg.ScreenHeightPx,
-		c.Cfg.DeviceModel,
-		c.DeviceID,
-		c.Cfg.ScreenWidthPx,
-		c.Cfg.CPUType,
-	)
+	equipmentInfoJSON, err := json.Marshal(struct {
+		EquipmentBrand string `json:"equipmentBrand"`
+		PushDeviceID   string `json:"pushDeviceId"`
+		IDFA           string `json:"idfa"`
+		NetworkType    string `json:"netWorkType"`
+		RAM            string `json:"ram"`
+		DeviceID       string `json:"deviceId"`
+		OSVersion      string `json:"osVersion"`
+		OS             string `json:"os"`
+		ScreenHeight   string `json:"screenHeight"`
+		EquipmentModel string `json:"equipmentModel"`
+		IDFV           string `json:"idfv"`
+		ScreenDensity  string `json:"screenDensity"`
+		ScreenWidth    string `json:"screenWidth"`
+		CPUType        string `json:"cpuType"`
+	}{
+		EquipmentBrand: c.Cfg.DeviceBrand,
+		NetworkType:    c.Cfg.NetworkType,
+		RAM:            c.Cfg.RAMMB,
+		DeviceID:       c.DeviceID,
+		OSVersion:      c.Cfg.OSVersion,
+		OS:             "iOS",
+		ScreenHeight:   c.Cfg.ScreenHeightPx,
+		EquipmentModel: c.Cfg.DeviceModel,
+		IDFV:           c.DeviceID,
+		ScreenDensity:  "3",
+		ScreenWidth:    c.Cfg.ScreenWidthPx,
+		CPUType:        c.Cfg.CPUType,
+	})
+	if err != nil {
+		return PackageConfig{}, fmt.Errorf("marshal equipmentInfo: %w", err)
+	}
+	equipmentInfo := string(equipmentInfoJSON)
 	body := map[string]any{
 		"equipmentInfo":    equipmentInfo,
 		"sysLanguage":      c.Cfg.SysLanguage,

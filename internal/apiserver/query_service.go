@@ -793,10 +793,10 @@ func basicEnabled(p *pb.BasicPolicy) bool {
 }
 
 func plantEnabled(p *pb.PlantPolicy) bool {
-	flower := p.GetFlower()
+	planting := p.GetPlanting()
 	cultivate := p.GetCultivate()
-	return p != nil && (flower.GetAutoEnabled() ||
-		flower.GetUseSpeedUpTicket() || flower.GetVideoSpeedUpEnabled() || flower.GetAutoUnlockLand() ||
+	return p != nil && (planting.GetAutoEnabled() ||
+		planting.GetUseSpeedUpTicket() || planting.GetVideoSpeedUpEnabled() || planting.GetAutoUnlockLand() ||
 		cultivate.GetEnabled() || cultivate.GetUpgradeEnabled() || cultivate.GetVideoSpeedUpEnabled() ||
 		p.GetFriendSteal().GetEnabled() || p.GetElves().GetEnabled() || p.GetMarket().GetPutEnabled() ||
 		p.GetMarket().GetAutoBuyFromFriend())

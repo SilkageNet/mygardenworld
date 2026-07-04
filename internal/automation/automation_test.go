@@ -101,7 +101,7 @@ func TestBuildPlan_HarvestGroupsReadyLands(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.AutoEnabled = true
+	p.Plant.Planting.AutoEnabled = true
 
 	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
@@ -470,7 +470,7 @@ func TestPlan_CustomerOrderGenerationBeatsHarvest(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.AutoEnabled = true
+	p.Plant.Planting.AutoEnabled = true
 	p.Order.Customer.Enabled = true
 
 	op := Plan(s, p, now)
@@ -675,7 +675,7 @@ func TestPlan_FlowerRackClaimBeatsHarvest(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.AutoEnabled = true
+	p.Plant.Planting.AutoEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
 
 	op := Plan(s, p, now)
@@ -702,7 +702,7 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Basic.MailEnabled = true
-	p.Plant.Flower.AutoEnabled = true
+	p.Plant.Planting.AutoEnabled = true
 
 	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
@@ -1710,7 +1710,7 @@ func TestBuildPlan_LowStockFallbackUsesAllEmptyLand(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_PlantSpecificFlowersRestrictsFallback(t *testing.T) {
+func TestBuildPlan_AutoReplantSpecificFlowersRestrictsOnlyFallback(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{"32": map[string]any{
@@ -1723,8 +1723,8 @@ func TestBuildPlan_PlantSpecificFlowersRestrictsFallback(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Plant.Flower.Mode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
-	p.Plant.Flower.FlowerIds = []int32{23002}
+	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Plant.Planting.AutoReplantFlowerIds = []int32{23002}
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
@@ -1734,14 +1734,14 @@ func TestBuildPlan_PlantSpecificFlowersRestrictsFallback(t *testing.T) {
 	}
 }
 
-func TestPlantAssignments_SpecificFlowersSkipUnselectedDemand(t *testing.T) {
+func TestPlantAssignments_AutoReplantRangeDoesNotRestrictDemand(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"101": map[string]any{"0": cultivate(23001, 23002)},
 	})
 	p := DefaultPolicy()
-	p.Plant.Flower.Mode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
-	p.Plant.Flower.FlowerIds = []int32{23002}
+	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Plant.Planting.AutoReplantFlowerIds = []int32{23002}
 
 	assignments := plantAssignments(s, p.Plant, []Demand{{
 		ID:       "demand-23001",
@@ -1752,13 +1752,11 @@ func TestPlantAssignments_SpecificFlowersSkipUnselectedDemand(t *testing.T) {
 		Priority: 90,
 		Label:    "顾客订单",
 	}}, 3)
-	if len(assignments) == 0 {
-		t.Fatalf("expected selected fallback assignment, got none")
+	if len(assignments) != 1 {
+		t.Fatalf("assignments len=%d, want 1: %+v", len(assignments), assignments)
 	}
-	for _, assignment := range assignments {
-		if assignment.FlowerID != 23002 {
-			t.Fatalf("unselected demand should not be planted, assignments=%+v", assignments)
-		}
+	if assignments[0].FlowerID != 23001 || assignments[0].Count != 3 || assignments[0].GoalID != GoalCustomerOrder {
+		t.Fatalf("task demand should bypass specific planting range, assignments=%+v", assignments)
 	}
 }
 

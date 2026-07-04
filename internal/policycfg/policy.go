@@ -1,8 +1,6 @@
 package policycfg
 
 import (
-	"encoding/json"
-
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -67,21 +65,21 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Cultivate.TargetLevel <= 0 {
 		cp.Plant.Cultivate.TargetLevel = def.Plant.Cultivate.TargetLevel
 	}
-	if cp.Plant.Flower == nil {
-		cp.Plant.Flower = proto.Clone(def.Plant.Flower).(*pb.FlowerPlantPolicy)
+	if cp.Plant.Planting == nil {
+		cp.Plant.Planting = proto.Clone(def.Plant.Planting).(*pb.PlantingPolicy)
 	}
-	if cp.Plant.Flower.Mode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED || cp.Plant.Flower.Mode == pb.SelectionMode_SELECTION_MODE_QUALITY {
-		cp.Plant.Flower.Mode = def.Plant.Flower.Mode
+	if cp.Plant.Planting.AutoReplantMode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED || cp.Plant.Planting.AutoReplantMode == pb.SelectionMode_SELECTION_MODE_QUALITY {
+		cp.Plant.Planting.AutoReplantMode = def.Plant.Planting.AutoReplantMode
 	}
-	if cp.Plant.Flower.MinWaterDrops <= 0 {
-		cp.Plant.Flower.MinWaterDrops = def.Plant.Flower.MinWaterDrops
+	if cp.Plant.Planting.MinWaterDrops <= 0 {
+		cp.Plant.Planting.MinWaterDrops = def.Plant.Planting.MinWaterDrops
 	}
-	if cp.Plant.Flower.GoalPriority == nil {
-		cp.Plant.Flower.GoalPriority = map[string]int32{}
+	if cp.Plant.Planting.GoalPriority == nil {
+		cp.Plant.Planting.GoalPriority = map[string]int32{}
 	}
-	for k, v := range def.Plant.Flower.GoalPriority {
-		if _, ok := cp.Plant.Flower.GoalPriority[k]; !ok {
-			cp.Plant.Flower.GoalPriority[k] = v
+	for k, v := range def.Plant.Planting.GoalPriority {
+		if _, ok := cp.Plant.Planting.GoalPriority[k]; !ok {
+			cp.Plant.Planting.GoalPriority[k] = v
 		}
 	}
 	if cp.Plant.FriendSteal == nil {
@@ -187,61 +185,5 @@ func FromJSON(raw string) (*pb.Policy, error) {
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
 	}
-	migrateLegacyFlowerAuto(raw, p)
 	return Normalize(p), nil
-}
-
-func migrateLegacyFlowerAuto(raw string, p *pb.Policy) {
-	if raw == "" || p == nil {
-		return
-	}
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		return
-	}
-	plant, ok := doc["plant"].(map[string]any)
-	if !ok {
-		return
-	}
-	flower, ok := plant["flower"].(map[string]any)
-	if !ok {
-		return
-	}
-	if hasAnyKey(flower, "auto_enabled", "autoEnabled") {
-		return
-	}
-
-	legacyKeys := []string{
-		"harvest_enabled", "harvestEnabled",
-		"plant_enabled", "plantEnabled",
-		"water_enabled", "waterEnabled",
-	}
-	if !hasAnyKey(flower, legacyKeys...) {
-		return
-	}
-	if p.Plant == nil {
-		p.Plant = &pb.PlantPolicy{}
-	}
-	if p.Plant.Flower == nil {
-		p.Plant.Flower = &pb.FlowerPlantPolicy{}
-	}
-	p.Plant.Flower.AutoEnabled = anyBool(flower, legacyKeys...)
-}
-
-func hasAnyKey(values map[string]any, keys ...string) bool {
-	for _, key := range keys {
-		if _, ok := values[key]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-func anyBool(values map[string]any, keys ...string) bool {
-	for _, key := range keys {
-		if v, ok := values[key].(bool); ok && v {
-			return true
-		}
-	}
-	return false
 }

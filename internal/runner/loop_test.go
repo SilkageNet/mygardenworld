@@ -441,7 +441,7 @@ func TestNextRunnableOperationFallsThroughBlockedHarvest(t *testing.T) {
 	})
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Plant.Flower.AutoEnabled = true
+	policy.Plant.Planting.AutoEnabled = true
 	r := &Runner{
 		state:               st,
 		harvestBlockedUntil: map[int32]time.Time{1001: now.Add(time.Minute)},

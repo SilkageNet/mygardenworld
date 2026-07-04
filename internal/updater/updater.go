@@ -395,8 +395,15 @@ func extractBinaryFromZip(archivePath, dstDir, binaryName string) (string, error
 		if err != nil {
 			return "", fmt.Errorf("open zip entry: %w", err)
 		}
-		defer func() { _ = rc.Close() }()
-		return writeExtractedBinary(rc, dstDir, binaryName)
+		out, writeErr := writeExtractedBinary(rc, dstDir, binaryName)
+		closeErr := rc.Close()
+		if writeErr != nil {
+			return "", writeErr
+		}
+		if closeErr != nil {
+			return "", fmt.Errorf("close zip entry: %w", closeErr)
+		}
+		return out, nil
 	}
 	return "", fmt.Errorf("%s not found in %s", binaryName, filepath.Base(archivePath))
 }

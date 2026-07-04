@@ -8,17 +8,18 @@ linters:
     - unused
     - ineffassign
     - gocritic
-
-linters-settings:
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-
-issues:
-  exclude-dirs:
-    - gen
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
+        - rangeValCopy
+  exclusions:
+    paths:
+      - gen
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
