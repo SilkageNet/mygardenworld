@@ -74,6 +74,24 @@ gardend --help
 gardend serve --help
 ```
 
+## 项目结构
+
+| 路径 | 说明 |
+| --- | --- |
+| `cmd/gardend` | 本地守护进程与内嵌 Web 控制台入口 |
+| `cmd/gardencap` | 本地抓包辅助工具 |
+| `cmd/gardencatalog` | 从小程序资源生成协议和静态目录数据 |
+| `internal/babigame` | 登录、HTTP/WS、RPC、协议封装 |
+| `internal/state` | 运行态事实、库存、土地、订单、花艺等读模型 |
+| `internal/automation` | 需求、库存账本、计划操作和调度决策 |
+| `internal/runner` | 账号生命周期、状态同步和计划执行 |
+| `internal/store` | SQLite 本地持久化 |
+| `internal/apiserver` | Connect/gRPC API |
+| `proto` | 对外 API 和策略配置 schema |
+| `web` | 本地 Web 控制台源码 |
+
+协议和策略字段以 `proto/`、`internal/babigame/doc.go`、代码测试和 `AGENTS.md` 为准。设计说明应随代码、测试和 schema 更新，避免与当前实现脱节。
+
 ## 从源码构建
 
 ```sh
