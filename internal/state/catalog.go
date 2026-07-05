@@ -149,6 +149,7 @@ type ZooEventInfo struct {
 	NoHandle   bool
 	Result     bool
 	Reward1    []ItemCount
+	HasReward1 bool
 	Reward2    []ItemCount
 	HasReward2 bool
 	Text       string
@@ -551,6 +552,7 @@ func ZooEventInfoByID(eventID int32) (ZooEventInfo, bool) {
 		NoHandle:   rawTruthy(row.NoHandle),
 		Result:     rawTruthy(row.Result),
 		Reward1:    readItemCountsRaw(row.Reward1),
+		HasReward1: rawTruthy(row.Reward1),
 		Reward2:    readItemCountsRaw(row.Reward2),
 		HasReward2: rawTruthy(row.Reward2),
 		Text:       strings.TrimSpace(row.Text),

@@ -1808,6 +1808,31 @@ func TestApplyV_StoryAchievementAndZooEvents(t *testing.T) {
 	}
 }
 
+func TestZooEventActionsAllowsDynamicRewardEvent(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"33": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{
+					"1":  1,
+					"10": []int32{2096},
+				},
+			},
+		},
+	})
+	events := s.ZooEventActions()
+	if len(events) != 1 {
+		t.Fatalf("ZooEventActions len=%d, want 1: %+v", len(events), events)
+	}
+	event := events[0]
+	if event.EventID != 2096 || event.Name != "助人为乐" || event.Action != "handle_event" || event.Blocked {
+		t.Fatalf("ZooEventActions[0]=%+v, want runnable help event", event)
+	}
+	if !event.Agree || event.IsShareVideo != 0 {
+		t.Fatalf("ZooEventActions[0]=%+v, want agree without share/video", event)
+	}
+}
+
 func TestApplyV_AchievementRecvMapUsesGroupCursor(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{

@@ -109,6 +109,19 @@ func TestFmlBuildOptionByID(t *testing.T) {
 	}
 }
 
+func TestZooEventInfoDynamicReward(t *testing.T) {
+	event, ok := ZooEventInfoByID(2096)
+	if !ok {
+		t.Fatal("ZooEventInfoByID(2096) ok=false")
+	}
+	if event.Name != "助人为乐" || event.Type != 2 || !event.HasReward1 {
+		t.Fatalf("ZooEventInfoByID(2096)=%+v, want safe type=2 dynamic reward", event)
+	}
+	if event.SharedID != 0 || event.HasReward2 || event.NoHandle || event.Result {
+		t.Fatalf("ZooEventInfoByID(2096)=%+v, want no share, no alternate result", event)
+	}
+}
+
 func TestFlowerBouquetItemID(t *testing.T) {
 	tests := map[int32]int32{
 		23006: 22006,

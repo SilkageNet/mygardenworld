@@ -3399,7 +3399,7 @@ func zooEventActionForPet(petID, eventID int32) ZooEventAction {
 		action.BlockedReason = "宠物事件存在选择或成本结果，需人工确认"
 		return action
 	}
-	if info.Type != 2 || len(info.Reward1) == 0 {
+	if info.Type != 2 || (!info.HasReward1 && len(info.Reward1) == 0) {
 		action.Blocked = true
 		action.BlockedReason = "宠物事件收益/成本不明确，保守策略不自动处理"
 		return action
