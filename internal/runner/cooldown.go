@@ -113,15 +113,7 @@ func (r *Runner) operationCooldownSnapshots(now time.Time) []OperationCooldownSn
 			delete(r.operationCooldowns, key)
 			continue
 		}
-		out = append(out, OperationCooldownSnapshot{
-			OperationID:  cd.OperationID,
-			Category:     cd.Category,
-			Domain:       cd.Domain,
-			Lane:         cd.Lane,
-			Reason:       cd.Reason,
-			Until:        cd.Until,
-			FailureCount: cd.FailureCount,
-		})
+		out = append(out, OperationCooldownSnapshot(cd))
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if !out[i].Until.Equal(out[j].Until) {

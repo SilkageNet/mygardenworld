@@ -1546,7 +1546,9 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 		}
 	}
 	if policy.GetAutoEventEnabled() {
-		for _, evt := range s.ZooEventActions() {
+		events := s.ZooEventActions()
+		if len(events) > 0 {
+			evt := events[0]
 			reason := evt.BlockedReason
 			if reason == "" {
 				reason = "宠物事件可处理"
@@ -1559,18 +1561,17 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 				blocked.ItemID = evt.TableID
 				blocked.BlockedReasons = []string{reason}
 				ops = append(ops, blocked)
-				break
+			} else {
+				rpc := clientproto.RPCZooHandleEvent.String()
+				if evt.Action == "find_pet" {
+					rpc = clientproto.RPCZooFindPet.String()
+				}
+				planned := domainOp(rpc, goal, "basic.zoo.event", evt.Action, reason, 5665, evt.PetID, evt.TableID, 0)
+				if evt.Agree {
+					planned.Count = 1
+				}
+				ops = append(ops, planned)
 			}
-			rpc := clientproto.RPCZooHandleEvent.String()
-			if evt.Action == "find_pet" {
-				rpc = clientproto.RPCZooFindPet.String()
-			}
-			planned := domainOp(rpc, goal, "basic.zoo.event", evt.Action, reason, 5665, evt.PetID, evt.TableID, 0)
-			if evt.Agree {
-				planned.Count = 1
-			}
-			ops = append(ops, planned)
-			break
 		}
 	}
 	if policy.GetAutoBuyFood() {
