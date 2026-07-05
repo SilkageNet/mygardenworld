@@ -183,11 +183,25 @@ func opKindDesc(kind string) string {
 	case "usrLand.unlockLand":
 		return "解锁田地"
 	case clientproto.RPCZooEnterZoo.String():
-		return "进入动物园"
+		return "进入宠物模块"
 	case clientproto.RPCZooFeedPets.String():
-		return "喂猫"
+		return "宠物喂食"
 	case clientproto.RPCZooStrokePet.String():
-		return "撸猫"
+		return "宠物互动"
+	case clientproto.RPCZooFindPet.String():
+		return "宠物寻回"
+	case clientproto.RPCZooHandleEvent.String():
+		return "宠物事件"
+	case clientproto.RPCRandomEventEnter.String():
+		return "同步地图随机事件"
+	case clientproto.RPCRandomEventDoAffair.String():
+		return "处理地图随机事件"
+	case clientproto.RPCStoryMainEnter.String():
+		return "同步主线剧情"
+	case clientproto.RPCStoryMainUnlock.String():
+		return "解锁主线剧情"
+	case clientproto.RPCTaskAchRecv.String():
+		return "领取成就任务"
 	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():
 		return "防骗问答"
 	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
@@ -294,7 +308,7 @@ func eventDomain(kind string) string {
 	case "road_grow":
 		return "basic.road_grow"
 	case "random_event":
-		return "basic.random_event"
+		return "basic.map_event"
 	case "story_unlock":
 		return "basic.story"
 	case "order_finish", "order_reward", "order_ad":
@@ -387,7 +401,7 @@ func eventLabel(kind string) string {
 	case "road_grow":
 		return "成长之路"
 	case "random_event":
-		return "地图事件"
+		return "地图随机事件"
 	case "story_unlock":
 		return "剧情"
 	case "order_finish":

@@ -156,7 +156,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	policy := r.Policy()
 	plan := automation.BuildPlan(st, policy, now)
 	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
-	resp.PlannedOperations = plannedOperationsProto(plan.Operations)
+	resp.PlannedOperations = plannedOperationsProto(plan.Operations, diag)
 	resp.Demands = demandsProto(plan.Demands)
 	resp.Vases = vasesProto(st.Vases())
 	resp.FlowerArtAvailability = flowerArtAvailabilityProto(st, plan)
@@ -191,6 +191,10 @@ func timestampOrNil(t time.Time) *timestamppb.Timestamp {
 }
 
 func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
+	return buildPendingTasksAt(st, time.Now())
+}
+
+func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 	inventory := st.Inventory()
 	var out []*pb.PendingTaskView
 
@@ -206,12 +210,22 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 			continue
 		}
 		reqs := flowerRequirements(order.Requires, inventory)
+		status := requirementsStatus(reqs)
+		var cooldownUntil int64
+		var cooldownReason string
+		if status == pb.PlanStatus_PLAN_STATUS_READY && !order.CooldownReady(now) {
+			status = pb.PlanStatus_PLAN_STATUS_MANAGED
+			cooldownUntil = order.CdTimeMs
+			cooldownReason = "居民订单冷却中"
+		}
 		out = append(out, &pb.PendingTaskView{
-			Category:     "居民订单",
-			Id:           strconv.FormatInt(int64(boxID), 10),
-			Title:        fmt.Sprintf("居民订单 #%d", boxID),
-			Status:       requirementsStatus(reqs),
-			Requirements: reqs,
+			Category:        "居民订单",
+			Id:              strconv.FormatInt(int64(boxID), 10),
+			Title:           fmt.Sprintf("居民订单 #%d", boxID),
+			Status:          status,
+			Requirements:    reqs,
+			CooldownUntilMs: cooldownUntil,
+			CooldownReason:  cooldownReason,
 		})
 	}
 
@@ -259,6 +273,25 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 		out = append(out, view)
 	}
 
+	if story, ok := st.StoryMain(); ok {
+		status := pb.PlanStatus_PLAN_STATUS_MANAGED
+		reqs := itemRequirements(story.Cost, inventory)
+		if len(reqs) > 0 {
+			status = requirementsStatus(reqs)
+		}
+		title := story.SectionName
+		if title == "" {
+			title = fmt.Sprintf("剧情小节 #%d", story.SectionID)
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category:     "主线剧情",
+			Id:           strconv.FormatInt(int64(story.SectionID), 10),
+			Title:        title,
+			Status:       status,
+			Requirements: reqs,
+		})
+	}
+
 	dailyTasks := st.DailyTasks()
 	taskIDs := make([]int32, 0, len(dailyTasks))
 	for id, task := range dailyTasks {
@@ -288,13 +321,100 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 		})
 	}
 
+	weeklyTasks := st.WeeklyTasks()
+	weeklyIDs := make([]int32, 0, len(weeklyTasks))
+	for id, task := range weeklyTasks {
+		if task.Receipted != 0 {
+			continue
+		}
+		weeklyIDs = append(weeklyIDs, id)
+	}
+	sort.Slice(weeklyIDs, func(i, j int) bool { return weeklyIDs[i] < weeklyIDs[j] })
+	for _, id := range weeklyIDs {
+		task := weeklyTasks[id]
+		status := pb.PlanStatus_PLAN_STATUS_MANAGED
+		if task.Status == 1 || (task.Status == 0 && task.Target > 0 && task.Finished >= task.Target) {
+			status = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		title := state.WeeklyTaskTitle(task.TaskID, task.Target)
+		if title == "" {
+			title = fmt.Sprintf("周常任务 #%d", task.TaskID)
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "周常任务",
+			Id:       strconv.FormatInt(int64(id), 10),
+			Title:    title,
+			Finished: task.Finished,
+			Target:   task.Target,
+			Status:   status,
+		})
+	}
+
+	achievementTasks := st.AchievementTasks()
+	achievementIDs := make([]int32, 0, len(achievementTasks))
+	for id, task := range achievementTasks {
+		if task.Receipted != 0 || !task.Current {
+			continue
+		}
+		achievementIDs = append(achievementIDs, id)
+	}
+	sort.Slice(achievementIDs, func(i, j int) bool { return achievementIDs[i] < achievementIDs[j] })
+	for _, id := range achievementIDs {
+		task := achievementTasks[id]
+		status := pb.PlanStatus_PLAN_STATUS_MANAGED
+		if task.Status == 1 || (task.Status == 0 && task.Target > 0 && task.Finished >= task.Target) {
+			status = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		title := state.AchievementTaskTitle(task.TaskID)
+		if title == "" {
+			title = fmt.Sprintf("成就任务 #%d", task.TaskID)
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "成就任务",
+			Id:       strconv.FormatInt(int64(id), 10),
+			Title:    title,
+			Finished: task.Finished,
+			Target:   task.Target,
+			Status:   status,
+		})
+	}
+
+	if !st.RandomEventObserved() {
+		out = append(out, &pb.PendingTaskView{
+			Category: "地图随机事件",
+			Id:       "sync",
+			Title:    "地图随机事件同步",
+			Status:   pb.PlanStatus_PLAN_STATUS_SYNC_ONLY,
+		})
+	}
 	for _, id := range st.ReadyRandomEventIDs() {
 		out = append(out, &pb.PendingTaskView{
-			Category: "地图事件",
+			Category: "地图随机事件",
 			Id:       strconv.FormatInt(int64(id), 10),
-			Title:    fmt.Sprintf("地图事件 #%d", id),
+			Title:    fmt.Sprintf("地图随机事件 #%d", id),
 			Status:   pb.PlanStatus_PLAN_STATUS_READY,
 		})
+	}
+
+	for _, evt := range st.ZooEventActions() {
+		status := pb.PlanStatus_PLAN_STATUS_READY
+		if evt.Blocked {
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+		}
+		title := evt.Name
+		if title == "" {
+			title = fmt.Sprintf("宠物事件 #%d", evt.EventID)
+		}
+		if evt.BlockedReason != "" {
+			title = fmt.Sprintf("%s：%s", title, evt.BlockedReason)
+		}
+		view := &pb.PendingTaskView{
+			Category: "宠物事件",
+			Id:       fmt.Sprintf("%d:%d", evt.PetID, evt.EventID),
+			Title:    title,
+			Status:   status,
+		}
+		out = append(out, view)
 	}
 
 	return out
@@ -307,6 +427,17 @@ func flowerRequirements(reqs []state.FlowerRequire, inventory map[int32]int32) [
 			continue
 		}
 		out = append(out, requirementView(req.FlowerID, req.Count, inventory[req.FlowerID]))
+	}
+	return out
+}
+
+func itemRequirements(reqs []state.ItemCount, inventory map[int32]int32) []*pb.RequirementView {
+	out := make([]*pb.RequirementView, 0, len(reqs))
+	for _, req := range reqs {
+		if req.ItemID == 0 || req.Count <= 0 {
+			continue
+		}
+		out = append(out, requirementView(req.ItemID, req.Count, inventory[req.ItemID]))
 	}
 	return out
 }
@@ -362,40 +493,79 @@ func requirementsStatus(reqs []*pb.RequirementView) pb.PlanStatus {
 	return pb.PlanStatus_PLAN_STATUS_READY
 }
 
-func plannedOperationsProto(ops []automation.PlannedOp) []*pb.PlannedOperation {
+func plannedOperationsProto(ops []automation.PlannedOp, diag runner.Diagnostics) []*pb.PlannedOperation {
+	cooldowns := cooldownsByOperation(diag)
 	out := make([]*pb.PlannedOperation, 0, len(ops))
 	for _, op := range ops {
+		cooldownUntil := op.CooldownUntil
+		cooldownReason := op.CooldownReason
+		if cd, ok := cooldowns[op.OperationID]; ok {
+			cooldownUntil = cd.Until
+			cooldownReason = cd.Reason
+		}
 		out = append(out, &pb.PlannedOperation{
-			Category:       op.Category,
-			Domain:         op.Domain,
-			Action:         op.Action,
-			Rpc:            op.Kind,
-			Reason:         op.Reason,
-			LandIds:        append([]int32(nil), op.LandIDs...),
-			FlowerId:       op.FlowerID,
-			Priority:       op.Priority,
-			GoldCost:       op.GoldCost,
-			DiamondCost:    op.DiamondCost,
-			ItemCost:       cloneInt32Map(op.ItemCost),
-			FeatureId:      op.FeatureID,
-			Label:          op.Label,
-			Status:         planStatusProto(op.Status),
-			Executable:     op.Executable,
-			SyncOnly:       op.SyncOnly,
-			BlockedReasons: append([]string(nil), op.BlockedReasons...),
-			OperationId:    op.OperationID,
-			GoalId:         op.GoalID,
-			DemandId:       op.DemandID,
-			TargetId:       op.TargetID,
-			ItemId:         op.ItemID,
-			Count:          op.Count,
-			VaseId:         op.VaseID,
-			FlowerIds:      append([]int32(nil), op.FlowerIDs...),
-			CostGates:      costGatesProto(op.CostGates),
-			BlockingStage:  op.BlockingStage,
+			Category:        op.Category,
+			Domain:          op.Domain,
+			Action:          op.Action,
+			Rpc:             op.Kind,
+			Lane:            executionLaneProto(op.Lane),
+			Reason:          op.Reason,
+			LandIds:         append([]int32(nil), op.LandIDs...),
+			FlowerId:        op.FlowerID,
+			Priority:        op.Priority,
+			GoldCost:        op.GoldCost,
+			DiamondCost:     op.DiamondCost,
+			ItemCost:        cloneInt32Map(op.ItemCost),
+			FeatureId:       op.FeatureID,
+			Label:           op.Label,
+			Status:          planStatusProto(op.Status),
+			Executable:      op.Executable,
+			SyncOnly:        op.SyncOnly,
+			BlockedReasons:  append([]string(nil), op.BlockedReasons...),
+			OperationId:     op.OperationID,
+			GoalId:          op.GoalID,
+			DemandId:        op.DemandID,
+			TargetId:        op.TargetID,
+			ItemId:          op.ItemID,
+			Count:           op.Count,
+			VaseId:          op.VaseID,
+			FlowerIds:       append([]int32(nil), op.FlowerIDs...),
+			CostGates:       costGatesProto(op.CostGates),
+			BlockingStage:   op.BlockingStage,
+			CooldownUntilMs: timeToUnixMilli(cooldownUntil),
+			CooldownReason:  cooldownReason,
 		})
 	}
 	return out
+}
+
+func cooldownsByOperation(diag runner.Diagnostics) map[string]runner.OperationCooldownSnapshot {
+	out := make(map[string]runner.OperationCooldownSnapshot, len(diag.OperationCooldowns))
+	for _, cd := range diag.OperationCooldowns {
+		if cd.OperationID == "" {
+			continue
+		}
+		out[cd.OperationID] = cd
+	}
+	return out
+}
+
+func executionLaneProto(lane string) pb.ExecutionLane {
+	switch lane {
+	case automation.LaneFarm:
+		return pb.ExecutionLane_EXECUTION_LANE_FARM
+	case automation.LaneSide:
+		return pb.ExecutionLane_EXECUTION_LANE_SIDE
+	default:
+		return pb.ExecutionLane_EXECUTION_LANE_UNSPECIFIED
+	}
+}
+
+func timeToUnixMilli(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixMilli()
 }
 
 func demandsProto(demands []automation.Demand) []*pb.DemandView {
@@ -729,13 +899,15 @@ func buildDomainStatuses(policy *pb.Policy, diag runner.Diagnostics, connected b
 	policy = automation.DefaultPolicyIfNil(policy)
 	observed := setOfStrings(diag.ObservedNamespaces)
 	blocked := append([]string(nil), diag.BlockedReasons...)
-	return []*pb.DomainStatus{
-		domainStatus("basic", "basic", basicEnabled(policy.GetBasic()), observedAny(observed, "7", "22", "116", "117", "119", "129"), blocked, "", connected),
+	statuses := []*pb.DomainStatus{
+		domainStatus("basic", "basic", basicEnabled(policy.GetBasic()), observedAny(observed, "7", "22", "33", "116", "117", "119", "129"), blocked, "", connected),
 		domainStatus("plant", "plant", plantEnabled(policy.GetPlant()), observedAny(observed, "100", "101", "104", "105", "109", "114"), blocked, "", connected),
 		domainStatus("order", "order", orderEnabled(policy.GetOrder()), observedAny(observed, "104", "105", "107", "108", "109"), blocked, "", connected),
 		domainStatus("union", "union", unionEnabled(policy.GetUnion()), observedAny(observed, "25", "152"), blocked, "", connected),
 		domainStatus("activity", "activity", activityEnabled(policy.GetActivity()), observedActivity(observed), blocked, "", connected),
 	}
+	applyOperationCooldownsToDomainStatuses(statuses, diag.OperationCooldowns)
+	return statuses
 }
 
 func domainStatus(category, domain string, enabled bool, observed bool, blocked []string, lastErr string, connected bool) *pb.DomainStatus {
@@ -758,10 +930,42 @@ func domainStatus(category, domain string, enabled bool, observed bool, blocked 
 	return &pb.DomainStatus{
 		Category:       category,
 		Domain:         domain,
+		Lane:           defaultDomainLane(category),
 		Observed:       observed,
 		Status:         status,
 		BlockedReasons: reasons,
 		LastError:      lastErr,
+	}
+}
+
+func defaultDomainLane(category string) pb.ExecutionLane {
+	if category == automation.CategoryPlant {
+		return pb.ExecutionLane_EXECUTION_LANE_FARM
+	}
+	return pb.ExecutionLane_EXECUTION_LANE_SIDE
+}
+
+func applyOperationCooldownsToDomainStatuses(statuses []*pb.DomainStatus, cooldowns []runner.OperationCooldownSnapshot) {
+	for _, status := range statuses {
+		var selected runner.OperationCooldownSnapshot
+		for _, cd := range cooldowns {
+			if cd.Category != status.GetCategory() {
+				continue
+			}
+			if selected.Until.IsZero() || cd.Until.Before(selected.Until) {
+				selected = cd
+			}
+		}
+		if selected.Until.IsZero() {
+			continue
+		}
+		status.Lane = executionLaneProto(selected.Lane)
+		status.CooldownUntilMs = selected.Until.UnixMilli()
+		status.CooldownReason = selected.Reason
+		status.Status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+		if selected.Reason != "" && !containsString(status.BlockedReasons, selected.Reason) {
+			status.BlockedReasons = append(status.BlockedReasons, selected.Reason)
+		}
 	}
 }
 
@@ -787,9 +991,9 @@ func basicEnabled(p *pb.BasicPolicy) bool {
 		sign.GetDailyEnabled() || sign.GetPatchEnabled() || p.GetFreeWaterEnabled() ||
 		p.GetWaterwheelEnabled() || benefit.GetBoxEnabled() || benefit.GetDoubleCoinEnabled() ||
 		benefit.GetShareRewardEnabled() || benefit.GetAntiScamBoxEnabled() ||
-		p.GetRandomEventEnabled() || p.GetRoadGrowRewardEnabled() ||
+		p.GetMapEventEnabled() || p.GetRoadGrowRewardEnabled() ||
 		p.GetPearl().GetFreeEnabled() || p.GetShop().GetVideoFreeGiftEnabled() ||
-		p.GetFeedCat().GetEnabled())
+		p.GetZoo().GetEnabled())
 }
 
 func plantEnabled(p *pb.PlantPolicy) bool {

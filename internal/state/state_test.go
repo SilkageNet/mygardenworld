@@ -1043,6 +1043,30 @@ func TestWaterwheelDailyLimitErrorSuppressesClaimsUntilReset(t *testing.T) {
 	}
 }
 
+func TestResidentOrderDailyLimitErrorSuppressesUntilNextGameDay(t *testing.T) {
+	now := time.Date(2026, 7, 5, 20, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{"20260705": map[string]any{"1": 20260705, "9": 1259}}},
+	})
+
+	s.MarkResidentOrderDailyLimitReached(now)
+	until, ok := s.ResidentOrderDailyLimitReached(now)
+	if !ok {
+		t.Fatal("ResidentOrderDailyLimitReached = false, want true after server limit error")
+	}
+	if !until.After(now) {
+		t.Fatalf("resident order limit until = %s, want future time", until)
+	}
+
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{"20260706": map[string]any{"1": 20260706, "9": 0}}},
+	})
+	if _, ok := s.ResidentOrderDailyLimitReached(now.Add(6 * time.Hour)); ok {
+		t.Fatal("ResidentOrderDailyLimitReached = true, want false after statistics day reset")
+	}
+}
+
 func TestApplyV_FreeWaterTracksNextIndex(t *testing.T) {
 	s := New()
 	if _, ok := s.NextFreeWaterIndex(); ok {
@@ -1083,6 +1107,41 @@ func TestApplyV_ReadyDailyTaskIDs(t *testing.T) {
 	tasks := s.DailyTasks()
 	if tasks[102].Receipted != 1 || tasks[103].Finished != 3 {
 		t.Fatalf("daily task copy mismatch: %+v", tasks)
+	}
+}
+
+func TestApplyV_DailyTaskRecvMapUsesProgressTypeAndMergesPartialDelta(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"22": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"4": 569},
+				"3": map[string]any{},
+				"100": map[string]any{
+					"40001": map[string]any{"0": 40001, "1": 569, "2": 0},
+				},
+			},
+		},
+	})
+	ready := s.ReadyDailyTaskIDs()
+	if len(ready) != 1 || ready[0] != 40001 {
+		t.Fatalf("ReadyDailyTaskIDs got %v, want [40001]", ready)
+	}
+
+	applyMap(t, s, map[string]any{
+		"22": map[string]any{
+			"1": map[string]any{
+				"3": map[string]any{"4": 1},
+			},
+		},
+	})
+	if ready := s.ReadyDailyTaskIDs(); len(ready) != 0 {
+		t.Fatalf("ReadyDailyTaskIDs after recv delta got %v, want empty", ready)
+	}
+	tasks := s.DailyTasks()
+	task := tasks[40001]
+	if task.ProgressType != 4 || task.Receipted != 1 || task.Status != 3 {
+		t.Fatalf("daily task after recv delta=%+v, want progress type 4 receipted status", task)
 	}
 }
 
@@ -1690,6 +1749,94 @@ func TestApplyV_RoadGrowAndRandomEventReady(t *testing.T) {
 	events := s.ReadyRandomEventIDs()
 	if len(events) != 2 || events[0] != 6002 || events[1] != 6005 {
 		t.Fatalf("ReadyRandomEventIDs=%v, want [6002 6005]", events)
+	}
+	if !s.RandomEventObserved() {
+		t.Fatal("RandomEventObserved=false, want true")
+	}
+}
+
+func TestApplyV_StoryAchievementAndZooEvents(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"0":   map[string]any{"32": map[string]any{"142": 120}},
+			"101": map[string]any{"0": 1, "1": 19, "2": 5, "3": int64(10), "4": int64(20)},
+		},
+		"22": map[string]any{
+			"2": map[string]any{
+				"1": map[string]any{"1": 3},
+				"3": map[string]any{},
+			},
+		},
+		"33": map[string]any{
+			"0": map[string]any{"0": 1, "3": []int32{1}},
+			"1": map[string]any{
+				"1": map[string]any{
+					"1":  1,
+					"5":  5,
+					"9":  4001,
+					"10": []int32{3012},
+					"19": int64(30),
+					"25": map[string]any{"4001": int64(40)},
+				},
+			},
+		},
+	})
+	story, ok := s.StoryMain()
+	if !ok || story.Chapter != 19 || story.SectionIdx != 5 || story.SectionID != 2901 || len(story.Cost) == 0 {
+		t.Fatalf("StoryMain=%+v ok=%t, want chapter 19 section 2901 with cost", story, ok)
+	}
+	readyAch := s.ReadyAchievementTaskIDs()
+	if len(readyAch) != 1 || readyAch[0] != 10001 {
+		t.Fatalf("ReadyAchievementTaskIDs=%v, want [10001]", readyAch)
+	}
+	pets := s.ZooPets()
+	pet := pets[1]
+	if pet.GoOutEventID != 4001 || len(pet.SpecialEventIDs) != 1 || pet.ReadLogTimeMs != 30 || pet.EventTriggerTimes[4001] != 40 {
+		t.Fatalf("ZooPet fields=%+v, want parsed event fields", pet)
+	}
+	events := s.ZooEventActions()
+	seen := map[int32]ZooEventAction{}
+	for _, event := range events {
+		seen[event.EventID] = event
+	}
+	if event := seen[4001]; !event.Blocked || event.Action != "find_pet" || event.PetID != 1 {
+		t.Fatalf("ZooEventActions=%+v, want blocked find_pet for pet 1 event 4001", events)
+	}
+	if event := seen[3012]; !event.Blocked || event.Action != "handle_event" || event.PetID != 1 {
+		t.Fatalf("ZooEventActions=%+v, want blocked handle_event for pet 1 event 3012", events)
+	}
+}
+
+func TestApplyV_AchievementRecvMapUsesGroupCursor(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"22": map[string]any{
+			"2": map[string]any{
+				"1": map[string]any{"1033": 53},
+				"3": map[string]any{},
+			},
+		},
+	})
+	ready := s.ReadyAchievementTaskIDs()
+	if len(ready) != 1 || ready[0] != 60001 {
+		t.Fatalf("ReadyAchievementTaskIDs got %v, want [60001]", ready)
+	}
+
+	applyMap(t, s, map[string]any{
+		"22": map[string]any{
+			"2": map[string]any{
+				"3": map[string]any{"6": 1},
+			},
+		},
+	})
+	if ready := s.ReadyAchievementTaskIDs(); len(ready) != 0 {
+		t.Fatalf("ReadyAchievementTaskIDs after recv got %v, want empty", ready)
+	}
+	tasks := s.AchievementTasks()
+	task := tasks[60001]
+	if task.GroupID != 6 || task.ProgressType != 1033 || task.GroupReceived != 1 || task.Receipted != 1 || task.Status != 3 || task.Current {
+		t.Fatalf("achievement task after recv=%+v, want completed group cursor", task)
 	}
 }
 

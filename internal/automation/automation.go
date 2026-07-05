@@ -26,6 +26,11 @@ const (
 )
 
 const (
+	LaneFarm = "farm"
+	LaneSide = "side"
+)
+
+const (
 	KindHarvest = "harvest"
 	KindPlant   = "plant"
 	KindWater   = "water"
@@ -244,6 +249,7 @@ type PlannedOp struct {
 	GoalID         string
 	DemandID       string
 	Kind           string
+	Lane           string
 	FeatureID      string
 	Category       string
 	Label          string
@@ -269,6 +275,8 @@ type PlannedOp struct {
 	ItemCost       map[int32]int32
 	CostGates      []CostGate
 	BlockingStage  string
+	CooldownUntil  time.Time
+	CooldownReason string
 }
 
 func Recommend(land state.LandView, now time.Time) (kind, reason string) {
@@ -344,7 +352,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 
 func enabledGoals(policy *pb.Policy) []Goal {
 	plant := policy.GetPlant()
-	priorities := plant.GetPlanting().GetGoalPriority()
+	priorities := plant.GetPlanting().GetDemandPriority()
 	var goals []Goal
 	add := func(enabled bool, id, category, domain, label string) {
 		if !enabled {
@@ -378,7 +386,7 @@ func priorityFor(priorities map[string]int32, id string) int32 {
 	if v := priorities[id]; v != 0 {
 		return v
 	}
-	return defaultGoalPriority()[id]
+	return defaultDemandPriority()[id]
 }
 
 func goalByID(goals []Goal, id string) (Goal, bool) {
@@ -1098,7 +1106,7 @@ func autoReplantAssignments(candidates []state.PlantableFlower, limit int32) []p
 			out = append(out, plantAssignment{
 				FlowerID: candidates[i].FlowerID,
 				Count:    count,
-				Priority: priorityFor(defaultGoalPriority(), GoalAutoReplant)*100 + 100,
+				Priority: priorityFor(defaultDemandPriority(), GoalAutoReplant)*100 + 100,
 				GoalID:   GoalAutoReplant,
 				Reason:   "自主补种",
 			})
@@ -1155,7 +1163,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	if goal, ok := goalByID(goals, GoalResidentOrder); ok {
 		resident := order.GetResident()
 		if resident.GetNormalEnabled() {
-			if blocked, ok := residentOrderLimitBlock(s, resident, goal); ok {
+			if blocked, ok := residentOrderLimitBlock(s, resident, goal, now); ok {
 				ops = append(ops, blocked)
 			} else {
 				statsObserved := s.Statistics().Observed
@@ -1410,19 +1418,32 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 			break
 		}
 	}
+	if task.GetStoryEnabled() {
+		ops = append(ops, storyOperations(s)...)
+	}
+	if task.GetAchievementEnabled() {
+		for _, id := range s.ReadyAchievementTaskIDs() {
+			add(true, clientproto.RPCTaskAchRecv.String(), "basic.task.achievement", "claim", "成就任务奖励可领取", 6120, id)
+			break
+		}
+	}
 	if basic.GetRoadGrowRewardEnabled() {
 		for _, id := range s.ReadyRoadGrowTaskIDs() {
 			add(true, clientproto.RPCRoadGrowRecv.String(), "basic.road_grow", "claim", "成长之路奖励可领取", 5980, id)
 			break
 		}
 	}
-	if basic.GetRandomEventEnabled() {
-		for _, id := range s.ReadyRandomEventIDs() {
-			add(true, clientproto.RPCRandomEventDoAffair.String(), "basic.random_event", "claim", "地图事件可处理", 5960, id)
-			break
+	if basic.GetMapEventEnabled() {
+		if !s.RandomEventObserved() {
+			add(true, clientproto.RPCRandomEventEnter.String(), "basic.map_event", "sync", "地图随机事件未同步，先进入事件模块", 5970, 0)
+		} else {
+			for _, id := range s.ReadyRandomEventIDs() {
+				add(true, clientproto.RPCRandomEventDoAffair.String(), "basic.map_event", "claim", "地图随机事件可处理", 5960, id)
+				break
+			}
 		}
 	}
-	ops = append(ops, zooOperations(s, basic.GetFeedCat(), now)...)
+	ops = append(ops, zooOperations(s, basic.GetZoo(), now)...)
 	if basic.GetMailEnabled() {
 		if !s.MailObserved() {
 			add(true, clientproto.RPCMailGetList.String(), "basic.mail", "sync", "邮件列表未同步，先获取列表", 5700, 0)
@@ -1442,6 +1463,53 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	return ops
 }
 
+func storyOperations(s *state.State) []PlannedOp {
+	goal := Goal{ID: "basic.story", Category: CategoryBasic, Domain: "basic.story", Label: "剧情", Priority: 61}
+	if !s.StoryMainObserved() {
+		return []PlannedOp{domainOp(clientproto.RPCStoryMainEnter.String(), goal, "basic.story", "sync", "主线剧情未同步，先进入剧情模块", 6140, 0, 0, 0)}
+	}
+	story, ok := s.StoryMain()
+	if !ok || story.SectionID <= 0 {
+		blocked := markerOp(CategoryBasic, "basic.story", "unlock", "主线剧情当前小节未识别，暂不自动解锁", 6130)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"无法从 c_storyMainChapter/c_storyMainSection 匹配当前章节小节"}
+		return []PlannedOp{blocked}
+	}
+	if len(story.Cost) == 0 {
+		blocked := markerOp(CategoryBasic, "basic.story", "unlock", "主线剧情解锁成本未识别，暂不自动解锁", 6130)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.TargetID = story.SectionID
+		blocked.BlockedReasons = []string{"当前剧情小节没有可识别的 cost"}
+		return []PlannedOp{blocked}
+	}
+	inventory := s.Inventory()
+	itemCost := make(map[int32]int32, len(story.Cost))
+	var missing []string
+	for _, cost := range story.Cost {
+		if cost.ItemID <= 0 || cost.Count <= 0 {
+			continue
+		}
+		itemCost[cost.ItemID] += cost.Count
+		if have := inventory[cost.ItemID]; have < cost.Count {
+			missing = append(missing, fmt.Sprintf("%s不足：需要%d，当前%d", itemLabel(cost.ItemID), cost.Count, have))
+		}
+	}
+	if len(missing) > 0 {
+		blocked := markerOp(CategoryBasic, "basic.story", "unlock", "主线剧情星星不足，暂不进入执行队列", 6130)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.TargetID = story.SectionID
+		blocked.ItemCost = itemCost
+		blocked.BlockedReasons = missing
+		return []PlannedOp{blocked}
+	}
+	planned := op(clientproto.RPCStoryMainUnlock.String(), goal, "unlock", "主线剧情小节可解锁", 6130, story.SectionID, 0, 0)
+	planned.ItemCost = itemCost
+	return []PlannedOp{planned}
+}
+
 func waterClaimAllowed(s *state.State, basic *pb.BasicPolicy, now time.Time) bool {
 	if s == nil {
 		return false
@@ -1456,24 +1524,52 @@ func waterClaimAllowed(s *state.State, basic *pb.BasicPolicy, now time.Time) boo
 	return true
 }
 
-func zooOperations(s *state.State, policy *pb.FeedCatPolicy, now time.Time) []PlannedOp {
+func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []PlannedOp {
 	if policy == nil || !policy.GetEnabled() {
 		return nil
 	}
-	goal := Goal{ID: "basic.zoo", Category: CategoryBasic, Domain: "basic.zoo", Label: "喂猫撸猫", Priority: 57}
+	goal := Goal{ID: "basic.zoo", Category: CategoryBasic, Domain: "basic.zoo", Label: "宠物", Priority: 57}
 	var ops []PlannedOp
 	if !s.ZooObserved() {
-		return []PlannedOp{domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "动物/猫状态未同步，先进入动物园", 5690, 0, 0, 0)}
+		return []PlannedOp{domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "宠物状态未同步，先进入宠物模块", 5690, 0, 0, 0)}
 	}
 	if policy.GetAutoFeed() {
 		for _, petID := range s.ReadyZooFeedPetIDs() {
-			ops = append(ops, domainOp(clientproto.RPCZooFeedPets.String(), goal, "basic.zoo.feed", "feed", "猫碗中已有食物且当前状态可进食", 5680, petID, 0, 0))
+			ops = append(ops, domainOp(clientproto.RPCZooFeedPets.String(), goal, "basic.zoo.feed", "feed", "宠物食盆中已有食物且当前状态可进食", 5680, petID, 0, 0))
 			break
 		}
 	}
 	if policy.GetAutoStroke() {
 		for _, petID := range s.ReadyZooStrokePetIDs(now) {
-			ops = append(ops, domainOp(clientproto.RPCZooStrokePet.String(), goal, "basic.zoo.stroke", "stroke", "猫当前可撸且心情未满", 5670, petID, 0, 0))
+			ops = append(ops, domainOp(clientproto.RPCZooStrokePet.String(), goal, "basic.zoo.stroke", "stroke", "宠物当前可互动且心情未满", 5670, petID, 0, 0))
+			break
+		}
+	}
+	if policy.GetAutoEventEnabled() {
+		for _, evt := range s.ZooEventActions() {
+			reason := evt.BlockedReason
+			if reason == "" {
+				reason = "宠物事件可处理"
+			}
+			if evt.Blocked {
+				blocked := markerOp(CategoryBasic, "basic.zoo.event", evt.Action, reason, 5665)
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.TargetID = evt.PetID
+				blocked.ItemID = evt.TableID
+				blocked.BlockedReasons = []string{reason}
+				ops = append(ops, blocked)
+				break
+			}
+			rpc := clientproto.RPCZooHandleEvent.String()
+			if evt.Action == "find_pet" {
+				rpc = clientproto.RPCZooFindPet.String()
+			}
+			planned := domainOp(rpc, goal, "basic.zoo.event", evt.Action, reason, 5665, evt.PetID, evt.TableID, 0)
+			if evt.Agree {
+				planned.Count = 1
+			}
+			ops = append(ops, planned)
 			break
 		}
 	}
@@ -1482,13 +1578,6 @@ func zooOperations(s *state.State, policy *pb.FeedCatPolicy, now time.Time) []Pl
 		blocked.Status = PlanStatusAdapterMissing
 		blocked.Executable = false
 		blocked.BlockedReasons = []string{"猫粮购买成本和商品选择尚未放开自动执行"}
-		ops = append(ops, blocked)
-	}
-	if policy.GetAutoRecall() {
-		blocked := markerOp(CategoryBasic, "basic.zoo.recall", "recall", "自动召回猫的事件链路尚未确认，暂不自动执行", 5650)
-		blocked.Status = PlanStatusAdapterMissing
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{"召回事件链路与成本尚未确认"}
 		ops = append(ops, blocked)
 	}
 	return ops
@@ -2167,7 +2256,15 @@ func syncOnlyOperation(op PlannedOp, reasons ...string) PlannedOp {
 	return op
 }
 
-func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goal Goal) (PlannedOp, bool) {
+func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goal Goal, now time.Time) (PlannedOp, bool) {
+	if until, ok := s.ResidentOrderDailyLimitReached(now); ok {
+		blocked := markerOp(CategoryOrder, "order.resident", "finish", "居民订单今日上限已达", goal.Priority*100+690)
+		blocked.GoalID = goal.ID
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{fmt.Sprintf("服务端提示今日完成订单次数已达上限，预计 %s 后再试", until.Format("01/02 15:04"))}
+		return blocked, true
+	}
 	limit := policy.GetNormalDailyLimit()
 	if limit <= 0 {
 		blocked := markerOp(CategoryOrder, "order.resident", "finish", "居民订单普通订单上限未设置", goal.Priority*100+690)
@@ -2176,6 +2273,9 @@ func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goa
 		blocked.Executable = false
 		blocked.BlockedReasons = []string{"普通居民订单上限必须大于 0"}
 		return blocked, true
+	}
+	if hardLimit := state.ResidentOrderNormalDailyMax(); hardLimit > 0 && hardLimit < limit {
+		limit = hardLimit
 	}
 	stats := s.Statistics()
 	if stats.Observed && stats.OrderFlowerFinishNum >= limit {
@@ -2524,6 +2624,7 @@ func landOp(kind, domain, action, reason string, priority int32, landIDs []int32
 		GoalID:      goalID,
 		DemandID:    demandID,
 		Kind:        kind,
+		Lane:        laneForDomain(domain),
 		Category:    CategoryPlant,
 		Domain:      domain,
 		Action:      action,
@@ -2539,6 +2640,7 @@ func markerOp(category, domain, action, reason string, priority int32) PlannedOp
 	op := PlannedOp{
 		OperationID: operationID(domain+"."+action, nil, 0, 0, 0),
 		Kind:        domain + "." + action,
+		Lane:        laneForDomain(domain),
 		Category:    category,
 		Domain:      domain,
 		Action:      action,
@@ -2553,6 +2655,7 @@ func op(kind string, goal Goal, action, reason string, priority, targetID, itemI
 		OperationID: operationID(kind, nil, 0, targetID, itemID),
 		GoalID:      goal.ID,
 		Kind:        kind,
+		Lane:        laneForDomain(goal.Domain),
 		Category:    goal.Category,
 		Domain:      goal.Domain,
 		Action:      action,
@@ -2570,6 +2673,7 @@ func domainOp(kind string, goal Goal, domain, action, reason string, priority, t
 		OperationID: operationID(kind, nil, 0, targetID, itemID),
 		GoalID:      goal.ID,
 		Kind:        kind,
+		Lane:        laneForDomain(domain),
 		Category:    goal.Category,
 		Domain:      domain,
 		Action:      action,
@@ -2584,6 +2688,9 @@ func domainOp(kind string, goal Goal, domain, action, reason string, priority, t
 
 func sortOperations(ops []PlannedOp) {
 	sort.SliceStable(ops, func(i, j int) bool {
+		if laneRank(ops[i].Lane) != laneRank(ops[j].Lane) {
+			return laneRank(ops[i].Lane) < laneRank(ops[j].Lane)
+		}
 		if ops[i].Priority != ops[j].Priority {
 			return ops[i].Priority > ops[j].Priority
 		}
@@ -2595,6 +2702,26 @@ func sortOperations(ops []PlannedOp) {
 		}
 		return ops[i].OperationID < ops[j].OperationID
 	})
+}
+
+func laneForDomain(domain string) string {
+	switch domain {
+	case "farm.harvest", "farm.plant", "farm.water":
+		return LaneFarm
+	default:
+		return LaneSide
+	}
+}
+
+func laneRank(lane string) int {
+	switch lane {
+	case LaneFarm:
+		return 0
+	case LaneSide, "":
+		return 1
+	default:
+		return 2
+	}
 }
 
 func categoryRank(category string) int {
@@ -2642,7 +2769,7 @@ func DefaultPolicy() *pb.Policy {
 				CultivateShop: &pb.ShopBuyPolicy{},
 				VipShop:       &pb.VipShopPolicy{},
 			},
-			FeedCat: &pb.FeedCatPolicy{},
+			Zoo: &pb.ZooPolicy{},
 		},
 		Plant: &pb.PlantPolicy{
 			Cultivate: &pb.CultivatePolicy{
@@ -2650,7 +2777,7 @@ func DefaultPolicy() *pb.Policy {
 			},
 			Planting: &pb.PlantingPolicy{
 				AutoEnabled:     true,
-				GoalPriority:    defaultGoalPriority(),
+				DemandPriority:  defaultDemandPriority(),
 				MinWaterDrops:   5,
 				AutoReplantMode: pb.SelectionMode_SELECTION_MODE_ALL,
 			},
@@ -2665,7 +2792,7 @@ func DefaultPolicy() *pb.Policy {
 		},
 		Order: &pb.OrderPolicy{
 			Customer:  &pb.CustomerOrderPolicy{},
-			Resident:  &pb.ResidentOrderPolicy{NormalDailyLimit: 1200, DecorateDailyLimit: 120, SatinDailyLimit: 120},
+			Resident:  &pb.ResidentOrderPolicy{NormalDailyLimit: 1260, DecorateDailyLimit: 120, SatinDailyLimit: 120},
 			Palace:    &pb.PalaceOrderPolicy{},
 			Team:      &pb.TeamOrderPolicy{},
 			FlowerArt: &pb.FlowerArtPolicy{},
@@ -2688,7 +2815,7 @@ func DefaultPolicyIfNil(p *pb.Policy) *pb.Policy {
 	return p
 }
 
-func defaultGoalPriority() map[string]int32 {
+func defaultDemandPriority() map[string]int32 {
 	return map[string]int32{
 		GoalCustomerOrder: 90,
 		GoalResidentOrder: 80,

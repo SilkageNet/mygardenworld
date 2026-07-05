@@ -396,11 +396,12 @@ type PlantableFlower struct {
 
 // DailyTaskView is the tracked subset of G.ITaskItem from namespace 22.
 type DailyTaskView struct {
-	TaskID    int32 `json:"task_id"`
-	Target    int32 `json:"target"`
-	Finished  int32 `json:"finished"`
-	Status    int32 `json:"status"`
-	Receipted int32 `json:"receipted"`
+	TaskID       int32 `json:"task_id"`
+	ProgressType int32 `json:"progress_type"`
+	Target       int32 `json:"target"`
+	Finished     int32 `json:"finished"`
+	Status       int32 `json:"status"`
+	Receipted    int32 `json:"receipted"`
 }
 
 // WeeklyTaskView is the tracked subset of c_task_week evaluated against
@@ -413,10 +414,39 @@ type WeeklyTaskView struct {
 	Receipted int32 `json:"receipted"`
 }
 
+// AchievementTaskView is the tracked subset of G.ITaskAch evaluated against
+// c_task_ach and namespace 22.2 progress/receipt maps.
+type AchievementTaskView struct {
+	TaskID        int32 `json:"task_id"`
+	GroupID       int32 `json:"group_id"`
+	StageIndex    int32 `json:"stage_index"`
+	ProgressType  int32 `json:"progress_type"`
+	Target        int32 `json:"target"`
+	Finished      int32 `json:"finished"`
+	Status        int32 `json:"status"`
+	Receipted     int32 `json:"receipted"`
+	GroupReceived int32 `json:"group_received"`
+	Current       bool  `json:"current"`
+}
+
 // MainTaskView is the tracked subset of G.ITaskMain from namespace 22.0.
 type MainTaskView struct {
 	TaskID   int32 `json:"task_id"`
 	Finished int32 `json:"finished"`
+}
+
+// StoryMainView is the tracked subset of 7.101 (G.IStoryMain).
+type StoryMainView struct {
+	Observed    bool        `json:"observed,omitempty"`
+	UID         int64       `json:"uid,omitempty"`
+	Chapter     int32       `json:"chapter,omitempty"`
+	SectionIdx  int32       `json:"section_idx,omitempty"`
+	SectionID   int32       `json:"section_id,omitempty"`
+	ChapterName string      `json:"chapter_name,omitempty"`
+	SectionName string      `json:"section_name,omitempty"`
+	Cost        []ItemCount `json:"cost,omitempty"`
+	UTimeMs     int64       `json:"u_time_ms,omitempty"`
+	CTimeMs     int64       `json:"c_time_ms,omitempty"`
 }
 
 // RandomEventView is the tracked subset of namespace 129 map events. Static
@@ -490,17 +520,35 @@ type ZooView struct {
 
 // ZooPetView is one pet from namespace 33.1.<petId> (G.IZooPet).
 type ZooPetView struct {
-	PetID          int32   `json:"pet_id"`
-	UID            int64   `json:"uid,omitempty"`
-	MoodValue      int32   `json:"mood_value,omitempty"`
-	SatietyValue   int32   `json:"satiety_value,omitempty"`
-	FoodstuffIDs   []int32 `json:"foodstuff_ids,omitempty"`
-	Status         int32   `json:"status,omitempty"`
-	StrokeCdTimeMs int64   `json:"stroke_cd_time_ms,omitempty"`
-	StatusCdTimeMs int64   `json:"status_cd_time_ms,omitempty"`
-	GoOutCdTimeMs  int64   `json:"go_out_cd_time_ms,omitempty"`
-	GetHomeTimeMs  int64   `json:"get_home_time_ms,omitempty"`
-	UpdatedAtMs    int64   `json:"updated_at_ms,omitempty"`
+	PetID             int32           `json:"pet_id"`
+	UID               int64           `json:"uid,omitempty"`
+	MoodValue         int32           `json:"mood_value,omitempty"`
+	SatietyValue      int32           `json:"satiety_value,omitempty"`
+	FoodstuffIDs      []int32         `json:"foodstuff_ids,omitempty"`
+	Status            int32           `json:"status,omitempty"`
+	GoOutEventID      int32           `json:"go_out_event_id,omitempty"`
+	SpecialEventIDs   []int32         `json:"special_event_ids,omitempty"`
+	StrokeCdTimeMs    int64           `json:"stroke_cd_time_ms,omitempty"`
+	StatusCdTimeMs    int64           `json:"status_cd_time_ms,omitempty"`
+	GoOutCdTimeMs     int64           `json:"go_out_cd_time_ms,omitempty"`
+	GetHomeTimeMs     int64           `json:"get_home_time_ms,omitempty"`
+	ReadLogTimeMs     int64           `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs       int64           `json:"updated_at_ms,omitempty"`
+	EventTriggerTimes map[int32]int64 `json:"event_trigger_times,omitempty"`
+}
+
+// ZooEventAction is a conservative action candidate derived from one pet's
+// current go-out event.
+type ZooEventAction struct {
+	PetID         int32  `json:"pet_id"`
+	EventID       int32  `json:"event_id"`
+	TableID       int32  `json:"table_id,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Action        string `json:"action,omitempty"` // find_pet or handle_event
+	Agree         bool   `json:"agree,omitempty"`
+	IsShareVideo  int32  `json:"is_share_video,omitempty"`
+	Blocked       bool   `json:"blocked,omitempty"`
+	BlockedReason string `json:"blocked_reason,omitempty"`
 }
 
 // State is the per-account in-memory tracker.
@@ -574,17 +622,22 @@ type State struct {
 
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
+	residentOrderLimitUntilMs  int64
+	residentOrderLimitDayID    int32
 	residentSatinOrder         ResidentSpecialOrder
 	residentDecorateOrder      ResidentSpecialOrder
 	palaceOrder                PalaceOrderView // 108.0 宫廷订单
 	teamOrder                  TeamOrderView   // 107.0 组团订单
 
-	mainTask    *MainTaskView             // 22.0 当前主线任务
-	dailyTasks  map[int32]*DailyTaskView  // 22.1.100.<taskId>
-	weeklyTasks map[int32]*WeeklyTaskView // 22.100 + c_task_week
+	mainTask         *MainTaskView                  // 22.0 当前主线任务
+	dailyTasks       map[int32]*DailyTaskView       // 22.1.100.<taskId>
+	weeklyTasks      map[int32]*WeeklyTaskView      // 22.100 + c_task_week
+	achievementTasks map[int32]*AchievementTaskView // 22.2 + c_task_ach
+	storyMain        StoryMainView                  // 7.101 当前主线剧情
 
-	roadGrowReceived map[int32]bool             // 119.3.<taskId> 成长之路已领取
-	randomEvents     map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
+	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
+	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
+	randomEventObserved bool                       // namespace 129 observed at least once
 
 	freeWaterObserved bool  // namespace 117 has been observed at least once
 	freeWaterRecvIdx  int32 // 117.1 last observed free-water receive index
@@ -683,6 +736,7 @@ func New() *State {
 		flowerOrderRewardsReceived: make(map[int32]bool),
 		dailyTasks:                 make(map[int32]*DailyTaskView),
 		weeklyTasks:                make(map[int32]*WeeklyTaskView),
+		achievementTasks:           make(map[int32]*AchievementTaskView),
 		roadGrowReceived:           make(map[int32]bool),
 		randomEvents:               make(map[int32]*RandomEventView),
 		zooPets:                    make(map[int32]*ZooPetView),
@@ -788,6 +842,7 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 			s.applyInventoryLocked(ns)
 			s.applyUsrExtraLocked(ns)
 			s.applyReputationLocked(ns)
+			s.applyStoryMainLocked(ns)
 		}
 	}
 	if rawNS19, ok := top["19"]; ok {
@@ -1114,6 +1169,45 @@ func (s *State) applyReputationLocked(ns7 map[string]json.RawMessage) {
 	}
 }
 
+func (s *State) applyStoryMainLocked(ns7 map[string]json.RawMessage) {
+	rawStory, ok := ns7["101"]
+	if !ok {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(rawStory, &fields); err != nil {
+		return
+	}
+	view := s.storyMain
+	view.Observed = true
+	if n, ok := readInt64JSONField(fields, "0"); ok {
+		view.UID = n
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.Chapter = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.SectionIdx = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.CTimeMs = n
+	}
+	if def, ok := StoryMainSection(view.Chapter, view.SectionIdx); ok {
+		view.SectionID = def.SectionID
+		view.ChapterName = def.ChapterName
+		view.SectionName = def.SectionName
+		view.Cost = append([]ItemCount(nil), def.Cost...)
+	} else {
+		view.SectionID = 0
+		view.SectionName = ""
+		view.Cost = nil
+	}
+	s.storyMain = view
+}
+
 func (s *State) applyZooLocked(raw json.RawMessage) {
 	var ns33 map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &ns33); err != nil {
@@ -1213,6 +1307,12 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if n, ok := readInt32JSONField(fields, "5"); ok {
 		pet.Status = n
 	}
+	if n, ok := readInt32JSONField(fields, "9"); ok {
+		pet.GoOutEventID = n
+	}
+	if rawEvents, ok := fields["10"]; ok {
+		pet.SpecialEventIDs = readInt32ListRaw(rawEvents)
+	}
 	if n, ok := readInt64JSONField(fields, "12"); ok {
 		pet.StrokeCdTimeMs = n
 	}
@@ -1225,8 +1325,14 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if n, ok := readInt64JSONField(fields, "15"); ok {
 		pet.GoOutCdTimeMs = n
 	}
+	if n, ok := readInt64JSONField(fields, "19"); ok {
+		pet.ReadLogTimeMs = n
+	}
 	if n, ok := readInt64JSONField(fields, "23"); ok {
 		pet.UpdatedAtMs = n
+	}
+	if rawTimes, ok := fields["25"]; ok {
+		pet.EventTriggerTimes = readInt64RawMap(rawTimes)
 	}
 	return pet, true
 }
@@ -1341,6 +1447,13 @@ func cloneZooView(src ZooView) ZooView {
 func cloneZooPetView(src ZooPetView) ZooPetView {
 	out := src
 	out.FoodstuffIDs = append([]int32(nil), src.FoodstuffIDs...)
+	out.SpecialEventIDs = append([]int32(nil), src.SpecialEventIDs...)
+	if src.EventTriggerTimes != nil {
+		out.EventTriggerTimes = make(map[int32]int64, len(src.EventTriggerTimes))
+		for id, t := range src.EventTriggerTimes {
+			out.EventTriggerTimes[id] = t
+		}
+	}
 	return out
 }
 
@@ -1808,6 +1921,7 @@ func (s *State) applyStatisticsLocked(raw json.RawMessage) {
 	}
 	if view, ok := parseStatisticsView(raw0); ok {
 		s.statistics = view
+		s.clearResidentOrderLimitIfStatisticsResetLocked(view)
 	}
 }
 
@@ -1885,6 +1999,16 @@ func parseStatisticsFields(fields map[string]json.RawMessage) (StatisticsView, b
 		seen = true
 	}
 	return view, seen
+}
+
+func (s *State) clearResidentOrderLimitIfStatisticsResetLocked(stats StatisticsView) {
+	if s.residentOrderLimitUntilMs <= 0 {
+		return
+	}
+	if stats.DayID != 0 && s.residentOrderLimitDayID != 0 && stats.DayID != s.residentOrderLimitDayID {
+		s.residentOrderLimitUntilMs = 0
+		s.residentOrderLimitDayID = 0
+	}
 }
 
 func (s *State) applyFmlLocked(raw json.RawMessage) {
@@ -2617,6 +2741,7 @@ func (s *State) applyRandomEventsLocked(raw json.RawMessage) {
 	if json.Unmarshal(raw, &ns129) != nil {
 		return
 	}
+	s.randomEventObserved = true
 	raw0, ok := ns129["0"]
 	if !ok {
 		return
@@ -2710,6 +2835,9 @@ func (s *State) applyTasksLocked(raw json.RawMessage) {
 	if rawDaily, ok := ns22["1"]; ok {
 		s.applyDailyTasksLocked(rawDaily)
 	}
+	if rawAchievement, ok := ns22["2"]; ok {
+		s.applyAchievementTasksLocked(rawAchievement)
+	}
 	if rawWeekly, ok := ns22["100"]; ok {
 		s.applyWeeklyTasksLocked(rawWeekly)
 	}
@@ -2721,18 +2849,22 @@ func (s *State) applyDailyTasksLocked(rawDaily json.RawMessage) {
 		return
 	}
 
-	progressMap := readInt32RawMap(daily["1"])
-	recvMap := readInt32RawMap(daily["3"])
+	rawProgress, progressObserved := daily["1"]
+	rawRecv, recvObserved := daily["3"]
+	progressMap := readInt32RawMap(rawProgress)
+	recvMap := readInt32RawMap(rawRecv)
 
 	rawTaskMap, ok := daily["100"]
 	if !ok {
+		s.mergeDailyTaskDeltaLocked(progressMap, progressObserved, recvMap, recvObserved)
 		return
 	}
 	var tasks map[string]json.RawMessage
 	if err := json.Unmarshal(rawTaskMap, &tasks); err != nil {
 		return
 	}
-	s.dailyTasks = make(map[int32]*DailyTaskView, len(tasks))
+	prev := s.dailyTasks
+	next := make(map[int32]*DailyTaskView, len(tasks))
 	for idStr, rawTask := range tasks {
 		id := atoi32(idStr)
 		if id == 0 {
@@ -2746,20 +2878,78 @@ func (s *State) applyDailyTasksLocked(rawDaily json.RawMessage) {
 		if taskID == 0 {
 			taskID = id
 		}
+		progressType, _ := DailyTaskProgressType(taskID)
 		finished := readInt32Any(fields["2"])
-		if progressType, ok := DailyTaskProgressType(taskID); ok {
+		if old := prev[id]; old != nil && !progressObserved {
+			finished = old.Finished
+		}
+		if progressObserved && progressType > 0 {
 			if progress := progressMap[progressType]; progress > finished {
 				finished = progress
 			}
 		}
-		s.dailyTasks[id] = &DailyTaskView{
-			TaskID:    taskID,
-			Target:    readInt32Any(fields["1"]),
-			Finished:  finished,
-			Status:    readInt32Any(fields["4"]),
-			Receipted: recvMap[id],
+		receipted := int32(0)
+		if old := prev[id]; old != nil && !recvObserved {
+			receipted = old.Receipted
+		}
+		if recvObserved {
+			receipted = dailyTaskReceipt(recvMap, id, taskID, progressType)
+		}
+		target := readInt32Any(fields["1"])
+		next[id] = &DailyTaskView{
+			TaskID:       taskID,
+			ProgressType: progressType,
+			Target:       target,
+			Finished:     finished,
+			Status:       dailyTaskStatus(target, finished, receipted),
+			Receipted:    receipted,
 		}
 	}
+	s.dailyTasks = next
+}
+
+func (s *State) mergeDailyTaskDeltaLocked(progressMap map[int32]int32, progressObserved bool, recvMap map[int32]int32, recvObserved bool) {
+	if !progressObserved && !recvObserved {
+		return
+	}
+	for id, task := range s.dailyTasks {
+		if task == nil {
+			continue
+		}
+		if progressObserved && task.ProgressType > 0 {
+			if progress := progressMap[task.ProgressType]; progress > task.Finished {
+				task.Finished = progress
+			}
+		}
+		if recvObserved {
+			if receipt := dailyTaskReceipt(recvMap, id, task.TaskID, task.ProgressType); receipt != 0 {
+				task.Receipted = receipt
+			}
+		}
+		task.Status = dailyTaskStatus(task.Target, task.Finished, task.Receipted)
+	}
+}
+
+func dailyTaskReceipt(recvMap map[int32]int32, id, taskID, progressType int32) int32 {
+	for _, key := range []int32{progressType, id, taskID} {
+		if key == 0 {
+			continue
+		}
+		if receipt := recvMap[key]; receipt != 0 {
+			return receipt
+		}
+	}
+	return 0
+}
+
+func dailyTaskStatus(target, finished, receipted int32) int32 {
+	if receipted != 0 {
+		return 3
+	}
+	if target > 0 && finished >= target {
+		return 1
+	}
+	return 2
 }
 
 func (s *State) applyWeeklyTasksLocked(rawWeekly json.RawMessage) {
@@ -2799,6 +2989,94 @@ func (s *State) applyWeeklyTasksLocked(rawWeekly json.RawMessage) {
 			Receipted: receipted,
 		}
 	}
+}
+
+func (s *State) applyAchievementTasksLocked(rawAchievement json.RawMessage) {
+	var achievement map[string]json.RawMessage
+	if err := json.Unmarshal(rawAchievement, &achievement); err != nil {
+		return
+	}
+	rawProgress, progressObserved := achievement["1"]
+	rawRecv, recvObserved := achievement["3"]
+	progressMap := readInt32RawMap(rawProgress)
+	recvMap := readInt32RawMap(rawRecv)
+	defs := AchievementTaskDefinitions()
+	prev := s.achievementTasks
+	prevProgress := achievementProgressByType(prev)
+	prevReceived := achievementReceivedByGroup(prev)
+	s.achievementTasks = make(map[int32]*AchievementTaskView, len(defs))
+	for _, def := range defs {
+		finished, ok := progressMap[def.ProgressType]
+		if !progressObserved || !ok {
+			finished = prevProgress[def.ProgressType]
+		}
+		groupReceived, ok := recvMap[def.GroupID]
+		if !recvObserved || !ok {
+			groupReceived = prevReceived[def.GroupID]
+		}
+		if groupReceived < 0 {
+			groupReceived = 0
+		}
+		receipted := int32(0)
+		status := int32(2)
+		current := groupReceived+1 == def.StageIndex
+		if groupReceived >= def.StageIndex {
+			receipted = 1
+			status = 3
+			current = false
+		} else if current && def.Target > 0 && finished >= def.Target {
+			status = 1
+		}
+		s.achievementTasks[def.TaskID] = &AchievementTaskView{
+			TaskID:        def.TaskID,
+			GroupID:       def.GroupID,
+			StageIndex:    def.StageIndex,
+			ProgressType:  def.ProgressType,
+			Target:        def.Target,
+			Finished:      finished,
+			Status:        status,
+			Receipted:     receipted,
+			GroupReceived: groupReceived,
+			Current:       current,
+		}
+	}
+}
+
+func achievementProgressByType(tasks map[int32]*AchievementTaskView) map[int32]int32 {
+	out := map[int32]int32{}
+	for _, task := range tasks {
+		if task == nil || task.ProgressType <= 0 {
+			continue
+		}
+		if task.Finished > out[task.ProgressType] {
+			out[task.ProgressType] = task.Finished
+		}
+	}
+	return out
+}
+
+func achievementReceivedByGroup(tasks map[int32]*AchievementTaskView) map[int32]int32 {
+	out := map[int32]int32{}
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		groupID := task.GroupID
+		if groupID <= 0 {
+			groupID = task.TaskID / 10000
+		}
+		if groupID <= 0 {
+			continue
+		}
+		received := task.GroupReceived
+		if received == 0 && task.Receipted != 0 && task.StageIndex > 0 {
+			received = task.StageIndex
+		}
+		if received > out[groupID] {
+			out[groupID] = received
+		}
+	}
+	return out
 }
 
 func (s *State) applyFreeWaterLocked(raw json.RawMessage) {
@@ -3012,6 +3290,41 @@ func (s *State) ReadyZooStrokePetIDs(now time.Time) []int32 {
 	return out
 }
 
+// ZooEventActions returns conservative animal-event action candidates. Events
+// that require share/video, contain ambiguous costs, or lack a safe action are
+// returned as blocked markers instead of runnable operations.
+func (s *State) ZooEventActions() []ZooEventAction {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]ZooEventAction, 0, len(s.zooPets))
+	for petID, pet := range s.zooPets {
+		if pet == nil || pet.PetID <= 0 {
+			continue
+		}
+		if pet.GoOutEventID > 0 {
+			action := zooEventActionForPet(petID, pet.GoOutEventID)
+			out = append(out, action)
+		}
+		for _, eventID := range pet.SpecialEventIDs {
+			if eventID <= 0 || eventID == pet.GoOutEventID {
+				continue
+			}
+			action := zooEventActionForPet(petID, eventID)
+			out = append(out, action)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Blocked != out[j].Blocked {
+			return !out[i].Blocked
+		}
+		if out[i].PetID != out[j].PetID {
+			return out[i].PetID < out[j].PetID
+		}
+		return out[i].EventID < out[j].EventID
+	})
+	return out
+}
+
 // ZooMoodMax returns the client-configured pet mood cap.
 func ZooMoodMax() int32 {
 	raw, ok := StaticRow("c_zoo", -1)
@@ -3048,6 +3361,50 @@ func zooPetCanEat(status int32) bool {
 		return n != 0
 	}
 	return false
+}
+
+func zooEventActionForPet(petID, eventID int32) ZooEventAction {
+	action := ZooEventAction{
+		PetID:        petID,
+		EventID:      eventID,
+		TableID:      eventID,
+		IsShareVideo: 0,
+	}
+	info, ok := ZooEventInfoByID(eventID)
+	if ok {
+		action.Name = info.Name
+	}
+	if eventID == 4001 || eventID == 5001 {
+		action.Action = "find_pet"
+		if ok && info.SharedID > 0 {
+			action.Blocked = true
+			action.BlockedReason = "寻回宠物事件关联分享/广告路径，保守策略不自动执行"
+		}
+		return action
+	}
+	action.Action = "handle_event"
+	action.Agree = true
+	if !ok {
+		action.Blocked = true
+		action.BlockedReason = "宠物事件静态配置未识别，保守策略不自动处理"
+		return action
+	}
+	if info.SharedID > 0 {
+		action.Blocked = true
+		action.BlockedReason = "宠物事件关联分享/广告路径，保守策略不自动执行"
+		return action
+	}
+	if info.HasReward2 || len(info.Reward2) > 0 || info.NoHandle || info.Result {
+		action.Blocked = true
+		action.BlockedReason = "宠物事件存在选择或成本结果，需人工确认"
+		return action
+	}
+	if info.Type != 2 || len(info.Reward1) == 0 {
+		action.Blocked = true
+		action.BlockedReason = "宠物事件收益/成本不明确，保守策略不自动处理"
+		return action
+	}
+	return action
 }
 
 func zooStateRow(status int32) (map[string]json.RawMessage, bool) {
@@ -3698,6 +4055,66 @@ func (s *State) MarkWaterwheelDailyLimitReached(now time.Time) {
 	}
 	s.wwEntered = false
 	s.wwLocalGenMs = 0
+}
+
+// MarkResidentOrderDailyLimitReached records the server-side normal resident
+// order daily cap so the planner stops selecting orderFlower.finishOrder until
+// the next observed game day.
+func (s *State) MarkResidentOrderDailyLimitReached(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.residentOrderLimitUntilMs = nextGameDayReset(now).UnixMilli()
+	s.residentOrderLimitDayID = s.statistics.DayID
+	if s.residentOrderLimitDayID == 0 {
+		s.residentOrderLimitDayID = gameDayID(now)
+	}
+}
+
+// ResidentOrderDailyLimitReached reports a locally recorded server-side normal
+// resident order daily cap.
+func (s *State) ResidentOrderDailyLimitReached(now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.residentOrderLimitUntilMs <= 0 {
+		return time.Time{}, false
+	}
+	until := time.UnixMilli(s.residentOrderLimitUntilMs)
+	if !until.After(now) {
+		s.residentOrderLimitUntilMs = 0
+		s.residentOrderLimitDayID = 0
+		return time.Time{}, false
+	}
+	return until, true
+}
+
+// ResidentOrderNormalDailyMax returns c_orderFlower.$dailyMax, the mini
+// client's hard daily cap for normal resident orders.
+func ResidentOrderNormalDailyMax() int32 {
+	raw, ok := catalog.Tables["c_orderFlower"].Rows["-1"]
+	if !ok {
+		return 0
+	}
+	var row map[string]any
+	if json.Unmarshal(raw, &row) != nil {
+		return 0
+	}
+	return readInt32Any(row["$dailyMax"])
+}
+
+func nextGameDayReset(now time.Time) time.Time {
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return time.Date(y, m, d+1, 0, 5, 0, 0, local.Location())
+}
+
+func gameDayID(now time.Time) int32 {
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return int32(y*10000 + int(m)*100 + d)
+}
+
+func gameDayLocation() *time.Location {
+	return time.FixedZone("Asia/Shanghai", 8*60*60)
 }
 
 func waterwheelBucketCreateInterval() time.Duration {
@@ -4537,6 +4954,25 @@ func (s *State) MainTask() (MainTaskView, bool) {
 	return *s.mainTask, true
 }
 
+// StoryMain returns the observed main-story progress.
+func (s *State) StoryMain() (StoryMainView, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.storyMain.Observed {
+		return StoryMainView{}, false
+	}
+	view := s.storyMain
+	view.Cost = append([]ItemCount(nil), s.storyMain.Cost...)
+	return view, true
+}
+
+// StoryMainObserved reports whether namespace 7.101 has been observed.
+func (s *State) StoryMainObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.storyMain.Observed
+}
+
 // ReadyDailyTaskIDs returns daily task ids that look claimable from namespace
 // 22. A status of 1 is treated as the client's explicit "ready" marker; when
 // status is absent, completed target progress with no receipt is accepted.
@@ -4561,6 +4997,21 @@ func (s *State) ReadyWeeklyTaskIDs() []int32 {
 	out := make([]int32, 0, len(s.weeklyTasks))
 	for id, task := range s.weeklyTasks {
 		if task != nil && taskClaimable(task.Status, task.Target, task.Finished, task.Receipted) {
+			out = append(out, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyAchievementTaskIDs returns achievement tasks that look claimable from
+// namespace 22.2 and the current c_task_ach table.
+func (s *State) ReadyAchievementTaskIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.achievementTasks))
+	for id, task := range s.achievementTasks {
+		if task != nil && task.Current && taskClaimable(task.Status, task.Target, task.Finished, task.Receipted) {
 			out = append(out, id)
 		}
 	}
@@ -4612,6 +5063,13 @@ func (s *State) ReadyRandomEventIDs() []int32 {
 	return out
 }
 
+// RandomEventObserved reports whether namespace 129 has been observed.
+func (s *State) RandomEventObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.randomEventObserved
+}
+
 // RandomEvents returns the current map-random-event state.
 func (s *State) RandomEvents() map[int32]RandomEventView {
 	s.mu.RLock()
@@ -4620,6 +5078,19 @@ func (s *State) RandomEvents() map[int32]RandomEventView {
 	for id, event := range s.randomEvents {
 		if event != nil {
 			out[id] = *event
+		}
+	}
+	return out
+}
+
+// AchievementTasks returns a copy of tracked achievement task progress.
+func (s *State) AchievementTasks() map[int32]AchievementTaskView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]AchievementTaskView, len(s.achievementTasks))
+	for id, task := range s.achievementTasks {
+		if task != nil {
+			out[id] = *task
 		}
 	}
 	return out
@@ -5069,6 +5540,27 @@ func readInt32RawMap(raw json.RawMessage) map[int32]int32 {
 			continue
 		}
 		if n, ok := readInt32Raw(rawValue); ok {
+			out[id] = n
+		}
+	}
+	return out
+}
+
+func readInt64RawMap(raw json.RawMessage) map[int32]int64 {
+	out := map[int32]int64{}
+	if len(raw) == 0 {
+		return out
+	}
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return out
+	}
+	for key, rawValue := range values {
+		id := atoi32(key)
+		if id == 0 {
+			continue
+		}
+		if n, ok := readInt64JSONField(map[string]json.RawMessage{"0": rawValue}, "0"); ok {
 			out[id] = n
 		}
 	}

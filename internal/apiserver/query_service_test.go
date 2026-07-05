@@ -5,6 +5,8 @@ import (
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -107,6 +109,10 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 					"102": map[string]any{"0": 102, "1": 1, "2": 1, "4": 1},
 				},
 			},
+			"100": map[string]any{
+				"1": map[string]any{"3088": 163},
+				"3": map[string]any{},
+			},
 		},
 		"119": map[string]any{"3": map[string]any{"20001": 1, "20002": 1, "20003": 1}},
 		"129": map[string]any{"0": map[string]any{"1": map[string]any{
@@ -121,14 +127,14 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 		byCategory[task.GetCategory()]++
 		statusByCategory[task.GetCategory()] = task.GetStatus()
 	}
-	if byCategory["居民订单"] != 1 || byCategory["顾客订单"] != 1 || byCategory["主线任务"] != 1 || byCategory["日常任务"] != 1 || byCategory["地图事件"] != 1 {
-		t.Fatalf("task categories = %+v, want all tracked categories once", byCategory)
+	if byCategory["居民订单"] != 1 || byCategory["顾客订单"] != 1 || byCategory["主线任务"] != 1 || byCategory["日常任务"] != 1 || byCategory["周常任务"] == 0 || byCategory["地图随机事件"] != 1 {
+		t.Fatalf("task categories = %+v, want tracked task/order categories", byCategory)
 	}
 	if statusByCategory["居民订单"] != pb.PlanStatus_PLAN_STATUS_MANAGED {
 		t.Fatalf("resident task status=%s, want MANAGED", statusByCategory["居民订单"])
 	}
-	if statusByCategory["地图事件"] != pb.PlanStatus_PLAN_STATUS_READY {
-		t.Fatalf("random event status=%s, want READY", statusByCategory["地图事件"])
+	if statusByCategory["地图随机事件"] != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("random event status=%s, want READY", statusByCategory["地图随机事件"])
 	}
 
 	var flowerReq, artReq, recipeReq *pb.RequirementView
@@ -155,6 +161,50 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 	}
 }
 
+func TestBuildPendingTasksMarksResidentOrderCooling(t *testing.T) {
+	st := state.New()
+	now := time.Date(2026, 7, 5, 16, 0, 0, 0, time.UTC)
+	cooldownUntil := now.Add(42 * time.Second).UnixMilli()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23014": 144,
+			"23003": 157,
+		}}},
+		"105": map[string]any{
+			"0": map[string]any{"1": map[string]any{
+				"3": map[string]any{"2": [][]int32{{23014, 1}, {23003, 8}}, "4": cooldownUntil, "5": now.UnixMilli()},
+			}},
+		},
+	})
+
+	task := residentOrderTask(t, buildPendingTasksAt(st, now))
+	if task.GetStatus() != pb.PlanStatus_PLAN_STATUS_MANAGED {
+		t.Fatalf("status before cooldown=%s, want MANAGED", task.GetStatus())
+	}
+	if task.GetCooldownUntilMs() != cooldownUntil || task.GetCooldownReason() == "" {
+		t.Fatalf("cooldown=(%d,%q), want populated", task.GetCooldownUntilMs(), task.GetCooldownReason())
+	}
+
+	task = residentOrderTask(t, buildPendingTasksAt(st, now.Add(42*time.Second)))
+	if task.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("status after cooldown=%s, want READY", task.GetStatus())
+	}
+	if task.GetCooldownUntilMs() != 0 || task.GetCooldownReason() != "" {
+		t.Fatalf("cooldown after ready=(%d,%q), want empty", task.GetCooldownUntilMs(), task.GetCooldownReason())
+	}
+}
+
+func residentOrderTask(t *testing.T, tasks []*pb.PendingTaskView) *pb.PendingTaskView {
+	t.Helper()
+	for _, task := range tasks {
+		if task.GetCategory() == "居民订单" {
+			return task
+		}
+	}
+	t.Fatalf("resident order task not found in %+v", tasks)
+	return nil
+}
+
 func TestDomainStatusUsesPlanStatus(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -177,4 +227,72 @@ func TestDomainStatusUsesPlanStatus(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPlannedOperationsExposeLaneAndCooldown(t *testing.T) {
+	now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
+	ops := []automation.PlannedOp{{
+		OperationID: "taskDly.recv|target=40001",
+		Kind:        "taskDly.recv",
+		Lane:        automation.LaneSide,
+		Category:    automation.CategoryBasic,
+		Domain:      "basic.task.daily",
+		Action:      "claim",
+		Executable:  true,
+		Status:      automation.PlanStatusReady,
+		TargetID:    40001,
+	}}
+	diag := runner.Diagnostics{OperationCooldowns: []runner.OperationCooldownSnapshot{{
+		OperationID: "taskDly.recv|target=40001",
+		Category:    automation.CategoryBasic,
+		Domain:      "basic.task.daily",
+		Lane:        automation.LaneSide,
+		Reason:      "服务端提示本组任务已经完结",
+		Until:       now,
+	}}}
+	got := plannedOperationsProto(ops, diag)
+	if len(got) != 1 {
+		t.Fatalf("plannedOperationsProto len=%d, want 1", len(got))
+	}
+	if got[0].GetLane() != pb.ExecutionLane_EXECUTION_LANE_SIDE {
+		t.Fatalf("lane=%s, want SIDE", got[0].GetLane())
+	}
+	if got[0].GetCooldownUntilMs() != now.UnixMilli() || got[0].GetCooldownReason() == "" {
+		t.Fatalf("cooldown=(%d,%q), want populated", got[0].GetCooldownUntilMs(), got[0].GetCooldownReason())
+	}
+}
+
+func TestDomainStatusesExposeCooldownSummary(t *testing.T) {
+	now := time.Date(2026, 7, 5, 12, 5, 0, 0, time.UTC)
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.Task.DailyEnabled = true
+	diag := runner.Diagnostics{
+		ObservedNamespaces: []string{"7", "22"},
+		OperationCooldowns: []runner.OperationCooldownSnapshot{{
+			OperationID: "taskDly.recv|target=40001",
+			Category:    automation.CategoryBasic,
+			Domain:      "basic.task.daily",
+			Lane:        automation.LaneSide,
+			Reason:      "服务端提示本组任务已经完结",
+			Until:       now,
+		}},
+	}
+	statuses := buildDomainStatuses(policy, diag, true)
+	for _, status := range statuses {
+		if status.GetCategory() != automation.CategoryBasic {
+			continue
+		}
+		if status.GetLane() != pb.ExecutionLane_EXECUTION_LANE_SIDE {
+			t.Fatalf("basic lane=%s, want SIDE", status.GetLane())
+		}
+		if status.GetCooldownUntilMs() != now.UnixMilli() || status.GetCooldownReason() == "" {
+			t.Fatalf("basic cooldown=(%d,%q), want populated", status.GetCooldownUntilMs(), status.GetCooldownReason())
+		}
+		if status.GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+			t.Fatalf("basic status=%s, want BLOCKED while cooldown is active", status.GetStatus())
+		}
+		return
+	}
+	t.Fatal("missing basic domain status")
 }

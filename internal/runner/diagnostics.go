@@ -18,6 +18,17 @@ type Diagnostics struct {
 	UnknownRPCCount           int32
 	UnknownNamespaceCount     int32
 	ObservedNamespaces        []string
+	OperationCooldowns        []OperationCooldownSnapshot
+}
+
+type OperationCooldownSnapshot struct {
+	OperationID  string
+	Category     string
+	Domain       string
+	Lane         string
+	Reason       string
+	Until        time.Time
+	FailureCount int32
 }
 
 func (r *Runner) Diagnostics(now time.Time) Diagnostics {
@@ -45,6 +56,7 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	}
 	out.UnknownNamespaceCount = r.state.UnknownNamespaceCount()
 	out.ObservedNamespaces = r.state.ObservedNamespaces()
+	out.OperationCooldowns = r.operationCooldownSnapshots(now)
 	return out
 }
 

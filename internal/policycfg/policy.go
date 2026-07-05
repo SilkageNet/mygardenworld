@@ -53,8 +53,8 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Shop.VipShop == nil {
 		cp.Basic.Shop.VipShop = proto.Clone(def.Basic.Shop.VipShop).(*pb.VipShopPolicy)
 	}
-	if cp.Basic.FeedCat == nil {
-		cp.Basic.FeedCat = proto.Clone(def.Basic.FeedCat).(*pb.FeedCatPolicy)
+	if cp.Basic.Zoo == nil {
+		cp.Basic.Zoo = proto.Clone(def.Basic.Zoo).(*pb.ZooPolicy)
 	}
 	if cp.Plant == nil {
 		cp.Plant = proto.Clone(def.Plant).(*pb.PlantPolicy)
@@ -74,12 +74,12 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Planting.MinWaterDrops <= 0 {
 		cp.Plant.Planting.MinWaterDrops = def.Plant.Planting.MinWaterDrops
 	}
-	if cp.Plant.Planting.GoalPriority == nil {
-		cp.Plant.Planting.GoalPriority = map[string]int32{}
+	if cp.Plant.Planting.DemandPriority == nil {
+		cp.Plant.Planting.DemandPriority = map[string]int32{}
 	}
-	for k, v := range def.Plant.Planting.GoalPriority {
-		if _, ok := cp.Plant.Planting.GoalPriority[k]; !ok {
-			cp.Plant.Planting.GoalPriority[k] = v
+	for k, v := range def.Plant.Planting.DemandPriority {
+		if _, ok := cp.Plant.Planting.DemandPriority[k]; !ok {
+			cp.Plant.Planting.DemandPriority[k] = v
 		}
 	}
 	if cp.Plant.FriendSteal == nil {

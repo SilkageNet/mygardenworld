@@ -23,13 +23,13 @@ message BasicPolicy {
   double reconnect_interval_seconds = 2;
   bool item_log_enabled = 3;
   BasicTaskPolicy task = 4;
-  bool random_event_enabled = 5;
+  bool map_event_enabled = 5;
   bool mail_enabled = 6;
   BenefitPolicy benefit = 7;
   SignPolicy sign = 8;
   PearlPolicy pearl = 9;
   ShopPolicy shop = 10;
-  FeedCatPolicy feed_cat = 11;
+  ZooPolicy zoo = 11;
 
   // Resource claim settings kept in the basic category because they create
   // usable water drops; plant.planting controls whether drops are spent.
@@ -95,9 +95,9 @@ message VipShopPolicy {
   repeated int32 item_ids = 4;
 }
 
-message FeedCatPolicy {
+message ZooPolicy {
   bool enabled = 1;
-  bool auto_recall = 2;
+  bool auto_event_enabled = 2;
   bool auto_buy_food = 3;
   bool auto_feed = 4;
   bool auto_stroke = 5;
@@ -129,7 +129,7 @@ message PlantingPolicy {
   bool use_speed_up_ticket = 10;
   int32 speed_up_ticket_max = 11;
 
-  map<string, int32> goal_priority = 14;
+  map<string, int32> demand_priority = 14;
 
   // These fields only limit autonomous empty-land replanting. Demand-driven
   // planting for enabled tasks/orders always uses the required flower.

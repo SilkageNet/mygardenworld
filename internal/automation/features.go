@@ -57,11 +57,13 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.task_daily", Label: "每日任务", Category: CategoryBasic, Domain: "basic.task.daily", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.task_weekly", Label: "每周任务", Category: CategoryBasic, Domain: "basic.task.weekly", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.task_achievement", Label: "成就任务", Category: CategoryBasic, Domain: "basic.task.achievement", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.story_sync", Label: "剧情同步", Category: CategoryBasic, Domain: "basic.story", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.story", Label: "剧情", Category: CategoryBasic, Domain: "basic.story", Action: "unlock", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.sign", Label: "签到/祈愿", Category: CategoryBasic, Domain: "basic.sign", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.sign_patch", Label: "自动补签", Category: CategoryBasic, Domain: "basic.sign.patch", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"补签成本尚未确认"}},
 	{ID: "basic.road_grow", Label: "成长之路", Category: CategoryBasic, Domain: "basic.road_grow", Action: "claim", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.random_event", Label: "地图事件", Category: CategoryBasic, Domain: "basic.random_event", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.map_event_sync", Label: "地图事件同步", Category: CategoryBasic, Domain: "basic.map_event", Action: "sync", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.map_event", Label: "地图随机事件", Category: CategoryBasic, Domain: "basic.map_event", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_sync", Label: "珍珠同步", Category: CategoryBasic, Domain: "basic.pearl", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_free", Label: "免费珍珠", Category: CategoryBasic, Domain: "basic.pearl.free", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_place", Label: "珍珠收取", Category: CategoryBasic, Domain: "basic.pearl.place", Action: "claim", Status: PlanStatusManaged, Executable: true},
@@ -75,11 +77,12 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.shop_cultivate_sync", Label: "材料商店同步", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_cultivate", Label: "材料商店", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "buy", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_vip", Label: "VIP 商店", Category: CategoryBasic, Domain: "basic.shop.vip", Action: "buy", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"VIP 商店成本和状态尚未确认"}},
-	{ID: "basic.zoo", Label: "喂猫撸猫", Category: CategoryBasic, Domain: "basic.zoo", Action: "sync", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.zoo_feed", Label: "自动喂猫", Category: CategoryBasic, Domain: "basic.zoo.feed", Action: "feed", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.zoo_stroke", Label: "自动撸猫", Category: CategoryBasic, Domain: "basic.zoo.stroke", Action: "stroke", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.zoo", Label: "宠物", Category: CategoryBasic, Domain: "basic.zoo", Action: "sync", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.zoo_feed", Label: "宠物喂食", Category: CategoryBasic, Domain: "basic.zoo.feed", Action: "feed", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.zoo_stroke", Label: "宠物互动", Category: CategoryBasic, Domain: "basic.zoo.stroke", Action: "stroke", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.zoo_buy_food", Label: "购买猫粮", Category: CategoryBasic, Domain: "basic.zoo.buy_food", Action: "buy", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"猫粮购买成本和商品选择尚未放开自动执行"}},
-	{ID: "basic.zoo_recall", Label: "自动召回猫", Category: CategoryBasic, Domain: "basic.zoo.recall", Action: "recall", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"召回事件链路与成本尚未确认"}},
+	{ID: "basic.zoo_find_pet", Label: "宠物寻回", Category: CategoryBasic, Domain: "basic.zoo.event", Action: "find_pet", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.zoo_handle_event", Label: "宠物事件", Category: CategoryBasic, Domain: "basic.zoo.event", Action: "handle_event", Status: PlanStatusManaged, Executable: true},
 
 	{ID: "order.customer", Label: "顾客订单", Category: CategoryOrder, Domain: "order.customer", Action: "finish", Status: PlanStatusManaged, Executable: true},
 	{ID: "order.customer_craft", Label: "顾客订单花艺制作", Category: CategoryOrder, Domain: "order.customer", Action: "craft", Status: PlanStatusManaged, Executable: true},
@@ -157,6 +160,9 @@ func buildFeatureIndex() map[string]FeatureSpec {
 }
 
 func enrichPlannedOp(op PlannedOp) PlannedOp {
+	if op.Lane == "" {
+		op.Lane = laneForDomain(op.Domain)
+	}
 	if spec, ok := featureByDomainAction[featureKey(op.Domain, op.Action)]; ok {
 		if op.FeatureID == "" {
 			op.FeatureID = spec.ID

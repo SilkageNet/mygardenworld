@@ -10,8 +10,8 @@ import (
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()
-	if planting.GetGoalPriority()[automation.GoalCustomerOrder] == 0 {
-		t.Fatalf("goal priorities not populated: %+v", planting.GetGoalPriority())
+	if planting.GetDemandPriority()[automation.GoalCustomerOrder] == 0 {
+		t.Fatalf("demand priorities not populated: %+v", planting.GetDemandPriority())
 	}
 	if planting.GetAutoReplantMode() != pb.SelectionMode_SELECTION_MODE_ALL {
 		t.Fatalf("auto replant mode=%v, want ALL", planting.GetAutoReplantMode())
@@ -21,9 +21,9 @@ func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	raw := `{
 	  "automation_enabled": true,
-	  "plant": {
+		"plant": {
 	    "planting": {
-	      "goal_priority": {"order.customer": 99}
+	      "demand_priority": {"order.customer": 99}
 	    }
 	  }
 	}`
@@ -35,14 +35,18 @@ func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	if !p.GetAutomationEnabled() {
 		t.Fatalf("policy values not kept: %+v", p)
 	}
-	if planting.GetGoalPriority()[automation.GoalCustomerOrder] != 99 {
-		t.Fatalf("custom priority not kept: %+v", planting.GetGoalPriority())
+	if planting.GetDemandPriority()[automation.GoalCustomerOrder] != 99 {
+		t.Fatalf("custom priority not kept: %+v", planting.GetDemandPriority())
 	}
 }
 
-func TestFromJSONIgnoresRemovedPlantFlowerField(t *testing.T) {
+func TestFromJSONIgnoresRemovedPlantFlowerFieldAndOldPriorityName(t *testing.T) {
 	raw := `{
 	  "plant": {
+	    "planting": {
+	      "auto_enabled": true,
+	      "goal_priority": {"order.customer": 99}
+	    },
 	    "flower": {
 	      "auto_enabled": false,
 	      "goal_priority": {"order.customer": 99}
@@ -56,7 +60,7 @@ func TestFromJSONIgnoresRemovedPlantFlowerField(t *testing.T) {
 	if !p.GetPlant().GetPlanting().GetAutoEnabled() {
 		t.Fatalf("removed plant.flower field should not override planting defaults")
 	}
-	if got := p.GetPlant().GetPlanting().GetGoalPriority()[automation.GoalCustomerOrder]; got == 99 {
-		t.Fatalf("removed plant.flower goal priority should be ignored")
+	if got := p.GetPlant().GetPlanting().GetDemandPriority()[automation.GoalCustomerOrder]; got == 99 {
+		t.Fatalf("old goal priority should be ignored")
 	}
 }

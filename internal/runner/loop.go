@@ -91,13 +91,14 @@ func (r *Runner) tick(ctx context.Context) {
 
 	if err := r.checkOperationResources(op, now); err != nil {
 		opErr = err
+		payloadOp := r.cooldownSideOperation(op, time.Now(), err, "", 0)
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
 			Message:     fmt.Sprintf("%s 已阻塞: 资源前置校验失败: %v", opDesc(op), err),
-			PayloadJSON: operationPayload(op, nil, nil, err),
+			PayloadJSON: operationPayload(payloadOp, nil, nil, err),
 			Level:       "warn",
 		})
 		_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, nil, map[string]any{"error": err.Error(), "stage": "resource_gate"})
@@ -106,13 +107,14 @@ func (r *Runner) tick(ctx context.Context) {
 
 	if err := r.ensurePlannedOperationRqst(ctx, op); err != nil {
 		opErr = fmt.Errorf("rqst: %w", err)
+		payloadOp := r.cooldownSideOperation(op, time.Now(), opErr, "前置校验失败，暂缓重试", 0)
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
 			Message:     fmt.Sprintf("%s 已跳过: 前置校验失败: %v", opDesc(op), err),
-			PayloadJSON: operationPayload(op, nil, nil, err),
+			PayloadJSON: operationPayload(payloadOp, nil, nil, err),
 			Level:       "warn",
 		})
 		_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, nil, map[string]any{"error": err.Error(), "stage": "rqst"})
@@ -131,13 +133,14 @@ func (r *Runner) tick(ctx context.Context) {
 	args, err := operationArgs(op)
 	if err != nil {
 		opErr = err
+		payloadOp := r.cooldownSideOperation(op, time.Now(), err, "", 0)
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "failed",
 			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
-			PayloadJSON: operationPayload(op, nil, nil, err),
+			PayloadJSON: operationPayload(payloadOp, nil, nil, err),
 		})
 		_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, nil, map[string]any{"error": err.Error()})
 		return
@@ -147,7 +150,7 @@ func (r *Runner) tick(ctx context.Context) {
 		Category:    op.Category,
 		Domain:      op.Domain,
 		Action:      op.Action,
-		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(op), landSuffix(op.LandIDs)),
+		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(op), operationTargetSuffix(op)),
 		PayloadJSON: operationPayload(op, args, nil, nil),
 	})
 	v, err := r.executePlannedOp(ctx, client, session, op)
@@ -172,27 +175,50 @@ func (r *Runner) tick(ctx context.Context) {
 			return
 		}
 		if isResidentOrderCooldownError(op.Kind, err) {
+			payloadOp := r.cooldownSideOperation(op, time.Now(), err, "服务端提示订单冷却中", 30*time.Second)
 			r.emit(Event{
 				Kind:        "operation_deferred",
 				Category:    op.Category,
 				Domain:      op.Domain,
 				Action:      "blocked",
 				Message:     fmt.Sprintf("%s 暂缓: 服务端提示订单冷却中，稍后重试", opDesc(op)),
-				PayloadJSON: operationPayload(op, args, nil, err),
+				PayloadJSON: operationPayload(payloadOp, args, nil, err),
 				Level:       "warn",
 			})
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "cooldown"})
 			return
 		}
+		if isResidentOrderDailyLimitError(op.Kind, err) {
+			now := time.Now()
+			r.state.MarkResidentOrderDailyLimitReached(now)
+			until, ok := r.state.ResidentOrderDailyLimitReached(now)
+			cooldown := 24 * time.Hour
+			if ok {
+				cooldown = until.Sub(now)
+			}
+			payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示今日完成订单次数已达上限", cooldown)
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Message:     fmt.Sprintf("%s 暂停: 服务端提示今日完成订单次数已达上限，已跳过居民订单以继续执行其他流程", opDesc(op)),
+				PayloadJSON: operationPayload(payloadOp, args, nil, err),
+				Level:       "warn",
+			})
+			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
+			return
+		}
 		if isWaterwheelInvalidDataError(op.Kind, err) {
 			r.state.MarkWaterwheelUnavailable(time.Now())
+			payloadOp := r.cooldownSideOperation(op, time.Now(), err, "服务端提示水车数据暂不可领取", time.Minute)
 			r.emit(Event{
 				Kind:        "operation_deferred",
 				Category:    op.Category,
 				Domain:      op.Domain,
 				Action:      "blocked",
 				Message:     fmt.Sprintf("%s 暂缓: 服务端提示水车数据暂不可领取，稍后重试", opDesc(op)),
-				PayloadJSON: operationPayload(op, args, nil, err),
+				PayloadJSON: operationPayload(payloadOp, args, nil, err),
 				Level:       "warn",
 			})
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "invalid_state"})
@@ -200,13 +226,14 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 		if isWaterwheelDailyLimitError(op.Kind, err) {
 			r.state.MarkWaterwheelDailyLimitReached(time.Now())
+			payloadOp := r.cooldownSideOperation(op, time.Now(), err, "服务端提示今日水车领取已达上限", 24*time.Hour)
 			r.emit(Event{
 				Kind:        "operation_deferred",
 				Category:    op.Category,
 				Domain:      op.Domain,
 				Action:      "blocked",
 				Message:     fmt.Sprintf("%s 暂停: 服务端提示今日水车领取已达上限，已跳过水车以继续执行其他任务", opDesc(op)),
-				PayloadJSON: operationPayload(op, args, nil, err),
+				PayloadJSON: operationPayload(payloadOp, args, nil, err),
 				Level:       "warn",
 			})
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
@@ -226,14 +253,29 @@ func (r *Runner) tick(ctx context.Context) {
 			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "resource_stale"})
 			return
 		}
+		if isTaskGroupFinishedError(op.Kind, err) {
+			payloadOp := r.cooldownSideOperation(op, time.Now(), err, "服务端提示本组任务已经完结", sideOperationMaxCooldown)
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Message:     fmt.Sprintf("%s 暂停: 服务端提示本组任务已经完结，已暂缓该任务以继续执行其他流程", opDesc(op)),
+				PayloadJSON: operationPayload(payloadOp, args, nil, err),
+				Level:       "warn",
+			})
+			_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error(), "stage": "group_finished"})
+			return
+		}
 		opErr = err
+		payloadOp := r.cooldownSideOperation(op, time.Now(), err, "", 0)
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "failed",
 			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
-			PayloadJSON: operationPayload(op, args, nil, err),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 		})
 		_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, map[string]any{"error": err.Error()})
 		return
@@ -243,10 +285,11 @@ func (r *Runner) tick(ctx context.Context) {
 		Category:    op.Category,
 		Domain:      op.Domain,
 		Action:      op.Action,
-		Message:     fmt.Sprintf("%s 完成%s", opDesc(op), landSuffix(op.LandIDs)),
+		Message:     fmt.Sprintf("%s 完成%s", opDesc(op), operationTargetSuffix(op)),
 		PayloadJSON: operationPayload(op, args, v, nil),
 	})
 	_ = r.db.LogOperation(ctx, r.account.ID, op.Kind, args, json.RawMessage(v))
+	r.clearOperationCooldown(op)
 
 	// Some successful water RPC responses omit inventory deltas. When the
 	// server did include item 7, ApplyV has already installed the authoritative
@@ -262,6 +305,9 @@ func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automa
 			continue
 		}
 		op := candidate
+		if _, ok := r.operationCoolingDown(&op, now); ok {
+			continue
+		}
 		if filtered := r.applyHarvestBlocks(&op, now); filtered != nil {
 			return filtered
 		}
@@ -785,12 +831,38 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.TaskWeek().Recv(ctx, req)
 		},
 	),
+	clientproto.RPCStoryMainEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.StoryMainEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.StoryMainEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.StoryMain().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCStoryMainUnlock.String(): stateDeltaOperation(
+		staticRequest(clientproto.StoryMainUnlockRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.StoryMainUnlockRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.StoryMain().Unlock(ctx, req)
+		},
+	),
+	clientproto.RPCTaskAchRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.TaskAchRecvRequest, error) {
+			return clientproto.TaskAchRecvRequest{ID: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.TaskAchRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.TaskAch().Recv(ctx, req)
+		},
+	),
 	clientproto.RPCRoadGrowRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.RoadGrowRecvRequest, error) {
 			return clientproto.RoadGrowRecvRequest{ID: op.TargetID}, nil
 		},
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RoadGrowRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.RoadGrow().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCRandomEventEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.RandomEventEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.RandomEvent().Enter(ctx, req)
 		},
 	),
 	clientproto.RPCRandomEventDoAffair.String(): stateDeltaOperation(
@@ -800,6 +872,18 @@ var plannedOperationSpecs = map[string]operationSpec{
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventDoAffairRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.RandomEvent().DoAffair(ctx, req)
 		},
+	),
+	clientproto.RPCZooFindPet.String(): rawStateDeltaOperation(
+		func(op *automation.PlannedOp) (map[string]any, error) {
+			return map[string]any{"petId": op.TargetID, "isShareVideo": 0}, nil
+		},
+		clientproto.RPCZooFindPet,
+	),
+	clientproto.RPCZooHandleEvent.String(): rawStateDeltaOperation(
+		func(op *automation.PlannedOp) (map[string]any, error) {
+			return map[string]any{"petId": op.TargetID, "tableId": op.ItemID, "agree": op.Count != 0, "isShareVideo": 0}, nil
+		},
+		clientproto.RPCZooHandleEvent,
 	),
 	clientproto.RPCMailGetList.String(): stateDeltaOperation(
 		staticRequest(clientproto.MailGetListRequest{}),
@@ -1091,6 +1175,10 @@ func isResidentOrderCooldownError(kind string, err error) bool {
 	return kind == clientproto.RPCOrderFlowerFinishOrder.String() && err != nil && strings.Contains(err.Error(), "冷却中")
 }
 
+func isResidentOrderDailyLimitError(kind string, err error) bool {
+	return kind == clientproto.RPCOrderFlowerFinishOrder.String() && err != nil && strings.Contains(err.Error(), "今日完成订单次数已达上限")
+}
+
 func isWaterwheelInvalidDataError(kind string, err error) bool {
 	return kind == clientproto.RPCWaterwheelRecv.String() && err != nil && strings.Contains(err.Error(), "数据有误")
 }
@@ -1105,6 +1193,18 @@ func isWaterDropResourceRejectedError(kind string, err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
+}
+
+func isTaskGroupFinishedError(kind string, err error) bool {
+	if err == nil {
+		return false
+	}
+	switch kind {
+	case clientproto.RPCTaskDlyRecv.String(), clientproto.RPCTaskWeekRecv.String(), clientproto.RPCTaskAchRecv.String():
+		return strings.Contains(err.Error(), "本组任务已经完结")
+	default:
+		return false
+	}
 }
 
 func waterResponseIncludesDrops(raw json.RawMessage) bool {
@@ -1178,6 +1278,7 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, err error) string {
 	payload := map[string]any{
 		"rpc":       op.Kind,
+		"lane":      op.Lane,
 		"category":  op.Category,
 		"domain":    op.Domain,
 		"action":    op.Action,
@@ -1198,6 +1299,10 @@ func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, e
 	if len(raw) > 0 {
 		payload["raw"] = json.RawMessage(raw)
 	}
+	if !op.CooldownUntil.IsZero() {
+		payload["cooldownUntilMs"] = op.CooldownUntil.UnixMilli()
+		payload["cooldownReason"] = op.CooldownReason
+	}
 	if err != nil {
 		payload["error"] = err.Error()
 	}
@@ -1211,6 +1316,41 @@ func opDesc(op *automation.PlannedOp) string {
 		return desc
 	}
 	return fmt.Sprintf("%s %s(#%d)", desc, flowerName(int(op.FlowerID)), op.FlowerID)
+}
+
+func operationTargetSuffix(op *automation.PlannedOp) string {
+	if op == nil {
+		return ""
+	}
+	if suffix := landSuffix(op.LandIDs); suffix != "" {
+		return suffix
+	}
+	switch op.Kind {
+	case clientproto.RPCStoryMainUnlock.String():
+		if op.TargetID > 0 {
+			return fmt.Sprintf(" (剧情小节=%d)", op.TargetID)
+		}
+	case clientproto.RPCTaskAchRecv.String(), clientproto.RPCTaskDlyRecv.String(), clientproto.RPCTaskWeekRecv.String(), clientproto.RPCRoadGrowRecv.String():
+		if op.TargetID > 0 {
+			return fmt.Sprintf(" (任务=%d)", op.TargetID)
+		}
+	case clientproto.RPCRandomEventDoAffair.String():
+		if op.TargetID > 0 {
+			return fmt.Sprintf(" (事件=%d)", op.TargetID)
+		}
+	case clientproto.RPCZooFeedPets.String(), clientproto.RPCZooStrokePet.String(), clientproto.RPCZooFindPet.String():
+		if op.TargetID > 0 {
+			return fmt.Sprintf(" (宠物=%d)", op.TargetID)
+		}
+	case clientproto.RPCZooHandleEvent.String():
+		if op.TargetID > 0 && op.ItemID > 0 {
+			return fmt.Sprintf(" (宠物=%d 事件=%d)", op.TargetID, op.ItemID)
+		}
+		if op.TargetID > 0 {
+			return fmt.Sprintf(" (宠物=%d)", op.TargetID)
+		}
+	}
+	return ""
 }
 
 func landSuffix(landIDs []int32) string {

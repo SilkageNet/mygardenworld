@@ -11,6 +11,7 @@ import {
   Building2,
   CalendarDays,
   Check,
+  ChevronDown,
   Coins,
   Flower2,
   Gem,
@@ -46,7 +47,6 @@ import {
   BenefitPolicySchema,
   CultivatePolicySchema,
   CustomerOrderPolicySchema,
-  FeedCatPolicySchema,
   FlowerElvesPolicySchema,
   FlowerMarketPolicySchema,
   FlowerArtPolicySchema,
@@ -73,6 +73,7 @@ import {
   UnionPolicySchema,
   UnionRacePolicySchema,
   VipShopPolicySchema,
+  ZooPolicySchema,
 } from "@/gen/mygardenworld/v1/policy_pb";
 import type {
   ActivityModulePolicy,
@@ -82,7 +83,6 @@ import type {
   BenefitPolicy,
   CultivatePolicy,
   CustomerOrderPolicy,
-  FeedCatPolicy,
   FlowerElvesPolicy,
   FlowerMarketPolicy,
   FlowerArtPolicy,
@@ -105,9 +105,10 @@ import type {
   UnionPolicy,
   UnionRacePolicy,
   VipShopPolicy,
+  ZooPolicy,
 } from "@/gen/mygardenworld/v1/policy_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
-import { PlanStatus, QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
+import { ExecutionLane, PlanStatus, QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
 import type {
   AccountStatus,
   Event,
@@ -115,8 +116,11 @@ import type {
   InventoryLedgerItem,
   InventoryLedgerView,
   LandView,
+  OrderStatisticsView,
+  PendingTaskView,
   PlantableFlowerView,
   PlannedOperation,
+  RequirementView,
 } from "@/gen/mygardenworld/v1/query_service_pb";
 import AppShell from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -592,7 +596,7 @@ function DashboardContent() {
   }
 
   return (
-    <div className="h-full min-h-0">
+    <div className="min-h-0 xl:h-full">
       {error && (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
@@ -601,11 +605,11 @@ function DashboardContent() {
 
       <div
         className={cn(
-          "h-full min-h-0 gap-4",
+          "min-h-0 gap-3 sm:gap-4 xl:h-full",
           hasAccounts ? "grid xl:grid-cols-[320px_minmax(0,1fr)]" : "flex justify-center",
         )}
       >
-        <aside className={cn("min-h-0", selectedAccount && "hidden xl:block", !hasAccounts && "w-full max-w-md")}>
+        <aside className={cn("min-h-0 min-w-0", selectedAccount && "hidden xl:block", !hasAccounts && "w-full max-w-md")}>
           <AccountListPanel
             accounts={accounts}
             statuses={statuses}
@@ -619,7 +623,7 @@ function DashboardContent() {
         </aside>
 
         {hasAccounts && (
-          <section className={cn("dark-scrollbar h-full min-h-0 overflow-y-auto pr-1", !selectedAccount && "hidden xl:block")}>
+          <section className={cn("dark-scrollbar min-h-0 min-w-0 w-full xl:h-full xl:overflow-y-auto xl:pr-1", !selectedAccount && "hidden xl:block")}>
             {selectedAccount ? (
               <AccountDetailView
                 account={selectedAccount}
@@ -743,7 +747,7 @@ function AccountListPanel({
   const quotaReached = quota?.reached ?? false;
   return (
     <Card className={cn("min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
-      <CardHeader className="border-b border-border/70 pb-3">
+      <CardHeader className="border-b border-border/70 pb-2.5 sm:pb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <CardTitle>账号</CardTitle>
@@ -786,7 +790,7 @@ function AccountListPanel({
             </Button>
           </div>
         ) : (
-          <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-1">
+          <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-0.5 sm:pr-1">
             {accounts.map((account) => {
               const status = statuses.get(account.id);
               const selected = account.id === selectedAccountId;
@@ -796,7 +800,7 @@ function AccountListPanel({
                   key={account.id}
                   type="button"
                   className={cn(
-                    "w-full rounded-md border p-3 text-left transition-colors",
+                    "w-full rounded-md border p-3 text-left transition-colors active:scale-[0.99]",
                     selected ? "border-primary/60 bg-primary/10" : "border-border/70 bg-muted/20 hover:bg-muted/45",
                   )}
                   onClick={() => onSelect(account.id)}
@@ -875,7 +879,7 @@ function AccountDetailView({
   onPolicySave: () => void;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden sm:gap-4 xl:h-full">
       <div className="shrink-0">
         <HeaderPanel
           account={account}
@@ -924,13 +928,13 @@ function DashboardTabBar({
   onChange: (tab: DashboardTabId) => void;
 }) {
   return (
-    <div className="dark-scrollbar flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/70 bg-card p-1">
+    <div className="dark-scrollbar sticky top-[3.25rem] z-10 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/70 bg-card/95 p-1 shadow-sm backdrop-blur sm:top-14 xl:static xl:shadow-none">
       {DASHBOARD_TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           className={cn(
-            "flex h-9 min-w-20 shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors",
+            "flex h-9 min-w-[6.25rem] shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors active:scale-[0.99] sm:min-w-20",
             activeTab === tab.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
           )}
           onClick={() => onChange(tab.id)}
@@ -945,13 +949,11 @@ function DashboardTabBar({
 
 function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <StatusOverviewPanel snapshot={snapshot} status={status} />
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
-      <div className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
-        <LandStatusPanel lands={snapshot?.lands ?? []} />
-        <InventoryLedgerPanel ledger={snapshot?.inventoryLedger} />
-      </div>
+      <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
+      <LandWarehouseMonitorPanel lands={snapshot?.lands ?? []} ledger={snapshot?.inventoryLedger} />
     </div>
   );
 }
@@ -980,25 +982,26 @@ function HeaderPanel({
   const identity = accountIdentity(account);
   const statusIssues = accountStatusIssues(status);
   return (
-    <Card>
+    <Card className="bg-card/96">
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:items-center">
+            <Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
               <ArrowLeft className="size-4" />
             </Button>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <h1 className="truncate text-xl font-semibold">{identity.nickname}</h1>
-                <span className="text-sm text-muted-foreground">-</span>
-                <span className="text-sm text-muted-foreground">{identity.area}</span>
-                <span className="text-sm text-muted-foreground">-</span>
-                <span className="text-sm text-muted-foreground">{identity.channel}</span>
+                <h1 className="min-w-0 max-w-full truncate text-xl font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
+                  <span>{identity.area}</span>
+                  <span>·</span>
+                  <span>{identity.channel}</span>
+                </div>
                 <HealthBadge account={account} status={status} />
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center justify-end gap-1">
             <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={snapshotLoading || !connected}>
               <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
             </IconButtonWithTooltip>
@@ -1108,6 +1111,43 @@ function isRunnerNotStartedError(err: unknown) {
 
 const FLORAL_COIN_ITEM_ID = 1002;
 
+function CollapsibleCard({
+  title,
+  actions,
+  children,
+  className,
+  contentClassName,
+  defaultOpen = true,
+}: {
+  title: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card className={cn("bg-card/96", !open && "gap-0", className)}>
+      <CardHeader className="px-3 sm:px-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          <button
+            type="button"
+            className="flex min-w-0 items-center gap-2 text-left text-foreground transition-colors hover:text-primary active:scale-[0.99]"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            <ChevronDown className={cn("size-4 shrink-0 transition-transform", !open && "-rotate-90")} />
+            <CardTitle className="truncate">{title}</CardTitle>
+          </button>
+          {actions && <div className="flex min-w-0 flex-wrap justify-end gap-1.5">{actions}</div>}
+        </div>
+      </CardHeader>
+      {open && <CardContent className={cn("px-3 sm:px-4", contentClassName)}>{children}</CardContent>}
+    </Card>
+  );
+}
+
 function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
   const floralCoins = snapshot?.inventory[FLORAL_COIN_ITEM_ID] ?? 0;
   const reputationObserved = snapshot?.reputationObserved ?? status?.reputationObserved ?? false;
@@ -1126,31 +1166,187 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
   const reputationDetail = reputationObserved ? (reputationTime ? `同步 ${formatUnixTime(reputationTime)}` : "已同步") : "未同步";
   const vipDetail = vipExp > 0 ? `经验 ${formatCount(vipExp)}` : nobleEligible ? "已开通" : "未开通";
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle>监控概览</CardTitle>
-          {snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}
+    <CollapsibleCard title="监控概览" actions={snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}>
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <OverviewStat
+          icon={<ShieldCheck />}
+          label="礼仪分"
+          value={reputationObserved ? formatCount(reputationScore) : "-"}
+          detail={reputationDetail}
+        />
+        <OverviewStat icon={<Trophy />} label="等级" value={level > 0 ? `${level}级` : "-"} detail={`经验 ${formatCount(experience)}`} />
+        <OverviewStat icon={<BadgeCheck />} label="VIP" value={`VIP ${vip}`} detail={vipDetail} />
+        <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
+        <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
+        <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
+        <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
+        <OverviewStat icon={<Package />} label="仓库种类" value={formatCount(snapshot?.inventoryLedger?.items.length ?? 0)} />
+      </div>
+    </CollapsibleCard>
+  );
+}
+
+function TaskOrderMonitorPanel({ tasks, statistics }: { tasks: PendingTaskView[]; statistics?: OrderStatisticsView }) {
+  const monitoredTasks = useMemo(() => [...tasks].sort(comparePendingTasks), [tasks]);
+  const orderTasks = useMemo(() => monitoredTasks.filter(isOrderPendingTask), [monitoredTasks]);
+  const taskItems = useMemo(() => monitoredTasks.filter((task) => !isOrderPendingTask(task)), [monitoredTasks]);
+  const readyCount = monitoredTasks.filter((task) => task.status === PlanStatus.READY && !pendingTaskCooling(task)).length;
+  const coolingCount = monitoredTasks.filter(pendingTaskCooling).length;
+  const shortageCount = monitoredTasks.filter(pendingTaskHasShortage).length;
+  const blockedCount = monitoredTasks.filter(pendingTaskBlocked).length;
+  const missingItemCount = monitoredTasks.reduce((sum, task) => sum + task.requirements.filter((req) => req.missing > 0).length, 0);
+  const missingSummary = useMemo(() => requirementShortageSummary(monitoredTasks), [monitoredTasks]);
+  const orderStats = orderStatisticItems(statistics);
+
+  return (
+    <CollapsibleCard
+      title="任务/订单监控"
+      contentClassName="space-y-3"
+      actions={
+        <>
+          <Badge variant="secondary">总计 {monitoredTasks.length}</Badge>
+          {readyCount > 0 && <Badge variant="secondary">可处理 {readyCount}</Badge>}
+          {coolingCount > 0 && <Badge variant="outline">冷却 {coolingCount}</Badge>}
+          {shortageCount > 0 && <Badge variant="outline">缺口 {shortageCount}</Badge>}
+          {blockedCount > 0 && <Badge variant="destructive">阻塞 {blockedCount}</Badge>}
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <OverviewStat icon={<ListChecks />} label="任务" value={taskItems.length} detail={taskMonitorDetail(taskItems)} />
+        <OverviewStat icon={<Package />} label="订单" value={orderTasks.length} detail={taskMonitorDetail(orderTasks)} />
+        <OverviewStat icon={<AlertTriangle />} label="缺项" value={missingItemCount} detail={missingSummary || "暂无资源缺口"} />
+        <OverviewStat
+          icon={<Check />}
+          label="订单完成"
+          value={statistics?.observed ? orderStats.reduce((sum, item) => sum + item.value, 0) : "-"}
+          detail={statistics?.observed ? `更新 ${formatUnixTime(statistics.updatedAtMs)}` : "未同步"}
+        />
+      </div>
+
+      {statistics?.observed && (
+        <div className="dark-scrollbar flex gap-2 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-2">
+          {orderStats.map((item) => (
+          <div key={item.label} className="flex min-w-[5.5rem] shrink-0 items-center justify-between gap-3 rounded bg-background/70 px-3 py-2 text-sm sm:min-w-24">
+              <span className="text-muted-foreground">{item.label}</span>
+              <span className="font-semibold tabular-nums">{formatCount(item.value)}</span>
+            </div>
+          ))}
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <OverviewStat
-            icon={<ShieldCheck />}
-            label="礼仪分"
-            value={reputationObserved ? formatCount(reputationScore) : "-"}
-            detail={reputationDetail}
-          />
-          <OverviewStat icon={<Trophy />} label="等级" value={level > 0 ? `${level}级` : "-"} detail={`经验 ${formatCount(experience)}`} />
-          <OverviewStat icon={<BadgeCheck />} label="VIP" value={`VIP ${vip}`} detail={vipDetail} />
-          <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
-          <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
-          <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
-          <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
-          <OverviewStat icon={<Package />} label="仓库种类" value={formatCount(snapshot?.inventoryLedger?.items.length ?? 0)} />
+      )}
+
+      {monitoredTasks.length === 0 ? (
+        <EmptyState title="暂无任务/订单快照" />
+      ) : (
+        <div className="grid gap-3 xl:grid-cols-2">
+          <PendingTaskGroup title="任务" tasks={taskItems} emptyText="暂无任务待监控" />
+          <PendingTaskGroup title="订单" tasks={orderTasks} emptyText="暂无订单待监控" />
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function PendingTaskGroup({ title, tasks, emptyText }: { title: string; tasks: PendingTaskView[]; emptyText: string }) {
+  return (
+    <section className="min-w-0 rounded-md border border-border/70 bg-background/35">
+      <div className="flex h-9 items-center justify-between gap-2 bg-muted/35 px-3 text-sm font-medium">
+        <span>{title}</span>
+        <Badge variant="secondary">{tasks.length}</Badge>
+      </div>
+      {tasks.length === 0 ? (
+        <div className="p-3">
+          <EmptyState title={emptyText} />
+        </div>
+      ) : (
+        <div className="dark-scrollbar max-h-[300px] divide-y divide-border/70 overflow-y-auto sm:max-h-[360px]">
+          {tasks.map((task, index) => (
+            <PendingTaskRow key={`${task.category}-${task.id}-${index}`} task={task} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PendingTaskRow({ task }: { task: PendingTaskView }) {
+  return (
+    <div className="min-h-[4.5rem] px-3 py-2.5">
+      <div className="flex items-start gap-3">
+        <PendingTaskStatusBadge task={task} />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+            <span className="shrink-0 text-xs text-muted-foreground">{task.category}</span>
+            <span className="min-w-0 truncate font-medium">{task.title || `#${task.id}`}</span>
+            {task.id && <span className="shrink-0 font-mono text-xs text-muted-foreground">#{task.id}</span>}
+            {taskProgressLabel(task) && <span className="shrink-0 text-xs text-muted-foreground">{taskProgressLabel(task)}</span>}
+          </div>
+          {task.target > 0 && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${pendingTaskProgressPercent(task)}%` }} />
+            </div>
+          )}
+          {task.requirements.length > 0 && <RequirementChips requirements={task.requirements} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingTaskStatusBadge({ task }: { task: PendingTaskView }) {
+  if (pendingTaskCooling(task)) return <Badge variant="outline">冷却</Badge>;
+  if (pendingTaskBlocked(task)) return <Badge variant="destructive">阻塞</Badge>;
+  if (pendingTaskHasShortage(task)) return <Badge variant="destructive">缺口</Badge>;
+  if (task.status === PlanStatus.READY) return <Badge variant="secondary">可处理</Badge>;
+  if (task.status === PlanStatus.SYNC_ONLY) return <Badge variant="outline">同步</Badge>;
+  return <Badge variant="outline">{planStatusLabel(task.status)}</Badge>;
+}
+
+function RequirementChips({ requirements }: { requirements: RequirementView[] }) {
+  const visible = requirements.slice(0, 4);
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {visible.map((req) => (
+        <span
+          key={`${req.itemId}-${req.required}-${req.owned}`}
+          className={cn(
+            "inline-flex min-h-6 max-w-full items-center gap-1 rounded border px-2 py-0.5 text-xs",
+            req.missing > 0 ? "border-destructive/35 bg-destructive/10 text-destructive" : "border-border/70 bg-muted/35 text-muted-foreground",
+          )}
+          title={req.blockedReasons.join("、")}
+        >
+          <span className="truncate">{req.itemName || itemName(req.itemId)}</span>
+          <span className="shrink-0 tabular-nums">
+            {formatCount(req.owned)}/{formatCount(req.required)}
+          </span>
+        </span>
+      ))}
+      {requirements.length > visible.length && (
+        <span className="inline-flex min-h-6 items-center rounded border border-border/70 bg-muted/35 px-2 py-0.5 text-xs text-muted-foreground">
+          +{requirements.length - visible.length}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function LandWarehouseMonitorPanel({ lands, ledger }: { lands: LandView[]; ledger?: InventoryLedgerView }) {
+  const openedCount = lands.filter((land) => land.landStatus === "opened").length;
+  const inventoryCount = (ledger?.items ?? []).filter((item) => item.owned > 0 || item.allocated > 0).length;
+  return (
+    <CollapsibleCard
+      title="土地/仓库监控"
+      contentClassName="grid gap-3 xl:grid-cols-2"
+      actions={
+        <>
+          <Badge variant="secondary">土地 {openedCount}</Badge>
+          <Badge variant="secondary">仓库 {inventoryCount}</Badge>
+        </>
+      }
+    >
+      <LandStatusPanel lands={lands} />
+      <InventoryLedgerPanel ledger={ledger} />
+    </CollapsibleCard>
   );
 }
 
@@ -1172,18 +1368,16 @@ function LandStatusPanel({ lands }: { lands: LandView[] }) {
   const lockedCount = lands.filter((land) => land.landStatus === "locked").length;
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle>土地</CardTitle>
-          <div className="flex flex-wrap justify-end gap-1.5">
-            <Badge variant="secondary">已开 {openedCount}</Badge>
-            {unopenedCount > 0 && <Badge variant="outline">未开 {unopenedCount}</Badge>}
-            {lockedCount > 0 && <Badge variant="outline">锁定 {lockedCount}</Badge>}
-          </div>
+    <section className="min-w-0 rounded-md border border-border/70 bg-background/35">
+      <div className="flex min-h-9 items-center justify-between gap-2 bg-muted/35 px-3 py-1.5 text-sm font-medium">
+        <span>土地</span>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <Badge variant="secondary">已开 {openedCount}</Badge>
+          {unopenedCount > 0 && <Badge variant="outline">未开 {unopenedCount}</Badge>}
+          {lockedCount > 0 && <Badge variant="outline">锁定 {lockedCount}</Badge>}
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <div className="p-3">
         {lands.length === 0 ? (
           <EmptyState title="暂无土地快照" />
         ) : visibleLands.length === 0 ? (
@@ -1197,15 +1391,15 @@ function LandStatusPanel({ lands }: { lands: LandView[] }) {
                 </Badge>
               ))}
             </div>
-            <div className="dark-scrollbar grid h-[560px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            <div className="dark-scrollbar grid max-h-[440px] gap-2 overflow-y-auto pr-0.5 sm:h-[560px] sm:max-h-none sm:grid-cols-2 sm:pr-1">
               {visibleLands.map((land) => (
                 <LandTile key={land.landId} land={land} />
               ))}
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
@@ -1297,19 +1491,19 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
   const categoryLabel = warehouseCategoryLabel(warehouseCategory);
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle>仓库</CardTitle>
-          {inventoryItems.length > 0 && (
-            <div className="flex flex-wrap justify-end gap-1.5">
-              <Badge variant="secondary">种类 {inventoryItems.length}</Badge>
-              {inventoryQuery.trim() && <Badge variant="outline">匹配 {visibleItems.length}</Badge>}
-            </div>
-          )}
-        </div>
+    <section className="min-w-0 rounded-md border border-border/70 bg-background/35">
+      <div className="flex min-h-9 items-center justify-between gap-2 bg-muted/35 px-3 py-1.5 text-sm font-medium">
+        <span>仓库</span>
         {inventoryItems.length > 0 && (
-          <div className="grid gap-2 lg:grid-cols-[minmax(296px,1fr)_minmax(150px,0.65fr)] lg:items-center">
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <Badge variant="secondary">种类 {inventoryItems.length}</Badge>
+            {inventoryQuery.trim() && <Badge variant="outline">匹配 {visibleItems.length}</Badge>}
+          </div>
+        )}
+      </div>
+      <div className="p-3">
+        {inventoryItems.length > 0 && (
+          <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(296px,1fr)_minmax(150px,0.65fr)] lg:items-center">
             <div className="grid min-w-0 grid-cols-3 rounded-md border border-border/70 bg-muted/30 p-1">
               {WAREHOUSE_CATEGORIES.map((category) => (
                 <button
@@ -1344,8 +1538,6 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
             </div>
           </div>
         )}
-      </CardHeader>
-      <CardContent>
         {inventoryItems.length === 0 ? (
           <EmptyState title="暂无仓库数据" />
         ) : categoryItems.length === 0 ? (
@@ -1353,7 +1545,7 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
         ) : visibleItems.length === 0 ? (
           <EmptyState title={`没有匹配${categoryLabel}`} detail="换个名称或 ID 再试试" />
         ) : (
-          <div className="dark-scrollbar h-[560px] overflow-y-auto rounded-md border border-border/70 bg-background/50">
+          <div className="dark-scrollbar max-h-[440px] overflow-y-auto rounded-md border border-border/70 bg-background/50 sm:h-[560px] sm:max-h-none">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_var(--border)]">
                 <TableRow className="hover:bg-transparent">
@@ -1381,55 +1573,72 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
             </Table>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
 function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
-  const queueOperations = operations.filter(isRunnableOperation);
+  const queueOperations = operations.filter(isQueueOperation);
+  const farmOperations = queueOperations.filter((operation) => operation.lane === ExecutionLane.FARM);
+  const sideOperations = queueOperations.filter((operation) => operation.lane !== ExecutionLane.FARM);
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>执行队列</CardTitle>
-          <Badge variant="secondary">{queueOperations.length}</Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="dark-scrollbar h-[172px] overflow-auto rounded-md border border-border/70">
-          {queueOperations.length === 0 ? (
-            <div className="flex h-full items-center justify-center px-3 text-sm text-muted-foreground">当前无可执行操作</div>
-          ) : (
-            <div className="divide-y divide-border/70">
-              {queueOperations.map((operation, index) => {
-                const target = operationTargetLabel(operation);
-                const cost = operationCostLabel(operation);
-                const note = operationNoteLabel(operation);
-                return (
-                  <div
-                    key={operation.operationId || `${operation.rpc}-${index}`}
-                    className="flex min-h-12 items-center gap-3 px-3 py-2"
-                    title={[operation.rpc, operation.domain, operation.reason].filter(Boolean).join(" · ")}
-                  >
-                    <div className="shrink-0">
-                      <OperationStatusBadge operation={operation} />
-                    </div>
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                      <span className="font-medium">{operationTitle(operation)}</span>
-                      {target && <span className="text-muted-foreground">{target}</span>}
-                      {cost && <span className="text-muted-foreground">{cost}</span>}
-                      {note && <span className="text-muted-foreground">{note}</span>}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+    <CollapsibleCard title="执行队列" actions={<Badge variant="secondary">{queueOperations.length}</Badge>}>
+      <div className="max-h-[360px] overflow-hidden rounded-md border border-border/70 md:h-[220px] md:max-h-none">
+        {queueOperations.length === 0 ? (
+          <div className="flex min-h-28 items-center justify-center px-3 text-sm text-muted-foreground md:h-full md:min-h-0">当前无可执行操作</div>
+        ) : (
+          <div className="grid min-h-0 md:h-full md:grid-cols-2">
+            <OperationLaneSection title="种植通道" operations={farmOperations} emptyText="暂无收获、播种或浇水" />
+            <OperationLaneSection title="其他通道" operations={sideOperations} emptyText="暂无任务、订单或活动操作" />
+          </div>
+        )}
+      </div>
+    </CollapsibleCard>
   );
+}
+
+function OperationLaneSection({ title, operations, emptyText }: { title: string; operations: PlannedOperation[]; emptyText: string }) {
+  return (
+    <section className="flex min-h-0 min-w-0 flex-col border-b border-border/70 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <div className="flex h-8 items-center justify-between bg-muted/35 px-3 text-xs font-medium">
+        <span>{title}</span>
+        <Badge variant="secondary">{operations.length}</Badge>
+      </div>
+      {operations.length === 0 ? (
+        <div className="flex min-h-14 flex-1 items-center px-3 py-3 text-sm text-muted-foreground md:min-h-0">{emptyText}</div>
+      ) : (
+        <div className="dark-scrollbar min-h-0 flex-1 divide-y divide-border/70 overflow-auto">
+          {operations.map((operation, index) => (
+            <OperationRow key={operation.operationId || `${operation.rpc}-${index}`} operation={operation} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OperationRow({ operation }: { operation: PlannedOperation }) {
+  const target = operationTargetLabel(operation);
+  const cost = operationCostLabel(operation);
+  const note = operationNoteLabel(operation);
+  return (
+    <div className="flex min-h-12 items-center gap-3 px-3 py-2" title={[operation.rpc, operation.domain, operation.reason].filter(Boolean).join(" · ")}>
+      <div className="shrink-0">
+        <OperationStatusBadge operation={operation} />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        <span className="font-medium">{operationTitle(operation)}</span>
+        {target && <span className="text-muted-foreground">{target}</span>}
+        {cost && <span className="text-muted-foreground">{cost}</span>}
+        {note && <span className="text-muted-foreground">{note}</span>}
+      </div>
+    </div>
+  );
+}
+
+function isQueueOperation(operation: PlannedOperation) {
+  return isRunnableOperation(operation) || isOperationCooling(operation);
 }
 
 function isRunnableOperation(operation: PlannedOperation) {
@@ -1480,7 +1689,7 @@ function PolicyPanel({
   const shop = basic?.shop;
   const cultivateShop = shop?.cultivateShop;
   const vipShop = shop?.vipShop;
-  const feedCat = basic?.feedCat;
+  const zoo = basic?.zoo;
   const order = policy?.order;
   const customer = order?.customer;
   const resident = order?.resident;
@@ -1563,11 +1772,11 @@ function PolicyPanel({
     const current = currentShop.vipShop ?? create(VipShopPolicySchema);
     updateShop({ vipShop: { ...current, ...patch } });
   };
-  const updateFeedCat = (patch: Partial<FeedCatPolicy>) => {
+  const updateZoo = (patch: Partial<ZooPolicy>) => {
     if (!policy) return;
     const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.feedCat ?? create(FeedCatPolicySchema);
-    updateBasic({ feedCat: { ...current, ...patch } });
+    const current = currentBasic.zoo ?? create(ZooPolicySchema);
+    updateBasic({ zoo: { ...current, ...patch } });
   };
   const updatePlanting = (patch: Partial<PlantingPolicy>) => {
     if (!policy) return;
@@ -1729,9 +1938,9 @@ function PolicyPanel({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
           <CardTitle>策略</CardTitle>
-          <Button type="button" size="sm" onClick={onSave} disabled={saving}>
+          <Button type="button" size="sm" className="w-full sm:w-auto" onClick={onSave} disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             {saving ? "保存中" : "保存"}
           </Button>
@@ -1797,7 +2006,7 @@ function PolicyPanel({
                   }
                 />
               </div>
-              <GoalPriorityEditor value={planting?.goalPriority ?? {}} onChange={(goalPriority) => updatePlanting({ goalPriority })} />
+              <DemandPriorityEditor value={planting?.demandPriority ?? {}} onChange={(demandPriority) => updatePlanting({ demandPriority })} />
             </PolicyGroup>
 
             <PolicyGroup title="培育配置" icon={<Flower2 />}>
@@ -1823,8 +2032,8 @@ function PolicyPanel({
                 <ToggleRow label="每日任务" checked={task?.dailyEnabled ?? false} onChange={(checked) => updateBasicTask({ dailyEnabled: checked })} />
                 <ToggleRow label="每周任务" checked={task?.weeklyEnabled ?? false} onChange={(checked) => updateBasicTask({ weeklyEnabled: checked })} />
                 <ToggleRow label="主线剧情" checked={task?.storyEnabled ?? false} onChange={(checked) => updateBasicTask({ storyEnabled: checked })} />
-                <ToggleRow label="花坊悬赏" checked={task?.achievementEnabled ?? false} onChange={(checked) => updateBasicTask({ achievementEnabled: checked })} />
-                <ToggleRow label="动物/地图事件" checked={basic?.randomEventEnabled ?? false} onChange={(checked) => updateBasic({ randomEventEnabled: checked })} />
+                <ToggleRow label="成就任务" checked={task?.achievementEnabled ?? false} onChange={(checked) => updateBasicTask({ achievementEnabled: checked })} />
+                <ToggleRow label="地图随机事件" checked={basic?.mapEventEnabled ?? false} onChange={(checked) => updateBasic({ mapEventEnabled: checked })} />
               </div>
             </PolicyGroup>
 
@@ -1870,7 +2079,7 @@ function PolicyPanel({
               </div>
             </PolicyGroup>
 
-            <PolicyGroup title="商城与喂猫" icon={<ShoppingBag />}>
+            <PolicyGroup title="商城" icon={<ShoppingBag />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="视频礼包" checked={shop?.videoFreeGiftEnabled ?? false} onChange={(checked) => updateShop({ videoFreeGiftEnabled: checked })} />
                 <ToggleRow label="材料商店" checked={cultivateShop?.autoBuy ?? false} onChange={(checked) => updateCultivateShop({ autoBuy: checked })} />
@@ -1884,19 +2093,20 @@ function PolicyPanel({
                     <IntListRow label="VIP 商品 ID" value={vipShop?.itemIds ?? []} onChange={(value) => updateVipShop({ itemIds: value })} />
                   </>
                 )}
-                <ToggleRow label="喂猫模块" checked={feedCat?.enabled ?? false} onChange={(checked) => updateFeedCat({ enabled: checked })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="宠物" icon={<Sparkles />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="宠物模块" checked={zoo?.enabled ?? false} onChange={(checked) => updateZoo({ enabled: checked })} />
+                <ToggleRow label="宠物外出/事件处理" checked={zoo?.autoEventEnabled ?? false} onChange={(checked) => updateZoo({ autoEventEnabled: checked })} />
+                <ToggleRow label="自动喂食" checked={zoo?.autoFeed ?? false} onChange={(checked) => updateZoo({ autoFeed: checked })} />
+                <ToggleRow label="自动互动" checked={zoo?.autoStroke ?? false} onChange={(checked) => updateZoo({ autoStroke: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
-                    <ToggleRow label="自动召回" checked={feedCat?.autoRecall ?? false} onChange={(checked) => updateFeedCat({ autoRecall: checked })} status={SETTING_STATUS.adapterMissing} />
-                    <ToggleRow label="购买猫粮" checked={feedCat?.autoBuyFood ?? false} onChange={(checked) => updateFeedCat({ autoBuyFood: checked })} status={SETTING_STATUS.adapterMissing} />
-                  </>
-                )}
-                <ToggleRow label="自动喂猫" checked={feedCat?.autoFeed ?? false} onChange={(checked) => updateFeedCat({ autoFeed: checked })} />
-                <ToggleRow label="自动撸猫" checked={feedCat?.autoStroke ?? false} onChange={(checked) => updateFeedCat({ autoStroke: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && (
-                  <>
-                    <BigIntNumberRow label="猫金币上限" value={feedCat?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateFeedCat({ maxSpendGold: value })} />
-                    <BigIntNumberRow label="猫元宝上限" value={feedCat?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateFeedCat({ maxSpendDiamond: value })} />
+                    <ToggleRow label="购买饲料" checked={zoo?.autoBuyFood ?? false} onChange={(checked) => updateZoo({ autoBuyFood: checked })} status={SETTING_STATUS.adapterMissing} />
+                    <BigIntNumberRow label="宠物金币上限" value={zoo?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateZoo({ maxSpendGold: value })} />
+                    <BigIntNumberRow label="宠物元宝上限" value={zoo?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateZoo({ maxSpendDiamond: value })} />
                   </>
                 )}
               </div>
@@ -1965,7 +2175,7 @@ function PolicyPanel({
             <PolicyGroup title="居民订单" icon={<ListChecks />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="普通居民订单" checked={resident?.normalEnabled ?? false} onChange={(checked) => updateResident({ normalEnabled: checked })} />
-                <NumberRow label="普通订单上限" value={resident?.normalDailyLimit || 1200} min={0} onChange={(value) => updateResident({ normalDailyLimit: value })} />
+                <NumberRow label="普通订单上限" value={resident?.normalDailyLimit || 1260} min={0} onChange={(value) => updateResident({ normalDailyLimit: value })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
                     <ToggleRow label="绸缎订单" checked={resident?.satinEnabled ?? false} onChange={(checked) => updateResident({ satinEnabled: checked })} />
@@ -2152,7 +2362,7 @@ function PolicyPanel({
 
 function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-md border border-border/70 p-3">
+    <section className="space-y-3 rounded-md border border-border/70 bg-background/35 p-3">
       <SectionTitle icon={icon}>{title}</SectionTitle>
       {children}
     </section>
@@ -2170,9 +2380,9 @@ function StatusRow({ label, value, tone }: { label: string; value: string; tone:
 
 function TextRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
-      <Input className="h-8 w-36 text-right text-sm" value={value} onChange={(event) => onChange(event.target.value)} />
+      <Input className="h-8 w-full text-right text-sm sm:w-36" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -2189,11 +2399,11 @@ function BigIntNumberRow({
   onChange: (value: bigint) => void;
 }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <Input
         type="number"
-        className="h-8 w-28 text-right text-sm"
+        className="h-8 w-full text-right text-sm sm:w-28"
         min={min}
         value={value.toString()}
         onChange={(event) => onChange(parseBigInt(event.target.value, min))}
@@ -2305,11 +2515,11 @@ function FlowerMultiSelectRow({
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{label}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="min-h-0 flex-1 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="relative min-w-56 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -2322,7 +2532,7 @@ function FlowerMultiSelectRow({
               </div>
               <Badge variant="outline">已选 {value.length}</Badge>
             </div>
-            <div className="dark-scrollbar h-[420px] overflow-y-auto rounded-md border border-border/70 bg-background/40 p-2">
+            <div className="dark-scrollbar h-[calc(100dvh-15rem)] max-h-[420px] overflow-y-auto rounded-md border border-border/70 bg-background/40 p-2">
               {visibleFlowers.length === 0 ? (
                 <EmptyState title={synced ? "没有匹配花种" : "尚未同步可种花种"} detail={synced ? undefined : "登录账号并同步培育状态后可选择"} />
               ) : (
@@ -2369,7 +2579,7 @@ function FlowerMultiSelectRow({
               )}
             </div>
           </div>
-          <DialogFooter className="items-center justify-between">
+          <DialogFooter className="mt-4 shrink-0 items-center justify-between">
             <Button type="button" variant="ghost" onClick={() => onChange([])} disabled={value.length === 0}>
               清空
             </Button>
@@ -2385,7 +2595,7 @@ function FlowerMultiSelectRow({
 
 function QualityRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <div className="flex gap-1">
         {QUALITY_OPTIONS.map((quality) => {
@@ -2442,7 +2652,7 @@ function SegmentedRow<T extends number>({
   );
 }
 
-function GoalPriorityEditor({
+function DemandPriorityEditor({
   value,
   onChange,
 }: {
@@ -2484,8 +2694,8 @@ function GoalPriorityEditor({
   return (
     <div className="mt-3 space-y-2 rounded-md border border-border/70 px-3 py-2">
       <div className="flex items-center justify-between gap-3">
-        <Label className="text-sm">目标优先级</Label>
-        <span className="text-xs text-muted-foreground">高到低</span>
+        <Label className="text-sm">生产需求优先级</Label>
+        <span className="text-xs text-muted-foreground">缺花补种排序</span>
       </div>
       <div
         className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
@@ -2604,11 +2814,11 @@ function EventPanel({ events }: { events: Event[] }) {
             <EmptyState title="暂无日志" />
           </div>
         ) : (
-          <div className="dark-scrollbar min-h-0 flex-1 overflow-y-auto rounded-md border border-border/70 font-mono text-xs">
+          <div className="dark-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border/70 bg-background/35 p-2 font-mono text-xs sm:space-y-0 sm:p-0">
             {visibleEvents.map((event, index) => (
               <div
                 key={event.id || `${event.kind}-${index}-${event.message}`}
-                className="grid gap-1 border-b border-border/60 px-3 py-2 last:border-b-0 sm:grid-cols-[108px_64px_minmax(0,1fr)] sm:gap-3"
+                className="grid gap-1 rounded-md border border-border/60 bg-card/80 px-3 py-2 last:border-b-0 sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:grid-cols-[108px_64px_minmax(0,1fr)] sm:gap-3"
               >
                 <span className="text-muted-foreground">{formatTimestamp(event.ts)}</span>
                 <span
@@ -2634,11 +2844,11 @@ function EventPanel({ events }: { events: Event[] }) {
 
 function OverviewStat({ icon, label, value, detail }: { icon: ReactNode; label: string; value: ReactNode; detail?: ReactNode }) {
   return (
-    <div className="flex min-h-[76px] min-w-0 items-center gap-3 rounded-md border border-border/70 bg-background/55 px-3 py-2">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary [&_svg]:size-4">{icon}</div>
+    <div className="flex min-h-[72px] min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background/55 px-2.5 py-2 sm:min-h-[76px] sm:gap-3 sm:px-3">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary sm:size-9 [&_svg]:size-4">{icon}</div>
       <div className="min-w-0">
         <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="truncate text-lg font-semibold tabular-nums">{value}</div>
+        <div className="truncate text-base font-semibold tabular-nums sm:text-lg">{value}</div>
         {detail && <div className="truncate text-xs text-muted-foreground">{detail}</div>}
       </div>
     </div>
@@ -2697,11 +2907,11 @@ function NumberRow({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <Input
         type="number"
-        className="h-8 w-24 text-right text-sm"
+        className="h-8 w-full text-right text-sm sm:w-24"
         min={min}
         value={Number.isFinite(value) ? value : min}
         onChange={(event) => onChange(parseNumber(event.target.value, min))}
@@ -2755,11 +2965,127 @@ function accountStatusIssues(status?: AccountStatus) {
 }
 
 function OperationStatusBadge({ operation }: { operation: PlannedOperation }) {
+  if (isOperationCooling(operation)) return <Badge variant="secondary">冷却</Badge>;
   if (operation.status === PlanStatus.BLOCKED || operation.blockedReasons.length > 0) return <Badge variant="destructive">阻塞</Badge>;
   if (operation.syncOnly) return <Badge variant="outline">同步</Badge>;
   if (!operation.executable) return <Badge variant="outline">{planStatusLabel(operation.status)}</Badge>;
   if (operation.status === PlanStatus.MANAGED) return <Badge variant="secondary">调度</Badge>;
   return <Badge>可执行</Badge>;
+}
+
+function comparePendingTasks(a: PendingTaskView, b: PendingTaskView) {
+  const statusDelta = pendingTaskStatusRank(a) - pendingTaskStatusRank(b);
+  if (statusDelta !== 0) return statusDelta;
+  const categoryDelta = pendingTaskCategoryRank(a.category) - pendingTaskCategoryRank(b.category);
+  if (categoryDelta !== 0) return categoryDelta;
+  const aID = Number(a.id);
+  const bID = Number(b.id);
+  if (Number.isFinite(aID) && Number.isFinite(bID) && aID !== bID) return aID - bID;
+  return (a.title || a.id).localeCompare(b.title || b.id, "zh-CN");
+}
+
+function pendingTaskStatusRank(task: PendingTaskView) {
+  if (pendingTaskBlocked(task)) return 0;
+  if (pendingTaskHasShortage(task)) return 1;
+  if (pendingTaskCooling(task)) return 3;
+  switch (task.status) {
+    case PlanStatus.READY:
+      return 2;
+    case PlanStatus.MANAGED:
+      return 4;
+    case PlanStatus.SYNC_ONLY:
+      return 5;
+    case PlanStatus.SKIPPED:
+      return 6;
+    default:
+      return 7;
+  }
+}
+
+function pendingTaskCategoryRank(category: string) {
+  const order = ["顾客订单", "居民订单", "主线任务", "主线剧情", "日常任务", "周常任务", "成就任务", "地图随机事件", "宠物事件"];
+  const index = order.indexOf(category);
+  return index >= 0 ? index : order.length;
+}
+
+function isOrderPendingTask(task: PendingTaskView) {
+  return task.category.includes("订单") || task.title.includes("订单");
+}
+
+function pendingTaskBlocked(task: PendingTaskView) {
+  return (
+    task.status === PlanStatus.BLOCKED ||
+    task.requirements.some((req) => req.blockedReasons.length > 0)
+  );
+}
+
+function pendingTaskHasShortage(task: PendingTaskView) {
+  return task.requirements.some((req) => req.missing > 0);
+}
+
+function pendingTaskCooling(task: PendingTaskView) {
+  return Number(task.cooldownUntilMs) > Date.now();
+}
+
+function taskMonitorDetail(tasks: PendingTaskView[]) {
+  if (tasks.length === 0) return "暂无";
+  const ready = tasks.filter((task) => task.status === PlanStatus.READY && !pendingTaskCooling(task)).length;
+  const cooling = tasks.filter(pendingTaskCooling).length;
+  const shortage = tasks.filter(pendingTaskHasShortage).length;
+  const blocked = tasks.filter(pendingTaskBlocked).length;
+  return [`可处理 ${ready}`, cooling > 0 ? `冷却 ${cooling}` : "", shortage > 0 ? `缺口 ${shortage}` : "", blocked > 0 ? `阻塞 ${blocked}` : ""].filter(Boolean).join(" / ");
+}
+
+function requirementShortageSummary(tasks: PendingTaskView[]) {
+  const totals = new Map<number, { name: string; missing: number }>();
+  for (const task of tasks) {
+    for (const req of task.requirements) {
+      if (req.missing <= 0) continue;
+      const current = totals.get(req.itemId) ?? { name: req.itemName || itemName(req.itemId), missing: 0 };
+      current.missing += req.missing;
+      totals.set(req.itemId, current);
+    }
+  }
+  return [...totals.values()]
+    .sort((a, b) => b.missing - a.missing || a.name.localeCompare(b.name, "zh-CN"))
+    .slice(0, 3)
+    .map((item) => `${item.name} ${formatCount(item.missing)}`)
+    .join("、");
+}
+
+function pendingTaskProgressPercent(task: PendingTaskView) {
+  if (task.target <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((task.finished / task.target) * 100)));
+}
+
+function taskProgressLabel(task: PendingTaskView) {
+  if (pendingTaskCooling(task)) {
+    const reason = task.cooldownReason || "冷却中";
+    return `${reason}，约 ${pendingTaskCooldownRemaining(task)}后可交付`;
+  }
+  if (task.target > 0) return `${formatCount(task.finished)}/${formatCount(task.target)}`;
+  if (task.requirements.length === 0) return "";
+  const missing = task.requirements.reduce((sum, req) => sum + Math.max(0, req.missing), 0);
+  return missing > 0 ? `缺 ${formatCount(missing)}` : "资源满足";
+}
+
+function pendingTaskCooldownRemaining(task: PendingTaskView) {
+  const seconds = Math.max(1, Math.ceil((Number(task.cooldownUntilMs) - Date.now()) / 1000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟`;
+  return `${Math.ceil(minutes / 60)} 小时`;
+}
+
+function orderStatisticItems(statistics?: OrderStatisticsView) {
+  return [
+    { label: "居民", value: statistics?.residentNormalFinished ?? 0 },
+    { label: "顾客", value: statistics?.customerFinished ?? 0 },
+    { label: "宫廷", value: statistics?.palaceFinished ?? 0 },
+    { label: "绸缎", value: statistics?.residentSatinFinished ?? 0 },
+    { label: "建材", value: statistics?.residentDecorateFinished ?? 0 },
+    { label: "花艺", value: statistics?.flowerArtSold ?? 0 },
+  ];
 }
 
 function planStatusLabel(status: PlanStatus) {
@@ -2835,8 +3161,24 @@ function operationCostLabel(operation: PlannedOperation) {
 }
 
 function operationNoteLabel(operation: PlannedOperation) {
+  if (isOperationCooling(operation)) {
+    const reason = operation.cooldownReason || "操作冷却中";
+    return `${reason}，${operationCooldownRemaining(operation)}后重试`;
+  }
   const raw = operation.blockedReasons.length > 0 ? operation.blockedReasons.join("、") : operation.reason;
   return operationReasonLabel(raw);
+}
+
+function isOperationCooling(operation: PlannedOperation) {
+  return Number(operation.cooldownUntilMs) > Date.now();
+}
+
+function operationCooldownRemaining(operation: PlannedOperation) {
+  const seconds = Math.max(1, Math.ceil((Number(operation.cooldownUntilMs) - Date.now()) / 1000));
+  if (seconds < 60) return `${seconds}秒`;
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) return `${minutes}分钟`;
+  return `${Math.ceil(minutes / 60)}小时`;
 }
 
 function operationLandIds(operation: PlannedOperation) {
@@ -2880,9 +3222,13 @@ function operationActionLabel(action: string) {
     case "unlock":
       return "解锁";
     case "feed":
-      return "喂猫";
+      return "喂食";
     case "stroke":
-      return "撸猫";
+      return "互动";
+    case "find_pet":
+      return "寻回";
+    case "handle_event":
+      return "处理";
     default:
       return action;
   }

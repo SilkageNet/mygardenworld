@@ -27,6 +27,12 @@ enum GateResourceKind {
   GATE_RESOURCE_KIND_ADAPTER = 9;
 }
 
+enum ExecutionLane {
+  EXECUTION_LANE_UNSPECIFIED = 0;
+  EXECUTION_LANE_FARM = 1;
+  EXECUTION_LANE_SIDE = 2;
+}
+
 service QueryService {
   // Lightweight summary: connected accounts and inventory totals. For dashboard polling.
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
@@ -181,6 +187,8 @@ message PendingTaskView {
   int32 target = 5;
   PlanStatus status = 6;
   repeated RequirementView requirements = 7;
+  int64 cooldown_until_ms = 8;
+  string cooldown_reason = 9;
 }
 
 message PlannedOperation {
@@ -211,6 +219,9 @@ message PlannedOperation {
   repeated int32 flower_ids = 25;
   repeated CostGate cost_gates = 26;
   string blocking_stage = 27;
+  ExecutionLane lane = 28;
+  int64 cooldown_until_ms = 29;
+  string cooldown_reason = 30;
 }
 
 message DomainStatus {
@@ -220,6 +231,9 @@ message DomainStatus {
   PlanStatus status = 4;
   repeated string blocked_reasons = 5;
   string last_error = 6;
+  ExecutionLane lane = 7;
+  int64 cooldown_until_ms = 8;
+  string cooldown_reason = 9;
 }
 
 message RequirementView {

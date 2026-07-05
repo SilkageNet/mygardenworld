@@ -279,13 +279,13 @@ type BasicPolicy struct {
 	ReconnectIntervalSeconds float64                `protobuf:"fixed64,2,opt,name=reconnect_interval_seconds,json=reconnectIntervalSeconds,proto3" json:"reconnect_interval_seconds,omitempty"`
 	ItemLogEnabled           bool                   `protobuf:"varint,3,opt,name=item_log_enabled,json=itemLogEnabled,proto3" json:"item_log_enabled,omitempty"`
 	Task                     *BasicTaskPolicy       `protobuf:"bytes,4,opt,name=task,proto3" json:"task,omitempty"`
-	RandomEventEnabled       bool                   `protobuf:"varint,5,opt,name=random_event_enabled,json=randomEventEnabled,proto3" json:"random_event_enabled,omitempty"`
+	MapEventEnabled          bool                   `protobuf:"varint,5,opt,name=map_event_enabled,json=mapEventEnabled,proto3" json:"map_event_enabled,omitempty"`
 	MailEnabled              bool                   `protobuf:"varint,6,opt,name=mail_enabled,json=mailEnabled,proto3" json:"mail_enabled,omitempty"`
 	Benefit                  *BenefitPolicy         `protobuf:"bytes,7,opt,name=benefit,proto3" json:"benefit,omitempty"`
 	Sign                     *SignPolicy            `protobuf:"bytes,8,opt,name=sign,proto3" json:"sign,omitempty"`
 	Pearl                    *PearlPolicy           `protobuf:"bytes,9,opt,name=pearl,proto3" json:"pearl,omitempty"`
 	Shop                     *ShopPolicy            `protobuf:"bytes,10,opt,name=shop,proto3" json:"shop,omitempty"`
-	FeedCat                  *FeedCatPolicy         `protobuf:"bytes,11,opt,name=feed_cat,json=feedCat,proto3" json:"feed_cat,omitempty"`
+	Zoo                      *ZooPolicy             `protobuf:"bytes,11,opt,name=zoo,proto3" json:"zoo,omitempty"`
 	// Resource claim settings kept in the basic category because they create
 	// usable water drops; plant.planting controls whether drops are spent.
 	WaterwheelEnabled     bool  `protobuf:"varint,12,opt,name=waterwheel_enabled,json=waterwheelEnabled,proto3" json:"waterwheel_enabled,omitempty"`
@@ -354,9 +354,9 @@ func (x *BasicPolicy) GetTask() *BasicTaskPolicy {
 	return nil
 }
 
-func (x *BasicPolicy) GetRandomEventEnabled() bool {
+func (x *BasicPolicy) GetMapEventEnabled() bool {
 	if x != nil {
-		return x.RandomEventEnabled
+		return x.MapEventEnabled
 	}
 	return false
 }
@@ -396,9 +396,9 @@ func (x *BasicPolicy) GetShop() *ShopPolicy {
 	return nil
 }
 
-func (x *BasicPolicy) GetFeedCat() *FeedCatPolicy {
+func (x *BasicPolicy) GetZoo() *ZooPolicy {
 	if x != nil {
-		return x.FeedCat
+		return x.Zoo
 	}
 	return nil
 }
@@ -975,33 +975,33 @@ func (x *VipShopPolicy) GetItemIds() []int32 {
 	return nil
 }
 
-type FeedCatPolicy struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Enabled         bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	AutoRecall      bool                   `protobuf:"varint,2,opt,name=auto_recall,json=autoRecall,proto3" json:"auto_recall,omitempty"`
-	AutoBuyFood     bool                   `protobuf:"varint,3,opt,name=auto_buy_food,json=autoBuyFood,proto3" json:"auto_buy_food,omitempty"`
-	AutoFeed        bool                   `protobuf:"varint,4,opt,name=auto_feed,json=autoFeed,proto3" json:"auto_feed,omitempty"`
-	AutoStroke      bool                   `protobuf:"varint,5,opt,name=auto_stroke,json=autoStroke,proto3" json:"auto_stroke,omitempty"`
-	MaxSpendGold    int64                  `protobuf:"varint,6,opt,name=max_spend_gold,json=maxSpendGold,proto3" json:"max_spend_gold,omitempty"`
-	MaxSpendDiamond int64                  `protobuf:"varint,7,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+type ZooPolicy struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Enabled          bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	AutoEventEnabled bool                   `protobuf:"varint,2,opt,name=auto_event_enabled,json=autoEventEnabled,proto3" json:"auto_event_enabled,omitempty"`
+	AutoBuyFood      bool                   `protobuf:"varint,3,opt,name=auto_buy_food,json=autoBuyFood,proto3" json:"auto_buy_food,omitempty"`
+	AutoFeed         bool                   `protobuf:"varint,4,opt,name=auto_feed,json=autoFeed,proto3" json:"auto_feed,omitempty"`
+	AutoStroke       bool                   `protobuf:"varint,5,opt,name=auto_stroke,json=autoStroke,proto3" json:"auto_stroke,omitempty"`
+	MaxSpendGold     int64                  `protobuf:"varint,6,opt,name=max_spend_gold,json=maxSpendGold,proto3" json:"max_spend_gold,omitempty"`
+	MaxSpendDiamond  int64                  `protobuf:"varint,7,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
-func (x *FeedCatPolicy) Reset() {
-	*x = FeedCatPolicy{}
+func (x *ZooPolicy) Reset() {
+	*x = ZooPolicy{}
 	mi := &file_mygardenworld_v1_policy_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *FeedCatPolicy) String() string {
+func (x *ZooPolicy) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FeedCatPolicy) ProtoMessage() {}
+func (*ZooPolicy) ProtoMessage() {}
 
-func (x *FeedCatPolicy) ProtoReflect() protoreflect.Message {
+func (x *ZooPolicy) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_policy_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1013,54 +1013,54 @@ func (x *FeedCatPolicy) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FeedCatPolicy.ProtoReflect.Descriptor instead.
-func (*FeedCatPolicy) Descriptor() ([]byte, []int) {
+// Deprecated: Use ZooPolicy.ProtoReflect.Descriptor instead.
+func (*ZooPolicy) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *FeedCatPolicy) GetEnabled() bool {
+func (x *ZooPolicy) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
 	}
 	return false
 }
 
-func (x *FeedCatPolicy) GetAutoRecall() bool {
+func (x *ZooPolicy) GetAutoEventEnabled() bool {
 	if x != nil {
-		return x.AutoRecall
+		return x.AutoEventEnabled
 	}
 	return false
 }
 
-func (x *FeedCatPolicy) GetAutoBuyFood() bool {
+func (x *ZooPolicy) GetAutoBuyFood() bool {
 	if x != nil {
 		return x.AutoBuyFood
 	}
 	return false
 }
 
-func (x *FeedCatPolicy) GetAutoFeed() bool {
+func (x *ZooPolicy) GetAutoFeed() bool {
 	if x != nil {
 		return x.AutoFeed
 	}
 	return false
 }
 
-func (x *FeedCatPolicy) GetAutoStroke() bool {
+func (x *ZooPolicy) GetAutoStroke() bool {
 	if x != nil {
 		return x.AutoStroke
 	}
 	return false
 }
 
-func (x *FeedCatPolicy) GetMaxSpendGold() int64 {
+func (x *ZooPolicy) GetMaxSpendGold() int64 {
 	if x != nil {
 		return x.MaxSpendGold
 	}
 	return 0
 }
 
-func (x *FeedCatPolicy) GetMaxSpendDiamond() int64 {
+func (x *ZooPolicy) GetMaxSpendDiamond() int64 {
 	if x != nil {
 		return x.MaxSpendDiamond
 	}
@@ -1219,7 +1219,7 @@ type PlantingPolicy struct {
 	VideoSpeedUpEnabled bool                   `protobuf:"varint,9,opt,name=video_speed_up_enabled,json=videoSpeedUpEnabled,proto3" json:"video_speed_up_enabled,omitempty"`
 	UseSpeedUpTicket    bool                   `protobuf:"varint,10,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
 	SpeedUpTicketMax    int32                  `protobuf:"varint,11,opt,name=speed_up_ticket_max,json=speedUpTicketMax,proto3" json:"speed_up_ticket_max,omitempty"`
-	GoalPriority        map[string]int32       `protobuf:"bytes,14,rep,name=goal_priority,json=goalPriority,proto3" json:"goal_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	DemandPriority      map[string]int32       `protobuf:"bytes,14,rep,name=demand_priority,json=demandPriority,proto3" json:"demand_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	// These fields only limit autonomous empty-land replanting. Demand-driven
 	// planting for enabled tasks/orders always uses the required flower.
 	AutoReplantMode             SelectionMode `protobuf:"varint,15,opt,name=auto_replant_mode,json=autoReplantMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"auto_replant_mode,omitempty"`
@@ -1301,9 +1301,9 @@ func (x *PlantingPolicy) GetSpeedUpTicketMax() int32 {
 	return 0
 }
 
-func (x *PlantingPolicy) GetGoalPriority() map[string]int32 {
+func (x *PlantingPolicy) GetDemandPriority() map[string]int32 {
 	if x != nil {
-		return x.GoalPriority
+		return x.DemandPriority
 	}
 	return nil
 }
@@ -2818,22 +2818,22 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x05union\x18\x05 \x01(\v2\x1d.mygardenworld.v1.UnionPolicyR\x05union\x12<\n" +
 	"\bactivity\x18\x06 \x01(\v2 .mygardenworld.v1.ActivityPolicyR\bactivity\x12:\n" +
 	"\x19decision_interval_seconds\x18\n" +
-	" \x01(\x01R\x17decisionIntervalSeconds\"\x9f\x06\n" +
+	" \x01(\x01R\x17decisionIntervalSeconds\"\x8c\x06\n" +
 	"\vBasicPolicy\x12B\n" +
 	"\n" +
 	"reputation\x18\x01 \x01(\v2\".mygardenworld.v1.ReputationPolicyR\n" +
 	"reputation\x12<\n" +
 	"\x1areconnect_interval_seconds\x18\x02 \x01(\x01R\x18reconnectIntervalSeconds\x12(\n" +
 	"\x10item_log_enabled\x18\x03 \x01(\bR\x0eitemLogEnabled\x125\n" +
-	"\x04task\x18\x04 \x01(\v2!.mygardenworld.v1.BasicTaskPolicyR\x04task\x120\n" +
-	"\x14random_event_enabled\x18\x05 \x01(\bR\x12randomEventEnabled\x12!\n" +
+	"\x04task\x18\x04 \x01(\v2!.mygardenworld.v1.BasicTaskPolicyR\x04task\x12*\n" +
+	"\x11map_event_enabled\x18\x05 \x01(\bR\x0fmapEventEnabled\x12!\n" +
 	"\fmail_enabled\x18\x06 \x01(\bR\vmailEnabled\x129\n" +
 	"\abenefit\x18\a \x01(\v2\x1f.mygardenworld.v1.BenefitPolicyR\abenefit\x120\n" +
 	"\x04sign\x18\b \x01(\v2\x1c.mygardenworld.v1.SignPolicyR\x04sign\x123\n" +
 	"\x05pearl\x18\t \x01(\v2\x1d.mygardenworld.v1.PearlPolicyR\x05pearl\x120\n" +
 	"\x04shop\x18\n" +
-	" \x01(\v2\x1c.mygardenworld.v1.ShopPolicyR\x04shop\x12:\n" +
-	"\bfeed_cat\x18\v \x01(\v2\x1f.mygardenworld.v1.FeedCatPolicyR\afeedCat\x12-\n" +
+	" \x01(\v2\x1c.mygardenworld.v1.ShopPolicyR\x04shop\x12-\n" +
+	"\x03zoo\x18\v \x01(\v2\x1b.mygardenworld.v1.ZooPolicyR\x03zoo\x12-\n" +
 	"\x12waterwheel_enabled\x18\f \x01(\bR\x11waterwheelEnabled\x12,\n" +
 	"\x12free_water_enabled\x18\r \x01(\bR\x10freeWaterEnabled\x122\n" +
 	"\x15water_claim_threshold\x18\x0e \x01(\x05R\x13waterClaimThreshold\x127\n" +
@@ -2880,11 +2880,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\bauto_buy\x18\x01 \x01(\bR\aautoBuy\x12*\n" +
 	"\x11max_spend_diamond\x18\x02 \x01(\x03R\x0fmaxSpendDiamond\x121\n" +
 	"\x15max_spend_floral_coin\x18\x03 \x01(\x03R\x12maxSpendFloralCoin\x12\x19\n" +
-	"\bitem_ids\x18\x04 \x03(\x05R\aitemIds\"\xfe\x01\n" +
-	"\rFeedCatPolicy\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1f\n" +
-	"\vauto_recall\x18\x02 \x01(\bR\n" +
-	"autoRecall\x12\"\n" +
+	"\bitem_ids\x18\x04 \x03(\x05R\aitemIds\"\x87\x02\n" +
+	"\tZooPolicy\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12,\n" +
+	"\x12auto_event_enabled\x18\x02 \x01(\bR\x10autoEventEnabled\x12\"\n" +
 	"\rauto_buy_food\x18\x03 \x01(\bR\vautoBuyFood\x12\x1b\n" +
 	"\tauto_feed\x18\x04 \x01(\bR\bautoFeed\x12\x1f\n" +
 	"\vauto_stroke\x18\x05 \x01(\bR\n" +
@@ -2901,7 +2900,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
 	"\x0fupgrade_enabled\x18\x03 \x01(\bR\x0eupgradeEnabled\x12!\n" +
-	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xfc\x04\n" +
+	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\x84\x05\n" +
 	"\x0ePlantingPolicy\x12!\n" +
 	"\fauto_enabled\x18\x01 \x01(\bR\vautoEnabled\x12(\n" +
 	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x12&\n" +
@@ -2909,12 +2908,12 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x16video_speed_up_enabled\x18\t \x01(\bR\x13videoSpeedUpEnabled\x12-\n" +
 	"\x13use_speed_up_ticket\x18\n" +
 	" \x01(\bR\x10useSpeedUpTicket\x12-\n" +
-	"\x13speed_up_ticket_max\x18\v \x01(\x05R\x10speedUpTicketMax\x12W\n" +
-	"\rgoal_priority\x18\x0e \x03(\v22.mygardenworld.v1.PlantingPolicy.GoalPriorityEntryR\fgoalPriority\x12K\n" +
+	"\x13speed_up_ticket_max\x18\v \x01(\x05R\x10speedUpTicketMax\x12]\n" +
+	"\x0fdemand_priority\x18\x0e \x03(\v24.mygardenworld.v1.PlantingPolicy.DemandPriorityEntryR\x0edemandPriority\x12K\n" +
 	"\x11auto_replant_mode\x18\x0f \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\x0fautoReplantMode\x125\n" +
 	"\x17auto_replant_flower_ids\x18\x10 \x03(\x05R\x14autoReplantFlowerIds\x12D\n" +
-	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x1a?\n" +
-	"\x11GoalPriorityEntry\x12\x10\n" +
+	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x1aA\n" +
+	"\x13DemandPriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xdd\x02\n" +
 	"\x11FriendStealPolicy\x12\x18\n" +
@@ -3120,7 +3119,7 @@ var file_mygardenworld_v1_policy_proto_goTypes = []any{
 	(*ShopPolicy)(nil),           // 10: mygardenworld.v1.ShopPolicy
 	(*ShopBuyPolicy)(nil),        // 11: mygardenworld.v1.ShopBuyPolicy
 	(*VipShopPolicy)(nil),        // 12: mygardenworld.v1.VipShopPolicy
-	(*FeedCatPolicy)(nil),        // 13: mygardenworld.v1.FeedCatPolicy
+	(*ZooPolicy)(nil),            // 13: mygardenworld.v1.ZooPolicy
 	(*PlantPolicy)(nil),          // 14: mygardenworld.v1.PlantPolicy
 	(*CultivatePolicy)(nil),      // 15: mygardenworld.v1.CultivatePolicy
 	(*PlantingPolicy)(nil),       // 16: mygardenworld.v1.PlantingPolicy
@@ -3141,7 +3140,7 @@ var file_mygardenworld_v1_policy_proto_goTypes = []any{
 	(*ActivityPolicy)(nil),       // 31: mygardenworld.v1.ActivityPolicy
 	(*ActivityModulePolicy)(nil), // 32: mygardenworld.v1.ActivityModulePolicy
 	(*IntList)(nil),              // 33: mygardenworld.v1.IntList
-	nil,                          // 34: mygardenworld.v1.PlantingPolicy.GoalPriorityEntry
+	nil,                          // 34: mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
 	nil,                          // 35: mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
 	nil,                          // 36: mygardenworld.v1.ActivityPolicy.ModulesEntry
 	nil,                          // 37: mygardenworld.v1.ActivityModulePolicy.IntParamsEntry
@@ -3161,7 +3160,7 @@ var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	8,  // 8: mygardenworld.v1.BasicPolicy.sign:type_name -> mygardenworld.v1.SignPolicy
 	9,  // 9: mygardenworld.v1.BasicPolicy.pearl:type_name -> mygardenworld.v1.PearlPolicy
 	10, // 10: mygardenworld.v1.BasicPolicy.shop:type_name -> mygardenworld.v1.ShopPolicy
-	13, // 11: mygardenworld.v1.BasicPolicy.feed_cat:type_name -> mygardenworld.v1.FeedCatPolicy
+	13, // 11: mygardenworld.v1.BasicPolicy.zoo:type_name -> mygardenworld.v1.ZooPolicy
 	11, // 12: mygardenworld.v1.ShopPolicy.cultivate_shop:type_name -> mygardenworld.v1.ShopBuyPolicy
 	12, // 13: mygardenworld.v1.ShopPolicy.vip_shop:type_name -> mygardenworld.v1.VipShopPolicy
 	15, // 14: mygardenworld.v1.PlantPolicy.cultivate:type_name -> mygardenworld.v1.CultivatePolicy
@@ -3169,7 +3168,7 @@ var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	17, // 16: mygardenworld.v1.PlantPolicy.friend_steal:type_name -> mygardenworld.v1.FriendStealPolicy
 	18, // 17: mygardenworld.v1.PlantPolicy.elves:type_name -> mygardenworld.v1.FlowerElvesPolicy
 	19, // 18: mygardenworld.v1.PlantPolicy.market:type_name -> mygardenworld.v1.FlowerMarketPolicy
-	34, // 19: mygardenworld.v1.PlantingPolicy.goal_priority:type_name -> mygardenworld.v1.PlantingPolicy.GoalPriorityEntry
+	34, // 19: mygardenworld.v1.PlantingPolicy.demand_priority:type_name -> mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
 	0,  // 20: mygardenworld.v1.PlantingPolicy.auto_replant_mode:type_name -> mygardenworld.v1.SelectionMode
 	0,  // 21: mygardenworld.v1.FriendStealPolicy.mode:type_name -> mygardenworld.v1.SelectionMode
 	1,  // 22: mygardenworld.v1.FlowerMarketPolicy.put_mode:type_name -> mygardenworld.v1.MarketPutMode

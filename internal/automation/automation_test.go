@@ -166,6 +166,34 @@ func TestBuildPlan_ResidentNormalLimitBlocksSubmit(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_ResidentServerDailyLimitMarkerBlocksSubmit(t *testing.T) {
+	now := time.Date(2026, 7, 5, 20, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+		"124": map[string]any{"0": map[string]any{"20260705": map[string]any{"1": 20260705, "9": 1259}}},
+	})
+	s.MarkResidentOrderDailyLimitReached(now)
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should be blocked after server daily limit: %+v", op)
+		}
+		if op.Domain == "order.resident" && !op.Executable && hasReasonContaining(op.BlockedReasons, "今日完成订单次数已达上限") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing resident server limit block: %+v", result.Operations)
+	}
+}
+
 func TestBuildPlan_ResidentQualityMismatchBlocksSubmit(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -456,13 +484,13 @@ func TestBuildPlan_CustomerEmptyOrdersRespectGenerationCooldown(t *testing.T) {
 	}
 }
 
-func TestPlan_CustomerOrderGenerationBeatsHarvest(t *testing.T) {
+func TestPlan_FarmLaneBeatsCustomerOrderGeneration(t *testing.T) {
 	now := time.Date(2026, 7, 3, 9, 0, 0, 0, time.Local)
 	s := state.New()
 	applyMap(t, s, map[string]any{
-		"100": map[string]any{"0": map[string]any{"1": map[string]any{
-			"1001": map[string]any{"1": 23005, "2": 3, "4": now.Add(-time.Minute).UnixMilli()},
-		}}},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23005, "1": 3, "5": now.Add(-time.Minute).UnixMilli()},
+		}},
 		"109": map[string]any{"0": map[string]any{
 			"1": map[string]any{},
 			"2": now.Add(-2 * time.Second).UnixMilli(),
@@ -474,8 +502,49 @@ func TestPlan_CustomerOrderGenerationBeatsHarvest(t *testing.T) {
 	p.Order.Customer.Enabled = true
 
 	op := Plan(s, p, now)
-	if op == nil || op.Kind != clientproto.RPCOrderCustomerGenOrder.String() {
-		t.Fatalf("Plan()=%+v, want customer gen before harvest", op)
+	if op == nil || op.Kind != clientproto.RPCUsrLandHarvest.String() || op.Lane != LaneFarm {
+		t.Fatalf("Plan()=%+v, want farm harvest before customer gen", op)
+	}
+}
+
+func TestBuildPlan_FarmLaneBeatsDailyTaskClaim(t *testing.T) {
+	now := time.Date(2026, 7, 5, 11, 30, 0, 0, time.UTC)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": emptyLands(1)},
+		"101": map[string]any{"0": cultivate(23001)},
+		"22": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"4": 569},
+				"3": map[string]any{},
+				"100": map[string]any{
+					"40001": map[string]any{"0": 40001, "1": 569, "2": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Planting.AutoEnabled = true
+	p.Basic.Task.DailyEnabled = true
+
+	result := BuildPlan(s, p, now)
+	if len(result.Operations) == 0 {
+		t.Fatal("BuildPlan produced no operations")
+	}
+	first := result.Operations[0]
+	if first.Lane != LaneFarm || first.Kind != clientproto.RPCUsrLandPlant.String() {
+		t.Fatalf("first operation=%+v, want farm plant before daily task", first)
+	}
+	var daily *PlannedOp
+	for i := range result.Operations {
+		if result.Operations[i].Kind == clientproto.RPCTaskDlyRecv.String() {
+			daily = &result.Operations[i]
+			break
+		}
+	}
+	if daily == nil || daily.Lane != LaneSide {
+		t.Fatalf("daily task op=%+v, want side lane", daily)
 	}
 }
 
@@ -1098,8 +1167,8 @@ func TestBuildPlan_ZooSyncWhenUnobserved(t *testing.T) {
 	s := state.New()
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Basic.FeedCat.Enabled = true
-	p.Basic.FeedCat.AutoFeed = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoFeed = true
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
@@ -1133,9 +1202,9 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Basic.FeedCat.Enabled = true
-	p.Basic.FeedCat.AutoFeed = true
-	p.Basic.FeedCat.AutoStroke = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoFeed = true
+	p.Basic.Zoo.AutoStroke = true
 
 	result := BuildPlan(s, p, now)
 	want := map[string]string{
@@ -1158,20 +1227,31 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_ZooCostAndRecallBlocked(t *testing.T) {
+func TestBuildPlan_ZooCostAndEventBlocked(t *testing.T) {
 	s := state.New()
-	applyMap(t, s, map[string]any{"33": map[string]any{"0": map[string]any{"0": 1}}})
+	applyMap(t, s, map[string]any{
+		"33": map[string]any{
+			"0": map[string]any{"0": 1},
+			"1": map[string]any{
+				"1": map[string]any{
+					"1": 1,
+					"5": 5,
+					"9": 4001,
+				},
+			},
+		},
+	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Basic.FeedCat.Enabled = true
-	p.Basic.FeedCat.AutoBuyFood = true
-	p.Basic.FeedCat.AutoRecall = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoBuyFood = true
+	p.Basic.Zoo.AutoEventEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
-	want := map[string]bool{"basic.zoo.buy_food": false, "basic.zoo.recall": false}
+	want := map[string]bool{"basic.zoo.buy_food": false, "basic.zoo.event": false}
 	for _, op := range result.Operations {
 		if _, ok := want[op.Domain]; ok {
-			if op.Executable || op.Status != PlanStatusAdapterMissing || len(op.BlockedReasons) == 0 {
+			if op.Executable || len(op.BlockedReasons) == 0 {
 				t.Fatalf("zoo blocked op mismatch: %+v", op)
 			}
 			want[op.Domain] = true
@@ -1182,6 +1262,84 @@ func TestBuildPlan_ZooCostAndRecallBlocked(t *testing.T) {
 			t.Fatalf("missing blocked %s op: %+v", domain, result.Operations)
 		}
 	}
+}
+
+func TestBuildPlan_StoryAchievementAndMapEvent(t *testing.T) {
+	now := time.Date(2026, 7, 5, 10, 0, 0, 0, time.Local)
+	t.Run("sync story and map before observed", func(t *testing.T) {
+		s := state.New()
+		p := DefaultPolicy()
+		p.AutomationEnabled = true
+		p.Basic.Task.StoryEnabled = true
+		p.Basic.MapEventEnabled = true
+
+		result := BuildPlan(s, p, now)
+		seen := map[string]string{}
+		for _, op := range result.Operations {
+			seen[op.Domain+"."+op.Action] = op.Kind
+		}
+		if seen["basic.story.sync"] != clientproto.RPCStoryMainEnter.String() {
+			t.Fatalf("missing story sync op: %+v", result.Operations)
+		}
+		if seen["basic.map_event.sync"] != clientproto.RPCRandomEventEnter.String() {
+			t.Fatalf("missing map event sync op: %+v", result.Operations)
+		}
+	})
+
+	t.Run("block story when cost missing", func(t *testing.T) {
+		s := state.New()
+		applyMap(t, s, map[string]any{
+			"7": map[string]any{
+				"0":   map[string]any{"32": map[string]any{"142": 1}},
+				"101": map[string]any{"0": 1, "1": 1, "2": 0},
+			},
+		})
+		p := DefaultPolicy()
+		p.AutomationEnabled = true
+		p.Basic.Task.StoryEnabled = true
+
+		result := BuildPlan(s, p, now)
+		for _, op := range result.Operations {
+			if op.Domain == "basic.story" && op.Action == "unlock" {
+				if op.Status != PlanStatusBlocked || op.Executable || len(op.BlockedReasons) == 0 {
+					t.Fatalf("story blocked op mismatch: %+v", op)
+				}
+				return
+			}
+		}
+		t.Fatalf("missing blocked story op: %+v", result.Operations)
+	})
+
+	t.Run("claim achievement and ready map event", func(t *testing.T) {
+		s := state.New()
+		applyMap(t, s, map[string]any{
+			"22": map[string]any{"2": map[string]any{"1": map[string]any{"1": 3}, "3": map[string]any{}}},
+			"129": map[string]any{"0": map[string]any{"1": map[string]any{
+				"6002": map[string]any{"0": 6002, "1": 0, "2": 60020601},
+			}}},
+		})
+		p := DefaultPolicy()
+		p.AutomationEnabled = true
+		p.Basic.Task.AchievementEnabled = true
+		p.Basic.MapEventEnabled = true
+
+		result := BuildPlan(s, p, now)
+		seen := map[string]automationOp{}
+		for _, op := range result.Operations {
+			seen[op.Domain+"."+op.Action] = automationOp{kind: op.Kind, targetID: op.TargetID}
+		}
+		if got := seen["basic.task.achievement.claim"]; got.kind != clientproto.RPCTaskAchRecv.String() || got.targetID != 10001 {
+			t.Fatalf("achievement op=%+v, want taskAch.recv 10001", got)
+		}
+		if got := seen["basic.map_event.claim"]; got.kind != clientproto.RPCRandomEventDoAffair.String() || got.targetID != 6002 {
+			t.Fatalf("map event op=%+v, want doAffair 6002", got)
+		}
+	})
+}
+
+type automationOp struct {
+	kind     string
+	targetID int32
 }
 
 func TestBuildPlan_PearlRefreshBeforeObserved(t *testing.T) {

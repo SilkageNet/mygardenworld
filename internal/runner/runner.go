@@ -86,8 +86,9 @@ type Runner struct {
 	lastOperationErrorAt      time.Time
 
 	harvestBlockedUntil map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
-	rqst                rqstState           // 反作弊验证状态
-	unknownRPCCounts    map[string]int32    // runtime RPC names missing from the catalog
+	operationCooldowns  map[string]operationCooldown
+	rqst                rqstState        // 反作弊验证状态
+	unknownRPCCounts    map[string]int32 // runtime RPC names missing from the catalog
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -113,6 +114,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		state:               state.New(),
 		policy:              automation.DefaultPolicy(),
 		harvestBlockedUntil: make(map[int32]time.Time),
+		operationCooldowns:  make(map[string]operationCooldown),
 		unknownRPCCounts:    make(map[string]int32),
 		done:                make(chan struct{}),
 		bus:                 bus,

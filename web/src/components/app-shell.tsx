@@ -47,9 +47,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground xl:h-screen xl:overflow-hidden">
-      <header className="shrink-0 border-b border-border/70 bg-card/92 backdrop-blur">
-        <div className="flex h-14 items-center justify-between px-4 sm:px-6 lg:px-8 2xl:px-10">
-          <Link href="/" className="relative h-9 w-24 shrink-0 overflow-hidden rounded-md bg-white/95 shadow-[0_4px_14px_rgba(12,35,17,0.10)]">
+      <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-card/92 backdrop-blur xl:static">
+        <div className="flex h-[3.25rem] items-center justify-between px-3 sm:h-14 sm:px-6 lg:px-8 2xl:px-10">
+          <Link href="/" className="relative h-8 w-[5.5rem] shrink-0 overflow-hidden rounded-md bg-white/95 shadow-[0_4px_14px_rgba(12,35,17,0.10)] sm:h-9 sm:w-24">
             <Image
               src="/brand/huaxu-logo-integrated-concept.png"
               alt="花序"
@@ -57,7 +57,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               priority
               unoptimized
               sizes="6rem"
-              className="scale-[2.45] object-contain"
+              className="scale-[2.1] object-contain sm:scale-[2.45]"
             />
           </Link>
           <div className="flex items-center gap-2">
@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </header>
 
       <main className="flex-1 xl:min-h-0 xl:overflow-hidden">
-        <div className="w-full px-4 py-4 sm:px-6 lg:px-8 xl:h-full xl:overflow-hidden 2xl:px-10">
+        <div className="w-full px-3 py-3 sm:px-6 sm:py-4 lg:px-8 xl:h-full xl:overflow-hidden 2xl:px-10">
           {children}
         </div>
       </main>

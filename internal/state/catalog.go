@@ -118,6 +118,42 @@ type WeeklyTask struct {
 	Target       int32
 }
 
+// AchievementTask describes one c_task_ach row that can be evaluated from
+// namespace 22.2 progress and recv maps.
+type AchievementTask struct {
+	TaskID       int32
+	Title        string
+	GroupID      int32
+	StageIndex   int32
+	ProgressType int32
+	Target       int32
+}
+
+// StoryMainSectionInfo describes the currently unlockable story section.
+type StoryMainSectionInfo struct {
+	Chapter     int32
+	SectionIdx  int32
+	SectionID   int32
+	ChapterName string
+	SectionName string
+	Cost        []ItemCount
+}
+
+// ZooEventInfo describes one c_zooEvent row relevant to conservative event
+// automation.
+type ZooEventInfo struct {
+	EventID    int32
+	Name       string
+	Type       int32
+	SharedID   int32
+	NoHandle   bool
+	Result     bool
+	Reward1    []ItemCount
+	Reward2    []ItemCount
+	HasReward2 bool
+	Text       string
+}
+
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
 	ID         int32
@@ -332,6 +368,11 @@ func DailyTaskTitle(taskID, target int32) string {
 	return taskTitleFromTable("c_task_dly", taskID, target)
 }
 
+// WeeklyTaskTitle returns the client-visible description for a weekly task.
+func WeeklyTaskTitle(taskID, target int32) string {
+	return taskTitleFromTable("c_task_week", taskID, target)
+}
+
 // DailyTaskProgressType returns the progress counter key used by c_task_dly.
 func DailyTaskProgressType(taskID int32) (int32, bool) {
 	raw, ok := StaticRow("c_task_dly", taskID)
@@ -382,6 +423,140 @@ func WeeklyTaskDefinitions() []WeeklyTask {
 	return out
 }
 
+// AchievementTaskDefinitions returns achievement task rows sorted by task id.
+func AchievementTaskDefinitions() []AchievementTask {
+	table, ok := StaticTableByName("c_task_ach")
+	if !ok {
+		return nil
+	}
+	out := make([]AchievementTask, 0, len(table.Rows))
+	for idStr, raw := range table.Rows {
+		taskID := atoiCatalogID(idStr)
+		if taskID == 0 {
+			continue
+		}
+		groupID := taskID / 10000
+		stageIndex := taskID % 10000
+		var row struct {
+			Title string          `json:"title"`
+			Type  int32           `json:"type"`
+			Value json.RawMessage `json:"value"`
+		}
+		if json.Unmarshal(raw, &row) != nil || row.Type == 0 || groupID <= 0 || stageIndex <= 0 {
+			continue
+		}
+		target := firstPositiveInt32(row.Value)
+		if target <= 0 {
+			continue
+		}
+		out = append(out, AchievementTask{
+			TaskID:       taskID,
+			Title:        strings.TrimSpace(row.Title),
+			GroupID:      groupID,
+			StageIndex:   stageIndex,
+			ProgressType: row.Type,
+			Target:       target,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TaskID < out[j].TaskID })
+	return out
+}
+
+// AchievementTaskTitle returns the client-visible achievement title.
+func AchievementTaskTitle(taskID int32) string {
+	raw, ok := StaticRow("c_task_ach", taskID)
+	if !ok {
+		return ""
+	}
+	var row struct {
+		Title string `json:"title"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return ""
+	}
+	return strings.TrimSpace(row.Title)
+}
+
+// StoryMainSection returns the chapter section at the player's current index.
+func StoryMainSection(chapter, sectionIdx int32) (StoryMainSectionInfo, bool) {
+	if chapter <= 0 || sectionIdx < 0 {
+		return StoryMainSectionInfo{}, false
+	}
+	rawChapter, ok := StaticRow("c_storyMainChapter", chapter)
+	if !ok {
+		return StoryMainSectionInfo{}, false
+	}
+	var ch struct {
+		Name      string  `json:"name"`
+		SectionID []int32 `json:"sectionId"`
+	}
+	if json.Unmarshal(rawChapter, &ch) != nil {
+		return StoryMainSectionInfo{}, false
+	}
+	idx := int(sectionIdx)
+	if idx < 0 || idx >= len(ch.SectionID) || ch.SectionID[idx] <= 0 {
+		return StoryMainSectionInfo{}, false
+	}
+	sectionID := ch.SectionID[idx]
+	rawSection, ok := StaticRow("c_storyMainSection", sectionID)
+	if !ok {
+		return StoryMainSectionInfo{
+			Chapter:     chapter,
+			SectionIdx:  sectionIdx,
+			SectionID:   sectionID,
+			ChapterName: strings.TrimSpace(ch.Name),
+		}, true
+	}
+	var sec struct {
+		Name string          `json:"name"`
+		Cost json.RawMessage `json:"cost"`
+	}
+	if json.Unmarshal(rawSection, &sec) != nil {
+		return StoryMainSectionInfo{}, false
+	}
+	return StoryMainSectionInfo{
+		Chapter:     chapter,
+		SectionIdx:  sectionIdx,
+		SectionID:   sectionID,
+		ChapterName: strings.TrimSpace(ch.Name),
+		SectionName: strings.TrimSpace(sec.Name),
+		Cost:        readItemCountsRaw(sec.Cost),
+	}, true
+}
+
+// ZooEventInfoByID returns a conservative view of a zoo event row.
+func ZooEventInfoByID(eventID int32) (ZooEventInfo, bool) {
+	raw, ok := StaticRow("c_zooEvent", eventID)
+	if !ok {
+		return ZooEventInfo{}, false
+	}
+	var row struct {
+		Name     string          `json:"name"`
+		Type     int32           `json:"type"`
+		SharedID int32           `json:"sharedId"`
+		NoHandle json.RawMessage `json:"noHandle"`
+		Result   json.RawMessage `json:"result"`
+		Reward1  json.RawMessage `json:"reward1"`
+		Reward2  json.RawMessage `json:"reward2"`
+		Text     string          `json:"text"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return ZooEventInfo{}, false
+	}
+	return ZooEventInfo{
+		EventID:    eventID,
+		Name:       strings.TrimSpace(row.Name),
+		Type:       row.Type,
+		SharedID:   row.SharedID,
+		NoHandle:   rawTruthy(row.NoHandle),
+		Result:     rawTruthy(row.Result),
+		Reward1:    readItemCountsRaw(row.Reward1),
+		Reward2:    readItemCountsRaw(row.Reward2),
+		HasReward2: rawTruthy(row.Reward2),
+		Text:       strings.TrimSpace(row.Text),
+	}, true
+}
+
 // FmlBuildOptionByID returns the client-visible cost for one guild build
 // option. The video/share option has no item cost.
 func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
@@ -427,6 +602,25 @@ func taskTitleFromTable(tableName string, taskID, target int32) string {
 		desc = strings.ReplaceAll(desc, "${value}", strconv.FormatInt(int64(target), 10))
 	}
 	return desc
+}
+
+func firstPositiveInt32(raw json.RawMessage) int32 {
+	if n, ok := readInt32Raw(raw); ok && n > 0 {
+		return n
+	}
+	var values []json.RawMessage
+	if json.Unmarshal(raw, &values) == nil {
+		for _, value := range values {
+			if n, ok := readInt32Raw(value); ok && n > 0 {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+func rawTruthy(raw json.RawMessage) bool {
+	return truthyRaw(raw)
 }
 
 // RoadGrowLevelTasks returns growth-road level rewards sorted by task id.

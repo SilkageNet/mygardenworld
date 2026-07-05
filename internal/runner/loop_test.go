@@ -133,6 +133,39 @@ func TestCollectRewardOperationArgs(t *testing.T) {
 	}
 }
 
+func TestStoryAchievementMapAndZooOperationArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		op   automation.PlannedOp
+		want any
+	}{
+		{name: "story enter", op: automation.PlannedOp{Kind: clientproto.RPCStoryMainEnter.String()}, want: clientproto.StoryMainEnterRequest{}},
+		{name: "story unlock", op: automation.PlannedOp{Kind: clientproto.RPCStoryMainUnlock.String()}, want: clientproto.StoryMainUnlockRequest{}},
+		{name: "achievement recv", op: automation.PlannedOp{Kind: clientproto.RPCTaskAchRecv.String(), TargetID: 10001}, want: clientproto.TaskAchRecvRequest{ID: 10001}},
+		{name: "random event enter", op: automation.PlannedOp{Kind: clientproto.RPCRandomEventEnter.String()}, want: clientproto.RandomEventEnterRequest{}},
+		{name: "zoo find pet", op: automation.PlannedOp{Kind: clientproto.RPCZooFindPet.String(), TargetID: 7}, want: map[string]any{"petId": int32(7), "isShareVideo": 0}},
+		{name: "zoo handle event", op: automation.PlannedOp{Kind: clientproto.RPCZooHandleEvent.String(), TargetID: 7, ItemID: 2001, Count: 1}, want: map[string]any{"petId": int32(7), "tableId": int32(2001), "agree": true, "isShareVideo": 0}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			spec, ok := operationSpecFor(tc.op.Kind)
+			if !ok {
+				t.Fatalf("operationSpecFor(%s) not found", tc.op.Kind)
+			}
+			if spec.run == nil {
+				t.Fatalf("operationSpecFor(%s).run is nil", tc.op.Kind)
+			}
+			args, err := operationArgs(&tc.op)
+			if err != nil {
+				t.Fatalf("operationArgs(%s): %v", tc.op.Kind, err)
+			}
+			if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
+			}
+		})
+	}
+}
+
 func TestOrderPalaceAndTeamOperationSpecs(t *testing.T) {
 	cases := []struct {
 		name string
@@ -453,6 +486,48 @@ func TestNextRunnableOperationFallsThroughBlockedHarvest(t *testing.T) {
 	}
 }
 
+func TestNextRunnableOperationSkipsCoolingSideOperationAndKeepsFarmRunnable(t *testing.T) {
+	now := time.Date(2026, 7, 5, 11, 45, 0, 0, time.UTC)
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"22": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"4": 569},
+				"3": map[string]any{},
+				"100": map[string]any{
+					"40001": map[string]any{"0": 40001, "1": 569, "2": 0},
+				},
+			},
+		},
+	})
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.Task.DailyEnabled = true
+	r := &Runner{
+		state:              st,
+		operationCooldowns: map[string]operationCooldown{},
+	}
+
+	side := r.nextRunnableOperation(policy, now)
+	if side == nil || side.Kind != clientproto.RPCTaskDlyRecv.String() || side.Lane != automation.LaneSide {
+		t.Fatalf("nextRunnableOperation()=%+v, want side daily task", side)
+	}
+	r.setSideOperationCooldown(side, now, errors.New("server busy"), "", 0)
+	if op := r.nextRunnableOperation(policy, now.Add(time.Second)); op != nil {
+		t.Fatalf("nextRunnableOperation()=%+v, want nil while only side op is cooling", op)
+	}
+
+	st.ApplyVMap(map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3},
+		}},
+	})
+	op := r.nextRunnableOperation(policy, now.Add(2*time.Second))
+	if op == nil || op.Kind != clientproto.RPCUsrLandHarvest.String() || op.Lane != automation.LaneFarm {
+		t.Fatalf("nextRunnableOperation()=%+v, want farm harvest while side op is cooling", op)
+	}
+}
+
 func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 	now := time.Now()
 	st := state.New()
@@ -600,6 +675,16 @@ func TestIsWaterwheelDailyLimitError(t *testing.T) {
 	}
 	if isWaterwheelDailyLimitError(clientproto.RPCFreeWaterRecv.String(), err) {
 		t.Fatal("isWaterwheelDailyLimitError matched the wrong rpc")
+	}
+}
+
+func TestIsResidentOrderDailyLimitError(t *testing.T) {
+	err := errors.New("rpc orderFlower.finishOrder: server: 今日完成订单次数已达上限")
+	if !isResidentOrderDailyLimitError(clientproto.RPCOrderFlowerFinishOrder.String(), err) {
+		t.Fatal("isResidentOrderDailyLimitError = false, want true")
+	}
+	if isResidentOrderDailyLimitError(clientproto.RPCOrderCustomerFinishOrder.String(), err) {
+		t.Fatal("isResidentOrderDailyLimitError matched the wrong rpc")
 	}
 }
 
