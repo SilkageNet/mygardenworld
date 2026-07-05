@@ -879,7 +879,7 @@ function AccountDetailView({
   onPolicySave: () => void;
 }) {
   return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden sm:gap-4 xl:h-full">
+    <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 sm:gap-4 xl:h-full">
       <div className="shrink-0">
         <HeaderPanel
           account={account}
