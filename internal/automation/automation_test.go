@@ -324,12 +324,15 @@ func TestBuildPlan_CustomerArtBlockedByMissingVase(t *testing.T) {
 	result := BuildPlan(s, p, time.Now())
 	var blocked bool
 	for _, op := range result.Operations {
-		if !op.Executable && hasReasonContaining(op.BlockedReasons, "花瓶") {
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && !op.Executable {
+			if !hasReasonContaining(op.BlockedReasons, "reject_unavailable_enabled 未开启") || !hasReasonContaining(op.BlockedReasons, "库存不足且无法制作") {
+				t.Fatalf("expected inventory-shortage block, ops=%+v", op)
+			}
 			blocked = true
 		}
 	}
 	if !blocked {
-		t.Fatalf("expected missing vase block, ops=%+v", result.Operations)
+		t.Fatalf("expected missing-vase blocked op, ops=%+v", result.Operations)
 	}
 }
 
@@ -354,7 +357,7 @@ func TestBuildPlan_CustomerRejectUnavailableWhenUnlockedRequirementsMissing(t *t
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
-			if !op.Executable || op.TargetID != 7 || !strings.Contains(op.Reason, "花瓶") {
+			if !op.Executable || op.TargetID != 7 || !strings.Contains(op.Reason, "库存不足且无法制作") {
 				t.Fatalf("reject op mismatch: %+v", op)
 			}
 			return
@@ -363,7 +366,7 @@ func TestBuildPlan_CustomerRejectUnavailableWhenUnlockedRequirementsMissing(t *t
 	t.Fatalf("missing customer reject op: %+v", result.Operations)
 }
 
-func TestBuildPlan_CustomerMissingRecipeBlocksWithoutReject(t *testing.T) {
+func TestBuildPlan_CustomerMissingRecipeRejectsWhenEnabled(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
@@ -380,18 +383,15 @@ func TestBuildPlan_CustomerMissingRecipeBlocksWithoutReject(t *testing.T) {
 	p.Order.Customer.RejectUnavailableEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
-	var blocked bool
 	for _, op := range result.Operations {
-		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && op.Executable {
-			t.Fatalf("missing recipe should not execute reject: %+v", op)
-		}
-		if !op.Executable && hasReasonContaining(op.BlockedReasons, "配方") {
-			blocked = true
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
+			if !op.Executable || !strings.Contains(op.Reason, "库存不足且无法制作") {
+				t.Fatalf("missing recipe should reject when enabled: %+v", op)
+			}
+			return
 		}
 	}
-	if !blocked {
-		t.Fatalf("missing recipe block not found: %+v", result.Operations)
-	}
+	t.Fatalf("missing customer reject op: %+v", result.Operations)
 }
 
 func TestBuildPlan_CustomerArtConfigLevelDoesNotReject(t *testing.T) {
@@ -482,6 +482,37 @@ func TestBuildPlan_CustomerEmptyOrdersRespectGenerationCooldown(t *testing.T) {
 			t.Fatalf("customer gen should wait for cooldown: %+v", op)
 		}
 	}
+}
+
+func TestBuildPlan_CustomerFlowerOrderBlockedWhenNoInventoryAndSwitchOff(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 23005, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = false
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
+			if op.Executable {
+				t.Fatalf("should not execute reject when switch off: %+v", op)
+			}
+			if !hasReasonContaining(op.BlockedReasons, "reject_unavailable_enabled 未开启") {
+				t.Fatalf("expected reject_unavailable_enabled block: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing customer blocked op: %+v", result.Operations)
 }
 
 func TestPlan_FarmLaneBeatsCustomerOrderGeneration(t *testing.T) {

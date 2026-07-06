@@ -89,6 +89,7 @@ type Runner struct {
 	operationCooldowns  map[string]operationCooldown
 	rqst                rqstState        // 反作弊验证状态
 	unknownRPCCounts    map[string]int32 // runtime RPC names missing from the catalog
+	lastCustomerOrderInfo map[int32]string // 顾客订单需求摘要去重
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -116,6 +117,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		harvestBlockedUntil: make(map[int32]time.Time),
 		operationCooldowns:  make(map[string]operationCooldown),
 		unknownRPCCounts:    make(map[string]int32),
+		lastCustomerOrderInfo: make(map[int32]string),
 		done:                make(chan struct{}),
 		bus:                 bus,
 	}
