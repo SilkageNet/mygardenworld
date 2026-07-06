@@ -145,7 +145,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { transport } from "@/lib/api/client";
+import { formatAPIError, transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
 import { flowerDisplay, itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
@@ -387,7 +387,7 @@ function DashboardContent() {
     } catch (err) {
       setSnapshot(null);
       if (!isRunnerNotStartedError(err)) {
-        setError(err instanceof Error ? err.message : "读取快照失败");
+        setError(formatAPIError(err, "读取快照失败"));
       } else {
         setError((current) => (isRunnerNotStartedError(current) ? "" : current));
       }
@@ -408,7 +408,7 @@ function DashboardContent() {
       setPolicyMessage("");
     } catch (err) {
       setPolicy(null);
-      setPolicyMessage(err instanceof Error ? err.message : "读取策略失败");
+      setPolicyMessage(formatAPIError(err, "读取策略失败"));
     } finally {
       setPolicyLoading(false);
     }
@@ -419,7 +419,7 @@ function DashboardContent() {
     try {
       await refreshStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "刷新失败");
+      setError(formatAPIError(err, "刷新失败"));
     } finally {
       setLoading(false);
     }
@@ -497,7 +497,7 @@ function DashboardContent() {
         }
       } catch (err) {
         if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : "事件流中断");
+          setError(formatAPIError(err, "事件流中断"));
         }
       }
     }
@@ -520,7 +520,7 @@ function DashboardContent() {
       await refreshSnapshot(selectedAccount.id, action === "login", { force: action === "login" });
       await refreshPolicy(selectedAccount.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "操作失败");
+      setError(formatAPIError(err, "操作失败"));
     } finally {
       setBusyAction("");
     }
@@ -552,7 +552,7 @@ function DashboardContent() {
         setError(res.loginError);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "新增账号失败");
+      setError(formatAPIError(err, "新增账号失败"));
     } finally {
       setBusyAction("");
     }
@@ -572,7 +572,7 @@ function DashboardContent() {
       setPolicy(null);
       await refreshStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "删除账号失败");
+      setError(formatAPIError(err, "删除账号失败"));
     } finally {
       setBusyAction("");
     }
@@ -589,7 +589,7 @@ function DashboardContent() {
       await refreshStatus();
       await refreshSnapshot(selectedAccount.id);
     } catch (err) {
-      setPolicyMessage(err instanceof Error ? err.message : "保存失败");
+      setPolicyMessage(formatAPIError(err, "保存失败"));
     } finally {
       setSavingPolicy(false);
     }

@@ -222,10 +222,7 @@ func (s *State) applyFreeWaterLocked(raw json.RawMessage) {
 	}
 	s.freeWaterObserved = true
 	if v, ok := ns117["1"]; ok {
-		var n int32
-		if json.Unmarshal(v, &n) == nil {
-			s.freeWaterRecvIdx = n
-		}
+		s.freeWaterRecvIdx = readInt32ListRawAllowZero(v)
 	}
 	if v, ok := ns117["2"]; ok {
 		var n int64
@@ -355,15 +352,118 @@ func (s *State) videoDoubleActiveLocked(now time.Time) bool {
 	return s.videoDouble.Observed && s.videoDouble.EndTimeMs > now.UnixMilli()
 }
 
-// NextFreeWaterIndex returns the next candidate idx for freeWater.recv.
-// The static client schema exposes IFreeWater.recvIdx and the RPC argument
-// is also named idx, so use the observed index directly and let the server
-// response advance it.
-func (s *State) NextFreeWaterIndex() (int32, bool) {
+// NextFreeWaterIndex returns the currently claimable idx for freeWater.recv.
+// The mini client treats IFreeWater.recvIdx as the list of slots already
+// claimed today and only calls recv(idx) for the active free-water time window.
+func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.freeWaterObserved {
 		return 0, false
 	}
-	return s.freeWaterRecvIdx, true
+	received := s.freeWaterReceivedIdxLocked(now)
+	if periods := freeWaterClaimPeriods(); len(periods) > 0 {
+		minute := now.Hour()*60 + now.Minute()
+		for _, period := range periods {
+			if !period.contains(minute) {
+				continue
+			}
+			if received[period.idx] {
+				return 0, false
+			}
+			return period.idx, true
+		}
+		return 0, false
+	}
+	for idx := int32(0); idx < 2; idx++ {
+		if !received[idx] {
+			return idx, true
+		}
+	}
+	return 0, false
+}
+
+func (s *State) freeWaterReceivedIdxLocked(now time.Time) map[int32]bool {
+	received := make(map[int32]bool, len(s.freeWaterRecvIdx))
+	if s.freeWaterResetMs > 0 && dailyRefreshTime(now).After(time.UnixMilli(s.freeWaterResetMs).In(now.Location())) {
+		return received
+	}
+	for _, idx := range s.freeWaterRecvIdx {
+		received[idx] = true
+	}
+	return received
+}
+
+type freeWaterClaimPeriod struct {
+	idx      int32
+	startMin int
+	endMin   int
+}
+
+func (p freeWaterClaimPeriod) contains(minute int) bool {
+	if p.startMin == p.endMin {
+		return false
+	}
+	if p.startMin < p.endMin {
+		return minute >= p.startMin && minute < p.endMin
+	}
+	return minute >= p.startMin || minute < p.endMin
+}
+
+func freeWaterClaimPeriods() []freeWaterClaimPeriod {
+	table, ok := catalog.Tables["c_gameCfg"]
+	if !ok {
+		return nil
+	}
+	rawRow, ok := table.Rows["-1"]
+	if !ok {
+		return nil
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return nil
+	}
+	rawPeriods, ok := row["$freeWaterTime"]
+	if !ok {
+		return nil
+	}
+	var pairs [][]int32
+	if err := json.Unmarshal(rawPeriods, &pairs); err != nil {
+		return nil
+	}
+	periods := make([]freeWaterClaimPeriod, 0, len(pairs))
+	for idx, pair := range pairs {
+		if len(pair) < 2 {
+			continue
+		}
+		start, okStart := decodeFreeWaterConfigMinute(pair[0])
+		end, okEnd := decodeFreeWaterConfigMinute(pair[1])
+		if !okStart || !okEnd {
+			continue
+		}
+		periods = append(periods, freeWaterClaimPeriod{idx: int32(idx), startMin: start, endMin: end})
+	}
+	return periods
+}
+
+func decodeFreeWaterConfigMinute(raw int32) (int, bool) {
+	if raw >= 80 && raw < 104 {
+		return int(raw-80) * 60, true
+	}
+	if raw >= 0 && raw < 24 {
+		return int(raw) * 60, true
+	}
+	if raw >= 0 && raw < 2400 {
+		hour := raw / 100
+		minute := raw % 100
+		if hour < 24 && minute < 60 {
+			return int(hour*60 + minute), true
+		}
+	}
+	return 0, false
+}
+
+func dailyRefreshTime(now time.Time) time.Time {
+	y, m, d := now.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, now.Location())
 }

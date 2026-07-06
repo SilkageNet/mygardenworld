@@ -100,9 +100,9 @@ type State struct {
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
 	randomEventObserved bool                       // namespace 129 observed at least once
 
-	freeWaterObserved bool  // namespace 117 has been observed at least once
-	freeWaterRecvIdx  int32 // 117.1 last observed free-water receive index
-	freeWaterResetMs  int64 // 117.2 reset timestamp
+	freeWaterObserved bool    // namespace 117 has been observed at least once
+	freeWaterRecvIdx  []int32 // 117.1 client recvIdx list: free-water slots already claimed today
+	freeWaterResetMs  int64   // 117.2 reset timestamp
 
 	benefitBoxDrawCnt    int32 // 116.0.1 drawCnt
 	benefitBoxResetCntMs int64 // 116.0.2 resetCntTime

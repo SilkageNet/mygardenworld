@@ -5,7 +5,7 @@ import { createClient } from "@connectrpc/connect";
 import { AdminService } from "@/gen/mygardenworld/v1/admin_pb";
 import type { User } from "@/gen/mygardenworld/v1/auth_pb";
 import type { GetSystemStatsResponse } from "@/gen/mygardenworld/v1/admin_pb";
-import { transport } from "@/lib/api/client";
+import { formatAPIError, transport } from "@/lib/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ export function UserManagementPanel() {
       setTotal(userRes.total);
       setStats(statsRes);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载管理数据失败");
+      setError(formatAPIError(err, "加载管理数据失败"));
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export function UserManagementPanel() {
       await adminClient.updateUser({ userId, maxAccounts });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新配额失败");
+      setError(formatAPIError(err, "更新配额失败"));
     } finally {
       setBusyUserId("");
     }
@@ -86,7 +86,7 @@ export function UserManagementPanel() {
       await adminClient.updateUser({ userId, status: newStatus });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "更新用户状态失败");
+      setError(formatAPIError(err, "更新用户状态失败"));
     } finally {
       setBusyUserId("");
     }
@@ -107,7 +107,7 @@ export function UserManagementPanel() {
       setCreateForm({ username: "", email: "", password: "", maxAccounts: "5" });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "创建用户失败");
+      setError(formatAPIError(err, "创建用户失败"));
     } finally {
       setCreating(false);
     }

@@ -119,6 +119,45 @@ func readInt32ListRaw(raw json.RawMessage) []int32 {
 	return nil
 }
 
+func readInt32ListRawAllowZero(raw json.RawMessage) []int32 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil
+	}
+	var arr []json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		out := make([]int32, 0, len(arr))
+		for _, rawValue := range arr {
+			if n, ok := readInt32Raw(rawValue); ok {
+				out = append(out, n)
+			}
+		}
+		return uniqueSortedInt32sAllowZero(out)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err == nil {
+		out := make([]int32, 0, len(m))
+		if denseIndexMap(m) {
+			for i := 0; i < len(m); i++ {
+				if n, ok := readInt32Raw(m[itoaState(i)]); ok {
+					out = append(out, n)
+				}
+			}
+		} else {
+			for key, rawValue := range m {
+				if !truthyRaw(rawValue) {
+					continue
+				}
+				out = append(out, atoi32(key))
+			}
+		}
+		return uniqueSortedInt32sAllowZero(out)
+	}
+	if n, ok := readInt32Raw(raw); ok {
+		return []int32{n}
+	}
+	return nil
+}
+
 func readInt32JSONField(fields map[string]json.RawMessage, keys ...string) (int32, bool) {
 	for _, key := range keys {
 		if raw, ok := fields[key]; ok {
@@ -230,6 +269,23 @@ func uniqueSortedInt32s(in []int32) []int32 {
 		if id == 0 {
 			continue
 		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func uniqueSortedInt32sAllowZero(in []int32) []int32 {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[int32]struct{}, len(in))
+	out := make([]int32, 0, len(in))
+	for _, id := range in {
 		if _, ok := seen[id]; ok {
 			continue
 		}

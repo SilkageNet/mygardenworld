@@ -135,9 +135,10 @@
 //
 // Structure: {"0": uid, "1": recvIdx, "2": rTime, "3": uTime, "4": cTime}
 //
-// freeWater.recv sends {idx}; the static client schema names that argument and
-// the namespace field recvIdx, so the observed recvIdx is the next candidate
-// index unless a capture shows a channel-specific divergence.
+// The client treats recvIdx as the list of free-water slot indexes already
+// claimed for the current reset day. freeWater.recv sends {idx} for the active
+// c_gameCfg.$freeWaterTime slot only; idx 0 is valid and must not be omitted
+// from JSON.
 //
 // # Zoo / Cat State (Namespace 33)
 //

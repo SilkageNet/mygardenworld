@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import { formatAPIError } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +35,7 @@ export default function LoginPage() {
       await login(username, password);
       router.push("/");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "登录失败");
+      setError(formatAPIError(err, "登录失败"));
     } finally {
       setLoading(false);
     }

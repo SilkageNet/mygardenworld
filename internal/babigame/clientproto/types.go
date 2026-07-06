@@ -1867,7 +1867,7 @@ type FrdStealStealOneKeyRequest struct {
 }
 
 type FreeWaterRecvRequest struct {
-	Idx RPCInt `json:"idx,omitempty"`
+	Idx RPCInt `json:"idx"`
 }
 
 type FriendAddBlackRequest struct {
@@ -5834,11 +5834,11 @@ type IFrdTot struct {
 }
 
 type IFreeWater struct {
-	UID     int64 `json:"0,omitempty"`
-	RecvIdx int32 `json:"1,omitempty"`
-	RTime   int64 `json:"2,omitempty"`
-	UTime   int64 `json:"3,omitempty"`
-	CTime   int64 `json:"4,omitempty"`
+	UID     int64   `json:"0,omitempty"`
+	RecvIdx []int32 `json:"1,omitempty"`
+	RTime   int64   `json:"2,omitempty"`
+	UTime   int64   `json:"3,omitempty"`
+	CTime   int64   `json:"4,omitempty"`
 }
 
 type IGameCfg struct {

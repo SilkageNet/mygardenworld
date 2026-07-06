@@ -35,8 +35,8 @@ func TestLoginUnknownUserAndWrongPasswordUseSameError(t *testing.T) {
 			if connect.CodeOf(err) != connect.CodeUnauthenticated {
 				t.Fatalf("Login code=%s err=%v, want Unauthenticated", connect.CodeOf(err), err)
 			}
-			if !strings.Contains(err.Error(), "invalid credentials") {
-				t.Fatalf("Login error=%q, want invalid credentials", err)
+			if !strings.Contains(err.Error(), "账号或密码不正确") {
+				t.Fatalf("Login error=%q, want localized invalid credentials", err)
 			}
 		})
 	}

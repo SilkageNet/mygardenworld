@@ -109,13 +109,18 @@ this.request2("gs.waterwheel.recv", {}, cb);
 
 func TestProtocolGeneratorsStableFixture(t *testing.T) {
 	fixture := `
-mo.DS.setSingle("G.ISyncData", {usrLandTot:"100:IUsrLandTot", benefitBoxTot:"116:IBenefitBoxTot"});
+mo.DS.setSingle("G.ISyncData", {usrLandTot:"100:IUsrLandTot", benefitBoxTot:"116:IBenefitBoxTot", freeWater:"117:IFreeWater"});
 mo.DS.setSingle("G.ILand", {flowerId:0, state:1});
 mo.DS.setSingle("G.IBenefitBox", {uid:0, drawCnt:1, resetCntTime:"2:Date", uTime:"3:Date", cTime:"4:Date"});
+mo.DS.setSingle("G.IFreeWater", {uid:0, recvIdx:1, rTime:"2:Date", uTime:"3:Date", cTime:"4:Date"});
 mo.DS.setSingle("G.GS.usrLandIface.IArg_plant", {landId:0, flowerId:1});
 mo.DS.setSingle("G.GS.waterwheelIface.IArg_recv", {});
+mo.DS.setSingle("G.GS.freeWaterIface.IArg_recv", {idx:0});
+mo.DS.setSingle("G.GS.orderCustomerIface.IArg_genOrder", {guestNpcIdList:0});
 this.request2("gs.usrLand.plant", {landId:t, flowerId:e}, cb);
 this.request2("gs.waterwheel.recv", {}, cb);
+this.request2("gs.freeWater.recv", {idx:t}, cb);
+this.request2("gs.orderCustomer.genOrder", {guestNpcIdList:t}, cb);
 `
 	protocol, err := ExtractClientProtocolFromText(fixture)
 	if err != nil {
@@ -137,12 +142,12 @@ this.request2("gs.waterwheel.recv", {}, cb);
 	if err != nil {
 		t.Fatalf("GenerateRPCFacadeGo: %v", err)
 	}
-	for _, want := range []string{`type ILand struct`, `FlowerId int32 ` + "`json:\"0,omitempty\"`", `type IBenefitBox struct`, `ResetCntTime int64 ` + "`json:\"2,omitempty\"`", `type UsrLandPlantRequest struct`} {
+	for _, want := range []string{`type ILand struct`, `FlowerId int32 ` + "`json:\"0,omitempty\"`", `type IBenefitBox struct`, `ResetCntTime int64 ` + "`json:\"2,omitempty\"`", `type IFreeWater struct`, `RecvIdx []int32 ` + "`json:\"1,omitempty\"`", `type UsrLandPlantRequest struct`, `Idx RPCInt ` + "`json:\"idx\"`", `GuestNpcIdList RPCIDList ` + "`json:\"guestNpcIdList\"`"} {
 		if !strings.Contains(string(clientTypesGo), want) {
 			t.Fatalf("client protocol types output missing %q\n%s", want, clientTypesGo)
 		}
 	}
-	for _, want := range []string{`Name: "G.ILand"`, `Key: "100"`, `Schema: "G.IUsrLandTot"`} {
+	for _, want := range []string{`Name: "G.ILand"`, `Key: "100"`, `Schema: "G.IUsrLandTot"`, `Key: "117"`, `Schema: "G.IFreeWater"`} {
 		if !strings.Contains(string(clientSchemaGo), want) {
 			t.Fatalf("client protocol schema output missing %q\n%s", want, clientSchemaGo)
 		}

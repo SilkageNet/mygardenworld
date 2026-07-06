@@ -1,5 +1,5 @@
 import { createConnectTransport } from "@connectrpc/connect-web";
-import type { Interceptor } from "@connectrpc/connect";
+import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
 
 let accessToken: string | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
@@ -111,6 +111,24 @@ export const transport = createConnectTransport({
   fetch: fetchWithCredentials,
 });
 
+export function formatAPIError(err: unknown, fallback = "操作失败"): string {
+  if (err instanceof ConnectError) {
+    const raw = err.rawMessage.trim();
+    if (isNetworkFetchError(err, raw)) {
+      return `无法连接到后端服务（${apiBaseUrl()}）。请确认 gardend 已启动。`;
+    }
+    return translateConnectError(err.code, raw || fallback);
+  }
+  if (err instanceof TypeError && isFetchFailureMessage(err.message)) {
+    return `无法连接到后端服务（${apiBaseUrl()}）。请确认 gardend 已启动。`;
+  }
+  if (err instanceof Error) {
+    return translatePlainError(err.message, fallback);
+  }
+  const message = String(err ?? "").trim();
+  return message ? translatePlainError(message, fallback) : fallback;
+}
+
 function apiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (configured) return configured;
@@ -130,6 +148,73 @@ function apiBaseUrl(): string {
 function isPublicAuthRequest(url: string): boolean {
   return url.endsWith("/mygardenworld.v1.AuthService/Login") ||
     url.endsWith("/mygardenworld.v1.AuthService/Refresh");
+}
+
+function isNetworkFetchError(err: ConnectError, raw: string): boolean {
+  return (err.code === Code.Unknown || err.code === Code.Unavailable) && isFetchFailureMessage(raw);
+}
+
+function isFetchFailureMessage(message: string): boolean {
+  return /failed to fetch|networkerror|load failed/i.test(message);
+}
+
+function translateConnectError(code: Code, raw: string): string {
+  const message = translateKnownBackendMessage(raw);
+  if (message) return message;
+  switch (code) {
+    case Code.Unauthenticated:
+      return raw || "登录已过期，请重新登录。";
+    case Code.PermissionDenied:
+      return raw || "没有权限执行此操作。";
+    case Code.InvalidArgument:
+      return raw || "请求参数不正确。";
+    case Code.NotFound:
+      return raw || "请求的资源不存在。";
+    case Code.AlreadyExists:
+      return raw || "资源已存在。";
+    case Code.ResourceExhausted:
+      return raw || "请求过于频繁，请稍后再试。";
+    case Code.FailedPrecondition:
+      return raw || "当前状态不允许执行此操作。";
+    case Code.Unavailable:
+      return raw || "后端服务暂时不可用，请稍后再试。";
+    case Code.DeadlineExceeded:
+      return raw || "请求超时，请稍后再试。";
+    case Code.Internal:
+      return raw || "后端服务内部错误。";
+    default:
+      return raw || "请求失败。";
+  }
+}
+
+function translatePlainError(message: string, fallback: string): string {
+  const raw = stripConnectCodePrefix(message.trim());
+  return translateKnownBackendMessage(raw) || raw || fallback;
+}
+
+function stripConnectCodePrefix(message: string): string {
+  return message.replace(/^\[[^\]]+\]\s*/, "");
+}
+
+function translateKnownBackendMessage(message: string): string {
+  switch (message) {
+    case "username/password required":
+      return "请输入账号和密码。";
+    case "invalid credentials":
+      return "账号或密码不正确。";
+    case "account disabled":
+      return "账号已被禁用。";
+    case "refresh_token required":
+    case "invalid or expired refresh token":
+    case "not authenticated":
+    case "token expired":
+    case "token invalid":
+      return "登录已过期，请重新登录。";
+    case "runner not started":
+      return "账号尚未登录或运行器未启动。";
+    default:
+      return message;
+  }
 }
 
 function getLegacyStoredToken(key: string): string | null {

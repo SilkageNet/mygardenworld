@@ -1067,21 +1067,28 @@ func TestResidentOrderDailyLimitErrorSuppressesUntilNextGameDay(t *testing.T) {
 	}
 }
 
-func TestApplyV_FreeWaterTracksNextIndex(t *testing.T) {
+func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	s := New()
-	if _, ok := s.NextFreeWaterIndex(); ok {
+	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.Local)
+	if _, ok := s.NextFreeWaterIndex(now); ok {
 		t.Fatal("free water should be unavailable before namespace 117 is observed")
 	}
 
 	applyMap(t, s, map[string]any{
 		"117": map[string]any{
-			"1": 2,
-			"2": 1778914415000,
+			"1": []int32{0},
+			"2": now.UnixMilli(),
 		},
 	})
-	idx, ok := s.NextFreeWaterIndex()
-	if !ok || idx != 2 {
-		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (2,true)", idx, ok)
+	if idx, ok := s.NextFreeWaterIndex(now); ok {
+		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable for already claimed slot 0", idx)
+	}
+	idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 15, 30, 0, 0, time.Local))
+	if !ok || idx != 1 {
+		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (1,true)", idx, ok)
+	}
+	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 8, 50, 0, 0, time.Local)); ok {
+		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable before free-water window", idx)
 	}
 }
 

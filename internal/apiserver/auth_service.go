@@ -27,7 +27,7 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 	username := strings.TrimSpace(in.GetUsername())
 	password := in.GetPassword()
 	if username == "" || password == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("username/password required"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("请输入账号和密码"))
 	}
 	remote := req.Peer().Addr
 	if dec, limited := svc.LoginLimiter.Check(username, remote); limited {
@@ -47,7 +47,7 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 	}
 	if user.Status != "active" {
 		svc.logAuth("warn", "auth_login_disabled", username, remote, user.ID)
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account disabled"))
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("账号已被禁用"))
 	}
 	pair, err := svc.JWT.GenerateTokenPair(user.ID, user.Role)
 	if err != nil {
@@ -73,7 +73,7 @@ func (svc *Services) rejectInvalidLogin(username, remote string, userID int64) (
 		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("登录尝试过多，请稍后再试"))
 	}
 	svc.logAuth("warn", "auth_login_failed", username, remote, userID)
-	return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+	return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("账号或密码不正确"))
 }
 
 func (svc *Services) logAuth(level, event, username, remote string, userID int64, attrs ...slog.Attr) {
@@ -102,11 +102,11 @@ func (svc *Services) logAuth(level, event, username, remote string, userID int64
 func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.RefreshRequest]) (*connect.Response[pb.AuthResponse], error) {
 	token := refreshTokenFromRequest(req.Header(), req.Msg.GetRefreshToken())
 	if token == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("refresh_token required"))
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("登录已过期，请重新登录"))
 	}
 	userID, err := svc.DB.ValidateRefreshToken(ctx, token)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired refresh token"))
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("登录已过期，请重新登录"))
 	}
 	_ = svc.DB.RevokeRefreshToken(ctx, token)
 	user, err := svc.DB.GetUserByID(ctx, userID)
@@ -114,7 +114,7 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 		return nil, mapErr(err)
 	}
 	if user.Status != "active" {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account disabled"))
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("账号已被禁用"))
 	}
 	pair, err := svc.JWT.GenerateTokenPair(user.ID, user.Role)
 	if err != nil {
@@ -144,7 +144,7 @@ func (svc *Services) Logout(ctx context.Context, req *connect.Request[pb.LogoutR
 func (svc *Services) GetMe(ctx context.Context, _ *connect.Request[pb.GetMeRequest]) (*connect.Response[pb.GetMeResponse], error) {
 	userID := auth.UserIDFromContext(ctx)
 	if userID == 0 {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("not authenticated"))
+		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("登录已过期，请重新登录"))
 	}
 	user, err := svc.DB.GetUserByID(ctx, userID)
 	if err != nil {

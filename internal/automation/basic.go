@@ -25,7 +25,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		add(true, clientproto.RPCWaterwheelRecv.String(), "basic.waterwheel", "claim", "水车水滴可领取", 6500, 0)
 	}
 	if basic.GetFreeWaterEnabled() && waterClaimAllowed(s, basic, now) {
-		if idx, ok := s.NextFreeWaterIndex(); ok {
+		if idx, ok := s.NextFreeWaterIndex(now); ok {
 			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx)
 		}
 	}

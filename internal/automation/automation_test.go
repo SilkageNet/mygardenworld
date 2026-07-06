@@ -782,7 +782,7 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 }
 
 func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
-	now := time.Now()
+	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.Local)
 	cases := []struct {
 		name      string
 		drops     int32
@@ -804,7 +804,7 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 					"33": map[string]any{"7": map[string]any{"1": tt.total}},
 				}},
 				"117": map[string]any{
-					"1": 2,
+					"1": []int32{},
 					"2": now.UnixMilli(),
 				},
 			})
@@ -819,7 +819,12 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 			gotFreeWater := false
 			for _, op := range result.Operations {
 				gotWaterwheel = gotWaterwheel || op.Kind == clientproto.RPCWaterwheelRecv.String()
-				gotFreeWater = gotFreeWater || op.Kind == clientproto.RPCFreeWaterRecv.String()
+				if op.Kind == clientproto.RPCFreeWaterRecv.String() {
+					gotFreeWater = true
+					if op.TargetID != 0 {
+						t.Fatalf("free water target = %d, want first slot idx 0; op=%+v", op.TargetID, op)
+					}
+				}
 			}
 			if gotWaterwheel {
 				t.Fatalf("waterwheel should wait for local bucket generation, ops=%+v", result.Operations)

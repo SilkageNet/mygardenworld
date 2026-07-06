@@ -454,11 +454,29 @@ func writeClientRequestType(b *bytes.Buffer, rpc ProtocolRPC, reqType string) {
 		used := make(map[string]int)
 		for _, field := range rpc.RequestFields {
 			fieldName := uniqueFieldName(used, exportFieldName(field.Name))
-			fmt.Fprintf(b, "\t%s %s `json:\"%s,omitempty\"`\n", fieldName, inferRPCFieldType(field), field.Name)
+			fmt.Fprintf(b, "\t%s %s `json:\"%s\"`\n", fieldName, inferRPCFieldType(field), rpcRequestJSONTag(rpc, field))
 		}
 		b.WriteString("}\n\n")
 	default:
 		fmt.Fprintf(b, "type %s RawRequest\n\n", reqType)
+	}
+}
+
+func rpcRequestJSONTag(rpc ProtocolRPC, field ProtocolField) string {
+	if rpcRequestFieldRequiresZeroValue(rpc.Name, field.Name) {
+		return field.Name
+	}
+	return field.Name + ",omitempty"
+}
+
+func rpcRequestFieldRequiresZeroValue(rpcName, fieldName string) bool {
+	switch rpcName {
+	case "freeWater.recv":
+		return fieldName == "idx"
+	case "orderCustomer.genOrder":
+		return fieldName == "guestNpcIdList"
+	default:
+		return false
 	}
 }
 
@@ -477,7 +495,7 @@ func writeClientStateTypes(b *bytes.Buffer, schemas []ProtocolSchema) {
 		for _, field := range schema.Fields {
 			fieldName := uniqueFieldName(used, exportFieldName(field.Name))
 			jsonTag := stateJSONTag(field, usedIndexes)
-			fmt.Fprintf(b, "\t%s %s `json:\"%s\"`\n", fieldName, inferStateFieldType(field, known), jsonTag)
+			fmt.Fprintf(b, "\t%s %s `json:\"%s\"`\n", fieldName, inferStateFieldType(schema, field, known), jsonTag)
 		}
 		b.WriteString("}\n\n")
 	}
@@ -511,7 +529,10 @@ func stateSchemaTypeName(name string) string {
 	return string(runes)
 }
 
-func inferStateFieldType(field ProtocolField, known map[string]string) string {
+func inferStateFieldType(schema ProtocolSchema, field ProtocolField, known map[string]string) string {
+	if schema.Name == "G.IFreeWater" && field.Name == "recvIdx" {
+		return "[]int32"
+	}
 	typ := strings.TrimSpace(field.Type)
 	if typ == "Date" {
 		return "int64"
