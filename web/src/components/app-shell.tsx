@@ -49,15 +49,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-background text-foreground xl:h-screen xl:overflow-hidden">
       <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-card/92 backdrop-blur xl:static">
         <div className="flex h-[3.25rem] items-center justify-between px-3 sm:h-14 sm:px-6 lg:px-8 2xl:px-10">
-          <Link href="/" className="relative h-8 w-[5.5rem] shrink-0 overflow-hidden rounded-md bg-white/95 shadow-[0_4px_14px_rgba(12,35,17,0.10)] sm:h-9 sm:w-24">
+          <Link href="/" className="relative size-9 shrink-0 overflow-hidden sm:size-10" aria-label="首页">
             <Image
-              src="/brand/huaxu-logo-integrated-concept.png"
-              alt="花序"
+              src="/brand/cloud-logo.svg"
+              alt="小云朵"
               fill
               priority
               unoptimized
-              sizes="6rem"
-              className="scale-[2.1] object-contain sm:scale-[2.45]"
+              sizes="2.5rem"
+              className="object-contain drop-shadow-[0_4px_10px_rgba(46,137,199,0.24)]"
             />
           </Link>
           <div className="flex items-center gap-2">
