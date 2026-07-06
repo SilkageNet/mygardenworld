@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -65,6 +66,13 @@ func newServeCmd() *cobra.Command {
 		adminEmail    string
 		corsOrigins   string
 		debugDir      string
+		authWindow    time.Duration
+		authLockout   time.Duration
+		authUserFails int
+		authIPFails   int
+		maxReqBytes   int
+		insecureCORS  bool
+		insecureDebug bool
 		webEnabled    bool
 	)
 	cmd := &cobra.Command{
@@ -91,6 +99,13 @@ func newServeCmd() *cobra.Command {
 				AdminEmail:    adminEmail,
 				CORSOrigins:   corsOrigins,
 				DebugDir:      debugDir,
+				AuthWindow:    authWindow,
+				AuthLockout:   authLockout,
+				AuthUserFails: authUserFails,
+				AuthIPFails:   authIPFails,
+				MaxReqBytes:   maxReqBytes,
+				InsecureCORS:  insecureCORS,
+				InsecureDebug: insecureDebug,
 				WebEnabled:    webEnabled,
 			})
 		},
@@ -105,6 +120,13 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&adminEmail, "admin-email", "admin@localhost", "initial admin email")
 	cmd.Flags().StringVar(&corsOrigins, "cors-origins", "http://localhost:3000,http://127.0.0.1:3000", "allowed CORS origins (comma-separated)")
 	cmd.Flags().StringVar(&debugDir, "debug-dir", "", "directory for debug JSONL logs (empty=disabled)")
+	cmd.Flags().DurationVar(&authWindow, "auth-login-window", 10*time.Minute, "login failure counting window")
+	cmd.Flags().IntVar(&authUserFails, "auth-user-failures", 5, "failed logins per username before temporary lockout")
+	cmd.Flags().IntVar(&authIPFails, "auth-ip-failures", 30, "failed logins per remote IP before temporary lockout")
+	cmd.Flags().DurationVar(&authLockout, "auth-lockout", 15*time.Minute, "login lockout duration after too many failures")
+	cmd.Flags().IntVar(&maxReqBytes, "max-request-bytes", 1048576, "maximum Connect request message size in bytes (0=unlimited)")
+	cmd.Flags().BoolVar(&insecureCORS, "allow-insecure-cors", false, "allow --cors-origins '*'")
+	cmd.Flags().BoolVar(&insecureDebug, "allow-insecure-debug", false, "allow --debug-dir while listening on a non-loopback address")
 	cmd.Flags().BoolVar(&webEnabled, "web", true, "serve the embedded web console")
 	return cmd
 }
@@ -165,6 +187,13 @@ type serveOpts struct {
 	AdminEmail    string
 	CORSOrigins   string
 	DebugDir      string
+	AuthWindow    time.Duration
+	AuthLockout   time.Duration
+	AuthUserFails int
+	AuthIPFails   int
+	MaxReqBytes   int
+	InsecureCORS  bool
+	InsecureDebug bool
 	WebEnabled    bool
 }
 
@@ -242,6 +271,13 @@ func removeDataDir(absDataDir string) (bool, error) {
 
 func runServe(ctx context.Context, opts serveOpts) error {
 	log := buildLogger(opts.LogFormat, opts.LogLevel)
+	originPolicy, err := newOriginPolicy(opts.CORSOrigins, opts.InsecureCORS)
+	if err != nil {
+		return err
+	}
+	if err := validateServeSecurity(opts); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(opts.DataDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir data-dir: %w", err)
 	}
@@ -274,34 +310,43 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		Manager: mgr,
 		JWT:     jwtSvc,
 		Log:     log,
+		LoginLimiter: apiserver.NewLoginLimiter(apiserver.LoginLimiterConfig{
+			Window:       opts.AuthWindow,
+			UserFailures: opts.AuthUserFails,
+			IPFailures:   opts.AuthIPFails,
+			Lockout:      opts.AuthLockout,
+		}),
 	}
 
 	authInterceptor := auth.NewInterceptor(jwtSvc)
-	protectedOpts := connect.WithInterceptors(authInterceptor)
+	protectedOpts := []connect.HandlerOption{
+		connect.WithInterceptors(authInterceptor),
+		connect.WithReadMaxBytes(opts.MaxReqBytes),
+	}
 
 	mux := http.NewServeMux()
 
 	// AuthService uses the same interceptor: login/refresh/logout are
 	// explicitly public, while get-me still receives identity context.
-	path, handler := mygardenworldv1connect.NewAuthServiceHandler(svc, protectedOpts)
+	path, handler := mygardenworldv1connect.NewAuthServiceHandler(svc, protectedOpts...)
 	mux.Handle(path, handler)
 
 	// All other services: protected
 	for _, mounter := range []func() (string, http.Handler){
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewAccountServiceHandler(svc, protectedOpts)
+			return mygardenworldv1connect.NewAccountServiceHandler(svc, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewAutomationServiceHandler(svc, protectedOpts)
+			return mygardenworldv1connect.NewAutomationServiceHandler(svc, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewPolicyServiceHandler(svc, protectedOpts)
+			return mygardenworldv1connect.NewPolicyServiceHandler(svc, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewQueryServiceHandler(svc, protectedOpts)
+			return mygardenworldv1connect.NewQueryServiceHandler(svc, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewAdminServiceHandler(svc, protectedOpts)
+			return mygardenworldv1connect.NewAdminServiceHandler(svc, protectedOpts...)
 		},
 	} {
 		p, h := mounter()
@@ -312,7 +357,9 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	}
 
 	var handler2 http.Handler = mux
-	handler2 = corsMiddleware(handler2, opts.CORSOrigins)
+	handler2 = corsMiddleware(handler2, originPolicy)
+	handler2 = originGuardMiddleware(handler2, originPolicy)
+	handler2 = securityHeadersMiddleware(handler2)
 
 	protocols := new(http.Protocols)
 	protocols.SetHTTP1(true)
@@ -320,7 +367,10 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	server := &http.Server{
 		Handler:           handler2,
 		Protocols:         protocols,
+		ReadTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 
 	lis, err := net.Listen("tcp", opts.ListenAddr)
@@ -369,6 +419,9 @@ func seedAdmin(ctx context.Context, db *store.DB, log *slog.Logger, opts serveOp
 	if opts.AdminPassword == "" {
 		return errors.New("initial admin user is missing; set --admin-password or ADMIN_PASSWORD")
 	}
+	if err := apiserver.ValidatePassword(opts.AdminPassword); err != nil {
+		return err
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(opts.AdminPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -387,28 +440,48 @@ func seedAdmin(ctx context.Context, db *store.DB, log *slog.Logger, opts serveOp
 	return nil
 }
 
-func corsMiddleware(next http.Handler, origins string) http.Handler {
-	allowedOrigins := make(map[string]struct{})
-	allowAnyOrigin := false
+func validateServeSecurity(opts serveOpts) error {
+	if opts.MaxReqBytes < 0 {
+		return errors.New("--max-request-bytes cannot be negative")
+	}
+	if opts.DebugDir != "" && !opts.InsecureDebug && !isLoopbackListenAddr(opts.ListenAddr) {
+		return errors.New("--debug-dir cannot be used with a non-loopback --listen address unless --allow-insecure-debug is set")
+	}
+	return nil
+}
+
+type originPolicy struct {
+	allowedOrigins map[string]struct{}
+	allowAnyOrigin bool
+}
+
+func newOriginPolicy(origins string, allowInsecureAny bool) (originPolicy, error) {
+	policy := originPolicy{allowedOrigins: make(map[string]struct{})}
 	for origin := range strings.SplitSeq(origins, ",") {
 		origin = strings.TrimSpace(origin)
 		if origin == "" {
 			continue
 		}
 		if origin == "*" {
-			allowAnyOrigin = true
+			if !allowInsecureAny {
+				return originPolicy{}, errors.New("--cors-origins '*' requires --allow-insecure-cors")
+			}
+			policy.allowAnyOrigin = true
 			continue
 		}
-		allowedOrigins[origin] = struct{}{}
+		normalized, err := canonicalOrigin(origin)
+		if err != nil {
+			return originPolicy{}, fmt.Errorf("invalid CORS origin %q: %w", origin, err)
+		}
+		policy.allowedOrigins[normalized] = struct{}{}
 	}
+	return policy, nil
+}
 
+func corsMiddleware(next http.Handler, policy originPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
-			if allowAnyOrigin {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Add("Vary", "Origin")
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			} else if _, ok := allowedOrigins[origin]; ok {
+			if policy.allows(r, origin) {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Add("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -424,6 +497,114 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func originGuardMiddleware(next http.Handler, policy originPolicy) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" && !policy.allows(r, origin) {
+			http.Error(w, "forbidden origin", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'self'; object-src 'none'")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (p originPolicy) allows(r *http.Request, origin string) bool {
+	if p.allowAnyOrigin {
+		return true
+	}
+	normalized, err := canonicalOrigin(origin)
+	if err != nil {
+		return false
+	}
+	if _, ok := p.allowedOrigins[normalized]; ok {
+		return true
+	}
+	return isSameOrigin(r, normalized)
+}
+
+func canonicalOrigin(origin string) (string, error) {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", errors.New("origin scheme must be http or https")
+	}
+	if u.Host == "" {
+		return "", errors.New("origin host is required")
+	}
+	if u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return "", errors.New("origin must not include path, query, or fragment")
+	}
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host), nil
+}
+
+func isSameOrigin(r *http.Request, origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if !strings.EqualFold(u.Scheme, requestScheme(r)) {
+		return false
+	}
+	originHost, originPort := splitHostPortForCompare(u.Scheme, u.Host)
+	requestHost, requestPort := splitHostPortForCompare(requestScheme(r), r.Host)
+	return originHost != "" && originHost == requestHost && originPort == requestPort
+}
+
+func splitHostPortForCompare(scheme, hostport string) (string, string) {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil {
+		host = hostport
+		port = ""
+	}
+	host = strings.ToLower(strings.Trim(host, "[]"))
+	if port == "" {
+		if scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	return host, port
+}
+
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	if strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		return "https"
+	}
+	if forwarded := strings.ToLower(r.Header.Get("Forwarded")); strings.Contains(forwarded, "proto=https") {
+		return "https"
+	}
+	return "http"
+}
+
+func isLoopbackListenAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	host = strings.TrimSpace(strings.Trim(host, "[]"))
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func buildLogger(format, level string) *slog.Logger {

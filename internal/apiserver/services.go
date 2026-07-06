@@ -26,10 +26,11 @@ import (
 // Services is the consolidated handler. One instance is mounted across all
 // service path prefixes.
 type Services struct {
-	DB      *store.DB
-	Manager *runner.Manager
-	JWT     *auth.JWT
-	Log     *slog.Logger
+	DB           *store.DB
+	Manager      *runner.Manager
+	JWT          *auth.JWT
+	Log          *slog.Logger
+	LoginLimiter *LoginLimiter
 }
 
 // Compile-time assertions: every service interface is implemented.

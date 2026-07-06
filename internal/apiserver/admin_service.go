@@ -26,8 +26,8 @@ func (svc *Services) CreateUser(ctx context.Context, req *connect.Request[pb.Cre
 	if in.GetUsername() == "" || in.GetEmail() == "" || in.GetPassword() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("username/email/password required"))
 	}
-	if len(in.GetPassword()) < 6 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("password must be at least 6 characters"))
+	if err := ValidatePassword(in.GetPassword()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(in.GetPassword()), bcrypt.DefaultCost)
 	if err != nil {

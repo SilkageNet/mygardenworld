@@ -29,7 +29,7 @@ powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.c
 启动本地服务：
 
 ```sh
-JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="change-me-first" \
+JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="Use-A-Long-Local-Admin-Password-123!" \
   gardend serve --data-dir ./data --listen 127.0.0.1:50051
 ```
 
@@ -60,6 +60,25 @@ http://127.0.0.1:50051
 Web 控制台适合日常可视化管理账号、查看田地/库存/任务、启停自动化和调整策略。首次启动后使用启动参数里的 `--admin-username` 和 `--admin-password` 登录，然后在页面里添加游戏账号。
 
 自动化策略按 **基础、种植、订单、公会、活动** 五个业务域组织；账号会话与内部错误分别进入 **account** 和 **system** 日志分类。策略、执行计划、运行状态和日志过滤使用同一套分类。
+
+## 安全默认
+
+`gardend` 仍然优先按本地工具设计，推荐保持默认 `--listen 127.0.0.1:50051`，不要把服务裸露到公网。首次管理员密码必须是 12-128 个字符，并至少包含小写、大写、数字、符号中的 3 类；例如 `Use-A-Long-Local-Admin-Password-123!`。
+
+服务内置了基础防护：登录失败按用户名和 TCP 远端 IP 内存限速，默认同一用户名 10 分钟内 5 次失败锁定 15 分钟，同一 IP 10 分钟内 30 次失败锁定 15 分钟；请求消息默认限制为 1 MiB；Web/API 响应会带点击劫持和内容嗅探等安全头。
+
+相关参数：
+
+```sh
+gardend serve \
+  --auth-login-window 10m \
+  --auth-user-failures 5 \
+  --auth-ip-failures 30 \
+  --auth-lockout 15m \
+  --max-request-bytes 1048576
+```
+
+`--cors-origins "*"` 默认会被拒绝，只有显式加 `--allow-insecure-cors` 才允许。非 loopback 监听地址配合 `--debug-dir` 也会被拒绝，只有显式加 `--allow-insecure-debug` 才允许；debug JSONL 可能包含协议会话和业务状态，排查后请及时关闭。
 
 更新本地程序：
 

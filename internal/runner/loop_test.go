@@ -701,6 +701,134 @@ func TestIsWaterDropResourceRejectedError(t *testing.T) {
 	}
 }
 
+func TestClassifyOperationError(t *testing.T) {
+	cases := []struct {
+		name string
+		kind string
+		err  error
+		want operationErrorKind
+	}{
+		{
+			name: "harvest not mature",
+			kind: clientproto.RPCUsrLandHarvest.String(),
+			err:  errors.New("rpc usrLand.harvest: server: 鲜花尚未成熟"),
+			want: operationErrorHarvestNotMature,
+		},
+		{
+			name: "resident order cooldown",
+			kind: clientproto.RPCOrderFlowerFinishOrder.String(),
+			err:  errors.New("rpc orderFlower.finishOrder: server: 冷却中"),
+			want: operationErrorResidentOrderCooldown,
+		},
+		{
+			name: "resident order daily limit",
+			kind: clientproto.RPCOrderFlowerFinishOrder.String(),
+			err:  errors.New("rpc orderFlower.finishOrder: server: 今日完成订单次数已达上限"),
+			want: operationErrorResidentOrderDailyLimit,
+		},
+		{
+			name: "waterwheel invalid data",
+			kind: clientproto.RPCWaterwheelRecv.String(),
+			err:  errors.New("rpc waterwheel.recv: server: 数据有误"),
+			want: operationErrorWaterwheelInvalidData,
+		},
+		{
+			name: "waterwheel daily limit",
+			kind: clientproto.RPCWaterwheelRecv.String(),
+			err:  errors.New("rpc waterwheel.recv: server: 已达到领取上限"),
+			want: operationErrorWaterwheelDailyLimit,
+		},
+		{
+			name: "water drop rejected",
+			kind: clientproto.RPCUsrLandWaterBatch.String(),
+			err:  errors.New(`rpc usrLand.waterBatch: server: {"code":301,"param":{"iid":7}}`),
+			want: operationErrorWaterDropRejected,
+		},
+		{
+			name: "task group finished",
+			kind: clientproto.RPCTaskDlyRecv.String(),
+			err:  errors.New("rpc taskDly.recv: server: 本组任务已经完结"),
+			want: operationErrorTaskGroupFinished,
+		},
+		{
+			name: "ordinary failure",
+			kind: clientproto.RPCFreeWaterRecv.String(),
+			err:  errors.New("rpc freeWater.recv: server busy"),
+			want: operationErrorOrdinary,
+		},
+		{
+			name: "nil error",
+			kind: clientproto.RPCFreeWaterRecv.String(),
+			err:  nil,
+			want: operationErrorOrdinary,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := classifyOperationError(tc.kind, tc.err); got != tc.want {
+				t.Fatalf("classifyOperationError()=%s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHandleOperationErrorOutcomes(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	r := newOperationEventTestRunner()
+	harvestErr := errors.New("rpc usrLand.harvest: server: 鲜花尚未成熟")
+	harvestOp := &automation.PlannedOp{
+		Kind:     clientproto.RPCUsrLandHarvest.String(),
+		Lane:     automation.LaneFarm,
+		Category: "plant",
+		Domain:   "plant",
+		Action:   "harvest",
+		LandIDs:  []int32{1001},
+	}
+
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: harvestOp},
+		err:              harvestErr,
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError(harvest)=%v, want nil", err)
+	}
+	if until := r.harvestBlockedUntil[1001]; !until.Equal(now.Add(harvestRetryWait)) {
+		t.Fatalf("harvest blocked until=%s, want %s", until, now.Add(harvestRetryWait))
+	}
+
+	ordinaryErr := errors.New("server busy")
+	sideOp := &automation.PlannedOp{
+		Kind:     clientproto.RPCFreeWaterRecv.String(),
+		Lane:     automation.LaneSide,
+		Category: "basic",
+		Domain:   "basic",
+		Action:   "free_water",
+	}
+	err = r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: sideOp},
+		err:              ordinaryErr,
+		finishedAt:       now,
+	})
+	if !errors.Is(err, ordinaryErr) {
+		t.Fatalf("handleOperationError(ordinary)=%v, want original error", err)
+	}
+	if _, ok := r.operationCoolingDown(sideOp, now.Add(time.Second)); !ok {
+		t.Fatal("ordinary side operation should enter cooldown")
+	}
+}
+
+func newOperationEventTestRunner() *Runner {
+	return &Runner{
+		account:             &store.Account{ID: 1, Name: "test"},
+		log:                 slog.New(slog.NewTextHandler(io.Discard, nil)),
+		state:               state.New(),
+		harvestBlockedUntil: map[int32]time.Time{},
+		operationCooldowns:  map[string]operationCooldown{},
+	}
+}
+
 func TestCheckOperationResourcesUsesCostGates(t *testing.T) {
 	st := state.New()
 	st.ApplyVMap(map[string]any{

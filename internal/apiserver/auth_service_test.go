@@ -1,0 +1,145 @@
+package apiserver
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	connect "connectrpc.com/connect"
+	"golang.org/x/crypto/bcrypt"
+
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/store"
+)
+
+func TestLoginUnknownUserAndWrongPasswordUseSameError(t *testing.T) {
+	ctx := context.Background()
+	svc := newAuthTestService(t, LoginLimiterConfig{UserFailures: 100, IPFailures: 100})
+	createTestUser(t, ctx, svc.DB, "owner", "owner@example.test", "ValidPass123!", "active")
+
+	for _, tc := range []struct {
+		name     string
+		username string
+		password string
+	}{
+		{name: "unknown", username: "missing", password: "whatever"},
+		{name: "wrong password", username: "owner", password: "wrong"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: tc.username, Password: tc.password}))
+			if connect.CodeOf(err) != connect.CodeUnauthenticated {
+				t.Fatalf("Login code=%s err=%v, want Unauthenticated", connect.CodeOf(err), err)
+			}
+			if !strings.Contains(err.Error(), "invalid credentials") {
+				t.Fatalf("Login error=%q, want invalid credentials", err)
+			}
+		})
+	}
+}
+
+func TestLoginLimiterReturnsResourceExhausted(t *testing.T) {
+	ctx := context.Background()
+	svc := newAuthTestService(t, LoginLimiterConfig{
+		Window:       time.Hour,
+		UserFailures: 2,
+		IPFailures:   100,
+		Lockout:      time.Hour,
+		MaxEntries:   16,
+	})
+	createTestUser(t, ctx, svc.DB, "owner", "owner@example.test", "ValidPass123!", "active")
+
+	_, err := svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "wrong"}))
+	if connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("first Login code=%s err=%v, want Unauthenticated", connect.CodeOf(err), err)
+	}
+	_, err = svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "wrong"}))
+	if connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("second Login code=%s err=%v, want ResourceExhausted", connect.CodeOf(err), err)
+	}
+	_, err = svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "ValidPass123!"}))
+	if connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("locked Login code=%s err=%v, want ResourceExhausted", connect.CodeOf(err), err)
+	}
+}
+
+func TestDisabledUserOnlyRevealsStatusAfterCorrectPassword(t *testing.T) {
+	ctx := context.Background()
+	svc := newAuthTestService(t, LoginLimiterConfig{UserFailures: 100, IPFailures: 100})
+	createTestUser(t, ctx, svc.DB, "owner", "owner@example.test", "ValidPass123!", "disabled")
+
+	_, err := svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "wrong"}))
+	if connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("wrong password code=%s err=%v, want Unauthenticated", connect.CodeOf(err), err)
+	}
+	_, err = svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "ValidPass123!"}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("correct disabled code=%s err=%v, want PermissionDenied", connect.CodeOf(err), err)
+	}
+}
+
+func TestLoginSetsStrictRefreshCookie(t *testing.T) {
+	ctx := context.Background()
+	svc := newAuthTestService(t, LoginLimiterConfig{UserFailures: 100, IPFailures: 100})
+	createTestUser(t, ctx, svc.DB, "owner", "owner@example.test", "ValidPass123!", "active")
+
+	resp, err := svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "ValidPass123!"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookie := resp.Header().Get("Set-Cookie")
+	if !strings.Contains(cookie, "SameSite=Strict") {
+		t.Fatalf("Set-Cookie=%q, want SameSite=Strict", cookie)
+	}
+}
+
+func TestCreateUserRejectsWeakPassword(t *testing.T) {
+	ctx := auth.ContextWithIdentity(context.Background(), &auth.Identity{UserID: 1, Role: "admin"})
+	svc := newAuthTestService(t, LoginLimiterConfig{})
+
+	_, err := svc.CreateUser(ctx, connect.NewRequest(&pb.CreateUserRequest{
+		Username: "weak",
+		Email:    "weak@example.test",
+		Password: "change-me-first",
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("CreateUser code=%s err=%v, want InvalidArgument", connect.CodeOf(err), err)
+	}
+}
+
+func newAuthTestService(t *testing.T, limiterCfg LoginLimiterConfig) *Services {
+	t.Helper()
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return &Services{
+		DB:           db,
+		JWT:          auth.NewJWT("test-secret-test-secret-test-secret"),
+		Log:          slog.New(slog.NewTextHandler(io.Discard, nil)),
+		LoginLimiter: NewLoginLimiter(limiterCfg),
+	}
+}
+
+func createTestUser(t *testing.T, ctx context.Context, db *store.DB, username, email, password, status string) {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := db.CreateUser(ctx, username, email, string(hash))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != "" && status != "active" {
+		if _, err := db.UpdateUser(ctx, user.ID, nil, nil, &status); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

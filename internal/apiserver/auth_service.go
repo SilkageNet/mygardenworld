@@ -3,6 +3,7 @@ package apiserver
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -19,23 +20,34 @@ import (
 
 const refreshCookieName = "mgw_refresh_token"
 
+var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
+
 func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginRequest]) (*connect.Response[pb.AuthResponse], error) {
 	in := req.Msg
-	if in.GetUsername() == "" || in.GetPassword() == "" {
+	username := strings.TrimSpace(in.GetUsername())
+	password := in.GetPassword()
+	if username == "" || password == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("username/password required"))
 	}
-	user, err := svc.DB.GetUserByUsername(ctx, in.GetUsername())
+	remote := req.Peer().Addr
+	if dec, limited := svc.LoginLimiter.Check(username, remote); limited {
+		svc.logAuth("warn", "auth_login_limited", username, remote, 0, slog.String("scope", dec.Scope), slog.Time("locked_until", dec.Until))
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("登录尝试过多，请稍后再试"))
+	}
+	user, err := svc.DB.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, store.ErrUserNotFound) {
-			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+			_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password))
+			return svc.rejectInvalidLogin(username, remote, 0)
 		}
 		return nil, mapErr(err)
 	}
-	if user.Status != "active" {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account disabled"))
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return svc.rejectInvalidLogin(username, remote, user.ID)
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(in.GetPassword())); err != nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+	if user.Status != "active" {
+		svc.logAuth("warn", "auth_login_disabled", username, remote, user.ID)
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("account disabled"))
 	}
 	pair, err := svc.JWT.GenerateTokenPair(user.ID, user.Role)
 	if err != nil {
@@ -50,7 +62,41 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 		User:        userToProto(user, count),
 	})
 	setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
+	svc.LoginLimiter.RecordSuccess(username)
+	svc.logAuth("info", "auth_login_success", username, remote, user.ID)
 	return resp, nil
+}
+
+func (svc *Services) rejectInvalidLogin(username, remote string, userID int64) (*connect.Response[pb.AuthResponse], error) {
+	if dec, limited := svc.LoginLimiter.RecordFailure(username, remote); limited {
+		svc.logAuth("warn", "auth_login_limited", username, remote, userID, slog.String("scope", dec.Scope), slog.Time("locked_until", dec.Until))
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("登录尝试过多，请稍后再试"))
+	}
+	svc.logAuth("warn", "auth_login_failed", username, remote, userID)
+	return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid credentials"))
+}
+
+func (svc *Services) logAuth(level, event, username, remote string, userID int64, attrs ...slog.Attr) {
+	if svc.Log == nil {
+		return
+	}
+	args := []any{
+		"event", event,
+		"username", strings.ToLower(strings.TrimSpace(username)),
+		"remote_ip", remoteIP(remote),
+	}
+	if userID > 0 {
+		args = append(args, "user_id", userID)
+	}
+	for _, attr := range attrs {
+		args = append(args, attr)
+	}
+	switch level {
+	case "warn":
+		svc.Log.Warn("auth login", args...)
+	default:
+		svc.Log.Info("auth login", args...)
+	}
 }
 
 func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.RefreshRequest]) (*connect.Response[pb.AuthResponse], error) {
@@ -145,7 +191,7 @@ func setRefreshCookie(headers http.Header, token string, reqHeaders http.Header)
 		Expires:  time.Now().Add(auth.RefreshTokenDuration),
 		MaxAge:   int(auth.RefreshTokenDuration.Seconds()),
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 		Secure:   requestLooksHTTPS(reqHeaders),
 	})
 }
@@ -157,7 +203,7 @@ func clearRefreshCookie(headers http.Header, reqHeaders http.Header) {
 		Path:     "/mygardenworld.v1.AuthService",
 		MaxAge:   -1,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteStrictMode,
 		Secure:   requestLooksHTTPS(reqHeaders),
 	})
 }
