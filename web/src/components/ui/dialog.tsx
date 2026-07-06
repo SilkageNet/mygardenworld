@@ -28,7 +28,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
     <DialogContext.Provider value={{ onOpenChange }}>
       <div className="fixed inset-0 z-50">
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+          className="fixed inset-0 bg-sky-950/52 backdrop-blur-sm dark:bg-black/68"
           onClick={() => onOpenChange(false)}
         />
         <div className="fixed inset-0 flex items-end justify-center p-3 sm:items-center sm:p-4">
@@ -48,7 +48,7 @@ function DialogContent({
   return (
     <div
       className={cn(
-        "relative z-50 max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-border bg-card p-5 shadow-2xl sm:p-6",
+        "toy-shadow cloud-surface relative z-50 max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-white/70 bg-card/92 p-5 shadow-2xl ring-1 ring-border/60 backdrop-blur-xl sm:p-6 dark:border-white/10 dark:bg-card/94",
         "animate-in fade-in-0 zoom-in-95",
         className
       )}

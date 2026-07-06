@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  Cloud,
   Coins,
   Flower2,
   Gem,
@@ -26,6 +27,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -596,9 +598,9 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-0 xl:h-full">
+    <div className="relative z-10 min-h-0 xl:h-full">
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="mb-4 rounded-md border border-destructive/25 bg-white/72 px-3 py-2 text-sm text-destructive shadow-sm backdrop-blur-xl dark:bg-destructive/12">
           {error}
         </div>
       )}
@@ -746,10 +748,13 @@ function AccountListPanel({
   const hasAccounts = accounts.length > 0;
   const quotaReached = quota?.reached ?? false;
   return (
-    <Card className={cn("min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
-      <CardHeader className="border-b border-border/70 pb-2.5 sm:pb-3">
+    <Card className={cn("cloud-surface min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
+      <CardHeader className="border-b border-border/45 pb-2.5 sm:pb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-md bg-white/72 text-sky-500 shadow-sm dark:bg-white/8 dark:text-sky-300">
+              <Cloud className="size-4" />
+            </span>
             <CardTitle>账号</CardTitle>
             {quota ? (
               <Badge variant={quotaReached ? "destructive" : "secondary"}>{quota.current}/{quota.max}</Badge>
@@ -779,8 +784,8 @@ function AccountListPanel({
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {!hasAccounts ? (
           <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-            <div className="mb-4 flex size-12 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Users className="size-5" />
+            <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-white/78 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300">
+              <Cloud className="size-6" />
             </div>
             <div className="text-base font-semibold">还没有账号</div>
             <div className="mt-1 text-sm text-muted-foreground">添加后开始监控。</div>
@@ -800,8 +805,10 @@ function AccountListPanel({
                   key={account.id}
                   type="button"
                   className={cn(
-                    "w-full rounded-md border p-3 text-left transition-colors active:scale-[0.99]",
-                    selected ? "border-primary/60 bg-primary/10" : "border-border/70 bg-muted/20 hover:bg-muted/45",
+                    "w-full rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
+                    selected
+                      ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)]"
+                      : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
                   onClick={() => onSelect(account.id)}
                 >
@@ -827,10 +834,10 @@ function AccountListPanel({
 
 function SelectAccountPlaceholder() {
   return (
-    <Card className="flex h-full min-h-[480px] items-center justify-center">
+    <Card className="cloud-surface flex h-full min-h-[480px] items-center justify-center">
       <CardContent className="max-w-md text-center">
-        <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-          <Users className="size-5" />
+        <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-white/76 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300">
+          <Send className="size-5" />
         </div>
         <div className="text-base font-semibold">选择账号</div>
         <div className="mt-1 text-sm text-muted-foreground">从左侧进入监控。</div>
@@ -928,14 +935,16 @@ function DashboardTabBar({
   onChange: (tab: DashboardTabId) => void;
 }) {
   return (
-    <div className="dark-scrollbar sticky top-[3.25rem] z-10 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/70 bg-card/95 p-1 shadow-sm backdrop-blur sm:top-14 xl:static xl:shadow-none">
+    <div className="dark-scrollbar sticky top-[3.25rem] z-10 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-white/58 bg-white/62 p-1 shadow-sm shadow-sky-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-card/72 sm:top-14 xl:static">
       {DASHBOARD_TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           className={cn(
-            "flex h-9 min-w-[6.25rem] shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-medium transition-colors active:scale-[0.99] sm:min-w-20",
-            activeTab === tab.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            "flex h-9 min-w-[6.25rem] shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition-all active:scale-[0.99] sm:min-w-20",
+            activeTab === tab.id
+              ? "bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(255,111,97,0.24)]"
+              : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
           )}
           onClick={() => onChange(tab.id)}
         >
@@ -982,13 +991,16 @@ function HeaderPanel({
   const identity = accountIdentity(account);
   const statusIssues = accountStatusIssues(status);
   return (
-    <Card className="bg-card/96">
+    <Card className="cloud-surface bg-card/88">
       <CardContent className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:items-center">
             <Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
               <ArrowLeft className="size-4" />
             </Button>
+            <div className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-white/72 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300 sm:flex">
+              <Cloud className="size-6" />
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <h1 className="min-w-0 max-w-full truncate text-xl font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
@@ -1027,7 +1039,7 @@ function HeaderPanel({
           </div>
         </div>
         {statusIssues.length > 0 && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive shadow-sm">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <div className="min-w-0 space-y-1">
@@ -1128,8 +1140,8 @@ function CollapsibleCard({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <Card className={cn("bg-card/96", !open && "gap-0", className)}>
-      <CardHeader className="px-3 sm:px-4">
+    <Card className={cn("cloud-surface bg-card/88", !open && "gap-0", className)}>
+      <CardHeader className="border-b border-border/42 px-3 pb-3 sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <button
             type="button"
@@ -1249,8 +1261,8 @@ function TaskOrderMonitorPanel({ tasks, statistics }: { tasks: PendingTaskView[]
 
 function PendingTaskGroup({ title, tasks, emptyText }: { title: string; tasks: PendingTaskView[]; emptyText: string }) {
   return (
-    <section className="min-w-0 rounded-md border border-border/70 bg-background/35">
-      <div className="flex h-9 items-center justify-between gap-2 bg-muted/35 px-3 text-sm font-medium">
+    <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+      <div className="flex h-9 items-center justify-between gap-2 bg-secondary/55 px-3 text-sm font-semibold dark:bg-muted/45">
         <span>{title}</span>
         <Badge variant="secondary">{tasks.length}</Badge>
       </div>
@@ -1311,7 +1323,7 @@ function RequirementChips({ requirements }: { requirements: RequirementView[] })
           key={`${req.itemId}-${req.required}-${req.owned}`}
           className={cn(
             "inline-flex min-h-6 max-w-full items-center gap-1 rounded border px-2 py-0.5 text-xs",
-            req.missing > 0 ? "border-destructive/35 bg-destructive/10 text-destructive" : "border-border/70 bg-muted/35 text-muted-foreground",
+            req.missing > 0 ? "border-destructive/35 bg-destructive/10 text-destructive" : "border-border/58 bg-white/42 text-muted-foreground dark:bg-white/5",
           )}
           title={req.blockedReasons.join("、")}
         >
@@ -1322,7 +1334,7 @@ function RequirementChips({ requirements }: { requirements: RequirementView[] })
         </span>
       ))}
       {requirements.length > visible.length && (
-        <span className="inline-flex min-h-6 items-center rounded border border-border/70 bg-muted/35 px-2 py-0.5 text-xs text-muted-foreground">
+        <span className="inline-flex min-h-6 items-center rounded border border-border/58 bg-white/42 px-2 py-0.5 text-xs text-muted-foreground dark:bg-white/5">
           +{requirements.length - visible.length}
         </span>
       )}
@@ -1368,8 +1380,8 @@ function LandStatusPanel({ lands }: { lands: LandView[] }) {
   const lockedCount = lands.filter((land) => land.landStatus === "locked").length;
 
   return (
-    <section className="min-w-0 rounded-md border border-border/70 bg-background/35">
-      <div className="flex min-h-9 items-center justify-between gap-2 bg-muted/35 px-3 py-1.5 text-sm font-medium">
+    <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+      <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
         <span>土地</span>
         <div className="flex flex-wrap justify-end gap-1.5">
           <Badge variant="secondary">已开 {openedCount}</Badge>
@@ -1411,10 +1423,10 @@ function LandTile({ land }: { land: LandView }) {
   return (
     <div
       className={cn(
-        "min-h-[78px] rounded-md border border-border/70 bg-background/60 p-2",
-        land.recommendation === "harvest" && "border-primary/60 bg-primary/5",
-        land.recommendation === "water" && "border-sky-300/70 bg-sky-50/60",
-        land.recommendation === "plant" && "border-amber-300/70 bg-amber-50/60",
+        "min-h-[78px] rounded-md border border-border/58 bg-white/58 p-2 shadow-sm transition-colors dark:bg-white/6",
+        land.recommendation === "harvest" && "border-primary/50 bg-primary/8",
+        land.recommendation === "water" && "border-sky-300/70 bg-sky-50/72 dark:bg-sky-500/10",
+        land.recommendation === "plant" && "border-amber-300/70 bg-amber-50/76 dark:bg-amber-400/10",
         !land.observed && "opacity-70",
       )}
     >
@@ -1491,8 +1503,8 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
   const categoryLabel = warehouseCategoryLabel(warehouseCategory);
 
   return (
-    <section className="min-w-0 rounded-md border border-border/70 bg-background/35">
-      <div className="flex min-h-9 items-center justify-between gap-2 bg-muted/35 px-3 py-1.5 text-sm font-medium">
+    <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+      <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
         <span>仓库</span>
         {inventoryItems.length > 0 && (
           <div className="flex flex-wrap justify-end gap-1.5">
@@ -1504,7 +1516,7 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
       <div className="p-3">
         {inventoryItems.length > 0 && (
           <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(296px,1fr)_minmax(150px,0.65fr)] lg:items-center">
-            <div className="grid min-w-0 grid-cols-3 rounded-md border border-border/70 bg-muted/30 p-1">
+            <div className="grid min-w-0 grid-cols-3 rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5">
               {WAREHOUSE_CATEGORIES.map((category) => (
                 <button
                   key={category.id}
@@ -1517,8 +1529,8 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
                   className={cn(
                     "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
                     warehouseCategory === category.id
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
+                      ? "bg-white text-foreground shadow-sm dark:bg-muted"
+                      : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
                   )}
                 >
                   <span className="shrink-0 [&_svg]:size-3.5">{category.icon}</span>
@@ -1533,7 +1545,7 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
                 value={inventoryQuery}
                 onChange={(event) => setInventoryQuery(event.target.value)}
                 placeholder={warehouseSearchPlaceholder(warehouseCategory)}
-                className="h-10 rounded-md bg-background pl-9"
+                className="h-10 rounded-md pl-9"
               />
             </div>
           </div>
@@ -1545,9 +1557,9 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
         ) : visibleItems.length === 0 ? (
           <EmptyState title={`没有匹配${categoryLabel}`} detail="换个名称或 ID 再试试" />
         ) : (
-          <div className="dark-scrollbar max-h-[440px] overflow-y-auto rounded-md border border-border/70 bg-background/50 sm:h-[560px] sm:max-h-none">
+          <div className="dark-scrollbar max-h-[440px] overflow-y-auto rounded-md border border-border/58 bg-white/42 sm:h-[560px] sm:max-h-none dark:bg-white/5">
             <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card shadow-[0_1px_0_0_var(--border)]">
+              <TableHeader className="sticky top-0 z-10 bg-card/92 shadow-[0_1px_0_0_var(--border)] backdrop-blur-xl">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="h-9 text-xs">名称</TableHead>
                   <TableHead className="h-9 text-xs">数量</TableHead>
@@ -1584,7 +1596,7 @@ function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
   const sideOperations = queueOperations.filter((operation) => operation.lane !== ExecutionLane.FARM);
   return (
     <CollapsibleCard title="执行队列" actions={<Badge variant="secondary">{queueOperations.length}</Badge>}>
-      <div className="max-h-[360px] overflow-hidden rounded-md border border-border/70 md:h-[220px] md:max-h-none">
+      <div className="max-h-[360px] overflow-hidden rounded-md border border-border/58 bg-white/34 md:h-[220px] md:max-h-none dark:bg-white/5">
         {queueOperations.length === 0 ? (
           <div className="flex min-h-28 items-center justify-center px-3 text-sm text-muted-foreground md:h-full md:min-h-0">当前无可执行操作</div>
         ) : (
@@ -1600,8 +1612,8 @@ function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
 
 function OperationLaneSection({ title, operations, emptyText }: { title: string; operations: PlannedOperation[]; emptyText: string }) {
   return (
-    <section className="flex min-h-0 min-w-0 flex-col border-b border-border/70 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-      <div className="flex h-8 items-center justify-between bg-muted/35 px-3 text-xs font-medium">
+    <section className="flex min-h-0 min-w-0 flex-col border-b border-border/58 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <div className="flex h-8 items-center justify-between bg-secondary/55 px-3 text-xs font-semibold dark:bg-muted/45">
         <span>{title}</span>
         <Badge variant="secondary">{operations.length}</Badge>
       </div>
@@ -2362,7 +2374,7 @@ function PolicyPanel({
 
 function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-md border border-border/70 bg-background/35 p-3">
+    <section className="space-y-3 rounded-md border border-border/55 bg-white/34 p-3 dark:bg-white/5">
       <SectionTitle icon={icon}>{title}</SectionTitle>
       {children}
     </section>
@@ -2371,7 +2383,7 @@ function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode
 
 function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <Label className="min-w-0 text-sm">{label}</Label>
       <Badge variant={tone === "ready" ? "secondary" : "outline"}>{value}</Badge>
     </div>
@@ -2380,7 +2392,7 @@ function StatusRow({ label, value, tone }: { label: string; value: string; tone:
 
 function TextRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <Input className="h-8 w-full text-right text-sm sm:w-36" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
@@ -2399,7 +2411,7 @@ function BigIntNumberRow({
   onChange: (value: bigint) => void;
 }) {
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <Input
         type="number"
@@ -2414,7 +2426,7 @@ function BigIntNumberRow({
 
 function IntListRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
   return (
-    <div className="space-y-2 rounded-md border border-border/70 px-3 py-2">
+    <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <Label className="text-sm">{label}</Label>
       <Input
         className="h-8 text-sm"
@@ -2496,7 +2508,7 @@ function FlowerMultiSelectRow({
   const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
 
   return (
-    <div className="space-y-2 rounded-md border border-border/70 px-3 py-2">
+    <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex items-center justify-between gap-3">
         <Label className="text-sm">{label}</Label>
         <div className="flex gap-1">
@@ -2532,7 +2544,7 @@ function FlowerMultiSelectRow({
               </div>
               <Badge variant="outline">已选 {value.length}</Badge>
             </div>
-            <div className="dark-scrollbar h-[calc(100dvh-15rem)] max-h-[420px] overflow-y-auto rounded-md border border-border/70 bg-background/40 p-2">
+            <div className="dark-scrollbar h-[calc(100dvh-15rem)] max-h-[420px] overflow-y-auto rounded-md border border-border/58 bg-white/42 p-2 dark:bg-white/5">
               {visibleFlowers.length === 0 ? (
                 <EmptyState title={synced ? "没有匹配花种" : "尚未同步可种花种"} detail={synced ? undefined : "登录账号并同步培育状态后可选择"} />
               ) : (
@@ -2549,13 +2561,13 @@ function FlowerMultiSelectRow({
                         onClick={() => toggleFlower(flower.id)}
                         className={cn(
                           "flex min-h-[72px] min-w-0 items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors",
-                          selected ? "border-primary bg-primary/10 text-foreground" : "border-border/70 bg-card hover:bg-muted/45",
+                          selected ? "border-primary bg-primary/10 text-foreground" : "border-border/58 bg-card/72 hover:bg-white/66 dark:hover:bg-white/8",
                         )}
                       >
                         <span
                           className={cn(
                             "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border",
-                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-transparent",
+                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white/54 text-transparent dark:bg-white/6",
                           )}
                         >
                           <Check className="size-3" />
@@ -2595,7 +2607,7 @@ function FlowerMultiSelectRow({
 
 function QualityRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <div className="flex gap-1">
         {QUALITY_OPTIONS.map((quality) => {
@@ -2607,7 +2619,7 @@ function QualityRow({ label, value, onChange }: { label: string; value: number[]
               onClick={() => onChange(toggleNumber(value, quality))}
               className={cn(
                 "flex size-7 items-center justify-center rounded border text-xs font-medium",
-                selected ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground hover:text-foreground",
+                selected ? "border-primary bg-primary text-primary-foreground" : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",
               )}
             >
               {quality}
@@ -2631,7 +2643,7 @@ function SegmentedRow<T extends number>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="space-y-2 rounded-md border border-border/70 px-3 py-2">
+    <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <Label className="text-sm">{label}</Label>
       <div className="flex flex-wrap gap-1">
         {options.map((option) => (
@@ -2641,7 +2653,7 @@ function SegmentedRow<T extends number>({
             onClick={() => onChange(option.value)}
             className={cn(
               "min-h-8 rounded border px-2 text-xs font-medium",
-              option.value === value ? "border-primary bg-primary text-primary-foreground" : "border-border/70 text-muted-foreground hover:text-foreground",
+              option.value === value ? "border-primary bg-primary text-primary-foreground" : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",
             )}
           >
             {option.label}
@@ -2692,7 +2704,7 @@ function DemandPriorityEditor({
   };
 
   return (
-    <div className="mt-3 space-y-2 rounded-md border border-border/70 px-3 py-2">
+    <div className="mt-3 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex items-center justify-between gap-3">
         <Label className="text-sm">生产需求优先级</Label>
         <span className="text-xs text-muted-foreground">缺花补种排序</span>
@@ -2728,11 +2740,11 @@ function DemandPriorityEditor({
             onPointerCancel={() => setDraggingId(null)}
             className={cn(
               "flex min-h-11 cursor-grab touch-none items-center gap-2 rounded-md border border-border/70 bg-card px-2.5 py-2 text-sm shadow-sm transition active:cursor-grabbing",
-              draggingId === goal.id ? "opacity-60 ring-1 ring-primary" : "hover:border-primary/50 hover:bg-muted/40",
+              draggingId === goal.id ? "opacity-60 ring-1 ring-primary" : "hover:border-primary/50 hover:bg-white/66 dark:hover:bg-white/8",
             )}
           >
             <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground">{index + 1}</span>
+            <span className="flex size-6 shrink-0 items-center justify-center rounded bg-secondary text-xs font-medium text-muted-foreground dark:bg-white/8">{index + 1}</span>
             <span className="min-w-0 flex-1 truncate font-medium">{goal.label}</span>
           </div>
         ))}
@@ -2778,17 +2790,17 @@ function EventPanel({ events }: { events: Event[] }) {
   }, [activeCategory, categoryCounts]);
 
   return (
-    <Card className="min-h-0 flex-1">
+    <Card className="cloud-surface min-h-0 flex-1">
       <CardHeader className="shrink-0">
         <CardTitle>日志</CardTitle>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className="dark-scrollbar flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-1">
+        <div className="dark-scrollbar flex shrink-0 gap-1 overflow-x-auto rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5">
           <button
             type="button"
             className={cn(
               "flex h-8 shrink-0 items-center gap-2 rounded px-3 text-xs font-medium transition-colors",
-              activeCategory === "all" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              activeCategory === "all" ? "bg-white text-foreground shadow-sm dark:bg-muted" : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
             )}
             onClick={() => setActiveCategory("all")}
           >
@@ -2800,7 +2812,7 @@ function EventPanel({ events }: { events: Event[] }) {
               type="button"
               className={cn(
                 "flex h-8 shrink-0 items-center gap-2 rounded px-3 text-xs font-medium transition-colors",
-                activeCategory === category ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                activeCategory === category ? "bg-white text-foreground shadow-sm dark:bg-muted" : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
               )}
               onClick={() => setActiveCategory(category)}
             >
@@ -2814,11 +2826,11 @@ function EventPanel({ events }: { events: Event[] }) {
             <EmptyState title="暂无日志" />
           </div>
         ) : (
-          <div className="dark-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border/70 bg-background/35 p-2 font-mono text-xs sm:space-y-0 sm:p-0">
+          <div className="dark-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border/58 bg-white/34 p-2 font-mono text-xs sm:space-y-0 sm:p-0 dark:bg-white/5">
             {visibleEvents.map((event, index) => (
               <div
                 key={event.id || `${event.kind}-${index}-${event.message}`}
-                className="grid gap-1 rounded-md border border-border/60 bg-card/80 px-3 py-2 last:border-b-0 sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:grid-cols-[108px_64px_minmax(0,1fr)] sm:gap-3"
+                className="grid gap-1 rounded-md border border-border/55 bg-card/72 px-3 py-2 last:border-b-0 sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:grid-cols-[108px_64px_minmax(0,1fr)] sm:gap-3"
               >
                 <span className="text-muted-foreground">{formatTimestamp(event.ts)}</span>
                 <span
@@ -2844,8 +2856,8 @@ function EventPanel({ events }: { events: Event[] }) {
 
 function OverviewStat({ icon, label, value, detail }: { icon: ReactNode; label: string; value: ReactNode; detail?: ReactNode }) {
   return (
-    <div className="flex min-h-[72px] min-w-0 items-center gap-2 rounded-md border border-border/70 bg-background/55 px-2.5 py-2 sm:min-h-[76px] sm:gap-3 sm:px-3">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary sm:size-9 [&_svg]:size-4">{icon}</div>
+    <div className="flex min-h-[72px] min-w-0 items-center gap-2 rounded-md border border-border/55 bg-white/52 px-2.5 py-2 shadow-sm transition-colors hover:bg-white/68 dark:bg-white/6 dark:hover:bg-white/9 sm:min-h-[76px] sm:gap-3 sm:px-3">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-sky-600 shadow-sm dark:bg-white/8 dark:text-sky-300 sm:size-9 [&_svg]:size-4">{icon}</div>
       <div className="min-w-0">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="truncate text-base font-semibold tabular-nums sm:text-lg">{value}</div>
@@ -2876,7 +2888,7 @@ function ToggleRow({
   status?: SettingStatus;
 }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2">
+    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
         <span>{label}</span>
         {status && <SettingStatusBadge status={status} />}
@@ -2907,7 +2919,7 @@ function NumberRow({
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/70 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <Input
         type="number"
@@ -2923,7 +2935,7 @@ function NumberRow({
 function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-center gap-2 text-sm font-semibold">
-      <span className="text-primary [&_svg]:size-4">{icon}</span>
+      <span className="flex size-7 items-center justify-center rounded-md bg-secondary text-sky-600 dark:bg-white/8 dark:text-sky-300 [&_svg]:size-4">{icon}</span>
       {children}
     </div>
   );
@@ -2931,7 +2943,8 @@ function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode
 
 function EmptyState({ title, detail }: { title: string; detail?: string }) {
   return (
-    <div className="rounded-md border border-dashed border-border/80 px-3 py-4 text-center">
+    <div className="rounded-md border border-dashed border-border/70 bg-white/32 px-3 py-4 text-center dark:bg-white/5">
+      <Sparkles className="mx-auto mb-2 size-4 text-amber-400" />
       <div className="text-sm text-muted-foreground">{title}</div>
       {detail && <div className="mt-1 text-xs text-muted-foreground/80">{detail}</div>}
     </div>

@@ -31,55 +31,64 @@
 }
 
 :root,
-[data-theme="dark"] {
-  --background: #0e130f;
-  --foreground: #eef5ea;
-  --card: #151b15;
-  --card-foreground: #eef5ea;
-  --popover: #182018;
-  --popover-foreground: #eef5ea;
-  --primary: #74d77a;
-  --primary-foreground: #061006;
-  --secondary: #1f2a20;
-  --secondary-foreground: #e8f1e1;
-  --muted: #1c251d;
-  --muted-foreground: #aeb8a8;
-  --accent: #243522;
-  --accent-foreground: #d9f7cf;
-  --destructive: #ff756a;
-  --destructive-foreground: #fff4f0;
-  --border: #2b382b;
-  --input: #202a20;
-  --ring: #74d77a;
+[data-theme="light"] {
+  --background: #e9f8ff;
+  --foreground: #17345f;
+  --card: #fbfdff;
+  --card-foreground: #17345f;
+  --popover: #ffffff;
+  --popover-foreground: #17345f;
+  --primary: #ff6f61;
+  --primary-foreground: #fffafa;
+  --secondary: #e7f6ff;
+  --secondary-foreground: #24527d;
+  --muted: #eaf6fb;
+  --muted-foreground: #657b96;
+  --accent: #fff1b8;
+  --accent-foreground: #714a00;
+  --destructive: #df4f52;
+  --destructive-foreground: #fff7f5;
+  --border: #bfddec;
+  --input: #cce5f2;
+  --ring: #2f87ed;
+  --sky-background:
+    radial-gradient(ellipse at 10% 0%, rgba(255, 242, 176, 0.64), transparent 30%),
+    linear-gradient(180deg, #55c6ff 0%, #aee8ff 42%, #f7fbff 100%);
+  --cloud-shadow: rgba(80, 130, 190, 0.22);
+  --cloud-glow: rgba(255, 255, 255, 0.82);
+  --toy-shadow: rgba(45, 103, 165, 0.18);
 }
 
-[data-theme="light"] {
-  --background: #f2f5ef;
-  --foreground: #172018;
-  --card: #fbfcf8;
-  --card-foreground: #172018;
-  --popover: #fbfcf8;
-  --popover-foreground: #172018;
-  --primary: #2f9b4c;
-  --primary-foreground: #f7fff8;
-  --secondary: #e7eee3;
-  --secondary-foreground: #1d2a1e;
-  --muted: #e8eee5;
-  --muted-foreground: #657066;
-  --accent: #e4f0dd;
-  --accent-foreground: #1f4629;
-  --destructive: #d84f44;
-  --destructive-foreground: #fff8f5;
-  --border: #d2dccf;
-  --input: #dfe8dc;
-  --ring: #2f9b4c;
+[data-theme="dark"] {
+  --background: #101a31;
+  --foreground: #edf7ff;
+  --card: #17223d;
+  --card-foreground: #edf7ff;
+  --popover: #182641;
+  --popover-foreground: #edf7ff;
+  --primary: #ff8a75;
+  --primary-foreground: #fff8f5;
+  --secondary: #23375f;
+  --secondary-foreground: #eaf5ff;
+  --muted: #202d4c;
+  --muted-foreground: #adc2d9;
+  --accent: #35436b;
+  --accent-foreground: #fff0a8;
+  --destructive: #ff756a;
+  --destructive-foreground: #fff4f0;
+  --border: #31466b;
+  --input: #26385a;
+  --ring: #79b8ff;
+  --sky-background:
+    radial-gradient(ellipse at 12% 0%, rgba(255, 220, 130, 0.18), transparent 28%),
+    linear-gradient(180deg, #182a55 0%, #15213f 54%, #111a31 100%);
+  --cloud-shadow: rgba(0, 0, 0, 0.32);
+  --cloud-glow: rgba(205, 228, 255, 0.2);
+  --toy-shadow: rgba(0, 0, 0, 0.28);
 }
 
 body {
-  background:
-    linear-gradient(180deg, color-mix(in oklab, var(--primary) 5%, transparent), transparent 260px),
-    linear-gradient(90deg, color-mix(in oklab, var(--accent) 10%, transparent), transparent 42%),
-    var(--background);
+  background: var(--sky-background);
   color: var(--foreground);
   font-family: var(--font-sans, system-ui, sans-serif);
   text-rendering: optimizeLegibility;
@@ -107,12 +116,31 @@ body {
     content: "";
     position: fixed;
     inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse at 7% 68%, color-mix(in oklab, var(--cloud-glow) 92%, transparent) 0 54px, transparent 55px),
+      radial-gradient(ellipse at 14% 72%, color-mix(in oklab, var(--cloud-glow) 82%, transparent) 0 86px, transparent 87px),
+      radial-gradient(ellipse at 86% 68%, color-mix(in oklab, var(--cloud-glow) 72%, transparent) 0 78px, transparent 79px),
+      radial-gradient(ellipse at 96% 74%, color-mix(in oklab, var(--cloud-glow) 82%, transparent) 0 94px, transparent 95px),
+      radial-gradient(ellipse at 26% 15%, color-mix(in oklab, var(--cloud-glow) 64%, transparent) 0 34px, transparent 35px),
+      radial-gradient(ellipse at 78% 10%, color-mix(in oklab, var(--cloud-glow) 58%, transparent) 0 42px, transparent 43px);
+    mask-image: linear-gradient(to bottom, black 0%, black 74%, transparent 100%);
+  }
+
+  body::after {
+    pointer-events: none;
+    content: "";
+    position: fixed;
+    inset: auto -6rem 0;
     z-index: -1;
-    background-image:
-      linear-gradient(color-mix(in oklab, var(--foreground) 4%, transparent) 1px, transparent 1px),
-      linear-gradient(90deg, color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
-    background-size: 40px 40px;
-    mask-image: linear-gradient(to bottom, black, transparent 72%);
+    height: 9rem;
+    background:
+      radial-gradient(ellipse at 8% 72%, color-mix(in oklab, var(--card) 82%, transparent) 0 74px, transparent 75px),
+      radial-gradient(ellipse at 22% 84%, color-mix(in oklab, var(--card) 92%, transparent) 0 98px, transparent 99px),
+      radial-gradient(ellipse at 45% 72%, color-mix(in oklab, var(--card) 86%, transparent) 0 86px, transparent 87px),
+      radial-gradient(ellipse at 69% 86%, color-mix(in oklab, var(--card) 92%, transparent) 0 104px, transparent 105px),
+      radial-gradient(ellipse at 91% 72%, color-mix(in oklab, var(--card) 86%, transparent) 0 88px, transparent 89px);
+    opacity: 0.72;
   }
 
   button,
@@ -155,5 +183,147 @@ body {
   .dark-scrollbar::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
     background-clip: content-box;
+  }
+}
+
+@layer components {
+  .sky-decor-cloud {
+    position: absolute;
+    width: 6rem;
+    height: 2.4rem;
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--card) 88%, transparent);
+    box-shadow:
+      0 1rem 2.2rem var(--cloud-shadow),
+      inset 0 0.18rem 0 color-mix(in oklab, #ffffff 72%, transparent);
+  }
+
+  .sky-decor-cloud::before,
+  .sky-decor-cloud::after {
+    content: "";
+    position: absolute;
+    bottom: 0.55rem;
+    border-radius: 999px;
+    background: inherit;
+  }
+
+  .sky-decor-cloud::before {
+    left: 0.75rem;
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .sky-decor-cloud::after {
+    right: 0.8rem;
+    width: 3.35rem;
+    height: 3.35rem;
+  }
+
+  .sky-decor-plane {
+    position: absolute;
+    width: 4.5rem;
+    height: 3rem;
+    clip-path: polygon(0 0, 100% 50%, 0 100%, 22% 52%);
+    filter: drop-shadow(0 0.8rem 1.2rem var(--toy-shadow));
+    transform: rotate(var(--plane-rotate, 0deg));
+    transform-origin: 52% 50%;
+    will-change: transform;
+  }
+
+  .sky-decor-star {
+    position: absolute;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.35rem;
+    background: #ffd45d;
+    box-shadow: 0 0.45rem 0.8rem color-mix(in oklab, #ffb23f 36%, transparent);
+    transform: rotate(45deg);
+  }
+
+  .sky-decor-star::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    transform: rotate(45deg);
+  }
+
+  .cloud-surface {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cloud-surface::before {
+    pointer-events: none;
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 12% 0%, rgba(255, 255, 255, 0.55), transparent 36%),
+      radial-gradient(ellipse at 95% 12%, color-mix(in oklab, var(--accent) 32%, transparent), transparent 32%);
+    opacity: 0.8;
+  }
+
+  .cloud-surface > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .toy-shadow {
+    box-shadow:
+      0 1rem 2.6rem var(--toy-shadow),
+      inset 0 1px 0 color-mix(in oklab, #ffffff 68%, transparent);
+  }
+}
+
+@keyframes cloud-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -0.45rem, 0);
+  }
+}
+
+@keyframes plane-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--plane-rotate, 0deg));
+  }
+
+  50% {
+    transform: translate3d(0.7rem, -0.35rem, 0) rotate(var(--plane-rotate, 0deg));
+  }
+}
+
+@keyframes plane-glide {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--plane-rotate, 0deg));
+  }
+
+  42% {
+    transform: translate3d(var(--plane-glide-x, 2rem), var(--plane-glide-y, -1rem), 0) rotate(var(--plane-rotate, 0deg));
+  }
+
+  68% {
+    transform: translate3d(var(--plane-loop-x, 0.6rem), var(--plane-loop-y, 0.35rem), 0) rotate(var(--plane-rotate, 0deg));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sky-float {
+    animation: cloud-float 7s ease-in-out infinite;
+  }
+
+  .sky-drift {
+    animation: plane-drift 8s ease-in-out infinite;
+  }
+
+  .sky-glide {
+    animation: plane-glide var(--plane-duration, 20s) ease-in-out infinite;
   }
 }

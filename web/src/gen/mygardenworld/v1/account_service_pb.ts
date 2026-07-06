@@ -278,8 +278,8 @@ export const AccountService: GenService<{
     output: typeof LoginAccountResponseSchema;
   },
   /**
-   * Stops the live runner/WS for the account. Credentials and automation
-   * preference stay stored; the account can be logged in again later.
+   * Stops the live runner/WS for the account and disables auto-resume.
+   * Credentials stay stored; the account can be logged in again later.
    *
    * @generated from rpc mygardenworld.v1.AccountService.LogoutAccount
    */

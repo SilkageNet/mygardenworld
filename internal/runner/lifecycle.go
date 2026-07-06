@@ -42,7 +42,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 
 	r.installStateHandlers()
-	client, err := r.connectFresh(rctx, username, password)
+	client, err := r.connectFresh(ctx, username, password)
 	if err != nil {
 		return fail(err)
 	}

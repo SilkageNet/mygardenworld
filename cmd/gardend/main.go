@@ -389,6 +389,21 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		errCh <- nil
 	}()
 
+	restoreCtx, cancelRestore := context.WithCancel(ctx)
+	restoreDone := make(chan struct{})
+	go func() {
+		defer close(restoreDone)
+		report := mgr.RestoreEnabledRunners(restoreCtx)
+		if report.Eligible > 0 || report.Failed > 0 || report.Skipped > 0 {
+			log.Info("auto-start restore finished",
+				"eligible", report.Eligible,
+				"started", report.Started,
+				"failed", report.Failed,
+				"skipped", report.Skipped,
+			)
+		}
+	}()
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	select {
@@ -401,6 +416,9 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	case <-ctx.Done():
 		log.Info("context done")
 	}
+
+	cancelRestore()
+	<-restoreDone
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

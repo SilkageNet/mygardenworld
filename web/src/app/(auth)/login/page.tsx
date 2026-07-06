@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
@@ -9,6 +9,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, LoaderCircle, LockKeyhole, UserRound } from "lucide-react";
+
+const LOGIN_SKY_STYLE = {
+  "--background": "#e9f8ff",
+  "--foreground": "#17345f",
+  "--card": "#fbfdff",
+  "--primary": "#ff6f61",
+  "--primary-foreground": "#fffafa",
+  "--secondary": "#e7f6ff",
+  "--muted": "#eaf6fb",
+  "--accent": "#fff1b8",
+  "--border": "#bfddec",
+  "--input": "#cce5f2",
+  "--ring": "#2f87ed",
+  "--cloud-shadow": "rgba(80, 130, 190, 0.22)",
+  "--cloud-glow": "rgba(255, 255, 255, 0.82)",
+  "--toy-shadow": "rgba(45, 103, 165, 0.18)",
+} as CSSProperties & Record<string, string>;
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -43,30 +60,35 @@ export default function LoginPage() {
 
   return (
     <main
-      className="fixed left-0 top-0 flex h-dvh w-screen items-center justify-center overflow-y-auto overflow-x-hidden bg-[#edf5ea] px-4 py-8 text-[#1e3d28] transition-colors dark:bg-[#07110d] dark:text-[#edf6eb] sm:px-6"
-      style={{
-        backgroundImage: "url('/brand/cloud-login-background.png')",
-        backgroundPosition: "center",
-        backgroundSize: "cover",
-      }}
+      className="fixed left-0 top-0 isolate flex h-dvh w-screen items-center justify-center overflow-y-auto overflow-x-hidden bg-[#e9f8ff] px-4 py-8 text-[#17345f] transition-colors sm:px-6"
+      style={LOGIN_SKY_STYLE}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(247,252,245,0.94)_0%,rgba(247,252,245,0.72)_40%,rgba(247,252,245,0.92)_100%)] dark:bg-[linear-gradient(90deg,rgba(4,12,8,0.92)_0%,rgba(8,18,12,0.76)_44%,rgba(4,12,8,0.9)_100%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(255,255,255,0.52),rgba(255,255,255,0)_34%),linear-gradient(180deg,rgba(255,255,255,0.18),rgba(210,232,209,0.32))] dark:bg-[radial-gradient(circle_at_50%_38%,rgba(116,215,122,0.12),rgba(116,215,122,0)_36%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(3,10,6,0.48))]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#dfeee0]/70 to-transparent dark:from-[#07110d]/90" />
+      <span className="sky-decor-plane sky-glide left-[7%] top-20 bg-[linear-gradient(135deg,#ff8e88,#ff6268)] opacity-80 [--plane-duration:18s] [--plane-glide-x:2.4rem] [--plane-glide-y:-1.2rem] [--plane-loop-x:0.7rem] [--plane-loop-y:0.5rem] [--plane-rotate:18deg]" aria-hidden />
+      <span className="sky-decor-plane sky-glide right-[8%] top-28 bg-[linear-gradient(135deg,#ffd45d,#ffb331)] opacity-80 [--plane-duration:21s] [--plane-glide-x:-2.2rem] [--plane-glide-y:-1rem] [--plane-loop-x:-0.6rem] [--plane-loop-y:0.4rem] [--plane-rotate:-18deg]" aria-hidden />
+      <span className="sky-decor-cloud sky-float left-[12%] top-32 opacity-72" aria-hidden />
+      <span className="sky-decor-cloud sky-float right-[12%] bottom-24 opacity-70" aria-hidden />
+      <span className="sky-decor-star left-[30%] top-28 opacity-75" aria-hidden />
+      <span className="sky-decor-star right-[30%] top-40 bg-[#ff8bb1] opacity-70" aria-hidden />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(240,250,255,0.78)_0%,rgba(240,250,255,0.42)_40%,rgba(240,250,255,0.74)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(255,255,255,0.56),rgba(255,255,255,0)_34%),linear-gradient(180deg,rgba(255,255,255,0.18),rgba(174,232,255,0.34))]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#f7fbff]/80 to-transparent" />
 
-      <section className="relative w-full max-w-[27rem] rounded-lg border border-white/70 bg-white/62 px-5 py-7 shadow-[0_24px_80px_rgba(39,81,43,0.18)] backdrop-blur-xl transition-colors dark:border-[#2c3f2c]/85 dark:bg-[#101910]/78 dark:shadow-[0_24px_80px_rgba(0,0,0,0.42)] sm:px-8 sm:py-9">
-        <div className="mx-auto mb-7 flex w-full justify-center">
-          <div className="relative size-20 overflow-hidden sm:size-24">
+      <section className="cloud-surface toy-shadow relative w-full max-w-[25rem] rounded-lg border border-white/70 bg-white/72 px-5 py-7 shadow-[0_24px_80px_rgba(45,103,165,0.18)] backdrop-blur-xl transition-colors sm:px-8 sm:py-8">
+        <div className="mx-auto mb-5 flex w-full flex-col items-center text-center">
+          <div className="relative size-16 overflow-hidden sm:size-20">
             <Image
               src="/brand/cloud-logo.svg"
               alt="小云朵"
               fill
               priority
               unoptimized
-              sizes="6rem"
+              sizes="5rem"
               className="object-contain drop-shadow-[0_8px_18px_rgba(46,137,199,0.22)]"
             />
           </div>
+          <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-normal text-[#17345f]">
+            小云朵
+          </h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -75,7 +97,7 @@ export default function LoginPage() {
               账号
             </Label>
             <div className="relative">
-              <UserRound className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#377e45] dark:text-[#74d77a]" />
+              <UserRound className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#2f87ed]" />
               <Input
                 id="username"
                 value={username}
@@ -86,7 +108,7 @@ export default function LoginPage() {
                 required
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "login-error" : undefined}
-                className="h-12 rounded-lg border-[#a9caa8]/85 !bg-white/82 pl-12 pr-4 !text-[#1e3d28] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:!text-[#6f856d] focus-visible:border-[#3b8f4d] focus-visible:ring-[#69ad71]/30 dark:border-[#345338]/85 dark:!bg-[#0c150e]/86 dark:!text-[#edf6eb] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] dark:placeholder:!text-[#91a28f] dark:focus-visible:border-[#74d77a] dark:focus-visible:ring-[#74d77a]/25"
+                className="h-12 rounded-lg border-[#b8dff2]/90 !bg-white/84 pl-12 pr-4 !text-[#17345f] placeholder:!text-[#657b96] focus-visible:border-[#2f87ed] focus-visible:ring-[#2f87ed]/24"
               />
             </div>
           </div>
@@ -96,7 +118,7 @@ export default function LoginPage() {
               密码
             </Label>
             <div className="relative">
-              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#377e45] dark:text-[#74d77a]" />
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#2f87ed]" />
               <Input
                 id="password"
                 type="password"
@@ -107,7 +129,7 @@ export default function LoginPage() {
                 required
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "login-error" : undefined}
-                className="h-12 rounded-lg border-[#a9caa8]/85 !bg-white/82 pl-12 pr-4 !text-[#1e3d28] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] placeholder:!text-[#6f856d] focus-visible:border-[#3b8f4d] focus-visible:ring-[#69ad71]/30 dark:border-[#345338]/85 dark:!bg-[#0c150e]/86 dark:!text-[#edf6eb] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] dark:placeholder:!text-[#91a28f] dark:focus-visible:border-[#74d77a] dark:focus-visible:ring-[#74d77a]/25"
+                className="h-12 rounded-lg border-[#b8dff2]/90 !bg-white/84 pl-12 pr-4 !text-[#17345f] placeholder:!text-[#657b96] focus-visible:border-[#2f87ed] focus-visible:ring-[#2f87ed]/24"
               />
             </div>
           </div>
@@ -115,7 +137,7 @@ export default function LoginPage() {
           {error && (
             <div
               id="login-error"
-              className="rounded-lg border border-[#d56d5d]/35 bg-[#fff3ee]/86 px-3 py-2 text-sm text-[#b64939] dark:border-[#ff756a]/35 dark:bg-[#2a1411]/86 dark:text-[#ffb8ad]"
+              className="rounded-lg border border-[#d56d5d]/35 bg-[#fff3ee]/86 px-3 py-2 text-sm text-[#b64939]"
             >
               {error}
             </div>
@@ -124,7 +146,7 @@ export default function LoginPage() {
           <Button
             type="submit"
             size="lg"
-            className="relative h-12 w-full rounded-lg bg-[#5e9f5d] text-base font-semibold text-white shadow-[0_14px_28px_rgba(64,128,64,0.26)] hover:bg-[#4f914f] focus-visible:ring-[#69ad71]/35 disabled:opacity-65"
+            className="relative h-12 w-full rounded-lg text-base disabled:opacity-65"
             disabled={loading}
           >
             <span className="inline-flex items-center gap-2">

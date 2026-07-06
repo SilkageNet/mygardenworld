@@ -20,8 +20,8 @@ service AccountService {
   // session token, routeToken, gsHost. Daemon will rebuild the WS.
   rpc LoginAccount(LoginAccountRequest) returns (LoginAccountResponse);
 
-  // Stops the live runner/WS for the account. Credentials and automation
-  // preference stay stored; the account can be logged in again later.
+  // Stops the live runner/WS for the account and disables auto-resume.
+  // Credentials stay stored; the account can be logged in again later.
   rpc LogoutAccount(LogoutAccountRequest) returns (LogoutAccountResponse);
 }
 

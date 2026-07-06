@@ -209,6 +209,10 @@ func (svc *Services) LogoutAccount(ctx context.Context, req *connect.Request[pb.
 	if err != nil {
 		return nil, mapErr(err)
 	}
+	r := svc.Manager.Get(acc.ID)
+	if err := svc.disableAutomation(ctx, acc.ID, r); err != nil {
+		return nil, mapErr(err)
+	}
 	_ = svc.Manager.Stop(acc.ID)
 	out := store.AccountToProto(acc)
 	out.Connected = false

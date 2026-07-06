@@ -529,7 +529,7 @@ func TestNextRunnableOperationSkipsCoolingSideOperationAndKeepsFarmRunnable(t *t
 }
 
 func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
-	now := time.Now()
+	now := time.Date(2026, 7, 6, 15, 30, 0, 0, time.Local)
 	st := state.New()
 	st.ApplyVMap(map[string]any{
 		"114": map[string]any{
@@ -543,6 +543,7 @@ func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 	})
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
+	policy.Basic.Reputation.Enabled = false
 	policy.Basic.WaterwheelEnabled = true
 	policy.Basic.FreeWaterEnabled = true
 	r := &Runner{state: st}
@@ -554,7 +555,7 @@ func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 }
 
 func TestNextRunnableOperationSkipsWaterwheelAfterDailyLimit(t *testing.T) {
-	now := time.Now()
+	now := time.Date(2026, 7, 6, 15, 30, 0, 0, time.Local)
 	st := state.New()
 	st.ApplyVMap(map[string]any{
 		"114": map[string]any{
@@ -568,6 +569,7 @@ func TestNextRunnableOperationSkipsWaterwheelAfterDailyLimit(t *testing.T) {
 	st.MarkWaterwheelEntered(now.Add(-time.Hour))
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
+	policy.Basic.Reputation.Enabled = false
 	policy.Basic.WaterwheelEnabled = true
 	policy.Basic.FreeWaterEnabled = true
 	r := &Runner{state: st}

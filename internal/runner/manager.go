@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/policycfg"
@@ -30,6 +31,16 @@ type Manager struct {
 	mu      sync.RWMutex
 	runners map[int64]*Runner
 	opLocks map[int64]*sync.Mutex
+}
+
+const restoreAccountTimeout = 90 * time.Second
+
+// RestoreReport summarizes one daemon startup auto-restore pass.
+type RestoreReport struct {
+	Eligible int
+	Started  int
+	Failed   int
+	Skipped  int
 }
 
 // NewManager wires up the registry. The daemon serves all platforms; the
@@ -65,6 +76,61 @@ func (m *Manager) All() []*Runner {
 		out = append(out, r)
 	}
 	return out
+}
+
+// RestoreEnabledRunners starts every account whose persisted policy says
+// automation should be running. It is intended for daemon startup: a normal
+// shutdown stops in-memory runners, while Automation.Stop or LogoutAccount
+// persists automation_enabled=false and therefore opts the account out.
+func (m *Manager) RestoreEnabledRunners(ctx context.Context) RestoreReport {
+	report := RestoreReport{}
+	accounts, err := m.accountsWithAutomationEnabled(ctx)
+	if err != nil {
+		report.Failed = 1
+		m.log.Error("scan auto-start accounts failed", "err", err)
+		return report
+	}
+	report.Eligible = len(accounts)
+	for i, acc := range accounts {
+		if err := ctx.Err(); err != nil {
+			report.Skipped = len(accounts) - i
+			m.log.Info("auto-start restore cancelled", "skipped", report.Skipped, "err", err)
+			break
+		}
+		startCtx, cancel := context.WithTimeout(ctx, restoreAccountTimeout)
+		_, err := m.Start(startCtx, acc.ID)
+		cancel()
+		if err != nil {
+			report.Failed++
+			m.log.Warn("auto-start account failed", "account_id", acc.ID, "account", acc.Name, "err", err)
+			continue
+		}
+		report.Started++
+		m.log.Info("auto-started account", "account_id", acc.ID, "account", acc.Name)
+	}
+	return report
+}
+
+func (m *Manager) accountsWithAutomationEnabled(ctx context.Context) ([]*store.Account, error) {
+	accounts, err := m.db.ListAccounts(ctx, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*store.Account, 0, len(accounts))
+	for _, acc := range accounts {
+		rawPolicy, err := m.db.LoadPolicyJSON(ctx, acc.ID)
+		if err != nil {
+			return nil, fmt.Errorf("load policy for %q: %w", acc.Name, err)
+		}
+		policy, err := policycfg.FromJSON(rawPolicy)
+		if err != nil {
+			return nil, fmt.Errorf("load policy for %q: %w", acc.Name, err)
+		}
+		if policy.GetAutomationEnabled() {
+			out = append(out, acc)
+		}
+	}
+	return out, nil
 }
 
 // Start either reuses an existing runner or creates+starts a new one for the

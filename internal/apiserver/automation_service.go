@@ -28,17 +28,9 @@ func (svc *Services) Stop(ctx context.Context, req *connect.Request[pb.StopReque
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	r := svc.Manager.Get(acc.ID)
-	p, err := svc.policyFor(ctx, acc.ID)
-	if err != nil {
+	if err := svc.disableAutomation(ctx, acc.ID, svc.Manager.Get(acc.ID)); err != nil {
 		return nil, mapErr(err)
 	}
-	p.AutomationEnabled = false
-	if r != nil {
-		r.SetPolicy(p)
-		r.Emit(policyEvent(false))
-	}
-	_ = svc.persistPolicy(ctx, acc.ID, p)
 	return connect.NewResponse(&pb.StopResponse{}), nil
 }
 
@@ -74,4 +66,20 @@ func (svc *Services) enableAutomation(ctx context.Context, accountID int64, r *r
 	r.SetPolicy(p)
 	_ = svc.persistPolicy(ctx, accountID, p)
 	r.Emit(policyEvent(true))
+}
+
+func (svc *Services) disableAutomation(ctx context.Context, accountID int64, r *runner.Runner) error {
+	p, err := svc.policyFor(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if !p.GetAutomationEnabled() {
+		return nil
+	}
+	p.AutomationEnabled = false
+	if r != nil {
+		r.SetPolicy(p)
+		r.Emit(policyEvent(false))
+	}
+	return svc.persistPolicy(ctx, accountID, p)
 }

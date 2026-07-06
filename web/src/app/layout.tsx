@@ -17,8 +17,8 @@ export default function RootLayout({
   return (
     <html
       lang="zh-CN"
-      className="h-full antialiased dark"
-      data-theme="dark"
+      className="h-full antialiased"
+      data-theme="light"
     >
       <body className="min-h-full overflow-y-auto bg-background text-foreground xl:h-full xl:overflow-hidden">
         <ThemeProvider>
