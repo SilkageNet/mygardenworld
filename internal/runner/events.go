@@ -249,7 +249,7 @@ func eventCategory(kind string) string {
 		return "basic"
 	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
 		return "basic"
-	case "order_finish", "order_customer", "order_reward", "order_ad", "flower_art", "flower_rack":
+	case "order_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art", "flower_rack":
 		return "order"
 	case "union_build":
 		return "union"
@@ -313,7 +313,7 @@ func eventDomain(kind string) string {
 		return "basic.story"
 	case "order_finish", "order_reward", "order_ad":
 		return "order.resident"
-	case "order_customer":
+	case "order_customer", "order_customer_info":
 		return "order.customer"
 	case "flower_art", "flower_rack":
 		return "order.flower_art"
@@ -406,7 +406,7 @@ func eventLabel(kind string) string {
 		return "剧情"
 	case "order_finish":
 		return "居民订单"
-	case "order_customer":
+	case "order_customer", "order_customer_info":
 		return "顾客订单"
 	case "order_reward":
 		return "订单奖励"

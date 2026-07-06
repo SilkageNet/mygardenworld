@@ -105,7 +105,7 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 		Category:    attempt.op.Category,
 		Domain:      attempt.op.Domain,
 		Action:      attempt.op.Action,
-		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(attempt.op), operationTargetSuffix(attempt.op)),
+		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(attempt.op), r.opSuffix(attempt.op)),
 		PayloadJSON: operationPayload(attempt.op, attempt.args, nil, nil),
 	})
 }
@@ -240,7 +240,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		Category:    op.Category,
 		Domain:      op.Domain,
 		Action:      op.Action,
-		Message:     fmt.Sprintf("%s 完成%s", opDesc(op), operationTargetSuffix(op)),
+		Message:     fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op)),
 		PayloadJSON: operationPayload(op, args, result.raw, nil),
 	})
 	r.logOperation(ctx, op.Kind, args, json.RawMessage(result.raw))
@@ -296,6 +296,40 @@ func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, e
 	return string(data)
 }
 
+// emitCustomerOrderInfo emits an order event whenever observed customer order
+// requirements change, including flower-art recipe details for log views.
+func (r *Runner) emitCustomerOrderInfo() {
+	orders := r.state.CustomerOrderDetails()
+	if r.lastCustomerOrderInfo == nil {
+		r.lastCustomerOrderInfo = make(map[int32]string)
+	}
+	seen := make(map[int32]bool, len(orders))
+	for npcID, order := range orders {
+		seen[npcID] = true
+		summary := automation.FormatCustomerOrderRequires(r.state, order)
+		if summary == r.lastCustomerOrderInfo[npcID] {
+			continue
+		}
+		r.lastCustomerOrderInfo[npcID] = summary
+		if summary == "" {
+			continue
+		}
+		r.emit(Event{
+			Kind:     "order_customer_info",
+			Category: "order",
+			Domain:   "order.customer",
+			Action:   "info",
+			Message:  fmt.Sprintf("顾客订单 NPC=%d %s", npcID, summary),
+			Level:    "info",
+		})
+	}
+	for npcID := range r.lastCustomerOrderInfo {
+		if !seen[npcID] {
+			delete(r.lastCustomerOrderInfo, npcID)
+		}
+	}
+}
+
 func opDesc(op *automation.PlannedOp) string {
 	desc := opKindDesc(op.Kind)
 	if op.FlowerID == 0 {
@@ -335,6 +369,10 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d)", op.TargetID)
 		}
+	case clientproto.RPCFlowerArtMakeFlowerArt.String():
+		if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
+			return " " + desc
+		}
 	}
 	return ""
 }
@@ -344,4 +382,32 @@ func landSuffix(landIDs []int32) string {
 		return ""
 	}
 	return fmt.Sprintf(" (田地=%v)", landIDs)
+}
+
+func (r *Runner) orderCustomerSuffix(op *automation.PlannedOp) string {
+	switch op.Kind {
+	case clientproto.RPCOrderCustomerFinishOrder.String(), clientproto.RPCOrderCustomerRejectOrder.String():
+	default:
+		return ""
+	}
+	if op.TargetID == 0 {
+		return ""
+	}
+	orders := r.state.CustomerOrderDetails()
+	order, ok := orders[op.TargetID]
+	if !ok || order == nil {
+		return fmt.Sprintf(" (NPC=%d)", op.TargetID)
+	}
+	summary := automation.FormatCustomerOrderRequires(r.state, order)
+	if summary == "" {
+		return fmt.Sprintf(" (NPC=%d)", op.TargetID)
+	}
+	return fmt.Sprintf(" (NPC=%d %s)", op.TargetID, summary)
+}
+
+func (r *Runner) opSuffix(op *automation.PlannedOp) string {
+	if suffix := operationTargetSuffix(op); suffix != "" {
+		return suffix
+	}
+	return r.orderCustomerSuffix(op)
 }

@@ -5,7 +5,9 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -51,10 +53,6 @@ func FlowerArtAvailabilityWithAllocated(s *state.State, artID, count int32, ledg
 			demand.BlockedReasons = append(demand.BlockedReasons, "花朵库存不足")
 			availability.BlockedReasons = append(availability.BlockedReasons, fmt.Sprintf("%s 缺少 %d", itemLabel(flowerID), missing))
 		}
-		if !flowerCultivated(s, flowerID) {
-			demand.BlockedReasons = append(demand.BlockedReasons, "花朵尚未培育/解锁")
-			availability.BlockedReasons = append(availability.BlockedReasons, fmt.Sprintf("%s 尚未培育/解锁", itemLabel(flowerID)))
-		}
 		availability.Requirements = append(availability.Requirements, demand)
 	}
 	availability.Craftable = len(availability.BlockedReasons) == 0
@@ -67,11 +65,6 @@ func artBlockedReasons(s *state.State, recipe state.FlowerArtRecipe) []string {
 		blocked = append(blocked, "未观察到花瓶状态 namespace 102")
 	} else if !s.HasVase(recipe.VaseID) {
 		blocked = append(blocked, fmt.Sprintf("花瓶 #%d 未解锁", recipe.VaseID))
-	}
-	for flowerID := range recipeFlowerCounts(recipe) {
-		if !flowerCultivated(s, flowerID) {
-			blocked = append(blocked, fmt.Sprintf("%s 尚未培育/解锁", itemLabel(flowerID)))
-		}
 	}
 	return blocked
 }
@@ -193,6 +186,82 @@ func containsString(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// FormatCustomerOrderRequires builds a readable summary of direct flower needs
+// and flower-art needs, including each art recipe's vase and flowers.
+func FormatCustomerOrderRequires(s *state.State, order *state.CustomerOrder) string {
+	if order == nil {
+		return ""
+	}
+	var parts []string
+	var flowerParts []string
+	for _, req := range order.Requires {
+		if req.FlowerID > 0 && req.Count > 0 {
+			flowerParts = append(flowerParts, fmt.Sprintf("%s×%d", itemLabel(req.FlowerID), req.Count))
+		}
+	}
+	if len(flowerParts) > 0 {
+		parts = append(parts, "花: "+strings.Join(flowerParts, "、"))
+	}
+	var artParts []string
+	for _, req := range order.ItemRequires {
+		if req.ItemID <= 0 || req.Count <= 0 {
+			continue
+		}
+		recipe, ok := state.FlowerArtRecipeByID(req.ItemID)
+		if !ok {
+			artParts = append(artParts, fmt.Sprintf("%s×%d", itemLabel(req.ItemID), req.Count))
+			continue
+		}
+		var flowerNames []string
+		for flowerID, count := range recipeFlowerCounts(recipe) {
+			flowerNames = append(flowerNames, fmt.Sprintf("%s×%d", itemLabel(flowerID), count))
+		}
+		sort.Strings(flowerNames)
+		art := fmt.Sprintf("%s×%d[花瓶:%s", itemLabel(req.ItemID), req.Count, itemLabel(recipe.VaseID))
+		if len(flowerNames) > 0 {
+			art += ":" + strings.Join(flowerNames, "/")
+		}
+		art += "]"
+		artParts = append(artParts, art)
+	}
+	if len(artParts) > 0 {
+		parts = append(parts, "花艺: "+strings.Join(artParts, "、"))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "需 " + strings.Join(parts, "； ")
+}
+
+// FormatFlowerArtOpDesc formats a flower-art operation with art, vase, and recipe flowers.
+func FormatFlowerArtOpDesc(artID, count int32) string {
+	if artID <= 0 {
+		return ""
+	}
+	recipe, ok := state.FlowerArtRecipeByID(artID)
+	if !ok {
+		return fmt.Sprintf("%s×%d", itemLabel(artID), count)
+	}
+	var flowerParts []string
+	for flowerID, flowerCount := range recipeFlowerCounts(recipe) {
+		flowerParts = append(flowerParts, fmt.Sprintf("%s×%d", itemLabel(flowerID), flowerCount))
+	}
+	sort.Strings(flowerParts)
+	s := fmt.Sprintf("%s×%d[花瓶:%s", itemLabel(artID), count, itemLabel(recipe.VaseID))
+	if len(flowerParts) > 0 {
+		s += ":" + strings.Join(flowerParts, "/")
+	}
+	s += "]"
+	return s
+}
+
+func withOrderReason(reason, summary string) string {
+	if summary == "" {
+		return reason
+	}
+	return reason + " (" + summary + ")"
 }
 
 func syncOnlyOperation(op PlannedOp, reasons ...string) PlannedOp {
@@ -336,15 +405,18 @@ func maxCraftableCount(recipe state.FlowerArtRecipe, ledger *InventoryLedger) in
 	if recipe.ArtID <= 0 || ledger == nil {
 		return 0
 	}
-	var max int32
+	var max int32 = -1
 	for flowerID, needEach := range recipeFlowerCounts(recipe) {
 		if needEach <= 0 {
 			continue
 		}
 		available := ledger.Available(flowerID) / needEach
-		if max == 0 || available < max {
+		if max < 0 || available < max {
 			max = available
 		}
+	}
+	if max < 0 {
+		return 0
 	}
 	return max
 }

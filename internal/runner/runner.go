@@ -85,10 +85,11 @@ type Runner struct {
 	lastOperationError        string
 	lastOperationErrorAt      time.Time
 
-	harvestBlockedUntil map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
-	operationCooldowns  map[string]operationCooldown
-	rqst                rqstState        // 反作弊验证状态
-	unknownRPCCounts    map[string]int32 // runtime RPC names missing from the catalog
+	harvestBlockedUntil   map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
+	operationCooldowns    map[string]operationCooldown
+	rqst                  rqstState        // 反作弊验证状态
+	unknownRPCCounts      map[string]int32 // runtime RPC names missing from the catalog
+	lastCustomerOrderInfo map[int32]string // 顾客订单需求摘要去重
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -107,17 +108,18 @@ type Runner struct {
 // Manager.Start.
 func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, log *slog.Logger) *Runner {
 	return &Runner{
-		cfg:                 cfg,
-		db:                  db,
-		account:             account,
-		log:                 log.With("account", account.Name, "channel", account.Channel),
-		state:               state.New(),
-		policy:              automation.DefaultPolicy(),
-		harvestBlockedUntil: make(map[int32]time.Time),
-		operationCooldowns:  make(map[string]operationCooldown),
-		unknownRPCCounts:    make(map[string]int32),
-		done:                make(chan struct{}),
-		bus:                 bus,
+		cfg:                   cfg,
+		db:                    db,
+		account:               account,
+		log:                   log.With("account", account.Name, "channel", account.Channel),
+		state:                 state.New(),
+		policy:                automation.DefaultPolicy(),
+		harvestBlockedUntil:   make(map[int32]time.Time),
+		operationCooldowns:    make(map[string]operationCooldown),
+		unknownRPCCounts:      make(map[string]int32),
+		lastCustomerOrderInfo: make(map[int32]string),
+		done:                  make(chan struct{}),
+		bus:                   bus,
 	}
 }
 

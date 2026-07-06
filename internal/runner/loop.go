@@ -67,6 +67,8 @@ func (r *Runner) tick(ctx context.Context) {
 		return
 	}
 
+	r.emitCustomerOrderInfo()
+
 	op := r.nextRunnableOperation(snapshot.policy, now)
 	if op == nil {
 		return
