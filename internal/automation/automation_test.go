@@ -1892,6 +1892,84 @@ func TestBuildPlan_AutoReplantSpecificFlowersRestrictsOnlyFallback(t *testing.T)
 	}
 }
 
+func TestPlanPlantAssignments_BlockedDemandDoesNotConsumeFallback(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": cultivate(23002)},
+	})
+	p := DefaultPolicy()
+
+	plan := planPlantAssignments(s, p.Plant, []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  1,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}, 2)
+	if len(plan.blockedDiagnostic) != 1 {
+		t.Fatalf("blocked diagnostics len=%d, want 1: %+v", len(plan.blockedDiagnostic), plan)
+	}
+	blocked := plan.blockedDiagnostic[0]
+	if blocked.FlowerID != 23001 || blocked.Count != 0 || blocked.Priority != blockedPlantDiagnosticPriority ||
+		blocked.GoalID != GoalCustomerOrder || blocked.DemandID != "demand-23001" || blocked.Reason != blockedPlantDiagnosticReason {
+		t.Fatalf("blocked diagnostic mismatch: %+v", blocked)
+	}
+	if len(plan.executable) == 0 {
+		t.Fatalf("fallback auto-replant should still be executable: %+v", plan)
+	}
+	for _, assignment := range plan.executable {
+		if assignment.GoalID != GoalAutoReplant || assignment.FlowerID != 23002 || assignment.Count <= 0 {
+			t.Fatalf("blocked demand should not consume fallback slots, assignment=%+v plan=%+v", assignment, plan)
+		}
+	}
+}
+
+func TestFarmOps_BlockedDemandEmitsDiagnosticPlantOperation(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(2)}},
+		"101": map[string]any{"0": cultivate(23002)},
+	})
+	p := DefaultPolicy()
+	demands := []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  1,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}
+
+	ops := farmOps(s, p.Plant, demands, time.Now())
+	var blocked *PlannedOp
+	var fallback *PlannedOp
+	for i := range ops {
+		op := &ops[i]
+		switch {
+		case op.Domain == "farm.plant" && op.FlowerID == 23001:
+			blocked = op
+		case op.Domain == "farm.plant" && op.FlowerID == 23002 && op.Executable:
+			fallback = op
+		}
+	}
+	if fallback == nil {
+		t.Fatalf("blocked diagnostic should not prevent fallback planting, ops=%+v", ops)
+	}
+	if blocked == nil {
+		t.Fatalf("expected blocked plant diagnostic op, ops=%+v", ops)
+	}
+	if blocked.Kind != clientproto.RPCUsrLandPlant.String() || blocked.Executable || blocked.Status != PlanStatusBlocked ||
+		blocked.BlockingStage != "state" || blocked.Priority != blockedPlantDiagnosticPriority ||
+		blocked.GoalID != GoalCustomerOrder || blocked.DemandID != "demand-23001" || blocked.FlowerID != 23001 ||
+		len(blocked.LandIDs) != 0 || blocked.Reason != blockedPlantDiagnosticReason ||
+		!hasReasonContaining(blocked.BlockedReasons, blockedPlantDiagnosticReason) {
+		t.Fatalf("blocked plant diagnostic mismatch: %+v", *blocked)
+	}
+}
+
 func TestPlantAssignments_AutoReplantRangeDoesNotRestrictDemand(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
