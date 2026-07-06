@@ -45,7 +45,7 @@ export default function LoginPage() {
     <main
       className="fixed left-0 top-0 flex h-dvh w-screen items-center justify-center overflow-y-auto overflow-x-hidden bg-[#edf5ea] px-4 py-8 text-[#1e3d28] transition-colors dark:bg-[#07110d] dark:text-[#edf6eb] sm:px-6"
       style={{
-        backgroundImage: "url('/brand/huaxu-login-background.png')",
+        backgroundImage: "url('/brand/cloud-login-background.png')",
         backgroundPosition: "center",
         backgroundSize: "cover",
       }}

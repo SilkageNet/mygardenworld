@@ -4,8 +4,9 @@ import { AuthProvider } from "@/lib/auth/context";
 import { ThemeProvider } from "@/lib/theme/context";
 
 export const metadata: Metadata = {
-  title: "花序",
-  description: "本地花园自动化",
+  applicationName: "小云朵",
+  title: "小云朵",
+  description: "小云朵本地花园自动化",
 };
 
 export default function RootLayout({

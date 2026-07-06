@@ -43,7 +43,7 @@ import (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:           "gardend",
-		Short:         "mygardenworld auto-farmer daemon",
+		Short:         "小云朵 local automation daemon",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

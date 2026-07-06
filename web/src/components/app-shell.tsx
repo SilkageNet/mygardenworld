@@ -49,7 +49,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-background text-foreground xl:h-screen xl:overflow-hidden">
       <header className="sticky top-0 z-20 shrink-0 border-b border-border/70 bg-card/92 backdrop-blur xl:static">
         <div className="flex h-[3.25rem] items-center justify-between px-3 sm:h-14 sm:px-6 lg:px-8 2xl:px-10">
-          <Link href="/" className="relative size-9 shrink-0 overflow-hidden sm:size-10" aria-label="首页">
+          <Link href="/" className="relative size-9 shrink-0 overflow-hidden sm:size-10" aria-label="小云朵首页">
             <Image
               src="/brand/cloud-logo.svg"
               alt="小云朵"
