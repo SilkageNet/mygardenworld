@@ -1,0 +1,539 @@
+package state
+
+import (
+	"encoding/json"
+	"time"
+)
+
+const FlowerSeedLow = 23000
+
+// FlowerSeedHigh is the exclusive upper itemId for flower seeds.
+const FlowerSeedHigh = 24000
+
+// LandView mirrors the G.ILand schema: per-land state observed on the wire.
+//
+//	field 0 = flowerId
+//	field 1 = state (1=just planted, 3=initial bloom ready, 2=regrowing)
+//	field 2 = lvl (land level)
+//	field 3 = harvestCnt (times this plant has been harvested)
+//	field 5 = nextTime (ms; next state transition - regrow ready)
+//	field 7 = plantTime (ms; last plant/state-change tick)
+type LandView struct {
+	FlowerID    int   `json:"flower_id,omitempty"`
+	State       int   `json:"state,omitempty"`
+	Lvl         int   `json:"lvl,omitempty"`
+	HarvestCnt  int   `json:"harvest_cnt,omitempty"`
+	NextTimeMs  int64 `json:"next_time_ms,omitempty"`
+	PlantTimeMs int64 `json:"plant_time_ms,omitempty"`
+
+	// Observed = the server has confirmed this land's state at least once
+	// (including the empty-after-harvest state). Distinguishes "land we have
+	// never seen" from "land we know is empty and ready to plant".
+	Observed bool `json:"observed,omitempty"`
+}
+
+// IsPlanted returns true when a flower id is set on the land.
+func (l LandView) IsPlanted() bool { return l.FlowerID != 0 }
+
+// FromPrimary builds a LandView from the raw `100.1.<id>` JSON dict. Server
+// responses use numeric-string keys ("0".."7"), per the G.ILand schema.
+func FromPrimary(raw map[string]any) LandView {
+	v := LandView{Observed: true}
+	v.FlowerID = readInt(raw, "0")
+	v.State = readInt(raw, "1")
+	v.Lvl = readInt(raw, "2")
+	v.HarvestCnt = readInt(raw, "3")
+	v.NextTimeMs = readInt64(raw, "5")
+	v.PlantTimeMs = readInt64(raw, "7")
+	return v
+}
+
+// EmptyObserved is what we record after a harvest clears the land
+// (server sends `100.1.<id> = {}`) - we still mark it observed so the
+// automation engine knows the slot is plant-ready, not unknown.
+func EmptyObserved() LandView { return LandView{Observed: true} }
+
+// ToJSON returns the LandView as JSON for event emission.
+func (l LandView) ToJSON() map[string]any {
+	return map[string]any{
+		"flowerId":   l.FlowerID,
+		"state":      l.State,
+		"lvl":        l.Lvl,
+		"harvestCnt": l.HarvestCnt,
+		"nextTime":   l.NextTimeMs,
+		"plantTime":  l.PlantTimeMs,
+		"observed":   l.Observed,
+	}
+}
+
+// CultivateView mirrors the G.ICultivate schema from namespace 101.
+//
+//	field 1 = flowerId
+//	field 2 = lvl (cultivation level, 0-5)
+//	field 3 = culTime (ms; cultivation completion timestamp)
+//	field 4 = status (0=idle, 1=cultivating, 2=received/ready for upgrade)
+//	field 5 = uTime (ms; last update)
+type CultivateView struct {
+	FlowerID  int32 `json:"flower_id"`
+	Lvl       int32 `json:"lvl"`
+	CulTimeMs int64 `json:"cul_time_ms"`
+	Status    int32 `json:"status"`
+	UTimeMs   int64 `json:"u_time_ms"`
+}
+
+// FlowerOrder represents a resident order box from namespace 105 (orderFlower).
+type FlowerOrder struct {
+	BoxID    int32           `json:"box_id"`
+	Mode     int32           `json:"mode,omitempty"`
+	Requires []FlowerRequire `json:"requires"`
+	CdTimeMs int64           `json:"cd_time_ms,omitempty"`
+	CTimeMs  int64           `json:"c_time_ms,omitempty"`
+}
+
+func (o *FlowerOrder) CooldownReady(now time.Time) bool {
+	if o == nil || o.CdTimeMs <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(o.CdTimeMs))
+}
+
+func (o *FlowerOrder) CooldownRemaining(now time.Time) time.Duration {
+	if o == nil || o.CdTimeMs <= 0 {
+		return 0
+	}
+	remaining := time.UnixMilli(o.CdTimeMs).Sub(now)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+// CustomerOrder represents a customer order from namespace 109 (orderCustomer).
+type CustomerOrder struct {
+	NPCID        int32           `json:"npc_id"`
+	Requires     []FlowerRequire `json:"requires,omitempty"`
+	ItemRequires []ItemRequire   `json:"item_requires,omitempty"`
+	FinishCnt    int32           `json:"finish_cnt,omitempty"`
+}
+
+// CustomerOrderSummary tracks namespace 109 metadata outside the active order
+// map. nextGenTime is the server/client cooldown used before genOrder.
+type CustomerOrderSummary struct {
+	Observed      bool  `json:"observed,omitempty"`
+	NextGenTimeMs int64 `json:"next_gen_time_ms,omitempty"`
+	UpdatedAtMs   int64 `json:"updated_at_ms,omitempty"`
+	CreatedAtMs   int64 `json:"created_at_ms,omitempty"`
+	CreateCount   int32 `json:"create_count,omitempty"`
+	ActiveCount   int32 `json:"active_count,omitempty"`
+}
+
+// ResidentSpecialOrder represents satin/decorate resident orders embedded in
+// namespace 105. The observed protocol currently exposes counters and NPC data
+// but not a reliable per-flower requirement list, so execution remains gated
+// until requirements are explicit.
+type ResidentSpecialOrder struct {
+	Observed  bool  `json:"observed,omitempty"`
+	Flowers   int32 `json:"flowers,omitempty"`
+	NPCID     int32 `json:"npc_id,omitempty"`
+	DialogID  int32 `json:"dialog_id,omitempty"`
+	FinishCnt int32 `json:"finish_cnt,omitempty"`
+	IsVideo   int32 `json:"is_video,omitempty"`
+	VideoRwd  int32 `json:"video_rwd,omitempty"`
+	CdTimeMs  int64 `json:"cd_time_ms,omitempty"`
+	CTimeMs   int64 `json:"c_time_ms,omitempty"`
+}
+
+// PalaceOrderView is the tracked subset of namespace 108 (orderPalaceTot).
+type PalaceOrderView struct {
+	Observed bool  `json:"observed,omitempty"`
+	UID      int64 `json:"uid,omitempty"`
+	FlowerID int32 `json:"flower_id,omitempty"`
+	Num      int32 `json:"num,omitempty"`
+	IsFinish int32 `json:"is_finish,omitempty"`
+	LTimeMs  int64 `json:"l_time_ms,omitempty"`
+	UTimeMs  int64 `json:"u_time_ms,omitempty"`
+	CTimeMs  int64 `json:"c_time_ms,omitempty"`
+}
+
+// TeamOrderView is the tracked subset of namespace 107 (orderTeamTot).
+type TeamOrderView struct {
+	Observed      bool  `json:"observed,omitempty"`
+	UID           int64 `json:"uid,omitempty"`
+	Status        int32 `json:"status,omitempty"`
+	StartTimeMs   int64 `json:"start_time_ms,omitempty"`
+	OrderNum      int32 `json:"order_num,omitempty"`
+	FlowerID      int32 `json:"flower_id,omitempty"`
+	Reward        int32 `json:"reward,omitempty"`
+	RemainingNum  int32 `json:"remaining_num,omitempty"`
+	RefreshNotCnt int32 `json:"refresh_not_cnt,omitempty"`
+	UTimeMs       int64 `json:"u_time_ms,omitempty"`
+	CTimeMs       int64 `json:"c_time_ms,omitempty"`
+	ActiveTimeMs  int64 `json:"active_time_ms,omitempty"`
+	ActiveCnt     int32 `json:"active_cnt,omitempty"`
+	NPCID         int32 `json:"npc_id,omitempty"`
+}
+
+// FlowerRackSlot represents one shelf slot from namespace 104 (flowerRack).
+type FlowerRackSlot struct {
+	RackID        int32 `json:"rack_id"`
+	ItemID        int32 `json:"item_id,omitempty"`
+	Count         int32 `json:"count,omitempty"`
+	ListedAtMs    int64 `json:"listed_at_ms,omitempty"`
+	SellReadyAtMs int64 `json:"sell_ready_at_ms,omitempty"`
+	UpdatedAtMs   int64 `json:"updated_at_ms,omitempty"`
+}
+
+// MailView is the tracked subset of namespace 19 (mailTot.list) needed for
+// ordinary mail reward collection.
+type MailView struct {
+	MsID     int32           `json:"ms_id,omitempty"`
+	AllID    int32           `json:"all_id,omitempty"`
+	IsDel    int32           `json:"is_del,omitempty"`
+	IsRead   int32           `json:"is_read,omitempty"`
+	IsPick   int32           `json:"is_pick,omitempty"`
+	ItemsRaw json.RawMessage `json:"items_raw,omitempty"`
+}
+
+// MailPickTarget is the RPC key pair for mail.pick.
+type MailPickTarget struct {
+	MsID  int32 `json:"ms_id,omitempty"`
+	AllID int32 `json:"all_id,omitempty"`
+}
+
+// VaseView represents one unlocked vase from namespace 102 (vaseTot).
+type VaseView struct {
+	VaseID  int32 `json:"vase_id"`
+	UTimeMs int64 `json:"u_time_ms,omitempty"`
+	CTimeMs int64 `json:"c_time_ms,omitempty"`
+}
+
+// FlowerArtView is the tracked subset of namespace 106 (flowerArtTot).
+type FlowerArtView struct {
+	Exp          int32           `json:"exp,omitempty"`
+	MakeList     []int32         `json:"make_list,omitempty"`
+	MakeListRaw  json.RawMessage `json:"make_list_raw,omitempty"`
+	SRecvList    []int32         `json:"s_recv_list,omitempty"`
+	SRecvListRaw json.RawMessage `json:"s_recv_list_raw,omitempty"`
+	UTimeMs      int64           `json:"u_time_ms,omitempty"`
+	CTimeMs      int64           `json:"c_time_ms,omitempty"`
+	Observed     bool            `json:"observed,omitempty"`
+}
+
+// CollectRewardView is the tracked subset of namespace 103 (collectRwdTot).
+type CollectRewardView struct {
+	Type               int32   `json:"type"`
+	Lvl                int32   `json:"lvl,omitempty"`
+	Exp                int32   `json:"exp,omitempty"`
+	RecvIDs            []int32 `json:"recv_ids,omitempty"`
+	ArtCreateRewardIDs []int32 `json:"art_create_reward_ids,omitempty"`
+	UTimeMs            int64   `json:"u_time_ms,omitempty"`
+	CTimeMs            int64   `json:"c_time_ms,omitempty"`
+}
+
+// FmlBuildView is the tracked subset of namespace 25 (fmlTot) needed for
+// guild build automation.
+type FmlBuildView struct {
+	Observed            bool            `json:"observed,omitempty"`
+	FmlID               int32           `json:"fml_id,omitempty"`
+	TodayBuildNum       int32           `json:"today_build_num,omitempty"`
+	LastBuildTimeMs     int64           `json:"last_build_time_ms,omitempty"`
+	BuildCountsObserved bool            `json:"build_counts_observed,omitempty"`
+	BuildCounts         map[int32]int32 `json:"build_counts,omitempty"`
+}
+
+// FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
+type FmlLandView struct {
+	LandID          int32 `json:"land_id"`
+	Level           int32 `json:"level,omitempty"`
+	FlowerID        int32 `json:"flower_id,omitempty"`
+	StartTimeMs     int64 `json:"start_time_ms,omitempty"`
+	MatureFlowerCnt int32 `json:"mature_flower_count,omitempty"`
+	HarvestedCnt    int32 `json:"harvested_count,omitempty"`
+	LastCalcTimeMs  int64 `json:"last_calc_time_ms,omitempty"`
+}
+
+// FmlForestEnergyView is the tracked subset of namespace 25.127
+// (fmlForestEnergy) needed for no-cost energy collection.
+type FmlForestEnergyView struct {
+	Observed                bool            `json:"observed,omitempty"`
+	UID                     int64           `json:"uid,omitempty"`
+	FmlID                   int32           `json:"fml_id,omitempty"`
+	EnergyByType            map[int32]int32 `json:"energy_by_type,omitempty"`
+	DailyEnergyByType       map[int32]int32 `json:"daily_energy_by_type,omitempty"`
+	PendingTempEnergyByType map[int32]int32 `json:"pending_temp_energy_by_type,omitempty"`
+	PendingTempEnergyTotal  int32           `json:"pending_temp_energy_total,omitempty"`
+	UpdatedAtMs             int64           `json:"updated_at_ms,omitempty"`
+	LastDailyRefreshTimeMs  int64           `json:"last_daily_refresh_time_ms,omitempty"`
+}
+
+// FmlFlowerShareSlotView is one guild flower-share slot.
+type FmlFlowerShareSlotView struct {
+	SlotID           int32 `json:"slot_id"`
+	FlowerID         int32 `json:"flower_id,omitempty"`
+	ShareNum         int32 `json:"share_num,omitempty"`
+	TakeNum          int32 `json:"take_num,omitempty"`
+	ShareStartTimeMs int64 `json:"share_start_time_ms,omitempty"`
+}
+
+// FmlFlowerShareView is namespace 25.107/25.108 guild flower sharing state.
+type FmlFlowerShareView struct {
+	Observed       bool                             `json:"observed,omitempty"`
+	UID            int64                            `json:"uid,omitempty"`
+	TdyTakeCnt     int32                            `json:"today_take_count,omitempty"`
+	LastTakeTimeMs int64                            `json:"last_take_time_ms,omitempty"`
+	UpdatedAtMs    int64                            `json:"updated_at_ms,omitempty"`
+	CreatedAtMs    int64                            `json:"created_at_ms,omitempty"`
+	Slots          map[int32]FmlFlowerShareSlotView `json:"slots,omitempty"`
+}
+
+// FmlFlowerTakeCandidate is one no-cost guild flower-share take candidate.
+type FmlFlowerTakeCandidate struct {
+	UID       int64 `json:"uid,omitempty"`
+	SlotID    int32 `json:"slot_id"`
+	FlowerID  int32 `json:"flower_id,omitempty"`
+	ShareNum  int32 `json:"share_num,omitempty"`
+	TakeNum   int32 `json:"take_num,omitempty"`
+	Available int32 `json:"available,omitempty"`
+}
+
+// ShopCultivateOfferView is one buyable material-shop offer from namespace 113.
+type ShopCultivateOfferView struct {
+	ShopID     int32 `json:"shop_id"`
+	ItemID     int32 `json:"item_id,omitempty"`
+	ItemCount  int32 `json:"item_count,omitempty"`
+	CostItemID int32 `json:"cost_item_id,omitempty"`
+	CostCount  int32 `json:"cost_count,omitempty"`
+	Bought     int32 `json:"bought,omitempty"`
+	BuyLimit   int32 `json:"buy_limit,omitempty"`
+	Remaining  int32 `json:"remaining,omitempty"`
+	Sort       int32 `json:"sort,omitempty"`
+}
+
+// ShopGiftbagOfferView is one configured gift-bag shop item enriched with
+// namespace 112 purchase records.
+type ShopGiftbagOfferView struct {
+	ShopID      int32       `json:"shop_id"`
+	Type        int32       `json:"type,omitempty"`
+	ShareID     int32       `json:"share_id,omitempty"`
+	RchgID      int32       `json:"rchg_id,omitempty"`
+	MoneyID     int32       `json:"money_id,omitempty"`
+	Price       int32       `json:"price,omitempty"`
+	PriceMax    int32       `json:"price_max,omitempty"`
+	DailyLimit  int32       `json:"daily_limit,omitempty"`
+	WeeklyLimit int32       `json:"weekly_limit,omitempty"`
+	MonthLimit  int32       `json:"month_limit,omitempty"`
+	TotalLimit  int32       `json:"total_limit,omitempty"`
+	DailyBought int32       `json:"daily_bought,omitempty"`
+	WeekBought  int32       `json:"week_bought,omitempty"`
+	MonthBought int32       `json:"month_bought,omitempty"`
+	TotalBought int32       `json:"total_bought,omitempty"`
+	Remaining   int32       `json:"remaining,omitempty"`
+	Sort        int32       `json:"sort,omitempty"`
+	Rewards     []ItemCount `json:"rewards,omitempty"`
+}
+
+// PearlView is the tracked subset of namespace 115.1 (pearl).
+type PearlView struct {
+	ProtectState  int32 `json:"protect_state,omitempty"`
+	ProtectNum    int32 `json:"protect_num,omitempty"`
+	OwnerUID      int64 `json:"owner_uid,omitempty"`
+	LaborEndTime  int64 `json:"labor_end_time_ms,omitempty"`
+	RecvDailyDate int64 `json:"recv_daily_date_ms,omitempty"`
+	HireState     int32 `json:"hire_state,omitempty"`
+	SmallDrawCnt  int32 `json:"small_draw_cnt,omitempty"`
+	UTimeMs       int64 `json:"u_time_ms,omitempty"`
+	CTimeMs       int64 `json:"c_time_ms,omitempty"`
+	Observed      bool  `json:"observed,omitempty"`
+}
+
+// PearlPlaceView is one pearl labor/production slot from namespace 115.0.
+type PearlPlaceView struct {
+	PlaceID        int32 `json:"place_id"`
+	LaborUID       int64 `json:"labor_uid,omitempty"`
+	LaborEndTime   int64 `json:"labor_end_time_ms,omitempty"`
+	HireFailCnt    int32 `json:"hire_fail_cnt,omitempty"`
+	EventID        int32 `json:"event_id,omitempty"`
+	EveryMakeNum   int32 `json:"every_make_num,omitempty"`
+	RecvCnt        int32 `json:"recv_cnt,omitempty"`
+	SurplusRecvNum int32 `json:"surplus_recv_num,omitempty"`
+	UTimeMs        int64 `json:"u_time_ms,omitempty"`
+	CTimeMs        int64 `json:"c_time_ms,omitempty"`
+}
+
+// FlowerRequire is a single flower requirement in an order.
+type FlowerRequire struct {
+	FlowerID int32 `json:"flower_id"`
+	Count    int32 `json:"count"`
+}
+
+// ItemRequire is a generic inventory item requirement in an order.
+type ItemRequire struct {
+	ItemID int32 `json:"item_id"`
+	Count  int32 `json:"count"`
+}
+
+// PlantableFlower describes a cultivated flower currently available for
+// planting.
+type PlantableFlower struct {
+	FlowerID   int32 `json:"flower_id"`
+	Stock      int32 `json:"stock"`
+	Gold       int32 `json:"gold,omitempty"`
+	Experience int32 `json:"experience,omitempty"`
+}
+
+// DailyTaskView is the tracked subset of G.ITaskItem from namespace 22.
+type DailyTaskView struct {
+	TaskID       int32 `json:"task_id"`
+	ProgressType int32 `json:"progress_type"`
+	Target       int32 `json:"target"`
+	Finished     int32 `json:"finished"`
+	Status       int32 `json:"status"`
+	Receipted    int32 `json:"receipted"`
+}
+
+// WeeklyTaskView is the tracked subset of c_task_week evaluated against
+// namespace 22.100 progress and receipt maps.
+type WeeklyTaskView struct {
+	TaskID    int32 `json:"task_id"`
+	Target    int32 `json:"target"`
+	Finished  int32 `json:"finished"`
+	Status    int32 `json:"status"`
+	Receipted int32 `json:"receipted"`
+}
+
+// AchievementTaskView is the tracked subset of G.ITaskAch evaluated against
+// c_task_ach and namespace 22.2 progress/receipt maps.
+type AchievementTaskView struct {
+	TaskID        int32 `json:"task_id"`
+	GroupID       int32 `json:"group_id"`
+	StageIndex    int32 `json:"stage_index"`
+	ProgressType  int32 `json:"progress_type"`
+	Target        int32 `json:"target"`
+	Finished      int32 `json:"finished"`
+	Status        int32 `json:"status"`
+	Receipted     int32 `json:"receipted"`
+	GroupReceived int32 `json:"group_received"`
+	Current       bool  `json:"current"`
+}
+
+// MainTaskView is the tracked subset of G.ITaskMain from namespace 22.0.
+type MainTaskView struct {
+	TaskID   int32 `json:"task_id"`
+	Finished int32 `json:"finished"`
+}
+
+// StoryMainView is the tracked subset of 7.101 (G.IStoryMain).
+type StoryMainView struct {
+	Observed    bool        `json:"observed,omitempty"`
+	UID         int64       `json:"uid,omitempty"`
+	Chapter     int32       `json:"chapter,omitempty"`
+	SectionIdx  int32       `json:"section_idx,omitempty"`
+	SectionID   int32       `json:"section_id,omitempty"`
+	ChapterName string      `json:"chapter_name,omitempty"`
+	SectionName string      `json:"section_name,omitempty"`
+	Cost        []ItemCount `json:"cost,omitempty"`
+	UTimeMs     int64       `json:"u_time_ms,omitempty"`
+	CTimeMs     int64       `json:"c_time_ms,omitempty"`
+}
+
+// RandomEventView is the tracked subset of namespace 129 map events. Static
+// client schema names 129.IRandomEventInfo.1/2 as posIdx/dialogId; current
+// status/affair semantics are capture-derived and pending revalidation.
+type RandomEventView struct {
+	EventID int32 `json:"event_id"`
+	Status  int32 `json:"status"`
+	Affair  int32 `json:"affair"`
+}
+
+const (
+	// AntiFraudQAStatusClaimed is the client-observed terminal state for the
+	// anti-fraud QA reward. Any other observed state keeps the red-dot entry
+	// visible in game.js.
+	AntiFraudQAStatusClaimed int32 = 2
+)
+
+// UsrExtraView is the tracked subset of 7.13.1 (G.IUsrExtra).
+type UsrExtraView struct {
+	Observed              bool  `json:"observed,omitempty"`
+	AntiFraudQAStatus     int32 `json:"anti_fraud_qa_status,omitempty"`
+	LastAntiFraudQATimeMs int64 `json:"last_anti_fraud_qa_time_ms,omitempty"`
+}
+
+// ReputationView is the tracked subset of 7.17.0 (G.IReputationUsr).
+type ReputationView struct {
+	Observed       bool  `json:"observed,omitempty"`
+	UID            int64 `json:"uid,omitempty"`
+	Score          int32 `json:"score,omitempty"`
+	LastSyncTimeMs int64 `json:"last_sync_time_ms,omitempty"`
+	LastViewTimeMs int64 `json:"last_view_time_ms,omitempty"`
+	UTimeMs        int64 `json:"u_time_ms,omitempty"`
+	CTimeMs        int64 `json:"c_time_ms,omitempty"`
+}
+
+// VideoDoubleView is the tracked subset of namespace 118 (G.IVideoDouble).
+type VideoDoubleView struct {
+	Observed    bool  `json:"observed,omitempty"`
+	UID         int64 `json:"uid,omitempty"`
+	VideoCount  int32 `json:"video_count,omitempty"`
+	EndTimeMs   int64 `json:"end_time_ms,omitempty"`
+	UpdatedAtMs int64 `json:"updated_at_ms,omitempty"`
+	CreatedAtMs int64 `json:"created_at_ms,omitempty"`
+}
+
+// StatisticsView is the tracked subset of namespace 124 (statisticsTot).
+type StatisticsView struct {
+	Observed               bool  `json:"observed,omitempty"`
+	DayID                  int32 `json:"day_id,omitempty"`
+	OrderFlowerFinishNum   int32 `json:"order_flower_finish_num,omitempty"`
+	OrderPalaceFinishNum   int32 `json:"order_palace_finish_num,omitempty"`
+	OrderCustomerFinishNum int32 `json:"order_customer_finish_num,omitempty"`
+	OrderSatinFinishNum    int32 `json:"order_satin_finish_num,omitempty"`
+	OrderDecorateFinishNum int32 `json:"order_decorate_finish_num,omitempty"`
+	FlowerArtSellNum       int32 `json:"flower_art_sell_num,omitempty"`
+	UTimeMs                int64 `json:"u_time_ms,omitempty"`
+	CTimeMs                int64 `json:"c_time_ms,omitempty"`
+}
+
+// ZooView is the tracked subset of namespace 33.0 (G.IZoo).
+type ZooView struct {
+	Observed          bool    `json:"observed,omitempty"`
+	UID               int64   `json:"uid,omitempty"`
+	Comfort           int32   `json:"comfort,omitempty"`
+	PetIDs            []int32 `json:"pet_ids,omitempty"`
+	ReadLogTimeMs     int64   `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs       int64   `json:"updated_at_ms,omitempty"`
+	SouvenirRewardIDs []int32 `json:"souvenir_reward_ids,omitempty"`
+}
+
+// ZooPetView is one pet from namespace 33.1.<petId> (G.IZooPet).
+type ZooPetView struct {
+	PetID             int32           `json:"pet_id"`
+	UID               int64           `json:"uid,omitempty"`
+	MoodValue         int32           `json:"mood_value,omitempty"`
+	SatietyValue      int32           `json:"satiety_value,omitempty"`
+	FoodstuffIDs      []int32         `json:"foodstuff_ids,omitempty"`
+	Status            int32           `json:"status,omitempty"`
+	GoOutEventID      int32           `json:"go_out_event_id,omitempty"`
+	SpecialEventIDs   []int32         `json:"special_event_ids,omitempty"`
+	StrokeCdTimeMs    int64           `json:"stroke_cd_time_ms,omitempty"`
+	StatusCdTimeMs    int64           `json:"status_cd_time_ms,omitempty"`
+	GoOutCdTimeMs     int64           `json:"go_out_cd_time_ms,omitempty"`
+	GetHomeTimeMs     int64           `json:"get_home_time_ms,omitempty"`
+	ReadLogTimeMs     int64           `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs       int64           `json:"updated_at_ms,omitempty"`
+	EventTriggerTimes map[int32]int64 `json:"event_trigger_times,omitempty"`
+}
+
+// ZooEventAction is a conservative action candidate derived from one pet's
+// current go-out event.
+type ZooEventAction struct {
+	PetID         int32  `json:"pet_id"`
+	EventID       int32  `json:"event_id"`
+	TableID       int32  `json:"table_id,omitempty"`
+	Name          string `json:"name,omitempty"`
+	Action        string `json:"action,omitempty"` // find_pet or handle_event
+	Agree         bool   `json:"agree,omitempty"`
+	IsShareVideo  int32  `json:"is_share_video,omitempty"`
+	Blocked       bool   `json:"blocked,omitempty"`
+	BlockedReason string `json:"blocked_reason,omitempty"`
+}

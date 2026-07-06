@@ -1,0 +1,587 @@
+package state
+
+import (
+	"encoding/json"
+	"sort"
+	"time"
+)
+
+func (s *State) applyCollectRewardsLocked(raw json.RawMessage) {
+	var ns103 map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &ns103); err != nil {
+		return
+	}
+	raw0, ok := ns103["0"]
+	if !ok {
+		return
+	}
+	var rewards map[string]json.RawMessage
+	if err := json.Unmarshal(raw0, &rewards); err != nil {
+		return
+	}
+	next := make(map[int32]*CollectRewardView, len(rewards))
+	for typeStr, rawReward := range rewards {
+		typeID := atoi32(typeStr)
+		if typeID == 0 {
+			continue
+		}
+		view := &CollectRewardView{Type: typeID}
+		if len(rawReward) > 0 && string(rawReward) != "{}" {
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(rawReward, &fields); err == nil {
+				if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
+					view.Type = n
+				}
+				if n, ok := readInt32JSONField(fields, "2"); ok {
+					view.Lvl = n
+				}
+				if n, ok := readInt32JSONField(fields, "3"); ok {
+					view.Exp = n
+				}
+				if rawRecv, ok := fields["4"]; ok {
+					view.RecvIDs = readInt32ListRaw(rawRecv)
+				}
+				if n, ok := readInt64JSONField(fields, "5"); ok {
+					view.UTimeMs = n
+				}
+				if n, ok := readInt64JSONField(fields, "6"); ok {
+					view.CTimeMs = n
+				}
+				if rawArtCreate, ok := fields["7"]; ok {
+					view.ArtCreateRewardIDs = readInt32ListRaw(rawArtCreate)
+				}
+			}
+		}
+		next[view.Type] = view
+	}
+	s.collectRewards = next
+	s.collectRewardObserved = true
+}
+
+func (s *State) applyShopCultivateLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if s.shopCultivateCosts == nil {
+		s.shopCultivateCosts = make(map[int32]ItemCount)
+	}
+	if s.shopCultivateBought == nil {
+		s.shopCultivateBought = make(map[int32]int32)
+	}
+	if rawInfo, ok := fields["1"]; ok {
+		var costs map[string]json.RawMessage
+		if err := json.Unmarshal(rawInfo, &costs); err == nil {
+			next := make(map[int32]ItemCount, len(costs))
+			for shopIDStr, rawCost := range costs {
+				shopID := atoi32(shopIDStr)
+				if shopID == 0 {
+					continue
+				}
+				parts := readInt32OrderedListRaw(rawCost)
+				if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
+					continue
+				}
+				next[shopID] = ItemCount{ItemID: parts[0], Count: parts[1]}
+			}
+			s.shopCultivateCosts = next
+		}
+	}
+	if rawBought, ok := fields["6"]; ok {
+		s.shopCultivateBought = readInt32RawMap(rawBought)
+	}
+	s.shopCultivateObserved = true
+}
+
+func (s *State) applyShopGiftbagLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if rawDRecord, ok := fields["1"]; ok {
+		s.shopGiftbagDRecord = readInt32RawMap(rawDRecord)
+	}
+	if rawWRecord, ok := fields["2"]; ok {
+		s.shopGiftbagWRecord = readInt32RawMap(rawWRecord)
+	}
+	if rawMRecord, ok := fields["3"]; ok {
+		s.shopGiftbagMRecord = readInt32RawMap(rawMRecord)
+	}
+	if rawTRecord, ok := fields["4"]; ok {
+		s.shopGiftbagTRecord = readInt32RawMap(rawTRecord)
+	}
+	s.shopGiftbagObserved = true
+}
+
+func (s *State) applyPearlLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if s.pearlPlaces == nil {
+		s.pearlPlaces = make(map[int32]*PearlPlaceView)
+	}
+	if rawPlaces, ok := fields["0"]; ok {
+		var places map[string]json.RawMessage
+		if err := json.Unmarshal(rawPlaces, &places); err == nil {
+			for placeIDStr, rawPlace := range places {
+				placeID := atoi32(placeIDStr)
+				if placeID == 0 {
+					continue
+				}
+				view := s.pearlPlaces[placeID]
+				if view == nil {
+					view = &PearlPlaceView{PlaceID: placeID}
+					s.pearlPlaces[placeID] = view
+				}
+				applyPearlPlaceFields(view, rawPlace)
+			}
+		}
+	}
+	if rawPearl, ok := fields["1"]; ok {
+		applyPearlFields(&s.pearl, rawPearl)
+	}
+	if rawDraw, ok := fields["2"]; ok {
+		s.pearlDrawRaw = cloneRaw(rawDraw)
+		s.pearlDrawCount = rawCollectionCount(rawDraw)
+	}
+	s.pearlObserved = true
+}
+
+func applyPearlFields(view *PearlView, raw json.RawMessage) {
+	if view == nil {
+		return
+	}
+	view.Observed = true
+	if len(raw) == 0 || string(raw) == "{}" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok {
+		view.ProtectState = n
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.ProtectNum = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.OwnerUID = n
+	}
+	if n, ok := readInt64JSONField(fields, "4"); ok {
+		view.LaborEndTime = n
+	}
+	if n, ok := readInt64JSONField(fields, "6"); ok {
+		view.RecvDailyDate = n
+	}
+	if n, ok := readInt32JSONField(fields, "7"); ok {
+		view.HireState = n
+	}
+	if n, ok := readInt32JSONField(fields, "8"); ok {
+		view.SmallDrawCnt = n
+	}
+	if n, ok := readInt64JSONField(fields, "9"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "10"); ok {
+		view.CTimeMs = n
+	}
+}
+
+func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
+	if view == nil || len(raw) == 0 || string(raw) == "{}" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
+		view.PlaceID = n
+	}
+	if n, ok := readInt64JSONField(fields, "2"); ok {
+		view.LaborUID = n
+	}
+	if n, ok := readInt64JSONField(fields, "3"); ok {
+		view.LaborEndTime = n
+	}
+	if n, ok := readInt32JSONField(fields, "4"); ok {
+		view.HireFailCnt = n
+	}
+	if n, ok := readInt32JSONField(fields, "5"); ok {
+		view.EventID = n
+	}
+	if n, ok := readInt32JSONField(fields, "6"); ok {
+		view.EveryMakeNum = n
+	}
+	if n, ok := readInt32JSONField(fields, "7"); ok {
+		view.RecvCnt = n
+	}
+	if n, ok := readInt32JSONField(fields, "8"); ok {
+		view.SurplusRecvNum = n
+	}
+	if n, ok := readInt64JSONField(fields, "9"); ok {
+		view.UTimeMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "10"); ok {
+		view.CTimeMs = n
+	}
+}
+
+// CollectRewards returns the currently observed namespace 103 reward state.
+func (s *State) CollectRewards() map[int32]CollectRewardView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]CollectRewardView, len(s.collectRewards))
+	for k, v := range s.collectRewards {
+		if v == nil {
+			continue
+		}
+		cp := *v
+		cp.RecvIDs = cloneInt32s(v.RecvIDs)
+		cp.ArtCreateRewardIDs = cloneInt32s(v.ArtCreateRewardIDs)
+		out[k] = cp
+	}
+	return out
+}
+
+// CollectRewardObserved reports whether namespace 103 has been observed.
+func (s *State) CollectRewardObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.collectRewardObserved
+}
+
+// ReadyCollectRewardTypes returns collectRwd.recv types that have at least
+// one unclaimed c_flowerCollect reward at or below the observed exp.
+func (s *State) ReadyCollectRewardTypes(types ...int32) []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.collectRewards) == 0 {
+		return nil
+	}
+	filter := setOf(types)
+	out := make([]int32, 0, len(s.collectRewards))
+	for typeID, reward := range s.collectRewards {
+		if reward == nil {
+			continue
+		}
+		if len(filter) > 0 {
+			if _, ok := filter[typeID]; !ok {
+				continue
+			}
+		}
+		if collectRewardReady(*reward) {
+			out = append(out, typeID)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyArtCreateRewardVaseIDs returns vase ids whose flower-art creation
+// reward can be claimed through collectRwd.recvArtCreateRwdByVase.
+func (s *State) ReadyArtCreateRewardVaseIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	reward := s.collectRewards[13]
+	if reward == nil || len(s.flowerArt.MakeList) == 0 {
+		return nil
+	}
+	received := setOf(reward.ArtCreateRewardIDs)
+	ready := map[int32]struct{}{}
+	for _, artID := range s.flowerArt.MakeList {
+		if artID <= 0 {
+			continue
+		}
+		if _, ok := received[artID]; ok {
+			continue
+		}
+		vaseID := (artID - 1) / 100
+		if vaseID <= 0 {
+			continue
+		}
+		ready[vaseID] = struct{}{}
+	}
+	out := make([]int32, 0, len(ready))
+	for vaseID := range ready {
+		out = append(out, vaseID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ShopCultivateObserved reports whether namespace 113 has been observed.
+func (s *State) ShopCultivateObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shopCultivateObserved
+}
+
+// ShopCultivateOffers returns current material-shop offers enriched with the
+// static item/limit metadata from c_shop_cultivate.
+func (s *State) ShopCultivateOffers() []ShopCultivateOfferView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]ShopCultivateOfferView, 0, len(s.shopCultivateCosts))
+	for shopID, cost := range s.shopCultivateCosts {
+		view := ShopCultivateOfferView{
+			ShopID:     shopID,
+			CostItemID: cost.ItemID,
+			CostCount:  cost.Count,
+			Bought:     s.shopCultivateBought[shopID],
+		}
+		if itemID, itemCount, buyLimit, sortOrder, ok := shopCultivateStatic(shopID); ok {
+			view.ItemID = itemID
+			view.ItemCount = itemCount
+			view.BuyLimit = buyLimit
+			view.Sort = sortOrder
+		}
+		if view.BuyLimit > 0 {
+			view.Remaining = view.BuyLimit - view.Bought
+			if view.Remaining < 0 {
+				view.Remaining = 0
+			}
+		}
+		out = append(out, view)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Sort != out[j].Sort {
+			return out[i].Sort < out[j].Sort
+		}
+		return out[i].ShopID < out[j].ShopID
+	})
+	return out
+}
+
+// ShopGiftbagObserved reports whether namespace 112 has been observed.
+func (s *State) ShopGiftbagObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shopGiftbagObserved
+}
+
+// ShopGiftbagOffers returns static gift-bag shop rows enriched with observed
+// daily/weekly/monthly/total purchase records.
+func (s *State) ShopGiftbagOffers() []ShopGiftbagOfferView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	table, ok := StaticTableByName("c_shop_giftbag")
+	if !ok {
+		return nil
+	}
+	out := make([]ShopGiftbagOfferView, 0, len(table.Rows))
+	for idStr, rawRow := range table.Rows {
+		shopID := atoi32(idStr)
+		if shopID <= 0 {
+			continue
+		}
+		view, ok := shopGiftbagStatic(shopID, rawRow)
+		if !ok {
+			continue
+		}
+		view.DailyBought = s.shopGiftbagDRecord[shopID]
+		view.WeekBought = s.shopGiftbagWRecord[shopID]
+		view.MonthBought = s.shopGiftbagMRecord[shopID]
+		view.TotalBought = s.shopGiftbagTRecord[shopID]
+		view.Remaining = giftbagRemaining(view)
+		out = append(out, view)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Sort != out[j].Sort {
+			return out[i].Sort < out[j].Sort
+		}
+		return out[i].ShopID < out[j].ShopID
+	})
+	return out
+}
+
+// PearlObserved reports whether namespace 115 has been observed.
+func (s *State) PearlObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pearlObserved
+}
+
+// Pearl returns the currently observed pearl summary state.
+func (s *State) Pearl() PearlView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pearl
+}
+
+// PearlPlaces returns a defensive copy of observed pearl production slots.
+func (s *State) PearlPlaces() map[int32]PearlPlaceView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]PearlPlaceView, len(s.pearlPlaces))
+	for id, place := range s.pearlPlaces {
+		if place == nil {
+			continue
+		}
+		out[id] = *place
+	}
+	return out
+}
+
+// ReadyPearlPlaceIDs returns pearl slots with observed surplus to receive.
+func (s *State) ReadyPearlPlaceIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]int32, 0, len(s.pearlPlaces))
+	for id, place := range s.pearlPlaces {
+		if place != nil && place.SurplusRecvNum > 0 {
+			out = append(out, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// PearlDrawCount returns the number of pearl draw entries currently observed.
+func (s *State) PearlDrawCount() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.pearlDrawCount
+}
+
+// PearlDailyFreeReady reports whether the daily free pearl has not been
+// observed as received for the local day represented by now.
+func (s *State) PearlDailyFreeReady(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.pearlObserved || !s.pearl.Observed {
+		return false
+	}
+	return !sameLocalDay(s.pearl.RecvDailyDate, now)
+}
+
+func collectRewardReady(view CollectRewardView) bool {
+	if view.Type <= 0 || view.Exp <= 0 {
+		return false
+	}
+	table, ok := StaticTableByName("c_flowerCollect")
+	if !ok {
+		return false
+	}
+	received := setOf(view.RecvIDs)
+	for idStr, rawRow := range table.Rows {
+		rowID := atoi32(idStr)
+		if rowID <= 0 || rowID/10000 != view.Type {
+			continue
+		}
+		if _, ok := received[rowID]; ok {
+			continue
+		}
+		var row map[string]json.RawMessage
+		if err := json.Unmarshal(rawRow, &row); err != nil {
+			continue
+		}
+		exp, ok := readInt32JSONField(row, "exp")
+		if !ok || exp <= 0 {
+			continue
+		}
+		if view.Exp >= exp {
+			return true
+		}
+	}
+	return false
+}
+
+func shopCultivateStatic(shopID int32) (itemID, itemCount, buyLimit, sortOrder int32, ok bool) {
+	rawRow, ok := StaticRow("c_shop_cultivate", shopID)
+	if !ok {
+		return 0, 0, 0, 0, false
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return 0, 0, 0, 0, false
+	}
+	if rawItems, ok := row["items"]; ok {
+		var stacks []json.RawMessage
+		if err := json.Unmarshal(rawItems, &stacks); err == nil && len(stacks) > 0 {
+			parts := readInt32OrderedListRaw(stacks[0])
+			if len(parts) >= 2 {
+				itemID = parts[0]
+				itemCount = parts[1]
+			}
+		}
+	}
+	if rawLimit, ok := row["bLimit"]; ok {
+		parts := readInt32OrderedListRaw(rawLimit)
+		if len(parts) > 0 {
+			buyLimit = parts[0]
+		}
+	}
+	if n, ok := readInt32JSONField(row, "sort"); ok {
+		sortOrder = n
+	}
+	return itemID, itemCount, buyLimit, sortOrder, itemID > 0
+}
+
+func shopGiftbagStatic(shopID int32, rawRow json.RawMessage) (ShopGiftbagOfferView, bool) {
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return ShopGiftbagOfferView{}, false
+	}
+	view := ShopGiftbagOfferView{ShopID: shopID}
+	if n, ok := readInt32JSONField(row, "type"); ok {
+		view.Type = n
+	}
+	if n, ok := readInt32JSONField(row, "shareId"); ok {
+		view.ShareID = n
+	}
+	if n, ok := readInt32JSONField(row, "rchgId"); ok {
+		view.RchgID = n
+	}
+	if n, ok := readInt32JSONField(row, "moneyId"); ok {
+		view.MoneyID = n
+	}
+	if n, ok := readInt32JSONField(row, "price"); ok {
+		view.Price = n
+	}
+	if n, ok := readInt32JSONField(row, "priceMax"); ok {
+		view.PriceMax = n
+	}
+	if n, ok := readInt32JSONField(row, "sort"); ok {
+		view.Sort = n
+	}
+	view.DailyLimit = firstInt32ListValue(row["dLimit"])
+	view.WeeklyLimit = firstInt32ListValue(row["wLimit"])
+	view.MonthLimit = firstInt32ListValue(row["mLimit"])
+	view.TotalLimit = firstInt32ListValue(row["tLimit"])
+	if rawItems, ok := row["items"]; ok {
+		view.Rewards = readItemCountsRaw(rawItems)
+	}
+	return view, true
+}
+
+func firstInt32ListValue(raw json.RawMessage) int32 {
+	parts := readInt32OrderedListRaw(raw)
+	if len(parts) == 0 {
+		return 0
+	}
+	return parts[0]
+}
+
+func giftbagRemaining(view ShopGiftbagOfferView) int32 {
+	remaining := int32(0)
+	applyLimit := func(limit, bought int32) {
+		if limit <= 0 {
+			return
+		}
+		left := limit - bought
+		if left < 0 {
+			left = 0
+		}
+		if remaining == 0 || left < remaining {
+			remaining = left
+		}
+	}
+	applyLimit(view.DailyLimit, view.DailyBought)
+	applyLimit(view.WeeklyLimit, view.WeekBought)
+	applyLimit(view.MonthLimit, view.MonthBought)
+	applyLimit(view.TotalLimit, view.TotalBought)
+	return remaining
+}
