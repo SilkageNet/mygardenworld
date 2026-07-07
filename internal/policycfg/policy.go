@@ -1,6 +1,8 @@
 package policycfg
 
 import (
+	"encoding/json"
+
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -67,10 +69,6 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	}
 	if cp.Plant.Planting == nil {
 		cp.Plant.Planting = proto.Clone(def.Plant.Planting).(*pb.PlantingPolicy)
-	}
-	// 旧策略没有 auto_harvest_enabled 字段时，跟随 auto_enabled 的值保持向后兼容
-	if !cp.Plant.Planting.AutoHarvestEnabled && cp.Plant.Planting.AutoEnabled {
-		cp.Plant.Planting.AutoHarvestEnabled = true
 	}
 	if cp.Plant.Planting.AutoReplantMode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED || cp.Plant.Planting.AutoReplantMode == pb.SelectionMode_SELECTION_MODE_QUALITY {
 		cp.Plant.Planting.AutoReplantMode = def.Plant.Planting.AutoReplantMode
@@ -186,8 +184,65 @@ func FromJSON(raw string) (*pb.Policy, error) {
 	if raw == "" {
 		return p, nil
 	}
+	compatAutoHarvest := shouldBackfillAutoHarvest(raw)
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
 	}
+	if compatAutoHarvest {
+		if p.Plant == nil {
+			p.Plant = &pb.PlantPolicy{}
+		}
+		if p.Plant.Planting == nil {
+			p.Plant.Planting = &pb.PlantingPolicy{}
+		}
+		p.Plant.Planting.AutoHarvestEnabled = true
+	}
 	return Normalize(p), nil
+}
+
+func shouldBackfillAutoHarvest(raw string) bool {
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return false
+	}
+	plant, ok := objectField(doc, "plant")
+	if !ok {
+		return false
+	}
+	planting, ok := objectField(plant, "planting")
+	if !ok {
+		return false
+	}
+	if hasAnyField(planting, "auto_harvest_enabled", "autoHarvestEnabled") {
+		return false
+	}
+	return boolField(planting, "auto_enabled", "autoEnabled")
+}
+
+func objectField(obj map[string]any, key string) (map[string]any, bool) {
+	v, ok := obj[key]
+	if !ok {
+		return nil, false
+	}
+	child, ok := v.(map[string]any)
+	return child, ok
+}
+
+func hasAnyField(obj map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if _, ok := obj[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func boolField(obj map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if v, ok := obj[key]; ok {
+			b, ok := v.(bool)
+			return ok && b
+		}
+	}
+	return false
 }

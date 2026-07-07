@@ -18,6 +18,20 @@ func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	}
 }
 
+func TestNormalizePreservesExplicitAutoHarvestDisabled(t *testing.T) {
+	p := Normalize(&pb.Policy{
+		Plant: &pb.PlantPolicy{
+			Planting: &pb.PlantingPolicy{
+				AutoEnabled:        true,
+				AutoHarvestEnabled: false,
+			},
+		},
+	})
+	if p.GetPlant().GetPlanting().GetAutoHarvestEnabled() {
+		t.Fatal("explicit auto_harvest_enabled=false should be preserved")
+	}
+}
+
 func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	raw := `{
 	  "automation_enabled": true,
@@ -37,6 +51,41 @@ func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	}
 	if planting.GetDemandPriority()[automation.GoalCustomerOrder] != 99 {
 		t.Fatalf("custom priority not kept: %+v", planting.GetDemandPriority())
+	}
+}
+
+func TestFromJSONBackfillsAutoHarvestForOldPlantingPolicy(t *testing.T) {
+	raw := `{
+	  "plant": {
+	    "planting": {
+	      "auto_enabled": true
+	    }
+	  }
+	}`
+	p, err := FromJSON(raw)
+	if err != nil {
+		t.Fatalf("FromJSON returned error: %v", err)
+	}
+	if !p.GetPlant().GetPlanting().GetAutoHarvestEnabled() {
+		t.Fatal("old auto_enabled=true policies should keep harvesting enabled")
+	}
+}
+
+func TestFromJSONPreservesExplicitAutoHarvestDisabled(t *testing.T) {
+	raw := `{
+	  "plant": {
+	    "planting": {
+	      "auto_enabled": true,
+	      "auto_harvest_enabled": false
+	    }
+	  }
+	}`
+	p, err := FromJSON(raw)
+	if err != nil {
+		t.Fatalf("FromJSON returned error: %v", err)
+	}
+	if p.GetPlant().GetPlanting().GetAutoHarvestEnabled() {
+		t.Fatal("explicit auto_harvest_enabled=false should survive JSON load")
 	}
 }
 
