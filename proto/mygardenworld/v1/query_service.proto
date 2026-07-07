@@ -81,6 +81,7 @@ message AccountStatus {
   int32 reputation_score = 20;
   int64 reputation_last_sync_time_ms = 21;
   int64 reputation_last_view_time_ms = 22;
+  RuntimeStatisticsView runtime_statistics = 23;
 }
 
 message RunnerDiagnostics {
@@ -143,6 +144,7 @@ message GetSnapshotResponse {
   int64 reputation_last_sync_time_ms = 35;
   int64 reputation_last_view_time_ms = 36;
   repeated PlantableFlowerView plantable_flowers = 37;
+  RuntimeStatisticsView runtime_statistics = 38;
 }
 
 message LandView {
@@ -342,6 +344,31 @@ message BlockingGroup {
   PlanStatus status = 4;
   int32 count = 5;
   repeated string reasons = 6;
+}
+
+message RuntimeStatisticsView {
+  google.protobuf.Timestamp started_at = 1;
+  google.protobuf.Timestamp stopped_at = 2;
+  google.protobuf.Timestamp updated_at = 3;
+  bool running = 4;
+  repeated RuntimeResourceTotal resource_gains = 5;
+  repeated RuntimeActionTotal order_completions = 6;
+  repeated RuntimeActionTotal task_completions = 7;
+  repeated RuntimeActionTotal operation_completions = 8;
+  int64 total_operations = 9;
+}
+
+message RuntimeResourceTotal {
+  string key = 1;
+  string label = 2;
+  int32 item_id = 3;
+  int64 gained = 4;
+}
+
+message RuntimeActionTotal {
+  string key = 1;
+  string label = 2;
+  int64 count = 3;
 }
 
 message StreamEventsRequest {

@@ -235,6 +235,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 
 func (r *Runner) handleOperationSuccess(ctx context.Context, result operationResult) {
 	op, args := result.op, result.args
+	r.stats.RecordOperationSuccess(op, result.finishedAt)
 	r.emit(Event{
 		Kind:        "operation_ack",
 		Category:    op.Category,

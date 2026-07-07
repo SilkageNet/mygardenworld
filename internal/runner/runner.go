@@ -72,6 +72,7 @@ type Runner struct {
 	session *babigame.Session
 	state   *state.State
 	policy  *pb.Policy
+	stats   *RuntimeStats
 
 	lastWaterSyncTick      time.Time // 节流水资源状态刷新
 	lastReputationSyncTick time.Time // 节流礼仪分/健康分刷新
@@ -114,6 +115,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		log:                   log.With("account", account.Name, "channel", account.Channel),
 		state:                 state.New(),
 		policy:                automation.DefaultPolicy(),
+		stats:                 newRuntimeStats(time.Now()),
 		harvestBlockedUntil:   make(map[int32]time.Time),
 		operationCooldowns:    make(map[string]operationCooldown),
 		unknownRPCCounts:      make(map[string]int32),
@@ -140,6 +142,16 @@ func (r *Runner) LastEventAt() time.Time {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.lastEventAt
+}
+
+func (r *Runner) RuntimeStats() RuntimeStatsSnapshot {
+	r.mu.RLock()
+	stats := r.stats
+	r.mu.RUnlock()
+	if stats == nil {
+		return RuntimeStatsSnapshot{}
+	}
+	return stats.Snapshot()
 }
 
 func (r *Runner) Emit(e Event) {

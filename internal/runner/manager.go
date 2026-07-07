@@ -28,9 +28,10 @@ type Manager struct {
 
 	DebugDir string // when non-empty, runners write debug JSONL here
 
-	mu      sync.RWMutex
-	runners map[int64]*Runner
-	opLocks map[int64]*sync.Mutex
+	mu        sync.RWMutex
+	runners   map[int64]*Runner
+	opLocks   map[int64]*sync.Mutex
+	lastStats map[int64]RuntimeStatsSnapshot
 }
 
 const restoreAccountTimeout = 90 * time.Second
@@ -47,11 +48,12 @@ type RestoreReport struct {
 // platform → Config mapping is resolved per-account in Start.
 func NewManager(db *store.DB, bus *Bus, log *slog.Logger) *Manager {
 	return &Manager{
-		db:      db,
-		bus:     bus,
-		log:     log,
-		runners: make(map[int64]*Runner),
-		opLocks: make(map[int64]*sync.Mutex),
+		db:        db,
+		bus:       bus,
+		log:       log,
+		runners:   make(map[int64]*Runner),
+		opLocks:   make(map[int64]*sync.Mutex),
+		lastStats: make(map[int64]RuntimeStatsSnapshot),
 	}
 }
 
@@ -78,10 +80,24 @@ func (m *Manager) All() []*Runner {
 	return out
 }
 
+// RuntimeStats returns the active run statistics, or the latest stopped
+// in-memory snapshot if the runner has already been stopped.
+func (m *Manager) RuntimeStats(accountID int64) (RuntimeStatsSnapshot, bool) {
+	m.mu.RLock()
+	if r := m.runners[accountID]; r != nil {
+		m.mu.RUnlock()
+		return r.RuntimeStats(), true
+	}
+	stats, ok := m.lastStats[accountID]
+	m.mu.RUnlock()
+	return stats, ok
+}
+
 // RestoreEnabledRunners starts every account whose persisted policy says
 // automation should be running. It is intended for daemon startup: a normal
-// shutdown stops in-memory runners, while Automation.Stop or LogoutAccount
-// persists automation_enabled=false and therefore opts the account out.
+// shutdown stops in-memory runners, while Automation.Stop, LogoutAccount, or
+// session invalidation persists automation_enabled=false and therefore opts the
+// account out.
 func (m *Manager) RestoreEnabledRunners(ctx context.Context) RestoreReport {
 	report := RestoreReport{}
 	accounts, err := m.accountsWithAutomationEnabled(ctx)
@@ -197,6 +213,7 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 	}
 	m.mu.Lock()
 	m.runners[accountID] = r
+	delete(m.lastStats, accountID)
 	m.mu.Unlock()
 	go m.forgetWhenDone(accountID, r)
 	return r, nil
@@ -205,6 +222,7 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 func (m *Manager) forgetWhenDone(accountID int64, r *Runner) {
 	<-r.Done()
 	m.mu.Lock()
+	m.lastStats[accountID] = r.RuntimeStats()
 	if m.runners[accountID] == r {
 		delete(m.runners, accountID)
 	}
@@ -229,6 +247,7 @@ func (m *Manager) stop(accountID int64) error {
 		return errors.New("no active runner")
 	}
 	r.Stop()
+	m.rememberStats(accountID, r)
 	return nil
 }
 
@@ -251,4 +270,13 @@ func (m *Manager) Shutdown() {
 	for _, r := range runners {
 		r.Stop()
 	}
+}
+
+func (m *Manager) rememberStats(accountID int64, r *Runner) {
+	if r == nil {
+		return
+	}
+	m.mu.Lock()
+	m.lastStats[accountID] = r.RuntimeStats()
+	m.mu.Unlock()
 }

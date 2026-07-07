@@ -65,6 +65,9 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 		out.AutomationEnabled = policy.GetAutomationEnabled()
 		out.DomainStatuses = buildDomainStatuses(policy, runner.Diagnostics{}, false)
 		out.Health = "offline"
+		if stats, ok := svc.Manager.RuntimeStats(acc.ID); ok {
+			out.RuntimeStatistics = runtimeStatisticsProto(stats)
+		}
 		return out, nil
 	}
 	out.Connected = r.Connected()
@@ -78,6 +81,7 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	out.DomainStatuses = buildDomainStatuses(r.Policy(), diag, out.Connected)
 	out.Health = accountHealth(out.Connected, diag)
 	out.LastError = diag.LastOperationError
+	out.RuntimeStatistics = runtimeStatisticsProto(r.RuntimeStats())
 	st := r.State()
 	vip, vipExp := st.Vip()
 	out.Level = st.Level()
@@ -144,6 +148,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		UnknownRpcCount:       diag.UnknownRPCCount,
 		UnknownNamespaceCount: diag.UnknownNamespaceCount,
 		Diagnostics:           runnerDiagnosticsProto(diag),
+		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -180,6 +185,45 @@ func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {
 		UnknownRpcCount:           d.UnknownRPCCount,
 		UnknownNamespaceCount:     d.UnknownNamespaceCount,
 		ObservedNamespaces:        append([]string(nil), d.ObservedNamespaces...),
+	}
+}
+
+func runtimeStatisticsProto(stats runner.RuntimeStatsSnapshot) *pb.RuntimeStatisticsView {
+	if stats.StartedAt.IsZero() {
+		return nil
+	}
+	out := &pb.RuntimeStatisticsView{
+		StartedAt:       timestampOrNil(stats.StartedAt),
+		StoppedAt:       timestampOrNil(stats.StoppedAt),
+		UpdatedAt:       timestampOrNil(stats.UpdatedAt),
+		Running:         stats.Running,
+		TotalOperations: stats.TotalOperations,
+	}
+	for _, item := range stats.ResourceGains {
+		out.ResourceGains = append(out.ResourceGains, &pb.RuntimeResourceTotal{
+			Key:    item.Key,
+			Label:  item.Label,
+			ItemId: item.ItemID,
+			Gained: item.Gained,
+		})
+	}
+	for _, item := range stats.OrderCompletions {
+		out.OrderCompletions = append(out.OrderCompletions, runtimeActionTotalProto(item))
+	}
+	for _, item := range stats.TaskCompletions {
+		out.TaskCompletions = append(out.TaskCompletions, runtimeActionTotalProto(item))
+	}
+	for _, item := range stats.OperationCompletions {
+		out.OperationCompletions = append(out.OperationCompletions, runtimeActionTotalProto(item))
+	}
+	return out
+}
+
+func runtimeActionTotalProto(item runner.RuntimeActionTotal) *pb.RuntimeActionTotal {
+	return &pb.RuntimeActionTotal{
+		Key:   item.Key,
+		Label: item.Label,
+		Count: item.Count,
 	}
 }
 

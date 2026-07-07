@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -189,6 +190,7 @@ func (r *Runner) installStateHandlers() {
 		r.emitLandChanges(changes)
 	})
 	r.state.SetOnResourceChange(func(snap state.ResourceSnapshot) {
+		r.stats.ObserveResourceSnapshot(snap, time.Now())
 		raw, _ := json.Marshal(snap)
 		r.emit(Event{
 			Kind:        "resource_changed",
@@ -197,6 +199,7 @@ func (r *Runner) installStateHandlers() {
 		})
 	})
 	r.state.SetOnInventoryChange(func(snap state.InventorySnapshot) {
+		r.stats.ObserveInventorySnapshot(snap, time.Now())
 		raw, _ := json.Marshal(snap)
 		r.emit(Event{
 			Kind:        "inventory_changed",
@@ -278,6 +281,9 @@ func nextReconnectWait(d time.Duration) time.Duration {
 // Stop terminates the runner. Idempotent.
 func (r *Runner) Stop() {
 	r.stopOnce.Do(func() {
+		if r.stats != nil {
+			r.stats.MarkStopped(time.Now())
+		}
 		r.mu.Lock()
 		cancel := r.cancel
 		r.cancel = nil
@@ -303,8 +309,11 @@ func (r *Runner) markSessionInvalidated(reason string) {
 	if reason == "" {
 		reason = "会话已过期，请重新登录"
 	}
-	if err := r.db.DeleteSession(context.Background(), r.account.ID); err != nil {
-		r.log.Warn("delete invalidated session failed", "err", err)
+	ctx := context.Background()
+	if r.db != nil {
+		if err := r.db.DeleteSession(ctx, r.account.ID); err != nil {
+			r.log.Warn("delete invalidated session failed", "err", err)
+		}
 	}
 	r.mu.Lock()
 	if r.sessionInvalidated {
@@ -315,8 +324,44 @@ func (r *Runner) markSessionInvalidated(reason string) {
 	r.sessionInvalidatedReason = reason
 	r.mu.Unlock()
 
+	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
 	r.emit(Event{Kind: "session_expired", Message: fmt.Sprintf("检测到会话失效，已停止自动化：%s", reason)})
 	r.Stop()
+}
+
+func (r *Runner) disableAutomationPreferenceForInvalidatedSession(ctx context.Context, reason string) {
+	p := r.Policy()
+	if !p.GetAutomationEnabled() {
+		return
+	}
+	p.AutomationEnabled = false
+	r.SetPolicy(p)
+	if r.db != nil {
+		raw, err := policycfg.ToJSON(p)
+		if err != nil {
+			r.log.Warn("marshal invalidated-session policy failed", "err", err, "reason", reason)
+		} else if err := r.db.SavePolicyJSON(ctx, r.account.ID, raw); err != nil {
+			r.log.Warn("persist invalidated-session policy failed", "err", err, "reason", reason)
+		}
+	}
+	r.emit(policyDisabledBySessionInvalidatedEvent(reason))
+}
+
+func policyDisabledBySessionInvalidatedEvent(reason string) Event {
+	payload, _ := json.Marshal(map[string]any{
+		"automation_enabled": false,
+		"reason":             reason,
+	})
+	return Event{
+		Kind:        "policy_changed",
+		Category:    "account",
+		Domain:      "account.session",
+		Action:      "blocked",
+		Label:       "连接",
+		Level:       "warn",
+		Message:     "会话失效，已关闭自动恢复",
+		PayloadJSON: string(payload),
+	}
 }
 
 // Done returns a channel that closes once the runner has fully stopped.
