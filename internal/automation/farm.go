@@ -59,11 +59,11 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
+	if plantingPolicy.GetAutoHarvestEnabled() && len(harvest) > 0 {
+		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
+	}
 	if !plantingPolicy.GetAutoEnabled() {
 		return ops
-	}
-	if len(harvest) > 0 {
-		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
 	}
 	if len(plant) > 0 {
 		plan := planPlantAssignments(s, policy, demands, int32(len(plant)))

@@ -123,6 +123,7 @@ message CultivatePolicy {
 message PlantingPolicy {
   bool auto_enabled = 1;
   bool auto_unlock_land = 2;
+  bool auto_harvest_enabled = 3;
   int32 min_water_drops = 6;
 
   bool video_speed_up_enabled = 9;
