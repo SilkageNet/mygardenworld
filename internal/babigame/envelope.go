@@ -38,31 +38,50 @@ type WSResponseD struct {
 	M json.RawMessage `json:"m,omitempty"` // message/error envelope
 }
 
+type wsErrorMessage struct {
+	Msg          string `json:"msg"`
+	CodeOfLangJS string `json:"codeOfLangJs"`
+	Type         int    `json:"type"`
+	Code         int    `json:"code"`
+	Param        struct {
+		IID         int32  `json:"iid"`
+		Reason      string `json:"reason"`
+		ExpiredTime int64  `json:"expiredTime"`
+	} `json:"param"`
+}
+
 // ErrorMsg returns the server error message from the M field, or empty string
-// if the response indicates success. Format: {"codeOfLangJs":"$code","msg":"..."}
+// if the response indicates success. Format: {"codeOfLangJs":"$code","msg":"..."}.
+// Some gateway errors omit msg and put the human reason in param.reason.
 func (d WSResponseD) ErrorMsg() string {
 	if len(d.M) == 0 || string(d.M) == "{}" || string(d.M) == "null" {
 		return ""
 	}
-	var m struct {
-		Msg  string `json:"msg"`
-		Code string `json:"codeOfLangJs"`
-	}
-	if json.Unmarshal(d.M, &m) == nil && m.Msg != "" {
+	m, ok := d.parseErrorMessage()
+	if ok && strings.TrimSpace(m.Msg) != "" {
 		return m.Msg
+	}
+	if ok {
+		if msg := m.paramReasonMessage(); msg != "" {
+			return msg
+		}
 	}
 	return string(d.M)
 }
 
-// ErrorType returns the numeric server error type from M, when present.
-func (d WSResponseD) ErrorType() int {
-	if len(d.M) == 0 || string(d.M) == "{}" || string(d.M) == "null" {
+// ErrorCode returns the numeric server error code from M, when present.
+func (d WSResponseD) ErrorCode() int {
+	m, ok := d.parseErrorMessage()
+	if !ok {
 		return 0
 	}
-	var m struct {
-		Type int `json:"type"`
-	}
-	if json.Unmarshal(d.M, &m) != nil {
+	return m.Code
+}
+
+// ErrorType returns the numeric server error type from M, when present.
+func (d WSResponseD) ErrorType() int {
+	m, ok := d.parseErrorMessage()
+	if !ok {
 		return 0
 	}
 	return m.Type
@@ -70,18 +89,73 @@ func (d WSResponseD) ErrorType() int {
 
 // MissingItemID returns param.iid from material-shortage errors, when present.
 func (d WSResponseD) MissingItemID() int32 {
-	if len(d.M) == 0 || string(d.M) == "{}" || string(d.M) == "null" {
-		return 0
-	}
-	var m struct {
-		Param struct {
-			IID int32 `json:"iid"`
-		} `json:"param"`
-	}
-	if json.Unmarshal(d.M, &m) != nil {
+	m, ok := d.parseErrorMessage()
+	if !ok {
 		return 0
 	}
 	return m.Param.IID
+}
+
+func (d WSResponseD) parseErrorMessage() (wsErrorMessage, bool) {
+	if len(d.M) == 0 || string(d.M) == "{}" || string(d.M) == "null" {
+		return wsErrorMessage{}, false
+	}
+	var m wsErrorMessage
+	if json.Unmarshal(d.M, &m) != nil {
+		return wsErrorMessage{}, false
+	}
+	return m, true
+}
+
+func (m wsErrorMessage) paramReasonMessage() string {
+	reason := strings.TrimSpace(m.Param.Reason)
+	if reason == "" {
+		return ""
+	}
+	if m.Param.ExpiredTime <= 0 {
+		return reason
+	}
+	expiresAt := time.UnixMilli(m.Param.ExpiredTime).In(time.FixedZone("CST", 8*60*60))
+	return fmt.Sprintf("%s（解封时间：%s）", reason, expiresAt.Format("2006-01-02 15:04:05"))
+}
+
+func (d WSResponseD) hasBlockingErrorCode() bool {
+	if d.ErrorCode() != 105 {
+		return false
+	}
+	msg := d.ErrorMsg()
+	if msg == "" {
+		return false
+	}
+	return strings.Contains(msg, "封禁") || strings.Contains(msg, "禁止") || strings.Contains(msg, "封号")
+}
+
+func (d WSResponseD) hasSessionExpiredMessage() bool {
+	msg := d.ErrorMsg()
+	if msg == "" {
+		return false
+	}
+	return strings.Contains(msg, "会话已过期") ||
+		strings.Contains(msg, "重新登录") ||
+		strings.Contains(msg, "异地登录") ||
+		strings.Contains(msg, "挤下线")
+}
+
+func (d WSResponseD) hasSessionExpiredType() bool {
+	return d.ErrorType() == 90000
+}
+
+func (d WSResponseD) isSessionInvalidatingError() bool {
+	if !d.IsError() {
+		return false
+	}
+	if d.hasSessionExpiredType() {
+		return true
+	}
+	if d.hasBlockingErrorCode() {
+		return true
+	}
+	return d.hasSessionExpiredMessage()
 }
 
 // IsError returns true if the response contains a server-side error in M.
@@ -89,20 +163,11 @@ func (d WSResponseD) IsError() bool {
 	return len(d.M) > 0 && string(d.M) != "{}" && string(d.M) != "null"
 }
 
-// IsSessionExpired reports whether the server invalidated this websocket
-// session, usually because another login displaced it.
+// IsSessionExpired reports whether the server invalidated or rejected this
+// websocket session, usually because another login displaced it or a gateway
+// block prevents the session from continuing.
 func (d WSResponseD) IsSessionExpired() bool {
-	if !d.IsError() {
-		return false
-	}
-	if d.ErrorType() == 90000 {
-		return true
-	}
-	msg := d.ErrorMsg()
-	return strings.Contains(msg, "会话已过期") ||
-		strings.Contains(msg, "重新登录") ||
-		strings.Contains(msg, "异地登录") ||
-		strings.Contains(msg, "挤下线")
+	return d.isSessionInvalidatingError()
 }
 
 // requestSeq is a process-wide counter used as a fallback if the WS client's

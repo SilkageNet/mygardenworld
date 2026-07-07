@@ -109,15 +109,18 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		r.syncAccountDisplayName(ctx, v, session)
 	} else {
 		r.log.Warn("ws index.login failed", "err", err)
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
+		return nil, fmt.Errorf("启动登录失败: %w", err)
 	}
 	if r.isSessionInvalidated() {
-		return nil, errors.New("session invalidated during startup")
+		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
 	}
 	if r.isSessionInvalidated() {
-		return nil, errors.New("session invalidated during startup")
+		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
 	if err := r.enforceReputationGuard(ctx, client, session, "startup", time.Now()); err != nil {
 		_ = client.Close()
@@ -327,6 +330,16 @@ func (r *Runner) markSessionInvalidated(reason string) {
 	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
 	r.emit(Event{Kind: "session_expired", Message: fmt.Sprintf("检测到会话失效，已停止自动化：%s", reason)})
 	r.Stop()
+}
+
+func (r *Runner) sessionInvalidatedError(message string) error {
+	r.mu.RLock()
+	reason := r.sessionInvalidatedReason
+	r.mu.RUnlock()
+	if reason == "" {
+		return errors.New(message)
+	}
+	return fmt.Errorf("%s: %s", message, reason)
 }
 
 func (r *Runner) disableAutomationPreferenceForInvalidatedSession(ctx context.Context, reason string) {

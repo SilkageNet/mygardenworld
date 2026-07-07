@@ -91,7 +91,7 @@ func (r *Runner) refreshReputationIfDue(ctx context.Context, client *babigame.Cl
 	rpc := r.runnerRPC(client, session)
 	v, d, err := rpcResult(rpc.Reputation().View(ctx, clientproto.ReputationViewRequest{}))
 	if r.isSessionInvalidated() {
-		return fmt.Errorf("session invalidated while checking reputation")
+		return r.sessionInvalidatedError("session invalidated while checking reputation")
 	}
 	if err != nil {
 		return err

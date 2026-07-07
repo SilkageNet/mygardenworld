@@ -50,6 +50,23 @@ func TestWSResponseDSessionExpired(t *testing.T) {
 	}
 }
 
+func TestWSResponseDGatewayBlockReason(t *testing.T) {
+	var d WSResponseD
+	if err := json.Unmarshal([]byte(`{"m":{"code":105,"param":{"expiredTime":1783612800000,"reason":"IDC IP封禁","targetType":0}},"k":"ws|1|2"}`), &d); err != nil {
+		t.Fatal(err)
+	}
+	if got := d.ErrorCode(); got != 105 {
+		t.Fatalf("ErrorCode() = %d, want 105", got)
+	}
+	want := "IDC IP封禁（解封时间：2026-07-10 00:00:00）"
+	if got := d.ErrorMsg(); got != want {
+		t.Fatalf("ErrorMsg() = %q, want %q", got, want)
+	}
+	if !d.IsSessionExpired() {
+		t.Fatal("expected gateway block response to invalidate the session")
+	}
+}
+
 func TestClientDispatchTextFiresSessionExpired(t *testing.T) {
 	c := NewClient(&Session{Cfg: testConfig(t)})
 	called := false
@@ -61,6 +78,23 @@ func TestClientDispatchTextFiresSessionExpired(t *testing.T) {
 	})
 
 	c.dispatchText([]byte(`{"e":"response","d":{"m":{"type":90000,"msg":"会话已过期，请重新登录"},"r":1,"t":2,"k":"ws|1|1"}}`))
+
+	if !called {
+		t.Fatal("session-expired handler was not called")
+	}
+}
+
+func TestClientDispatchTextFiresSessionExpiredForGatewayBlock(t *testing.T) {
+	c := NewClient(&Session{Cfg: testConfig(t)})
+	called := false
+	c.OnSessionExpired(func(env WSResponseD) {
+		called = true
+		if got := env.ErrorMsg(); got != "IDC IP封禁（解封时间：2026-07-10 00:00:00）" {
+			t.Fatalf("ErrorMsg() = %q", got)
+		}
+	})
+
+	c.dispatchText([]byte(`{"e":"response","d":{"m":{"code":105,"param":{"expiredTime":1783612800000,"reason":"IDC IP封禁","targetType":0}},"r":1,"t":2,"k":"ws|1|1"}}`))
 
 	if !called {
 		t.Fatal("session-expired handler was not called")

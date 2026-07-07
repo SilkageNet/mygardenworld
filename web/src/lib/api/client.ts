@@ -113,7 +113,7 @@ export const transport = createConnectTransport({
 
 export function formatAPIError(err: unknown, fallback = "操作失败"): string {
   if (err instanceof ConnectError) {
-    const raw = err.rawMessage.trim();
+    const raw = stripConnectCodePrefix(err.rawMessage.trim());
     if (isNetworkFetchError(err, raw)) {
       return `无法连接到后端服务（${apiBaseUrl()}）。请确认 gardend 已启动。`;
     }
