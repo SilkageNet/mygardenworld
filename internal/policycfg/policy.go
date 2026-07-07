@@ -68,6 +68,10 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Planting == nil {
 		cp.Plant.Planting = proto.Clone(def.Plant.Planting).(*pb.PlantingPolicy)
 	}
+	// 旧策略没有 auto_harvest_enabled 字段时，跟随 auto_enabled 的值保持向后兼容
+	if !cp.Plant.Planting.AutoHarvestEnabled && cp.Plant.Planting.AutoEnabled {
+		cp.Plant.Planting.AutoHarvestEnabled = true
+	}
 	if cp.Plant.Planting.AutoReplantMode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED || cp.Plant.Planting.AutoReplantMode == pb.SelectionMode_SELECTION_MODE_QUALITY {
 		cp.Plant.Planting.AutoReplantMode = def.Plant.Planting.AutoReplantMode
 	}

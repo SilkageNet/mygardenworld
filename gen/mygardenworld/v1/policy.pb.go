@@ -1215,6 +1215,7 @@ type PlantingPolicy struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	AutoEnabled         bool                   `protobuf:"varint,1,opt,name=auto_enabled,json=autoEnabled,proto3" json:"auto_enabled,omitempty"`
 	AutoUnlockLand      bool                   `protobuf:"varint,2,opt,name=auto_unlock_land,json=autoUnlockLand,proto3" json:"auto_unlock_land,omitempty"`
+	AutoHarvestEnabled  bool                   `protobuf:"varint,3,opt,name=auto_harvest_enabled,json=autoHarvestEnabled,proto3" json:"auto_harvest_enabled,omitempty"`
 	MinWaterDrops       int32                  `protobuf:"varint,6,opt,name=min_water_drops,json=minWaterDrops,proto3" json:"min_water_drops,omitempty"`
 	VideoSpeedUpEnabled bool                   `protobuf:"varint,9,opt,name=video_speed_up_enabled,json=videoSpeedUpEnabled,proto3" json:"video_speed_up_enabled,omitempty"`
 	UseSpeedUpTicket    bool                   `protobuf:"varint,10,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
@@ -1269,6 +1270,13 @@ func (x *PlantingPolicy) GetAutoEnabled() bool {
 func (x *PlantingPolicy) GetAutoUnlockLand() bool {
 	if x != nil {
 		return x.AutoUnlockLand
+	}
+	return false
+}
+
+func (x *PlantingPolicy) GetAutoHarvestEnabled() bool {
+	if x != nil {
+		return x.AutoHarvestEnabled
 	}
 	return false
 }
@@ -2900,10 +2908,11 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
 	"\x0fupgrade_enabled\x18\x03 \x01(\bR\x0eupgradeEnabled\x12!\n" +
-	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\x84\x05\n" +
+	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xb6\x05\n" +
 	"\x0ePlantingPolicy\x12!\n" +
 	"\fauto_enabled\x18\x01 \x01(\bR\vautoEnabled\x12(\n" +
-	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x12&\n" +
+	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x120\n" +
+	"\x14auto_harvest_enabled\x18\x03 \x01(\bR\x12autoHarvestEnabled\x12&\n" +
 	"\x0fmin_water_drops\x18\x06 \x01(\x05R\rminWaterDrops\x123\n" +
 	"\x16video_speed_up_enabled\x18\t \x01(\bR\x13videoSpeedUpEnabled\x12-\n" +
 	"\x13use_speed_up_ticket\x18\n" +

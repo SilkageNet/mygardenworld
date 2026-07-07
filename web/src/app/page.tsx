@@ -2058,6 +2058,7 @@ function PolicyPanel({
             <PolicyGroup title="土地与种植" icon={<Sprout />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="自动种植" checked={planting?.autoEnabled ?? false} onChange={(checked) => updatePlanting({ autoEnabled: checked })} />
+                <ToggleRow label="自动收获" checked={planting?.autoHarvestEnabled ?? false} onChange={(checked) => updatePlanting({ autoHarvestEnabled: checked })} />
                 <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={planting?.videoSpeedUpEnabled ?? false} onChange={(checked) => updatePlanting({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
                 <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
