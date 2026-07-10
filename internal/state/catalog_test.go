@@ -11,10 +11,10 @@ func TestCultivateCostKnownFlower(t *testing.T) {
 		t.Fatal("CultivateCost(23006) ok=false")
 	}
 	want := []ItemCount{
-		{ItemID: 1475, Count: 4},
-		{ItemID: 1483, Count: 4},
-		{ItemID: 1497, Count: 4},
-		{ItemID: 1509, Count: 1},
+		{ItemID: 1401, Count: 4},
+		{ItemID: 1409, Count: 4},
+		{ItemID: 1423, Count: 4},
+		{ItemID: 1435, Count: 1},
 	}
 	if len(costs) != len(want) {
 		t.Fatalf("len(costs)=%d want %d", len(costs), len(want))
@@ -141,8 +141,8 @@ func TestFlowerUpgradeCostForLevel(t *testing.T) {
 	if !ok {
 		t.Fatal("FlowerUpgradeCostForLevel(23006, 4) ok=false")
 	}
-	if cost.ItemID != 22006 || cost.Count != 6 || cost.Gold != 1460 {
-		t.Fatalf("FlowerUpgradeCostForLevel(23006,4)=%+v, want item 22006 count 6 gold 1460", cost)
+	if cost.ItemID != 22006 || cost.Count != 6 || cost.Gold != 1400 {
+		t.Fatalf("FlowerUpgradeCostForLevel(23006,4)=%+v, want item 22006 count 6 gold 1400", cost)
 	}
 }
 
@@ -158,7 +158,7 @@ func TestFlowerArtRecipeByID(t *testing.T) {
 		t.Fatal("FlowerArtRecipeByID(300208) ok=false")
 	}
 	want := []int32{23008, 23007, 23005}
-	if recipe.VaseID != 3002 || recipe.Level != 8 || recipe.SaleValue != 236 || len(recipe.Flowers) != len(want) {
+	if recipe.VaseID != 3002 || recipe.Level != 8 || recipe.SaleValue != 170 || len(recipe.Flowers) != len(want) {
 		t.Fatalf("FlowerArtRecipeByID(300208)=%+v", recipe)
 	}
 	for i := range want {
@@ -184,8 +184,8 @@ func TestFlowerMaxLevel(t *testing.T) {
 }
 
 func TestLandUnlockOpenLevelKnown(t *testing.T) {
-	if level, ok := LandUnlockOpenLevel(1025); !ok || level != 42 {
-		t.Fatalf("LandUnlockOpenLevel(1025)=(%d,%t), want (42,true)", level, ok)
+	if level, ok := LandUnlockOpenLevel(1025); !ok || level != 13 {
+		t.Fatalf("LandUnlockOpenLevel(1025)=(%d,%t), want (13,true)", level, ok)
 	}
 }
 

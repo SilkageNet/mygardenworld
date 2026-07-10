@@ -2086,7 +2086,7 @@ type MonthFlowerEnterRequest struct{}
 
 type OpptGetDetailOpptsRequest struct {
 	UIDs    RPCUIDList `json:"uids,omitempty"`
-	ExtKeys RPCObject  `json:"extKeys,omitempty"`
+	ExtKeys RPCIDList  `json:"extKeys,omitempty"`
 }
 
 type OpptGetOpptRequest struct {
@@ -3042,42 +3042,63 @@ type WhiteValentineUnBindRequest struct {
 
 type ZooAddFoodstuffRequest struct {
 	FoodstuffIds RPCIDList `json:"foodstuffIds,omitempty"`
+	PetId        RPCID     `json:"petId,omitempty"`
 }
 
 type ZooBaseRequest struct{}
 
-type ZooCalNaturalAttRequest struct{}
+type ZooCalNaturalAttRequest struct {
+	PetIdList RPCIDList `json:"petIdList,omitempty"`
+}
 
 type ZooChangePetNameRequest struct {
-	Name RPCString `json:"name,omitempty"`
+	Name  RPCString `json:"name,omitempty"`
+	PetId RPCID     `json:"petId,omitempty"`
 }
 
 type ZooEnterZooRequest struct{}
 
 type ZooFeedOtherPetRequest struct {
 	DstUid       RPCUID    `json:"dstUid,omitempty"`
+	PetId        RPCID     `json:"petId,omitempty"`
 	FoodstuffIds RPCIDList `json:"foodstuffIds,omitempty"`
 }
 
-type ZooFeedPetsRequest struct{}
+type ZooFeedPetsRequest struct {
+	PetIdList RPCIDList `json:"petIdList,omitempty"`
+}
 
 type ZooFindPetRequest struct {
 	IsShareVideo RPCInt `json:"isShareVideo,omitempty"`
+	PetId        RPCID  `json:"petId,omitempty"`
 }
 
-type ZooFindPetByUsrBackRequest struct{}
+type ZooFindPetByUsrBackRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
-type ZooGetGuideEventRwdRequest struct{}
+type ZooGetGuideEventRwdRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
-type ZooGetPetLogRequest struct{}
+type ZooGetPetLogRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
-type ZooGetPetSpecialLogRequest struct{}
+type ZooGetPetSpecialLogRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
-type ZooGetPetVisitLogRequest struct{}
+type ZooGetPetVisitLogRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
-type ZooHandBeOverdueEventRequest struct{}
+type ZooHandBeOverdueEventRequest struct {
+	PetIdList RPCIDList `json:"petIdList,omitempty"`
+}
 
 type ZooHandleEventRequest struct {
+	PetId        RPCID   `json:"petId,omitempty"`
 	TableId      RPCID   `json:"tableId,omitempty"`
 	Agree        RPCBool `json:"agree,omitempty"`
 	IsShareVideo RPCInt  `json:"isShareVideo,omitempty"`
@@ -3093,26 +3114,33 @@ type ZooPetsBaseRequest struct {
 	PetIdList RPCIDList `json:"petIdList,omitempty"`
 }
 
-type ZooReadLogRequest struct{}
+type ZooReadLogRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
 type ZooReadSouvenirRequest struct {
 	SouvenirIds RPCIDList `json:"souvenirIds,omitempty"`
 }
 
 type ZooRecvSouvenirRwdRequest struct {
-	IdxList RPCArray `json:"idxList,omitempty"`
+	IdxList RPCIDList `json:"idxList,omitempty"`
 }
 
-type ZooRefreshPetStatusRequest struct{}
+type ZooRefreshPetStatusRequest struct {
+	PetIdList RPCIDList `json:"petIdList,omitempty"`
+}
 
 type ZooSetUpSleepTimeRequest struct {
 	Hours RPCInt `json:"hours,omitempty"`
 }
 
-type ZooStrokePetRequest struct{}
+type ZooStrokePetRequest struct {
+	PetId RPCID `json:"petId,omitempty"`
+}
 
 type ZooUsePetItemRequest struct {
 	ItemId RPCID `json:"itemId,omitempty"`
+	PetId  RPCID `json:"petId,omitempty"`
 }
 
 type ZooVisitZooRequest struct {

@@ -87,7 +87,6 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 	st.ApplyVMap(map[string]any{
 		"7": map[string]any{"0": map[string]any{"32": map[string]any{
 			"23001":  2,
-			"23058":  1,
 			"300208": 1,
 		}, "34": 14}},
 		"105": map[string]any{
@@ -110,7 +109,7 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 				},
 			},
 			"100": map[string]any{
-				"1": map[string]any{"3088": 163},
+				"1": map[string]any{"3026": 163},
 				"3": map[string]any{},
 			},
 		},
@@ -150,8 +149,8 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 			}
 		}
 	}
-	if flowerReq == nil || !flowerReq.GetPlantingRelevant() || flowerReq.GetMissing() != 3 {
-		t.Fatalf("flower requirement = %+v, want planting-relevant missing 3", flowerReq)
+	if flowerReq == nil || !flowerReq.GetPlantingRelevant() || flowerReq.GetMissing() != 2 {
+		t.Fatalf("flower requirement = %+v, want planting-relevant missing 2", flowerReq)
 	}
 	if artReq != nil {
 		t.Fatalf("art requirement = %+v, want recipe output hidden while crafting materials are missing", artReq)

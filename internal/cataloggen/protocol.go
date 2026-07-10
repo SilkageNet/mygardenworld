@@ -23,6 +23,7 @@ type ProtocolField struct {
 // ProtocolSchema is one mo.DS.setSingle schema recovered from game.js.
 type ProtocolSchema struct {
 	Name   string
+	Parent string
 	Fields []ProtocolField
 }
 
@@ -148,7 +149,15 @@ func extractSchemas(text string) ([]ProtocolSchema, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s schema: %w", name, err)
 		}
-		schemas = append(schemas, ProtocolSchema{Name: name, Fields: fields})
+		parent := ""
+		afterObject := skipSpace(text, objEnd)
+		if afterObject < len(text) && text[afterObject] == ',' {
+			if value, parentEnd, ok := parseJSStringAt(text, skipSpace(text, afterObject+1)); ok {
+				parent = strings.TrimSpace(value)
+				objEnd = parentEnd
+			}
+		}
+		schemas = append(schemas, ProtocolSchema{Name: name, Parent: parent, Fields: fields})
 		searchAt = objEnd
 	}
 	if len(schemas) == 0 {
@@ -252,6 +261,12 @@ func extractNamespaceSchemas(schemas []ProtocolSchema) []NamespaceSchema {
 }
 
 func extractRPCs(text string, schemas []ProtocolSchema) []ProtocolRPC {
+	schemaByName := make(map[string]ProtocolSchema, len(schemas))
+	for _, schema := range schemas {
+		schemaByName[schema.Name] = schema
+	}
+	resolvedFields := make(map[string][]ProtocolField, len(schemas))
+
 	argByName := make(map[string]ProtocolRPC)
 	argByFold := make(map[string]ProtocolRPC)
 	argRe := regexp.MustCompile(`^G\.GS\.([A-Za-z0-9_$]+)Iface\.IArg_(.+)$`)
@@ -262,8 +277,9 @@ func extractRPCs(text string, schemas []ProtocolSchema) []ProtocolRPC {
 		}
 		group, method := m[1], m[2]
 		name := group + "." + method
+		fields := resolveProtocolSchemaFields(schema.Name, schemaByName, resolvedFields, make(map[string]bool))
 		shape := protocolRequestFields
-		if len(schema.Fields) == 0 {
+		if len(fields) == 0 {
 			shape = protocolRequestEmpty
 		}
 		rpc := ProtocolRPC{
@@ -271,7 +287,7 @@ func extractRPCs(text string, schemas []ProtocolSchema) []ProtocolRPC {
 			Group:         group,
 			Method:        method,
 			RequestShape:  shape,
-			RequestFields: cloneProtocolFields(schema.Fields),
+			RequestFields: fields,
 		}
 		argByName[name] = rpc
 		argByFold[foldRPCKey(group, method)] = rpc
@@ -324,6 +340,65 @@ func extractRPCs(text string, schemas []ProtocolSchema) []ProtocolRPC {
 		out = append(out, rpc)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+func resolveProtocolSchemaFields(name string, schemas map[string]ProtocolSchema, cache map[string][]ProtocolField, visiting map[string]bool) []ProtocolField {
+	if fields, ok := cache[name]; ok {
+		return cloneProtocolFields(fields)
+	}
+	schema, ok := schemas[name]
+	if !ok || visiting[name] {
+		return nil
+	}
+	visiting[name] = true
+	fields := make([]ProtocolField, 0, len(schema.Fields))
+	if parentName := resolveProtocolSchemaParentName(schema, schemas); parentName != "" {
+		fields = resolveProtocolSchemaFields(parentName, schemas, cache, visiting)
+	}
+	delete(visiting, name)
+	fields = mergeProtocolFields(fields, schema.Fields)
+	cache[name] = cloneProtocolFields(fields)
+	return fields
+}
+
+func resolveProtocolSchemaParentName(schema ProtocolSchema, schemas map[string]ProtocolSchema) string {
+	parent := strings.TrimSpace(schema.Parent)
+	if parent == "" {
+		return ""
+	}
+	if _, ok := schemas[parent]; ok {
+		return parent
+	}
+	if dot := strings.LastIndex(schema.Name, "."); dot >= 0 {
+		candidate := schema.Name[:dot+1] + parent
+		if _, ok := schemas[candidate]; ok {
+			return candidate
+		}
+	}
+	if !strings.HasPrefix(parent, "G.") {
+		if _, ok := schemas["G."+parent]; ok {
+			return "G." + parent
+		}
+	}
+	return ""
+}
+
+func mergeProtocolFields(parent, child []ProtocolField) []ProtocolField {
+	out := cloneProtocolFields(parent)
+	byName := make(map[string]int, len(out))
+	for i, field := range out {
+		byName[field.Name] = i
+	}
+	for _, field := range child {
+		if i, ok := byName[field.Name]; ok {
+			out[i] = field
+			continue
+		}
+		byName[field.Name] = len(out)
+		out = append(out, field)
+	}
+	sortFields(out)
 	return out
 }
 
@@ -990,7 +1065,8 @@ func inferRPCFieldType(field ProtocolField) string {
 	if strings.HasSuffix(lower, "uids") || strings.Contains(lower, "uidlist") {
 		return "RPCUIDList"
 	}
-	if strings.HasSuffix(lower, "ids") || strings.HasSuffix(lower, "idlist") || strings.HasSuffix(lower, "idarr") || strings.HasSuffix(lower, "typelist") {
+	if strings.HasSuffix(lower, "ids") || strings.HasSuffix(lower, "idlist") || strings.HasSuffix(lower, "idarr") || strings.HasSuffix(lower, "idxlist") ||
+		strings.HasSuffix(lower, "typelist") || lower == "extkeys" {
 		return "RPCIDList"
 	}
 	if strings.HasSuffix(lower, "uid") {

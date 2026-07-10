@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/SilkageNet/mygardenworld/internal/clientcatalog"
 )
 
 // FarmLandConfigRow is the runtime c_farmLand row subset needed by automation.
@@ -151,99 +153,36 @@ func versionByID(versionArray []any, id int) string {
 }
 
 func decodeFarmLandRows(raw []byte) ([]FarmLandConfigRow, error) {
-	var tables map[string]clientTable
-	if err := json.Unmarshal(raw, &tables); err != nil {
-		return nil, fmt.Errorf("g-data json: %w", err)
-	}
-	for encodedName, table := range tables {
-		if table.Columns == "" {
-			continue
-		}
-		name := encodedName
-		if table.Key != "" {
-			decoded, err := deCharCode(encodedName, table.Key)
-			if err == nil {
-				name = decoded
-			}
-		}
-		if name != "c_farmLand" {
-			continue
-		}
-		return expandFarmLandTable(table)
-	}
-	return nil, fmt.Errorf("g-data missing c_farmLand")
-}
-
-type clientTable struct {
-	Key     string        `json:"a"`
-	Columns string        `json:"m"`
-	List    []clientChunk `json:"list"`
-}
-
-type clientChunk struct {
-	Rows map[string]map[string]any `json:"v"`
-}
-
-func expandFarmLandTable(table clientTable) ([]FarmLandConfigRow, error) {
-	columnBytes, err := deCharCode(table.Columns, table.Key)
+	tables, err := clientcatalog.Decode(raw)
 	if err != nil {
-		return nil, fmt.Errorf("decode c_farmLand columns: %w", err)
+		return nil, err
 	}
-	var columns map[string]string
-	if err := json.Unmarshal([]byte(columnBytes), &columns); err != nil {
-		return nil, fmt.Errorf("decode c_farmLand column json: %w", err)
+	table, ok := tables["c_farmLand"]
+	if !ok {
+		return nil, fmt.Errorf("g-data missing c_farmLand")
 	}
-	inverse := make(map[string]string, len(columns))
-	for field, code := range columns {
-		inverse[code] = field
-	}
+	return expandFarmLandTable(table), nil
+}
+
+func expandFarmLandTable(table clientcatalog.Table) []FarmLandConfigRow {
 	out := make([]FarmLandConfigRow, 0)
-	for _, chunk := range table.List {
-		for idStr, encodedRow := range chunk.Rows {
-			decoded := make(map[string]any, len(encodedRow))
-			for code, value := range encodedRow {
-				field := inverse[code]
-				if field == "" {
-					field = code
-				}
-				decoded[field] = value
-			}
-			id := intFromAny(firstNonEmpty(decoded, "id"))
-			if id == 0 {
-				id = intFromAny(idStr)
-			}
-			if id <= 0 {
-				continue
-			}
-			out = append(out, FarmLandConfigRow{
-				ID:        id,
-				OpenLevel: intFromAny(firstNonEmpty(decoded, "openLvl", "openLevel")),
-				Cost:      int32Slice(firstNonEmpty(decoded, "cost")),
-				Wasteland: int32Slice(firstNonEmpty(decoded, "wasteland")),
-			})
+	for idStr, decoded := range table.Rows {
+		id := intFromAny(firstNonEmpty(decoded, "id"))
+		if id == 0 {
+			id = intFromAny(idStr)
 		}
+		if id <= 0 {
+			continue
+		}
+		out = append(out, FarmLandConfigRow{
+			ID:        id,
+			OpenLevel: intFromAny(firstNonEmpty(decoded, "openLvl", "openLevel")),
+			Cost:      int32Slice(firstNonEmpty(decoded, "cost")),
+			Wasteland: int32Slice(firstNonEmpty(decoded, "wasteland")),
+		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
-}
-
-func deCharCode(csv, key string) (string, error) {
-	if key == "" {
-		key = "smallaitt"
-	}
-	var codes []int
-	if err := json.Unmarshal([]byte("["+csv+"]"), &codes); err != nil {
-		return "", err
-	}
-	runes := make([]rune, 0, len(codes))
-	for _, code := range codes {
-		r := rune(code)
-		for i := len(key) - 1; i >= 0; i-- {
-			r ^= rune(key[i])
-		}
-		runes = append(runes, r)
-	}
-	return string(runes), nil
+	return out
 }
 
 func decodeCocosUUID(value string) string {

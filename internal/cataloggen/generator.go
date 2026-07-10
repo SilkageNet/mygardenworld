@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/clientcatalog"
 )
 
 const defaultCDNBase = "https://hygncdn.babigame.cn"
@@ -69,16 +71,6 @@ type webCatalogData struct {
 type StaticTable struct {
 	Columns map[string]string          `json:"columns"`
 	Rows    map[string]json.RawMessage `json:"rows"`
-}
-
-type clientTable struct {
-	Key     string        `json:"a"`
-	Columns string        `json:"m"`
-	List    []clientChunk `json:"list"`
-}
-
-type clientChunk struct {
-	Rows map[string]map[string]any `json:"v"`
 }
 
 type resourceConfig struct {
@@ -235,65 +227,50 @@ func Generate(ctx context.Context, opts Options) (Result, error) {
 
 // DecodeTables expands the obfuscated Cocos client tables into named rows.
 func DecodeTables(raw []byte) (map[string]StaticTable, int, error) {
-	var encoded map[string]clientTable
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.UseNumber()
-	if err := dec.Decode(&encoded); err != nil {
-		return nil, 0, fmt.Errorf("g-data json: %w", err)
+	decodedTables, err := clientcatalog.Decode(raw)
+	if err != nil {
+		return nil, 0, err
 	}
-
-	tables := make(map[string]StaticTable, len(encoded))
+	tables := make(map[string]StaticTable, len(decodedTables))
 	removed := 0
-	for encodedName, table := range encoded {
-		if table.Columns == "" {
-			continue
-		}
-		name := encodedName
-		if table.Key != "" {
-			if decoded, err := deCharCode(encodedName, table.Key); err == nil {
-				name = decoded
-			}
-		}
+	for name, table := range decodedTables {
 		if isAssetField(name) {
 			removed++
 			continue
 		}
-		columns, inverse, n, err := decodeColumns(table)
-		if err != nil {
-			return nil, removed, fmt.Errorf("decode %s columns: %w", name, err)
+		columns := make(map[string]string, len(table.Columns))
+		for field, code := range table.Columns {
+			if isAssetField(field) {
+				removed++
+				continue
+			}
+			columns[field] = code
 		}
-		removed += n
 		rows := make(map[string]json.RawMessage)
-		for _, chunk := range table.List {
-			for id, encodedRow := range chunk.Rows {
-				decoded := make(map[string]any, len(encodedRow))
-				for code, value := range encodedRow {
-					field := inverse[code]
-					if field == "" {
-						field = code
-					}
-					if isAssetField(field) {
-						removed++
-						continue
-					}
-					cleaned, ok, n := sanitizeValue(value)
-					removed += n
-					if !ok {
-						removed++
-						continue
-					}
-					decoded[field] = cleaned
-				}
-				if shouldDropResourceRow(name, id, decoded) {
+		for id, decodedRow := range table.Rows {
+			decoded := make(map[string]any, len(decodedRow))
+			for field, value := range decodedRow {
+				if isAssetField(field) {
 					removed++
 					continue
 				}
-				rowRaw, err := marshalJSON(decoded)
-				if err != nil {
-					return nil, removed, fmt.Errorf("marshal %s row %s: %w", name, id, err)
+				cleaned, ok, n := sanitizeValue(value)
+				removed += n
+				if !ok {
+					removed++
+					continue
 				}
-				rows[id] = rowRaw
+				decoded[field] = cleaned
 			}
+			if shouldDropResourceRow(name, id, decoded) {
+				removed++
+				continue
+			}
+			rowRaw, err := marshalJSON(decoded)
+			if err != nil {
+				return nil, removed, fmt.Errorf("marshal %s row %s: %w", name, id, err)
+			}
+			rows[id] = rowRaw
 		}
 		tables[name] = StaticTable{Columns: columns, Rows: rows}
 	}
@@ -480,29 +457,6 @@ func httpGet(ctx context.Context, httpc *http.Client, rawURL string) ([]byte, er
 		return nil, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
 	return io.ReadAll(resp.Body)
-}
-
-func decodeColumns(table clientTable) (map[string]string, map[string]string, int, error) {
-	columnBytes, err := deCharCode(table.Columns, table.Key)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	var columns map[string]string
-	if err := json.Unmarshal([]byte(columnBytes), &columns); err != nil {
-		return nil, nil, 0, err
-	}
-	cleaned := make(map[string]string, len(columns))
-	inverse := make(map[string]string, len(columns))
-	removed := 0
-	for field, code := range columns {
-		inverse[code] = field
-		if isAssetField(field) {
-			removed++
-			continue
-		}
-		cleaned[field] = code
-	}
-	return cleaned, inverse, removed, nil
 }
 
 func buildViews(tables map[string]StaticTable) (map[string]map[string]any, map[string]map[string]any, map[string]map[string]any, int, error) {
@@ -883,25 +837,6 @@ func marshalJSONNoEscape(value any) ([]byte, error) {
 		return nil, err
 	}
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
-}
-
-func deCharCode(csv, key string) (string, error) {
-	if key == "" {
-		key = "smallaitt"
-	}
-	var codes []int
-	if err := json.Unmarshal([]byte("["+csv+"]"), &codes); err != nil {
-		return "", err
-	}
-	runes := make([]rune, 0, len(codes))
-	for _, code := range codes {
-		r := rune(code)
-		for i := len(key) - 1; i >= 0; i-- {
-			r ^= rune(key[i])
-		}
-		runes = append(runes, r)
-	}
-	return string(runes), nil
 }
 
 func decodeCocosUUID(value string) string {

@@ -107,6 +107,73 @@ this.request2("gs.waterwheel.recv", {}, cb);
 	}
 }
 
+func TestExtractClientProtocolFromTextMergesInheritedRequestFields(t *testing.T) {
+	fixture := `
+mo.DS.setSingle("G.GS.ZooIface.IArg_base", {traceId: 0});
+mo.DS.setSingle("G.GS.ZooIface.IArg_petBase", {petId: 0}, "IArg_base");
+mo.DS.setSingle("G.GS.ZooIface.IArg_addFoodstuff", {foodstuffIds: 0}, "IArg_petBase");
+mo.DS.setSingle("G.GS.ZooIface.IArg_strokePet", {}, "IArg_petBase");
+this.request2("gs.zoo.addFoodstuff", {petId:t, foodstuffIds:e}, cb);
+this.request2("gs.zoo.strokePet", {petId:t}, cb);
+`
+	schemas, err := extractSchemas(fixture)
+	if err != nil {
+		t.Fatalf("extractSchemas: %v", err)
+	}
+	petBase := findProtocolSchema(schemas, "G.GS.ZooIface.IArg_petBase")
+	if petBase == nil || petBase.Parent != "IArg_base" {
+		t.Fatalf("pet base parent = %+v", petBase)
+	}
+
+	protocol, err := ExtractClientProtocolFromText(fixture)
+	if err != nil {
+		t.Fatalf("ExtractClientProtocolFromText: %v", err)
+	}
+	addFoodstuff := findProtocolRPC(protocol.RPCs, "zoo.addFoodstuff")
+	if addFoodstuff == nil {
+		t.Fatal("zoo.addFoodstuff missing")
+	}
+	for _, want := range []string{"traceId", "petId", "foodstuffIds"} {
+		if findProtocolField(addFoodstuff.RequestFields, want) == nil {
+			t.Fatalf("zoo.addFoodstuff missing inherited field %q: %+v", want, addFoodstuff.RequestFields)
+		}
+	}
+	strokePet := findProtocolRPC(protocol.RPCs, "zoo.strokePet")
+	if strokePet == nil || strokePet.RequestShape != protocolRequestFields {
+		t.Fatalf("zoo.strokePet = %+v", strokePet)
+	}
+	for _, want := range []string{"traceId", "petId"} {
+		if findProtocolField(strokePet.RequestFields, want) == nil {
+			t.Fatalf("zoo.strokePet missing inherited field %q: %+v", want, strokePet.RequestFields)
+		}
+	}
+}
+
+func TestProtocolGeneratorInfersObservedNumericLists(t *testing.T) {
+	fixture := `
+mo.DS.setSingle("G.GS.opptIface.IArg_getDetailOppts", {uids: 0, extKeys: "1:CONST.OPPT.EXT_KEY[]"});
+mo.DS.setSingle("G.GS.ZooIface.IArg_recvSouvenirRwd", {idxList: 0});
+this.request2("gs.oppt.getDetailOppts", {uids:t, extKeys:e}, cb);
+this.request2("gs.zoo.recvSouvenirRwd", {idxList:t}, cb);
+`
+	protocol, err := ExtractClientProtocolFromText(fixture)
+	if err != nil {
+		t.Fatalf("ExtractClientProtocolFromText: %v", err)
+	}
+	clientTypesGo, err := GenerateClientProtocolTypesGo(protocol)
+	if err != nil {
+		t.Fatalf("GenerateClientProtocolTypesGo: %v", err)
+	}
+	for _, want := range []string{
+		`ExtKeys\s+RPCIDList\s+` + "`json:\"extKeys,omitempty\"`",
+		`IdxList\s+RPCIDList\s+` + "`json:\"idxList,omitempty\"`",
+	} {
+		if !regexp.MustCompile(want).Match(clientTypesGo) {
+			t.Fatalf("client protocol types output missing %q\n%s", want, clientTypesGo)
+		}
+	}
+}
+
 func TestProtocolGeneratorsStableFixture(t *testing.T) {
 	fixture := `
 mo.DS.setSingle("G.ISyncData", {usrLandTot:"100:IUsrLandTot", benefitBoxTot:"116:IBenefitBoxTot", freeWater:"117:IFreeWater"});

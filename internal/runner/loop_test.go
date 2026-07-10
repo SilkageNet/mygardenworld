@@ -529,7 +529,7 @@ func TestNextRunnableOperationSkipsCoolingSideOperationAndKeepsFarmRunnable(t *t
 }
 
 func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
-	now := time.Date(2026, 7, 6, 15, 30, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
 	st := state.New()
 	st.ApplyVMap(map[string]any{
 		"114": map[string]any{
@@ -555,7 +555,7 @@ func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 }
 
 func TestNextRunnableOperationSkipsWaterwheelAfterDailyLimit(t *testing.T) {
-	now := time.Date(2026, 7, 6, 15, 30, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
 	st := state.New()
 	st.ApplyVMap(map[string]any{
 		"114": map[string]any{

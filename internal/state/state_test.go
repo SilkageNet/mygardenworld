@@ -1069,7 +1069,7 @@ func TestResidentOrderDailyLimitErrorSuppressesUntilNextGameDay(t *testing.T) {
 
 func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	s := New()
-	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
 	if _, ok := s.NextFreeWaterIndex(now); ok {
 		t.Fatal("free water should be unavailable before namespace 117 is observed")
 	}
@@ -1083,11 +1083,11 @@ func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	if idx, ok := s.NextFreeWaterIndex(now); ok {
 		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable for already claimed slot 0", idx)
 	}
-	idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 15, 30, 0, 0, time.Local))
+	idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 18, 0, 0, 0, time.Local))
 	if !ok || idx != 1 {
 		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (1,true)", idx, ok)
 	}
-	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 8, 50, 0, 0, time.Local)); ok {
+	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 10, 50, 0, 0, time.Local)); ok {
 		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable before free-water window", idx)
 	}
 }
@@ -1097,7 +1097,7 @@ func TestApplyV_ReadyDailyTaskIDs(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"22": map[string]any{
 			"1": map[string]any{
-				"1": map[string]any{"3084": 3},
+				"1": map[string]any{"3016": 3},
 				"3": map[string]any{"102": 1},
 				"100": map[string]any{
 					"101": map[string]any{"0": 101, "1": 10, "2": 10, "4": 1},
@@ -1158,7 +1158,7 @@ func TestApplyV_ReadyWeeklyTaskIDs(t *testing.T) {
 		"22": map[string]any{
 			"100": map[string]any{
 				"1": map[string]any{
-					"3088": 163,
+					"3026": 163,
 					"3089": 999,
 				},
 				"3": map[string]any{
@@ -1504,7 +1504,7 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 		t.Fatalf("ShopCultivateOffers len=%d, want 2: %+v", len(offers), offers)
 	}
 	first := offers[0]
-	if first.ShopID != 10001 || first.ItemID != 1423 || first.ItemCount != 1 || first.CostItemID != 11 || first.CostCount != 3214 || first.BuyLimit != 1 || first.Remaining != 1 {
+	if first.ShopID != 10001 || first.ItemID != 1401 || first.ItemCount != 1 || first.CostItemID != 11 || first.CostCount != 3214 || first.BuyLimit != 1 || first.Remaining != 1 {
 		t.Fatalf("first shop cultivate offer mismatch: %+v", first)
 	}
 
@@ -1728,8 +1728,8 @@ func TestApplyV_MainTaskFlowerDeficit(t *testing.T) {
 		},
 	})
 	deficits := s.FlowerOrderDeficits()
-	if deficits[23058] != 3 {
-		t.Fatalf("main task deficit for 23058 = %d, want 3", deficits[23058])
+	if deficits[23001] != 3 {
+		t.Fatalf("main task deficit for 23001 = %d, want 3", deficits[23001])
 	}
 }
 
@@ -1766,7 +1766,7 @@ func TestApplyV_StoryAchievementAndZooEvents(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{
-			"0":   map[string]any{"32": map[string]any{"142": 120}},
+			"0":   map[string]any{"32": map[string]any{"56": 120}},
 			"101": map[string]any{"0": 1, "1": 19, "2": 5, "3": int64(10), "4": int64(20)},
 		},
 		"22": map[string]any{
@@ -1790,8 +1790,8 @@ func TestApplyV_StoryAchievementAndZooEvents(t *testing.T) {
 		},
 	})
 	story, ok := s.StoryMain()
-	if !ok || story.Chapter != 19 || story.SectionIdx != 5 || story.SectionID != 2901 || len(story.Cost) == 0 {
-		t.Fatalf("StoryMain=%+v ok=%t, want chapter 19 section 2901 with cost", story, ok)
+	if !ok || story.Chapter != 19 || story.SectionIdx != 5 || story.SectionID != 2806 || len(story.Cost) == 0 {
+		t.Fatalf("StoryMain=%+v ok=%t, want chapter 19 section 2806 with cost", story, ok)
 	}
 	readyAch := s.ReadyAchievementTaskIDs()
 	if len(readyAch) != 1 || readyAch[0] != 10001 {
@@ -1845,7 +1845,7 @@ func TestApplyV_AchievementRecvMapUsesGroupCursor(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"22": map[string]any{
 			"2": map[string]any{
-				"1": map[string]any{"1033": 53},
+				"1": map[string]any{"1001": 20},
 				"3": map[string]any{},
 			},
 		},
@@ -1867,7 +1867,7 @@ func TestApplyV_AchievementRecvMapUsesGroupCursor(t *testing.T) {
 	}
 	tasks := s.AchievementTasks()
 	task := tasks[60001]
-	if task.GroupID != 6 || task.ProgressType != 1033 || task.GroupReceived != 1 || task.Receipted != 1 || task.Status != 3 || task.Current {
+	if task.GroupID != 6 || task.ProgressType != 1001 || task.GroupReceived != 1 || task.Receipted != 1 || task.Status != 3 || task.Current {
 		t.Fatalf("achievement task after recv=%+v, want completed group cursor", task)
 	}
 }

@@ -6860,7 +6860,7 @@ type ZooRPC struct{ c *babigame.RPCClient }
 // ZooAddFoodstuffResponse is the namespace-delta response for gs.zoo.addFoodstuff.
 type ZooAddFoodstuffResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// AddFoodstuff calls gs.zoo.addFoodstuff. Request fields inferred from game.js: foodstuffIds.
+// AddFoodstuff calls gs.zoo.addFoodstuff. Request fields inferred from game.js: foodstuffIds, petId.
 func (r ZooRPC) AddFoodstuff(ctx context.Context, req clientproto.ZooAddFoodstuffRequest, opts ...babigame.RequestOption) (ZooAddFoodstuffResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooAddFoodstuff, req, opts...)
 }
@@ -6876,7 +6876,7 @@ func (r ZooRPC) Base(ctx context.Context, req clientproto.ZooBaseRequest, opts .
 // ZooCalNaturalAttResponse is the namespace-delta response for gs.zoo.calNaturalAtt.
 type ZooCalNaturalAttResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// CalNaturalAtt calls gs.zoo.calNaturalAtt. game.js sends an empty request object.
+// CalNaturalAtt calls gs.zoo.calNaturalAtt. Request fields inferred from game.js: petIdList.
 func (r ZooRPC) CalNaturalAtt(ctx context.Context, req clientproto.ZooCalNaturalAttRequest, opts ...babigame.RequestOption) (ZooCalNaturalAttResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooCalNaturalAtt, req, opts...)
 }
@@ -6884,7 +6884,7 @@ func (r ZooRPC) CalNaturalAtt(ctx context.Context, req clientproto.ZooCalNatural
 // ZooChangePetNameResponse is the namespace-delta response for gs.zoo.changePetName.
 type ZooChangePetNameResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// ChangePetName calls gs.zoo.changePetName. Request fields inferred from game.js: name.
+// ChangePetName calls gs.zoo.changePetName. Request fields inferred from game.js: name, petId.
 func (r ZooRPC) ChangePetName(ctx context.Context, req clientproto.ZooChangePetNameRequest, opts ...babigame.RequestOption) (ZooChangePetNameResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooChangePetName, req, opts...)
 }
@@ -6900,7 +6900,7 @@ func (r ZooRPC) EnterZoo(ctx context.Context, req clientproto.ZooEnterZooRequest
 // ZooFeedOtherPetResponse is the namespace-delta response for gs.zoo.feedOtherPet.
 type ZooFeedOtherPetResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// FeedOtherPet calls gs.zoo.feedOtherPet. Request fields inferred from game.js: dstUid, foodstuffIds.
+// FeedOtherPet calls gs.zoo.feedOtherPet. Request fields inferred from game.js: dstUid, petId, foodstuffIds.
 func (r ZooRPC) FeedOtherPet(ctx context.Context, req clientproto.ZooFeedOtherPetRequest, opts ...babigame.RequestOption) (ZooFeedOtherPetResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooFeedOtherPet, req, opts...)
 }
@@ -6908,7 +6908,7 @@ func (r ZooRPC) FeedOtherPet(ctx context.Context, req clientproto.ZooFeedOtherPe
 // ZooFeedPetsResponse is the namespace-delta response for gs.zoo.feedPets.
 type ZooFeedPetsResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// FeedPets calls gs.zoo.feedPets. game.js sends an empty request object.
+// FeedPets calls gs.zoo.feedPets. Request fields inferred from game.js: petIdList.
 func (r ZooRPC) FeedPets(ctx context.Context, req clientproto.ZooFeedPetsRequest, opts ...babigame.RequestOption) (ZooFeedPetsResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooFeedPets, req, opts...)
 }
@@ -6916,7 +6916,7 @@ func (r ZooRPC) FeedPets(ctx context.Context, req clientproto.ZooFeedPetsRequest
 // ZooFindPetResponse is the namespace-delta response for gs.zoo.findPet.
 type ZooFindPetResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// FindPet calls gs.zoo.findPet. Request fields inferred from game.js: isShareVideo.
+// FindPet calls gs.zoo.findPet. Request fields inferred from game.js: isShareVideo, petId.
 func (r ZooRPC) FindPet(ctx context.Context, req clientproto.ZooFindPetRequest, opts ...babigame.RequestOption) (ZooFindPetResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooFindPet, req, opts...)
 }
@@ -6924,7 +6924,7 @@ func (r ZooRPC) FindPet(ctx context.Context, req clientproto.ZooFindPetRequest, 
 // ZooFindPetByUsrBackResponse is the namespace-delta response for gs.zoo.findPetByUsrBack.
 type ZooFindPetByUsrBackResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// FindPetByUsrBack calls gs.zoo.findPetByUsrBack. game.js sends an empty request object.
+// FindPetByUsrBack calls gs.zoo.findPetByUsrBack. Request fields inferred from game.js: petId.
 func (r ZooRPC) FindPetByUsrBack(ctx context.Context, req clientproto.ZooFindPetByUsrBackRequest, opts ...babigame.RequestOption) (ZooFindPetByUsrBackResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooFindPetByUsrBack, req, opts...)
 }
@@ -6932,7 +6932,7 @@ func (r ZooRPC) FindPetByUsrBack(ctx context.Context, req clientproto.ZooFindPet
 // ZooGetGuideEventRwdResponse is the namespace-delta response for gs.zoo.getGuideEventRwd.
 type ZooGetGuideEventRwdResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// GetGuideEventRwd calls gs.zoo.getGuideEventRwd. game.js sends an empty request object.
+// GetGuideEventRwd calls gs.zoo.getGuideEventRwd. Request fields inferred from game.js: petId.
 func (r ZooRPC) GetGuideEventRwd(ctx context.Context, req clientproto.ZooGetGuideEventRwdRequest, opts ...babigame.RequestOption) (ZooGetGuideEventRwdResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooGetGuideEventRwd, req, opts...)
 }
@@ -6940,7 +6940,7 @@ func (r ZooRPC) GetGuideEventRwd(ctx context.Context, req clientproto.ZooGetGuid
 // ZooGetPetLogResponse is the namespace-delta response for gs.Zoo.getPetLog.
 type ZooGetPetLogResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// GetPetLog calls gs.Zoo.getPetLog. game.js sends an empty request object.
+// GetPetLog calls gs.Zoo.getPetLog. Request fields inferred from game.js: petId.
 func (r ZooRPC) GetPetLog(ctx context.Context, req clientproto.ZooGetPetLogRequest, opts ...babigame.RequestOption) (ZooGetPetLogResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooGetPetLog, req, opts...)
 }
@@ -6948,7 +6948,7 @@ func (r ZooRPC) GetPetLog(ctx context.Context, req clientproto.ZooGetPetLogReque
 // ZooGetPetSpecialLogResponse is the namespace-delta response for gs.Zoo.getPetSpecialLog.
 type ZooGetPetSpecialLogResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// GetPetSpecialLog calls gs.Zoo.getPetSpecialLog. game.js sends an empty request object.
+// GetPetSpecialLog calls gs.Zoo.getPetSpecialLog. Request fields inferred from game.js: petId.
 func (r ZooRPC) GetPetSpecialLog(ctx context.Context, req clientproto.ZooGetPetSpecialLogRequest, opts ...babigame.RequestOption) (ZooGetPetSpecialLogResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooGetPetSpecialLog, req, opts...)
 }
@@ -6956,7 +6956,7 @@ func (r ZooRPC) GetPetSpecialLog(ctx context.Context, req clientproto.ZooGetPetS
 // ZooGetPetVisitLogResponse is the namespace-delta response for gs.Zoo.getPetVisitLog.
 type ZooGetPetVisitLogResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// GetPetVisitLog calls gs.Zoo.getPetVisitLog. game.js sends an empty request object.
+// GetPetVisitLog calls gs.Zoo.getPetVisitLog. Request fields inferred from game.js: petId.
 func (r ZooRPC) GetPetVisitLog(ctx context.Context, req clientproto.ZooGetPetVisitLogRequest, opts ...babigame.RequestOption) (ZooGetPetVisitLogResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooGetPetVisitLog, req, opts...)
 }
@@ -6964,7 +6964,7 @@ func (r ZooRPC) GetPetVisitLog(ctx context.Context, req clientproto.ZooGetPetVis
 // ZooHandBeOverdueEventResponse is the namespace-delta response for gs.zoo.handBeOverdueEvent.
 type ZooHandBeOverdueEventResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// HandBeOverdueEvent calls gs.zoo.handBeOverdueEvent. game.js sends an empty request object.
+// HandBeOverdueEvent calls gs.zoo.handBeOverdueEvent. Request fields inferred from game.js: petIdList.
 func (r ZooRPC) HandBeOverdueEvent(ctx context.Context, req clientproto.ZooHandBeOverdueEventRequest, opts ...babigame.RequestOption) (ZooHandBeOverdueEventResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooHandBeOverdueEvent, req, opts...)
 }
@@ -6972,7 +6972,7 @@ func (r ZooRPC) HandBeOverdueEvent(ctx context.Context, req clientproto.ZooHandB
 // ZooHandleEventResponse is the namespace-delta response for gs.zoo.handleEvent.
 type ZooHandleEventResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// HandleEvent calls gs.zoo.handleEvent. Request fields inferred from game.js: tableId, agree, isShareVideo.
+// HandleEvent calls gs.zoo.handleEvent. Request fields inferred from game.js: petId, tableId, agree, isShareVideo.
 func (r ZooRPC) HandleEvent(ctx context.Context, req clientproto.ZooHandleEventRequest, opts ...babigame.RequestOption) (ZooHandleEventResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooHandleEvent, req, opts...)
 }
@@ -7004,7 +7004,7 @@ func (r ZooRPC) PetsBase(ctx context.Context, req clientproto.ZooPetsBaseRequest
 // ZooReadLogResponse is the namespace-delta response for gs.zoo.readLog.
 type ZooReadLogResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// ReadLog calls gs.zoo.readLog. game.js sends an empty request object.
+// ReadLog calls gs.zoo.readLog. Request fields inferred from game.js: petId.
 func (r ZooRPC) ReadLog(ctx context.Context, req clientproto.ZooReadLogRequest, opts ...babigame.RequestOption) (ZooReadLogResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooReadLog, req, opts...)
 }
@@ -7028,7 +7028,7 @@ func (r ZooRPC) RecvSouvenirRwd(ctx context.Context, req clientproto.ZooRecvSouv
 // ZooRefreshPetStatusResponse is the namespace-delta response for gs.zoo.refreshPetStatus.
 type ZooRefreshPetStatusResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// RefreshPetStatus calls gs.zoo.refreshPetStatus. game.js sends an empty request object.
+// RefreshPetStatus calls gs.zoo.refreshPetStatus. Request fields inferred from game.js: petIdList.
 func (r ZooRPC) RefreshPetStatus(ctx context.Context, req clientproto.ZooRefreshPetStatusRequest, opts ...babigame.RequestOption) (ZooRefreshPetStatusResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooRefreshPetStatus, req, opts...)
 }
@@ -7044,7 +7044,7 @@ func (r ZooRPC) SetUpSleepTime(ctx context.Context, req clientproto.ZooSetUpSlee
 // ZooStrokePetResponse is the namespace-delta response for gs.zoo.strokePet.
 type ZooStrokePetResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// StrokePet calls gs.zoo.strokePet. game.js sends an empty request object.
+// StrokePet calls gs.zoo.strokePet. Request fields inferred from game.js: petId.
 func (r ZooRPC) StrokePet(ctx context.Context, req clientproto.ZooStrokePetRequest, opts ...babigame.RequestOption) (ZooStrokePetResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooStrokePet, req, opts...)
 }
@@ -7052,7 +7052,7 @@ func (r ZooRPC) StrokePet(ctx context.Context, req clientproto.ZooStrokePetReque
 // ZooUsePetItemResponse is the namespace-delta response for gs.zoo.usePetItem.
 type ZooUsePetItemResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// UsePetItem calls gs.zoo.usePetItem. Request fields inferred from game.js: itemId.
+// UsePetItem calls gs.zoo.usePetItem. Request fields inferred from game.js: itemId, petId.
 func (r ZooRPC) UsePetItem(ctx context.Context, req clientproto.ZooUsePetItemRequest, opts ...babigame.RequestOption) (ZooUsePetItemResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCZooUsePetItem, req, opts...)
 }

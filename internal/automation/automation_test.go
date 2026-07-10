@@ -871,7 +871,7 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 }
 
 func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
-	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
 	cases := []struct {
 		name      string
 		drops     int32
@@ -1539,12 +1539,12 @@ func TestBuildPlan_ShopCultivateBuyWithGoldBudget(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Basic.Shop.CultivateShop.AutoBuy = true
 	p.Basic.Shop.CultivateShop.MaxSpendGold = 4000
-	p.Basic.Shop.CultivateShop.ItemIds = []int32{1423}
+	p.Basic.Shop.CultivateShop.ItemIds = []int32{1401}
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Domain == "basic.shop.cultivate" {
-			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || op.ItemID != 1423 || op.GoldCost != 3214 || !op.Executable || op.SyncOnly {
+			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || op.ItemID != 1401 || op.GoldCost != 3214 || !op.Executable || op.SyncOnly {
 				t.Fatalf("shop cultivate buy op mismatch: %+v", op)
 			}
 			return
@@ -1616,7 +1616,7 @@ func TestBuildPlan_UnionBuildFreeAndGold(t *testing.T) {
 	result = BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Domain == "union.build" {
-			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 2 || op.GoldCost != 10095 || !op.Executable || op.SyncOnly {
+			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 2 || op.GoldCost != 10000 || !op.Executable || op.SyncOnly {
 				t.Fatalf("gold union build op mismatch: %+v", op)
 			}
 			return
@@ -1641,7 +1641,7 @@ func TestBuildPlan_UnionBuildDiamondBlocked(t *testing.T) {
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Domain == "union.build" {
-			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 106 || op.Executable || len(op.BlockedReasons) == 0 {
+			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 10 || op.Executable || len(op.BlockedReasons) == 0 {
 				t.Fatalf("diamond union build op should be blocked: %+v", op)
 			}
 			return
@@ -1653,7 +1653,7 @@ func TestBuildPlan_UnionBuildDiamondBlocked(t *testing.T) {
 func TestBuildPlan_UnionBuildDiamondUsesVisibleBalanceOnly(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
-		"7": map[string]any{"0": map[string]any{"41": 50, "42": 1000}},
+		"7": map[string]any{"0": map[string]any{"41": 5, "42": 1000}},
 		"25": map[string]any{
 			"133": map[string]any{"1": 88, "5": map[string]any{"3": 0}},
 		},
@@ -1668,7 +1668,7 @@ func TestBuildPlan_UnionBuildDiamondUsesVisibleBalanceOnly(t *testing.T) {
 		if op.Domain != "union.build" {
 			continue
 		}
-		if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 106 || op.Executable {
+		if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 10 || op.Executable {
 			t.Fatalf("diamond union build op mismatch: %+v", op)
 		}
 		if !hasReasonContaining(op.BlockedReasons, "元宝不足") {
@@ -1676,8 +1676,8 @@ func TestBuildPlan_UnionBuildDiamondUsesVisibleBalanceOnly(t *testing.T) {
 		}
 		for _, gate := range op.CostGates {
 			if gate.ResourceKind == GateResourceDiamond {
-				if gate.Available != 50 {
-					t.Fatalf("diamond gate available = %d, want 50", gate.Available)
+				if gate.Available != 5 {
+					t.Fatalf("diamond gate available = %d, want 5", gate.Available)
 				}
 				return
 			}
