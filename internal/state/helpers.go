@@ -211,6 +211,10 @@ func readInt32Raw(raw json.RawMessage) (int32, bool) {
 	return 0, false
 }
 
+func readInt64Raw(raw json.RawMessage) (int64, bool) {
+	return readInt64JSONField(map[string]json.RawMessage{"0": raw}, "0")
+}
+
 func sameLocalDay(rawDate int64, now time.Time) bool {
 	if rawDate <= 0 {
 		return false

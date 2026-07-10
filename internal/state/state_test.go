@@ -218,9 +218,8 @@ func TestApplyV_ZooState(t *testing.T) {
 	if pets[1].MoodValue != 50 || pets[1].SatietyValue != 20 || len(pets[1].FoodstuffIDs) != 1 || pets[1].FoodstuffIDs[0] != 1501 {
 		t.Fatalf("Zoo pet 1 = %+v", pets[1])
 	}
-	feed := s.ReadyZooFeedPetIDs()
-	if len(feed) != 1 || feed[0] != 1 {
-		t.Fatalf("ReadyZooFeedPetIDs()=%v, want [1]", feed)
+	if !pets[1].MoodObserved || !pets[1].SatietyObserved || !pets[1].FoodstuffObserved || !pets[1].StatusObserved || !pets[1].StrokeCdTimeObserved {
+		t.Fatalf("Zoo pet 1 observed fields = %+v", pets[1])
 	}
 	stroke := s.ReadyZooStrokePetIDs(now)
 	if len(stroke) != 1 || stroke[0] != 1 {
@@ -237,6 +236,77 @@ func TestApplyV_ZooState(t *testing.T) {
 	pets = s.ZooPets()
 	if len(pets) != 2 || pets[1].MoodValue != 70 || len(pets[1].FoodstuffIDs) != 1 || pets[2].PetID != 2 {
 		t.Fatalf("ZooPets after delta=%+v, want pet 2 preserved and pet 1 updated", pets)
+	}
+}
+
+func TestZooSafeStockAndStatusRefresh(t *testing.T) {
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"1501": 40, "1502": 12}}},
+		"33": map[string]any{
+			"1": map[string]any{
+				"2": map[string]any{"1": 2, "3": 20, "4": make([]int32, 29), "5": 2, "14": now.Add(time.Minute).UnixMilli()},
+				"1": map[string]any{"1": 1, "3": 20, "4": []int32{}, "5": 2, "14": now.Add(-time.Minute).UnixMilli()},
+				"3": map[string]any{"1": 3, "14": now.Add(-2 * time.Minute).UnixMilli()},
+			},
+		},
+	})
+
+	refresh := s.ReadyZooStatusRefreshPetIDs(now)
+	if len(refresh) != 2 || refresh[0] != 1 || refresh[1] != 3 {
+		t.Fatalf("ReadyZooStatusRefreshPetIDs()=%v, want [1 3]", refresh)
+	}
+	stock, ok := s.NextZooFoodstuffPlan()
+	if !ok || stock.PetID != 1 || stock.FoodstuffID != 1501 || stock.Count != ZooFoodBowlCapacity() {
+		t.Fatalf("NextZooFoodstuffPlan()=%+v ok=%t", stock, ok)
+	}
+	applyMap(t, s, map[string]any{"33": map[string]any{"1": map[string]any{
+		"1": map[string]any{"1": 1, "4": make([]int32, ZooFoodBowlCapacity()-1)},
+	}}})
+	stock, ok = s.NextZooFoodstuffPlan()
+	if !ok || stock.PetID != 1 || stock.FoodstuffID != 1501 || stock.Count != 1 {
+		t.Fatalf("NextZooFoodstuffPlan() with one empty bowl slot=%+v ok=%t", stock, ok)
+	}
+}
+
+func TestZooSafeStockWaitsForSparseFieldsAndFallsBackToFood1502(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"1501": 0, "1502": 4}}},
+		"33": map[string]any{"1": map[string]any{
+			"1": map[string]any{"1": 1, "4": []int32{}},
+		}},
+	})
+	if stock, ok := s.NextZooFoodstuffPlan(); ok {
+		t.Fatalf("NextZooFoodstuffPlan()=%+v before status/satiety observed", stock)
+	}
+	if got := s.ReadyZooStrokePetIDs(time.Now()); len(got) != 0 {
+		t.Fatalf("ReadyZooStrokePetIDs()=%v from sparse zero values", got)
+	}
+
+	applyMap(t, s, map[string]any{"33": map[string]any{"1": map[string]any{
+		"1": map[string]any{"1": 1, "3": 20, "5": 2},
+	}}})
+	stock, ok := s.NextZooFoodstuffPlan()
+	if !ok || stock != (ZooFoodstuffPlan{PetID: 1, FoodstuffID: 1502, Count: 4}) {
+		t.Fatalf("NextZooFoodstuffPlan()=%+v ok=%t, want food 1502 x4", stock, ok)
+	}
+}
+
+func TestZooRootSparseDeltaPreservesObservedCollections(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{"33": map[string]any{"0": map[string]any{
+		"0": 77900091102482, "3": []int32{1, 2}, "6": 120, "8": int64(100), "13": []int32{1, 2},
+	}}})
+	applyMap(t, s, map[string]any{"33": map[string]any{"0": map[string]any{"8": int64(200)}}})
+
+	zoo := s.Zoo()
+	if zoo.UID != 77900091102482 || zoo.Comfort != 120 || zoo.UpdatedAtMs != 200 {
+		t.Fatalf("Zoo() after sparse root delta=%+v", zoo)
+	}
+	if len(zoo.PetIDs) != 2 || zoo.PetIDs[0] != 1 || zoo.PetIDs[1] != 2 || len(zoo.SouvenirRewardIDs) != 2 || zoo.SouvenirRewardIDs[0] != 1 || zoo.SouvenirRewardIDs[1] != 2 {
+		t.Fatalf("Zoo() collections cleared by sparse root delta: %+v", zoo)
 	}
 }
 
@@ -1802,20 +1872,12 @@ func TestApplyV_StoryAchievementAndZooEvents(t *testing.T) {
 	if pet.GoOutEventID != 4001 || len(pet.SpecialEventIDs) != 1 || pet.ReadLogTimeMs != 30 || pet.EventTriggerTimes[4001] != 40 {
 		t.Fatalf("ZooPet fields=%+v, want parsed event fields", pet)
 	}
-	events := s.ZooEventActions()
-	seen := map[int32]ZooEventAction{}
-	for _, event := range events {
-		seen[event.EventID] = event
-	}
-	if event := seen[4001]; !event.Blocked || event.Action != "find_pet" || event.PetID != 1 {
-		t.Fatalf("ZooEventActions=%+v, want blocked find_pet for pet 1 event 4001", events)
-	}
-	if event := seen[3012]; !event.Blocked || event.Action != "handle_event" || event.PetID != 1 {
-		t.Fatalf("ZooEventActions=%+v, want blocked handle_event for pet 1 event 3012", events)
+	if events := s.ZooEventActions(); len(events) != 0 {
+		t.Fatalf("ZooEventActions=%+v, want pet-field inference disabled", events)
 	}
 }
 
-func TestZooEventActionsAllowsDynamicRewardEvent(t *testing.T) {
+func TestZooEventActionsDoesNotInferFromPetFields(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
 		"33": map[string]any{
@@ -1828,15 +1890,8 @@ func TestZooEventActionsAllowsDynamicRewardEvent(t *testing.T) {
 		},
 	})
 	events := s.ZooEventActions()
-	if len(events) != 1 {
-		t.Fatalf("ZooEventActions len=%d, want 1: %+v", len(events), events)
-	}
-	event := events[0]
-	if event.EventID != 2096 || event.Name != "助人为乐" || event.Action != "handle_event" || event.Blocked {
-		t.Fatalf("ZooEventActions[0]=%+v, want runnable help event", event)
-	}
-	if !event.Agree || event.IsShareVideo != 0 {
-		t.Fatalf("ZooEventActions[0]=%+v, want agree without share/video", event)
+	if len(events) != 0 {
+		t.Fatalf("ZooEventActions=%+v, want no field-inferred event", events)
 	}
 }
 

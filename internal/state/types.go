@@ -507,25 +507,38 @@ type ZooView struct {
 
 // ZooPetView is one pet from namespace 33.1.<petId> (G.IZooPet).
 type ZooPetView struct {
-	PetID             int32           `json:"pet_id"`
-	UID               int64           `json:"uid,omitempty"`
-	MoodValue         int32           `json:"mood_value,omitempty"`
-	SatietyValue      int32           `json:"satiety_value,omitempty"`
-	FoodstuffIDs      []int32         `json:"foodstuff_ids,omitempty"`
-	Status            int32           `json:"status,omitempty"`
-	GoOutEventID      int32           `json:"go_out_event_id,omitempty"`
-	SpecialEventIDs   []int32         `json:"special_event_ids,omitempty"`
-	StrokeCdTimeMs    int64           `json:"stroke_cd_time_ms,omitempty"`
-	StatusCdTimeMs    int64           `json:"status_cd_time_ms,omitempty"`
-	GoOutCdTimeMs     int64           `json:"go_out_cd_time_ms,omitempty"`
-	GetHomeTimeMs     int64           `json:"get_home_time_ms,omitempty"`
-	ReadLogTimeMs     int64           `json:"read_log_time_ms,omitempty"`
-	UpdatedAtMs       int64           `json:"updated_at_ms,omitempty"`
-	EventTriggerTimes map[int32]int64 `json:"event_trigger_times,omitempty"`
+	PetID                int32           `json:"pet_id"`
+	UID                  int64           `json:"uid,omitempty"`
+	MoodValue            int32           `json:"mood_value,omitempty"`
+	MoodObserved         bool            `json:"mood_observed,omitempty"`
+	SatietyValue         int32           `json:"satiety_value,omitempty"`
+	SatietyObserved      bool            `json:"satiety_observed,omitempty"`
+	FoodstuffIDs         []int32         `json:"foodstuff_ids,omitempty"`
+	FoodstuffObserved    bool            `json:"foodstuff_observed,omitempty"`
+	Status               int32           `json:"status,omitempty"`
+	StatusObserved       bool            `json:"status_observed,omitempty"`
+	GoOutEventID         int32           `json:"go_out_event_id,omitempty"`
+	SpecialEventIDs      []int32         `json:"special_event_ids,omitempty"`
+	StrokeCdTimeMs       int64           `json:"stroke_cd_time_ms,omitempty"`
+	StrokeCdTimeObserved bool            `json:"stroke_cd_time_observed,omitempty"`
+	StatusCdTimeMs       int64           `json:"status_cd_time_ms,omitempty"`
+	StatusCdTimeObserved bool            `json:"status_cd_time_observed,omitempty"`
+	GoOutCdTimeMs        int64           `json:"go_out_cd_time_ms,omitempty"`
+	GetHomeTimeMs        int64           `json:"get_home_time_ms,omitempty"`
+	ReadLogTimeMs        int64           `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs          int64           `json:"updated_at_ms,omitempty"`
+	EventTriggerTimes    map[int32]int64 `json:"event_trigger_times,omitempty"`
 }
 
-// ZooEventAction is a conservative action candidate derived from one pet's
-// current go-out event.
+// ZooFoodstuffPlan describes one inventory-backed bowl stocking operation.
+// One operation deliberately contains only one food type.
+type ZooFoodstuffPlan struct {
+	PetID       int32 `json:"pet_id"`
+	FoodstuffID int32 `json:"foodstuff_id"`
+	Count       int32 `json:"count"`
+}
+
+// ZooEventAction is a conservative server-backed animal-event candidate.
 type ZooEventAction struct {
 	PetID         int32  `json:"pet_id"`
 	EventID       int32  `json:"event_id"`

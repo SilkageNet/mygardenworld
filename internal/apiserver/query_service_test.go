@@ -193,6 +193,20 @@ func TestBuildPendingTasksMarksResidentOrderCooling(t *testing.T) {
 	}
 }
 
+func TestBuildPendingTasksDoesNotInferZooEventsFromPetFields(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1, "3": []int32{1}},
+		"1": map[string]any{"1": map[string]any{"1": 1, "9": 4001, "10": []int32{2096}}},
+	}})
+
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "宠物事件" {
+			t.Fatalf("old pet-field event leaked into pending tasks: %+v", task)
+		}
+	}
+}
+
 func residentOrderTask(t *testing.T, tasks []*pb.PendingTaskView) *pb.PendingTaskView {
 	t.Helper()
 	for _, task := range tasks {

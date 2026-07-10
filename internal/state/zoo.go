@@ -13,7 +13,7 @@ func (s *State) applyZooLocked(raw json.RawMessage) {
 	}
 	s.zooObserved = true
 	if rawData, ok := ns33["0"]; ok {
-		if zoo, ok := parseZooView(rawData); ok {
+		if zoo, ok := parseZooView(rawData, cloneZooView(s.zoo)); ok {
 			s.zoo = zoo
 		}
 	}
@@ -22,7 +22,7 @@ func (s *State) applyZooLocked(raw json.RawMessage) {
 	}
 }
 
-func parseZooView(raw json.RawMessage) (ZooView, bool) {
+func parseZooView(raw json.RawMessage, base ZooView) (ZooView, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return ZooView{}, false
 	}
@@ -30,7 +30,8 @@ func parseZooView(raw json.RawMessage) (ZooView, bool) {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return ZooView{}, false
 	}
-	view := ZooView{Observed: true}
+	view := base
+	view.Observed = true
 	if n, ok := readInt64JSONField(fields, "0"); ok {
 		view.UID = n
 	}
@@ -93,17 +94,27 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
 		pet.PetID = n
 	}
-	if n, ok := readInt32JSONField(fields, "2"); ok {
-		pet.MoodValue = n
+	if rawMood, observed := fields["2"]; observed {
+		if n, ok := readInt32Raw(rawMood); ok {
+			pet.MoodObserved = true
+			pet.MoodValue = n
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "3"); ok {
-		pet.SatietyValue = n
+	if rawSatiety, observed := fields["3"]; observed {
+		if n, ok := readInt32Raw(rawSatiety); ok {
+			pet.SatietyObserved = true
+			pet.SatietyValue = n
+		}
 	}
 	if rawFood, ok := fields["4"]; ok {
+		pet.FoodstuffObserved = true
 		pet.FoodstuffIDs = readInt32OrderedListRaw(rawFood)
 	}
-	if n, ok := readInt32JSONField(fields, "5"); ok {
-		pet.Status = n
+	if rawStatus, observed := fields["5"]; observed {
+		if n, ok := readInt32Raw(rawStatus); ok {
+			pet.StatusObserved = true
+			pet.Status = n
+		}
 	}
 	if n, ok := readInt32JSONField(fields, "9"); ok {
 		pet.GoOutEventID = n
@@ -111,14 +122,22 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if rawEvents, ok := fields["10"]; ok {
 		pet.SpecialEventIDs = readInt32ListRaw(rawEvents)
 	}
-	if n, ok := readInt64JSONField(fields, "12"); ok {
-		pet.StrokeCdTimeMs = n
+	if rawStrokeCd, observed := fields["12"]; observed {
+		pet.StrokeCdTimeObserved = true
+		pet.StrokeCdTimeMs = 0
+		if n, ok := readInt64Raw(rawStrokeCd); ok {
+			pet.StrokeCdTimeMs = n
+		}
 	}
 	if n, ok := readInt64JSONField(fields, "13"); ok {
 		pet.GetHomeTimeMs = n
 	}
-	if n, ok := readInt64JSONField(fields, "14"); ok {
-		pet.StatusCdTimeMs = n
+	if rawStatusCd, observed := fields["14"]; observed {
+		pet.StatusCdTimeObserved = true
+		pet.StatusCdTimeMs = 0
+		if n, ok := readInt64Raw(rawStatusCd); ok {
+			pet.StatusCdTimeMs = n
+		}
 	}
 	if n, ok := readInt64JSONField(fields, "15"); ok {
 		pet.GoOutCdTimeMs = n
@@ -183,21 +202,67 @@ func (s *State) ZooPets() map[int32]ZooPetView {
 	return out
 }
 
-// ReadyZooFeedPetIDs returns pets with bowl food that can currently eat.
-func (s *State) ReadyZooFeedPetIDs() []int32 {
+// ReadyZooStatusRefreshPetIDs returns pets whose observed status cooldown has
+// expired. Missing cooldown fields are not interpreted as an expired zero.
+func (s *State) ReadyZooStatusRefreshPetIDs(now time.Time) []int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]int32, 0, len(s.zooPets))
+	nowMs := now.UnixMilli()
 	for petID, pet := range s.zooPets {
-		if pet == nil || pet.PetID <= 0 || len(pet.FoodstuffIDs) == 0 {
+		if pet == nil || pet.PetID <= 0 || !pet.StatusCdTimeObserved {
 			continue
 		}
-		if zooPetCanEat(pet.Status) {
+		if pet.StatusCdTimeMs > 0 && pet.StatusCdTimeMs <= nowMs {
 			out = append(out, petID)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+// NextZooFoodstuffPlan returns the first deterministic, inventory-backed bowl
+// stocking action. Food 1501 has priority over 1502 and a request never mixes
+// food types.
+func (s *State) NextZooFoodstuffPlan() (ZooFoodstuffPlan, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	capacity := ZooFoodBowlCapacity()
+	satietyMax := ZooSatietyMax()
+	if capacity <= 0 || satietyMax <= 0 {
+		return ZooFoodstuffPlan{}, false
+	}
+	petIDs := make([]int32, 0, len(s.zooPets))
+	for petID, pet := range s.zooPets {
+		if pet == nil || pet.PetID <= 0 || !pet.FoodstuffObserved || !pet.StatusObserved || !pet.SatietyObserved {
+			continue
+		}
+		if !zooPetCanEat(pet.Status) || pet.SatietyValue >= satietyMax {
+			continue
+		}
+		petIDs = append(petIDs, petID)
+	}
+	sort.Slice(petIDs, func(i, j int) bool { return petIDs[i] < petIDs[j] })
+
+	for _, petID := range petIDs {
+		pet := s.zooPets[petID]
+		empty := capacity - int32(len(pet.FoodstuffIDs))
+		if empty <= 0 {
+			continue
+		}
+		for _, foodstuffID := range []int32{1501, 1502} {
+			count := s.inventory[foodstuffID]
+			if count <= 0 {
+				continue
+			}
+			if count > empty {
+				count = empty
+			}
+			return ZooFoodstuffPlan{PetID: petID, FoodstuffID: foodstuffID, Count: count}, true
+		}
+	}
+	return ZooFoodstuffPlan{}, false
 }
 
 // ReadyZooStrokePetIDs returns pets that match the client's touch red-dot gate.
@@ -208,7 +273,7 @@ func (s *State) ReadyZooStrokePetIDs(now time.Time) []int32 {
 	nowMs := now.UnixMilli()
 	moodMax := ZooMoodMax()
 	for petID, pet := range s.zooPets {
-		if pet == nil || pet.PetID <= 0 || pet.Status <= 0 {
+		if pet == nil || pet.PetID <= 0 || !pet.StatusObserved || !pet.MoodObserved || !pet.StrokeCdTimeObserved || pet.Status <= 0 {
 			continue
 		}
 		if !zooPetTouchable(pet.Status) {
@@ -226,39 +291,10 @@ func (s *State) ReadyZooStrokePetIDs(now time.Time) []int32 {
 	return out
 }
 
-// ZooEventActions returns conservative animal-event action candidates. Events
-// that require share/video, contain ambiguous costs, or lack a safe action are
-// returned as blocked markers instead of runnable operations.
+// ZooEventActions intentionally returns no candidates until namespace 33.2
+// server logs are modeled. Pet fields alone are not a reliable event source.
 func (s *State) ZooEventActions() []ZooEventAction {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]ZooEventAction, 0, len(s.zooPets))
-	for petID, pet := range s.zooPets {
-		if pet == nil || pet.PetID <= 0 {
-			continue
-		}
-		if pet.GoOutEventID > 0 {
-			action := zooEventActionForPet(petID, pet.GoOutEventID)
-			out = append(out, action)
-		}
-		for _, eventID := range pet.SpecialEventIDs {
-			if eventID <= 0 || eventID == pet.GoOutEventID {
-				continue
-			}
-			action := zooEventActionForPet(petID, eventID)
-			out = append(out, action)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Blocked != out[j].Blocked {
-			return !out[i].Blocked
-		}
-		if out[i].PetID != out[j].PetID {
-			return out[i].PetID < out[j].PetID
-		}
-		return out[i].EventID < out[j].EventID
-	})
-	return out
+	return nil
 }
 
 // ZooMoodMax returns the client-configured pet mood cap.
@@ -275,6 +311,38 @@ func ZooMoodMax() int32 {
 		return n
 	}
 	return 100
+}
+
+// ZooFoodBowlCapacity returns the decoded client-configured bowl capacity.
+func ZooFoodBowlCapacity() int32 {
+	raw, ok := StaticRow("c_zoo", -1)
+	if !ok {
+		return 0
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return 0
+	}
+	if n, ok := readInt32JSONField(fields, "$catBasinMax"); ok && n > 0 {
+		return n
+	}
+	return 0
+}
+
+// ZooSatietyMax returns the decoded client-configured pet satiety cap.
+func ZooSatietyMax() int32 {
+	raw, ok := StaticRow("c_zoo", -1)
+	if !ok {
+		return 0
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return 0
+	}
+	if n, ok := readInt32JSONField(fields, "$satietyMax"); ok && n > 0 {
+		return n
+	}
+	return 0
 }
 
 func zooPetTouchable(status int32) bool {
@@ -297,50 +365,6 @@ func zooPetCanEat(status int32) bool {
 		return n != 0
 	}
 	return false
-}
-
-func zooEventActionForPet(petID, eventID int32) ZooEventAction {
-	action := ZooEventAction{
-		PetID:        petID,
-		EventID:      eventID,
-		TableID:      eventID,
-		IsShareVideo: 0,
-	}
-	info, ok := ZooEventInfoByID(eventID)
-	if ok {
-		action.Name = info.Name
-	}
-	if eventID == 4001 || eventID == 5001 {
-		action.Action = "find_pet"
-		if ok && info.SharedID > 0 {
-			action.Blocked = true
-			action.BlockedReason = "寻回宠物事件关联分享/广告路径，保守策略不自动执行"
-		}
-		return action
-	}
-	action.Action = "handle_event"
-	action.Agree = true
-	if !ok {
-		action.Blocked = true
-		action.BlockedReason = "宠物事件静态配置未识别，保守策略不自动处理"
-		return action
-	}
-	if info.SharedID > 0 {
-		action.Blocked = true
-		action.BlockedReason = "宠物事件关联分享/广告路径，保守策略不自动执行"
-		return action
-	}
-	if info.HasReward2 || len(info.Reward2) > 0 || info.NoHandle || info.Result {
-		action.Blocked = true
-		action.BlockedReason = "宠物事件存在选择或成本结果，需人工确认"
-		return action
-	}
-	if info.Type != 2 || (!info.HasReward1 && len(info.Reward1) == 0) {
-		action.Blocked = true
-		action.BlockedReason = "宠物事件收益/成本不明确，保守策略不自动处理"
-		return action
-	}
-	return action
 }
 
 func zooStateRow(status int32) (map[string]json.RawMessage, bool) {

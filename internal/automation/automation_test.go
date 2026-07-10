@@ -1280,6 +1280,7 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 	s := state.New()
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
 	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"1501": 5, "1502": 20}}},
 		"33": map[string]any{
 			"0": map[string]any{"0": 77900091102482},
 			"1": map[string]any{
@@ -1287,7 +1288,7 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 					"1":  1,
 					"2":  50,
 					"3":  20,
-					"4":  []int32{1501},
+					"4":  []int32{},
 					"5":  2,
 					"12": now.Add(-time.Minute).UnixMilli(),
 				},
@@ -1302,7 +1303,7 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 
 	result := BuildPlan(s, p, now)
 	want := map[string]string{
-		"basic.zoo.feed":   clientproto.RPCZooFeedPets.String(),
+		"basic.zoo.feed":   clientproto.RPCZooAddFoodstuff.String(),
 		"basic.zoo.stroke": clientproto.RPCZooStrokePet.String(),
 	}
 	seen := map[string]bool{}
@@ -1312,12 +1313,46 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 			if op.Kind != kind || op.TargetID != 1 || !op.Executable || op.SyncOnly {
 				t.Fatalf("zoo op mismatch for %s: %+v", op.Domain, op)
 			}
+			if op.Domain == "basic.zoo.feed" && (op.Action != "stock" || op.ItemID != 1501 || op.Count != 5 || len(op.ItemCost) != 1 || op.ItemCost[1501] != 5) {
+				t.Fatalf("zoo stock item/count/cost mismatch: %+v", op)
+			}
 		}
 	}
 	for domain := range want {
 		if !seen[domain] {
 			t.Fatalf("missing %s op: %+v", domain, result.Operations)
 		}
+	}
+}
+
+func TestBuildPlan_ZooExpiredRefreshPreemptsOtherActions(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"1501": 30}}},
+		"33": map[string]any{
+			"0": map[string]any{"0": 77900091102482},
+			"1": map[string]any{"1": map[string]any{
+				"1": 1, "2": 50, "3": 20, "4": []int32{}, "5": 2,
+				"12": now.Add(-time.Minute).UnixMilli(), "14": now.Add(-time.Second).UnixMilli(),
+			}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoFeed = true
+	p.Basic.Zoo.AutoStroke = true
+
+	result := BuildPlan(s, p, now)
+	var zooOps []PlannedOp
+	for _, op := range result.Operations {
+		if strings.HasPrefix(op.Domain, "basic.zoo") {
+			zooOps = append(zooOps, op)
+		}
+	}
+	if len(zooOps) != 1 || zooOps[0].Kind != clientproto.RPCZooRefreshPetStatus.String() || zooOps[0].TargetID != 1 || zooOps[0].Action != "refresh" {
+		t.Fatalf("zoo operations=%+v, want one refresh before stock/stroke", zooOps)
 	}
 }
 
@@ -1354,6 +1389,24 @@ func TestBuildPlan_ZooCostAndEventBlocked(t *testing.T) {
 	for domain, seen := range want {
 		if !seen {
 			t.Fatalf("missing blocked %s op: %+v", domain, result.Operations)
+		}
+	}
+}
+
+func TestZooUnsafeFeaturesAreNotExecutable(t *testing.T) {
+	wantBlocked := map[string]bool{"basic.zoo_find_pet": false, "basic.zoo_handle_event": false}
+	for _, spec := range featureSpecs {
+		if _, ok := wantBlocked[spec.ID]; !ok {
+			continue
+		}
+		if spec.Executable || spec.Status != PlanStatusBlocked || len(spec.BlockedReasons) == 0 {
+			t.Fatalf("unsafe zoo feature remains executable: %+v", spec)
+		}
+		wantBlocked[spec.ID] = true
+	}
+	for id, seen := range wantBlocked {
+		if !seen {
+			t.Fatalf("missing zoo feature %s", id)
 		}
 	}
 }

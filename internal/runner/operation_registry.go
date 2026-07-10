@@ -236,17 +236,51 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Zoo().EnterZoo(ctx, req)
 		},
 	),
-	clientproto.RPCZooFeedPets.String(): rawStateDeltaOperation(
-		func(op *automation.PlannedOp) (map[string]any, error) {
-			return map[string]any{"petIdList": []int32{op.TargetID}}, nil
+	clientproto.RPCZooRefreshPetStatus.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ZooRefreshPetStatusRequest, error) {
+			if op.TargetID <= 0 {
+				return clientproto.ZooRefreshPetStatusRequest{}, fmt.Errorf("refreshPetStatus missing pet id")
+			}
+			return clientproto.ZooRefreshPetStatusRequest{PetIdList: clientproto.RPCIDList{op.TargetID}}, nil
 		},
-		clientproto.RPCZooFeedPets,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ZooRefreshPetStatusRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Zoo().RefreshPetStatus(ctx, req)
+		},
 	),
-	clientproto.RPCZooStrokePet.String(): rawStateDeltaOperation(
-		func(op *automation.PlannedOp) (map[string]any, error) {
-			return map[string]any{"petId": op.TargetID}, nil
+	clientproto.RPCZooAddFoodstuff.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ZooAddFoodstuffRequest, error) {
+			if op.TargetID <= 0 {
+				return clientproto.ZooAddFoodstuffRequest{}, fmt.Errorf("addFoodstuff missing pet id")
+			}
+			if op.ItemID != 1501 && op.ItemID != 1502 {
+				return clientproto.ZooAddFoodstuffRequest{}, fmt.Errorf("addFoodstuff unsupported food id %d", op.ItemID)
+			}
+			if op.Count <= 0 {
+				return clientproto.ZooAddFoodstuffRequest{}, fmt.Errorf("addFoodstuff invalid count %d", op.Count)
+			}
+			if len(op.ItemCost) != 1 || op.ItemCost[op.ItemID] != op.Count {
+				return clientproto.ZooAddFoodstuffRequest{}, fmt.Errorf("addFoodstuff requires exact item cost %d:%d", op.ItemID, op.Count)
+			}
+			foodstuffIDs := make(clientproto.RPCIDList, op.Count)
+			for i := range foodstuffIDs {
+				foodstuffIDs[i] = op.ItemID
+			}
+			return clientproto.ZooAddFoodstuffRequest{PetId: op.TargetID, FoodstuffIds: foodstuffIDs}, nil
 		},
-		clientproto.RPCZooStrokePet,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ZooAddFoodstuffRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Zoo().AddFoodstuff(ctx, req)
+		},
+	),
+	clientproto.RPCZooStrokePet.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ZooStrokePetRequest, error) {
+			if op.TargetID <= 0 {
+				return clientproto.ZooStrokePetRequest{}, fmt.Errorf("strokePet missing pet id")
+			}
+			return clientproto.ZooStrokePetRequest{PetId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ZooStrokePetRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Zoo().StrokePet(ctx, req)
+		},
 	),
 	clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(): stateDeltaOperation(
 		staticRequest(clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}),
@@ -433,18 +467,6 @@ var plannedOperationSpecs = map[string]operationSpec{
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventDoAffairRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.RandomEvent().DoAffair(ctx, req)
 		},
-	),
-	clientproto.RPCZooFindPet.String(): rawStateDeltaOperation(
-		func(op *automation.PlannedOp) (map[string]any, error) {
-			return map[string]any{"petId": op.TargetID, "isShareVideo": 0}, nil
-		},
-		clientproto.RPCZooFindPet,
-	),
-	clientproto.RPCZooHandleEvent.String(): rawStateDeltaOperation(
-		func(op *automation.PlannedOp) (map[string]any, error) {
-			return map[string]any{"petId": op.TargetID, "tableId": op.ItemID, "agree": op.Count != 0, "isShareVideo": 0}, nil
-		},
-		clientproto.RPCZooHandleEvent,
 	),
 	clientproto.RPCMailGetList.String(): stateDeltaOperation(
 		staticRequest(clientproto.MailGetListRequest{}),

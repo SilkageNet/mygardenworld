@@ -184,6 +184,10 @@ func opKindDesc(kind string) string {
 		return "解锁田地"
 	case clientproto.RPCZooEnterZoo.String():
 		return "进入宠物模块"
+	case clientproto.RPCZooRefreshPetStatus.String():
+		return "刷新宠物状态"
+	case clientproto.RPCZooAddFoodstuff.String():
+		return "补充宠物食盆"
 	case clientproto.RPCZooFeedPets.String():
 		return "宠物喂食"
 	case clientproto.RPCZooStrokePet.String():

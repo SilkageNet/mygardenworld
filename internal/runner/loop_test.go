@@ -133,7 +133,7 @@ func TestCollectRewardOperationArgs(t *testing.T) {
 	}
 }
 
-func TestStoryAchievementMapAndZooOperationArgs(t *testing.T) {
+func TestStoryAchievementAndMapOperationArgs(t *testing.T) {
 	cases := []struct {
 		name string
 		op   automation.PlannedOp
@@ -143,8 +143,6 @@ func TestStoryAchievementMapAndZooOperationArgs(t *testing.T) {
 		{name: "story unlock", op: automation.PlannedOp{Kind: clientproto.RPCStoryMainUnlock.String()}, want: clientproto.StoryMainUnlockRequest{}},
 		{name: "achievement recv", op: automation.PlannedOp{Kind: clientproto.RPCTaskAchRecv.String(), TargetID: 10001}, want: clientproto.TaskAchRecvRequest{ID: 10001}},
 		{name: "random event enter", op: automation.PlannedOp{Kind: clientproto.RPCRandomEventEnter.String()}, want: clientproto.RandomEventEnterRequest{}},
-		{name: "zoo find pet", op: automation.PlannedOp{Kind: clientproto.RPCZooFindPet.String(), TargetID: 7}, want: map[string]any{"petId": int32(7), "isShareVideo": 0}},
-		{name: "zoo handle event", op: automation.PlannedOp{Kind: clientproto.RPCZooHandleEvent.String(), TargetID: 7, ItemID: 2001, Count: 1}, want: map[string]any{"petId": int32(7), "tableId": int32(2001), "agree": true, "isShareVideo": 0}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -302,8 +300,9 @@ func TestZooOperationArgs(t *testing.T) {
 		want any
 	}{
 		{name: "enter", op: automation.PlannedOp{Kind: clientproto.RPCZooEnterZoo.String()}, want: clientproto.ZooEnterZooRequest{}},
-		{name: "feed", op: automation.PlannedOp{Kind: clientproto.RPCZooFeedPets.String(), TargetID: 1}, want: map[string]any{"petIdList": []int32{1}}},
-		{name: "stroke", op: automation.PlannedOp{Kind: clientproto.RPCZooStrokePet.String(), TargetID: 1}, want: map[string]any{"petId": int32(1)}},
+		{name: "refresh", op: automation.PlannedOp{Kind: clientproto.RPCZooRefreshPetStatus.String(), TargetID: 1}, want: clientproto.ZooRefreshPetStatusRequest{PetIdList: clientproto.RPCIDList{1}}},
+		{name: "stock", op: automation.PlannedOp{Kind: clientproto.RPCZooAddFoodstuff.String(), TargetID: 1, ItemID: 1501, Count: 3, ItemCost: map[int32]int32{1501: 3}}, want: clientproto.ZooAddFoodstuffRequest{PetId: 1, FoodstuffIds: clientproto.RPCIDList{1501, 1501, 1501}}},
+		{name: "stroke", op: automation.PlannedOp{Kind: clientproto.RPCZooStrokePet.String(), TargetID: 1}, want: clientproto.ZooStrokePetRequest{PetId: 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -315,6 +314,38 @@ func TestZooOperationArgs(t *testing.T) {
 				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
 			}
 		})
+	}
+}
+
+func TestZooOperationRegistryExcludesUnsafeRPCs(t *testing.T) {
+	for _, rpc := range []clientproto.RPCName{
+		clientproto.RPCZooFeedPets,
+		clientproto.RPCZooFindPet,
+		clientproto.RPCZooHandleEvent,
+	} {
+		if _, ok := operationSpecFor(rpc.String()); ok {
+			t.Fatalf("unsafe zoo RPC %s remains executable", rpc)
+		}
+	}
+}
+
+func TestZooAddFoodstuffRequiresExactObservedCost(t *testing.T) {
+	base := automation.PlannedOp{Kind: clientproto.RPCZooAddFoodstuff.String(), TargetID: 1, ItemID: 1501, Count: 2}
+	if _, err := operationArgs(&base); err == nil {
+		t.Fatal("addFoodstuff without ItemCost unexpectedly accepted")
+	}
+	base.ItemCost = map[int32]int32{1501: 1}
+	if _, err := operationArgs(&base); err == nil {
+		t.Fatal("addFoodstuff with mismatched ItemCost unexpectedly accepted")
+	}
+	base.ItemCost[1501] = 2
+	args, err := operationArgs(&base)
+	if err != nil {
+		t.Fatalf("addFoodstuff with exact ItemCost: %v", err)
+	}
+	request, ok := args.(clientproto.ZooAddFoodstuffRequest)
+	if !ok || request.PetId != 1 || len(request.FoodstuffIds) != 2 || request.FoodstuffIds[0] != 1501 || request.FoodstuffIds[1] != 1501 {
+		t.Fatalf("addFoodstuff args=%T %+v, want typed repeated IDs", args, args)
 	}
 }
 

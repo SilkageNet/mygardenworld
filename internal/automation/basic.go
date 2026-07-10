@@ -179,10 +179,14 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 	if !s.ZooObserved() {
 		return []PlannedOp{domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "宠物状态未同步，先进入宠物模块", 5690, 0, 0, 0)}
 	}
+	for _, petID := range s.ReadyZooStatusRefreshPetIDs(now) {
+		return []PlannedOp{domainOp(clientproto.RPCZooRefreshPetStatus.String(), goal, "basic.zoo", "refresh", "宠物状态冷却已到期，先刷新服务端状态", 5685, petID, 0, 0)}
+	}
 	if policy.GetAutoFeed() {
-		for _, petID := range s.ReadyZooFeedPetIDs() {
-			ops = append(ops, domainOp(clientproto.RPCZooFeedPets.String(), goal, "basic.zoo.feed", "feed", "宠物食盆中已有食物且当前状态可进食", 5680, petID, 0, 0))
-			break
+		if food, ok := s.NextZooFoodstuffPlan(); ok {
+			stock := domainOp(clientproto.RPCZooAddFoodstuff.String(), goal, "basic.zoo.feed", "stock", "使用已有库存自动补充宠物食盆", 5680, food.PetID, food.FoodstuffID, food.Count)
+			stock.ItemCost = map[int32]int32{food.FoodstuffID: food.Count}
+			ops = append(ops, stock)
 		}
 	}
 	if policy.GetAutoStroke() {
@@ -192,33 +196,12 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 		}
 	}
 	if policy.GetAutoEventEnabled() {
-		events := s.ZooEventActions()
-		if len(events) > 0 {
-			evt := events[0]
-			reason := evt.BlockedReason
-			if reason == "" {
-				reason = "宠物事件可处理"
-			}
-			if evt.Blocked {
-				blocked := markerOp(CategoryBasic, "basic.zoo.event", evt.Action, reason, 5665)
-				blocked.Status = PlanStatusBlocked
-				blocked.Executable = false
-				blocked.TargetID = evt.PetID
-				blocked.ItemID = evt.TableID
-				blocked.BlockedReasons = []string{reason}
-				ops = append(ops, blocked)
-			} else {
-				rpc := clientproto.RPCZooHandleEvent.String()
-				if evt.Action == "find_pet" {
-					rpc = clientproto.RPCZooFindPet.String()
-				}
-				planned := domainOp(rpc, goal, "basic.zoo.event", evt.Action, reason, 5665, evt.PetID, evt.TableID, 0)
-				if evt.Agree {
-					planned.Count = 1
-				}
-				ops = append(ops, planned)
-			}
-		}
+		reason := "宠物字段事件推断已停用，等待服务端日志提供无歧义事件"
+		blocked := markerOp(CategoryBasic, "basic.zoo.event", "handle_event", reason, 5665)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{reason}
+		ops = append(ops, blocked)
 	}
 	if policy.GetAutoBuyFood() {
 		blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", "购买猫粮涉及成本和商品选择，暂不自动执行", 5660)
