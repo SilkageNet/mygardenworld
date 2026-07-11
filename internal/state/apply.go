@@ -139,6 +139,9 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	if rawNS22, ok := top["22"]; ok {
 		s.applyTasksLocked(rawNS22)
 	}
+	if rawNS23, ok := top["23"]; ok {
+		s.applyActivitiesLocked(rawNS23)
+	}
 	if rawNS117, ok := top["117"]; ok {
 		s.applyFreeWaterLocked(rawNS117)
 	}

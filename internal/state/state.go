@@ -111,6 +111,11 @@ type State struct {
 	achievementTasks     map[int32]*AchievementTaskView // 22.2 + c_task_ach
 	storyMain            StoryMainView                  // 7.101 当前主线剧情
 
+	activityObserved    bool
+	activityBatches     map[int32]*activityBatchState
+	activityTemplates   map[int32]*activityTemplateState
+	activityTaskRecords map[string]*activityTaskRecordState
+
 	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
 	randomEventObserved bool                       // namespace 129 observed at least once
@@ -222,6 +227,9 @@ func New() *State {
 		dailyTasks:                 make(map[int32]*DailyTaskView),
 		weeklyTasks:                make(map[int32]*WeeklyTaskView),
 		achievementTasks:           make(map[int32]*AchievementTaskView),
+		activityBatches:            make(map[int32]*activityBatchState),
+		activityTemplates:          make(map[int32]*activityTemplateState),
+		activityTaskRecords:        make(map[string]*activityTaskRecordState),
 		roadGrowReceived:           make(map[int32]bool),
 		randomEvents:               make(map[int32]*RandomEventView),
 		zooPets:                    make(map[int32]*ZooPetView),

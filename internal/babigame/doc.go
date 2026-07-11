@@ -27,7 +27,7 @@
 //	16         | VIP state                        | reLogin
 //	20         | Shop purchase records            | shop.buy
 //	22         | Daily/weekly task progress       | plant/water/harvest/cultivate
-//	23         | Activity stats                   | harvest, act.getStat
+//	23         | Activity state / cyclic tasks    | normal actions, actCyclicNote.*
 //	24         | Friend list                      | frd.enter
 //	25         | Guild / union state              | fml.*, Fml.build
 //	27         | IM channel                       | im.getChannelId
@@ -108,6 +108,27 @@
 // item 1003 x1 cost gate. Only this RPC inspects namespace `3.0` as the
 // client-side `$ext.iv`: exact zero is safe; nonzero or malformed-present data
 // locks automatic hiring for the rest of the session.
+//
+// # Cyclic Note Activity (Namespace 23)
+//
+// 花笺集芳 is discovered from live batch/template state rather than a fixed
+// batch id. The current activity has tmpType 4002 and status 1; client phase
+// selection prefers active (2), then reward grace (3), then preview (1):
+//
+//	23.0.<batchId>             IActInfo: tmpId/type/status/times/score/bag/boxes
+//	23.0.<batchId>.14.105.0    taskList, authoritative replacement by slot position
+//	23.0.<batchId>.14.105.1    finishCnt
+//	23.0.<batchId>.14.105.2    lrTime
+//	23.1.<tmpId>               IActTmp, including field 9 score milestones
+//	23.3."<batchId>|0".3       authoritative task progress map
+//	23.3."<batchId>|0".5       authoritative task reward receipt map
+//
+// Top-level batch/template/task-record maps are entry-sparse; null deletes one
+// entry. Object fields merge sparsely, while taskList, progress, receipt, bag,
+// claimed-box, and template-box fields replace their prior complete value when
+// present. Task completion uses raw server progress; UI progress is clamped.
+// Slot unlock, paid reroll/direct-complete, gifts, and the activity shop are
+// deliberately outside the safe automatic surface.
 //
 // Per-land fields (G.ILand schema, numeric-string keys):
 //

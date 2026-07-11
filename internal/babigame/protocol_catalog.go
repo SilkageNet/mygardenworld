@@ -12,7 +12,7 @@ type NamespaceSpec struct {
 var namespaceCatalog = []NamespaceSpec{
 	{Key: "2"}, {Key: "3"}, {Key: "6"}, {Key: "7", Modeled: true},
 	{Key: "16"}, {Key: "19"}, {Key: "20"}, {Key: "21"},
-	{Key: "22", Modeled: true}, {Key: "23"}, {Key: "24", Modeled: true}, {Key: "25", Modeled: true},
+	{Key: "22", Modeled: true}, {Key: "23", Modeled: true}, {Key: "24", Modeled: true}, {Key: "25", Modeled: true},
 	{Key: "27"}, {Key: "28", Modeled: true}, {Key: "31"}, {Key: "33"},
 	{Key: "34"}, {Key: "35"}, {Key: "100", Modeled: true},
 	{Key: "101", Modeled: true}, {Key: "102", Modeled: true}, {Key: "103", Modeled: true},

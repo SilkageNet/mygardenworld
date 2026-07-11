@@ -513,6 +513,66 @@ type MainTaskClaimSnapshot struct {
 	Finished   int32
 }
 
+// CyclicNoteView is a defensive snapshot of the dynamically selected
+// 花笺集芳 (tmpType 4002) activity in namespace 23.
+type CyclicNoteView struct {
+	Observed                  bool
+	Found                     bool
+	Valid                     bool
+	TaskListObserved          bool
+	TaskRecordObserved        bool
+	MilestoneReceiptsObserved bool
+	BatchID                   int32
+	TmpID                     int32
+	TmpType                   int32
+	Status                    int32
+	Phase                     int32
+	VisibleStartMs            int64
+	BeginMs                   int64
+	EndMs                     int64
+	GraceEndMs                int64
+	PhaseEndMs                int64
+	Name                      string
+	Description               string
+	Score                     int32
+	Bag                       map[int32]int32
+	CurrencyItemID            int32
+	CurrencyBalance           int32
+	FinishCount               int32
+	LastRefreshTimeMs         int64
+	ClaimedMilestoneIndexes   []int32
+	Tasks                     []CyclicNoteTaskSlotView
+	Milestones                []CyclicNoteMilestoneView
+}
+
+// CyclicNoteTaskSlotView preserves the server task-list position. Locked or
+// malformed entries are retained instead of being compacted away.
+type CyclicNoteTaskSlotView struct {
+	SlotID           int32
+	Unlocked         bool
+	TaskID           int32
+	TaskType         int32
+	Param            int32
+	Title            string
+	Target           int32
+	Progress         int32
+	ProgressObserved bool
+	ReceiptObserved  bool
+	Received         bool
+	CatalogKnown     bool
+	Reward           []ItemCount
+	FinishCost       []ItemCount
+}
+
+// CyclicNoteMilestoneView is one tmp boxes threshold. Received is keyed by
+// milestone index, not by target score.
+type CyclicNoteMilestoneView struct {
+	Index    int32
+	Target   int32
+	Received bool
+	Reward   []ItemCount
+}
+
 // StoryMainView is the tracked subset of 7.101 (G.IStoryMain).
 type StoryMainView struct {
 	Observed        bool        `json:"observed,omitempty"`

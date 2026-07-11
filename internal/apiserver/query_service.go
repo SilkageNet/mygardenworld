@@ -126,6 +126,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	diamondsFree, diamondsPaid := st.Diamonds()
 	vip, vipExp := st.Vip()
 	diag := r.Diagnostics(now)
+	cyclicNote, _ := st.CyclicNoteView(now)
 	resp := &pb.GetSnapshotResponse{
 		AccountId:             fmt.Sprintf("%d", acc.ID),
 		AccountName:           acc.Name,
@@ -140,7 +141,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Experience:            st.Experience(),
 		DiamondsFree:          diamondsFree,
 		DiamondsPaid:          diamondsPaid,
-		PendingTasks:          buildPendingTasks(st),
+		PendingTasks:          buildPendingTasksAt(st, now),
 		Vip:                   vip,
 		VipExp:                vipExp,
 		NobleEligible:         st.NobleEligible(),
@@ -149,6 +150,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		UnknownNamespaceCount: diag.UnknownNamespaceCount,
 		Diagnostics:           runnerDiagnosticsProto(diag),
 		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
+		CyclicNote:            cyclicNoteProto(cyclicNote),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -225,6 +227,137 @@ func runtimeActionTotalProto(item runner.RuntimeActionTotal) *pb.RuntimeActionTo
 		Label: item.Label,
 		Count: item.Count,
 	}
+}
+
+func cyclicNoteProto(view state.CyclicNoteView) *pb.CyclicNoteView {
+	out := &pb.CyclicNoteView{
+		Observed:                  view.Observed,
+		Found:                     view.Found,
+		Valid:                     view.Valid,
+		BatchId:                   view.BatchID,
+		TemplateId:                view.TmpID,
+		TemplateType:              view.TmpType,
+		Status:                    view.Status,
+		Phase:                     view.Phase,
+		PhaseEndMs:                view.PhaseEndMs,
+		BeginMs:                   view.BeginMs,
+		VisibleStartMs:            view.VisibleStartMs,
+		EndMs:                     view.EndMs,
+		GraceEndMs:                view.GraceEndMs,
+		Name:                      view.Name,
+		Description:               view.Description,
+		Score:                     view.Score,
+		CurrencyItemId:            view.CurrencyItemID,
+		CurrencyBalance:           view.CurrencyBalance,
+		FinishCount:               view.FinishCount,
+		LastRefreshMs:             view.LastRefreshTimeMs,
+		TaskListObserved:          view.TaskListObserved,
+		TaskRecordObserved:        view.TaskRecordObserved,
+		MilestoneReceiptsObserved: view.MilestoneReceiptsObserved,
+	}
+
+	itemIDs := make([]int32, 0, len(view.Bag))
+	for itemID := range view.Bag {
+		itemIDs = append(itemIDs, itemID)
+	}
+	sort.Slice(itemIDs, func(i, j int) bool { return itemIDs[i] < itemIDs[j] })
+	for _, itemID := range itemIDs {
+		out.Items = append(out.Items, activityItemProto(state.ItemCount{ItemID: itemID, Count: view.Bag[itemID]}))
+	}
+
+	for _, task := range view.Tasks {
+		out.Tasks = append(out.Tasks, &pb.CyclicNoteTaskSlot{
+			SlotId:           task.SlotID,
+			Unlocked:         task.Unlocked,
+			TaskId:           task.TaskID,
+			TaskType:         task.TaskType,
+			Param:            task.Param,
+			Title:            task.Title,
+			Target:           task.Target,
+			Progress:         clampProgress(task.Progress, task.Target),
+			RawProgress:      task.Progress,
+			ProgressObserved: task.ProgressObserved,
+			Received:         task.Received,
+			ReceiptObserved:  task.ReceiptObserved,
+			CatalogKnown:     task.CatalogKnown,
+			Reward:           activityItemsProto(task.Reward),
+			FinishCost:       activityItemsProto(task.FinishCost),
+			Status:           cyclicNoteTaskStatus(view, task),
+		})
+	}
+
+	for _, milestone := range view.Milestones {
+		ready := view.Valid && view.Phase == 2 && view.MilestoneReceiptsObserved && milestone.Target > 0 && view.Score >= milestone.Target && !milestone.Received
+		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+		if !view.Valid || milestone.Target <= 0 {
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+		} else if !view.MilestoneReceiptsObserved {
+			status = pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+		} else if milestone.Received {
+			status = pb.PlanStatus_PLAN_STATUS_SKIPPED
+		} else if ready {
+			status = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		out.Milestones = append(out.Milestones, &pb.CyclicNoteMilestone{
+			Index:       milestone.Index,
+			Target:      milestone.Target,
+			Received:    milestone.Received,
+			Reward:      activityItemsProto(milestone.Reward),
+			Status:      status,
+			Progress:    clampProgress(view.Score, milestone.Target),
+			RawProgress: view.Score,
+			Ready:       ready,
+		})
+	}
+	return out
+}
+
+func cyclicNoteTaskStatus(view state.CyclicNoteView, task state.CyclicNoteTaskSlotView) pb.PlanStatus {
+	if !task.Unlocked {
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	}
+	if !view.Valid || !task.CatalogKnown || task.Target <= 0 {
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	}
+	if !task.ProgressObserved || !task.ReceiptObserved {
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+	if task.Received {
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	}
+	if view.Phase != 2 {
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+	if task.Progress >= task.Target {
+		return pb.PlanStatus_PLAN_STATUS_READY
+	}
+	return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+}
+
+func activityItemsProto(items []state.ItemCount) []*pb.ActivityItem {
+	out := make([]*pb.ActivityItem, 0, len(items))
+	for _, item := range items {
+		out = append(out, activityItemProto(item))
+	}
+	return out
+}
+
+func activityItemProto(item state.ItemCount) *pb.ActivityItem {
+	return &pb.ActivityItem{
+		ItemId:   item.ItemID,
+		ItemName: state.ItemName(item.ItemID),
+		Count:    item.Count,
+	}
+}
+
+func clampProgress(progress, target int32) int32 {
+	if progress < 0 {
+		return 0
+	}
+	if target > 0 && progress > target {
+		return target
+	}
+	return progress
 }
 
 func timestampOrNil(t time.Time) *timestamppb.Timestamp {
@@ -508,6 +641,39 @@ func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 		})
 	}
 
+	out = append(out, cyclicNotePendingTasks(st, now)...)
+
+	return out
+}
+
+func cyclicNotePendingTasks(st *state.State, now time.Time) []*pb.PendingTaskView {
+	view, _ := st.CyclicNoteView(now)
+	return cyclicNotePendingTasksFromView(view)
+}
+
+func cyclicNotePendingTasksFromView(view state.CyclicNoteView) []*pb.PendingTaskView {
+	if !view.Found || view.Phase != 2 {
+		return nil
+	}
+	out := make([]*pb.PendingTaskView, 0, len(view.Tasks))
+	for _, task := range view.Tasks {
+		if !task.Unlocked || task.Received {
+			continue
+		}
+		title := task.Title
+		if title == "" {
+			title = fmt.Sprintf("花笺集芳任务 #%d", task.TaskID)
+		}
+		status := cyclicNoteTaskStatus(view, task)
+		out = append(out, &pb.PendingTaskView{
+			Category: "activity",
+			Id:       fmt.Sprintf("%d:%d:%d", view.BatchID, task.SlotID, task.TaskID),
+			Title:    title,
+			Finished: clampProgress(task.Progress, task.Target),
+			Target:   task.Target,
+			Status:   status,
+		})
+	}
 	return out
 }
 

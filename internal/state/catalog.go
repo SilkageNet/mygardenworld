@@ -195,6 +195,39 @@ type PearlHireConfig struct {
 	Slots           map[int32]PearlHireSlotConfig
 }
 
+// CyclicNoteCatalog describes the static c_act/c_actCyclicNote metadata shared
+// by every 花笺集芳 batch. Runtime batch ids and dates still come exclusively
+// from namespace 23.
+type CyclicNoteCatalog struct {
+	TmpType        int32
+	Name           string
+	CurrencyItemID int32
+	TaskSlotCount  int32
+}
+
+// CyclicNoteTaskInfo is one fully validated c_actCyclicNote task joined with
+// its c_task_type description. Unknown or malformed rows retain TaskID while
+// CatalogKnown remains false, so runtime task-list positions can still be
+// displayed without guessing their semantics.
+type CyclicNoteTaskInfo struct {
+	TaskID       int32
+	TaskType     int32
+	Param        int32
+	Title        string
+	Target       int32
+	Reward       []ItemCount
+	FinishCost   []ItemCount
+	CatalogKnown bool
+}
+
+// CyclicNoteMilestoneInfo is one namespace 23 template box definition.
+// Index is the value stored in the runtime claimed-box list; Target is score.
+type CyclicNoteMilestoneInfo struct {
+	Index  int32
+	Target int32
+	Reward []ItemCount
+}
+
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
 	ID         int32
@@ -267,6 +300,223 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return cloneRaw(row), true
+}
+
+// CyclicNoteCatalogConfig returns the validated static configuration shared
+// by cyclic-note batches. The batch itself is deliberately not hard-coded:
+// namespace 23 selects it dynamically by TmpType.
+func CyclicNoteCatalogConfig() (CyclicNoteCatalog, bool) {
+	const cyclicNoteTmpType int32 = 4002
+	raw, ok := StaticRow("c_act", cyclicNoteTmpType)
+	if !ok {
+		return CyclicNoteCatalog{}, false
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return CyclicNoteCatalog{}, false
+	}
+	id, idOK := readStoryMainInt32(row["id"])
+	var name string
+	nameOK := json.Unmarshal(row["name"], &name) == nil && strings.TrimSpace(name) != ""
+	currencyID, currencyOK := readSinglePositiveCatalogID(row["scoreId"])
+	slotCount, slotsOK := cyclicNoteTaskSlotCount()
+	if !idOK || id != cyclicNoteTmpType || !nameOK || !currencyOK || !slotsOK {
+		return CyclicNoteCatalog{}, false
+	}
+	return CyclicNoteCatalog{
+		TmpType:        cyclicNoteTmpType,
+		Name:           strings.TrimSpace(name),
+		CurrencyItemID: currencyID,
+		TaskSlotCount:  slotCount,
+	}, true
+}
+
+// CyclicNoteTaskInfoByID joins a c_actCyclicNote row with c_task_type. The
+// returned TaskID is retained even on failure so callers can preserve and
+// report unknown runtime tasks without treating them as actionable.
+func CyclicNoteTaskInfoByID(taskID int32) CyclicNoteTaskInfo {
+	unknown := CyclicNoteTaskInfo{TaskID: taskID}
+	if taskID <= 0 {
+		return unknown
+	}
+	raw, ok := StaticRow("c_actCyclicNote", taskID)
+	if !ok {
+		return unknown
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return unknown
+	}
+	id, idOK := readStoryMainInt32(row["id"])
+	taskType, typeOK := readStoryMainInt32(row["type"])
+	target, targetOK := readStoryMainInt32(row["value"])
+	color, colorOK := readStoryMainInt32(row["color"])
+	group, groupOK := readStoryMainInt32(row["group"])
+	param := int32(0)
+	if rawParam, present := row["param"]; present {
+		var paramOK bool
+		param, paramOK = readStoryMainInt32(rawParam)
+		if !paramOK {
+			return unknown
+		}
+	}
+	reward, rewardOK := parseStoryMainCost(row["reward"])
+	finishCost, finishOK := parseStoryMainCost(row["finishCost"])
+	if !idOK || id != taskID || !typeOK || taskType <= 0 || !targetOK || target <= 0 ||
+		!colorOK || color <= 0 || !groupOK || group <= 0 || !rewardOK || !finishOK {
+		return unknown
+	}
+
+	typeRaw, ok := StaticRow("c_task_type", taskType)
+	if !ok {
+		return unknown
+	}
+	var typeRow map[string]json.RawMessage
+	if json.Unmarshal(typeRaw, &typeRow) != nil {
+		return unknown
+	}
+	typeID, typeIDOK := readStoryMainInt32(typeRow["id"])
+	var description string
+	if !typeIDOK || typeID != taskType || json.Unmarshal(typeRow["desc"], &description) != nil || strings.TrimSpace(description) == "" {
+		return unknown
+	}
+	title := strings.TrimSpace(description)
+	title = strings.ReplaceAll(title, "${value}", strconv.FormatInt(int64(target), 10))
+	title = strings.ReplaceAll(title, "${param}", strconv.FormatInt(int64(param), 10))
+	return CyclicNoteTaskInfo{
+		TaskID:       taskID,
+		TaskType:     taskType,
+		Param:        param,
+		Title:        title,
+		Target:       target,
+		Reward:       reward,
+		FinishCost:   finishCost,
+		CatalogKnown: true,
+	}
+}
+
+// ParseCyclicNoteTemplateBoxes decodes field 9 of a namespace 23.1 template.
+// Each runtime row is [milestoneIndex, scoreTarget, "item,count;..."] rather
+// than the array-of-pairs representation used by static catalog rewards.
+// Explicit null and [] are valid observed-empty replacements.
+func ParseCyclicNoteTemplateBoxes(raw json.RawMessage) ([]CyclicNoteMilestoneInfo, bool) {
+	trimmed := bytes.TrimSpace(raw)
+	if bytes.Equal(trimmed, []byte("null")) {
+		return nil, true
+	}
+	var rows []json.RawMessage
+	if len(trimmed) == 0 || json.Unmarshal(trimmed, &rows) != nil {
+		return nil, false
+	}
+	out := make([]CyclicNoteMilestoneInfo, 0, len(rows))
+	seenIndexes := make(map[int32]struct{}, len(rows))
+	seenTargets := make(map[int32]struct{}, len(rows))
+	for _, rawRow := range rows {
+		var fields []json.RawMessage
+		if json.Unmarshal(rawRow, &fields) != nil || len(fields) != 3 {
+			return nil, false
+		}
+		index, indexOK := readStoryMainInt32(fields[0])
+		target, targetOK := readStoryMainInt32(fields[1])
+		var rewardText string
+		if !indexOK || index <= 0 || !targetOK || target <= 0 || json.Unmarshal(fields[2], &rewardText) != nil {
+			return nil, false
+		}
+		if _, duplicate := seenIndexes[index]; duplicate {
+			return nil, false
+		}
+		if _, duplicate := seenTargets[target]; duplicate {
+			return nil, false
+		}
+		reward, ok := parseCyclicNoteRewardText(rewardText)
+		if !ok {
+			return nil, false
+		}
+		seenIndexes[index] = struct{}{}
+		seenTargets[target] = struct{}{}
+		out = append(out, CyclicNoteMilestoneInfo{Index: index, Target: target, Reward: reward})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Index < out[j].Index })
+	for i := 1; i < len(out); i++ {
+		if out[i].Target <= out[i-1].Target {
+			return nil, false
+		}
+	}
+	return out, true
+}
+
+func cyclicNoteTaskSlotCount() (int32, bool) {
+	raw, ok := StaticRow("c_actCyclicNote", -1)
+	if !ok {
+		return 0, false
+	}
+	var meta map[string]json.RawMessage
+	if json.Unmarshal(raw, &meta) != nil {
+		return 0, false
+	}
+	var rows []json.RawMessage
+	if json.Unmarshal(meta["$taskNum"], &rows) != nil || len(rows) == 0 || len(rows) > math.MaxInt32 {
+		return 0, false
+	}
+	for idx, rawRow := range rows {
+		var fields []json.RawMessage
+		if json.Unmarshal(rawRow, &fields) != nil || len(fields) != 3 {
+			return 0, false
+		}
+		slotID, slotOK := readStoryMainInt32(fields[0])
+		unlockType, unlockOK := readStoryMainInt32(fields[1])
+		unlockCost, costOK := readStoryMainInt32(fields[2])
+		if !slotOK || slotID != int32(idx+1) || !unlockOK || unlockType < 0 || !costOK || unlockCost < 0 {
+			return 0, false
+		}
+		if (unlockType == 0 && unlockCost != 0) || (unlockType != 0 && unlockCost <= 0) {
+			return 0, false
+		}
+	}
+	return int32(len(rows)), true
+}
+
+func readSinglePositiveCatalogID(raw json.RawMessage) (int32, bool) {
+	var values []json.RawMessage
+	if json.Unmarshal(raw, &values) != nil || len(values) != 1 {
+		return 0, false
+	}
+	id, ok := readStoryMainInt32(values[0])
+	return id, ok && id > 0
+}
+
+func parseCyclicNoteRewardText(text string) ([]ItemCount, bool) {
+	if text == "" || strings.TrimSpace(text) != text {
+		return nil, false
+	}
+	aggregated := make(map[int32]int64)
+	for _, stackText := range strings.Split(text, ";") {
+		parts := strings.Split(stackText, ",")
+		if len(parts) != 2 {
+			return nil, false
+		}
+		itemID64, itemErr := strconv.ParseInt(parts[0], 10, 32)
+		count64, countErr := strconv.ParseInt(parts[1], 10, 32)
+		if itemErr != nil || countErr != nil || itemID64 <= 0 || count64 <= 0 ||
+			strconv.FormatInt(itemID64, 10) != parts[0] || strconv.FormatInt(count64, 10) != parts[1] {
+			return nil, false
+		}
+		itemID := int32(itemID64)
+		aggregated[itemID] += count64
+		if aggregated[itemID] > math.MaxInt32 {
+			return nil, false
+		}
+	}
+	ids := make([]int32, 0, len(aggregated))
+	for itemID := range aggregated {
+		ids = append(ids, itemID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]ItemCount, 0, len(ids))
+	for _, itemID := range ids {
+		out = append(out, ItemCount{ItemID: itemID, Count: int32(aggregated[itemID])})
+	}
+	return out, true
 }
 
 // PearlProductionTimingFromCatalog returns the timing constants used by the

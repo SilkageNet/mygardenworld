@@ -331,6 +331,229 @@ func TestBuildPendingTasksShowsZooSouvenirRewardAndUnreadState(t *testing.T) {
 	}
 }
 
+func TestCyclicNoteProtoClampsDisplayButUsesRawProgressForReadiness(t *testing.T) {
+	view := state.CyclicNoteView{
+		Observed:                  true,
+		Found:                     true,
+		Valid:                     true,
+		BatchID:                   1309,
+		TmpID:                     40020007,
+		TmpType:                   4002,
+		Phase:                     2,
+		Score:                     130,
+		Bag:                       map[int32]int32{1107: 9, 11: 2000},
+		CurrencyItemID:            1107,
+		CurrencyBalance:           9,
+		TaskListObserved:          true,
+		MilestoneReceiptsObserved: true,
+		Tasks: []state.CyclicNoteTaskSlotView{
+			{SlotID: 1, Unlocked: true, TaskID: 4003, TaskType: 3001, Target: 80, Progress: 81, ProgressObserved: true, ReceiptObserved: true, CatalogKnown: true},
+			{SlotID: 2, Unlocked: true, TaskID: 9999, Target: 20, Progress: 20, ProgressObserved: true, ReceiptObserved: true},
+			{SlotID: 3, Unlocked: true, TaskID: 2001, TaskType: 3015, Target: 135, Progress: 70, ProgressObserved: true, ReceiptObserved: true, CatalogKnown: true},
+		},
+		Milestones: []state.CyclicNoteMilestoneView{
+			{Index: 1, Target: 120, Reward: []state.ItemCount{{ItemID: 1, Count: 200}}},
+			{Index: 2, Target: 60, Received: true},
+		},
+	}
+
+	got := cyclicNoteProto(view)
+	if !got.GetObserved() || !got.GetFound() || !got.GetValid() || got.GetBatchId() != 1309 {
+		t.Fatalf("activity identity=%+v", got)
+	}
+	if len(got.GetItems()) != 2 || got.GetItems()[0].GetItemId() != 11 || got.GetItems()[1].GetItemId() != 1107 {
+		t.Fatalf("activity items=%+v, want stable item-id order", got.GetItems())
+	}
+	ready := got.GetTasks()[0]
+	if ready.GetProgress() != 80 || ready.GetRawProgress() != 81 || ready.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("overshot task=%+v, want display 80 raw 81 READY", ready)
+	}
+	if got.GetTasks()[1].GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+		t.Fatalf("unknown task status=%s, want BLOCKED", got.GetTasks()[1].GetStatus())
+	}
+	if got.GetTasks()[2].GetStatus() != pb.PlanStatus_PLAN_STATUS_SYNC_ONLY {
+		t.Fatalf("unfinished task status=%s, want SYNC_ONLY", got.GetTasks()[2].GetStatus())
+	}
+	milestone := got.GetMilestones()[0]
+	if milestone.GetProgress() != 120 || milestone.GetRawProgress() != 130 || !milestone.GetReady() || milestone.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("ready milestone=%+v, want display 120 raw 130 READY", milestone)
+	}
+	if got.GetMilestones()[1].GetReady() || got.GetMilestones()[1].GetStatus() != pb.PlanStatus_PLAN_STATUS_SKIPPED {
+		t.Fatalf("received milestone=%+v, want not-ready SKIPPED", got.GetMilestones()[1])
+	}
+
+	view.Valid = false
+	invalid := cyclicNoteProto(view)
+	if invalid.GetTasks()[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED || invalid.GetMilestones()[0].GetReady() {
+		t.Fatalf("invalid activity exposed ready work: tasks=%+v milestones=%+v", invalid.GetTasks(), invalid.GetMilestones())
+	}
+
+	view.Valid = true
+	view.Phase = 3
+	grace := cyclicNoteProto(view)
+	if grace.GetTasks()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY || grace.GetMilestones()[0].GetReady() || grace.GetMilestones()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("non-active phase exposed ready work: tasks=%+v milestones=%+v", grace.GetTasks(), grace.GetMilestones())
+	}
+
+	view.Phase = 2
+	view.MilestoneReceiptsObserved = false
+	unknownReceipts := cyclicNoteProto(view)
+	if unknownReceipts.GetMilestones()[0].GetReady() || unknownReceipts.GetMilestones()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("unobserved milestone receipts exposed ready work: %+v", unknownReceipts.GetMilestones()[0])
+	}
+}
+
+func TestCyclicNotePendingTasksUseMachineCategoryCompositeIDAndActivePhase(t *testing.T) {
+	view := state.CyclicNoteView{
+		Found:   true,
+		Valid:   true,
+		BatchID: 1309,
+		Phase:   2,
+		Tasks: []state.CyclicNoteTaskSlotView{
+			{SlotID: 1, Unlocked: true, TaskID: 2007, Title: "完成顾客订单25次", Target: 25, Progress: 29, ProgressObserved: true, ReceiptObserved: true, CatalogKnown: true},
+			{SlotID: 2, Unlocked: true, TaskID: 9999, Title: "未知任务", Target: 5, ProgressObserved: true, ReceiptObserved: true},
+			{SlotID: 3, Unlocked: false},
+			{SlotID: 4, Unlocked: true, TaskID: 1006, Received: true, Target: 3, Progress: 3, ProgressObserved: true, ReceiptObserved: true, CatalogKnown: true},
+		},
+	}
+
+	got := cyclicNotePendingTasksFromView(view)
+	if len(got) != 2 {
+		t.Fatalf("pending tasks=%+v, want unlocked unreceived slots only", got)
+	}
+	if got[0].GetCategory() != "activity" || got[0].GetId() != "1309:1:2007" || got[0].GetFinished() != 25 || got[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("ready pending task=%+v", got[0])
+	}
+	if got[1].GetId() != "1309:2:9999" || got[1].GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+		t.Fatalf("unknown pending task=%+v, want BLOCKED", got[1])
+	}
+
+	view.Phase = 3
+	if grace := cyclicNotePendingTasksFromView(view); len(grace) != 0 {
+		t.Fatalf("phase 3 pending tasks=%+v, want none", grace)
+	}
+}
+
+func TestCyclicNoteApplyVFlowsToSnapshotAndPending(t *testing.T) {
+	now := time.Date(2026, 7, 11, 3, 0, 0, 0, time.UTC)
+	beginMs := now.Add(-time.Hour).UnixMilli()
+	endMs := now.Add(24 * time.Hour).UnixMilli()
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"23": map[string]any{
+			"0": map[string]any{
+				"1309": map[string]any{
+					"0": 1309, "1": 40020007, "2": 4002, "3": 1,
+					"5": beginMs, "6": beginMs, "7": endMs, "8": int64(0), "9": int64(86_400_000),
+					"11": 130,
+					"12": map[string]any{"1107": 9},
+					"14": map[string]any{"105": map[string]any{
+						"0": []int32{4003, 0, 1006}, "1": 2, "2": now.Add(-time.Minute).UnixMilli(),
+					}},
+				},
+			},
+			"1": map[string]any{
+				"40020007": map[string]any{
+					"0": 40020007, "1": "花笺集芳7期", "2": "苔绿贝壳花测试批次", "3": 4002,
+					"9": []any{
+						[]any{1, 60, "1,80;1002,350"},
+						[]any{2, 120, "1,200;1001,600"},
+						[]any{3, 265, "1,600;21541,1"},
+					},
+				},
+			},
+			"3": map[string]any{
+				"1309|0": map[string]any{
+					"1": 1309, "2": 0,
+					"3": map[string]any{"4003": 81, "1006": 2},
+					"4": map[string]any{"4003": map[string]any{"2": now.UnixMilli()}},
+					"5": map[string]any{},
+					"7": now.UnixMilli(),
+				},
+			},
+		},
+	})
+
+	view, ok := st.CyclicNoteView(now)
+	if !ok || !view.Observed || !view.Found || !view.Valid || view.Phase != 2 {
+		t.Fatalf("cyclic-note view identity=%+v ok=%t", view, ok)
+	}
+	if view.BatchID != 1309 || view.TmpID != 40020007 || view.CurrencyItemID != 1107 || view.CurrencyBalance != 9 || view.FinishCount != 2 {
+		t.Fatalf("cyclic-note batch summary=%+v", view)
+	}
+	if !view.TaskListObserved || !view.TaskRecordObserved || view.MilestoneReceiptsObserved {
+		t.Fatalf("observation flags taskList=%t taskRecord=%t milestoneReceipts=%t", view.TaskListObserved, view.TaskRecordObserved, view.MilestoneReceiptsObserved)
+	}
+	if len(view.Tasks) != 3 || view.Tasks[0].TaskID != 4003 || view.Tasks[0].Progress != 81 || !view.Tasks[0].ProgressObserved || !view.Tasks[0].ReceiptObserved ||
+		view.Tasks[1].Unlocked || view.Tasks[2].TaskID != 1006 || view.Tasks[2].Progress != 2 {
+		t.Fatalf("cyclic-note task slots=%+v", view.Tasks)
+	}
+	if len(view.Milestones) != 3 || view.Milestones[0].Index != 1 || view.Milestones[0].Target != 60 || view.Milestones[2].Target != 265 {
+		t.Fatalf("cyclic-note milestones=%+v", view.Milestones)
+	}
+
+	snapshot := cyclicNoteProto(view)
+	if snapshot.GetTasks()[0].GetProgress() != 80 || snapshot.GetTasks()[0].GetRawProgress() != 81 || snapshot.GetTasks()[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("snapshot overshot task=%+v", snapshot.GetTasks()[0])
+	}
+	for _, milestone := range snapshot.GetMilestones() {
+		if milestone.GetReady() || milestone.GetStatus() == pb.PlanStatus_PLAN_STATUS_READY {
+			t.Fatalf("milestone became ready before boxes receipt state was observed: %+v", milestone)
+		}
+	}
+
+	pending := cyclicNotePendingTasks(st, now)
+	if len(pending) != 2 || pending[0].GetCategory() != "activity" || pending[0].GetId() != "1309:1:4003" || pending[0].GetFinished() != 80 || pending[0].GetTarget() != 80 || pending[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_READY ||
+		pending[1].GetId() != "1309:3:1006" || pending[1].GetStatus() != pb.PlanStatus_PLAN_STATUS_SYNC_ONLY {
+		t.Fatalf("cyclic-note pending tasks=%+v", pending)
+	}
+
+	// An observed empty boxes list is authoritative, unlike an absent field.
+	st.ApplyVMap(map[string]any{"23": map[string]any{"0": map[string]any{"1309": map[string]any{"13": []int32{}}}}})
+	view, ok = st.CyclicNoteView(now)
+	if !ok || !view.MilestoneReceiptsObserved {
+		t.Fatalf("empty claimed-box list not observed: view=%+v ok=%t", view, ok)
+	}
+	snapshot = cyclicNoteProto(view)
+	if !snapshot.GetMilestoneReceiptsObserved() || !snapshot.GetMilestones()[0].GetReady() || !snapshot.GetMilestones()[1].GetReady() || snapshot.GetMilestones()[2].GetReady() ||
+		snapshot.GetMilestones()[0].GetProgress() != 60 || snapshot.GetMilestones()[0].GetRawProgress() != 130 {
+		t.Fatalf("milestone snapshot after receipt sync=%+v", snapshot.GetMilestones())
+	}
+
+	// recvTaskRwd replaces the entire task list and task-record maps. The old
+	// task must disappear from both the domain view and pending-task projection.
+	st.ApplyVMap(map[string]any{
+		"23": map[string]any{
+			"0": map[string]any{"1309": map[string]any{
+				"11": 134,
+				"12": map[string]any{"1107": 13},
+				"14": map[string]any{"105": map[string]any{"0": []int32{2007, 0, 1006}, "1": 3}},
+			}},
+			"3": map[string]any{"1309|0": map[string]any{
+				"3": map[string]any{"1006": 2}, "4": map[string]any{}, "5": map[string]any{}, "7": now.Add(time.Second).UnixMilli(),
+			}},
+		},
+	})
+	view, ok = st.CyclicNoteView(now)
+	if !ok || len(view.Tasks) != 3 || view.Tasks[0].TaskID != 2007 || view.Tasks[0].Progress != 0 || view.Tasks[2].TaskID != 1006 || view.Tasks[2].Progress != 2 || view.FinishCount != 3 {
+		t.Fatalf("replacement cyclic-note view=%+v ok=%t", view, ok)
+	}
+	for _, task := range view.Tasks {
+		if task.TaskID == 4003 {
+			t.Fatalf("old task survived task-list replacement: %+v", view.Tasks)
+		}
+	}
+	pending = cyclicNotePendingTasks(st, now)
+	if len(pending) != 2 || pending[0].GetId() != "1309:1:2007" || pending[1].GetId() != "1309:3:1006" {
+		t.Fatalf("replacement pending tasks=%+v", pending)
+	}
+	for _, task := range pending {
+		if task.GetId() == "1309:1:4003" {
+			t.Fatalf("old pending task survived replacement: %+v", pending)
+		}
+	}
+}
+
 func residentOrderTask(t *testing.T, tasks []*pb.PendingTaskView) *pb.PendingTaskView {
 	t.Helper()
 	for _, task := range tasks {
