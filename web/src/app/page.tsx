@@ -984,10 +984,10 @@ function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null
     <div className="space-y-3 sm:space-y-4">
       <StatusOverviewPanel snapshot={snapshot} status={status} />
       <RuntimeStatisticsPanel runtimeStatistics={runtimeStatistics} />
-      <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
       <LandWarehouseMonitorPanel lands={snapshot?.lands ?? []} ledger={snapshot?.inventoryLedger} />
+      <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
     </div>
   );
 }
