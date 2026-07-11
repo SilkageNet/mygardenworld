@@ -1543,6 +1543,23 @@ func TestApplyV_CollectRewardsAndFlowerArtRewardReadiness(t *testing.T) {
 		t.Fatalf("ReadyArtCreateRewardVaseIDs=%v, want [3001 3002]", got)
 	}
 
+	// collectRwd.recv returns only the changed fields of one reward record.
+	// Missing field 7 must retain the authoritative art-create receipt list.
+	applyMap(t, s, map[string]any{
+		"103": map[string]any{
+			"0": map[string]any{
+				"13": map[string]any{"2": 2, "4": []int32{130001, 130002}, "5": int64(1783744303000)},
+			},
+		},
+	})
+	rewards = s.CollectRewards()
+	if len(rewards) != 2 || rewards[13].Lvl != 2 || len(rewards[13].ArtCreateRewardIDs) != 1 || rewards[13].ArtCreateRewardIDs[0] != 300101 {
+		t.Fatalf("sparse collect reward merge lost prior state: %+v", rewards)
+	}
+	if got := s.ReadyArtCreateRewardVaseIDs(); len(got) != 2 || got[0] != 3001 || got[1] != 3002 {
+		t.Fatalf("ReadyArtCreateRewardVaseIDs after sparse merge=%v, want [3001 3002]", got)
+	}
+
 	applyMap(t, s, map[string]any{
 		"103": map[string]any{
 			"0": map[string]any{
@@ -1552,6 +1569,49 @@ func TestApplyV_CollectRewardsAndFlowerArtRewardReadiness(t *testing.T) {
 	})
 	if got := s.ReadyCollectRewardTypes(11); len(got) != 0 {
 		t.Fatalf("ReadyCollectRewardTypes after recv=%v, want none", got)
+	}
+	if rewards := s.CollectRewards(); len(rewards) != 2 || len(rewards[13].ArtCreateRewardIDs) != 1 {
+		t.Fatalf("sparse type 11 update replaced other reward records: %+v", rewards)
+	}
+}
+
+func TestApplyV_CollectRewardSparseDeltaDoesNotCreateFalseArtReward(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"103": map[string]any{"0": map[string]any{
+			"13": map[string]any{
+				"1": 13,
+				"2": 1,
+				"3": 24,
+				"4": []int32{130001},
+				"7": []int32{300101, 300102},
+			},
+		}},
+		"106": map[string]any{"0": map[string]any{
+			"2": []int32{300101, 300102},
+		}},
+	})
+	if got := s.ReadyArtCreateRewardVaseIDs(); len(got) != 0 {
+		t.Fatalf("initial ReadyArtCreateRewardVaseIDs=%v, want none", got)
+	}
+
+	// This is the observed shape returned after collectRwd.recv: only the
+	// changed catalog-reward fields are present, while field 7 is omitted.
+	applyMap(t, s, map[string]any{
+		"103": map[string]any{"0": map[string]any{
+			"13": map[string]any{
+				"2": 2,
+				"4": []int32{130001, 130002},
+				"5": int64(1783744303000),
+			},
+		}},
+	})
+	if got := s.ReadyArtCreateRewardVaseIDs(); len(got) != 0 {
+		t.Fatalf("ReadyArtCreateRewardVaseIDs after sparse delta=%v, want none", got)
+	}
+	reward := s.CollectRewards()[13]
+	if reward.Lvl != 2 || len(reward.ArtCreateRewardIDs) != 2 {
+		t.Fatalf("sparse merge reward=%+v", reward)
 	}
 }
 

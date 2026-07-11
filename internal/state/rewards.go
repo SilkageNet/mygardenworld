@@ -21,13 +21,23 @@ func (s *State) applyCollectRewardsLocked(raw json.RawMessage) {
 	if err := json.Unmarshal(raw0, &rewards); err != nil {
 		return
 	}
-	next := make(map[int32]*CollectRewardView, len(rewards))
 	for typeStr, rawReward := range rewards {
 		typeID := atoi32(typeStr)
 		if typeID == 0 {
 			continue
 		}
-		view := &CollectRewardView{Type: typeID}
+		if isJSONNull(rawReward) {
+			delete(s.collectRewards, typeID)
+			continue
+		}
+		view := s.collectRewards[typeID]
+		if view == nil {
+			view = &CollectRewardView{Type: typeID}
+			s.collectRewards[typeID] = view
+		}
+		// collectRwd responses are sparse updateMbMap deltas. Merge only the
+		// fields carried by this response so a catalog-reward claim cannot erase
+		// type 13's artCreateRwdList (field 7) from the login snapshot.
 		if len(rawReward) > 0 && string(rawReward) != "{}" {
 			var fields map[string]json.RawMessage
 			if err := json.Unmarshal(rawReward, &fields); err == nil {
@@ -54,9 +64,11 @@ func (s *State) applyCollectRewardsLocked(raw json.RawMessage) {
 				}
 			}
 		}
-		next[view.Type] = view
+		if view.Type != typeID {
+			delete(s.collectRewards, typeID)
+			s.collectRewards[view.Type] = view
+		}
 	}
-	s.collectRewards = next
 	s.collectRewardObserved = true
 }
 

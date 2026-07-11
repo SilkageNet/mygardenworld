@@ -1432,23 +1432,10 @@ func FlowerArtRecipeByID(artID int32) (FlowerArtRecipe, bool) {
 			}
 		}
 	}
-	// The current client table stores display/template vase ids and shifted
-	// flower ids, while the wire RPC uses the vase group (artID/100) and the
-	// real 230xx flower ids. This transform is verified against captured
-	// flowerArt.makeFlowerArt calls for 300103, 300207, and 300208.
-	if artID >= 300000 {
-		if vaseGroup := artID / 100; vaseGroup > 0 {
-			recipe.VaseID = vaseGroup
-		}
-		if suffix := artID % 100; suffix > 0 {
-			shift := int32(55) + suffix
-			for i, flowerID := range recipe.Flowers {
-				if flowerID-shift >= FlowerSeedLow && flowerID-shift < FlowerSeedHigh {
-					recipe.Flowers[i] = flowerID - shift
-				}
-			}
-		}
-	}
+	// catalog_data.json has already gone through the client value-restoration
+	// algorithm. In particular, c_flowerArt.vase and c_flowerArt.flowers are
+	// the exact values sent by flowerArt.makeFlowerArt; applying the legacy
+	// offset transform a second time corrupts recipes with higher flower ids.
 	if recipe.VaseID == 0 || len(recipe.Flowers) == 0 {
 		return FlowerArtRecipe{}, false
 	}

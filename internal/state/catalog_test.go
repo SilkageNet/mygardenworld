@@ -153,17 +153,30 @@ func TestFlowerUpgradeCostForMaxLevel(t *testing.T) {
 }
 
 func TestFlowerArtRecipeByID(t *testing.T) {
-	recipe, ok := FlowerArtRecipeByID(300208)
-	if !ok {
-		t.Fatal("FlowerArtRecipeByID(300208) ok=false")
+	tests := []struct {
+		artID     int32
+		vaseID    int32
+		level     int32
+		saleValue int32
+		flowers   []int32
+	}{
+		{artID: 300208, vaseID: 3002, level: 8, saleValue: 170, flowers: []int32{23008, 23007, 23005}},
+		// This higher-id recipe catches accidental re-application of the old
+		// row/suffix offset. Its decoded values are already wire-ready.
+		{artID: 301612, vaseID: 3016, level: 30, saleValue: 320, flowers: []int32{23070, 23075, 23003}},
 	}
-	want := []int32{23008, 23007, 23005}
-	if recipe.VaseID != 3002 || recipe.Level != 8 || recipe.SaleValue != 170 || len(recipe.Flowers) != len(want) {
-		t.Fatalf("FlowerArtRecipeByID(300208)=%+v", recipe)
-	}
-	for i := range want {
-		if recipe.Flowers[i] != want[i] {
-			t.Fatalf("recipe.Flowers[%d]=%d want %d", i, recipe.Flowers[i], want[i])
+	for _, tt := range tests {
+		recipe, ok := FlowerArtRecipeByID(tt.artID)
+		if !ok {
+			t.Fatalf("FlowerArtRecipeByID(%d) ok=false", tt.artID)
+		}
+		if recipe.VaseID != tt.vaseID || recipe.Level != tt.level || recipe.SaleValue != tt.saleValue || len(recipe.Flowers) != len(tt.flowers) {
+			t.Fatalf("FlowerArtRecipeByID(%d)=%+v", tt.artID, recipe)
+		}
+		for i := range tt.flowers {
+			if recipe.Flowers[i] != tt.flowers[i] {
+				t.Fatalf("FlowerArtRecipeByID(%d).Flowers[%d]=%d want %d", tt.artID, i, recipe.Flowers[i], tt.flowers[i])
+			}
 		}
 	}
 }
