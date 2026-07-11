@@ -175,9 +175,17 @@ func (r *Runner) Policy() *pb.Policy {
 	return policycfg.Clone(r.policy)
 }
 
-// SetPolicy replaces the live policy. Caller is responsible for persisting.
+// SetPolicy replaces the live policy. Callers persist normal updates; a
+// lifecycle fail-closed transition may additionally persist its effective
+// automation-disabled policy.
 func (r *Runner) SetPolicy(p *pb.Policy) {
+	normalized := policycfg.Normalize(p)
 	r.mu.Lock()
-	r.policy = policycfg.Normalize(p)
+	r.policy = normalized
+	stopPendingRelogin := r.sessionAutoRelogin &&
+		!normalized.GetBasic().GetDisplacedSessionReloginEnabled()
 	r.mu.Unlock()
+	if stopPendingRelogin {
+		r.failClosedPendingDisplacedRelogin()
+	}
 }

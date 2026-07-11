@@ -9,7 +9,14 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
+	"google.golang.org/protobuf/proto"
 )
+
+type policyRuntime interface {
+	SetPolicy(*pb.Policy)
+	Policy() *pb.Policy
+	Emit(runner.Event)
+}
 
 func (svc *Services) GetPolicy(ctx context.Context, req *connect.Request[pb.GetPolicyRequest]) (*connect.Response[pb.GetPolicyResponse], error) {
 	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
@@ -30,14 +37,37 @@ func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetP
 	}
 	policy := policycfg.Normalize(req.Msg.GetPolicy())
 	policy.AutomationEnabled = true
-	if err := svc.persistPolicy(ctx, acc.ID, policy); err != nil {
+	var runtime policyRuntime
+	if r := svc.Manager.Get(acc.ID); r != nil {
+		runtime = r
+	}
+	effective, err := svc.persistAndApplyPolicy(ctx, acc.ID, runtime, policy)
+	if err != nil {
 		return nil, mapErr(err)
 	}
-	if r := svc.Manager.Get(acc.ID); r != nil {
-		r.SetPolicy(policy)
-		r.Emit(policyUpdatedEvent(policy.GetAutomationEnabled()))
+	return connect.NewResponse(&pb.SetPolicyResponse{Policy: effective}), nil
+}
+
+// persistAndApplyPolicy returns the runner's effective policy, which may
+// differ from the request when a lifecycle safety transition happens during
+// SetPolicy (for example, disabling a pending displaced-session relogin).
+func (svc *Services) persistAndApplyPolicy(ctx context.Context, accountID int64, runtime policyRuntime, policy *pb.Policy) (*pb.Policy, error) {
+	if err := svc.persistPolicy(ctx, accountID, policy); err != nil {
+		return nil, err
 	}
-	return connect.NewResponse(&pb.SetPolicyResponse{Policy: policy}), nil
+	if runtime == nil {
+		return policy, nil
+	}
+
+	runtime.SetPolicy(policy)
+	effective := runtime.Policy()
+	if !proto.Equal(effective, policy) {
+		if err := svc.persistPolicy(ctx, accountID, effective); err != nil {
+			return nil, err
+		}
+	}
+	runtime.Emit(policyUpdatedEvent(effective.GetAutomationEnabled()))
+	return effective, nil
 }
 
 func (svc *Services) policyFor(ctx context.Context, accountID int64) (*pb.Policy, error) {

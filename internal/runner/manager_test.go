@@ -87,6 +87,7 @@ func TestGenericSessionInvalidationDisablesAutomationRestorePreference(t *testin
 	}
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
+	policy.Basic.DisplacedSessionReloginEnabled = true
 	raw, err := policycfg.ToJSON(policy)
 	if err != nil {
 		t.Fatal(err)
@@ -144,6 +145,7 @@ func TestDisplacedSessionKeepsAutomationEnabledForDelayedRelogin(t *testing.T) {
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
 	policy.Basic.ReconnectIntervalSeconds = 17
+	policy.Basic.DisplacedSessionReloginEnabled = true
 	raw, err := policycfg.ToJSON(policy)
 	if err != nil {
 		t.Fatal(err)
@@ -181,6 +183,241 @@ func TestDisplacedSessionKeepsAutomationEnabledForDelayedRelogin(t *testing.T) {
 		t.Fatal("runner stopped instead of waiting for delayed relogin")
 	default:
 	}
+}
+
+func TestDisplacedSessionReloginDisabledUsesFailClosedInvalidation(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc, err := db.CreateAccount(ctx, user.ID, "main", "ios", "game", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	if policy.GetBasic().GetDisplacedSessionReloginEnabled() {
+		t.Fatal("default displaced-session relogin setting=true, want false")
+	}
+	raw, err := policycfg.ToJSON(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SavePolicyJSON(ctx, acc.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+
+	r := New(babigame.Config{}, db, acc, NewBus(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	r.SetPolicy(policy)
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+
+	if r.autoReloginPending() {
+		t.Fatal("auto relogin was scheduled while displaced-session relogin was disabled")
+	}
+	if r.Policy().GetAutomationEnabled() {
+		t.Fatal("live policy automation_enabled=true after fail-closed displacement, want false")
+	}
+	stored, err := db.LoadPolicyJSON(ctx, acc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotPolicy, err := policycfg.FromJSON(stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPolicy.GetAutomationEnabled() {
+		t.Fatal("persisted automation_enabled=true after fail-closed displacement, want false")
+	}
+	select {
+	case <-r.Done():
+	default:
+		t.Fatal("runner kept running while displaced-session relogin was disabled")
+	}
+}
+
+func TestDisplacedSessionReloginDoesNotDependOnAutomationEnabled(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = false
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+
+	if !r.autoReloginPending() {
+		t.Fatal("displaced-session relogin was not scheduled while automation_enabled=false")
+	}
+	if r.Policy().GetAutomationEnabled() {
+		t.Fatal("displaced-session lifecycle unexpectedly enabled automation")
+	}
+	select {
+	case <-r.Done():
+		t.Fatal("runner stopped instead of waiting for delayed relogin")
+	default:
+	}
+}
+
+func TestDisablingDisplacedSessionReloginCancelsPendingWait(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+
+	updated := r.Policy()
+	updated.Basic.DisplacedSessionReloginEnabled = false
+	r.SetPolicy(updated)
+
+	if r.autoReloginPending() {
+		t.Fatal("auto relogin remained pending after its switch was disabled")
+	}
+	if r.Policy().GetAutomationEnabled() {
+		t.Fatal("fail-closed cancellation left automation enabled")
+	}
+	select {
+	case <-r.Done():
+	default:
+		t.Fatal("disabling the switch did not stop the pending runner immediately")
+	}
+}
+
+func TestDisablingDisplacedSessionReloginCancelsRetryWait(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+	if !r.beginAutoReloginAttempt() {
+		t.Fatal("could not enter displaced-session relogin attempt")
+	}
+	if r.autoReloginPending() {
+		t.Fatal("initial pending state remained after the relogin attempt began")
+	}
+
+	updated := r.Policy()
+	updated.Basic.DisplacedSessionReloginEnabled = false
+	r.SetPolicy(updated)
+
+	if r.Policy().GetAutomationEnabled() {
+		t.Fatal("retry-wait cancellation left automation enabled")
+	}
+	select {
+	case <-r.Done():
+	default:
+		t.Fatal("disabling the switch did not stop an active retry wait")
+	}
+}
+
+func TestCompletedDisplacedSessionReloginClearsCancellationState(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+	if !r.beginAutoReloginAttempt() {
+		t.Fatal("could not enter displaced-session relogin attempt")
+	}
+	if !r.completeAutoRelogin() {
+		t.Fatal("enabled displaced-session relogin could not complete")
+	}
+
+	updated := r.Policy()
+	updated.Basic.DisplacedSessionReloginEnabled = false
+	r.SetPolicy(updated)
+	select {
+	case <-r.Done():
+		t.Fatal("turning off the switch stopped a runner after relogin completed")
+	default:
+	}
+}
+
+func TestAutoReloginCompletionCannotOverrideConcurrentSwitchOff(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+	if !r.beginAutoReloginAttempt() {
+		t.Fatal("could not enter displaced-session relogin attempt")
+	}
+
+	updated := r.Policy()
+	updated.Basic.DisplacedSessionReloginEnabled = false
+	r.SetPolicy(updated)
+	if r.completeAutoRelogin() {
+		t.Fatal("late login success overrode concurrent fail-closed switch-off")
+	}
+	if !r.isSessionInvalidated() {
+		t.Fatal("late login completion cleared the fail-closed invalidation state")
+	}
+	select {
+	case <-r.Done():
+	default:
+		t.Fatal("concurrent switch-off did not stop the runner")
+	}
+}
+
+func TestAutoReloginCompletionPreservesSecondDisplacement(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+	r.markSessionInvalidated("首次挤号：账号已在其他设备登录")
+	if !r.beginAutoReloginAttempt() {
+		t.Fatal("could not enter displaced-session relogin attempt")
+	}
+
+	r.handleSessionInvalidated("再次挤号：账号已在其他设备登录", true)
+	if r.completeAutoRelogin() {
+		t.Fatal("late login success overrode a second displacement")
+	}
+	if !r.autoReloginPending() {
+		t.Fatal("second displacement was not preserved for another delayed login")
+	}
+	select {
+	case <-r.Done():
+		t.Fatal("second displacement stopped the runner instead of scheduling another wait")
+	default:
+	}
+}
+
+func TestAutoReloginPreflightRechecksSwitchBeforeFreshLogin(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.DisplacedSessionReloginEnabled = true
+	r := newSessionLifecycleTestRunner(policy)
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+
+	// Bypass SetPolicy's immediate cancellation to simulate the switch racing
+	// with timer expiry. The final preflight must still fail closed.
+	r.mu.Lock()
+	r.policy.Basic.DisplacedSessionReloginEnabled = false
+	r.mu.Unlock()
+	if r.prepareAutoReloginAttempt() {
+		t.Fatal("auto relogin preflight allowed a fresh login after switch-off")
+	}
+	select {
+	case <-r.Done():
+	default:
+		t.Fatal("failed auto relogin preflight did not stop the runner")
+	}
+}
+
+func newSessionLifecycleTestRunner(policy *pb.Policy) *Runner {
+	account := &store.Account{ID: 1, Name: "main", Channel: "ios"}
+	r := New(
+		babigame.Config{},
+		nil,
+		account,
+		NewBus(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	r.SetPolicy(policy)
+	return r
 }
 
 func TestDelayedReloginBackoffAndCancellation(t *testing.T) {

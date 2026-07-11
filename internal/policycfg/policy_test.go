@@ -33,6 +33,35 @@ func TestNormalizeClampsReconnectInterval(t *testing.T) {
 	}
 }
 
+func TestNormalizeDisplacedSessionReloginDefaultsOffAndPreservesChoice(t *testing.T) {
+	if got := Normalize(&pb.Policy{}).GetBasic().GetDisplacedSessionReloginEnabled(); got {
+		t.Fatal("displaced-session relogin default=true, want false")
+	}
+	if got := Normalize(&pb.Policy{Basic: &pb.BasicPolicy{
+		DisplacedSessionReloginEnabled: true,
+	}}).GetBasic().GetDisplacedSessionReloginEnabled(); !got {
+		t.Fatal("explicit displaced-session relogin choice was not preserved")
+	}
+}
+
+func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
+	oldPolicy, err := FromJSON(`{"basic":{"reconnect_interval_seconds":45}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldPolicy.GetBasic().GetDisplacedSessionReloginEnabled() {
+		t.Fatal("old policy without displaced-session switch enabled relogin")
+	}
+
+	enabledPolicy, err := FromJSON(`{"basic":{"displaced_session_relogin_enabled":true}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabledPolicy.GetBasic().GetDisplacedSessionReloginEnabled() {
+		t.Fatal("explicit displaced-session switch did not survive policy JSON load")
+	}
+}
+
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()

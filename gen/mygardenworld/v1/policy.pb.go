@@ -292,8 +292,12 @@ type BasicPolicy struct {
 	FreeWaterEnabled      bool  `protobuf:"varint,13,opt,name=free_water_enabled,json=freeWaterEnabled,proto3" json:"free_water_enabled,omitempty"`
 	WaterClaimThreshold   int32 `protobuf:"varint,14,opt,name=water_claim_threshold,json=waterClaimThreshold,proto3" json:"water_claim_threshold,omitempty"`
 	RoadGrowRewardEnabled bool  `protobuf:"varint,15,opt,name=road_grow_reward_enabled,json=roadGrowRewardEnabled,proto3" json:"road_grow_reward_enabled,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Allows an explicit displaced-session signal to keep the runner alive and
+	// perform a fresh login after reconnect_interval_seconds. Disabled by
+	// default; ordinary session expiry never uses this recovery path.
+	DisplacedSessionReloginEnabled bool `protobuf:"varint,16,opt,name=displaced_session_relogin_enabled,json=displacedSessionReloginEnabled,proto3" json:"displaced_session_relogin_enabled,omitempty"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *BasicPolicy) Reset() {
@@ -427,6 +431,13 @@ func (x *BasicPolicy) GetWaterClaimThreshold() int32 {
 func (x *BasicPolicy) GetRoadGrowRewardEnabled() bool {
 	if x != nil {
 		return x.RoadGrowRewardEnabled
+	}
+	return false
+}
+
+func (x *BasicPolicy) GetDisplacedSessionReloginEnabled() bool {
+	if x != nil {
+		return x.DisplacedSessionReloginEnabled
 	}
 	return false
 }
@@ -2826,7 +2837,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x05union\x18\x05 \x01(\v2\x1d.mygardenworld.v1.UnionPolicyR\x05union\x12<\n" +
 	"\bactivity\x18\x06 \x01(\v2 .mygardenworld.v1.ActivityPolicyR\bactivity\x12:\n" +
 	"\x19decision_interval_seconds\x18\n" +
-	" \x01(\x01R\x17decisionIntervalSeconds\"\x8c\x06\n" +
+	" \x01(\x01R\x17decisionIntervalSeconds\"\xd7\x06\n" +
 	"\vBasicPolicy\x12B\n" +
 	"\n" +
 	"reputation\x18\x01 \x01(\v2\".mygardenworld.v1.ReputationPolicyR\n" +
@@ -2845,7 +2856,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x12waterwheel_enabled\x18\f \x01(\bR\x11waterwheelEnabled\x12,\n" +
 	"\x12free_water_enabled\x18\r \x01(\bR\x10freeWaterEnabled\x122\n" +
 	"\x15water_claim_threshold\x18\x0e \x01(\x05R\x13waterClaimThreshold\x127\n" +
-	"\x18road_grow_reward_enabled\x18\x0f \x01(\bR\x15roadGrowRewardEnabled\"J\n" +
+	"\x18road_grow_reward_enabled\x18\x0f \x01(\bR\x15roadGrowRewardEnabled\x12I\n" +
+	"!displaced_session_relogin_enabled\x18\x10 \x01(\bR\x1edisplacedSessionReloginEnabled\"J\n" +
 	"\x10ReputationPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\x05R\tthreshold\"\xd6\x01\n" +

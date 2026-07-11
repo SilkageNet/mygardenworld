@@ -37,6 +37,11 @@ message BasicPolicy {
   bool free_water_enabled = 13;
   int32 water_claim_threshold = 14;
   bool road_grow_reward_enabled = 15;
+
+  // Allows an explicit displaced-session signal to keep the runner alive and
+  // perform a fresh login after reconnect_interval_seconds. Disabled by
+  // default; ordinary session expiry never uses this recovery path.
+  bool displaced_session_relogin_enabled = 16;
 }
 
 message ReputationPolicy {

@@ -326,16 +326,33 @@ func (r *Runner) reloginAfterDisplacement(ctx context.Context, username, passwor
 		if ctx.Err() != nil {
 			return nil, false
 		}
-		if !r.beginAutoReloginAttempt() {
+		if !r.prepareAutoReloginAttempt() {
 			return nil, false
 		}
 		r.emit(Event{Kind: "session_relogin", Message: "被挤号等待结束，正在自动登录", Level: "info"})
 		next, err := r.connectFresh(ctx, username, password)
 		if err == nil {
+			if ctx.Err() != nil || !r.completeAutoRelogin() {
+				_ = next.Close()
+				r.clearDisconnectedClient(next)
+				if ctx.Err() != nil {
+					return nil, false
+				}
+				if r.autoReloginPending() {
+					wait = baseWait
+					continue
+				}
+				r.failClosedPendingDisplacedRelogin()
+				return nil, false
+			}
 			return next, true
 		}
 		if ctx.Err() != nil || isReputationGuardError(err) || r.sessionInvalidatedWithoutAutoRelogin() {
 			return nil, false
+		}
+		if r.autoReloginPending() {
+			wait = baseWait
+			continue
 		}
 		nextWait := nextReloginWait(wait, baseWait)
 		r.emit(Event{
@@ -394,7 +411,42 @@ func (r *Runner) sessionInvalidatedWithoutAutoRelogin() bool {
 func (r *Runner) beginAutoReloginAttempt() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.sessionInvalidated && !r.sessionAutoRelogin {
+	if !r.sessionAutoRelogin {
+		return false
+	}
+	if r.policy == nil || !r.policy.GetBasic().GetDisplacedSessionReloginEnabled() {
+		return false
+	}
+	r.sessionInvalidated = false
+	return true
+}
+
+// prepareAutoReloginAttempt is the final policy gate immediately before a
+// fresh HTTP login. SetPolicy normally cancels the wait as soon as the switch
+// is turned off; this recheck also covers a change racing with timer expiry.
+func (r *Runner) prepareAutoReloginAttempt() bool {
+	if !r.Policy().GetBasic().GetDisplacedSessionReloginEnabled() {
+		r.failClosedPendingDisplacedRelogin()
+		return false
+	}
+	if !r.beginAutoReloginAttempt() {
+		r.failClosedPendingDisplacedRelogin()
+		return false
+	}
+	return true
+}
+
+// completeAutoRelogin atomically accepts a newly connected client only while
+// this is still the active displaced-session attempt and its policy switch is
+// still enabled. A concurrent SetPolicy(false) therefore wins cleanly instead
+// of having its fail-closed state overwritten by a late login success.
+func (r *Runner) completeAutoRelogin() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.sessionAutoRelogin ||
+		r.sessionInvalidated ||
+		r.policy == nil ||
+		!r.policy.GetBasic().GetDisplacedSessionReloginEnabled() {
 		return false
 	}
 	r.sessionInvalidated = false
@@ -463,10 +515,11 @@ func (r *Runner) markSessionInvalidated(reason string) {
 	r.handleSessionInvalidated(reason, babigame.IsSessionDisplacementReason(reason))
 }
 
-func (r *Runner) handleSessionInvalidated(reason string, autoRelogin bool) {
+func (r *Runner) handleSessionInvalidated(reason string, sessionDisplaced bool) {
 	if reason == "" {
 		reason = "会话已过期，请重新登录"
 	}
+	autoRelogin := sessionDisplaced && r.Policy().GetBasic().GetDisplacedSessionReloginEnabled()
 	ctx := context.Background()
 	if r.db != nil {
 		if err := r.db.DeleteSession(ctx, r.account.ID); err != nil {
@@ -499,6 +552,39 @@ func (r *Runner) handleSessionInvalidated(reason string, autoRelogin bool) {
 	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
 	r.emit(Event{Kind: "session_expired", Message: fmt.Sprintf("检测到会话失效，已停止自动化：%s", reason)})
 	r.Stop()
+}
+
+// failClosedPendingDisplacedRelogin cancels an already scheduled displaced-
+// session login after the user disables the recovery switch. Marking the
+// pending flag false before updating the policy prevents SetPolicy from
+// recursively entering this path while automation_enabled is persisted off.
+func (r *Runner) failClosedPendingDisplacedRelogin() bool {
+	r.mu.Lock()
+	if !r.sessionAutoRelogin {
+		r.mu.Unlock()
+		return false
+	}
+	reason := r.sessionInvalidatedReason
+	r.sessionInvalidated = true
+	r.sessionAutoRelogin = false
+	cancel := r.cancel
+	r.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if reason == "" {
+		reason = "账号在其他设备登录"
+	}
+
+	ctx := context.Background()
+	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
+	r.emit(Event{
+		Kind:    "session_expired",
+		Message: fmt.Sprintf("被挤号自动重登已关闭，已停止自动化：%s", reason),
+		Level:   "warn",
+	})
+	r.Stop()
+	return true
 }
 
 func (r *Runner) sessionInvalidatedError(message string) error {

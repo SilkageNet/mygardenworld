@@ -2313,8 +2313,24 @@ function PolicyPanel({
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="礼仪分监控" checked={reputation?.enabled ?? false} onChange={(checked) => updateReputation({ enabled: checked })} />
                 <NumberRow label="礼仪分阈值" value={reputation?.threshold || 80} min={0} onChange={(value) => updateReputation({ threshold: value })} />
-                <NumberRow label="被挤号后重登间隔（秒）" value={basic?.reconnectIntervalSeconds || 300} min={1} max={86400} onChange={(value) => updateBasic({ reconnectIntervalSeconds: value })} />
-                <p className="px-1 text-xs leading-5 text-muted-foreground sm:col-span-2">仅在明确检测到异地登录或被挤下线时触发；主动退出和普通业务失败不会触发。</p>
+                <ToggleRow
+                  label="被挤号后自动重登"
+                  checked={basic?.displacedSessionReloginEnabled ?? false}
+                  onChange={(checked) => updateBasic({ displacedSessionReloginEnabled: checked })}
+                />
+                <NumberRow
+                  label="自动重登间隔（秒）"
+                  value={basic?.reconnectIntervalSeconds || 300}
+                  min={1}
+                  max={86400}
+                  disabled={!basic?.displacedSessionReloginEnabled}
+                  onChange={(value) => updateBasic({ reconnectIntervalSeconds: value })}
+                />
+                <p className="px-1 text-xs leading-5 text-muted-foreground sm:col-span-2">
+                  {basic?.displacedSessionReloginEnabled
+                    ? "已启用：明确检测到异地登录或被挤下线后，将等待上述时间再自动登录。主动退出和普通业务失败不会触发。"
+                    : "默认关闭。开启后仅在明确检测到异地登录或被挤下线时自动重登；关闭时不会自动登录。"}
+                </p>
               </div>
             </PolicyGroup>
 
@@ -3179,22 +3195,30 @@ function NumberRow({
   value,
   min,
   max,
+  disabled = false,
   onChange,
 }: {
   label: string;
   value: number;
   min: number;
   max?: number;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+    <div
+      className={cn(
+        "flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 transition-opacity dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3",
+        disabled && "opacity-55",
+      )}
+    >
       <Label className="min-w-0 text-sm">{label}</Label>
       <Input
         type="number"
         className="h-8 w-full text-right text-sm sm:w-24"
         min={min}
         max={max}
+        disabled={disabled}
         value={Number.isFinite(value) ? value : min}
         onChange={(event) => onChange(parseNumber(event.target.value, min))}
       />
