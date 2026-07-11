@@ -1409,7 +1409,12 @@ func TestZooFindPetFeatureRemainsBlocked(t *testing.T) {
 			t.Fatalf("missing zoo feature %s", id)
 		}
 	}
-	wantExecutable := map[string]bool{"basic.zoo_handle_event": false, "basic.zoo_read_log": false}
+	wantExecutable := map[string]bool{
+		"basic.zoo_handle_event":    false,
+		"basic.zoo_read_log":        false,
+		"basic.zoo_souvenir_reward": false,
+		"basic.zoo_souvenir_read":   false,
+	}
 	for _, spec := range featureSpecs {
 		if _, ok := wantExecutable[spec.ID]; !ok {
 			continue
@@ -1504,6 +1509,180 @@ func TestBuildPlan_ZooBlockedLogDoesNotHideSafeRead(t *testing.T) {
 	}
 	if !blocked || !read {
 		t.Fatalf("zoo event operations=%+v, want blocked diagnostic plus executable read", result.Operations)
+	}
+}
+
+func TestBuildPlan_ZooSouvenirClaimsBeforeAcknowledging(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1, "13": []int32{1}},
+		"2": map[string]any{},
+		"4": map[string]any{
+			"30201": map[string]any{"1": 30201, "2": 1},
+			"32901": map[string]any{"1": 32901, "2": 0},
+		},
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoEventEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var souvenirOps []PlannedOp
+	for _, op := range result.Operations {
+		if op.Domain == "basic.zoo.souvenir" && op.Executable {
+			souvenirOps = append(souvenirOps, op)
+		}
+	}
+	if len(souvenirOps) != 1 {
+		t.Fatalf("souvenir ops=%+v, want one claim", souvenirOps)
+	}
+	claim := souvenirOps[0]
+	if claim.Kind != clientproto.RPCZooRecvSouvenirRwd.String() || claim.Action != "claim" || claim.Priority != 5663 || claim.FeatureID != "basic.zoo_souvenir_reward" || claim.Count != 1 || len(claim.SlotIDs) != 1 || claim.SlotIDs[0] != 2 || claim.OperationID != clientproto.RPCZooRecvSouvenirRwd.String() {
+		t.Fatalf("claim op=%+v", claim)
+	}
+
+	applyMap(t, s, map[string]any{"33": map[string]any{"0": map[string]any{"13": []int32{1, 2}}}})
+	result = BuildPlan(s, p, time.Now())
+	souvenirOps = nil
+	for _, op := range result.Operations {
+		if op.Domain == "basic.zoo.souvenir" && op.Executable {
+			souvenirOps = append(souvenirOps, op)
+		}
+	}
+	if len(souvenirOps) != 1 {
+		t.Fatalf("souvenir ops after claim=%+v, want one read", souvenirOps)
+	}
+	read := souvenirOps[0]
+	if read.Kind != clientproto.RPCZooReadSouvenir.String() || read.Action != "read" || read.Priority != 5662 || read.FeatureID != "basic.zoo_souvenir_read" || read.Count != 1 || len(read.SlotIDs) != 1 || read.SlotIDs[0] != 32901 || read.OperationID != clientproto.RPCZooReadSouvenir.String() {
+		t.Fatalf("read op=%+v", read)
+	}
+}
+
+func TestBuildPlan_ZooSouvenirBatchesRewardsAndReusesAutoEventPolicy(t *testing.T) {
+	s := state.New()
+	entries := map[string]any{}
+	for _, id := range []int32{30201, 32901, 32902, 32903} {
+		entries[strconv.FormatInt(int64(id), 10)] = map[string]any{"1": id, "2": 0}
+	}
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1, "13": nil},
+		"2": map[string]any{},
+		"4": entries,
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+
+	for _, enabled := range []bool{false, true} {
+		p.Basic.Zoo.AutoEventEnabled = enabled
+		result := BuildPlan(s, p, time.Now())
+		var got []PlannedOp
+		for _, op := range result.Operations {
+			if op.Domain == "basic.zoo.souvenir" && op.Executable {
+				got = append(got, op)
+			}
+		}
+		if !enabled {
+			if len(got) != 0 {
+				t.Fatalf("auto_event=false produced souvenir ops: %+v", got)
+			}
+			continue
+		}
+		if len(got) != 1 || got[0].Kind != clientproto.RPCZooRecvSouvenirRwd.String() || len(got[0].SlotIDs) != 4 {
+			t.Fatalf("batched rewards=%+v", got)
+		}
+		for i, want := range []int32{1, 2, 3, 4} {
+			if got[0].SlotIDs[i] != want {
+				t.Fatalf("reward batch=%v, want [1 2 3 4]", got[0].SlotIDs)
+			}
+		}
+	}
+
+	applyMap(t, s, map[string]any{"33": map[string]any{"0": map[string]any{"13": []int32{1, 2, 3, 4}}}})
+	p.Basic.Zoo.AutoEventEnabled = true
+	result := BuildPlan(s, p, time.Now())
+	var read *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Domain == "basic.zoo.souvenir" && op.Executable {
+			if read != nil {
+				t.Fatalf("multiple souvenir ops after claims: %+v", result.Operations)
+			}
+			read = op
+		}
+	}
+	if read == nil || read.Kind != clientproto.RPCZooReadSouvenir.String() || len(read.SlotIDs) != 4 {
+		t.Fatalf("batched unread souvenirs=%+v", read)
+	}
+	for i, want := range []int32{30201, 32901, 32902, 32903} {
+		if read.SlotIDs[i] != want {
+			t.Fatalf("read batch=%v, want sorted souvenir IDs", read.SlotIDs)
+		}
+	}
+}
+
+func TestBuildPlan_ZooSouvenirUnknownRewardListBlocksWithoutReading(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1},
+		"2": map[string]any{},
+		"4": map[string]any{"32901": map[string]any{"1": 32901, "2": 0}},
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoEventEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Domain != "basic.zoo.souvenir" {
+			continue
+		}
+		if op.Action == "claim" && !op.Executable && op.Status == PlanStatusBlocked && strings.Contains(op.Reason, "领取列表未观测") {
+			blocked = true
+		}
+		if op.Executable {
+			t.Fatalf("unknown reward list produced executable souvenir RPC: %+v", op)
+		}
+	}
+	if !blocked {
+		t.Fatalf("unknown reward list ops=%+v, want blocked claim diagnostic", result.Operations)
+	}
+}
+
+func TestBuildPlan_ZooLogPrecedesSouvenirReward(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1, "13": []int32{1}},
+		"1": map[string]any{"7": map[string]any{"1": 7, "19": int64(1000)}},
+		"2": map[string]any{"7|41": map[string]any{"1": 7, "2": 41, "5": 2096, "7": 1, "13": int64(1500)}},
+		"4": map[string]any{
+			"30201": map[string]any{"1": 30201, "2": 1},
+			"32901": map[string]any{"1": 32901, "2": 0},
+		},
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoEventEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	readIndex, claimIndex := -1, -1
+	for i, op := range result.Operations {
+		switch op.Kind {
+		case clientproto.RPCZooReadLog.String():
+			readIndex = i
+		case clientproto.RPCZooRecvSouvenirRwd.String():
+			claimIndex = i
+		}
+	}
+	if readIndex < 0 || claimIndex < 0 || readIndex >= claimIndex {
+		t.Fatalf("operation order readLog=%d claim=%d ops=%+v", readIndex, claimIndex, result.Operations)
+	}
+	if planned := Plan(s, p, time.Now()); planned == nil || planned.Kind != clientproto.RPCZooReadLog.String() {
+		t.Fatalf("first executable=%+v, want readLog before souvenir reward", planned)
 	}
 }
 

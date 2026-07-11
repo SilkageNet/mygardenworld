@@ -305,6 +305,8 @@ func TestZooOperationArgs(t *testing.T) {
 		{name: "stroke", op: automation.PlannedOp{Kind: clientproto.RPCZooStrokePet.String(), TargetID: 1}, want: clientproto.ZooStrokePetRequest{PetId: 1}},
 		{name: "handle log index", op: automation.PlannedOp{Kind: clientproto.RPCZooHandleEvent.String(), TargetID: 1, ItemID: 42, Count: 1}, want: clientproto.ZooHandleEventRequest{PetId: 1, TableId: 42, Agree: true, IsShareVideo: 0}},
 		{name: "read log", op: automation.PlannedOp{Kind: clientproto.RPCZooReadLog.String(), TargetID: 1, ItemID: 42}, want: clientproto.ZooReadLogRequest{PetId: 1}},
+		{name: "recv souvenir rewards", op: automation.PlannedOp{Kind: clientproto.RPCZooRecvSouvenirRwd.String(), SlotIDs: []int32{2, 3}, Count: 2}, want: clientproto.ZooRecvSouvenirRwdRequest{IdxList: clientproto.RPCIDList{2, 3}}},
+		{name: "read souvenirs", op: automation.PlannedOp{Kind: clientproto.RPCZooReadSouvenir.String(), SlotIDs: []int32{30201, 32901}, Count: 2}, want: clientproto.ZooReadSouvenirRequest{SouvenirIds: clientproto.RPCIDList{30201, 32901}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -326,6 +328,37 @@ func TestZooOperationRegistryExcludesUnsafeRPCs(t *testing.T) {
 	} {
 		if _, ok := operationSpecFor(rpc.String()); ok {
 			t.Fatalf("unsafe zoo RPC %s remains executable", rpc)
+		}
+	}
+	for _, rpc := range []clientproto.RPCName{
+		clientproto.RPCZooRecvSouvenirRwd,
+		clientproto.RPCZooReadSouvenir,
+	} {
+		if _, ok := operationSpecFor(rpc.String()); !ok {
+			t.Fatalf("safe zoo souvenir RPC %s is not executable", rpc)
+		}
+	}
+}
+
+func TestZooSouvenirArgsRequireStrictCostFreeBatches(t *testing.T) {
+	for _, kind := range []string{clientproto.RPCZooRecvSouvenirRwd.String(), clientproto.RPCZooReadSouvenir.String()} {
+		base := automation.PlannedOp{Kind: kind, SlotIDs: []int32{2, 3}, Count: 2}
+		if _, err := operationArgs(&base); err != nil {
+			t.Fatalf("safe %s args: %v", kind, err)
+		}
+		for name, op := range map[string]automation.PlannedOp{
+			"empty":          {Kind: kind},
+			"count mismatch": {Kind: kind, SlotIDs: []int32{2, 3}, Count: 1},
+			"zero":           {Kind: kind, SlotIDs: []int32{0}, Count: 1},
+			"duplicate":      {Kind: kind, SlotIDs: []int32{2, 2}, Count: 2},
+			"unsorted":       {Kind: kind, SlotIDs: []int32{3, 2}, Count: 2},
+			"gold":           {Kind: kind, SlotIDs: []int32{2}, Count: 1, GoldCost: 1},
+			"diamond":        {Kind: kind, SlotIDs: []int32{2}, Count: 1, DiamondCost: 1},
+			"item":           {Kind: kind, SlotIDs: []int32{2}, Count: 1, ItemCost: map[int32]int32{11: 1}},
+		} {
+			if _, err := operationArgs(&op); err == nil {
+				t.Fatalf("unsafe %s %s args accepted: %+v", kind, name, op)
+			}
 		}
 	}
 }

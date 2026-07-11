@@ -463,6 +463,47 @@ func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 		})
 	}
 
+	souvenirCount := st.ZooSouvenirCount()
+	readySouvenirRewards := st.ReadyZooSouvenirRewardIDs()
+	for _, index := range readySouvenirRewards {
+		milestone, ok := state.ZooSouvenirCollectInfoByIndex(index)
+		if !ok {
+			continue
+		}
+		title := milestone.Description
+		if title == "" {
+			title = fmt.Sprintf("宠物纪念品收集奖励 #%d", index)
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "宠物纪念品",
+			Id:       fmt.Sprintf("reward:%d", index),
+			Title:    title,
+			Finished: souvenirCount,
+			Target:   milestone.Required,
+			Status:   pb.PlanStatus_PLAN_STATUS_READY,
+		})
+	}
+	rewardStateKnown := st.ZooSouvenirsObserved() && st.Zoo().SouvenirRewardIDsObserved
+	for _, souvenirID := range st.UnreadZooSouvenirIDs() {
+		title := state.ItemName(souvenirID)
+		if title == "" {
+			title = fmt.Sprintf("宠物纪念品 #%d", souvenirID)
+		}
+		status := pb.PlanStatus_PLAN_STATUS_READY
+		if !rewardStateKnown || len(readySouvenirRewards) > 0 {
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+			title += "（待先确认收集奖励）"
+		} else {
+			title += "（未读）"
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "宠物纪念品",
+			Id:       fmt.Sprintf("unread:%d", souvenirID),
+			Title:    title,
+			Status:   status,
+		})
+	}
+
 	return out
 }
 

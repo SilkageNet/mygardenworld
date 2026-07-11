@@ -496,13 +496,31 @@ type StatisticsView struct {
 
 // ZooView is the tracked subset of namespace 33.0 (G.IZoo).
 type ZooView struct {
-	Observed          bool    `json:"observed,omitempty"`
-	UID               int64   `json:"uid,omitempty"`
-	Comfort           int32   `json:"comfort,omitempty"`
-	PetIDs            []int32 `json:"pet_ids,omitempty"`
-	ReadLogTimeMs     int64   `json:"read_log_time_ms,omitempty"`
-	UpdatedAtMs       int64   `json:"updated_at_ms,omitempty"`
-	SouvenirRewardIDs []int32 `json:"souvenir_reward_ids,omitempty"`
+	Observed                  bool    `json:"observed,omitempty"`
+	UID                       int64   `json:"uid,omitempty"`
+	Comfort                   int32   `json:"comfort,omitempty"`
+	PetIDs                    []int32 `json:"pet_ids,omitempty"`
+	ReadLogTimeMs             int64   `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs               int64   `json:"updated_at_ms,omitempty"`
+	SouvenirRewardIDs         []int32 `json:"souvenir_reward_ids,omitempty"`
+	SouvenirRewardIDsObserved bool    `json:"souvenir_reward_ids_observed,omitempty"`
+}
+
+// ZooSouvenirView is one namespace 33.4.<tempId> souvenir record.
+// MapTempID is authoritative for requests; TempIDObserved records whether the
+// sparse payload also carried a matching field 1 identity.
+type ZooSouvenirView struct {
+	MapTempID         int32 `json:"map_temp_id"`
+	UID               int64 `json:"uid,omitempty"`
+	UIDObserved       bool  `json:"uid_observed,omitempty"`
+	TempID            int32 `json:"temp_id,omitempty"`
+	TempIDObserved    bool  `json:"temp_id_observed,omitempty"`
+	IsRead            int32 `json:"is_read,omitempty"`
+	IsReadObserved    bool  `json:"is_read_observed,omitempty"`
+	UpdatedAtMs       int64 `json:"updated_at_ms,omitempty"`
+	UpdatedAtObserved bool  `json:"updated_at_observed,omitempty"`
+	CreatedAtMs       int64 `json:"created_at_ms,omitempty"`
+	CreatedAtObserved bool  `json:"created_at_observed,omitempty"`
 }
 
 // ZooPetView is one pet from namespace 33.1.<petId> (G.IZooPet).

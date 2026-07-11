@@ -374,6 +374,14 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d)", op.TargetID)
 		}
+	case clientproto.RPCZooRecvSouvenirRwd.String():
+		if len(op.SlotIDs) > 0 {
+			return fmt.Sprintf(" (奖励档位=%v)", op.SlotIDs)
+		}
+	case clientproto.RPCZooReadSouvenir.String():
+		if len(op.SlotIDs) > 0 {
+			return fmt.Sprintf(" (纪念品=%v)", op.SlotIDs)
+		}
 	case clientproto.RPCFlowerArtMakeFlowerArt.String():
 		if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
 			return " " + desc

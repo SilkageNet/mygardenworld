@@ -242,6 +242,32 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 				ops = append(ops, planned)
 			}
 		}
+		if !s.ZooSouvenirsObserved() {
+			reason := "宠物纪念品集合尚未完整观测，拒绝推断收集数量或未读状态"
+			blocked := markerOp(CategoryBasic, "basic.zoo.souvenir", "claim", reason, 5663)
+			blocked.Status = PlanStatusBlocked
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{reason}
+			ops = append(ops, blocked)
+		} else {
+			zoo := s.Zoo()
+			if !zoo.SouvenirRewardIDsObserved {
+				reason := "宠物纪念品奖励领取列表未观测，拒绝试探领奖"
+				blocked := markerOp(CategoryBasic, "basic.zoo.souvenir", "claim", reason, 5663)
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{reason}
+				ops = append(ops, blocked)
+			} else if rewardIDs := s.ReadyZooSouvenirRewardIDs(); len(rewardIDs) > 0 {
+				claim := domainOp(clientproto.RPCZooRecvSouvenirRwd.String(), goal, "basic.zoo.souvenir", "claim", "纪念品收集里程碑已达成且尚未领取", 5663, 0, 0, int32(len(rewardIDs)))
+				claim.SlotIDs = append([]int32(nil), rewardIDs...)
+				ops = append(ops, claim)
+			} else if souvenirIDs := s.UnreadZooSouvenirIDs(); len(souvenirIDs) > 0 {
+				read := domainOp(clientproto.RPCZooReadSouvenir.String(), goal, "basic.zoo.souvenir", "read", "纪念品奖励均已领取，清理明确观测到的未读纪念品", 5662, 0, 0, int32(len(souvenirIDs)))
+				read.SlotIDs = append([]int32(nil), souvenirIDs...)
+				ops = append(ops, read)
+			}
+		}
 	}
 	if policy.GetAutoBuyFood() {
 		blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", "购买猫粮涉及成本和商品选择，暂不自动执行", 5660)

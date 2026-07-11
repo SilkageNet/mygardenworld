@@ -290,6 +290,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 		args: func(op *automation.PlannedOp) (any, error) { return zooReadLogRequest(op) },
 		run:  runZooReadLog,
 	},
+	clientproto.RPCZooRecvSouvenirRwd.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return zooRecvSouvenirRewardRequest(op) },
+		run:  runZooRecvSouvenirReward,
+	},
+	clientproto.RPCZooReadSouvenir.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return zooReadSouvenirRequest(op) },
+		run:  runZooReadSouvenir,
+	},
 	clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(): stateDeltaOperation(
 		staticRequest(clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrExtraUpdateAntiFraudQAStatusRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

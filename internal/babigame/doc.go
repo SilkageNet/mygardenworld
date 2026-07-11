@@ -144,18 +144,24 @@
 //
 // Structure:
 //
-//	33.0              G.IZoo, including comfort and petIdList
+//	33.0              G.IZoo, including comfort, petIdList, and field 13
+//	                  souvenirRwdList (claimed collection milestone indexes)
 //	33.1.<petId>      G.IZooPet, including moodValue, satietyValue,
 //	                  foodstuffArr, status, strokeCdTime, statusCdTime,
 //	                  goOutCdTime
 //	33.2.<petId>|<idx> G.IZooLog; idx is the handleEvent tableId and proType
 //	                  distinguishes pending (0) from completed logs
+//	33.4.<tempId>      G.IZooSouvenir: uid, tempId, isRead, uTime, cTime
 //
 // The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and
 // strokeCdTime to decide whether strokePet is available. Normal bowl stocking
 // uses zoo.addFoodstuff with inventory food IDs; zoo.feedPets is only an
 // acknowledgement path for another player's feeding notification. Automated
 // event handling is sourced from 33.2 logs, never inferred from pet fields.
+// Souvenir collection progress is the number of distinct 33.4 map entries,
+// independent of isRead. Reward readiness requires both that map and 33.0.13
+// to be observed, then compares the count with c_zooSouvenirCollect.value.
+// Sparse 33.4 entries merge by field; a null map entry deletes that souvenir.
 //
 // # Random Event (Namespace 129)
 //
@@ -207,6 +213,8 @@
 //	zoo.strokePet      {petId:id}                  → {33}
 //	zoo.handleEvent    {petId,tableId:<log idx>,agree:true,isShareVideo:0} → {33,...}
 //	zoo.readLog        {petId:id}                  → {33}
+//	zoo.recvSouvenirRwd {idxList:[milestone idx]}  → {7,33,...}
+//	zoo.readSouvenir  {souvenirIds:[tempId]}       → {33}
 //	pearl.refresh        {}                        → {115}
 //	pearl.recvDailyFree  {}                        → {7,115}
 //	pearl.draw           {count}                   → {7,115}

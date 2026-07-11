@@ -159,6 +159,15 @@ type ZooEventInfo struct {
 	Text          string
 }
 
+// ZooSouvenirCollectInfo describes one c_zooSouvenirCollect milestone.
+// Index is the value sent in zoo.recvSouvenirRwd.idxList.
+type ZooSouvenirCollectInfo struct {
+	Index       int32
+	Required    int32
+	Description string
+	Reward      []ItemCount
+}
+
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
 	ID         int32
@@ -569,6 +578,53 @@ func ZooEventInfoByID(eventID int32) (ZooEventInfo, bool) {
 		SouvenirID:    row.SouvenirID,
 		Text:          strings.TrimSpace(row.Text),
 	}, true
+}
+
+// ZooSouvenirCollectInfoByIndex returns one decoded collection milestone.
+func ZooSouvenirCollectInfoByIndex(index int32) (ZooSouvenirCollectInfo, bool) {
+	if index <= 0 {
+		return ZooSouvenirCollectInfo{}, false
+	}
+	raw, ok := StaticRow("c_zooSouvenirCollect", index)
+	if !ok {
+		return ZooSouvenirCollectInfo{}, false
+	}
+	var row struct {
+		ID     int32           `json:"id"`
+		Value  int32           `json:"value"`
+		Desc   string          `json:"desc"`
+		Reward json.RawMessage `json:"reward"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.ID != index || row.Value <= 0 {
+		return ZooSouvenirCollectInfo{}, false
+	}
+	return ZooSouvenirCollectInfo{
+		Index:       index,
+		Required:    row.Value,
+		Description: strings.TrimSpace(row.Desc),
+		Reward:      readItemCountsRaw(row.Reward),
+	}, true
+}
+
+// ZooSouvenirCollectMilestones returns all valid collection milestones sorted
+// by server reward index.
+func ZooSouvenirCollectMilestones() []ZooSouvenirCollectInfo {
+	table, ok := catalog.Tables["c_zooSouvenirCollect"]
+	if !ok {
+		return nil
+	}
+	out := make([]ZooSouvenirCollectInfo, 0, len(table.Rows))
+	for rawIndex := range table.Rows {
+		value, err := strconv.ParseInt(rawIndex, 10, 32)
+		if err != nil || value <= 0 {
+			continue
+		}
+		if info, ok := ZooSouvenirCollectInfoByIndex(int32(value)); ok {
+			out = append(out, info)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Index < out[j].Index })
+	return out
 }
 
 // FmlBuildOptionByID returns the client-visible cost for one guild build

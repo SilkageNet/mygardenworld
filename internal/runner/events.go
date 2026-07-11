@@ -198,6 +198,10 @@ func opKindDesc(kind string) string {
 		return "宠物事件"
 	case clientproto.RPCZooReadLog.String():
 		return "确认宠物日志已读"
+	case clientproto.RPCZooRecvSouvenirRwd.String():
+		return "领取宠物纪念品奖励"
+	case clientproto.RPCZooReadSouvenir.String():
+		return "确认宠物纪念品已读"
 	case clientproto.RPCRandomEventEnter.String():
 		return "同步地图随机事件"
 	case clientproto.RPCRandomEventDoAffair.String():

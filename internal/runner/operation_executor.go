@@ -49,6 +49,20 @@ type zooReadLogExecution struct {
 	readDone  func(int64) bool
 }
 
+type zooRecvSouvenirRewardExecution struct {
+	preflight func() error
+	recv      func(context.Context, clientproto.ZooRecvSouvenirRwdRequest) (json.RawMessage, error)
+	apply     func(json.RawMessage)
+	claimed   func() bool
+}
+
+type zooReadSouvenirExecution struct {
+	preflight    func() error
+	read         func(context.Context, clientproto.ZooReadSouvenirRequest) (json.RawMessage, error)
+	apply        func(json.RawMessage)
+	acknowledged func() bool
+}
+
 func (e *harvestLandError) Error() string {
 	if e == nil || e.Err == nil {
 		return ""
@@ -235,6 +249,134 @@ func executeZooReadLog(ctx context.Context, req clientproto.ZooReadLogRequest, e
 	}
 	if !exec.readDone(createdAtMs) {
 		return nil, fmt.Errorf("readLog postcondition failed for pet %d: response did not advance read time past log %d", req.PetId, createdAtMs)
+	}
+	return raw, nil
+}
+
+func zooRecvSouvenirRewardRequest(op *automation.PlannedOp) (clientproto.ZooRecvSouvenirRwdRequest, error) {
+	ids, err := zooSouvenirBatchIDs(op, "recvSouvenirRwd")
+	if err != nil {
+		return clientproto.ZooRecvSouvenirRwdRequest{}, err
+	}
+	return clientproto.ZooRecvSouvenirRwdRequest{IdxList: clientproto.RPCIDList(ids)}, nil
+}
+
+func zooReadSouvenirRequest(op *automation.PlannedOp) (clientproto.ZooReadSouvenirRequest, error) {
+	ids, err := zooSouvenirBatchIDs(op, "readSouvenir")
+	if err != nil {
+		return clientproto.ZooReadSouvenirRequest{}, err
+	}
+	return clientproto.ZooReadSouvenirRequest{SouvenirIds: clientproto.RPCIDList(ids)}, nil
+}
+
+func zooSouvenirBatchIDs(op *automation.PlannedOp, action string) ([]int32, error) {
+	if op == nil || len(op.SlotIDs) == 0 {
+		return nil, fmt.Errorf("%s requires a non-empty id list", action)
+	}
+	if op.Count != int32(len(op.SlotIDs)) {
+		return nil, fmt.Errorf("%s count %d does not match id list length %d", action, op.Count, len(op.SlotIDs))
+	}
+	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+		return nil, fmt.Errorf("%s automation only permits cost-free requests", action)
+	}
+	ids := append([]int32(nil), op.SlotIDs...)
+	for i, id := range ids {
+		if id <= 0 {
+			return nil, fmt.Errorf("%s contains invalid id %d", action, id)
+		}
+		if i > 0 && ids[i-1] >= id {
+			return nil, fmt.Errorf("%s ids must be strictly increasing and unique", action)
+		}
+	}
+	return ids, nil
+}
+
+func runZooRecvSouvenirReward(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	req, err := zooRecvSouvenirRewardRequest(op)
+	if err != nil {
+		return nil, err
+	}
+	if rt.runner == nil || rt.runner.state == nil || rt.rpc == nil {
+		return nil, fmt.Errorf("recvSouvenirRwd runner state or RPC unavailable")
+	}
+	indices := append([]int32(nil), req.IdxList...)
+	exec := zooRecvSouvenirRewardExecution{
+		preflight: func() error {
+			if !rt.runner.state.ZooSouvenirRewardsReady(indices) {
+				return fmt.Errorf("recvSouvenirRwd preflight rejected: one or more milestones are no longer ready")
+			}
+			return nil
+		},
+		recv: func(ctx context.Context, request clientproto.ZooRecvSouvenirRwdRequest) (json.RawMessage, error) {
+			return checkedStateDelta(rt.rpc.Zoo().RecvSouvenirRwd(ctx, request, babigame.WithPayloadApply(false)))
+		},
+		apply:   rt.runner.state.ApplyV,
+		claimed: func() bool { return rt.runner.state.ZooSouvenirRewardsClaimed(indices) },
+	}
+	return executeZooRecvSouvenirReward(ctx, req, exec)
+}
+
+func executeZooRecvSouvenirReward(ctx context.Context, req clientproto.ZooRecvSouvenirRwdRequest, exec zooRecvSouvenirRewardExecution) (json.RawMessage, error) {
+	if exec.preflight == nil || exec.recv == nil || exec.claimed == nil {
+		return nil, fmt.Errorf("recvSouvenirRwd execution is incomplete")
+	}
+	if err := exec.preflight(); err != nil {
+		return nil, err
+	}
+	raw, err := exec.recv(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("recvSouvenirRwd: %w", err)
+	}
+	if babigame.HasPayload(raw) && exec.apply != nil {
+		exec.apply(raw)
+	}
+	if !exec.claimed() {
+		return nil, fmt.Errorf("recvSouvenirRwd postcondition failed: response did not claim every requested milestone")
+	}
+	return raw, nil
+}
+
+func runZooReadSouvenir(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	req, err := zooReadSouvenirRequest(op)
+	if err != nil {
+		return nil, err
+	}
+	if rt.runner == nil || rt.runner.state == nil || rt.rpc == nil {
+		return nil, fmt.Errorf("readSouvenir runner state or RPC unavailable")
+	}
+	ids := append([]int32(nil), req.SouvenirIds...)
+	exec := zooReadSouvenirExecution{
+		preflight: func() error {
+			if !rt.runner.state.ZooSouvenirsReadyToAcknowledge(ids) {
+				return fmt.Errorf("readSouvenir preflight rejected: rewards became ready, source state is unknown, or a souvenir is no longer explicitly unread")
+			}
+			return nil
+		},
+		read: func(ctx context.Context, request clientproto.ZooReadSouvenirRequest) (json.RawMessage, error) {
+			return checkedStateDelta(rt.rpc.Zoo().ReadSouvenir(ctx, request, babigame.WithPayloadApply(false)))
+		},
+		apply:        rt.runner.state.ApplyV,
+		acknowledged: func() bool { return rt.runner.state.ZooSouvenirsAcknowledged(ids) },
+	}
+	return executeZooReadSouvenir(ctx, req, exec)
+}
+
+func executeZooReadSouvenir(ctx context.Context, req clientproto.ZooReadSouvenirRequest, exec zooReadSouvenirExecution) (json.RawMessage, error) {
+	if exec.preflight == nil || exec.read == nil || exec.acknowledged == nil {
+		return nil, fmt.Errorf("readSouvenir execution is incomplete")
+	}
+	if err := exec.preflight(); err != nil {
+		return nil, err
+	}
+	raw, err := exec.read(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("readSouvenir: %w", err)
+	}
+	if babigame.HasPayload(raw) && exec.apply != nil {
+		exec.apply(raw)
+	}
+	if !exec.acknowledged() {
+		return nil, fmt.Errorf("readSouvenir postcondition failed: response left one or more souvenirs unread")
 	}
 	return raw, nil
 }

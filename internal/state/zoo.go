@@ -26,6 +26,9 @@ func (s *State) applyZooLocked(raw json.RawMessage) {
 	if rawLogs, ok := ns33["2"]; ok {
 		s.applyZooLogMapLocked(rawLogs)
 	}
+	if rawSouvenirs, ok := ns33["4"]; ok {
+		s.applyZooSouvenirMapLocked(rawSouvenirs)
+	}
 }
 
 func parseZooView(raw json.RawMessage, base ZooView) (ZooView, bool) {
@@ -54,9 +57,34 @@ func parseZooView(raw json.RawMessage, base ZooView) (ZooView, bool) {
 		view.UpdatedAtMs = n
 	}
 	if rawRewards, ok := fields["13"]; ok {
-		view.SouvenirRewardIDs = readInt32ListRaw(rawRewards)
+		view.SouvenirRewardIDs = nil
+		view.SouvenirRewardIDsObserved = false
+		if ids, valid := readZooPositiveIDList(rawRewards, true); valid {
+			view.SouvenirRewardIDs = ids
+			view.SouvenirRewardIDsObserved = true
+		}
 	}
 	return view, true
+}
+
+func readZooPositiveIDList(raw json.RawMessage, nullIsEmpty bool) ([]int32, bool) {
+	trimmed := bytes.TrimSpace(raw)
+	if bytes.Equal(trimmed, []byte("null")) {
+		return nil, nullIsEmpty
+	}
+	var values []json.RawMessage
+	if len(trimmed) == 0 || json.Unmarshal(trimmed, &values) != nil {
+		return nil, false
+	}
+	ids := make([]int32, 0, len(values))
+	for _, rawValue := range values {
+		id, ok := readZooLogInt32Raw(rawValue)
+		if !ok || id <= 0 {
+			return nil, false
+		}
+		ids = append(ids, id)
+	}
+	return uniqueSortedInt32s(ids), true
 }
 
 func (s *State) applyZooPetMapLocked(raw json.RawMessage) {
@@ -214,6 +242,102 @@ func (s *State) applyZooLogMapLocked(raw json.RawMessage) {
 		cp := log
 		s.zooLogs[key] = &cp
 	}
+}
+
+func (s *State) applyZooSouvenirMapLocked(raw json.RawMessage) {
+	trimmed := bytes.TrimSpace(raw)
+	if bytes.Equal(trimmed, []byte("null")) {
+		return
+	}
+	if !isZooLogJSONObject(trimmed) {
+		s.invalidateZooSouvenirsLocked()
+		return
+	}
+	var souvenirMap map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &souvenirMap); err != nil {
+		s.invalidateZooSouvenirsLocked()
+		return
+	}
+	if s.zooSouvenirs == nil {
+		s.zooSouvenirs = make(map[int32]*ZooSouvenirView)
+	}
+	s.zooSouvenirsObserved = true
+	for rawTempID, rawSouvenir := range souvenirMap {
+		value, err := strconv.ParseInt(rawTempID, 10, 32)
+		tempID := int32(value)
+		if err != nil || tempID <= 0 {
+			s.invalidateZooSouvenirsLocked()
+			return
+		}
+		if bytes.Equal(bytes.TrimSpace(rawSouvenir), []byte("null")) {
+			delete(s.zooSouvenirs, tempID)
+			continue
+		}
+		base := ZooSouvenirView{MapTempID: tempID, TempID: tempID}
+		if old := s.zooSouvenirs[tempID]; old != nil {
+			base = *old
+		}
+		souvenir, ok := parseZooSouvenirView(rawSouvenir, base)
+		if !ok {
+			s.invalidateZooSouvenirsLocked()
+			return
+		}
+		cp := souvenir
+		s.zooSouvenirs[tempID] = &cp
+	}
+}
+
+func (s *State) invalidateZooSouvenirsLocked() {
+	s.zooSouvenirsObserved = false
+	s.zooSouvenirs = make(map[int32]*ZooSouvenirView)
+}
+
+func parseZooSouvenirView(raw json.RawMessage, base ZooSouvenirView) (ZooSouvenirView, bool) {
+	if !isZooLogJSONObject(raw) {
+		return ZooSouvenirView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ZooSouvenirView{}, false
+	}
+	souvenir := base
+	setInt64 := func(key string, value *int64, observed *bool) {
+		if rawValue, present := fields[key]; present {
+			*value = 0
+			*observed = false
+			if n, ok := readZooLogInt64Raw(rawValue); ok {
+				*value = n
+				*observed = true
+			}
+		}
+	}
+	setInt32 := func(key string, value *int32, observed *bool) {
+		if rawValue, present := fields[key]; present {
+			*value = 0
+			*observed = false
+			if n, ok := readZooLogInt32Raw(rawValue); ok {
+				*value = n
+				*observed = true
+			}
+		}
+	}
+	setInt64("0", &souvenir.UID, &souvenir.UIDObserved)
+	setInt32("1", &souvenir.TempID, &souvenir.TempIDObserved)
+	if rawIsRead, present := fields["2"]; present {
+		souvenir.IsRead = 0
+		souvenir.IsReadObserved = false
+		if n, ok := readZooLogInt32Raw(rawIsRead); ok {
+			souvenir.IsRead = n
+			souvenir.IsReadObserved = true
+		}
+	}
+	setInt64("3", &souvenir.UpdatedAtMs, &souvenir.UpdatedAtObserved)
+	setInt64("4", &souvenir.CreatedAtMs, &souvenir.CreatedAtObserved)
+	if souvenir.TempIDObserved && souvenir.TempID != souvenir.MapTempID {
+		souvenir.TempID = souvenir.MapTempID
+		souvenir.TempIDObserved = false
+	}
+	return souvenir, true
 }
 
 func isZooLogJSONObject(raw json.RawMessage) bool {
@@ -458,6 +582,10 @@ func cloneZooLogView(src ZooLogView) ZooLogView {
 	return out
 }
 
+func cloneZooSouvenirView(src ZooSouvenirView) ZooSouvenirView {
+	return src
+}
+
 // ZooObserved reports whether namespace 33 has been observed.
 func (s *State) ZooObserved() bool {
 	s.mu.RLock()
@@ -504,6 +632,170 @@ func (s *State) ZooLogsObserved() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.zooLogsObserved
+}
+
+// ZooSouvenirs returns a defensive copy of namespace 33.4.
+func (s *State) ZooSouvenirs() map[int32]ZooSouvenirView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]ZooSouvenirView, len(s.zooSouvenirs))
+	for tempID, souvenir := range s.zooSouvenirs {
+		if souvenir != nil {
+			out[tempID] = cloneZooSouvenirView(*souvenir)
+		}
+	}
+	return out
+}
+
+// ZooSouvenirsObserved reports whether namespace 33.4 has been observed as a
+// valid object. A sparse object merges entries; a null entry deletes one.
+func (s *State) ZooSouvenirsObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.zooSouvenirsObserved
+}
+
+// ZooSouvenirCount is the client's collection progress: the number of
+// distinct current namespace 33.4 map entries, independent of read status.
+func (s *State) ZooSouvenirCount() int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.zooSouvenirsObserved {
+		return 0
+	}
+	return int32(len(s.zooSouvenirs))
+}
+
+// UnreadZooSouvenirIDs returns only explicitly observed unread entries.
+func (s *State) UnreadZooSouvenirIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.unreadZooSouvenirIDsLocked()
+}
+
+func (s *State) unreadZooSouvenirIDsLocked() []int32 {
+	if !s.zooSouvenirsObserved {
+		return nil
+	}
+	out := make([]int32, 0, len(s.zooSouvenirs))
+	for tempID, souvenir := range s.zooSouvenirs {
+		if souvenir == nil || tempID <= 0 || !souvenir.IsReadObserved || souvenir.IsRead != 0 {
+			continue
+		}
+		out = append(out, tempID)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// ReadyZooSouvenirRewardIDs returns every achieved, unclaimed static
+// collection milestone. Both the souvenir map and claimed-index list must be
+// explicitly observed before an RPC is considered safe.
+func (s *State) ReadyZooSouvenirRewardIDs() []int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.readyZooSouvenirRewardIDsLocked()
+}
+
+func (s *State) readyZooSouvenirRewardIDsLocked() []int32 {
+	if !s.zooSouvenirsObserved || !s.zoo.SouvenirRewardIDsObserved {
+		return nil
+	}
+	claimed := make(map[int32]struct{}, len(s.zoo.SouvenirRewardIDs))
+	for _, index := range s.zoo.SouvenirRewardIDs {
+		claimed[index] = struct{}{}
+	}
+	count := int32(len(s.zooSouvenirs))
+	var out []int32
+	for _, milestone := range ZooSouvenirCollectMilestones() {
+		if milestone.Index <= 0 || milestone.Required <= 0 || count < milestone.Required {
+			continue
+		}
+		if _, exists := claimed[milestone.Index]; exists {
+			continue
+		}
+		out = append(out, milestone.Index)
+	}
+	return out
+}
+
+// ZooSouvenirRewardsReady validates that every requested reward is still
+// currently claimable immediately before the RPC.
+func (s *State) ZooSouvenirRewardsReady(indices []int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return positiveIDSubset(indices, s.readyZooSouvenirRewardIDsLocked())
+}
+
+// ZooSouvenirRewardsClaimed is the recvSouvenirRwd postcondition.
+func (s *State) ZooSouvenirRewardsClaimed(indices []int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.zoo.SouvenirRewardIDsObserved || len(indices) == 0 {
+		return false
+	}
+	return positiveIDSubset(indices, s.zoo.SouvenirRewardIDs)
+}
+
+// ZooSouvenirsUnread validates that every requested souvenir is still
+// explicitly unread immediately before readSouvenir.
+func (s *State) ZooSouvenirsUnread(ids []int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return positiveIDSubset(ids, s.unreadZooSouvenirIDsLocked())
+}
+
+// ZooSouvenirsReadyToAcknowledge closes the planning/execution race: an
+// unread batch may only be acknowledged while both source fields remain
+// observed and no collection reward has become ready in the meantime.
+func (s *State) ZooSouvenirsReadyToAcknowledge(ids []int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.zooSouvenirsObserved || !s.zoo.SouvenirRewardIDsObserved || len(s.readyZooSouvenirRewardIDsLocked()) != 0 {
+		return false
+	}
+	return positiveIDSubset(ids, s.unreadZooSouvenirIDsLocked())
+}
+
+// ZooSouvenirsAcknowledged is the readSouvenir postcondition. Explicit map
+// deletion also clears the unread entry, matching the client's updateMbMap.
+func (s *State) ZooSouvenirsAcknowledged(ids []int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.zooSouvenirsObserved || len(ids) == 0 {
+		return false
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return false
+		}
+		souvenir := s.zooSouvenirs[id]
+		if souvenir != nil && (!souvenir.IsReadObserved || souvenir.IsRead == 0) {
+			return false
+		}
+	}
+	return true
+}
+
+func positiveIDSubset(requested, available []int32) bool {
+	if len(requested) == 0 {
+		return false
+	}
+	set := make(map[int32]struct{}, len(available))
+	for _, id := range available {
+		if id > 0 {
+			set[id] = struct{}{}
+		}
+	}
+	for _, id := range requested {
+		if id <= 0 {
+			return false
+		}
+		if _, ok := set[id]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // ReadyZooStatusRefreshPetIDs returns pets whose observed status cooldown has

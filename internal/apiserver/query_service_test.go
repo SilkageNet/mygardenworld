@@ -232,6 +232,46 @@ func TestBuildPendingTasksUsesZooLogPetAndIndexIDs(t *testing.T) {
 	}
 }
 
+func TestBuildPendingTasksShowsZooSouvenirRewardAndUnreadState(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{"33": map[string]any{
+		"0": map[string]any{"13": []int32{1}},
+		"4": map[string]any{
+			"30201": map[string]any{"1": 30201, "2": 1},
+			"32901": map[string]any{"1": 32901, "2": 0},
+		},
+	}})
+
+	tasks := map[string]*pb.PendingTaskView{}
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "宠物纪念品" {
+			tasks[task.GetId()] = task
+		}
+	}
+	reward := tasks["reward:2"]
+	if reward == nil || reward.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY || reward.GetFinished() != 2 || reward.GetTarget() != 2 {
+		t.Fatalf("souvenir reward pending task=%+v", reward)
+	}
+	unread := tasks["unread:32901"]
+	if unread == nil || unread.GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED || unread.GetTitle() == "" {
+		t.Fatalf("souvenir unread pending task=%+v", unread)
+	}
+
+	st.ApplyVMap(map[string]any{"33": map[string]any{"0": map[string]any{"13": []int32{1, 2}}}})
+	foundUnread := false
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "宠物纪念品" && task.GetId() == "unread:32901" {
+			foundUnread = true
+			if task.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+				t.Fatalf("souvenir unread task stayed blocked after rewards were claimed: %+v", task)
+			}
+		}
+	}
+	if !foundUnread {
+		t.Fatal("souvenir unread task disappeared after rewards were claimed")
+	}
+}
+
 func residentOrderTask(t *testing.T, tasks []*pb.PendingTaskView) *pb.PendingTaskView {
 	t.Helper()
 	for _, task := range tasks {

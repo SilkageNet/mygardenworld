@@ -115,7 +115,9 @@ type State struct {
 	zoo                  ZooView
 	zooPets              map[int32]*ZooPetView
 	zooLogs              map[string]*ZooLogView
+	zooSouvenirs         map[int32]*ZooSouvenirView
 	zooLogsObserved      bool
+	zooSouvenirsObserved bool
 	zooObserved          bool
 
 	// Recent server-side activity timestamp; updated on every apply.
@@ -204,6 +206,7 @@ func New() *State {
 		randomEvents:               make(map[int32]*RandomEventView),
 		zooPets:                    make(map[int32]*ZooPetView),
 		zooLogs:                    make(map[string]*ZooLogView),
+		zooSouvenirs:               make(map[int32]*ZooSouvenirView),
 	}
 }
 
