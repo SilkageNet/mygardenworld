@@ -39,8 +39,8 @@ type AccountServiceClient interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(ctx context.Context, in *LoginAccountRequest, opts ...grpc.CallOption) (*LoginAccountResponse, error)
-	// Stops the live runner/WS for the account. Credentials and automation
-	// preference stay stored; the account can be logged in again later.
+	// Stops the live runner/WS for the account and disables auto-resume.
+	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(ctx context.Context, in *LogoutAccountRequest, opts ...grpc.CallOption) (*LogoutAccountResponse, error)
 }
 
@@ -115,8 +115,8 @@ type AccountServiceServer interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *LoginAccountRequest) (*LoginAccountResponse, error)
-	// Stops the live runner/WS for the account. Credentials and automation
-	// preference stay stored; the account can be logged in again later.
+	// Stops the live runner/WS for the account and disables auto-resume.
+	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *LogoutAccountRequest) (*LogoutAccountResponse, error)
 }
 

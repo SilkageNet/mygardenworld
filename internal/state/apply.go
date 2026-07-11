@@ -94,6 +94,12 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	if rawNS115, ok := top["115"]; ok {
 		s.applyPearlLocked(rawNS115)
 	}
+	if rawNS24, ok := top["24"]; ok {
+		s.applyPearlFriendsLocked(rawNS24)
+	}
+	if rawNS28, ok := top["28"]; ok {
+		s.applyPearlProfilesLocked(rawNS28)
+	}
 	if rawNS101, ok := top["101"]; ok {
 		s.applyCultivationsLocked(rawNS101)
 	}

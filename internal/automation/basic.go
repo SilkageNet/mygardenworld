@@ -314,12 +314,9 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 		}
 	}
 	if policy.GetAutoHireEnabled() {
-		hire := markerOp(CategoryBasic, "basic.pearl.hire", "hire", "珍珠雇佣需要候选用户与成本确认", 120)
-		hire.Label = "雇佣劳工"
-		hire.Status = PlanStatusAdapterMissing
-		hire.Executable = false
-		hire.BlockedReasons = []string{"自动雇佣需要好友/推荐 UID、雇佣券消耗与等级过滤的协议确认"}
-		ops = append(ops, hire)
+		if hire, ok := PlanOneSafePearlHire(s, policy, now, PearlHireIntent{}); ok {
+			ops = append(ops, hire)
+		}
 	}
 	if policy.GetAutoBuyHireTicket() {
 		buy := markerOp(CategoryBasic, "basic.pearl.buy_hire_ticket", "buy", "购买雇佣书涉及元宝成本", 110)

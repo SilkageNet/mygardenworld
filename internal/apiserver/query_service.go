@@ -621,6 +621,8 @@ func plannedOperationsProto(ops []automation.PlannedOp, diag runner.Diagnostics)
 			BlockingStage:   op.BlockingStage,
 			CooldownUntilMs: timeToUnixMilli(cooldownUntil),
 			CooldownReason:  cooldownReason,
+			TargetUid:       op.TargetUID,
+			TargetUids:      append([]int64(nil), op.TargetUIDs...),
 		})
 	}
 	return out

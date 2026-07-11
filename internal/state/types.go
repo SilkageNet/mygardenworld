@@ -358,10 +358,61 @@ type PearlPlaceView struct {
 	SurplusRecvNum         int32 `json:"surplus_recv_num,omitempty"`
 	UTimeMs                int64 `json:"u_time_ms,omitempty"`
 	CTimeMs                int64 `json:"c_time_ms,omitempty"`
+	LaborUIDObserved       bool  `json:"labor_uid_observed,omitempty"`
 	LaborEndTimeObserved   bool  `json:"labor_end_time_observed,omitempty"`
+	HireFailCntObserved    bool  `json:"hire_fail_cnt_observed,omitempty"`
 	EveryMakeNumObserved   bool  `json:"every_make_num_observed,omitempty"`
 	RecvCntObserved        bool  `json:"recv_cnt_observed,omitempty"`
 	SurplusRecvNumObserved bool  `json:"surplus_recv_num_observed,omitempty"`
+}
+
+// PearlCandidateProfile is the namespace 28.5 summary needed to apply the
+// configured hire-level ceiling. ObservedAtMs is local receipt time and is
+// deliberately session-scoped: opponent details are only trusted for a short
+// candidate-selection window.
+type PearlCandidateProfile struct {
+	UID           int64  `json:"uid"`
+	Name          string `json:"name,omitempty"`
+	Level         int32  `json:"level,omitempty"`
+	LevelObserved bool   `json:"level_observed,omitempty"`
+	ObservedAtMs  int64  `json:"observed_at_ms"`
+}
+
+// PearlCandidateHireState is one namespace 115.5 entry. LaborEndTimeMs is the
+// candidate's last/current shift end; the client applies c_pearl.$restTime
+// after this timestamp before allowing another hire.
+type PearlCandidateHireState struct {
+	UID            int64 `json:"uid"`
+	LaborEndTimeMs int64 `json:"labor_end_time_ms,omitempty"`
+	ObservedAtMs   int64 `json:"observed_at_ms"`
+}
+
+// PearlEnemyView is one namespace 115.1.5 enemy entry. EventTimeMs is used
+// with c_pearl.$enemyTimeMax to discard old enemies.
+type PearlEnemyView struct {
+	UID         int64 `json:"uid"`
+	EventTimeMs int64 `json:"event_time_ms"`
+}
+
+// PearlHireView is a defensive snapshot of the session-scoped candidate
+// state used by the pure automation planner.
+type PearlHireView struct {
+	RoleID                int64
+	TicketCount           int32
+	NobleEligible         bool
+	Places                map[int32]PearlPlaceView
+	FriendUIDs            []int64
+	FriendsObserved       bool
+	Profiles              map[int64]PearlCandidateProfile
+	HireStates            map[int64]PearlCandidateHireState
+	RecommendUIDs         []int64
+	RecommendObserved     bool
+	RecommendObservedAtMs int64
+	Enemies               []PearlEnemyView
+	EnemiesObserved       bool
+	FailedUntilMs         map[int64]int64
+	SessionLocked         bool
+	SessionLockReason     string
 }
 
 // PearlClaimSnapshot fixes the readiness instant and slots used by a
@@ -370,6 +421,16 @@ type PearlPlaceView struct {
 type PearlClaimSnapshot struct {
 	At       time.Time
 	PlaceIDs []int32
+}
+
+// PearlHireAttemptSnapshot fixes the exact resource and slot revision used by
+// the pearlPlace.hire executor's postcondition.
+type PearlHireAttemptSnapshot struct {
+	At                   time.Time
+	PlaceID              int32
+	TargetUID            int64
+	TicketCount          int32
+	PreviousPlaceUTimeMs int64
 }
 
 // FlowerRequire is a single flower requirement in an order.

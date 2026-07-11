@@ -256,6 +256,7 @@ type PlannedOp struct {
 	SlotIDs        []int32
 	FlowerID       int32
 	TargetUID      int64
+	TargetUIDs     []int64
 	TargetID       int32
 	ItemID         int32
 	Count          int32

@@ -2142,13 +2142,9 @@ function PolicyPanel({
             <PolicyGroup title="珍珠" icon={<Gem />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="免费珍珠" checked={pearl?.freeEnabled ?? false} onChange={(checked) => updatePearl({ freeEnabled: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && (
-                  <>
-                    <ToggleRow label="雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} status={SETTING_STATUS.adapterMissing} />
-                    <NumberRow label="雇佣等级上限" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />
-                    <NumberRow label="雇佣券上限" value={pearl?.maxHireTicketUsage || 0} min={0} onChange={(value) => updatePearl({ maxHireTicketUsage: value })} />
-                  </>
-                )}
+                <ToggleRow label="安全雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} />
+                <NumberRow label="雇佣等级上限（0=不限）" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />
+                <NumberRow label="同时在岗上限（0=关闭）" value={pearl?.maxHireTicketUsage || 0} min={0} onChange={(value) => updatePearl({ maxHireTicketUsage: value })} />
                 <ToggleRow label="自动开珍珠" checked={pearl?.drawEnabled ?? false} onChange={(checked) => updatePearl({ drawEnabled: checked })} />
                 <ToggleRow label="开启防身" checked={pearl?.protectEnabled ?? false} onChange={(checked) => updatePearl({ protectEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
@@ -3238,6 +3234,12 @@ function operationTargetLabel(operation: PlannedOperation) {
   }
   if (operation.rpc === "orderCustomer.finishOrder" || operation.rpc === "orderCustomer.rejectOrder") {
     return operation.targetId ? `NPC ${operation.targetId}` : "";
+  }
+  if (operation.targetUid !== BigInt(0)) {
+    return `UID ${operation.targetUid.toString()}${operation.targetId ? ` · 槽位 ${operation.targetId}` : ""}`;
+  }
+  if (operation.targetUids.length > 0) {
+    return `${operation.targetUids.length} 个候选 UID`;
   }
   const parts = [
     operation.targetId ? operationTargetIdLabel(operation) : "",

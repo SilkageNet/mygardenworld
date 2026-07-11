@@ -1,6 +1,7 @@
 package apiserver
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -319,6 +320,8 @@ func TestPlannedOperationsExposeLaneAndCooldown(t *testing.T) {
 		Executable:  true,
 		Status:      automation.PlanStatusReady,
 		TargetID:    40001,
+		TargetUID:   9002001,
+		TargetUIDs:  []int64{9002001, 9002002},
 	}}
 	diag := runner.Diagnostics{OperationCooldowns: []runner.OperationCooldownSnapshot{{
 		OperationID: "taskDly.recv|target=40001",
@@ -337,6 +340,9 @@ func TestPlannedOperationsExposeLaneAndCooldown(t *testing.T) {
 	}
 	if got[0].GetCooldownUntilMs() != now.UnixMilli() || got[0].GetCooldownReason() == "" {
 		t.Fatalf("cooldown=(%d,%q), want populated", got[0].GetCooldownUntilMs(), got[0].GetCooldownReason())
+	}
+	if got[0].GetTargetUid() != 9002001 || !reflect.DeepEqual(got[0].GetTargetUids(), []int64{9002001, 9002002}) {
+		t.Fatalf("target uid(s)=(%d,%v), want mapped", got[0].GetTargetUid(), got[0].GetTargetUids())
 	}
 }
 

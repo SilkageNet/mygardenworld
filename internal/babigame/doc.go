@@ -21,7 +21,7 @@
 //	Namespace  | Content                          | Updated by
 //	-----------|----------------------------------|----------------------------------
 //	2          | Server config / timezone         | reLogin
-//	3          | Recharge state                   | reLogin
+//	3          | Generic response extension        | selected RPC responses
 //	6          | Config versions / split map      | reLogin
 //	7          | Inventory (see below)            | Most RPCs
 //	16         | VIP state                        | reLogin
@@ -31,6 +31,7 @@
 //	24         | Friend list                      | frd.enter
 //	25         | Guild / union state              | fml.*, Fml.build
 //	27         | IM channel                       | im.getChannelId
+//	28         | Opponent/player summaries         | oppt.getDetailOppts
 //	31         | Share state                      | usr.share
 //	33         | Zoo state                         | zoo.*
 //	100        | Land state (see below)           | plant/water/harvest/unlock
@@ -88,6 +89,22 @@
 // `c_farmLand.cost` when calling unlockLand. Do not infer candidates from
 // land-id ordering or stale embedded tables. `usrLand.unlockLand` responses add
 // the newly opened land through namespace 100.
+//
+// # Pearl Hire Candidate State
+//
+// Automatic labor hiring uses only observed ticket-gated state:
+//
+//	24.1[]       friend relations; a full 24.0+24.1 replaces, relation-only deltas merge
+//	28.5[]       opponent summaries keyed by exact int64 UID, including level
+//	115.1.5      enemy UID -> event timestamp (incremental map; null entry deletes)
+//	115.5        candidate UID -> last/current labor end timestamp (incremental subset)
+//	115.6[]      recommendation UID list (whole-list replacement)
+//
+// Candidate summaries and hire states are trusted for 30 seconds. A contested
+// UID is cooled for 60 seconds. `pearlPlace.hire` must carry the exact observed
+// item 1003 x1 cost gate. Only this RPC inspects namespace `3.0` as the
+// client-side `$ext.iv`: exact zero is safe; nonzero or malformed-present data
+// locks automatic hiring for the rest of the session.
 //
 // Per-land fields (G.ILand schema, numeric-string keys):
 //
@@ -219,6 +236,11 @@
 //	pearl.recvDailyFree  {}                        → {7,115}
 //	pearl.draw           {count}                   → {7,115}
 //	pearl.setProtectState {protectState}           → {115}
+//	frd.enter            {needFriendList:1,needApplyList:0,needBlackList:0} → {24,28,...}
+//	oppt.getDetailOppts  {uids:[uid],extKeys:[1]}  → {28}
+//	pearl.getHireStateByUids {uids:[uid]}          → {115.5}
+//	pearl.getRecommendList {}                      → {115.5,115.6}
+//	pearlPlace.hire      {placeId,dstUid}           → {7,115,...}
 //	pearlPlace.recvOneKey {}                       → {7,115,148}
 //	pearlPlace.recv      {placeId}                 → {7,115}
 //	shopGiftbag.enter    {}                        → {112}

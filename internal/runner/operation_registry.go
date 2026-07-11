@@ -344,6 +344,34 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Pearl().Refresh(ctx, req)
 		},
 	),
+	clientproto.RPCFrdEnter.String(): stateDeltaOperation(
+		pearlFriendSyncRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Frd().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCOpptGetDetailOppts.String(): stateDeltaOperation(
+		pearlCandidateDetailRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OpptGetDetailOpptsRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Oppt().GetDetailOppts(ctx, req)
+		},
+	),
+	clientproto.RPCPearlGetHireStateByUids.String(): stateDeltaOperation(
+		pearlCandidateHireStateRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlGetHireStateByUidsRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Pearl().GetHireStateByUids(ctx, req)
+		},
+	),
+	clientproto.RPCPearlGetRecommendList.String(): stateDeltaOperation(
+		pearlRecommendRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlGetRecommendListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Pearl().GetRecommendList(ctx, req)
+		},
+	),
+	clientproto.RPCPearlPlaceHire.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return pearlHireRequest(op) },
+		run:  runPearlHire,
+	},
 	clientproto.RPCPearlRecvDailyFree.String(): stateDeltaOperation(
 		staticRequest(clientproto.PearlRecvDailyFreeRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.PearlRecvDailyFreeRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
@@ -94,6 +96,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		_ = client.Close()
 		return nil, fmt.Errorf("ws connect: %w", err)
 	}
+	r.resetPearlHireSession()
 
 	r.mu.Lock()
 	r.session = session
@@ -135,6 +138,24 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 
 	r.emit(Event{Kind: "session", Message: fmt.Sprintf("已连接 (服务器=%s 区=%d)", session.GsHost, session.GsIdx)})
 	return client, nil
+}
+
+func (r *Runner) resetPearlHireSession() {
+	if r.state != nil {
+		r.state.ResetPearlHireSession()
+	}
+	r.mu.Lock()
+	for key := range r.operationCooldowns {
+		if strings.HasPrefix(key, clientproto.RPCPearlPlaceHire.String()+":") ||
+			strings.HasPrefix(key, clientproto.RPCOpptGetDetailOppts.String()+":") ||
+			strings.HasPrefix(key, clientproto.RPCPearlGetHireStateByUids.String()+":") ||
+			strings.HasPrefix(key, clientproto.RPCPearlGetRecommendList.String()+":") ||
+			strings.HasPrefix(key, clientproto.RPCPearlRefresh.String()+":") ||
+			strings.HasPrefix(key, clientproto.RPCFrdEnter.String()+":") || key == "basic.pearl.hire.blocked" {
+			delete(r.operationCooldowns, key)
+		}
+	}
+	r.mu.Unlock()
 }
 
 func (r *Runner) syncAccountDisplayName(ctx context.Context, rawV json.RawMessage, session *babigame.Session) {

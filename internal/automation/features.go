@@ -69,7 +69,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.pearl_place", Label: "珍珠一键收取", Category: CategoryBasic, Domain: "basic.pearl.place", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_draw", Label: "开珍珠", Category: CategoryBasic, Domain: "basic.pearl.draw", Action: "draw", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_protect", Label: "珍珠防身", Category: CategoryBasic, Domain: "basic.pearl.protect", Action: "enable", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.pearl_hire", Label: "雇佣劳工", Category: CategoryBasic, Domain: "basic.pearl.hire", Action: "hire", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"候选用户与雇佣券成本尚未确认"}},
+	{ID: "basic.pearl_hire", Label: "雇佣劳工", Category: CategoryBasic, Domain: "basic.pearl.hire", Action: "hire", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_buy_hire_ticket", Label: "买雇佣书", Category: CategoryBasic, Domain: "basic.pearl.buy_hire_ticket", Action: "buy", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"元宝成本尚未放开自动执行"}},
 	{ID: "basic.shop", Label: "商城", Category: CategoryBasic, Domain: "basic.shop", Action: "buy", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "basic.shop_giftbag_sync", Label: "礼包商店同步", Category: CategoryBasic, Domain: "basic.shop.giftbag", Action: "sync", Status: PlanStatusManaged, Executable: true},

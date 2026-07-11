@@ -1405,6 +1405,8 @@ type PlannedOperation struct {
 	Lane            ExecutionLane          `protobuf:"varint,28,opt,name=lane,proto3,enum=mygardenworld.v1.ExecutionLane" json:"lane,omitempty"`
 	CooldownUntilMs int64                  `protobuf:"varint,29,opt,name=cooldown_until_ms,json=cooldownUntilMs,proto3" json:"cooldown_until_ms,omitempty"`
 	CooldownReason  string                 `protobuf:"bytes,30,opt,name=cooldown_reason,json=cooldownReason,proto3" json:"cooldown_reason,omitempty"`
+	TargetUid       int64                  `protobuf:"varint,31,opt,name=target_uid,json=targetUid,proto3" json:"target_uid,omitempty"`
+	TargetUids      []int64                `protobuf:"varint,32,rep,packed,name=target_uids,json=targetUids,proto3" json:"target_uids,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1647,6 +1649,20 @@ func (x *PlannedOperation) GetCooldownReason() string {
 		return x.CooldownReason
 	}
 	return ""
+}
+
+func (x *PlannedOperation) GetTargetUid() int64 {
+	if x != nil {
+		return x.TargetUid
+	}
+	return 0
+}
+
+func (x *PlannedOperation) GetTargetUids() []int64 {
+	if x != nil {
+		return x.TargetUids
+	}
+	return nil
 }
 
 type DomainStatus struct {
@@ -3337,7 +3353,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12E\n" +
 	"\frequirements\x18\a \x03(\v2!.mygardenworld.v1.RequirementViewR\frequirements\x12*\n" +
 	"\x11cooldown_until_ms\x18\b \x01(\x03R\x0fcooldownUntilMs\x12'\n" +
-	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\"\xc2\b\n" +
+	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\"\x82\t\n" +
 	"\x10PlannedOperation\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x16\n" +
@@ -3374,7 +3390,11 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x0eblocking_stage\x18\x1b \x01(\tR\rblockingStage\x123\n" +
 	"\x04lane\x18\x1c \x01(\x0e2\x1f.mygardenworld.v1.ExecutionLaneR\x04lane\x12*\n" +
 	"\x11cooldown_until_ms\x18\x1d \x01(\x03R\x0fcooldownUntilMs\x12'\n" +
-	"\x0fcooldown_reason\x18\x1e \x01(\tR\x0ecooldownReason\x1a;\n" +
+	"\x0fcooldown_reason\x18\x1e \x01(\tR\x0ecooldownReason\x12\x1d\n" +
+	"\n" +
+	"target_uid\x18\x1f \x01(\x03R\ttargetUid\x12\x1f\n" +
+	"\vtarget_uids\x18  \x03(\x03R\n" +
+	"targetUids\x1a;\n" +
 	"\rItemCostEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xe6\x02\n" +

@@ -61,8 +61,8 @@ type AccountServiceClient interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error)
-	// Stops the live runner/WS for the account. Credentials and automation
-	// preference stay stored; the account can be logged in again later.
+	// Stops the live runner/WS for the account and disables auto-resume.
+	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
 }
 
@@ -155,8 +155,8 @@ type AccountServiceHandler interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error)
-	// Stops the live runner/WS for the account. Credentials and automation
-	// preference stay stored; the account can be logged in again later.
+	// Stops the live runner/WS for the account and disables auto-resume.
+	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
 }
 

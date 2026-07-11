@@ -10,6 +10,11 @@ func (s *State) applyInventoryLocked(ns7 map[string]json.RawMessage) {
 	if raw0, ok := ns7["0"]; ok {
 		var s0 map[string]json.RawMessage
 		if err := json.Unmarshal(raw0, &s0); err == nil {
+			if rawRoleID, ok := s0["0"]; ok {
+				if uid, valid := readExactInt64Raw(rawRoleID); valid && uid > 0 && (s.roleID == 0 || s.roleID == uid) {
+					s.roleID = uid
+				}
+			}
 			if cell32, ok := s0["32"]; ok {
 				s.applyInventoryCountsLocked(cell32, true)
 			}
@@ -386,7 +391,8 @@ func isPlantableCultivation(cv *CultivateView) bool {
 	return cv != nil && cv.Status == 2 && cv.Lvl > 0
 }
 
-// RoleID returns the cached role id (`100.0.0`).
+// RoleID returns the cached own UID observed at `7.0.0`, `100.0.0`, or
+// `115.1.0`.
 func (s *State) RoleID() int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

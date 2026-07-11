@@ -176,6 +176,22 @@ type PearlProductionTiming struct {
 	GatherCDSeconds int64
 }
 
+// PearlHireSlotConfig describes one configured production slot. A slot still
+// has to exist in namespace 115.0 before it is considered unlocked.
+type PearlHireSlotConfig struct {
+	PlaceID           int32
+	MonthlyCardUnlock bool
+}
+
+// PearlHireConfig contains the decoded client constants that make ticket-only
+// automatic hiring safe.
+type PearlHireConfig struct {
+	TicketItemID    int32
+	RestTimeSeconds int64
+	EnemyMaxDays    int64
+	Slots           map[int32]PearlHireSlotConfig
+}
+
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
 	ID         int32
@@ -279,6 +295,48 @@ func PearlProductionTimingFromCatalog() (PearlProductionTiming, bool) {
 		HireTimeSeconds: pearl.HireTimeSeconds,
 		GatherCDSeconds: event.GatherCDSeconds,
 	}, true
+}
+
+// PearlHireConfigFromCatalog returns the exact decoded ticket, protection,
+// enemy-age and slot privilege gates used by the official client.
+func PearlHireConfigFromCatalog() (PearlHireConfig, bool) {
+	raw, ok := StaticRow("c_pearl", -1)
+	if !ok {
+		return PearlHireConfig{}, false
+	}
+	var base struct {
+		TicketItemID    int32 `json:"$hireItem"`
+		RestTimeSeconds int64 `json:"$restTime"`
+		EnemyMaxDays    int64 `json:"$enemyTimeMax"`
+		PlaceMax        int32 `json:"$placeMax"`
+	}
+	if json.Unmarshal(raw, &base) != nil || base.TicketItemID <= 0 ||
+		base.RestTimeSeconds <= 0 || base.EnemyMaxDays <= 0 || base.PlaceMax <= 0 {
+		return PearlHireConfig{}, false
+	}
+	config := PearlHireConfig{
+		TicketItemID:    base.TicketItemID,
+		RestTimeSeconds: base.RestTimeSeconds,
+		EnemyMaxDays:    base.EnemyMaxDays,
+		Slots:           make(map[int32]PearlHireSlotConfig, base.PlaceMax),
+	}
+	for placeID := int32(1); placeID <= base.PlaceMax; placeID++ {
+		rawSlot, exists := StaticRow("c_pearl", placeID)
+		if !exists {
+			return PearlHireConfig{}, false
+		}
+		var slot struct {
+			MonthlyCardUnlock int32 `json:"mCardUnlock"`
+		}
+		if json.Unmarshal(rawSlot, &slot) != nil {
+			return PearlHireConfig{}, false
+		}
+		config.Slots[placeID] = PearlHireSlotConfig{
+			PlaceID:           placeID,
+			MonthlyCardUnlock: slot.MonthlyCardUnlock != 0,
+		}
+	}
+	return config, true
 }
 
 // FlowerRackSellDurationMs returns the configured shelf sale window from

@@ -150,11 +150,24 @@ func (s *State) applyPearlLocked(raw json.RawMessage) {
 		}
 	}
 	if rawPearl, ok := fields["1"]; ok {
+		var pearlFields map[string]json.RawMessage
+		if json.Unmarshal(rawPearl, &pearlFields) == nil {
+			if uid, valid := readExactInt64Raw(pearlFields["0"]); valid && uid > 0 && (s.roleID == 0 || s.roleID == uid) {
+				s.roleID = uid
+			}
+		}
 		applyPearlFields(&s.pearl, rawPearl)
+		s.applyPearlEnemiesLocked(rawPearl)
 	}
 	if rawDraw, ok := fields["2"]; ok {
 		s.pearlDrawRaw = cloneRaw(rawDraw)
 		s.pearlDrawCount = rawCollectionCount(rawDraw)
+	}
+	if rawHireStates, ok := fields["5"]; ok {
+		s.applyPearlHireStatesLocked(rawHireStates)
+	}
+	if rawRecommend, ok := fields["6"]; ok {
+		s.replacePearlRecommendationsLocked(rawRecommend)
 	}
 	s.pearlObserved = true
 }
@@ -163,14 +176,14 @@ func applyPearlFields(view *PearlView, raw json.RawMessage) {
 	if view == nil {
 		return
 	}
-	view.Observed = true
-	if len(raw) == 0 || string(raw) == "{}" {
+	if len(raw) == 0 || isJSONNull(raw) {
 		return
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return
 	}
+	view.Observed = true
 	if n, ok := readInt32JSONField(fields, "1"); ok {
 		view.ProtectState = n
 	}
@@ -211,8 +224,15 @@ func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
 	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
 		view.PlaceID = n
 	}
-	if n, ok := readInt64JSONField(fields, "2"); ok {
-		view.LaborUID = n
+	if rawLaborUID, exists := fields["2"]; exists {
+		view.LaborUIDObserved = false
+		if isJSONNull(rawLaborUID) {
+			view.LaborUID = 0
+			view.LaborUIDObserved = true
+		} else if n, ok := readExactInt64Raw(rawLaborUID); ok && n >= 0 {
+			view.LaborUID = n
+			view.LaborUIDObserved = true
+		}
 	}
 	if rawEnd, exists := fields["3"]; exists {
 		view.LaborEndTimeObserved = false
@@ -220,15 +240,21 @@ func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
 			view.LaborEndTime = 0
 			view.LaborEndTimeObserved = true
 		} else {
-			var n int64
-			if json.Unmarshal(rawEnd, &n) == nil {
+			if n, ok := readExactInt64Raw(rawEnd); ok && n >= 0 {
 				view.LaborEndTime = n
 				view.LaborEndTimeObserved = true
 			}
 		}
 	}
-	if n, ok := readInt32JSONField(fields, "4"); ok {
-		view.HireFailCnt = n
+	if rawFailCount, exists := fields["4"]; exists {
+		view.HireFailCntObserved = false
+		if isJSONNull(rawFailCount) {
+			view.HireFailCnt = 0
+			view.HireFailCntObserved = true
+		} else if n, ok := readExactInt32Raw(rawFailCount); ok && n >= 0 {
+			view.HireFailCnt = n
+			view.HireFailCntObserved = true
+		}
 	}
 	if n, ok := readInt32JSONField(fields, "5"); ok {
 		view.EventID = n

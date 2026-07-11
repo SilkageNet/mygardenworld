@@ -224,6 +224,8 @@ message PlannedOperation {
   ExecutionLane lane = 28;
   int64 cooldown_until_ms = 29;
   string cooldown_reason = 30;
+  int64 target_uid = 31;
+  repeated int64 target_uids = 32;
 }
 
 message DomainStatus {
