@@ -119,6 +119,13 @@ type State struct {
 	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
 	randomEventObserved bool                       // namespace 129 observed at least once
+	signTypes           map[int32]*SignTypeView    // 140.0.<type> 防诈骗/渠道签到状态
+	signTypeObserved    bool                       // namespace 140 observed at least once
+	signTypeMapValid    bool                       // 140.0 was decoded as an object
+	baseRewards         map[int32]*BaseRewardView  // 7.7.<type> G.IRwd 基础奖励状态
+	baseRewardObserved  bool                       // namespace 7.7 reward map observed
+	baseRewardMapValid  bool                       // namespace 7.7 decoded as an object
+	signTypeEnterAtMs   map[int32]int64            // local daily de-dup for empty signType.enter
 
 	freeWaterObserved bool    // namespace 117 has been observed at least once
 	freeWaterRecvIdx  []int32 // 117.1 client recvIdx list: free-water slots already claimed today
@@ -232,6 +239,9 @@ func New() *State {
 		activityTaskRecords:        make(map[string]*activityTaskRecordState),
 		roadGrowReceived:           make(map[int32]bool),
 		randomEvents:               make(map[int32]*RandomEventView),
+		signTypes:                  make(map[int32]*SignTypeView),
+		baseRewards:                make(map[int32]*BaseRewardView),
+		signTypeEnterAtMs:          make(map[int32]int64),
 		zooPets:                    make(map[int32]*ZooPetView),
 		zooLogs:                    make(map[string]*ZooLogView),
 		zooSouvenirs:               make(map[int32]*ZooSouvenirView),

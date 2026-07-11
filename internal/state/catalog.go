@@ -228,6 +228,14 @@ type CyclicNoteMilestoneInfo struct {
 	Reward []ItemCount
 }
 
+// SignTypeRewardInfo is one c_signReward row. ID is the runtime signId and
+// Type identifies the corresponding namespace 140.0 map entry.
+type SignTypeRewardInfo struct {
+	ID     int32
+	Type   int32
+	Reward []ItemCount
+}
+
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
 	ID         int32
@@ -300,6 +308,25 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return cloneRaw(row), true
+}
+
+// SignTypeRewardByID returns a strictly validated c_signReward row.
+func SignTypeRewardByID(id int32) (SignTypeRewardInfo, bool) {
+	raw, ok := StaticRow("c_signReward", id)
+	if !ok {
+		return SignTypeRewardInfo{}, false
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return SignTypeRewardInfo{}, false
+	}
+	rowID, idOK := readStoryMainInt32(row["id"])
+	typeID, typeOK := readStoryMainInt32(row["type"])
+	reward, rewardOK := parseStoryMainCost(row["reward"])
+	if !idOK || rowID != id || id <= 0 || !typeOK || typeID <= 0 || !rewardOK || len(reward) == 0 {
+		return SignTypeRewardInfo{}, false
+	}
+	return SignTypeRewardInfo{ID: rowID, Type: typeID, Reward: reward}, true
 }
 
 // CyclicNoteCatalogConfig returns the validated static configuration shared

@@ -50,9 +50,10 @@
 //	118        | Double-coin video timer           | usr.share(shareId=11) after SDK video
 //	119        | High-freq task counters          | Most RPCs
 //	124        | Daily summary / popup rewards    | harvest, orders
+//	130        | Cultivation & art rewards        | cultivate.recv
 //	131        | Observed high-frequency delta     | land, task, pass, random-event RPCs
 //	132        | Observed order/pass delta          | orderFlower, flowerElvesPass
-//	130        | Cultivation & art rewards        | cultivate.recv
+//	140        | Stateful anti-fraud daily reward   | signType.enter/sign/recv
 //	148        | Observed broad activity delta      | Most reward/activity RPCs
 //	165        | Celebrity state                   | celebrity.getAllTypesInfo
 //
@@ -71,12 +72,22 @@
 //	7.0.41     int                元宝 shown by the game top bar / spendable gate balance
 //	7.0.42     int                Secondary diamond balance; tracked separately, not added to 7.0.41
 //	7.0.44     int                Gold coins
+//	7.7.2      IRwd               Anti-fraud one-time base reward gate (type=2)
 //	7.13.1.104 int                usrExtra.antiFraudQAStatus; 2 means the QA reward is claimed
 //	7.13.1.105 int64              usrExtra.lastAntiFraudQATime timestamp (ms)
 //	7.17.0.1   int                Own reputation/礼仪分 score; active refresh uses reputation.view
 //	7.101.1    int                Main-story chapter containing the next section to unlock
 //	7.101.2    int                Zero-based next-section index; decoded terminal is 149:0
 //	7.4.111.2  int                Daily story stars obtained (display statistic, never an unlock gate)
+//
+// # Anti-fraud daily reward (Namespace 140)
+//
+// signType type=1 is c_open.sign_1 ("防诈骗签到"), not the ordinary monthly
+// sign.sign flow. Namespace 140.0.1 follows the observed server state machine
+// status 0 -- sign --> status 1 -- recv --> status 2. The server returns code
+// 3500 ("条件已达成，无需重复操作") when sign is repeated after the condition
+// has already advanced. Automation must therefore merge sparse namespace 140
+// deltas and select exactly one stage from authoritative status.
 //
 // # Land State (Namespace 100)
 //

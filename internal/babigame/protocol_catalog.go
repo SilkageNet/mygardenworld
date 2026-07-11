@@ -26,7 +26,7 @@ var namespaceCatalog = []NamespaceSpec{
 	{Key: "123"}, {Key: "124", Modeled: true}, {Key: "125"}, {Key: "126"},
 	{Key: "128"}, {Key: "129", Modeled: true}, {Key: "130"},
 	{Key: "131"}, {Key: "132"}, {Key: "134"}, {Key: "136"},
-	{Key: "139"}, {Key: "140"}, {Key: "143"}, {Key: "144"},
+	{Key: "139"}, {Key: "140", Modeled: true}, {Key: "143"}, {Key: "144"},
 	{Key: "148"}, {Key: "154"}, {Key: "155"}, {Key: "161"},
 	{Key: "162"}, {Key: "165"},
 }

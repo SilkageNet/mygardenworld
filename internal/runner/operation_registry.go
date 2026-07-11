@@ -547,9 +547,26 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Mail().Pick(ctx, req)
 		},
 	),
+	clientproto.RPCSignTypeEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
+			typeID, err := plannedSignTypeID(op)
+			return clientproto.SignTypeEnterRequest{Type: typeID}, err
+		},
+		run: runSignTypeEnter,
+	},
 	clientproto.RPCSignTypeSign.String(): {
-		args: staticAnyRequest(clientproto.SignTypeSignRequest{Type: 1}),
-		run:  runSignTypeSign,
+		args: func(op *automation.PlannedOp) (any, error) {
+			typeID, err := plannedSignTypeID(op)
+			return clientproto.SignTypeSignRequest{Type: typeID}, err
+		},
+		run: runSignTypeSign,
+	},
+	clientproto.RPCSignTypeRecv.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
+			typeID, err := plannedSignTypeID(op)
+			return clientproto.SignTypeRecvRequest{Type: typeID}, err
+		},
+		run: runSignTypeRecv,
 	},
 }
 

@@ -106,10 +106,73 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		}
 	}
 	if sign.GetDailyEnabled() {
-		add(true, clientproto.RPCSignTypeSign.String(), "basic.sign", "claim", "签到由调度退避控制", 5600, 1)
+		ops = append(ops, signTypeOperations(s, now)...)
 	}
 	ops = append(ops, pearlOperations(s, basic.GetPearl(), now)...)
 	return ops
+}
+
+func signTypeOperations(s *state.State, now time.Time) []PlannedOp {
+	const typeID = state.SignTypeAntiFraud
+	view, namespaceObserved := s.SignType(typeID)
+	blocked := func(reason string) []PlannedOp {
+		op := markerOp(CategoryBasic, "basic.sign", "claim", reason, 5600)
+		op.Status = PlanStatusBlocked
+		op.Executable = false
+		op.TargetID = typeID
+		op.BlockedReasons = []string{reason}
+		return []PlannedOp{op}
+	}
+	if !namespaceObserved {
+		return blocked("namespace 140 防诈骗签到状态未同步，拒绝试探调用")
+	}
+	if !view.Observed {
+		return blocked("namespace 140 未包含 type=1 防诈骗签到记录，拒绝试探调用")
+	}
+	if !view.Valid || !view.TypeObserved || !view.SignIDObserved || !view.StatusObserved {
+		return blocked("type=1 防诈骗签到状态或 c_signReward 定义不完整，拒绝自动操作")
+	}
+	base, baseMapObserved := s.BaseReward(state.BaseRewardAntiFraud)
+	if !baseMapObserved || !base.Observed || !base.Valid || !base.TypeObserved || !base.StatusObserved || !base.UpdatedAtObserved {
+		return blocked("namespace 7.7[2] 基础防骗奖励状态不完整，拒绝进入 signType 流程")
+	}
+	if base.Status != state.BaseRewardStatusReceived {
+		return blocked("基础防骗奖励尚未领取；rwd.setCanRecv/rwd.recv 不在本自动化安全范围内")
+	}
+	if base.UpdatedToday(now) {
+		// The client considers today's anti-fraud reward complete at this gate
+		// and does not enter signType type=1.
+		return nil
+	}
+	if !base.UpdatedBeforeToday(now) {
+		return blocked("基础防骗奖励更新时间不是今天之前的可信时间，拒绝进入 signType 流程")
+	}
+
+	goal := Goal{ID: "basic.sign", Category: CategoryBasic, Domain: "basic.sign", Label: "防诈骗签到", Priority: 56}
+	switch view.Status {
+	case state.SignTypeStatusCanSign:
+		return []PlannedOp{op(clientproto.RPCSignTypeSign.String(), goal, "claim", "防诈骗签到条件可执行", 5600, typeID, 0, 0)}
+	case state.SignTypeStatusCanReceive:
+		return []PlannedOp{op(clientproto.RPCSignTypeRecv.String(), goal, "claim", "防诈骗签到已完成，奖励可领取", 5600, typeID, 0, 0)}
+	case state.SignTypeStatusReceived:
+		if !view.UpdatedAtObserved {
+			return blocked("防诈骗签到终态缺少更新时间，无法判断是否需要跨日同步")
+		}
+		if view.UpdatedToday(now) {
+			return nil
+		}
+		if !view.UpdatedBeforeToday(now) {
+			return blocked("防诈骗签到终态更新时间异常，拒绝跨日试探")
+		}
+		if s.SignTypeEnterAttemptedToday(typeID, now) {
+			return nil
+		}
+		sync := op(clientproto.RPCSignTypeEnter.String(), goal, "sync", "防诈骗签到终态属于前一日，执行本日一次状态同步", 5605, typeID, 0, 0)
+		sync.OperationID = fmt.Sprintf("%s:%d:%s", clientproto.RPCSignTypeEnter.String(), typeID, now.Format("20060102"))
+		return []PlannedOp{sync}
+	default:
+		return blocked("type=1 防诈骗签到状态不在实测的 0/1/2 状态机内")
+	}
 }
 
 func mainTaskOperations(s *state.State) []PlannedOp {

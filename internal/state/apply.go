@@ -80,6 +80,7 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 		var ns map[string]json.RawMessage
 		if err := json.Unmarshal(rawNS7, &ns); err == nil {
 			s.applyInventoryLocked(ns)
+			s.applyBaseRewardsLocked(ns)
 			s.applyUsrExtraLocked(ns)
 			s.applyReputationLocked(ns)
 			s.applyStoryMainLocked(ns)
@@ -159,6 +160,9 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	}
 	if rawNS129, ok := top["129"]; ok {
 		s.applyRandomEventsLocked(rawNS129)
+	}
+	if rawNS140, ok := top["140"]; ok {
+		s.applySignTypesLocked(rawNS140)
 	}
 	if rawNS33, ok := top["33"]; ok {
 		s.applyZooLocked(rawNS33)

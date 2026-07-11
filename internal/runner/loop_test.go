@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -224,6 +225,96 @@ func TestOrderRackAndMailOperationArgs(t *testing.T) {
 				t.Fatalf("operationArgs(%s)=%s, want %s", tc.op.Kind, got, want)
 			}
 		})
+	}
+}
+
+func TestSignTypeOperationArgsAndStagePreflight(t *testing.T) {
+	cases := []struct {
+		kind string
+		want any
+	}{
+		{kind: clientproto.RPCSignTypeEnter.String(), want: clientproto.SignTypeEnterRequest{Type: state.SignTypeAntiFraud}},
+		{kind: clientproto.RPCSignTypeSign.String(), want: clientproto.SignTypeSignRequest{Type: state.SignTypeAntiFraud}},
+		{kind: clientproto.RPCSignTypeRecv.String(), want: clientproto.SignTypeRecvRequest{Type: state.SignTypeAntiFraud}},
+	}
+	for _, tc := range cases {
+		args, err := operationArgs(&automation.PlannedOp{Kind: tc.kind, TargetID: state.SignTypeAntiFraud})
+		if err != nil {
+			t.Fatalf("operationArgs(%s): %v", tc.kind, err)
+		}
+		if got, want := jsonString(t, args), jsonString(t, tc.want); got != want {
+			t.Fatalf("operationArgs(%s)=%s, want %s", tc.kind, got, want)
+		}
+	}
+	if _, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCSignTypeSign.String(), TargetID: 2}); err == nil {
+		t.Fatal("signType type=2 should not be executable")
+	}
+
+	st := state.New()
+	baseOld := time.Now().Add(-24 * time.Hour).UnixMilli()
+	st.ApplyVMap(map[string]any{
+		"7":   map[string]any{"7": map[string]any{"2": map[string]any{"0": 123, "1": 2, "2": 2, "3": baseOld, "4": int64(1)}}},
+		"140": map[string]any{"0": map[string]any{"1": map[string]any{"0": 123, "1": 1, "3": 1, "4": 0}}},
+	})
+	rt := operationRuntime{runner: &Runner{state: st}}
+	if done, err := signTypeStagePreflight(rt, state.SignTypeAntiFraud, state.SignTypeStatusCanSign); err != nil || done {
+		t.Fatalf("status 0 preflight = done:%t err:%v", done, err)
+	}
+	if ready, err := signTypeStageReadyAfterEnter(rt, state.SignTypeAntiFraud, state.SignTypeStatusCanReceive, time.Now()); err != nil || ready {
+		t.Fatalf("recv enter reset to status 0 = ready:%t err:%v, want successful replan", ready, err)
+	}
+	st.ApplyV(json.RawMessage(`{"140":{"0":{"1":{"4":1}}}}`))
+	if done, err := signTypeStagePreflight(rt, state.SignTypeAntiFraud, state.SignTypeStatusCanSign); err != nil || !done {
+		t.Fatalf("stale sign preflight = done:%t err:%v", done, err)
+	}
+	if done, err := signTypeStagePreflight(rt, state.SignTypeAntiFraud, state.SignTypeStatusCanReceive); err != nil || done {
+		t.Fatalf("status 1 recv preflight = done:%t err:%v", done, err)
+	}
+
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	old := now.Add(-24 * time.Hour).UnixMilli()
+	st = state.New()
+	st.ApplyVMap(map[string]any{
+		"7":   map[string]any{"7": map[string]any{"2": map[string]any{"0": 123, "1": 2, "2": 2, "3": old, "4": int64(1)}}},
+		"140": map[string]any{"0": map[string]any{"1": map[string]any{"0": 123, "1": 1, "3": 1, "4": 2, "5": old}}},
+	})
+	rt = operationRuntime{runner: &Runner{state: st}}
+	if needed, err := signTypeEnterSyncNeeded(rt, state.SignTypeAntiFraud, now); err != nil || !needed {
+		t.Fatalf("cross-day enter preflight = needed:%t err:%v", needed, err)
+	}
+	st.MarkSignTypeEnterAttempt(state.SignTypeAntiFraud, now)
+	if needed, err := signTypeEnterSyncNeeded(rt, state.SignTypeAntiFraud, now); err != nil || needed {
+		t.Fatalf("deduplicated enter preflight = needed:%t err:%v", needed, err)
+	}
+}
+
+func TestSignTypeBusinessStateErrorsAreNonRetryable(t *testing.T) {
+	want := map[int]string{
+		3500: "条件已达成，无需重复操作",
+		3501: "今日奖励已领取",
+		3502: "未达成领取条件，无法获取奖励",
+		3503: "功能暂未解锁",
+	}
+	for code, description := range want {
+		got, ok := signTypeNonRetryableCode(code)
+		if !ok || got != description {
+			t.Fatalf("signTypeNonRetryableCode(%d)=(%q,%t), want (%q,true)", code, got, ok, description)
+		}
+	}
+	if got, ok := signTypeNonRetryableCode(3499); ok || got != "" {
+		t.Fatalf("signTypeNonRetryableCode(3499)=(%q,%t), want non-business error", got, ok)
+	}
+
+	st := state.New()
+	st.ApplyV(json.RawMessage(`{"140":{"0":{"1":{"0":123,"1":1,"3":1,"4":0}}}}`))
+	rt := operationRuntime{runner: &Runner{state: st}}
+	d := babigame.WSResponseD{M: json.RawMessage(`{"code":3501,"args":[]}`)}
+	if err := invalidateSignTypeServerStateError(rt, state.SignTypeAntiFraud, "signType.recv", d); err == nil {
+		t.Fatal("3501 did not produce a fail-closed error")
+	}
+	view, observed := st.SignType(state.SignTypeAntiFraud)
+	if !observed || view.Valid {
+		t.Fatalf("3501 did not invalidate sign state: observed=%t view=%+v", observed, view)
 	}
 }
 

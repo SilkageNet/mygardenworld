@@ -644,6 +644,65 @@ type RandomEventView struct {
 }
 
 const (
+	// SignTypeAntiFraud is c_open.sign_1, named "防诈骗签到" by the client.
+	// It is separate from the ordinary sign.sign monthly-login flow.
+	SignTypeAntiFraud int32 = 1
+)
+
+const (
+	// The observed signType state machine is 0 (can sign), 1 (signed and can
+	// receive), 2 (reward received). The client also uses status != 2 for its
+	// red-dot condition.
+	SignTypeStatusCanSign int32 = iota
+	SignTypeStatusCanReceive
+	SignTypeStatusReceived
+)
+
+// SignTypeView is one namespace 140.0.<type> channel/sign reward record.
+// SignID selects a c_signReward row; it is not an activity batch id.
+type SignTypeView struct {
+	Observed          bool  `json:"observed,omitempty"`
+	Valid             bool  `json:"valid,omitempty"`
+	UID               int64 `json:"uid,omitempty"`
+	UIDObserved       bool  `json:"uid_observed,omitempty"`
+	Type              int32 `json:"type,omitempty"`
+	TypeObserved      bool  `json:"type_observed,omitempty"`
+	LastTimeMs        int64 `json:"last_time_ms,omitempty"`
+	LastTimeObserved  bool  `json:"last_time_observed,omitempty"`
+	SignID            int32 `json:"sign_id,omitempty"`
+	SignIDObserved    bool  `json:"sign_id_observed,omitempty"`
+	Status            int32 `json:"status,omitempty"`
+	StatusObserved    bool  `json:"status_observed,omitempty"`
+	UpdatedAtMs       int64 `json:"updated_at_ms,omitempty"`
+	UpdatedAtObserved bool  `json:"updated_at_observed,omitempty"`
+	CreatedAtMs       int64 `json:"created_at_ms,omitempty"`
+	CreatedAtObserved bool  `json:"created_at_observed,omitempty"`
+}
+
+const (
+	// BaseRewardAntiFraud is c_rwd[2], the one-time/base anti-fraud reward
+	// checked by the client before it enters signType type=1 on later days.
+	BaseRewardAntiFraud      int32 = 2
+	BaseRewardStatusReceived int32 = 2
+)
+
+// BaseRewardView is one namespace 7.7.<type> G.IRwd record.
+type BaseRewardView struct {
+	Observed          bool  `json:"observed,omitempty"`
+	Valid             bool  `json:"valid,omitempty"`
+	UID               int64 `json:"uid,omitempty"`
+	UIDObserved       bool  `json:"uid_observed,omitempty"`
+	Type              int32 `json:"type,omitempty"`
+	TypeObserved      bool  `json:"type_observed,omitempty"`
+	Status            int32 `json:"status,omitempty"`
+	StatusObserved    bool  `json:"status_observed,omitempty"`
+	UpdatedAtMs       int64 `json:"updated_at_ms,omitempty"`
+	UpdatedAtObserved bool  `json:"updated_at_observed,omitempty"`
+	CreatedAtMs       int64 `json:"created_at_ms,omitempty"`
+	CreatedAtObserved bool  `json:"created_at_observed,omitempty"`
+}
+
+const (
 	// AntiFraudQAStatusClaimed is the client-observed terminal state for the
 	// anti-fraud QA reward. Any other observed state keeps the red-dot entry
 	// visible in game.js.
