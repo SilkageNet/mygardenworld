@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
@@ -8,24 +8,8 @@ import { formatAPIError } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { ArrowRight, LoaderCircle, LockKeyhole, UserRound } from "lucide-react";
-
-const LOGIN_SKY_STYLE = {
-  "--background": "#e9f8ff",
-  "--foreground": "#17345f",
-  "--card": "#fbfdff",
-  "--primary": "#ff6f61",
-  "--primary-foreground": "#fffafa",
-  "--secondary": "#e7f6ff",
-  "--muted": "#eaf6fb",
-  "--accent": "#fff1b8",
-  "--border": "#bfddec",
-  "--input": "#cce5f2",
-  "--ring": "#2f87ed",
-  "--cloud-shadow": "rgba(80, 130, 190, 0.22)",
-  "--cloud-glow": "rgba(255, 255, 255, 0.82)",
-  "--toy-shadow": "rgba(45, 103, 165, 0.18)",
-} as CSSProperties & Record<string, string>;
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -60,20 +44,22 @@ export default function LoginPage() {
 
   return (
     <main
-      className="fixed left-0 top-0 isolate flex h-dvh w-screen items-center justify-center overflow-y-auto overflow-x-hidden bg-[#e9f8ff] px-4 py-8 text-[#17345f] transition-colors sm:px-6"
-      style={LOGIN_SKY_STYLE}
+      className="theme-sky-background fixed left-0 top-0 isolate flex h-dvh w-screen items-center justify-center overflow-y-auto overflow-x-hidden px-4 py-8 text-foreground transition-colors sm:px-6"
     >
+      <div className="absolute right-4 top-4 z-20 rounded-md border border-white/55 bg-card/60 p-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-card/72">
+        <ThemeToggle />
+      </div>
       <span className="sky-decor-plane sky-glide left-[7%] top-20 bg-[linear-gradient(135deg,#ff8e88,#ff6268)] opacity-80 [--plane-duration:18s] [--plane-glide-x:2.4rem] [--plane-glide-y:-1.2rem] [--plane-loop-x:0.7rem] [--plane-loop-y:0.5rem] [--plane-rotate:18deg]" aria-hidden />
       <span className="sky-decor-plane sky-glide right-[8%] top-28 bg-[linear-gradient(135deg,#ffd45d,#ffb331)] opacity-80 [--plane-duration:21s] [--plane-glide-x:-2.2rem] [--plane-glide-y:-1rem] [--plane-loop-x:-0.6rem] [--plane-loop-y:0.4rem] [--plane-rotate:-18deg]" aria-hidden />
       <span className="sky-decor-cloud sky-float left-[12%] top-32 opacity-72" aria-hidden />
       <span className="sky-decor-cloud sky-float right-[12%] bottom-24 opacity-70" aria-hidden />
       <span className="sky-decor-star left-[30%] top-28 opacity-75" aria-hidden />
       <span className="sky-decor-star right-[30%] top-40 bg-[#ff8bb1] opacity-70" aria-hidden />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(240,250,255,0.78)_0%,rgba(240,250,255,0.42)_40%,rgba(240,250,255,0.74)_100%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(255,255,255,0.56),rgba(255,255,255,0)_34%),linear-gradient(180deg,rgba(255,255,255,0.18),rgba(174,232,255,0.34))]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#f7fbff]/80 to-transparent" />
+      <div className="login-sky-wash pointer-events-none absolute inset-0" />
+      <div className="login-sky-glow pointer-events-none absolute inset-0" />
+      <div className="login-sky-horizon pointer-events-none absolute inset-x-0 bottom-0 h-32" />
 
-      <section className="cloud-surface toy-shadow relative w-full max-w-[25rem] rounded-lg border border-white/70 bg-white/72 px-5 py-7 shadow-[0_24px_80px_rgba(45,103,165,0.18)] backdrop-blur-xl transition-colors sm:px-8 sm:py-8">
+      <section className="cloud-surface toy-shadow relative w-full max-w-[25rem] rounded-lg border border-white/70 bg-card/78 px-5 py-7 backdrop-blur-xl transition-colors dark:border-white/10 dark:bg-card/90 sm:px-8 sm:py-8">
         <div className="mx-auto mb-5 flex w-full flex-col items-center text-center">
           <div className="relative size-16 overflow-hidden sm:size-20">
             <Image
@@ -86,7 +72,7 @@ export default function LoginPage() {
               className="object-contain drop-shadow-[0_8px_18px_rgba(46,137,199,0.22)]"
             />
           </div>
-          <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-normal text-[#17345f]">
+          <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-normal text-foreground">
             小云朵
           </h1>
         </div>
@@ -97,7 +83,7 @@ export default function LoginPage() {
               账号
             </Label>
             <div className="relative">
-              <UserRound className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#2f87ed]" />
+              <UserRound className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-ring" />
               <Input
                 id="username"
                 value={username}
@@ -108,7 +94,7 @@ export default function LoginPage() {
                 required
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "login-error" : undefined}
-                className="h-12 rounded-lg border-[#b8dff2]/90 !bg-white/84 pl-12 pr-4 !text-[#17345f] placeholder:!text-[#657b96] focus-visible:border-[#2f87ed] focus-visible:ring-[#2f87ed]/24"
+                className="h-12 rounded-lg pl-12 pr-4"
               />
             </div>
           </div>
@@ -118,7 +104,7 @@ export default function LoginPage() {
               密码
             </Label>
             <div className="relative">
-              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-[#2f87ed]" />
+              <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-ring" />
               <Input
                 id="password"
                 type="password"
@@ -129,7 +115,7 @@ export default function LoginPage() {
                 required
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "login-error" : undefined}
-                className="h-12 rounded-lg border-[#b8dff2]/90 !bg-white/84 pl-12 pr-4 !text-[#17345f] placeholder:!text-[#657b96] focus-visible:border-[#2f87ed] focus-visible:ring-[#2f87ed]/24"
+                className="h-12 rounded-lg pl-12 pr-4"
               />
             </div>
           </div>
@@ -137,7 +123,7 @@ export default function LoginPage() {
           {error && (
             <div
               id="login-error"
-              className="rounded-lg border border-[#d56d5d]/35 bg-[#fff3ee]/86 px-3 py-2 text-sm text-[#b64939]"
+              className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
               {error}
             </div>

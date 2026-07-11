@@ -32,6 +32,7 @@
 
 :root,
 [data-theme="light"] {
+  color-scheme: light;
   --background: #e9f8ff;
   --foreground: #17345f;
   --card: #fbfdff;
@@ -56,10 +57,15 @@
     linear-gradient(180deg, #55c6ff 0%, #aee8ff 42%, #f7fbff 100%);
   --cloud-shadow: rgba(80, 130, 190, 0.22);
   --cloud-glow: rgba(255, 255, 255, 0.82);
+  --cloud-inset: rgba(255, 255, 255, 0.72);
+  --surface-sheen: rgba(255, 255, 255, 0.55);
+  --surface-sheen-opacity: 0.8;
+  --surface-inset: rgba(255, 255, 255, 0.68);
   --toy-shadow: rgba(45, 103, 165, 0.18);
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --background: #101a31;
   --foreground: #edf7ff;
   --card: #17223d;
@@ -67,7 +73,7 @@
   --popover: #182641;
   --popover-foreground: #edf7ff;
   --primary: #ff8a75;
-  --primary-foreground: #fff8f5;
+  --primary-foreground: #32120c;
   --secondary: #23375f;
   --secondary-foreground: #eaf5ff;
   --muted: #202d4c;
@@ -75,7 +81,7 @@
   --accent: #35436b;
   --accent-foreground: #fff0a8;
   --destructive: #ff756a;
-  --destructive-foreground: #fff4f0;
+  --destructive-foreground: #2c1110;
   --border: #31466b;
   --input: #26385a;
   --ring: #79b8ff;
@@ -84,6 +90,10 @@
     linear-gradient(180deg, #182a55 0%, #15213f 54%, #111a31 100%);
   --cloud-shadow: rgba(0, 0, 0, 0.32);
   --cloud-glow: rgba(205, 228, 255, 0.2);
+  --cloud-inset: rgba(205, 228, 255, 0.12);
+  --surface-sheen: rgba(205, 228, 255, 0.1);
+  --surface-sheen-opacity: 0.58;
+  --surface-inset: rgba(205, 228, 255, 0.14);
   --toy-shadow: rgba(0, 0, 0, 0.28);
 }
 
@@ -195,7 +205,7 @@ body {
     background: color-mix(in oklab, var(--card) 88%, transparent);
     box-shadow:
       0 1rem 2.2rem var(--cloud-shadow),
-      inset 0 0.18rem 0 color-mix(in oklab, #ffffff 72%, transparent);
+      inset 0 0.18rem 0 var(--cloud-inset);
   }
 
   .sky-decor-cloud::before,
@@ -260,9 +270,9 @@ body {
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(ellipse at 12% 0%, rgba(255, 255, 255, 0.55), transparent 36%),
+      radial-gradient(ellipse at 12% 0%, var(--surface-sheen), transparent 36%),
       radial-gradient(ellipse at 95% 12%, color-mix(in oklab, var(--accent) 32%, transparent), transparent 32%);
-    opacity: 0.8;
+    opacity: var(--surface-sheen-opacity);
   }
 
   .cloud-surface > * {
@@ -273,7 +283,31 @@ body {
   .toy-shadow {
     box-shadow:
       0 1rem 2.6rem var(--toy-shadow),
-      inset 0 1px 0 color-mix(in oklab, #ffffff 68%, transparent);
+      inset 0 1px 0 var(--surface-inset);
+  }
+
+  .theme-sky-background {
+    background: var(--sky-background);
+  }
+
+  .login-sky-wash {
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--card) 78%, transparent) 0%,
+        color-mix(in oklab, var(--card) 42%, transparent) 40%,
+        color-mix(in oklab, var(--card) 74%, transparent) 100%
+      );
+  }
+
+  .login-sky-glow {
+    background:
+      radial-gradient(circle at 50% 38%, color-mix(in oklab, var(--cloud-glow) 68%, transparent), transparent 34%),
+      linear-gradient(180deg, color-mix(in oklab, var(--cloud-glow) 24%, transparent), color-mix(in oklab, var(--secondary) 44%, transparent));
+  }
+
+  .login-sky-horizon {
+    background: linear-gradient(to top, color-mix(in oklab, var(--card) 80%, transparent), transparent);
   }
 }
 
@@ -325,5 +359,76 @@ body {
 
   .sky-glide {
     animation: plane-glide var(--plane-duration, 20s) ease-in-out infinite;
+  }
+}
+
+/*
+ * Mobile Chromium/WebView can render black compositor tiles when fixed masked
+ * scenery, animated filters and backdrop blur overlap. Keep the night theme
+ * stable on narrow screens; the opaque theme surfaces preserve the hierarchy.
+ */
+@media (max-width: 639px) {
+  [data-theme="dark"] body::before,
+  [data-theme="dark"] body::after {
+    display: none;
+  }
+
+  [data-theme="dark"] .backdrop-blur-sm,
+  [data-theme="dark"] .backdrop-blur-xl {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  [data-theme="dark"] .sky-float,
+  [data-theme="dark"] .sky-drift,
+  [data-theme="dark"] .sky-glide {
+    animation: none !important;
+  }
+
+  [data-theme="dark"] .sky-decor-plane {
+    filter: none;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-overlay"] {
+    background: #080d18 !important;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-content"] {
+    background: var(--card) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-content"]::before,
+  [data-theme="dark"] [data-slot="dialog-content"]::after {
+    display: none !important;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-content"] .dark-scrollbar {
+    background: var(--background) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-content"] [data-slot="input"] {
+    background: var(--input) !important;
+    box-shadow: none !important;
+    transition: none !important;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-content"] .dark-scrollbar button:not([data-slot]) {
+    background: var(--card) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+    transition: none !important;
+  }
+
+  [data-theme="dark"] [data-slot="dialog-content"] .dark-scrollbar button:not([data-slot])[aria-pressed="true"] {
+    background: var(--secondary) !important;
+    border-color: var(--primary) !important;
   }
 }

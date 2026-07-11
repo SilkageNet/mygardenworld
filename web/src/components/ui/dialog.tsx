@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,31 +12,82 @@ interface DialogProps {
   children: React.ReactNode;
 }
 
-const DialogContext = React.createContext<{ onOpenChange: (open: boolean) => void } | null>(null);
+const DialogContext = React.createContext<{ onOpenChange: (open: boolean) => void; titleId: string } | null>(null);
 
 function Dialog({ open, onOpenChange, children }: DialogProps) {
+  const overlayRef = React.useRef<HTMLDivElement>(null);
+  const onOpenChangeRef = React.useRef(onOpenChange);
+  const titleId = React.useId();
+
+  React.useEffect(() => {
+    onOpenChangeRef.current = onOpenChange;
+  }, [onOpenChange]);
+
   React.useEffect(() => {
     if (!open) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onOpenChange(false);
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onOpenChange]);
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    const previousScrollbarGutter = document.documentElement.style.scrollbarGutter;
 
-  if (!open) return null;
-  return (
-    <DialogContext.Provider value={{ onOpenChange }}>
-      <div className="fixed inset-0 z-50">
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.documentElement.style.scrollbarGutter = "auto";
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onOpenChangeRef.current(false);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    const focusFrame = window.requestAnimationFrame(() => {
+      const focusTarget = overlayRef.current?.querySelector<HTMLElement>("[data-dialog-autofocus]");
+      focusTarget?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousRootOverflow;
+      document.documentElement.style.scrollbarGutter = previousScrollbarGutter;
+      previouslyFocused?.focus({ preventScroll: true });
+    };
+  }, [open]);
+
+  if (!open || typeof document === "undefined") return null;
+  const useStableMobilePortal =
+    document.documentElement.dataset.theme === "dark" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 639px)").matches;
+  const portalTop = useStableMobilePortal ? window.scrollY : 0;
+  return createPortal(
+    <DialogContext.Provider value={{ onOpenChange, titleId }}>
+      <div
+        ref={overlayRef}
+        data-slot="dialog-root"
+        className={useStableMobilePortal ? "contents" : "fixed inset-0 z-50 overscroll-none"}
+      >
+        {!useStableMobilePortal && (
+          <div
+            data-slot="dialog-overlay"
+            className="absolute inset-0 z-0 bg-sky-950/52 dark:bg-black/80"
+            onClick={() => onOpenChange(false)}
+          />
+        )}
         <div
-          className="fixed inset-0 bg-sky-950/52 backdrop-blur-sm dark:bg-black/68"
-          onClick={() => onOpenChange(false)}
-        />
-        <div className="fixed inset-0 flex items-end justify-center p-3 sm:items-center sm:p-4">
+          data-slot="dialog-positioner"
+          className={useStableMobilePortal ? "absolute z-50 flex h-auto justify-center" : "absolute inset-0 z-10 flex items-end justify-center pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:items-center sm:p-4"}
+          style={useStableMobilePortal ? {
+            top: `calc(${portalTop}px + 5dvh)`,
+            right: "max(0.75rem, env(safe-area-inset-right))",
+            left: "max(0.75rem, env(safe-area-inset-left))",
+          } : undefined}
+        >
           {children}
         </div>
       </div>
-    </DialogContext.Provider>
+    </DialogContext.Provider>,
+    document.body,
   );
 }
 
@@ -47,9 +99,12 @@ function DialogContent({
   const dialog = React.useContext(DialogContext);
   return (
     <div
+      role="dialog"
+      data-slot="dialog-content"
+      aria-modal="true"
+      aria-labelledby={dialog?.titleId}
       className={cn(
-        "toy-shadow cloud-surface relative z-50 max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-white/70 bg-card/92 p-5 shadow-2xl ring-1 ring-border/60 backdrop-blur-xl sm:p-6 dark:border-white/10 dark:bg-card/94",
-        "animate-in fade-in-0 zoom-in-95",
+        "toy-shadow relative z-10 max-h-[90dvh] w-full max-w-md overflow-y-auto overscroll-contain rounded-xl border border-white/70 bg-card p-4 shadow-2xl ring-1 ring-border/60 outline-none sm:max-h-[calc(100dvh-2rem)] sm:rounded-lg sm:p-6 dark:border-white/10",
         className
       )}
       onClick={(e) => e.stopPropagation()}
@@ -58,8 +113,9 @@ function DialogContent({
       <Button
         type="button"
         variant="ghost"
-        size="icon-sm"
-        className="absolute right-3 top-3 z-10 text-muted-foreground hover:text-foreground"
+        size="icon"
+        data-dialog-autofocus
+        className="absolute right-2 top-2 z-10 size-10 text-muted-foreground hover:text-foreground sm:right-3 sm:top-3 sm:size-8 max-sm:dark:transition-none"
         onClick={() => dialog?.onOpenChange(false)}
         aria-label="关闭弹窗"
       >
@@ -71,11 +127,12 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("mb-4 space-y-1.5", className)} {...props} />;
+  return <div className={cn("mb-4 space-y-1.5 pr-10", className)} {...props} />;
 }
 
 function DialogTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h2 className={cn("text-lg font-semibold", className)} {...props} />;
+  const dialog = React.useContext(DialogContext);
+  return <h2 id={dialog?.titleId} className={cn("text-lg font-semibold", className)} {...props} />;
 }
 
 function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
@@ -83,7 +140,7 @@ function DialogDescription({ className, ...props }: React.HTMLAttributes<HTMLPar
 }
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("mt-6 flex justify-end gap-2", className)} {...props} />;
+  return <div className={cn("mt-6 flex flex-col-reverse gap-2 min-[380px]:flex-row min-[380px]:justify-end", className)} {...props} />;
 }
 
 export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter };

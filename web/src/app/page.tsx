@@ -164,6 +164,8 @@ const queryClient = createClient(QueryService, transport);
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
 const EVENT_LIMIT = 120;
+const EVENT_RECONNECT_INITIAL_MS = 1000;
+const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
 const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "operation_ack",
@@ -359,6 +361,7 @@ function DashboardContent() {
     }
     setAccounts(accountRes.accounts);
     setStatuses(nextStatuses);
+    setError((current) => (isTransientConnectionMessage(current) ? "" : current));
   }, []);
 
   const canReadSnapshot = useCallback((accountId: string) => {
@@ -446,13 +449,16 @@ function DashboardContent() {
   }, [accounts, selectedAccountId]);
 
   useEffect(() => {
+    setDashboardTab("monitor");
+  }, [selectedAccountId]);
+
+  useEffect(() => {
     if (!selectedAccountId) {
       setSnapshot(null);
       setPolicy(null);
       setEvents([]);
       return;
     }
-    setDashboardTab("monitor");
     if (selectedConnected) {
       void refreshSnapshot(selectedAccountId, true);
     } else {
@@ -483,21 +489,40 @@ function DashboardContent() {
     setEvents([]);
 
     async function readEvents() {
-      try {
-        for await (const event of queryClient.streamEvents(
-          { accountId: selectedAccountId, replayLimit: EVENT_LIMIT },
-          { signal: controller.signal },
-        )) {
-          if (!active) return;
-          setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
-          if (SNAPSHOT_REFRESH_EVENT_KINDS.has(event.kind)) {
-            void refreshSnapshot(selectedAccountId).catch(() => undefined);
+      let retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
+      let lastEventId = BigInt(0);
+      while (active && !controller.signal.aborted) {
+        let receivedEvent = false;
+        try {
+          for await (const event of queryClient.streamEvents(
+            { accountId: selectedAccountId, replayLimit: EVENT_LIMIT, afterEventId: lastEventId },
+            { signal: controller.signal },
+          )) {
+            if (!active || controller.signal.aborted) return;
+            if (event.id > BigInt(0)) {
+              if (event.id <= lastEventId) continue;
+              lastEventId = event.id;
+            }
+            receivedEvent = true;
+            retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
+            setError((current) => (isTransientConnectionMessage(current) ? "" : current));
+            setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
+            if (SNAPSHOT_REFRESH_EVENT_KINDS.has(event.kind)) {
+              void refreshSnapshot(selectedAccountId).catch(() => undefined);
+            }
           }
+        } catch (err) {
+          if (!active || controller.signal.aborted) return;
+          const streamError = formatAPIError(err, "事件流中断");
+          setError((current) => (current && !isTransientConnectionMessage(current) ? current : streamError));
         }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          setError(formatAPIError(err, "事件流中断"));
-        }
+
+        if (!active || controller.signal.aborted) return;
+        const retry = await waitForAbortableDelay(retryDelayMs, controller.signal);
+        if (!retry) return;
+        retryDelayMs = receivedEvent
+          ? EVENT_RECONNECT_INITIAL_MS
+          : Math.min(retryDelayMs * 2, EVENT_RECONNECT_MAX_MS);
       }
     }
 
@@ -804,7 +829,7 @@ function AccountListPanel({
                   className={cn(
                     "w-full rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
                     selected
-                      ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)]"
+                      ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
                       : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
                   onClick={() => onSelect(account.id)}
@@ -1119,6 +1144,28 @@ function accountConnected(account: Account, status?: AccountStatus) {
 function isRunnerNotStartedError(err: unknown) {
   const message = err instanceof Error ? err.message : String(err ?? "");
   return message.includes("runner not started") || message.includes("failed_precondition");
+}
+
+function isTransientConnectionMessage(message: string) {
+  return /network\s*error|networkerror|failed to fetch|load failed|无法连接到后端服务|事件流中断|后端服务暂时不可用|请求超时/i.test(message);
+}
+
+function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    const onTimeout = () => {
+      signal.removeEventListener("abort", onAbort);
+      resolve(true);
+    };
+    const timeout = window.setTimeout(onTimeout, delayMs);
+    const onAbort = () => {
+      window.clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      resolve(false);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
 }
 
 const FLORAL_COIN_ITEM_ID = 1002;
@@ -1566,9 +1613,9 @@ function RequirementChips({ requirements }: { requirements: RequirementView[] })
   const visible = requirements.slice(0, 4);
   return (
     <div className="flex flex-wrap gap-1.5">
-      {visible.map((req) => (
+      {visible.map((req, index) => (
         <span
-          key={`${req.itemId}-${req.required}-${req.owned}`}
+          key={`${req.itemId}-${req.required}-${req.owned}-${index}`}
           className={cn(
             "inline-flex min-h-6 max-w-full items-center gap-1 rounded border px-2 py-0.5 text-xs",
             req.missing > 0 ? "border-destructive/35 bg-destructive/10 text-destructive" : "border-border/58 bg-white/42 text-muted-foreground dark:bg-white/5",
@@ -2724,35 +2771,41 @@ function FlowerMultiSelectRow({
         <div className="min-w-0 truncate text-sm text-muted-foreground">
           {value.length === 0 ? "未选择时不限制" : `${selectedPreview}${extraCount > 0 ? ` 等 ${extraCount} 种` : ""}`}
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <Button type="button" variant="outline" size="sm" className="min-h-10 shrink-0 px-3 sm:min-h-7" onClick={() => setOpen(true)}>
           <Flower2 className="size-3.5" />
           选择
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[calc(100dvh-1rem)] max-w-3xl flex-col overflow-hidden">
-          <DialogHeader>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) setQuery("");
+        }}
+      >
+        <DialogContent className="flex h-[min(42rem,90dvh)] max-h-[90dvh] max-w-3xl flex-col overflow-hidden">
+          <DialogHeader className="mb-3 shrink-0">
             <DialogTitle>{label}</DialogTitle>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="relative min-w-56 flex-1">
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+              <div className="relative min-w-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="搜索花名、种子或 ID"
-                  className="h-9 pl-9"
+                  className="h-9 pl-9 max-sm:dark:bg-input max-sm:dark:shadow-none max-sm:dark:transition-none max-sm:dark:focus-visible:bg-input"
                 />
               </div>
-              <Badge variant="outline">已选 {value.length}</Badge>
+              <Badge variant="outline" className="max-sm:dark:bg-input max-sm:dark:transition-none">已选 {value.length}</Badge>
             </div>
-            <div className="dark-scrollbar h-[calc(100dvh-15rem)] max-h-[420px] overflow-y-auto rounded-md border border-border/58 bg-white/42 p-2 dark:bg-white/5">
+            <div className="dark-scrollbar min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-md border border-border/58 bg-white/42 p-2 dark:bg-muted">
               {visibleFlowers.length === 0 ? (
                 <EmptyState title={synced ? "没有匹配花种" : "尚未同步可种花种"} detail={synced ? undefined : "登录账号并同步培育状态后可选择"} />
               ) : (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 min-[540px]:grid-cols-2 lg:grid-cols-3">
                   {visibleFlowers.map((flower) => {
                     const selected = selectedSet.has(flower.id);
                     const display = flowerDisplay(flower.id);
@@ -2764,14 +2817,16 @@ function FlowerMultiSelectRow({
                         aria-pressed={selected}
                         onClick={() => toggleFlower(flower.id)}
                         className={cn(
-                          "flex min-h-[72px] min-w-0 items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors",
-                          selected ? "border-primary bg-primary/10 text-foreground" : "border-border/58 bg-card/72 hover:bg-white/66 dark:hover:bg-white/8",
+                          "flex min-h-[72px] w-full min-w-0 touch-manipulation items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors max-sm:dark:transition-none",
+                          selected
+                            ? "border-primary bg-primary/10 text-foreground max-sm:dark:bg-secondary"
+                            : "border-border/58 bg-card/72 hover:bg-white/66 dark:hover:bg-white/8 max-sm:dark:bg-card max-sm:dark:hover:bg-card",
                         )}
                       >
                         <span
                           className={cn(
                             "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border",
-                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white/54 text-transparent dark:bg-white/6",
+                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white/54 text-transparent dark:bg-input",
                           )}
                         >
                           <Check className="size-3" />
@@ -2795,11 +2850,18 @@ function FlowerMultiSelectRow({
               )}
             </div>
           </div>
-          <DialogFooter className="mt-4 shrink-0 items-center justify-between">
-            <Button type="button" variant="ghost" onClick={() => onChange([])} disabled={value.length === 0}>
+          <DialogFooter className="mt-3 shrink-0 flex-row items-center justify-between border-t border-border/58 pt-3 [&>button]:min-h-10 [&>button]:min-w-24">
+            <Button type="button" variant="ghost" className="max-sm:dark:bg-card max-sm:dark:transition-none max-sm:dark:hover:bg-muted" onClick={() => onChange([])} disabled={value.length === 0}>
               清空
             </Button>
-            <Button type="button" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              className="max-sm:dark:transition-none"
+              onClick={() => {
+                setOpen(false);
+                setQuery("");
+              }}
+            >
               完成
             </Button>
           </DialogFooter>
@@ -3040,7 +3102,7 @@ function EventPanel({ events }: { events: Event[] }) {
                 <span
                   className={cn(
                     "font-sans text-xs font-medium",
-                    event.level === "error" ? "text-destructive" : event.level === "warn" ? "text-amber-600" : "text-primary",
+                    event.level === "error" ? "text-destructive" : event.level === "warn" ? "text-amber-600 dark:text-amber-300" : "text-primary",
                   )}
                 >
                   {categoryLabel(eventCategory(event))}
