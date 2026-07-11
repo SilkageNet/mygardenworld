@@ -460,6 +460,10 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlFlowerShare().Take(ctx, req)
 		},
 	),
+	clientproto.RPCTaskMainRecv.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return mainTaskClaimRequest(op) },
+		run:  runMainTaskClaim,
+	},
 	clientproto.RPCTaskDlyRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.TaskDlyRecvRequest, error) {
 			return clientproto.TaskDlyRecvRequest{ID: op.TargetID}, nil

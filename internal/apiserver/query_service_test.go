@@ -161,6 +161,64 @@ func TestBuildPendingTasksGroupsTrackedTaskSources(t *testing.T) {
 	}
 }
 
+func TestBuildPendingTasksUsesMainTaskCatalogTargetAndHidesTerminal(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{"22": map[string]any{"0": map[string]any{
+		"1": 920001, "2": 12, "4": map[string]any{},
+	}}})
+	var main *pb.PendingTaskView
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "主线任务" {
+			main = task
+			break
+		}
+	}
+	if main == nil || main.GetId() != "920001" || main.GetFinished() != 12 || main.GetTarget() != 24 {
+		t.Fatalf("main pending task=%+v", main)
+	}
+
+	st.ApplyVMap(map[string]any{"22": map[string]any{"0": map[string]any{"1": 6950001}}})
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "主线任务" {
+			t.Fatalf("terminal main task still visible: %+v", task)
+		}
+	}
+}
+
+func TestBuildPendingTasksMainTaskReadinessUsesServerProgress(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23001": 0}}},
+		"22": map[string]any{"0": map[string]any{
+			"1": 10001, "2": 4, "4": map[string]any{},
+		}},
+	})
+	var main *pb.PendingTaskView
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "主线任务" {
+			main = task
+			break
+		}
+	}
+	if main == nil || main.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY ||
+		main.GetFinished() != 4 || main.GetTarget() != 4 {
+		t.Fatalf("ready main pending task=%+v", main)
+	}
+	if len(main.GetRequirements()) != 1 || main.GetRequirements()[0].GetMissing() != 4 {
+		t.Fatalf("main requirements=%+v, want display-only flower shortage", main.GetRequirements())
+	}
+
+	unknown := state.New()
+	unknown.ApplyVMap(map[string]any{"22": map[string]any{"0": map[string]any{
+		"1": 10001, "4": map[string]any{},
+	}}})
+	for _, task := range buildPendingTasks(unknown) {
+		if task.GetCategory() == "主线任务" && task.GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+			t.Fatalf("unknown-progress main status=%s", task.GetStatus())
+		}
+	}
+}
+
 func TestBuildPendingTasksMarksResidentOrderCooling(t *testing.T) {
 	st := state.New()
 	now := time.Date(2026, 7, 5, 16, 0, 0, 0, time.UTC)

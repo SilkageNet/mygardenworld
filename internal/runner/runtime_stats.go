@@ -242,6 +242,8 @@ func runtimeOperationLabel(kind string) string {
 		return "花艺上架"
 	case clientproto.RPCFlowerRackRecvSellMoney.String():
 		return "领取花艺收益"
+	case clientproto.RPCTaskMainRecv.String():
+		return "领取主线任务"
 	case clientproto.RPCTaskDlyRecv.String():
 		return "领取日常任务"
 	case clientproto.RPCTaskWeekRecv.String():

@@ -352,7 +352,7 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (剧情小节=%d)", op.TargetID)
 		}
-	case clientproto.RPCTaskAchRecv.String(), clientproto.RPCTaskDlyRecv.String(), clientproto.RPCTaskWeekRecv.String(), clientproto.RPCRoadGrowRecv.String():
+	case clientproto.RPCTaskMainRecv.String(), clientproto.RPCTaskAchRecv.String(), clientproto.RPCTaskDlyRecv.String(), clientproto.RPCTaskWeekRecv.String(), clientproto.RPCRoadGrowRecv.String():
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (任务=%d)", op.TargetID)
 		}

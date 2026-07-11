@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Refresh with: go run ./cmd/gardencatalog --mini tmp/mini
@@ -429,6 +430,106 @@ func FlowerMaxLevel() int32 {
 	return max
 }
 
+// MainTaskDefinition is one claimable row in the client-configured main-task
+// chain. Rows after c_task_main.$endId may remain in the decoded table but are
+// not part of the currently active chain.
+type MainTaskDefinition struct {
+	TaskID     int32
+	Target     int32
+	NextTaskID int32
+	EndTaskID  int32
+}
+
+// ResolveMainTaskDefinition resolves a current task against the exact chain
+// from $initId through $endId. The client treats every positive curTaskId
+// greater than $endId as terminal, even when a later row still exists.
+func ResolveMainTaskDefinition(taskID int32) (definition MainTaskDefinition, valid, complete bool) {
+	definitions, endTaskID, ok := mainTaskCatalogDefinitions()
+	if !ok || taskID <= 0 {
+		return MainTaskDefinition{}, false, false
+	}
+	if taskID > endTaskID {
+		return MainTaskDefinition{TaskID: taskID, EndTaskID: endTaskID}, true, true
+	}
+	definition, ok = definitions[taskID]
+	return definition, ok, false
+}
+
+// MainTaskEndID returns the last claimable task configured by the client.
+func MainTaskEndID() (int32, bool) {
+	_, endTaskID, ok := mainTaskCatalogDefinitions()
+	return endTaskID, ok
+}
+
+var (
+	mainTaskCatalogOnce            sync.Once
+	mainTaskCatalogDefinitionsByID map[int32]MainTaskDefinition
+	mainTaskCatalogEndTaskID       int32
+	mainTaskCatalogValid           bool
+)
+
+func mainTaskCatalogDefinitions() (map[int32]MainTaskDefinition, int32, bool) {
+	mainTaskCatalogOnce.Do(func() {
+		mainTaskCatalogDefinitionsByID, mainTaskCatalogEndTaskID, mainTaskCatalogValid = loadMainTaskCatalogDefinitions()
+	})
+	return mainTaskCatalogDefinitionsByID, mainTaskCatalogEndTaskID, mainTaskCatalogValid
+}
+
+func loadMainTaskCatalogDefinitions() (map[int32]MainTaskDefinition, int32, bool) {
+	table, ok := catalog.Tables["c_task_main"]
+	if !ok {
+		return nil, 0, false
+	}
+	rawMeta, ok := table.Rows["-1"]
+	if !ok {
+		return nil, 0, false
+	}
+	var meta map[string]json.RawMessage
+	if json.Unmarshal(rawMeta, &meta) != nil {
+		return nil, 0, false
+	}
+	initTaskID, initOK := readStoryMainInt32(meta["$initId"])
+	endTaskID, endOK := readStoryMainInt32(meta["$endId"])
+	if !initOK || !endOK || initTaskID <= 0 || endTaskID <= 0 {
+		return nil, 0, false
+	}
+
+	definitions := make(map[int32]MainTaskDefinition)
+	seen := make(map[int32]struct{})
+	taskID := initTaskID
+	for range table.Rows {
+		if _, duplicate := seen[taskID]; duplicate {
+			return nil, 0, false
+		}
+		seen[taskID] = struct{}{}
+		raw, exists := table.Rows[strconv.FormatInt(int64(taskID), 10)]
+		if !exists {
+			return nil, 0, false
+		}
+		var row map[string]json.RawMessage
+		if json.Unmarshal(raw, &row) != nil {
+			return nil, 0, false
+		}
+		rowID, idOK := readStoryMainInt32(row["id"])
+		target, targetOK := readStoryMainInt32(row["value"])
+		nextTaskID, nextOK := readStoryMainInt32(row["nextId"])
+		if !idOK || rowID != taskID || !targetOK || target <= 0 || !nextOK || nextTaskID <= 0 {
+			return nil, 0, false
+		}
+		definitions[taskID] = MainTaskDefinition{
+			TaskID: taskID, Target: target, NextTaskID: nextTaskID, EndTaskID: endTaskID,
+		}
+		if taskID == endTaskID {
+			if nextTaskID <= endTaskID {
+				return nil, 0, false
+			}
+			return definitions, endTaskID, true
+		}
+		taskID = nextTaskID
+	}
+	return nil, 0, false
+}
+
 // MainTaskFlowerRequirement returns the flower id and missing count for a
 // current main task when the static task row points at a flower item.
 func MainTaskFlowerRequirement(taskID, finished int32) (flowerID, missing int32, ok bool) {
@@ -442,6 +543,10 @@ func MainTaskFlowerRequirement(taskID, finished int32) (flowerID, missing int32,
 // MainTaskFlowerTarget returns the flower item and target count for a main
 // task row when the task is an explicit flower collection requirement.
 func MainTaskFlowerTarget(taskID int32) (flowerID, target int32, ok bool) {
+	definition, valid, complete := ResolveMainTaskDefinition(taskID)
+	if !valid || complete {
+		return 0, 0, false
+	}
 	raw, ok := StaticRow("c_task_main", taskID)
 	if !ok {
 		return 0, 0, false
@@ -450,29 +555,19 @@ func MainTaskFlowerTarget(taskID int32) (flowerID, target int32, ok bool) {
 	if json.Unmarshal(raw, &row) != nil {
 		return 0, 0, false
 	}
-	var param int32
-	if rawParam, ok := row["param"]; ok {
-		_ = json.Unmarshal(rawParam, &param)
-	}
-	if !isFlowerItemID(param) {
+	param, validParam := readStoryMainInt32(row["param"])
+	if !validParam || !isFlowerItemID(param) {
 		return 0, 0, false
 	}
-	if rawValue, ok := row["value"]; ok {
-		if json.Unmarshal(rawValue, &target) != nil {
-			var values []int32
-			if json.Unmarshal(rawValue, &values) == nil && len(values) > 0 {
-				target = values[0]
-			}
-		}
-	}
-	if target <= 0 {
-		return 0, 0, false
-	}
-	return param, target, true
+	return param, definition.Target, true
 }
 
 // MainTaskTitle returns the client-visible description for a main task.
 func MainTaskTitle(taskID int32) string {
+	_, valid, complete := ResolveMainTaskDefinition(taskID)
+	if !valid || complete {
+		return ""
+	}
 	return taskTitleFromTable("c_task_main", taskID, 0)
 }
 

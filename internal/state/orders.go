@@ -675,7 +675,7 @@ func (s *State) FlowerOrderDeficits() map[int32]int32 {
 			addRequires(order.Requires)
 		}
 	}
-	if s.mainTask != nil {
+	if s.mainTask != nil && s.mainTask.Valid && !s.mainTask.Complete && s.mainTask.ProgressObserved {
 		if flowerID, missing, ok := MainTaskFlowerRequirement(s.mainTask.TaskID, s.mainTask.Finished); ok {
 			needed[flowerID] += missing
 		}

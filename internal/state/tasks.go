@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
 )
 
 func (s *State) applyTasksLocked(raw json.RawMessage) {
@@ -11,25 +12,7 @@ func (s *State) applyTasksLocked(raw json.RawMessage) {
 		return
 	}
 	if rawMain, ok := ns22["0"]; ok {
-		var main map[string]json.RawMessage
-		if err := json.Unmarshal(rawMain, &main); err == nil {
-			task := &MainTaskView{}
-			if rawTaskID, ok := main["1"]; ok {
-				var n int32
-				if json.Unmarshal(rawTaskID, &n) == nil {
-					task.TaskID = n
-				}
-			}
-			if rawFinished, ok := main["2"]; ok {
-				var n int32
-				if json.Unmarshal(rawFinished, &n) == nil {
-					task.Finished = n
-				}
-			}
-			if task.TaskID > 0 {
-				s.mainTask = task
-			}
-		}
+		s.applyMainTaskLocked(rawMain)
 	}
 	if rawDaily, ok := ns22["1"]; ok {
 		s.applyDailyTasksLocked(rawDaily)
@@ -40,6 +23,104 @@ func (s *State) applyTasksLocked(raw json.RawMessage) {
 	if rawWeekly, ok := ns22["100"]; ok {
 		s.applyWeeklyTasksLocked(rawWeekly)
 	}
+}
+
+func (s *State) applyMainTaskLocked(rawMain json.RawMessage) {
+	if isJSONNull(rawMain) {
+		s.invalidateMainTaskLocked()
+		return
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(rawMain, &fields) != nil {
+		s.invalidateMainTaskLocked()
+		return
+	}
+	view := MainTaskView{}
+	if s.mainTask != nil {
+		view = *s.mainTask
+	}
+	view.Observed = true
+	previousTaskID := view.TaskID
+	previousTaskObserved := view.TaskIDObserved
+	_, progressPresent := fields["2"]
+	if rawTaskID, present := fields["1"]; present {
+		view.TaskID = 0
+		view.TaskIDObserved = false
+		if taskID, valid := readStoryMainInt32(rawTaskID); valid && taskID > 0 {
+			view.TaskID = taskID
+			view.TaskIDObserved = true
+			if (!previousTaskObserved || taskID != previousTaskID) && !progressPresent {
+				view.Finished = 0
+				view.ProgressObserved = false
+			}
+		}
+	}
+	if rawProgress, present := fields["2"]; present {
+		view.Finished = 0
+		view.ProgressObserved = false
+		if progress, valid := readStoryMainInt32(rawProgress); valid && progress >= 0 {
+			view.Finished = progress
+			view.ProgressObserved = true
+		}
+	}
+	if rawReceipts, present := fields["4"]; present {
+		receipts, valid := decodeMainTaskReceipts(rawReceipts)
+		if valid {
+			s.mainTaskReceipts = receipts
+			s.mainTaskRecvObserved = true
+		} else {
+			s.mainTaskReceipts = nil
+			s.mainTaskRecvObserved = false
+		}
+	}
+
+	view.Valid = false
+	view.Complete = false
+	view.Target = 0
+	view.NextTaskID = 0
+	view.ReceiptObserved = s.mainTaskRecvObserved
+	view.Receipted = false
+	if view.TaskIDObserved {
+		if definition, valid, complete := ResolveMainTaskDefinition(view.TaskID); valid {
+			view.Valid = true
+			view.Complete = complete
+			if !complete {
+				view.Target = definition.Target
+				view.NextTaskID = definition.NextTaskID
+			}
+			if view.ReceiptObserved {
+				_, view.Receipted = s.mainTaskReceipts[view.TaskID]
+			}
+		}
+	}
+	s.mainTask = &view
+}
+
+func (s *State) invalidateMainTaskLocked() {
+	s.mainTask = &MainTaskView{Observed: true}
+	s.mainTaskReceipts = nil
+	s.mainTaskRecvObserved = false
+}
+
+func decodeMainTaskReceipts(raw json.RawMessage) (map[int32]int32, bool) {
+	if isJSONNull(raw) {
+		return map[int32]int32{}, true
+	}
+	var values map[string]json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return nil, false
+	}
+	receipts := make(map[int32]int32, len(values))
+	for key, rawValue := range values {
+		parsedTaskID, err := strconv.ParseInt(key, 10, 32)
+		taskID := int32(parsedTaskID)
+		value, valid := readStoryMainInt32(rawValue)
+		if err != nil || taskID <= 0 || strconv.FormatInt(parsedTaskID, 10) != key || !valid || value < 0 {
+			return nil, false
+		}
+		receipts[taskID] = value
+	}
+	return receipts, true
 }
 
 func (s *State) applyDailyTasksLocked(rawDaily json.RawMessage) {
@@ -287,6 +368,51 @@ func (s *State) MainTask() (MainTaskView, bool) {
 		return MainTaskView{}, false
 	}
 	return *s.mainTask, true
+}
+
+// MainTaskClaimSnapshot returns a fail-closed claim snapshot only when the
+// current task, progress, receipt map, and exact catalog target are observed.
+func (s *State) MainTaskClaimSnapshot() (MainTaskClaimSnapshot, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.mainTask == nil {
+		return MainTaskClaimSnapshot{}, false
+	}
+	view := *s.mainTask
+	if !view.Observed || !view.Valid || view.Complete || !view.TaskIDObserved ||
+		!view.ProgressObserved || !view.ReceiptObserved || view.Receipted {
+		return MainTaskClaimSnapshot{}, false
+	}
+	definition, valid, complete := ResolveMainTaskDefinition(view.TaskID)
+	if !valid || complete || definition.Target <= 0 || definition.NextTaskID <= 0 ||
+		definition.Target != view.Target || definition.NextTaskID != view.NextTaskID || view.Finished < definition.Target {
+		return MainTaskClaimSnapshot{}, false
+	}
+	return MainTaskClaimSnapshot{
+		TaskID: view.TaskID, Target: definition.Target, NextTaskID: definition.NextTaskID, Finished: view.Finished,
+	}, true
+}
+
+// MainTaskClaimApplied confirms a reward response only when it contains both
+// the exact catalog task switch and a receipt key for the task that was claimed.
+func (s *State) MainTaskClaimApplied(snapshot MainTaskClaimSnapshot) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	definition, valid, complete := ResolveMainTaskDefinition(snapshot.TaskID)
+	if !valid || complete || definition.Target != snapshot.Target || definition.NextTaskID != snapshot.NextTaskID {
+		return false
+	}
+	if !s.mainTaskRecvObserved {
+		return false
+	}
+	if _, receipted := s.mainTaskReceipts[snapshot.TaskID]; !receipted {
+		return false
+	}
+	if s.mainTask == nil || !s.mainTask.TaskIDObserved || !s.mainTask.Valid ||
+		s.mainTask.TaskID != snapshot.NextTaskID {
+		return false
+	}
+	return s.mainTask.Complete || s.mainTask.ProgressObserved
 }
 
 // StoryMain returns the observed main-story progress.

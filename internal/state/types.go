@@ -491,8 +491,26 @@ type AchievementTaskView struct {
 
 // MainTaskView is the tracked subset of G.ITaskMain from namespace 22.0.
 type MainTaskView struct {
-	TaskID   int32 `json:"task_id"`
-	Finished int32 `json:"finished"`
+	Observed         bool  `json:"observed,omitempty"`
+	Valid            bool  `json:"valid,omitempty"`
+	Complete         bool  `json:"complete,omitempty"`
+	TaskIDObserved   bool  `json:"task_id_observed,omitempty"`
+	ProgressObserved bool  `json:"progress_observed,omitempty"`
+	ReceiptObserved  bool  `json:"receipt_observed,omitempty"`
+	TaskID           int32 `json:"task_id"`
+	Finished         int32 `json:"finished"`
+	Target           int32 `json:"target,omitempty"`
+	NextTaskID       int32 `json:"next_task_id,omitempty"`
+	Receipted        bool  `json:"receipted,omitempty"`
+}
+
+// MainTaskClaimSnapshot freezes the exact catalog task and observed server
+// progress used by one empty-argument taskMain.recv request.
+type MainTaskClaimSnapshot struct {
+	TaskID     int32
+	Target     int32
+	NextTaskID int32
+	Finished   int32
 }
 
 // StoryMainView is the tracked subset of 7.101 (G.IStoryMain).

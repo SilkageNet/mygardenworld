@@ -214,6 +214,8 @@ func opKindDesc(kind string) string {
 		return "同步主线剧情"
 	case clientproto.RPCStoryMainUnlock.String():
 		return "解锁主线剧情"
+	case clientproto.RPCTaskMainRecv.String():
+		return "领取主线任务"
 	case clientproto.RPCTaskAchRecv.String():
 		return "领取成就任务"
 	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():

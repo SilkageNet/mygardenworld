@@ -103,11 +103,13 @@ type State struct {
 	palaceOrder                PalaceOrderView // 108.0 宫廷订单
 	teamOrder                  TeamOrderView   // 107.0 组团订单
 
-	mainTask         *MainTaskView                  // 22.0 当前主线任务
-	dailyTasks       map[int32]*DailyTaskView       // 22.1.100.<taskId>
-	weeklyTasks      map[int32]*WeeklyTaskView      // 22.100 + c_task_week
-	achievementTasks map[int32]*AchievementTaskView // 22.2 + c_task_ach
-	storyMain        StoryMainView                  // 7.101 当前主线剧情
+	mainTask             *MainTaskView                  // 22.0 当前主线任务
+	mainTaskReceipts     map[int32]int32                // 22.0.4 完整领奖映射
+	mainTaskRecvObserved bool                           // 22.0.4 是否已观察
+	dailyTasks           map[int32]*DailyTaskView       // 22.1.100.<taskId>
+	weeklyTasks          map[int32]*WeeklyTaskView      // 22.100 + c_task_week
+	achievementTasks     map[int32]*AchievementTaskView // 22.2 + c_task_ach
+	storyMain            StoryMainView                  // 7.101 当前主线剧情
 
 	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件

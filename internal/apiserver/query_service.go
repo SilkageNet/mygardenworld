@@ -297,7 +297,7 @@ func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 		})
 	}
 
-	if task, ok := st.MainTask(); ok {
+	if task, ok := st.MainTask(); ok && task.Valid && !task.Complete {
 		title := state.MainTaskTitle(task.TaskID)
 		if title == "" {
 			title = fmt.Sprintf("主线任务 #%d", task.TaskID)
@@ -307,12 +307,16 @@ func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 			Id:       strconv.FormatInt(int64(task.TaskID), 10),
 			Title:    title,
 			Finished: task.Finished,
+			Target:   task.Target,
 			Status:   pb.PlanStatus_PLAN_STATUS_MANAGED,
 		}
+		if !task.ProgressObserved || !task.ReceiptObserved {
+			view.Status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+		} else if !task.Receipted && task.Target > 0 && task.Finished >= task.Target {
+			view.Status = pb.PlanStatus_PLAN_STATUS_READY
+		}
 		if flowerID, target, ok := state.MainTaskFlowerTarget(task.TaskID); ok {
-			view.Target = target
 			view.Requirements = []*pb.RequirementView{requirementView(flowerID, target, inventory[flowerID])}
-			view.Status = requirementsStatus(view.Requirements)
 		}
 		out = append(out, view)
 	}

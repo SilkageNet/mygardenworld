@@ -52,6 +52,9 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 			}
 		}
 	}
+	if task.GetMainEnabled() {
+		ops = append(ops, mainTaskOperations(s)...)
+	}
 	if task.GetDailyEnabled() {
 		for _, id := range s.ReadyDailyTaskIDs() {
 			add(true, clientproto.RPCTaskDlyRecv.String(), "basic.task.daily", "claim", "每日任务奖励可领取", 6250, id)
@@ -107,6 +110,62 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	}
 	ops = append(ops, pearlOperations(s, basic.GetPearl(), now)...)
 	return ops
+}
+
+func mainTaskOperations(s *state.State) []PlannedOp {
+	task, observed := s.MainTask()
+	if !observed {
+		blocked := markerOp(CategoryBasic, "basic.task.main", "claim", "主线任务状态尚未同步，拒绝试探领奖", 6300)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"namespace 22.0 尚未观察，taskMain.recv 没有安全的查询或试探语义"}
+		return []PlannedOp{blocked}
+	}
+	if !task.Valid {
+		blocked := markerOp(CategoryBasic, "basic.task.main", "claim", "主线任务目录或服务端状态无效，暂不自动领奖", 6300)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.TargetID = task.TaskID
+		blocked.BlockedReasons = []string{"22.0 curTaskId 无法匹配 c_task_main 从 $initId 到 $endId 的有效任务定义"}
+		return []PlannedOp{blocked}
+	}
+	if task.Complete || task.Receipted {
+		return nil
+	}
+	if !task.ProgressObserved || !task.ReceiptObserved {
+		blocked := markerOp(CategoryBasic, "basic.task.main", "claim", "主线任务进度或领奖记录未完整同步", 6300)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.TargetID = task.TaskID
+		blocked.BlockedReasons = []string{"必须同时观察 22.0 curValue 与完整 recvMap，才可确认任务完成且未领取"}
+		return []PlannedOp{blocked}
+	}
+	if task.Target <= 0 {
+		blocked := markerOp(CategoryBasic, "basic.task.main", "claim", "主线任务目标缺失，禁止试探领奖", 6300)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.TargetID = task.TaskID
+		blocked.BlockedReasons = []string{"c_task_main 当前任务缺少严格正整数 value"}
+		return []PlannedOp{blocked}
+	}
+	if task.Finished < task.Target {
+		return nil
+	}
+	snapshot, ready := s.MainTaskClaimSnapshot()
+	if !ready || snapshot.TaskID != task.TaskID || snapshot.Target != task.Target || snapshot.NextTaskID != task.NextTaskID {
+		blocked := markerOp(CategoryBasic, "basic.task.main", "claim", "主线任务领奖前置状态发生变化", 6300)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.TargetID = task.TaskID
+		blocked.BlockedReasons = []string{"当前任务、目标、后继任务或领奖状态未通过原子快照校验"}
+		return []PlannedOp{blocked}
+	}
+	goal := Goal{ID: GoalMainTask, Category: CategoryBasic, Domain: "basic.task.main", Label: "主线任务", Priority: 70}
+	planned := op(clientproto.RPCTaskMainRecv.String(), goal, "claim", "主线任务已完成且奖励未领取", 6300, task.TaskID, 0, 0)
+	// The main-task chain is linear. Keep one cooldown key across task switches
+	// after an ambiguous response.
+	planned.OperationID = clientproto.RPCTaskMainRecv.String()
+	return []PlannedOp{planned}
 }
 
 func storyOperations(s *state.State) []PlannedOp {

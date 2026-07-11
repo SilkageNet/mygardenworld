@@ -147,8 +147,10 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal) []Deman
 	}
 	if goal, ok := goalByID(goals, GoalMainTask); ok {
 		if task, taskOK := s.MainTask(); taskOK {
-			if flowerID, missing, reqOK := state.MainTaskFlowerRequirement(task.TaskID, task.Finished); reqOK {
-				add(goal, "direct", DemandKindFlower, flowerID, missing, strconv.FormatInt(int64(task.TaskID), 10), state.MainTaskTitle(task.TaskID), nil)
+			if task.Valid && !task.Complete && task.ProgressObserved {
+				if flowerID, missing, reqOK := state.MainTaskFlowerRequirement(task.TaskID, task.Finished); reqOK {
+					add(goal, "direct", DemandKindFlower, flowerID, missing, strconv.FormatInt(int64(task.TaskID), 10), state.MainTaskTitle(task.TaskID), nil)
+				}
 			}
 		}
 	}
