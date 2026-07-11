@@ -390,6 +390,7 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	}()
 
 	restoreCtx, cancelRestore := context.WithCancel(ctx)
+	defer cancelRestore()
 	restoreDone := make(chan struct{})
 	go func() {
 		defer close(restoreDone)

@@ -126,68 +126,6 @@ func flowerCultivated(s *state.State, flowerID int32) bool {
 	return false
 }
 
-func customerOrderUnavailableReasons(s *state.State, order *state.CustomerOrder) (rejectable, blocked []string) {
-	if order == nil {
-		return nil, []string{"顾客订单状态缺失"}
-	}
-	hasRequirements := false
-	addReject := func(reason string) {
-		if reason != "" && !containsString(rejectable, reason) {
-			rejectable = append(rejectable, reason)
-		}
-	}
-	addBlocked := func(reason string) {
-		if reason != "" && !containsString(blocked, reason) {
-			blocked = append(blocked, reason)
-		}
-	}
-	for _, req := range order.Requires {
-		if req.FlowerID <= 0 || req.Count <= 0 {
-			addBlocked("顾客订单缺少可识别花朵需求")
-			continue
-		}
-		hasRequirements = true
-		if !flowerCultivated(s, req.FlowerID) {
-			addReject(fmt.Sprintf("%s 尚未培育/解锁", itemLabel(req.FlowerID)))
-		}
-	}
-	for _, req := range order.ItemRequires {
-		if req.ItemID <= 0 || req.Count <= 0 {
-			addBlocked("顾客订单缺少可识别花艺需求")
-			continue
-		}
-		hasRequirements = true
-		recipe, ok := state.FlowerArtRecipeByID(req.ItemID)
-		if !ok {
-			addBlocked(fmt.Sprintf("%s 缺少花艺配方", itemLabel(req.ItemID)))
-			continue
-		}
-		if !s.VaseObserved() {
-			addBlocked("未观察到花瓶状态 namespace 102")
-		} else if !s.HasVase(recipe.VaseID) {
-			addReject(fmt.Sprintf("花瓶 #%d 未解锁", recipe.VaseID))
-		}
-		for flowerID := range recipeFlowerCounts(recipe) {
-			if !flowerCultivated(s, flowerID) {
-				addReject(fmt.Sprintf("%s 尚未培育/解锁", itemLabel(flowerID)))
-			}
-		}
-	}
-	if !hasRequirements {
-		addBlocked("顾客订单缺少可识别需求")
-	}
-	return rejectable, blocked
-}
-
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
-
 // FormatCustomerOrderRequires builds a readable summary of direct flower needs
 // and flower-art needs, including each art recipe's vase and flowers.
 func FormatCustomerOrderRequires(s *state.State, order *state.CustomerOrder) string {

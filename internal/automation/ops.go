@@ -78,21 +78,34 @@ func domainOp(kind string, goal Goal, domain, action, reason string, priority, t
 }
 
 func sortOperations(ops []PlannedOp) {
-	sort.SliceStable(ops, func(i, j int) bool {
-		if laneRank(ops[i].Lane) != laneRank(ops[j].Lane) {
-			return laneRank(ops[i].Lane) < laneRank(ops[j].Lane)
-		}
-		if ops[i].Priority != ops[j].Priority {
-			return ops[i].Priority > ops[j].Priority
-		}
-		if ops[i].Category != ops[j].Category {
-			return categoryRank(ops[i].Category) < categoryRank(ops[j].Category)
-		}
-		if ops[i].Domain != ops[j].Domain {
-			return ops[i].Domain < ops[j].Domain
-		}
-		return ops[i].OperationID < ops[j].OperationID
-	})
+	sort.SliceStable(ops, func(i, j int) bool { return operationComesBefore(ops[i], ops[j]) })
+}
+
+func operationComesBefore(left, right PlannedOp) bool {
+	if operationLaneRank(left) != operationLaneRank(right) {
+		return operationLaneRank(left) < operationLaneRank(right)
+	}
+	if left.Priority != right.Priority {
+		return left.Priority > right.Priority
+	}
+	if left.Category != right.Category {
+		return categoryRank(left.Category) < categoryRank(right.Category)
+	}
+	if left.Domain != right.Domain {
+		return left.Domain < right.Domain
+	}
+	return left.OperationID < right.OperationID
+}
+
+// A pure cyclic-note auto-replant remains a farm-lane operation for runner
+// locking/cooldown semantics, but ranks with side operations so activity
+// priority 50 cannot jump ahead of main tasks or major orders merely because
+// usrLand RPCs normally own the farm lane.
+func operationLaneRank(op PlannedOp) int {
+	if op.Lane == LaneFarm && op.GoalID == GoalAutoReplant && strings.HasPrefix(op.DemandID, cyclicNoteActionGoal+":") {
+		return laneRank(LaneSide)
+	}
+	return laneRank(op.Lane)
 }
 
 func laneForDomain(domain string) string {

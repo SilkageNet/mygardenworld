@@ -2384,6 +2384,7 @@ func TestFarmOps_BlockedDemandEmitsDiagnosticPlantOperation(t *testing.T) {
 	}
 	if blocked == nil {
 		t.Fatalf("expected blocked plant diagnostic op, ops=%+v", ops)
+		return
 	}
 	if blocked.Kind != clientproto.RPCUsrLandPlant.String() || blocked.Executable || blocked.Status != PlanStatusBlocked ||
 		blocked.BlockingStage != "state" || blocked.Priority != blockedPlantDiagnosticPriority ||

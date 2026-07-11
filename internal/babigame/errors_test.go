@@ -58,6 +58,7 @@ func TestUpstreamError_AsUnwrapsThroughChain(t *testing.T) {
 	got := AsUpstreamError(chained)
 	if got == nil {
 		t.Fatalf("AsUpstreamError returned nil for wrapped UpstreamError")
+		return
 	}
 	if got.Op != "test" {
 		t.Errorf("recovered op mismatch: %q", got.Op)

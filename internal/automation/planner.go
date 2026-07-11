@@ -36,9 +36,13 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	production := buildProductionDemands(s, policy, goals, demands, ledger)
 	applyLedgerAllocations(production, ledger)
 	demands = append(demands, production...)
+	activityActions := cyclicNoteTaskActionDemands(s, policy, now)
+	for _, action := range activityActions {
+		demands = append(demands, action.Demand)
+	}
 	annotateDemandStatuses(demands)
 	sortDemands(demands)
-	ops := buildOperations(s, policy, goals, demands, ledger, now)
+	ops := buildOperations(s, policy, goals, demands, activityActions, ledger, now)
 	annotateOperationGates(s, ops, now)
 	sortOperations(ops)
 	annotateSequentialResourceBudget(s, ops, now)
@@ -50,7 +54,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	}
 }
 
-func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, ledger *InventoryLedger, now time.Time) []PlannedOp {
+func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	var ops []PlannedOp
 	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now)...)
 	ops = append(ops, orderOperations(s, policy, goals, demands, ledger, now)...)
@@ -58,6 +62,7 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = append(ops, shopOperations(s, policy)...)
 	ops = append(ops, maintenanceOperations(s, policy, ledger, now)...)
 	ops = append(ops, unionOperations(s, policy.GetUnion())...)
+	ops = driveCyclicNoteTaskOperations(policy, activityActions, ledger, ops)
 	ops = append(ops, activityOperations(s, policy.GetActivity(), now)...)
 	ops = append(ops, blockedUnknownOperations(policy)...)
 	return ops

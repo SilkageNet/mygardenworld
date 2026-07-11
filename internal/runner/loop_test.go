@@ -525,6 +525,7 @@ func TestApplyHarvestBlocksFiltersBlockedLandFromBatch(t *testing.T) {
 	got := r.applyHarvestBlocks(op, now)
 	if got == nil {
 		t.Fatal("applyHarvestBlocks()=nil, want remaining harvest lands")
+		return
 	}
 	if len(got.LandIDs) != 2 || got.LandIDs[0] != 1001 || got.LandIDs[1] != 1003 {
 		t.Fatalf("filtered LandIDs=%v, want [1001 1003]", got.LandIDs)

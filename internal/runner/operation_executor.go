@@ -18,7 +18,6 @@ import (
 type operationRuntime struct {
 	runner *Runner
 	rpc    *clientrpc.Client
-	rawRPC *babigame.RPCClient
 }
 
 type harvestCallResult struct {
@@ -690,24 +689,6 @@ func stateDeltaOperation[Req any](
 	}
 }
 
-func rawStateDeltaOperation(
-	build func(*automation.PlannedOp) (map[string]any, error),
-	name clientproto.RPCName,
-) operationSpec {
-	return operationSpec{
-		args: func(op *automation.PlannedOp) (any, error) {
-			return build(op)
-		},
-		run: func(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
-			req, err := build(op)
-			if err != nil {
-				return nil, err
-			}
-			return checkedStateDelta(babigame.CallRPC[clientproto.StateDelta](ctx, rt.rawRPC, name, req))
-		},
-	}
-}
-
 func checkedStateDelta(resp babigame.RPCResponse[clientproto.StateDelta], err error) (json.RawMessage, error) {
 	v, d, err := rpcResult(resp, err)
 	return checkedPayload(v, d, err)
@@ -752,7 +733,7 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 		babigame.WithDefaultTimeout(30*time.Second),
 		babigame.WithApplyV(r.state.ApplyV),
 	)
-	rt := operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC), rawRPC: rawRPC}
+	rt := operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}
 	return spec.run(ctx, rt, op)
 }
 

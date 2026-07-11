@@ -9,6 +9,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/proto"
 )
 
 func pearlHirePolicyForTest() *pb.PearlPolicy {
@@ -101,9 +102,9 @@ func TestPlanOneSafePearlHireBoundariesAndNoBypass(t *testing.T) {
 		t.Fatalf("failed UID not eligible at exactly 60s: %+v", op)
 	}
 
-	disabled := *policy
+	disabled := proto.Clone(policy).(*pb.PearlPolicy)
 	disabled.AutoHireEnabled = false
-	if _, ok := PlanOneSafePearlHire(s, &disabled, time.Now(), PearlHireIntent{Category: CategoryActivity, Domain: "activity.cyclicNote"}); ok {
+	if _, ok := PlanOneSafePearlHire(s, disabled, time.Now(), PearlHireIntent{Category: CategoryActivity, Domain: "activity.cyclicNote"}); ok {
 		t.Fatal("activity intent bypassed disabled pearl module")
 	}
 }

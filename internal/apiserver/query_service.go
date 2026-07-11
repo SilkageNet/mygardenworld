@@ -290,13 +290,14 @@ func cyclicNoteProto(view state.CyclicNoteView) *pb.CyclicNoteView {
 		milestoneClaimPhase := view.Phase == 2 || view.Phase == 3
 		ready := view.Valid && milestoneClaimPhase && view.MilestoneReceiptsObserved && milestone.Target > 0 && view.Score >= milestone.Target && !milestone.Received
 		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
-		if !view.Valid || milestone.Target <= 0 {
+		switch {
+		case !view.Valid || milestone.Target <= 0:
 			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
-		} else if !view.MilestoneReceiptsObserved {
+		case !view.MilestoneReceiptsObserved:
 			status = pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
-		} else if milestone.Received {
+		case milestone.Received:
 			status = pb.PlanStatus_PLAN_STATUS_SKIPPED
-		} else if ready {
+		case ready:
 			status = pb.PlanStatus_PLAN_STATUS_READY
 		}
 		out.Milestones = append(out.Milestones, &pb.CyclicNoteMilestone{

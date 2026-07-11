@@ -1087,7 +1087,7 @@ func StoryMainTerminal() (chapter, sectionIdx int32, ok bool) {
 		if err != nil || value <= 0 {
 			continue
 		}
-		if int32(value) > lastChapter {
+		if value > int64(lastChapter) {
 			lastChapter = int32(value)
 		}
 	}

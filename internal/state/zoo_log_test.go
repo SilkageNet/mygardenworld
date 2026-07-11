@@ -163,7 +163,7 @@ func TestZooLogUnsafeGatesAreBlocked(t *testing.T) {
 			}
 			malformed := s.ZooLogs()["7|42"].Malformed
 			for _, want := range tc.want {
-				if !strings.Contains(actions[0].BlockedReason, want) && !(malformed && strings.Contains(actions[0].BlockedReason, "拒绝沿用旧状态")) {
+				if !strings.Contains(actions[0].BlockedReason, want) && (!malformed || !strings.Contains(actions[0].BlockedReason, "拒绝沿用旧状态")) {
 					t.Fatalf("ZooEventActions=%+v, want blocked reason containing %q", actions, want)
 				}
 			}

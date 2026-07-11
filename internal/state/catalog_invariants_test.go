@@ -72,7 +72,7 @@ func TestCatalogInvariantMainTaskChain(t *testing.T) {
 		if err := json.Unmarshal(raw, &row); err != nil {
 			t.Fatalf("decode c_task_main/%s: %v", idText, err)
 		}
-		if row.ID != int32(id) {
+		if int64(row.ID) != id {
 			t.Fatalf("c_task_main/%s decoded id=%d", idText, row.ID)
 		}
 		nodes[row.ID] = row

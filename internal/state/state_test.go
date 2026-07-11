@@ -1724,6 +1724,7 @@ func TestApplyV_ResidentOrderTracksCooldownMetadata(t *testing.T) {
 	order := orders[1]
 	if order == nil {
 		t.Fatalf("missing flower order: %+v", orders)
+		return
 	}
 	if order.CdTimeMs != cdTime || order.CTimeMs != now.UnixMilli() {
 		t.Fatalf("cooldown metadata = (%d,%d), want (%d,%d)", order.CdTimeMs, order.CTimeMs, cdTime, now.UnixMilli())
