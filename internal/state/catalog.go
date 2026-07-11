@@ -168,6 +168,14 @@ type ZooSouvenirCollectInfo struct {
 	Reward      []ItemCount
 }
 
+// PearlProductionTiming is the client-configured duration of one pearl labor
+// shift and of one production cycle. Both catalog values are stored in
+// seconds; namespace 115 timestamps are milliseconds.
+type PearlProductionTiming struct {
+	HireTimeSeconds int64
+	GatherCDSeconds int64
+}
+
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
 	ID         int32
@@ -240,6 +248,37 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return cloneRaw(row), true
+}
+
+// PearlProductionTimingFromCatalog returns the timing constants used by the
+// client-side PearlPlaceCtrl production formula.
+func PearlProductionTimingFromCatalog() (PearlProductionTiming, bool) {
+	pearlRaw, ok := StaticRow("c_pearl", -1)
+	if !ok {
+		return PearlProductionTiming{}, false
+	}
+	var pearl struct {
+		HireTimeSeconds int64 `json:"$hireTime"`
+	}
+	if json.Unmarshal(pearlRaw, &pearl) != nil || pearl.HireTimeSeconds <= 0 {
+		return PearlProductionTiming{}, false
+	}
+
+	eventRaw, ok := StaticRow("c_pearlEvent", -1)
+	if !ok {
+		return PearlProductionTiming{}, false
+	}
+	var event struct {
+		GatherCDSeconds int64 `json:"$gatherCd"`
+	}
+	if json.Unmarshal(eventRaw, &event) != nil || event.GatherCDSeconds <= 0 {
+		return PearlProductionTiming{}, false
+	}
+
+	return PearlProductionTiming{
+		HireTimeSeconds: pearl.HireTimeSeconds,
+		GatherCDSeconds: event.GatherCDSeconds,
+	}, true
 }
 
 // FlowerRackSellDurationMs returns the configured shelf sale window from

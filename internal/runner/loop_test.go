@@ -408,6 +408,7 @@ func TestPearlOperationArgs(t *testing.T) {
 	}{
 		{name: "refresh", op: automation.PlannedOp{Kind: clientproto.RPCPearlRefresh.String()}, want: clientproto.PearlRefreshRequest{}},
 		{name: "daily free", op: automation.PlannedOp{Kind: clientproto.RPCPearlRecvDailyFree.String()}, want: clientproto.PearlRecvDailyFreeRequest{}},
+		{name: "place recv one key", op: automation.PlannedOp{Kind: clientproto.RPCPearlPlaceRecvOneKey.String()}, want: clientproto.PearlPlaceRecvOneKeyRequest{}},
 		{name: "place recv", op: automation.PlannedOp{Kind: clientproto.RPCPearlPlaceRecv.String(), TargetID: 2}, want: clientproto.PearlPlaceRecvRequest{PlaceId: 2}},
 		{name: "protect", op: automation.PlannedOp{Kind: clientproto.RPCPearlSetProtectState.String(), TargetID: 1}, want: clientproto.PearlSetProtectStateRequest{ProtectState: 1}},
 		{name: "draw", op: automation.PlannedOp{Kind: clientproto.RPCPearlDraw.String(), Count: 1}, want: clientproto.PearlDrawRequest{Count: 1}},

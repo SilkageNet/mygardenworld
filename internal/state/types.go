@@ -348,16 +348,28 @@ type PearlView struct {
 
 // PearlPlaceView is one pearl labor/production slot from namespace 115.0.
 type PearlPlaceView struct {
-	PlaceID        int32 `json:"place_id"`
-	LaborUID       int64 `json:"labor_uid,omitempty"`
-	LaborEndTime   int64 `json:"labor_end_time_ms,omitempty"`
-	HireFailCnt    int32 `json:"hire_fail_cnt,omitempty"`
-	EventID        int32 `json:"event_id,omitempty"`
-	EveryMakeNum   int32 `json:"every_make_num,omitempty"`
-	RecvCnt        int32 `json:"recv_cnt,omitempty"`
-	SurplusRecvNum int32 `json:"surplus_recv_num,omitempty"`
-	UTimeMs        int64 `json:"u_time_ms,omitempty"`
-	CTimeMs        int64 `json:"c_time_ms,omitempty"`
+	PlaceID                int32 `json:"place_id"`
+	LaborUID               int64 `json:"labor_uid,omitempty"`
+	LaborEndTime           int64 `json:"labor_end_time_ms,omitempty"`
+	HireFailCnt            int32 `json:"hire_fail_cnt,omitempty"`
+	EventID                int32 `json:"event_id,omitempty"`
+	EveryMakeNum           int32 `json:"every_make_num,omitempty"`
+	RecvCnt                int32 `json:"recv_cnt,omitempty"`
+	SurplusRecvNum         int32 `json:"surplus_recv_num,omitempty"`
+	UTimeMs                int64 `json:"u_time_ms,omitempty"`
+	CTimeMs                int64 `json:"c_time_ms,omitempty"`
+	LaborEndTimeObserved   bool  `json:"labor_end_time_observed,omitempty"`
+	EveryMakeNumObserved   bool  `json:"every_make_num_observed,omitempty"`
+	RecvCntObserved        bool  `json:"recv_cnt_observed,omitempty"`
+	SurplusRecvNumObserved bool  `json:"surplus_recv_num_observed,omitempty"`
+}
+
+// PearlClaimSnapshot fixes the readiness instant and slots used by a
+// pearlPlace.recvOneKey preflight. Rechecking at this same instant avoids a
+// false postcondition failure when a new cycle matures during the RPC.
+type PearlClaimSnapshot struct {
+	At       time.Time
+	PlaceIDs []int32
 }
 
 // FlowerRequire is a single flower requirement in an order.

@@ -202,6 +202,10 @@ func opKindDesc(kind string) string {
 		return "领取宠物纪念品奖励"
 	case clientproto.RPCZooReadSouvenir.String():
 		return "确认宠物纪念品已读"
+	case clientproto.RPCPearlPlaceRecvOneKey.String():
+		return "一键领取珍珠产出"
+	case clientproto.RPCPearlPlaceRecv.String():
+		return "领取单个珍珠槽位产出"
 	case clientproto.RPCRandomEventEnter.String():
 		return "同步地图随机事件"
 	case clientproto.RPCRandomEventDoAffair.String():

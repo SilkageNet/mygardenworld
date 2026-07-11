@@ -1,8 +1,10 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -122,19 +124,28 @@ func (s *State) applyPearlLocked(raw json.RawMessage) {
 		s.pearlPlaces = make(map[int32]*PearlPlaceView)
 	}
 	if rawPlaces, ok := fields["0"]; ok {
-		var places map[string]json.RawMessage
-		if err := json.Unmarshal(rawPlaces, &places); err == nil {
-			for placeIDStr, rawPlace := range places {
-				placeID := atoi32(placeIDStr)
-				if placeID == 0 {
-					continue
+		// PearlPlaceMgr ignores a null/falsy placeMap. Only null entries inside
+		// an observed map carry deletion semantics.
+		if !isJSONNull(rawPlaces) {
+			var places map[string]json.RawMessage
+			if err := json.Unmarshal(rawPlaces, &places); err == nil {
+				for placeIDStr, rawPlace := range places {
+					parsedID, err := strconv.ParseInt(placeIDStr, 10, 32)
+					if err != nil || parsedID <= 0 {
+						continue
+					}
+					placeID := int32(parsedID)
+					if isJSONNull(rawPlace) {
+						delete(s.pearlPlaces, placeID)
+						continue
+					}
+					view := s.pearlPlaces[placeID]
+					if view == nil {
+						view = &PearlPlaceView{PlaceID: placeID}
+						s.pearlPlaces[placeID] = view
+					}
+					applyPearlPlaceFields(view, rawPlace)
 				}
-				view := s.pearlPlaces[placeID]
-				if view == nil {
-					view = &PearlPlaceView{PlaceID: placeID}
-					s.pearlPlaces[placeID] = view
-				}
-				applyPearlPlaceFields(view, rawPlace)
 			}
 		}
 	}
@@ -203,8 +214,18 @@ func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
 	if n, ok := readInt64JSONField(fields, "2"); ok {
 		view.LaborUID = n
 	}
-	if n, ok := readInt64JSONField(fields, "3"); ok {
-		view.LaborEndTime = n
+	if rawEnd, exists := fields["3"]; exists {
+		view.LaborEndTimeObserved = false
+		if isJSONNull(rawEnd) {
+			view.LaborEndTime = 0
+			view.LaborEndTimeObserved = true
+		} else {
+			var n int64
+			if json.Unmarshal(rawEnd, &n) == nil {
+				view.LaborEndTime = n
+				view.LaborEndTimeObserved = true
+			}
+		}
 	}
 	if n, ok := readInt32JSONField(fields, "4"); ok {
 		view.HireFailCnt = n
@@ -212,14 +233,29 @@ func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
 	if n, ok := readInt32JSONField(fields, "5"); ok {
 		view.EventID = n
 	}
-	if n, ok := readInt32JSONField(fields, "6"); ok {
-		view.EveryMakeNum = n
+	if rawEvery, exists := fields["6"]; exists {
+		view.EveryMakeNumObserved = false
+		var n int32
+		if !isJSONNull(rawEvery) && json.Unmarshal(rawEvery, &n) == nil {
+			view.EveryMakeNum = n
+			view.EveryMakeNumObserved = true
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "7"); ok {
-		view.RecvCnt = n
+	if rawRecv, exists := fields["7"]; exists {
+		view.RecvCntObserved = false
+		var n int32
+		if !isJSONNull(rawRecv) && json.Unmarshal(rawRecv, &n) == nil {
+			view.RecvCnt = n
+			view.RecvCntObserved = true
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "8"); ok {
-		view.SurplusRecvNum = n
+	if rawSurplus, exists := fields["8"]; exists {
+		view.SurplusRecvNumObserved = false
+		var n int32
+		if !isJSONNull(rawSurplus) && json.Unmarshal(rawSurplus, &n) == nil {
+			view.SurplusRecvNum = n
+			view.SurplusRecvNumObserved = true
+		}
 	}
 	if n, ok := readInt64JSONField(fields, "9"); ok {
 		view.UTimeMs = n
@@ -227,6 +263,10 @@ func applyPearlPlaceFields(view *PearlPlaceView, raw json.RawMessage) {
 	if n, ok := readInt64JSONField(fields, "10"); ok {
 		view.CTimeMs = n
 	}
+}
+
+func isJSONNull(raw json.RawMessage) bool {
+	return bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
 }
 
 // CollectRewards returns the currently observed namespace 103 reward state.
@@ -425,18 +465,111 @@ func (s *State) PearlPlaces() map[int32]PearlPlaceView {
 	return out
 }
 
-// ReadyPearlPlaceIDs returns pearl slots with observed surplus to receive.
+// PearlReceivableCount mirrors PearlPlaceCtrl.canRecvNum from the observed
+// client. The boolean is false when required slot fields or catalog timing are
+// unknown, so automation never probes with an ambiguous state.
+func PearlReceivableCount(place PearlPlaceView, now time.Time) (int64, bool) {
+	if !place.LaborEndTimeObserved || !place.EveryMakeNumObserved ||
+		!place.RecvCntObserved || !place.SurplusRecvNumObserved {
+		return 0, false
+	}
+	if place.LaborEndTime < 0 || place.EveryMakeNum < 0 ||
+		place.RecvCnt < 0 || place.SurplusRecvNum < 0 {
+		return 0, false
+	}
+	// The client returns before adding surplus when either of these fields is
+	// zero. Explicit null/zero therefore represents a known empty slot.
+	if place.LaborEndTime == 0 || place.EveryMakeNum == 0 {
+		return 0, true
+	}
+	timing, ok := PearlProductionTimingFromCatalog()
+	if !ok {
+		return 0, false
+	}
+	hireTimeMs := timing.HireTimeSeconds * int64(time.Second/time.Millisecond)
+	gatherCDMs := timing.GatherCDSeconds * int64(time.Second/time.Millisecond)
+	if hireTimeMs <= 0 || gatherCDMs <= 0 {
+		return 0, false
+	}
+
+	startMs := place.LaborEndTime - hireTimeMs
+	effectiveMs := now.UnixMilli()
+	if effectiveMs > place.LaborEndTime {
+		effectiveMs = place.LaborEndTime
+	}
+	elapsedMs := effectiveMs - startMs
+	if elapsedMs < 0 {
+		elapsedMs = 0
+	}
+	cycles := elapsedMs / gatherCDMs
+	unreceivedCycles := cycles - int64(place.RecvCnt)
+	if unreceivedCycles < 0 {
+		unreceivedCycles = 0
+	}
+	count := unreceivedCycles*int64(place.EveryMakeNum) + int64(place.SurplusRecvNum)
+	if count < 0 {
+		return 0, false
+	}
+	return count, true
+}
+
+// ReadyPearlPlaceIDs returns time-matured pearl slots at the current instant.
+// Call ReadyPearlPlaceIDsAt when a planner already owns a fixed clock value.
 func (s *State) ReadyPearlPlaceIDs() []int32 {
+	return s.ReadyPearlPlaceIDsAt(time.Now())
+}
+
+// ReadyPearlPlaceIDsAt returns time-matured pearl slots in stable order.
+func (s *State) ReadyPearlPlaceIDsAt(now time.Time) []int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.readyPearlPlaceIDsLocked(now)
+}
+
+func (s *State) readyPearlPlaceIDsLocked(now time.Time) []int32 {
 	out := make([]int32, 0, len(s.pearlPlaces))
 	for id, place := range s.pearlPlaces {
-		if place != nil && place.SurplusRecvNum > 0 {
+		if place == nil {
+			continue
+		}
+		if count, known := PearlReceivableCount(*place, now); known && count > 0 {
 			out = append(out, id)
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
+}
+
+// PearlClaimSnapshot captures the exact slots ready at now for a one-key RPC.
+func (s *State) PearlClaimSnapshot(now time.Time) (PearlClaimSnapshot, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ids := s.readyPearlPlaceIDsLocked(now)
+	if len(ids) == 0 {
+		return PearlClaimSnapshot{}, false
+	}
+	return PearlClaimSnapshot{At: now, PlaceIDs: ids}, true
+}
+
+// PearlClaimApplied reports whether every slot captured by preflight is no
+// longer receivable at that same instant. A deleted slot counts as cleared.
+func (s *State) PearlClaimApplied(snapshot PearlClaimSnapshot) bool {
+	if snapshot.At.IsZero() || len(snapshot.PlaceIDs) == 0 {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, id := range snapshot.PlaceIDs {
+		place, exists := s.pearlPlaces[id]
+		if !exists || place == nil {
+			continue
+		}
+		count, known := PearlReceivableCount(*place, snapshot.At)
+		if !known || count > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // PearlDrawCount returns the number of pearl draw entries currently observed.

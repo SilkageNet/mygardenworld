@@ -358,6 +358,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.PearlPlace().Recv(ctx, req)
 		},
 	),
+	clientproto.RPCPearlPlaceRecvOneKey.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
+			return pearlRecvOneKeyRequest(op)
+		},
+		run: runPearlRecvOneKey,
+	},
 	clientproto.RPCPearlSetProtectState.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.PearlSetProtectStateRequest, error) {
 			return clientproto.PearlSetProtectStateRequest{ProtectState: op.TargetID}, nil

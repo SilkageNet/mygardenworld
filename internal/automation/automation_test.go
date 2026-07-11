@@ -1787,7 +1787,9 @@ func TestBuildPlan_PearlExecutableOps(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
 	applyMap(t, s, map[string]any{
 		"115": map[string]any{
-			"0": map[string]any{"1": map[string]any{"1": 1, "8": 2}},
+			"0": map[string]any{"1": map[string]any{
+				"1": 1, "3": now.Add(2 * time.Hour).UnixMilli(), "6": 1, "7": 0, "8": 2,
+			}},
 			"1": map[string]any{"1": 0, "2": 1, "6": now.Add(-24 * time.Hour).UnixMilli()},
 			"2": []int32{101, 102},
 		},
@@ -1801,7 +1803,7 @@ func TestBuildPlan_PearlExecutableOps(t *testing.T) {
 	result := BuildPlan(s, p, now)
 	want := map[string]string{
 		"basic.pearl.free":    clientproto.RPCPearlRecvDailyFree.String(),
-		"basic.pearl.place":   clientproto.RPCPearlPlaceRecv.String(),
+		"basic.pearl.place":   clientproto.RPCPearlPlaceRecvOneKey.String(),
 		"basic.pearl.protect": clientproto.RPCPearlSetProtectState.String(),
 		"basic.pearl.draw":    clientproto.RPCPearlDraw.String(),
 	}
@@ -1812,8 +1814,8 @@ func TestBuildPlan_PearlExecutableOps(t *testing.T) {
 			if op.Kind != kind || !op.Executable || op.SyncOnly {
 				t.Fatalf("pearl op mismatch for %s: %+v", op.Domain, op)
 			}
-			if op.Domain == "basic.pearl.place" && op.TargetID != 1 {
-				t.Fatalf("pearl place target=%d, want 1", op.TargetID)
+			if op.Domain == "basic.pearl.place" && (op.TargetID != 0 || op.ItemID != 0 || op.Count != 0) {
+				t.Fatalf("pearl one-key op must have no request fields: %+v", op)
 			}
 			if op.Domain == "basic.pearl.protect" && op.TargetID != 1 {
 				t.Fatalf("pearl protect target=%d, want 1", op.TargetID)

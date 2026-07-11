@@ -66,7 +66,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.map_event", Label: "地图随机事件", Category: CategoryBasic, Domain: "basic.map_event", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_sync", Label: "珍珠同步", Category: CategoryBasic, Domain: "basic.pearl", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_free", Label: "免费珍珠", Category: CategoryBasic, Domain: "basic.pearl.free", Action: "claim", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.pearl_place", Label: "珍珠收取", Category: CategoryBasic, Domain: "basic.pearl.place", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.pearl_place", Label: "珍珠一键收取", Category: CategoryBasic, Domain: "basic.pearl.place", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_draw", Label: "开珍珠", Category: CategoryBasic, Domain: "basic.pearl.draw", Action: "draw", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_protect", Label: "珍珠防身", Category: CategoryBasic, Domain: "basic.pearl.protect", Action: "enable", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.pearl_hire", Label: "雇佣劳工", Category: CategoryBasic, Domain: "basic.pearl.hire", Action: "hire", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"候选用户与雇佣券成本尚未确认"}},

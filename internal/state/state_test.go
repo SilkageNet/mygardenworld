@@ -1638,8 +1638,8 @@ func TestApplyV_PearlState(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"115": map[string]any{
 			"0": map[string]any{
-				"1": map[string]any{"1": 1, "2": 10001, "8": 2},
-				"2": map[string]any{"1": 2, "8": 0},
+				"1": map[string]any{"1": 1, "2": 10001, "3": now.Add(2 * time.Hour).UnixMilli(), "6": 1, "7": 0, "8": 2},
+				"2": map[string]any{"1": 2, "3": nil, "6": 0, "7": 0, "8": 0},
 			},
 			"1": map[string]any{"1": 0, "2": 3, "6": yesterday, "8": 1},
 			"2": []int32{101, 102},
@@ -1654,7 +1654,7 @@ func TestApplyV_PearlState(t *testing.T) {
 	if got := s.PearlDrawCount(); got != 2 {
 		t.Fatalf("PearlDrawCount=%d, want 2", got)
 	}
-	if got := s.ReadyPearlPlaceIDs(); len(got) != 1 || got[0] != 1 {
+	if got := s.ReadyPearlPlaceIDsAt(now); len(got) != 1 || got[0] != 1 {
 		t.Fatalf("ReadyPearlPlaceIDs=%v, want [1]", got)
 	}
 	pearl := s.Pearl()
@@ -1671,7 +1671,7 @@ func TestApplyV_PearlState(t *testing.T) {
 	if s.PearlDailyFreeReady(now) {
 		t.Fatal("PearlDailyFreeReady=true, want false for same-day recv date")
 	}
-	if got := s.ReadyPearlPlaceIDs(); len(got) != 0 {
+	if got := s.ReadyPearlPlaceIDsAt(now); len(got) != 0 {
 		t.Fatalf("ReadyPearlPlaceIDs after partial update=%v, want none", got)
 	}
 	places := s.PearlPlaces()

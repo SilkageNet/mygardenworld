@@ -49,6 +49,13 @@ type zooReadLogExecution struct {
 	readDone  func(int64) bool
 }
 
+type pearlRecvOneKeyExecution struct {
+	preflight func() (state.PearlClaimSnapshot, error)
+	recv      func(context.Context, clientproto.PearlPlaceRecvOneKeyRequest) (json.RawMessage, error)
+	apply     func(json.RawMessage)
+	claimed   func(state.PearlClaimSnapshot) bool
+}
+
 type zooRecvSouvenirRewardExecution struct {
 	preflight func() error
 	recv      func(context.Context, clientproto.ZooRecvSouvenirRwdRequest) (json.RawMessage, error)
@@ -377,6 +384,67 @@ func executeZooReadSouvenir(ctx context.Context, req clientproto.ZooReadSouvenir
 	}
 	if !exec.acknowledged() {
 		return nil, fmt.Errorf("readSouvenir postcondition failed: response left one or more souvenirs unread")
+	}
+	return raw, nil
+}
+
+func pearlRecvOneKeyRequest(op *automation.PlannedOp) (clientproto.PearlPlaceRecvOneKeyRequest, error) {
+	if op == nil {
+		return clientproto.PearlPlaceRecvOneKeyRequest{}, fmt.Errorf("recvOneKey operation is nil")
+	}
+	if op.TargetID != 0 || op.ItemID != 0 || op.Count != 0 || op.FlowerID != 0 ||
+		op.VaseID != 0 || op.TargetUID != 0 || len(op.LandIDs) != 0 ||
+		len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 {
+		return clientproto.PearlPlaceRecvOneKeyRequest{}, fmt.Errorf("pearlPlace.recvOneKey requires an empty request")
+	}
+	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+		return clientproto.PearlPlaceRecvOneKeyRequest{}, fmt.Errorf("pearlPlace.recvOneKey must be cost-free")
+	}
+	return clientproto.PearlPlaceRecvOneKeyRequest{}, nil
+}
+
+func runPearlRecvOneKey(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	req, err := pearlRecvOneKeyRequest(op)
+	if err != nil {
+		return nil, err
+	}
+	if rt.runner == nil || rt.runner.state == nil || rt.rpc == nil {
+		return nil, fmt.Errorf("pearl recvOneKey runner state or RPC unavailable")
+	}
+	exec := pearlRecvOneKeyExecution{
+		preflight: func() (state.PearlClaimSnapshot, error) {
+			snapshot, ok := rt.runner.state.PearlClaimSnapshot(time.Now())
+			if !ok {
+				return state.PearlClaimSnapshot{}, fmt.Errorf("pearl recvOneKey preflight rejected: no time-matured production")
+			}
+			return snapshot, nil
+		},
+		recv: func(ctx context.Context, request clientproto.PearlPlaceRecvOneKeyRequest) (json.RawMessage, error) {
+			return checkedStateDelta(rt.rpc.PearlPlace().RecvOneKey(ctx, request, babigame.WithPayloadApply(false)))
+		},
+		apply:   rt.runner.state.ApplyV,
+		claimed: rt.runner.state.PearlClaimApplied,
+	}
+	return executePearlRecvOneKey(ctx, req, exec)
+}
+
+func executePearlRecvOneKey(ctx context.Context, req clientproto.PearlPlaceRecvOneKeyRequest, exec pearlRecvOneKeyExecution) (json.RawMessage, error) {
+	if exec.preflight == nil || exec.recv == nil || exec.apply == nil || exec.claimed == nil {
+		return nil, fmt.Errorf("pearl recvOneKey execution is incomplete")
+	}
+	snapshot, err := exec.preflight()
+	if err != nil {
+		return nil, err
+	}
+	raw, err := exec.recv(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("pearlPlace.recvOneKey: %w", err)
+	}
+	if babigame.HasPayload(raw) && exec.apply != nil {
+		exec.apply(raw)
+	}
+	if !exec.claimed(snapshot) {
+		return nil, fmt.Errorf("pearlPlace.recvOneKey postcondition failed: response did not clear all preflight-ready slots")
 	}
 	return raw, nil
 }

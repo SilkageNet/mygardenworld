@@ -291,9 +291,8 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 	if policy.GetFreeEnabled() && s.PearlDailyFreeReady(now) {
 		ops = append(ops, domainOp(clientproto.RPCPearlRecvDailyFree.String(), goal, "basic.pearl.free", "claim", "每日免费珍珠可领取", 5580, 0, 0, 0))
 	}
-	for _, placeID := range s.ReadyPearlPlaceIDs() {
-		ops = append(ops, domainOp(clientproto.RPCPearlPlaceRecv.String(), goal, "basic.pearl.place", "claim", "珍珠位产出可收取", 5570, placeID, 0, 0))
-		break
+	if len(s.ReadyPearlPlaceIDsAt(now)) > 0 {
+		ops = append(ops, domainOp(clientproto.RPCPearlPlaceRecvOneKey.String(), goal, "basic.pearl.place", "claim", "珍珠实时产出可一键收取", 5570, 0, 0, 0))
 	}
 	pearl := s.Pearl()
 	if policy.GetProtectEnabled() && pearl.ProtectState != 1 {
