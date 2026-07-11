@@ -95,9 +95,10 @@ func (m *Manager) RuntimeStats(accountID int64) (RuntimeStatsSnapshot, bool) {
 
 // RestoreEnabledRunners starts every account whose persisted policy says
 // automation should be running. It is intended for daemon startup: a normal
-// shutdown stops in-memory runners, while Automation.Stop, LogoutAccount, or
-// session invalidation persists automation_enabled=false and therefore opts the
-// account out.
+// shutdown stops in-memory runners; Automation.Stop, LogoutAccount, or a
+// non-recoverable session invalidation persists automation_enabled=false and
+// therefore opts the account out. A displaced live session is recovered inside
+// its existing runner and does not participate in daemon-start restoration.
 func (m *Manager) RestoreEnabledRunners(ctx context.Context) RestoreReport {
 	report := RestoreReport{}
 	accounts, err := m.accountsWithAutomationEnabled(ctx)

@@ -137,8 +137,107 @@ func (d WSResponseD) hasSessionExpiredMessage() bool {
 	}
 	return strings.Contains(msg, "会话已过期") ||
 		strings.Contains(msg, "重新登录") ||
-		strings.Contains(msg, "异地登录") ||
-		strings.Contains(msg, "挤下线")
+		IsSessionDisplacementReason(msg)
+}
+
+// IsSessionDisplaced reports whether this error explicitly says that another
+// login replaced the current session. Generic expiry and gateway blocks are
+// deliberately excluded: callers may safely use this narrower predicate to
+// decide whether an automatic login retry is appropriate.
+func (d WSResponseD) IsSessionDisplaced() bool {
+	return d.IsError() && IsSessionDisplacementReason(d.ErrorMsg())
+}
+
+// IsSessionDisplacementReason recognizes only explicit same-account login
+// replacement messages. It intentionally does not match generic requests to
+// re-login, expired credentials, bans, maintenance, or ordinary RPC errors.
+func IsSessionDisplacementReason(reason string) bool {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"异地登录",
+		"挤下线",
+		"挤号",
+		"顶下线",
+		"其他设备登录",
+		"其它设备登录",
+		"别处登录",
+		"会话已被替换",
+		"会话被替换",
+		"登录状态已被替换",
+		"登录被替换",
+	} {
+		if strings.Contains(reason, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// SessionDisplacementFromBinary recognizes the observed bst usr_kick notice
+// used by the official client for a same-account login elsewhere. Server/GM
+// kicks, kick-all notices, and maintenance closures fail closed.
+func SessionDisplacementFromBinary(items []json.RawMessage) (string, bool) {
+	for _, item := range items {
+		var raw map[string]json.RawMessage
+		if json.Unmarshal(item, &raw) != nil {
+			continue
+		}
+		name := rawJSONString(raw["name"])
+		if name == "" {
+			name = rawJSONString(raw["0"])
+		}
+		if name != "usr_kick" {
+			continue
+		}
+
+		content := raw["content"]
+		if len(content) == 0 {
+			content = raw["1"]
+		}
+		var kick map[string]json.RawMessage
+		if json.Unmarshal(content, &kick) != nil {
+			encoded := rawJSONString(content)
+			if encoded == "" || json.Unmarshal([]byte(encoded), &kick) != nil {
+				continue
+			}
+		}
+		isGM, gmOK := optionalRawJSONInt(kick, "isGM", "4")
+		isClose, closeOK := optionalRawJSONInt(kick, "isClose", "5")
+		if !gmOK || !closeOK || isGM != 0 || isClose != 0 {
+			continue
+		}
+		return "账号在其他设备登录，当前会话被替换", true
+	}
+	return "", false
+}
+
+func rawJSONString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	return value
+}
+
+func optionalRawJSONInt(values map[string]json.RawMessage, keys ...string) (int64, bool) {
+	for _, key := range keys {
+		raw, exists := values[key]
+		if !exists || len(raw) == 0 {
+			continue
+		}
+		var value int64
+		if json.Unmarshal(raw, &value) == nil {
+			return value, true
+		}
+		return 0, false
+	}
+	return 0, true
 }
 
 func (d WSResponseD) hasSessionExpiredType() bool {

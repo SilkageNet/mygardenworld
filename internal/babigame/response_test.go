@@ -48,6 +48,70 @@ func TestWSResponseDSessionExpired(t *testing.T) {
 	if !d.IsSessionExpired() {
 		t.Fatal("expected session-expired response")
 	}
+	if d.IsSessionDisplaced() {
+		t.Fatal("generic expiry must not be treated as a displaced session")
+	}
+}
+
+func TestWSResponseDSessionDisplaced(t *testing.T) {
+	var d WSResponseD
+	if err := json.Unmarshal([]byte(`{"m":{"type":90000,"msg":"账号已在其他设备登录，您已被挤下线"}}`), &d); err != nil {
+		t.Fatal(err)
+	}
+	if !d.IsSessionExpired() || !d.IsSessionDisplaced() {
+		t.Fatalf("session predicates expired=%t displaced=%t, want both true", d.IsSessionExpired(), d.IsSessionDisplaced())
+	}
+}
+
+func TestSessionDisplacementFromBinary(t *testing.T) {
+	tests := []struct {
+		name  string
+		items []json.RawMessage
+		want  bool
+	}{
+		{
+			name: "observed named event with encoded content",
+			items: []json.RawMessage{
+				json.RawMessage(`{"t":"notify","i":"bst"}`),
+				json.RawMessage(`{"name":"usr_kick","content":"{\"4\":0,\"5\":0}","dsName":"G.IKickData"}`),
+			},
+			want: true,
+		},
+		{
+			name:  "compact event",
+			items: []json.RawMessage{json.RawMessage(`{"0":"usr_kick","1":{"4":0,"5":0}}`)},
+			want:  true,
+		},
+		{
+			name:  "server gm kick",
+			items: []json.RawMessage{json.RawMessage(`{"name":"usr_kick","content":{"isGM":1}}`)},
+			want:  false,
+		},
+		{
+			name:  "maintenance close",
+			items: []json.RawMessage{json.RawMessage(`{"name":"usr_kick","content":{"isClose":1}}`)},
+			want:  false,
+		},
+		{
+			name:  "kick all",
+			items: []json.RawMessage{json.RawMessage(`{"name":"usr_kickAll","content":{}}`)},
+			want:  false,
+		},
+		{
+			name:  "malformed safety field",
+			items: []json.RawMessage{json.RawMessage(`{"name":"usr_kick","content":{"isGM":"unknown"}}`)},
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, got := SessionDisplacementFromBinary(tt.items)
+			if got != tt.want {
+				t.Fatalf("SessionDisplacementFromBinary()=%t, want %t", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestWSResponseDGatewayBlockReason(t *testing.T) {
@@ -64,6 +128,9 @@ func TestWSResponseDGatewayBlockReason(t *testing.T) {
 	}
 	if !d.IsSessionExpired() {
 		t.Fatal("expected gateway block response to invalidate the session")
+	}
+	if d.IsSessionDisplaced() {
+		t.Fatal("gateway block must not be treated as a displaced session")
 	}
 }
 

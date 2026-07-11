@@ -1,11 +1,37 @@
 package policycfg
 
 import (
+	"math"
 	"testing"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 )
+
+func TestNormalizeClampsReconnectInterval(t *testing.T) {
+	tests := []struct {
+		name string
+		in   float64
+		want float64
+	}{
+		{name: "zero uses default", in: 0, want: 300},
+		{name: "negative uses default", in: -1, want: 300},
+		{name: "nan uses default", in: math.NaN(), want: 300},
+		{name: "infinity uses default", in: math.Inf(1), want: 300},
+		{name: "subsecond clamps to one", in: 0.25, want: 1},
+		{name: "configured value", in: 45, want: 45},
+		{name: "huge clamps to one day", in: 1e30, want: 86400},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Normalize(&pb.Policy{Basic: &pb.BasicPolicy{ReconnectIntervalSeconds: tt.in}}).
+				GetBasic().GetReconnectIntervalSeconds()
+			if got != tt.want {
+				t.Fatalf("reconnect interval=%v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})

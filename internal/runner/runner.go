@@ -100,6 +100,7 @@ type Runner struct {
 
 	sessionInvalidated       bool
 	sessionInvalidatedReason string
+	sessionAutoRelogin       bool
 
 	bus *Bus
 }

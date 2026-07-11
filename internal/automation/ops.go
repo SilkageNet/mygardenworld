@@ -164,11 +164,12 @@ func DefaultPolicy() *pb.Policy {
 	return &pb.Policy{
 		AutomationEnabled: false,
 		Basic: &pb.BasicPolicy{
-			Reputation: &pb.ReputationPolicy{Enabled: true, Threshold: 80},
-			Task:       &pb.BasicTaskPolicy{},
-			Benefit:    &pb.BenefitPolicy{},
-			Sign:       &pb.SignPolicy{},
-			Pearl:      &pb.PearlPolicy{},
+			Reputation:               &pb.ReputationPolicy{Enabled: true, Threshold: 80},
+			ReconnectIntervalSeconds: 300,
+			Task:                     &pb.BasicTaskPolicy{},
+			Benefit:                  &pb.BenefitPolicy{},
+			Sign:                     &pb.SignPolicy{},
+			Pearl:                    &pb.PearlPolicy{},
 			Shop: &pb.ShopPolicy{
 				CultivateShop: &pb.ShopBuyPolicy{},
 				VipShop:       &pb.VipShopPolicy{},

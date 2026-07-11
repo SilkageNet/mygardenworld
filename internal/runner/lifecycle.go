@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ import (
 const (
 	reconnectInitialWait = 2 * time.Second
 	reconnectMaxWait     = 30 * time.Second
+	defaultReloginWait   = 5 * time.Minute
+	maxReloginWait       = 24 * time.Hour
 	waterDropsItemID     = int32(7)
 )
 
@@ -47,6 +50,11 @@ func (r *Runner) Start(ctx context.Context) error {
 	r.installStateHandlers()
 	client, err := r.connectFresh(ctx, username, password)
 	if err != nil {
+		if r.autoReloginPending() {
+			go r.decisionLoop(rctx)
+			go r.connectionLoop(rctx, username, password, nil)
+			return nil
+		}
 		return fail(err)
 	}
 
@@ -117,12 +125,16 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		return nil, fmt.Errorf("启动登录失败: %w", err)
 	}
 	if r.isSessionInvalidated() {
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
 	}
 	if r.isSessionInvalidated() {
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
 	if err := r.enforceReputationGuard(ctx, client, session, "startup", time.Now()); err != nil {
@@ -186,7 +198,12 @@ func (r *Runner) newClient(session *babigame.Session) *babigame.Client {
 	client := babigame.NewClient(session)
 	client.DebugWriter = r.debugWriter
 	client.OnSessionExpired(func(d babigame.WSResponseD) {
-		r.markSessionInvalidated(d.ErrorMsg())
+		r.handleSessionInvalidated(d.ErrorMsg(), d.IsSessionDisplaced())
+	})
+	client.OnBinary(func(items []json.RawMessage) {
+		if reason, ok := babigame.SessionDisplacementFromBinary(items); ok {
+			r.handleSessionInvalidated(reason, true)
+		}
 	})
 	for _, ns := range observedCaptureNamespaces() {
 		ns := ns
@@ -235,21 +252,40 @@ func (r *Runner) installStateHandlers() {
 
 func (r *Runner) connectionLoop(ctx context.Context, username, password string, client *babigame.Client) {
 	current := client
-	for current != nil {
-		select {
-		case <-ctx.Done():
-			return
-		case <-current.Done():
+
+connection:
+	for {
+		if current != nil {
+			select {
+			case <-ctx.Done():
+				return
+			case <-current.Done():
+			}
+			r.clearDisconnectedClient(current)
 		}
-		if ctx.Err() != nil || r.isSessionInvalidated() {
+		if ctx.Err() != nil {
 			return
 		}
-		r.clearDisconnectedClient(current)
+		if r.autoReloginPending() {
+			next, ok := r.reloginAfterDisplacement(ctx, username, password)
+			if !ok {
+				return
+			}
+			current = next
+			continue
+		}
+		if r.isSessionInvalidated() || current == nil {
+			return
+		}
 		r.emit(Event{Kind: "ws_disconnected", Message: "网络连接断开，准备重连", Level: "warn"})
 
 		wait := reconnectInitialWait
 		for {
 			if !sleepOrDone(ctx, wait) || r.isSessionInvalidated() {
+				if r.autoReloginPending() {
+					current = nil
+					continue connection
+				}
 				return
 			}
 			next, err := r.connectFresh(ctx, username, password)
@@ -261,6 +297,10 @@ func (r *Runner) connectionLoop(ctx context.Context, username, password string, 
 				return
 			}
 			if ctx.Err() != nil || r.isSessionInvalidated() {
+				if r.autoReloginPending() {
+					current = nil
+					continue connection
+				}
 				return
 			}
 			r.emit(Event{
@@ -271,6 +311,96 @@ func (r *Runner) connectionLoop(ctx context.Context, username, password string, 
 			wait = nextReconnectWait(wait)
 		}
 	}
+}
+
+func (r *Runner) reloginAfterDisplacement(ctx context.Context, username, password string) (*babigame.Client, bool) {
+	baseWait := r.reloginInterval()
+	wait := baseWait
+	for {
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		if !sleepOrDone(ctx, wait) {
+			return nil, false
+		}
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		if !r.beginAutoReloginAttempt() {
+			return nil, false
+		}
+		r.emit(Event{Kind: "session_relogin", Message: "被挤号等待结束，正在自动登录", Level: "info"})
+		next, err := r.connectFresh(ctx, username, password)
+		if err == nil {
+			return next, true
+		}
+		if ctx.Err() != nil || isReputationGuardError(err) || r.sessionInvalidatedWithoutAutoRelogin() {
+			return nil, false
+		}
+		nextWait := nextReloginWait(wait, baseWait)
+		r.emit(Event{
+			Kind:    "session_relogin",
+			Message: fmt.Sprintf("自动登录失败: %v；%s 后重试", err, nextWait),
+			Level:   "warn",
+		})
+		wait = nextWait
+	}
+}
+
+func (r *Runner) reloginInterval() time.Duration {
+	seconds := r.Policy().GetBasic().GetReconnectIntervalSeconds()
+	if math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
+		return defaultReloginWait
+	}
+	if seconds > maxReloginWait.Seconds() {
+		return maxReloginWait
+	}
+	d := time.Duration(seconds * float64(time.Second))
+	if d < time.Second {
+		return time.Second
+	}
+	return d
+}
+
+func nextReloginWait(current, base time.Duration) time.Duration {
+	if base <= 0 {
+		base = defaultReloginWait
+	}
+	if current < base {
+		current = base
+	}
+	capWait := reconnectMaxWait
+	if base > capWait {
+		capWait = base
+	}
+	if current >= capWait || current > capWait/2 {
+		return capWait
+	}
+	return current * 2
+}
+
+func (r *Runner) autoReloginPending() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sessionInvalidated && r.sessionAutoRelogin
+}
+
+func (r *Runner) sessionInvalidatedWithoutAutoRelogin() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sessionInvalidated && !r.sessionAutoRelogin
+}
+
+func (r *Runner) beginAutoReloginAttempt() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.sessionInvalidated && !r.sessionAutoRelogin {
+		return false
+	}
+	r.sessionInvalidated = false
+	r.sessionInvalidatedReason = ""
+	r.sessionAutoRelogin = false
+	return true
 }
 
 func (r *Runner) clearDisconnectedClient(client *babigame.Client) {
@@ -330,6 +460,10 @@ func (r *Runner) Stop() {
 }
 
 func (r *Runner) markSessionInvalidated(reason string) {
+	r.handleSessionInvalidated(reason, babigame.IsSessionDisplacementReason(reason))
+}
+
+func (r *Runner) handleSessionInvalidated(reason string, autoRelogin bool) {
 	if reason == "" {
 		reason = "会话已过期，请重新登录"
 	}
@@ -346,7 +480,21 @@ func (r *Runner) markSessionInvalidated(reason string) {
 	}
 	r.sessionInvalidated = true
 	r.sessionInvalidatedReason = reason
+	r.sessionAutoRelogin = autoRelogin
+	client := r.client
 	r.mu.Unlock()
+	if autoRelogin {
+		wait := r.reloginInterval()
+		r.emit(Event{
+			Kind:    "session_expired",
+			Message: fmt.Sprintf("检测到账号在其他设备登录，%s 后自动登录：%s", wait, reason),
+			Level:   "warn",
+		})
+		if client != nil {
+			_ = client.Close()
+		}
+		return
+	}
 
 	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
 	r.emit(Event{Kind: "session_expired", Message: fmt.Sprintf("检测到会话失效，已停止自动化：%s", reason)})

@@ -257,7 +257,7 @@ func inventoryChangeMessage(snap state.InventorySnapshot) string {
 
 func eventCategory(kind string) string {
 	switch kind {
-	case "session", "session_expired", "ws_disconnected":
+	case "session", "session_expired", "session_relogin", "ws_disconnected":
 		return "account"
 	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
 		return "plant"
@@ -299,7 +299,7 @@ func normalizeEventCategory(category, kind string) string {
 
 func eventDomain(kind string) string {
 	switch kind {
-	case "session", "session_expired", "ws_disconnected":
+	case "session", "session_expired", "session_relogin", "ws_disconnected":
 		return "account.session"
 	case "resource_changed":
 		return "basic.resource"
@@ -384,6 +384,8 @@ func eventLabel(kind string) string {
 		return "连接"
 	case "session_expired":
 		return "过期"
+	case "session_relogin":
+		return "重登"
 	case "ws_disconnected":
 		return "断开"
 	case "resource_changed":

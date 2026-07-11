@@ -2,12 +2,15 @@ package policycfg
 
 import (
 	"encoding/json"
+	"math"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
+
+const maxReconnectIntervalSeconds = 24 * 60 * 60
 
 var jsonMarshal = protojson.MarshalOptions{
 	EmitUnpopulated: true,
@@ -33,6 +36,14 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	}
 	if cp.Basic.Reputation.Threshold <= 0 {
 		cp.Basic.Reputation.Threshold = def.Basic.Reputation.Threshold
+	}
+	switch {
+	case math.IsNaN(cp.Basic.ReconnectIntervalSeconds), math.IsInf(cp.Basic.ReconnectIntervalSeconds, 0), cp.Basic.ReconnectIntervalSeconds <= 0:
+		cp.Basic.ReconnectIntervalSeconds = def.Basic.ReconnectIntervalSeconds
+	case cp.Basic.ReconnectIntervalSeconds < 1:
+		cp.Basic.ReconnectIntervalSeconds = 1
+	case cp.Basic.ReconnectIntervalSeconds > maxReconnectIntervalSeconds:
+		cp.Basic.ReconnectIntervalSeconds = maxReconnectIntervalSeconds
 	}
 	if cp.Basic.Task == nil {
 		cp.Basic.Task = proto.Clone(def.Basic.Task).(*pb.BasicTaskPolicy)
