@@ -2246,14 +2246,14 @@ function PolicyPanel({
           </div>
         </section>
 
-        <div className="flex gap-1 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-1">
+        <div className="grid grid-cols-5 gap-1 rounded-md border border-border/70 bg-muted/20 p-1">
           {POLICY_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex min-h-9 shrink-0 items-center gap-2 rounded px-3 text-sm font-medium transition-colors [&_svg]:size-4",
+                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded px-1 text-xs font-medium transition-colors sm:min-h-9 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm [&_svg]:size-4",
                 activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >

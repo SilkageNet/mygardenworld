@@ -76,7 +76,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
         )}
         <div
           data-slot="dialog-positioner"
-          className={useStableMobilePortal ? "absolute z-50 flex h-auto justify-center" : "absolute inset-0 z-10 flex items-end justify-center pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:items-center sm:p-4"}
+          className={useStableMobilePortal ? "absolute z-50 flex h-auto justify-center" : "absolute inset-0 z-10 flex items-center justify-center pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:p-4"}
           style={useStableMobilePortal ? {
             top: `calc(${portalTop}px + 5dvh)`,
             right: "max(0.75rem, env(safe-area-inset-right))",
