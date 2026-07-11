@@ -298,8 +298,6 @@ func runtimeTaskCompletion(kind string) (key, label string, ok bool) {
 		return "random_event", "地图随机事件", true
 	case clientproto.RPCZooHandleEvent.String():
 		return "zoo_event", "宠物事件", true
-	case clientproto.RPCZooFindPet.String():
-		return "zoo_find_pet", "宠物寻回", true
 	default:
 		return "", "", false
 	}
@@ -333,7 +331,6 @@ var runtimeTaskPriority = map[string]int{
 	"road_grow":    5,
 	"random_event": 6,
 	"zoo_event":    7,
-	"zoo_find_pet": 8,
 }
 
 func sortedRuntimeResources(m map[string]RuntimeResourceTotal) []RuntimeResourceTotal {

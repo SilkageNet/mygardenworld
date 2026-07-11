@@ -148,11 +148,14 @@
 //	33.1.<petId>      G.IZooPet, including moodValue, satietyValue,
 //	                  foodstuffArr, status, strokeCdTime, statusCdTime,
 //	                  goOutCdTime
+//	33.2.<petId>|<idx> G.IZooLog; idx is the handleEvent tableId and proType
+//	                  distinguishes pending (0) from completed logs
 //
 // The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and
-// strokeCdTime to decide whether strokePet is available. Feed execution is
-// limited to pets with existing foodstuffArr and c_zooState.isEat; adding or
-// buying food is a separate cost-bearing path.
+// strokeCdTime to decide whether strokePet is available. Normal bowl stocking
+// uses zoo.addFoodstuff with inventory food IDs; zoo.feedPets is only an
+// acknowledgement path for another player's feeding notification. Automated
+// event handling is sourced from 33.2 logs, never inferred from pet fields.
 //
 // # Random Event (Namespace 129)
 //
@@ -199,8 +202,11 @@
 //	usrExtra.updateAntiFraudQAStatus {}            → {7}
 //	usrExtra.recvAntiFraudQARwd {}                 → {7}
 //	zoo.enterZoo       {}                          → {33}
-//	zoo.feedPets       {petIdList:[id]}            → {33}
+//	zoo.refreshPetStatus {petIdList:[id]}          → {33}
+//	zoo.addFoodstuff   {petId,foodstuffIds}         → {7,33,...}
 //	zoo.strokePet      {petId:id}                  → {33}
+//	zoo.handleEvent    {petId,tableId:<log idx>,agree:true,isShareVideo:0} → {33,...}
+//	zoo.readLog        {petId:id}                  → {33}
 //	pearl.refresh        {}                        → {115}
 //	pearl.recvDailyFree  {}                        → {7,115}
 //	pearl.draw           {count}                   → {7,115}

@@ -526,8 +526,64 @@ type ZooPetView struct {
 	GoOutCdTimeMs        int64           `json:"go_out_cd_time_ms,omitempty"`
 	GetHomeTimeMs        int64           `json:"get_home_time_ms,omitempty"`
 	ReadLogTimeMs        int64           `json:"read_log_time_ms,omitempty"`
+	ReadLogTimeObserved  bool            `json:"read_log_time_observed,omitempty"`
 	UpdatedAtMs          int64           `json:"updated_at_ms,omitempty"`
 	EventTriggerTimes    map[int32]int64 `json:"event_trigger_times,omitempty"`
+}
+
+// ZooLogExtView is field 11 of one namespace 33.2 log entry.
+type ZooLogExtView struct {
+	UserName           string          `json:"user_name,omitempty"`
+	UserNameObserved   bool            `json:"user_name_observed,omitempty"`
+	PetName            string          `json:"pet_name,omitempty"`
+	PetNameObserved    bool            `json:"pet_name_observed,omitempty"`
+	PetID              int32           `json:"pet_id,omitempty"`
+	PetIDObserved      bool            `json:"pet_id_observed,omitempty"`
+	Consume            map[int32]int32 `json:"consume,omitempty"`
+	ConsumeObserved    bool            `json:"consume_observed,omitempty"`
+	Consume2           map[int32]int32 `json:"consume2,omitempty"`
+	Consume2Observed   bool            `json:"consume2_observed,omitempty"`
+	IsUserBack         int32           `json:"is_user_back,omitempty"`
+	IsUserBackObserved bool            `json:"is_user_back_observed,omitempty"`
+}
+
+// ZooLogView is one namespace 33.2.<petId>|<idx> server event log.
+type ZooLogView struct {
+	Key                   string          `json:"key"`
+	MapPetID              int32           `json:"map_pet_id"`
+	MapIndex              int32           `json:"map_index"`
+	Malformed             bool            `json:"malformed,omitempty"`
+	MalformedReason       string          `json:"malformed_reason,omitempty"`
+	UID                   int64           `json:"uid,omitempty"`
+	UIDObserved           bool            `json:"uid_observed,omitempty"`
+	PetID                 int32           `json:"pet_id,omitempty"`
+	PetIDObserved         bool            `json:"pet_id_observed,omitempty"`
+	Index                 int32           `json:"index,omitempty"`
+	IndexObserved         bool            `json:"index_observed,omitempty"`
+	MoodChangeValue       int32           `json:"mood_change_value,omitempty"`
+	MoodChangeObserved    bool            `json:"mood_change_observed,omitempty"`
+	SatietyChangeValue    int32           `json:"satiety_change_value,omitempty"`
+	SatietyChangeObserved bool            `json:"satiety_change_observed,omitempty"`
+	GoOutEventID          int32           `json:"go_out_event_id,omitempty"`
+	GoOutEventIDObserved  bool            `json:"go_out_event_id_observed,omitempty"`
+	EventType             int32           `json:"event_type,omitempty"`
+	EventTypeObserved     bool            `json:"event_type_observed,omitempty"`
+	ProType               int32           `json:"pro_type,omitempty"`
+	ProTypeObserved       bool            `json:"pro_type_observed,omitempty"`
+	Gain                  map[int32]int32 `json:"gain,omitempty"`
+	GainObserved          bool            `json:"gain_observed,omitempty"`
+	Consume               map[int32]int32 `json:"consume,omitempty"`
+	ConsumeObserved       bool            `json:"consume_observed,omitempty"`
+	Souvenir              map[int32]int32 `json:"souvenir,omitempty"`
+	SouvenirObserved      bool            `json:"souvenir_observed,omitempty"`
+	Ext                   ZooLogExtView   `json:"ext,omitempty"`
+	ExtObserved           bool            `json:"ext_observed,omitempty"`
+	UpdatedAtMs           int64           `json:"updated_at_ms,omitempty"`
+	UpdatedAtObserved     bool            `json:"updated_at_observed,omitempty"`
+	CreatedAtMs           int64           `json:"created_at_ms,omitempty"`
+	CreatedAtObserved     bool            `json:"created_at_observed,omitempty"`
+	InsertedAtMs          int64           `json:"inserted_at_ms,omitempty"`
+	InsertedAtObserved    bool            `json:"inserted_at_observed,omitempty"`
 }
 
 // ZooFoodstuffPlan describes one inventory-backed bowl stocking operation.
@@ -543,8 +599,9 @@ type ZooEventAction struct {
 	PetID         int32  `json:"pet_id"`
 	EventID       int32  `json:"event_id"`
 	TableID       int32  `json:"table_id,omitempty"`
+	CreatedAtMs   int64  `json:"created_at_ms,omitempty"`
 	Name          string `json:"name,omitempty"`
-	Action        string `json:"action,omitempty"` // find_pet or handle_event
+	Action        string `json:"action,omitempty"` // handle_event or read_log
 	Agree         bool   `json:"agree,omitempty"`
 	IsShareVideo  int32  `json:"is_share_video,omitempty"`
 	Blocked       bool   `json:"blocked,omitempty"`

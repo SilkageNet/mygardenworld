@@ -440,6 +440,29 @@ func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 		})
 	}
 
+	for _, evt := range st.ZooEventActions() {
+		status := pb.PlanStatus_PLAN_STATUS_READY
+		if evt.Blocked {
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+		}
+		title := evt.Name
+		if title == "" {
+			title = fmt.Sprintf("宠物日志 #%d", evt.TableID)
+		}
+		if evt.Action == "read_log" && !evt.Blocked {
+			title += "（待确认已读）"
+		}
+		if evt.BlockedReason != "" {
+			title = fmt.Sprintf("%s：%s", title, evt.BlockedReason)
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "宠物事件",
+			Id:       fmt.Sprintf("%d:%d", evt.PetID, evt.TableID),
+			Title:    title,
+			Status:   status,
+		})
+	}
+
 	return out
 }
 

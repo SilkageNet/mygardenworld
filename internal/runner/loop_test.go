@@ -303,6 +303,8 @@ func TestZooOperationArgs(t *testing.T) {
 		{name: "refresh", op: automation.PlannedOp{Kind: clientproto.RPCZooRefreshPetStatus.String(), TargetID: 1}, want: clientproto.ZooRefreshPetStatusRequest{PetIdList: clientproto.RPCIDList{1}}},
 		{name: "stock", op: automation.PlannedOp{Kind: clientproto.RPCZooAddFoodstuff.String(), TargetID: 1, ItemID: 1501, Count: 3, ItemCost: map[int32]int32{1501: 3}}, want: clientproto.ZooAddFoodstuffRequest{PetId: 1, FoodstuffIds: clientproto.RPCIDList{1501, 1501, 1501}}},
 		{name: "stroke", op: automation.PlannedOp{Kind: clientproto.RPCZooStrokePet.String(), TargetID: 1}, want: clientproto.ZooStrokePetRequest{PetId: 1}},
+		{name: "handle log index", op: automation.PlannedOp{Kind: clientproto.RPCZooHandleEvent.String(), TargetID: 1, ItemID: 42, Count: 1}, want: clientproto.ZooHandleEventRequest{PetId: 1, TableId: 42, Agree: true, IsShareVideo: 0}},
+		{name: "read log", op: automation.PlannedOp{Kind: clientproto.RPCZooReadLog.String(), TargetID: 1, ItemID: 42}, want: clientproto.ZooReadLogRequest{PetId: 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -321,10 +323,26 @@ func TestZooOperationRegistryExcludesUnsafeRPCs(t *testing.T) {
 	for _, rpc := range []clientproto.RPCName{
 		clientproto.RPCZooFeedPets,
 		clientproto.RPCZooFindPet,
-		clientproto.RPCZooHandleEvent,
 	} {
 		if _, ok := operationSpecFor(rpc.String()); ok {
 			t.Fatalf("unsafe zoo RPC %s remains executable", rpc)
+		}
+	}
+}
+
+func TestZooHandleEventRejectsAnyCostOrAmbiguousResult(t *testing.T) {
+	base := automation.PlannedOp{Kind: clientproto.RPCZooHandleEvent.String(), TargetID: 1, ItemID: 42, Count: 1}
+	if _, err := operationArgs(&base); err != nil {
+		t.Fatalf("safe handleEvent args: %v", err)
+	}
+	for _, op := range []automation.PlannedOp{
+		{Kind: base.Kind, TargetID: 1, ItemID: 42, Count: 0},
+		{Kind: base.Kind, TargetID: 1, ItemID: 42, Count: 1, GoldCost: 1},
+		{Kind: base.Kind, TargetID: 1, ItemID: 42, Count: 1, DiamondCost: 1},
+		{Kind: base.Kind, TargetID: 1, ItemID: 42, Count: 1, ItemCost: map[int32]int32{11: 1}},
+	} {
+		if _, err := operationArgs(&op); err == nil {
+			t.Fatalf("unsafe handleEvent unexpectedly accepted: %+v", op)
 		}
 	}
 }

@@ -196,12 +196,52 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 		}
 	}
 	if policy.GetAutoEventEnabled() {
-		reason := "宠物字段事件推断已停用，等待服务端日志提供无歧义事件"
-		blocked := markerOp(CategoryBasic, "basic.zoo.event", "handle_event", reason, 5665)
-		blocked.Status = PlanStatusBlocked
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{reason}
-		ops = append(ops, blocked)
+		if !s.ZooLogsObserved() {
+			reason := "宠物服务端日志尚未同步，不使用宠物字段猜测事件"
+			blocked := markerOp(CategoryBasic, "basic.zoo.event", "handle_event", reason, 5665)
+			blocked.Status = PlanStatusBlocked
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{reason}
+			ops = append(ops, blocked)
+		} else {
+			actionPlanned := false
+			for _, evt := range s.ZooEventActions() {
+				reason := evt.BlockedReason
+				if reason == "" {
+					if evt.Action == "read_log" {
+						reason = "确认已完成宠物日志为已读"
+					} else {
+						reason = "宠物服务端日志确认事件无消耗且结果唯一"
+					}
+				}
+				if evt.Blocked {
+					blocked := markerOp(CategoryBasic, "basic.zoo.event", evt.Action, reason, 5665)
+					blocked.Status = PlanStatusBlocked
+					blocked.Executable = false
+					blocked.TargetID = evt.PetID
+					blocked.ItemID = evt.TableID
+					blocked.OperationID = operationID(blocked.Kind, nil, 0, evt.PetID, evt.TableID)
+					blocked.BlockedReasons = []string{reason}
+					ops = append(ops, blocked)
+					continue
+				}
+				if actionPlanned {
+					continue
+				}
+				actionPlanned = true
+				rpc := clientproto.RPCZooHandleEvent.String()
+				priority := int32(5665)
+				if evt.Action == "read_log" {
+					rpc = clientproto.RPCZooReadLog.String()
+					priority = 5664
+				}
+				planned := domainOp(rpc, goal, "basic.zoo.event", evt.Action, reason, priority, evt.PetID, evt.TableID, 0)
+				if evt.Action == "handle_event" {
+					planned.Count = 1
+				}
+				ops = append(ops, planned)
+			}
+		}
 	}
 	if policy.GetAutoBuyFood() {
 		blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", "购买猫粮涉及成本和商品选择，暂不自动执行", 5660)

@@ -1,8 +1,11 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -19,6 +22,9 @@ func (s *State) applyZooLocked(raw json.RawMessage) {
 	}
 	if rawPets, ok := ns33["1"]; ok {
 		s.applyZooPetMapLocked(rawPets)
+	}
+	if rawLogs, ok := ns33["2"]; ok {
+		s.applyZooLogMapLocked(rawLogs)
 	}
 }
 
@@ -142,8 +148,13 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if n, ok := readInt64JSONField(fields, "15"); ok {
 		pet.GoOutCdTimeMs = n
 	}
-	if n, ok := readInt64JSONField(fields, "19"); ok {
-		pet.ReadLogTimeMs = n
+	if rawReadLogTime, observed := fields["19"]; observed {
+		pet.ReadLogTimeObserved = false
+		pet.ReadLogTimeMs = 0
+		if n, ok := readZooLogInt64Raw(rawReadLogTime); ok {
+			pet.ReadLogTimeMs = n
+			pet.ReadLogTimeObserved = true
+		}
 	}
 	if n, ok := readInt64JSONField(fields, "23"); ok {
 		pet.UpdatedAtMs = n
@@ -152,6 +163,263 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 		pet.EventTriggerTimes = readInt64RawMap(rawTimes)
 	}
 	return pet, true
+}
+
+func (s *State) applyZooLogMapLocked(raw json.RawMessage) {
+	if !isZooLogJSONObject(raw) {
+		s.invalidateZooLogsLocked("宠物日志集合不是对象，旧日志状态已失去可信度")
+		return
+	}
+	var logMap map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &logMap); err != nil {
+		s.invalidateZooLogsLocked("宠物日志集合解析失败，旧日志状态已失去可信度")
+		return
+	}
+	s.zooLogsObserved = true
+	if s.zooLogs == nil {
+		s.zooLogs = make(map[string]*ZooLogView)
+	}
+	for key, rawLog := range logMap {
+		if len(rawLog) == 0 || string(rawLog) == "null" {
+			delete(s.zooLogs, key)
+			continue
+		}
+		mapPetID, mapIndex, ok := parseZooLogKey(key)
+		if !ok {
+			s.invalidateZooLogsLocked("宠物日志键格式无效，日志集合已失去可信度")
+			return
+		}
+		base := ZooLogView{
+			Key:           key,
+			MapPetID:      mapPetID,
+			MapIndex:      mapIndex,
+			PetID:         mapPetID,
+			PetIDObserved: true,
+			Index:         mapIndex,
+			IndexObserved: true,
+		}
+		if old := s.zooLogs[key]; old != nil && !old.Malformed {
+			base = cloneZooLogView(*old)
+		}
+		log, ok := parseZooLogView(rawLog, base)
+		if !ok {
+			base.Malformed = true
+			base.MalformedReason = "宠物日志条目不是可解析对象，拒绝沿用旧状态"
+			cp := base
+			s.zooLogs[key] = &cp
+			continue
+		}
+		log.Malformed = false
+		log.MalformedReason = ""
+		cp := log
+		s.zooLogs[key] = &cp
+	}
+}
+
+func isZooLogJSONObject(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) >= 2 && trimmed[0] == '{' && trimmed[len(trimmed)-1] == '}'
+}
+
+func (s *State) invalidateZooLogsLocked(reason string) {
+	s.zooLogsObserved = false
+	for _, log := range s.zooLogs {
+		if log == nil {
+			continue
+		}
+		log.Malformed = true
+		log.MalformedReason = reason
+	}
+}
+
+func parseZooLogKey(key string) (int32, int32, bool) {
+	petRaw, indexRaw, ok := strings.Cut(key, "|")
+	if !ok || strings.Contains(indexRaw, "|") {
+		return 0, 0, false
+	}
+	petValue, petErr := strconv.ParseInt(petRaw, 10, 32)
+	indexValue, indexErr := strconv.ParseInt(indexRaw, 10, 32)
+	petID, index := int32(petValue), int32(indexValue)
+	return petID, index, petErr == nil && indexErr == nil && petID > 0 && index > 0
+}
+
+func parseZooLogView(raw json.RawMessage, base ZooLogView) (ZooLogView, bool) {
+	if !isZooLogJSONObject(raw) {
+		return ZooLogView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ZooLogView{}, false
+	}
+	log := base
+	valid := true
+	setInt64 := func(key string, value *int64, observed *bool) {
+		if rawValue, present := fields[key]; present {
+			*observed = false
+			if n, ok := readZooLogInt64Raw(rawValue); ok {
+				*value = n
+				*observed = true
+			} else {
+				valid = false
+			}
+		}
+	}
+	setInt32 := func(key string, value *int32, observed *bool) {
+		if rawValue, present := fields[key]; present {
+			*observed = false
+			if n, ok := readZooLogInt32Raw(rawValue); ok {
+				*value = n
+				*observed = true
+			} else {
+				valid = false
+			}
+		}
+	}
+	setInt64("0", &log.UID, &log.UIDObserved)
+	setInt32("1", &log.PetID, &log.PetIDObserved)
+	setInt32("2", &log.Index, &log.IndexObserved)
+	setInt32("3", &log.MoodChangeValue, &log.MoodChangeObserved)
+	setInt32("4", &log.SatietyChangeValue, &log.SatietyChangeObserved)
+	setInt32("5", &log.GoOutEventID, &log.GoOutEventIDObserved)
+	setInt32("6", &log.EventType, &log.EventTypeObserved)
+	setInt32("7", &log.ProType, &log.ProTypeObserved)
+	if rawGain, present := fields["8"]; present {
+		log.Gain, log.GainObserved = readZooLogItemMap(rawGain)
+		valid = valid && log.GainObserved
+	}
+	if rawConsume, present := fields["9"]; present {
+		log.Consume, log.ConsumeObserved = readZooLogItemMap(rawConsume)
+		valid = valid && log.ConsumeObserved
+	}
+	if rawSouvenir, present := fields["10"]; present {
+		log.Souvenir, log.SouvenirObserved = readZooLogItemMap(rawSouvenir)
+		valid = valid && log.SouvenirObserved
+	}
+	if rawExt, present := fields["11"]; present {
+		ext, ok := parseZooLogExtView(rawExt)
+		if ok {
+			log.Ext = ext
+			log.ExtObserved = true
+		} else {
+			log.Ext = ZooLogExtView{}
+			log.ExtObserved = false
+			valid = false
+		}
+	}
+	setInt64("12", &log.UpdatedAtMs, &log.UpdatedAtObserved)
+	setInt64("13", &log.CreatedAtMs, &log.CreatedAtObserved)
+	setInt64("14", &log.InsertedAtMs, &log.InsertedAtObserved)
+	return log, valid
+}
+
+func parseZooLogExtView(raw json.RawMessage) (ZooLogExtView, bool) {
+	ext := ZooLogExtView{ConsumeObserved: true, Consume2Observed: true}
+	if !isZooLogJSONObject(raw) {
+		return ZooLogExtView{}, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ZooLogExtView{}, false
+	}
+	if rawName, present := fields["0"]; present {
+		if json.Unmarshal(rawName, &ext.UserName) != nil {
+			return ZooLogExtView{}, false
+		}
+		ext.UserNameObserved = true
+	}
+	if rawName, present := fields["1"]; present {
+		if json.Unmarshal(rawName, &ext.PetName) != nil {
+			return ZooLogExtView{}, false
+		}
+		ext.PetNameObserved = true
+	}
+	if rawPetID, present := fields["2"]; present {
+		n, ok := readZooLogInt32Raw(rawPetID)
+		if !ok {
+			return ZooLogExtView{}, false
+		}
+		ext.PetID = n
+		ext.PetIDObserved = true
+	}
+	if rawConsume, present := fields["3"]; present {
+		var ok bool
+		ext.Consume, ok = readZooLogItemMap(rawConsume)
+		if !ok {
+			return ZooLogExtView{}, false
+		}
+	}
+	if rawConsume, present := fields["4"]; present {
+		var ok bool
+		ext.Consume2, ok = readZooLogItemMap(rawConsume)
+		if !ok {
+			return ZooLogExtView{}, false
+		}
+	}
+	if rawBack, present := fields["5"]; present {
+		n, ok := readZooLogInt32Raw(rawBack)
+		if !ok {
+			return ZooLogExtView{}, false
+		}
+		ext.IsUserBack = n
+		ext.IsUserBackObserved = true
+	}
+	return ext, true
+}
+
+func readZooLogItemMap(raw json.RawMessage) (map[int32]int32, bool) {
+	if !isZooLogJSONObject(raw) {
+		return nil, false
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, false
+	}
+	out := make(map[int32]int32, len(fields))
+	for rawID, rawCount := range fields {
+		itemValue, itemErr := strconv.ParseInt(rawID, 10, 32)
+		itemID := int32(itemValue)
+		count, ok := readZooLogInt32Raw(rawCount)
+		if itemErr != nil || itemID <= 0 || !ok {
+			return nil, false
+		}
+		out[itemID] = count
+	}
+	if len(out) == 0 {
+		return nil, true
+	}
+	return out, true
+}
+
+func readZooLogInt32Raw(raw json.RawMessage) (int32, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, false
+	}
+	var n int32
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, true
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return 0, false
+	}
+	value, err := strconv.ParseInt(s, 10, 32)
+	return int32(value), err == nil
+}
+
+func readZooLogInt64Raw(raw json.RawMessage) (int64, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, false
+	}
+	var n int64
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n, true
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return 0, false
+	}
+	value, err := strconv.ParseInt(s, 10, 64)
+	return value, err == nil
 }
 
 func cloneZooView(src ZooView) ZooView {
@@ -171,6 +439,22 @@ func cloneZooPetView(src ZooPetView) ZooPetView {
 			out.EventTriggerTimes[id] = t
 		}
 	}
+	return out
+}
+
+func cloneZooLogExtView(src ZooLogExtView) ZooLogExtView {
+	out := src
+	out.Consume = cloneInt32Map(src.Consume)
+	out.Consume2 = cloneInt32Map(src.Consume2)
+	return out
+}
+
+func cloneZooLogView(src ZooLogView) ZooLogView {
+	out := src
+	out.Gain = cloneInt32Map(src.Gain)
+	out.Consume = cloneInt32Map(src.Consume)
+	out.Souvenir = cloneInt32Map(src.Souvenir)
+	out.Ext = cloneZooLogExtView(src.Ext)
 	return out
 }
 
@@ -200,6 +484,26 @@ func (s *State) ZooPets() map[int32]ZooPetView {
 		out[id] = cloneZooPetView(*pet)
 	}
 	return out
+}
+
+// ZooLogs returns a defensive copy of the namespace 33.2 log map.
+func (s *State) ZooLogs() map[string]ZooLogView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]ZooLogView, len(s.zooLogs))
+	for key, log := range s.zooLogs {
+		if log != nil {
+			out[key] = cloneZooLogView(*log)
+		}
+	}
+	return out
+}
+
+// ZooLogsObserved reports whether namespace 33.2 has been observed as an object.
+func (s *State) ZooLogsObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.zooLogsObserved
 }
 
 // ReadyZooStatusRefreshPetIDs returns pets whose observed status cooldown has
@@ -291,10 +595,331 @@ func (s *State) ReadyZooStrokePetIDs(now time.Time) []int32 {
 	return out
 }
 
-// ZooEventActions intentionally returns no candidates until namespace 33.2
-// server logs are modeled. Pet fields alone are not a reliable event source.
+// ZooEventActions derives conservative actions exclusively from namespace
+// 33.2 server logs. Completed unread logs are coalesced to one read per pet.
 func (s *State) ZooEventActions() []ZooEventAction {
-	return nil
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var actions []ZooEventAction
+	readByPet := make(map[int32]ZooEventAction)
+	for _, log := range s.zooLogs {
+		if log == nil {
+			continue
+		}
+		if !s.zooLogsObserved || log.Malformed {
+			reason := log.MalformedReason
+			if reason == "" {
+				reason = "宠物日志状态不可信，拒绝自动处理"
+			}
+			action := "handle_event"
+			if log.ProTypeObserved && log.ProType != 0 {
+				action = "read_log"
+			}
+			actions = append(actions, blockedZooLogAction(*log, action, reason))
+			continue
+		}
+		if !log.ProTypeObserved {
+			actions = append(actions, blockedZooLogAction(*log, "handle_event", "宠物日志缺少处理状态，无法判断是否待处理"))
+			continue
+		}
+		if log.ProType == 0 {
+			actions = append(actions, zooActiveLogAction(*log))
+			continue
+		}
+
+		if !log.CreatedAtObserved || log.CreatedAtMs <= 0 {
+			actions = append(actions, blockedZooLogAction(*log, "read_log", "已完成宠物日志缺少创建时间，无法判断是否未读"))
+			continue
+		}
+		petID, reason := validatedZooLogIdentity(*log)
+		if reason != "" {
+			actions = append(actions, blockedZooLogAction(*log, "read_log", reason))
+			continue
+		}
+		pet := s.zooPets[petID]
+		if pet == nil || !pet.ReadLogTimeObserved {
+			actions = append(actions, blockedZooLogAction(*log, "read_log", "宠物已读日志时间未观测，拒绝把历史日志推断为未读"))
+			continue
+		}
+		if log.CreatedAtMs <= pet.ReadLogTimeMs {
+			continue
+		}
+		action := ZooEventAction{
+			PetID:       petID,
+			EventID:     log.GoOutEventID,
+			TableID:     log.MapIndex,
+			CreatedAtMs: log.CreatedAtMs,
+			Name:        zooEventName(log.GoOutEventID),
+			Action:      "read_log",
+		}
+		if current, ok := readByPet[petID]; !ok || zooEventActionNewer(action, current) {
+			readByPet[petID] = action
+		}
+	}
+	for _, action := range readByPet {
+		actions = append(actions, action)
+	}
+	sort.Slice(actions, func(i, j int) bool {
+		leftRank, rightRank := zooEventActionRank(actions[i]), zooEventActionRank(actions[j])
+		if leftRank != rightRank {
+			return leftRank < rightRank
+		}
+		if actions[i].CreatedAtMs != actions[j].CreatedAtMs {
+			return actions[i].CreatedAtMs > actions[j].CreatedAtMs
+		}
+		if actions[i].PetID != actions[j].PetID {
+			return actions[i].PetID < actions[j].PetID
+		}
+		return actions[i].TableID < actions[j].TableID
+	})
+	return actions
+}
+
+// ZooHandleEventAction re-evaluates one exact log against the current state.
+// Runners use it immediately before the RPC to close the planning/execution gap.
+func (s *State) ZooHandleEventAction(petID, index int32) (ZooEventAction, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key := itoaState(int(petID)) + "|" + itoaState(int(index))
+	log := s.zooLogs[key]
+	if log == nil {
+		return ZooEventAction{}, false
+	}
+	if !s.zooLogsObserved || log.Malformed {
+		reason := log.MalformedReason
+		if reason == "" {
+			reason = "宠物日志状态不可信"
+		}
+		return blockedZooLogAction(*log, "handle_event", reason), true
+	}
+	if !log.ProTypeObserved || log.ProType != 0 {
+		return blockedZooLogAction(*log, "handle_event", "宠物日志当前已不再是待处理状态"), true
+	}
+	return zooActiveLogAction(*log), true
+}
+
+// ZooLogHandled reports the required handleEvent postcondition: the exact log
+// was removed, or the server explicitly changed proType away from zero.
+func (s *State) ZooLogHandled(petID, index int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key := itoaState(int(petID)) + "|" + itoaState(int(index))
+	log := s.zooLogs[key]
+	if !s.zooLogsObserved {
+		return false
+	}
+	return log == nil || !log.Malformed && log.ProTypeObserved && log.ProType != 0
+}
+
+// ZooReadLogAction re-evaluates one completed unread log immediately before a
+// standalone readLog RPC.
+func (s *State) ZooReadLogAction(petID, index int32) (ZooEventAction, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key := itoaState(int(petID)) + "|" + itoaState(int(index))
+	log := s.zooLogs[key]
+	if log == nil {
+		return ZooEventAction{}, false
+	}
+	blocked := func(reason string) (ZooEventAction, bool) {
+		return blockedZooLogAction(*log, "read_log", reason), true
+	}
+	if !s.zooLogsObserved || log.Malformed {
+		reason := log.MalformedReason
+		if reason == "" {
+			reason = "宠物日志状态不可信"
+		}
+		return blocked(reason)
+	}
+	if !log.ProTypeObserved || log.ProType == 0 {
+		return blocked("宠物日志当前不是已完成状态")
+	}
+	if !log.CreatedAtObserved || log.CreatedAtMs <= 0 {
+		return blocked("已完成宠物日志缺少创建时间")
+	}
+	validatedPetID, reason := validatedZooLogIdentity(*log)
+	if reason != "" || validatedPetID != petID {
+		if reason == "" {
+			reason = "宠物日志身份与请求不一致"
+		}
+		return blocked(reason)
+	}
+	pet := s.zooPets[petID]
+	if pet == nil || !pet.ReadLogTimeObserved {
+		return blocked("宠物已读日志时间未观测")
+	}
+	if log.CreatedAtMs <= pet.ReadLogTimeMs {
+		return blocked("宠物日志当前已不是未读状态")
+	}
+	return ZooEventAction{
+		PetID:       petID,
+		EventID:     log.GoOutEventID,
+		TableID:     index,
+		CreatedAtMs: log.CreatedAtMs,
+		Name:        zooEventName(log.GoOutEventID),
+		Action:      "read_log",
+	}, true
+}
+
+// ZooLogRead reports the standalone readLog postcondition for the exact log.
+func (s *State) ZooLogRead(petID, index int32, capturedCreatedAtMs int64) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key := itoaState(int(petID)) + "|" + itoaState(int(index))
+	if !s.zooLogsObserved {
+		return false
+	}
+	log := s.zooLogs[key]
+	if log == nil {
+		return true
+	}
+	if log.Malformed {
+		return false
+	}
+	pet := s.zooPets[petID]
+	return capturedCreatedAtMs > 0 && pet != nil && pet.ReadLogTimeObserved && pet.ReadLogTimeMs >= capturedCreatedAtMs
+}
+
+func zooActiveLogAction(log ZooLogView) ZooEventAction {
+	action := ZooEventAction{
+		PetID:       log.MapPetID,
+		EventID:     log.GoOutEventID,
+		TableID:     log.MapIndex,
+		CreatedAtMs: log.CreatedAtMs,
+		Name:        zooEventName(log.GoOutEventID),
+		Action:      "handle_event",
+		Agree:       true,
+	}
+	var reasons []string
+	if _, reason := validatedZooLogIdentity(log); reason != "" {
+		reasons = append(reasons, reason)
+	}
+	if !log.GoOutEventIDObserved || log.GoOutEventID <= 0 {
+		reasons = append(reasons, "宠物日志缺少事件配置 ID")
+	}
+	if !log.EventTypeObserved || log.EventType <= 0 {
+		reasons = append(reasons, "宠物日志缺少事件类型")
+	}
+	if !log.CreatedAtObserved || log.CreatedAtMs <= 0 {
+		reasons = append(reasons, "宠物日志缺少创建时间")
+	}
+	if !log.GainObserved {
+		reasons = append(reasons, "宠物日志收益字段未完整观测")
+	} else if len(log.Gain) != 0 {
+		reasons = append(reasons, "宠物日志已包含收益结果，只允许确认已读")
+	}
+	if !log.ConsumeObserved {
+		reasons = append(reasons, "宠物日志消耗字段未观测")
+	} else if len(log.Consume) != 0 {
+		reasons = append(reasons, "宠物事件存在物品或货币消耗")
+	}
+	if !log.ExtObserved || !log.Ext.ConsumeObserved || !log.Ext.Consume2Observed {
+		reasons = append(reasons, "宠物日志扩展消耗字段未完整观测")
+	} else if len(log.Ext.Consume) != 0 || len(log.Ext.Consume2) != 0 {
+		reasons = append(reasons, "宠物事件扩展结果包含消耗")
+	}
+	if !log.SouvenirObserved {
+		reasons = append(reasons, "宠物日志纪念品字段未完整观测")
+	} else if len(log.Souvenir) != 0 {
+		reasons = append(reasons, "宠物日志已包含纪念品结果，只允许确认已读")
+	}
+	info, ok := ZooEventInfoByID(log.GoOutEventID)
+	if !ok {
+		reasons = append(reasons, "宠物事件静态配置不存在")
+	} else {
+		action.Name = info.Name
+		if log.EventTypeObserved && log.EventType > 0 && log.EventType != info.Type {
+			reasons = append(reasons, "宠物日志事件类型与静态配置不一致")
+		}
+		// The observed client only calls handleEvent from its item-choice branch:
+		// eventType is not 2, static mood/satiety handling is absent, gain is
+		// empty, and ext.consume supplies the first choice. Type-2 rewards and
+		// mood/satiety changes go directly to readLog instead. We still reject
+		// every ext.consume entry below as a cost, so capture/catalog data do not
+		// currently produce an executable handleEvent candidate.
+		if !zooClientHandleBranch(log, info) {
+			reasons = append(reasons, "宠物日志形状不符合已观测客户端 handleEvent 分支")
+		}
+		if info.SharedID != 0 || info.Code != "" {
+			reasons = append(reasons, "宠物事件关联分享、视频或特殊客户端流程")
+		}
+		if info.HasReward2 || len(info.Reward2) > 0 || info.NoHandle || info.Result || strings.Contains(info.Text, "|") {
+			reasons = append(reasons, "宠物事件存在二选一、稍后处理或多结果分支")
+		}
+		resultCount := 0
+		for _, present := range []bool{info.HasReward1, info.MoodChange != 0, info.SatietyChange != 0, info.SouvenirID != 0} {
+			if present {
+				resultCount++
+			}
+		}
+		if resultCount != 1 {
+			reasons = append(reasons, "宠物事件结果类别不唯一")
+		}
+	}
+	if len(reasons) > 0 {
+		action.Blocked = true
+		action.Agree = false
+		action.BlockedReason = strings.Join(reasons, "；")
+	}
+	return action
+}
+
+func zooClientHandleBranch(log ZooLogView, info ZooEventInfo) bool {
+	return log.EventTypeObserved && log.EventType > 0 && log.EventType != 2 &&
+		info.MoodChange == 0 && info.SatietyChange == 0 &&
+		log.GainObserved && len(log.Gain) == 0 &&
+		log.ExtObserved && log.Ext.ConsumeObserved && len(log.Ext.Consume) > 0
+}
+
+func validatedZooLogIdentity(log ZooLogView) (int32, string) {
+	if !log.PetIDObserved || log.PetID <= 0 || log.MapPetID <= 0 {
+		return 0, "宠物日志缺少宠物 ID"
+	}
+	if log.PetID != log.MapPetID {
+		return 0, "宠物日志键与宠物 ID 不一致"
+	}
+	if !log.IndexObserved || log.Index <= 0 || log.MapIndex <= 0 {
+		return 0, "宠物日志缺少日志序号"
+	}
+	if log.Index != log.MapIndex {
+		return 0, "宠物日志键与日志序号不一致"
+	}
+	return log.PetID, ""
+}
+
+func blockedZooLogAction(log ZooLogView, action, reason string) ZooEventAction {
+	return ZooEventAction{
+		PetID:         log.MapPetID,
+		EventID:       log.GoOutEventID,
+		TableID:       log.MapIndex,
+		CreatedAtMs:   log.CreatedAtMs,
+		Name:          zooEventName(log.GoOutEventID),
+		Action:        action,
+		Blocked:       true,
+		BlockedReason: reason,
+	}
+}
+
+func zooEventName(eventID int32) string {
+	if info, ok := ZooEventInfoByID(eventID); ok {
+		return info.Name
+	}
+	return ""
+}
+
+func zooEventActionNewer(left, right ZooEventAction) bool {
+	return left.CreatedAtMs > right.CreatedAtMs || left.CreatedAtMs == right.CreatedAtMs && left.TableID > right.TableID
+}
+
+func zooEventActionRank(action ZooEventAction) int {
+	if action.Blocked {
+		return 2
+	}
+	if action.Action == "handle_event" {
+		return 0
+	}
+	return 1
 }
 
 // ZooMoodMax returns the client-configured pet mood cap.

@@ -282,6 +282,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Zoo().StrokePet(ctx, req)
 		},
 	),
+	clientproto.RPCZooHandleEvent.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return zooHandleEventRequest(op) },
+		run:  runZooHandleEvent,
+	},
+	clientproto.RPCZooReadLog.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return zooReadLogRequest(op) },
+		run:  runZooReadLog,
+	},
 	clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(): stateDeltaOperation(
 		staticRequest(clientproto.UsrExtraUpdateAntiFraudQAStatusRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrExtraUpdateAntiFraudQAStatusRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

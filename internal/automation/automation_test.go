@@ -1393,8 +1393,8 @@ func TestBuildPlan_ZooCostAndEventBlocked(t *testing.T) {
 	}
 }
 
-func TestZooUnsafeFeaturesAreNotExecutable(t *testing.T) {
-	wantBlocked := map[string]bool{"basic.zoo_find_pet": false, "basic.zoo_handle_event": false}
+func TestZooFindPetFeatureRemainsBlocked(t *testing.T) {
+	wantBlocked := map[string]bool{"basic.zoo_find_pet": false}
 	for _, spec := range featureSpecs {
 		if _, ok := wantBlocked[spec.ID]; !ok {
 			continue
@@ -1408,6 +1408,102 @@ func TestZooUnsafeFeaturesAreNotExecutable(t *testing.T) {
 		if !seen {
 			t.Fatalf("missing zoo feature %s", id)
 		}
+	}
+	wantExecutable := map[string]bool{"basic.zoo_handle_event": false, "basic.zoo_read_log": false}
+	for _, spec := range featureSpecs {
+		if _, ok := wantExecutable[spec.ID]; !ok {
+			continue
+		}
+		if !spec.Executable || spec.Status != PlanStatusManaged || len(spec.BlockedReasons) != 0 {
+			t.Fatalf("safe zoo log feature not executable: %+v", spec)
+		}
+		wantExecutable[spec.ID] = true
+	}
+	for id, seen := range wantExecutable {
+		if !seen {
+			t.Fatalf("missing zoo feature %s", id)
+		}
+	}
+}
+
+func TestBuildPlan_ZooObservedType2LogsBlockedAndOneReadPerTick(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1},
+		"1": map[string]any{"7": map[string]any{"1": 7, "19": int64(1000)}},
+		"2": map[string]any{
+			"7|40": map[string]any{"1": 7, "2": 40, "5": 2096, "6": 2, "7": 0, "8": map[string]any{}, "9": map[string]any{}, "10": map[string]any{}, "11": map[string]any{}, "13": int64(1900)},
+			"7|41": map[string]any{"1": 7, "2": 41, "5": 2001, "7": 1, "13": int64(1500)},
+			"7|42": map[string]any{"1": 7, "2": 42, "5": 2096, "6": 2, "7": 0, "8": map[string]any{}, "9": map[string]any{}, "10": map[string]any{}, "11": map[string]any{}, "13": int64(2000)},
+		},
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoEventEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	blockedIndexes := map[int32]bool{}
+	var read PlannedOp
+	executable := 0
+	for _, op := range result.Operations {
+		if op.Domain != "basic.zoo.event" {
+			continue
+		}
+		if op.Executable {
+			executable++
+		}
+		if op.Action == "handle_event" {
+			if op.Executable || op.Status != PlanStatusBlocked || !strings.Contains(op.Reason, "已观测客户端 handleEvent 分支") {
+				t.Fatalf("observed type-2 log became executable: %+v", op)
+			}
+			blockedIndexes[op.ItemID] = true
+		}
+		if op.Action == "read_log" {
+			read = op
+		}
+	}
+	if !blockedIndexes[40] || !blockedIndexes[42] || len(blockedIndexes) != 2 {
+		t.Fatalf("blocked handle indexes=%+v, want log indexes 40 and 42", blockedIndexes)
+	}
+	if executable != 1 || read.Kind != clientproto.RPCZooReadLog.String() || read.TargetID != 7 || read.ItemID != 41 || !read.Executable {
+		t.Fatalf("read event op=%+v executable=%d, want one read using log idx 41", read, executable)
+	}
+	if read.ItemID == 2001 {
+		t.Fatalf("read operation used event ID instead of log index: %+v", read)
+	}
+}
+
+func TestBuildPlan_ZooBlockedLogDoesNotHideSafeRead(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1},
+		"1": map[string]any{"7": map[string]any{"1": 7, "19": int64(1000)}},
+		"2": map[string]any{
+			"7|41": map[string]any{"1": 7, "2": 41, "5": 2001, "7": 1, "13": int64(1500)},
+			"7|42": map[string]any{"1": 7, "2": 42, "5": 2096, "6": 2, "7": 0, "8": map[string]any{}, "9": map[string]any{"11": 1}, "10": map[string]any{}, "11": map[string]any{}, "13": int64(2000)},
+		},
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoEventEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var blocked, read bool
+	for _, op := range result.Operations {
+		if op.Domain != "basic.zoo.event" {
+			continue
+		}
+		if op.Action == "handle_event" && !op.Executable && op.Status == PlanStatusBlocked && strings.Contains(op.Reason, "消耗") {
+			blocked = true
+		}
+		if op.Action == "read_log" && op.Executable && op.Kind == clientproto.RPCZooReadLog.String() {
+			read = true
+		}
+	}
+	if !blocked || !read {
+		t.Fatalf("zoo event operations=%+v, want blocked diagnostic plus executable read", result.Operations)
 	}
 }
 

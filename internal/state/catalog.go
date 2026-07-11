@@ -142,17 +142,21 @@ type StoryMainSectionInfo struct {
 // ZooEventInfo describes one c_zooEvent row relevant to conservative event
 // automation.
 type ZooEventInfo struct {
-	EventID    int32
-	Name       string
-	Type       int32
-	SharedID   int32
-	NoHandle   bool
-	Result     bool
-	Reward1    []ItemCount
-	HasReward1 bool
-	Reward2    []ItemCount
-	HasReward2 bool
-	Text       string
+	EventID       int32
+	Name          string
+	Type          int32
+	SharedID      int32
+	Code          string
+	NoHandle      bool
+	Result        bool
+	Reward1       []ItemCount
+	HasReward1    bool
+	Reward2       []ItemCount
+	HasReward2    bool
+	MoodChange    int32
+	SatietyChange int32
+	SouvenirID    int32
+	Text          string
 }
 
 // FmlBuildOption describes one c_fmlBld donation/build option.
@@ -532,30 +536,38 @@ func ZooEventInfoByID(eventID int32) (ZooEventInfo, bool) {
 		return ZooEventInfo{}, false
 	}
 	var row struct {
-		Name     string          `json:"name"`
-		Type     int32           `json:"type"`
-		SharedID int32           `json:"sharedId"`
-		NoHandle json.RawMessage `json:"noHandle"`
-		Result   json.RawMessage `json:"result"`
-		Reward1  json.RawMessage `json:"reward1"`
-		Reward2  json.RawMessage `json:"reward2"`
-		Text     string          `json:"text"`
+		Name          string          `json:"name"`
+		Type          int32           `json:"type"`
+		SharedID      int32           `json:"sharedId"`
+		Code          string          `json:"code"`
+		NoHandle      json.RawMessage `json:"noHandle"`
+		Result        json.RawMessage `json:"result"`
+		Reward1       json.RawMessage `json:"reward1"`
+		Reward2       json.RawMessage `json:"reward2"`
+		MoodChange    int32           `json:"moodChange"`
+		SatietyChange int32           `json:"satietyChange"`
+		SouvenirID    int32           `json:"souvenirId"`
+		Text          string          `json:"text"`
 	}
 	if json.Unmarshal(raw, &row) != nil {
 		return ZooEventInfo{}, false
 	}
 	return ZooEventInfo{
-		EventID:    eventID,
-		Name:       strings.TrimSpace(row.Name),
-		Type:       row.Type,
-		SharedID:   row.SharedID,
-		NoHandle:   rawTruthy(row.NoHandle),
-		Result:     rawTruthy(row.Result),
-		Reward1:    readItemCountsRaw(row.Reward1),
-		HasReward1: rawTruthy(row.Reward1),
-		Reward2:    readItemCountsRaw(row.Reward2),
-		HasReward2: rawTruthy(row.Reward2),
-		Text:       strings.TrimSpace(row.Text),
+		EventID:       eventID,
+		Name:          strings.TrimSpace(row.Name),
+		Type:          row.Type,
+		SharedID:      row.SharedID,
+		Code:          strings.TrimSpace(row.Code),
+		NoHandle:      rawTruthy(row.NoHandle),
+		Result:        rawTruthy(row.Result),
+		Reward1:       readItemCountsRaw(row.Reward1),
+		HasReward1:    rawTruthy(row.Reward1),
+		Reward2:       readItemCountsRaw(row.Reward2),
+		HasReward2:    rawTruthy(row.Reward2),
+		MoodChange:    row.MoodChange,
+		SatietyChange: row.SatietyChange,
+		SouvenirID:    row.SouvenirID,
+		Text:          strings.TrimSpace(row.Text),
 	}, true
 }
 

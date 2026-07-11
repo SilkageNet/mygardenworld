@@ -207,6 +207,31 @@ func TestBuildPendingTasksDoesNotInferZooEventsFromPetFields(t *testing.T) {
 	}
 }
 
+func TestBuildPendingTasksUsesZooLogPetAndIndexIDs(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{"33": map[string]any{
+		"1": map[string]any{"7": map[string]any{"1": 7, "19": int64(1000)}},
+		"2": map[string]any{
+			"7|41": map[string]any{"1": 7, "2": 41, "5": 2001, "7": 1, "13": int64(1500)},
+			"7|42": map[string]any{"1": 7, "2": 42, "5": 2096, "6": 2, "7": 0, "8": map[string]any{}, "9": map[string]any{}, "10": map[string]any{}, "11": map[string]any{}, "13": int64(2000)},
+			"7|43": map[string]any{"1": 7, "2": 43, "5": 2096, "6": 2, "7": 0, "8": map[string]any{}, "9": map[string]any{"11": 1}, "10": map[string]any{}, "11": map[string]any{}, "13": int64(1900)},
+		},
+	}})
+
+	statuses := map[string]pb.PlanStatus{}
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "宠物事件" {
+			statuses[task.GetId()] = task.GetStatus()
+		}
+	}
+	if statuses["7:42"] != pb.PlanStatus_PLAN_STATUS_BLOCKED || statuses["7:41"] != pb.PlanStatus_PLAN_STATUS_READY || statuses["7:43"] != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+		t.Fatalf("zoo pending task statuses=%+v", statuses)
+	}
+	if _, exists := statuses["7:2096"]; exists {
+		t.Fatalf("pending task used eventId instead of log idx: %+v", statuses)
+	}
+}
+
 func residentOrderTask(t *testing.T, tasks []*pb.PendingTaskView) *pb.PendingTaskView {
 	t.Helper()
 	for _, task := range tasks {

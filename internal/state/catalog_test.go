@@ -115,7 +115,7 @@ func TestZooEventInfoDynamicReward(t *testing.T) {
 		t.Fatal("ZooEventInfoByID(2096) ok=false")
 	}
 	if event.Name != "助人为乐" || event.Type != 2 || !event.HasReward1 {
-		t.Fatalf("ZooEventInfoByID(2096)=%+v, want safe type=2 dynamic reward", event)
+		t.Fatalf("ZooEventInfoByID(2096)=%+v, want type=2 dynamic reward metadata", event)
 	}
 	if event.SharedID != 0 || event.HasReward2 || event.NoHandle || event.Result {
 		t.Fatalf("ZooEventInfoByID(2096)=%+v, want no share, no alternate result", event)

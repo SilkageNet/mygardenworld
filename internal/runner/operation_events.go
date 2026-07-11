@@ -363,13 +363,13 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d 食物=%d×%d)", op.TargetID, op.ItemID, op.Count)
 		}
-	case clientproto.RPCZooRefreshPetStatus.String(), clientproto.RPCZooStrokePet.String(), clientproto.RPCZooFeedPets.String(), clientproto.RPCZooFindPet.String():
+	case clientproto.RPCZooRefreshPetStatus.String(), clientproto.RPCZooStrokePet.String(), clientproto.RPCZooFeedPets.String(), clientproto.RPCZooFindPet.String(), clientproto.RPCZooReadLog.String():
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d)", op.TargetID)
 		}
 	case clientproto.RPCZooHandleEvent.String():
 		if op.TargetID > 0 && op.ItemID > 0 {
-			return fmt.Sprintf(" (宠物=%d 事件=%d)", op.TargetID, op.ItemID)
+			return fmt.Sprintf(" (宠物=%d 日志=%d)", op.TargetID, op.ItemID)
 		}
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d)", op.TargetID)
