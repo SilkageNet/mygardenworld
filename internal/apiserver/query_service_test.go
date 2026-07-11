@@ -391,8 +391,14 @@ func TestCyclicNoteProtoClampsDisplayButUsesRawProgressForReadiness(t *testing.T
 	view.Valid = true
 	view.Phase = 3
 	grace := cyclicNoteProto(view)
-	if grace.GetTasks()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY || grace.GetMilestones()[0].GetReady() || grace.GetMilestones()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY {
-		t.Fatalf("non-active phase exposed ready work: tasks=%+v milestones=%+v", grace.GetTasks(), grace.GetMilestones())
+	if grace.GetTasks()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY || !grace.GetMilestones()[0].GetReady() || grace.GetMilestones()[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("reward phase readiness mismatch: tasks=%+v milestones=%+v", grace.GetTasks(), grace.GetMilestones())
+	}
+
+	view.Phase = 4
+	ended := cyclicNoteProto(view)
+	if ended.GetTasks()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY || ended.GetMilestones()[0].GetReady() || ended.GetMilestones()[0].GetStatus() == pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("ended activity exposed ready work: tasks=%+v milestones=%+v", ended.GetTasks(), ended.GetMilestones())
 	}
 
 	view.Phase = 2
@@ -592,17 +598,21 @@ func TestDomainStatusUsesPlanStatus(t *testing.T) {
 func TestPlannedOperationsExposeLaneAndCooldown(t *testing.T) {
 	now := time.Date(2026, 7, 5, 12, 0, 0, 0, time.UTC)
 	ops := []automation.PlannedOp{{
-		OperationID: "taskDly.recv|target=40001",
-		Kind:        "taskDly.recv",
-		Lane:        automation.LaneSide,
-		Category:    automation.CategoryBasic,
-		Domain:      "basic.task.daily",
-		Action:      "claim",
-		Executable:  true,
-		Status:      automation.PlanStatusReady,
-		TargetID:    40001,
-		TargetUID:   9002001,
-		TargetUIDs:  []int64{9002001, 9002002},
+		OperationID:    "taskDly.recv|target=40001",
+		Kind:           "taskDly.recv",
+		Lane:           automation.LaneSide,
+		Category:       automation.CategoryBasic,
+		Domain:         "basic.task.daily",
+		Action:         "claim",
+		Executable:     true,
+		Status:         automation.PlanStatusReady,
+		TargetID:       40001,
+		TargetUID:      9002001,
+		TargetUIDs:     []int64{9002001, 9002002},
+		BatchID:        1309,
+		SlotID:         2,
+		TaskID:         2007,
+		MilestoneIndex: 3,
 	}}
 	diag := runner.Diagnostics{OperationCooldowns: []runner.OperationCooldownSnapshot{{
 		OperationID: "taskDly.recv|target=40001",
@@ -624,6 +634,9 @@ func TestPlannedOperationsExposeLaneAndCooldown(t *testing.T) {
 	}
 	if got[0].GetTargetUid() != 9002001 || !reflect.DeepEqual(got[0].GetTargetUids(), []int64{9002001, 9002002}) {
 		t.Fatalf("target uid(s)=(%d,%v), want mapped", got[0].GetTargetUid(), got[0].GetTargetUids())
+	}
+	if got[0].GetBatchId() != 1309 || got[0].GetSlotId() != 2 || got[0].GetTaskId() != 2007 || got[0].GetMilestoneIndex() != 3 {
+		t.Fatalf("activity identifiers=(%d,%d,%d,%d), want mapped", got[0].GetBatchId(), got[0].GetSlotId(), got[0].GetTaskId(), got[0].GetMilestoneIndex())
 	}
 }
 

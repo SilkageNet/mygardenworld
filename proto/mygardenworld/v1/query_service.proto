@@ -302,6 +302,10 @@ message PlannedOperation {
   string cooldown_reason = 30;
   int64 target_uid = 31;
   repeated int64 target_uids = 32;
+  int32 batch_id = 33;
+  int32 slot_id = 34;
+  int32 task_id = 35;
+  int32 milestone_index = 36;
 }
 
 message DomainStatus {

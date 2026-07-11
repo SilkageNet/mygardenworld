@@ -539,6 +539,7 @@ type CyclicNoteView struct {
 	CurrencyItemID            int32
 	CurrencyBalance           int32
 	FinishCount               int32
+	FinishCountObserved       bool
 	LastRefreshTimeMs         int64
 	ClaimedMilestoneIndexes   []int32
 	Tasks                     []CyclicNoteTaskSlotView
@@ -571,6 +572,38 @@ type CyclicNoteMilestoneView struct {
 	Target   int32
 	Received bool
 	Reward   []ItemCount
+}
+
+// CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.
+// Enter is only safe while the batch is in its active or reward-grace phase
+// and before its authoritative task list has been observed.
+type CyclicNoteEnterSnapshot struct {
+	At      time.Time
+	BatchID int32
+	Phase   int32
+}
+
+// CyclicNoteTaskClaimSnapshot freezes the unique task slot and the server
+// counters used to validate one reward claim.
+type CyclicNoteTaskClaimSnapshot struct {
+	At                  time.Time
+	BatchID             int32
+	SlotID              int32
+	TaskID              int32
+	Target              int32
+	Progress            int32
+	FinishCount         int32
+	FinishCountObserved bool
+}
+
+// CyclicNoteMilestoneClaimSnapshot freezes one score milestone before its
+// reward claim. MilestoneIndex is the server-configured idx, not its position.
+type CyclicNoteMilestoneClaimSnapshot struct {
+	At             time.Time
+	BatchID        int32
+	MilestoneIndex int32
+	Target         int32
+	Score          int32
 }
 
 // StoryMainView is the tracked subset of 7.101 (G.IStoryMain).

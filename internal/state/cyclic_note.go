@@ -11,29 +11,31 @@ import (
 const cyclicNoteTaskRecordIndex int32 = 0
 
 type activityBatchState struct {
-	BatchID           int32
-	IdentityValid     bool
-	TmpID             int32
-	TmpType           int32
-	Status            int32
-	BeginMs           int64
-	EndMs             int64
-	DurationBeforeMs  int64
-	DurationAfterMs   int64
-	Score             int32
-	ScoreObserved     bool
-	ScoreValid        bool
-	Bag               map[int32]int32
-	BagObserved       bool
-	BagValid          bool
-	ClaimedBoxes      []int32
-	BoxesObserved     bool
-	BoxesValid        bool
-	TaskList          []int32
-	TaskListObserved  bool
-	TaskListValid     bool
-	FinishCount       int32
-	LastRefreshTimeMs int64
+	BatchID             int32
+	IdentityValid       bool
+	TmpID               int32
+	TmpType             int32
+	Status              int32
+	BeginMs             int64
+	EndMs               int64
+	DurationBeforeMs    int64
+	DurationAfterMs     int64
+	Score               int32
+	ScoreObserved       bool
+	ScoreValid          bool
+	Bag                 map[int32]int32
+	BagObserved         bool
+	BagValid            bool
+	ClaimedBoxes        []int32
+	BoxesObserved       bool
+	BoxesValid          bool
+	TaskList            []int32
+	TaskListObserved    bool
+	TaskListValid       bool
+	FinishCount         int32
+	FinishCountObserved bool
+	FinishCountValid    bool
+	LastRefreshTimeMs   int64
 }
 
 type activityTemplateState struct {
@@ -195,8 +197,15 @@ func mergeCyclicNoteExtension(batch *activityBatchState, raw json.RawMessage) {
 		batch.TaskListObserved = true
 		batch.TaskListValid = parsed && valid
 	}
-	if value, ok := readActivityInt32Field(cyclic, "1"); ok {
-		batch.FinishCount = value
+	if rawFinishCount, present := cyclic["1"]; present {
+		value, valid := readActivityInt32Raw(rawFinishCount)
+		batch.FinishCountObserved = true
+		batch.FinishCountValid = valid && value >= 0
+		if batch.FinishCountValid {
+			batch.FinishCount = value
+		} else {
+			batch.FinishCount = 0
+		}
 	}
 	if value, ok := readActivityInt64Field(cyclic, "2"); ok {
 		batch.LastRefreshTimeMs = value
@@ -346,6 +355,7 @@ func (s *State) CyclicNoteView(now time.Time) (CyclicNoteView, bool) {
 	out.Score = batch.Score
 	out.Bag = cloneInt32Map(batch.Bag)
 	out.FinishCount = batch.FinishCount
+	out.FinishCountObserved = batch.FinishCountObserved && batch.FinishCountValid
 	out.LastRefreshTimeMs = batch.LastRefreshTimeMs
 	out.TaskListObserved = batch.TaskListObserved
 	out.MilestoneReceiptsObserved = batch.BoxesObserved && batch.BoxesValid
@@ -371,6 +381,7 @@ func (s *State) CyclicNoteView(now time.Time) (CyclicNoteView, bool) {
 	out.Valid = catalogOK && config.TmpType == batch.TmpType && batch.BatchID > 0 && batch.IdentityValid && batch.TmpID > 0 &&
 		batch.Status == 1 && batch.BeginMs > 0 && batch.EndMs > batch.BeginMs && batch.DurationBeforeMs >= 0 &&
 		batch.DurationAfterMs >= 0 && batch.ScoreObserved && batch.ScoreValid && batch.BagObserved && batch.BagValid &&
+		(!batch.FinishCountObserved || batch.FinishCountValid) &&
 		(!batch.BoxesObserved || batch.BoxesValid) &&
 		template != nil && template.IdentityValid && template.TmpID == batch.TmpID && template.TmpType == config.TmpType &&
 		template.BoxesObserved && template.BoxesValid && (!batch.TaskListObserved || batch.TaskListValid)

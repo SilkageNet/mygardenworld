@@ -58,6 +58,7 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = append(ops, shopOperations(s, policy)...)
 	ops = append(ops, maintenanceOperations(s, policy, ledger, now)...)
 	ops = append(ops, unionOperations(s, policy.GetUnion())...)
+	ops = append(ops, activityOperations(s, policy.GetActivity(), now)...)
 	ops = append(ops, blockedUnknownOperations(policy)...)
 	return ops
 }

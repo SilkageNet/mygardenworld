@@ -59,7 +59,7 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 		union.GetRedPacketEnabled(), CategoryUnion, "union.unknown", "公会扩展功能")
 	if policy.GetActivity().GetEnabled() {
 		for name, module := range policy.GetActivity().GetModules() {
-			if module != nil && module.GetEnabled() {
+			if name != "cyclicNote" && module != nil && module.GetEnabled() {
 				add(true, CategoryActivity, "activity."+name, "活动 "+name)
 			}
 		}

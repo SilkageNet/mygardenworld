@@ -133,7 +133,7 @@ func zooHandleEventRequest(op *automation.PlannedOp) (clientproto.ZooHandleEvent
 	if op.Count != 1 {
 		return clientproto.ZooHandleEventRequest{}, fmt.Errorf("handleEvent requires the unique agree result")
 	}
-	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+	if plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
 		return clientproto.ZooHandleEventRequest{}, fmt.Errorf("handleEvent automation only permits cost-free logs")
 	}
 	return clientproto.ZooHandleEventRequest{
@@ -215,6 +215,9 @@ func zooReadLogRequest(op *automation.PlannedOp) (clientproto.ZooReadLogRequest,
 	if op == nil || op.TargetID <= 0 || op.ItemID <= 0 {
 		return clientproto.ZooReadLogRequest{}, fmt.Errorf("readLog missing pet id or log index")
 	}
+	if plannedOpHasCyclicNoteTargets(op) {
+		return clientproto.ZooReadLogRequest{}, fmt.Errorf("readLog carries unexpected activity targets")
+	}
 	return clientproto.ZooReadLogRequest{PetId: op.TargetID}, nil
 }
 
@@ -295,7 +298,7 @@ func zooSouvenirBatchIDs(op *automation.PlannedOp, action string) ([]int32, erro
 	if op.Count != int32(len(op.SlotIDs)) {
 		return nil, fmt.Errorf("%s count %d does not match id list length %d", action, op.Count, len(op.SlotIDs))
 	}
-	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+	if plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
 		return nil, fmt.Errorf("%s automation only permits cost-free requests", action)
 	}
 	ids := append([]int32(nil), op.SlotIDs...)
@@ -405,8 +408,8 @@ func pearlRecvOneKeyRequest(op *automation.PlannedOp) (clientproto.PearlPlaceRec
 		return clientproto.PearlPlaceRecvOneKeyRequest{}, fmt.Errorf("recvOneKey operation is nil")
 	}
 	if op.TargetID != 0 || op.ItemID != 0 || op.Count != 0 || op.FlowerID != 0 ||
-		op.VaseID != 0 || op.TargetUID != 0 || len(op.LandIDs) != 0 ||
-		len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 {
+		op.VaseID != 0 || op.TargetUID != 0 || len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 ||
+		len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 || plannedOpHasCyclicNoteTargets(op) {
 		return clientproto.PearlPlaceRecvOneKeyRequest{}, fmt.Errorf("pearlPlace.recvOneKey requires an empty request")
 	}
 	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
@@ -451,7 +454,8 @@ func validatePearlCandidateSyncOperation(op *automation.PlannedOp, requireUIDs b
 		return fmt.Errorf("pearl candidate sync operation is nil")
 	}
 	if op.TargetID != 0 || op.TargetUID != 0 || op.ItemID != 0 || op.Count != 0 ||
-		op.FlowerID != 0 || op.VaseID != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 {
+		op.FlowerID != 0 || op.VaseID != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
+		plannedOpHasCyclicNoteTargets(op) {
 		return fmt.Errorf("pearl candidate sync carries unexpected target fields")
 	}
 	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
@@ -481,7 +485,8 @@ func pearlHireRequest(op *automation.PlannedOp) (clientproto.PearlPlaceHireReque
 		return clientproto.PearlPlaceHireRequest{}, fmt.Errorf("pearlPlace.hire requires placeId and dstUid")
 	}
 	if op.Count != 1 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 ||
-		len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 {
+		len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
+		plannedOpHasCyclicNoteTargets(op) {
 		return clientproto.PearlPlaceHireRequest{}, fmt.Errorf("pearlPlace.hire carries unexpected request fields")
 	}
 	if op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 1 || op.ItemCost[1003] != 1 {

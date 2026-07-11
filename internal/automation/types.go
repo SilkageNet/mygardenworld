@@ -257,6 +257,10 @@ type PlannedOp struct {
 	FlowerID       int32
 	TargetUID      int64
 	TargetUIDs     []int64
+	BatchID        int32
+	SlotID         int32
+	TaskID         int32
+	MilestoneIndex int32
 	TargetID       int32
 	ItemID         int32
 	Count          int32

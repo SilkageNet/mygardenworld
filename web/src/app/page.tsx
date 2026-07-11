@@ -53,7 +53,6 @@ import {
   FlowerMarketPolicySchema,
   FlowerArtPolicySchema,
   FriendStealPolicySchema,
-  IntListSchema,
   MarketBuyMode,
   MarketPutMode,
   OrderPolicySchema,
@@ -213,7 +212,7 @@ const POLICY_TABS: { id: PolicyTabId; label: string; icon: ReactNode }[] = [
   { id: "order", label: "订单", icon: <ListChecks /> },
   { id: "union", label: "公会", icon: <Users /> },
   { id: "other", label: "其他", icon: <ShoppingBag /> },
-  ...(SHOW_UNSUPPORTED_SETTINGS ? [{ id: "activity" as const, label: "活动", icon: <CalendarDays /> }] : []),
+  { id: "activity", label: "活动", icon: <CalendarDays /> },
 ];
 
 const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
@@ -270,27 +269,18 @@ type ActivityModuleMeta = {
   label: string;
   status?: SettingStatus;
   boolParams?: { key: string; label: string }[];
-  intParams?: { key: string; label: string; min?: number }[];
-  stringParams?: { key: string; label: string }[];
 };
 
 const ACTIVITY_MODULES: ActivityModuleMeta[] = [
-  { id: "cyclicNote", label: "花笺集芳", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "unlock_slot", label: "解锁任务槽" }, { key: "auto_enable_modules", label: "自动启用模块" }] },
-  { id: "actCyclicStory", label: "莳花纪闻", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "refresh_enabled", label: "自动刷新" }], intParams: [{ key: "max_finish_count_per_batch", label: "每批完成数", min: 0 }] },
-  { id: "fishMerge", label: "丰仓鱼干", status: SETTING_STATUS.adapterMissing, boolParams: [{ key: "show_result", label: "显示结果" }, { key: "auto_restart", label: "自动重开" }] },
-  { id: "magicBubble", label: "奇妙泡泡", status: SETTING_STATUS.adapterMissing },
-  { id: "zooGameElim", label: "花香满园", status: SETTING_STATUS.syncOnly },
-  { id: "fishFun", label: "鱼乐无穷", status: SETTING_STATUS.adapterMissing, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }, { key: "show_result", label: "显示结果" }, { key: "auto_restart", label: "自动重开" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
-  { id: "actElim", label: "花漾物语", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
-  { id: "actSpool", label: "梳丝引线", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
-  { id: "redPacket", label: "红包雨", status: SETTING_STATUS.syncOnly },
-  { id: "recvLuck", label: "迎新接福", status: SETTING_STATUS.adapterMissing },
-  { id: "yzCall", label: "为紫打 call", status: SETTING_STATUS.adapterMissing },
-  { id: "moneyTree", label: "摇钱树", status: SETTING_STATUS.syncOnly },
-  { id: "lanternFestival", label: "元宵灯谜", status: SETTING_STATUS.adapterMissing },
-  { id: "actDuanWu", label: "龙舟竞渡", status: SETTING_STATUS.adapterMissing, boolParams: [{ key: "claim_box", label: "领取进度宝箱" }, { key: "open_box", label: "打开舟赛宝箱" }] },
-  { id: "actDessert", label: "香卉甜糕", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }, { key: "use_items", label: "使用道具" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
-  { id: "actMerge2", label: "田园奇趣", status: SETTING_STATUS.syncOnly, boolParams: [{ key: "auto_claim_energy", label: "领取体力" }], intParams: [{ key: "speed", label: "倍速", min: 1 }] },
+  {
+    id: "cyclicNote",
+    label: "花笺集芳",
+    boolParams: [
+      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
+      { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
+      { key: "satisfy_tasks", label: "驱动已启用模块完成任务" },
+    ],
+  },
 ];
 
 const EMPTY_ADD_FORM = {
@@ -2162,23 +2152,6 @@ function PolicyPanel({
     const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
     updateActivityModule(moduleID, { boolParams: { ...current.boolParams, [key]: value } });
   };
-  const updateActivityIntParam = (moduleID: string, key: string, value: bigint) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, { intParams: { ...current.intParams, [key]: value } });
-  };
-  const updateActivityStringParam = (moduleID: string, key: string, value: string) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, { stringParams: { ...current.stringParams, [key]: value } });
-  };
-  const updateActivityIntListParam = (moduleID: string, key: string, values: number[]) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, {
-      intListParams: {
-        ...current.intListParams,
-        [key]: create(IntListSchema, { values }),
-      },
-    });
-  };
   if (loading) {
     return (
       <Card>
@@ -2571,7 +2544,7 @@ function PolicyPanel({
           </div>
         )}
 
-        {SHOW_UNSUPPORTED_SETTINGS && activeTab === "activity" && (
+        {activeTab === "activity" && (
           <div className="space-y-4">
             <PolicyGroup title="活动总开关" icon={<CalendarDays />}>
               <ToggleRow label="活动自动化" checked={activity?.enabled ?? false} onChange={(checked) => updateActivity({ enabled: checked })} />
@@ -2591,30 +2564,6 @@ function PolicyPanel({
                           onChange={(checked) => updateActivityBoolParam(module.id, param.key, checked)}
                         />
                       ))}
-                      {module.intParams?.map((param) => (
-                        <BigIntNumberRow
-                          key={param.key}
-                          label={param.label}
-                          value={modulePolicy?.intParams?.[param.key] ?? BigInt(0)}
-                          min={param.min ?? 0}
-                          onChange={(value) => updateActivityIntParam(module.id, param.key, value)}
-                        />
-                      ))}
-                      {module.stringParams?.map((param) => (
-                        <TextRow
-                          key={param.key}
-                          label={param.label}
-                          value={modulePolicy?.stringParams?.[param.key] ?? ""}
-                          onChange={(value) => updateActivityStringParam(module.id, param.key, value)}
-                        />
-                      ))}
-                      {module.id === "cyclicNote" && (
-                        <IntListRow
-                          label="临时启用模块"
-                          value={modulePolicy?.intListParams?.auto_enable_feature_ids?.values ?? []}
-                          onChange={(value) => updateActivityIntListParam(module.id, "auto_enable_feature_ids", value)}
-                        />
-                      )}
                     </div>
                   </PolicyGroup>
                 );

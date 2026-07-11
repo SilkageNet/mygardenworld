@@ -216,6 +216,12 @@ func opKindDesc(kind string) string {
 		return "解锁主线剧情"
 	case clientproto.RPCTaskMainRecv.String():
 		return "领取主线任务"
+	case clientproto.RPCActCyclicNoteEnter.String():
+		return "同步花笺集芳任务"
+	case clientproto.RPCActCyclicNoteRecvTaskRwd.String():
+		return "领取花笺集芳任务奖励"
+	case clientproto.RPCActCyclicNoteRecv.String():
+		return "领取花笺集芳里程碑奖励"
 	case clientproto.RPCTaskAchRecv.String():
 		return "领取成就任务"
 	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():

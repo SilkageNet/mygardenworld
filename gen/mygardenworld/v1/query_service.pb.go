@@ -1993,6 +1993,10 @@ type PlannedOperation struct {
 	CooldownReason  string                 `protobuf:"bytes,30,opt,name=cooldown_reason,json=cooldownReason,proto3" json:"cooldown_reason,omitempty"`
 	TargetUid       int64                  `protobuf:"varint,31,opt,name=target_uid,json=targetUid,proto3" json:"target_uid,omitempty"`
 	TargetUids      []int64                `protobuf:"varint,32,rep,packed,name=target_uids,json=targetUids,proto3" json:"target_uids,omitempty"`
+	BatchId         int32                  `protobuf:"varint,33,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	SlotId          int32                  `protobuf:"varint,34,opt,name=slot_id,json=slotId,proto3" json:"slot_id,omitempty"`
+	TaskId          int32                  `protobuf:"varint,35,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	MilestoneIndex  int32                  `protobuf:"varint,36,opt,name=milestone_index,json=milestoneIndex,proto3" json:"milestone_index,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -2249,6 +2253,34 @@ func (x *PlannedOperation) GetTargetUids() []int64 {
 		return x.TargetUids
 	}
 	return nil
+}
+
+func (x *PlannedOperation) GetBatchId() int32 {
+	if x != nil {
+		return x.BatchId
+	}
+	return 0
+}
+
+func (x *PlannedOperation) GetSlotId() int32 {
+	if x != nil {
+		return x.SlotId
+	}
+	return 0
+}
+
+func (x *PlannedOperation) GetTaskId() int32 {
+	if x != nil {
+		return x.TaskId
+	}
+	return 0
+}
+
+func (x *PlannedOperation) GetMilestoneIndex() int32 {
+	if x != nil {
+		return x.MilestoneIndex
+	}
+	return 0
 }
 
 type DomainStatus struct {
@@ -4006,7 +4038,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12E\n" +
 	"\frequirements\x18\a \x03(\v2!.mygardenworld.v1.RequirementViewR\frequirements\x12*\n" +
 	"\x11cooldown_until_ms\x18\b \x01(\x03R\x0fcooldownUntilMs\x12'\n" +
-	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\"\x82\t\n" +
+	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\"\xf8\t\n" +
 	"\x10PlannedOperation\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x16\n" +
@@ -4047,7 +4079,11 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\n" +
 	"target_uid\x18\x1f \x01(\x03R\ttargetUid\x12\x1f\n" +
 	"\vtarget_uids\x18  \x03(\x03R\n" +
-	"targetUids\x1a;\n" +
+	"targetUids\x12\x19\n" +
+	"\bbatch_id\x18! \x01(\x05R\abatchId\x12\x17\n" +
+	"\aslot_id\x18\" \x01(\x05R\x06slotId\x12\x17\n" +
+	"\atask_id\x18# \x01(\x05R\x06taskId\x12'\n" +
+	"\x0fmilestone_index\x18$ \x01(\x05R\x0emilestoneIndex\x1a;\n" +
 	"\rItemCostEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xe6\x02\n" +

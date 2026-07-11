@@ -287,7 +287,8 @@ func cyclicNoteProto(view state.CyclicNoteView) *pb.CyclicNoteView {
 	}
 
 	for _, milestone := range view.Milestones {
-		ready := view.Valid && view.Phase == 2 && view.MilestoneReceiptsObserved && milestone.Target > 0 && view.Score >= milestone.Target && !milestone.Received
+		milestoneClaimPhase := view.Phase == 2 || view.Phase == 3
+		ready := view.Valid && milestoneClaimPhase && view.MilestoneReceiptsObserved && milestone.Target > 0 && view.Score >= milestone.Target && !milestone.Received
 		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
 		if !view.Valid || milestone.Target <= 0 {
 			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
@@ -793,6 +794,10 @@ func plannedOperationsProto(ops []automation.PlannedOp, diag runner.Diagnostics)
 			CooldownReason:  cooldownReason,
 			TargetUid:       op.TargetUID,
 			TargetUids:      append([]int64(nil), op.TargetUIDs...),
+			BatchId:         op.BatchID,
+			SlotId:          op.SlotID,
+			TaskId:          op.TaskID,
+			MilestoneIndex:  op.MilestoneIndex,
 		})
 	}
 	return out

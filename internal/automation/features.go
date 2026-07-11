@@ -123,7 +123,7 @@ var featureSpecs = []FeatureSpec{
 	activityFeature("actElim", "花漾物语", PlanStatusSyncOnly),
 	activityFeature("actMerge2", "田园奇趣", PlanStatusSyncOnly),
 	activityFeature("actSpool", "梳丝引线", PlanStatusSyncOnly),
-	activityFeature("cyclicNote", "花笺集芳", PlanStatusSyncOnly),
+	activityFeature("cyclicNote", "花笺集芳", PlanStatusManaged),
 	activityFeature("fishFun", "鱼乐无穷", PlanStatusAdapterMissing),
 	activityFeature("fishMerge", "丰仓鱼干", PlanStatusAdapterMissing),
 	activityFeature("lanternFestival", "元宵灯谜", PlanStatusAdapterMissing),
@@ -148,6 +148,9 @@ func activityFeature(name, label, status string) FeatureSpec {
 	}
 	if status == PlanStatusSyncOnly {
 		spec.SyncOnly = true
+	}
+	if status == PlanStatusManaged {
+		spec.Executable = true
 	}
 	if status == PlanStatusAdapterMissing {
 		spec.BlockedReasons = []string{"缺少活动执行 adapter"}

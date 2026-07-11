@@ -52,7 +52,8 @@ func storyUnlockRequest(op *automation.PlannedOp) (clientproto.StoryMainUnlockRe
 
 func storyOperationHasRequestFields(op *automation.PlannedOp) bool {
 	return op.TargetUID != 0 || len(op.TargetUIDs) != 0 || op.ItemID != 0 || op.Count != 0 ||
-		op.FlowerID != 0 || op.VaseID != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0
+		op.FlowerID != 0 || op.VaseID != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
+		plannedOpHasCyclicNoteTargets(op)
 }
 
 func validateStoryUnlockMetadata(op *automation.PlannedOp, snapshot state.StoryUnlockSnapshot) error {

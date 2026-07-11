@@ -264,25 +264,29 @@ func (r *Runner) logOperation(ctx context.Context, kind string, args, result any
 
 func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, err error) string {
 	payload := map[string]any{
-		"rpc":        op.Kind,
-		"lane":       op.Lane,
-		"category":   op.Category,
-		"domain":     op.Domain,
-		"action":     op.Action,
-		"priority":   op.Priority,
-		"reason":     op.Reason,
-		"label":      opDesc(op),
-		"landIds":    op.LandIDs,
-		"slotIds":    op.SlotIDs,
-		"args":       args,
-		"flowerId":   op.FlowerID,
-		"targetUid":  op.TargetUID,
-		"targetUids": op.TargetUIDs,
-		"targetId":   op.TargetID,
-		"itemId":     op.ItemID,
-		"count":      op.Count,
-		"vaseId":     op.VaseID,
-		"flowerIds":  op.FlowerIDs,
+		"rpc":            op.Kind,
+		"lane":           op.Lane,
+		"category":       op.Category,
+		"domain":         op.Domain,
+		"action":         op.Action,
+		"priority":       op.Priority,
+		"reason":         op.Reason,
+		"label":          opDesc(op),
+		"landIds":        op.LandIDs,
+		"slotIds":        op.SlotIDs,
+		"args":           args,
+		"flowerId":       op.FlowerID,
+		"targetUid":      op.TargetUID,
+		"targetUids":     op.TargetUIDs,
+		"batchId":        op.BatchID,
+		"slotId":         op.SlotID,
+		"taskId":         op.TaskID,
+		"milestoneIndex": op.MilestoneIndex,
+		"targetId":       op.TargetID,
+		"itemId":         op.ItemID,
+		"count":          op.Count,
+		"vaseId":         op.VaseID,
+		"flowerIds":      op.FlowerIDs,
 	}
 	if len(raw) > 0 {
 		payload["raw"] = json.RawMessage(raw)
@@ -348,6 +352,18 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		return suffix
 	}
 	switch op.Kind {
+	case clientproto.RPCActCyclicNoteEnter.String():
+		if op.BatchID > 0 {
+			return fmt.Sprintf(" (活动批次=%d)", op.BatchID)
+		}
+	case clientproto.RPCActCyclicNoteRecvTaskRwd.String():
+		if op.BatchID > 0 && op.SlotID > 0 && op.TaskID > 0 {
+			return fmt.Sprintf(" (活动批次=%d 槽位=%d 任务=%d)", op.BatchID, op.SlotID, op.TaskID)
+		}
+	case clientproto.RPCActCyclicNoteRecv.String():
+		if op.BatchID > 0 && op.MilestoneIndex > 0 {
+			return fmt.Sprintf(" (活动批次=%d 里程碑=%d)", op.BatchID, op.MilestoneIndex)
+		}
 	case clientproto.RPCStoryMainUnlock.String():
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (剧情小节=%d)", op.TargetID)

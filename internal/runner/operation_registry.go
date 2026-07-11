@@ -261,6 +261,9 @@ var plannedOperationSpecs = map[string]operationSpec{
 			if len(op.ItemCost) != 1 || op.ItemCost[op.ItemID] != op.Count {
 				return clientproto.ZooAddFoodstuffRequest{}, fmt.Errorf("addFoodstuff requires exact item cost %d:%d", op.ItemID, op.Count)
 			}
+			if plannedOpHasCyclicNoteTargets(op) {
+				return clientproto.ZooAddFoodstuffRequest{}, fmt.Errorf("addFoodstuff carries unexpected activity targets")
+			}
 			foodstuffIDs := make(clientproto.RPCIDList, op.Count)
 			for i := range foodstuffIDs {
 				foodstuffIDs[i] = op.ItemID
@@ -463,6 +466,18 @@ var plannedOperationSpecs = map[string]operationSpec{
 	clientproto.RPCTaskMainRecv.String(): {
 		args: func(op *automation.PlannedOp) (any, error) { return mainTaskClaimRequest(op) },
 		run:  runMainTaskClaim,
+	},
+	clientproto.RPCActCyclicNoteEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return cyclicNoteEnterRequest(op) },
+		run:  runCyclicNoteEnter,
+	},
+	clientproto.RPCActCyclicNoteRecvTaskRwd.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return cyclicNoteTaskClaimRequest(op) },
+		run:  runCyclicNoteTaskClaim,
+	},
+	clientproto.RPCActCyclicNoteRecv.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return cyclicNoteMilestoneClaimRequest(op) },
+		run:  runCyclicNoteMilestoneClaim,
 	},
 	clientproto.RPCTaskDlyRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.TaskDlyRecvRequest, error) {

@@ -24,7 +24,8 @@ func mainTaskClaimRequest(op *automation.PlannedOp) (clientproto.TaskMainRecvReq
 	}
 	if op.TargetUID != 0 || len(op.TargetUIDs) != 0 || op.ItemID != 0 || op.Count != 0 ||
 		op.FlowerID != 0 || op.VaseID != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 ||
-		len(op.FlowerIDs) != 0 || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+		len(op.FlowerIDs) != 0 || plannedOpHasCyclicNoteTargets(op) ||
+		op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
 		return clientproto.TaskMainRecvRequest{}, fmt.Errorf("taskMain.recv requires empty wire args and target-only metadata")
 	}
 	return clientproto.TaskMainRecvRequest{}, nil
