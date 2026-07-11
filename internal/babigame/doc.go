@@ -74,6 +74,9 @@
 //	7.13.1.104 int                usrExtra.antiFraudQAStatus; 2 means the QA reward is claimed
 //	7.13.1.105 int64              usrExtra.lastAntiFraudQATime timestamp (ms)
 //	7.17.0.1   int                Own reputation/礼仪分 score; active refresh uses reputation.view
+//	7.101.1    int                Main-story chapter containing the next section to unlock
+//	7.101.2    int                Zero-based next-section index; decoded terminal is 149:0
+//	7.4.111.2  int                Daily story stars obtained (display statistic, never an unlock gate)
 //
 // # Land State (Namespace 100)
 //
@@ -257,7 +260,8 @@
 //	waterwheel.enter      {}                        → {114}
 //	waterwheel.recv       {}                        → {7,114,119}
 //	waterwheel.skip       {}                        → {114}
-//	storyMain.unlock      {}                        → {7,22,119}
+//	storyMain.enter       {}                        → {7}
+//	storyMain.unlock      {}                        → {7,22,119,148}
 //	taskMain.recv         {}                        → {7,22,124}
 //	taskDly.recv          {id}                      → {7,22,124}
 //	usr.heartTick         {}                        → (fire-and-forget)

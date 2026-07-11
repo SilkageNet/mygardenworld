@@ -497,16 +497,30 @@ type MainTaskView struct {
 
 // StoryMainView is the tracked subset of 7.101 (G.IStoryMain).
 type StoryMainView struct {
-	Observed    bool        `json:"observed,omitempty"`
-	UID         int64       `json:"uid,omitempty"`
-	Chapter     int32       `json:"chapter,omitempty"`
-	SectionIdx  int32       `json:"section_idx,omitempty"`
-	SectionID   int32       `json:"section_id,omitempty"`
-	ChapterName string      `json:"chapter_name,omitempty"`
-	SectionName string      `json:"section_name,omitempty"`
-	Cost        []ItemCount `json:"cost,omitempty"`
-	UTimeMs     int64       `json:"u_time_ms,omitempty"`
-	CTimeMs     int64       `json:"c_time_ms,omitempty"`
+	Observed        bool        `json:"observed,omitempty"`
+	Valid           bool        `json:"valid,omitempty"`
+	Complete        bool        `json:"complete,omitempty"`
+	UID             int64       `json:"uid,omitempty"`
+	Chapter         int32       `json:"chapter,omitempty"`
+	SectionIdx      int32       `json:"section_idx,omitempty"`
+	ChapterObserved bool        `json:"chapter_observed,omitempty"`
+	SectionObserved bool        `json:"section_observed,omitempty"`
+	SectionID       int32       `json:"section_id,omitempty"`
+	ChapterName     string      `json:"chapter_name,omitempty"`
+	SectionName     string      `json:"section_name,omitempty"`
+	Cost            []ItemCount `json:"cost,omitempty"`
+	UTimeMs         int64       `json:"u_time_ms,omitempty"`
+	CTimeMs         int64       `json:"c_time_ms,omitempty"`
+}
+
+// StoryUnlockSnapshot freezes the exact catalog target and inventory used by
+// one empty-argument storyMain.unlock request.
+type StoryUnlockSnapshot struct {
+	Chapter    int32
+	SectionIdx int32
+	SectionID  int32
+	Cost       []ItemCount
+	Inventory  map[int32]int32
 }
 
 // RandomEventView is the tracked subset of namespace 129 map events. Static

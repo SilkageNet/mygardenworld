@@ -140,7 +140,7 @@ func TestStoryAchievementAndMapOperationArgs(t *testing.T) {
 		want any
 	}{
 		{name: "story enter", op: automation.PlannedOp{Kind: clientproto.RPCStoryMainEnter.String()}, want: clientproto.StoryMainEnterRequest{}},
-		{name: "story unlock", op: automation.PlannedOp{Kind: clientproto.RPCStoryMainUnlock.String()}, want: clientproto.StoryMainUnlockRequest{}},
+		{name: "story unlock", op: automation.PlannedOp{Kind: clientproto.RPCStoryMainUnlock.String(), TargetID: 4101, ItemCost: map[int32]int32{56: 85}}, want: clientproto.StoryMainUnlockRequest{}},
 		{name: "achievement recv", op: automation.PlannedOp{Kind: clientproto.RPCTaskAchRecv.String(), TargetID: 10001}, want: clientproto.TaskAchRecvRequest{ID: 10001}},
 		{name: "random event enter", op: automation.PlannedOp{Kind: clientproto.RPCRandomEventEnter.String()}, want: clientproto.RandomEventEnterRequest{}},
 	}

@@ -476,18 +476,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.TaskWeek().Recv(ctx, req)
 		},
 	),
-	clientproto.RPCStoryMainEnter.String(): stateDeltaOperation(
-		staticRequest(clientproto.StoryMainEnterRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.StoryMainEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.StoryMain().Enter(ctx, req)
-		},
-	),
-	clientproto.RPCStoryMainUnlock.String(): stateDeltaOperation(
-		staticRequest(clientproto.StoryMainUnlockRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.StoryMainUnlockRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.StoryMain().Unlock(ctx, req)
-		},
-	),
+	clientproto.RPCStoryMainEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return storyEnterRequest(op) },
+		run:  runStoryEnter,
+	},
+	clientproto.RPCStoryMainUnlock.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return storyUnlockRequest(op) },
+		run:  runStoryUnlock,
+	},
 	clientproto.RPCTaskAchRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.TaskAchRecvRequest, error) {
 			return clientproto.TaskAchRecvRequest{ID: op.TargetID}, nil

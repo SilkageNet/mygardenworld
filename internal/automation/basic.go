@@ -115,11 +115,21 @@ func storyOperations(s *state.State) []PlannedOp {
 		return []PlannedOp{domainOp(clientproto.RPCStoryMainEnter.String(), goal, "basic.story", "sync", "主线剧情未同步，先进入剧情模块", 6140, 0, 0, 0)}
 	}
 	story, ok := s.StoryMain()
-	if !ok || story.SectionID <= 0 {
+	if !ok || !story.Valid {
+		blocked := markerOp(CategoryBasic, "basic.story", "unlock", "主线剧情当前进度无效，暂不自动解锁", 6130)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"7.101 章节/小节未完整观察，或无法与精确剧情目录匹配"}
+		return []PlannedOp{blocked}
+	}
+	if story.Complete {
+		return nil
+	}
+	if story.SectionID <= 0 {
 		blocked := markerOp(CategoryBasic, "basic.story", "unlock", "主线剧情当前小节未识别，暂不自动解锁", 6130)
 		blocked.Status = PlanStatusBlocked
 		blocked.Executable = false
-		blocked.BlockedReasons = []string{"无法从 c_storyMainChapter/c_storyMainSection 匹配当前章节小节"}
+		blocked.BlockedReasons = []string{"有效剧情进度缺少目录小节 ID"}
 		return []PlannedOp{blocked}
 	}
 	if len(story.Cost) == 0 {
@@ -152,6 +162,9 @@ func storyOperations(s *state.State) []PlannedOp {
 		return []PlannedOp{blocked}
 	}
 	planned := op(clientproto.RPCStoryMainUnlock.String(), goal, "unlock", "主线剧情小节可解锁", 6130, story.SectionID, 0, 0)
+	// Story progress is linear. Keep one cooldown key across sections so an
+	// ambiguous response cannot immediately spend again on the next section.
+	planned.OperationID = clientproto.RPCStoryMainUnlock.String()
 	planned.ItemCost = itemCost
 	return []PlannedOp{planned}
 }

@@ -80,37 +80,83 @@ func (s *State) applyStoryMainLocked(ns7 map[string]json.RawMessage) {
 	if !ok {
 		return
 	}
+	if isJSONNull(rawStory) {
+		s.invalidateStoryMainLocked()
+		return
+	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(rawStory, &fields); err != nil {
+		s.invalidateStoryMainLocked()
 		return
 	}
 	view := s.storyMain
 	view.Observed = true
-	if n, ok := readInt64JSONField(fields, "0"); ok {
-		view.UID = n
+	previousChapter := view.Chapter
+	_, sectionPresent := fields["2"]
+	if rawUID, exists := fields["0"]; exists {
+		if n, valid := readStoryMainInt64(rawUID); valid && n > 0 {
+			view.UID = n
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "1"); ok {
-		view.Chapter = n
+	if rawChapter, exists := fields["1"]; exists {
+		view.ChapterObserved = false
+		if n, valid := readStoryMainInt32(rawChapter); valid && n > 0 {
+			view.Chapter = n
+			view.ChapterObserved = true
+			if n != previousChapter && !sectionPresent {
+				view.SectionObserved = false
+			}
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "2"); ok {
-		view.SectionIdx = n
+	if rawSection, exists := fields["2"]; exists {
+		view.SectionObserved = false
+		if n, valid := readStoryMainInt32(rawSection); valid && n >= 0 {
+			view.SectionIdx = n
+			view.SectionObserved = true
+		}
 	}
-	if n, ok := readInt64JSONField(fields, "3"); ok {
-		view.UTimeMs = n
+	if rawUTime, exists := fields["3"]; exists {
+		if n, valid := readStoryMainInt64(rawUTime); valid && n >= 0 {
+			view.UTimeMs = n
+		}
 	}
-	if n, ok := readInt64JSONField(fields, "4"); ok {
-		view.CTimeMs = n
+	if rawCTime, exists := fields["4"]; exists {
+		if n, valid := readStoryMainInt64(rawCTime); valid && n >= 0 {
+			view.CTimeMs = n
+		}
 	}
-	if def, ok := StoryMainSection(view.Chapter, view.SectionIdx); ok {
-		view.SectionID = def.SectionID
-		view.ChapterName = def.ChapterName
-		view.SectionName = def.SectionName
-		view.Cost = append([]ItemCount(nil), def.Cost...)
-	} else {
-		view.SectionID = 0
-		view.SectionName = ""
-		view.Cost = nil
+	view.Valid = false
+	view.Complete = false
+	view.SectionID = 0
+	view.ChapterName = ""
+	view.SectionName = ""
+	view.Cost = nil
+	if view.ChapterObserved && view.SectionObserved {
+		if def, valid, complete := ResolveStoryMainProgress(view.Chapter, view.SectionIdx); valid {
+			view.Valid = true
+			view.Complete = complete
+			if !complete {
+				view.SectionID = def.SectionID
+				view.ChapterName = def.ChapterName
+				view.SectionName = def.SectionName
+				view.Cost = append([]ItemCount(nil), def.Cost...)
+			}
+		}
 	}
+	s.storyMain = view
+}
+
+func (s *State) invalidateStoryMainLocked() {
+	view := s.storyMain
+	view.Observed = true
+	view.Valid = false
+	view.Complete = false
+	view.ChapterObserved = false
+	view.SectionObserved = false
+	view.SectionID = 0
+	view.ChapterName = ""
+	view.SectionName = ""
+	view.Cost = nil
 	s.storyMain = view
 }
 

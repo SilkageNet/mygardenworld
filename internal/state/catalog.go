@@ -1,9 +1,11 @@
 package state
 
 import (
+	"bytes"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -588,41 +590,36 @@ func AchievementTaskTitle(taskID int32) string {
 	return strings.TrimSpace(row.Title)
 }
 
-// StoryMainSection returns the chapter section at the player's current index.
+// StoryMainSection returns the exact chapter section at the player's current
+// next-unlock index. Missing referenced rows or malformed/empty costs are
+// rejected rather than returned as a partial definition.
 func StoryMainSection(chapter, sectionIdx int32) (StoryMainSectionInfo, bool) {
 	if chapter <= 0 || sectionIdx < 0 {
 		return StoryMainSectionInfo{}, false
 	}
-	rawChapter, ok := StaticRow("c_storyMainChapter", chapter)
+	ch, ok := storyMainChapter(chapter)
 	if !ok {
-		return StoryMainSectionInfo{}, false
-	}
-	var ch struct {
-		Name      string  `json:"name"`
-		SectionID []int32 `json:"sectionId"`
-	}
-	if json.Unmarshal(rawChapter, &ch) != nil {
 		return StoryMainSectionInfo{}, false
 	}
 	idx := int(sectionIdx)
-	if idx < 0 || idx >= len(ch.SectionID) || ch.SectionID[idx] <= 0 {
+	if idx < 0 || idx >= len(ch.SectionIDs) || ch.SectionIDs[idx] <= 0 {
 		return StoryMainSectionInfo{}, false
 	}
-	sectionID := ch.SectionID[idx]
+	sectionID := ch.SectionIDs[idx]
 	rawSection, ok := StaticRow("c_storyMainSection", sectionID)
 	if !ok {
-		return StoryMainSectionInfo{
-			Chapter:     chapter,
-			SectionIdx:  sectionIdx,
-			SectionID:   sectionID,
-			ChapterName: strings.TrimSpace(ch.Name),
-		}, true
+		return StoryMainSectionInfo{}, false
 	}
 	var sec struct {
+		ID   int32           `json:"id"`
 		Name string          `json:"name"`
 		Cost json.RawMessage `json:"cost"`
 	}
-	if json.Unmarshal(rawSection, &sec) != nil {
+	if json.Unmarshal(rawSection, &sec) != nil || sec.ID != sectionID {
+		return StoryMainSectionInfo{}, false
+	}
+	cost, ok := parseStoryMainCost(sec.Cost)
+	if !ok {
 		return StoryMainSectionInfo{}, false
 	}
 	return StoryMainSectionInfo{
@@ -631,8 +628,169 @@ func StoryMainSection(chapter, sectionIdx int32) (StoryMainSectionInfo, bool) {
 		SectionID:   sectionID,
 		ChapterName: strings.TrimSpace(ch.Name),
 		SectionName: strings.TrimSpace(sec.Name),
-		Cost:        readItemCountsRaw(sec.Cost),
+		Cost:        cost,
 	}, true
+}
+
+type storyMainChapterDefinition struct {
+	ID         int32
+	Name       string
+	SectionIDs []int32
+}
+
+func storyMainChapter(chapter int32) (storyMainChapterDefinition, bool) {
+	raw, ok := StaticRow("c_storyMainChapter", chapter)
+	if !ok {
+		return storyMainChapterDefinition{}, false
+	}
+	var row struct {
+		ID         int32   `json:"id"`
+		Name       string  `json:"name"`
+		SectionIDs []int32 `json:"sectionId"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.ID != chapter || len(row.SectionIDs) == 0 {
+		return storyMainChapterDefinition{}, false
+	}
+	seen := make(map[int32]struct{}, len(row.SectionIDs))
+	for _, sectionID := range row.SectionIDs {
+		if sectionID <= 0 {
+			return storyMainChapterDefinition{}, false
+		}
+		if _, exists := seen[sectionID]; exists {
+			return storyMainChapterDefinition{}, false
+		}
+		seen[sectionID] = struct{}{}
+	}
+	return storyMainChapterDefinition{ID: row.ID, Name: row.Name, SectionIDs: row.SectionIDs}, true
+}
+
+func parseStoryMainCost(raw json.RawMessage) ([]ItemCount, bool) {
+	var stacks []json.RawMessage
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) || json.Unmarshal(raw, &stacks) != nil || len(stacks) == 0 {
+		return nil, false
+	}
+	aggregated := make(map[int32]int64, len(stacks))
+	for _, rawStack := range stacks {
+		var parts []json.RawMessage
+		if json.Unmarshal(rawStack, &parts) != nil || len(parts) != 2 {
+			return nil, false
+		}
+		itemID, validItem := readStoryMainInt32(parts[0])
+		count, validCount := readStoryMainInt32(parts[1])
+		if !validItem || !validCount || itemID <= 0 || count <= 0 {
+			return nil, false
+		}
+		aggregated[itemID] += int64(count)
+		if aggregated[itemID] > math.MaxInt32 {
+			return nil, false
+		}
+	}
+	ids := make([]int32, 0, len(aggregated))
+	for itemID := range aggregated {
+		ids = append(ids, itemID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]ItemCount, 0, len(ids))
+	for _, itemID := range ids {
+		out = append(out, ItemCount{ItemID: itemID, Count: int32(aggregated[itemID])})
+	}
+	return out, true
+}
+
+func readStoryMainInt32(raw json.RawMessage) (int32, bool) {
+	n, ok := readStoryMainInt64(raw)
+	if !ok || n < math.MinInt32 || n > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(n), true
+}
+
+func readStoryMainInt64(raw json.RawMessage) (int64, bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] == '"' {
+		return 0, false
+	}
+	var value json.Number
+	if json.Unmarshal(raw, &value) != nil {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(value.String(), 10, 64)
+	return n, err == nil
+}
+
+// StoryMainTerminal returns the only catalog-derived completed progress pair.
+// With the current decoded client this is 149:0, immediately after chapter
+// 148's final section 15706.
+func StoryMainTerminal() (chapter, sectionIdx int32, ok bool) {
+	table, exists := StaticTableByName("c_storyMainChapter")
+	if !exists {
+		return 0, 0, false
+	}
+	rawSentinel, exists := table.Rows["-1"]
+	if !exists {
+		return 0, 0, false
+	}
+	var sentinel struct {
+		MaxChapter int32 `json:"$max"`
+	}
+	if json.Unmarshal(rawSentinel, &sentinel) != nil || sentinel.MaxChapter <= 0 {
+		return 0, 0, false
+	}
+	var lastChapter int32
+	for idText := range table.Rows {
+		value, err := strconv.ParseInt(idText, 10, 32)
+		if err != nil || value <= 0 {
+			continue
+		}
+		if int32(value) > lastChapter {
+			lastChapter = int32(value)
+		}
+	}
+	if lastChapter != sentinel.MaxChapter {
+		return 0, 0, false
+	}
+	last, valid := storyMainChapter(lastChapter)
+	if !valid || lastChapter == math.MaxInt32 {
+		return 0, 0, false
+	}
+	if _, valid = StoryMainSection(lastChapter, int32(len(last.SectionIDs)-1)); !valid {
+		return 0, 0, false
+	}
+	return lastChapter + 1, 0, true
+}
+
+// ResolveStoryMainProgress classifies a server chapter/index pair against the
+// exact decoded catalog.
+func ResolveStoryMainProgress(chapter, sectionIdx int32) (StoryMainSectionInfo, bool, bool) {
+	terminalChapter, terminalSection, terminalOK := StoryMainTerminal()
+	if !terminalOK {
+		return StoryMainSectionInfo{}, false, false
+	}
+	if chapter == terminalChapter && sectionIdx == terminalSection {
+		return StoryMainSectionInfo{Chapter: chapter, SectionIdx: sectionIdx}, true, true
+	}
+	section, valid := StoryMainSection(chapter, sectionIdx)
+	return section, valid, false
+}
+
+// NextStoryMainProgress returns the exact state expected after unlocking the
+// supplied current section.
+func NextStoryMainProgress(chapter, sectionIdx int32) (nextChapter, nextSectionIdx int32, complete, ok bool) {
+	currentChapter, valid := storyMainChapter(chapter)
+	if !valid || sectionIdx < 0 || int(sectionIdx) >= len(currentChapter.SectionIDs) {
+		return 0, 0, false, false
+	}
+	if int(sectionIdx)+1 < len(currentChapter.SectionIDs) {
+		return chapter, sectionIdx + 1, false, true
+	}
+	terminalChapter, terminalSection, terminalOK := StoryMainTerminal()
+	if terminalOK && chapter+1 == terminalChapter {
+		return terminalChapter, terminalSection, true, true
+	}
+	if _, valid = StoryMainSection(chapter+1, 0); !valid {
+		return 0, 0, false, false
+	}
+	return chapter + 1, 0, false, true
 }
 
 // ZooEventInfoByID returns a conservative view of a zoo event row.
