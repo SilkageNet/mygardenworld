@@ -26,7 +26,7 @@ func TestDessertPolicyDefaultsAndFutureSwitchesFailClosed(t *testing.T) {
 		{name: "activity disabled", module: true, bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
 		{name: "module disabled", activity: true, bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
 		{name: "future switches cannot execute", activity: true, module: true, bools: map[string]bool{
-			"auto_claim_progress_boxes": true, "auto_open_reward_boxes": true, "auto_play": true,
+			dessertAutoClaimProgressBoxesKey: true, dessertAutoOpenRewardBoxesKey: true, "auto_play": true,
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

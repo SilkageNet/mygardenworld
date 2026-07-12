@@ -96,33 +96,38 @@ const (
 	GateResourceKind_GATE_RESOURCE_KIND_POLICY      GateResourceKind = 7
 	GateResourceKind_GATE_RESOURCE_KIND_STATE       GateResourceKind = 8
 	GateResourceKind_GATE_RESOURCE_KIND_ADAPTER     GateResourceKind = 9
+	// Activity-local namespace-23 inventory. This must never fall back to the
+	// normal namespace-7 item inventory.
+	GateResourceKind_GATE_RESOURCE_KIND_ACTIVITY_ITEM GateResourceKind = 10
 )
 
 // Enum value maps for GateResourceKind.
 var (
 	GateResourceKind_name = map[int32]string{
-		0: "GATE_RESOURCE_KIND_UNSPECIFIED",
-		1: "GATE_RESOURCE_KIND_GOLD",
-		2: "GATE_RESOURCE_KIND_DIAMOND",
-		3: "GATE_RESOURCE_KIND_ITEM",
-		4: "GATE_RESOURCE_KIND_WATER_DROP",
-		5: "GATE_RESOURCE_KIND_LEVEL",
-		6: "GATE_RESOURCE_KIND_VASE",
-		7: "GATE_RESOURCE_KIND_POLICY",
-		8: "GATE_RESOURCE_KIND_STATE",
-		9: "GATE_RESOURCE_KIND_ADAPTER",
+		0:  "GATE_RESOURCE_KIND_UNSPECIFIED",
+		1:  "GATE_RESOURCE_KIND_GOLD",
+		2:  "GATE_RESOURCE_KIND_DIAMOND",
+		3:  "GATE_RESOURCE_KIND_ITEM",
+		4:  "GATE_RESOURCE_KIND_WATER_DROP",
+		5:  "GATE_RESOURCE_KIND_LEVEL",
+		6:  "GATE_RESOURCE_KIND_VASE",
+		7:  "GATE_RESOURCE_KIND_POLICY",
+		8:  "GATE_RESOURCE_KIND_STATE",
+		9:  "GATE_RESOURCE_KIND_ADAPTER",
+		10: "GATE_RESOURCE_KIND_ACTIVITY_ITEM",
 	}
 	GateResourceKind_value = map[string]int32{
-		"GATE_RESOURCE_KIND_UNSPECIFIED": 0,
-		"GATE_RESOURCE_KIND_GOLD":        1,
-		"GATE_RESOURCE_KIND_DIAMOND":     2,
-		"GATE_RESOURCE_KIND_ITEM":        3,
-		"GATE_RESOURCE_KIND_WATER_DROP":  4,
-		"GATE_RESOURCE_KIND_LEVEL":       5,
-		"GATE_RESOURCE_KIND_VASE":        6,
-		"GATE_RESOURCE_KIND_POLICY":      7,
-		"GATE_RESOURCE_KIND_STATE":       8,
-		"GATE_RESOURCE_KIND_ADAPTER":     9,
+		"GATE_RESOURCE_KIND_UNSPECIFIED":   0,
+		"GATE_RESOURCE_KIND_GOLD":          1,
+		"GATE_RESOURCE_KIND_DIAMOND":       2,
+		"GATE_RESOURCE_KIND_ITEM":          3,
+		"GATE_RESOURCE_KIND_WATER_DROP":    4,
+		"GATE_RESOURCE_KIND_LEVEL":         5,
+		"GATE_RESOURCE_KIND_VASE":          6,
+		"GATE_RESOURCE_KIND_POLICY":        7,
+		"GATE_RESOURCE_KIND_STATE":         8,
+		"GATE_RESOURCE_KIND_ADAPTER":       9,
+		"GATE_RESOURCE_KIND_ACTIVITY_ITEM": 10,
 	}
 )
 
@@ -5339,7 +5344,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x15PLAN_STATUS_SYNC_ONLY\x10\x03\x12\x1f\n" +
 	"\x1bPLAN_STATUS_ADAPTER_MISSING\x10\x04\x12\x17\n" +
 	"\x13PLAN_STATUS_BLOCKED\x10\x05\x12\x17\n" +
-	"\x13PLAN_STATUS_SKIPPED\x10\x06*\xcb\x02\n" +
+	"\x13PLAN_STATUS_SKIPPED\x10\x06*\xf1\x02\n" +
 	"\x10GateResourceKind\x12\"\n" +
 	"\x1eGATE_RESOURCE_KIND_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17GATE_RESOURCE_KIND_GOLD\x10\x01\x12\x1e\n" +
@@ -5350,7 +5355,9 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x17GATE_RESOURCE_KIND_VASE\x10\x06\x12\x1d\n" +
 	"\x19GATE_RESOURCE_KIND_POLICY\x10\a\x12\x1c\n" +
 	"\x18GATE_RESOURCE_KIND_STATE\x10\b\x12\x1e\n" +
-	"\x1aGATE_RESOURCE_KIND_ADAPTER\x10\t*a\n" +
+	"\x1aGATE_RESOURCE_KIND_ADAPTER\x10\t\x12$\n" +
+	" GATE_RESOURCE_KIND_ACTIVITY_ITEM\x10\n" +
+	"*a\n" +
 	"\rExecutionLane\x12\x1e\n" +
 	"\x1aEXECUTION_LANE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13EXECUTION_LANE_FARM\x10\x01\x12\x17\n" +

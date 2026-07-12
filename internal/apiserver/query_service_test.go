@@ -617,6 +617,15 @@ func TestDessertPendingTasksUseActivityCompositeIDsInActiveAndRewardPhases(t *te
 	}
 }
 
+func TestActivityItemGateHasDistinctPublicResourceKind(t *testing.T) {
+	if got := gateResourceKindProto(automation.GateResourceActivityItem); got != pb.GateResourceKind_GATE_RESOURCE_KIND_ACTIVITY_ITEM {
+		t.Fatalf("activity item gate kind=%s", got)
+	}
+	if got := gateResourceKindProto(automation.GateResourceActivityItem); got == pb.GateResourceKind_GATE_RESOURCE_KIND_ITEM {
+		t.Fatal("activity-local item was exposed as normal inventory item")
+	}
+}
+
 func TestCyclicNoteApplyVFlowsToSnapshotAndPending(t *testing.T) {
 	now := time.Date(2026, 7, 11, 3, 0, 0, 0, time.UTC)
 	beginMs := now.Add(-time.Hour).UnixMilli()

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
@@ -19,11 +20,13 @@ const (
 	// stay below main/major orders and above ordinary flower-rack work.
 	cyclicNotePriority int32 = 50 * 100
 
-	dessertModuleKey                     = "actDessert"
-	dessertAutoClaimTaskRewardsKey       = "auto_claim_task_rewards"
-	dessertAutoLikeCelebrityKey          = "auto_like_celebrity"
-	dessertPriority                int32 = 50 * 100
-	dessertCooldownKey                   = "activity.actDessert:reward"
+	dessertModuleKey                       = "actDessert"
+	dessertAutoClaimTaskRewardsKey         = "auto_claim_task_rewards"
+	dessertAutoLikeCelebrityKey            = "auto_like_celebrity"
+	dessertAutoClaimProgressBoxesKey       = "auto_claim_progress_boxes"
+	dessertAutoOpenRewardBoxesKey          = "auto_open_reward_boxes"
+	dessertPriority                  int32 = 50 * 100
+	dessertCooldownKey                     = "activity.actDessert:reward"
 )
 
 // activityOperations combines independently gated activity modules. Each
@@ -114,7 +117,10 @@ func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time)
 	}
 	claimTasks := module.GetBoolParams()[dessertAutoClaimTaskRewardsKey]
 	likeCelebrity := module.GetBoolParams()[dessertAutoLikeCelebrityKey]
-	if !claimTasks && !likeCelebrity {
+	claimProgress := module.GetBoolParams()[dessertAutoClaimProgressBoxesKey]
+	openRewardBoxes := module.GetBoolParams()[dessertAutoOpenRewardBoxesKey]
+	rewardEvidenceReady := (claimProgress || openRewardBoxes) && babigame.DessertRewardBoxEvidenceGate()
+	if !claimTasks && !likeCelebrity && !rewardEvidenceReady {
 		return nil
 	}
 
@@ -153,6 +159,13 @@ func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time)
 				view.BatchID, 0,
 			)}
 		}
+	}
+	// The policy keys are stable, but reward RPC planners and registry entries
+	// are intentionally absent until both success fixtures pass the embedded
+	// evidence gate. Keeping this branch explicit prevents a future generic
+	// activity adapter from treating the switches as authorization.
+	if rewardEvidenceReady {
+		return nil
 	}
 	return nil
 }

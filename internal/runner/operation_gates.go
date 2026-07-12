@@ -34,7 +34,7 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 		return nil
 	}
 	for _, gate := range op.CostGates {
-		if err := r.checkCostGate(gate, now); err != nil {
+		if err := r.checkCostGate(op, gate, now); err != nil {
 			return err
 		}
 	}
@@ -79,7 +79,7 @@ func (r *Runner) lockOperationWaterDrops(op *automation.PlannedOp, now time.Time
 	return func() { r.state.ReleaseWaterDropsLock(lockedWaterDrops) }, nil
 }
 
-func (r *Runner) checkCostGate(gate automation.CostGate, now time.Time) error {
+func (r *Runner) checkCostGate(op *automation.PlannedOp, gate automation.CostGate, now time.Time) error {
 	required := gate.Required
 	if required <= 0 {
 		return nil
@@ -100,6 +100,18 @@ func (r *Runner) checkCostGate(gate automation.CostGate, now time.Time) error {
 		available := int64(r.state.Inventory()[gate.ItemID])
 		if available < required {
 			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, flowerName(int(gate.ItemID))), required, available)
+		}
+	case automation.GateResourceActivityItem:
+		if op == nil || op.BatchID <= 0 {
+			return fmt.Errorf("%s缺少活动批次", gateLabel(gate, "活动道具"))
+		}
+		count, observed := r.state.ActivityItemCount(op.BatchID, gate.ItemID)
+		if !observed {
+			return fmt.Errorf("%s所在活动背包尚未完整同步", gateLabel(gate, "活动道具"))
+		}
+		available := int64(count)
+		if available < required {
+			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "活动道具"), required, available)
 		}
 	case automation.GateResourceWaterDrop:
 		available, _, _ := r.state.AvailableWaterDrops(now)
