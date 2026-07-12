@@ -128,6 +128,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	vip, vipExp := st.Vip()
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
+	dessert, _ := st.DessertView(now)
 	policy := r.Policy()
 	resp := &pb.GetSnapshotResponse{
 		AccountId:             fmt.Sprintf("%d", acc.ID),
@@ -153,6 +154,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Diagnostics:           runnerDiagnosticsProto(diag),
 		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
 		CyclicNote:            cyclicNoteProto(cyclicNote),
+		Dessert:               dessertProto(dessert),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -335,6 +337,231 @@ func cyclicNoteTaskStatus(view state.CyclicNoteView, task state.CyclicNoteTaskSl
 		return pb.PlanStatus_PLAN_STATUS_READY
 	}
 	return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+}
+
+func dessertProto(view state.DessertView) *pb.DessertView {
+	out := &pb.DessertView{
+		Observed:                  view.Observed,
+		Found:                     view.Found,
+		Valid:                     view.Valid,
+		BatchId:                   view.BatchID,
+		TemplateId:                view.TmpID,
+		TemplateType:              view.TmpType,
+		Status:                    view.Status,
+		Phase:                     view.Phase,
+		PhaseEndMs:                view.PhaseEndMs,
+		BeginMs:                   view.BeginMs,
+		VisibleStartMs:            view.VisibleStartMs,
+		EndMs:                     view.EndMs,
+		GraceEndMs:                view.GraceEndMs,
+		Name:                      view.Name,
+		Description:               view.Description,
+		DropCount:                 view.DropCount,
+		TotalScore:                view.TotalScore,
+		EnergyItemId:              view.EnergyItemID,
+		EnergyBalance:             view.EnergyBalance,
+		CurrencyItemId:            view.CurrencyItemID,
+		CurrencyBalance:           view.CurrencyBalance,
+		PointItemId:               view.PointItemID,
+		RewardBoxItemId:           view.RewardBoxItemID,
+		RewardBoxBalance:          view.RewardBoxBalance,
+		DropCountObserved:         view.DropCountObserved,
+		TotalScoreObserved:        view.TotalScoreObserved,
+		BagObserved:               view.BagObserved,
+		ExtensionObserved:         view.ExtensionObserved,
+		ExtensionValid:            view.ExtensionValid,
+		ModeMapObserved:           view.ModeMapObserved,
+		ModeMapValid:              view.ModeMapValid,
+		TaskGroupsObserved:        view.TaskGroupsObserved,
+		TaskGroupsValid:           view.TaskGroupsValid,
+		TaskRecordObserved:        view.TaskRecordObserved,
+		MilestoneReceiptsObserved: view.MilestoneReceiptsObserved,
+	}
+
+	itemIDs := make([]int32, 0, len(view.Bag))
+	for itemID := range view.Bag {
+		itemIDs = append(itemIDs, itemID)
+	}
+	sort.Slice(itemIDs, func(i, j int) bool { return itemIDs[i] < itemIDs[j] })
+	for _, itemID := range itemIDs {
+		out.Items = append(out.Items, activityItemProto(state.ItemCount{ItemID: itemID, Count: view.Bag[itemID]}))
+	}
+
+	modes := append([]state.DessertModeView(nil), view.Modes...)
+	sort.SliceStable(modes, func(i, j int) bool { return modes[i].Mode < modes[j].Mode })
+	for _, mode := range modes {
+		modeView := &pb.DessertModeView{
+			Mode:                mode.Mode,
+			Multiplier:          mode.Multiplier,
+			UnlockScore:         mode.UnlockScore,
+			Unlocked:            mode.Mode == 1 || (view.TotalScoreObserved && view.TotalScore >= mode.UnlockScore),
+			Observed:            mode.Observed,
+			Valid:               mode.Valid,
+			Step:                mode.Step,
+			Score:               mode.Score,
+			IsRunning:           mode.IsRunning,
+			RawGameStatus:       mode.GameStatus,
+			EffectiveGameStatus: dessertEffectiveGameStatus(mode.GameStatus),
+			CurrentId:           mode.CurID,
+			ObjectCount:         mode.ObjectCount,
+		}
+		levels := make([]int32, 0, len(mode.LevelCounts))
+		for level := range mode.LevelCounts {
+			levels = append(levels, level)
+		}
+		sort.Slice(levels, func(i, j int) bool { return levels[i] < levels[j] })
+		for _, level := range levels {
+			modeView.LevelCounts = append(modeView.LevelCounts, &pb.DessertLevelCountView{
+				Level: level,
+				Count: mode.LevelCounts[level],
+			})
+		}
+		out.Modes = append(out.Modes, modeView)
+	}
+
+	tasks := append([]state.DessertTaskView(nil), view.Tasks...)
+	sort.SliceStable(tasks, func(i, j int) bool {
+		if tasks[i].TaskIndex != tasks[j].TaskIndex {
+			return tasks[i].TaskIndex < tasks[j].TaskIndex
+		}
+		if tasks[i].Position != tasks[j].Position {
+			return tasks[i].Position < tasks[j].Position
+		}
+		return tasks[i].TaskID < tasks[j].TaskID
+	})
+	for _, task := range tasks {
+		out.Tasks = append(out.Tasks, &pb.DessertTaskView{
+			TaskIndex:        task.TaskIndex,
+			Position:         task.Position,
+			TaskId:           task.TaskID,
+			TaskType:         task.TaskType,
+			Param:            task.Param,
+			HasParam:         task.HasParam,
+			Title:            task.Title,
+			Target:           task.Target,
+			Progress:         clampProgress(task.Progress, task.Target),
+			RawProgress:      task.Progress,
+			ProgressObserved: task.ProgressObserved,
+			Received:         task.Received,
+			ReceiptObserved:  task.ReceiptObserved,
+			CatalogKnown:     task.CatalogKnown,
+			Reward:           activityItemsProto(task.Reward),
+			Status:           dessertTaskStatus(view, task),
+		})
+	}
+
+	milestones := append([]state.DessertMilestoneView(nil), view.Milestones...)
+	sort.SliceStable(milestones, func(i, j int) bool { return milestones[i].Index < milestones[j].Index })
+	for _, milestone := range milestones {
+		ready := dessertMilestoneReady(view, milestone)
+		out.Milestones = append(out.Milestones, &pb.DessertMilestoneView{
+			Index:       milestone.Index,
+			Target:      milestone.Target,
+			Received:    milestone.Received,
+			Reward:      activityItemsProto(milestone.Reward),
+			Status:      dessertMilestoneStatus(view, milestone),
+			Progress:    clampProgress(view.TotalScore, milestone.Target),
+			RawProgress: view.TotalScore,
+			Ready:       ready,
+		})
+	}
+
+	celebrityReward, rewardValid := dessertCelebrityReward()
+	out.Celebrity = &pb.DessertCelebrityLikeView{
+		Observed:         view.Celebrity.Observed,
+		Valid:            view.Celebrity.Valid,
+		TypesObserved:    view.Celebrity.TypesObserved,
+		RankingsObserved: view.Celebrity.RankingsObserved,
+		LikesObserved:    view.Celebrity.LikesObserved,
+		TypeListed:       view.Celebrity.TypeListed,
+		RankingObserved:  view.Celebrity.RankingObserved,
+		RankingCount:     view.Celebrity.RankingCount,
+		LikedThisBatch:   view.Celebrity.LikedThisBatch,
+		LastLikeTimeMs:   view.Celebrity.LastLikeTimeMs,
+		CreateTimeMs:     view.Celebrity.CreateTimeMs,
+		Reward:           activityItemsProto(celebrityReward),
+		Status:           dessertCelebrityStatus(view, rewardValid),
+	}
+	return out
+}
+
+func dessertEffectiveGameStatus(status int32) int32 {
+	// The client treats a persisted stopped board as playable when it resumes.
+	if status == 2 {
+		return 1
+	}
+	return status
+}
+
+func dessertTaskStatus(view state.DessertView, task state.DessertTaskView) pb.PlanStatus {
+	if !view.Valid || !task.CatalogKnown || task.TaskIndex != 0 || task.TaskType != 18 || task.Target <= 0 || !dessertTaskRewardValid(task.Reward) {
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	}
+	if !task.ReceiptObserved {
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+	// A claimed task is removed from the progress map, so receipt must be
+	// checked before requiring a still-present progress value.
+	if task.Received {
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	}
+	if !task.ProgressObserved || (view.Phase != 2 && view.Phase != 3) {
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+	if task.Progress >= task.Target {
+		return pb.PlanStatus_PLAN_STATUS_READY
+	}
+	return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+}
+
+func dessertTaskRewardValid(reward []state.ItemCount) bool {
+	config, ok := state.DessertCatalogConfig()
+	return ok && len(reward) == 1 && reward[0].ItemID == config.EnergyItemID && reward[0].Count == 100
+}
+
+func dessertMilestoneReady(view state.DessertView, milestone state.DessertMilestoneView) bool {
+	return view.Valid && (view.Phase == 2 || view.Phase == 3) && view.TotalScoreObserved &&
+		view.MilestoneReceiptsObserved && milestone.Target > 0 && view.TotalScore >= milestone.Target && !milestone.Received
+}
+
+func dessertMilestoneStatus(view state.DessertView, milestone state.DessertMilestoneView) pb.PlanStatus {
+	switch {
+	case !view.Valid || milestone.Target <= 0:
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	case !view.TotalScoreObserved || !view.MilestoneReceiptsObserved:
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	case milestone.Received:
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	default:
+		// Reward boxes remain monitoring-only until a sanitized successful
+		// act.recvBoxes fixture confirms the exact request and response shape.
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+}
+
+func dessertCelebrityReward() ([]state.ItemCount, bool) {
+	config, ok := state.DessertCatalogConfig()
+	if !ok || config.CelebrityReward.ItemID <= 0 || config.CelebrityReward.Count <= 0 {
+		return nil, false
+	}
+	return []state.ItemCount{config.CelebrityReward}, true
+}
+
+func dessertCelebrityStatus(view state.DessertView, rewardValid bool) pb.PlanStatus {
+	celebrity := view.Celebrity
+	if !view.Valid || !rewardValid {
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	}
+	if view.Phase != 2 || !celebrity.Observed || !celebrity.TypesObserved || !celebrity.RankingsObserved || !celebrity.LikesObserved {
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+	if !celebrity.Valid || !celebrity.TypeListed || !celebrity.RankingObserved || celebrity.RankingCount <= 0 {
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	}
+	if celebrity.LikedThisBatch {
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	}
+	return pb.PlanStatus_PLAN_STATUS_READY
 }
 
 func activityItemsProto(items []state.ItemCount) []*pb.ActivityItem {
@@ -687,6 +914,7 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 	}
 
 	out = append(out, cyclicNotePendingTasks(st, now)...)
+	out = append(out, dessertPendingTasks(st, now)...)
 
 	return out
 }
@@ -717,6 +945,46 @@ func cyclicNotePendingTasksFromView(view state.CyclicNoteView) []*pb.PendingTask
 			Finished: clampProgress(task.Progress, task.Target),
 			Target:   task.Target,
 			Status:   status,
+		})
+	}
+	return out
+}
+
+func dessertPendingTasks(st *state.State, now time.Time) []*pb.PendingTaskView {
+	view, _ := st.DessertView(now)
+	return dessertPendingTasksFromView(view)
+}
+
+func dessertPendingTasksFromView(view state.DessertView) []*pb.PendingTaskView {
+	if !view.Found || (view.Phase != 2 && view.Phase != 3) {
+		return nil
+	}
+	tasks := append([]state.DessertTaskView(nil), view.Tasks...)
+	sort.SliceStable(tasks, func(i, j int) bool {
+		if tasks[i].TaskIndex != tasks[j].TaskIndex {
+			return tasks[i].TaskIndex < tasks[j].TaskIndex
+		}
+		if tasks[i].Position != tasks[j].Position {
+			return tasks[i].Position < tasks[j].Position
+		}
+		return tasks[i].TaskID < tasks[j].TaskID
+	})
+	out := make([]*pb.PendingTaskView, 0, len(tasks))
+	for _, task := range tasks {
+		if task.Received {
+			continue
+		}
+		title := task.Title
+		if title == "" {
+			title = fmt.Sprintf("香卉甜糕任务 #%d", task.TaskID)
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "activity",
+			Id:       fmt.Sprintf("%d:%d:%d", view.BatchID, task.TaskIndex, task.TaskID),
+			Title:    title,
+			Finished: clampProgress(task.Progress, task.Target),
+			Target:   task.Target,
+			Status:   dessertTaskStatus(view, task),
 		})
 	}
 	return out
