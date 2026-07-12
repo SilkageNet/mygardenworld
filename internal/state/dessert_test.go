@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"strconv"
@@ -191,6 +192,33 @@ func TestDessertModeMapReplacementAndMalformedFailClosed(t *testing.T) {
 				t.Fatalf("malformed authoritative shape retained executable state: (%+v,%t)", view, ok)
 			}
 		})
+	}
+}
+
+func TestDessertModeAcceptsServerEmptyBoardSentinel(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		running   bool
+		currentID int32
+	}{
+		{name: "gameStart", running: true, currentID: 1},
+		{name: "gameOver", running: false, currentID: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			raw := json.RawMessage(fmt.Sprintf(
+				`{"0":0,"1":{},"2":{},"3":0,"4":{},"5":%t,"6":{},"7":%d,"8":0,"9":{}}`,
+				test.running,
+				test.currentID,
+			))
+			mode, ok := decodeDessertMode(raw)
+			if !ok || mode == nil || mode.IsRunning != test.running || mode.CurID != test.currentID || len(mode.Objects) != 0 {
+				t.Fatalf("empty-board mode=(%+v,%t)", mode, ok)
+			}
+		})
+	}
+
+	if objects, ok := decodeDessertObjects(json.RawMessage(`{"unexpected":[]}`)); ok || objects != nil {
+		t.Fatalf("non-empty object accepted as board: (%+v,%t)", objects, ok)
 	}
 }
 

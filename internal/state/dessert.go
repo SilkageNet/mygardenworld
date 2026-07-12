@@ -195,7 +195,15 @@ func decodeDessertObjects(raw json.RawMessage) ([]DessertObjectView, bool) {
 		return nil, true
 	}
 	var rows []json.RawMessage
-	if json.Unmarshal(raw, &rows) != nil || rows == nil {
+	if err := json.Unmarshal(raw, &rows); err != nil || rows == nil {
+		// The dessert server encodes a freshly started or completed empty
+		// board as {} even though populated boards are arrays. Accept only
+		// that exact empty-object sentinel; a non-empty object is malformed
+		// and must never leave executable board state behind.
+		var emptyBoard map[string]json.RawMessage
+		if json.Unmarshal(raw, &emptyBoard) == nil && emptyBoard != nil && len(emptyBoard) == 0 {
+			return []DessertObjectView{}, true
+		}
 		return nil, false
 	}
 	out := make([]DessertObjectView, 0, len(rows))

@@ -19,7 +19,7 @@ const (
 	dessertMinEnergyReservePolicy    = "min_energy_reserve"
 	dessertWaitingDuration           = 800 * time.Millisecond
 	dessertStaticVelocityThreshold   = 1.0
-	dessertEvidenceBlockedReason     = "抓包尚未证明因果轨迹和自然终态，有界控制器与实时执行保持阻塞"
+	dessertEvidenceBlockedReason     = "抓包已证明游戏生命周期，但因果轨迹与物理回放尚未验证，有界控制器与实时执行保持阻塞"
 	// dessertLiveControllerCompiled is a compile-time fuse. Capture evidence
 	// and a successful bounded preflight are necessary but never sufficient
 	// while this fuse remains false.

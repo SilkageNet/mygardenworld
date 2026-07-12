@@ -53,6 +53,17 @@ func TestDessertRoundFixtureEvidenceInvariants(t *testing.T) {
 	if fixture.Final.Server.Step != 100 || fixture.Final.Server.DropCount != 100 || fixture.Final.Server.TotalScore != 2220 || fixture.Final.Server.Energy != 0 {
 		t.Fatalf("final authoritative counters=%+v", fixture.Final.Server)
 	}
+	if fixture.Final.CheckpointCount != 0 || fixture.Final.TerminalLineTimeMS != 0 {
+		t.Fatalf("legacy fixture gained terminal metadata: %+v", fixture.Final)
+	}
+	remarshaled, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remarshaled = append(remarshaled, '\n')
+	if !bytes.Equal(remarshaled, data) {
+		t.Fatal("new checkpoint fields changed the legacy fixture encoding")
+	}
 
 	levels := make(map[int32]int32)
 	drops, merges := 0, 0
@@ -154,9 +165,9 @@ func TestExtractDessertFixtureRejectsOutOfOrderRelevantResponses(t *testing.T) {
 
 func TestDessertFixtureRejectsUnsafeBodyValues(t *testing.T) {
 	for name, mutation := range map[string]func(map[string]any){
-		"syncing body": func(body map[string]any) { body["isSyn"] = true },
-		"nonfinite":    func(body map[string]any) { body["angularVelocity"] = json.RawMessage(`1e9999`) },
-		"line timer":   func(body map[string]any) { body["_lineTime"] = 1 },
+		"syncing body":        func(body map[string]any) { body["isSyn"] = true },
+		"nonfinite":           func(body map[string]any) { body["angularVelocity"] = json.RawMessage(`1e9999`) },
+		"negative line timer": func(body map[string]any) { body["_lineTime"] = -1 },
 		"anisotropic scale": func(body map[string]any) {
 			body["scale"].(map[string]any)["y"] = 0.75
 		},
@@ -175,6 +186,77 @@ func TestDessertFixtureRejectsUnsafeBodyValues(t *testing.T) {
 			raw, _ := json.Marshal(save)
 			if _, err := parseDessertSubmittedState(raw); err == nil {
 				t.Fatal("unsafe body accepted")
+			}
+		})
+	}
+}
+
+func TestExtractDessertFixtureModelsNaturalTerminalCheckpoint(t *testing.T) {
+	cfg, err := babigame.ConfigForChannel(babigame.ChannelIOS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dropped := syntheticDessertBody(1, 10)
+	terminal := syntheticDessertBody(1, 10)
+	terminal["isFallBall"] = false
+	terminal["_lineTime"] = 5001
+	terminal["pos"].(map[string]any)["y"] = 271.5
+
+	dropRequest, dropKey := syntheticDessertRequest(t, cfg, 0, []map[string]any{dropped})
+	checkpointRequest, checkpointKey := syntheticDessertOperationRequest(t, cfg, 1, []map[string]any{terminal}, 0, 0, 99)
+	lines := []string{
+		syntheticWSLine(t, "flow-a", "client_to_server", dropRequest),
+		syntheticWSLine(t, "flow-a", "server_to_client", syntheticDessertResponse(t, dropKey, 1, []map[string]any{dropped})),
+		syntheticWSLine(t, "flow-a", "client_to_server", checkpointRequest),
+		syntheticWSLine(t, "flow-a", "server_to_client", syntheticDessertResponse(t, checkpointKey, 1, []map[string]any{terminal})),
+	}
+	fixture, err := extractDessertRoundFixture(
+		strings.NewReader(strings.Join(lines, "\n")+"\n"),
+		babigame.ChannelIOS,
+		dessertFixtureExpected{drops: 1, checkpoints: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Checkpoints) != 2 || fixture.Checkpoints[1].Operation != "checkpoint" ||
+		fixture.Checkpoints[1].TerminalLineTimeMS != 5001 || fixture.Checkpoints[1].Submitted.Bodies[0].LineTimeMS != 5001 ||
+		fixture.Final.Drops != 1 || fixture.Final.Merges != 0 || fixture.Final.CheckpointCount != 1 || fixture.Final.TerminalLineTimeMS != 5001 {
+		t.Fatalf("natural-terminal fixture=%+v", fixture)
+	}
+}
+
+func TestDessertCheckpointRejectsEconomicOrBodyLevelChanges(t *testing.T) {
+	cfg, err := babigame.ConfigForChannel(babigame.ChannelIOS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dropped := syntheticDessertBody(1, 10)
+	checkpoint := syntheticDessertBody(1, 20)
+	for _, test := range []struct {
+		name         string
+		responseStep int32
+		responseBody map[string]any
+		want         string
+	}{
+		{name: "economics", responseStep: 2, responseBody: checkpoint, want: "economic counters"},
+		{name: "body levels", responseStep: 1, responseBody: syntheticDessertBody(2, 20), want: "body-level multiset"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dropRequest, dropKey := syntheticDessertRequest(t, cfg, 0, []map[string]any{dropped})
+			checkpointRequest, checkpointKey := syntheticDessertOperationRequest(t, cfg, 1, []map[string]any{checkpoint}, 0, 0, 99)
+			lines := []string{
+				syntheticWSLine(t, "flow-a", "client_to_server", dropRequest),
+				syntheticWSLine(t, "flow-a", "server_to_client", syntheticDessertResponse(t, dropKey, 1, []map[string]any{dropped})),
+				syntheticWSLine(t, "flow-a", "client_to_server", checkpointRequest),
+				syntheticWSLine(t, "flow-a", "server_to_client", syntheticDessertResponse(t, checkpointKey, test.responseStep, []map[string]any{test.responseBody})),
+			}
+			_, err := extractDessertRoundFixture(
+				strings.NewReader(strings.Join(lines, "\n")+"\n"),
+				babigame.ChannelIOS,
+				dessertFixtureExpected{drops: 1, checkpoints: 1},
+			)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("err=%v", err)
 			}
 		})
 	}
@@ -204,11 +286,15 @@ func TestDessertFixtureOptionalRegenerationMatchesCommittedCorpus(t *testing.T) 
 }
 
 func syntheticDessertRequest(t *testing.T, cfg babigame.Config, step int32, bodies []map[string]any) (string, string) {
+	return syntheticDessertOperationRequest(t, cfg, step, bodies, 1, 0, int64(step+10))
+}
+
+func syntheticDessertOperationRequest(t *testing.T, cfg babigame.Config, step int32, bodies []map[string]any, operationType, mergeLevel int32, nonce int64) (string, string) {
 	t.Helper()
 	frame, key, err := babigame.BuildRequest(dessertGameSyncRPC, map[string]any{
 		"batchId": 9001, "gameType": 1,
-		"args": map[string]any{"_useItem2SelIdx": 0, "operationType": 1, "mergeLvl": 0, "saveData": syntheticDessertSave(step, bodies)},
-	}, "", int64(step+10), cfg)
+		"args": map[string]any{"_useItem2SelIdx": 0, "operationType": operationType, "mergeLvl": mergeLevel, "saveData": syntheticDessertSave(step, bodies)},
+	}, "", nonce, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,6 +358,7 @@ func assertFiniteDessertBody(t *testing.T, body DessertFixtureBody) {
 	for name, value := range map[string]float64{
 		"x": body.Position.X, "y": body.Position.Y, "vx": body.LinearVelocity.X, "vy": body.LinearVelocity.Y,
 		"angular": body.AngularVelocity, "angle": body.NodeAngleDeg, "scale_x": body.Scale.X, "scale_y": body.Scale.Y, "scale_z": body.Scale.Z,
+		"line_time_ms": body.LineTimeMS,
 	} {
 		if value != value || value > 1e308 || value < -1e308 {
 			t.Fatalf("body %s is nonfinite: %v", name, value)

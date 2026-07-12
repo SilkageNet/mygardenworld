@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "activity": "dessert",
   "replay": {
     "verified": true,
@@ -18,12 +18,15 @@
   },
   "reward_boxes": {
     "recv_boxes_success": false,
-    "open_box_success": false
+    "open_box_success": true,
+    "open_box_request_num": 1,
+    "open_box_fixture_sha256": "2980ca2fc318fc3ef2d0b2147c175a27689ef3b30f8ffb122fc00de88d39a8c4"
   },
   "live_autoplay": {
-    "game_start_from_idle_success": false,
+    "game_start_from_idle_success": true,
     "phase_three_success": false,
-    "natural_end_success": false,
-    "terminal_game_over_success": false
+    "natural_end_success": true,
+    "terminal_game_over_success": true,
+    "lifecycle_fixture_sha256": "8c197356fa14db19226033fea18e36191018f88a1e7ba06b72730e1c9615e557"
   }
 }

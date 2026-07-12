@@ -11,10 +11,21 @@ import (
 	"io"
 )
 
-const dessertEvidenceManifestSHA256 = "c6a529453bd84b9e1a2c29ba17aa198bf4417748dba133a7d5953624361d30c4"
+const dessertEvidenceManifestSHA256 = "03ecd1577321665b67736c291a2610c87d782e21a7f88f0f840cd8e420a125de"
 
 //go:embed testdata/dessert_evidence_manifest.json
 var dessertEvidenceManifestJSON []byte
+
+//go:embed testdata/dessert_open_box_evidence.json
+var dessertOpenBoxEvidenceFixtureJSON []byte
+
+//go:embed testdata/dessert_lifecycle_evidence.json
+var dessertLifecycleEvidenceFixtureJSON []byte
+
+// A successful act.recvBoxes fixture has not been observed yet. Keeping the
+// corpus variable explicit makes the progress-box gate impossible to open by
+// changing only a manifest boolean.
+var dessertRecvBoxesEvidenceFixtureJSON []byte
 
 // DessertCaptureEvidence is the reviewed, sanitized protocol-evidence summary
 // embedded in the daemon. It deliberately contains no account, batch, capture
@@ -44,15 +55,77 @@ type DessertReplayEvidence struct {
 }
 
 type DessertRewardBoxEvidence struct {
-	RecvBoxesSuccess bool `json:"recv_boxes_success"`
-	OpenBoxSuccess   bool `json:"open_box_success"`
+	RecvBoxesSuccess       bool   `json:"recv_boxes_success"`
+	RecvBoxesFixtureSHA256 string `json:"recv_boxes_fixture_sha256,omitempty"`
+	OpenBoxSuccess         bool   `json:"open_box_success"`
+	OpenBoxRequestNum      int32  `json:"open_box_request_num"`
+	OpenBoxFixtureSHA256   string `json:"open_box_fixture_sha256"`
 }
 
 type DessertLiveAutoplayEvidence struct {
-	GameStartFromIdleSuccess bool `json:"game_start_from_idle_success"`
-	PhaseThreeSuccess        bool `json:"phase_three_success"`
-	NaturalEndSuccess        bool `json:"natural_end_success"`
-	TerminalGameOverSuccess  bool `json:"terminal_game_over_success"`
+	GameStartFromIdleSuccess bool   `json:"game_start_from_idle_success"`
+	PhaseThreeSuccess        bool   `json:"phase_three_success"`
+	NaturalEndSuccess        bool   `json:"natural_end_success"`
+	TerminalGameOverSuccess  bool   `json:"terminal_game_over_success"`
+	LifecycleFixtureSHA256   string `json:"lifecycle_fixture_sha256"`
+}
+
+type dessertOpenBoxEvidenceFixture struct {
+	Schema  string `json:"schema"`
+	Request struct {
+		Num int32 `json:"num"`
+	} `json:"request"`
+	Before struct {
+		RewardBoxes int32 `json:"reward_boxes"`
+		TotalPoints int32 `json:"total_points"`
+	} `json:"before"`
+	After struct {
+		RewardBoxes int32 `json:"reward_boxes"`
+		TotalPoints int32 `json:"total_points"`
+	} `json:"after"`
+	Reward struct {
+		ItemID int32 `json:"item_id"`
+		Count  int32 `json:"count"`
+	} `json:"reward"`
+	ModeUnchanged bool `json:"mode_unchanged"`
+}
+
+type dessertLifecycleEvidenceFixture struct {
+	Schema    string `json:"schema"`
+	Mode      int32  `json:"mode"`
+	GameStart struct {
+		Before dessertLifecycleState `json:"before"`
+		After  dessertLifecycleState `json:"after"`
+	} `json:"game_start"`
+	NaturalCheckpoint struct {
+		OperationType int32   `json:"operation_type"`
+		MergeLevel    int32   `json:"merge_level"`
+		Step          int32   `json:"step"`
+		Running       bool    `json:"running"`
+		GameStatus    int32   `json:"game_status"`
+		ObjectCount   int32   `json:"object_count"`
+		MaxLineHoldMS float64 `json:"max_line_hold_ms"`
+	} `json:"natural_checkpoint"`
+	GameOver struct {
+		Before           dessertLifecycleGameOverState `json:"before"`
+		After            dessertLifecycleGameOverState `json:"after"`
+		EconomyPreserved bool                          `json:"economy_preserved"`
+	} `json:"game_over"`
+}
+
+type dessertLifecycleState struct {
+	Step         int32 `json:"step"`
+	Running      bool  `json:"running"`
+	CurrentLevel int32 `json:"current_level"`
+	ObjectCount  int32 `json:"object_count"`
+}
+
+type dessertLifecycleGameOverState struct {
+	Step          int32 `json:"step"`
+	Running       bool  `json:"running"`
+	Score         int32 `json:"score"`
+	CurrencyGain  int32 `json:"currency_gain"`
+	RewardBoxGain int32 `json:"reward_box_gain"`
 }
 
 // ReadDessertCaptureEvidence verifies the embedded manifest byte-for-byte and
@@ -62,11 +135,28 @@ func ReadDessertCaptureEvidence() (DessertCaptureEvidence, error) {
 	return readDessertCaptureEvidence(dessertEvidenceManifestJSON, dessertEvidenceManifestSHA256)
 }
 
-// DessertRewardBoxEvidenceGate reports whether both reward-box RPC success
-// paths have reviewed capture evidence. It fails closed on every read error.
-func DessertRewardBoxEvidenceGate() bool {
+// DessertOpenRewardBoxEvidenceGate reports whether the independently observed
+// single-box actDessert.openBox path has reviewed, embedded evidence.
+func DessertOpenRewardBoxEvidenceGate() bool {
 	evidence, err := ReadDessertCaptureEvidence()
-	return err == nil && evidence.RewardBoxes.RecvBoxesSuccess && evidence.RewardBoxes.OpenBoxSuccess
+	return err == nil && evidence.RewardBoxes.OpenBoxSuccess && evidence.RewardBoxes.OpenBoxRequestNum == 1 &&
+		dessertEmbeddedEvidenceMatches(dessertOpenBoxEvidenceFixtureJSON, evidence.RewardBoxes.OpenBoxFixtureSHA256) &&
+		validDessertOpenBoxEvidenceFixture(dessertOpenBoxEvidenceFixtureJSON)
+}
+
+// DessertProgressBoxEvidenceGate remains closed until a successful
+// act.recvBoxes response fixture is embedded. Client code alone is not
+// sufficient evidence for its receipt delta.
+func DessertProgressBoxEvidenceGate() bool {
+	evidence, err := ReadDessertCaptureEvidence()
+	return err == nil && evidence.RewardBoxes.RecvBoxesSuccess &&
+		dessertEmbeddedEvidenceMatches(dessertRecvBoxesEvidenceFixtureJSON, evidence.RewardBoxes.RecvBoxesFixtureSHA256)
+}
+
+// DessertRewardBoxEvidenceGate is retained for callers that require both
+// independent reward paths. New planners should use the action-specific gate.
+func DessertRewardBoxEvidenceGate() bool {
+	return DessertOpenRewardBoxEvidenceGate() && DessertProgressBoxEvidenceGate()
 }
 
 // DessertLiveAutoplayEvidenceGate reports whether the capture corpus proves a
@@ -84,7 +174,69 @@ func DessertLiveAutoplayEvidenceGate() bool {
 		evidence.LiveAutoplay.GameStartFromIdleSuccess &&
 		evidence.LiveAutoplay.PhaseThreeSuccess &&
 		evidence.LiveAutoplay.NaturalEndSuccess &&
-		evidence.LiveAutoplay.TerminalGameOverSuccess
+		evidence.LiveAutoplay.TerminalGameOverSuccess &&
+		dessertEmbeddedEvidenceMatches(dessertLifecycleEvidenceFixtureJSON, evidence.LiveAutoplay.LifecycleFixtureSHA256) &&
+		validDessertLifecycleEvidenceFixture(dessertLifecycleEvidenceFixtureJSON)
+}
+
+func validDessertOpenBoxEvidenceFixture(raw []byte) bool {
+	var fixture dessertOpenBoxEvidenceFixture
+	if !strictDessertEvidenceDecode(raw, &fixture) {
+		return false
+	}
+	return fixture.Schema == "dessert-open-box-v1" && fixture.Request.Num == 1 &&
+		fixture.Before.RewardBoxes > 0 && fixture.After.RewardBoxes == fixture.Before.RewardBoxes-1 &&
+		fixture.Reward.ItemID == 1344 && fixture.Reward.Count > 0 &&
+		fixture.After.TotalPoints == fixture.Before.TotalPoints+fixture.Reward.Count && fixture.ModeUnchanged
+}
+
+func validDessertLifecycleEvidenceFixture(raw []byte) bool {
+	var fixture dessertLifecycleEvidenceFixture
+	if !strictDessertEvidenceDecode(raw, &fixture) {
+		return false
+	}
+	start := fixture.GameStart
+	checkpoint := fixture.NaturalCheckpoint
+	gameOver := fixture.GameOver
+	return fixture.Schema == "dessert-mode1-lifecycle-v1" && fixture.Mode == 1 &&
+		start.Before.Step == 0 && !start.Before.Running && start.Before.CurrentLevel == 0 && start.Before.ObjectCount == 0 &&
+		start.After.Step == 0 && start.After.Running && start.After.CurrentLevel > 0 && start.After.ObjectCount == 0 &&
+		checkpoint.OperationType == 0 && checkpoint.MergeLevel == 0 && checkpoint.Step > 0 && checkpoint.Running &&
+		checkpoint.GameStatus == 0 && checkpoint.ObjectCount > 0 && checkpoint.MaxLineHoldMS >= 5000 &&
+		gameOver.Before.Step == checkpoint.Step && gameOver.Before.Running && gameOver.Before.Score > 0 &&
+		gameOver.Before.CurrencyGain >= 0 && gameOver.Before.RewardBoxGain >= 0 &&
+		gameOver.After.Step == 0 && !gameOver.After.Running && gameOver.After.Score == 0 &&
+		gameOver.After.CurrencyGain == gameOver.Before.CurrencyGain &&
+		gameOver.After.RewardBoxGain == gameOver.Before.RewardBoxGain && gameOver.EconomyPreserved
+}
+
+func strictDessertEvidenceDecode(raw []byte, destination any) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(destination) != nil {
+		return false
+	}
+	var trailing any
+	return errors.Is(decoder.Decode(&trailing), io.EOF)
+}
+
+func dessertEmbeddedEvidenceMatches(raw []byte, expectedSHA256 string) bool {
+	if len(raw) == 0 || !validDessertEvidenceSHA256(expectedSHA256) {
+		return false
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]) == expectedSHA256
+}
+
+func validDessertEvidenceSHA256(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func readDessertCaptureEvidence(raw []byte, expectedSHA256 string) (DessertCaptureEvidence, error) {
@@ -119,7 +271,7 @@ func readDessertCaptureEvidence(raw []byte, expectedSHA256 string) (DessertCaptu
 }
 
 func validateDessertCaptureEvidence(evidence DessertCaptureEvidence) error {
-	if evidence.SchemaVersion != 1 {
+	if evidence.SchemaVersion != 2 {
 		return fmt.Errorf("unsupported dessert evidence schema version %d", evidence.SchemaVersion)
 	}
 	if evidence.Activity != "dessert" {
@@ -136,10 +288,7 @@ func validateDessertCaptureEvidence(evidence DessertCaptureEvidence) error {
 	if replay.RequestCount != replay.ResponseCount || replay.DropCount+replay.MergeCount != replay.RequestCount {
 		return errors.New("dessert replay evidence counts are inconsistent")
 	}
-	if len(replay.FixtureSHA256) != sha256.Size*2 {
-		return errors.New("dessert replay fixture digest is incomplete")
-	}
-	if _, err := hex.DecodeString(replay.FixtureSHA256); err != nil {
+	if !validDessertEvidenceSHA256(replay.FixtureSHA256) {
 		return errors.New("dessert replay fixture digest is invalid")
 	}
 	if !replay.ResponseOrderVerified || !replay.TopologyVerified || !replay.CheckpointRebuildVerified {
@@ -147,6 +296,24 @@ func validateDessertCaptureEvidence(evidence DessertCaptureEvidence) error {
 	}
 	if replay.TrajectoryVerified && !replay.CausalSequenceVerified {
 		return errors.New("dessert trajectory cannot be verified from a non-causal sequence")
+	}
+	rewards := evidence.RewardBoxes
+	if rewards.OpenBoxSuccess {
+		if rewards.OpenBoxRequestNum != 1 || !validDessertEvidenceSHA256(rewards.OpenBoxFixtureSHA256) {
+			return errors.New("dessert single-box evidence is incomplete")
+		}
+	} else if rewards.OpenBoxRequestNum != 0 || rewards.OpenBoxFixtureSHA256 != "" {
+		return errors.New("dessert open-box evidence is inconsistent")
+	}
+	if rewards.RecvBoxesSuccess && !validDessertEvidenceSHA256(rewards.RecvBoxesFixtureSHA256) {
+		return errors.New("dessert progress-box evidence is incomplete")
+	}
+	live := evidence.LiveAutoplay
+	if (live.NaturalEndSuccess || live.TerminalGameOverSuccess) && !live.GameStartFromIdleSuccess {
+		return errors.New("dessert terminal lifecycle lacks a verified game start")
+	}
+	if !validDessertEvidenceSHA256(live.LifecycleFixtureSHA256) {
+		return errors.New("dessert lifecycle fixture digest is invalid")
 	}
 	return nil
 }

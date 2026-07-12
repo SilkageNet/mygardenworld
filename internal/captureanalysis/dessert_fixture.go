@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	DessertRoundFixtureSchema = "dessert-mode1-round-v1"
-	dessertGameSyncRPC        = "actDessert.gameSync"
+	DessertRoundFixtureSchema        = "dessert-mode1-round-v1"
+	dessertGameSyncRPC               = "actDessert.gameSync"
+	dessertNaturalTerminalLineTimeMS = 5000
 )
 
 var dessertFixtureRadiiPX = [...]float64{19.5, 26.5, 36.5, 45.5, 56, 63.5, 79, 105, 111.5, 135.5, 187}
@@ -36,12 +37,13 @@ type DessertRoundFixture struct {
 }
 
 type DessertFixtureCheckpoint struct {
-	Sequence   int                    `json:"sequence"`
-	Operation  string                 `json:"operation"`
-	DropLevel  int32                  `json:"drop_level,omitempty"`
-	MergeLevel int32                  `json:"merge_level,omitempty"`
-	Submitted  DessertFixtureState    `json:"submitted"`
-	Server     DessertFixtureCounters `json:"server"`
+	Sequence           int                    `json:"sequence"`
+	Operation          string                 `json:"operation"`
+	DropLevel          int32                  `json:"drop_level,omitempty"`
+	MergeLevel         int32                  `json:"merge_level,omitempty"`
+	TerminalLineTimeMS float64                `json:"terminal_line_time_ms,omitempty"`
+	Submitted          DessertFixtureState    `json:"submitted"`
+	Server             DessertFixtureCounters `json:"server"`
 }
 
 type DessertFixtureState struct {
@@ -67,6 +69,7 @@ type DessertFixtureBody struct {
 	Scale           DessertFixtureVector3 `json:"scale"`
 	Awake           bool                  `json:"awake"`
 	Falling         bool                  `json:"falling"`
+	LineTimeMS      float64               `json:"line_time_ms,omitempty"`
 }
 
 type DessertFixtureVector2 struct {
@@ -95,11 +98,16 @@ type DessertFixtureCounters struct {
 	Currency     int32           `json:"currency"`
 	Points       int32           `json:"points"`
 	RewardBoxes  int32           `json:"reward_boxes"`
+	// TerminalLineTimeMS is derived from the authoritative response map. It
+	// remains absent from legacy fixtures whose bodies all carry zero timers.
+	TerminalLineTimeMS float64 `json:"terminal_line_time_ms,omitempty"`
 }
 
 type DessertFixtureFinal struct {
 	Drops              int32                  `json:"drops"`
 	Merges             int32                  `json:"merges"`
+	CheckpointCount    int32                  `json:"checkpoint_count,omitempty"`
+	TerminalLineTimeMS float64                `json:"terminal_line_time_ms,omitempty"`
 	MergeLevelCounts   map[int32]int32        `json:"merge_level_counts"`
 	Submitted          DessertFixtureState    `json:"submitted"`
 	Server             DessertFixtureCounters `json:"server"`
@@ -123,19 +131,22 @@ type dessertFixturePair struct {
 }
 
 type dessertFixtureExpected struct {
-	drops  int
-	merges int
+	drops                int
+	merges               int
+	checkpoints          int
+	allowNaturalTerminal bool
 }
 
-// ExtractDessertRoundFixture scans websocket.jsonl directly and extracts the
-// capture-proven 100-drop/81-merge ordinary-mode round.
+// ExtractDessertRoundFixture scans websocket.jsonl directly and extracts either
+// the capture-proven legacy 100-drop/81-merge ordinary-mode round or a complete
+// natural-terminal round ending in one observed checkpoint.
 func ExtractDessertRoundFixture(sessionDir string, channel babigame.Channel) (DessertRoundFixture, error) {
 	f, err := os.Open(filepath.Join(sessionDir, "websocket.jsonl"))
 	if err != nil {
 		return DessertRoundFixture{}, fmt.Errorf("open websocket jsonl: %w", err)
 	}
 	defer func() { _ = f.Close() }()
-	return extractDessertRoundFixture(f, channel, dessertFixtureExpected{drops: 100, merges: 81})
+	return extractDessertRoundFixture(f, channel, dessertFixtureExpected{drops: 100, merges: 81, allowNaturalTerminal: true})
 }
 
 // WriteDessertRoundFixture writes stable compact JSON without embedding the
@@ -274,8 +285,9 @@ func decodeDessertFixtureRequest(text string, cfg babigame.Config) (dessertFixtu
 }
 
 func buildDessertRoundFixture(pairs []dessertFixturePair, expected dessertFixtureExpected) (DessertRoundFixture, error) {
-	if len(pairs) != expected.drops+expected.merges {
-		return DessertRoundFixture{}, fmt.Errorf("dessert checkpoints=%d, want %d", len(pairs), expected.drops+expected.merges)
+	expectedTotal := expected.drops + expected.merges + expected.checkpoints
+	if !expected.allowNaturalTerminal && len(pairs) != expectedTotal {
+		return DessertRoundFixture{}, fmt.Errorf("dessert operations=%d, want %d", len(pairs), expectedTotal)
 	}
 	// pairs are appended in response-arrival order. Sparse server counters may
 	// only be folded when relevant responses arrive in their request order.
@@ -290,7 +302,8 @@ func buildDessertRoundFixture(pairs []dessertFixturePair, expected dessertFixtur
 	mergeCounts := make(map[int32]int32)
 	counters := DessertFixtureCounters{DropCount: -1, Energy: -1, Currency: -1, Points: -1, RewardBoxes: -1}
 	var batchID int32
-	var drops, merges, stepLag int
+	var drops, merges, checkpoints, stepLag int
+	var terminalLineTimeMS float64
 	previousLevels := make(map[int32]int32)
 	for index, pair := range pairs {
 		if pair.request.order != index+1 {
@@ -301,7 +314,7 @@ func buildDessertRoundFixture(pairs []dessertFixturePair, expected dessertFixtur
 		} else if pair.request.batchID != batchID {
 			return DessertRoundFixture{}, fmt.Errorf("capture contains more than one dessert batch")
 		}
-		next, err := parseDessertServerCounters(pair.response, batchID, pair.request.state, counters)
+		next, err := parseDessertServerCounters(pair.response, batchID, pair.request.state, counters, pair.request.action)
 		if err != nil {
 			return DessertRoundFixture{}, fmt.Errorf("dessert response %d: %w", pair.request.order, err)
 		}
@@ -315,17 +328,34 @@ func buildDessertRoundFixture(pairs []dessertFixturePair, expected dessertFixtur
 			return DessertRoundFixture{}, fmt.Errorf("dessert checkpoint %d: %w", pair.request.order, err)
 		}
 		previousLevels = currentLevels
-		checkpoint := DessertFixtureCheckpoint{Sequence: index + 1, Operation: pair.request.action, DropLevel: dropLevel, MergeLevel: pair.request.merge, Submitted: pair.request.state, Server: counters}
+		lineTimeMS := float64(0)
+		if pair.request.action == "checkpoint" {
+			lineTimeMS = counters.TerminalLineTimeMS
+			terminalLineTimeMS = max(terminalLineTimeMS, lineTimeMS)
+		}
+		checkpoint := DessertFixtureCheckpoint{
+			Sequence: index + 1, Operation: pair.request.action, DropLevel: dropLevel, MergeLevel: pair.request.merge,
+			TerminalLineTimeMS: lineTimeMS, Submitted: pair.request.state, Server: counters,
+		}
 		fixture.Checkpoints = append(fixture.Checkpoints, checkpoint)
-		if pair.request.action == "drop" {
+		switch pair.request.action {
+		case "drop":
 			drops++
-		} else {
+		case "merge":
 			merges++
 			mergeCounts[pair.request.merge]++
+		case "checkpoint":
+			checkpoints++
 		}
 	}
-	if drops != expected.drops || merges != expected.merges {
-		return DessertRoundFixture{}, fmt.Errorf("dessert actions drop=%d merge=%d, want %d/%d", drops, merges, expected.drops, expected.merges)
+	legacyRound := drops == expected.drops && merges == expected.merges && checkpoints == expected.checkpoints
+	naturalRound := expected.allowNaturalTerminal && checkpoints == 1 && len(fixture.Checkpoints) > 0 &&
+		fixture.Checkpoints[len(fixture.Checkpoints)-1].Operation == "checkpoint" && terminalLineTimeMS >= dessertNaturalTerminalLineTimeMS
+	if (!expected.allowNaturalTerminal && !legacyRound) || (expected.allowNaturalTerminal && !legacyRound && !naturalRound) {
+		return DessertRoundFixture{}, fmt.Errorf(
+			"dessert actions drop=%d merge=%d checkpoint=%d, want %d/%d/%d or one natural-terminal checkpoint",
+			drops, merges, checkpoints, expected.drops, expected.merges, expected.checkpoints,
+		)
 	}
 	if len(fixture.Checkpoints) == 0 {
 		return DessertRoundFixture{}, fmt.Errorf("dessert round is empty")
@@ -347,7 +377,11 @@ func buildDessertRoundFixture(pairs []dessertFixturePair, expected dessertFixtur
 	}
 	fixture.Initial = DessertFixtureState{CurrentLevel: first.Submitted.CurrentLevel, Running: true, FirstMerge: map[int32]int32{}, TotalGain: map[int32]int32{}, LevelMap: map[int32]int32{}, Bodies: []DessertFixtureBody{}}
 	last := fixture.Checkpoints[len(fixture.Checkpoints)-1]
-	fixture.Final = DessertFixtureFinal{Drops: int32(drops), Merges: int32(merges), MergeLevelCounts: mergeCounts, Submitted: last.Submitted, Server: last.Server, BodyLevelCounts: dessertBodyLevelCounts(last.Submitted.Bodies), StepLagCheckpoints: int32(stepLag)}
+	fixture.Final = DessertFixtureFinal{
+		Drops: int32(drops), Merges: int32(merges), CheckpointCount: int32(checkpoints), TerminalLineTimeMS: terminalLineTimeMS,
+		MergeLevelCounts: mergeCounts, Submitted: last.Submitted, Server: last.Server,
+		BodyLevelCounts: dessertBodyLevelCounts(last.Submitted.Bodies), StepLagCheckpoints: int32(stepLag),
+	}
 	return fixture, nil
 }
 
@@ -396,6 +430,11 @@ func dessertValidateLevelTransition(before, after map[int32]int32, action string
 			delete(want, source)
 		}
 		want[mergeLevel]++
+	case "checkpoint":
+		// A checkpoint persists the physical board without performing a
+		// drop or merge. Object identity and coordinates can legitimately
+		// change while the client settles the board, but its level multiset
+		// must remain exact.
 	default:
 		return 0, fmt.Errorf("unsupported action %q", action)
 	}
@@ -450,8 +489,12 @@ func parseDessertGameSyncArgs(raw json.RawMessage) (dessertFixturePending, error
 	action := ""
 	switch operationType {
 	case 0:
-		action = "merge"
-		if mergeLevel < 2 || mergeLevel > 11 {
+		switch {
+		case mergeLevel == 0:
+			action = "checkpoint"
+		case mergeLevel >= 2 && mergeLevel <= 11:
+			action = "merge"
+		default:
 			return dessertFixturePending{}, fmt.Errorf("merge level %d is outside 2..11", mergeLevel)
 		}
 	case 1:
@@ -559,8 +602,8 @@ func dessertBodies(raw json.RawMessage) ([]DessertFixtureBody, error) {
 			return nil, fmt.Errorf("body.scale must use the capture-proven uniform range 0.5..1 with z=0.5")
 		}
 		lineTime, err := dessertFiniteFloat(fields["_lineTime"], "body._lineTime")
-		if err != nil || lineTime != 0 {
-			return nil, fmt.Errorf("body._lineTime is not the capture-proven zero")
+		if err != nil || lineTime < 0 {
+			return nil, fmt.Errorf("body._lineTime must be finite and nonnegative")
 		}
 		var awake, syn, falling bool
 		if json.Unmarshal(fields["isAwake"], &awake) != nil || json.Unmarshal(fields["isSyn"], &syn) != nil {
@@ -572,13 +615,16 @@ func dessertBodies(raw json.RawMessage) ([]DessertFixtureBody, error) {
 		if rawFalling, ok := fields["isFallBall"]; ok && json.Unmarshal(rawFalling, &falling) != nil {
 			return nil, fmt.Errorf("body.isFallBall must be boolean")
 		}
-		out = append(out, DessertFixtureBody{Level: level, Position: position, LinearVelocity: velocity, AngularVelocity: angular, NodeAngleDeg: angle, Scale: scale, Awake: awake, Falling: falling})
+		out = append(out, DessertFixtureBody{
+			Level: level, Position: position, LinearVelocity: velocity, AngularVelocity: angular, NodeAngleDeg: angle,
+			Scale: scale, Awake: awake, Falling: falling, LineTimeMS: lineTime,
+		})
 	}
 	dessertSortBodies(out)
 	return out, nil
 }
 
-func parseDessertServerCounters(raw json.RawMessage, batchID int32, submitted DessertFixtureState, before DessertFixtureCounters) (DessertFixtureCounters, error) {
+func parseDessertServerCounters(raw json.RawMessage, batchID int32, submitted DessertFixtureState, before DessertFixtureCounters, action string) (DessertFixtureCounters, error) {
 	root, err := dessertObject(raw, "response.v")
 	if err != nil {
 		return DessertFixtureCounters{}, err
@@ -596,6 +642,7 @@ func parseDessertServerCounters(raw json.RawMessage, batchID int32, submitted De
 		return DessertFixtureCounters{}, err
 	}
 	next := before
+	next.TerminalLineTimeMS = 0
 	if rawCount, ok := batch["11"]; ok {
 		next.DropCount, err = dessertNonnegativeInt32(rawCount, "response drop count")
 		if err != nil {
@@ -634,7 +681,11 @@ func parseDessertServerCounters(raw json.RawMessage, batchID int32, submitted De
 	if err != nil {
 		return DessertFixtureCounters{}, err
 	}
-	if !dessertBodiesEqual(serverState.Bodies, submitted.Bodies) {
+	if action == "checkpoint" {
+		if !dessertInt32MapsEqual(dessertBodyLevelCounts(serverState.Bodies), dessertBodyLevelCounts(submitted.Bodies)) {
+			return DessertFixtureCounters{}, fmt.Errorf("checkpoint response body-level multiset differs from submitted saveData")
+		}
+	} else if !dessertBodiesEqual(serverState.Bodies, submitted.Bodies) {
 		return DessertFixtureCounters{}, fmt.Errorf("response body multiset differs from submitted saveData")
 	}
 	// The server echoes the submitted unordered body multiset but advances the
@@ -648,8 +699,12 @@ func parseDessertServerCounters(raw json.RawMessage, batchID int32, submitted De
 	next.FirstMerge = serverState.FirstMerge
 	next.TotalGain = serverState.TotalGain
 	next.LevelMap = serverState.LevelMap
+	next.TerminalLineTimeMS = dessertMaxLineTimeMS(serverState.Bodies)
 	if next.DropCount < 0 || next.Energy < 0 || next.Currency < 0 || next.Points < 0 || next.RewardBoxes < 0 || next.TotalScore < 0 {
 		return DessertFixtureCounters{}, fmt.Errorf("response counters are incomplete")
+	}
+	if action == "checkpoint" && !dessertCheckpointCountersEqual(before, next) {
+		return DessertFixtureCounters{}, fmt.Errorf("checkpoint changed authoritative economic counters")
 	}
 	return next, nil
 }
@@ -824,4 +879,34 @@ func dessertBodiesEqual(left, right []DessertFixtureBody) bool {
 		}
 	}
 	return true
+}
+
+func dessertMaxLineTimeMS(bodies []DessertFixtureBody) float64 {
+	maximum := float64(0)
+	for _, body := range bodies {
+		maximum = max(maximum, body.LineTimeMS)
+	}
+	return maximum
+}
+
+func dessertInt32MapsEqual(left, right map[int32]int32) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for key, value := range left {
+		if right[key] != value {
+			return false
+		}
+	}
+	return true
+}
+
+func dessertCheckpointCountersEqual(before, after DessertFixtureCounters) bool {
+	return before.Step == after.Step && before.Score == after.Score && before.CurrentLevel == after.CurrentLevel &&
+		before.GameStatus == after.GameStatus && before.Running == after.Running &&
+		dessertInt32MapsEqual(before.FirstMerge, after.FirstMerge) &&
+		dessertInt32MapsEqual(before.TotalGain, after.TotalGain) &&
+		dessertInt32MapsEqual(before.LevelMap, after.LevelMap) &&
+		before.DropCount == after.DropCount && before.TotalScore == after.TotalScore && before.Energy == after.Energy &&
+		before.Currency == after.Currency && before.Points == after.Points && before.RewardBoxes == after.RewardBoxes
 }

@@ -1,0 +1,19 @@
+{
+  "schema": "dessert-open-box-v1",
+  "request": {
+    "num": 1
+  },
+  "before": {
+    "reward_boxes": 5,
+    "total_points": 2870
+  },
+  "after": {
+    "reward_boxes": 4,
+    "total_points": 2895
+  },
+  "reward": {
+    "item_id": 1344,
+    "count": 25
+  },
+  "mode_unchanged": true
+}
