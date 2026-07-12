@@ -118,7 +118,9 @@ type State struct {
 
 	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
-	randomEventObserved bool                       // namespace 129 observed at least once
+	randomEventObserved bool                       // 129.0.1 observed at least once
+	randomEventMapValid bool                       // latest whole event map decoded structurally
+	randomEventMapError string                     // fail-closed diagnostic for malformed maps
 	signTypes           map[int32]*SignTypeView    // 140.0.<type> 防诈骗/渠道签到状态
 	signTypeObserved    bool                       // namespace 140 observed at least once
 	signTypeMapValid    bool                       // 140.0 was decoded as an object

@@ -519,20 +519,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.RoadGrow().Recv(ctx, req)
 		},
 	),
-	clientproto.RPCRandomEventEnter.String(): stateDeltaOperation(
-		staticRequest(clientproto.RandomEventEnterRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.RandomEvent().Enter(ctx, req)
-		},
-	),
-	clientproto.RPCRandomEventDoAffair.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.RandomEventDoAffairRequest, error) {
-			return clientproto.RandomEventDoAffairRequest{EventId: op.TargetID}, nil
-		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventDoAffairRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.RandomEvent().DoAffair(ctx, req)
-		},
-	),
+	clientproto.RPCRandomEventEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return randomEventEnterRequest(op) },
+		run:  runRandomEventEnter,
+	},
+	clientproto.RPCRandomEventDoAffair.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return randomEventClaimRequest(op) },
+		run:  runRandomEventClaim,
+	},
 	clientproto.RPCMailGetList.String(): stateDeltaOperation(
 		staticRequest(clientproto.MailGetListRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.MailGetListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

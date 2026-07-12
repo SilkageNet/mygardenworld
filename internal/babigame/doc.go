@@ -218,9 +218,11 @@
 // # Random Event (Namespace 129)
 //
 // Static client schema names IRandomEventInfo fields as eventId/posIdx/dialogId.
-// The current state model still treats fields 1/2 as capture-derived
-// status/affair markers; keep that behavior until fresh captures resolve the
-// semantic mismatch.
+// Captures confirm those exact semantics: posIdx is a zero-based index into
+// c_randomEvent.place and dialogId must belong to that event's dialog list.
+// Namespace 129.0.1 is a whole-table replacement whenever present; missing
+// sparse fields retain the previous table, while null or an empty object means
+// a valid empty table.
 //
 // # Key RPCs
 //

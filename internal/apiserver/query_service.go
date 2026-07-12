@@ -127,6 +127,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	vip, vipExp := st.Vip()
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
+	policy := r.Policy()
 	resp := &pb.GetSnapshotResponse{
 		AccountId:             fmt.Sprintf("%d", acc.ID),
 		AccountName:           acc.Name,
@@ -141,7 +142,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Experience:            st.Experience(),
 		DiamondsFree:          diamondsFree,
 		DiamondsPaid:          diamondsPaid,
-		PendingTasks:          buildPendingTasksAt(st, now),
+		PendingTasks:          buildPendingTasksAtPolicy(st, now, policy.GetBasic().GetMapEventEnabled()),
 		Vip:                   vip,
 		VipExp:                vipExp,
 		NobleEligible:         st.NobleEligible(),
@@ -160,7 +161,6 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	}
 	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
-	policy := r.Policy()
 	plan := automation.BuildPlan(st, policy, now)
 	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
 	resp.PlannedOperations = plannedOperationsProto(plan.Operations, diag)
@@ -374,6 +374,10 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 }
 
 func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
+	return buildPendingTasksAtPolicy(st, now, true)
+}
+
+func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled bool) []*pb.PendingTaskView {
 	inventory := st.Inventory()
 	var out []*pb.PendingTaskView
 
@@ -562,21 +566,59 @@ func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
 		})
 	}
 
-	if !st.RandomEventObserved() {
+	observed, mapValid, mapError := st.RandomEventMapStatus()
+	disabledSuffix := ""
+	if !mapEventEnabled {
+		disabledSuffix = "（地图随机事件自动处理已关闭）"
+	}
+	if !observed {
+		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+		if !mapEventEnabled {
+			status = pb.PlanStatus_PLAN_STATUS_MANAGED
+		}
 		out = append(out, &pb.PendingTaskView{
 			Category: "地图随机事件",
 			Id:       "sync",
-			Title:    "地图随机事件同步",
-			Status:   pb.PlanStatus_PLAN_STATUS_SYNC_ONLY,
+			Title:    "地图随机事件同步" + disabledSuffix,
+			Status:   status,
 		})
 	}
-	for _, id := range st.ReadyRandomEventIDs() {
+	if observed && !mapValid {
+		if mapError == "" {
+			mapError = "事件表格式无效"
+		}
 		out = append(out, &pb.PendingTaskView{
 			Category: "地图随机事件",
-			Id:       strconv.FormatInt(int64(id), 10),
-			Title:    fmt.Sprintf("地图随机事件 #%d", id),
-			Status:   pb.PlanStatus_PLAN_STATUS_READY,
+			Id:       "invalid",
+			Title:    "地图随机事件数据异常：" + mapError + disabledSuffix,
+			Status:   pb.PlanStatus_PLAN_STATUS_BLOCKED,
 		})
+	}
+	if observed && mapValid {
+		events := st.RandomEvents()
+		ids := make([]int32, 0, len(events))
+		for id := range events {
+			ids = append(ids, id)
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+		for _, id := range ids {
+			event := events[id]
+			status := pb.PlanStatus_PLAN_STATUS_READY
+			title := fmt.Sprintf("地图随机事件 #%d（位置 %d，对话 %d）", id, event.PositionIndex, event.DialogID)
+			if !event.Valid {
+				status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+				title += "：" + event.BlockedReason
+			} else if !mapEventEnabled {
+				status = pb.PlanStatus_PLAN_STATUS_MANAGED
+			}
+			title += disabledSuffix
+			out = append(out, &pb.PendingTaskView{
+				Category: "地图随机事件",
+				Id:       strconv.FormatInt(int64(id), 10),
+				Title:    title,
+				Status:   status,
+			})
+		}
 	}
 
 	for _, evt := range st.ZooEventActions() {

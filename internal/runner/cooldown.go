@@ -128,6 +128,9 @@ func operationCooldownKey(op *automation.PlannedOp) string {
 	if op == nil {
 		return ""
 	}
+	if key := strings.TrimSpace(op.CooldownKey); key != "" {
+		return key
+	}
 	if op.OperationID != "" {
 		return op.OperationID
 	}

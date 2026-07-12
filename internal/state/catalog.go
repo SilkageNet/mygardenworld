@@ -142,6 +142,17 @@ type StoryMainSectionInfo struct {
 	Cost        []ItemCount
 }
 
+// RandomEventInfo describes one strictly validated c_randomEvent row. The
+// runtime position is a zero-based index into PlaceCount and DialogIDs is the
+// complete allow-list accepted for that event. CostFree is kept explicit so a
+// future client table that adds a paid random-event path fails closed.
+type RandomEventInfo struct {
+	EventID    int32
+	PlaceCount int32
+	DialogIDs  []int32
+	CostFree   bool
+}
+
 // ZooEventInfo describes one c_zooEvent row relevant to conservative event
 // automation.
 type ZooEventInfo struct {
@@ -308,6 +319,75 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 		return nil, false
 	}
 	return cloneRaw(row), true
+}
+
+// RandomEventDefinition returns a catalog row when its identity, positions,
+// and dialogs are complete. CostFree remains false when a future row carries
+// an explicit cost; random-event rewards do not count as costs.
+func RandomEventDefinition(eventID int32) (RandomEventInfo, bool) {
+	if eventID <= 0 {
+		return RandomEventInfo{}, false
+	}
+	table, ok := catalog.Tables["c_randomEvent"]
+	if !ok {
+		return RandomEventInfo{}, false
+	}
+	raw, ok := table.Rows[strconv.FormatInt(int64(eventID), 10)]
+	if !ok {
+		return RandomEventInfo{}, false
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return RandomEventInfo{}, false
+	}
+	rowID, idOK := readStoryMainInt32(row["id"])
+	if !idOK || rowID != eventID {
+		return RandomEventInfo{}, false
+	}
+	var places [][]int32
+	if json.Unmarshal(row["place"], &places) != nil || len(places) == 0 {
+		return RandomEventInfo{}, false
+	}
+	for _, place := range places {
+		if len(place) != 2 {
+			return RandomEventInfo{}, false
+		}
+	}
+	var dialogs []int32
+	if json.Unmarshal(row["dialog"], &dialogs) != nil || len(dialogs) == 0 {
+		return RandomEventInfo{}, false
+	}
+	seen := make(map[int32]struct{}, len(dialogs))
+	for _, dialogID := range dialogs {
+		if dialogID <= 0 {
+			return RandomEventInfo{}, false
+		}
+		if _, duplicate := seen[dialogID]; duplicate {
+			return RandomEventInfo{}, false
+		}
+		seen[dialogID] = struct{}{}
+	}
+	if randomEventRowHasConfiguredCost(row) {
+		return RandomEventInfo{EventID: eventID, PlaceCount: int32(len(places)), DialogIDs: append([]int32(nil), dialogs...)}, true
+	}
+	return RandomEventInfo{
+		EventID: eventID, PlaceCount: int32(len(places)), DialogIDs: append([]int32(nil), dialogs...), CostFree: true,
+	}, true
+}
+
+func randomEventRowHasConfiguredCost(row map[string]json.RawMessage) bool {
+	for field, raw := range row {
+		name := strings.ToLower(field)
+		if !strings.Contains(name, "cost") && !strings.Contains(name, "consume") {
+			continue
+		}
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) || bytes.Equal(trimmed, []byte("0")) || bytes.Equal(trimmed, []byte("[]")) || bytes.Equal(trimmed, []byte("{}")) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // SignTypeRewardByID returns a strictly validated c_signReward row.

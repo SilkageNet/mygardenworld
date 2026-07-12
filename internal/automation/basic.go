@@ -2,10 +2,12 @@ package automation
 
 import (
 	"fmt"
+	"sort"
+	"time"
+
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"time"
 )
 
 func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.Time) []PlannedOp {
@@ -83,14 +85,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		}
 	}
 	if basic.GetMapEventEnabled() {
-		if !s.RandomEventObserved() {
-			add(true, clientproto.RPCRandomEventEnter.String(), "basic.map_event", "sync", "地图随机事件未同步，先进入事件模块", 5970, 0)
-		} else {
-			for _, id := range s.ReadyRandomEventIDs() {
-				add(true, clientproto.RPCRandomEventDoAffair.String(), "basic.map_event", "claim", "地图随机事件可处理", 5960, id)
-				break
-			}
-		}
+		ops = append(ops, randomEventOperations(s)...)
 	}
 	ops = append(ops, zooOperations(s, basic.GetZoo(), now)...)
 	if basic.GetMailEnabled() {
@@ -110,6 +105,51 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	}
 	ops = append(ops, pearlOperations(s, basic.GetPearl(), now)...)
 	return ops
+}
+
+func randomEventOperations(s *state.State) []PlannedOp {
+	goal := Goal{ID: "basic.map_event", Category: CategoryBasic, Domain: "basic.map_event", Label: "地图随机事件", Priority: 59}
+	observed, mapValid, mapError := s.RandomEventMapStatus()
+	if !observed || !mapValid {
+		reason := "地图随机事件未同步，先进入事件模块"
+		if observed {
+			reason = "地图随机事件数据异常，重新进入事件模块进行权威同步"
+			if mapError != "" {
+				reason += "：" + mapError
+			}
+		}
+		planned := op(clientproto.RPCRandomEventEnter.String(), goal, "sync", reason, 5970, 0, 0, 0)
+		planned.CooldownKey = "basic.map_event:sync"
+		return []PlannedOp{planned}
+	}
+
+	events := s.RandomEvents()
+	ids := make([]int32, 0, len(events))
+	for id := range events {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	operations := make([]PlannedOp, 0, len(ids))
+	for _, id := range ids {
+		event := events[id]
+		if event.Valid {
+			planned := op(clientproto.RPCRandomEventDoAffair.String(), goal, "claim", "地图随机事件可处理", 5960, id, 0, 0)
+			planned.CooldownKey = "basic.map_event:claim"
+			operations = append(operations, planned)
+			continue
+		}
+		reason := event.BlockedReason
+		if reason == "" {
+			reason = "事件未通过安全校验"
+		}
+		blocked := op(clientproto.RPCRandomEventDoAffair.String(), goal, "claim", "地图随机事件已阻塞", 5960, id, 0, 0)
+		blocked.Status = PlanStatusBlocked
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{reason}
+		blocked.CooldownKey = "basic.map_event:claim"
+		operations = append(operations, blocked)
+	}
+	return operations
 }
 
 func signTypeOperations(s *state.State, now time.Time) []PlannedOp {

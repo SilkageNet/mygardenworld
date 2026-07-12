@@ -1,8 +1,11 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -393,48 +396,123 @@ func (s *State) applyRoadGrowLocked(raw json.RawMessage) {
 
 func (s *State) applyRandomEventsLocked(raw json.RawMessage) {
 	var ns129 map[string]json.RawMessage
-	if json.Unmarshal(raw, &ns129) != nil {
+	if json.Unmarshal(raw, &ns129) != nil || ns129 == nil {
+		s.invalidateRandomEventMapLocked("namespace 129 不是对象")
 		return
 	}
-	s.randomEventObserved = true
 	raw0, ok := ns129["0"]
 	if !ok {
 		return
 	}
 	var inner map[string]json.RawMessage
-	if json.Unmarshal(raw0, &inner) != nil {
+	if json.Unmarshal(raw0, &inner) != nil || inner == nil {
+		s.invalidateRandomEventMapLocked("namespace 129.0 不是对象")
 		return
 	}
 	rawEvents, ok := inner["1"]
 	if !ok {
 		return
 	}
-	var events map[string]json.RawMessage
-	if json.Unmarshal(rawEvents, &events) != nil {
+	s.randomEventObserved = true
+	trimmed := bytes.TrimSpace(rawEvents)
+	if bytes.Equal(trimmed, []byte("null")) {
+		s.randomEvents = make(map[int32]*RandomEventView)
+		s.randomEventMapValid = true
+		s.randomEventMapError = ""
 		return
 	}
-	s.randomEvents = make(map[int32]*RandomEventView, len(events))
-	for idStr, rawEvent := range events {
-		id := atoi32(idStr)
-		if id == 0 {
-			continue
-		}
-		var fields map[string]json.RawMessage
-		if json.Unmarshal(rawEvent, &fields) != nil {
-			continue
-		}
-		event := &RandomEventView{EventID: id}
-		if rawID, ok := fields["0"]; ok {
-			_ = json.Unmarshal(rawID, &event.EventID)
-		}
-		if rawStatus, ok := fields["1"]; ok {
-			_ = json.Unmarshal(rawStatus, &event.Status)
-		}
-		if rawAffair, ok := fields["2"]; ok {
-			_ = json.Unmarshal(rawAffair, &event.Affair)
-		}
-		s.randomEvents[id] = event
+	var events map[string]json.RawMessage
+	if json.Unmarshal(rawEvents, &events) != nil || events == nil {
+		s.invalidateRandomEventMapLocked("namespace 129.0.1 不是事件对象")
+		return
 	}
+	keys := make([]string, 0, len(events))
+	for key := range events {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	replacement := make(map[int32]*RandomEventView, len(events))
+	for _, idStr := range keys {
+		rawEvent := events[idStr]
+		parsedID, err := strconv.ParseInt(idStr, 10, 32)
+		if err != nil || parsedID <= 0 {
+			s.invalidateRandomEventMapLocked(fmt.Sprintf("事件 key %q 不是正整数", idStr))
+			return
+		}
+		mapID := int32(parsedID)
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(rawEvent, &fields) != nil || fields == nil {
+			s.invalidateRandomEventMapLocked(fmt.Sprintf("事件 %d 不是对象", mapID))
+			return
+		}
+		eventID, idOK := strictRandomEventInt32(fields, "0")
+		positionIndex, positionOK := strictRandomEventInt32(fields, "1")
+		dialogID, dialogOK := strictRandomEventInt32(fields, "2")
+		if !idOK || !positionOK || !dialogOK {
+			s.invalidateRandomEventMapLocked(fmt.Sprintf("事件 %d 缺少有效的 eventId/posIdx/dialogId", mapID))
+			return
+		}
+		event := validateRandomEvent(mapID, eventID, positionIndex, dialogID)
+		replacement[mapID] = &event
+	}
+	s.randomEvents = replacement
+	s.randomEventMapValid = true
+	s.randomEventMapError = ""
+}
+
+func (s *State) invalidateRandomEventMapLocked(reason string) {
+	s.randomEventObserved = true
+	s.randomEvents = make(map[int32]*RandomEventView)
+	s.randomEventMapValid = false
+	s.randomEventMapError = reason
+}
+
+func strictRandomEventInt32(fields map[string]json.RawMessage, key string) (int32, bool) {
+	raw, ok := fields[key]
+	if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return 0, false
+	}
+	var value int32
+	if json.Unmarshal(raw, &value) != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+func validateRandomEvent(mapID, eventID, positionIndex, dialogID int32) RandomEventView {
+	event := RandomEventView{EventID: eventID, PositionIndex: positionIndex, DialogID: dialogID}
+	if mapID <= 0 || eventID <= 0 || mapID != eventID {
+		event.BlockedReason = fmt.Sprintf("事件 key=%d 与 eventId=%d 不一致", mapID, eventID)
+		return event
+	}
+	definition, known := RandomEventDefinition(eventID)
+	event.CatalogKnown = known
+	if !known {
+		event.BlockedReason = "c_randomEvent 未找到完整配置"
+		return event
+	}
+	event.CostFree = definition.CostFree
+	if !definition.CostFree {
+		event.BlockedReason = "事件配置包含消耗"
+		return event
+	}
+	if positionIndex < 0 || positionIndex >= definition.PlaceCount {
+		event.BlockedReason = fmt.Sprintf("posIdx=%d 超出位置范围 [0,%d)", positionIndex, definition.PlaceCount)
+		return event
+	}
+	dialogKnown := false
+	for _, configured := range definition.DialogIDs {
+		if dialogID == configured {
+			dialogKnown = true
+			break
+		}
+	}
+	if !dialogKnown {
+		event.BlockedReason = fmt.Sprintf("dialogId=%d 不属于事件配置", dialogID)
+		return event
+	}
+	event.Valid = true
+	return event
 }
 
 func parseFlowerRequires(raw json.RawMessage) []FlowerRequire {

@@ -634,13 +634,26 @@ type StoryUnlockSnapshot struct {
 	Inventory  map[int32]int32
 }
 
-// RandomEventView is the tracked subset of namespace 129 map events. Static
-// client schema names 129.IRandomEventInfo.1/2 as posIdx/dialogId; current
-// status/affair semantics are capture-derived and pending revalidation.
+// RandomEventView is one namespace 129.0.1 entry joined with c_randomEvent.
+// PositionIndex and DialogID retain the client schema semantics; neither is a
+// status field. Invalid entries remain visible for diagnostics but are never
+// returned as executable candidates.
 type RandomEventView struct {
-	EventID int32 `json:"event_id"`
-	Status  int32 `json:"status"`
-	Affair  int32 `json:"affair"`
+	EventID       int32  `json:"event_id"`
+	PositionIndex int32  `json:"position_index"`
+	DialogID      int32  `json:"dialog_id"`
+	CatalogKnown  bool   `json:"catalog_known"`
+	CostFree      bool   `json:"cost_free"`
+	Valid         bool   `json:"valid"`
+	BlockedReason string `json:"blocked_reason,omitempty"`
+}
+
+// RandomEventClaimSnapshot freezes the exact event verified immediately
+// before randomEvent.doAffair.
+type RandomEventClaimSnapshot struct {
+	EventID       int32
+	PositionIndex int32
+	DialogID      int32
 }
 
 const (
