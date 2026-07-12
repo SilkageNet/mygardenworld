@@ -21,6 +21,7 @@ import {
   ListChecks,
   Loader2,
   LogOut,
+  Minus,
   Package,
   Play,
   Plus,
@@ -2678,16 +2679,92 @@ function BigIntNumberRow({
   min: number;
   onChange: (value: bigint) => void;
 }) {
+  const floor = BigInt(min);
+  const normalizedValue = value < floor ? floor : value;
+
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <Label className="min-w-0 text-sm">{label}</Label>
-      <Input
-        type="number"
-        className="h-8 w-full text-right text-sm sm:w-28"
+    <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+      <Label className="min-w-0 leading-5">{label}</Label>
+      <NumericStepper
+        label={label}
+        value={normalizedValue.toString()}
         min={min}
-        value={value.toString()}
-        onChange={(event) => onChange(parseBigInt(event.target.value, min))}
+        decrementDisabled={normalizedValue <= floor}
+        onDecrement={() => onChange(normalizedValue - BigInt(1))}
+        onIncrement={() => onChange(normalizedValue + BigInt(1))}
+        onValueChange={(nextValue) => onChange(parseBigInt(nextValue, min))}
+        wide
       />
+    </div>
+  );
+}
+
+function NumericStepper({
+  label,
+  value,
+  min,
+  max,
+  disabled = false,
+  decrementDisabled = false,
+  incrementDisabled = false,
+  wide = false,
+  onDecrement,
+  onIncrement,
+  onValueChange,
+}: {
+  label: string;
+  value: string;
+  min: number;
+  max?: number;
+  disabled?: boolean;
+  decrementDisabled?: boolean;
+  incrementDisabled?: boolean;
+  wide?: boolean;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  onValueChange: (value: string) => void;
+}) {
+  const buttonClassName =
+    "flex h-full items-center justify-center text-muted-foreground transition-colors hover:bg-secondary/80 hover:text-foreground disabled:pointer-events-none disabled:opacity-30";
+
+  return (
+    <div
+      className={cn(
+        "grid h-9 shrink-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] overflow-hidden rounded-lg border border-input/85 bg-white/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] transition-[border-color,box-shadow,background-color] focus-within:border-ring focus-within:bg-white/88 focus-within:ring-3 focus-within:ring-ring/24 dark:bg-input/42 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:focus-within:bg-input/58",
+        wide ? "w-40" : "w-36",
+        disabled && "opacity-55",
+      )}
+    >
+      <button
+        type="button"
+        aria-label={`减少${label}`}
+        className={cn(buttonClassName, "border-r border-input/65")}
+        disabled={disabled || decrementDisabled}
+        onClick={onDecrement}
+      >
+        <Minus className="size-3.5" />
+      </button>
+      <input
+        type="number"
+        inputMode="numeric"
+        aria-label={label}
+        className="h-full min-w-0 bg-transparent px-1 text-center text-sm font-semibold tabular-nums text-foreground outline-none [appearance:textfield] disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        min={min}
+        max={max}
+        step={1}
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+      />
+      <button
+        type="button"
+        aria-label={`增加${label}`}
+        className={cn(buttonClassName, "border-l border-input/65")}
+        disabled={disabled || incrementDisabled}
+        onClick={onIncrement}
+      >
+        <Plus className="size-3.5" />
+      </button>
     </div>
   );
 }
@@ -3205,22 +3282,28 @@ function NumberRow({
   disabled?: boolean;
   onChange: (value: number) => void;
 }) {
+  const normalizedValue = Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, Number.isFinite(value) ? Math.trunc(value) : min));
+  const updateValue = (nextValue: number) => onChange(Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, nextValue)));
+
   return (
     <div
       className={cn(
-        "flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 transition-opacity dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3",
+        "flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2 transition-opacity dark:bg-white/5",
         disabled && "opacity-55",
       )}
     >
-      <Label className="min-w-0 text-sm">{label}</Label>
-      <Input
-        type="number"
-        className="h-8 w-full text-right text-sm sm:w-24"
+      <Label className="min-w-0 leading-5">{label}</Label>
+      <NumericStepper
+        label={label}
+        value={normalizedValue.toString()}
         min={min}
         max={max}
         disabled={disabled}
-        value={Number.isFinite(value) ? value : min}
-        onChange={(event) => onChange(parseNumber(event.target.value, min))}
+        decrementDisabled={normalizedValue <= min}
+        incrementDisabled={max !== undefined && normalizedValue >= max}
+        onDecrement={() => updateValue(normalizedValue - 1)}
+        onIncrement={() => updateValue(normalizedValue + 1)}
+        onValueChange={(nextValue) => updateValue(parseNumber(nextValue, min))}
       />
     </div>
   );
