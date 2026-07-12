@@ -13,6 +13,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -1348,7 +1349,7 @@ func activityEnabled(p *pb.ActivityPolicy) bool {
 }
 
 func observedActivity(observed map[string]struct{}) bool {
-	return observedAny(observed, "138", "139", "140", "152", "155", "160", "161", "162", "165")
+	return observedAny(observed, "138", "139", "140", "152", "155", "160", "161", "162", babigame.CelebrityNamespaceLegacy, babigame.CelebrityNamespace)
 }
 
 func setOfStrings(xs []string) map[string]struct{} {

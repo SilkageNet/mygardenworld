@@ -55,7 +55,11 @@
 //	132        | Observed order/pass delta          | orderFlower, flowerElvesPass
 //	140        | Stateful anti-fraud daily reward   | signType.enter/sign/recv
 //	148        | Observed broad activity delta      | Most reward/activity RPCs
-//	165        | Celebrity state                   | celebrity.getAllTypesInfo
+//	165        | Celebrity state (legacy)          | older celebrity responses
+//	166        | Celebrity state (authoritative)   | celebrity.getAllTypesInfo
+//
+// When a delta contains both celebrity namespaces, apply legacy namespace 165
+// first and authoritative namespace 166 second.
 //
 // # Inventory (Namespace 7)
 //

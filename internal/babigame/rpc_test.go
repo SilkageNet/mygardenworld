@@ -71,8 +71,13 @@ func TestNamespaceCatalogCoversObservedAndModeledNamespaces(t *testing.T) {
 			t.Fatalf("IsModeledNamespace(%q)=false, want true", key)
 		}
 	}
-	if IsModeledNamespace("165") {
-		t.Fatal("namespace 165 should be known raw-only, not modeled")
+	for _, key := range []string{CelebrityNamespaceLegacy, CelebrityNamespace} {
+		if !IsKnownNamespace(key) {
+			t.Fatalf("celebrity namespace %s should be known", key)
+		}
+		if IsModeledNamespace(key) {
+			t.Fatalf("celebrity namespace %s should remain raw-only until its state parser lands", key)
+		}
 	}
 }
 
@@ -97,6 +102,14 @@ func TestGeneratedProtocolSchemaLookup(t *testing.T) {
 	}
 	if ns.Schema != "G.IWaterwheel" {
 		t.Fatalf("namespace 114 schema = %q, want G.IWaterwheel", ns.Schema)
+	}
+	legacy, ok := clientproto.LookupNamespaceSchema(CelebrityNamespaceLegacy)
+	if !ok || legacy.Schema != "G.ICelebrityInfo" || legacy.FieldName != "celebrityInfoLegacy" {
+		t.Fatalf("legacy celebrity namespace = %+v, ok=%t", legacy, ok)
+	}
+	canonical, ok := clientproto.LookupNamespaceSchema(CelebrityNamespace)
+	if !ok || canonical.Schema != "G.ICelebrityInfo" || canonical.FieldName != "celebrityInfo" {
+		t.Fatalf("canonical celebrity namespace = %+v, ok=%t", canonical, ok)
 	}
 }
 
@@ -154,6 +167,26 @@ func TestRPCSpecRequestFieldsAreCopied(t *testing.T) {
 	again := clientproto.KnownRPCSpecs()
 	if len(again[0].RequestFields) == 1 && again[0].RequestFields[0] == "mutated" {
 		t.Fatal("KnownRPCSpecs returned shared RequestFields storage")
+	}
+}
+
+func TestDessertRPCSpecsUseCapturedRequestShapes(t *testing.T) {
+	recv, ok := clientproto.LookupRPCSpec("act.recv")
+	if !ok || recv.RequestShape != clientproto.RPCRequestFields {
+		t.Fatalf("act.recv spec = %+v, ok=%t", recv, ok)
+	}
+	wantFields := []string{"batchId", "taskIdx", "taskId"}
+	if len(recv.RequestFields) != len(wantFields) {
+		t.Fatalf("act.recv fields = %v", recv.RequestFields)
+	}
+	for i := range wantFields {
+		if recv.RequestFields[i] != wantFields[i] {
+			t.Fatalf("act.recv fields = %v, want %v", recv.RequestFields, wantFields)
+		}
+	}
+	celebrity, ok := clientproto.LookupRPCSpec("celebrity.getAllTypesInfo")
+	if !ok || celebrity.RequestShape != clientproto.RPCRequestEmpty || len(celebrity.RequestFields) != 0 {
+		t.Fatalf("celebrity.getAllTypesInfo spec = %+v, ok=%t", celebrity, ok)
 	}
 }
 

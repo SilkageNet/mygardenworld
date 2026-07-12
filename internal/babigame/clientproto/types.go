@@ -133,7 +133,11 @@ type ActGetStatRequest struct {
 
 type ActGiftBuyRequest RawRequest
 
-type ActRecvRequest RawRequest
+type ActRecvRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	TaskIdx RPCInt `json:"taskIdx"`
+	TaskId  RPCID  `json:"taskId,omitempty"`
+}
 
 type ActRecvBoxesRequest RawRequest
 
@@ -1171,7 +1175,7 @@ type CallFriendUseCodeRequest struct {
 
 type CelebrityGetAllTypesRequest RawRequest
 
-type CelebrityGetAllTypesInfoRequest RawRequest
+type CelebrityGetAllTypesInfoRequest struct{}
 
 type CelebrityGetInfoByTypeRequest struct {
 	Type RPCInt `json:"type,omitempty"`
@@ -3463,21 +3467,21 @@ type IActDailyRecord struct {
 }
 
 type IActDessertData struct {
-	TotalScore int32    `json:"0,omitempty"`
-	MapData    RawValue `json:"1,omitempty"`
+	TotalScore int32                    `json:"0,omitempty"`
+	MapData    map[int32]IActDessertMap `json:"1,omitempty"`
 }
 
 type IActDessertMap struct {
-	Step       int32    `json:"0,omitempty"`
-	ItemUse    RawValue `json:"1,omitempty"`
-	Map        RawValue `json:"2,omitempty"`
-	GameStatus int32    `json:"3,omitempty"`
-	FirstMerge int32    `json:"4,omitempty"`
-	IsRunning  int32    `json:"5,omitempty"`
-	TotalGain  int32    `json:"6,omitempty"`
-	CurId      int32    `json:"7,omitempty"`
-	Score      int32    `json:"8,omitempty"`
-	LvMap      RawValue `json:"9,omitempty"`
+	Step       int32           `json:"0,omitempty"`
+	ItemUse    map[int32]int32 `json:"1,omitempty"`
+	Map        RawValue        `json:"2,omitempty"`
+	GameStatus int32           `json:"3,omitempty"`
+	FirstMerge map[int32]int32 `json:"4,omitempty"`
+	IsRunning  bool            `json:"5,omitempty"`
+	TotalGain  map[int32]int32 `json:"6,omitempty"`
+	CurId      int32           `json:"7,omitempty"`
+	Score      int32           `json:"8,omitempty"`
+	LvMap      map[int32]int32 `json:"9,omitempty"`
 }
 
 type IActDrawExt struct {
@@ -7852,7 +7856,8 @@ type ISyncData struct {
 	VerifyTot            IVerifyTot            `json:"162,omitempty"`
 	GroupPhoto           IGroupPhoto           `json:"163,omitempty"`
 	TestTag              int32                 `json:"164,omitempty"`
-	CelebrityInfo        ICelebrityInfo        `json:"165,omitempty"`
+	CelebrityInfoLegacy  ICelebrityInfo        `json:"165,omitempty"`
+	CelebrityInfo        ICelebrityInfo        `json:"166,omitempty"`
 }
 
 type ISysMsg struct {
