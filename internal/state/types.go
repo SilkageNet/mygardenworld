@@ -585,6 +585,8 @@ type DessertView struct {
 	ExtensionValid            bool
 	ModeMapObserved           bool
 	ModeMapValid              bool
+	AuthorityRevision         uint64
+	BoardHash                 string
 	TaskGroupsObserved        bool
 	TaskGroupsValid           bool
 	TaskRecordObserved        bool
@@ -629,18 +631,22 @@ type DessertModeView struct {
 	UnlockScore int32
 	Observed    bool
 	Valid       bool
-	Step        int32
-	ItemUse     map[int32]int32
-	Objects     []DessertObjectView
-	ObjectCount int32
-	GameStatus  int32
-	FirstMerge  map[int32]int32
-	IsRunning   bool
-	TotalGain   map[int32]int32
-	CurID       int32
-	Score       int32
-	LevelMap    map[int32]int32
-	LevelCounts map[int32]int32
+	// AuthorityRevision belongs to the enclosing ext121 field-1 replacement;
+	// BoardHash fingerprints only this mode's typed state.
+	AuthorityRevision uint64
+	BoardHash         string
+	Step              int32
+	ItemUse           map[int32]int32
+	Objects           []DessertObjectView
+	ObjectCount       int32
+	GameStatus        int32
+	FirstMerge        map[int32]int32
+	IsRunning         bool
+	TotalGain         map[int32]int32
+	CurID             int32
+	Score             int32
+	LevelMap          map[int32]int32
+	LevelCounts       map[int32]int32
 }
 
 // DessertObjectView is one full physical object retained from mode field 2.

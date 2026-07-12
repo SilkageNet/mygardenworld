@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	connect "connectrpc.com/connect"
@@ -129,6 +130,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
 	dessert, _ := st.DessertView(now)
+	dessertRuntime := r.DessertRuntimeSnapshot()
 	policy := r.Policy()
 	resp := &pb.GetSnapshotResponse{
 		AccountId:             fmt.Sprintf("%d", acc.ID),
@@ -156,6 +158,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		CyclicNote:            cyclicNoteProto(cyclicNote),
 		Dessert:               dessertProto(dessert),
 	}
+	resp.Dessert.Runtime = dessertRuntimeProto(dessertRuntime)
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
 		resp.ReputationScore = rep.Score
@@ -483,6 +486,53 @@ func dessertProto(view state.DessertView) *pb.DessertView {
 		Status:           dessertCelebrityStatus(view, rewardValid),
 	}
 	return out
+}
+
+func dessertRuntimeProto(snapshot runner.DessertRuntimeSnapshot) *pb.DessertRuntimeView {
+	return &pb.DessertRuntimeView{
+		Observed:           snapshot.Observed,
+		ShadowOnly:         snapshot.ShadowOnly,
+		PolicyEnabled:      snapshot.PolicyEnabled,
+		SessionEpoch:       snapshot.SessionEpoch,
+		BatchId:            snapshot.BatchID,
+		Mode:               snapshot.Mode,
+		AuthorityRevision:  snapshot.AuthorityRevision,
+		BoardHash:          sanitizeDessertBoardHash(snapshot.BoardHash),
+		BoardOwned:         snapshot.BoardOwned,
+		TakeoverRequested:  snapshot.TakeoverRequested,
+		Waiting:            snapshot.Waiting,
+		WaitingRemainingMs: snapshot.WaitingRemainingMS,
+		FrozenWaitingLevel: snapshot.FrozenWaitingLevel,
+		SessionEnergyUsed:  snapshot.SessionEnergyUsed,
+		Suggestion:         sanitizeDessertRuntimeText(snapshot.Suggestion, 160),
+		BlockedReason:      sanitizeDessertRuntimeText(snapshot.BlockedReason, 240),
+		FailureLocked:      snapshot.FailureLocked,
+	}
+}
+
+func sanitizeDessertBoardHash(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if len(value) != 64 {
+		return ""
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return ""
+		}
+	}
+	return value[:16]
+}
+
+func sanitizeDessertRuntimeText(value string, maxRunes int) string {
+	value = strings.Join(strings.Fields(value), " ")
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) > maxRunes {
+		runes = runes[:maxRunes]
+	}
+	return string(runes)
 }
 
 func dessertEffectiveGameStatus(status int32) int32 {

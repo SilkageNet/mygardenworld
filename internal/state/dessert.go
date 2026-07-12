@@ -2,8 +2,13 @@ package state
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
+	"hash"
 	"math"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -19,6 +24,11 @@ type dessertActivityState struct {
 	Modes              map[int32]*dessertModeState
 	ModesObserved      bool
 	ModesValid         bool
+	// ModesRevision is advanced only by an authoritative ext121 field 1.
+	// It deliberately advances for valid, null, and malformed replacements so
+	// a controller can never mistake a rejected server board for an old one.
+	ModesRevision uint64
+	ModesHash     string
 }
 
 type dessertModeState struct {
@@ -39,12 +49,12 @@ func mergeDessertExtension(batch *activityBatchState, raw json.RawMessage) {
 		return
 	}
 	if isJSONNull(raw) {
-		batch.Dessert = dessertActivityState{ExtensionObserved: true, ExtensionValid: true}
+		batch.Dessert = resetDessertExtension(batch.Dessert, true)
 		return
 	}
 	var ext map[string]json.RawMessage
 	if json.Unmarshal(raw, &ext) != nil || ext == nil {
-		batch.Dessert = dessertActivityState{ExtensionObserved: true, ExtensionValid: false}
+		batch.Dessert = resetDessertExtension(batch.Dessert, false)
 		return
 	}
 	rawDessert, present := ext["121"]
@@ -52,12 +62,12 @@ func mergeDessertExtension(batch *activityBatchState, raw json.RawMessage) {
 		return
 	}
 	if isJSONNull(rawDessert) {
-		batch.Dessert = dessertActivityState{ExtensionObserved: true, ExtensionValid: true}
+		batch.Dessert = resetDessertExtension(batch.Dessert, true)
 		return
 	}
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(rawDessert, &fields) != nil || fields == nil {
-		batch.Dessert = dessertActivityState{ExtensionObserved: true, ExtensionValid: false}
+		batch.Dessert = resetDessertExtension(batch.Dessert, false)
 		return
 	}
 
@@ -87,9 +97,23 @@ func mergeDessertExtension(batch *activityBatchState, raw json.RawMessage) {
 		next.Modes = modes
 		next.ModesObserved = true
 		next.ModesValid = valid
+		next.ModesRevision++
+		next.ModesHash = canonicalDessertModeMapHash(modes)
 	}
 	next.ExtensionValid = (!next.TotalScoreObserved || next.TotalScoreValid) && (!next.ModesObserved || next.ModesValid)
 	batch.Dessert = next
+}
+
+func resetDessertExtension(previous dessertActivityState, valid bool) dessertActivityState {
+	// A null/malformed enclosing extension is not an ext121 field-1 board
+	// revision. Preserve the monotonic counter while clearing executable data;
+	// the validity bit prevents consumers from using the cleared board.
+	return dessertActivityState{
+		ExtensionObserved: true,
+		ExtensionValid:    valid,
+		ModesRevision:     previous.ModesRevision,
+		ModesHash:         previous.ModesHash,
+	}
 }
 
 func decodeDessertModeMap(raw json.RawMessage) (map[int32]*dessertModeState, bool) {
@@ -250,6 +274,115 @@ func decodeDessertFloat(raw json.RawMessage) (float64, bool) {
 	return value, true
 }
 
+// canonicalDessertModeMapHash fingerprints only strictly decoded typed state.
+// Map keys are sorted and physical objects stay in the authoritative server
+// array order. DessertObjectView.Raw is intentionally never consulted.
+func canonicalDessertModeMapHash(modes map[int32]*dessertModeState) string {
+	h := sha256.New()
+	writeDessertHashString(h, "dessert-mode-map-v1")
+	keys := sortedDessertMapKeys(modes)
+	writeDessertHashUint64(h, uint64(len(keys)))
+	for _, modeID := range keys {
+		writeDessertHashInt32(h, modeID)
+		writeDessertModeHash(h, modes[modeID])
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func canonicalDessertModeHash(modeID int32, mode *dessertModeState) string {
+	h := sha256.New()
+	writeDessertHashString(h, "dessert-mode-v1")
+	writeDessertHashInt32(h, modeID)
+	writeDessertModeHash(h, mode)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func writeDessertModeHash(h hash.Hash, mode *dessertModeState) {
+	if mode == nil {
+		writeDessertHashBool(h, false)
+		return
+	}
+	writeDessertHashBool(h, true)
+	writeDessertHashInt32(h, mode.Step)
+	writeDessertInt32MapHash(h, mode.ItemUse)
+	writeDessertHashUint64(h, uint64(len(mode.Objects)))
+	for _, object := range mode.Objects {
+		writeDessertHashInt32(h, object.Level)
+		writeDessertHashBool(h, object.IsSyn)
+		writeDessertHashFloat64(h, object.Position.X)
+		writeDessertHashFloat64(h, object.Position.Y)
+		writeDessertHashFloat64(h, object.LinearVelocity.X)
+		writeDessertHashFloat64(h, object.LinearVelocity.Y)
+		writeDessertHashFloat64(h, object.AngularVelocity)
+		writeDessertHashFloat64(h, object.Scale.X)
+		writeDessertHashFloat64(h, object.Scale.Y)
+		writeDessertHashFloat64(h, object.Scale.Z)
+		writeDessertHashFloat64(h, object.NodeAngle)
+		writeDessertHashBool(h, object.IsAwake)
+		writeDessertHashFloat64(h, object.LineTime)
+		writeDessertHashBool(h, object.IsFallBallObserved)
+		writeDessertHashBool(h, object.IsFallBall)
+	}
+	writeDessertHashInt32(h, mode.GameStatus)
+	writeDessertInt32MapHash(h, mode.FirstMerge)
+	writeDessertHashBool(h, mode.IsRunning)
+	writeDessertInt32MapHash(h, mode.TotalGain)
+	writeDessertHashInt32(h, mode.CurID)
+	writeDessertHashInt32(h, mode.Score)
+	writeDessertInt32MapHash(h, mode.LevelMap)
+}
+
+func writeDessertInt32MapHash(h hash.Hash, values map[int32]int32) {
+	keys := make([]int32, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	writeDessertHashUint64(h, uint64(len(keys)))
+	for _, key := range keys {
+		writeDessertHashInt32(h, key)
+		writeDessertHashInt32(h, values[key])
+	}
+}
+
+func sortedDessertMapKeys(values map[int32]*dessertModeState) []int32 {
+	keys := make([]int32, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	return keys
+}
+
+func writeDessertHashString(h hash.Hash, value string) {
+	writeDessertHashUint64(h, uint64(len(value)))
+	_, _ = h.Write([]byte(value))
+}
+
+func writeDessertHashBool(h hash.Hash, value bool) {
+	if value {
+		_, _ = h.Write([]byte{1})
+		return
+	}
+	_, _ = h.Write([]byte{0})
+}
+
+func writeDessertHashInt32(h hash.Hash, value int32) {
+	var raw [4]byte
+	binary.BigEndian.PutUint32(raw[:], uint32(value))
+	_, _ = h.Write(raw[:])
+}
+
+func writeDessertHashUint64(h hash.Hash, value uint64) {
+	var raw [8]byte
+	binary.BigEndian.PutUint64(raw[:], value)
+	_, _ = h.Write(raw[:])
+}
+
+func writeDessertHashFloat64(h hash.Hash, value float64) {
+	writeDessertHashUint64(h, math.Float64bits(value))
+}
+
 // DessertView returns the preferred tmpType-5601 batch at the caller's server
 // time. It remains visible while incomplete, but Valid is fail-closed.
 func (s *State) DessertView(now time.Time) (DessertView, bool) {
@@ -284,6 +417,8 @@ func (s *State) DessertView(now time.Time) (DessertView, bool) {
 	out.TotalScoreObserved = batch.Dessert.TotalScoreObserved && batch.Dessert.TotalScoreValid
 	out.ModeMapObserved = batch.Dessert.ModesObserved
 	out.ModeMapValid = batch.Dessert.ModesValid
+	out.AuthorityRevision = batch.Dessert.ModesRevision
+	out.BoardHash = batch.Dessert.ModesHash
 
 	config, catalogOK := DessertCatalogConfig()
 	if catalogOK {
@@ -323,10 +458,13 @@ func (s *State) DessertView(now time.Time) (DessertView, bool) {
 		}
 		for index, multiplier := range config.Multipliers {
 			modeID := int32(index + 1)
-			modeView := DessertModeView{Mode: modeID, Multiplier: multiplier, UnlockScore: config.UnlockScores[index]}
+			modeView := DessertModeView{
+				Mode: modeID, Multiplier: multiplier, UnlockScore: config.UnlockScores[index],
+				AuthorityRevision: batch.Dessert.ModesRevision, BoardHash: canonicalDessertModeHash(modeID, nil),
+			}
 			mode := batch.Dessert.Modes[modeID]
 			if mode != nil {
-				modeView = cloneDessertModeView(modeID, multiplier, config.UnlockScores[index], mode)
+				modeView = cloneDessertModeView(modeID, multiplier, config.UnlockScores[index], batch.Dessert.ModesRevision, mode)
 				modeView.Observed = true
 				modeView.Valid = dessertModeMatchesCatalog(mode, int32(len(config.Levels)))
 				if !modeView.Valid {
@@ -356,6 +494,22 @@ func (s *State) DessertView(now time.Time) (DessertView, bool) {
 	out.Celebrity = s.dessertCelebrityViewLocked(batch)
 	out.Valid = stateValid
 	return out, true
+}
+
+// DessertAuthorityRevisions returns the per-batch ext121 field-1 revisions
+// used to establish a fresh-login authority floor. A later session may not
+// reuse a board at or below this floor, even if index.login is sparse.
+func (s *State) DessertAuthorityRevisions() map[int32]uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[int32]uint64)
+	for batchID, batch := range s.activityBatches {
+		if batch == nil || batch.TmpType != dessertTmpType {
+			continue
+		}
+		out[batchID] = batch.Dessert.ModesRevision
+	}
+	return out
 }
 
 func (s *State) dessertTasksLocked(batch *activityBatchState, template *activityTemplateState, stateValid bool) ([]DessertTaskView, bool, bool) {
@@ -418,7 +572,7 @@ func (s *State) preferredDessertBatchLocked(nowMs int64) (*activityBatchState, i
 	return selected, selectedPhase, selectedVisibleStart, selectedGraceEnd, selectedPhaseEnd
 }
 
-func cloneDessertModeView(modeID, multiplier, unlockScore int32, mode *dessertModeState) DessertModeView {
+func cloneDessertModeView(modeID, multiplier, unlockScore int32, revision uint64, mode *dessertModeState) DessertModeView {
 	objects := make([]DessertObjectView, len(mode.Objects))
 	copy(objects, mode.Objects)
 	levelCounts := make(map[int32]int32)
@@ -427,7 +581,8 @@ func cloneDessertModeView(modeID, multiplier, unlockScore int32, mode *dessertMo
 		levelCounts[objects[index].Level]++
 	}
 	return DessertModeView{
-		Mode: modeID, Multiplier: multiplier, UnlockScore: unlockScore, Step: mode.Step,
+		Mode: modeID, Multiplier: multiplier, UnlockScore: unlockScore,
+		AuthorityRevision: revision, BoardHash: canonicalDessertModeHash(modeID, mode), Step: mode.Step,
 		ItemUse: cloneInt32Map(mode.ItemUse), Objects: objects, ObjectCount: int32(len(objects)), GameStatus: mode.GameStatus,
 		FirstMerge: cloneInt32Map(mode.FirstMerge), IsRunning: mode.IsRunning, TotalGain: cloneInt32Map(mode.TotalGain),
 		CurID: mode.CurID, Score: mode.Score, LevelMap: cloneInt32Map(mode.LevelMap), LevelCounts: levelCounts,

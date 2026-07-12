@@ -120,6 +120,7 @@ import type {
   DessertCelebrityLikeView,
   DessertMilestoneView,
   DessertModeView,
+  DessertRuntimeView,
   DessertTaskView,
   DessertView,
   Event,
@@ -277,6 +278,7 @@ type ActivityModuleMeta = {
   label: string;
   status?: SettingStatus;
   boolParams?: { key: string; label: string }[];
+  intParams?: { key: string; label: string; defaultValue: number; min: number; max?: number }[];
 };
 
 const ACTIVITY_MODULES: ActivityModuleMeta[] = [
@@ -295,6 +297,13 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
     boolParams: [
       { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
       { key: "auto_like_celebrity", label: "自动免费点赞" },
+      { key: "auto_play", label: "启用影子建议（不执行）" },
+      { key: "resume_existing_round", label: "评估已有棋盘（不执行）" },
+    ],
+    intParams: [
+      { key: "mode", label: "影子模式（仅 1 可用）", defaultValue: 1, min: 1, max: 1 },
+      { key: "max_energy_per_session", label: "会话体力上限（0=禁用实跑）", defaultValue: 0, min: 0, max: 100 },
+      { key: "min_energy_reserve", label: "最低体力保留", defaultValue: 0, min: 0 },
     ],
   },
 ];
@@ -1488,13 +1497,20 @@ function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
       }
     >
       {!activity?.observed ? (
-        <EmptyState title="香卉甜糕状态尚未同步" detail="连接游戏后，会按活动类型和服务端时间自动发现当前批次。" />
+        <>
+          <EmptyState title="香卉甜糕状态尚未同步" detail="连接游戏后，会按活动类型和服务端时间自动发现当前批次。" />
+          {activity?.runtime && <DessertRuntimePanel runtime={activity.runtime} />}
+        </>
       ) : !activity.found ? (
-        <EmptyState title="当前未发现香卉甜糕活动" detail="不会固定使用历史批次，也不会探测已结束活动。" />
+        <>
+          <EmptyState title="当前未发现香卉甜糕活动" detail="不会固定使用历史批次，也不会探测已结束活动。" />
+          <DessertRuntimePanel runtime={activity.runtime} />
+        </>
       ) : !activity.valid ? (
         <>
           <EmptyState title="香卉甜糕配置或状态异常" detail="自动操作已阻塞；请等待活动背包、模板和模式状态完整同步。" />
           <DessertObservationStatus activity={activity} />
+          <DessertRuntimePanel runtime={activity.runtime} />
         </>
       ) : (
         <>
@@ -1537,6 +1553,7 @@ function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
           )}
 
           <DessertObservationStatus activity={activity} />
+          <DessertRuntimePanel runtime={activity.runtime} />
 
           <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
             <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
@@ -1589,7 +1606,7 @@ function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
             </div>
             <div className="rounded-md border border-border/58 bg-muted/20 p-3 text-sm">
               <div className="font-medium">合成游戏</div>
-              <div className="mt-1 text-xs text-muted-foreground">仅监控模式与棋盘统计，自动游玩尚未开放。</div>
+              <div className="mt-1 text-xs text-muted-foreground">可展示影子运行时诊断；连续轨迹门禁未通过，不会发送任何游戏 RPC。</div>
             </div>
           </div>
 
@@ -1601,6 +1618,99 @@ function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
         </>
       )}
     </CollapsibleCard>
+  );
+}
+
+function DessertRuntimePanel({ runtime }: { runtime?: DessertRuntimeView }) {
+  const observed = runtime?.observed ?? false;
+  const shortHash = runtime?.boardHash ? truncateMiddle(runtime.boardHash, 8, 6) : "-";
+  const waitingValue = runtime?.waiting
+    ? `${formatCount(runtime.waitingRemainingMs > BigInt(0) ? runtime.waitingRemainingMs : BigInt(0))} ms`
+    : "未等待";
+  const waitingDetail = runtime?.waiting && runtime.frozenWaitingLevel > 0
+    ? `冻结等级 ${runtime.frozenWaitingLevel}`
+    : "waiting ball 未冻结";
+
+  return (
+    <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+        <span>影子运行时</span>
+        <span className="flex min-w-0 flex-wrap justify-end gap-1.5">
+          <Badge variant={observed ? "outline" : "destructive"}>{observed ? "已观察" : "未观察"}</Badge>
+          <Badge variant={runtime?.policyEnabled ? "secondary" : "outline"}>{runtime?.policyEnabled ? "策略已启用" : "策略未启用"}</Badge>
+          <Badge variant="outline">{runtime?.shadowOnly ? "仅影子" : "实跑硬锁"}</Badge>
+          {runtime?.failureLocked && <Badge variant="destructive">失败锁定</Badge>}
+        </span>
+      </div>
+      <div className="space-y-2 p-2">
+        <div className="break-words rounded-md border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-muted-foreground dark:bg-amber-400/8">
+          当前只展示影子诊断。连续轨迹回放证据尚未通过，gameStart / gameSync / gameOver 不会注册或发送。
+        </div>
+        {!runtime?.observed ? (
+          <div className="space-y-1 rounded-md border border-border/55 bg-background/72 px-3 py-2 text-xs text-muted-foreground">
+            <div>登录并同步活动后显示会话、权威棋盘版本和建议；未观察期间保持游戏 RPC 硬锁。</div>
+            {runtime?.blockedReason && <div className="break-words text-foreground">阻塞原因：{runtime.blockedReason}</div>}
+          </div>
+        ) : (
+          <div className="grid min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2 lg:grid-cols-4">
+            <DessertRuntimeMetric
+              label="策略 / 模式"
+              value={`${runtime.policyEnabled ? "已启用" : "未启用"} · 模式 ${runtime.mode || "-"}`}
+              detail={runtime.shadowOnly ? "只计算建议，不执行" : "实跑仍被硬锁"}
+            />
+            <DessertRuntimeMetric
+              label="会话 / 权威版本"
+              value={`#${runtime.sessionEpoch.toString()} · r${runtime.authorityRevision.toString()}`}
+              detail={runtime.batchId > 0 ? `批次 ${runtime.batchId}` : "批次未识别"}
+            />
+            <DessertRuntimeMetric
+              label="棋盘"
+              value={runtime.boardOwned ? "本会话拥有" : "未拥有"}
+              detail={runtime.takeoverRequested ? "已请求评估接管" : "未请求接管"}
+            />
+            <DessertRuntimeMetric label="棋盘摘要" value={shortHash} detail="仅展示截断哈希" title={runtime.boardHash} mono />
+            <DessertRuntimeMetric label="waiting ball" value={waitingValue} detail={waitingDetail} />
+            <DessertRuntimeMetric label="会话体力消耗" value={formatCount(runtime.sessionEnergyUsed)} detail="影子阶段不会实际扣除" />
+            <DessertRuntimeMetric
+              label="影子建议"
+              value={runtime.suggestion || "暂无建议"}
+              detail="仅供诊断，不会转为 RPC"
+              className="min-[420px]:col-span-2"
+            />
+            <DessertRuntimeMetric
+              label="阻塞 / 锁定"
+              value={runtime.blockedReason || (runtime.failureLocked ? "本会话已锁定" : "无额外原因")}
+              detail={runtime.failureLocked ? "需重新登录或关闭后重新开启策略" : "连续轨迹门禁仍保持硬锁"}
+              className="min-[420px]:col-span-2 lg:col-span-4"
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function DessertRuntimeMetric({
+  label,
+  value,
+  detail,
+  title,
+  mono = false,
+  className,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  title?: string;
+  mono?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={cn("min-w-0 rounded-md border border-border/55 bg-background/72 px-3 py-2 text-xs", className)}>
+      <div className="text-muted-foreground">{label}</div>
+      <div className={cn("mt-1 min-w-0 break-words font-medium text-foreground", mono && "font-mono")} title={title}>{value}</div>
+      <div className="mt-1 break-words text-muted-foreground">{detail}</div>
+    </div>
   );
 }
 
@@ -2498,6 +2608,10 @@ function PolicyPanel({
     const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
     updateActivityModule(moduleID, { boolParams: { ...current.boolParams, [key]: value } });
   };
+  const updateActivityIntParam = (moduleID: string, key: string, value: number, fallback: number) => {
+    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
+    updateActivityModule(moduleID, { intParams: { ...current.intParams, [key]: safeNumberToBigInt(value, fallback) } });
+  };
   if (loading) {
     return (
       <Card>
@@ -2925,6 +3039,16 @@ function PolicyPanel({
                           label={param.label}
                           checked={modulePolicy?.boolParams?.[param.key] ?? false}
                           onChange={(checked) => updateActivityBoolParam(module.id, param.key, checked)}
+                        />
+                      ))}
+                      {module.intParams?.map((param) => (
+                        <NumberRow
+                          key={param.key}
+                          label={param.label}
+                          value={safeBigIntToNumber(modulePolicy?.intParams?.[param.key], param.defaultValue)}
+                          min={param.min}
+                          max={param.max}
+                          onChange={(value) => updateActivityIntParam(module.id, param.key, value, param.defaultValue)}
                         />
                       ))}
                     </div>
@@ -4160,6 +4284,28 @@ function parseBigInt(value: string, min: number) {
   } catch {
     return BigInt(min);
   }
+}
+
+function safeBigIntToNumber(value: bigint | undefined, fallback: number) {
+  if (value === undefined) return fallback;
+  const upper = BigInt(Number.MAX_SAFE_INTEGER);
+  const lower = BigInt(Number.MIN_SAFE_INTEGER);
+  if (value > upper) return Number.MAX_SAFE_INTEGER;
+  if (value < lower) return Number.MIN_SAFE_INTEGER;
+  return Number(value);
+}
+
+function safeNumberToBigInt(value: number, fallback: number) {
+  if (!Number.isFinite(value)) return BigInt(fallback);
+  const integer = Math.trunc(value);
+  if (integer > Number.MAX_SAFE_INTEGER) return BigInt(Number.MAX_SAFE_INTEGER);
+  if (integer < Number.MIN_SAFE_INTEGER) return BigInt(Number.MIN_SAFE_INTEGER);
+  return BigInt(integer);
+}
+
+function truncateMiddle(value: string, head: number, tail: number) {
+  if (value.length <= head + tail + 1) return value;
+  return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
 
 function parseIntList(value: string) {

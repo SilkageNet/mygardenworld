@@ -93,6 +93,8 @@ type Runner struct {
 	rqst                  rqstState            // 反作弊验证状态
 	unknownRPCCounts      map[string]int32     // runtime RPC names missing from the catalog
 	lastCustomerOrderInfo map[int32]string     // 顾客订单需求摘要去重
+	dessertSessionEpoch   uint64               // increments only after a fresh HTTP/WS login
+	dessertRound          dessertRoundRuntime  // shadow/autoplay state; never persisted
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -124,8 +126,11 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		sideLaneFirstWait:     make(map[string]time.Time),
 		unknownRPCCounts:      make(map[string]int32),
 		lastCustomerOrderInfo: make(map[int32]string),
-		done:                  make(chan struct{}),
-		bus:                   bus,
+		dessertRound: dessertRoundRuntime{DessertRuntimeSnapshot: DessertRuntimeSnapshot{
+			ShadowOnly: true,
+		}},
+		done: make(chan struct{}),
+		bus:  bus,
 	}
 }
 
@@ -184,7 +189,12 @@ func (r *Runner) Policy() *pb.Policy {
 func (r *Runner) SetPolicy(p *pb.Policy) {
 	normalized := policycfg.Normalize(p)
 	r.mu.Lock()
+	oldDessertEnabled := dessertPolicyEnabled(r.policy)
+	newDessertEnabled := dessertPolicyEnabled(normalized)
 	r.policy = normalized
+	if oldDessertEnabled != newDessertEnabled {
+		r.resetDessertRoundForPolicyLocked(newDessertEnabled)
+	}
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
 	}

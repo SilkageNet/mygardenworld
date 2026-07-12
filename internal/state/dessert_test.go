@@ -52,10 +52,12 @@ func TestDessertSanitizedCaptureFixture(t *testing.T) {
 
 func TestDessertSparseDeltaAndClaimProgressReplacement(t *testing.T) {
 	s := applyDessertCaptureFixture(t)
+	before, _ := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
 	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"11":101,"14":{"121":{"0":2225}}}}}}`))
 	view, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
 	if !ok || !view.Valid || view.DropCount != 101 || view.TotalScore != 2225 || len(view.Modes) != 5 ||
-		view.EnergyBalance != 100 || len(view.Tasks) != 6 {
+		view.EnergyBalance != 100 || len(view.Tasks) != 6 || view.AuthorityRevision != before.AuthorityRevision ||
+		view.BoardHash != before.BoardHash {
 		t.Fatalf("sparse delta lost state: (%+v,%t)", view, ok)
 	}
 
@@ -66,6 +68,93 @@ func TestDessertSparseDeltaAndClaimProgressReplacement(t *testing.T) {
 	if !ok || !view.Valid || view.Tasks[0].ProgressObserved || !view.Tasks[0].ReceiptObserved || !view.Tasks[0].Received ||
 		!view.Tasks[1].ProgressObserved || view.Tasks[1].Progress != 3 || view.Tasks[1].Received {
 		t.Fatalf("claim replacement=%+v", view.Tasks)
+	}
+}
+
+func TestDessertAuthorityRevisionIncludesRejectedBoardReplacements(t *testing.T) {
+	s := applyDessertCaptureFixture(t)
+	now := time.UnixMilli(dessertFixtureNowMs)
+	initial, ok := s.DessertView(now)
+	if !ok || initial.AuthorityRevision == 0 || initial.BoardHash == "" || initial.Modes[0].BoardHash == "" ||
+		initial.Modes[0].AuthorityRevision != initial.AuthorityRevision {
+		t.Fatalf("initial authority metadata=%+v mode=%+v", initial, initial.Modes[0])
+	}
+	floors := s.DessertAuthorityRevisions()
+	if floors[9101] != initial.AuthorityRevision {
+		t.Fatalf("authority revision floors=%v, view=%d", floors, initial.AuthorityRevision)
+	}
+	floors[9101] = 999
+	if got := s.DessertAuthorityRevisions()[9101]; got != initial.AuthorityRevision {
+		t.Fatalf("authority revision floor mutation leaked: %d", got)
+	}
+
+	// A score-only sparse delta is not a board authority change.
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"0":2226}}}}}}`))
+	scoreOnly, _ := s.DessertView(now)
+	if scoreOnly.AuthorityRevision != initial.AuthorityRevision || scoreOnly.BoardHash != initial.BoardHash {
+		t.Fatalf("score-only delta changed board authority: before=%+v after=%+v", initial, scoreOnly)
+	}
+
+	// An enclosing extension replacement without ext121 field 1 makes the
+	// view non-executable, but cannot invent a new board hash at the old
+	// revision.
+	enclosing := applyDessertCaptureFixture(t)
+	enclosing.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"14":null}}}}`))
+	enclosingView, _ := enclosing.DessertView(now)
+	if enclosingView.Valid || enclosingView.AuthorityRevision != initial.AuthorityRevision ||
+		enclosingView.BoardHash != initial.BoardHash {
+		t.Fatalf("enclosing null changed board authority without field 1: %+v", enclosingView)
+	}
+
+	// Explicit null is a valid observed-empty whole replacement.
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":null}}}}}}`))
+	nullBoard, _ := s.DessertView(now)
+	if nullBoard.AuthorityRevision != initial.AuthorityRevision+1 || !nullBoard.ModeMapValid ||
+		nullBoard.BoardHash == "" || nullBoard.BoardHash == initial.BoardHash {
+		t.Fatalf("null board authority=%+v", nullBoard)
+	}
+
+	// A malformed present field still supersedes the prior board and advances
+	// the revision, while keeping the resulting view non-executable.
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":[]}}}}}}`))
+	malformed, _ := s.DessertView(now)
+	if malformed.AuthorityRevision != initial.AuthorityRevision+2 || malformed.ModeMapValid || malformed.Valid ||
+		malformed.BoardHash != nullBoard.BoardHash {
+		t.Fatalf("malformed board authority=%+v", malformed)
+	}
+}
+
+func TestDessertCanonicalTypedHashSortsMapsPreservesObjectOrderAndIgnoresRaw(t *testing.T) {
+	objectA := DessertObjectView{
+		Raw: json.RawMessage(`{"debug":"first"}`), Level: 1, Position: DessertVector2{X: 1, Y: 2},
+		LinearVelocity: DessertVector2{X: 3, Y: 4}, Scale: DessertVector3{X: 1, Y: 1, Z: 1}, IsAwake: true,
+	}
+	objectB := objectA
+	objectB.Raw = json.RawMessage(`{"debug":"second"}`)
+	objectB.Level = 2
+	base := &dessertModeState{
+		Step: 3, ItemUse: map[int32]int32{2: 20, 1: 10}, Objects: []DessertObjectView{objectA, objectB},
+		GameStatus: 1, FirstMerge: map[int32]int32{3: 30, 1: 10}, IsRunning: true,
+		TotalGain: map[int32]int32{1347: 1, 1343: 2}, CurID: 2, Score: 40, LevelMap: map[int32]int32{2: 1, 1: 1},
+	}
+	reorderedMaps := *base
+	reorderedMaps.ItemUse = map[int32]int32{1: 10, 2: 20}
+	reorderedMaps.FirstMerge = map[int32]int32{1: 10, 3: 30}
+	reorderedMaps.TotalGain = map[int32]int32{1343: 2, 1347: 1}
+	reorderedMaps.LevelMap = map[int32]int32{1: 1, 2: 1}
+	reorderedMaps.Objects = append([]DessertObjectView(nil), base.Objects...)
+	reorderedMaps.Objects[0].Raw = json.RawMessage(`{"completely":"different"}`)
+
+	first := canonicalDessertModeHash(1, base)
+	second := canonicalDessertModeHash(1, &reorderedMaps)
+	if first == "" || first != second {
+		t.Fatalf("canonical typed hashes differ for equivalent maps/raw: %q != %q", first, second)
+	}
+
+	reversed := reorderedMaps
+	reversed.Objects = []DessertObjectView{objectB, objectA}
+	if got := canonicalDessertModeHash(1, &reversed); got == first {
+		t.Fatalf("physical server array order was erased from hash: %q", got)
 	}
 }
 

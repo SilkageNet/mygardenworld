@@ -266,6 +266,10 @@ message DessertView {
   repeated DessertTaskView tasks = 38;
   repeated DessertMilestoneView milestones = 39;
   DessertCelebrityLikeView celebrity = 40;
+  // Session-local, sanitized shadow-controller diagnostics. This never
+  // contains account identifiers, absolute login timestamps, or raw board
+  // coordinates.
+  DessertRuntimeView runtime = 41;
 }
 
 message DessertModeView {
@@ -619,4 +623,24 @@ message Event {
   string domain = 10;
   // Stable action within domain, e.g. "harvest", "sync", "blocked".
   string action = 11;
+}
+
+message DessertRuntimeView {
+  bool observed = 1;
+  bool shadow_only = 2;
+  bool policy_enabled = 3;
+  uint64 session_epoch = 4;
+  int32 batch_id = 5;
+  int32 mode = 6;
+  uint64 authority_revision = 7;
+  string board_hash = 8;
+  bool board_owned = 9;
+  bool takeover_requested = 10;
+  bool waiting = 11;
+  int64 waiting_remaining_ms = 12;
+  int32 frozen_waiting_level = 13;
+  int32 session_energy_used = 14;
+  string suggestion = 15;
+  string blocked_reason = 16;
+  bool failure_locked = 17;
 }

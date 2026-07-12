@@ -2,13 +2,16 @@ package apiserver
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
@@ -540,6 +543,66 @@ func TestDessertProtoProjectsSanitizedDeterministicMonitoringView(t *testing.T) 
 	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("dessert")
 	if field == nil || field.Number() != 40 {
 		t.Fatalf("GetSnapshotResponse dessert field=%v, want field 40", field)
+	}
+	runtimeField := got.ProtoReflect().Descriptor().Fields().ByName("runtime")
+	if runtimeField == nil || runtimeField.Number() != 41 {
+		t.Fatalf("DessertView runtime field=%v, want field 41", runtimeField)
+	}
+}
+
+func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T) {
+	snapshot := runner.DessertRuntimeSnapshot{
+		Observed:           true,
+		ShadowOnly:         true,
+		PolicyEnabled:      true,
+		SessionEpoch:       7,
+		BatchID:            9101,
+		Mode:               1,
+		AuthorityRevision:  42,
+		BoardHash:          "A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718",
+		BoardOwned:         true,
+		TakeoverRequested:  true,
+		Waiting:            true,
+		WaitingRemainingMS: 320,
+		FrozenWaitingLevel: 3,
+		SessionEnergyUsed:  5,
+		Suggestion:         "  drop\n x=0  ",
+		BlockedReason:      "trajectory replay gate\r\nis incomplete",
+		FailureLocked:      true,
+	}
+
+	got := dessertRuntimeProto(snapshot)
+	if !got.GetObserved() || !got.GetShadowOnly() || !got.GetPolicyEnabled() || got.GetSessionEpoch() != 7 || got.GetBatchId() != 9101 || got.GetMode() != 1 {
+		t.Fatalf("dessert runtime identity=%+v", got)
+	}
+	if got.GetAuthorityRevision() != 42 || got.GetBoardHash() != "a1b2c3d4e5f60718" || !got.GetBoardOwned() || !got.GetTakeoverRequested() {
+		t.Fatalf("dessert runtime authority=%+v", got)
+	}
+	if !got.GetWaiting() || got.GetWaitingRemainingMs() != 320 || got.GetFrozenWaitingLevel() != 3 || got.GetSessionEnergyUsed() != 5 {
+		t.Fatalf("dessert runtime session=%+v", got)
+	}
+	if got.GetSuggestion() != "drop x=0" || got.GetBlockedReason() != "trajectory replay gate is incomplete" || !got.GetFailureLocked() {
+		t.Fatalf("dessert runtime diagnostics=%+v", got)
+	}
+
+	fields := got.ProtoReflect().Descriptor().Fields()
+	for _, forbidden := range []string{"uid", "account_id", "login_time", "position", "velocity", "raw_map"} {
+		if fields.ByName(protoreflect.Name(forbidden)) != nil {
+			t.Fatalf("public dessert runtime descriptor leaked %q", forbidden)
+		}
+	}
+	if hash := dessertRuntimeProto(runner.DessertRuntimeSnapshot{BoardHash: "not-a-hash"}).GetBoardHash(); hash != "" {
+		t.Fatalf("unsafe board hash=%q, want redacted", hash)
+	}
+	if hash := dessertRuntimeProto(runner.DessertRuntimeSnapshot{BoardHash: "0123456789abcdef"}).GetBoardHash(); hash != "" {
+		t.Fatalf("short board hash=%q, want redacted", hash)
+	}
+	long := strings.Repeat("影", 241)
+	if got := dessertRuntimeProto(runner.DessertRuntimeSnapshot{Suggestion: long, BlockedReason: long}); utf8.RuneCountInString(got.GetSuggestion()) != 160 || utf8.RuneCountInString(got.GetBlockedReason()) != 240 {
+		t.Fatalf("runtime text lengths=(%d,%d), want rune limits (160,240)", utf8.RuneCountInString(got.GetSuggestion()), utf8.RuneCountInString(got.GetBlockedReason()))
+	}
+	if zero := dessertRuntimeProto(runner.DessertRuntimeSnapshot{}); zero == nil || zero.GetObserved() || zero.GetPolicyEnabled() || zero.GetBoardOwned() || zero.GetFailureLocked() {
+		t.Fatalf("zero dessert runtime=%+v, want safe empty diagnostics", zero)
 	}
 }
 

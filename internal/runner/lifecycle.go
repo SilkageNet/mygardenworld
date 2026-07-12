@@ -132,6 +132,10 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
 	}
+	// Only now may the shadow controller observe activity state. During a
+	// reconnecting fresh login the State still contains the previous epoch's
+	// board until index.login/lazySync have supplied this epoch's baseline.
+	r.markDessertSessionStateReady()
 	if r.isSessionInvalidated() {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -173,6 +177,7 @@ func (r *Runner) resetPearlHireSession() {
 func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
 	r.resetPearlHireSession()
+	r.resetDessertRoundSession()
 	if r.state != nil {
 		r.state.ResetDessertSession()
 	}

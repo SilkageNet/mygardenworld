@@ -1617,8 +1617,12 @@ type DessertView struct {
 	Tasks                     []*DessertTaskView        `protobuf:"bytes,38,rep,name=tasks,proto3" json:"tasks,omitempty"`
 	Milestones                []*DessertMilestoneView   `protobuf:"bytes,39,rep,name=milestones,proto3" json:"milestones,omitempty"`
 	Celebrity                 *DessertCelebrityLikeView `protobuf:"bytes,40,opt,name=celebrity,proto3" json:"celebrity,omitempty"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
+	// Session-local, sanitized shadow-controller diagnostics. This never
+	// contains account identifiers, absolute login timestamps, or raw board
+	// coordinates.
+	Runtime       *DessertRuntimeView `protobuf:"bytes,41,opt,name=runtime,proto3" json:"runtime,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DessertView) Reset() {
@@ -1927,6 +1931,13 @@ func (x *DessertView) GetMilestones() []*DessertMilestoneView {
 func (x *DessertView) GetCelebrity() *DessertCelebrityLikeView {
 	if x != nil {
 		return x.Celebrity
+	}
+	return nil
+}
+
+func (x *DessertView) GetRuntime() *DessertRuntimeView {
+	if x != nil {
+		return x.Runtime
 	}
 	return nil
 }
@@ -4808,6 +4819,178 @@ func (x *Event) GetAction() string {
 	return ""
 }
 
+type DessertRuntimeView struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Observed           bool                   `protobuf:"varint,1,opt,name=observed,proto3" json:"observed,omitempty"`
+	ShadowOnly         bool                   `protobuf:"varint,2,opt,name=shadow_only,json=shadowOnly,proto3" json:"shadow_only,omitempty"`
+	PolicyEnabled      bool                   `protobuf:"varint,3,opt,name=policy_enabled,json=policyEnabled,proto3" json:"policy_enabled,omitempty"`
+	SessionEpoch       uint64                 `protobuf:"varint,4,opt,name=session_epoch,json=sessionEpoch,proto3" json:"session_epoch,omitempty"`
+	BatchId            int32                  `protobuf:"varint,5,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	Mode               int32                  `protobuf:"varint,6,opt,name=mode,proto3" json:"mode,omitempty"`
+	AuthorityRevision  uint64                 `protobuf:"varint,7,opt,name=authority_revision,json=authorityRevision,proto3" json:"authority_revision,omitempty"`
+	BoardHash          string                 `protobuf:"bytes,8,opt,name=board_hash,json=boardHash,proto3" json:"board_hash,omitempty"`
+	BoardOwned         bool                   `protobuf:"varint,9,opt,name=board_owned,json=boardOwned,proto3" json:"board_owned,omitempty"`
+	TakeoverRequested  bool                   `protobuf:"varint,10,opt,name=takeover_requested,json=takeoverRequested,proto3" json:"takeover_requested,omitempty"`
+	Waiting            bool                   `protobuf:"varint,11,opt,name=waiting,proto3" json:"waiting,omitempty"`
+	WaitingRemainingMs int64                  `protobuf:"varint,12,opt,name=waiting_remaining_ms,json=waitingRemainingMs,proto3" json:"waiting_remaining_ms,omitempty"`
+	FrozenWaitingLevel int32                  `protobuf:"varint,13,opt,name=frozen_waiting_level,json=frozenWaitingLevel,proto3" json:"frozen_waiting_level,omitempty"`
+	SessionEnergyUsed  int32                  `protobuf:"varint,14,opt,name=session_energy_used,json=sessionEnergyUsed,proto3" json:"session_energy_used,omitempty"`
+	Suggestion         string                 `protobuf:"bytes,15,opt,name=suggestion,proto3" json:"suggestion,omitempty"`
+	BlockedReason      string                 `protobuf:"bytes,16,opt,name=blocked_reason,json=blockedReason,proto3" json:"blocked_reason,omitempty"`
+	FailureLocked      bool                   `protobuf:"varint,17,opt,name=failure_locked,json=failureLocked,proto3" json:"failure_locked,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *DessertRuntimeView) Reset() {
+	*x = DessertRuntimeView{}
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DessertRuntimeView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DessertRuntimeView) ProtoMessage() {}
+
+func (x *DessertRuntimeView) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DessertRuntimeView.ProtoReflect.Descriptor instead.
+func (*DessertRuntimeView) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *DessertRuntimeView) GetObserved() bool {
+	if x != nil {
+		return x.Observed
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetShadowOnly() bool {
+	if x != nil {
+		return x.ShadowOnly
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetPolicyEnabled() bool {
+	if x != nil {
+		return x.PolicyEnabled
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetSessionEpoch() uint64 {
+	if x != nil {
+		return x.SessionEpoch
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetBatchId() int32 {
+	if x != nil {
+		return x.BatchId
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetMode() int32 {
+	if x != nil {
+		return x.Mode
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetAuthorityRevision() uint64 {
+	if x != nil {
+		return x.AuthorityRevision
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetBoardHash() string {
+	if x != nil {
+		return x.BoardHash
+	}
+	return ""
+}
+
+func (x *DessertRuntimeView) GetBoardOwned() bool {
+	if x != nil {
+		return x.BoardOwned
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetTakeoverRequested() bool {
+	if x != nil {
+		return x.TakeoverRequested
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetWaiting() bool {
+	if x != nil {
+		return x.Waiting
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetWaitingRemainingMs() int64 {
+	if x != nil {
+		return x.WaitingRemainingMs
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetFrozenWaitingLevel() int32 {
+	if x != nil {
+		return x.FrozenWaitingLevel
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetSessionEnergyUsed() int32 {
+	if x != nil {
+		return x.SessionEnergyUsed
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetSuggestion() string {
+	if x != nil {
+		return x.Suggestion
+	}
+	return ""
+}
+
+func (x *DessertRuntimeView) GetBlockedReason() string {
+	if x != nil {
+		return x.BlockedReason
+	}
+	return ""
+}
+
+func (x *DessertRuntimeView) GetFailureLocked() bool {
+	if x != nil {
+		return x.FailureLocked
+	}
+	return false
+}
+
 var File_mygardenworld_v1_query_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
@@ -4979,7 +5162,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12\x1a\n" +
 	"\bprogress\x18\x06 \x01(\x05R\bprogress\x12!\n" +
 	"\fraw_progress\x18\a \x01(\x05R\vrawProgress\x12\x14\n" +
-	"\x05ready\x18\b \x01(\bR\x05ready\"\xd4\f\n" +
+	"\x05ready\x18\b \x01(\bR\x05ready\"\x94\r\n" +
 	"\vDessertView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12\x14\n" +
 	"\x05found\x18\x02 \x01(\bR\x05found\x12\x14\n" +
@@ -5028,7 +5211,8 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\n" +
 	"milestones\x18' \x03(\v2&.mygardenworld.v1.DessertMilestoneViewR\n" +
 	"milestones\x12H\n" +
-	"\tcelebrity\x18( \x01(\v2*.mygardenworld.v1.DessertCelebrityLikeViewR\tcelebrity\"\xe9\x03\n" +
+	"\tcelebrity\x18( \x01(\v2*.mygardenworld.v1.DessertCelebrityLikeViewR\tcelebrity\x12>\n" +
+	"\aruntime\x18) \x01(\v2$.mygardenworld.v1.DessertRuntimeViewR\aruntime\"\xe9\x03\n" +
 	"\x0fDessertModeView\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\x05R\x04mode\x12\x1e\n" +
 	"\n" +
@@ -5335,7 +5519,31 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x05level\x18\t \x01(\tR\x05level\x12\x16\n" +
 	"\x06domain\x18\n" +
 	" \x01(\tR\x06domain\x12\x16\n" +
-	"\x06action\x18\v \x01(\tR\x06action*\xc7\x01\n" +
+	"\x06action\x18\v \x01(\tR\x06action\"\x86\x05\n" +
+	"\x12DessertRuntimeView\x12\x1a\n" +
+	"\bobserved\x18\x01 \x01(\bR\bobserved\x12\x1f\n" +
+	"\vshadow_only\x18\x02 \x01(\bR\n" +
+	"shadowOnly\x12%\n" +
+	"\x0epolicy_enabled\x18\x03 \x01(\bR\rpolicyEnabled\x12#\n" +
+	"\rsession_epoch\x18\x04 \x01(\x04R\fsessionEpoch\x12\x19\n" +
+	"\bbatch_id\x18\x05 \x01(\x05R\abatchId\x12\x12\n" +
+	"\x04mode\x18\x06 \x01(\x05R\x04mode\x12-\n" +
+	"\x12authority_revision\x18\a \x01(\x04R\x11authorityRevision\x12\x1d\n" +
+	"\n" +
+	"board_hash\x18\b \x01(\tR\tboardHash\x12\x1f\n" +
+	"\vboard_owned\x18\t \x01(\bR\n" +
+	"boardOwned\x12-\n" +
+	"\x12takeover_requested\x18\n" +
+	" \x01(\bR\x11takeoverRequested\x12\x18\n" +
+	"\awaiting\x18\v \x01(\bR\awaiting\x120\n" +
+	"\x14waiting_remaining_ms\x18\f \x01(\x03R\x12waitingRemainingMs\x120\n" +
+	"\x14frozen_waiting_level\x18\r \x01(\x05R\x12frozenWaitingLevel\x12.\n" +
+	"\x13session_energy_used\x18\x0e \x01(\x05R\x11sessionEnergyUsed\x12\x1e\n" +
+	"\n" +
+	"suggestion\x18\x0f \x01(\tR\n" +
+	"suggestion\x12%\n" +
+	"\x0eblocked_reason\x18\x10 \x01(\tR\rblockedReason\x12%\n" +
+	"\x0efailure_locked\x18\x11 \x01(\bR\rfailureLocked*\xc7\x01\n" +
 	"\n" +
 	"PlanStatus\x12\x1b\n" +
 	"\x17PLAN_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
@@ -5381,7 +5589,7 @@ func file_mygardenworld_v1_query_service_proto_rawDescGZIP() []byte {
 }
 
 var file_mygardenworld_v1_query_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_mygardenworld_v1_query_service_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_mygardenworld_v1_query_service_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_mygardenworld_v1_query_service_proto_goTypes = []any{
 	(PlanStatus)(0),                   // 0: mygardenworld.v1.PlanStatus
 	(GateResourceKind)(0),             // 1: mygardenworld.v1.GateResourceKind
@@ -5422,25 +5630,26 @@ var file_mygardenworld_v1_query_service_proto_goTypes = []any{
 	(*RuntimeActionTotal)(nil),        // 36: mygardenworld.v1.RuntimeActionTotal
 	(*StreamEventsRequest)(nil),       // 37: mygardenworld.v1.StreamEventsRequest
 	(*Event)(nil),                     // 38: mygardenworld.v1.Event
-	nil,                               // 39: mygardenworld.v1.AccountStatus.ByKindEntry
-	nil,                               // 40: mygardenworld.v1.GetSnapshotResponse.InventoryEntry
-	nil,                               // 41: mygardenworld.v1.PlannedOperation.ItemCostEntry
-	(*timestamppb.Timestamp)(nil),     // 42: google.protobuf.Timestamp
+	(*DessertRuntimeView)(nil),        // 39: mygardenworld.v1.DessertRuntimeView
+	nil,                               // 40: mygardenworld.v1.AccountStatus.ByKindEntry
+	nil,                               // 41: mygardenworld.v1.GetSnapshotResponse.InventoryEntry
+	nil,                               // 42: mygardenworld.v1.PlannedOperation.ItemCostEntry
+	(*timestamppb.Timestamp)(nil),     // 43: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_query_service_proto_depIdxs = []int32{
 	5,  // 0: mygardenworld.v1.GetStatusResponse.accounts:type_name -> mygardenworld.v1.AccountStatus
-	42, // 1: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
-	39, // 2: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
+	43, // 1: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
+	40, // 2: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
 	6,  // 3: mygardenworld.v1.AccountStatus.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
 	23, // 4: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
 	34, // 5: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	42, // 6: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
-	42, // 7: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
-	42, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
-	42, // 9: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
+	43, // 6: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
+	43, // 7: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
+	43, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
+	43, // 9: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
 	19, // 10: mygardenworld.v1.GetSnapshotResponse.lands:type_name -> mygardenworld.v1.LandView
-	40, // 11: mygardenworld.v1.GetSnapshotResponse.inventory:type_name -> mygardenworld.v1.GetSnapshotResponse.InventoryEntry
-	42, // 12: mygardenworld.v1.GetSnapshotResponse.captured_at:type_name -> google.protobuf.Timestamp
+	41, // 11: mygardenworld.v1.GetSnapshotResponse.inventory:type_name -> mygardenworld.v1.GetSnapshotResponse.InventoryEntry
+	43, // 12: mygardenworld.v1.GetSnapshotResponse.captured_at:type_name -> google.protobuf.Timestamp
 	21, // 13: mygardenworld.v1.GetSnapshotResponse.pending_tasks:type_name -> mygardenworld.v1.PendingTaskView
 	6,  // 14: mygardenworld.v1.GetSnapshotResponse.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
 	23, // 15: mygardenworld.v1.GetSnapshotResponse.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
@@ -5468,48 +5677,49 @@ var file_mygardenworld_v1_query_service_proto_depIdxs = []int32{
 	15, // 37: mygardenworld.v1.DessertView.tasks:type_name -> mygardenworld.v1.DessertTaskView
 	16, // 38: mygardenworld.v1.DessertView.milestones:type_name -> mygardenworld.v1.DessertMilestoneView
 	17, // 39: mygardenworld.v1.DessertView.celebrity:type_name -> mygardenworld.v1.DessertCelebrityLikeView
-	14, // 40: mygardenworld.v1.DessertModeView.level_counts:type_name -> mygardenworld.v1.DessertLevelCountView
-	18, // 41: mygardenworld.v1.DessertTaskView.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 42: mygardenworld.v1.DessertTaskView.status:type_name -> mygardenworld.v1.PlanStatus
-	18, // 43: mygardenworld.v1.DessertMilestoneView.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 44: mygardenworld.v1.DessertMilestoneView.status:type_name -> mygardenworld.v1.PlanStatus
-	18, // 45: mygardenworld.v1.DessertCelebrityLikeView.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 46: mygardenworld.v1.DessertCelebrityLikeView.status:type_name -> mygardenworld.v1.PlanStatus
-	0,  // 47: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
-	24, // 48: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
-	41, // 49: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
-	0,  // 50: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
-	26, // 51: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
-	2,  // 52: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 53: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
-	2,  // 54: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 55: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
-	26, // 56: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
-	1,  // 57: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
-	0,  // 58: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
-	24, // 59: mygardenworld.v1.FlowerArtAvailabilityView.requirements:type_name -> mygardenworld.v1.RequirementView
-	31, // 60: mygardenworld.v1.InventoryLedgerView.items:type_name -> mygardenworld.v1.InventoryLedgerItem
-	33, // 61: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
-	0,  // 62: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
-	42, // 63: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
-	42, // 64: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
-	42, // 65: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
-	35, // 66: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
-	36, // 67: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	36, // 68: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	36, // 69: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	42, // 70: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
-	3,  // 71: mygardenworld.v1.QueryService.GetStatus:input_type -> mygardenworld.v1.GetStatusRequest
-	7,  // 72: mygardenworld.v1.QueryService.GetSnapshot:input_type -> mygardenworld.v1.GetSnapshotRequest
-	37, // 73: mygardenworld.v1.QueryService.StreamEvents:input_type -> mygardenworld.v1.StreamEventsRequest
-	4,  // 74: mygardenworld.v1.QueryService.GetStatus:output_type -> mygardenworld.v1.GetStatusResponse
-	8,  // 75: mygardenworld.v1.QueryService.GetSnapshot:output_type -> mygardenworld.v1.GetSnapshotResponse
-	38, // 76: mygardenworld.v1.QueryService.StreamEvents:output_type -> mygardenworld.v1.Event
-	74, // [74:77] is the sub-list for method output_type
-	71, // [71:74] is the sub-list for method input_type
-	71, // [71:71] is the sub-list for extension type_name
-	71, // [71:71] is the sub-list for extension extendee
-	0,  // [0:71] is the sub-list for field type_name
+	39, // 40: mygardenworld.v1.DessertView.runtime:type_name -> mygardenworld.v1.DessertRuntimeView
+	14, // 41: mygardenworld.v1.DessertModeView.level_counts:type_name -> mygardenworld.v1.DessertLevelCountView
+	18, // 42: mygardenworld.v1.DessertTaskView.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 43: mygardenworld.v1.DessertTaskView.status:type_name -> mygardenworld.v1.PlanStatus
+	18, // 44: mygardenworld.v1.DessertMilestoneView.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 45: mygardenworld.v1.DessertMilestoneView.status:type_name -> mygardenworld.v1.PlanStatus
+	18, // 46: mygardenworld.v1.DessertCelebrityLikeView.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 47: mygardenworld.v1.DessertCelebrityLikeView.status:type_name -> mygardenworld.v1.PlanStatus
+	0,  // 48: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
+	24, // 49: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
+	42, // 50: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
+	0,  // 51: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
+	26, // 52: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
+	2,  // 53: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 54: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
+	2,  // 55: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 56: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
+	26, // 57: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
+	1,  // 58: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
+	0,  // 59: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
+	24, // 60: mygardenworld.v1.FlowerArtAvailabilityView.requirements:type_name -> mygardenworld.v1.RequirementView
+	31, // 61: mygardenworld.v1.InventoryLedgerView.items:type_name -> mygardenworld.v1.InventoryLedgerItem
+	33, // 62: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
+	0,  // 63: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
+	43, // 64: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
+	43, // 65: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
+	43, // 66: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
+	35, // 67: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
+	36, // 68: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	36, // 69: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	36, // 70: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	43, // 71: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
+	3,  // 72: mygardenworld.v1.QueryService.GetStatus:input_type -> mygardenworld.v1.GetStatusRequest
+	7,  // 73: mygardenworld.v1.QueryService.GetSnapshot:input_type -> mygardenworld.v1.GetSnapshotRequest
+	37, // 74: mygardenworld.v1.QueryService.StreamEvents:input_type -> mygardenworld.v1.StreamEventsRequest
+	4,  // 75: mygardenworld.v1.QueryService.GetStatus:output_type -> mygardenworld.v1.GetStatusResponse
+	8,  // 76: mygardenworld.v1.QueryService.GetSnapshot:output_type -> mygardenworld.v1.GetSnapshotResponse
+	38, // 77: mygardenworld.v1.QueryService.StreamEvents:output_type -> mygardenworld.v1.Event
+	75, // [75:78] is the sub-list for method output_type
+	72, // [72:75] is the sub-list for method input_type
+	72, // [72:72] is the sub-list for extension type_name
+	72, // [72:72] is the sub-list for extension extendee
+	0,  // [0:72] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_query_service_proto_init() }
@@ -5523,7 +5733,7 @@ func file_mygardenworld_v1_query_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_query_service_proto_rawDesc), len(file_mygardenworld_v1_query_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   39,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
