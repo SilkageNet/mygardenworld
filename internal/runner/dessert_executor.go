@@ -16,6 +16,7 @@ const (
 	dessertModuleID                         = "actDessert"
 	dessertAutoClaimTaskRewardsPolicy       = "auto_claim_task_rewards"
 	dessertAutoLikeCelebrityPolicy          = "auto_like_celebrity"
+	dessertAutoOpenRewardBoxesPolicy        = "auto_open_reward_boxes"
 	dessertCelebrityType              int32 = 5601
 )
 
@@ -46,6 +47,13 @@ type dessertCelebrityLikeExecution struct {
 	like      func(context.Context, clientproto.CelebrityLikeCelebrityRequest) (json.RawMessage, error)
 	apply     func(json.RawMessage)
 	applied   func(state.DessertCelebrityLikeSnapshot) bool
+}
+
+type dessertRewardBoxOpenExecution struct {
+	preflight func() (state.DessertRewardBoxOpenSnapshot, error)
+	open      func(context.Context, clientproto.ActDessertOpenBoxRequest) (json.RawMessage, error)
+	apply     func(json.RawMessage)
+	applied   func(state.DessertRewardBoxOpenSnapshot) bool
 }
 
 func dessertEnterRequest(op *automation.PlannedOp) (clientproto.ActDessertEnterRequest, error) {
@@ -90,6 +98,25 @@ func dessertCelebrityLikeRequest(op *automation.PlannedOp) (clientproto.Celebrit
 	return clientproto.CelebrityLikeCelebrityRequest{Type: dessertCelebrityType}, nil
 }
 
+func dessertRewardBoxOpenRequest(op *automation.PlannedOp) (clientproto.ActDessertOpenBoxRequest, error) {
+	if op == nil || op.Kind != clientproto.RPCActDessertOpenBox.String() || op.BatchID <= 0 || op.Count != 1 {
+		return clientproto.ActDessertOpenBoxRequest{}, fmt.Errorf("actDessert.openBox requires a positive batch and capture-confirmed num=1")
+	}
+	if len(op.CostGates) != 1 {
+		return clientproto.ActDessertOpenBoxRequest{}, fmt.Errorf("actDessert.openBox requires one activity-local reward-box gate")
+	}
+	gate := op.CostGates[0]
+	if gate.ResourceKind != automation.GateResourceActivityItem || gate.ItemID != 1347 || gate.Required != 1 || gate.Available < 1 || gate.Blocking() {
+		return clientproto.ActDessertOpenBoxRequest{}, fmt.Errorf("actDessert.openBox reward-box gate is missing or blocked")
+	}
+	metadata := *op
+	metadata.Count = 0
+	if metadata.TaskID != 0 || dessertOperationHasUnexpectedTargets(&metadata) {
+		return clientproto.ActDessertOpenBoxRequest{}, fmt.Errorf("actDessert.openBox requires exact single-box, activity-local metadata")
+	}
+	return clientproto.ActDessertOpenBoxRequest{BatchId: op.BatchID, Num: 1}, nil
+}
+
 func dessertOperationHasUnexpectedTargets(op *automation.PlannedOp) bool {
 	return op.TargetUID != 0 || len(op.TargetUIDs) != 0 || op.TargetID != 0 || op.ItemID != 0 || op.Count != 0 ||
 		op.FlowerID != 0 || op.VaseID != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
@@ -109,7 +136,15 @@ func runDessertEnter(ctx context.Context, rt operationRuntime, op *automation.Pl
 			if !rt.runner.dessertEnterAutomationEnabled() {
 				return state.DessertEnterSnapshot{}, fmt.Errorf("dessert enter automation is disabled")
 			}
-			snapshot, ok := rt.runner.state.DessertEnterSnapshot(time.Now())
+			now := time.Now()
+			var snapshot state.DessertEnterSnapshot
+			var ok bool
+			if rt.runner.dessertTaskClaimAutomationEnabled() || rt.runner.dessertCelebrityLikeAutomationEnabled() {
+				snapshot, ok = rt.runner.state.DessertEnterSnapshot(now)
+			}
+			if !ok && rt.runner.dessertRewardBoxOpenAutomationEnabled() {
+				snapshot, ok = rt.runner.state.DessertRewardBoxEnterSnapshot(now)
+			}
 			if !ok || snapshot.BatchID != op.BatchID {
 				return state.DessertEnterSnapshot{}, fmt.Errorf("actDessert.enter preflight rejected: exact batch no longer needs safe initialization")
 			}
@@ -198,6 +233,32 @@ func runDessertCelebrityLike(ctx context.Context, rt operationRuntime, op *autom
 			return checkedStateDelta(rt.rpc.Celebrity().LikeCelebrity(ctx, request, babigame.WithPayloadApply(false)))
 		},
 		apply: rt.runner.state.ApplyV, applied: rt.runner.state.DessertCelebrityLikeApplied,
+	})
+}
+
+func runDessertRewardBoxOpen(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	req, err := dessertRewardBoxOpenRequest(op)
+	if err != nil {
+		return nil, err
+	}
+	if rt.runner == nil || rt.runner.state == nil || rt.rpc == nil {
+		return nil, fmt.Errorf("dessert reward-box runner state or RPC unavailable")
+	}
+	return executeDessertRewardBoxOpen(ctx, req, dessertRewardBoxOpenExecution{
+		preflight: func() (state.DessertRewardBoxOpenSnapshot, error) {
+			if !rt.runner.dessertRewardBoxOpenAutomationEnabled() {
+				return state.DessertRewardBoxOpenSnapshot{}, fmt.Errorf("dessert reward-box automation is disabled or lacks evidence")
+			}
+			snapshot, ok := rt.runner.state.DessertRewardBoxOpenSnapshot(time.Now(), op.BatchID, 1)
+			if !ok {
+				return state.DessertRewardBoxOpenSnapshot{}, fmt.Errorf("actDessert.openBox preflight rejected: exact activity box is no longer available")
+			}
+			return snapshot, nil
+		},
+		open: func(ctx context.Context, request clientproto.ActDessertOpenBoxRequest) (json.RawMessage, error) {
+			return checkedStateDelta(rt.rpc.ActDessert().OpenBox(ctx, request, babigame.WithPayloadApply(false)))
+		},
+		apply: rt.runner.state.ApplyV, applied: rt.runner.state.DessertRewardBoxOpenApplied,
 	})
 }
 
@@ -290,6 +351,28 @@ func executeDessertCelebrityLike(ctx context.Context, req clientproto.CelebrityL
 	return raw, nil
 }
 
+func executeDessertRewardBoxOpen(ctx context.Context, req clientproto.ActDessertOpenBoxRequest, exec dessertRewardBoxOpenExecution) (json.RawMessage, error) {
+	if exec.preflight == nil || exec.open == nil || exec.apply == nil || exec.applied == nil {
+		return nil, fmt.Errorf("dessert reward-box execution is incomplete")
+	}
+	before, err := exec.preflight()
+	if err != nil {
+		return nil, err
+	}
+	raw, err := exec.open(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("actDessert.openBox: %w", err)
+	}
+	if !babigame.HasPayload(raw) {
+		return nil, fmt.Errorf("actDessert.openBox postcondition failed: response payload is empty")
+	}
+	exec.apply(raw)
+	if !exec.applied(before) {
+		return nil, fmt.Errorf("actDessert.openBox postcondition failed: activity reward-box balance did not decrease by exactly one")
+	}
+	return raw, nil
+}
+
 func dessertCelebrityFullSyncDelta(raw json.RawMessage) bool {
 	var namespaces map[string]json.RawMessage
 	if json.Unmarshal(raw, &namespaces) != nil || namespaces == nil {
@@ -321,7 +404,8 @@ func (r *Runner) dessertPolicyFlag(key string) bool {
 }
 
 func (r *Runner) dessertEnterAutomationEnabled() bool {
-	return r.dessertPolicyFlag(dessertAutoClaimTaskRewardsPolicy) || r.dessertPolicyFlag(dessertAutoLikeCelebrityPolicy)
+	return r.dessertPolicyFlag(dessertAutoClaimTaskRewardsPolicy) || r.dessertPolicyFlag(dessertAutoLikeCelebrityPolicy) ||
+		r.dessertRewardBoxOpenAutomationEnabled()
 }
 
 func (r *Runner) dessertTaskClaimAutomationEnabled() bool {
@@ -330,4 +414,8 @@ func (r *Runner) dessertTaskClaimAutomationEnabled() bool {
 
 func (r *Runner) dessertCelebrityLikeAutomationEnabled() bool {
 	return r.dessertPolicyFlag(dessertAutoLikeCelebrityPolicy)
+}
+
+func (r *Runner) dessertRewardBoxOpenAutomationEnabled() bool {
+	return babigame.DessertOpenRewardBoxEvidenceGate() && r.dessertPolicyFlag(dessertAutoOpenRewardBoxesPolicy)
 }

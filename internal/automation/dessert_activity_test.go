@@ -13,7 +13,7 @@ import (
 
 const dessertPlannerNowMs int64 = 1783819000000
 
-func TestDessertPolicyDefaultsAndFutureSwitchesFailClosed(t *testing.T) {
+func TestDessertPolicyDefaultsAndUnverifiedSwitchesFailClosed(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
 	for _, tc := range []struct {
@@ -25,8 +25,8 @@ func TestDessertPolicyDefaultsAndFutureSwitchesFailClosed(t *testing.T) {
 		{name: "missing bools", activity: true, module: true},
 		{name: "activity disabled", module: true, bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
 		{name: "module disabled", activity: true, bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
-		{name: "future switches cannot execute", activity: true, module: true, bools: map[string]bool{
-			dessertAutoClaimProgressBoxesKey: true, dessertAutoOpenRewardBoxesKey: true, "auto_play": true,
+		{name: "unverified switches cannot execute", activity: true, module: true, bools: map[string]bool{
+			dessertAutoClaimProgressBoxesKey: true, "auto_play": true,
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -35,6 +35,26 @@ func TestDessertPolicyDefaultsAndFutureSwitchesFailClosed(t *testing.T) {
 				t.Fatalf("dessert operations=%+v, want none", got)
 			}
 		})
+	}
+}
+
+func TestDessertPlannerOpensExactlyOneActivityRewardBox(t *testing.T) {
+	now := time.UnixMilli(dessertPlannerNowMs)
+	s := dessertPlannerState(t, false)
+	policy := dessertPlannerPolicy(true, true, map[string]bool{dessertAutoOpenRewardBoxesKey: true})
+	ops := dessertPlanOperations(BuildPlan(s, policy, now).Operations)
+	if len(ops) != 1 {
+		t.Fatalf("dessert operations=%+v, want one", ops)
+	}
+	op := ops[0]
+	if op.Kind != clientproto.RPCActDessertOpenBox.String() || op.BatchID != 9101 || op.Count != 1 ||
+		op.Action != "open_box" || op.OperationID != clientproto.RPCActDessertOpenBox.String()+":9101:1" ||
+		op.CooldownKey != dessertCooldownKey || len(op.CostGates) != 1 {
+		t.Fatalf("single-box operation=%+v", op)
+	}
+	gate := op.CostGates[0]
+	if gate.ResourceKind != GateResourceActivityItem || gate.ItemID != 1347 || gate.Required != 1 || gate.Available != 13 || gate.Blocking() {
+		t.Fatalf("activity-local box gate=%+v", gate)
 	}
 }
 
@@ -63,6 +83,7 @@ func TestDessertPlannerStrictOrderAndSharedCooldown(t *testing.T) {
 	policy := dessertPlannerPolicy(true, true, map[string]bool{
 		dessertAutoClaimTaskRewardsKey: true,
 		dessertAutoLikeCelebrityKey:    true,
+		dessertAutoOpenRewardBoxesKey:  true,
 	})
 	ops := dessertPlanOperations(BuildPlan(s, policy, now).Operations)
 	if len(ops) != 1 {
@@ -108,7 +129,7 @@ func TestDessertFeatureCatalogUsesActionLevelSafety(t *testing.T) {
 		"activity.actDessert.sync_celebrity": PlanStatusManaged,
 		"activity.actDessert.like_celebrity": PlanStatusManaged,
 		"activity.actDessert.progress_boxes": PlanStatusBlocked,
-		"activity.actDessert.reward_boxes":   PlanStatusBlocked,
+		"activity.actDessert.reward_boxes":   PlanStatusManaged,
 		"activity.actDessert.game":           PlanStatusBlocked,
 	}
 	for _, spec := range featureSpecs {

@@ -29,6 +29,42 @@ func TestDessertRequestsSerializeOnlyCaptureConfirmedFields(t *testing.T) {
 	if err != nil || jsonString(t, like) != `{"type":5601}` {
 		t.Fatalf("like=%s err=%v", jsonString(t, like), err)
 	}
+	open, err := dessertRewardBoxOpenRequest(&automation.PlannedOp{
+		Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 1,
+		CostGates: []automation.CostGate{{
+			ResourceKind: automation.GateResourceActivityItem, ItemID: 1347, Required: 1, Available: 5, Status: automation.PlanStatusReady,
+		}},
+	})
+	if err != nil || jsonString(t, open) != `{"batchId":9101,"num":1}` {
+		t.Fatalf("open=%s err=%v", jsonString(t, open), err)
+	}
+	for name, op := range map[string]*automation.PlannedOp{
+		"zero count":   {Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101},
+		"two boxes":    {Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 2},
+		"missing gate": {Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 1},
+		"normal item gate": {
+			Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 1,
+			CostGates: []automation.CostGate{{ResourceKind: automation.GateResourceItem, ItemID: 1347, Required: 1, Available: 5, Status: automation.PlanStatusReady}},
+		},
+		"diamond": {
+			Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 1, DiamondCost: 1,
+			CostGates: []automation.CostGate{{ResourceKind: automation.GateResourceActivityItem, ItemID: 1347, Required: 1, Available: 5, Status: automation.PlanStatusReady}},
+		},
+		"item cost": {
+			Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 1, ItemCost: map[int32]int32{1347: 1},
+			CostGates: []automation.CostGate{{ResourceKind: automation.GateResourceActivityItem, ItemID: 1347, Required: 1, Available: 5, Status: automation.PlanStatusReady}},
+		},
+		"target uid": {
+			Kind: clientproto.RPCActDessertOpenBox.String(), BatchID: 9101, Count: 1, TargetUID: 1,
+			CostGates: []automation.CostGate{{ResourceKind: automation.GateResourceActivityItem, ItemID: 1347, Required: 1, Available: 5, Status: automation.PlanStatusReady}},
+		},
+	} {
+		t.Run("open "+name, func(t *testing.T) {
+			if _, err := dessertRewardBoxOpenRequest(op); err == nil {
+				t.Fatalf("unsafe open metadata accepted: %+v", op)
+			}
+		})
+	}
 
 	for name, mutate := range map[string]func(*automation.PlannedOp){
 		"diamond":    func(op *automation.PlannedOp) { op.DiamondCost = 1 },
@@ -66,6 +102,7 @@ func TestDessertRequestsSerializeOnlyCaptureConfirmedFields(t *testing.T) {
 func TestDessertOperationRegistryStrictAllowlist(t *testing.T) {
 	for _, rpc := range []clientproto.RPCName{
 		clientproto.RPCActDessertEnter,
+		clientproto.RPCActDessertOpenBox,
 		clientproto.RPCActRecv,
 		clientproto.RPCCelebrityGetAllTypesInfo,
 		clientproto.RPCCelebrityLikeCelebrity,
@@ -77,7 +114,6 @@ func TestDessertOperationRegistryStrictAllowlist(t *testing.T) {
 	}
 	for _, rpc := range []clientproto.RPCName{
 		clientproto.RPCActRecvBoxes,
-		clientproto.RPCActDessertOpenBox,
 		clientproto.RPCActDessertGameStart,
 		clientproto.RPCActDessertGameSync,
 		clientproto.RPCActDessertGameOver,
@@ -137,12 +173,38 @@ func TestDessertExecutorsApplyExactlyOnceAndEnforcePostconditions(t *testing.T) 
 	if err != nil || applyCount != 1 || marked != 9101 {
 		t.Fatalf("full-sync err=%v applyCount=%d marked=%d", err, applyCount, marked)
 	}
+
+	boxBefore := state.DessertRewardBoxOpenSnapshot{BatchID: 9101, RewardBoxID: 1347, BalanceBefore: 5, Count: 1}
+	applyCount = 0
+	_, err = executeDessertRewardBoxOpen(context.Background(), clientproto.ActDessertOpenBoxRequest{BatchId: 9101, Num: 1}, dessertRewardBoxOpenExecution{
+		preflight: func() (state.DessertRewardBoxOpenSnapshot, error) { return boxBefore, nil },
+		open: func(context.Context, clientproto.ActDessertOpenBoxRequest) (json.RawMessage, error) {
+			return json.RawMessage(`{"23":{"0":{"9101":{"12":{"1347":4}}}}}`), nil
+		},
+		apply:   func(json.RawMessage) { applyCount++ },
+		applied: func(state.DessertRewardBoxOpenSnapshot) bool { return true },
+	})
+	if err != nil || applyCount != 1 {
+		t.Fatalf("open-box err=%v applyCount=%d", err, applyCount)
+	}
+	applyCount = 0
+	_, err = executeDessertRewardBoxOpen(context.Background(), clientproto.ActDessertOpenBoxRequest{BatchId: 9101, Num: 1}, dessertRewardBoxOpenExecution{
+		preflight: func() (state.DessertRewardBoxOpenSnapshot, error) { return boxBefore, nil },
+		open: func(context.Context, clientproto.ActDessertOpenBoxRequest) (json.RawMessage, error) {
+			return json.RawMessage(`{"23":{"0":{"9101":{"12":{"1347":3}}}}}`), nil
+		},
+		apply:   func(json.RawMessage) { applyCount++ },
+		applied: func(state.DessertRewardBoxOpenSnapshot) bool { return false },
+	})
+	if err == nil || !strings.Contains(err.Error(), "exactly one") || applyCount != 1 {
+		t.Fatalf("open-box postcondition err=%v applyCount=%d", err, applyCount)
+	}
 }
 
 func TestDessertPolicyRequiresEveryEnableLayer(t *testing.T) {
 	policy := automation.DefaultPolicy()
 	r := &Runner{policy: policy}
-	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() {
+	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() || r.dessertRewardBoxOpenAutomationEnabled() {
 		t.Fatal("default policy enabled dessert execution")
 	}
 
@@ -162,8 +224,12 @@ func TestDessertPolicyRequiresEveryEnableLayer(t *testing.T) {
 	if !r.dessertCelebrityLikeAutomationEnabled() {
 		t.Fatal("like flag did not enable controlled sync/like chain")
 	}
+	policy.Activity.Modules[dessertModuleID].BoolParams[dessertAutoOpenRewardBoxesPolicy] = true
+	if !r.dessertRewardBoxOpenAutomationEnabled() {
+		t.Fatal("reviewed single-box flag did not enable the exact open action")
+	}
 	policy.Activity.Enabled = false
-	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() {
+	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() || r.dessertRewardBoxOpenAutomationEnabled() {
 		t.Fatal("disabled Activity parent allowed dessert actions")
 	}
 }

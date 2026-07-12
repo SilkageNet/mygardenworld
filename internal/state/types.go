@@ -727,6 +727,10 @@ type DessertEnterSnapshot struct {
 	At      time.Time
 	BatchID int32
 	Phase   int32
+	// BagOnly is used by the independent reward-box path. It authorizes enter
+	// only to fill a missing namespace-23 activity bag and does not make the
+	// game board a prerequisite for opening an already earned box.
+	BagOnly bool
 }
 
 // DessertTaskClaimSnapshot freezes the only capture-confirmed fixed-task
@@ -760,6 +764,18 @@ type DessertCelebrityLikeSnapshot struct {
 	EnergyItemID   int32
 	EnergyBefore   int32
 	ExpectedReward int32
+}
+
+// DessertRewardBoxOpenSnapshot freezes the activity-local reward-box balance
+// before one capture-confirmed, single-box open. It deliberately has no game
+// board or ordinary-inventory fields because openBox is independent of play.
+type DessertRewardBoxOpenSnapshot struct {
+	At            time.Time
+	BatchID       int32
+	Phase         int32
+	RewardBoxID   int32
+	BalanceBefore int32
+	Count         int32
 }
 
 // CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.

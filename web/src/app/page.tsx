@@ -297,6 +297,7 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
     boolParams: [
       { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
       { key: "auto_like_celebrity", label: "自动免费点赞" },
+      { key: "auto_open_reward_boxes", label: "自动开启奖励箱（每次1个）" },
       { key: "auto_play", label: "启用影子诊断（不执行）" },
       { key: "resume_existing_round", label: "请求接管评估（当前硬锁）" },
     ],
@@ -1544,7 +1545,7 @@ function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
               icon={<Package />}
               label="未开箱"
               value={activity.bagObserved ? formatCount(activity.rewardBoxBalance) : "-"}
-              detail="等待协议确认"
+              detail="可在设置中开启单次安全开箱"
             />
           </div>
 
@@ -1602,7 +1603,7 @@ function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="rounded-md border border-border/58 bg-muted/20 p-3 text-sm">
               <div className="font-medium">奖励箱</div>
-              <div className="mt-1 text-xs text-muted-foreground">当前余额 {formatCount(activity.rewardBoxBalance)}；等待协议确认，不会自动开箱。</div>
+              <div className="mt-1 text-xs text-muted-foreground">当前余额 {formatCount(activity.rewardBoxBalance)}；自动开箱默认关闭，开启后每次只开 1 个。</div>
             </div>
             <div className="rounded-md border border-border/58 bg-muted/20 p-3 text-sm">
               <div className="font-medium">合成游戏</div>

@@ -27,9 +27,72 @@ func (s *State) DessertEnterSnapshot(now time.Time) (DessertEnterSnapshot, bool)
 // DessertEnterApplied verifies that enter filled the activity-local bag and
 // ext121 mode map for the same dynamically selected batch.
 func (s *State) DessertEnterApplied(before DessertEnterSnapshot) bool {
+	if before.BagOnly {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		batch, phase, _, _, _ := s.preferredDessertBatchLocked(before.At.UnixMilli())
+		return batch != nil && batch.BatchID == before.BatchID && (phase == 2 || phase == 3) &&
+			batch.IdentityValid && batch.BagObserved && batch.BagValid
+	}
 	view, ok := s.DessertView(before.At)
 	return ok && view.BatchID == before.BatchID && (view.Phase == 2 || view.Phase == 3) &&
 		view.BagObserved && view.ExtensionObserved && view.ExtensionValid && view.ModeMapObserved && view.ModeMapValid
+}
+
+// DessertRewardBoxEnterSnapshot requests enter only when the independently
+// required activity bag has never been observed. A malformed observed bag is
+// not repaired speculatively, and a missing/invalid game board is irrelevant.
+func (s *State) DessertRewardBoxEnterSnapshot(now time.Time) (DessertEnterSnapshot, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	batch, phase, _, _, _ := s.preferredDessertBatchLocked(now.UnixMilli())
+	config, catalogOK := DessertCatalogConfig()
+	if batch == nil || !catalogOK || batch.BatchID <= 0 || batch.TmpType != config.TmpType || !batch.IdentityValid ||
+		(phase != 2 && phase != 3) || batch.BagObserved {
+		return DessertEnterSnapshot{}, false
+	}
+	return DessertEnterSnapshot{At: now, BatchID: batch.BatchID, Phase: phase, BagOnly: true}, true
+}
+
+// DessertRewardBoxOpenSnapshot authorizes exactly one free openBox operation
+// from the selected batch's authoritative activity bag. It intentionally does
+// not depend on ext121, a valid board, or isRunning.
+func (s *State) DessertRewardBoxOpenSnapshot(now time.Time, batchID, count int32) (DessertRewardBoxOpenSnapshot, bool) {
+	if batchID < 0 || count != 1 {
+		return DessertRewardBoxOpenSnapshot{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	batch, phase, _, _, _ := s.preferredDessertBatchLocked(now.UnixMilli())
+	config, catalogOK := DessertCatalogConfig()
+	if batch == nil || !catalogOK || (batchID > 0 && batch.BatchID != batchID) || batch.TmpType != config.TmpType || !batch.IdentityValid ||
+		(phase != 2 && phase != 3) || !batch.BagObserved || !batch.BagValid || config.RewardBoxItemID != 1347 {
+		return DessertRewardBoxOpenSnapshot{}, false
+	}
+	balance := batch.Bag[config.RewardBoxItemID]
+	if balance < count {
+		return DessertRewardBoxOpenSnapshot{}, false
+	}
+	return DessertRewardBoxOpenSnapshot{
+		At: now, BatchID: batch.BatchID, Phase: phase, RewardBoxID: config.RewardBoxItemID,
+		BalanceBefore: balance, Count: count,
+	}, true
+}
+
+// DessertRewardBoxOpenApplied requires the same activity-local balance to
+// decrease by exactly one. Random reward contents are intentionally not fixed.
+func (s *State) DessertRewardBoxOpenApplied(before DessertRewardBoxOpenSnapshot) bool {
+	if before.BatchID <= 0 || before.RewardBoxID != 1347 || before.Count != 1 || before.BalanceBefore < before.Count {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	batch, phase, _, _, _ := s.preferredDessertBatchLocked(before.At.UnixMilli())
+	return batch != nil && batch.BatchID == before.BatchID && batch.IdentityValid && (phase == 2 || phase == 3) &&
+		batch.BagObserved && batch.BagValid && batch.Bag[before.RewardBoxID] == before.BalanceBefore-before.Count
 }
 
 // DessertTaskClaimSnapshot returns the exact, uniquely identified fixed task

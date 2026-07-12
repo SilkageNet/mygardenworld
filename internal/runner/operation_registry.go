@@ -483,6 +483,10 @@ var plannedOperationSpecs = map[string]operationSpec{
 		args: func(op *automation.PlannedOp) (any, error) { return dessertEnterRequest(op) },
 		run:  runDessertEnter,
 	},
+	clientproto.RPCActDessertOpenBox.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertRewardBoxOpenRequest(op) },
+		run:  runDessertRewardBoxOpen,
+	},
 	clientproto.RPCActRecv.String(): {
 		args: func(op *automation.PlannedOp) (any, error) { return dessertTaskClaimRequest(op) },
 		run:  runDessertTaskClaim,

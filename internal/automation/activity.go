@@ -119,23 +119,32 @@ func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time)
 	likeCelebrity := module.GetBoolParams()[dessertAutoLikeCelebrityKey]
 	claimProgress := module.GetBoolParams()[dessertAutoClaimProgressBoxesKey]
 	openRewardBoxes := module.GetBoolParams()[dessertAutoOpenRewardBoxesKey]
-	rewardEvidenceReady := (claimProgress || openRewardBoxes) && babigame.DessertRewardBoxEvidenceGate()
-	if !claimTasks && !likeCelebrity && !rewardEvidenceReady {
+	claimProgressReady := claimProgress && babigame.DessertProgressBoxEvidenceGate()
+	openRewardBoxesReady := openRewardBoxes && babigame.DessertOpenRewardBoxEvidenceGate()
+	if !claimTasks && !likeCelebrity && !claimProgressReady && !openRewardBoxesReady {
 		return nil
 	}
 
-	if snapshot, ready := s.DessertEnterSnapshot(now); ready {
-		return []PlannedOp{dessertPlannedOp(
-			clientproto.RPCActDessertEnter.String(), "enter", "香卉甜糕活动数据不完整，进入活动同步状态",
-			snapshot.BatchID, 0,
-		)}
+	if claimTasks || likeCelebrity || claimProgressReady {
+		if snapshot, ready := s.DessertEnterSnapshot(now); ready {
+			return []PlannedOp{dessertPlannedOp(
+				clientproto.RPCActDessertEnter.String(), "enter", "香卉甜糕活动数据不完整，进入活动同步状态",
+				snapshot.BatchID, 0,
+			)}
+		}
+	}
+	if openRewardBoxesReady {
+		if snapshot, ready := s.DessertRewardBoxEnterSnapshot(now); ready {
+			return []PlannedOp{dessertPlannedOp(
+				clientproto.RPCActDessertEnter.String(), "enter", "香卉甜糕活动背包未同步，进入活动读取奖励箱余额",
+				snapshot.BatchID, 0,
+			)}
+		}
 	}
 
 	view, ok := s.DessertView(now)
-	if !ok || !view.Valid || view.BatchID <= 0 {
-		return nil
-	}
-	if claimTasks && (view.Phase == 2 || view.Phase == 3) {
+	viewReady := ok && view.Valid && view.BatchID > 0
+	if viewReady && claimTasks && (view.Phase == 2 || view.Phase == 3) {
 		for _, task := range view.Tasks {
 			if _, ready := s.DessertTaskClaimSnapshot(now, view.BatchID, task.TaskIndex, task.TaskID); !ready {
 				continue
@@ -146,7 +155,7 @@ func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time)
 			)}
 		}
 	}
-	if likeCelebrity && view.Phase == 2 {
+	if viewReady && likeCelebrity && view.Phase == 2 {
 		if _, ready := s.DessertCelebritySyncSnapshot(now); ready {
 			return []PlannedOp{dessertPlannedOp(
 				clientproto.RPCCelebrityGetAllTypesInfo.String(), "sync_celebrity", "点赞前受控同步本期名人榜",
@@ -160,14 +169,31 @@ func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time)
 			)}
 		}
 	}
-	// The policy keys are stable, but reward RPC planners and registry entries
-	// are intentionally absent until both success fixtures pass the embedded
-	// evidence gate. Keeping this branch explicit prevents a future generic
-	// activity adapter from treating the switches as authorization.
-	if rewardEvidenceReady {
+	// Cumulative progress rewards remain independently hard-blocked until a
+	// successful act.recvBoxes response fixture exists.
+	if claimProgressReady {
 		return nil
 	}
+	if openRewardBoxesReady {
+		if snapshot, ready := s.DessertRewardBoxOpenSnapshot(now, 0, 1); ready {
+			return []PlannedOp{dessertRewardBoxOpenPlannedOp(snapshot)}
+		}
+	}
 	return nil
+}
+
+func dessertRewardBoxOpenPlannedOp(snapshot state.DessertRewardBoxOpenSnapshot) PlannedOp {
+	op := dessertPlannedOp(
+		clientproto.RPCActDessertOpenBox.String(), "open_box", "香卉甜糕奖励箱可安全单次开启",
+		snapshot.BatchID, 0,
+	)
+	op.OperationID = strings.Join([]string{op.Kind, strconv.FormatInt(int64(snapshot.BatchID), 10), "1"}, ":")
+	op.Count = 1
+	op.CostGates = []CostGate{resourceGate(
+		"activity_item:1347", GateResourceActivityItem, "甜糕奖励箱", snapshot.RewardBoxID,
+		1, int64(snapshot.BalanceBefore), "operation.activity_bag",
+	)}
+	return enrichPlannedOp(op)
 }
 
 func dessertPlannedOp(kind, action, reason string, batchID, taskID int32) PlannedOp {
