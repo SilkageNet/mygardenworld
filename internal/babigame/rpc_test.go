@@ -247,7 +247,7 @@ func TestClientRPCNotConnectedDoesNotLeavePending(t *testing.T) {
 	session := &Session{Cfg: cfg, RouteToken: "route-token", GsIdx: 1}
 	client := NewClient(session)
 
-	_, _, err = client.rpc(context.Background(), clientproto.RPCUsrLandWater.String(), clientproto.UsrLandWaterRequest{LandId: 1001}, session.RouteArg(), time.Second)
+	_, _, err = client.rpc(context.Background(), clientproto.RPCUsrLandWater.String(), clientproto.UsrLandWaterRequest{LandId: 1001}, session.RouteArg(), time.Second, true)
 	if err == nil || !strings.Contains(err.Error(), "not connected") {
 		t.Fatalf("rpc error = %v, want not connected", err)
 	}
@@ -257,5 +257,29 @@ func TestClientRPCNotConnectedDoesNotLeavePending(t *testing.T) {
 	client.mu.Unlock()
 	if pending != 0 {
 		t.Fatalf("pending len = %d, want 0 after not connected rpc", pending)
+	}
+}
+
+func TestRequestOptionsChooseOneStateApplyOwner(t *testing.T) {
+	enabled, disabled := true, false
+	tests := []struct {
+		name          string
+		applyHook     bool
+		applyOverride *bool
+		wantDispatch  bool
+	}{
+		{name: "subscriber fallback without hook", wantDispatch: true},
+		{name: "apply hook owns response", applyHook: true},
+		{name: "manual apply suppresses subscriber", applyOverride: &disabled},
+		{name: "explicit auto apply without hook", applyOverride: &enabled, wantDispatch: true},
+		{name: "explicit manual apply with hook", applyHook: true, applyOverride: &disabled},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := requestOptions{applyV: tt.applyOverride}
+			if got := opts.shouldDispatchNamespaces(tt.applyHook); got != tt.wantDispatch {
+				t.Fatalf("shouldDispatchNamespaces()=%t, want %t", got, tt.wantDispatch)
+			}
+		})
 	}
 }

@@ -89,7 +89,7 @@ func (r *Runner) refreshReputationIfDue(ctx context.Context, client *babigame.Cl
 	r.mu.Unlock()
 
 	rpc := r.runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.Reputation().View(ctx, clientproto.ReputationViewRequest{}))
+	_, d, err := rpcResult(rpc.Reputation().View(ctx, clientproto.ReputationViewRequest{}))
 	if r.isSessionInvalidated() {
 		return r.sessionInvalidatedError("session invalidated while checking reputation")
 	}
@@ -102,9 +102,6 @@ func (r *Runner) refreshReputationIfDue(ctx context.Context, client *babigame.Cl
 			msg = "server returned error"
 		}
 		return fmt.Errorf("%s", msg)
-	}
-	if babigame.HasPayload(v) {
-		r.state.ApplyV(v)
 	}
 	return nil
 }

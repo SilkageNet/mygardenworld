@@ -69,3 +69,36 @@ func TestDessertRewardBoxEnterOnlyRepairsMissingBag(t *testing.T) {
 		t.Fatal("observed bag still requested enter")
 	}
 }
+
+func TestDessertRewardBoxResponseAppliesRelativeRewardOnce(t *testing.T) {
+	now := time.UnixMilli(dessertFixtureNowMs)
+	s := applyDessertCaptureFixture(t)
+	s.ApplyV(json.RawMessage(`{
+		"7":{"0":{"32":{"11":6042},"44":2746536}},
+		"23":{"0":{"9101":{"12":{"1342":249,"1343":534,"1347":20}}}}
+	}`))
+	before, ok := s.DessertRewardBoxOpenSnapshot(now, 9101, 1)
+	if !ok {
+		t.Fatal("single-box snapshot was not ready")
+	}
+	inventoryCallbacks := 0
+	s.SetOnInventoryChange(func(InventorySnapshot) { inventoryCallbacks++ })
+
+	s.ApplyV(json.RawMessage(`{
+		"7":{"0":{"44":2746724},"2":{"0":{"11":188},"4":{"1347":1}}},
+		"23":{"0":{"9101":{"12":{"1342":249,"1343":534,"1347":19}}}}
+	}`))
+
+	if got := s.Inventory()[11]; got != 6230 {
+		t.Fatalf("gold item count=%d, want one relative +188 application", got)
+	}
+	if got := s.Gold(); got != 2746724 {
+		t.Fatalf("authoritative gold=%d", got)
+	}
+	if inventoryCallbacks != 1 {
+		t.Fatalf("inventory callbacks=%d, want 1", inventoryCallbacks)
+	}
+	if !s.DessertRewardBoxOpenApplied(before) {
+		t.Fatal("single-box postcondition rejected the captured response")
+	}
+}

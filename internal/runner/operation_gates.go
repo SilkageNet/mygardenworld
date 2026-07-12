@@ -314,7 +314,7 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	r.lastWaterSyncTick = now
 
 	rpc := r.runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
+	_, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
 	if r.isSessionInvalidated() {
 		return
 	}
@@ -326,7 +326,4 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 		return
 	}
 	r.state.MarkWaterwheelEntered(now)
-	if babigame.HasPayload(v) {
-		r.state.ApplyV(v)
-	}
 }

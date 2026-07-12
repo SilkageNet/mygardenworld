@@ -908,8 +908,6 @@ func runWaterwheelRecv(ctx context.Context, rt operationRuntime, _ *automation.P
 	if rt.runner != nil && rt.runner.state.WaterwheelNextClaimRequiresSkip() {
 		if v, d, err := rpcResult(rt.rpc.Waterwheel().Skip(ctx, clientproto.WaterwheelSkipRequest{})); err != nil || d.IsError() {
 			return checkedPayload(v, d, err)
-		} else if babigame.HasPayload(v) {
-			rt.runner.state.ApplyV(v)
 		}
 	}
 	return checkedStateDelta(rt.rpc.Waterwheel().Recv(ctx, clientproto.WaterwheelRecvRequest{}))
