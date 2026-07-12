@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
@@ -55,6 +57,121 @@ func TestDessertRuntimePolicyIsFourLayeredAndBounded(t *testing.T) {
 	}
 }
 
+func TestDessertBoundedControllerEvidenceGateIsOpaqueAndOutermost(t *testing.T) {
+	if dessertLiveControllerCompiled {
+		t.Fatal("live dessert controller compile-time fuse unexpectedly enabled")
+	}
+	if babigame.DessertLiveAutoplayEvidenceGate() {
+		t.Fatal("test corpus unexpectedly enables live dessert evidence")
+	}
+
+	cases := map[string]dessertBoundedControllerInput{
+		"otherwise ready":               validDessertBoundedControllerInput(),
+		"zero value":                    {},
+		"locked with private detail":    dessertBoundedControllerInput{failureLocked: true, failureReason: "private-board-detail"},
+		"forged ownership and revision": dessertBoundedControllerInput{boardOwned: true, runtimeAuthorityRevision: ^uint64(0)},
+	}
+	for name, input := range cases {
+		t.Run(name, func(t *testing.T) {
+			decision := evaluateDessertBoundedController(false, input)
+			if decision.readiness != dessertControllerBlocked || decision.blockedReason != dessertEvidenceBlockedReason ||
+				strings.Contains(decision.blockedReason, "private-board-detail") {
+				t.Fatalf("evidence gate leaked later preflight state: %+v", decision)
+			}
+		})
+	}
+}
+
+func TestDessertBoundedControllerFutureSafetyGates(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*dessertBoundedControllerInput)
+		want   string
+	}{
+		{name: "policy disabled", mutate: func(in *dessertBoundedControllerInput) { in.config.enabled = false }, want: "策略未启用"},
+		{name: "unsupported mode", mutate: func(in *dessertBoundedControllerInput) { in.config.mode = 2 }, want: "普通模式"},
+		{name: "zero budget", mutate: func(in *dessertBoundedControllerInput) { in.config.maxSessionEnergy = 0 }, want: "1～100"},
+		{name: "oversized budget", mutate: func(in *dessertBoundedControllerInput) { in.config.maxSessionEnergy = 101 }, want: "1～100"},
+		{name: "negative reserve", mutate: func(in *dessertBoundedControllerInput) { in.config.minEnergyReserve = -1 }, want: "不能为负数"},
+		{name: "budget exhausted", mutate: func(in *dessertBoundedControllerInput) { in.sessionEnergyUsed = in.config.maxSessionEnergy }, want: "预算"},
+		{name: "negative used", mutate: func(in *dessertBoundedControllerInput) { in.sessionEnergyUsed = -1 }, want: "预算"},
+		{name: "failure lock", mutate: func(in *dessertBoundedControllerInput) { in.failureLocked = true; in.failureReason = "并发失败锁" }, want: "并发失败锁"},
+		{name: "pending drop", mutate: func(in *dessertBoundedControllerInput) { in.pendingDropFingerprint = "pending" }, want: "等待权威响应"},
+		{name: "identity mismatch", mutate: func(in *dessertBoundedControllerInput) { in.runtimeBatchID++ }, want: "身份不完整"},
+		{name: "reward phase", mutate: func(in *dessertBoundedControllerInput) { in.view.Phase = 3 }, want: "活动进行阶段"},
+		{name: "unknown game status", mutate: func(in *dessertBoundedControllerInput) { in.mode.GameStatus = 3 }, want: "gameStatus"},
+		{name: "bag unobserved", mutate: func(in *dessertBoundedControllerInput) { in.view.BagObserved = false }, want: "余额尚未完整同步"},
+		{name: "bag mismatch", mutate: func(in *dessertBoundedControllerInput) { in.view.Bag[in.view.EnergyItemID]++ }, want: "背包不一致"},
+		{name: "at reserve", mutate: func(in *dessertBoundedControllerInput) {
+			in.view.EnergyBalance = in.config.minEnergyReserve
+			in.view.Bag[in.view.EnergyItemID] = in.view.EnergyBalance
+		}, want: "保留值"},
+		{name: "runtime revision mismatch", mutate: func(in *dessertBoundedControllerInput) { in.runtimeAuthorityRevision++ }, want: "revision 不一致"},
+		{name: "view revision mismatch", mutate: func(in *dessertBoundedControllerInput) { in.view.AuthorityRevision++ }, want: "revision 不一致"},
+		{name: "mode revision mismatch", mutate: func(in *dessertBoundedControllerInput) { in.mode.AuthorityRevision++ }, want: "revision 不一致"},
+		{name: "baseline revision mismatch", mutate: func(in *dessertBoundedControllerInput) { in.baselineAuthorityRevision++ }, want: "revision 不一致"},
+		{name: "runtime hash invalid", mutate: func(in *dessertBoundedControllerInput) { in.runtimeBoardHash = "short" }, want: "typed hash 不一致"},
+		{name: "mode hash mismatch", mutate: func(in *dessertBoundedControllerInput) { in.mode.BoardHash = strings.Repeat("b", 64) }, want: "typed hash 不一致"},
+		{name: "baseline hash mismatch", mutate: func(in *dessertBoundedControllerInput) { in.baselineBoardHash = strings.Repeat("c", 64) }, want: "typed hash 不一致"},
+		{name: "forged ownership", mutate: func(in *dessertBoundedControllerInput) { in.boardOwned = true }, want: "归属标记"},
+		{name: "dirty idle board", mutate: func(in *dessertBoundedControllerInput) { in.mode.Objects = []state.DessertObjectView{{Level: 1}} }, want: "非运行态"},
+		{name: "running without waiting ball", mutate: func(in *dessertBoundedControllerInput) { in.mode.IsRunning = true }, want: "waiting ball"},
+		{name: "nonempty takeover disabled", mutate: func(in *dessertBoundedControllerInput) {
+			in.mode.IsRunning = true
+			in.mode.CurID = 1
+			in.mode.Objects = []state.DessertObjectView{{Level: 1, Position: state.DessertVector2{Y: 0}}}
+		}, want: "未启用接管"},
+		{name: "takeover lacks warmup", mutate: func(in *dessertBoundedControllerInput) {
+			in.config.resumeExisting = true
+			in.mode.IsRunning = true
+			in.mode.CurID = 1
+			in.mode.Objects = []state.DessertObjectView{{Level: 1, Position: state.DessertVector2{Y: 0}}}
+		}, want: "warm-up"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			input := validDessertBoundedControllerInput()
+			tc.mutate(&input)
+			decision := evaluateDessertBoundedController(true, input)
+			if decision.readiness != dessertControllerBlocked || !strings.Contains(decision.blockedReason, tc.want) {
+				t.Fatalf("decision=%+v, want blocked reason containing %q", decision, tc.want)
+			}
+		})
+	}
+}
+
+func TestDessertBoundedControllerOnlyReportsNonTransportReadiness(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*dessertBoundedControllerInput)
+		want   dessertControllerReadiness
+	}{
+		{name: "clean idle board", want: dessertControllerIdleReady},
+		{name: "empty running board", mutate: func(in *dessertBoundedControllerInput) {
+			in.mode.IsRunning = true
+			in.mode.CurID = 1
+		}, want: dessertControllerEmptyRoundReady},
+		{name: "owned running board", mutate: func(in *dessertBoundedControllerInput) {
+			in.mode.IsRunning = true
+			in.mode.CurID = 1
+			in.boardOwned = true
+			in.createdBySession = true
+		}, want: dessertControllerOwnedRoundReady},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			input := validDessertBoundedControllerInput()
+			if tc.mutate != nil {
+				tc.mutate(&input)
+			}
+			decision := evaluateDessertBoundedController(true, input)
+			if decision.readiness != tc.want || decision.blockedReason != "" {
+				t.Fatalf("decision=%+v, want readiness=%d", decision, tc.want)
+			}
+		})
+	}
+}
+
 func TestDessertRuntimeWaitingFreezesLevelUntilNextDrop(t *testing.T) {
 	now := time.UnixMilli(dessertRuntimeNowMs)
 	r := newDessertRuntimeTestRunner(t, true, 1, 1)
@@ -65,7 +182,8 @@ func TestDessertRuntimeWaitingFreezesLevelUntilNextDrop(t *testing.T) {
 	first := r.DessertRuntimeSnapshot()
 	if !first.Observed || !first.ShadowOnly || !first.PolicyEnabled || !first.Waiting ||
 		first.WaitingRemainingMS != 800 || first.FrozenWaitingLevel != 0 || first.Suggestion != "" ||
-		first.BlockedReason == "" || first.BoardOwned {
+		first.BlockedReason != dessertEvidenceBlockedReason || first.BoardOwned || first.LiveEvidenceReady ||
+		first.LiveExecutionAllowed || first.MaxSessionEnergy != 5 || first.MinEnergyReserve != 0 {
 		t.Fatalf("initial shadow runtime=%+v", first)
 	}
 	r.refreshDessertShadowRuntime(now.Add(799 * time.Millisecond))
@@ -292,6 +410,55 @@ func TestDessertShadowRuntimeCannotRegisterLiveGameRPCs(t *testing.T) {
 		if _, registered := plannedOperationSpecs[rpc.String()]; registered {
 			t.Fatalf("shadow-only commit registered live dessert RPC %s", rpc)
 		}
+		if _, err := operationArgs(&automation.PlannedOp{Kind: rpc.String()}); err == nil || !strings.Contains(err.Error(), "compile-time blocked") {
+			t.Fatalf("argument dispatch accepted live dessert RPC %s: %v", rpc, err)
+		}
+		if !isHardBlockedDessertGameOperation(rpc.String()) {
+			t.Fatalf("live dessert RPC %s missing transport denylist", rpc)
+		}
+		if _, err := (&Runner{}).executePlannedOp(context.Background(), nil, nil, &automation.PlannedOp{Kind: rpc.String()}); err == nil || !strings.Contains(err.Error(), "compile-time blocked") {
+			t.Fatalf("dispatch accepted live dessert RPC %s: %v", rpc, err)
+		}
+		func() {
+			kind := rpc.String()
+			original, existed := plannedOperationSpecs[kind]
+			defer func() {
+				if existed {
+					plannedOperationSpecs[kind] = original
+				} else {
+					delete(plannedOperationSpecs, kind)
+				}
+			}()
+			plannedOperationSpecs[kind] = operationSpec{args: func(*automation.PlannedOp) (any, error) { return struct{}{}, nil }}
+			if _, registered := operationSpecFor(kind); registered {
+				t.Fatalf("registry lookup exposed accidentally inserted live dessert RPC %s", rpc)
+			}
+			if _, err := operationArgs(&automation.PlannedOp{Kind: kind}); err == nil || !strings.Contains(err.Error(), "compile-time blocked") {
+				t.Fatalf("argument dispatch bypassed denylist after accidental registration for %s: %v", rpc, err)
+			}
+		}()
+	}
+	if isHardBlockedDessertGameOperation(clientproto.RPCActDessertEnter.String()) {
+		t.Fatal("safe dessert enter was caught by live game denylist")
+	}
+}
+
+func validDessertBoundedControllerInput() dessertBoundedControllerInput {
+	hash := strings.Repeat("a", 64)
+	return dessertBoundedControllerInput{
+		config: dessertAutoplayPolicy{
+			enabled: true, mode: 1, maxSessionEnergy: 5, minEnergyReserve: 1,
+		},
+		view: state.DessertView{
+			Found: true, Valid: true, BatchID: 9101, Phase: 2, BagObserved: true,
+			AuthorityRevision: 7, EnergyItemID: 1342, EnergyBalance: 10, Bag: map[int32]int32{1342: 10},
+		},
+		mode: state.DessertModeView{
+			Mode: 1, Observed: true, Valid: true, AuthorityRevision: 7, BoardHash: hash,
+		},
+		runtimeObserved: true, runtimeBatchID: 9101, runtimeMode: 1,
+		runtimeAuthorityRevision: 7, runtimeBoardHash: hash,
+		baselineAuthorityRevision: 7, baselineBoardHash: hash,
 	}
 }
 

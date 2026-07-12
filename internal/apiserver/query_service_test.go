@@ -552,23 +552,27 @@ func TestDessertProtoProjectsSanitizedDeterministicMonitoringView(t *testing.T) 
 
 func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T) {
 	snapshot := runner.DessertRuntimeSnapshot{
-		Observed:           true,
-		ShadowOnly:         true,
-		PolicyEnabled:      true,
-		SessionEpoch:       7,
-		BatchID:            9101,
-		Mode:               1,
-		AuthorityRevision:  42,
-		BoardHash:          "A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718",
-		BoardOwned:         true,
-		TakeoverRequested:  true,
-		Waiting:            true,
-		WaitingRemainingMS: 320,
-		FrozenWaitingLevel: 3,
-		SessionEnergyUsed:  5,
-		Suggestion:         "  drop\n x=0  ",
-		BlockedReason:      "trajectory replay gate\r\nis incomplete",
-		FailureLocked:      true,
+		Observed:             true,
+		ShadowOnly:           true,
+		PolicyEnabled:        true,
+		SessionEpoch:         7,
+		BatchID:              9101,
+		Mode:                 1,
+		AuthorityRevision:    42,
+		BoardHash:            "A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718",
+		BoardOwned:           true,
+		TakeoverRequested:    true,
+		Waiting:              true,
+		WaitingRemainingMS:   320,
+		FrozenWaitingLevel:   3,
+		SessionEnergyUsed:    5,
+		Suggestion:           "  drop\n x=0  ",
+		BlockedReason:        "trajectory replay gate\r\nis incomplete",
+		FailureLocked:        true,
+		LiveEvidenceReady:    true,
+		LiveExecutionAllowed: false,
+		MaxSessionEnergy:     5,
+		MinEnergyReserve:     2,
 	}
 
 	got := dessertRuntimeProto(snapshot)
@@ -584,8 +588,22 @@ func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T
 	if got.GetSuggestion() != "drop x=0" || got.GetBlockedReason() != "trajectory replay gate is incomplete" || !got.GetFailureLocked() {
 		t.Fatalf("dessert runtime diagnostics=%+v", got)
 	}
+	if !got.GetLiveEvidenceReady() || got.GetLiveExecutionAllowed() || got.GetMaxSessionEnergy() != 5 || got.GetMinEnergyReserve() != 2 {
+		t.Fatalf("dessert runtime live gate transparency=%+v", got)
+	}
 
 	fields := got.ProtoReflect().Descriptor().Fields()
+	for name, number := range map[string]protoreflect.FieldNumber{
+		"live_evidence_ready":    18,
+		"live_execution_allowed": 19,
+		"max_session_energy":     20,
+		"min_energy_reserve":     21,
+	} {
+		field := fields.ByName(protoreflect.Name(name))
+		if field == nil || field.Number() != number {
+			t.Fatalf("DessertRuntimeView %s field=%v, want field %d", name, field, number)
+		}
+	}
 	for _, forbidden := range []string{"uid", "account_id", "login_time", "position", "velocity", "raw_map"} {
 		if fields.ByName(protoreflect.Name(forbidden)) != nil {
 			t.Fatalf("public dessert runtime descriptor leaked %q", forbidden)
@@ -601,7 +619,7 @@ func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T
 	if got := dessertRuntimeProto(runner.DessertRuntimeSnapshot{Suggestion: long, BlockedReason: long}); utf8.RuneCountInString(got.GetSuggestion()) != 160 || utf8.RuneCountInString(got.GetBlockedReason()) != 240 {
 		t.Fatalf("runtime text lengths=(%d,%d), want rune limits (160,240)", utf8.RuneCountInString(got.GetSuggestion()), utf8.RuneCountInString(got.GetBlockedReason()))
 	}
-	if zero := dessertRuntimeProto(runner.DessertRuntimeSnapshot{}); zero == nil || zero.GetObserved() || zero.GetPolicyEnabled() || zero.GetBoardOwned() || zero.GetFailureLocked() {
+	if zero := dessertRuntimeProto(runner.DessertRuntimeSnapshot{}); zero == nil || zero.GetObserved() || zero.GetPolicyEnabled() || zero.GetBoardOwned() || zero.GetFailureLocked() || zero.GetLiveEvidenceReady() || zero.GetLiveExecutionAllowed() || zero.GetMaxSessionEnergy() != 0 || zero.GetMinEnergyReserve() != 0 {
 		t.Fatalf("zero dessert runtime=%+v, want safe empty diagnostics", zero)
 	}
 }

@@ -1005,21 +1005,6 @@ func cloneDessertLevels(in []DessertLevelInfo) []DessertLevelInfo {
 	return out
 }
 
-func cloneDessertTaskGroups(in []DessertTaskGroupInfo) []DessertTaskGroupInfo {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]DessertTaskGroupInfo, len(in))
-	copy(out, in)
-	for groupIndex := range out {
-		out[groupIndex].Tasks = append([]DessertTaskInfo(nil), out[groupIndex].Tasks...)
-		for taskIndex := range out[groupIndex].Tasks {
-			out[groupIndex].Tasks[taskIndex].Reward = cloneCyclicNoteItems(out[groupIndex].Tasks[taskIndex].Reward)
-		}
-	}
-	return out
-}
-
 // PearlProductionTimingFromCatalog returns the timing constants used by the
 // client-side PearlPlaceCtrl production formula.
 func PearlProductionTimingFromCatalog() (PearlProductionTiming, bool) {

@@ -919,6 +919,12 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
 	}
+	// This transport-level denylist is intentionally evaluated before the
+	// operation registry. Even an accidental future registry entry cannot send
+	// a dessert game RPC while live replay/lifecycle evidence is incomplete.
+	if isHardBlockedDessertGameOperation(op.Kind) {
+		return nil, fmt.Errorf("dessert live game RPC %s is compile-time blocked", op.Kind)
+	}
 	spec, ok := operationSpecFor(op.Kind)
 	if !ok {
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
@@ -931,6 +937,17 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	)
 	rt := operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}
 	return spec.run(ctx, rt, op)
+}
+
+func isHardBlockedDessertGameOperation(kind string) bool {
+	switch kind {
+	case clientproto.RPCActDessertGameStart.String(),
+		clientproto.RPCActDessertGameSync.String(),
+		clientproto.RPCActDessertGameOver.String():
+		return true
+	default:
+		return false
+	}
 }
 
 func checkedPayload(v json.RawMessage, d babigame.WSResponseD, err error) (json.RawMessage, error) {

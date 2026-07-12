@@ -581,6 +581,11 @@ var plannedOperationSpecs = map[string]operationSpec{
 }
 
 func operationSpecFor(kind string) (operationSpec, bool) {
+	// Keep the live dessert transport denylist in front of the registry map.
+	// This remains false even if a future edit accidentally adds an entry.
+	if isHardBlockedDessertGameOperation(kind) {
+		return operationSpec{}, false
+	}
 	spec, ok := plannedOperationSpecs[kind]
 	return spec, ok
 }
@@ -625,6 +630,9 @@ func harvestOperationArgs(op *automation.PlannedOp) (any, error) {
 func operationArgs(op *automation.PlannedOp) (any, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
+	}
+	if isHardBlockedDessertGameOperation(op.Kind) {
+		return nil, fmt.Errorf("dessert live game RPC %s is compile-time blocked", op.Kind)
 	}
 	spec, ok := operationSpecFor(op.Kind)
 	if !ok {

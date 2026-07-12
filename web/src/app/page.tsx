@@ -297,12 +297,12 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
     boolParams: [
       { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
       { key: "auto_like_celebrity", label: "自动免费点赞" },
-      { key: "auto_play", label: "启用影子建议（不执行）" },
-      { key: "resume_existing_round", label: "评估已有棋盘（不执行）" },
+      { key: "auto_play", label: "启用影子诊断（不执行）" },
+      { key: "resume_existing_round", label: "请求接管评估（当前硬锁）" },
     ],
     intParams: [
       { key: "mode", label: "影子模式（仅 1 可用）", defaultValue: 1, min: 1, max: 1 },
-      { key: "max_energy_per_session", label: "会话体力上限（0=禁用实跑）", defaultValue: 0, min: 0, max: 100 },
+      { key: "max_energy_per_session", label: "会话体力预算（0=禁用；当前仅诊断）", defaultValue: 0, min: 0, max: 100 },
       { key: "min_energy_reserve", label: "最低体力保留", defaultValue: 0, min: 0 },
     ],
   },
@@ -1639,16 +1639,19 @@ function DessertRuntimePanel({ runtime }: { runtime?: DessertRuntimeView }) {
           <Badge variant={observed ? "outline" : "destructive"}>{observed ? "已观察" : "未观察"}</Badge>
           <Badge variant={runtime?.policyEnabled ? "secondary" : "outline"}>{runtime?.policyEnabled ? "策略已启用" : "策略未启用"}</Badge>
           <Badge variant="outline">{runtime?.shadowOnly ? "仅影子" : "实跑硬锁"}</Badge>
+          <Badge variant={runtime?.liveEvidenceReady ? "outline" : "destructive"}>{runtime?.liveEvidenceReady ? "证据门禁已满足" : "证据门禁未满足"}</Badge>
+          <Badge variant={runtime?.liveExecutionAllowed ? "destructive" : "outline"}>{runtime?.liveExecutionAllowed ? "执行门禁状态异常" : "执行硬锁"}</Badge>
           {runtime?.failureLocked && <Badge variant="destructive">失败锁定</Badge>}
         </span>
       </div>
       <div className="space-y-2 p-2">
         <div className="break-words rounded-md border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-xs leading-5 text-muted-foreground dark:bg-amber-400/8">
-          当前只展示影子诊断。连续轨迹回放证据尚未通过，gameStart / gameSync / gameOver 不会注册或发送。
+          当前只展示影子诊断。证据门禁与执行门禁分别显示，gameStart / gameSync / gameOver 不会注册或发送。
         </div>
         {!runtime?.observed ? (
           <div className="space-y-1 rounded-md border border-border/55 bg-background/72 px-3 py-2 text-xs text-muted-foreground">
             <div>登录并同步活动后显示会话、权威棋盘版本和建议；未观察期间保持游戏 RPC 硬锁。</div>
+            {runtime && <div>会话体力上限 {formatCount(runtime.maxSessionEnergy)}；最低保留 {formatCount(runtime.minEnergyReserve)}。</div>}
             {runtime?.blockedReason && <div className="break-words text-foreground">阻塞原因：{runtime.blockedReason}</div>}
           </div>
         ) : (
@@ -1670,7 +1673,16 @@ function DessertRuntimePanel({ runtime }: { runtime?: DessertRuntimeView }) {
             />
             <DessertRuntimeMetric label="棋盘摘要" value={shortHash} detail="仅展示截断哈希" title={runtime.boardHash} mono />
             <DessertRuntimeMetric label="waiting ball" value={waitingValue} detail={waitingDetail} />
-            <DessertRuntimeMetric label="会话体力消耗" value={formatCount(runtime.sessionEnergyUsed)} detail="影子阶段不会实际扣除" />
+            <DessertRuntimeMetric
+              label="会话体力预算"
+              value={`已用 ${formatCount(runtime.sessionEnergyUsed)} / 上限 ${formatCount(runtime.maxSessionEnergy)}`}
+              detail={`最低保留 ${formatCount(runtime.minEnergyReserve)}；当前构建不会实际扣除`}
+            />
+            <DessertRuntimeMetric
+              label="证据 / 执行门禁"
+              value={`${runtime.liveEvidenceReady ? "证据已满足" : "证据未满足"} · ${runtime.liveExecutionAllowed ? "状态异常" : "执行硬锁"}`}
+              detail="执行硬锁独立于策略开关与证据状态"
+            />
             <DessertRuntimeMetric
               label="影子建议"
               value={runtime.suggestion || "暂无建议"}

@@ -643,4 +643,8 @@ message DessertRuntimeView {
   string suggestion = 15;
   string blocked_reason = 16;
   bool failure_locked = 17;
+  bool live_evidence_ready = 18;
+  bool live_execution_allowed = 19;
+  int32 max_session_energy = 20;
+  int32 min_energy_reserve = 21;
 }

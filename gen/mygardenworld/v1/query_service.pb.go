@@ -4820,26 +4820,30 @@ func (x *Event) GetAction() string {
 }
 
 type DessertRuntimeView struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	Observed           bool                   `protobuf:"varint,1,opt,name=observed,proto3" json:"observed,omitempty"`
-	ShadowOnly         bool                   `protobuf:"varint,2,opt,name=shadow_only,json=shadowOnly,proto3" json:"shadow_only,omitempty"`
-	PolicyEnabled      bool                   `protobuf:"varint,3,opt,name=policy_enabled,json=policyEnabled,proto3" json:"policy_enabled,omitempty"`
-	SessionEpoch       uint64                 `protobuf:"varint,4,opt,name=session_epoch,json=sessionEpoch,proto3" json:"session_epoch,omitempty"`
-	BatchId            int32                  `protobuf:"varint,5,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
-	Mode               int32                  `protobuf:"varint,6,opt,name=mode,proto3" json:"mode,omitempty"`
-	AuthorityRevision  uint64                 `protobuf:"varint,7,opt,name=authority_revision,json=authorityRevision,proto3" json:"authority_revision,omitempty"`
-	BoardHash          string                 `protobuf:"bytes,8,opt,name=board_hash,json=boardHash,proto3" json:"board_hash,omitempty"`
-	BoardOwned         bool                   `protobuf:"varint,9,opt,name=board_owned,json=boardOwned,proto3" json:"board_owned,omitempty"`
-	TakeoverRequested  bool                   `protobuf:"varint,10,opt,name=takeover_requested,json=takeoverRequested,proto3" json:"takeover_requested,omitempty"`
-	Waiting            bool                   `protobuf:"varint,11,opt,name=waiting,proto3" json:"waiting,omitempty"`
-	WaitingRemainingMs int64                  `protobuf:"varint,12,opt,name=waiting_remaining_ms,json=waitingRemainingMs,proto3" json:"waiting_remaining_ms,omitempty"`
-	FrozenWaitingLevel int32                  `protobuf:"varint,13,opt,name=frozen_waiting_level,json=frozenWaitingLevel,proto3" json:"frozen_waiting_level,omitempty"`
-	SessionEnergyUsed  int32                  `protobuf:"varint,14,opt,name=session_energy_used,json=sessionEnergyUsed,proto3" json:"session_energy_used,omitempty"`
-	Suggestion         string                 `protobuf:"bytes,15,opt,name=suggestion,proto3" json:"suggestion,omitempty"`
-	BlockedReason      string                 `protobuf:"bytes,16,opt,name=blocked_reason,json=blockedReason,proto3" json:"blocked_reason,omitempty"`
-	FailureLocked      bool                   `protobuf:"varint,17,opt,name=failure_locked,json=failureLocked,proto3" json:"failure_locked,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Observed             bool                   `protobuf:"varint,1,opt,name=observed,proto3" json:"observed,omitempty"`
+	ShadowOnly           bool                   `protobuf:"varint,2,opt,name=shadow_only,json=shadowOnly,proto3" json:"shadow_only,omitempty"`
+	PolicyEnabled        bool                   `protobuf:"varint,3,opt,name=policy_enabled,json=policyEnabled,proto3" json:"policy_enabled,omitempty"`
+	SessionEpoch         uint64                 `protobuf:"varint,4,opt,name=session_epoch,json=sessionEpoch,proto3" json:"session_epoch,omitempty"`
+	BatchId              int32                  `protobuf:"varint,5,opt,name=batch_id,json=batchId,proto3" json:"batch_id,omitempty"`
+	Mode                 int32                  `protobuf:"varint,6,opt,name=mode,proto3" json:"mode,omitempty"`
+	AuthorityRevision    uint64                 `protobuf:"varint,7,opt,name=authority_revision,json=authorityRevision,proto3" json:"authority_revision,omitempty"`
+	BoardHash            string                 `protobuf:"bytes,8,opt,name=board_hash,json=boardHash,proto3" json:"board_hash,omitempty"`
+	BoardOwned           bool                   `protobuf:"varint,9,opt,name=board_owned,json=boardOwned,proto3" json:"board_owned,omitempty"`
+	TakeoverRequested    bool                   `protobuf:"varint,10,opt,name=takeover_requested,json=takeoverRequested,proto3" json:"takeover_requested,omitempty"`
+	Waiting              bool                   `protobuf:"varint,11,opt,name=waiting,proto3" json:"waiting,omitempty"`
+	WaitingRemainingMs   int64                  `protobuf:"varint,12,opt,name=waiting_remaining_ms,json=waitingRemainingMs,proto3" json:"waiting_remaining_ms,omitempty"`
+	FrozenWaitingLevel   int32                  `protobuf:"varint,13,opt,name=frozen_waiting_level,json=frozenWaitingLevel,proto3" json:"frozen_waiting_level,omitempty"`
+	SessionEnergyUsed    int32                  `protobuf:"varint,14,opt,name=session_energy_used,json=sessionEnergyUsed,proto3" json:"session_energy_used,omitempty"`
+	Suggestion           string                 `protobuf:"bytes,15,opt,name=suggestion,proto3" json:"suggestion,omitempty"`
+	BlockedReason        string                 `protobuf:"bytes,16,opt,name=blocked_reason,json=blockedReason,proto3" json:"blocked_reason,omitempty"`
+	FailureLocked        bool                   `protobuf:"varint,17,opt,name=failure_locked,json=failureLocked,proto3" json:"failure_locked,omitempty"`
+	LiveEvidenceReady    bool                   `protobuf:"varint,18,opt,name=live_evidence_ready,json=liveEvidenceReady,proto3" json:"live_evidence_ready,omitempty"`
+	LiveExecutionAllowed bool                   `protobuf:"varint,19,opt,name=live_execution_allowed,json=liveExecutionAllowed,proto3" json:"live_execution_allowed,omitempty"`
+	MaxSessionEnergy     int32                  `protobuf:"varint,20,opt,name=max_session_energy,json=maxSessionEnergy,proto3" json:"max_session_energy,omitempty"`
+	MinEnergyReserve     int32                  `protobuf:"varint,21,opt,name=min_energy_reserve,json=minEnergyReserve,proto3" json:"min_energy_reserve,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *DessertRuntimeView) Reset() {
@@ -4989,6 +4993,34 @@ func (x *DessertRuntimeView) GetFailureLocked() bool {
 		return x.FailureLocked
 	}
 	return false
+}
+
+func (x *DessertRuntimeView) GetLiveEvidenceReady() bool {
+	if x != nil {
+		return x.LiveEvidenceReady
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetLiveExecutionAllowed() bool {
+	if x != nil {
+		return x.LiveExecutionAllowed
+	}
+	return false
+}
+
+func (x *DessertRuntimeView) GetMaxSessionEnergy() int32 {
+	if x != nil {
+		return x.MaxSessionEnergy
+	}
+	return 0
+}
+
+func (x *DessertRuntimeView) GetMinEnergyReserve() int32 {
+	if x != nil {
+		return x.MinEnergyReserve
+	}
+	return 0
 }
 
 var File_mygardenworld_v1_query_service_proto protoreflect.FileDescriptor
@@ -5519,7 +5551,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x05level\x18\t \x01(\tR\x05level\x12\x16\n" +
 	"\x06domain\x18\n" +
 	" \x01(\tR\x06domain\x12\x16\n" +
-	"\x06action\x18\v \x01(\tR\x06action\"\x86\x05\n" +
+	"\x06action\x18\v \x01(\tR\x06action\"\xc8\x06\n" +
 	"\x12DessertRuntimeView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12\x1f\n" +
 	"\vshadow_only\x18\x02 \x01(\bR\n" +
@@ -5543,7 +5575,11 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"suggestion\x18\x0f \x01(\tR\n" +
 	"suggestion\x12%\n" +
 	"\x0eblocked_reason\x18\x10 \x01(\tR\rblockedReason\x12%\n" +
-	"\x0efailure_locked\x18\x11 \x01(\bR\rfailureLocked*\xc7\x01\n" +
+	"\x0efailure_locked\x18\x11 \x01(\bR\rfailureLocked\x12.\n" +
+	"\x13live_evidence_ready\x18\x12 \x01(\bR\x11liveEvidenceReady\x124\n" +
+	"\x16live_execution_allowed\x18\x13 \x01(\bR\x14liveExecutionAllowed\x12,\n" +
+	"\x12max_session_energy\x18\x14 \x01(\x05R\x10maxSessionEnergy\x12,\n" +
+	"\x12min_energy_reserve\x18\x15 \x01(\x05R\x10minEnergyReserve*\xc7\x01\n" +
 	"\n" +
 	"PlanStatus\x12\x1b\n" +
 	"\x17PLAN_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +

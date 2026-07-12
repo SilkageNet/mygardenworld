@@ -38,6 +38,25 @@ func TestDessertPolicyDefaultsAndFutureSwitchesFailClosed(t *testing.T) {
 	}
 }
 
+func TestDessertAutoplayCannotProduceLiveGameOperations(t *testing.T) {
+	now := time.UnixMilli(dessertPlannerNowMs)
+	s := dessertPlannerState(t, false)
+	policy := dessertPlannerPolicy(true, true, map[string]bool{"auto_play": true, "resume_existing_round": true})
+	policy.Activity.Modules[dessertModuleKey].IntParams = map[string]int64{
+		"mode": 1, "max_energy_per_session": 100, "min_energy_reserve": 0,
+	}
+	blocked := map[string]struct{}{
+		clientproto.RPCActDessertGameStart.String(): {},
+		clientproto.RPCActDessertGameSync.String():  {},
+		clientproto.RPCActDessertGameOver.String():  {},
+	}
+	for _, op := range BuildPlan(s, policy, now).Operations {
+		if _, forbidden := blocked[op.Kind]; forbidden {
+			t.Fatalf("autoplay policy produced hard-blocked live game operation: %+v", op)
+		}
+	}
+}
+
 func TestDessertPlannerStrictOrderAndSharedCooldown(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
