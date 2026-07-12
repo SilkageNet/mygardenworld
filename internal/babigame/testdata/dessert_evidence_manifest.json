@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "activity": "dessert",
+  "replay": {
+    "verified": true,
+    "rpc": "actDessert.gameSync",
+    "mode": 1,
+    "request_count": 181,
+    "response_count": 181,
+    "drop_count": 100,
+    "merge_count": 81
+  },
+  "reward_boxes": {
+    "recv_boxes_success": false,
+    "open_box_success": false
+  },
+  "live_autoplay": {
+    "game_start_from_idle_success": false,
+    "phase_three_success": false,
+    "natural_end_success": false,
+    "terminal_game_over_success": false
+  }
+}
