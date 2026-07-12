@@ -88,9 +88,11 @@ type Runner struct {
 
 	harvestBlockedUntil   map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
 	operationCooldowns    map[string]operationCooldown
-	rqst                  rqstState        // 反作弊验证状态
-	unknownRPCCounts      map[string]int32 // runtime RPC names missing from the catalog
-	lastCustomerOrderInfo map[int32]string // 顾客订单需求摘要去重
+	sideLaneFirstWait     map[string]time.Time // runnable Side scope first observed behind Farm work
+	sideLaneFarmTurn      bool                 // a forced Side must yield once when Farm work is available
+	rqst                  rqstState            // 反作弊验证状态
+	unknownRPCCounts      map[string]int32     // runtime RPC names missing from the catalog
+	lastCustomerOrderInfo map[int32]string     // 顾客订单需求摘要去重
 
 	debugWriter *babigame.DebugFrameWriter
 
@@ -119,6 +121,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		stats:                 newRuntimeStats(time.Now()),
 		harvestBlockedUntil:   make(map[int32]time.Time),
 		operationCooldowns:    make(map[string]operationCooldown),
+		sideLaneFirstWait:     make(map[string]time.Time),
 		unknownRPCCounts:      make(map[string]int32),
 		lastCustomerOrderInfo: make(map[int32]string),
 		done:                  make(chan struct{}),
@@ -182,6 +185,9 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 	normalized := policycfg.Normalize(p)
 	r.mu.Lock()
 	r.policy = normalized
+	if !normalized.GetAutomationEnabled() {
+		r.resetSideLaneFairnessLocked()
+	}
 	stopPendingRelogin := r.sessionAutoRelogin &&
 		!normalized.GetBasic().GetDisplacedSessionReloginEnabled()
 	r.mu.Unlock()

@@ -48,6 +48,7 @@ func (r *Runner) tickInterval() time.Duration {
 func (r *Runner) tick(ctx context.Context) {
 	snapshot := r.readTickSnapshot()
 	if snapshot.sessionInvalidated || snapshot.client == nil || snapshot.session == nil {
+		r.resetSideLaneFairness()
 		return
 	}
 
@@ -64,6 +65,7 @@ func (r *Runner) tick(ctx context.Context) {
 		return
 	}
 	if snapshot.policy == nil || !snapshot.policy.AutomationEnabled {
+		r.resetSideLaneFairness()
 		return
 	}
 

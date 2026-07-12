@@ -14,19 +14,11 @@ import (
 )
 
 func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automation.PlannedOp {
-	for _, candidate := range automation.PlanOperations(r.state, policy, now) {
-		if !runnablePlannedOp(candidate) {
-			continue
-		}
-		op := candidate
-		if _, ok := r.operationCoolingDown(&op, now); ok {
-			continue
-		}
-		if filtered := r.applyHarvestBlocks(&op, now); filtered != nil {
-			return filtered
-		}
+	if policy == nil || !policy.GetAutomationEnabled() {
+		r.resetSideLaneFairness()
+		return nil
 	}
-	return nil
+	return r.selectRunnableOperation(automation.PlanOperations(r.state, policy, now), now)
 }
 
 func runnablePlannedOp(op automation.PlannedOp) bool {
