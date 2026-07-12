@@ -117,6 +117,11 @@ import type {
   CyclicNoteMilestone,
   CyclicNoteTaskSlot,
   CyclicNoteView,
+  DessertCelebrityLikeView,
+  DessertMilestoneView,
+  DessertModeView,
+  DessertTaskView,
+  DessertView,
   Event,
   GetSnapshotResponse,
   InventoryLedgerItem,
@@ -282,6 +287,14 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
       { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
       { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
       { key: "satisfy_tasks", label: "驱动已启用模块完成任务" },
+    ],
+  },
+  {
+    id: "actDessert",
+    label: "香卉甜糕",
+    boolParams: [
+      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
+      { key: "auto_like_celebrity", label: "自动免费点赞" },
     ],
   },
 ];
@@ -989,6 +1002,7 @@ function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
       <LandWarehouseMonitorPanel lands={snapshot?.lands ?? []} ledger={snapshot?.inventoryLedger} />
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
+      <DessertMonitorPanel activity={snapshot?.dessert} />
     </div>
   );
 }
@@ -1453,11 +1467,295 @@ function CyclicNoteStatusBadge({ status, received, unknown = false }: { status: 
   return <Badge variant="outline">{planStatusLabel(status)}</Badge>;
 }
 
-function ActivityItemChip({ item, compact = false }: { item: ActivityItem; compact?: boolean }) {
+function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
+  const phase = activity?.phase ?? 0;
+  const readyTasks = activity?.valid ? activity.tasks.filter((task) => task.status === PlanStatus.READY && !task.received).length : 0;
+  const celebrityReady = activity?.valid && activity.celebrity?.status === PlanStatus.READY && !activity.celebrity.likedThisBatch;
+  const actionable = readyTasks + (celebrityReady ? 1 : 0);
+
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded border border-border/58 bg-white/52 dark:bg-white/5", compact ? "px-1.5 py-0.5" : "px-2 py-1 text-xs")}>
-      <span>{item.itemName || itemName(item.itemId)}</span>
-      <span className="font-semibold tabular-nums">×{formatCount(item.count)}</span>
+    <CollapsibleCard
+      title={activity?.name || "香卉甜糕"}
+      defaultOpen={false}
+      contentClassName="space-y-3"
+      actions={
+        <>
+          <Badge variant={phase === 2 ? "secondary" : "outline"}>{cyclicNotePhaseLabel(phase)}</Badge>
+          {activity?.found && <Badge variant="outline">批次 {activity.batchId}</Badge>}
+          {activity?.found && !activity.valid && <Badge variant="destructive">状态异常</Badge>}
+          {actionable > 0 && <Badge variant="secondary">可处理 {actionable}</Badge>}
+        </>
+      }
+    >
+      {!activity?.observed ? (
+        <EmptyState title="香卉甜糕状态尚未同步" detail="连接游戏后，会按活动类型和服务端时间自动发现当前批次。" />
+      ) : !activity.found ? (
+        <EmptyState title="当前未发现香卉甜糕活动" detail="不会固定使用历史批次，也不会探测已结束活动。" />
+      ) : !activity.valid ? (
+        <>
+          <EmptyState title="香卉甜糕配置或状态异常" detail="自动操作已阻塞；请等待活动背包、模板和模式状态完整同步。" />
+          <DessertObservationStatus activity={activity} />
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6">
+            <OverviewStat icon={<CalendarDays />} label="活动阶段" value={cyclicNotePhaseLabel(phase)} detail={dessertPhaseDetail(activity)} />
+            <OverviewStat
+              icon={<Sparkles />}
+              label="活动体力"
+              value={activity.bagObserved ? formatCount(activity.energyBalance) : "-"}
+              detail={activity.energyItemId > 0 ? `${itemName(activity.energyItemId)} #${activity.energyItemId}` : "等待识别"}
+            />
+            <OverviewStat
+              icon={<Play />}
+              label="累计投放"
+              value={activity.dropCountObserved ? formatCount(activity.dropCount) : "-"}
+              detail={activity.dropCountObserved ? "服务端累计次数" : "等待同步"}
+            />
+            <OverviewStat
+              icon={<Trophy />}
+              label="累计积分"
+              value={activity.totalScoreObserved ? formatCount(activity.totalScore) : "-"}
+              detail={activity.totalScoreObserved ? "合成累计积分" : "等待同步"}
+            />
+            <OverviewStat
+              icon={<Coins />}
+              label="花糕币"
+              value={activity.bagObserved ? formatCount(activity.currencyBalance) : "-"}
+              detail={activity.currencyItemId > 0 ? `${itemName(activity.currencyItemId)} #${activity.currencyItemId}` : "等待识别"}
+            />
+            <OverviewStat
+              icon={<Package />}
+              label="未开箱"
+              value={activity.bagObserved ? formatCount(activity.rewardBoxBalance) : "-"}
+              detail="等待协议确认"
+            />
+          </div>
+
+          {activity.description && (
+            <div className="break-words rounded-md border border-border/58 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">{activity.description}</div>
+          )}
+
+          <DessertObservationStatus activity={activity} />
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>合成模式</span>
+              <Badge variant="outline">仅展示棋盘统计</Badge>
+            </div>
+            {activity.modes.length === 0 ? (
+              <div className="p-3"><EmptyState title="模式状态尚未同步" /></div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2 p-2 min-[480px]:grid-cols-2 xl:grid-cols-5">
+                {activity.modes.map((mode) => <DessertModeCard key={mode.mode} mode={mode} />)}
+              </div>
+            )}
+          </section>
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>固定任务</span>
+              <Badge variant={readyTasks > 0 ? "secondary" : "outline"}>{readyTasks > 0 ? `可领取 ${readyTasks}` : `${activity.tasks.length} 项`}</Badge>
+            </div>
+            {activity.tasks.length === 0 ? (
+              <div className="p-3"><EmptyState title={activity.taskRecordObserved ? "当前没有固定任务" : "任务记录尚未同步"} /></div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-3">
+                {activity.tasks.map((task) => <DessertTaskCard key={`${activity.batchId}:${task.taskIndex}:${task.taskId}`} task={task} />)}
+              </div>
+            )}
+          </section>
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>累计进度奖励</span>
+              <Badge variant="outline">等待协议确认</Badge>
+            </div>
+            {activity.milestones.length === 0 ? (
+              <div className="p-3"><EmptyState title="暂无累计进度奖励配置" /></div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-3">
+                {activity.milestones.map((milestone) => <DessertMilestoneCard key={milestone.index} milestone={milestone} />)}
+              </div>
+            )}
+          </section>
+
+          <DessertCelebrityCard celebrity={activity.celebrity} />
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-md border border-border/58 bg-muted/20 p-3 text-sm">
+              <div className="font-medium">奖励箱</div>
+              <div className="mt-1 text-xs text-muted-foreground">当前余额 {formatCount(activity.rewardBoxBalance)}；等待协议确认，不会自动开箱。</div>
+            </div>
+            <div className="rounded-md border border-border/58 bg-muted/20 p-3 text-sm">
+              <div className="font-medium">合成游戏</div>
+              <div className="mt-1 text-xs text-muted-foreground">仅监控模式与棋盘统计，自动游玩尚未开放。</div>
+            </div>
+          </div>
+
+          {activity.items.length > 0 && (
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {activity.items.map((item) => <ActivityItemChip key={item.itemId} item={item} />)}
+            </div>
+          )}
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function DessertObservationStatus({ activity }: { activity: DessertView }) {
+  const observations = [
+    { label: "活动背包", ok: activity.bagObserved },
+    { label: "扩展状态", ok: activity.extensionObserved && activity.extensionValid },
+    { label: "模式地图", ok: activity.modeMapObserved && activity.modeMapValid },
+    { label: "任务模板", ok: activity.taskGroupsObserved && activity.taskGroupsValid },
+    { label: "任务记录", ok: activity.taskRecordObserved },
+    { label: "进度回执", ok: activity.milestoneReceiptsObserved },
+  ];
+  return (
+    <div className="flex min-w-0 flex-wrap gap-1.5">
+      {observations.map((item) => (
+        <Badge key={item.label} variant={item.ok ? "outline" : "destructive"}>{item.label} {item.ok ? "已同步" : "缺失"}</Badge>
+      ))}
+    </div>
+  );
+}
+
+function DessertModeCard({ mode }: { mode: DessertModeView }) {
+  const modeLabel = mode.mode === 1 ? "普通模式" : `${formatCount(mode.multiplier)} 倍模式`;
+  const levelSummary = mode.levelCounts
+    .filter((level) => level.count > 0)
+    .map((level) => `${level.level}级×${formatCount(level.count)}`);
+  const status = !mode.unlocked ? "未解锁" : mode.isRunning ? "进行中" : mode.observed ? "待开始" : "待同步";
+  return (
+    <div className="min-w-0 rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-medium">{modeLabel}</div>
+          <div className="mt-1 text-xs text-muted-foreground">倍率 ×{formatCount(mode.multiplier)}</div>
+        </div>
+        <Badge variant={mode.isRunning ? "secondary" : "outline"}>{status}</Badge>
+      </div>
+      {!mode.unlocked && <div className="mt-3 text-xs text-muted-foreground">解锁积分 {formatCount(mode.unlockScore)}</div>}
+      {mode.observed && (
+        <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs text-muted-foreground">
+          <span>投放 {formatCount(mode.step)}</span>
+          <span>得分 {formatCount(mode.score)}</span>
+          <span>当前 {mode.currentId > 0 ? `${mode.currentId}级` : "-"}</span>
+          <span>对象 {formatCount(mode.objectCount)}</span>
+        </div>
+      )}
+      <div className="mt-2 break-words text-xs text-muted-foreground">
+        {levelSummary.length > 0 ? levelSummary.join("、") : mode.observed ? "棋盘暂无对象" : "等待模式状态"}
+      </div>
+      {mode.rawGameStatus !== mode.effectiveGameStatus && (
+        <div className="mt-2 text-xs text-muted-foreground">状态恢复 {mode.rawGameStatus} → {mode.effectiveGameStatus}</div>
+      )}
+    </div>
+  );
+}
+
+function DessertTaskCard({ task }: { task: DessertTaskView }) {
+  const progress = Math.max(0, task.progress);
+  const percent = task.target > 0 ? Math.max(0, Math.min(100, Math.round((progress / task.target) * 100))) : 0;
+  return (
+    <div className="min-w-0 rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">任务 {task.taskIndex}:{task.taskId}</div>
+          <div className="mt-1 line-clamp-2 break-words font-medium">{task.title || `任务 #${task.taskId}`}</div>
+        </div>
+        <DessertTaskStatusBadge task={task} />
+      </div>
+      {task.target > 0 && (
+        <>
+          <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>进度</span>
+            <span className="tabular-nums">{formatCount(progress)}/{formatCount(task.target)}</span>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+          </div>
+        </>
+      )}
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <span>奖励</span>
+        {task.reward.length > 0 ? task.reward.map((item, index) => <ActivityItemChip key={`${item.itemId}:${index}`} item={item} compact />) : <span>未配置</span>}
+      </div>
+    </div>
+  );
+}
+
+function DessertTaskStatusBadge({ task }: { task: DessertTaskView }) {
+  if (!task.catalogKnown) return <Badge variant="destructive">未识别</Badge>;
+  if (task.received) return <Badge variant="outline">已领取</Badge>;
+  if (task.status === PlanStatus.READY) return <Badge variant="secondary">可领取</Badge>;
+  if (task.status === PlanStatus.BLOCKED) return <Badge variant="destructive">阻塞</Badge>;
+  if (task.status === PlanStatus.SYNC_ONLY) return <Badge variant="outline">进行中</Badge>;
+  return <Badge variant="outline">{planStatusLabel(task.status)}</Badge>;
+}
+
+function DessertMilestoneCard({ milestone }: { milestone: DessertMilestoneView }) {
+  const progress = Math.max(0, milestone.progress);
+  const percent = milestone.target > 0 ? Math.max(0, Math.min(100, Math.round((progress / milestone.target) * 100))) : 0;
+  return (
+    <div className="min-w-0 rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">积分 {formatCount(milestone.target)}</span>
+        <Badge variant="outline">{milestone.received ? "已领取" : "等待协议确认"}</Badge>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>进度</span>
+        <span className="tabular-nums">{formatCount(progress)}/{formatCount(milestone.target)}</span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <span>奖励</span>
+        {milestone.reward.length > 0 ? milestone.reward.map((item, index) => <ActivityItemChip key={`${item.itemId}:${index}`} item={item} compact />) : <span>未配置</span>}
+      </div>
+    </div>
+  );
+}
+
+function DessertCelebrityCard({ celebrity }: { celebrity?: DessertCelebrityLikeView }) {
+  const label = !celebrity?.observed
+    ? "待同步"
+    : celebrity.likedThisBatch
+      ? "本期已点赞"
+      : celebrity.status === PlanStatus.READY
+        ? "可免费点赞"
+        : celebrity.status === PlanStatus.BLOCKED
+          ? "已阻塞"
+          : "待同步";
+  const variant = celebrity?.status === PlanStatus.BLOCKED ? "destructive" : celebrity?.status === PlanStatus.READY && !celebrity.likedThisBatch ? "secondary" : "outline";
+  return (
+    <section className="min-w-0 rounded-md border border-border/58 bg-white/34 p-3 dark:bg-white/5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-medium">名人榜免费点赞</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {celebrity?.rankingObserved ? `榜单共 ${formatCount(celebrity.rankingCount)} 条，仅展示数量` : "榜单尚未完成受控同步"}
+          </div>
+        </div>
+        <Badge variant={variant}>{label}</Badge>
+      </div>
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <span>奖励</span>
+        {celebrity?.reward?.length ? celebrity.reward.map((item, index) => <ActivityItemChip key={`${item.itemId}:${index}`} item={item} compact />) : <span>等待配置确认</span>}
+      </div>
+    </section>
+  );
+}
+
+function ActivityItemChip({ item, compact = false }: { item: ActivityItem; compact?: boolean }) {
+  const label = item.itemName || itemName(item.itemId);
+  return (
+    <span className={cn("inline-flex max-w-full items-center gap-1 rounded border border-border/58 bg-white/52 dark:bg-white/5", compact ? "px-1.5 py-0.5" : "px-2 py-1 text-xs")}>
+      <span className="min-w-0 truncate" title={item.itemId > 0 ? `${label} #${item.itemId}` : label}>{label}</span>
+      <span className="shrink-0 font-semibold tabular-nums">×{formatCount(item.count)}</span>
     </span>
   );
 }
@@ -3531,6 +3829,16 @@ function cyclicNotePhaseLabel(phase: number) {
 }
 
 function cyclicNotePhaseDetail(activity: CyclicNoteView) {
+  if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
+  const endMs = Number(activity.phaseEndMs);
+  if (!Number.isFinite(endMs) || endMs <= 0) return "阶段时间尚未同步";
+  const remaining = endMs - Date.now();
+  if (remaining <= 0) return "等待服务端阶段更新";
+  const prefix = activity.phase === 1 ? "距开始" : activity.phase === 3 ? "领奖剩余" : "剩余";
+  return `${prefix} ${formatRemainingMilliseconds(remaining)}`;
+}
+
+function dessertPhaseDetail(activity: DessertView) {
   if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
   const endMs = Number(activity.phaseEndMs);
   if (!Number.isFinite(endMs) || endMs <= 0) return "阶段时间尚未同步";
