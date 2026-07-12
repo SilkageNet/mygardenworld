@@ -574,6 +574,146 @@ type CyclicNoteMilestoneView struct {
 	Reward   []ItemCount
 }
 
+// DessertView is a defensive snapshot of the dynamically selected 香卉甜糕
+// (tmpType 5601) activity. Batch ids and dates always come from namespace 23.
+type DessertView struct {
+	Observed                  bool
+	Found                     bool
+	Valid                     bool
+	BagObserved               bool
+	ExtensionObserved         bool
+	ExtensionValid            bool
+	ModeMapObserved           bool
+	ModeMapValid              bool
+	TaskGroupsObserved        bool
+	TaskGroupsValid           bool
+	TaskRecordObserved        bool
+	MilestoneReceiptsObserved bool
+	BatchID                   int32
+	TmpID                     int32
+	TmpType                   int32
+	Status                    int32
+	Phase                     int32
+	VisibleStartMs            int64
+	BeginMs                   int64
+	EndMs                     int64
+	GraceEndMs                int64
+	PhaseEndMs                int64
+	Name                      string
+	Description               string
+	DropCount                 int32
+	DropCountObserved         bool
+	TotalScore                int32
+	TotalScoreObserved        bool
+	Bag                       map[int32]int32
+	EnergyItemID              int32
+	EnergyBalance             int32
+	CurrencyItemID            int32
+	CurrencyBalance           int32
+	PointItemID               int32
+	RewardBoxItemID           int32
+	RewardBoxBalance          int32
+	ClaimedMilestoneIndexes   []int32
+	Modes                     []DessertModeView
+	Tasks                     []DessertTaskView
+	Milestones                []DessertMilestoneView
+	Celebrity                 DessertCelebrityLikeView
+}
+
+// DessertModeView preserves one complete server mode snapshot. Objects remain
+// available internally for replay/controller work; API mapping must expose
+// only ObjectCount and LevelCounts.
+type DessertModeView struct {
+	Mode        int32
+	Multiplier  int32
+	UnlockScore int32
+	Observed    bool
+	Valid       bool
+	Step        int32
+	ItemUse     map[int32]int32
+	Objects     []DessertObjectView
+	ObjectCount int32
+	GameStatus  int32
+	FirstMerge  map[int32]int32
+	IsRunning   bool
+	TotalGain   map[int32]int32
+	CurID       int32
+	Score       int32
+	LevelMap    map[int32]int32
+	LevelCounts map[int32]int32
+}
+
+// DessertObjectView is one full physical object retained from mode field 2.
+// Raw is preserved in addition to strict typed fields for replay fidelity.
+type DessertObjectView struct {
+	Raw                json.RawMessage
+	Level              int32
+	IsSyn              bool
+	Position           DessertVector2
+	LinearVelocity     DessertVector2
+	AngularVelocity    float64
+	Scale              DessertVector3
+	NodeAngle          float64
+	IsAwake            bool
+	LineTime           float64
+	IsFallBall         bool
+	IsFallBallObserved bool
+}
+
+type DessertVector2 struct {
+	X float64
+	Y float64
+}
+
+type DessertVector3 struct {
+	X float64
+	Y float64
+	Z float64
+}
+
+// DessertTaskView is one template task joined with namespace 23.3 progress and
+// receipt maps. ProgressObserved refers to key presence, not merely to the
+// enclosing map having been observed; claimed tasks disappear from progress.
+type DessertTaskView struct {
+	TaskIndex        int32
+	Position         int32
+	TaskID           int32
+	TaskType         int32
+	Param            int32
+	HasParam         bool
+	Title            string
+	Target           int32
+	Progress         int32
+	ProgressObserved bool
+	ReceiptObserved  bool
+	Received         bool
+	CatalogKnown     bool
+	Reward           []ItemCount
+}
+
+type DessertMilestoneView struct {
+	Index    int32
+	Target   int32
+	Received bool
+	Reward   []ItemCount
+}
+
+// DessertCelebrityLikeView deliberately exposes no leaderboard or account
+// UID. LikedThisBatch is derived from LastLikeTimeMs and the selected batch.
+type DessertCelebrityLikeView struct {
+	Observed         bool
+	Valid            bool
+	TypesObserved    bool
+	RankingsObserved bool
+	LikesObserved    bool
+	TypeListed       bool
+	RankingObserved  bool
+	RankingCount     int32
+	LikedThisBatch   bool
+	LastLikeTimeMs   int64
+	CreateTimeMs     int64
+}
+
 // CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.
 // Enter is only safe while the batch is in its active or reward-grace phase
 // and before its authoritative task list has been observed.

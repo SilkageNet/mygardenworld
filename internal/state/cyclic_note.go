@@ -36,6 +36,7 @@ type activityBatchState struct {
 	FinishCountObserved bool
 	FinishCountValid    bool
 	LastRefreshTimeMs   int64
+	Dessert             dessertActivityState
 }
 
 type activityTemplateState struct {
@@ -47,6 +48,9 @@ type activityTemplateState struct {
 	Milestones    []CyclicNoteMilestoneInfo
 	BoxesObserved bool
 	BoxesValid    bool
+	TaskGroups    []DessertTaskGroupInfo
+	TasksObserved bool
+	TasksValid    bool
 }
 
 type activityTaskRecordState struct {
@@ -175,6 +179,7 @@ func mergeActivityBatchFields(batch *activityBatchState, fields map[string]json.
 	}
 	if rawExt, present := fields["14"]; present {
 		mergeCyclicNoteExtension(batch, rawExt)
+		mergeDessertExtension(batch, rawExt)
 	}
 }
 
@@ -232,7 +237,7 @@ func (s *State) mergeActivityTemplatesLocked(raw json.RawMessage) {
 		}
 		template := s.activityTemplates[tmpID]
 		if template == nil {
-			template = &activityTemplateState{TmpID: tmpID, IdentityValid: true, BoxesValid: true}
+			template = &activityTemplateState{TmpID: tmpID, IdentityValid: true, BoxesValid: true, TasksValid: true}
 			s.activityTemplates[tmpID] = template
 		}
 		if rawID, present := fields["0"]; present {
@@ -259,6 +264,12 @@ func (s *State) mergeActivityTemplatesLocked(raw json.RawMessage) {
 			template.Milestones = milestones
 			template.BoxesObserved = true
 			template.BoxesValid = valid
+		}
+		if rawTasks, present := fields["6"]; present {
+			groups, valid := ParseDessertTemplateTaskGroups(rawTasks)
+			template.TaskGroups = groups
+			template.TasksObserved = true
+			template.TasksValid = valid
 		}
 	}
 }

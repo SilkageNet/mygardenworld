@@ -115,6 +115,7 @@ type State struct {
 	activityBatches     map[int32]*activityBatchState
 	activityTemplates   map[int32]*activityTemplateState
 	activityTaskRecords map[string]*activityTaskRecordState
+	celebrity           celebrityState
 
 	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
@@ -239,14 +240,18 @@ func New() *State {
 		activityBatches:            make(map[int32]*activityBatchState),
 		activityTemplates:          make(map[int32]*activityTemplateState),
 		activityTaskRecords:        make(map[string]*activityTaskRecordState),
-		roadGrowReceived:           make(map[int32]bool),
-		randomEvents:               make(map[int32]*RandomEventView),
-		signTypes:                  make(map[int32]*SignTypeView),
-		baseRewards:                make(map[int32]*BaseRewardView),
-		signTypeEnterAtMs:          make(map[int32]int64),
-		zooPets:                    make(map[int32]*ZooPetView),
-		zooLogs:                    make(map[string]*ZooLogView),
-		zooSouvenirs:               make(map[int32]*ZooSouvenirView),
+		celebrity: celebrityState{
+			Rankings: make(map[int32][]celebrityEntryState),
+			Likes:    make(map[int32]celebrityLikeState),
+		},
+		roadGrowReceived:  make(map[int32]bool),
+		randomEvents:      make(map[int32]*RandomEventView),
+		signTypes:         make(map[int32]*SignTypeView),
+		baseRewards:       make(map[int32]*BaseRewardView),
+		signTypeEnterAtMs: make(map[int32]int64),
+		zooPets:           make(map[int32]*ZooPetView),
+		zooLogs:           make(map[string]*ZooLogView),
+		zooSouvenirs:      make(map[int32]*ZooSouvenirView),
 	}
 }
 

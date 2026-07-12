@@ -35,7 +35,7 @@ var namespaceCatalog = []NamespaceSpec{
 	{Key: "131"}, {Key: "132"}, {Key: "134"}, {Key: "136"},
 	{Key: "139"}, {Key: "140", Modeled: true}, {Key: "143"}, {Key: "144"},
 	{Key: "148"}, {Key: "154"}, {Key: "155"}, {Key: "161"},
-	{Key: "162"}, {Key: CelebrityNamespaceLegacy}, {Key: CelebrityNamespace},
+	{Key: "162"}, {Key: CelebrityNamespaceLegacy, Modeled: true}, {Key: CelebrityNamespace, Modeled: true},
 }
 
 var namespaceCatalogByKey = func() map[string]NamespaceSpec {

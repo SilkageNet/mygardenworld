@@ -1,0 +1,175 @@
+package state
+
+import (
+	"encoding/json"
+	"os"
+	"reflect"
+	"testing"
+	"time"
+)
+
+const dessertFixtureNowMs int64 = 1783819000000
+
+func TestDessertSanitizedCaptureFixture(t *testing.T) {
+	s := applyDessertCaptureFixture(t)
+	view, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || !view.Observed || !view.Found || !view.Valid {
+		t.Fatalf("DessertView=(%+v,%t), want observed valid activity", view, ok)
+	}
+	if view.BatchID != 9101 || view.TmpID != 56019999 || view.TmpType != 5601 || view.Phase != 2 ||
+		view.DropCount != 100 || !view.DropCountObserved || view.TotalScore != 2220 || !view.TotalScoreObserved {
+		t.Fatalf("identity/progress=%+v", view)
+	}
+	if !view.BagObserved || view.EnergyBalance != 100 || view.CurrencyBalance != 217 || view.RewardBoxBalance != 13 ||
+		view.EnergyItemID != 1342 || view.CurrencyItemID != 1343 || view.PointItemID != 1344 || view.RewardBoxItemID != 1347 {
+		t.Fatalf("activity bag=%+v", view)
+	}
+	if len(view.Modes) != 5 || !view.Modes[0].Observed || !view.Modes[0].Valid || view.Modes[0].ObjectCount != 1 ||
+		view.Modes[0].LevelCounts[1] != 1 || len(view.Modes[0].Objects) != 1 || len(view.Modes[0].Objects[0].Raw) == 0 ||
+		view.Modes[1].Multiplier != 5 || view.Modes[4].UnlockScore != 160000 {
+		t.Fatalf("modes=%+v", view.Modes)
+	}
+	if !view.TaskGroupsObserved || !view.TaskGroupsValid || !view.TaskRecordObserved || len(view.Tasks) != 6 {
+		t.Fatalf("tasks=%+v", view.Tasks)
+	}
+	for index, task := range view.Tasks {
+		want := int32(index + 1)
+		if task.TaskIndex != 0 || task.Position != want || task.TaskID != want || task.TaskType != 18 || task.Target != want ||
+			task.HasParam || !task.CatalogKnown || !task.ProgressObserved || task.Progress != 3 || !task.ReceiptObserved ||
+			task.Received || !reflect.DeepEqual(task.Reward, []ItemCount{{ItemID: 1342, Count: 100}}) {
+			t.Fatalf("task[%d]=%+v", index, task)
+		}
+	}
+	if len(view.Milestones) != 4 || view.Milestones[0].Target != 600 || view.Milestones[3].Target != 2400 {
+		t.Fatalf("milestones=%+v", view.Milestones)
+	}
+	if !view.Celebrity.Valid || !view.Celebrity.TypeListed || !view.Celebrity.RankingObserved ||
+		view.Celebrity.RankingCount != 1 || !view.Celebrity.LikesObserved || view.Celebrity.LikedThisBatch {
+		t.Fatalf("celebrity=%+v", view.Celebrity)
+	}
+}
+
+func TestDessertSparseDeltaAndClaimProgressReplacement(t *testing.T) {
+	s := applyDessertCaptureFixture(t)
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"11":101,"14":{"121":{"0":2225}}}}}}`))
+	view, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || !view.Valid || view.DropCount != 101 || view.TotalScore != 2225 || len(view.Modes) != 5 ||
+		view.EnergyBalance != 100 || len(view.Tasks) != 6 {
+		t.Fatalf("sparse delta lost state: (%+v,%t)", view, ok)
+	}
+
+	// Captured act.recv semantics: progress is a whole replacement that drops
+	// the claimed task, while receipt is authoritative.
+	s.ApplyV(json.RawMessage(`{"23":{"3":{"9101|0":{"3":{"2":3,"3":3,"4":3,"5":3,"6":3},"5":{"1":1},"7":1783819865327}}}}`))
+	view, ok = s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || !view.Valid || view.Tasks[0].ProgressObserved || !view.Tasks[0].ReceiptObserved || !view.Tasks[0].Received ||
+		!view.Tasks[1].ProgressObserved || view.Tasks[1].Progress != 3 || view.Tasks[1].Received {
+		t.Fatalf("claim replacement=%+v", view.Tasks)
+	}
+}
+
+func TestDessertModeMapReplacementAndMalformedFailClosed(t *testing.T) {
+	s := applyDessertCaptureFixture(t)
+	// One structurally valid mode replaces the authoritative five-mode map;
+	// stale modes must not survive to make the view executable.
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":{"1":{"0":0,"1":{},"2":[],"3":0,"4":{},"5":false,"6":{},"7":1,"8":0,"9":{}}}}}}}}}`))
+	view, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || view.Valid || !view.ModeMapValid || len(s.activityBatches[9101].Dessert.Modes) != 1 ||
+		view.Modes[0].Observed == false || view.Modes[1].Observed {
+		t.Fatalf("whole mode replacement=(%+v,%t), state=%+v", view.Modes, ok, s.activityBatches[9101].Dessert)
+	}
+
+	// A present malformed authoritative map replaces the prior one and
+	// clears executable mode state instead of falling back to stale values.
+	s = applyDessertCaptureFixture(t)
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":{"1":{"0":0,"1":{},"2":[],"3":0,"4":{},"5":1,"6":{},"7":1,"8":0,"9":{}}}}}}}}}`))
+	view, ok = s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || view.Valid || view.ModeMapValid || view.ExtensionValid || len(s.activityBatches[9101].Dessert.Modes) != 0 {
+		t.Fatalf("malformed map retained executable state: (%+v,%t)", view, ok)
+	}
+
+	for name, raw := range map[string]json.RawMessage{
+		"mode map is array":           json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":[]}}}}}}`),
+		"item use is scalar":          json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":{"1":{"0":0,"1":1,"2":[],"3":0,"4":{},"5":false,"6":{},"7":1,"8":0,"9":{}}}}}}}}}`),
+		"object coordinate is string": json.RawMessage(`{"23":{"0":{"9101":{"14":{"121":{"1":{"1":{"0":0,"1":{},"2":[{"lv":1,"isSyn":false,"pos":{"x":"NaN","y":0},"linearVelocity":{"x":0,"y":0},"angularVelocity":0,"scale":{"x":1,"y":1,"z":1},"nodeAngle":0,"isAwake":true,"_lineTime":0}],"3":0,"4":{},"5":false,"6":{},"7":1,"8":0,"9":{}}}}}}}}}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := applyDessertCaptureFixture(t)
+			s.ApplyV(raw)
+			view, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+			if !ok || view.Valid || view.ModeMapValid || view.ExtensionValid || len(s.activityBatches[9101].Dessert.Modes) != 0 {
+				t.Fatalf("malformed authoritative shape retained executable state: (%+v,%t)", view, ok)
+			}
+		})
+	}
+}
+
+func TestDessertTemplateTaskGroupReplacementFailsClosed(t *testing.T) {
+	s := applyDessertCaptureFixture(t)
+	s.ApplyV(json.RawMessage(`{"23":{"1":{"56019999":{"6":{}}}}}`))
+	view, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || view.Valid || view.TaskGroupsValid || len(view.Tasks) != 0 || len(s.activityTemplates[56019999].TaskGroups) != 0 {
+		t.Fatalf("malformed task replacement=(%+v,%t), template=%+v", view, ok, s.activityTemplates[56019999])
+	}
+}
+
+func TestDessertInitialMissingTotalScoreMeansObservedZero(t *testing.T) {
+	s := applyDessertCaptureFixture(t)
+	batch := s.activityBatches[9101]
+	batch.Dessert = dessertActivityState{}
+	mergeDessertExtension(batch, json.RawMessage(`{"121":{"1":{"1":{"0":0,"1":{},"2":[],"3":0,"4":{},"5":false,"6":{},"7":1,"8":0,"9":{}}}}}`))
+	if !batch.Dessert.TotalScoreObserved || !batch.Dessert.TotalScoreValid || batch.Dessert.TotalScore != 0 {
+		t.Fatalf("initial total score=%+v", batch.Dessert)
+	}
+	mergeDessertExtension(batch, json.RawMessage(`{"121":{"0":10}}`))
+	mergeDessertExtension(batch, json.RawMessage(`{"121":{"1":{}}}`))
+	if batch.Dessert.TotalScore != 10 {
+		t.Fatalf("later sparse ext reset total score: %+v", batch.Dessert)
+	}
+}
+
+func TestDessertCandidateSelectionAndDefensiveCopy(t *testing.T) {
+	const nowMs int64 = 10000
+	batch := func(id int32, begin, end, before, after int64) *activityBatchState {
+		return &activityBatchState{BatchID: id, TmpType: dessertTmpType, Status: 1, BeginMs: begin, EndMs: end, DurationBeforeMs: before, DurationAfterMs: after}
+	}
+	s := New()
+	s.activityBatches = map[int32]*activityBatchState{
+		1: batch(1, 11000, 13000, 2000, 0),
+		2: batch(2, 7000, 9000, 0, 2000),
+		3: batch(3, 8000, 11000, 0, 0),
+		4: batch(4, 9000, 12000, 0, 0),
+		5: {BatchID: 5, TmpType: 5602, Status: 1, BeginMs: 9000, EndMs: 12000},
+	}
+	selected, phase, _, _, _ := s.preferredDessertBatchLocked(nowMs)
+	if selected == nil || selected.BatchID != 4 || phase != 2 {
+		t.Fatalf("selected=(%+v,%d)", selected, phase)
+	}
+
+	s = applyDessertCaptureFixture(t)
+	first, ok := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if !ok || !first.Valid {
+		t.Fatalf("first=(%+v,%t)", first, ok)
+	}
+	first.Bag[1342] = 999
+	first.Modes[0].TotalGain[1343] = 999
+	first.Modes[0].Objects[0].Raw[0] = '['
+	first.Tasks[0].Reward[0].Count = 999
+	first.Milestones[0].Reward[0].Count = 999
+	again, _ := s.DessertView(time.UnixMilli(dessertFixtureNowMs))
+	if again.Bag[1342] != 100 || again.Modes[0].TotalGain[1343] != 217 || again.Modes[0].Objects[0].Raw[0] != '{' ||
+		again.Tasks[0].Reward[0].Count != 100 || again.Milestones[0].Reward[0].Count != 20 {
+		t.Fatalf("view mutation leaked: %+v", again)
+	}
+}
+
+func applyDessertCaptureFixture(t *testing.T) *State {
+	t.Helper()
+	raw, err := os.ReadFile("testdata/dessert_activity.json")
+	if err != nil {
+		t.Fatalf("read dessert fixture: %v", err)
+	}
+	s := New()
+	s.ApplyV(raw)
+	return s
+}

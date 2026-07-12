@@ -75,8 +75,8 @@ func TestNamespaceCatalogCoversObservedAndModeledNamespaces(t *testing.T) {
 		if !IsKnownNamespace(key) {
 			t.Fatalf("celebrity namespace %s should be known", key)
 		}
-		if IsModeledNamespace(key) {
-			t.Fatalf("celebrity namespace %s should remain raw-only until its state parser lands", key)
+		if !IsModeledNamespace(key) {
+			t.Fatalf("celebrity namespace %s should be modeled", key)
 		}
 	}
 }
