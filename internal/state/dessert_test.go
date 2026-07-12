@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -160,6 +161,89 @@ func TestDessertCandidateSelectionAndDefensiveCopy(t *testing.T) {
 	if again.Bag[1342] != 100 || again.Modes[0].TotalGain[1343] != 217 || again.Modes[0].Objects[0].Raw[0] != '{' ||
 		again.Tasks[0].Reward[0].Count != 100 || again.Milestones[0].Reward[0].Count != 20 {
 		t.Fatalf("view mutation leaked: %+v", again)
+	}
+}
+
+func TestDessertActionSnapshotsRequireExactFreeContracts(t *testing.T) {
+	now := time.UnixMilli(dessertFixtureNowMs)
+	s := applyDessertCaptureFixture(t)
+
+	claim, ok := s.DessertTaskClaimSnapshot(now, 9101, 0, 1)
+	if !ok || claim.TaskID != 1 || claim.Target != 1 || claim.Progress != 3 || claim.EnergyItemID != 1342 ||
+		claim.EnergyBefore != 100 || claim.RewardCount != 100 {
+		t.Fatalf("task claim snapshot=(%+v,%t)", claim, ok)
+	}
+	for _, target := range []struct {
+		index int32
+		id    int32
+	}{{1, 1}, {0, 0}, {0, 99}} {
+		if got, ready := s.DessertTaskClaimSnapshot(now, 9101, target.index, target.id); ready {
+			t.Fatalf("unsafe task target (%d,%d) ready: %+v", target.index, target.id, got)
+		}
+	}
+
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"12":{"1342":200,"1343":217,"1347":13}}},"3":{"9101|0":{"3":{"2":3,"3":3,"4":3,"5":3,"6":3},"5":{"1":1}}}}}`))
+	if !s.DessertTaskClaimApplied(claim) {
+		t.Fatal("task receipt plus exact activity energy reward was not accepted")
+	}
+	if _, ready := s.DessertTaskClaimSnapshot(now, 9101, 0, 1); ready {
+		t.Fatal("received task remained executable")
+	}
+}
+
+func TestDessertControlledCelebritySyncAndLikeAreSessionScoped(t *testing.T) {
+	now := time.UnixMilli(dessertFixtureNowMs)
+	s := applyDessertCaptureFixture(t)
+	syncBefore, ok := s.DessertCelebritySyncSnapshot(now)
+	if !ok || syncBefore.BatchID != 9101 || !s.DessertCelebritySyncApplied(syncBefore) {
+		t.Fatalf("controlled sync snapshot=(%+v,%t)", syncBefore, ok)
+	}
+	s.MarkDessertCelebritySynced(9101)
+	if !s.DessertCelebritySynced(9101) {
+		t.Fatal("successful controlled sync marker missing")
+	}
+	if _, ready := s.DessertCelebritySyncSnapshot(now); ready {
+		t.Fatal("same batch requested a second controlled sync")
+	}
+
+	likeBefore, ok := s.DessertCelebrityLikeSnapshot(now, 9101)
+	if !ok || likeBefore.EnergyBefore != 100 || likeBefore.ExpectedReward != 20 || likeBefore.BatchBeginMs <= 0 {
+		t.Fatalf("like snapshot=(%+v,%t)", likeBefore, ok)
+	}
+	likeAt := likeBefore.BatchBeginMs + 1
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"12":{"1342":120,"1343":217,"1347":13}}}},"166":{"2":{"5601":{"0":700001,"1":5601,"2":` + strconv.FormatInt(likeAt, 10) + `,"3":` + strconv.FormatInt(likeAt, 10) + `}}}}`))
+	if !s.DessertCelebrityLikeApplied(likeBefore) {
+		t.Fatal("like timestamp plus exact activity energy reward was not accepted")
+	}
+	if _, ready := s.DessertCelebrityLikeSnapshot(now, 9101); ready {
+		t.Fatal("already-liked batch remained executable")
+	}
+
+	s.ResetDessertSession()
+	if s.DessertCelebritySynced(9101) {
+		t.Fatal("fresh-session reset retained controlled sync marker")
+	}
+}
+
+func TestDessertEnterOnlyRepairsMissingNotMalformedState(t *testing.T) {
+	now := time.UnixMilli(dessertFixtureNowMs)
+	s := applyDessertCaptureFixture(t)
+	s.mu.Lock()
+	batch := s.activityBatches[9101]
+	batch.BagObserved = false
+	batch.BagValid = false
+	s.mu.Unlock()
+	before, ok := s.DessertEnterSnapshot(now)
+	if !ok || before.BatchID != 9101 || before.Phase != 2 {
+		t.Fatalf("missing bag enter=(%+v,%t)", before, ok)
+	}
+
+	s = applyDessertCaptureFixture(t)
+	s.mu.Lock()
+	s.activityBatches[9101].BagValid = false
+	s.mu.Unlock()
+	if got, ready := s.DessertEnterSnapshot(now); ready {
+		t.Fatalf("malformed observed bag was probed with enter: %+v", got)
 	}
 }
 

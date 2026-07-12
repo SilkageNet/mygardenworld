@@ -714,6 +714,48 @@ type DessertCelebrityLikeView struct {
 	CreateTimeMs     int64
 }
 
+// DessertEnterSnapshot freezes the selected batch before one cost-free enter
+// request. Enter is used only to fill missing activity-local bag or ext121
+// state; task-record absence is deliberately not treated as an enter signal.
+type DessertEnterSnapshot struct {
+	At      time.Time
+	BatchID int32
+	Phase   int32
+}
+
+// DessertTaskClaimSnapshot freezes the only capture-confirmed fixed-task
+// reward contract (task index 0, task type 18, energy reward).
+type DessertTaskClaimSnapshot struct {
+	At           time.Time
+	BatchID      int32
+	TaskIndex    int32
+	TaskID       int32
+	Target       int32
+	Progress     int32
+	EnergyItemID int32
+	EnergyBefore int32
+	RewardCount  int32
+}
+
+// DessertCelebritySyncSnapshot identifies the batch for which the runner is
+// performing its one controlled, session-local full celebrity sync.
+type DessertCelebritySyncSnapshot struct {
+	At      time.Time
+	BatchID int32
+	Phase   int32
+}
+
+// DessertCelebrityLikeSnapshot freezes the exact free like reward and batch
+// boundary used by the postcondition.
+type DessertCelebrityLikeSnapshot struct {
+	At             time.Time
+	BatchID        int32
+	BatchBeginMs   int64
+	EnergyItemID   int32
+	EnergyBefore   int32
+	ExpectedReward int32
+}
+
 // CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.
 // Enter is only safe while the batch is in its active or reward-grace phase
 // and before its authoritative task list has been observed.

@@ -173,6 +173,9 @@ func (r *Runner) resetPearlHireSession() {
 func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
 	r.resetPearlHireSession()
+	if r.state != nil {
+		r.state.ResetDessertSession()
+	}
 }
 
 func (r *Runner) syncAccountDisplayName(ctx context.Context, rawV json.RawMessage, session *babigame.Session) {

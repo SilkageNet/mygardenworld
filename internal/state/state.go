@@ -116,6 +116,9 @@ type State struct {
 	activityTemplates   map[int32]*activityTemplateState
 	activityTaskRecords map[string]*activityTaskRecordState
 	celebrity           celebrityState
+	// Local session marker: a like is never planned from an incidental
+	// celebrity delta until getAllTypesInfo has completed for this batch.
+	dessertCelebritySyncedBatch int32
 
 	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
 	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件

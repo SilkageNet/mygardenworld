@@ -479,6 +479,22 @@ var plannedOperationSpecs = map[string]operationSpec{
 		args: func(op *automation.PlannedOp) (any, error) { return cyclicNoteMilestoneClaimRequest(op) },
 		run:  runCyclicNoteMilestoneClaim,
 	},
+	clientproto.RPCActDessertEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertEnterRequest(op) },
+		run:  runDessertEnter,
+	},
+	clientproto.RPCActRecv.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertTaskClaimRequest(op) },
+		run:  runDessertTaskClaim,
+	},
+	clientproto.RPCCelebrityGetAllTypesInfo.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertCelebritySyncRequest(op) },
+		run:  runDessertCelebritySync,
+	},
+	clientproto.RPCCelebrityLikeCelebrity.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertCelebrityLikeRequest(op) },
+		run:  runDessertCelebrityLike,
+	},
 	clientproto.RPCTaskDlyRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.TaskDlyRecvRequest, error) {
 			return clientproto.TaskDlyRecvRequest{ID: op.TargetID}, nil
