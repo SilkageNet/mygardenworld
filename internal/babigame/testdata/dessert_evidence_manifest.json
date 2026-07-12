@@ -8,7 +8,13 @@
     "request_count": 181,
     "response_count": 181,
     "drop_count": 100,
-    "merge_count": 81
+    "merge_count": 81,
+    "fixture_sha256": "5ea5ad9b2ff60b8fab83b8d00f01f183addb63fd2356e1d6d35e7038bc20b64b",
+    "response_order_verified": true,
+    "topology_verified": true,
+    "checkpoint_rebuild_verified": true,
+    "causal_sequence_verified": false,
+    "trajectory_verified": false
   },
   "reward_boxes": {
     "recv_boxes_success": false,

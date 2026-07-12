@@ -33,6 +33,11 @@ func TestDessertCaptureEvidenceGatesFailClosed(t *testing.T) {
 		evidence.Replay.DropCount != 100 || evidence.Replay.MergeCount != 81 {
 		t.Fatalf("unexpected replay summary: %+v", evidence.Replay)
 	}
+	if !evidence.Replay.ResponseOrderVerified || !evidence.Replay.TopologyVerified ||
+		!evidence.Replay.CheckpointRebuildVerified || evidence.Replay.CausalSequenceVerified ||
+		evidence.Replay.TrajectoryVerified {
+		t.Fatalf("unexpected replay verification boundary: %+v", evidence.Replay)
+	}
 	if DessertRewardBoxEvidenceGate() {
 		t.Fatal("reward-box evidence gate opened without recvBoxes/openBox captures")
 	}

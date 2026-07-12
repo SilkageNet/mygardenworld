@@ -11,7 +11,7 @@ import (
 	"io"
 )
 
-const dessertEvidenceManifestSHA256 = "48b491250c6433b6445e55acbf8b0cd998dcf263305bade6b7221ad761e0fb2f"
+const dessertEvidenceManifestSHA256 = "c6a529453bd84b9e1a2c29ba17aa198bf4417748dba133a7d5953624361d30c4"
 
 //go:embed testdata/dessert_evidence_manifest.json
 var dessertEvidenceManifestJSON []byte
@@ -28,13 +28,19 @@ type DessertCaptureEvidence struct {
 }
 
 type DessertReplayEvidence struct {
-	Verified      bool   `json:"verified"`
-	RPC           string `json:"rpc"`
-	Mode          int32  `json:"mode"`
-	RequestCount  int    `json:"request_count"`
-	ResponseCount int    `json:"response_count"`
-	DropCount     int    `json:"drop_count"`
-	MergeCount    int    `json:"merge_count"`
+	Verified                  bool   `json:"verified"`
+	RPC                       string `json:"rpc"`
+	Mode                      int32  `json:"mode"`
+	RequestCount              int    `json:"request_count"`
+	ResponseCount             int    `json:"response_count"`
+	DropCount                 int    `json:"drop_count"`
+	MergeCount                int    `json:"merge_count"`
+	FixtureSHA256             string `json:"fixture_sha256"`
+	ResponseOrderVerified     bool   `json:"response_order_verified"`
+	TopologyVerified          bool   `json:"topology_verified"`
+	CheckpointRebuildVerified bool   `json:"checkpoint_rebuild_verified"`
+	CausalSequenceVerified    bool   `json:"causal_sequence_verified"`
+	TrajectoryVerified        bool   `json:"trajectory_verified"`
 }
 
 type DessertRewardBoxEvidence struct {
@@ -63,12 +69,18 @@ func DessertRewardBoxEvidenceGate() bool {
 	return err == nil && evidence.RewardBoxes.RecvBoxesSuccess && evidence.RewardBoxes.OpenBoxSuccess
 }
 
-// DessertLiveAutoplayEvidenceGate reports whether the replay and every live
-// lifecycle prerequisite have reviewed capture evidence. A replay trace alone
-// can never enable live autoplay.
+// DessertLiveAutoplayEvidenceGate reports whether the capture corpus proves a
+// causal physics trajectory and every live lifecycle prerequisite. Topology
+// and deterministic checkpoint reconstruction alone can never enable live
+// autoplay.
 func DessertLiveAutoplayEvidenceGate() bool {
 	evidence, err := ReadDessertCaptureEvidence()
 	return err == nil && evidence.Replay.Verified &&
+		evidence.Replay.ResponseOrderVerified &&
+		evidence.Replay.TopologyVerified &&
+		evidence.Replay.CheckpointRebuildVerified &&
+		evidence.Replay.CausalSequenceVerified &&
+		evidence.Replay.TrajectoryVerified &&
 		evidence.LiveAutoplay.GameStartFromIdleSuccess &&
 		evidence.LiveAutoplay.PhaseThreeSuccess &&
 		evidence.LiveAutoplay.NaturalEndSuccess &&
@@ -123,6 +135,18 @@ func validateDessertCaptureEvidence(evidence DessertCaptureEvidence) error {
 	}
 	if replay.RequestCount != replay.ResponseCount || replay.DropCount+replay.MergeCount != replay.RequestCount {
 		return errors.New("dessert replay evidence counts are inconsistent")
+	}
+	if len(replay.FixtureSHA256) != sha256.Size*2 {
+		return errors.New("dessert replay fixture digest is incomplete")
+	}
+	if _, err := hex.DecodeString(replay.FixtureSHA256); err != nil {
+		return errors.New("dessert replay fixture digest is invalid")
+	}
+	if !replay.ResponseOrderVerified || !replay.TopologyVerified || !replay.CheckpointRebuildVerified {
+		return errors.New("dessert replay checkpoint evidence is incomplete")
+	}
+	if replay.TrajectoryVerified && !replay.CausalSequenceVerified {
+		return errors.New("dessert trajectory cannot be verified from a non-causal sequence")
 	}
 	return nil
 }
