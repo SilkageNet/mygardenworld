@@ -67,6 +67,7 @@ type State struct {
 	fmlFlowerShare         FmlFlowerShareView     // 25.107 自己的公会鲜花分享
 	fmlOtherFlowerShares   map[int64]*FmlFlowerShareView
 	fmlOtherShareObserved  bool
+	fmlRace                FmlRaceView // 25.110/111/114 公会竞赛
 	shopGiftbagDRecord     map[int32]int32 // 112.1 daily purchase counts
 	shopGiftbagWRecord     map[int32]int32 // 112.2 weekly purchase counts
 	shopGiftbagMRecord     map[int32]int32 // 112.3 monthly purchase counts

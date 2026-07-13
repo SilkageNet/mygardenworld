@@ -250,7 +250,27 @@ const MARKET_BUY_MODE_OPTIONS = [
   { value: MarketBuyMode.QUALITY, label: "指定品质" },
 ];
 
-const UNION_RACE_TASKS = [2004, 3006, 3016, 3017, 3018, 3023, 3024, 3030, 3034, 3035, 3036, 3044, 3052];
+type RaceTaskType = {
+  id: number;
+  label: string;
+  defaultPriority: number;
+};
+
+const RACE_TASK_TYPES: RaceTaskType[] = [
+  { id: 2004, label: "VIP商店购买", defaultPriority: 0 },
+  { id: 3006, label: "居民订单", defaultPriority: 0 },
+  { id: 3016, label: "顾客订单", defaultPriority: 0 },
+  { id: 3017, label: "材料商店购买", defaultPriority: 0 },
+  { id: 3018, label: "宫廷订单", defaultPriority: 0 },
+  { id: 3023, label: "珍珠采集雇佣", defaultPriority: 0 },
+  { id: 3024, label: "好友偷花", defaultPriority: 0 },
+  { id: 3030, label: "花艺售卖", defaultPriority: 0 },
+  { id: 3034, label: "花艺制作", defaultPriority: 0 },
+  { id: 3035, label: "鲜花升级", defaultPriority: 0 },
+  { id: 3036, label: "种植收获", defaultPriority: 5 },
+  { id: 3044, label: "花种培育", defaultPriority: 4 },
+  { id: 3052, label: "动物互动", defaultPriority: 0 },
+];
 
 type SettingStatusKind = "sync_only" | "adapter_missing" | "paused";
 
@@ -2572,33 +2592,31 @@ function PolicyPanel({
               </div>
             </PolicyGroup>
 
-            {SHOW_UNSUPPORTED_SETTINGS && (
-              <PolicyGroup title="公会竞赛" icon={<Trophy />}>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <ToggleRow label="自动完成" checked={unionRace?.enabled ?? false} onChange={(checked) => updateUnionRace({ enabled: checked })} status={SETTING_STATUS.paused} />
-                  <ToggleRow label="自动启用模块" checked={unionRace?.autoEnableModules ?? false} onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} status={SETTING_STATUS.paused} />
-                  <ToggleRow label="任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} status={SETTING_STATUS.paused} />
-                  <NumberRow label="最低任务分" value={unionRace?.minTaskScore || 0} min={0} onChange={(value) => updateUnionRace({ minTaskScore: value })} />
-                  <ToggleRow label="只接已升级" checked={unionRace?.onlyUpgradeTask ?? false} onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
-                  <ToggleRow label="排除他人升级" checked={unionRace?.excludeOthersUpgradeTask ?? false} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
-                  <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={SETTING_STATUS.paused} />
-                  <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} status={SETTING_STATUS.paused} />
-                  <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore || 0} min={0} onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
-                  <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {UNION_RACE_TASKS.map((taskID) => (
-                    <NumberRow
-                      key={taskID}
-                      label={`任务 ${taskID}`}
-                      value={unionRace?.taskTypePriority?.[taskID] ?? 0}
-                      min={0}
-                      onChange={(value) => updateUnionRace({ taskTypePriority: { ...(unionRace?.taskTypePriority ?? {}), [taskID]: value } })}
-                    />
-                  ))}
-                </div>
-              </PolicyGroup>
-            )}
+            <PolicyGroup title="公会竞赛" icon={<Trophy />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="自动完成" checked={unionRace?.enabled ?? false} onChange={(checked) => updateUnionRace({ enabled: checked })} />
+                <ToggleRow label="自动模块" checked={unionRace?.autoEnableModules ?? true} onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
+                <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
+                <NumberRow label="限制分数" value={unionRace?.maxTaskScore ?? 28} min={0} onChange={(value) => updateUnionRace({ maxTaskScore: value })} />
+                <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
+                <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
+                <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} />
+                <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
+                <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
+                <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {RACE_TASK_TYPES.map((task) => (
+                  <NumberRow
+                    key={task.id}
+                    label={task.label}
+                    value={unionRace?.taskTypePriority?.[task.id] ?? task.defaultPriority}
+                    min={0}
+                    onChange={(value) => updateUnionRace({ taskTypePriority: { ...(unionRace?.taskTypePriority ?? {}), [task.id]: value } })}
+                  />
+                ))}
+              </div>
+            </PolicyGroup>
 
             <PolicyGroup title="公会其他" icon={<Sparkles />}>
               <div className="grid gap-2 sm:grid-cols-2">

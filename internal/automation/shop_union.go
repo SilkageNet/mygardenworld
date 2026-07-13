@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -129,10 +130,12 @@ func unionOperations(s *state.State, union *pb.UnionPolicy) []PlannedOp {
 	if union == nil {
 		return nil
 	}
+	uid := s.RoleID()
 	var ops []PlannedOp
 	ops = append(ops, unionBuildOperations(s, union.GetBuild())...)
 	ops = append(ops, unionFlowerOperations(s, union.GetFlower())...)
 	ops = append(ops, unionLandOperations(s, union.GetLand())...)
+	ops = append(ops, unionRaceOperations(s, union.GetRace(), uid)...)
 	ops = append(ops, unionForestOperations(s, union.GetForestEnabled())...)
 	return ops
 }
@@ -363,4 +366,113 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 	}
 	collect := domainOp(clientproto.RPCFmlForestRefresh.String(), goal, "union.forest", "collect", "能量森林有临时能量可收集", 4430, 1, 0, energy.PendingTempEnergyTotal)
 	return []PlannedOp{collect}
+}
+
+// unionRaceOperations emits PlannedOps for the guild race task pool.
+// It reads the FmlRace view from state, filters available tasks by the policy
+// score limit / upgrade rules, sorts by configured priority, and emits
+// take / finish / upgrade / delete ops.
+//
+// useSpeedupTicketInTask is a runtime concern: when a taken task involves
+// planting, the runner (not the planner) decides whether to apply speedup
+// tickets during execution. The planner does not need to read this field.
+func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) []PlannedOp {
+	if policy == nil || !policy.GetEnabled() {
+		return nil
+	}
+	// autoEnableModules gates the sub-module execution (take/finish/upgrade/delete).
+	// When off, the race module is active but does not auto-execute tasks.
+	if !policy.GetAutoEnableModules() {
+		return nil
+	}
+	view := s.FmlRace()
+	if !view.BatchActive {
+		return nil
+	}
+	goal := Goal{ID: "union.race", Category: CategoryUnion, Domain: "union.race", Label: "公会竞赛", Priority: 43}
+	var ops []PlannedOp
+
+	// 1. Finish the current taken task if complete.
+	if view.Taken.HasTask && view.Taken.FinishCnt >= view.Taken.TargetCnt {
+		op := domainOp(clientproto.RPCFmlRaceFinishTask.String(), goal, "union.race.finish", "finish", "公会竞赛任务已完成，提交领取积分", 4390, 0, 0, 0)
+		op.TaskMsID = view.Taken.TaskMsId
+		ops = append(ops, op)
+	}
+
+	// 2. Select a task to take (only if not currently holding one).
+	if !view.Taken.HasTask {
+		selected := selectRaceTasks(view.Tasks, policy, uid)
+		if len(selected) > 0 {
+			best := selected[0]
+			op := domainOp(clientproto.RPCFmlRaceTakeTask.String(), goal, "union.race.take", "take", "公会竞赛选择最优任务接取", 4380, 0, 0, 0)
+			op.TaskMsID = best.MsId
+			ops = append(ops, op)
+		}
+	}
+
+	// 3. Optional: upgrade tasks (only consider tasks that pass the score filter).
+	if policy.GetUpgradeTask() {
+		maxScore := policy.GetMaxTaskScore()
+		for _, task := range view.Tasks {
+			if maxScore > 0 && task.Score > maxScore {
+				continue
+			}
+			if task.IsUpgrade == 0 {
+				op := domainOp(clientproto.RPCFmlRaceUpgradeTask.String(), goal, "union.race.upgrade", "upgrade", "公会竞赛任务可升级", 4370, 0, 0, 0)
+				op.TaskMsID = task.MsId
+				ops = append(ops, op)
+				break // one upgrade per cycle
+			}
+		}
+	}
+
+	// 4. Optional: delete low-score tasks.
+	if policy.GetDeleteLowScoreTask() {
+		maxDel := policy.GetDeleteTaskMaxScore()
+		if maxDel > 0 {
+			for _, task := range view.Tasks {
+				if task.Score <= maxDel {
+					op := domainOp(clientproto.RPCFmlRaceDelTask.String(), goal, "union.race.delete", "delete", "公会竞赛低分任务清理", 4360, 0, 0, 0)
+					op.TaskMsID = task.MsId
+					ops = append(ops, op)
+					break // one delete per cycle
+				}
+			}
+		}
+	}
+
+	return ops
+}
+
+// selectRaceTasks filters the available task pool by score limit and upgrade
+// rules, then sorts by configured priority (descending).
+func selectRaceTasks(tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64) []state.FmlRaceTaskView {
+	maxScore := policy.GetMaxTaskScore()
+	onlyUpgraded := policy.GetOnlyUpgradeTask()
+	excludeOthers := policy.GetExcludeOthersUpgradeTask()
+	priority := policy.GetTaskTypePriority()
+
+	var filtered []state.FmlRaceTaskView
+	for _, t := range tasks {
+		if maxScore > 0 && t.Score > maxScore {
+			continue
+		}
+		if onlyUpgraded && t.IsUpgrade == 0 {
+			continue
+		}
+		if excludeOthers && t.UpgradeUid != 0 && t.UpgradeUid != uid {
+			continue
+		}
+		filtered = append(filtered, t)
+	}
+
+	sort.SliceStable(filtered, func(i, j int) bool {
+		pi := int(priority[filtered[i].TaskId])
+		pj := int(priority[filtered[j].TaskId])
+		if pi != pj {
+			return pi > pj
+		}
+		return filtered[i].Score > filtered[j].Score
+	})
+	return filtered
 }

@@ -296,6 +296,31 @@ type FmlFlowerTakeCandidate struct {
 	Available int32 `json:"available,omitempty"`
 }
 
+// FmlRaceTaskView is a filtered view of an available race task from the pool.
+type FmlRaceTaskView struct {
+	MsId       int32 // task instance ID (used as taskMsId)
+	TaskId     int32 // task type ID (maps to priority config key)
+	Score      int32 // task score
+	IsUpgrade  int32 // 1 if already upgraded
+	UpgradeUid int64 // UID of the member who upgraded (0 if none)
+}
+
+// FmlRaceTakenView is the user's currently taken task progress.
+type FmlRaceTakenView struct {
+	TaskMsId  int32
+	TaskId    int32
+	TargetCnt int32
+	FinishCnt int32
+	HasTask   bool // true if the user currently holds a task
+}
+
+// FmlRaceView is the race-related slice of namespace 25.
+type FmlRaceView struct {
+	BatchActive bool              // true if CurFmlRaceBatch status indicates an active race
+	Tasks       []FmlRaceTaskView // available task pool (field 114)
+	Taken       FmlRaceTakenView  // current user's taken task (from field 110)
+}
+
 // ShopCultivateOfferView is one buyable material-shop offer from namespace 113.
 type ShopCultivateOfferView struct {
 	ShopID     int32 `json:"shop_id"`

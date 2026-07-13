@@ -207,8 +207,14 @@ func DefaultPolicy() *pb.Policy {
 		Union: &pb.UnionPolicy{
 			Build:  &pb.UnionBuildPolicy{},
 			Flower: &pb.UnionFlowerPolicy{},
-			Race:   &pb.UnionRacePolicy{TaskTypePriority: defaultUnionRacePriority()},
-			Land:   &pb.UnionLandPolicy{},
+			Race: &pb.UnionRacePolicy{
+				Enabled:                  true,
+				AutoEnableModules:        true,
+				ExcludeOthersUpgradeTask: true,
+				MaxTaskScore:             28,
+				TaskTypePriority:         defaultUnionRacePriority(),
+			},
+			Land: &pb.UnionLandPolicy{},
 		},
 		Activity:                &pb.ActivityPolicy{},
 		DecisionIntervalSeconds: 4,
@@ -237,18 +243,18 @@ func defaultDemandPriority() map[string]int32 {
 func defaultUnionRacePriority() map[int32]int32 {
 	return map[int32]int32{
 		2004: 0,
-		3006: 2,
-		3016: 2,
-		3017: 3,
-		3018: 2,
-		3023: 3,
-		3024: 3,
-		3030: 2,
-		3034: 2,
-		3035: 3,
-		3036: 1,
-		3044: 3,
-		3052: 3,
+		3006: 0,
+		3016: 0,
+		3017: 0,
+		3018: 0,
+		3023: 0,
+		3024: 0,
+		3030: 0,
+		3034: 0,
+		3035: 0,
+		3036: 5,
+		3044: 4,
+		3052: 0,
 	}
 }
 

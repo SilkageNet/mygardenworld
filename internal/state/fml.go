@@ -3,6 +3,9 @@ package state
 import (
 	"encoding/json"
 	"sort"
+	"strconv"
+
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
 func (s *State) applyFmlLocked(raw json.RawMessage) {
@@ -33,6 +36,32 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 	}
 	if rawOtherShares, ok := ns25["108"]; ok {
 		s.applyOtherFmlFlowerSharesObjectLocked(rawOtherShares)
+	}
+
+	// Race batch + task pool + user record (fields 111, 114, 110)
+	s.fmlRace = FmlRaceView{}
+	if rawBatch, ok := ns25["111"]; ok {
+		var batch clientproto.IFmlRaceBatch
+		if err := json.Unmarshal(rawBatch, &batch); err == nil {
+			s.fmlRace.BatchActive = batch.Status == 1 // status==1 means in progress
+		}
+	}
+	if rawTasks, ok := ns25["114"]; ok {
+		var tasks []clientproto.IFmlRaceTask
+		if err := json.Unmarshal(rawTasks, &tasks); err == nil {
+			for _, t := range tasks {
+				s.fmlRace.Tasks = append(s.fmlRace.Tasks, FmlRaceTaskView{
+					MsId:       t.MsId,
+					TaskId:     t.TaskId,
+					Score:      t.Score,
+					IsUpgrade:  t.IsUpgrade,
+					UpgradeUid: t.UpgradeUid,
+				})
+			}
+		}
+	}
+	if rawUsrRcd, ok := ns25["110"]; ok {
+		s.fmlRace.Taken = parseFmlRaceTaken(rawUsrRcd, s.roleID)
 	}
 }
 
@@ -470,4 +499,40 @@ func (s *State) FmlFlowerTakeCandidates() []FmlFlowerTakeCandidate {
 		return out[i].SlotID < out[j].SlotID
 	})
 	return out
+}
+
+// parseFmlRaceTaken extracts the current user's taken-task progress from the
+// FmlRaceUsrRcdMap raw JSON (namespace 25, field 110). The map is keyed by
+// UID as a string. Returns an empty view if the user has no active task.
+func parseFmlRaceTaken(raw json.RawMessage, uid int64) FmlRaceTakenView {
+	if len(raw) == 0 {
+		return FmlRaceTakenView{}
+	}
+	var m map[string]clientproto.IFmlRaceUsrRcd
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return FmlRaceTakenView{}
+	}
+	key := strconv.FormatInt(uid, 10)
+	rcd, ok := m[key]
+	if !ok {
+		return FmlRaceTakenView{}
+	}
+	tt := rcd.TakeTaskData
+	if tt.TaskMsId == 0 {
+		return FmlRaceTakenView{}
+	}
+	return FmlRaceTakenView{
+		TaskMsId:  tt.TaskMsId,
+		TaskId:    tt.TaskId,
+		TargetCnt: tt.TargetCnt,
+		FinishCnt: tt.FinishCnt,
+		HasTask:   true,
+	}
+}
+
+// FmlRace returns the guild race view parsed from namespace 25.
+func (s *State) FmlRace() FmlRaceView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlRace
 }

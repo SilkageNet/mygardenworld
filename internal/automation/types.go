@@ -260,6 +260,7 @@ type PlannedOp struct {
 	BatchID        int32
 	SlotID         int32
 	TaskID         int32
+	TaskMsID       int32
 	MilestoneIndex int32
 	TargetID       int32
 	ItemID         int32

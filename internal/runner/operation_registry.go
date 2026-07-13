@@ -463,6 +463,47 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlFlowerShare().Take(ctx, req)
 		},
 	),
+	// Guild race operations.
+	clientproto.RPCFmlRaceTakeTask.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlRaceTakeTaskRequest, error) {
+			return clientproto.FmlRaceTakeTaskRequest{TaskMsId: clientproto.RPCID(op.TaskMsID)}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceTakeTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlRace().TakeTask(ctx, req)
+		},
+	),
+	clientproto.RPCFmlRaceFinishTask.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlRaceFinishTaskRequest, error) {
+			return clientproto.FmlRaceFinishTaskRequest{TaskMsId: clientproto.RPCID(op.TaskMsID)}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceFinishTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlRace().FinishTask(ctx, req)
+		},
+	),
+	clientproto.RPCFmlRaceDelTask.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlRaceDelTaskRequest, error) {
+			return clientproto.FmlRaceDelTaskRequest{TaskMsId: clientproto.RPCID(op.TaskMsID)}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceDelTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlRace().DelTask(ctx, req)
+		},
+	),
+	clientproto.RPCFmlRaceUpgradeTask.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlRaceUpgradeTaskRequest, error) {
+			return clientproto.FmlRaceUpgradeTaskRequest{}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceUpgradeTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlRace().UpgradeTask(ctx, req)
+		},
+	),
+	clientproto.RPCFmlRaceEnter.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlRaceEnterRequest, error) {
+			return clientproto.FmlRaceEnterRequest{}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlRace().Enter(ctx, req)
+		},
+	),
 	clientproto.RPCTaskMainRecv.String(): {
 		args: func(op *automation.PlannedOp) (any, error) { return mainTaskClaimRequest(op) },
 		run:  runMainTaskClaim,
