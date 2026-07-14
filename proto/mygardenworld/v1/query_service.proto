@@ -146,6 +146,7 @@ message GetSnapshotResponse {
   repeated PlantableFlowerView plantable_flowers = 37;
   RuntimeStatisticsView runtime_statistics = 38;
   CyclicNoteView cyclic_note = 39;
+  FmlRaceView fml_race = 40;
 }
 
 message CyclicNoteView {
@@ -215,6 +216,35 @@ message CyclicNoteMilestone {
   int32 progress = 6;
   int32 raw_progress = 7;
   bool ready = 8;
+}
+
+message FmlRaceView {
+  bool observed = 1;
+  bool batch_active = 2;
+  FmlRaceTaken taken = 3;
+  repeated FmlRaceTask tasks = 4;
+  int64 batch_start_ms = 5;
+  int64 batch_end_ms = 6;
+  int32 batch_status = 7;
+}
+
+message FmlRaceTask {
+  int32 ms_id = 1;
+  int32 task_id = 2;
+  string task_label = 3;
+  int32 score = 4;
+  bool is_upgrade = 5;
+  int64 upgrade_uid = 6;
+}
+
+message FmlRaceTaken {
+  bool has_task = 1;
+  int32 task_ms_id = 2;
+  int32 task_id = 3;
+  string task_label = 4;
+  int32 target_cnt = 5;
+  int32 finish_cnt = 6;
+  int32 score = 7;
 }
 
 message ActivityItem {

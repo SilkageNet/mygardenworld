@@ -47,6 +47,7 @@ type State struct {
 	wwAdvList      []int32
 	wwLocalGenMs   int64 // local zero-bucket generation anchor, mirroring BucketMgr's client timer
 	wwBackoffUntil int64 // local guard after the server says the bucket state is invalid
+	wwLastCountMs  int64 // wall-clock ms when wwClaimedCount was last updated by the server
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
 

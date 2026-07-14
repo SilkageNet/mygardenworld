@@ -39,14 +39,20 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 	}
 
 	// Race batch + task pool + user record (fields 111, 114, 110)
+	raceObserved := false
 	s.fmlRace = FmlRaceView{}
 	if rawBatch, ok := ns25["111"]; ok {
+		raceObserved = true
 		var batch clientproto.IFmlRaceBatch
 		if err := json.Unmarshal(rawBatch, &batch); err == nil {
 			s.fmlRace.BatchActive = batch.Status == 1 // status==1 means in progress
+			s.fmlRace.BatchStartMs = batch.StartTime
+			s.fmlRace.BatchEndMs = batch.EndTime
+			s.fmlRace.BatchStatus = batch.Status
 		}
 	}
 	if rawTasks, ok := ns25["114"]; ok {
+		raceObserved = true
 		var tasks []clientproto.IFmlRaceTask
 		if err := json.Unmarshal(rawTasks, &tasks); err == nil {
 			for _, t := range tasks {
@@ -61,8 +67,19 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 		}
 	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
+		raceObserved = true
 		s.fmlRace.Taken = parseFmlRaceTaken(rawUsrRcd, s.roleID)
 	}
+	// Resolve taken task score from the pool by MsId.
+	if s.fmlRace.Taken.HasTask && s.fmlRace.Taken.Score == 0 {
+		for _, t := range s.fmlRace.Tasks {
+			if t.MsId == s.fmlRace.Taken.TaskMsId {
+				s.fmlRace.Taken.Score = t.Score
+				break
+			}
+		}
+	}
+	s.fmlRace.Observed = raceObserved
 }
 
 func (s *State) applyFmlObjectLocked(raw json.RawMessage) {

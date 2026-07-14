@@ -1190,11 +1190,17 @@ export type UnionRacePolicy = Message<"mygardenworld.v1.UnionRacePolicy"> & {
   useSpeedupTicketInTask: boolean;
 
   /**
+   * Task score lower bound. Tasks with Score <= this value are skipped during
+   * selection. 0 means no score filtering.
+   *
    * @generated from field: int32 max_task_score = 4;
    */
   maxTaskScore: number;
 
   /**
+   * When true, only already-upgraded tasks (IsUpgrade != 0) are eligible for
+   * selection. Upgraded tasks carry bonus score multipliers.
+   *
    * @generated from field: bool only_upgrade_task = 5;
    */
   onlyUpgradeTask: boolean;

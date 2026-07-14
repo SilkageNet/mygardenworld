@@ -2453,18 +2453,22 @@ func (x *UnionFlowerPolicy) GetTakeFlowerIds() []int32 {
 }
 
 type UnionRacePolicy struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
-	Enabled                  bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	AutoEnableModules        bool                   `protobuf:"varint,2,opt,name=auto_enable_modules,json=autoEnableModules,proto3" json:"auto_enable_modules,omitempty"`
-	UseSpeedupTicketInTask   bool                   `protobuf:"varint,3,opt,name=use_speedup_ticket_in_task,json=useSpeedupTicketInTask,proto3" json:"use_speedup_ticket_in_task,omitempty"`
-	MaxTaskScore             int32                  `protobuf:"varint,4,opt,name=max_task_score,json=maxTaskScore,proto3" json:"max_task_score,omitempty"`
-	OnlyUpgradeTask          bool                   `protobuf:"varint,5,opt,name=only_upgrade_task,json=onlyUpgradeTask,proto3" json:"only_upgrade_task,omitempty"`
-	ExcludeOthersUpgradeTask bool                   `protobuf:"varint,6,opt,name=exclude_others_upgrade_task,json=excludeOthersUpgradeTask,proto3" json:"exclude_others_upgrade_task,omitempty"`
-	TaskTypePriority         map[int32]int32        `protobuf:"bytes,7,rep,name=task_type_priority,json=taskTypePriority,proto3" json:"task_type_priority,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	UpgradeTask              bool                   `protobuf:"varint,8,opt,name=upgrade_task,json=upgradeTask,proto3" json:"upgrade_task,omitempty"`
-	DeleteLowScoreTask       bool                   `protobuf:"varint,9,opt,name=delete_low_score_task,json=deleteLowScoreTask,proto3" json:"delete_low_score_task,omitempty"`
-	DeleteTaskMaxScore       int32                  `protobuf:"varint,10,opt,name=delete_task_max_score,json=deleteTaskMaxScore,proto3" json:"delete_task_max_score,omitempty"`
-	MaxSpendDiamond          int64                  `protobuf:"varint,11,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Enabled                bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	AutoEnableModules      bool                   `protobuf:"varint,2,opt,name=auto_enable_modules,json=autoEnableModules,proto3" json:"auto_enable_modules,omitempty"`
+	UseSpeedupTicketInTask bool                   `protobuf:"varint,3,opt,name=use_speedup_ticket_in_task,json=useSpeedupTicketInTask,proto3" json:"use_speedup_ticket_in_task,omitempty"`
+	// Task score lower bound. Tasks with Score <= this value are skipped during
+	// selection. 0 means no score filtering.
+	MaxTaskScore int32 `protobuf:"varint,4,opt,name=max_task_score,json=maxTaskScore,proto3" json:"max_task_score,omitempty"`
+	// When true, only already-upgraded tasks (IsUpgrade != 0) are eligible for
+	// selection. Upgraded tasks carry bonus score multipliers.
+	OnlyUpgradeTask          bool            `protobuf:"varint,5,opt,name=only_upgrade_task,json=onlyUpgradeTask,proto3" json:"only_upgrade_task,omitempty"`
+	ExcludeOthersUpgradeTask bool            `protobuf:"varint,6,opt,name=exclude_others_upgrade_task,json=excludeOthersUpgradeTask,proto3" json:"exclude_others_upgrade_task,omitempty"`
+	TaskTypePriority         map[int32]int32 `protobuf:"bytes,7,rep,name=task_type_priority,json=taskTypePriority,proto3" json:"task_type_priority,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	UpgradeTask              bool            `protobuf:"varint,8,opt,name=upgrade_task,json=upgradeTask,proto3" json:"upgrade_task,omitempty"`
+	DeleteLowScoreTask       bool            `protobuf:"varint,9,opt,name=delete_low_score_task,json=deleteLowScoreTask,proto3" json:"delete_low_score_task,omitempty"`
+	DeleteTaskMaxScore       int32           `protobuf:"varint,10,opt,name=delete_task_max_score,json=deleteTaskMaxScore,proto3" json:"delete_task_max_score,omitempty"`
+	MaxSpendDiamond          int64           `protobuf:"varint,11,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }

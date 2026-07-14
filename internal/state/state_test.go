@@ -1113,6 +1113,58 @@ func TestWaterwheelDailyLimitErrorSuppressesClaimsUntilReset(t *testing.T) {
 	}
 }
 
+func TestWaterwheelLocalDailyResetAfterStaleServerPush(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+
+	// Use time.Now() as the base so WaterwheelCooldownReady's internal
+	// time.Now() call is consistent with the test timeline.
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 1,
+		},
+	})
+	s.MarkWaterwheelEntered(now)
+
+	// Simulate the daily limit being reached locally.
+	s.MarkWaterwheelDailyLimitReached(now)
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true, want false at daily limit")
+	}
+	if s.WaterwheelEnterDue(now) {
+		t.Fatal("WaterwheelEnterDue = true, want false at daily limit")
+	}
+
+	// Less than 24h later — still blocked.
+	stillBlocked := now.Add(23 * time.Hour)
+	if s.WaterwheelEnterDue(stillBlocked) {
+		t.Fatal("WaterwheelEnterDue = true, want false before 24h window")
+	}
+
+	// More than 24h later — local reset kicks in even without a server push.
+	afterReset := now.Add(25 * time.Hour)
+	if !s.WaterwheelEnterDue(afterReset) {
+		t.Fatal("WaterwheelEnterDue = false after 24h, want local daily reset")
+	}
+	if s.WaterwheelClaimedCount() != 0 {
+		t.Fatalf("WaterwheelClaimedCount = %d after local reset, want 0", s.WaterwheelClaimedCount())
+	}
+
+	// Re-enter and backdate wwLocalGenMs so the bucket timer is ready
+	// relative to the real time.Now() used inside WaterwheelCooldownReady.
+	s.MarkWaterwheelEntered(time.Now())
+	s.mu.Lock()
+	s.wwLocalGenMs = time.Now().Add(-interval - time.Second).UnixMilli()
+	s.mu.Unlock()
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false after re-enter + bucket interval, want true")
+	}
+}
+
 func TestResidentOrderDailyLimitErrorSuppressesUntilNextGameDay(t *testing.T) {
 	now := time.Date(2026, 7, 5, 20, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	s := New()

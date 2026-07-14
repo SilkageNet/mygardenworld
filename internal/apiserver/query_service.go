@@ -127,6 +127,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	vip, vipExp := st.Vip()
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
+	fmlRace := st.FmlRace()
 	resp := &pb.GetSnapshotResponse{
 		AccountId:             fmt.Sprintf("%d", acc.ID),
 		AccountName:           acc.Name,
@@ -151,6 +152,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Diagnostics:           runnerDiagnosticsProto(diag),
 		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
 		CyclicNote:            cyclicNoteProto(cyclicNote),
+		FmlRace:               fmlRaceProto(fmlRace),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -334,6 +336,57 @@ func cyclicNoteTaskStatus(view state.CyclicNoteView, task state.CyclicNoteTaskSl
 		return pb.PlanStatus_PLAN_STATUS_READY
 	}
 	return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+}
+
+// fmlRaceTaskLabels maps race task type IDs to display labels.
+var fmlRaceTaskLabels = map[int32]string{
+	2004: "VIP商店购买",
+	3006: "居民订单",
+	3016: "顾客订单",
+	3017: "材料商店购买",
+	3018: "宫廷订单",
+	3023: "珍珠采集雇佣",
+	3024: "好友偷花",
+	3030: "花艺售卖",
+	3034: "花艺制作",
+	3035: "鲜花升级",
+	3036: "种植收获",
+	3044: "花种培育",
+	3052: "动物互动",
+}
+
+func fmlRaceProto(view state.FmlRaceView) *pb.FmlRaceView {
+	out := &pb.FmlRaceView{
+		Observed:     view.Observed,
+		BatchActive:  view.BatchActive,
+		BatchStartMs: view.BatchStartMs,
+		BatchEndMs:   view.BatchEndMs,
+		BatchStatus:  view.BatchStatus,
+	}
+
+	if view.Taken.HasTask {
+		out.Taken = &pb.FmlRaceTaken{
+			HasTask:   true,
+			TaskMsId:  view.Taken.TaskMsId,
+			TaskId:    view.Taken.TaskId,
+			TaskLabel: fmlRaceTaskLabels[view.Taken.TaskId],
+			TargetCnt: view.Taken.TargetCnt,
+			FinishCnt: view.Taken.FinishCnt,
+			Score:     view.Taken.Score,
+		}
+	}
+
+	for _, t := range view.Tasks {
+		out.Tasks = append(out.Tasks, &pb.FmlRaceTask{
+			MsId:       t.MsId,
+			TaskId:     t.TaskId,
+			TaskLabel:  fmlRaceTaskLabels[t.TaskId],
+			Score:      t.Score,
+			IsUpgrade:  t.IsUpgrade != 0,
+			UpgradeUid: t.UpgradeUid,
+		})
+	}
+	return out
 }
 
 func activityItemsProto(items []state.ItemCount) []*pb.ActivityItem {

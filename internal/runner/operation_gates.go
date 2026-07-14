@@ -307,7 +307,6 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	if !r.lastWaterSyncTick.IsZero() && now.Sub(r.lastWaterSyncTick) < waterSourceSyncPeriod {
 		return
 	}
-	r.lastWaterSyncTick = now
 
 	rpc := r.runnerRPC(client, session)
 	v, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
@@ -321,6 +320,7 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	if d.IsError() {
 		return
 	}
+	r.lastWaterSyncTick = now
 	r.state.MarkWaterwheelEntered(now)
 	if babigame.HasPayload(v) {
 		r.state.ApplyV(v)

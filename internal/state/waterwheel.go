@@ -56,6 +56,7 @@ func (s *State) applyWaterwheelLocked(raw json.RawMessage) {
 			s.wwBackoffUntil = 0
 		}
 		s.wwClaimedCount = nextCount
+		s.wwLastCountMs = nowMs
 	}
 }
 
@@ -93,8 +94,8 @@ func (s *State) WaterwheelReady() int32 {
 // WaterwheelEnterDue reports whether automation should call waterwheel.enter
 // to initialize the same client-side bucket lifecycle used by the mini client.
 func (s *State) WaterwheelEnterDue(now time.Time) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.wwEntered {
 		return false
 	}
@@ -102,6 +103,7 @@ func (s *State) WaterwheelEnterDue(now time.Time) bool {
 	if s.wwBackoffUntil > nowMs {
 		return false
 	}
+	s.maybeResetDailyLimitLocked(nowMs)
 	if max := waterwheelBucketDailyMax(); max > 0 && s.wwObserved && s.wwClaimedCount >= max {
 		return false
 	}
@@ -134,6 +136,7 @@ func (s *State) MarkWaterwheelDailyLimitReached(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.wwObserved = true
+	nowMs := now.UnixMilli()
 	if max := waterwheelBucketDailyMax(); max > 0 {
 		if s.wwClaimedCount < max {
 			s.wwClaimedCount = max
@@ -142,6 +145,7 @@ func (s *State) MarkWaterwheelDailyLimitReached(now time.Time) {
 	} else {
 		s.wwBackoffUntil = now.Add(24 * time.Hour).UnixMilli()
 	}
+	s.wwLastCountMs = nowMs
 	s.wwEntered = false
 	s.wwLocalGenMs = 0
 }
@@ -191,8 +195,8 @@ func waterwheelBucketExistMax() int32 {
 // buckets locally after waterwheel.enter using c_waterwheel.$bucketCreateCd,
 // keeps positions in BucketPosUsed_<uid>, and only then calls waterwheel.recv.
 func (s *State) WaterwheelCooldownReady() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	nowMs := time.Now().UnixMilli()
 	if !s.wwObserved || !s.wwEntered {
 		return false
@@ -200,10 +204,30 @@ func (s *State) WaterwheelCooldownReady() bool {
 	if s.wwBackoffUntil > nowMs {
 		return false
 	}
+	s.maybeResetDailyLimitLocked(nowMs)
 	if max := waterwheelBucketDailyMax(); max > 0 && s.wwClaimedCount >= max {
 		return false
 	}
 	return s.waterwheelLocalBucketCountAtLocked(time.Now(), s.wwClaimedCount) > 0
+}
+
+// maybeResetDailyLimitLocked clears the locally tracked daily count when the
+// server has not pushed a namespace 114 reset within a reasonable window. This
+// prevents the waterwheel from staying blocked forever when the daily limit is
+// reached but the WebSocket never delivers the midnight count reset.
+func (s *State) maybeResetDailyLimitLocked(nowMs int64) {
+	max := waterwheelBucketDailyMax()
+	if max <= 0 || s.wwClaimedCount < max {
+		return
+	}
+	if s.wwLastCountMs <= 0 {
+		return
+	}
+	if nowMs-s.wwLastCountMs < int64(24*time.Hour/time.Millisecond) {
+		return
+	}
+	s.wwClaimedCount = 0
+	s.wwBackoffUntil = 0
 }
 
 func (s *State) waterwheelLocalBucketCountAtLocked(now time.Time, claimedCount int32) int32 {

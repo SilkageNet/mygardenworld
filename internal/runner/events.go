@@ -228,6 +228,18 @@ func opKindDesc(kind string) string {
 		return "防骗问答"
 	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
 		return "领取防骗宝箱"
+	case clientproto.RPCFmlRaceEnter.String():
+		return "进入公会竞赛"
+	case clientproto.RPCFmlRaceTakeTask.String():
+		return "接取竞赛任务"
+	case clientproto.RPCFmlRaceFinishTask.String():
+		return "完成竞赛任务"
+	case clientproto.RPCFmlRaceUpgradeTask.String():
+		return "升级竞赛任务"
+	case clientproto.RPCFmlRaceDelTask.String():
+		return "删除竞赛任务"
+	case clientproto.RPCFmlRaceGiveUpTask.String():
+		return "放弃竞赛任务"
 	default:
 		return kind
 	}
@@ -275,6 +287,8 @@ func eventCategory(kind string) string {
 		return "order"
 	case "union_build":
 		return "union"
+	case "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
+		return "race"
 	case "cultivate_recv", "cultivate_new", "flower_upgrade":
 		return "plant"
 	default:
@@ -284,7 +298,7 @@ func eventCategory(kind string) string {
 
 func normalizeEventCategory(category, kind string) string {
 	switch category {
-	case "account", "basic", "plant", "order", "union", "activity", "system":
+	case "account", "basic", "plant", "order", "union", "race", "activity", "system":
 		return category
 	case "session":
 		return "account"
@@ -367,6 +381,8 @@ func eventAction(kind string) string {
 		return "claim"
 	case strings.Contains(kind, "order"):
 		return "order"
+	case strings.Contains(kind, "race"):
+		return "race"
 	case strings.Contains(kind, "build"):
 		return "build"
 	case strings.Contains(kind, "upgrade"):
@@ -442,6 +458,16 @@ func eventLabel(kind string) string {
 		return "花架"
 	case "union_build":
 		return "公会建设"
+	case "race_task_taken":
+		return "接取任务"
+	case "race_task_finished":
+		return "完成任务"
+	case "race_task_upgraded":
+		return "升级任务"
+	case "race_task_deleted":
+		return "删除任务"
+	case "race_task_given_up":
+		return "放弃任务"
 	case "cultivate_recv":
 		return "培育领取"
 	case "cultivate_new":

@@ -118,6 +118,9 @@ import type {
   CyclicNoteTaskSlot,
   CyclicNoteView,
   Event,
+  FmlRaceTask,
+  FmlRaceTaken,
+  FmlRaceView,
   GetSnapshotResponse,
   InventoryLedgerItem,
   InventoryLedgerView,
@@ -1009,6 +1012,7 @@ function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
       <LandWarehouseMonitorPanel lands={snapshot?.lands ?? []} ledger={snapshot?.inventoryLedger} />
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
+      <FmlRaceMonitorPanel race={snapshot?.fmlRace} />
     </div>
   );
 }
@@ -1395,6 +1399,124 @@ function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
         </>
       )}
     </CollapsibleCard>
+  );
+}
+
+function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
+  const tasks = race?.tasks ?? [];
+  const taken = race?.taken;
+  const observed = race?.observed ?? false;
+  const batchActive = race?.batchActive ?? false;
+  const batchStartMs = race?.batchStartMs ?? BigInt(0);
+  const batchEndMs = race?.batchEndMs ?? BigInt(0);
+
+  const formatMs = (ms: bigint) => {
+    if (ms === BigInt(0)) return "";
+    return new Date(Number(ms)).toLocaleString("zh-CN", {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <CollapsibleCard
+      title="公会竞赛"
+      contentClassName="space-y-3"
+      actions={
+        <>
+          {!observed ? (
+            <Badge variant="outline">等待同步</Badge>
+          ) : !batchActive ? (
+            <Badge variant="outline">非竞赛期间</Badge>
+          ) : (
+            <Badge variant="secondary">竞赛进行中</Badge>
+          )}
+          {taken?.hasTask && <Badge variant="secondary">已接任务</Badge>}
+          {tasks.length > 0 && <Badge variant="outline">{tasks.length} 个可选</Badge>}
+        </>
+      }
+    >
+      {!observed ? (
+        <EmptyState title="竞赛状态尚未同步" detail="连接游戏并进入公会界面后，竞赛任务列表会自动同步。" />
+      ) : !batchActive ? (
+        <EmptyState
+          title="当前不在竞赛批次中"
+          detail={
+            batchStartMs > BigInt(0) && batchEndMs > BigInt(0)
+              ? `竞赛按批次开放，非竞赛期间任务池不可用。当前批次：${formatMs(batchStartMs)} ~ ${formatMs(batchEndMs)}`
+              : "竞赛按批次开放，非竞赛期间任务池不可用。"
+          }
+        />
+      ) : (
+        <>
+          {taken?.hasTask ? (
+            <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+              <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+                <span>当前已接任务</span>
+              </div>
+              <div className="p-3">
+                <FmlRaceTakenCard taken={taken} />
+              </div>
+            </section>
+          ) : (
+            <div className="rounded-md border border-dashed border-border/58 px-3 py-2 text-sm text-muted-foreground">当前未接取任务</div>
+          )}
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>任务池</span>
+              <Badge variant="secondary">{tasks.length} 个</Badge>
+            </div>
+            {tasks.length === 0 ? (
+              <div className="p-3">
+                <EmptyState title="任务池为空" detail="竞赛任务已接完或尚未刷新。" />
+              </div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-3">
+                {tasks.map((task) => (
+                  <FmlRaceTaskCard key={task.msId} task={task} />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
+  const progress = taken.targetCnt > 0 ? Math.min(100, Math.round((taken.finishCnt / taken.targetCnt) * 100)) : 0;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{taken.taskLabel || `任务 #${taken.taskId}`}</span>
+        <Badge variant={progress >= 100 ? "secondary" : "outline"}>{progress}%</Badge>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+      </div>
+      <div className="text-xs text-muted-foreground">
+        进度 {taken.finishCnt} / {taken.targetCnt} · 分数 {taken.score}
+      </div>
+    </div>
+  );
+}
+
+function FmlRaceTaskCard({ task }: { task: FmlRaceTask }) {
+  return (
+    <div className="rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{task.taskLabel || `任务 #${task.taskId}`}</span>
+        <Badge variant={task.isUpgrade ? "secondary" : "outline"}>{task.isUpgrade ? "已升级" : "普通"}</Badge>
+      </div>
+      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+        <span>分数 {task.score}</span>
+        {task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}
+      </div>
+    </div>
   );
 }
 
@@ -2597,8 +2719,8 @@ function PolicyPanel({
                 <ToggleRow label="自动完成" checked={unionRace?.enabled ?? false} onChange={(checked) => updateUnionRace({ enabled: checked })} />
                 <ToggleRow label="自动模块" checked={unionRace?.autoEnableModules ?? true} onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
-                <NumberRow label="限制分数" value={unionRace?.maxTaskScore ?? 28} min={0} onChange={(value) => updateUnionRace({ maxTaskScore: value })} />
-                <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
+                <NumberRow label="限制分数" value={unionRace?.maxTaskScore ?? 0} min={0} description="任务分数下限，分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ maxTaskScore: value })} />
+                <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} />
                 <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
@@ -3146,7 +3268,7 @@ function EventPanel({ events }: { events: Event[] }) {
     return counts;
   }, [events]);
   const categories = useMemo(() => {
-    const order = ["basic", "plant", "order", "union", "activity", "account", "system"];
+    const order = ["basic", "plant", "order", "union", "race", "activity", "account", "system"];
     return [...categoryCounts.keys()].sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
@@ -3259,16 +3381,21 @@ function ToggleRow({
   checked,
   onChange,
   status,
+  description,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   status?: SettingStatus;
+  description?: string;
 }) {
   return (
     <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-        <span>{label}</span>
+        <span className="flex flex-col">
+          <span>{label}</span>
+          {description && <span className="text-xs text-muted-foreground">{description}</span>}
+        </span>
         {status && <SettingStatusBadge status={status} />}
       </span>
       <Switch checked={checked} onCheckedChange={onChange} />
@@ -3292,6 +3419,7 @@ function NumberRow({
   max,
   disabled = false,
   onChange,
+  description,
 }: {
   label: string;
   value: number;
@@ -3299,6 +3427,7 @@ function NumberRow({
   max?: number;
   disabled?: boolean;
   onChange: (value: number) => void;
+  description?: string;
 }) {
   const normalizedValue = Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, Number.isFinite(value) ? Math.trunc(value) : min));
   const updateValue = (nextValue: number) => onChange(Math.min(max ?? Number.POSITIVE_INFINITY, Math.max(min, nextValue)));
@@ -3310,7 +3439,10 @@ function NumberRow({
         disabled && "opacity-55",
       )}
     >
-      <Label className="min-w-0 leading-5">{label}</Label>
+      <Label className="flex min-w-0 flex-col leading-5">
+        <span>{label}</span>
+        {description && <span className="text-xs font-normal text-muted-foreground">{description}</span>}
+      </Label>
       <NumericStepper
         label={label}
         value={normalizedValue.toString()}
@@ -3755,6 +3887,8 @@ function categoryLabel(category: string) {
       return "订单";
     case "union":
       return "公会";
+    case "race":
+      return "竞赛";
     case "activity":
       return "活动";
     case "account":

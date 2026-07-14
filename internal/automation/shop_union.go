@@ -380,19 +380,38 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 	if policy == nil || !policy.GetEnabled() {
 		return nil
 	}
+	view := s.FmlRace()
+
+	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
+
+	// Enter the race UI if data has not been observed yet. This is needed to
+	// trigger the server to push namespace-25 race fields (110/111/114).
+	// Not gated by autoEnableModules — enter is a prerequisite for all other ops.
+	if !view.Observed {
+		return []PlannedOp{domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)}
+	}
+
 	// autoEnableModules gates the sub-module execution (take/finish/upgrade/delete).
 	// When off, the race module is active but does not auto-execute tasks.
 	if !policy.GetAutoEnableModules() {
 		return nil
 	}
-	view := s.FmlRace()
 	if !view.BatchActive {
 		return nil
 	}
-	goal := Goal{ID: "union.race", Category: CategoryUnion, Domain: "union.race", Label: "公会竞赛", Priority: 43}
 	var ops []PlannedOp
 
-	// 1. Finish the current taken task if complete.
+	// 1a. Abandon a taken task whose score does not meet the threshold.
+	// max_task_score is a lower bound: tasks with Score <= maxScore are rejected.
+	if view.Taken.HasTask && view.Taken.FinishCnt < view.Taken.TargetCnt {
+		maxScore := policy.GetMaxTaskScore()
+		if maxScore > 0 && view.Taken.Score <= maxScore {
+			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", "公会竞赛放弃不符合分数要求的已接任务", 4395, 0, 0, 0)
+			ops = append(ops, op)
+		}
+	}
+
+	// 1b. Finish the current taken task if complete.
 	if view.Taken.HasTask && view.Taken.FinishCnt >= view.Taken.TargetCnt {
 		op := domainOp(clientproto.RPCFmlRaceFinishTask.String(), goal, "union.race.finish", "finish", "公会竞赛任务已完成，提交领取积分", 4390, 0, 0, 0)
 		op.TaskMsID = view.Taken.TaskMsId
@@ -444,8 +463,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 	return ops
 }
 
-// selectRaceTasks filters the available task pool by score limit and upgrade
+// selectRaceTasks filters the available task pool by score threshold and upgrade
 // rules, then sorts by configured priority (descending).
+//
+// max_task_score is always a lower bound: tasks with Score <= maxScore are skipped.
+// 0 means no score filtering. Combined with only_upgrade_task, only upgraded tasks
+// above the threshold are eligible.
 func selectRaceTasks(tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64) []state.FmlRaceTaskView {
 	maxScore := policy.GetMaxTaskScore()
 	onlyUpgraded := policy.GetOnlyUpgradeTask()
@@ -454,7 +477,7 @@ func selectRaceTasks(tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, 
 
 	var filtered []state.FmlRaceTaskView
 	for _, t := range tasks {
-		if maxScore > 0 && t.Score > maxScore {
+		if maxScore > 0 && t.Score <= maxScore {
 			continue
 		}
 		if onlyUpgraded && t.IsUpgrade == 0 {

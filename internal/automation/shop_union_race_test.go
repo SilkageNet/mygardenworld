@@ -27,12 +27,12 @@ func raceStateJSON(tasks [][5]int32) string {
 }
 
 // testRacePolicy returns a policy with the common defaults for race tests:
-// enabled, autoEnableModules on, and a score limit of 28.
+// enabled, autoEnableModules on, no score filtering.
 func testRacePolicy() *pb.UnionRacePolicy {
 	return &pb.UnionRacePolicy{
 		Enabled:           true,
 		AutoEnableModules: true,
-		MaxTaskScore:      28,
+		MaxTaskScore:      0,
 	}
 }
 
@@ -46,6 +46,33 @@ func TestUnionRaceDisabledProducesNoOps(t *testing.T) {
 	}
 }
 
+func TestUnionRaceEnterEmittedWhenNotObserved(t *testing.T) {
+	s := state.New()
+	// Apply a namespace-25 blob WITHOUT race fields (no 110/111/114).
+	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
+	policy := testRacePolicy()
+	ops := unionRaceOperations(s, policy, 0)
+	if len(ops) != 1 {
+		t.Fatalf("expected 1 enter op, got %d: %+v", len(ops), ops)
+	}
+	if ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter RPC, got %s", ops[0].Kind)
+	}
+}
+
+func TestUnionRaceEnterNotEmittedWhenObserved(t *testing.T) {
+	s := state.New()
+	// Race data present → Observed=true → no enter op.
+	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
+	policy := testRacePolicy()
+	ops := unionRaceOperations(s, policy, 0)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceEnter.String() {
+			t.Fatalf("should not emit enter when race data already observed")
+		}
+	}
+}
+
 func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
@@ -56,13 +83,14 @@ func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	}
 }
 
-func TestUnionRaceScoreLimitFiltersHighScoreTasks(t *testing.T) {
+func TestUnionRaceScoreLimitFiltersLowScoreTasks(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{
-		{1, 3036, 10, 0, 0},
-		{2, 3036, 30, 0, 0},
+		{1, 3036, 3, 0, 0},  // score below threshold → filtered
+		{2, 3036, 10, 0, 0}, // score above threshold → eligible
 	})))
 	policy := testRacePolicy()
+	policy.MaxTaskScore = 5 // lower bound: skip tasks with Score <= 5
 	ops := unionRaceOperations(s, policy, 0)
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 take op, got %d: %+v", len(ops), ops)
@@ -70,8 +98,8 @@ func TestUnionRaceScoreLimitFiltersHighScoreTasks(t *testing.T) {
 	if ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take RPC, got %s", ops[0].Kind)
 	}
-	if ops[0].TaskMsID != 1 {
-		t.Fatalf("expected taskMsId 1, got %d", ops[0].TaskMsID)
+	if ops[0].TaskMsID != 2 {
+		t.Fatalf("expected taskMsId 2 (score > 5), got %d", ops[0].TaskMsID)
 	}
 }
 
@@ -145,17 +173,20 @@ func TestUnionRaceFinishCompletedTask(t *testing.T) {
 func TestUnionRaceOnlyUpgradeTaskFilter(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{
-		{1, 3036, 10, 0, 0}, // not upgraded
-		{2, 3036, 10, 1, 0}, // upgraded
+		{1, 3036, 3, 0, 0},  // not upgraded, below min → filtered
+		{2, 3036, 3, 1, 0},  // upgraded, below min → filtered
+		{3, 3036, 10, 0, 0}, // not upgraded, above min → filtered
+		{4, 3036, 10, 1, 0}, // upgraded, above min → eligible ✓
 	})))
 	policy := testRacePolicy()
+	policy.MaxTaskScore = 5
 	policy.OnlyUpgradeTask = true
 	ops := unionRaceOperations(s, policy, 0)
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 take op, got %d", len(ops))
 	}
-	if ops[0].TaskMsID != 2 {
-		t.Fatalf("expected taskMsId 2 (only upgraded), got %d", ops[0].TaskMsID)
+	if ops[0].TaskMsID != 4 {
+		t.Fatalf("expected taskMsId 4 (upgraded, score > 5), got %d", ops[0].TaskMsID)
 	}
 }
 
@@ -213,5 +244,52 @@ func TestUnionRaceDeleteLowScoreOpEmission(t *testing.T) {
 	}
 	if !hasDelete {
 		t.Fatalf("expected a delete op, got %+v", ops)
+	}
+}
+
+func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
+	s := state.New()
+	// Task pool: task msId=1, score=5. Taken task: msId=1, not completed (0/3).
+	// Field 110: {"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}  — FinishCnt=0
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
+	policy := testRacePolicy()
+	policy.MaxTaskScore = 10 // lower bound: skip tasks with Score <= 10
+	ops := unionRaceOperations(s, policy, 999)
+	var hasGiveUp bool
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			hasGiveUp = true
+		}
+	}
+	if !hasGiveUp {
+		t.Fatalf("expected a giveUp op for task below score threshold, got %+v", ops)
+	}
+}
+
+func TestUnionRaceNoGiveUpWhenTaskComplete(t *testing.T) {
+	s := state.New()
+	// Task pool: task msId=1, score=5. Taken task: msId=1, completed (3/3).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
+	policy := testRacePolicy()
+	policy.MaxTaskScore = 10
+	ops := unionRaceOperations(s, policy, 999)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("should not giveUp a completed task, got %+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceNoGiveUpWhenNoScoreLimit(t *testing.T) {
+	s := state.New()
+	// Task pool: task msId=1, score=5. Taken task: msId=1, not completed.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
+	policy := testRacePolicy()
+	policy.MaxTaskScore = 0 // no filtering
+	ops := unionRaceOperations(s, policy, 999)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("should not giveUp when no score limit, got %+v", ops)
+		}
 	}
 }

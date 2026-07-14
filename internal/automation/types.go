@@ -12,6 +12,7 @@ const (
 	CategoryPlant    = "plant"
 	CategoryOrder    = "order"
 	CategoryUnion    = "union"
+	CategoryRace     = "race"
 	CategoryActivity = "activity"
 	CategorySystem   = "system"
 )

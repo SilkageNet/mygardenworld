@@ -309,6 +309,7 @@ type FmlRaceTaskView struct {
 type FmlRaceTakenView struct {
 	TaskMsId  int32
 	TaskId    int32
+	Score     int32 // resolved from pool by MsId (0 if pool unavailable)
 	TargetCnt int32
 	FinishCnt int32
 	HasTask   bool // true if the user currently holds a task
@@ -316,9 +317,13 @@ type FmlRaceTakenView struct {
 
 // FmlRaceView is the race-related slice of namespace 25.
 type FmlRaceView struct {
-	BatchActive bool              // true if CurFmlRaceBatch status indicates an active race
-	Tasks       []FmlRaceTaskView // available task pool (field 114)
-	Taken       FmlRaceTakenView  // current user's taken task (from field 110)
+	Observed     bool              // true if any race field (110/111/114) has been received
+	BatchActive  bool              // true if CurFmlRaceBatch status indicates an active race
+	BatchStatus  int32             // raw Status value from server (field 1 of CurFmlRaceBatch)
+	BatchStartMs int64             // race batch start time in ms (field 2)
+	BatchEndMs   int64             // race batch end time in ms (field 3)
+	Tasks        []FmlRaceTaskView // available task pool (field 114)
+	Taken        FmlRaceTakenView  // current user's taken task (from field 110)
 }
 
 // ShopCultivateOfferView is one buyable material-shop offer from namespace 113.
