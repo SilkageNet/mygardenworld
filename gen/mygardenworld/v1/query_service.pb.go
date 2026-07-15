@@ -1659,15 +1659,22 @@ func (x *FmlRaceView) GetBatchStatus() int32 {
 }
 
 type FmlRaceTask struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	MsId          int32                  `protobuf:"varint,1,opt,name=ms_id,json=msId,proto3" json:"ms_id,omitempty"`
-	TaskId        int32                  `protobuf:"varint,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	TaskLabel     string                 `protobuf:"bytes,3,opt,name=task_label,json=taskLabel,proto3" json:"task_label,omitempty"`
-	Score         int32                  `protobuf:"varint,4,opt,name=score,proto3" json:"score,omitempty"`
-	IsUpgrade     bool                   `protobuf:"varint,5,opt,name=is_upgrade,json=isUpgrade,proto3" json:"is_upgrade,omitempty"`
-	UpgradeUid    int64                  `protobuf:"varint,6,opt,name=upgrade_uid,json=upgradeUid,proto3" json:"upgrade_uid,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	MsId       int64                  `protobuf:"varint,1,opt,name=ms_id,json=msId,proto3" json:"ms_id,omitempty"`
+	TaskId     int32                  `protobuf:"varint,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskLabel  string                 `protobuf:"bytes,3,opt,name=task_label,json=taskLabel,proto3" json:"task_label,omitempty"`
+	Score      int32                  `protobuf:"varint,4,opt,name=score,proto3" json:"score,omitempty"`
+	IsUpgrade  bool                   `protobuf:"varint,5,opt,name=is_upgrade,json=isUpgrade,proto3" json:"is_upgrade,omitempty"`
+	UpgradeUid int64                  `protobuf:"varint,6,opt,name=upgrade_uid,json=upgradeUid,proto3" json:"upgrade_uid,omitempty"`
+	TaskType   int32                  `protobuf:"varint,7,opt,name=task_type,json=taskType,proto3" json:"task_type,omitempty"`
+	// Catalog name for param target (flower/item); empty when param absent.
+	TargetLabel string `protobuf:"bytes,8,opt,name=target_label,json=targetLabel,proto3" json:"target_label,omitempty"`
+	// Protocol appearTime (ms). Future value means the slot is still on CD.
+	AppearTimeMs int64 `protobuf:"varint,9,opt,name=appear_time_ms,json=appearTimeMs,proto3" json:"appear_time_ms,omitempty"`
+	// Empty = automation would consider takeable; otherwise primary skip reason.
+	TakeSkipReason string `protobuf:"bytes,10,opt,name=take_skip_reason,json=takeSkipReason,proto3" json:"take_skip_reason,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *FmlRaceTask) Reset() {
@@ -1700,7 +1707,7 @@ func (*FmlRaceTask) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *FmlRaceTask) GetMsId() int32 {
+func (x *FmlRaceTask) GetMsId() int64 {
 	if x != nil {
 		return x.MsId
 	}
@@ -1742,15 +1749,45 @@ func (x *FmlRaceTask) GetUpgradeUid() int64 {
 	return 0
 }
 
+func (x *FmlRaceTask) GetTaskType() int32 {
+	if x != nil {
+		return x.TaskType
+	}
+	return 0
+}
+
+func (x *FmlRaceTask) GetTargetLabel() string {
+	if x != nil {
+		return x.TargetLabel
+	}
+	return ""
+}
+
+func (x *FmlRaceTask) GetAppearTimeMs() int64 {
+	if x != nil {
+		return x.AppearTimeMs
+	}
+	return 0
+}
+
+func (x *FmlRaceTask) GetTakeSkipReason() string {
+	if x != nil {
+		return x.TakeSkipReason
+	}
+	return ""
+}
+
 type FmlRaceTaken struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	HasTask       bool                   `protobuf:"varint,1,opt,name=has_task,json=hasTask,proto3" json:"has_task,omitempty"`
-	TaskMsId      int32                  `protobuf:"varint,2,opt,name=task_ms_id,json=taskMsId,proto3" json:"task_ms_id,omitempty"`
+	TaskMsId      int64                  `protobuf:"varint,2,opt,name=task_ms_id,json=taskMsId,proto3" json:"task_ms_id,omitempty"`
 	TaskId        int32                  `protobuf:"varint,3,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	TaskLabel     string                 `protobuf:"bytes,4,opt,name=task_label,json=taskLabel,proto3" json:"task_label,omitempty"`
 	TargetCnt     int32                  `protobuf:"varint,5,opt,name=target_cnt,json=targetCnt,proto3" json:"target_cnt,omitempty"`
 	FinishCnt     int32                  `protobuf:"varint,6,opt,name=finish_cnt,json=finishCnt,proto3" json:"finish_cnt,omitempty"`
 	Score         int32                  `protobuf:"varint,7,opt,name=score,proto3" json:"score,omitempty"`
+	TaskType      int32                  `protobuf:"varint,8,opt,name=task_type,json=taskType,proto3" json:"task_type,omitempty"`
+	TargetLabel   string                 `protobuf:"bytes,9,opt,name=target_label,json=targetLabel,proto3" json:"target_label,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1792,7 +1829,7 @@ func (x *FmlRaceTaken) GetHasTask() bool {
 	return false
 }
 
-func (x *FmlRaceTaken) GetTaskMsId() int32 {
+func (x *FmlRaceTaken) GetTaskMsId() int64 {
 	if x != nil {
 		return x.TaskMsId
 	}
@@ -1832,6 +1869,20 @@ func (x *FmlRaceTaken) GetScore() int32 {
 		return x.Score
 	}
 	return 0
+}
+
+func (x *FmlRaceTaken) GetTaskType() int32 {
+	if x != nil {
+		return x.TaskType
+	}
+	return 0
+}
+
+func (x *FmlRaceTaken) GetTargetLabel() string {
+	if x != nil {
+		return x.TargetLabel
+	}
+	return ""
 }
 
 type ActivityItem struct {
@@ -4280,9 +4331,9 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x0ebatch_start_ms\x18\x05 \x01(\x03R\fbatchStartMs\x12 \n" +
 	"\fbatch_end_ms\x18\x06 \x01(\x03R\n" +
 	"batchEndMs\x12!\n" +
-	"\fbatch_status\x18\a \x01(\x05R\vbatchStatus\"\xb0\x01\n" +
+	"\fbatch_status\x18\a \x01(\x05R\vbatchStatus\"\xc0\x02\n" +
 	"\vFmlRaceTask\x12\x13\n" +
-	"\x05ms_id\x18\x01 \x01(\x05R\x04msId\x12\x17\n" +
+	"\x05ms_id\x18\x01 \x01(\x03R\x04msId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x05R\x06taskId\x12\x1d\n" +
 	"\n" +
 	"task_label\x18\x03 \x01(\tR\ttaskLabel\x12\x14\n" +
@@ -4290,11 +4341,16 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\n" +
 	"is_upgrade\x18\x05 \x01(\bR\tisUpgrade\x12\x1f\n" +
 	"\vupgrade_uid\x18\x06 \x01(\x03R\n" +
-	"upgradeUid\"\xd3\x01\n" +
+	"upgradeUid\x12\x1b\n" +
+	"\ttask_type\x18\a \x01(\x05R\btaskType\x12!\n" +
+	"\ftarget_label\x18\b \x01(\tR\vtargetLabel\x12$\n" +
+	"\x0eappear_time_ms\x18\t \x01(\x03R\fappearTimeMs\x12(\n" +
+	"\x10take_skip_reason\x18\n" +
+	" \x01(\tR\x0etakeSkipReason\"\x93\x02\n" +
 	"\fFmlRaceTaken\x12\x19\n" +
 	"\bhas_task\x18\x01 \x01(\bR\ahasTask\x12\x1c\n" +
 	"\n" +
-	"task_ms_id\x18\x02 \x01(\x05R\btaskMsId\x12\x17\n" +
+	"task_ms_id\x18\x02 \x01(\x03R\btaskMsId\x12\x17\n" +
 	"\atask_id\x18\x03 \x01(\x05R\x06taskId\x12\x1d\n" +
 	"\n" +
 	"task_label\x18\x04 \x01(\tR\ttaskLabel\x12\x1d\n" +
@@ -4302,7 +4358,9 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"target_cnt\x18\x05 \x01(\x05R\ttargetCnt\x12\x1d\n" +
 	"\n" +
 	"finish_cnt\x18\x06 \x01(\x05R\tfinishCnt\x12\x14\n" +
-	"\x05score\x18\a \x01(\x05R\x05score\"Z\n" +
+	"\x05score\x18\a \x01(\x05R\x05score\x12\x1b\n" +
+	"\ttask_type\x18\b \x01(\x05R\btaskType\x12!\n" +
+	"\ftarget_label\x18\t \x01(\tR\vtargetLabel\"Z\n" +
 	"\fActivityItem\x12\x17\n" +
 	"\aitem_id\x18\x01 \x01(\x05R\x06itemId\x12\x1b\n" +
 	"\titem_name\x18\x02 \x01(\tR\bitemName\x12\x14\n" +

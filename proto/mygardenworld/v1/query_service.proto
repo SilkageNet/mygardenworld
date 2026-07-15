@@ -229,22 +229,31 @@ message FmlRaceView {
 }
 
 message FmlRaceTask {
-  int32 ms_id = 1;
+  int64 ms_id = 1;
   int32 task_id = 2;
   string task_label = 3;
   int32 score = 4;
   bool is_upgrade = 5;
   int64 upgrade_uid = 6;
+  int32 task_type = 7;
+  // Catalog name for param target (flower/item); empty when param absent.
+  string target_label = 8;
+  // Protocol appearTime (ms). Future value means the slot is still on CD.
+  int64 appear_time_ms = 9;
+  // Empty = automation would consider takeable; otherwise primary skip reason.
+  string take_skip_reason = 10;
 }
 
 message FmlRaceTaken {
   bool has_task = 1;
-  int32 task_ms_id = 2;
+  int64 task_ms_id = 2;
   int32 task_id = 3;
   string task_label = 4;
   int32 target_cnt = 5;
   int32 finish_cnt = 6;
   int32 score = 7;
+  int32 task_type = 8;
+  string target_label = 9;
 }
 
 message ActivityItem {
