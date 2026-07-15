@@ -82,8 +82,13 @@ func main() {
 		}
 		fmt.Printf("  Now=%s\n", time.Now().Format("2006-01-02 15:04:05"))
 		if t := race.GetTaken(); t != nil && t.GetHasTask() {
-			fmt.Printf("  Taken: msId=%d taskId=%d label=%q score=%d finish=%d/%d\n",
-				t.GetTaskMsId(), t.GetTaskId(), t.GetTaskLabel(), t.GetScore(), t.GetFinishCnt(), t.GetTargetCnt())
+			target := t.GetTargetLabel()
+			if target == "" {
+				target = "(无目标参数)"
+			}
+			fmt.Printf("  Taken: %s → %s\n", t.GetTaskLabel(), target)
+			fmt.Printf("         msId=%d taskId=%d type=%d score=%d finish=%d/%d\n",
+				t.GetTaskMsId(), t.GetTaskId(), t.GetTaskType(), t.GetScore(), t.GetFinishCnt(), t.GetTargetCnt())
 		} else {
 			fmt.Println("  Taken: none")
 		}
@@ -93,8 +98,20 @@ func main() {
 			if t.GetIsUpgrade() {
 				upgrade = " [已升级]"
 			}
-			fmt.Printf("    msId=%d taskId=%d label=%q score=%d%s\n",
-				t.GetMsId(), t.GetTaskId(), t.GetTaskLabel(), t.GetScore(), upgrade)
+			cd := ""
+			if t.GetAppearTimeMs() > time.Now().UnixMilli() {
+				cd = "CD "
+			}
+			target := t.GetTargetLabel()
+			if target != "" {
+				target = " → " + target
+			}
+			skip := ""
+			if r := t.GetTakeSkipReason(); r != "" {
+				skip = " skip=" + r
+			}
+			fmt.Printf("    msId=%d %s%s%s score=%d%s%s\n",
+				t.GetMsId(), cd, t.GetTaskLabel(), target, t.GetScore(), upgrade, skip)
 		}
 	}
 }
