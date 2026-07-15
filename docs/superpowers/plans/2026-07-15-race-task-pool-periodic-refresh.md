@@ -171,101 +171,6 @@ func TestUnionRaceNoPeriodicGetTaskListWithinTTL(t *testing.T) {
 	}
 }
 
-func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
-	nowBase := time.Date(2026, 7, 15, 12, 0, 0, 0, time.Local)
-	appear := nowBase.Add(5 * time.Minute).UnixMilli() // rem=5m < 10m
-	s := state.New()
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appear,
-	)))
-	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	// Force synced_at into the past relative to nowBase without relying on clock.
-	// Re-apply after cultivating doesn't clear AppearTime; stamp is "now".
-	// Use planner now = synced + 11m, with AppearTime still 5m after nowBase.
-	// Align: set appear relative to planner now.
-	synced := s.FmlRace().TasksSyncedAtMs
-	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	// Rewrite pool so rem = 5m from plannerNow and still takeable after CD.
-	appear2 := plannerNow.Add(5 * time.Minute).UnixMilli()
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appear2,
-	)))
-	// Re-apply refreshes TasksSyncedAtMs — bump planner again past new stamp.
-	synced = s.FmlRace().TasksSyncedAtMs
-	plannerNow = time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	appear2 = plannerNow.Add(5 * time.Minute).UnixMilli()
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appear2,
-	)))
-	synced = s.FmlRace().TasksSyncedAtMs
-	plannerNow = time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	// AppearTime still ~5m ahead of previous plannerNow but stamp moved — fix appear once more against final plannerNow without re-syncing stamp:
-	// Mutate by applying with same synced trick: apply tasks then use now that is TTL past WITHOUT re-apply.
-	// Final approach: one apply, then plannerNow = synced+11m, and AppearTime = plannerNow+5m set in THAT apply.
-	s = state.New()
-	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	syncedApprox := time.Now().UnixMilli()
-	plannerNow = time.UnixMilli(syncedApprox).Add(raceTaskPoolRefreshInterval + time.Second)
-	appear2 = plannerNow.Add(5 * time.Minute).UnixMilli()
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appear2,
-	)))
-	synced = s.FmlRace().TasksSyncedAtMs
-	plannerNow = time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	// Problem: appear2 was computed vs syncedApprox, not final synced. Rem may drift.
-	// Guarantee rem in (0,10m): set appear = synced + interval + 5m (= plannerNow + 5m if plannerNow = synced+interval+1s ≈ rem 5m - 1s).
-	appearFixed := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + 5*time.Minute).UnixMilli()
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appearFixed,
-	)))
-	synced = s.FmlRace().TasksSyncedAtMs
-	plannerNow = time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	rem := time.UnixMilli(s.FmlRace().Tasks[0].AppearTime).Sub(plannerNow)
-	if rem <= 0 || rem >= raceTaskPoolRefreshInterval {
-		t.Fatalf("test setup rem=%v want in (0,10m)", rem)
-	}
-	ops := unionRaceOperations(s, testRacePolicy(), 0, plannerNow)
-	for _, op := range ops {
-		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
-			t.Fatalf("near takeable CD must defer periodic sync, got %+v", ops)
-		}
-		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
-			t.Fatalf("outside lead must not take yet, got %+v", ops)
-		}
-	}
-}
-
-func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
-	s := state.New()
-	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
-	synced := s.FmlRace().TasksSyncedAtMs
-	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	appearFar := plannerNow.Add(15 * time.Minute).UnixMilli() // rem >= 10m
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appearFar,
-	)))
-	synced = s.FmlRace().TasksSyncedAtMs
-	plannerNow = time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	appearFar = plannerNow.Add(15 * time.Minute).UnixMilli()
-	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appearFar,
-	)))
-	synced = s.FmlRace().TasksSyncedAtMs
-	plannerNow = time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	ops := unionRaceOperations(s, testRacePolicy(), 0, plannerNow)
-	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
-		t.Fatalf("far takeable CD must not block periodic sync, got %+v", ops)
-	}
-}
-
 func TestUnionRaceTakeWinsOverPeriodicSync(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 20, 0, 0}})
@@ -281,31 +186,15 @@ func TestUnionRaceTakeWinsOverPeriodicSync(t *testing.T) {
 		}
 	}
 }
-```
 
-**Note for implementer:** The near-CD test above is noisy because each apply refreshes `TasksSyncedAtMs`. Prefer a small test helper that builds state once:
-
-```go
-// racePoolWithAppear applies active batch + one plant-harvest task with AppearTime,
-// then returns (state, plannerNow) where plannerNow is TasksSyncedAtMs+interval+1s
-// and AppearTime was set to plannerNow+rem (so rem is exact). Because stamp moves
-// on apply, compute appear as: pick plannerNow first as time.Now().Add(interval+1s),
-// appear = plannerNow+rem, apply, then if TasksSyncedAtMs is T0, set
-// plannerNow2 = T0+interval+1s and adjust — OR add state test hook.
-```
-
-**Preferred cleaner helper (use this instead of the multi-apply dance):**
-
-Add in `shop_union_race_test.go`:
-
-```go
+// raceStateAtTTL returns state whose pool has AppearTime = plannerNow+appearRem,
+// and plannerNow is exactly TasksSyncedAtMs + refreshInterval + 1s (TTL due).
 func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32) (*state.State, time.Time) {
 	t.Helper()
 	s := state.New()
 	if plantParam > 0 {
 		s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(plantParam)}})
 	}
-	// First establish observed pool with a placeholder appearTime.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":20}]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
@@ -314,22 +203,20 @@ func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32) (*s
 		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[%d],"10":20,"12":0,"14":0,"15":0}]}}`,
 		appear, plantParam,
 	)))
-	// Stamp moved — shift plannerNow by the same delta so rem stays appearRem.
 	delta := s.FmlRace().TasksSyncedAtMs - synced
 	plannerNow = plannerNow.Add(time.Duration(delta) * time.Millisecond)
 	return s, plannerNow
 }
-```
 
-Then simplify:
-
-```go
 func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
 	s, now := raceStateAtTTL(t, 5*time.Minute, 23001)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
 			t.Fatalf("near takeable CD must defer periodic sync, got %+v", ops)
+		}
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("outside lead must not take yet, got %+v", ops)
 		}
 	}
 }
@@ -583,8 +470,8 @@ Confirm each spec test case 1–8 is covered by Task 1–4 tests or manual UI ch
 |---|---|
 | `TasksSyncedAtMs` on apply 114 | Task 1 |
 | 10m constant TTL sync | Task 2 |
-| Near CD rem&lt;10m defer | Task 2 |
-| Far CD rem≥10m sync OK | Task 2 |
+| Near CD rem under 10m defer | Task 2 |
+| Far CD rem at least 10m sync OK | Task 2 |
 | take/finish/giveUp 让路 | Task 2 |
 | enter / missing-param 早退不变 | Task 2（保留） |
 | proto `tasks_synced_at_ms` | Task 3 |
