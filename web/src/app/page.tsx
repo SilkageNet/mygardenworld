@@ -1489,10 +1489,13 @@ function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
 
 function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   const progress = taken.targetCnt > 0 ? Math.min(100, Math.round((taken.finishCnt / taken.targetCnt) * 100)) : 0;
+  const title = taken.targetLabel
+    ? `${taken.taskLabel || `任务 #${taken.taskId}`} · ${taken.targetLabel}`
+    : taken.taskLabel || `任务 #${taken.taskId}`;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{taken.taskLabel || `任务 #${taken.taskId}`}</span>
+        <span className="text-sm font-medium">{title}</span>
         <Badge variant={progress >= 100 ? "secondary" : "outline"}>{progress}%</Badge>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -1506,16 +1509,25 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
 }
 
 function FmlRaceTaskCard({ task }: { task: FmlRaceTask }) {
+  const onCd = Number(task.appearTimeMs ?? BigInt(0)) > Date.now();
+  const baseTitle = task.targetLabel
+    ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
+    : task.taskLabel || `任务 #${task.taskId}`;
+  const title = onCd ? `CD ${baseTitle}` : baseTitle;
+  const skipReason = (task.takeSkipReason ?? "").trim();
   return (
     <div className="rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{task.taskLabel || `任务 #${task.taskId}`}</span>
+        <span className="text-sm font-medium">{title}</span>
         <Badge variant={task.isUpgrade ? "secondary" : "outline"}>{task.isUpgrade ? "已升级" : "普通"}</Badge>
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
         <span>分数 {task.score}</span>
         {task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}
       </div>
+      {skipReason !== "" && (
+        <div className="mt-1 text-xs text-muted-foreground">不可接取：{skipReason}</div>
+      )}
     </div>
   );
 }
