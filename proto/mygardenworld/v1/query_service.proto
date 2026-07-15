@@ -226,6 +226,8 @@ message FmlRaceView {
   int64 batch_start_ms = 5;
   int64 batch_end_ms = 6;
   int32 batch_status = 7;
+  // Local ms when task pool (NS25 field 114) was last applied.
+  int64 tasks_synced_at_ms = 8;
 }
 
 message FmlRaceTask {

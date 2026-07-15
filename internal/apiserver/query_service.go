@@ -357,11 +357,12 @@ var fmlRaceTaskLabels = map[int32]string{
 
 func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
-		Observed:     view.Observed,
-		BatchActive:  view.BatchActive,
-		BatchStartMs: view.BatchStartMs,
-		BatchEndMs:   view.BatchEndMs,
-		BatchStatus:  view.BatchStatus,
+		Observed:        view.Observed,
+		BatchActive:     view.BatchActive,
+		BatchStartMs:    view.BatchStartMs,
+		BatchEndMs:      view.BatchEndMs,
+		BatchStatus:     view.BatchStatus,
+		TasksSyncedAtMs: view.TasksSyncedAtMs,
 	}
 
 	if view.Taken.HasTask {
