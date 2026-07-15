@@ -1465,8 +1465,20 @@ function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
           )}
 
           <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
-            <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
-              <span>任务池</span>
+            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span>任务池</span>
+                {(race?.tasksSyncedAtMs ?? BigInt(0)) > BigInt(0) && (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    更新于{" "}
+                    {new Date(Number(race!.tasksSyncedAtMs)).toLocaleString("zh-CN", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    · 每 10 分钟重新获取
+                  </span>
+                )}
+              </div>
               <Badge variant="secondary">{tasks.length} 个</Badge>
             </div>
             {tasks.length === 0 ? (
