@@ -15,6 +15,10 @@ import (
 // row that already meets filter rules (one planner tick).
 const raceTakeLeadWindow = 4 * time.Second
 
+// raceTaskPoolRefreshInterval is how often automation re-fetches the task pool
+// when idle of giveUp/finish/take.
+const raceTaskPoolRefreshInterval = 10 * time.Minute
+
 func shopOperations(s *state.State, policy *pb.Policy) []PlannedOp {
 	shop := policy.GetBasic().GetShop()
 	var ops []PlannedOp
@@ -466,6 +470,21 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 
+	hasPrimary := false
+	for _, op := range ops {
+		if isRacePrimaryMutatingOp(op) {
+			hasPrimary = true
+			break
+		}
+	}
+
+	if !hasPrimary && raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now) {
+		return []PlannedOp{domainOp(
+			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
+			"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
+		)}
+	}
+
 	// 3. Optional: upgrade tasks (only consider tasks that pass the score filter).
 	if policy.GetUpgradeTask() {
 		maxScore := policy.GetMaxTaskScore()
@@ -508,6 +527,44 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	return ops
+}
+
+func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
+	if !view.BatchActive || !view.TasksObserved {
+		return false
+	}
+	if view.TasksSyncedAtMs <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceTaskPoolRefreshInterval))
+}
+
+func raceHasNearTakeableCD(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) bool {
+	nowMs := now.UnixMilli()
+	for _, t := range tasks {
+		if t.AppearTime <= 0 || t.AppearTime <= nowMs {
+			continue
+		}
+		rem := time.Duration(t.AppearTime-nowMs) * time.Millisecond
+		if rem >= raceTaskPoolRefreshInterval {
+			continue
+		}
+		if raceTakeNonCDSkipReason(s, t, policy, uid) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func isRacePrimaryMutatingOp(op PlannedOp) bool {
+	switch op.Kind {
+	case clientproto.RPCFmlRaceGiveUpTask.String(),
+		clientproto.RPCFmlRaceFinishTask.String(),
+		clientproto.RPCFmlRaceTakeTask.String():
+		return true
+	default:
+		return false
+	}
 }
 
 // RaceTakeSkipReason returns the primary reason automation will not take this

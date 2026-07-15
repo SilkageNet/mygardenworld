@@ -785,3 +785,91 @@ func TestRaceTakeSkipReason(t *testing.T) {
 		})
 	}
 }
+
+func TestUnionRacePeriodicGetTaskListAfterTTL(t *testing.T) {
+	s := state.New()
+	// Empty pool: TasksObserved, nothing to take.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	if synced <= 0 {
+		t.Fatal("need TasksSyncedAtMs from apply")
+	}
+	policy := testRacePolicy()
+	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 0, now)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected periodic getTaskList, got %+v", ops)
+	}
+}
+
+func TestUnionRaceNoPeriodicGetTaskListWithinTTL(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	policy := testRacePolicy()
+	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval - time.Second)
+	ops := unionRaceOperations(s, policy, 0, now)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("unexpected getTaskList within TTL: %+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceTakeWinsOverPeriodicSync(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 20, 0, 0}})
+	synced := s.FmlRace().TasksSyncedAtMs
+	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, plannerNow)
+	if len(ops) < 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take first, got %+v", ops)
+	}
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("take tick must not also sync, got %+v", ops)
+		}
+	}
+}
+
+// raceStateAtTTL returns state whose pool has AppearTime = plannerNow+appearRem,
+// and plannerNow is exactly TasksSyncedAtMs + refreshInterval + 1s (TTL due).
+func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32) (*state.State, time.Time) {
+	t.Helper()
+	s := state.New()
+	if plantParam > 0 {
+		s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(plantParam)}})
+	}
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":20}]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
+	appear := plannerNow.Add(appearRem).UnixMilli()
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[%d],"10":20,"12":0,"14":0,"15":0}]}}`,
+		appear, plantParam,
+	)))
+	delta := s.FmlRace().TasksSyncedAtMs - synced
+	plannerNow = plannerNow.Add(time.Duration(delta) * time.Millisecond)
+	return s, plannerNow
+}
+
+func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
+	s, now := raceStateAtTTL(t, 5*time.Minute, 23001)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("near takeable CD must defer periodic sync, got %+v", ops)
+		}
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("outside lead must not take yet, got %+v", ops)
+		}
+	}
+}
+
+func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
+	s, now := raceStateAtTTL(t, 15*time.Minute, 23001)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("far takeable CD must not block periodic sync, got %+v", ops)
+	}
+}
