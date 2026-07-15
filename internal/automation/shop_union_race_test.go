@@ -834,7 +834,7 @@ func TestUnionRaceTakeWinsOverPeriodicSync(t *testing.T) {
 
 // raceStateAtTTL returns state whose pool has AppearTime = plannerNow+appearRem,
 // and plannerNow is exactly TasksSyncedAtMs + refreshInterval + 1s (TTL due).
-func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32) (*state.State, time.Time) {
+func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32, taskUID int64) (*state.State, time.Time) {
 	t.Helper()
 	s := state.New()
 	if plantParam > 0 {
@@ -845,16 +845,24 @@ func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32) (*s
 	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
 	appear := plannerNow.Add(appearRem).UnixMilli()
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[%d],"10":20,"12":0,"14":0,"15":0}]}}`,
-		appear, plantParam,
+		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[%d],"10":20,"12":%d,"14":0,"15":0}]}}`,
+		appear, plantParam, taskUID,
 	)))
 	delta := s.FmlRace().TasksSyncedAtMs - synced
 	plannerNow = plannerNow.Add(time.Duration(delta) * time.Millisecond)
 	return s, plannerNow
 }
 
+func TestUnionRacePeriodicRunsDespiteNearTakenCD(t *testing.T) {
+	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 99)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("near taken CD must not defer periodic sync, got %+v", ops)
+	}
+}
+
 func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
-	s, now := raceStateAtTTL(t, 5*time.Minute, 23001)
+	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
@@ -867,7 +875,7 @@ func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
 }
 
 func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
-	s, now := raceStateAtTTL(t, 15*time.Minute, 23001)
+	s, now := raceStateAtTTL(t, 15*time.Minute, 23001, 0)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("far takeable CD must not block periodic sync, got %+v", ops)

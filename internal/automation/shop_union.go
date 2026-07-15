@@ -545,6 +545,9 @@ func raceHasNearTakeableCD(s *state.State, tasks []state.FmlRaceTaskView, policy
 		if t.AppearTime <= 0 || t.AppearTime <= nowMs {
 			continue
 		}
+		if t.UID != 0 {
+			continue
+		}
 		rem := time.Duration(t.AppearTime-nowMs) * time.Millisecond
 		if rem >= raceTaskPoolRefreshInterval {
 			continue
