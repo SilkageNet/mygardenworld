@@ -327,6 +327,8 @@ type FmlRaceTakenView struct {
 type FmlRaceView struct {
 	Observed      bool              // true after a meaningful CurFmlRaceBatch (field 111) was synced
 	TasksObserved bool              // true after FmlRaceTaskList (field 114) has been received
+	// TasksSyncedAtMs is local wall time (ms) when field 114 was last applied.
+	TasksSyncedAtMs int64
 	BatchActive   bool              // true if status/time window indicates an active race
 	BatchID       int64             // CurFmlRaceBatch.batchId (field 0; millisecond timestamp)
 	BatchStatus   int32             // raw Status value from server (field 1 of CurFmlRaceBatch)

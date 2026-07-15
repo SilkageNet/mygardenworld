@@ -48,7 +48,7 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 		applyFmlRaceBatchLocked(&s.fmlRace, rawBatch)
 	}
 	if rawTasks, ok := ns25["114"]; ok {
-		applyFmlRaceTasksLocked(&s.fmlRace, rawTasks)
+		applyFmlRaceTasksLocked(&s.fmlRace, rawTasks, s.lastApplyMs)
 	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
 		if isJSONNull(rawUsrRcd) {
@@ -110,11 +110,12 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
 }
 
-func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage) {
+func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64) {
 	if isJSONNull(raw) {
 		view.TasksObserved = true
 		view.Tasks = nil
 		view.MissingParamRefreshFP = ""
+		view.TasksSyncedAtMs = nowMs
 		return
 	}
 	var tasks []clientproto.IFmlRaceTask
@@ -169,6 +170,7 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage) {
 		}
 	}
 	view.TasksObserved = true
+	view.TasksSyncedAtMs = nowMs
 	updateFmlRaceMissingParamRefreshFP(view, wasObserved)
 }
 

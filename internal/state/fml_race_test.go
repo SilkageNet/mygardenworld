@@ -3,6 +3,7 @@ package state
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestFmlRaceSparseNS25PreservesBatch(t *testing.T) {
@@ -136,5 +137,28 @@ func TestFmlRaceTaskListMergesSparseDelta(t *testing.T) {
 	}
 	if got[1].MsId != 2 || got[1].UID != 0 {
 		t.Fatalf("task 2 not preserved: %+v", got[1])
+	}
+}
+
+func TestFmlRaceTasksSyncedAtMsSetOnTaskList(t *testing.T) {
+	s := New()
+	before := time.Now().UnixMilli()
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":4001,"6":[23001],"10":9}]}}`))
+	after := time.Now().UnixMilli()
+	got := s.FmlRace()
+	if !got.TasksObserved {
+		t.Fatal("expected TasksObserved")
+	}
+	if got.TasksSyncedAtMs < before || got.TasksSyncedAtMs > after {
+		t.Fatalf("TasksSyncedAtMs=%d, want in [%d,%d]", got.TasksSyncedAtMs, before, after)
+	}
+}
+
+func TestFmlRaceTasksSyncedAtMsSetOnEmptyPool(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"114":null}}`))
+	got := s.FmlRace()
+	if !got.TasksObserved || got.TasksSyncedAtMs <= 0 {
+		t.Fatalf("empty/null pool must set TasksObserved + TasksSyncedAtMs, got %+v", got)
 	}
 }
