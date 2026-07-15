@@ -466,7 +466,7 @@ var plannedOperationSpecs = map[string]operationSpec{
 	// Guild race operations.
 	clientproto.RPCFmlRaceTakeTask.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlRaceTakeTaskRequest, error) {
-			return clientproto.FmlRaceTakeTaskRequest{TaskMsId: clientproto.RPCID(op.TaskMsID)}, nil
+			return clientproto.FmlRaceTakeTaskRequest{TaskMsId: op.TaskMsID}, nil
 		},
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceTakeTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.FmlRace().TakeTask(ctx, req)
@@ -474,7 +474,7 @@ var plannedOperationSpecs = map[string]operationSpec{
 	),
 	clientproto.RPCFmlRaceFinishTask.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlRaceFinishTaskRequest, error) {
-			return clientproto.FmlRaceFinishTaskRequest{TaskMsId: clientproto.RPCID(op.TaskMsID)}, nil
+			return clientproto.FmlRaceFinishTaskRequest{TaskMsId: op.TaskMsID}, nil
 		},
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceFinishTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.FmlRace().FinishTask(ctx, req)
@@ -482,7 +482,7 @@ var plannedOperationSpecs = map[string]operationSpec{
 	),
 	clientproto.RPCFmlRaceDelTask.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlRaceDelTaskRequest, error) {
-			return clientproto.FmlRaceDelTaskRequest{TaskMsId: clientproto.RPCID(op.TaskMsID)}, nil
+			return clientproto.FmlRaceDelTaskRequest{TaskMsId: op.TaskMsID}, nil
 		},
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceDelTaskRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.FmlRace().DelTask(ctx, req)
@@ -502,6 +502,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 		},
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.FmlRace().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCFmlRaceGetTaskList.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlRaceGetTaskListRequest, error) {
+			return clientproto.FmlRaceGetTaskListRequest{}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceGetTaskListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlRace().GetTaskList(ctx, req)
 		},
 	),
 	clientproto.RPCFmlRaceGiveUpTask.String(): stateDeltaOperation(

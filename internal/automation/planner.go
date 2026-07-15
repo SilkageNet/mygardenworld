@@ -40,6 +40,9 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	for _, action := range activityActions {
 		demands = append(demands, action.Demand)
 	}
+	// Race progress demands use FinishCnt as Have so they must skip the
+	// inventory ledger (inventory stock does not satisfy harvest counts).
+	demands = append(demands, raceTaskProgressDemands(s, policy)...)
 	annotateDemandStatuses(demands)
 	sortDemands(demands)
 	ops := buildOperations(s, policy, goals, demands, activityActions, ledger, now)
@@ -61,7 +64,7 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = append(ops, basicOperations(s, policy, goals, now)...)
 	ops = append(ops, shopOperations(s, policy)...)
 	ops = append(ops, maintenanceOperations(s, policy, ledger, now)...)
-	ops = append(ops, unionOperations(s, policy.GetUnion())...)
+	ops = append(ops, unionOperations(s, policy.GetUnion(), now)...)
 	ops = driveCyclicNoteTaskOperations(policy, activityActions, ledger, ops)
 	ops = append(ops, activityOperations(s, policy.GetActivity(), now)...)
 	ops = append(ops, blockedUnknownOperations(policy)...)

@@ -75,6 +75,7 @@ func TestSignTypePlanSparseProgressDoesNotRepeatSign(t *testing.T) {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
 	policy.Basic.Sign.DailyEnabled = true
+	policy.Union.Race.Enabled = false
 
 	if planned := Plan(s, policy, now); planned == nil || planned.Kind != clientproto.RPCSignTypeSign.String() {
 		t.Fatalf("initial plan = %+v", planned)

@@ -678,6 +678,7 @@ func TestNextRunnableOperationSkipsCoolingSideOperationAndKeepsFarmRunnable(t *t
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
 	policy.Basic.Task.DailyEnabled = true
+	policy.Union.Race.Enabled = false
 	r := &Runner{
 		state:              st,
 		operationCooldowns: map[string]operationCooldown{},

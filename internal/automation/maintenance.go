@@ -21,9 +21,13 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 			ops = append(ops, unlock)
 		}
 	}
-	if planting.GetUseSpeedUpTicket() {
+	if planting.GetUseSpeedUpTicket() || raceSpeedupEnabled(s, policy.GetUnion().GetRace()) {
 		if lands, count := speedUpCandidates(s, now); count > 0 {
-			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", "存在可加速土地", 7400, 0, 0, count)
+			reason := "存在可加速土地"
+			if !planting.GetUseSpeedUpTicket() {
+				reason = "公会竞赛种植任务使用加速卡"
+			}
+			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", reason, 7400, 0, 0, count)
 			speed.LandIDs = lands
 			speed.ItemCost = map[int32]int32{1001: count}
 			ops = append(ops, speed)
@@ -52,9 +56,9 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 	}
 	union := policy.GetUnion()
 	unionFlower := union.GetFlower()
-	unionRace := union.GetRace()
 	unionLand := union.GetLand()
-	add(unionFlower.GetShareEnabled() || unionRace.GetEnabled() ||
+	// Race is fully managed (take/progress/finish); do not mark it unknown.
+	add(unionFlower.GetShareEnabled() ||
 		unionLand.GetAutoPlantEnabled() ||
 		union.GetRedPacketEnabled(), CategoryUnion, "union.unknown", "公会扩展功能")
 	if policy.GetActivity().GetEnabled() {

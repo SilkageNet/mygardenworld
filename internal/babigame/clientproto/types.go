@@ -1721,13 +1721,13 @@ type FmlRaceBuyTaskNumRequest struct {
 }
 
 type FmlRaceDelTaskRequest struct {
-	TaskMsId RPCID `json:"taskMsId,omitempty"`
+	TaskMsId int64 `json:"taskMsId,omitempty"`
 }
 
 type FmlRaceEnterRequest struct{}
 
 type FmlRaceFinishTaskRequest struct {
-	TaskMsId RPCID `json:"taskMsId,omitempty"`
+	TaskMsId int64 `json:"taskMsId,omitempty"`
 }
 
 type FmlRaceGetFmlRaceEndDisplayDataRequest struct{}
@@ -1765,7 +1765,7 @@ type FmlRaceRefreshTaskRequest struct {
 }
 
 type FmlRaceTakeTaskRequest struct {
-	TaskMsId RPCID `json:"taskMsId,omitempty"`
+	TaskMsId int64 `json:"taskMsId,omitempty"`
 }
 
 type FmlRaceUpgradeTaskRequest struct{}
@@ -5447,7 +5447,7 @@ type IFmlPosRecord struct {
 }
 
 type IFmlRaceBatch struct {
-	BatchId              int32 `json:"0,omitempty"`
+	BatchId              int64 `json:"0,omitempty"`
 	Status               int32 `json:"1,omitempty"`
 	StartTime            int64 `json:"2,omitempty"`
 	EndTime              int64 `json:"3,omitempty"`
@@ -5480,7 +5480,7 @@ type IFmlRaceEndUsrInfo struct {
 }
 
 type IFmlRaceMatchInfo struct {
-	BatchId  int32    `json:"0,omitempty"`
+	BatchId  int64    `json:"0,omitempty"`
 	GroupId  int32    `json:"1,omitempty"`
 	RaceLvl  int32    `json:"2,omitempty"`
 	FidList  RawValue `json:"3,omitempty"`
@@ -5490,7 +5490,7 @@ type IFmlRaceMatchInfo struct {
 }
 
 type IFmlRaceRcd struct {
-	BatchId       int32           `json:"0,omitempty"`
+	BatchId       int64           `json:"0,omitempty"`
 	Fid           int32           `json:"1,omitempty"`
 	FmlName       string          `json:"2,omitempty"`
 	FmlIco        string          `json:"3,omitempty"`
@@ -5517,40 +5517,40 @@ type IFmlRaceRcd struct {
 }
 
 type IFmlRaceTakeTask struct {
-	TaskMsId   int32       `json:"0,omitempty"`
+	TaskMsId   int64       `json:"0,omitempty"`
 	TaskId     int32       `json:"1,omitempty"`
 	TargetCnt  int32       `json:"2,omitempty"`
 	FinishCnt  int32       `json:"3,omitempty"`
-	Param      int32       `json:"4,omitempty"`
+	Param      RawValue    `json:"4,omitempty"`
 	ExpireTime int64       `json:"5,omitempty"`
 	TaskRecord ITaskRecord `json:"6,omitempty"`
 }
 
 type IFmlRaceTask struct {
-	MsId           int32 `json:"0,omitempty"`
-	GridId         int32 `json:"1,omitempty"`
-	BatchId        int32 `json:"2,omitempty"`
-	Fid            int32 `json:"3,omitempty"`
-	TaskId         int32 `json:"4,omitempty"`
-	AppearTime     int64 `json:"5,omitempty"`
-	Param          int32 `json:"6,omitempty"`
-	TargetCnt      int32 `json:"7,omitempty"`
-	FinishCnt      int32 `json:"8,omitempty"`
-	TakeLimitMin   int32 `json:"9,omitempty"`
-	Score          int32 `json:"10,omitempty"`
-	Gain           int32 `json:"11,omitempty"`
-	UID            int64 `json:"12,omitempty"`
-	TakeExpireTime int64 `json:"13,omitempty"`
-	IsUpgrade      int32 `json:"14,omitempty"`
-	UpgradeUid     int64 `json:"15,omitempty"`
-	UTime          int64 `json:"16,omitempty"`
-	CTime          int64 `json:"17,omitempty"`
+	MsId           int64    `json:"0,omitempty"`
+	GridId         int32    `json:"1,omitempty"`
+	BatchId        int64    `json:"2,omitempty"`
+	Fid            int32    `json:"3,omitempty"`
+	TaskId         int32    `json:"4,omitempty"`
+	AppearTime     int64    `json:"5,omitempty"`
+	Param          RawValue `json:"6,omitempty"`
+	TargetCnt      int32    `json:"7,omitempty"`
+	FinishCnt      int32    `json:"8,omitempty"`
+	TakeLimitMin   int32    `json:"9,omitempty"`
+	Score          int32    `json:"10,omitempty"`
+	Gain           RawValue `json:"11,omitempty"`
+	UID            int64    `json:"12,omitempty"`
+	TakeExpireTime int64    `json:"13,omitempty"`
+	IsUpgrade      int32    `json:"14,omitempty"`
+	UpgradeUid     int64    `json:"15,omitempty"`
+	UTime          int64    `json:"16,omitempty"`
+	CTime          int64    `json:"17,omitempty"`
 }
 
 type IFmlRaceTaskLog struct {
 	MsId    int32        `json:"0,omitempty"`
 	UID     int64        `json:"1,omitempty"`
-	BatchId int32        `json:"2,omitempty"`
+	BatchId int64        `json:"2,omitempty"`
 	Fid     int32        `json:"3,omitempty"`
 	Type    int32        `json:"4,omitempty"`
 	Data    IFmlRaceTask `json:"5,omitempty"`
@@ -5559,7 +5559,7 @@ type IFmlRaceTaskLog struct {
 
 type IFmlRaceUsrRcd struct {
 	UID            int64                  `json:"0,omitempty"`
-	BatchId        int32                  `json:"1,omitempty"`
+	BatchId        int64                  `json:"1,omitempty"`
 	Fid            int32                  `json:"2,omitempty"`
 	FTaskNum       int32                  `json:"3,omitempty"`
 	Score          int32                  `json:"4,omitempty"`

@@ -298,32 +298,46 @@ type FmlFlowerTakeCandidate struct {
 
 // FmlRaceTaskView is a filtered view of an available race task from the pool.
 type FmlRaceTaskView struct {
-	MsId       int32 // task instance ID (used as taskMsId)
-	TaskId     int32 // task type ID (maps to priority config key)
-	Score      int32 // task score
-	IsUpgrade  int32 // 1 if already upgraded
-	UpgradeUid int64 // UID of the member who upgraded (0 if none)
+	MsId        int64  // task instance ID (used as taskMsId; millisecond-scale)
+	TaskId      int32  // c_fmlRaceTask catalog row id (protocol field 4)
+	TaskType    int32  // c_fmlRaceTask.type (priority / label key, e.g. 3036)
+	Score       int32  // task score
+	IsUpgrade   int32  // 1 if already upgraded
+	UpgradeUid  int64  // UID of the member who upgraded (0 if none)
+	UID         int64  // taker uid; non-zero means the task is already taken
+	ParamID     int32  // first param id when present (flower/item); 0 if none
+	TargetLabel string // catalog name for ParamID; empty when unavailable
+	AppearTime  int64  // protocol appearTime (ms); future = still on CD
 }
 
 // FmlRaceTakenView is the user's currently taken task progress.
 type FmlRaceTakenView struct {
-	TaskMsId  int32
-	TaskId    int32
-	Score     int32 // resolved from pool by MsId (0 if pool unavailable)
-	TargetCnt int32
-	FinishCnt int32
-	HasTask   bool // true if the user currently holds a task
+	TaskMsId    int64
+	TaskId      int32
+	TaskType    int32
+	Score       int32 // resolved from pool by MsId (0 if pool unavailable)
+	TargetCnt   int32
+	FinishCnt   int32
+	ParamID     int32
+	TargetLabel string
+	HasTask     bool // true if the user currently holds a task
 }
 
 // FmlRaceView is the race-related slice of namespace 25.
 type FmlRaceView struct {
-	Observed     bool              // true if any race field (110/111/114) has been received
-	BatchActive  bool              // true if CurFmlRaceBatch status indicates an active race
-	BatchStatus  int32             // raw Status value from server (field 1 of CurFmlRaceBatch)
-	BatchStartMs int64             // race batch start time in ms (field 2)
-	BatchEndMs   int64             // race batch end time in ms (field 3)
-	Tasks        []FmlRaceTaskView // available task pool (field 114)
-	Taken        FmlRaceTakenView  // current user's taken task (from field 110)
+	Observed      bool              // true after a meaningful CurFmlRaceBatch (field 111) was synced
+	TasksObserved bool              // true after FmlRaceTaskList (field 114) has been received
+	BatchActive   bool              // true if status/time window indicates an active race
+	BatchID       int64             // CurFmlRaceBatch.batchId (field 0; millisecond timestamp)
+	BatchStatus   int32             // raw Status value from server (field 1 of CurFmlRaceBatch)
+	BatchStartMs  int64             // race batch start time in ms (field 2)
+	BatchEndMs    int64             // race batch end time in ms (field 3)
+	Tasks         []FmlRaceTaskView // available task pool (field 114)
+	Taken         FmlRaceTakenView  // current user's taken task (from field 110)
+	// MissingParamRefreshFP is the msId fingerprint of a pool that still lacked
+	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
+	// may still be issued for the current incomplete pool.
+	MissingParamRefreshFP string
 }
 
 // ShopCultivateOfferView is one buyable material-shop offer from namespace 113.

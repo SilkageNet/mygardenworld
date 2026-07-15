@@ -147,6 +147,72 @@ func TestUnionRacePrioritySorting(t *testing.T) {
 	}
 }
 
+func TestUnionRacePriorityZeroNotTaken(t *testing.T) {
+	s := state.New()
+	// Material-shop (3017) and floral-sale (3030) only; both priority 0.
+	applyRaceState(s, [][5]int32{
+		{1, 3017, 24, 0, 0},
+		{2, 3030, 30, 0, 0},
+	})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{
+		3017: 0,
+		3030: 0,
+		3036: 5,
+		3044: 4,
+	}
+	ops := unionRaceOperations(s, policy, 0, time.Now())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("priority 0 tasks must not be taken, got take msId=%d taskId=%d", op.TaskMsID, op.TaskID)
+		}
+	}
+}
+
+func TestUnionRacePriorityZeroFallsThroughToPositive(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{
+		{1, 3017, 40, 0, 0}, // material shop, priority 0, higher score
+		{2, 3036, 10, 0, 0}, // plant harvest, priority 5
+	})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{
+		3017: 0,
+		3036: 5,
+	}
+	ops := unionRaceOperations(s, policy, 0, time.Now())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of priority>0 task, got %+v", ops)
+	}
+	if ops[0].TaskMsID != 2 {
+		t.Fatalf("expected plant-harvest msId 2, got %d", ops[0].TaskMsID)
+	}
+}
+
+func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
+	s := state.New()
+	// Taken material-shop 3017 (priority 0), unfinished.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3017,"10":24,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":16}}}}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{
+		3017: 0,
+		3036: 5,
+	}
+	ops := unionRaceOperations(s, policy, 999, time.Now())
+	var hasGiveUp bool
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			hasGiveUp = true
+			if op.TaskMsID != 1 {
+				t.Fatalf("giveUp taskMsId = %d, want 1", op.TaskMsID)
+			}
+		}
+	}
+	if !hasGiveUp {
+		t.Fatalf("expected giveUp for priority-0 taken task, got %+v", ops)
+	}
+}
+
 func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{
@@ -171,7 +237,7 @@ func TestUnionRaceFinishCompletedTask(t *testing.T) {
 	// Field 110 is a map keyed by UID string: {"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}
 	// Field 7 is TakeTaskData with TaskMsId(0), TaskId(1), TargetCnt(2), FinishCnt(3).
 	// Set roleID=999 via namespace 7 -> "0" -> "0".
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 999, time.Now())
 	var hasFinish, hasTake bool
@@ -250,6 +316,29 @@ func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 	}
 }
 
+func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
+	s := state.New()
+	// Observed pool with a plant-harvest row that never got field-6 param detail.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
+	if got := s.FmlRace(); !got.TasksObserved || len(got.Tasks) != 2 || got.Tasks[0].ParamID != 0 || got.Tasks[1].ParamID != 23001 {
+		t.Fatalf("seed pool = %+v", got)
+	}
+	policy := testRacePolicy()
+	ops := unionRaceOperations(s, policy, 0, time.Now())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected getTaskList to refresh missing flower param, got %+v", ops)
+	}
+
+	// Same incomplete pool after apply marks the refresh fingerprint — do not loop.
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
+	ops = unionRaceOperations(s, policy, 0, time.Now())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("getTaskList must not re-fire for the same incomplete pool: %+v", ops)
+		}
+	}
+}
+
 func TestUnionRaceUpgradeOpEmission(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{
@@ -300,7 +389,7 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 	s := state.New()
 	// Task pool: task msId=1, score=5. Taken task: msId=1, not completed (0/3).
 	// Field 110: {"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}  — FinishCnt=0
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
 	policy := testRacePolicy()
 	policy.MaxTaskScore = 10 // lower bound: skip tasks with Score <= 10
 	ops := unionRaceOperations(s, policy, 999, time.Now())
@@ -518,7 +607,19 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			MaxTaskScore:             0,
 			OnlyUpgradeTask:          false,
 			ExcludeOthersUpgradeTask: false,
+			TaskTypePriority:         defaultUnionRacePriority(),
 		}
+	}
+	// Floral-sale (3030) defaults to priority 0 (= never take). Tests that expect
+	// takeable 3030 rows must bump that type above zero.
+	takeableFloral := func() *pb.UnionRacePolicy {
+		p := policyBase()
+		p.TaskTypePriority = map[int32]int32{}
+		for k, v := range defaultUnionRacePriority() {
+			p.TaskTypePriority[k] = v
+		}
+		p.TaskTypePriority[3030] = 1
+		return p
 	}
 
 	cases := []struct {
@@ -534,13 +635,35 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want: "已被接取",
 		},
 		{
-			name: "far CD",
+			name: "far CD otherwise takeable",
 			task: state.FmlRaceTaskView{
 				MsId: 2, TaskId: 3030, TaskType: 3030, Score: 20,
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
-			policy: policyBase(),
+			policy: takeableFloral(),
 			want: "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后可接",
+		},
+		{
+			name: "far CD plant not cultivated → refresh",
+			task: state.FmlRaceTaskView{
+				MsId: 18, TaskId: 3036, TaskType: 3036, Score: 30, ParamID: 23999,
+				AppearTime: now.Add(time.Hour).UnixMilli(),
+			},
+			policy: policyBase(),
+			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+		},
+		{
+			name: "far CD score gate would fail → refresh",
+			task: state.FmlRaceTaskView{
+				MsId: 19, TaskId: 3030, TaskType: 3030, Score: 5,
+				AppearTime: now.Add(time.Hour).UnixMilli(),
+			},
+			policy: func() *pb.UnionRacePolicy {
+				p := takeableFloral()
+				p.MaxTaskScore = 20
+				return p
+			}(),
+			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
 		},
 		{
 			name: "within lead is takeable",
@@ -548,7 +671,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				MsId: 3, TaskId: 3030, TaskType: 3030, Score: 20,
 				AppearTime: leadMs - 1,
 			},
-			policy: policyBase(),
+			policy: takeableFloral(),
 			want: "",
 		},
 		{
@@ -557,16 +680,16 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				MsId: 12, TaskId: 3030, TaskType: 3030, Score: 20,
 				AppearTime: leadMs,
 			},
-			policy: policyBase(),
+			policy: takeableFloral(),
 			want: "",
 		},
 		{
-			name: "one ms past lead is CD",
+			name: "one ms past lead otherwise takeable is CD",
 			task: state.FmlRaceTaskView{
 				MsId: 13, TaskId: 3030, TaskType: 3030, Score: 20,
 				AppearTime: leadMs + 1,
 			},
-			policy: policyBase(),
+			policy: takeableFloral(),
 			want: "冷却中，" + time.UnixMilli(leadMs+1).Local().Format("15:04") + " 后可接",
 		},
 		{
@@ -590,7 +713,11 @@ func TestRaceTakeSkipReason(t *testing.T) {
 		{
 			name: "own upgraded ok",
 			task: state.FmlRaceTaskView{MsId: 7, TaskId: 3030, TaskType: 3030, Score: 20, IsUpgrade: 1, UpgradeUid: uid},
-			policy: &pb.UnionRacePolicy{ExcludeOthersUpgradeTask: true},
+			policy: func() *pb.UnionRacePolicy {
+				p := takeableFloral()
+				p.ExcludeOthersUpgradeTask = true
+				return p
+			}(),
 			want: "",
 		},
 		{
@@ -612,6 +739,24 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "type priority zero",
+			task: state.FmlRaceTaskView{MsId: 15, TaskId: 3017, TaskType: 3017, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3017: 0}},
+			want: "优先级为0",
+		},
+		{
+			name: "type priority positive ok",
+			task: state.FmlRaceTaskView{MsId: 16, TaskId: 3017, TaskType: 3017, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3017: 3}},
+			want: "",
+		},
+		{
+			name: "default zero type skipped when map empty",
+			task: state.FmlRaceTaskView{MsId: 17, TaskId: 3017, TaskType: 3017, Score: 24},
+			policy: &pb.UnionRacePolicy{},
+			want: "优先级为0",
+		},
+		{
 			name: "priority: taken wins over CD",
 			task: state.FmlRaceTaskView{
 				MsId: 10, TaskId: 3030, TaskType: 3030, Score: 20, UID: 7,
@@ -621,13 +766,13 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want: "已被接取",
 		},
 		{
-			name: "priority: CD wins over score",
+			name: "priority: CD time copy over score detail",
 			task: state.FmlRaceTaskView{
 				MsId: 11, TaskId: 3030, TaskType: 3030, Score: 5,
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: &pb.UnionRacePolicy{MaxTaskScore: 20},
-			want: "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后可接",
+			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
 		},
 	}
 

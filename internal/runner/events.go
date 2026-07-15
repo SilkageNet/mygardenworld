@@ -230,6 +230,8 @@ func opKindDesc(kind string) string {
 		return "领取防骗宝箱"
 	case clientproto.RPCFmlRaceEnter.String():
 		return "进入公会竞赛"
+	case clientproto.RPCFmlRaceGetTaskList.String():
+		return "同步竞赛任务"
 	case clientproto.RPCFmlRaceTakeTask.String():
 		return "接取竞赛任务"
 	case clientproto.RPCFmlRaceFinishTask.String():

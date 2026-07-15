@@ -1254,6 +1254,26 @@ func ZooSouvenirCollectMilestones() []ZooSouvenirCollectInfo {
 	return out
 }
 
+// FmlRaceTaskTypeByID returns c_fmlRaceTask.type for a catalog task id.
+// When the row is missing, the id itself is returned so callers that already
+// store a type id (e.g. tests) keep working.
+func FmlRaceTaskTypeByID(taskID int32) int32 {
+	if taskID <= 0 {
+		return 0
+	}
+	raw, ok := StaticRow("c_fmlRaceTask", taskID)
+	if !ok {
+		return taskID
+	}
+	var row struct {
+		Type int32 `json:"type"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.Type <= 0 {
+		return taskID
+	}
+	return row.Type
+}
+
 // FmlBuildOptionByID returns the client-visible cost for one guild build
 // option. The video/share option has no item cost.
 func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
@@ -1370,6 +1390,18 @@ func ItemName(id int32) string {
 		return ""
 	}
 	return name
+}
+
+// ItemLabel returns ItemName, or "#<id>" when the catalog has no usable name.
+// Race task cards and op descriptions use this so unresolved flowers stay visible.
+func ItemLabel(id int32) string {
+	if name := ItemName(id); name != "" {
+		return name
+	}
+	if id > 0 {
+		return fmt.Sprintf("#%d", id)
+	}
+	return ""
 }
 
 func LandUnlockOpenLevel(landID int32) (int32, bool) {

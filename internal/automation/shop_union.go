@@ -392,10 +392,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 
 	// Enter pushes CurFmlRaceBatch (111). Task pool / taken-task (114/110) require
 	// a follow-up getTaskList. Neither sync step is gated by autoEnableModules.
+	// Also re-fetch when a plant-harvest row is missing flower ParamID (once per
+	// pool msId set — state.MissingParamRefreshFP prevents tight loops).
 	if !view.Observed {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)}
 	}
-	if view.BatchActive && !view.TasksObserved {
+	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", 4398, 0, 0, 0)}
 	}
 
@@ -421,6 +423,8 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			reason = "公会竞赛放弃不符合分数要求的已接任务"
 		} else if raceTakenUncompletable(s, view.Taken) {
 			reason = "公会竞赛放弃无法完成的种植收获任务"
+		} else if raceTakenPriorityZero(policy, view.Taken) {
+			reason = "公会竞赛放弃优先级为0的已接任务"
 		}
 		if reason != "" {
 			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", reason, 4395, 0, 0, 0)
@@ -508,15 +512,26 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 
 // RaceTakeSkipReason returns the primary reason automation will not take this
 // pool task, or "" if it is takeable (including preemptive CD within raceTakeLeadWindow).
-// Priority matches docs/superpowers/specs/2026-07-15-race-task-take-skip-reason-design.md.
+// Priority matches docs/superpowers/specs/2026-07-15-race-task-take-skip-reason-design.md
+// and CD copy branching in docs/superpowers/specs/2026-07-15-race-cd-skip-copy-design.md.
 func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) string {
 	if t.UID != 0 {
 		return "已被接取"
 	}
 	leadUntil := now.Add(raceTakeLeadWindow).UnixMilli()
 	if t.AppearTime > 0 && t.AppearTime > leadUntil {
-		return "冷却中，" + time.UnixMilli(t.AppearTime).Local().Format("15:04") + " 后可接"
+		hhmm := time.UnixMilli(t.AppearTime).Local().Format("15:04")
+		if raceTakeNonCDSkipReason(s, t, policy, uid) != "" {
+			return hhmm + " 后刷新"
+		}
+		return "冷却中，" + hhmm + " 后可接"
 	}
+	return raceTakeNonCDSkipReason(s, t, policy, uid)
+}
+
+// raceTakeNonCDSkipReason evaluates take filters other than far-CD AppearTime.
+// Empty means those filters would allow take (ready / within-lead still apply outside).
+func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64) string {
 	if policy.GetMaxTaskScore() > 0 && t.Score <= policy.GetMaxTaskScore() {
 		return fmt.Sprintf("分数不足（≤%d）", policy.GetMaxTaskScore())
 	}
@@ -530,13 +545,36 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 	if taskType == 0 {
 		taskType = t.TaskId
 	}
+	if raceTaskTypePriority(policy, taskType) <= 0 {
+		return "优先级为0"
+	}
 	if taskType == raceTaskTypePlantHarvest {
 		if t.ParamID <= 0 || !flowerCultivated(s, t.ParamID) {
 			return "目标花卉未培养"
 		}
 	}
-	// Ready or CD within lead: takeable (selectRaceTasks partitions upcoming).
 	return ""
+}
+
+// raceTaskPoolNeedsParamRefresh reports whether getTaskList should run again
+// because at least one plant-harvest pool task has no flower ParamID and this
+// incomplete pool identity has not yet been refresh-attempted.
+func raceTaskPoolNeedsParamRefresh(view state.FmlRaceView) bool {
+	if !state.FmlRacePlantHarvestMissingParam(view.Tasks) {
+		return false
+	}
+	return state.FmlRaceTaskPoolMsFingerprint(view.Tasks) != view.MissingParamRefreshFP
+}
+
+// raceTaskTypePriority returns the configured priority for a race task type.
+// Missing map entries fall back to defaultUnionRacePriority (0 = do not take).
+func raceTaskTypePriority(policy *pb.UnionRacePolicy, taskType int32) int32 {
+	if m := policy.GetTaskTypePriority(); m != nil {
+		if p, ok := m[taskType]; ok {
+			return p
+		}
+	}
+	return defaultUnionRacePriority()[taskType]
 }
 
 // selectRaceTasks filters the available task pool via RaceTakeSkipReason, then
@@ -546,6 +584,9 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 // 0 means no score filtering. Combined with only_upgrade_task, only upgraded tasks
 // above the threshold are eligible.
 //
+// task_type_priority: 0 (or missing → default 0) means do not take that type.
+// Positive values rank candidates (higher first), then Score descending.
+//
 // Plant-harvest (3036): skip when ParamID is missing or the flower is not yet
 // cultivated (Status==2 && Lvl>0). Seed stock / empty land are not required.
 //
@@ -553,7 +594,6 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 // within raceTakeLeadWindow may be selected preemptively when no ready candidate
 // remains; farther CD tasks are skipped.
 func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) []state.FmlRaceTaskView {
-	priority := policy.GetTaskTypePriority()
 	nowMs := now.UnixMilli()
 
 	var ready, upcoming []state.FmlRaceTaskView
@@ -571,8 +611,8 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 
 	sortRaceTasks := func(list []state.FmlRaceTaskView) {
 		sort.SliceStable(list, func(i, j int) bool {
-			pi := int(priority[list[i].TaskType])
-			pj := int(priority[list[j].TaskType])
+			pi := int(raceTaskTypePriority(policy, list[i].TaskType))
+			pj := int(raceTaskTypePriority(policy, list[j].TaskType))
 			if pi != pj {
 				return pi > pj
 			}
@@ -599,4 +639,14 @@ func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView) bool {
 		return false
 	}
 	return taken.ParamID <= 0 || !flowerCultivated(s, taken.ParamID)
+}
+
+// raceTakenPriorityZero reports whether a held task's type is configured at
+// priority 0 (do not take / should give up).
+func raceTakenPriorityZero(policy *pb.UnionRacePolicy, taken state.FmlRaceTakenView) bool {
+	taskType := taken.TaskType
+	if taskType == 0 {
+		taskType = taken.TaskId
+	}
+	return raceTaskTypePriority(policy, taskType) <= 0
 }

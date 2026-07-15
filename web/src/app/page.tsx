@@ -1475,8 +1475,8 @@ function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
               </div>
             ) : (
               <div className="grid gap-2 p-2 lg:grid-cols-3">
-                {tasks.map((task) => (
-                  <FmlRaceTaskCard key={task.msId} task={task} />
+                {tasks.map((task, index) => (
+                  <FmlRaceTaskCard key={task.msId} index={index + 1} task={task} />
                 ))}
               </div>
             )}
@@ -1508,7 +1508,7 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   );
 }
 
-function FmlRaceTaskCard({ task }: { task: FmlRaceTask }) {
+function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
   const onCd = Number(task.appearTimeMs ?? BigInt(0)) > Date.now();
   const baseTitle = task.targetLabel
     ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
@@ -1517,8 +1517,11 @@ function FmlRaceTaskCard({ task }: { task: FmlRaceTask }) {
   const skipReason = (task.takeSkipReason ?? "").trim();
   return (
     <div className="rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{title}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 text-sm font-medium">
+          <span className="mr-1.5 tabular-nums text-muted-foreground">{index}.</span>
+          {title}
+        </span>
         <Badge variant={task.isUpgrade ? "secondary" : "outline"}>{task.isUpgrade ? "已升级" : "普通"}</Badge>
       </div>
       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
@@ -2739,16 +2742,19 @@ function PolicyPanel({
                 <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
                 <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {RACE_TASK_TYPES.map((task) => (
-                  <NumberRow
-                    key={task.id}
-                    label={task.label}
-                    value={unionRace?.taskTypePriority?.[task.id] ?? task.defaultPriority}
-                    min={0}
-                    onChange={(value) => updateUnionRace({ taskTypePriority: { ...(unionRace?.taskTypePriority ?? {}), [task.id]: value } })}
-                  />
-                ))}
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取该类型</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {RACE_TASK_TYPES.map((task) => (
+                    <NumberRow
+                      key={task.id}
+                      label={task.label}
+                      value={unionRace?.taskTypePriority?.[task.id] ?? task.defaultPriority}
+                      min={0}
+                      onChange={(value) => updateUnionRace({ taskTypePriority: { ...(unionRace?.taskTypePriority ?? {}), [task.id]: value } })}
+                    />
+                  ))}
+                </div>
               </div>
             </PolicyGroup>
 

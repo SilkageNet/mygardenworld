@@ -2,8 +2,11 @@ package state
 
 import (
 	"encoding/json"
+	"math"
 	"sort"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
@@ -38,48 +41,230 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 		s.applyOtherFmlFlowerSharesObjectLocked(rawOtherShares)
 	}
 
-	// Race batch + task pool + user record (fields 111, 114, 110)
-	raceObserved := false
-	s.fmlRace = FmlRaceView{}
+	// Race batch + task pool + user record (fields 111, 114, 110).
+	// Sparse merge: missing keys preserve prior race state. Only a meaningful
+	// CurFmlRaceBatch marks Observed — empty/null stubs must not block enter.
 	if rawBatch, ok := ns25["111"]; ok {
-		raceObserved = true
-		var batch clientproto.IFmlRaceBatch
-		if err := json.Unmarshal(rawBatch, &batch); err == nil {
-			s.fmlRace.BatchActive = batch.Status == 1 // status==1 means in progress
-			s.fmlRace.BatchStartMs = batch.StartTime
-			s.fmlRace.BatchEndMs = batch.EndTime
-			s.fmlRace.BatchStatus = batch.Status
-		}
+		applyFmlRaceBatchLocked(&s.fmlRace, rawBatch)
 	}
 	if rawTasks, ok := ns25["114"]; ok {
-		raceObserved = true
-		var tasks []clientproto.IFmlRaceTask
-		if err := json.Unmarshal(rawTasks, &tasks); err == nil {
-			for _, t := range tasks {
-				s.fmlRace.Tasks = append(s.fmlRace.Tasks, FmlRaceTaskView{
-					MsId:       t.MsId,
-					TaskId:     t.TaskId,
-					Score:      t.Score,
-					IsUpgrade:  t.IsUpgrade,
-					UpgradeUid: t.UpgradeUid,
-				})
-			}
-		}
+		applyFmlRaceTasksLocked(&s.fmlRace, rawTasks)
 	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
-		raceObserved = true
-		s.fmlRace.Taken = parseFmlRaceTaken(rawUsrRcd, s.roleID)
+		if isJSONNull(rawUsrRcd) {
+			s.fmlRace.Taken = FmlRaceTakenView{}
+		} else {
+			s.fmlRace.Taken = parseFmlRaceTaken(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
+		}
 	}
-	// Resolve taken task score from the pool by MsId.
-	if s.fmlRace.Taken.HasTask && s.fmlRace.Taken.Score == 0 {
+	// Enrich taken task from the pool (score / param / label).
+	if s.fmlRace.Taken.HasTask {
 		for _, t := range s.fmlRace.Tasks {
-			if t.MsId == s.fmlRace.Taken.TaskMsId {
+			if t.MsId != s.fmlRace.Taken.TaskMsId {
+				continue
+			}
+			if s.fmlRace.Taken.Score == 0 {
 				s.fmlRace.Taken.Score = t.Score
-				break
+			}
+			if s.fmlRace.Taken.ParamID == 0 && t.ParamID != 0 {
+				s.fmlRace.Taken.ParamID = t.ParamID
+				s.fmlRace.Taken.TargetLabel = t.TargetLabel
+			}
+			break
+		}
+		if s.fmlRace.Taken.TargetLabel == "" && s.fmlRace.Taken.ParamID > 0 {
+			s.fmlRace.Taken.TargetLabel = ItemLabel(s.fmlRace.Taken.ParamID)
+		}
+	}
+}
+
+func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
+	if isJSONNull(raw) {
+		view.Observed = false
+		view.BatchActive = false
+		view.BatchID = 0
+		view.BatchStatus = 0
+		view.BatchStartMs = 0
+		view.BatchEndMs = 0
+		return
+	}
+	var batch clientproto.IFmlRaceBatch
+	if err := json.Unmarshal(raw, &batch); err != nil {
+		return
+	}
+	// Empty {} stubs from login/lazy sync are not a real batch sync.
+	if batch.BatchId == 0 && batch.Status == 0 && batch.StartTime == 0 && batch.EndTime == 0 {
+		view.Observed = false
+		view.BatchActive = false
+		view.BatchID = 0
+		view.BatchStatus = 0
+		view.BatchStartMs = 0
+		view.BatchEndMs = 0
+		return
+	}
+	view.Observed = true
+	view.BatchID = batch.BatchId
+	view.BatchStatus = batch.Status
+	view.BatchStartMs = batch.StartTime
+	view.BatchEndMs = batch.EndTime
+	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
+}
+
+func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage) {
+	if isJSONNull(raw) {
+		view.TasksObserved = true
+		view.Tasks = nil
+		view.MissingParamRefreshFP = ""
+		return
+	}
+	var tasks []clientproto.IFmlRaceTask
+	if err := json.Unmarshal(raw, &tasks); err != nil {
+		return
+	}
+	incoming := make([]FmlRaceTaskView, 0, len(tasks))
+	for _, t := range tasks {
+		paramID := firstInt32FromRaw(t.Param)
+		incoming = append(incoming, FmlRaceTaskView{
+			MsId:        t.MsId,
+			TaskId:      t.TaskId,
+			TaskType:    FmlRaceTaskTypeByID(t.TaskId),
+			Score:       t.Score,
+			IsUpgrade:   t.IsUpgrade,
+			UpgradeUid:  t.UpgradeUid,
+			UID:         t.UID,
+			ParamID:     paramID,
+			TargetLabel: ItemLabel(paramID),
+			AppearTime:  t.AppearTime,
+		})
+	}
+	wasObserved := view.TasksObserved
+	// getTaskList returns the full pool; take/finish responses often carry only
+	// the changed rows. Replace on first sync or when the payload is clearly a
+	// full list; otherwise merge by MsId.
+	if !view.TasksObserved || len(incoming) >= len(view.Tasks) {
+		if view.TasksObserved && len(incoming) >= len(view.Tasks) {
+			// Full-list replace can still omit param on some rows; keep known detail.
+			byID := make(map[int64]FmlRaceTaskView, len(view.Tasks))
+			for _, prev := range view.Tasks {
+				byID[prev.MsId] = prev
+			}
+			for i := range incoming {
+				if prev, ok := byID[incoming[i].MsId]; ok {
+					incoming[i] = preserveFmlRaceTaskDetail(incoming[i], prev)
+				}
+			}
+		}
+		view.Tasks = incoming
+	} else {
+		byID := make(map[int64]int, len(view.Tasks))
+		for i, t := range view.Tasks {
+			byID[t.MsId] = i
+		}
+		for _, t := range incoming {
+			if i, ok := byID[t.MsId]; ok {
+				view.Tasks[i] = preserveFmlRaceTaskDetail(t, view.Tasks[i])
+			} else {
+				view.Tasks = append(view.Tasks, t)
 			}
 		}
 	}
-	s.fmlRace.Observed = raceObserved
+	view.TasksObserved = true
+	updateFmlRaceMissingParamRefreshFP(view, wasObserved)
+}
+
+// FmlRacePlantHarvestMissingParam reports whether any pool plant-harvest task
+// lacks a resolved ParamID (flower target). Used to trigger getTaskList refresh.
+func FmlRacePlantHarvestMissingParam(tasks []FmlRaceTaskView) bool {
+	for _, t := range tasks {
+		taskType := t.TaskType
+		if taskType == 0 {
+			taskType = t.TaskId
+		}
+		if taskType == 3036 && t.ParamID <= 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// FmlRaceTaskPoolMsFingerprint is a stable key for the current pool identity
+// (msIds only), used to avoid re-requesting getTaskList for the same incomplete set.
+func FmlRaceTaskPoolMsFingerprint(tasks []FmlRaceTaskView) string {
+	if len(tasks) == 0 {
+		return ""
+	}
+	ids := make([]int64, len(tasks))
+	for i, t := range tasks {
+		ids[i] = t.MsId
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.FormatInt(id, 10)
+	}
+	return strings.Join(parts, ",")
+}
+
+func updateFmlRaceMissingParamRefreshFP(view *FmlRaceView, wasObserved bool) {
+	if !FmlRacePlantHarvestMissingParam(view.Tasks) {
+		view.MissingParamRefreshFP = ""
+		return
+	}
+	// First observation of an incomplete pool still allows one getTaskList refresh.
+	// A subsequent apply of the same incomplete pool records the fingerprint so
+	// automation does not loop forever when the server omits param.
+	if wasObserved {
+		view.MissingParamRefreshFP = FmlRaceTaskPoolMsFingerprint(view.Tasks)
+	}
+}
+
+func preserveFmlRaceTaskDetail(next, prev FmlRaceTaskView) FmlRaceTaskView {
+	if next.ParamID == 0 && prev.ParamID != 0 {
+		next.ParamID = prev.ParamID
+		next.TargetLabel = prev.TargetLabel
+	}
+	if next.AppearTime == 0 && prev.AppearTime != 0 {
+		next.AppearTime = prev.AppearTime
+	}
+	return next
+}
+
+// firstInt32FromRaw returns the first numeric entry from a JSON array/number
+// param payload (e.g. [23001]). Empty/null arrays yield 0.
+func firstInt32FromRaw(raw json.RawMessage) int32 {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0
+	}
+	var nums []int64
+	if err := json.Unmarshal(raw, &nums); err == nil {
+		if len(nums) == 0 || nums[0] <= 0 || nums[0] > math.MaxInt32 {
+			return 0
+		}
+		return int32(nums[0])
+	}
+	var n int64
+	if err := json.Unmarshal(raw, &n); err != nil || n <= 0 || n > math.MaxInt32 {
+		return 0
+	}
+	return int32(n)
+}
+
+// fmlRaceBatchActive reports whether the current guild race batch is playable.
+// status==1 is the primary in-progress signal; when status is still 0 but the
+// server already published a start/end window, treat the open window as active.
+// status==2 (ended) always stays inactive.
+func fmlRaceBatchActive(status int32, startMs, endMs int64) bool {
+	if status == 2 {
+		return false
+	}
+	if status == 1 {
+		return true
+	}
+	if startMs <= 0 || endMs <= startMs {
+		return false
+	}
+	now := time.Now().UnixMilli()
+	return now >= startMs && now < endMs
 }
 
 func (s *State) applyFmlObjectLocked(raw json.RawMessage) {
@@ -519,9 +704,10 @@ func (s *State) FmlFlowerTakeCandidates() []FmlFlowerTakeCandidate {
 }
 
 // parseFmlRaceTaken extracts the current user's taken-task progress from the
-// FmlRaceUsrRcdMap raw JSON (namespace 25, field 110). The map is keyed by
-// UID as a string. Returns an empty view if the user has no active task.
-func parseFmlRaceTaken(raw json.RawMessage, uid int64) FmlRaceTakenView {
+// FmlRaceUsrRcdMap raw JSON (namespace 25, field 110). Observed payloads key
+// the map by batchId (not uid). Prefer batchId, then uid, then any entry that
+// carries TakeTaskData.
+func parseFmlRaceTaken(raw json.RawMessage, uid, batchID int64) FmlRaceTakenView {
 	if len(raw) == 0 {
 		return FmlRaceTakenView{}
 	}
@@ -529,21 +715,43 @@ func parseFmlRaceTaken(raw json.RawMessage, uid int64) FmlRaceTakenView {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return FmlRaceTakenView{}
 	}
-	key := strconv.FormatInt(uid, 10)
-	rcd, ok := m[key]
-	if !ok {
-		return FmlRaceTakenView{}
+	tryKeys := make([]string, 0, 2)
+	if batchID > 0 {
+		tryKeys = append(tryKeys, strconv.FormatInt(batchID, 10))
 	}
+	if uid > 0 {
+		tryKeys = append(tryKeys, strconv.FormatInt(uid, 10))
+	}
+	for _, key := range tryKeys {
+		if rcd, ok := m[key]; ok {
+			if view := takenFromUsrRcd(rcd); view.HasTask {
+				return view
+			}
+		}
+	}
+	for _, rcd := range m {
+		if view := takenFromUsrRcd(rcd); view.HasTask {
+			return view
+		}
+	}
+	return FmlRaceTakenView{}
+}
+
+func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
 	tt := rcd.TakeTaskData
 	if tt.TaskMsId == 0 {
 		return FmlRaceTakenView{}
 	}
+	paramID := firstInt32FromRaw(tt.Param)
 	return FmlRaceTakenView{
-		TaskMsId:  tt.TaskMsId,
-		TaskId:    tt.TaskId,
-		TargetCnt: tt.TargetCnt,
-		FinishCnt: tt.FinishCnt,
-		HasTask:   true,
+		TaskMsId:    tt.TaskMsId,
+		TaskId:      tt.TaskId,
+		TaskType:    FmlRaceTaskTypeByID(tt.TaskId),
+		TargetCnt:   tt.TargetCnt,
+		FinishCnt:   tt.FinishCnt,
+		ParamID:     paramID,
+		TargetLabel: ItemLabel(paramID),
+		HasTask:     true,
 	}
 }
 

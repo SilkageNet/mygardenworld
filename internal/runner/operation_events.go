@@ -338,10 +338,23 @@ func (r *Runner) emitCustomerOrderInfo() {
 
 func opDesc(op *automation.PlannedOp) string {
 	desc := opKindDesc(op.Kind)
-	if op.FlowerID == 0 {
+	if op.FlowerID == 0 || isRaceOpKind(op.Kind) {
 		return desc
 	}
 	return fmt.Sprintf("%s %s(#%d)", desc, flowerName(int(op.FlowerID)), op.FlowerID)
+}
+
+func isRaceOpKind(kind string) bool {
+	switch kind {
+	case clientproto.RPCFmlRaceTakeTask.String(),
+		clientproto.RPCFmlRaceFinishTask.String(),
+		clientproto.RPCFmlRaceUpgradeTask.String(),
+		clientproto.RPCFmlRaceDelTask.String(),
+		clientproto.RPCFmlRaceGiveUpTask.String():
+		return true
+	default:
+		return false
+	}
 }
 
 func operationTargetSuffix(op *automation.PlannedOp) string {
@@ -352,6 +365,14 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		return suffix
 	}
 	switch op.Kind {
+	case clientproto.RPCFmlRaceTakeTask.String(),
+		clientproto.RPCFmlRaceFinishTask.String(),
+		clientproto.RPCFmlRaceUpgradeTask.String(),
+		clientproto.RPCFmlRaceDelTask.String(),
+		clientproto.RPCFmlRaceGiveUpTask.String():
+		if desc := automation.FormatRaceTaskOpDesc(op.TaskID, op.FlowerID); desc != "" {
+			return " " + desc
+		}
 	case clientproto.RPCActCyclicNoteEnter.String():
 		if op.BatchID > 0 {
 			return fmt.Sprintf(" (活动批次=%d)", op.BatchID)
