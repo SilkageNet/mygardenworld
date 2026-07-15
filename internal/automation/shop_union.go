@@ -4,11 +4,16 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
+
+// raceTakeLeadWindow is how early automation may emit takeTask for a CD pool
+// row that already meets filter rules (one planner tick).
+const raceTakeLeadWindow = 4 * time.Second
 
 func shopOperations(s *state.State, policy *pb.Policy) []PlannedOp {
 	shop := policy.GetBasic().GetShop()
@@ -126,7 +131,7 @@ func applyShopCultivateCostGate(op *PlannedOp, offer state.ShopCultivateOfferVie
 	return nil
 }
 
-func unionOperations(s *state.State, union *pb.UnionPolicy) []PlannedOp {
+func unionOperations(s *state.State, union *pb.UnionPolicy, now time.Time) []PlannedOp {
 	if union == nil {
 		return nil
 	}
@@ -135,7 +140,7 @@ func unionOperations(s *state.State, union *pb.UnionPolicy) []PlannedOp {
 	ops = append(ops, unionBuildOperations(s, union.GetBuild())...)
 	ops = append(ops, unionFlowerOperations(s, union.GetFlower())...)
 	ops = append(ops, unionLandOperations(s, union.GetLand())...)
-	ops = append(ops, unionRaceOperations(s, union.GetRace(), uid)...)
+	ops = append(ops, unionRaceOperations(s, union.GetRace(), uid, now)...)
 	ops = append(ops, unionForestOperations(s, union.GetForestEnabled())...)
 	return ops
 }
@@ -369,14 +374,15 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 }
 
 // unionRaceOperations emits PlannedOps for the guild race task pool.
-// It reads the FmlRace view from state, filters available tasks by the policy
-// score limit / upgrade rules, sorts by configured priority, and emits
-// take / finish / upgrade / delete ops.
+// Lifecycle:
+//  1. enter + getTaskList (sync)
+//  2. takeTask (接取)
+//  3. raceTaskProgressDemands drives plant/harvest for 种植收获 (进行)
+//  4. finishTask when FinishCnt >= TargetCnt (完成并领取积分)
 //
-// useSpeedupTicketInTask is a runtime concern: when a taken task involves
-// planting, the runner (not the planner) decides whether to apply speedup
-// tickets during execution. The planner does not need to read this field.
-func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) []PlannedOp {
+// useSpeedupTicketInTask is honored by maintenanceOperations via
+// raceSpeedupEnabled while an unfinished plant-harvest task is held.
+func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, now time.Time) []PlannedOp {
 	if policy == nil || !policy.GetEnabled() {
 		return nil
 	}
@@ -384,11 +390,13 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 
 	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
 
-	// Enter the race UI if data has not been observed yet. This is needed to
-	// trigger the server to push namespace-25 race fields (110/111/114).
-	// Not gated by autoEnableModules — enter is a prerequisite for all other ops.
+	// Enter pushes CurFmlRaceBatch (111). Task pool / taken-task (114/110) require
+	// a follow-up getTaskList. Neither sync step is gated by autoEnableModules.
 	if !view.Observed {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)}
+	}
+	if view.BatchActive && !view.TasksObserved {
+		return []PlannedOp{domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", 4398, 0, 0, 0)}
 	}
 
 	// autoEnableModules gates the sub-module execution (take/finish/upgrade/delete).
@@ -401,12 +409,27 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 	}
 	var ops []PlannedOp
 
-	// 1a. Abandon a taken task whose score does not meet the threshold.
-	// max_task_score is a lower bound: tasks with Score <= maxScore are rejected.
+	// 1a. Abandon a taken task that cannot or should not be kept.
+	// Score filter: max_task_score is a lower bound (Score <= maxScore → give up).
+	// Score==0 means the pool has not resolved the taken task yet — do not give up
+	// for score alone.
+	// Plant-harvest: give up when the target flower is unknown or not cultivated.
 	if view.Taken.HasTask && view.Taken.FinishCnt < view.Taken.TargetCnt {
+		reason := ""
 		maxScore := policy.GetMaxTaskScore()
-		if maxScore > 0 && view.Taken.Score <= maxScore {
-			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", "公会竞赛放弃不符合分数要求的已接任务", 4395, 0, 0, 0)
+		if maxScore > 0 && view.Taken.Score > 0 && view.Taken.Score <= maxScore {
+			reason = "公会竞赛放弃不符合分数要求的已接任务"
+		} else if raceTakenUncompletable(s, view.Taken) {
+			reason = "公会竞赛放弃无法完成的种植收获任务"
+		}
+		if reason != "" {
+			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", reason, 4395, 0, 0, 0)
+			op.TaskMsID = view.Taken.TaskMsId
+			op.TaskID = view.Taken.TaskType
+			if op.TaskID == 0 {
+				op.TaskID = view.Taken.TaskId
+			}
+			op.FlowerID = view.Taken.ParamID
 			ops = append(ops, op)
 		}
 	}
@@ -415,16 +438,26 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 	if view.Taken.HasTask && view.Taken.FinishCnt >= view.Taken.TargetCnt {
 		op := domainOp(clientproto.RPCFmlRaceFinishTask.String(), goal, "union.race.finish", "finish", "公会竞赛任务已完成，提交领取积分", 4390, 0, 0, 0)
 		op.TaskMsID = view.Taken.TaskMsId
+		op.TaskID = view.Taken.TaskType
+		if op.TaskID == 0 {
+			op.TaskID = view.Taken.TaskId
+		}
+		op.FlowerID = view.Taken.ParamID
 		ops = append(ops, op)
 	}
 
 	// 2. Select a task to take (only if not currently holding one).
 	if !view.Taken.HasTask {
-		selected := selectRaceTasks(view.Tasks, policy, uid)
+		selected := selectRaceTasks(s, view.Tasks, policy, uid, now)
 		if len(selected) > 0 {
 			best := selected[0]
 			op := domainOp(clientproto.RPCFmlRaceTakeTask.String(), goal, "union.race.take", "take", "公会竞赛选择最优任务接取", 4380, 0, 0, 0)
 			op.TaskMsID = best.MsId
+			op.TaskID = best.TaskType
+			if op.TaskID == 0 {
+				op.TaskID = best.TaskId
+			}
+			op.FlowerID = best.ParamID
 			ops = append(ops, op)
 		}
 	}
@@ -439,6 +472,11 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 			if task.IsUpgrade == 0 {
 				op := domainOp(clientproto.RPCFmlRaceUpgradeTask.String(), goal, "union.race.upgrade", "upgrade", "公会竞赛任务可升级", 4370, 0, 0, 0)
 				op.TaskMsID = task.MsId
+				op.TaskID = task.TaskType
+				if op.TaskID == 0 {
+					op.TaskID = task.TaskId
+				}
+				op.FlowerID = task.ParamID
 				ops = append(ops, op)
 				break // one upgrade per cycle
 			}
@@ -453,6 +491,11 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 				if task.Score <= maxDel {
 					op := domainOp(clientproto.RPCFmlRaceDelTask.String(), goal, "union.race.delete", "delete", "公会竞赛低分任务清理", 4360, 0, 0, 0)
 					op.TaskMsID = task.MsId
+					op.TaskID = task.TaskType
+					if op.TaskID == 0 {
+						op.TaskID = task.TaskId
+					}
+					op.FlowerID = task.ParamID
 					ops = append(ops, op)
 					break // one delete per cycle
 				}
@@ -463,39 +506,97 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64) 
 	return ops
 }
 
-// selectRaceTasks filters the available task pool by score threshold and upgrade
-// rules, then sorts by configured priority (descending).
+// raceTakeSkipReason returns the primary reason automation will not take this
+// pool task, or "" if it is takeable (including preemptive CD within raceTakeLeadWindow).
+// Priority matches docs/superpowers/specs/2026-07-15-race-task-take-skip-reason-design.md.
+func raceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) string {
+	if t.UID != 0 {
+		return "已被接取"
+	}
+	leadUntil := now.Add(raceTakeLeadWindow).UnixMilli()
+	if t.AppearTime > 0 && t.AppearTime > leadUntil {
+		return "冷却中，" + time.UnixMilli(t.AppearTime).Local().Format("15:04") + " 后可接"
+	}
+	if policy.GetMaxTaskScore() > 0 && t.Score <= policy.GetMaxTaskScore() {
+		return fmt.Sprintf("分数不足（≤%d）", policy.GetMaxTaskScore())
+	}
+	if policy.GetOnlyUpgradeTask() && t.IsUpgrade == 0 {
+		return "仅接已升级任务"
+	}
+	if policy.GetExcludeOthersUpgradeTask() && t.UpgradeUid != 0 && t.UpgradeUid != uid {
+		return "他人已升级"
+	}
+	taskType := t.TaskType
+	if taskType == 0 {
+		taskType = t.TaskId
+	}
+	if taskType == raceTaskTypePlantHarvest {
+		if t.ParamID <= 0 || !flowerCultivated(s, t.ParamID) {
+			return "目标花卉未培养"
+		}
+	}
+	// Ready or CD within lead: takeable (selectRaceTasks partitions upcoming).
+	return ""
+}
+
+// selectRaceTasks filters the available task pool via raceTakeSkipReason, then
+// sorts by configured priority.
 //
 // max_task_score is always a lower bound: tasks with Score <= maxScore are skipped.
 // 0 means no score filtering. Combined with only_upgrade_task, only upgraded tasks
 // above the threshold are eligible.
-func selectRaceTasks(tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64) []state.FmlRaceTaskView {
-	maxScore := policy.GetMaxTaskScore()
-	onlyUpgraded := policy.GetOnlyUpgradeTask()
-	excludeOthers := policy.GetExcludeOthersUpgradeTask()
+//
+// Plant-harvest (3036): skip when ParamID is missing or the flower is not yet
+// cultivated (Status==2 && Lvl>0). Seed stock / empty land are not required.
+//
+// AppearTime gating: ready tasks (appearTime already due) are preferred. CD tasks
+// within raceTakeLeadWindow may be selected preemptively when no ready candidate
+// remains; farther CD tasks are skipped.
+func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) []state.FmlRaceTaskView {
 	priority := policy.GetTaskTypePriority()
+	nowMs := now.UnixMilli()
 
-	var filtered []state.FmlRaceTaskView
+	var ready, upcoming []state.FmlRaceTaskView
 	for _, t := range tasks {
-		if maxScore > 0 && t.Score <= maxScore {
+		if raceTakeSkipReason(s, t, policy, uid, now) != "" {
 			continue
 		}
-		if onlyUpgraded && t.IsUpgrade == 0 {
+		if t.AppearTime > 0 && t.AppearTime > nowMs {
+			// Within lead (otherwise skip reason would be non-empty).
+			upcoming = append(upcoming, t)
 			continue
 		}
-		if excludeOthers && t.UpgradeUid != 0 && t.UpgradeUid != uid {
-			continue
-		}
-		filtered = append(filtered, t)
+		ready = append(ready, t)
 	}
 
-	sort.SliceStable(filtered, func(i, j int) bool {
-		pi := int(priority[filtered[i].TaskId])
-		pj := int(priority[filtered[j].TaskId])
-		if pi != pj {
-			return pi > pj
-		}
-		return filtered[i].Score > filtered[j].Score
-	})
-	return filtered
+	sortRaceTasks := func(list []state.FmlRaceTaskView) {
+		sort.SliceStable(list, func(i, j int) bool {
+			pi := int(priority[list[i].TaskType])
+			pj := int(priority[list[j].TaskType])
+			if pi != pj {
+				return pi > pj
+			}
+			return list[i].Score > list[j].Score
+		})
+	}
+	sortRaceTasks(ready)
+	sortRaceTasks(upcoming)
+	if len(ready) > 0 {
+		return ready
+	}
+	return upcoming
+}
+
+// raceTakenUncompletable reports whether a held unfinished task can never be
+// progressed by automation — today only plant-harvest with a missing/unplantable
+// target flower.
+func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView) bool {
+	taskType := taken.TaskType
+	if taskType == 0 {
+		taskType = taken.TaskId
+	}
+	if taskType != raceTaskTypePlantHarvest {
+		return false
+	}
+	return taken.ParamID <= 0 || !flowerCultivated(s, taken.ParamID)
 }

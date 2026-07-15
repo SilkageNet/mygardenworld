@@ -552,6 +552,24 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "exactly at lead boundary is takeable",
+			task: state.FmlRaceTaskView{
+				MsId: 12, TaskId: 3030, TaskType: 3030, Score: 20,
+				AppearTime: leadMs,
+			},
+			policy: policyBase(),
+			want: "",
+		},
+		{
+			name: "one ms past lead is CD",
+			task: state.FmlRaceTaskView{
+				MsId: 13, TaskId: 3030, TaskType: 3030, Score: 20,
+				AppearTime: leadMs + 1,
+			},
+			policy: policyBase(),
+			want: "冷却中，" + time.UnixMilli(leadMs+1).Local().Format("15:04") + " 后可接",
+		},
+		{
 			name: "score too low",
 			task: state.FmlRaceTaskView{MsId: 4, TaskId: 3030, TaskType: 3030, Score: 10},
 			policy: &pb.UnionRacePolicy{MaxTaskScore: 15},
@@ -578,6 +596,12 @@ func TestRaceTakeSkipReason(t *testing.T) {
 		{
 			name: "plant not cultivated",
 			task: state.FmlRaceTaskView{MsId: 8, TaskId: 3036, TaskType: 3036, Score: 30, ParamID: 23999},
+			policy: policyBase(),
+			want: "目标花卉未培养",
+		},
+		{
+			name: "plant missing param",
+			task: state.FmlRaceTaskView{MsId: 14, TaskId: 3036, TaskType: 3036, Score: 30, ParamID: 0},
 			policy: policyBase(),
 			want: "目标花卉未培养",
 		},
