@@ -633,9 +633,9 @@ func TestRaceTakeSkipReason(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := raceTakeSkipReason(s, tc.task, tc.policy, uid, now)
+			got := RaceTakeSkipReason(s, tc.task, tc.policy, uid, now)
 			if got != tc.want {
-				t.Fatalf("raceTakeSkipReason = %q, want %q", got, tc.want)
+				t.Fatalf("RaceTakeSkipReason = %q, want %q", got, tc.want)
 			}
 		})
 	}

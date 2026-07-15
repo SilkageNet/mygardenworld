@@ -128,6 +128,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
 	fmlRace := st.FmlRace()
+	policy := r.Policy()
 	resp := &pb.GetSnapshotResponse{
 		AccountId:             fmt.Sprintf("%d", acc.ID),
 		AccountName:           acc.Name,
@@ -152,7 +153,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Diagnostics:           runnerDiagnosticsProto(diag),
 		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
 		CyclicNote:            cyclicNoteProto(cyclicNote),
-		FmlRace:               fmlRaceProto(fmlRace),
+		FmlRace:               fmlRaceProto(fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -162,7 +163,6 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	}
 	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
-	policy := r.Policy()
 	plan := automation.BuildPlan(st, policy, now)
 	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
 	resp.PlannedOperations = plannedOperationsProto(plan.Operations, diag)
@@ -355,7 +355,7 @@ var fmlRaceTaskLabels = map[int32]string{
 	3052: "动物互动",
 }
 
-func fmlRaceProto(view state.FmlRaceView) *pb.FmlRaceView {
+func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
 		Observed:     view.Observed,
 		BatchActive:  view.BatchActive,
@@ -365,25 +365,39 @@ func fmlRaceProto(view state.FmlRaceView) *pb.FmlRaceView {
 	}
 
 	if view.Taken.HasTask {
+		taskType := view.Taken.TaskType
+		if taskType == 0 {
+			taskType = view.Taken.TaskId
+		}
 		out.Taken = &pb.FmlRaceTaken{
-			HasTask:   true,
-			TaskMsId:  view.Taken.TaskMsId,
-			TaskId:    view.Taken.TaskId,
-			TaskLabel: fmlRaceTaskLabels[view.Taken.TaskId],
-			TargetCnt: view.Taken.TargetCnt,
-			FinishCnt: view.Taken.FinishCnt,
-			Score:     view.Taken.Score,
+			HasTask:     true,
+			TaskMsId:    view.Taken.TaskMsId,
+			TaskId:      view.Taken.TaskId,
+			TaskType:    taskType,
+			TaskLabel:   fmlRaceTaskLabels[taskType],
+			TargetCnt:   view.Taken.TargetCnt,
+			FinishCnt:   view.Taken.FinishCnt,
+			Score:       view.Taken.Score,
+			TargetLabel: view.Taken.TargetLabel,
 		}
 	}
 
 	for _, t := range view.Tasks {
+		taskType := t.TaskType
+		if taskType == 0 {
+			taskType = t.TaskId
+		}
 		out.Tasks = append(out.Tasks, &pb.FmlRaceTask{
-			MsId:       t.MsId,
-			TaskId:     t.TaskId,
-			TaskLabel:  fmlRaceTaskLabels[t.TaskId],
-			Score:      t.Score,
-			IsUpgrade:  t.IsUpgrade != 0,
-			UpgradeUid: t.UpgradeUid,
+			MsId:           t.MsId,
+			TaskId:         t.TaskId,
+			TaskType:       taskType,
+			TaskLabel:      fmlRaceTaskLabels[taskType],
+			Score:          t.Score,
+			IsUpgrade:      t.IsUpgrade != 0,
+			UpgradeUid:     t.UpgradeUid,
+			TargetLabel:    t.TargetLabel,
+			AppearTimeMs:   t.AppearTime,
+			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now),
 		})
 	}
 	return out

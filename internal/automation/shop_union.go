@@ -506,10 +506,10 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	return ops
 }
 
-// raceTakeSkipReason returns the primary reason automation will not take this
+// RaceTakeSkipReason returns the primary reason automation will not take this
 // pool task, or "" if it is takeable (including preemptive CD within raceTakeLeadWindow).
 // Priority matches docs/superpowers/specs/2026-07-15-race-task-take-skip-reason-design.md.
-func raceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) string {
+func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time) string {
 	if t.UID != 0 {
 		return "已被接取"
 	}
@@ -539,7 +539,7 @@ func raceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 	return ""
 }
 
-// selectRaceTasks filters the available task pool via raceTakeSkipReason, then
+// selectRaceTasks filters the available task pool via RaceTakeSkipReason, then
 // sorts by configured priority.
 //
 // max_task_score is always a lower bound: tasks with Score <= maxScore are skipped.
@@ -558,7 +558,7 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 
 	var ready, upcoming []state.FmlRaceTaskView
 	for _, t := range tasks {
-		if raceTakeSkipReason(s, t, policy, uid, now) != "" {
+		if RaceTakeSkipReason(s, t, policy, uid, now) != "" {
 			continue
 		}
 		if t.AppearTime > 0 && t.AppearTime > nowMs {
