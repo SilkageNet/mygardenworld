@@ -1,6 +1,6 @@
 # Guild race CD take-skip copy (可接 vs 刷新)
 
-**Date:** 2026-07-15  
+**Date:** 2026-07-15
 **Status:** approved (approach 1)
 
 ## Problem

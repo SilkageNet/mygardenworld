@@ -1,6 +1,6 @@
 # Guild race task take skip reason (UI)
 
-**Date:** 2026-07-15  
+**Date:** 2026-07-15
 **Status:** approved (approach 3, single primary reason)
 
 ## Problem
