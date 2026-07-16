@@ -25,6 +25,44 @@ func TestOrderCustomerGenOrderRequestIncludesEmptyGuestList(t *testing.T) {
 	}
 }
 
+func TestActRecvRequestIncludesZeroTaskIndex(t *testing.T) {
+	raw, err := json.Marshal(ActRecvRequest{BatchId: 1312, TaskIdx: 0, TaskId: 1})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if got, want := string(raw), `{"batchId":1312,"taskIdx":0,"taskId":1}`; got != want {
+		t.Fatalf("ActRecvRequest JSON = %s, want %s", got, want)
+	}
+}
+
+func TestCelebrityGetAllTypesInfoRequestIsEmptyObject(t *testing.T) {
+	raw, err := json.Marshal(CelebrityGetAllTypesInfoRequest{})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if got, want := string(raw), `{}`; got != want {
+		t.Fatalf("CelebrityGetAllTypesInfoRequest JSON = %s, want %s", got, want)
+	}
+}
+
+func TestDessertStateTypesDecodeCapturedShapes(t *testing.T) {
+	const raw = `{"0":2220,"1":{"1":{"0":100,"1":{"1345":1},"2":[],"3":0,"4":{"2":5},"5":true,"6":{"1343":222},"7":3,"8":20,"9":{"1":2}}}}`
+	var got IActDessertData
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	mode, ok := got.MapData[1]
+	if !ok {
+		t.Fatalf("mode 1 missing from %+v", got.MapData)
+	}
+	if got.TotalScore != 2220 || mode.Step != 100 || !mode.IsRunning || mode.CurId != 3 || mode.Score != 20 {
+		t.Fatalf("decoded dessert state = %+v, mode=%+v", got, mode)
+	}
+	if mode.ItemUse[1345] != 1 || mode.FirstMerge[2] != 5 || mode.TotalGain[1343] != 222 || mode.LvMap[1] != 2 {
+		t.Fatalf("decoded dessert maps = itemUse:%v firstMerge:%v totalGain:%v lvMap:%v", mode.ItemUse, mode.FirstMerge, mode.TotalGain, mode.LvMap)
+	}
+}
+
 func TestZooInheritedRequestFieldsMarshal(t *testing.T) {
 	tests := []struct {
 		name string

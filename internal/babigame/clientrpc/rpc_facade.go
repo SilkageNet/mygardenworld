@@ -84,7 +84,7 @@ func (r ActRPC) GiftBuy(ctx context.Context, req clientproto.ActGiftBuyRequest, 
 // ActRecvResponse is the namespace-delta response for gs.act.recv.
 type ActRecvResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// Recv calls gs.act.recv. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
+// Recv calls gs.act.recv. Request fields inferred from game.js: batchId, taskIdx, taskId.
 func (r ActRPC) Recv(ctx context.Context, req clientproto.ActRecvRequest, opts ...babigame.RequestOption) (ActRecvResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActRecv, req, opts...)
 }
@@ -2243,7 +2243,7 @@ func (r CelebrityRPC) GetAllTypes(ctx context.Context, req clientproto.Celebrity
 // CelebrityGetAllTypesInfoResponse is the namespace-delta response for gs.celebrity.getAllTypesInfo.
 type CelebrityGetAllTypesInfoResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// GetAllTypesInfo calls gs.celebrity.getAllTypesInfo. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
+// GetAllTypesInfo calls gs.celebrity.getAllTypesInfo. game.js sends an empty request object.
 func (r CelebrityRPC) GetAllTypesInfo(ctx context.Context, req clientproto.CelebrityGetAllTypesInfoRequest, opts ...babigame.RequestOption) (CelebrityGetAllTypesInfoResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCCelebrityGetAllTypesInfo, req, opts...)
 }

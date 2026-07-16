@@ -25,6 +25,9 @@ enum GateResourceKind {
   GATE_RESOURCE_KIND_POLICY = 7;
   GATE_RESOURCE_KIND_STATE = 8;
   GATE_RESOURCE_KIND_ADAPTER = 9;
+  // Activity-local namespace-23 inventory. This must never fall back to the
+  // normal namespace-7 item inventory.
+  GATE_RESOURCE_KIND_ACTIVITY_ITEM = 10;
 }
 
 enum ExecutionLane {
@@ -147,6 +150,7 @@ message GetSnapshotResponse {
   RuntimeStatisticsView runtime_statistics = 38;
   CyclicNoteView cyclic_note = 39;
   FmlRaceView fml_race = 40;
+  DessertView dessert = 41;
 }
 
 message CyclicNoteView {
@@ -256,6 +260,132 @@ message FmlRaceTaken {
   int32 score = 7;
   int32 task_type = 8;
   string target_label = 9;
+}
+
+message DessertView {
+  bool observed = 1;
+  bool found = 2;
+  bool valid = 3;
+  int32 batch_id = 4;
+  int32 template_id = 5;
+  int32 template_type = 6;
+  int32 status = 7;
+  // Client-compatible activity phase: 0 before preview/unknown, 1 preview,
+  // 2 active, 3 reward grace period, 4 ended.
+  int32 phase = 8;
+  int64 phase_end_ms = 9;
+  int64 begin_ms = 10;
+  int64 visible_start_ms = 11;
+  int64 end_ms = 12;
+  int64 grace_end_ms = 13;
+  string name = 14;
+  string description = 15;
+  int32 drop_count = 16;
+  int32 total_score = 17;
+  // Activity-local inventory from namespace 23.0.<batch>.12. It must not be
+  // confused with the normal namespace-7 inventory.
+  repeated ActivityItem items = 18;
+  int32 energy_item_id = 19;
+  int32 energy_balance = 20;
+  int32 currency_item_id = 21;
+  int32 currency_balance = 22;
+  int32 point_item_id = 23;
+  int32 reward_box_item_id = 24;
+  int32 reward_box_balance = 25;
+  bool drop_count_observed = 26;
+  bool total_score_observed = 27;
+  bool bag_observed = 28;
+  bool extension_observed = 29;
+  bool extension_valid = 30;
+  bool mode_map_observed = 31;
+  bool mode_map_valid = 32;
+  bool task_groups_observed = 33;
+  bool task_groups_valid = 34;
+  bool task_record_observed = 35;
+  bool milestone_receipts_observed = 36;
+  repeated DessertModeView modes = 37;
+  repeated DessertTaskView tasks = 38;
+  repeated DessertMilestoneView milestones = 39;
+  DessertCelebrityLikeView celebrity = 40;
+  // Session-local, sanitized shadow-controller diagnostics. This never
+  // contains account identifiers, absolute login timestamps, or raw board
+  // coordinates.
+  DessertRuntimeView runtime = 41;
+}
+
+message DessertModeView {
+  int32 mode = 1;
+  int32 multiplier = 2;
+  int32 unlock_score = 3;
+  bool unlocked = 4;
+  bool observed = 5;
+  bool valid = 6;
+  int32 step = 7;
+  int32 score = 8;
+  bool is_running = 9;
+  // Raw is the exact server value. Effective mirrors the client's resume
+  // behavior, which converts the transient stopped state (2) back to play (1).
+  int32 raw_game_status = 10;
+  int32 effective_game_status = 11;
+  int32 current_id = 12;
+  // Raw physics objects and coordinates are deliberately not public.
+  int32 object_count = 13;
+  repeated DessertLevelCountView level_counts = 14;
+}
+
+message DessertLevelCountView {
+  int32 level = 1;
+  int32 count = 2;
+}
+
+message DessertTaskView {
+  int32 task_index = 1;
+  int32 position = 2;
+  int32 task_id = 3;
+  int32 task_type = 4;
+  int32 param = 5;
+  bool has_param = 6;
+  string title = 7;
+  int32 target = 8;
+  // Progress is clamped for display. raw_progress remains the authoritative
+  // server value used for completion checks.
+  int32 progress = 9;
+  int32 raw_progress = 10;
+  bool progress_observed = 11;
+  bool received = 12;
+  bool receipt_observed = 13;
+  bool catalog_known = 14;
+  repeated ActivityItem reward = 15;
+  PlanStatus status = 16;
+}
+
+message DessertMilestoneView {
+  int32 index = 1;
+  int32 target = 2;
+  bool received = 3;
+  repeated ActivityItem reward = 4;
+  // Milestones remain monitoring-only until the reward RPC has a sanitized
+  // capture fixture, so a logically ready row is still SYNC_ONLY.
+  PlanStatus status = 5;
+  int32 progress = 6;
+  int32 raw_progress = 7;
+  bool ready = 8;
+}
+
+message DessertCelebrityLikeView {
+  bool observed = 1;
+  bool valid = 2;
+  bool types_observed = 3;
+  bool rankings_observed = 4;
+  bool likes_observed = 5;
+  bool type_listed = 6;
+  bool ranking_observed = 7;
+  int32 ranking_count = 8;
+  bool liked_this_batch = 9;
+  int64 last_like_time_ms = 10;
+  int64 create_time_ms = 11;
+  repeated ActivityItem reward = 12;
+  PlanStatus status = 13;
 }
 
 message ActivityItem {
@@ -534,4 +664,28 @@ message Event {
   string domain = 10;
   // Stable action within domain, e.g. "harvest", "sync", "blocked".
   string action = 11;
+}
+
+message DessertRuntimeView {
+  bool observed = 1;
+  bool shadow_only = 2;
+  bool policy_enabled = 3;
+  uint64 session_epoch = 4;
+  int32 batch_id = 5;
+  int32 mode = 6;
+  uint64 authority_revision = 7;
+  string board_hash = 8;
+  bool board_owned = 9;
+  bool takeover_requested = 10;
+  bool waiting = 11;
+  int64 waiting_remaining_ms = 12;
+  int32 frozen_waiting_level = 13;
+  int32 session_energy_used = 14;
+  string suggestion = 15;
+  string blocked_reason = 16;
+  bool failure_locked = 17;
+  bool live_evidence_ready = 18;
+  bool live_execution_allowed = 19;
+  int32 max_session_energy = 20;
+  int32 min_energy_reserve = 21;
 }

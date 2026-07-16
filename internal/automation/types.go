@@ -40,15 +40,16 @@ const (
 )
 
 const (
-	GateResourceGold      = "gold"
-	GateResourceDiamond   = "diamond"
-	GateResourceItem      = "item"
-	GateResourceWaterDrop = "water_drop"
-	GateResourceLevel     = "level"
-	GateResourceVase      = "vase"
-	GateResourcePolicy    = "policy"
-	GateResourceState     = "state"
-	GateResourceAdapter   = "adapter"
+	GateResourceGold         = "gold"
+	GateResourceDiamond      = "diamond"
+	GateResourceItem         = "item"
+	GateResourceActivityItem = "activity_item"
+	GateResourceWaterDrop    = "water_drop"
+	GateResourceLevel        = "level"
+	GateResourceVase         = "vase"
+	GateResourcePolicy       = "policy"
+	GateResourceState        = "state"
+	GateResourceAdapter      = "adapter"
 )
 
 const (
@@ -237,7 +238,10 @@ func (l *InventoryLedger) AllocatedItems() map[int32]int32 {
 // PlannedOp is one operation candidate. Runners execute only operations marked
 // executable and supported by their operation registry.
 type PlannedOp struct {
-	OperationID    string
+	OperationID string
+	// CooldownKey optionally groups multiple concrete targets into one
+	// runner-local retry scope. It is intentionally not exposed in protobuf.
+	CooldownKey    string
 	GoalID         string
 	DemandID       string
 	Kind           string
