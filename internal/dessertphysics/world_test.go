@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -340,6 +341,31 @@ func TestEvolutionIsDeterministicAcrossInputOrder(t *testing.T) {
 		if forwardErr != nil {
 			break
 		}
+	}
+}
+
+func TestIndependentWorldsCanAdvanceConcurrently(t *testing.T) {
+	t.Parallel()
+	const worldCount = 8
+	var wait sync.WaitGroup
+	errors := make(chan error, worldCount)
+	for index := range worldCount {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			world, err := NewWorld(DefaultConfig(), []BodyState{bodyAt(uint64(index+1), 1, float64(index*10-35), 100)})
+			if err == nil {
+				_, err = world.AdvanceUntil(30)
+			}
+			if err != nil {
+				errors <- err
+			}
+		}(index)
+	}
+	wait.Wait()
+	close(errors)
+	for err := range errors {
+		t.Fatalf("concurrent world advance: %v", err)
 	}
 }
 

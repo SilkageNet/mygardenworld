@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	dessertE2EMode         int32 = 1
-	dessertE2EDropBudget         = 3
-	dessertE2EAdvanceLimit       = 1800
+	dessertE2EMode         = 1
+	dessertE2EDropBudget   = 3
+	dessertE2EAdvanceLimit = 1800
 )
 
 // TestDessertModeOneLifecycleE2E is an explicitly authorized, mutating live

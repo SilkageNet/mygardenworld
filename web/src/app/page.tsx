@@ -3460,16 +3460,16 @@ function FlowerMultiSelectRow({
   const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
 
   return (
-    <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
-      <div className="flex items-center justify-between gap-3">
+    <div className="min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:gap-3">
         <Label className="text-sm">{label}</Label>
         <div className="flex gap-1">
           <Badge variant="outline">可种 {plantableFlowers.length}</Badge>
           <Badge variant={value.length > 0 ? "secondary" : "outline"}>{value.length > 0 ? `${value.length} 种` : "未选择"}</Badge>
         </div>
       </div>
-      <div className="flex min-h-8 items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-sm text-muted-foreground">
+      <div className="flex min-h-8 w-full min-w-0 items-center gap-2 overflow-hidden">
+        <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
           {value.length === 0 ? "未选择时不限制" : `${selectedPreview}${extraCount > 0 ? ` 等 ${extraCount} 种` : ""}`}
         </div>
         <Button type="button" variant="outline" size="sm" className="min-h-10 shrink-0 px-3 sm:min-h-7" onClick={() => setOpen(true)}>

@@ -55,6 +55,8 @@ func (*contactListener) PostSolve(box2d.B2ContactInterface, *box2d.B2ContactImpu
 func (w *World) Step() (StepResult, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	box2dRuntimeMu.Lock()
+	defer box2dRuntimeMu.Unlock()
 	if err := w.usableLocked(); err != nil {
 		return StepResult{}, err
 	}

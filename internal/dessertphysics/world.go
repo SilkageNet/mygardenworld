@@ -25,6 +25,13 @@ type bodyRecord struct {
 	fixture *box2d.B2Fixture
 }
 
+// ByteArena/box2d keeps contact factories and time-of-impact counters in
+// package-level mutable variables. Different B2World values therefore cannot
+// safely enter mutating Box2D calls concurrently, even though their bodies are
+// otherwise independent. Keep this lock package-wide so multiple accounts and
+// candidate simulations cannot race inside the dependency.
+var box2dRuntimeMu sync.Mutex
+
 // World owns a Box2D world and its authoritative dessert metadata. A World is
 // safe for concurrent inspection, although callers should still serialize
 // gameplay decisions so every authoritative response can re-baseline it.
@@ -49,6 +56,8 @@ func NewWorld(config Config, states []BodyState) (*World, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
+	box2dRuntimeMu.Lock()
+	defer box2dRuntimeMu.Unlock()
 	world := &World{
 		config:  config,
 		physics: box2d.MakeB2World(box2d.MakeB2Vec2(0, config.GravityMPS2)),
@@ -155,6 +164,8 @@ func (w *World) createCircleFixtureLocked(body *box2d.B2Body, radiusPX float64) 
 func (w *World) AddDrop(id uint64, level int, positionPX Vec2) (BodyState, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	box2dRuntimeMu.Lock()
+	defer box2dRuntimeMu.Unlock()
 	if err := w.usableLocked(); err != nil {
 		return BodyState{}, err
 	}
@@ -194,6 +205,8 @@ func (w *World) AddDrop(id uint64, level int, positionPX Vec2) (BodyState, error
 func (w *World) ApplyMerge(merge Merge) (BodyState, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	box2dRuntimeMu.Lock()
+	defer box2dRuntimeMu.Unlock()
 	if err := w.usableLocked(); err != nil {
 		return BodyState{}, err
 	}
