@@ -140,6 +140,22 @@ func TestFmlRaceTaskListMergesSparseDelta(t *testing.T) {
 	}
 }
 
+func TestFmlRaceFullTaskPoolReplacesShorterSnapshot(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":4001,"6":[23001],"10":9},{"0":2,"4":4001,"6":[23002],"10":10}]}}`))
+
+	// getTaskList is authoritative even when the refreshed pool shrank. Preserve
+	// known detail on the retained row if that full snapshot happens to omit it.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":2,"4":4001,"10":10}]}}`))
+	got := s.FmlRace().Tasks
+	if len(got) != 1 || got[0].MsId != 2 {
+		t.Fatalf("full shorter pool must replace stale rows: %+v", got)
+	}
+	if got[0].ParamID != 23002 {
+		t.Fatalf("full refresh wiped retained task detail: %+v", got[0])
+	}
+}
+
 func TestFmlRaceTasksSyncedAtMsSetOnTaskList(t *testing.T) {
 	s := New()
 	before := time.Now().UnixMilli()

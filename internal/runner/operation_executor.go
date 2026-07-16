@@ -694,6 +694,25 @@ func checkedStateDelta(resp babigame.RPCResponse[clientproto.StateDelta], err er
 	return checkedPayload(v, d, err)
 }
 
+func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fmlRace.getTaskList requires runner state")
+	}
+	v, d, err := rpcResult(rt.rpc.FmlRace().GetTaskList(
+		ctx,
+		clientproto.FmlRaceGetTaskListRequest{},
+		babigame.WithPayloadApply(false),
+	))
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		rt.runner.state.ApplyVFullFmlRaceTaskPool(v)
+	}
+	return v, nil
+}
+
 func runSignTypeEnter(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
 	typeID, err := plannedSignTypeID(op)
 	if err != nil {

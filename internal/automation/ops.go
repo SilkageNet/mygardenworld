@@ -211,7 +211,7 @@ func DefaultPolicy() *pb.Policy {
 				Enabled:                  true,
 				AutoEnableModules:        true,
 				ExcludeOthersUpgradeTask: true,
-				MaxTaskScore:             28,
+				MinTaskScore:             28,
 				TaskTypePriority:         defaultUnionRacePriority(),
 			},
 			Land: &pb.UnionLandPolicy{},
@@ -253,7 +253,7 @@ func defaultUnionRacePriority() map[int32]int32 {
 		3034: 0,
 		3035: 0,
 		3036: 5,
-		3044: 4,
+		3044: 0,
 		3052: 0,
 	}
 }

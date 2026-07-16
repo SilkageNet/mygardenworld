@@ -1274,6 +1274,64 @@ func FmlRaceTaskTypeByID(taskID int32) int32 {
 	return row.Type
 }
 
+// FmlRaceTaskUpgradeCost returns the client-visible diamond cost for upgrading
+// the currently held guild-race task. The mini client computes the next score
+// from an explicit upgradePoint mapping when present, otherwise from the
+// task-group multiplier, then charges 3 * max(nextScore-currentScore, 1).
+func FmlRaceTaskUpgradeCost(taskID, currentScore int32) (int32, bool) {
+	if taskID <= 0 || currentScore <= 0 {
+		return 0, false
+	}
+	raw, ok := StaticRow("c_fmlRaceTask", taskID)
+	if !ok {
+		return 0, false
+	}
+	var task struct {
+		Group        int32     `json:"group"`
+		UpgradePoint [][]int32 `json:"upgradePoint"`
+	}
+	if json.Unmarshal(raw, &task) != nil || task.Group <= 0 {
+		return 0, false
+	}
+	nextScore := int32(0)
+	for _, point := range task.UpgradePoint {
+		if len(point) >= 2 && point[0] == currentScore && point[1] > 0 {
+			nextScore = point[1]
+			break
+		}
+	}
+	if nextScore == 0 {
+		configRaw, ok := StaticRow("c_fmlRaceTask", -1)
+		if !ok {
+			return 0, false
+		}
+		var config struct {
+			UpgradeMultiple []int32 `json:"$upgradeMultiple"`
+		}
+		if json.Unmarshal(configRaw, &config) != nil || int(task.Group) > len(config.UpgradeMultiple) {
+			return 0, false
+		}
+		multiplier := config.UpgradeMultiple[task.Group-1]
+		if multiplier <= 0 {
+			return 0, false
+		}
+		next := (int64(currentScore)*int64(multiplier) + 9999) / 10000
+		if next <= 0 || next > math.MaxInt32 {
+			return 0, false
+		}
+		nextScore = int32(next)
+	}
+	delta := int64(nextScore) - int64(currentScore)
+	if delta < 1 {
+		delta = 1
+	}
+	cost := delta * 3
+	if cost > math.MaxInt32 {
+		return 0, false
+	}
+	return int32(cost), true
+}
+
 // FmlBuildOptionByID returns the client-visible cost for one guild build
 // option. The video/share option has no item cost.
 func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {

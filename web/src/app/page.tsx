@@ -271,7 +271,7 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
   { id: 3034, label: "花艺制作", defaultPriority: 0 },
   { id: 3035, label: "鲜花升级", defaultPriority: 0 },
   { id: 3036, label: "种植收获", defaultPriority: 5 },
-  { id: 3044, label: "花种培育", defaultPriority: 4 },
+  { id: 3044, label: "花种培育", defaultPriority: 0 },
   { id: 3052, label: "动物互动", defaultPriority: 0 },
 ];
 
@@ -1521,12 +1521,14 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
 }
 
 function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
-  const onCd = Number(task.appearTimeMs ?? BigInt(0)) > Date.now();
-  const baseTitle = task.targetLabel
-    ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
-    : task.taskLabel || `任务 #${task.taskId}`;
-  const title = onCd ? `CD ${baseTitle}` : baseTitle;
-  const skipReason = (task.takeSkipReason ?? "").trim();
+	const skipReason = (task.takeSkipReason ?? "").trim();
+	// The server computes CD using the same lead window as task selection. Using
+	// that snapshot keeps rendering pure and the label consistent with automation.
+	const onCd = skipReason.startsWith("冷却中") || skipReason.endsWith("后刷新");
+	const baseTitle = task.targetLabel
+		? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
+		: task.taskLabel || `任务 #${task.taskId}`;
+	const title = onCd ? `CD ${baseTitle}` : baseTitle;
   return (
     <div className="rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex items-center justify-between gap-2">
@@ -2746,16 +2748,16 @@ function PolicyPanel({
                 <ToggleRow label="自动完成" checked={unionRace?.enabled ?? false} onChange={(checked) => updateUnionRace({ enabled: checked })} />
                 <ToggleRow label="自动模块" checked={unionRace?.autoEnableModules ?? true} onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
-                <NumberRow label="限制分数" value={unionRace?.maxTaskScore ?? 0} min={0} description="任务分数下限，分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ maxTaskScore: value })} />
+                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
-                <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} />
+                <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={SETTING_STATUS.adapterMissing} />
                 <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
                 <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
                 <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
               <div className="mt-3 space-y-2">
-                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取该类型</p>
+                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前仅“种植收获”支持全自动推进。</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {RACE_TASK_TYPES.map((task) => (
                     <NumberRow

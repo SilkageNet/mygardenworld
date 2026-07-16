@@ -291,7 +291,7 @@ message UnionRacePolicy {
   bool use_speedup_ticket_in_task = 3;
   // Task score lower bound. Tasks with Score <= this value are skipped during
   // selection. 0 means no score filtering.
-  int32 max_task_score = 4;
+  int32 min_task_score = 4;
   // When true, only already-upgraded tasks (IsUpgrade != 0) are eligible for
   // selection. Upgraded tasks carry bonus score multipliers.
   bool only_upgrade_task = 5;

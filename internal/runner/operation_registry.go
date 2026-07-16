@@ -504,14 +504,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlRace().Enter(ctx, req)
 		},
 	),
-	clientproto.RPCFmlRaceGetTaskList.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.FmlRaceGetTaskListRequest, error) {
+	clientproto.RPCFmlRaceGetTaskList.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
 			return clientproto.FmlRaceGetTaskListRequest{}, nil
 		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceGetTaskListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.FmlRace().GetTaskList(ctx, req)
-		},
-	),
+		run: runFmlRaceGetTaskList,
+	},
 	clientproto.RPCFmlRaceGiveUpTask.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlRaceGiveUpTaskRequest, error) {
 			return clientproto.FmlRaceGiveUpTaskRequest{}, nil

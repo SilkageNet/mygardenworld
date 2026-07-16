@@ -2459,7 +2459,7 @@ type UnionRacePolicy struct {
 	UseSpeedupTicketInTask bool                   `protobuf:"varint,3,opt,name=use_speedup_ticket_in_task,json=useSpeedupTicketInTask,proto3" json:"use_speedup_ticket_in_task,omitempty"`
 	// Task score lower bound. Tasks with Score <= this value are skipped during
 	// selection. 0 means no score filtering.
-	MaxTaskScore int32 `protobuf:"varint,4,opt,name=max_task_score,json=maxTaskScore,proto3" json:"max_task_score,omitempty"`
+	MinTaskScore int32 `protobuf:"varint,4,opt,name=min_task_score,json=minTaskScore,proto3" json:"min_task_score,omitempty"`
 	// When true, only already-upgraded tasks (IsUpgrade != 0) are eligible for
 	// selection. Upgraded tasks carry bonus score multipliers.
 	OnlyUpgradeTask          bool            `protobuf:"varint,5,opt,name=only_upgrade_task,json=onlyUpgradeTask,proto3" json:"only_upgrade_task,omitempty"`
@@ -2524,9 +2524,9 @@ func (x *UnionRacePolicy) GetUseSpeedupTicketInTask() bool {
 	return false
 }
 
-func (x *UnionRacePolicy) GetMaxTaskScore() int32 {
+func (x *UnionRacePolicy) GetMinTaskScore() int32 {
 	if x != nil {
-		return x.MaxTaskScore
+		return x.MinTaskScore
 	}
 	return 0
 }
@@ -3052,7 +3052,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
 	"\x1ause_speedup_ticket_in_task\x18\x03 \x01(\bR\x16useSpeedupTicketInTask\x12$\n" +
-	"\x0emax_task_score\x18\x04 \x01(\x05R\fmaxTaskScore\x12*\n" +
+	"\x0emin_task_score\x18\x04 \x01(\x05R\fminTaskScore\x12*\n" +
 	"\x11only_upgrade_task\x18\x05 \x01(\bR\x0fonlyUpgradeTask\x12=\n" +
 	"\x1bexclude_others_upgrade_task\x18\x06 \x01(\bR\x18excludeOthersUpgradeTask\x12e\n" +
 	"\x12task_type_priority\x18\a \x03(\v27.mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntryR\x10taskTypePriority\x12!\n" +

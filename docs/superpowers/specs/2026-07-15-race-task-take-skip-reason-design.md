@@ -37,7 +37,7 @@ Evaluate in order; return the first hit:
 |---|-----------|------|
 | 1 | `task.UID != 0` | `已被接取` |
 | 2 | `AppearTime > 0` and beyond lead window (`AppearTime > now+lead`) | `冷却中，HH:mm 后可接` (local clock from `AppearTime`) |
-| 3 | `max_task_score > 0` and `Score <= max` | `分数不足（≤N）` where N is `max_task_score` |
+| 3 | `min_task_score > 0` and `Score <= max` | `分数不足（≤N）` where N is `min_task_score` |
 | 4 | `only_upgrade_task` and not upgraded | `仅接已升级任务` |
 | 5 | `exclude_others_upgrade_task` and `UpgradeUid != 0` and `UpgradeUid != uid` | `他人已升级` |
 | 6 | plant-harvest (`3036`) with `ParamID <= 0` or `!flowerCultivated` | `目标花卉未培养` |
