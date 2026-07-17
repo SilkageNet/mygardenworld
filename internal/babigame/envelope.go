@@ -87,6 +87,15 @@ func (d WSResponseD) ErrorType() int {
 	return m.Type
 }
 
+// ErrorCodeOfLangJS returns codeOfLangJs from M when present.
+func (d WSResponseD) ErrorCodeOfLangJS() string {
+	m, ok := d.parseErrorMessage()
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(m.CodeOfLangJS)
+}
+
 // MissingItemID returns param.iid from material-shortage errors, when present.
 func (d WSResponseD) MissingItemID() int32 {
 	m, ok := d.parseErrorMessage()

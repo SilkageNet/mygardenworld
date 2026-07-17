@@ -134,6 +134,16 @@ func TestWSResponseDGatewayBlockReason(t *testing.T) {
 	}
 }
 
+func TestErrorCodeOfLangJS(t *testing.T) {
+	d := WSResponseD{M: json.RawMessage(`{"codeOfLangJs":"fmlRace_tips1","msg":"已接取其他任务"}`)}
+	if got := d.ErrorCodeOfLangJS(); got != "fmlRace_tips1" {
+		t.Fatalf("ErrorCodeOfLangJS=%q", got)
+	}
+	if d.ErrorMsg() != "已接取其他任务" {
+		t.Fatalf("ErrorMsg=%q", d.ErrorMsg())
+	}
+}
+
 func TestClientDispatchTextFiresSessionExpired(t *testing.T) {
 	c := NewClient(&Session{Cfg: testConfig(t)})
 	called := false
