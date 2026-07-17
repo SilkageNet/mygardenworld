@@ -504,14 +504,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlRace().Enter(ctx, req)
 		},
 	),
-	clientproto.RPCFmlRaceGetTaskList.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.FmlRaceGetTaskListRequest, error) {
+	clientproto.RPCFmlRaceGetTaskList.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
 			return clientproto.FmlRaceGetTaskListRequest{}, nil
 		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceGetTaskListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.FmlRace().GetTaskList(ctx, req)
-		},
-	),
+		run: runFmlRaceGetTaskList,
+	},
 	clientproto.RPCFmlRaceGiveUpTask.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlRaceGiveUpTaskRequest, error) {
 			return clientproto.FmlRaceGiveUpTaskRequest{}, nil
@@ -535,6 +533,26 @@ var plannedOperationSpecs = map[string]operationSpec{
 	clientproto.RPCActCyclicNoteRecv.String(): {
 		args: func(op *automation.PlannedOp) (any, error) { return cyclicNoteMilestoneClaimRequest(op) },
 		run:  runCyclicNoteMilestoneClaim,
+	},
+	clientproto.RPCActDessertEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertEnterRequest(op) },
+		run:  runDessertEnter,
+	},
+	clientproto.RPCActDessertOpenBox.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertRewardBoxOpenRequest(op) },
+		run:  runDessertRewardBoxOpen,
+	},
+	clientproto.RPCActRecv.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertTaskClaimRequest(op) },
+		run:  runDessertTaskClaim,
+	},
+	clientproto.RPCCelebrityGetAllTypesInfo.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertCelebritySyncRequest(op) },
+		run:  runDessertCelebritySync,
+	},
+	clientproto.RPCCelebrityLikeCelebrity.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return dessertCelebrityLikeRequest(op) },
+		run:  runDessertCelebrityLike,
 	},
 	clientproto.RPCTaskDlyRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.TaskDlyRecvRequest, error) {
@@ -576,20 +594,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.RoadGrow().Recv(ctx, req)
 		},
 	),
-	clientproto.RPCRandomEventEnter.String(): stateDeltaOperation(
-		staticRequest(clientproto.RandomEventEnterRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.RandomEvent().Enter(ctx, req)
-		},
-	),
-	clientproto.RPCRandomEventDoAffair.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.RandomEventDoAffairRequest, error) {
-			return clientproto.RandomEventDoAffairRequest{EventId: op.TargetID}, nil
-		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.RandomEventDoAffairRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.RandomEvent().DoAffair(ctx, req)
-		},
-	),
+	clientproto.RPCRandomEventEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return randomEventEnterRequest(op) },
+		run:  runRandomEventEnter,
+	},
+	clientproto.RPCRandomEventDoAffair.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return randomEventClaimRequest(op) },
+		run:  runRandomEventClaim,
+	},
 	clientproto.RPCMailGetList.String(): stateDeltaOperation(
 		staticRequest(clientproto.MailGetListRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.MailGetListRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
@@ -628,6 +640,11 @@ var plannedOperationSpecs = map[string]operationSpec{
 }
 
 func operationSpecFor(kind string) (operationSpec, bool) {
+	// Keep the live dessert transport denylist in front of the registry map.
+	// This remains false even if a future edit accidentally adds an entry.
+	if isHardBlockedDessertGameOperation(kind) {
+		return operationSpec{}, false
+	}
 	spec, ok := plannedOperationSpecs[kind]
 	return spec, ok
 }
@@ -672,6 +689,9 @@ func harvestOperationArgs(op *automation.PlannedOp) (any, error) {
 func operationArgs(op *automation.PlannedOp) (any, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
+	}
+	if isHardBlockedDessertGameOperation(op.Kind) {
+		return nil, fmt.Errorf("dessert live game RPC %s is compile-time blocked", op.Kind)
 	}
 	spec, ok := operationSpecFor(op.Kind)
 	if !ok {

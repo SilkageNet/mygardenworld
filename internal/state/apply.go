@@ -15,6 +15,17 @@ import (
 // When the input is not a JSON object (e.g. some legacy responses serialize
 // v as a JSON-stringified blob), ApplyV is a no-op.
 func (s *State) ApplyV(rawV json.RawMessage) {
+	s.applyV(rawV, applyHints{})
+}
+
+// ApplyVFullFmlRaceTaskPool applies a getTaskList response. Unlike ordinary
+// namespace deltas, field 25.114 in this response is a complete task-pool
+// snapshot and must replace stale rows even when the new list is shorter.
+func (s *State) ApplyVFullFmlRaceTaskPool(rawV json.RawMessage) {
+	s.applyV(rawV, applyHints{fullFmlRaceTaskPool: true})
+}
+
+func (s *State) applyV(rawV json.RawMessage, hints applyHints) {
 	if len(rawV) == 0 {
 		return
 	}
@@ -22,7 +33,7 @@ func (s *State) ApplyV(rawV json.RawMessage) {
 	if err := json.Unmarshal(rawV, &top); err != nil {
 		return
 	}
-	s.applyTop(top)
+	s.applyTop(top, hints)
 }
 
 // ApplyVMap is the post-decoded counterpart of ApplyV: pass an already-parsed
@@ -34,10 +45,14 @@ func (s *State) ApplyVMap(top map[string]any) {
 		raw, _ := json.Marshal(v)
 		conv[k] = raw
 	}
-	s.applyTop(conv)
+	s.applyTop(conv, applyHints{})
 }
 
-func (s *State) applyTop(top map[string]json.RawMessage) {
+type applyHints struct {
+	fullFmlRaceTaskPool bool
+}
+
+func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	s.mu.Lock()
 	now := time.Now().UnixMilli()
 	s.lastApplyMs = now
@@ -129,7 +144,7 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 		s.applyPalaceOrderLocked(rawNS108)
 	}
 	if rawNS25, ok := top["25"]; ok {
-		s.applyFmlLocked(rawNS25)
+		s.applyFmlLocked(rawNS25, hints.fullFmlRaceTaskPool)
 	}
 	if rawNS112, ok := top["112"]; ok {
 		s.applyShopGiftbagLocked(rawNS112)
@@ -142,6 +157,15 @@ func (s *State) applyTop(top map[string]json.RawMessage) {
 	}
 	if rawNS23, ok := top["23"]; ok {
 		s.applyActivitiesLocked(rawNS23)
+	}
+	// Namespace 166 is authoritative in current captures. Retain legacy 165
+	// support, but always apply it first when both occur in one delta so the
+	// canonical namespace wins every overlapping field.
+	if rawNS165, ok := top[babigame.CelebrityNamespaceLegacy]; ok {
+		s.applyCelebrityLocked(rawNS165, babigame.CelebrityNamespaceLegacy)
+	}
+	if rawNS166, ok := top[babigame.CelebrityNamespace]; ok {
+		s.applyCelebrityLocked(rawNS166, babigame.CelebrityNamespace)
 	}
 	if rawNS117, ok := top["117"]; ok {
 		s.applyFreeWaterLocked(rawNS117)

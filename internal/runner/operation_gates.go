@@ -15,19 +15,11 @@ import (
 )
 
 func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automation.PlannedOp {
-	for _, candidate := range automation.PlanOperations(r.state, policy, now) {
-		if !runnablePlannedOp(candidate) {
-			continue
-		}
-		op := candidate
-		if _, ok := r.operationCoolingDown(&op, now); ok {
-			continue
-		}
-		if filtered := r.applyHarvestBlocks(&op, now); filtered != nil {
-			return filtered
-		}
+	if policy == nil || !policy.GetAutomationEnabled() {
+		r.resetSideLaneFairness()
+		return nil
 	}
-	return nil
+	return r.selectRunnableOperation(automation.PlanOperations(r.state, policy, now), now)
 }
 
 func runnablePlannedOp(op automation.PlannedOp) bool {
@@ -43,7 +35,7 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 		return nil
 	}
 	for _, gate := range op.CostGates {
-		if err := r.checkCostGate(gate, now); err != nil {
+		if err := r.checkCostGate(op, gate, now); err != nil {
 			return err
 		}
 	}
@@ -88,7 +80,7 @@ func (r *Runner) lockOperationWaterDrops(op *automation.PlannedOp, now time.Time
 	return func() { r.state.ReleaseWaterDropsLock(lockedWaterDrops) }, nil
 }
 
-func (r *Runner) checkCostGate(gate automation.CostGate, now time.Time) error {
+func (r *Runner) checkCostGate(op *automation.PlannedOp, gate automation.CostGate, now time.Time) error {
 	required := gate.Required
 	if required <= 0 {
 		return nil
@@ -109,6 +101,18 @@ func (r *Runner) checkCostGate(gate automation.CostGate, now time.Time) error {
 		available := int64(r.state.Inventory()[gate.ItemID])
 		if available < required {
 			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, flowerName(int(gate.ItemID))), required, available)
+		}
+	case automation.GateResourceActivityItem:
+		if op == nil || op.BatchID <= 0 {
+			return fmt.Errorf("%s缺少活动批次", gateLabel(gate, "活动道具"))
+		}
+		count, observed := r.state.ActivityItemCount(op.BatchID, gate.ItemID)
+		if !observed {
+			return fmt.Errorf("%s所在活动背包尚未完整同步", gateLabel(gate, "活动道具"))
+		}
+		available := int64(count)
+		if available < required {
+			return fmt.Errorf("%s不足: 需要 %d，当前 %d", gateLabel(gate, "活动道具"), required, available)
 		}
 	case automation.GateResourceWaterDrop:
 		available, _, _ := r.state.AvailableWaterDrops(now)
@@ -321,7 +325,7 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	}
 
 	rpc := r.runnerRPC(client, session)
-	v, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
+	_, d, err := rpcResult(rpc.Waterwheel().Enter(ctx, clientproto.WaterwheelEnterRequest{}))
 	if r.isSessionInvalidated() {
 		return
 	}
@@ -334,7 +338,4 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 	}
 	r.lastWaterSyncTick = now
 	r.state.MarkWaterwheelEntered(now)
-	if babigame.HasPayload(v) {
-		r.state.ApplyV(v)
-	}
 }

@@ -510,13 +510,17 @@ func (s *State) RoadGrowReceived() map[int32]bool {
 	return out
 }
 
-// ReadyRandomEventIDs returns map random events whose status is actionable.
+// ReadyRandomEventIDs returns structurally valid, catalog-known, cost-free map
+// events in deterministic event-id order.
 func (s *State) ReadyRandomEventIDs() []int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if !s.randomEventObserved || !s.randomEventMapValid {
+		return nil
+	}
 	out := make([]int32, 0, len(s.randomEvents))
 	for id, event := range s.randomEvents {
-		if event != nil && (event.Status == 0 || event.Status == 1) {
+		if event != nil && event.Valid && event.EventID == id {
 			out = append(out, id)
 		}
 	}
@@ -531,6 +535,23 @@ func (s *State) RandomEventObserved() bool {
 	return s.randomEventObserved
 }
 
+// RandomEventMapStatus reports whether the authoritative 129.0.1 table was
+// observed and structurally decoded. A malformed replacement clears all
+// executable candidates and supplies a diagnostic reason.
+func (s *State) RandomEventMapStatus() (observed, valid bool, reason string) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.randomEventObserved, s.randomEventMapValid, s.randomEventMapError
+}
+
+// RandomEventTableReady accepts both a valid non-empty table and a valid empty
+// table, matching randomEvent.enter's postcondition.
+func (s *State) RandomEventTableReady() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.randomEventObserved && s.randomEventMapValid
+}
+
 // RandomEvents returns the current map-random-event state.
 func (s *State) RandomEvents() map[int32]RandomEventView {
 	s.mu.RLock()
@@ -542,6 +563,35 @@ func (s *State) RandomEvents() map[int32]RandomEventView {
 		}
 	}
 	return out
+}
+
+// RandomEventClaimSnapshot revalidates the exact event immediately before a
+// doAffair request.
+func (s *State) RandomEventClaimSnapshot(eventID int32) (RandomEventClaimSnapshot, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if eventID <= 0 || !s.randomEventObserved || !s.randomEventMapValid {
+		return RandomEventClaimSnapshot{}, false
+	}
+	event := s.randomEvents[eventID]
+	if event == nil || !event.Valid || event.EventID != eventID || !event.CatalogKnown || !event.CostFree {
+		return RandomEventClaimSnapshot{}, false
+	}
+	return RandomEventClaimSnapshot{
+		EventID: event.EventID, PositionIndex: event.PositionIndex, DialogID: event.DialogID,
+	}, true
+}
+
+// RandomEventClaimApplied requires the target to disappear from a subsequent
+// authoritative, structurally valid whole-table replacement.
+func (s *State) RandomEventClaimApplied(snapshot RandomEventClaimSnapshot) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if snapshot.EventID <= 0 || !s.randomEventObserved || !s.randomEventMapValid {
+		return false
+	}
+	_, stillPresent := s.randomEvents[snapshot.EventID]
+	return !stillPresent
 }
 
 // AchievementTasks returns a copy of tracked achievement task progress.

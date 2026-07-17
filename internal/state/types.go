@@ -622,6 +622,210 @@ type CyclicNoteMilestoneView struct {
 	Reward   []ItemCount
 }
 
+// DessertView is a defensive snapshot of the dynamically selected 香卉甜糕
+// (tmpType 5601) activity. Batch ids and dates always come from namespace 23.
+type DessertView struct {
+	Observed                  bool
+	Found                     bool
+	Valid                     bool
+	BagObserved               bool
+	ExtensionObserved         bool
+	ExtensionValid            bool
+	ModeMapObserved           bool
+	ModeMapValid              bool
+	AuthorityRevision         uint64
+	BoardHash                 string
+	TaskGroupsObserved        bool
+	TaskGroupsValid           bool
+	TaskRecordObserved        bool
+	MilestoneReceiptsObserved bool
+	BatchID                   int32
+	TmpID                     int32
+	TmpType                   int32
+	Status                    int32
+	Phase                     int32
+	VisibleStartMs            int64
+	BeginMs                   int64
+	EndMs                     int64
+	GraceEndMs                int64
+	PhaseEndMs                int64
+	Name                      string
+	Description               string
+	DropCount                 int32
+	DropCountObserved         bool
+	TotalScore                int32
+	TotalScoreObserved        bool
+	Bag                       map[int32]int32
+	EnergyItemID              int32
+	EnergyBalance             int32
+	CurrencyItemID            int32
+	CurrencyBalance           int32
+	PointItemID               int32
+	RewardBoxItemID           int32
+	RewardBoxBalance          int32
+	ClaimedMilestoneIndexes   []int32
+	Modes                     []DessertModeView
+	Tasks                     []DessertTaskView
+	Milestones                []DessertMilestoneView
+	Celebrity                 DessertCelebrityLikeView
+}
+
+// DessertModeView preserves one complete server mode snapshot. Objects remain
+// available internally for replay/controller work; API mapping must expose
+// only ObjectCount and LevelCounts.
+type DessertModeView struct {
+	Mode        int32
+	Multiplier  int32
+	UnlockScore int32
+	Observed    bool
+	Valid       bool
+	// AuthorityRevision belongs to the enclosing ext121 field-1 replacement;
+	// BoardHash fingerprints only this mode's typed state.
+	AuthorityRevision uint64
+	BoardHash         string
+	Step              int32
+	ItemUse           map[int32]int32
+	Objects           []DessertObjectView
+	ObjectCount       int32
+	GameStatus        int32
+	FirstMerge        map[int32]int32
+	IsRunning         bool
+	TotalGain         map[int32]int32
+	CurID             int32
+	Score             int32
+	LevelMap          map[int32]int32
+	LevelCounts       map[int32]int32
+}
+
+// DessertObjectView is one full physical object retained from mode field 2.
+// Raw is preserved in addition to strict typed fields for replay fidelity.
+type DessertObjectView struct {
+	Raw                json.RawMessage
+	Level              int32
+	IsSyn              bool
+	Position           DessertVector2
+	LinearVelocity     DessertVector2
+	AngularVelocity    float64
+	Scale              DessertVector3
+	NodeAngle          float64
+	IsAwake            bool
+	LineTime           float64
+	IsFallBall         bool
+	IsFallBallObserved bool
+}
+
+type DessertVector2 struct {
+	X float64
+	Y float64
+}
+
+type DessertVector3 struct {
+	X float64
+	Y float64
+	Z float64
+}
+
+// DessertTaskView is one template task joined with namespace 23.3 progress and
+// receipt maps. ProgressObserved refers to key presence, not merely to the
+// enclosing map having been observed; claimed tasks disappear from progress.
+type DessertTaskView struct {
+	TaskIndex        int32
+	Position         int32
+	TaskID           int32
+	TaskType         int32
+	Param            int32
+	HasParam         bool
+	Title            string
+	Target           int32
+	Progress         int32
+	ProgressObserved bool
+	ReceiptObserved  bool
+	Received         bool
+	CatalogKnown     bool
+	Reward           []ItemCount
+}
+
+type DessertMilestoneView struct {
+	Index    int32
+	Target   int32
+	Received bool
+	Reward   []ItemCount
+}
+
+// DessertCelebrityLikeView deliberately exposes no leaderboard or account
+// UID. LikedThisBatch is derived from LastLikeTimeMs and the selected batch.
+type DessertCelebrityLikeView struct {
+	Observed         bool
+	Valid            bool
+	TypesObserved    bool
+	RankingsObserved bool
+	LikesObserved    bool
+	TypeListed       bool
+	RankingObserved  bool
+	RankingCount     int32
+	LikedThisBatch   bool
+	LastLikeTimeMs   int64
+	CreateTimeMs     int64
+}
+
+// DessertEnterSnapshot freezes the selected batch before one cost-free enter
+// request. Enter is used only to fill missing activity-local bag or ext121
+// state; task-record absence is deliberately not treated as an enter signal.
+type DessertEnterSnapshot struct {
+	At      time.Time
+	BatchID int32
+	Phase   int32
+	// BagOnly is used by the independent reward-box path. It authorizes enter
+	// only to fill a missing namespace-23 activity bag and does not make the
+	// game board a prerequisite for opening an already earned box.
+	BagOnly bool
+}
+
+// DessertTaskClaimSnapshot freezes the only capture-confirmed fixed-task
+// reward contract (task index 0, task type 18, energy reward).
+type DessertTaskClaimSnapshot struct {
+	At           time.Time
+	BatchID      int32
+	TaskIndex    int32
+	TaskID       int32
+	Target       int32
+	Progress     int32
+	EnergyItemID int32
+	EnergyBefore int32
+	RewardCount  int32
+}
+
+// DessertCelebritySyncSnapshot identifies the batch for which the runner is
+// performing its one controlled, session-local full celebrity sync.
+type DessertCelebritySyncSnapshot struct {
+	At      time.Time
+	BatchID int32
+	Phase   int32
+}
+
+// DessertCelebrityLikeSnapshot freezes the exact free like reward and batch
+// boundary used by the postcondition.
+type DessertCelebrityLikeSnapshot struct {
+	At             time.Time
+	BatchID        int32
+	BatchBeginMs   int64
+	EnergyItemID   int32
+	EnergyBefore   int32
+	ExpectedReward int32
+}
+
+// DessertRewardBoxOpenSnapshot freezes the activity-local reward-box balance
+// before one capture-confirmed, single-box open. It deliberately has no game
+// board or ordinary-inventory fields because openBox is independent of play.
+type DessertRewardBoxOpenSnapshot struct {
+	At            time.Time
+	BatchID       int32
+	Phase         int32
+	RewardBoxID   int32
+	BalanceBefore int32
+	Count         int32
+}
+
 // CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.
 // Enter is only safe while the batch is in its active or reward-grace phase
 // and before its authoritative task list has been observed.
@@ -682,13 +886,26 @@ type StoryUnlockSnapshot struct {
 	Inventory  map[int32]int32
 }
 
-// RandomEventView is the tracked subset of namespace 129 map events. Static
-// client schema names 129.IRandomEventInfo.1/2 as posIdx/dialogId; current
-// status/affair semantics are capture-derived and pending revalidation.
+// RandomEventView is one namespace 129.0.1 entry joined with c_randomEvent.
+// PositionIndex and DialogID retain the client schema semantics; neither is a
+// status field. Invalid entries remain visible for diagnostics but are never
+// returned as executable candidates.
 type RandomEventView struct {
-	EventID int32 `json:"event_id"`
-	Status  int32 `json:"status"`
-	Affair  int32 `json:"affair"`
+	EventID       int32  `json:"event_id"`
+	PositionIndex int32  `json:"position_index"`
+	DialogID      int32  `json:"dialog_id"`
+	CatalogKnown  bool   `json:"catalog_known"`
+	CostFree      bool   `json:"cost_free"`
+	Valid         bool   `json:"valid"`
+	BlockedReason string `json:"blocked_reason,omitempty"`
+}
+
+// RandomEventClaimSnapshot freezes the exact event verified immediately
+// before randomEvent.doAffair.
+type RandomEventClaimSnapshot struct {
+	EventID       int32
+	PositionIndex int32
+	DialogID      int32
 }
 
 const (

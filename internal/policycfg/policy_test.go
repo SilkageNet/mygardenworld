@@ -62,6 +62,30 @@ func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
 	}
 }
 
+func TestFromJSONRaceScoreFieldCompatibility(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want int32
+	}{
+		{name: "stable snake case", raw: `{"union":{"race":{"min_task_score":17}}}`, want: 17},
+		{name: "short lived KK snake case", raw: `{"union":{"race":{"max_task_score":19}}}`, want: 19},
+		{name: "short lived KK camel case", raw: `{"union":{"race":{"maxTaskScore":21}}}`, want: 21},
+		{name: "stable field wins", raw: `{"union":{"race":{"min_task_score":17,"max_task_score":19}}}`, want: 17},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy, err := FromJSON(tt.raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := policy.GetUnion().GetRace().GetMinTaskScore(); got != tt.want {
+				t.Fatalf("min task score=%d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()

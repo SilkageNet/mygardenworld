@@ -2,13 +2,16 @@ package apiserver
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
@@ -437,6 +440,270 @@ func TestCyclicNotePendingTasksUseMachineCategoryCompositeIDAndActivePhase(t *te
 	view.Phase = 3
 	if grace := cyclicNotePendingTasksFromView(view); len(grace) != 0 {
 		t.Fatalf("phase 3 pending tasks=%+v, want none", grace)
+	}
+}
+
+func TestDessertProtoProjectsSanitizedDeterministicMonitoringView(t *testing.T) {
+	view := state.DessertView{
+		Observed:                  true,
+		Found:                     true,
+		Valid:                     true,
+		BatchID:                   9101,
+		TmpID:                     56019999,
+		TmpType:                   5601,
+		Status:                    1,
+		Phase:                     2,
+		VisibleStartMs:            100,
+		BeginMs:                   200,
+		EndMs:                     300,
+		GraceEndMs:                400,
+		PhaseEndMs:                300,
+		Name:                      "香卉甜糕",
+		Description:               "监控测试",
+		DropCount:                 101,
+		DropCountObserved:         true,
+		TotalScore:                2220,
+		TotalScoreObserved:        true,
+		Bag:                       map[int32]int32{1347: 13, 1342: 100, 1343: 217},
+		BagObserved:               true,
+		EnergyItemID:              1342,
+		EnergyBalance:             100,
+		CurrencyItemID:            1343,
+		CurrencyBalance:           217,
+		PointItemID:               1344,
+		RewardBoxItemID:           1347,
+		RewardBoxBalance:          13,
+		ExtensionObserved:         true,
+		ExtensionValid:            true,
+		ModeMapObserved:           true,
+		ModeMapValid:              true,
+		TaskGroupsObserved:        true,
+		TaskGroupsValid:           true,
+		TaskRecordObserved:        true,
+		MilestoneReceiptsObserved: true,
+		Modes: []state.DessertModeView{
+			{Mode: 2, Multiplier: 5, UnlockScore: 4000, Observed: true, Valid: true, Step: 2, Score: 20, IsRunning: true, GameStatus: 2, CurID: 3, ObjectCount: 3, LevelCounts: map[int32]int32{3: 1, 1: 2}},
+			{Mode: 1, Multiplier: 1, UnlockScore: 0, Observed: true, Valid: true, Step: 1, Score: 10, GameStatus: 1, CurID: 2, ObjectCount: 1, LevelCounts: map[int32]int32{2: 1}},
+		},
+		Tasks: []state.DessertTaskView{
+			{TaskIndex: 0, Position: 2, TaskID: 2, TaskType: 18, Title: "完成每日任务2次", Target: 2, Progress: 3, ProgressObserved: true, ReceiptObserved: true, CatalogKnown: true, Reward: []state.ItemCount{{ItemID: 1342, Count: 100}}},
+			{TaskIndex: 0, Position: 1, TaskID: 1, TaskType: 18, Title: "完成每日任务1次", Target: 1, ReceiptObserved: true, Received: true, CatalogKnown: true, Reward: []state.ItemCount{{ItemID: 1342, Count: 100}}},
+		},
+		Milestones: []state.DessertMilestoneView{
+			{Index: 2, Target: 2400, Reward: []state.ItemCount{{ItemID: 1347, Count: 2}}},
+			{Index: 1, Target: 600, Reward: []state.ItemCount{{ItemID: 1347, Count: 1}}},
+		},
+		Celebrity: state.DessertCelebrityLikeView{
+			Observed: true, Valid: true, TypesObserved: true, RankingsObserved: true, LikesObserved: true,
+			TypeListed: true, RankingObserved: true, RankingCount: 2,
+		},
+	}
+
+	got := dessertProto(view)
+	if !got.GetObserved() || !got.GetFound() || !got.GetValid() || got.GetBatchId() != 9101 || got.GetTemplateType() != 5601 {
+		t.Fatalf("dessert identity=%+v", got)
+	}
+	if len(got.GetItems()) != 3 || got.GetItems()[0].GetItemId() != 1342 || got.GetItems()[1].GetItemId() != 1343 || got.GetItems()[2].GetItemId() != 1347 {
+		t.Fatalf("dessert items=%+v, want stable item-id order", got.GetItems())
+	}
+	if len(got.GetModes()) != 2 || got.GetModes()[0].GetMode() != 1 || got.GetModes()[1].GetMode() != 2 {
+		t.Fatalf("dessert modes=%+v, want stable mode order", got.GetModes())
+	}
+	mode := got.GetModes()[1]
+	if mode.GetUnlocked() || mode.GetRawGameStatus() != 2 || mode.GetEffectiveGameStatus() != 1 || mode.GetObjectCount() != 3 {
+		t.Fatalf("dessert mode summary=%+v", mode)
+	}
+	if len(mode.GetLevelCounts()) != 2 || mode.GetLevelCounts()[0].GetLevel() != 1 || mode.GetLevelCounts()[0].GetCount() != 2 || mode.GetLevelCounts()[1].GetLevel() != 3 {
+		t.Fatalf("dessert level counts=%+v, want stable level order", mode.GetLevelCounts())
+	}
+	modeFields := mode.ProtoReflect().Descriptor().Fields()
+	if modeFields.ByName("objects") != nil || modeFields.ByName("map") != nil || modeFields.ByName("position") != nil {
+		t.Fatalf("public dessert mode descriptor leaked raw physics fields: %v", modeFields)
+	}
+	if len(got.GetTasks()) != 2 || got.GetTasks()[0].GetTaskId() != 1 || got.GetTasks()[1].GetTaskId() != 2 {
+		t.Fatalf("dessert tasks=%+v, want template position order", got.GetTasks())
+	}
+	if got.GetTasks()[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_SKIPPED || got.GetTasks()[0].GetProgressObserved() {
+		t.Fatalf("received task with removed progress=%+v, want SKIPPED", got.GetTasks()[0])
+	}
+	readyTask := got.GetTasks()[1]
+	if readyTask.GetProgress() != 2 || readyTask.GetRawProgress() != 3 || readyTask.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("overshot dessert task=%+v, want display 2 raw 3 READY", readyTask)
+	}
+	if len(got.GetMilestones()) != 2 || got.GetMilestones()[0].GetIndex() != 1 || !got.GetMilestones()[0].GetReady() || got.GetMilestones()[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_SYNC_ONLY {
+		t.Fatalf("dessert milestones=%+v, want stable monitoring-only ready row", got.GetMilestones())
+	}
+	celebrity := got.GetCelebrity()
+	if celebrity == nil || celebrity.GetRankingCount() != 2 || celebrity.GetStatus() != pb.PlanStatus_PLAN_STATUS_READY || len(celebrity.GetReward()) != 1 || celebrity.GetReward()[0].GetItemId() != 1342 || celebrity.GetReward()[0].GetCount() != 20 {
+		t.Fatalf("dessert celebrity=%+v", celebrity)
+	}
+	if celebrity.ProtoReflect().Descriptor().Fields().ByName("uid") != nil {
+		t.Fatal("public dessert celebrity descriptor leaked leaderboard UID")
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("dessert")
+	if field == nil || field.Number() != 41 {
+		t.Fatalf("GetSnapshotResponse dessert field=%v, want field 41", field)
+	}
+	runtimeField := got.ProtoReflect().Descriptor().Fields().ByName("runtime")
+	if runtimeField == nil || runtimeField.Number() != 41 {
+		t.Fatalf("DessertView runtime field=%v, want field 41", runtimeField)
+	}
+}
+
+func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T) {
+	snapshot := runner.DessertRuntimeSnapshot{
+		Observed:             true,
+		ShadowOnly:           true,
+		PolicyEnabled:        true,
+		SessionEpoch:         7,
+		BatchID:              9101,
+		Mode:                 1,
+		AuthorityRevision:    42,
+		BoardHash:            "A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718A1B2C3D4E5F60718",
+		BoardOwned:           true,
+		TakeoverRequested:    true,
+		Waiting:              true,
+		WaitingRemainingMS:   320,
+		FrozenWaitingLevel:   3,
+		SessionEnergyUsed:    5,
+		Suggestion:           "  drop\n x=0  ",
+		BlockedReason:        "trajectory replay gate\r\nis incomplete",
+		FailureLocked:        true,
+		LiveEvidenceReady:    true,
+		LiveExecutionAllowed: false,
+		MaxSessionEnergy:     5,
+		MinEnergyReserve:     2,
+	}
+
+	got := dessertRuntimeProto(snapshot)
+	if !got.GetObserved() || !got.GetShadowOnly() || !got.GetPolicyEnabled() || got.GetSessionEpoch() != 7 || got.GetBatchId() != 9101 || got.GetMode() != 1 {
+		t.Fatalf("dessert runtime identity=%+v", got)
+	}
+	if got.GetAuthorityRevision() != 42 || got.GetBoardHash() != "a1b2c3d4e5f60718" || !got.GetBoardOwned() || !got.GetTakeoverRequested() {
+		t.Fatalf("dessert runtime authority=%+v", got)
+	}
+	if !got.GetWaiting() || got.GetWaitingRemainingMs() != 320 || got.GetFrozenWaitingLevel() != 3 || got.GetSessionEnergyUsed() != 5 {
+		t.Fatalf("dessert runtime session=%+v", got)
+	}
+	if got.GetSuggestion() != "drop x=0" || got.GetBlockedReason() != "trajectory replay gate is incomplete" || !got.GetFailureLocked() {
+		t.Fatalf("dessert runtime diagnostics=%+v", got)
+	}
+	if !got.GetLiveEvidenceReady() || got.GetLiveExecutionAllowed() || got.GetMaxSessionEnergy() != 5 || got.GetMinEnergyReserve() != 2 {
+		t.Fatalf("dessert runtime live gate transparency=%+v", got)
+	}
+
+	fields := got.ProtoReflect().Descriptor().Fields()
+	for name, number := range map[string]protoreflect.FieldNumber{
+		"live_evidence_ready":    18,
+		"live_execution_allowed": 19,
+		"max_session_energy":     20,
+		"min_energy_reserve":     21,
+	} {
+		field := fields.ByName(protoreflect.Name(name))
+		if field == nil || field.Number() != number {
+			t.Fatalf("DessertRuntimeView %s field=%v, want field %d", name, field, number)
+		}
+	}
+	for _, forbidden := range []string{"uid", "account_id", "login_time", "position", "velocity", "raw_map"} {
+		if fields.ByName(protoreflect.Name(forbidden)) != nil {
+			t.Fatalf("public dessert runtime descriptor leaked %q", forbidden)
+		}
+	}
+	if hash := dessertRuntimeProto(runner.DessertRuntimeSnapshot{BoardHash: "not-a-hash"}).GetBoardHash(); hash != "" {
+		t.Fatalf("unsafe board hash=%q, want redacted", hash)
+	}
+	if hash := dessertRuntimeProto(runner.DessertRuntimeSnapshot{BoardHash: "0123456789abcdef"}).GetBoardHash(); hash != "" {
+		t.Fatalf("short board hash=%q, want redacted", hash)
+	}
+	long := strings.Repeat("影", 241)
+	if got := dessertRuntimeProto(runner.DessertRuntimeSnapshot{Suggestion: long, BlockedReason: long}); utf8.RuneCountInString(got.GetSuggestion()) != 160 || utf8.RuneCountInString(got.GetBlockedReason()) != 240 {
+		t.Fatalf("runtime text lengths=(%d,%d), want rune limits (160,240)", utf8.RuneCountInString(got.GetSuggestion()), utf8.RuneCountInString(got.GetBlockedReason()))
+	}
+	if zero := dessertRuntimeProto(runner.DessertRuntimeSnapshot{}); zero == nil || zero.GetObserved() || zero.GetPolicyEnabled() || zero.GetBoardOwned() || zero.GetFailureLocked() || zero.GetLiveEvidenceReady() || zero.GetLiveExecutionAllowed() || zero.GetMaxSessionEnergy() != 0 || zero.GetMinEnergyReserve() != 0 {
+		t.Fatalf("zero dessert runtime=%+v, want safe empty diagnostics", zero)
+	}
+}
+
+func TestDessertTaskAndMilestoneStatusesAllowRewardPhaseButFailClosed(t *testing.T) {
+	task := state.DessertTaskView{
+		TaskIndex: 0, TaskID: 1, TaskType: 18, Target: 1, Progress: 1, ProgressObserved: true,
+		ReceiptObserved: true, CatalogKnown: true, Reward: []state.ItemCount{{ItemID: 1342, Count: 100}},
+	}
+	view := state.DessertView{
+		Found: true, Valid: true, Phase: 3, TotalScore: 600, TotalScoreObserved: true, MilestoneReceiptsObserved: true,
+	}
+	if got := dessertTaskStatus(view, task); got != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("reward-phase task status=%s, want READY", got)
+	}
+	view.Phase = 1
+	if got := dessertTaskStatus(view, task); got != pb.PlanStatus_PLAN_STATUS_SYNC_ONLY {
+		t.Fatalf("preview task status=%s, want SYNC_ONLY", got)
+	}
+	view.Phase = 2
+	task.TaskType = 19
+	if got := dessertTaskStatus(view, task); got != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+		t.Fatalf("unsupported task status=%s, want BLOCKED", got)
+	}
+	task.TaskType = 18
+	task.Reward = []state.ItemCount{{ItemID: 1342, Count: 99}}
+	if got := dessertTaskStatus(view, task); got != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+		t.Fatalf("altered task reward status=%s, want BLOCKED", got)
+	}
+	task.Reward = []state.ItemCount{{ItemID: 1342, Count: 100}}
+	task.ReceiptObserved = false
+	if got := dessertTaskStatus(view, task); got != pb.PlanStatus_PLAN_STATUS_SYNC_ONLY {
+		t.Fatalf("unobserved receipt status=%s, want SYNC_ONLY", got)
+	}
+
+	milestone := state.DessertMilestoneView{Index: 1, Target: 600}
+	if !dessertMilestoneReady(view, milestone) || dessertMilestoneStatus(view, milestone) != pb.PlanStatus_PLAN_STATUS_SYNC_ONLY {
+		t.Fatalf("monitoring-only milestone ready=%t status=%s", dessertMilestoneReady(view, milestone), dessertMilestoneStatus(view, milestone))
+	}
+	milestone.Received = true
+	if dessertMilestoneReady(view, milestone) || dessertMilestoneStatus(view, milestone) != pb.PlanStatus_PLAN_STATUS_SKIPPED {
+		t.Fatalf("received milestone ready=%t status=%s", dessertMilestoneReady(view, milestone), dessertMilestoneStatus(view, milestone))
+	}
+}
+
+func TestDessertPendingTasksUseActivityCompositeIDsInActiveAndRewardPhases(t *testing.T) {
+	view := state.DessertView{
+		Found:   true,
+		Valid:   true,
+		BatchID: 9101,
+		Phase:   3,
+		Tasks: []state.DessertTaskView{
+			{TaskIndex: 0, Position: 2, TaskID: 2, TaskType: 18, Title: "完成每日任务2次", Target: 2, Progress: 3, ProgressObserved: true, ReceiptObserved: true, CatalogKnown: true, Reward: []state.ItemCount{{ItemID: 1342, Count: 100}}},
+			{TaskIndex: 0, Position: 1, TaskID: 1, TaskType: 18, Title: "完成每日任务1次", Target: 1, Progress: 1, ProgressObserved: true, ReceiptObserved: true, Received: true, CatalogKnown: true, Reward: []state.ItemCount{{ItemID: 1342, Count: 100}}},
+			{TaskIndex: 1, Position: 1, TaskID: 8, TaskType: 99, Title: "未知任务", Target: 1, ProgressObserved: true, ReceiptObserved: true, Reward: []state.ItemCount{{ItemID: 1342, Count: 100}}},
+		},
+	}
+
+	got := dessertPendingTasksFromView(view)
+	if len(got) != 2 {
+		t.Fatalf("dessert pending tasks=%+v, want unreceived tasks only", got)
+	}
+	if got[0].GetCategory() != "activity" || got[0].GetId() != "9101:0:2" || got[0].GetFinished() != 2 || got[0].GetTarget() != 2 || got[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("ready dessert pending task=%+v", got[0])
+	}
+	if got[1].GetId() != "9101:1:8" || got[1].GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED {
+		t.Fatalf("blocked dessert pending task=%+v", got[1])
+	}
+	view.Phase = 2
+	if active := dessertPendingTasksFromView(view); len(active) != 2 || active[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_READY {
+		t.Fatalf("active dessert pending tasks=%+v", active)
+	}
+	view.Phase = 1
+	if preview := dessertPendingTasksFromView(view); len(preview) != 0 {
+		t.Fatalf("preview dessert pending tasks=%+v, want none", preview)
+	}
+}
+
+func TestActivityItemGateHasDistinctPublicResourceKind(t *testing.T) {
+	if got := gateResourceKindProto(automation.GateResourceActivityItem); got != pb.GateResourceKind_GATE_RESOURCE_KIND_ACTIVITY_ITEM {
+		t.Fatalf("activity item gate kind=%s", got)
+	}
+	if got := gateResourceKindProto(automation.GateResourceActivityItem); got == pb.GateResourceKind_GATE_RESOURCE_KIND_ITEM {
+		t.Fatal("activity-local item was exposed as normal inventory item")
 	}
 }
 

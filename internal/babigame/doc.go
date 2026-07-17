@@ -55,7 +55,11 @@
 //	132        | Observed order/pass delta          | orderFlower, flowerElvesPass
 //	140        | Stateful anti-fraud daily reward   | signType.enter/sign/recv
 //	148        | Observed broad activity delta      | Most reward/activity RPCs
-//	165        | Celebrity state                   | celebrity.getAllTypesInfo
+//	165        | Celebrity state (legacy)          | older celebrity responses
+//	166        | Celebrity state (authoritative)   | celebrity.getAllTypesInfo
+//
+// When a delta contains both celebrity namespaces, apply legacy namespace 165
+// first and authoritative namespace 166 second.
 //
 // # Inventory (Namespace 7)
 //
@@ -141,6 +145,29 @@
 // Slot unlock, paid reroll/direct-complete, gifts, and the activity shop are
 // deliberately outside the safe automatic surface.
 //
+// # Dessert Activity (Namespace 23 ext121)
+//
+// 香卉甜糕 uses tmpType 5601. The dynamically selected batch stores activity
+// energy/currency/reward boxes in its bag (items 1342/1343/1347), total drops
+// in field 11, claimed milestones in field 13, and game state in
+// 23.0.<batchId>.14.121. Field 121.1 is an authoritative five-mode map; every
+// mode contains numeric schema fields 0..9, while actDessert.gameSync requests
+// must send the corresponding named saveData keys (step, itemUse, map,
+// gameStatus, firstMerge, isRunning, totalGain, curId, score, lvMap).
+//
+// The official client permits game input only in phase 2. A live phase-3
+// observation on 2026-07-12 confirmed that actDessert.gameStart completes
+// without starting mode 1, while actDessert.gameOver on an idle mode performs
+// end-of-event settlement: all remaining item 1342 energy was converted to
+// item 1343 currency at 1:2. Therefore gameOver is not a generic cleanup RPC.
+// Cleanup may call it only after an enter refresh proves that the exact mode
+// was running and was created/owned by the current test or automation session.
+//
+// The mutating live test TestDessertModeOneLifecycleE2E is additionally gated
+// by E2E_DESSERT_LIVE=1. During phase 2 it uses a three-energy deterministic
+// prefix (first-drop levels 1,1,2) to cover start, drop, merge, checkpoint,
+// and active settlement without replaying account-specific captured boards.
+//
 // Per-land fields (G.ILand schema, numeric-string keys):
 //
 //	"0" = flowerId (23000-23999; 0 = empty)
@@ -218,9 +245,11 @@
 // # Random Event (Namespace 129)
 //
 // Static client schema names IRandomEventInfo fields as eventId/posIdx/dialogId.
-// The current state model still treats fields 1/2 as capture-derived
-// status/affair markers; keep that behavior until fresh captures resolve the
-// semantic mismatch.
+// Captures confirm those exact semantics: posIdx is a zero-based index into
+// c_randomEvent.place and dialogId must belong to that event's dialog list.
+// Namespace 129.0.1 is a whole-table replacement whenever present; missing
+// sparse fields retain the previous table, while null or an empty object means
+// a valid empty table.
 //
 // # Key RPCs
 //

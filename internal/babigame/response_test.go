@@ -177,3 +177,44 @@ func TestClientDispatchTextFiresSessionExpiredForGatewayBlock(t *testing.T) {
 		t.Fatal("session-expired handler was not called")
 	}
 }
+
+func TestClientDispatchTextUsesSingleNamespaceApplyOwner(t *testing.T) {
+	tests := []struct {
+		name               string
+		pending            bool
+		dispatchNamespaces bool
+		wantNamespaceCalls int
+	}{
+		{name: "server push uses subscriber", wantNamespaceCalls: 1},
+		{name: "rpc without apply hook uses subscriber", pending: true, dispatchNamespaces: true, wantNamespaceCalls: 1},
+		{name: "caller owned rpc suppresses subscriber", pending: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := NewClient(&Session{Cfg: testConfig(t)})
+			calls := 0
+			client.OnNamespace("7", func(_ string, _ json.RawMessage, _ WSResponseD) { calls++ })
+			var resultCh chan rpcResult
+			if tt.pending {
+				resultCh = make(chan rpcResult, 1)
+				client.pending["ws|1|1"] = pendingRPC{result: resultCh, dispatchNamespaces: tt.dispatchNamespaces}
+			}
+
+			client.dispatchText([]byte(`{"e":"response","d":{"v":{"7":{"2":{"0":{"11":188}}}},"r":1,"t":2,"k":"ws|1|1"}}`))
+
+			if calls != tt.wantNamespaceCalls {
+				t.Fatalf("namespace calls=%d, want %d", calls, tt.wantNamespaceCalls)
+			}
+			if tt.pending {
+				select {
+				case result := <-resultCh:
+					if string(result.v) != `{"7":{"2":{"0":{"11":188}}}}` {
+						t.Fatalf("pending payload=%s", result.v)
+					}
+				default:
+					t.Fatal("pending RPC did not receive its response")
+				}
+			}
+		})
+	}
+}

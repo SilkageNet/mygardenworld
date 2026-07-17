@@ -196,6 +196,7 @@ func FromJSON(raw string) (*pb.Policy, error) {
 		return p, nil
 	}
 	compatAutoHarvest := shouldBackfillAutoHarvest(raw)
+	raw = rewriteLegacyRaceScoreField(raw)
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
 	}
@@ -209,6 +210,41 @@ func FromJSON(raw string) (*pb.Policy, error) {
 		p.Plant.Planting.AutoHarvestEnabled = true
 	}
 	return Normalize(p), nil
+}
+
+// rewriteLegacyRaceScoreField accepts the short-lived max_task_score spelling
+// used by the KK branch. The field is a lower-bound threshold and historically
+// shipped as min_task_score, so keeping that stable name also preserves stored
+// policies from main.
+func rewriteLegacyRaceScoreField(raw string) string {
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return raw
+	}
+	union, ok := objectField(doc, "union")
+	if !ok {
+		return raw
+	}
+	race, ok := objectField(union, "race")
+	if !ok || hasAnyField(race, "min_task_score", "minTaskScore") {
+		return raw
+	}
+	var value any
+	for _, key := range []string{"max_task_score", "maxTaskScore"} {
+		if candidate, exists := race[key]; exists {
+			value = candidate
+			break
+		}
+	}
+	if value == nil {
+		return raw
+	}
+	race["min_task_score"] = value
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return raw
+	}
+	return string(data)
 }
 
 func shouldBackfillAutoHarvest(raw string) bool {

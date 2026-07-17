@@ -158,8 +158,10 @@ func WithoutRequestRoute() RequestOption {
 	}
 }
 
-// WithPayloadApply controls whether this call should run the client's applyV
-// hook. The default is true.
+// WithPayloadApply controls whether a response may be applied automatically.
+// False also suppresses Client namespace subscribers for the matching RPC so
+// a caller can apply the complete payload exactly once after preflight checks.
+// The default is true.
 func WithPayloadApply(enabled bool) RequestOption {
 	return func(o *requestOptions) {
 		o.applyV = &enabled
@@ -186,7 +188,10 @@ func (c *RPCClient) rawCall(ctx context.Context, name string, args any, opts ...
 		return RPCResult{}, err
 	}
 	callOpts := c.requestOptions(opts...)
-	v, d, err := c.client.rpc(ctx, rpcName.String(), args, callOpts.routeArg, callOpts.timeout)
+	v, d, err := c.client.rpc(
+		ctx, rpcName.String(), args, callOpts.routeArg, callOpts.timeout,
+		callOpts.shouldDispatchNamespaces(c.applyV != nil),
+	)
 	if err != nil {
 		return RPCResult{Name: rpcName}, err
 	}
@@ -257,6 +262,10 @@ func (c *RPCClient) requestOptions(opts ...RequestOption) requestOptions {
 
 func (o requestOptions) shouldApply() bool {
 	return o.applyV == nil || *o.applyV
+}
+
+func (o requestOptions) shouldDispatchNamespaces(applyHookInstalled bool) bool {
+	return !applyHookInstalled && o.shouldApply()
 }
 
 func (o requestOptions) shouldReturnServerErrors() bool {

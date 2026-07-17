@@ -22,7 +22,7 @@ type Client struct {
 
 	mu       sync.Mutex
 	conn     *websocket.Conn
-	pending  map[string]chan rpcResult
+	pending  map[string]pendingRPC
 	closed   atomic.Bool
 	closedCh chan struct{}
 
@@ -59,13 +59,22 @@ type rpcResult struct {
 	err error
 }
 
+// pendingRPC records who owns application of a matching response payload.
+// Namespace subscribers remain the fallback for pushes and RPC clients without
+// an apply hook; calls with a hook (or explicit manual apply) suppress that
+// fallback so additive namespace deltas are never merged twice.
+type pendingRPC struct {
+	result             chan rpcResult
+	dispatchNamespaces bool
+}
+
 // NewClient prepares a Client around a logged-in Session. Connect() must be
 // called before any RPC.
 func NewClient(session *Session) *Client {
 	return &Client{
 		Cfg:               session.Cfg,
 		Session:           session,
-		pending:           make(map[string]chan rpcResult),
+		pending:           make(map[string]pendingRPC),
 		closedCh:          make(chan struct{}),
 		nsHandlers:        make(map[string][]NamespaceHandler),
 		HeartbeatInterval: 25 * time.Second,
@@ -122,10 +131,10 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	conn := c.conn
 	pending := c.pending
-	c.pending = make(map[string]chan rpcResult)
+	c.pending = make(map[string]pendingRPC)
 	c.mu.Unlock()
-	for _, ch := range pending {
-		ch <- rpcResult{err: errors.New("websocket closed")}
+	for _, call := range pending {
+		call.result <- rpcResult{err: errors.New("websocket closed")}
 	}
 	if conn != nil {
 		_ = conn.Close(websocket.StatusNormalClosure, "client close")
@@ -143,7 +152,7 @@ func (c *Client) Closed() bool { return c.closed.Load() }
 // rpc sends one websocket RPC and blocks until the matching response arrives.
 // Higher layers should use RPCClient so route, timeout, and DTO handling stay
 // centralized.
-func (c *Client) rpc(ctx context.Context, name string, args any, routeArg string, timeout time.Duration) (json.RawMessage, WSResponseD, error) {
+func (c *Client) rpc(ctx context.Context, name string, args any, routeArg string, timeout time.Duration, dispatchNamespaces bool) (json.RawMessage, WSResponseD, error) {
 	if c.closed.Load() {
 		return nil, WSResponseD{}, errors.New("client closed")
 	}
@@ -156,7 +165,7 @@ func (c *Client) rpc(ctx context.Context, name string, args any, routeArg string
 	c.mu.Lock()
 	conn := c.conn
 	if conn != nil {
-		c.pending[k] = ch
+		c.pending[k] = pendingRPC{result: ch, dispatchNamespaces: dispatchNamespaces}
 	}
 	c.mu.Unlock()
 	if conn == nil {
@@ -250,13 +259,13 @@ func (c *Client) dispatchText(data []byte) {
 	}
 	// Resolve any waiter on this k.
 	c.mu.Lock()
-	ch, ok := c.pending[d.K]
+	call, ok := c.pending[d.K]
 	if ok {
 		delete(c.pending, d.K)
 	}
 	c.mu.Unlock()
 	if ok {
-		ch <- rpcResult{v: d.V, d: d}
+		call.result <- rpcResult{v: d.V, d: d}
 	}
 	if d.IsSessionExpired() {
 		c.fireSessionExpired(d)
@@ -264,6 +273,9 @@ func (c *Client) dispatchText(data []byte) {
 	}
 	// Don't fire namespace subscribers for error responses.
 	if d.IsError() {
+		return
+	}
+	if ok && !call.dispatchNamespaces {
 		return
 	}
 	// Fire namespace subscribers.
@@ -346,7 +358,8 @@ func (c *Client) indexLoginRequest(isSimulator int) clientproto.IndexLoginReques
 // first post-connect initialization call.
 func (c *Client) Login(ctx context.Context, isSimulator int) (json.RawMessage, error) {
 	req := c.indexLoginRequest(isSimulator)
-	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCIndexLogin, req, WithTimeout(30*time.Second))
+	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCIndexLogin, req,
+		WithTimeout(30*time.Second), WithPayloadApply(false))
 	return resp.Payload, err
 }
 
@@ -355,13 +368,15 @@ func (c *Client) Login(ctx context.Context, isSimulator int) (json.RawMessage, e
 // callers that want a refresh should reconnect instead.
 func (c *Client) ReLogin(ctx context.Context, isSimulator int) (json.RawMessage, error) {
 	req := clientproto.IndexReLoginRequest(c.indexLoginRequest(isSimulator))
-	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCIndexReLogin, req, WithTimeout(30*time.Second))
+	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCIndexReLogin, req,
+		WithTimeout(30*time.Second), WithPayloadApply(false))
 	return resp.Payload, err
 }
 
 // LazySync pulls module init data (namespaces 111/122/129/139/155/161 in
 // captures - generic activity / quests / mail). Doesn't refresh 100/7.
 func (c *Client) LazySync(ctx context.Context) (json.RawMessage, error) {
-	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCUsrLazySync, clientproto.UsrLazySyncRequest{}, WithTimeout(15*time.Second))
+	resp, err := CallRPC[clientproto.StateDelta](ctx, NewRPCClient(c, c.Session), clientproto.RPCUsrLazySync, clientproto.UsrLazySyncRequest{},
+		WithTimeout(15*time.Second), WithPayloadApply(false))
 	return resp.Payload, err
 }

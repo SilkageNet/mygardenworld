@@ -104,7 +104,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		_ = client.Close()
 		return nil, fmt.Errorf("ws connect: %w", err)
 	}
-	r.resetPearlHireSession()
+	r.resetFreshSessionAutomationState()
 
 	r.mu.Lock()
 	r.session = session
@@ -132,6 +132,10 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
 	}
+	// Only now may the shadow controller observe activity state. During a
+	// reconnecting fresh login the State still contains the previous epoch's
+	// board until index.login/lazySync have supplied this epoch's baseline.
+	r.markDessertSessionStateReady()
 	if r.isSessionInvalidated() {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -168,6 +172,15 @@ func (r *Runner) resetPearlHireSession() {
 		}
 	}
 	r.mu.Unlock()
+}
+
+func (r *Runner) resetFreshSessionAutomationState() {
+	r.resetSideLaneFairness()
+	r.resetPearlHireSession()
+	r.resetDessertRoundSession()
+	if r.state != nil {
+		r.state.ResetDessertSession()
+	}
 }
 
 func (r *Runner) syncAccountDisplayName(ctx context.Context, rawV json.RawMessage, session *babigame.Session) {
@@ -462,6 +475,7 @@ func (r *Runner) clearDisconnectedClient(client *babigame.Client) {
 		r.client = nil
 		r.session = nil
 		r.httpc = nil
+		r.resetSideLaneFairnessLocked()
 	}
 }
 
@@ -495,6 +509,7 @@ func (r *Runner) Stop() {
 		r.cancel = nil
 		client := r.client
 		r.client = nil
+		r.resetSideLaneFairnessLocked()
 		debugWriter := r.debugWriter
 		r.mu.Unlock()
 		if cancel != nil {
@@ -535,6 +550,7 @@ func (r *Runner) handleSessionInvalidated(reason string, sessionDisplaced bool) 
 	r.sessionInvalidatedReason = reason
 	r.sessionAutoRelogin = autoRelogin
 	client := r.client
+	r.resetSideLaneFairnessLocked()
 	r.mu.Unlock()
 	if autoRelogin {
 		wait := r.reloginInterval()

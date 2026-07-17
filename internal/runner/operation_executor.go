@@ -694,6 +694,25 @@ func checkedStateDelta(resp babigame.RPCResponse[clientproto.StateDelta], err er
 	return checkedPayload(v, d, err)
 }
 
+func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fmlRace.getTaskList requires runner state")
+	}
+	v, d, err := rpcResult(rt.rpc.FmlRace().GetTaskList(
+		ctx,
+		clientproto.FmlRaceGetTaskListRequest{},
+		babigame.WithPayloadApply(false),
+	))
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		rt.runner.state.ApplyVFullFmlRaceTaskPool(v)
+	}
+	return v, nil
+}
+
 func runSignTypeEnter(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
 	typeID, err := plannedSignTypeID(op)
 	if err != nil {
@@ -908,8 +927,6 @@ func runWaterwheelRecv(ctx context.Context, rt operationRuntime, _ *automation.P
 	if rt.runner != nil && rt.runner.state.WaterwheelNextClaimRequiresSkip() {
 		if v, d, err := rpcResult(rt.rpc.Waterwheel().Skip(ctx, clientproto.WaterwheelSkipRequest{})); err != nil || d.IsError() {
 			return checkedPayload(v, d, err)
-		} else if babigame.HasPayload(v) {
-			rt.runner.state.ApplyV(v)
 		}
 	}
 	return checkedStateDelta(rt.rpc.Waterwheel().Recv(ctx, clientproto.WaterwheelRecvRequest{}))
@@ -918,6 +935,12 @@ func runWaterwheelRecv(ctx context.Context, rt operationRuntime, _ *automation.P
 func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp) (json.RawMessage, error) {
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
+	}
+	// This transport-level denylist is intentionally evaluated before the
+	// operation registry. Even an accidental future registry entry cannot send
+	// a dessert game RPC while live replay/lifecycle evidence is incomplete.
+	if isHardBlockedDessertGameOperation(op.Kind) {
+		return nil, fmt.Errorf("dessert live game RPC %s is compile-time blocked", op.Kind)
 	}
 	spec, ok := operationSpecFor(op.Kind)
 	if !ok {
@@ -931,6 +954,17 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	)
 	rt := operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}
 	return spec.run(ctx, rt, op)
+}
+
+func isHardBlockedDessertGameOperation(kind string) bool {
+	switch kind {
+	case clientproto.RPCActDessertGameStart.String(),
+		clientproto.RPCActDessertGameSync.String(),
+		clientproto.RPCActDessertGameOver.String():
+		return true
+	default:
+		return false
+	}
 }
 
 func checkedPayload(v json.RawMessage, d babigame.WSResponseD, err error) (json.RawMessage, error) {

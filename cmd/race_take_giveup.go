@@ -140,8 +140,8 @@ func main() {
 		}
 	}
 
-	origMax := getPolicy().GetUnion().GetRace().GetMaxTaskScore()
-	fmt.Printf("original max_task_score=%d\n", origMax)
+	origMin := getPolicy().GetUnion().GetRace().GetMinTaskScore()
+	fmt.Printf("original min_task_score=%d\n", origMin)
 
 	has, msID, score, fin, tgt, label := raceSnap()
 	fmt.Printf("initial: has=%v msId=%d score=%d %d/%d label=%q\n", has, msID, score, fin, tgt, label)
@@ -153,7 +153,7 @@ func main() {
 		if floor < 1 {
 			floor = 100
 		}
-		setRace(func(r *pb.UnionRacePolicy) { r.MaxTaskScore = floor })
+		setRace(func(r *pb.UnionRacePolicy) { r.MinTaskScore = floor })
 		wait("giveUp-current", false, 4*time.Minute)
 		fmt.Println("✓ current task given up")
 		// Server giveUp cooldown ~3min; wait before take+giveUp again.
@@ -162,7 +162,7 @@ func main() {
 	}
 
 	fmt.Println("\n==> take a new race task")
-	setRace(func(r *pb.UnionRacePolicy) { r.MaxTaskScore = 0 })
+	setRace(func(r *pb.UnionRacePolicy) { r.MinTaskScore = 0 })
 	msID, score, label = wait("take", true, 90*time.Second)
 	fmt.Printf("✓ taken msId=%d score=%d label=%q\n", msID, score, label)
 
@@ -171,17 +171,17 @@ func main() {
 	if floor < 1 {
 		floor = 100
 	}
-	setRace(func(r *pb.UnionRacePolicy) { r.MaxTaskScore = floor })
+	setRace(func(r *pb.UnionRacePolicy) { r.MinTaskScore = floor })
 	wait("giveUp-new", false, 4*time.Minute)
 	fmt.Println("✓ newly taken task given up")
 
-	restore := origMax
+	restore := origMin
 	if restore == 56 {
 		// leftover from previous experiment; use a sane floor
 		restore = 28
 	}
-	setRace(func(r *pb.UnionRacePolicy) { r.MaxTaskScore = restore })
-	fmt.Printf("\ndone: restored max_task_score=%d\n", restore)
+	setRace(func(r *pb.UnionRacePolicy) { r.MinTaskScore = restore })
+	fmt.Printf("\ndone: restored min_task_score=%d\n", restore)
 }
 
 func fatalf(format string, args ...any) {

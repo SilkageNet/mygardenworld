@@ -417,19 +417,20 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	var ops []PlannedOp
 
 	// 1a. Abandon a taken task that cannot or should not be kept.
-	// Score filter: max_task_score is a lower bound (Score <= maxScore → give up).
+	// Score filter: min_task_score is a lower bound (Score <= minScore → give up).
 	// Score==0 means the pool has not resolved the taken task yet — do not give up
 	// for score alone.
 	// Plant-harvest: give up when the target flower is unknown or not cultivated.
 	// TargetCnt<=0 means progress unknown (e.g. synthesized from pool UID) — treat as unfinished.
 	if view.Taken.HasTask && (view.Taken.TargetCnt <= 0 || view.Taken.FinishCnt < view.Taken.TargetCnt) {
 		reason := ""
-		maxScore := policy.GetMaxTaskScore()
-		if maxScore > 0 && view.Taken.Score > 0 && view.Taken.Score <= maxScore {
+		minScore := policy.GetMinTaskScore()
+		switch {
+		case minScore > 0 && view.Taken.Score > 0 && view.Taken.Score <= minScore:
 			reason = "公会竞赛放弃不符合分数要求的已接任务"
-		} else if raceTakenUncompletable(s, view.Taken) {
+		case raceTakenUncompletable(s, view.Taken):
 			reason = "公会竞赛放弃无法完成的种植收获任务"
-		} else if raceTakenPriorityZero(policy, view.Taken) {
+		case raceTakenPriorityZero(policy, view.Taken):
 			reason = "公会竞赛放弃优先级为0的已接任务"
 		}
 		if reason != "" {
@@ -488,24 +489,39 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		)}
 	}
 
-	// 3. Optional: upgrade tasks (only consider tasks that pass the score filter).
-	if policy.GetUpgradeTask() {
-		maxScore := policy.GetMaxTaskScore()
-		for _, task := range view.Tasks {
-			if maxScore > 0 && task.Score > maxScore {
-				continue
+	// 3. Optional: upgrade the currently held task. The observed client sends
+	// an empty upgradeTask request, so this RPC cannot target an arbitrary pool
+	// row. Its diamond cost must be known and pass the configured budget; the
+	// global diamond gate still blocks automatic execution by default.
+	if policy.GetUpgradeTask() && view.Taken.HasTask {
+		if task, ok := raceTaskByMsID(view.Tasks, view.Taken.TaskMsId); ok && task.IsUpgrade == 0 {
+			op := domainOp(clientproto.RPCFmlRaceUpgradeTask.String(), goal, "union.race.upgrade", "upgrade", "公会竞赛当前任务可升级", 4370, 0, 0, 0)
+			op.TaskMsID = task.MsId
+			op.TaskID = task.TaskType
+			if op.TaskID == 0 {
+				op.TaskID = task.TaskId
 			}
-			if task.IsUpgrade == 0 {
-				op := domainOp(clientproto.RPCFmlRaceUpgradeTask.String(), goal, "union.race.upgrade", "upgrade", "公会竞赛任务可升级", 4370, 0, 0, 0)
-				op.TaskMsID = task.MsId
-				op.TaskID = task.TaskType
-				if op.TaskID == 0 {
-					op.TaskID = task.TaskId
-				}
-				op.FlowerID = task.ParamID
-				ops = append(ops, op)
-				break // one upgrade per cycle
+			op.FlowerID = task.ParamID
+			cost, costKnown := state.FmlRaceTaskUpgradeCost(task.TaskId, task.Score)
+			switch {
+			case !costKnown:
+				op.Status = PlanStatusAdapterMissing
+				op.Executable = false
+				op.BlockedReasons = []string{"公会竞赛任务升级成本无法从客户端配置确认"}
+			case policy.GetMaxSpendDiamond() <= 0:
+				op.DiamondCost = cost
+				op.Status = PlanStatusBlocked
+				op.Executable = false
+				op.BlockedReasons = []string{"公会竞赛任务升级元宝预算未设置"}
+			case int64(cost) > policy.GetMaxSpendDiamond():
+				op.DiamondCost = cost
+				op.Status = PlanStatusBlocked
+				op.Executable = false
+				op.BlockedReasons = []string{"公会竞赛任务升级元宝成本超过策略上限"}
+			default:
+				op.DiamondCost = cost
 			}
+			ops = append(ops, op)
 		}
 	}
 
@@ -514,7 +530,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		maxDel := policy.GetDeleteTaskMaxScore()
 		if maxDel > 0 {
 			for _, task := range view.Tasks {
-				if task.Score <= maxDel {
+				if task.UID == 0 && task.Score <= maxDel {
 					op := domainOp(clientproto.RPCFmlRaceDelTask.String(), goal, "union.race.delete", "delete", "公会竞赛低分任务清理", 4360, 0, 0, 0)
 					op.TaskMsID = task.MsId
 					op.TaskID = task.TaskType
@@ -595,8 +611,8 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 // raceTakeNonCDSkipReason evaluates take filters other than far-CD AppearTime.
 // Empty means those filters would allow take (ready / within-lead still apply outside).
 func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64) string {
-	if policy.GetMaxTaskScore() > 0 && t.Score <= policy.GetMaxTaskScore() {
-		return fmt.Sprintf("分数不足（≤%d）", policy.GetMaxTaskScore())
+	if policy.GetMinTaskScore() > 0 && t.Score <= policy.GetMinTaskScore() {
+		return fmt.Sprintf("分数不足（≤%d）", policy.GetMinTaskScore())
 	}
 	if policy.GetOnlyUpgradeTask() && t.IsUpgrade == 0 {
 		return "仅接已升级任务"
@@ -611,12 +627,24 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 	if raceTaskTypePriority(policy, taskType) <= 0 {
 		return "优先级为0"
 	}
+	if taskType != raceTaskTypePlantHarvest {
+		return "暂不支持自动完成"
+	}
 	if taskType == raceTaskTypePlantHarvest {
 		if t.ParamID <= 0 || !flowerCultivated(s, t.ParamID) {
 			return "目标花卉未培养"
 		}
 	}
 	return ""
+}
+
+func raceTaskByMsID(tasks []state.FmlRaceTaskView, msID int64) (state.FmlRaceTaskView, bool) {
+	for _, task := range tasks {
+		if task.MsId == msID {
+			return task, true
+		}
+	}
+	return state.FmlRaceTaskView{}, false
 }
 
 // raceTaskPoolNeedsParamRefresh reports whether getTaskList should run again
@@ -643,7 +671,7 @@ func raceTaskTypePriority(policy *pb.UnionRacePolicy, taskType int32) int32 {
 // selectRaceTasks filters the available task pool via RaceTakeSkipReason, then
 // sorts by configured priority.
 //
-// max_task_score is always a lower bound: tasks with Score <= maxScore are skipped.
+// min_task_score is a lower bound: tasks with Score <= minScore are skipped.
 // 0 means no score filtering. Combined with only_upgrade_task, only upgraded tasks
 // above the threshold are eligible.
 //

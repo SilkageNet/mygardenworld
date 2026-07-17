@@ -101,6 +101,7 @@ func ExtractClientProtocolFromText(text string) (ClientProtocol, error) {
 	if err != nil {
 		return ClientProtocol{}, err
 	}
+	applyStateSchemaOverrides(schemas)
 	rpcs := extractRPCs(text, schemas)
 	namespaces := extractNamespaceSchemas(schemas)
 	stateSchemas := make([]ProtocolSchema, 0, len(schemas))
@@ -115,6 +116,67 @@ func ExtractClientProtocolFromText(text string) (ClientProtocol, error) {
 		NamespaceSchemas: namespaces,
 		RPCs:             rpcs,
 	}, nil
+}
+
+// applyStateSchemaOverrides records wire shapes confirmed by captures when the
+// bundled client schema is stale or leaves a field untyped. Keep these fixes at
+// the extraction boundary so every generated artifact shares one source of
+// truth.
+func applyStateSchemaOverrides(schemas []ProtocolSchema) {
+	for i := range schemas {
+		schema := &schemas[i]
+		switch schema.Name {
+		case "G.IActDessertData":
+			overrideProtocolFieldType(schema, "mapData", "{[magnification: number]: IActDessertMap}")
+		case "G.IActDessertMap":
+			overrideProtocolFieldType(schema, "itemUse", "{[itemId: number]: number}")
+			overrideProtocolFieldType(schema, "firstMerge", "{[level: number]: number}")
+			overrideProtocolFieldType(schema, "isRunning", "boolean")
+			overrideProtocolFieldType(schema, "totalGain", "{[itemId: number]: number}")
+			overrideProtocolFieldType(schema, "lvMap", "{[level: number]: number}")
+		case "G.ISyncData":
+			applyCelebrityNamespaceOverride(schema)
+		}
+	}
+}
+
+func overrideProtocolFieldType(schema *ProtocolSchema, name, typ string) {
+	if schema == nil {
+		return
+	}
+	for i := range schema.Fields {
+		if schema.Fields[i].Name == name {
+			schema.Fields[i].Type = typ
+			return
+		}
+	}
+}
+
+func applyCelebrityNamespaceOverride(schema *ProtocolSchema) {
+	if schema == nil {
+		return
+	}
+	infoType := "ICelebrityInfo"
+	fields := make([]ProtocolField, 0, len(schema.Fields)+1)
+	for _, field := range schema.Fields {
+		if field.Name == "celebrityInfo" || field.Name == "celebrityInfoLegacy" ||
+			canonicalStateSchemaName(field.Type) == "G.ICelebrityInfo" {
+			if strings.TrimSpace(field.Type) != "" {
+				infoType = field.Type
+			}
+			continue
+		}
+		fields = append(fields, field)
+	}
+	// Namespace 166 is authoritative in current captures. Namespace 165 is
+	// retained as an explicit legacy alias; state applies it first when both
+	// occur in one delta so 166 wins.
+	fields = append(fields,
+		ProtocolField{Name: "celebrityInfoLegacy", Index: 165, Type: infoType},
+		ProtocolField{Name: "celebrityInfo", Index: 166, Type: infoType},
+	)
+	sortFields(fields)
+	schema.Fields = fields
 }
 
 func extractSchemas(text string) ([]ProtocolSchema, error) {
@@ -404,6 +466,10 @@ func mergeProtocolFields(parent, child []ProtocolField) []ProtocolField {
 
 func applyRPCOverrides(byName map[string]ProtocolRPC) {
 	overrides := []ProtocolRPC{
+		{
+			Name: "act.recv", Group: "act", Method: "recv", RequestShape: protocolRequestFields,
+			RequestFields: []ProtocolField{{Name: "batchId", Index: 0}, {Name: "taskIdx", Index: 1}, {Name: "taskId", Index: 2}},
+		},
 		{Name: "actJyCall.dailyRecv", Group: "actJyCall", Method: "dailyRecv", RequestShape: protocolRequestRaw},
 		{Name: "actJyCall.draw", Group: "actJyCall", Method: "draw", RequestShape: protocolRequestRaw},
 		{Name: "actJyCall.enter", Group: "actJyCall", Method: "enter", RequestShape: protocolRequestRaw},
@@ -437,6 +503,9 @@ func applyRPCOverrides(byName map[string]ProtocolRPC) {
 		},
 		{
 			Name: "sdk.sendGoods", Group: "sdk", Method: "sendGoods", RequestShape: protocolRequestEmpty,
+		},
+		{
+			Name: "celebrity.getAllTypesInfo", Group: "celebrity", Method: "getAllTypesInfo", RequestShape: protocolRequestEmpty,
 		},
 	}
 	for _, override := range overrides {
@@ -546,6 +615,8 @@ func rpcRequestJSONTag(rpc ProtocolRPC, field ProtocolField) string {
 
 func rpcRequestFieldRequiresZeroValue(rpcName, fieldName string) bool {
 	switch rpcName {
+	case "act.recv":
+		return fieldName == "taskIdx"
 	case "freeWater.recv":
 		return fieldName == "idx"
 	case "orderCustomer.genOrder":
@@ -605,6 +676,19 @@ func stateSchemaTypeName(name string) string {
 }
 
 func inferStateFieldType(schema ProtocolSchema, field ProtocolField, known map[string]string) string {
+	switch schema.Name {
+	case "G.IActDessertData":
+		if field.Name == "mapData" {
+			return "map[int32]IActDessertMap"
+		}
+	case "G.IActDessertMap":
+		switch field.Name {
+		case "itemUse", "firstMerge", "totalGain", "lvMap":
+			return "map[int32]int32"
+		case "isRunning":
+			return "bool"
+		}
+	}
 	if schema.Name == "G.IFreeWater" && field.Name == "recvIdx" {
 		return "[]int32"
 	}

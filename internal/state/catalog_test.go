@@ -109,6 +109,18 @@ func TestFmlBuildOptionByID(t *testing.T) {
 	}
 }
 
+func TestFmlRaceTaskUpgradeCost(t *testing.T) {
+	if cost, ok := FmlRaceTaskUpgradeCost(4001, 9); !ok || cost != 27 {
+		t.Fatalf("FmlRaceTaskUpgradeCost(4001,9)=(%d,%t), want (27,true)", cost, ok)
+	}
+	if cost, ok := FmlRaceTaskUpgradeCost(1017, 5); !ok || cost != 9 {
+		t.Fatalf("explicit upgradePoint cost=(%d,%t), want (9,true)", cost, ok)
+	}
+	if cost, ok := FmlRaceTaskUpgradeCost(99999, 9); ok || cost != 0 {
+		t.Fatalf("unknown task upgrade cost=(%d,%t), want (0,false)", cost, ok)
+	}
+}
+
 func TestZooEventInfoDynamicReward(t *testing.T) {
 	event, ok := ZooEventInfoByID(2096)
 	if !ok {

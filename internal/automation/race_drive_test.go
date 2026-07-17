@@ -43,7 +43,7 @@ func racePlantPolicy(useRaceSpeedup bool) *pb.Policy {
 	policy.Union.Race.Enabled = true
 	policy.Union.Race.AutoEnableModules = true
 	policy.Union.Race.UseSpeedupTicketInTask = useRaceSpeedup
-	policy.Union.Race.MaxTaskScore = 0 // accept any score for drive tests
+	policy.Union.Race.MinTaskScore = 0 // accept any score for drive tests
 	return policy
 }
 
@@ -70,6 +70,22 @@ func TestRaceTakenPlantHarvestDrivesPlantOp(t *testing.T) {
 	if !strings.HasPrefix(plant.DemandID, "union.race:") {
 		t.Fatalf("plant DemandID=%q, want union.race…", plant.DemandID)
 	}
+}
+
+func TestRacePlantDemandOverridesRegularFarmToggles(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 2, 10)
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.AutoEnabled = false
+	policy.Plant.Planting.AutoHarvestEnabled = false
+
+	result := BuildPlan(s, policy, now)
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.FlowerID == 23001 && op.Executable {
+			return
+		}
+	}
+	t.Fatalf("active race task must still drive its farm module, ops=%+v demands=%+v", result.Operations, result.Demands)
 }
 
 func TestRaceTakenPlantHarvestEmitsFlowerDemand(t *testing.T) {

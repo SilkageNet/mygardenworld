@@ -11,7 +11,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
-func (s *State) applyFmlLocked(raw json.RawMessage) {
+func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	var ns25 map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &ns25); err != nil {
 		return
@@ -48,7 +48,7 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 		applyFmlRaceBatchLocked(&s.fmlRace, rawBatch)
 	}
 	if rawTasks, ok := ns25["114"]; ok {
-		applyFmlRaceTasksLocked(&s.fmlRace, rawTasks, s.lastApplyMs)
+		applyFmlRaceTasksLocked(&s.fmlRace, rawTasks, s.lastApplyMs, fullRaceTaskPool)
 	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
 		if isJSONNull(rawUsrRcd) {
@@ -115,7 +115,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
 }
 
-func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64) {
+func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64, fullPool bool) {
 	if isJSONNull(raw) {
 		view.TasksObserved = true
 		view.Tasks = nil
@@ -149,8 +149,8 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 	// getTaskList returns the full pool; take/finish responses often carry only
 	// the changed rows. Replace on first sync or when the payload is clearly a
 	// full list; otherwise merge by MsId.
-	if !view.TasksObserved || len(incoming) >= len(view.Tasks) {
-		if view.TasksObserved && len(incoming) >= len(view.Tasks) {
+	if fullPool || !view.TasksObserved || len(incoming) >= len(view.Tasks) {
+		if view.TasksObserved {
 			// Full-list replace can still omit param on some rows; keep known detail.
 			byID := make(map[int64]FmlRaceTaskView, len(view.Tasks))
 			for _, prev := range view.Tasks {

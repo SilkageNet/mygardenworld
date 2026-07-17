@@ -36,7 +36,7 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy) []Demand {
 	remaining := taken.TargetCnt - taken.FinishCnt
 	switch taken.TaskType {
 	case raceTaskTypePlantHarvest:
-		if taken.ParamID <= 0 || !policy.GetPlant().GetPlanting().GetAutoEnabled() {
+		if taken.ParamID <= 0 {
 			return nil
 		}
 		label := taken.TargetLabel
@@ -65,6 +65,16 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy) []Demand {
 	default:
 		return nil
 	}
+}
+
+func hasRacePlantDemand(demands []Demand) bool {
+	for _, demand := range demands {
+		if demand.GoalID == raceActionGoal && demand.Source == "race_task" &&
+			demand.Kind == DemandKindFlower && demand.Missing > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // raceTaskTypeLabel returns the Chinese label for a guild-race task type id.
