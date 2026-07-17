@@ -57,7 +57,10 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 			s.fmlRace.Taken = parseFmlRaceTaken(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
 		}
 	}
-	// Enrich taken task from the pool (score / param / label).
+	// Enrich taken task from the pool (score / param / label / progress / type).
+	// takeTask responses sometimes omit targetCnt (field 2) / finishCnt (field 3)
+	// in field 110.7; backfill from the matching pool row so that race progress
+	// demands can fire.
 	if s.fmlRace.Taken.HasTask {
 		for _, t := range s.fmlRace.Tasks {
 			if t.MsId != s.fmlRace.Taken.TaskMsId {
@@ -69,6 +72,15 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 			if s.fmlRace.Taken.ParamID == 0 && t.ParamID != 0 {
 				s.fmlRace.Taken.ParamID = t.ParamID
 				s.fmlRace.Taken.TargetLabel = t.TargetLabel
+			}
+			if s.fmlRace.Taken.TargetCnt == 0 && t.TargetCnt > 0 {
+				s.fmlRace.Taken.TargetCnt = t.TargetCnt
+			}
+			if s.fmlRace.Taken.FinishCnt == 0 && t.FinishCnt > 0 {
+				s.fmlRace.Taken.FinishCnt = t.FinishCnt
+			}
+			if s.fmlRace.Taken.TaskType == 0 && t.TaskType > 0 {
+				s.fmlRace.Taken.TaskType = t.TaskType
 			}
 			break
 		}
@@ -252,7 +264,7 @@ func synthesizeFmlRaceTakenFromPool(tasks []FmlRaceTaskView, roleID int64) (FmlR
 		}
 		taskType := t.TaskType
 		if taskType == 0 {
-			taskType = t.TaskId
+			taskType = FmlRaceTaskTypeByID(t.TaskId)
 		}
 		return FmlRaceTakenView{
 			TaskMsId:    t.MsId,

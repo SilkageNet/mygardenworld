@@ -219,6 +219,30 @@ func TestFmlRaceTakenPrefers110OverPoolUID(t *testing.T) {
 	}
 }
 
+func TestFmlRaceTakenEnrichedTargetCntFromPool(t *testing.T) {
+	s := New()
+	// 110 has takeTaskData with TargetCnt=0/FinishCnt=0 (server omitted fields 2/3);
+	// pool row has UID=self with TargetCnt=600, FinishCnt=12. Enrichment must
+	// backfill TargetCnt/FinishCnt/TaskType from pool.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":178,"4":4012,"6":[23363],"7":600,"8":12,"10":25,"12":999}],"110":{"42":{"7":{"0":178,"1":4012,"4":[23363]}}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask {
+		t.Fatalf("expected HasTask, got %+v", got.Taken)
+	}
+	if got.Taken.TargetCnt != 600 {
+		t.Fatalf("TargetCnt = %d, want 600 (enriched from pool)", got.Taken.TargetCnt)
+	}
+	if got.Taken.FinishCnt != 12 {
+		t.Fatalf("FinishCnt = %d, want 12 (enriched from pool)", got.Taken.FinishCnt)
+	}
+	if got.Taken.ParamID != 23363 {
+		t.Fatalf("ParamID = %d, want 23363", got.Taken.ParamID)
+	}
+	if got.Taken.Score != 25 {
+		t.Fatalf("Score = %d, want 25 (enriched from pool)", got.Taken.Score)
+	}
+}
+
 func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
 	s := New()
 	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":4001,"10":9}]}}`))

@@ -165,3 +165,66 @@ func TestRaceNoSpeedupWhenFlagOff(t *testing.T) {
 		}
 	}
 }
+
+// TestRaceTakenEnrichedTargetCntFromPoolDrivesPlant covers the case where the
+// takeTask server response populates field 110 without targetCnt/finishCnt
+// (fields 2/3) but the pool row (field 114) carries the correct progress.
+// Enrichment must backfill TargetCnt/FinishCnt from the pool so the race plant
+// demand fires.
+func TestRaceTakenEnrichedTargetCntFromPoolDrivesPlant(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"0": 999}},
+		"25": map[string]any{
+			"111": map[string]any{"0": 1783872000000, "1": 1, "2": 1783990800000, "3": 1784466000000},
+			"114": []any{
+				// Pool row with UID=self, TargetCnt=10, FinishCnt=2.
+				map[string]any{"0": 99, "4": 4001, "6": []any{23001}, "7": 10, "8": 2, "10": 30, "12": 999},
+			},
+			// 110 has takeTaskData WITHOUT targetCnt (2) or finishCnt (3);
+			// also without param (4). Enrichment must backfill from pool.
+			"110": map[string]any{
+				"1783872000000": map[string]any{
+					"7": map[string]any{"0": 99, "1": 4001},
+				},
+			},
+		},
+		"100": map[string]any{"1": emptyLands(3)},
+		"101": map[string]any{"0": cultivate(23001)},
+	})
+	policy := racePlantPolicy(false)
+
+	taken := s.FmlRace().Taken
+	if !taken.HasTask {
+		t.Fatalf("expected HasTask, got %+v", taken)
+	}
+	if taken.TargetCnt != 10 {
+		t.Fatalf("TargetCnt = %d, want 10 (enriched from pool)", taken.TargetCnt)
+	}
+	if taken.FinishCnt != 2 {
+		t.Fatalf("FinishCnt = %d, want 2 (enriched from pool)", taken.FinishCnt)
+	}
+	if taken.ParamID != 23001 {
+		t.Fatalf("ParamID = %d, want 23001 (enriched from pool)", taken.ParamID)
+	}
+
+	result := BuildPlan(s, policy, now)
+	demand, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001")
+	if !ok {
+		t.Fatalf("expected race plant demand after enrichment, demands=%+v", result.Demands)
+	}
+	if demand.Missing != 8 {
+		t.Fatalf("demand Missing=%d, want 8", demand.Missing)
+	}
+	var foundPlant bool
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.FlowerID == 23001 && op.Executable {
+			foundPlant = true
+			break
+		}
+	}
+	if !foundPlant {
+		t.Fatalf("expected plant op for race flower 23001 after enrichment, ops=%+v", result.Operations)
+	}
+}
