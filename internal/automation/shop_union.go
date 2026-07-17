@@ -382,7 +382,8 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 //  1. enter + getTaskList (sync)
 //  2. takeTask (接取)
 //  3. raceTaskProgressDemands drives plant/harvest for 种植收获 (进行)
-//  4. finishTask when FinishCnt >= TargetCnt (完成并领取积分)
+//  4. finishTask when TargetCnt > 0 && FinishCnt >= TargetCnt (完成并领取积分;
+//     TargetCnt<=0 means unknown progress and must not auto-finish)
 //
 // useSpeedupTicketInTask is honored by maintenanceOperations via
 // raceSpeedupEnabled while an unfinished plant-harvest task is held.

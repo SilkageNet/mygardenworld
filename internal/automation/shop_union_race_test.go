@@ -884,8 +884,14 @@ func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
 
 func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 	s := state.New()
+	// Cultivate 23001 so the free alternate plant-harvest (msId 56) is genuinely
+	// takeable — a HasTask-guard regression would emit takeTask.
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// No 110 takeTaskData; pool marks uid=999 on msId=55. Another free task exists.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{}}}`))
+	if !s.FmlRace().Taken.HasTask {
+		t.Fatal("expected synthesized taken")
+	}
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
