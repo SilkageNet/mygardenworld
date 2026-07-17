@@ -881,3 +881,81 @@ func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
 		t.Fatalf("far takeable CD must not block periodic sync, got %+v", ops)
 	}
 }
+
+func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
+	s := state.New()
+	// No 110 takeTaskData; pool marks uid=999 on msId=55. Another free task exists.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take while holding synthesized task, ops=%+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
+	s := state.New()
+	// Synthesized taken with TargetCnt=0/FinishCnt=0 must not finish.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceFinishTask.String() {
+			t.Fatalf("must not finish when TargetCnt unknown, ops=%+v", ops)
+		}
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take while HasTask, ops=%+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceGiveUpSynthesizedTakenPriorityZero(t *testing.T) {
+	s := state.New()
+	// Synthesized taken from pool UID: task type 3017 (priority 0), unfinished.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":3017,"7":10,"8":1,"10":25,"12":999}],"110":{}}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{
+		3017: 0,
+		3036: 5,
+	}
+	ops := unionRaceOperations(s, policy, 999, time.Now())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("expected giveUp for priority-0 synthesized taken, got %+v", ops)
+	}
+}
+
+func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
+	s := state.New()
+	// No 110 takeTaskData; pool marks uid=999 on msId=55. Another free task exists.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take while holding synthesized task, ops=%+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
+	s := state.New()
+	// Synthesized taken with TargetCnt=0/FinishCnt=0 must not finish.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceFinishTask.String() {
+			t.Fatalf("must not finish when TargetCnt unknown, ops=%+v", ops)
+		}
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take while HasTask, ops=%+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceGiveUpSynthesizedTakenPriorityZero(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":3017,"7":10,"8":1,"10":25,"12":999}],"110":{}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("expected giveUp for priority-0 synthesized taken, got %+v", ops)
+	}
+}

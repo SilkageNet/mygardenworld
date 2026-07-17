@@ -420,7 +420,8 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// Score==0 means the pool has not resolved the taken task yet — do not give up
 	// for score alone.
 	// Plant-harvest: give up when the target flower is unknown or not cultivated.
-	if view.Taken.HasTask && view.Taken.FinishCnt < view.Taken.TargetCnt {
+	// TargetCnt<=0 means progress unknown (e.g. synthesized from pool UID) — treat as unfinished.
+	if view.Taken.HasTask && (view.Taken.TargetCnt <= 0 || view.Taken.FinishCnt < view.Taken.TargetCnt) {
 		reason := ""
 		maxScore := policy.GetMaxTaskScore()
 		if maxScore > 0 && view.Taken.Score > 0 && view.Taken.Score <= maxScore {
@@ -443,7 +444,8 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	// 1b. Finish the current taken task if complete.
-	if view.Taken.HasTask && view.Taken.FinishCnt >= view.Taken.TargetCnt {
+	// Require TargetCnt>0 so unknown progress (0/0) is never auto-finished.
+	if view.Taken.HasTask && view.Taken.TargetCnt > 0 && view.Taken.FinishCnt >= view.Taken.TargetCnt {
 		op := domainOp(clientproto.RPCFmlRaceFinishTask.String(), goal, "union.race.finish", "finish", "公会竞赛任务已完成，提交领取积分", 4390, 0, 0, 0)
 		op.TaskMsID = view.Taken.TaskMsId
 		op.TaskID = view.Taken.TaskType
