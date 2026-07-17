@@ -801,3 +801,11 @@ func (s *State) FmlRace() FmlRaceView {
 	defer s.mu.RUnlock()
 	return s.fmlRace
 }
+
+// MarkFmlRaceTasksUnobserved forces the next race tick to re-fetch getTaskList
+// without wiping the last observed pool snapshot.
+func (s *State) MarkFmlRaceTasksUnobserved() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.TasksObserved = false
+}

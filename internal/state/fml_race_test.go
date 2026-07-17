@@ -202,3 +202,20 @@ func TestFmlRaceTakenPrefers110OverPoolUID(t *testing.T) {
 		t.Fatalf("110 must win over pool UID, got %+v", got.Taken)
 	}
 }
+
+func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":4001,"10":9}]}}`))
+	if !s.FmlRace().TasksObserved {
+		t.Fatal("expected observed")
+	}
+	s.MarkFmlRaceTasksUnobserved()
+	got := s.FmlRace()
+	if got.TasksObserved {
+		t.Fatal("expected TasksObserved=false")
+	}
+	// Pool rows preserved so UI/planner still see last snapshot until re-sync.
+	if len(got.Tasks) != 1 {
+		t.Fatalf("tasks wiped: %+v", got.Tasks)
+	}
+}
