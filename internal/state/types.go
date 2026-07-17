@@ -308,6 +308,8 @@ type FmlRaceTaskView struct {
 	ParamID     int32  // first param id when present (flower/item); 0 if none
 	TargetLabel string // catalog name for ParamID; empty when unavailable
 	AppearTime  int64  // protocol appearTime (ms); future = still on CD
+	TargetCnt   int32  // protocol targetCnt (field 7); 0 if absent
+	FinishCnt   int32  // protocol finishCnt (field 8); 0 if absent
 }
 
 // FmlRaceTakenView is the user's currently taken task progress.

@@ -162,3 +162,43 @@ func TestFmlRaceTasksSyncedAtMsSetOnEmptyPool(t *testing.T) {
 		t.Fatalf("empty/null pool must set TasksObserved + TasksSyncedAtMs, got %+v", got)
 	}
 }
+
+func TestFmlRaceTakenSynthesizedFromPoolUID(t *testing.T) {
+	s := New()
+	// roleID=999; 110 empty map (no takeTaskData); pool row uid=999.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":178,"4":4012,"6":[23363],"7":600,"8":12,"10":25,"12":999}],"110":{}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask {
+		t.Fatalf("expected Taken from pool UID, got %+v", got.Taken)
+	}
+	if got.Taken.TaskMsId != 178 || got.Taken.TaskId != 4012 || got.Taken.Score != 25 ||
+		got.Taken.ParamID != 23363 || got.Taken.TargetCnt != 600 || got.Taken.FinishCnt != 12 {
+		t.Fatalf("synthesized taken = %+v", got.Taken)
+	}
+	if got.Taken.TaskType == 0 {
+		t.Fatalf("expected TaskType resolved, got %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceTakenSynthesizedAfterNull110WithPoolUID(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"7":{"0":1,"1":4012,"2":10,"3":1}}}}}`))
+	if !s.FmlRace().Taken.HasTask {
+		t.Fatal("seed taken missing")
+	}
+	// Same apply: null 110 clears, but 114 has UID==self → re-synthesize.
+	s.ApplyV(json.RawMessage(`{"25":{"110":null,"114":[{"0":55,"4":4001,"6":[23001],"7":100,"8":0,"10":9,"12":999}]}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 55 {
+		t.Fatalf("null 110 + pool UID must synthesize, got %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceTakenPrefers110OverPoolUID(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":55,"4":4001,"6":[23001],"7":100,"8":0,"10":9,"12":999}],"110":{"42":{"7":{"0":99,"1":4012,"2":50,"3":5,"4":[23363]}}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 99 {
+		t.Fatalf("110 must win over pool UID, got %+v", got.Taken)
+	}
+}

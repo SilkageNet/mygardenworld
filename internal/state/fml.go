@@ -76,6 +76,11 @@ func (s *State) applyFmlLocked(raw json.RawMessage) {
 			s.fmlRace.Taken.TargetLabel = ItemLabel(s.fmlRace.Taken.ParamID)
 		}
 	}
+	if !s.fmlRace.Taken.HasTask {
+		if taken, ok := synthesizeFmlRaceTakenFromPool(s.fmlRace.Tasks, s.roleID); ok {
+			s.fmlRace.Taken = taken
+		}
+	}
 }
 
 func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -136,6 +141,8 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 			ParamID:     paramID,
 			TargetLabel: ItemLabel(paramID),
 			AppearTime:  t.AppearTime,
+			TargetCnt:   t.TargetCnt,
+			FinishCnt:   t.FinishCnt,
 		})
 	}
 	wasObserved := view.TasksObserved
@@ -229,6 +236,37 @@ func preserveFmlRaceTaskDetail(next, prev FmlRaceTaskView) FmlRaceTaskView {
 		next.AppearTime = prev.AppearTime
 	}
 	return next
+}
+
+// synthesizeFmlRaceTakenFromPool builds a Taken view from the task pool when the
+// user's row (UID == roleID) is present but field 110 lacked takeTaskData.
+// Progress (TargetCnt/FinishCnt) is filled when the pool row carries it; 0 means
+// unknown and callers must treat it as an unfinished task.
+func synthesizeFmlRaceTakenFromPool(tasks []FmlRaceTaskView, roleID int64) (FmlRaceTakenView, bool) {
+	if roleID <= 0 {
+		return FmlRaceTakenView{}, false
+	}
+	for _, t := range tasks {
+		if t.UID != roleID || t.MsId == 0 {
+			continue
+		}
+		taskType := t.TaskType
+		if taskType == 0 {
+			taskType = t.TaskId
+		}
+		return FmlRaceTakenView{
+			TaskMsId:    t.MsId,
+			TaskId:      t.TaskId,
+			TaskType:    taskType,
+			Score:       t.Score,
+			TargetCnt:   t.TargetCnt,
+			FinishCnt:   t.FinishCnt,
+			ParamID:     t.ParamID,
+			TargetLabel: t.TargetLabel,
+			HasTask:     true,
+		}, true
+	}
+	return FmlRaceTakenView{}, false
 }
 
 // firstInt32FromRaw returns the first numeric entry from a JSON array/number
