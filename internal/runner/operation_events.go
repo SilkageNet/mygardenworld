@@ -35,6 +35,7 @@ const (
 	operationErrorWaterwheelDailyLimit    operationErrorKind = "waterwheel_daily_limit"
 	operationErrorWaterDropRejected       operationErrorKind = "water_drop_rejected"
 	operationErrorTaskGroupFinished       operationErrorKind = "task_group_finished"
+	operationErrorRaceTakeAlreadyTaken    operationErrorKind = "race_take_already_taken"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -53,6 +54,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorWaterDropRejected
 	case isTaskGroupFinishedError(kind, err):
 		return operationErrorTaskGroupFinished
+	case isRaceTakeAlreadyTakenError(kind, err):
+		return operationErrorRaceTakeAlreadyTaken
 	default:
 		return operationErrorOrdinary
 	}
@@ -217,6 +220,19 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "group_finished"})
+		return nil
+	case operationErrorRaceTakeAlreadyTaken:
+		r.state.MarkFmlRaceTasksUnobserved()
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Message:     fmt.Sprintf("%s 暂缓: 服务端提示已接取其他任务，将重新同步任务池后继续", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_taken_resync"})
 		return nil
 	default:
 		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "", 0)

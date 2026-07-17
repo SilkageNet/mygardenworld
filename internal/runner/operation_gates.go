@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -245,6 +246,17 @@ func isWaterDropResourceRejectedError(kind string, err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
+}
+
+func isRaceTakeAlreadyTakenError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlRaceTakeTask.String() || err == nil {
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if !errors.As(err, &rpcErr) || rpcErr == nil {
+		return false
+	}
+	return rpcErr.Envelope.ErrorCodeOfLangJS() == "fmlRace_tips1"
 }
 
 func isTaskGroupFinishedError(kind string, err error) bool {
