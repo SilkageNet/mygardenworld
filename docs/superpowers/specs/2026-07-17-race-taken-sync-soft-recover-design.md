@@ -1,7 +1,22 @@
 # 竞赛登录同步已接任务 + takeTask tips1 软恢复
 
-**日期：** 2026-07-17  
-**状态：** 已批准（方案 1）
+**日期：** 2026-07-17
+**状态：** 已实现
+**实现计划：** `docs/superpowers/plans/2026-07-17-race-taken-sync-soft-recover.md`
+
+## 实现进度
+
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| 设计批准 | ✅ 完成 | 方案 1：状态层补全已接 + runner tips1 软恢复 |
+| 代码摸底 | ✅ 完成 | 已定位 `applyFml`/`parseFmlRaceTaken`、`unionRaceOperations`、`handleOperationError`；tips1 对应 `codeOfLangJs`，非数值 `code` |
+| 实现计划 | ✅ 完成 | `docs/superpowers/plans/2026-07-17-race-taken-sync-soft-recover.md`（Task 1–6） |
+| Task1：状态层 UID 兜底合成 Taken | ✅ 完成 | 池行补 `TargetCnt`/`FinishCnt`；`synthesizeFmlRaceTakenFromPool` |
+| Task2：finish/giveUp 门禁 | ✅ 完成 | 未知进度视为未完成，不误 finish |
+| Task3：`MarkFmlRaceTasksUnobserved` | ✅ 完成 | 强制下一拍重新 `getTaskList` |
+| Task4：`ErrorCodeOfLangJS` | ✅ 完成 | 暴露 `codeOfLangJs` 供软恢复匹配 |
+| Task5：runner tips1 软恢复 | ✅ 完成 | `isRaceTakeAlreadyTakenError` + deferred + 强制再 sync，不写账号异常 |
+| Task6：回归 + 文档收尾 | ✅ 完成 | 全量相关回归通过，设计文档标记已实现 |
 
 ## 问题
 
@@ -58,8 +73,8 @@
 仅针对 `fmlRace.takeTask` 返回的服务端错误 `code == "fmlRace_tips1"`（已接取其他任务）：
 
 1. 归类为可恢复错误：发 `operation_deferred`（warn），**不**发 `operation_failed`，从而不写入导致账号「异常」的 `LastError` 路径。
-2. 使本地竞赛任务池观测失效（例如 `TasksObserved = false` 或等价强制同步标志），下一拍优先再发 `getTaskList`。
-3. 对 take 施加短冷却（或依赖「未同步则不 take」的早退），避免同一拍内反复 take；同步成功后恢复正常决策。
+2. 将 `TasksObserved` 置为 `false`（沿用现有「批次激活且未观测任务池 → getTaskList」早退），下一拍只同步、不 take。
+3. 不另加 take 冷却：同步完成并重新判定已接后，自然恢复正常决策。
 4. 再同步后走第 1 节已接分支。若仍识别不出已接且再次 tips1：继续软恢复 + 再同步，不升级为账号异常。
 
 其他 `takeTask` / 竞赛 RPC 错误保持现有失败行为。
