@@ -194,7 +194,9 @@ func (r *Runner) setHarvestBlockedUntil(landIDs []int32, until time.Time) {
 }
 
 func isHarvestOp(kind string) bool {
-	return kind == clientproto.RPCUsrLandHarvest.String()
+	return kind == clientproto.RPCUsrLandHarvest.String() ||
+		kind == clientproto.RPCFmlLandHarvest.String() ||
+		kind == clientproto.RPCFmlLandHarvestAll.String()
 }
 
 func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.PlannedOp) error {

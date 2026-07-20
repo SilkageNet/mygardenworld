@@ -242,6 +242,12 @@ func opKindDesc(kind string) string {
 		return "删除竞赛任务"
 	case clientproto.RPCFmlRaceGiveUpTask.String():
 		return "放弃竞赛任务"
+	case clientproto.RPCFmlEnter.String():
+		return "进入公会"
+	case clientproto.RPCFmlLandHarvest.String():
+		return "公会土地收获"
+	case clientproto.RPCFmlLandHarvestAll.String():
+		return "公会土地一键收获"
 	default:
 		return kind
 	}

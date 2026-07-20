@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -616,13 +617,76 @@ func (s *State) FmlLands() map[int32]FmlLandView {
 	return out
 }
 
+// FormatFmlLandHarvestReason builds a human-readable harvest summary for logs.
+func FormatFmlLandHarvestReason(lands map[int32]FmlLandView, landIDs []int32, now time.Time) string {
+	if len(landIDs) == 0 {
+		return "公会土地有成熟鲜花可收获"
+	}
+	parts := make([]string, 0, len(landIDs))
+	total := int32(0)
+	for _, id := range landIDs {
+		land, ok := lands[id]
+		if !ok {
+			parts = append(parts, fmt.Sprintf("土地#%d", id))
+			continue
+		}
+		pending := FmlLandPendingHarvest(land, now)
+		total += pending
+		name := FlowerName(land.FlowerID)
+		if name == "" {
+			name = fmt.Sprintf("花卉#%d", land.FlowerID)
+		}
+		parts = append(parts, fmt.Sprintf("%s×%d(土地#%d)", name, pending, id))
+	}
+	if len(parts) == 0 {
+		return fmt.Sprintf("公会土地可收获 %d 块", len(landIDs))
+	}
+	return fmt.Sprintf("公会土地可收获 %d 朵: %s", total, strings.Join(parts, "、"))
+}
+
+// FmlLandPendingHarvest returns unclaimed mature flowers on one guild land.
+// When protocol matureFlwCnt is stale (often 0 until the client UI recalculates),
+// maturity is derived from startTime and c_fmlLandLvl time/stock.
+func FmlLandPendingHarvest(land FmlLandView, now time.Time) int32 {
+	if land.FlowerID <= 0 {
+		return 0
+	}
+	stored := land.MatureFlowerCnt - land.HarvestedCnt
+	if stored < 0 {
+		stored = 0
+	}
+	computed := int32(0)
+	if land.StartTimeMs > 0 {
+		if cfg, ok := FmlLandLvlByID(land.Level); ok && cfg.TimeSec > 0 {
+			elapsedSec := (now.UnixMilli() - land.StartTimeMs) / 1000
+			if elapsedSec > 0 {
+				produced := elapsedSec / int64(cfg.TimeSec)
+				if cfg.Stock > 0 && produced > int64(cfg.Stock) {
+					produced = int64(cfg.Stock)
+				}
+				computed = int32(produced) - land.HarvestedCnt
+				if computed < 0 {
+					computed = 0
+				}
+			}
+		}
+	}
+	if computed > stored {
+		return computed
+	}
+	return stored
+}
+
 // ReadyFmlLandHarvestIDs returns guild lands with unclaimed mature flowers.
-func (s *State) ReadyFmlLandHarvestIDs() []int32 {
+func (s *State) ReadyFmlLandHarvestIDs(now time.Time) []int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]int32, 0, len(s.fmlLands))
 	for id, land := range s.fmlLands {
-		if land == nil || land.MatureFlowerCnt <= land.HarvestedCnt {
+		if land == nil {
+			continue
+		}
+		if FmlLandPendingHarvest(*land, now) <= 0 {
 			continue
 		}
 		out = append(out, id)

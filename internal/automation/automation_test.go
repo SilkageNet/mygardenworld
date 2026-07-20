@@ -2063,10 +2063,53 @@ func TestBuildPlan_UnionLandHarvest(t *testing.T) {
 			if len(op.LandIDs) != 1 || op.LandIDs[0] != 1 || op.Count != 1 {
 				t.Fatalf("union land harvest ids/count mismatch: %+v", op)
 			}
+			if !strings.Contains(op.Reason, "土地#1") || !strings.Contains(op.Reason, "×4") {
+				t.Fatalf("union land harvest reason should describe targets: %q", op.Reason)
+			}
 			return
 		}
 	}
 	t.Fatalf("missing union land harvest op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandHarvestComputesStaleMatureCount(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23005,
+						"2": now.Add(-45 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.HarvestEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.harvest" {
+			if op.Kind != clientproto.RPCFmlLandHarvest.String() || !op.Executable {
+				t.Fatalf("stale mature count should still harvest: %+v", op)
+			}
+			if len(op.LandIDs) != 1 || op.LandIDs[0] != 1 {
+				t.Fatalf("harvest land ids=%v, want [1]", op.LandIDs)
+			}
+			if !strings.Contains(op.Reason, "×3") {
+				t.Fatalf("harvest reason should use computed pending: %q", op.Reason)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land harvest op with stale matureFlwCnt: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionLandHarvestRequiresObservedState(t *testing.T) {
@@ -2077,14 +2120,14 @@ func TestBuildPlan_UnionLandHarvestRequiresObservedState(t *testing.T) {
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
-		if op.Domain == "union.land.harvest" {
-			if op.Executable || len(op.BlockedReasons) == 0 {
-				t.Fatalf("unobserved union land should be blocked: %+v", op)
+		if op.Domain == "union.land" && op.Action == "sync" {
+			if op.Kind != clientproto.RPCFmlEnter.String() || !op.Executable || op.SyncOnly {
+				t.Fatalf("unobserved union land should sync via fml.enter: %+v", op)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing blocked union land harvest op: %+v", result.Operations)
+	t.Fatalf("missing union land sync op: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionFlowerShareReward(t *testing.T) {

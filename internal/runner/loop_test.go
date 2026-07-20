@@ -531,6 +531,20 @@ func TestFmlBuildOperationArgs(t *testing.T) {
 	}
 }
 
+func TestFmlEnterOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlEnter.String()})
+	if err != nil {
+		t.Fatalf("operationArgs(fml.enter): %v", err)
+	}
+	enter, ok := args.(clientproto.FmlEnterRequest)
+	if !ok {
+		t.Fatalf("operationArgs(fml.enter)=%T, want FmlEnterRequest", args)
+	}
+	if enter.Fml != 1 {
+		t.Fatalf("FmlEnterRequest.Fml=%d, want 1", enter.Fml)
+	}
+}
+
 func TestFmlLandHarvestOperationArgs(t *testing.T) {
 	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlLandHarvest.String(), LandIDs: []int32{1, 3}})
 	if err != nil {

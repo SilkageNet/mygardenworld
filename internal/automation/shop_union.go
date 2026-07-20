@@ -143,7 +143,7 @@ func unionOperations(s *state.State, union *pb.UnionPolicy, now time.Time) []Pla
 	var ops []PlannedOp
 	ops = append(ops, unionBuildOperations(s, union.GetBuild())...)
 	ops = append(ops, unionFlowerOperations(s, union.GetFlower())...)
-	ops = append(ops, unionLandOperations(s, union.GetLand())...)
+	ops = append(ops, unionLandOperations(s, union.GetLand(), now)...)
 	ops = append(ops, unionRaceOperations(s, union.GetRace(), uid, now)...)
 	ops = append(ops, unionForestOperations(s, union.GetForestEnabled())...)
 	return ops
@@ -338,23 +338,21 @@ func applyUnionBuildCostGate(op *PlannedOp, option state.FmlBuildOption, policy 
 	return nil
 }
 
-func unionLandOperations(s *state.State, policy *pb.UnionLandPolicy) []PlannedOp {
+func unionLandOperations(s *state.State, policy *pb.UnionLandPolicy, now time.Time) []PlannedOp {
 	if policy == nil || !policy.GetHarvestEnabled() {
 		return nil
 	}
 	goal := Goal{ID: "union.land", Category: CategoryUnion, Domain: "union.land", Label: "公会土地", Priority: 44}
 	if !s.FmlLandObserved() {
-		blocked := domainOp(clientproto.RPCFmlLandHarvest.String(), goal, "union.land.harvest", "harvest", "公会土地状态未观测", 4480, 0, 0, 0)
-		blocked.Status = PlanStatusAdapterMissing
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{"未观察到 25.102.fmlLand，需先进入公会土地或等待同步"}
-		return []PlannedOp{blocked}
+		sync := domainOp(clientproto.RPCFmlEnter.String(), goal, "union.land", "sync", "公会土地状态未观测，先进入公会同步", 4485, 0, 0, 0)
+		return []PlannedOp{sync}
 	}
-	landIDs := s.ReadyFmlLandHarvestIDs()
+	landIDs := s.ReadyFmlLandHarvestIDs(now)
 	if len(landIDs) == 0 {
 		return nil
 	}
-	harvest := domainOp(clientproto.RPCFmlLandHarvest.String(), goal, "union.land.harvest", "harvest", "公会土地有成熟鲜花可收获", 4480, 0, 0, int32(len(landIDs)))
+	reason := state.FormatFmlLandHarvestReason(s.FmlLands(), landIDs, now)
+	harvest := domainOp(clientproto.RPCFmlLandHarvest.String(), goal, "union.land.harvest", "harvest", reason, 4480, 0, 0, int32(len(landIDs)))
 	harvest.LandIDs = landIDs
 	return []PlannedOp{harvest}
 }

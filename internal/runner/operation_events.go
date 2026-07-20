@@ -377,6 +377,13 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 	if op == nil {
 		return ""
 	}
+	switch op.Kind {
+	case clientproto.RPCFmlLandHarvest.String(),
+		clientproto.RPCFmlLandHarvestAll.String():
+		if op.Reason != "" {
+			return " " + op.Reason
+		}
+	}
 	if suffix := landSuffix(op.LandIDs); suffix != "" {
 		return suffix
 	}

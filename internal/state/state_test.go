@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -363,9 +364,46 @@ func TestApplyV_FmlLandState(t *testing.T) {
 	if lands[1].FlowerID != 23005 || lands[1].MatureFlowerCnt != 5 || lands[1].HarvestedCnt != 2 {
 		t.Fatalf("FmlLand #1 = %+v", lands[1])
 	}
-	ready := s.ReadyFmlLandHarvestIDs()
+	now := time.UnixMilli(1_800_000_000_000) // after fixture startTime, stock-capped
+	ready := s.ReadyFmlLandHarvestIDs(now)
 	if len(ready) != 1 || ready[0] != 1 {
 		t.Fatalf("ReadyFmlLandHarvestIDs()=%v, want [1]", ready)
+	}
+	reason := FormatFmlLandHarvestReason(lands, ready, now)
+	// Stored mature=5 harvested=2, but startTime+c_fmlLandLvl yields stock-capped pending.
+	if !strings.Contains(reason, "土地#1") || !strings.Contains(reason, "×8") {
+		t.Fatalf("FormatFmlLandHarvestReason()=%q, want land and computed pending count", reason)
+	}
+}
+
+func TestReadyFmlLandHarvestIDs_ComputesFromStartTimeWhenMatureCountStale(t *testing.T) {
+	// Protocol often pushes matureFlwCnt=0 until the client recalculates from
+	// startTime + c_fmlLandLvl.time/stock. Automation must not wait for that.
+	now := time.UnixMilli(1_800_000_000_000)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23005,
+						"2": now.Add(-45 * time.Minute).UnixMilli(), // 2700s / 900s = 3 flowers
+						"3": 0,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+
+	ready := s.ReadyFmlLandHarvestIDs(now)
+	if len(ready) != 1 || ready[0] != 1 {
+		t.Fatalf("ReadyFmlLandHarvestIDs()=%v, want [1] with computed maturity", ready)
+	}
+	pending := FmlLandPendingHarvest(s.FmlLands()[1], now)
+	if pending != 3 {
+		t.Fatalf("FmlLandPendingHarvest()=%d, want 3", pending)
 	}
 }
 

@@ -307,6 +307,13 @@ type FmlBuildOption struct {
 	DailyLimit int32
 }
 
+// FmlLandLvl describes one c_fmlLandLvl growth tier (seconds per flower + stock cap).
+type FmlLandLvl struct {
+	Level   int32
+	TimeSec int32
+	Stock   int32
+}
+
 // ItemInfoByID returns a defensive copy of a c_item catalog row.
 func ItemInfoByID(id int32) (ItemInfo, bool) {
 	item, ok := catalog.Items[id]
@@ -1815,6 +1822,25 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 		out.Cost = row.Items[0][1]
 	}
 	return out, true
+}
+
+// FmlLandLvlByID returns growth timing/stock for one guild-land level.
+func FmlLandLvlByID(level int32) (FmlLandLvl, bool) {
+	raw, ok := StaticRow("c_fmlLandLvl", level)
+	if !ok {
+		return FmlLandLvl{}, false
+	}
+	var row struct {
+		Time  int32 `json:"time"`
+		Stock int32 `json:"stock"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return FmlLandLvl{}, false
+	}
+	if row.Time <= 0 {
+		return FmlLandLvl{}, false
+	}
+	return FmlLandLvl{Level: level, TimeSec: row.Time, Stock: row.Stock}, true
 }
 
 func taskTitleFromTable(tableName string, taskID, target int32) string {
