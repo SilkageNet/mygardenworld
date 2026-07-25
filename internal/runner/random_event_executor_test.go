@@ -148,6 +148,31 @@ func TestExecuteRandomEventClaimAppliesOnceAndRequiresRemoval(t *testing.T) {
 		}
 	})
 
+	t.Run("target removed via null entry", func(t *testing.T) {
+		s := newState()
+		applyCount := 0
+		got, err := executeRandomEventClaim(context.Background(), clientproto.RandomEventDoAffairRequest{EventId: 6004}, randomEventClaimExecution{
+			preflight: func() (state.RandomEventClaimSnapshot, error) {
+				snapshot, ok := s.RandomEventClaimSnapshot(6004)
+				if !ok {
+					return state.RandomEventClaimSnapshot{}, errors.New("missing")
+				}
+				return snapshot, nil
+			},
+			claim: func(context.Context, clientproto.RandomEventDoAffairRequest) (json.RawMessage, error) {
+				return json.RawMessage(`{"129":{"0":{"1":{"6004":null,"6008":{"0":6008,"1":0,"2":60080101}}}}}`), nil
+			},
+			apply:   func(raw json.RawMessage) { applyCount++; s.ApplyV(raw) },
+			applied: s.RandomEventClaimApplied,
+		})
+		if err != nil || !json.Valid(got) || applyCount != 1 {
+			t.Fatalf("got=%s err=%v applyCount=%d", got, err, applyCount)
+		}
+		if ids := s.ReadyRandomEventIDs(); len(ids) != 1 || ids[0] != 6008 {
+			t.Fatalf("remaining events=%v", ids)
+		}
+	})
+
 	for name, response := range map[string]json.RawMessage{
 		"sparse unchanged": json.RawMessage(`{"129":{"0":{"2":1234}}}`),
 		"malformed":        json.RawMessage(`{"129":{"0":{"1":[]}}}`),

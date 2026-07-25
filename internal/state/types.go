@@ -128,19 +128,25 @@ type CustomerOrderSummary struct {
 }
 
 // ResidentSpecialOrder represents satin/decorate resident orders embedded in
-// namespace 105. The observed protocol currently exposes counters and NPC data
-// but not a reliable per-flower requirement list, so execution remains gated
-// until requirements are explicit.
+// namespace 105 (orderSatin / orderDecorate). Field 0 is [[flowerId,count],...]
+// in the live mini client (same shape as ordinary flower-order requires).
 type ResidentSpecialOrder struct {
-	Observed  bool  `json:"observed,omitempty"`
-	Flowers   int32 `json:"flowers,omitempty"`
-	NPCID     int32 `json:"npc_id,omitempty"`
-	DialogID  int32 `json:"dialog_id,omitempty"`
-	FinishCnt int32 `json:"finish_cnt,omitempty"`
-	IsVideo   int32 `json:"is_video,omitempty"`
-	VideoRwd  int32 `json:"video_rwd,omitempty"`
-	CdTimeMs  int64 `json:"cd_time_ms,omitempty"`
-	CTimeMs   int64 `json:"c_time_ms,omitempty"`
+	Observed  bool            `json:"observed,omitempty"`
+	Requires  []FlowerRequire `json:"requires,omitempty"`
+	NPCID     int32           `json:"npc_id,omitempty"`
+	DialogID  int32           `json:"dialog_id,omitempty"`
+	FinishCnt int32           `json:"finish_cnt,omitempty"`
+	IsVideo   int32           `json:"is_video,omitempty"`
+	VideoRwd  int32           `json:"video_rwd,omitempty"`
+	CdTimeMs  int64           `json:"cd_time_ms,omitempty"`
+	CTimeMs   int64           `json:"c_time_ms,omitempty"`
+}
+
+func (o ResidentSpecialOrder) CooldownReady(now time.Time) bool {
+	if o.CdTimeMs <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(o.CdTimeMs))
 }
 
 // PalaceOrderView is the tracked subset of namespace 108 (orderPalaceTot).

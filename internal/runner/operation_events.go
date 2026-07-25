@@ -145,6 +145,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
+			Label:       operationEventLabel(op),
 			Message:     fmt.Sprintf("%s 暂缓: 服务端提示订单冷却中，稍后重试", opDesc(op)),
 			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 			Level:       "warn",
@@ -153,24 +154,35 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		return nil
 	case operationErrorResidentOrderDailyLimit:
 		now := result.finishedAt
-		r.state.MarkResidentOrderDailyLimitReached(now)
+		isSpecial := op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
+			op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String()
+		if !isSpecial {
+			r.state.MarkResidentOrderDailyLimitReached(now)
+		}
 		until, ok := r.state.ResidentOrderDailyLimitReached(now)
 		cooldown := 24 * time.Hour
-		if ok {
+		if !isSpecial && ok {
 			cooldown = until.Sub(now)
 		}
 		payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示今日完成订单次数已达上限", cooldown)
+		label := operationEventLabel(op)
+		if label == "" {
+			label = "普通居民订单"
+		}
 		r.emit(Event{
 			Kind:        "operation_deferred",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
-			Message:     fmt.Sprintf("%s 暂停: 普通居民订单已达服务端今日上限，已跳过居民订单以继续执行其他流程", opDesc(op)),
+			Label:       label,
+			Message:     fmt.Sprintf("%s 暂停: %s已达服务端今日上限，已跳过以继续执行其他流程", opDesc(op), label),
 			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
-		r.lastResidentOrderLimitReason = "server_daily_limit"
+		if !isSpecial {
+			r.lastResidentOrderLimitReason = "server_daily_limit"
+		}
 		return nil
 	case operationErrorWaterwheelInvalidData:
 		r.state.MarkWaterwheelUnavailable(result.finishedAt)
@@ -262,6 +274,26 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
 	category := op.Category
 	switch op.Kind {
+	case clientproto.RPCOrderFlowerFinishOrder.String():
+		kind = "order_finish"
+		label = "普通居民订单"
+		category = automation.CategoryOrder
+		message = residentOrderFinishSuccessMessage("普通居民订单", op)
+	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
+		kind = "order_satin_finish"
+		label = "绸缎订单"
+		category = automation.CategoryOrder
+		message = residentOrderFinishSuccessMessage("绸缎订单", op)
+	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
+		kind = "order_decorate_finish"
+		label = "建材订单"
+		category = automation.CategoryOrder
+		message = residentOrderFinishSuccessMessage("建材订单", op)
+	case clientproto.RPCOrderFlowerRecvOrderRwd.String():
+		kind = "order_reward"
+		label = "居民订单领奖"
+		category = automation.CategoryOrder
+		message = fmt.Sprintf("领取居民订单阶段奖励 target=%d", op.TargetID)
 	case clientproto.RPCFmlFlowerShareTake.String():
 		kind = "union_flower_take"
 		label = "公会摸花"
@@ -408,8 +440,8 @@ func (r *Runner) emitResidentOrderLimitInfo(policy *pb.Policy, now time.Time) {
 		Category: "order",
 		Domain:   "order.resident",
 		Action:   "blocked",
-		Label:    "居民订单",
-		Message:  fmt.Sprintf("居民订单暂停: %s，已跳过普通居民订单提交以继续执行其他流程", reason),
+		Label:    "普通居民订单",
+		Message:  fmt.Sprintf("普通居民订单暂停: %s，已跳过提交以继续执行其他流程", reason),
 		Level:    "warn",
 	})
 }
@@ -419,6 +451,14 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return ""
 	}
 	switch {
+	case op.Kind == clientproto.RPCOrderFlowerFinishOrder.String():
+		return "普通居民订单"
+	case op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String():
+		return "绸缎订单"
+	case op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String():
+		return "建材订单"
+	case op.Kind == clientproto.RPCOrderFlowerRecvOrderRwd.String():
+		return "居民订单领奖"
 	case op.Kind == clientproto.RPCFmlFlowerShareTake.String() || op.Domain == "union.flower.take":
 		return "公会摸花"
 	case op.Kind == clientproto.RPCFlowerRackSell.String():
@@ -427,6 +467,36 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "花艺售出"
 	}
 	return ""
+}
+
+func residentOrderFinishSuccessMessage(label string, op *automation.PlannedOp) string {
+	if label == "" {
+		label = "居民订单"
+	}
+	parts := make([]string, 0, 2)
+	if op != nil && op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.TargetID > 0 {
+		parts = append(parts, fmt.Sprintf("格子=%d", op.TargetID))
+	}
+	if summary := orderRequireSummaryFromReason(op); summary != "" {
+		parts = append(parts, summary)
+	}
+	if len(parts) == 0 {
+		return "完成" + label
+	}
+	return "完成" + label + ": " + strings.Join(parts, " ")
+}
+
+func orderRequireSummaryFromReason(op *automation.PlannedOp) string {
+	if op == nil {
+		return ""
+	}
+	reason := strings.TrimSpace(op.Reason)
+	start := strings.LastIndex(reason, "(")
+	end := strings.LastIndex(reason, ")")
+	if start < 0 || end <= start+1 {
+		return ""
+	}
+	return strings.TrimSpace(reason[start+1 : end])
 }
 
 func unionFlowerTakeMessageSuffix(op *automation.PlannedOp) string {

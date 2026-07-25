@@ -115,6 +115,18 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.OrderFlower().FinishOrder(ctx, req)
 		},
 	),
+	clientproto.RPCOrderFlowerFinishSatinOrder.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderFlowerFinishSatinOrderRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderFlowerFinishSatinOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderFlower().FinishSatinOrder(ctx, req)
+		},
+	),
+	clientproto.RPCOrderFlowerFinishDecorateOrder.String(): stateDeltaOperation(
+		staticRequest(clientproto.OrderFlowerFinishDecorateOrderRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OrderFlowerFinishDecorateOrderRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.OrderFlower().FinishDecorateOrder(ctx, req)
+		},
+	),
 	clientproto.RPCOrderFlowerRecvOrderRwd.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.OrderFlowerRecvOrderRwdRequest, error) {
 			return clientproto.OrderFlowerRecvOrderRwdRequest{Target: op.TargetID}, nil

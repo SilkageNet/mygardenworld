@@ -65,6 +65,33 @@ func TestRandomEventWholeReplacementSparseRetentionAndExplicitClear(t *testing.T
 	}
 }
 
+func TestRandomEventNullEntriesAreOmittedFromWholeReplacement(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"129":{"0":{"1":{"6004":{"0":6004,"1":2,"2":60040901},"6008":{"0":6008,"1":0,"2":60080101}}}}}`))
+
+	// doAffair-style replacement: claimed event is null, remaining event stays.
+	s.ApplyV(json.RawMessage(`{"129":{"0":{"1":{"6004":null,"6008":{"0":6008,"1":0,"2":60080101}}}}}`))
+	if !s.RandomEventTableReady() {
+		t.Fatal("null entry invalidated authoritative table")
+	}
+	if got := s.ReadyRandomEventIDs(); !reflect.DeepEqual(got, []int32{6008}) {
+		t.Fatalf("remaining events=%v, want [6008]", got)
+	}
+	snapshot, ok := s.RandomEventClaimSnapshot(6004)
+	if ok || snapshot.EventID != 0 {
+		t.Fatalf("claimed event still snapshottable: %+v ok=%t", snapshot, ok)
+	}
+	if !s.RandomEventClaimApplied(RandomEventClaimSnapshot{EventID: 6004, PositionIndex: 2, DialogID: 60040901}) {
+		t.Fatal("null entry did not satisfy claim removal postcondition")
+	}
+
+	// Claiming the last event may send only that key as null.
+	s.ApplyV(json.RawMessage(`{"129":{"0":{"1":{"6008":null}}}}`))
+	if !s.RandomEventTableReady() || len(s.RandomEvents()) != 0 || len(s.ReadyRandomEventIDs()) != 0 {
+		t.Fatalf("final null clear failed: ready=%t events=%v", s.RandomEventTableReady(), s.RandomEvents())
+	}
+}
+
 func TestRandomEventMalformedAndUnsafeEntriesFailClosed(t *testing.T) {
 	t.Run("malformed replacement clears executable view", func(t *testing.T) {
 		s := New()

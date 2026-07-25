@@ -2118,13 +2118,15 @@ type OrderFlowerEnterRequest struct{}
 
 type OrderFlowerFinishCommonOrderRequest struct{}
 
-type OrderFlowerFinishDecorateOrderRequest RawRequest
+// OrderFlowerFinishDecorateOrderRequest is empty: game.js sends {}.
+type OrderFlowerFinishDecorateOrderRequest struct{}
 
 type OrderFlowerFinishOrderRequest struct {
 	BoxId RPCID `json:"boxId,omitempty"`
 }
 
-type OrderFlowerFinishSatinOrderRequest RawRequest
+// OrderFlowerFinishSatinOrderRequest is empty: game.js sends {}.
+type OrderFlowerFinishSatinOrderRequest struct{}
 
 type OrderFlowerRecvOrderRwdRequest struct {
 	Target RPCInt `json:"target,omitempty"`

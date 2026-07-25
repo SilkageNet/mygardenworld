@@ -31,6 +31,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 						if !statsObserved {
 							reason = "居民订单可交付；未观察到今日统计 namespace 124"
 						}
+						reason = withOrderReason(reason, FormatFlowerRequires(flowerOrder.Requires))
 						ops = append(ops, op(clientproto.RPCOrderFlowerFinishOrder.String(), goal, "finish", reason, goal.Priority*100+700, boxID, 0, 0))
 					}
 				}
@@ -42,10 +43,74 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			}
 		}
 		if resident.GetSatinEnabled() {
-			ops = append(ops, residentSpecialOrderBlockedOp("order.resident.satin", "绸缎居民订单", s.ResidentSatinOrder(), s.Statistics().OrderSatinFinishNum, resident.GetSatinDailyLimit(), goal))
+			satin := s.ResidentSatinOrder()
+			if reason, limited := residentSatinDailyLimitReached(s, resident); limited {
+				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单今日上限已达", goal.Priority*100+695)
+				blocked.GoalID = goal.ID
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{reason}
+				ops = append(ops, blocked)
+			} else if !satin.Observed {
+				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单未同步", goal.Priority*100+125)
+				blocked.GoalID = goal.ID
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{"绸缎居民订单状态未观察到"}
+				ops = append(ops, blocked)
+			} else if satin.IsVideo != 0 {
+				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单需看广告", goal.Priority*100+125)
+				blocked.GoalID = goal.ID
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{"当前绸缎订单为广告订单，暂不自动提交"}
+				ops = append(ops, blocked)
+			} else if len(satin.Requires) == 0 {
+				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishSatinOrder.String(), "order.resident.satin", "绸缎居民订单", satin, goal, "绸缎居民订单缺少可识别需求"))
+			} else if !satin.CooldownReady(now) {
+				// Wait for cooldown; no blocked marker needed.
+			} else if !residentSpecialOrderAllowed(satin, resident) {
+				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishSatinOrder.String(), "order.resident.satin", "绸缎居民订单", satin, goal, "绸缎居民订单品质不符合策略"))
+			} else if canFulfillResidentSpecialOrder(satin, "satin", goal, ledger) {
+				finish := op(clientproto.RPCOrderFlowerFinishSatinOrder.String(), goal, "finish", withOrderReason("绸缎居民订单可交付", FormatFlowerRequires(satin.Requires)), goal.Priority*100+710, 0, 0, 0)
+				finish.Domain = "order.resident.satin"
+				ops = append(ops, finish)
+			}
 		}
 		if resident.GetDecorateEnabled() {
-			ops = append(ops, residentSpecialOrderBlockedOp("order.resident.decorate", "建材居民订单", s.ResidentDecorateOrder(), s.Statistics().OrderDecorateFinishNum, resident.GetDecorateDailyLimit(), goal))
+			decorate := s.ResidentDecorateOrder()
+			if reason, limited := residentDecorateDailyLimitReached(s, resident); limited {
+				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单今日上限已达", goal.Priority*100+694)
+				blocked.GoalID = goal.ID
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{reason}
+				ops = append(ops, blocked)
+			} else if !decorate.Observed {
+				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单未同步", goal.Priority*100+124)
+				blocked.GoalID = goal.ID
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{"建材居民订单状态未观察到"}
+				ops = append(ops, blocked)
+			} else if decorate.IsVideo != 0 {
+				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单需看广告", goal.Priority*100+124)
+				blocked.GoalID = goal.ID
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.BlockedReasons = []string{"当前建材订单为广告订单，暂不自动提交"}
+				ops = append(ops, blocked)
+			} else if len(decorate.Requires) == 0 {
+				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), "order.resident.decorate", "建材居民订单", decorate, goal, "建材居民订单缺少可识别需求"))
+			} else if !decorate.CooldownReady(now) {
+				// Wait for cooldown; no blocked marker needed.
+			} else if !residentSpecialOrderAllowed(decorate, resident) {
+				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), "order.resident.decorate", "建材居民订单", decorate, goal, "建材居民订单品质不符合策略"))
+			} else if canFulfillResidentSpecialOrder(decorate, "decorate", goal, ledger) {
+				finish := op(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), goal, "finish", withOrderReason("建材居民订单可交付", FormatFlowerRequires(decorate.Requires)), goal.Priority*100+705, 0, 0, 0)
+				finish.Domain = "order.resident.decorate"
+				ops = append(ops, finish)
+			}
 		}
 	}
 	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {

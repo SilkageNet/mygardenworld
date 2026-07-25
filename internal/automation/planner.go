@@ -62,7 +62,7 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now)...)
 	ops = append(ops, orderOperations(s, policy, goals, demands, ledger, now)...)
 	ops = append(ops, basicOperations(s, policy, goals, now)...)
-	ops = append(ops, shopOperations(s, policy)...)
+	ops = append(ops, shopOperations(s, policy, now)...)
 	ops = append(ops, maintenanceOperations(s, policy, ledger, now)...)
 	ops = append(ops, unionOperations(s, policy.GetUnion(), now)...)
 	ops = driveCyclicNoteTaskOperations(policy, activityActions, ledger, ops)

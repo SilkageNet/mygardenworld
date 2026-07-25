@@ -102,6 +102,26 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 				}
 			}
 		}
+		if resident.GetSatinEnabled() {
+			if _, limited := residentSatinDailyLimitReached(s, resident); !limited {
+				satin := s.ResidentSatinOrder()
+				if residentSpecialOrderAllowed(satin, resident) && satin.CooldownReady(now) {
+					for _, req := range satin.Requires {
+						add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, "satin", "绸缎居民订单", nil)
+					}
+				}
+			}
+		}
+		if resident.GetDecorateEnabled() {
+			if _, limited := residentDecorateDailyLimitReached(s, resident); !limited {
+				decorate := s.ResidentDecorateOrder()
+				if residentSpecialOrderAllowed(decorate, resident) && decorate.CooldownReady(now) {
+					for _, req := range decorate.Requires {
+						add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, "decorate", "建材居民订单", nil)
+					}
+				}
+			}
+		}
 	}
 	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {
 		for npcID, order := range s.CustomerOrderDetails() {

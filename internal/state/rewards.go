@@ -83,26 +83,48 @@ func (s *State) applyShopCultivateLocked(raw json.RawMessage) {
 	if s.shopCultivateBought == nil {
 		s.shopCultivateBought = make(map[int32]int32)
 	}
-	if rawInfo, ok := fields["1"]; ok {
-		var costs map[string]json.RawMessage
-		if err := json.Unmarshal(rawInfo, &costs); err == nil {
-			next := make(map[int32]ItemCount, len(costs))
-			for shopIDStr, rawCost := range costs {
-				shopID := atoi32(shopIDStr)
-				if shopID == 0 {
-					continue
-				}
-				parts := readInt32OrderedListRaw(rawCost)
-				if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
-					continue
-				}
-				next[shopID] = ItemCount{ItemID: parts[0], Count: parts[1]}
+	if rawReset, ok := fields["2"]; ok {
+		var n int64
+		if json.Unmarshal(rawReset, &n) == nil {
+			if s.shopCultivateResetMs > 0 && n > 0 &&
+				gameDayID(time.UnixMilli(n)) > gameDayID(time.UnixMilli(s.shopCultivateResetMs)) {
+				s.shopCultivateBought = make(map[int32]int32)
 			}
-			s.shopCultivateCosts = next
+			s.shopCultivateResetMs = n
+		}
+	}
+	fullSnapshot := false
+	if rawInfo, ok := fields["1"]; ok {
+		fullSnapshot = true
+		if isJSONNull(rawInfo) {
+			s.shopCultivateCosts = make(map[int32]ItemCount)
+		} else {
+			var costs map[string]json.RawMessage
+			if err := json.Unmarshal(rawInfo, &costs); err == nil {
+				next := make(map[int32]ItemCount, len(costs))
+				for shopIDStr, rawCost := range costs {
+					shopID := atoi32(shopIDStr)
+					if shopID == 0 {
+						continue
+					}
+					parts := readInt32OrderedListRaw(rawCost)
+					if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
+						continue
+					}
+					next[shopID] = ItemCount{ItemID: parts[0], Count: parts[1]}
+				}
+				s.shopCultivateCosts = next
+			}
 		}
 	}
 	if rawBought, ok := fields["6"]; ok {
-		s.shopCultivateBought = readInt32RawMap(rawBought)
+		if isJSONNull(rawBought) || fullSnapshot {
+			s.shopCultivateBought = readInt32RawMap(rawBought)
+		} else {
+			for shopID, count := range readInt32RawMap(rawBought) {
+				s.shopCultivateBought[shopID] = count
+			}
+		}
 	}
 	s.shopCultivateObserved = true
 }
@@ -395,6 +417,20 @@ func (s *State) ShopCultivateObserved() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.shopCultivateObserved
+}
+
+// ShopCultivateNeedsEnter reports whether material-shop state must be synced
+// via shopCultivate.enter (never observed, or daily reset boundary passed).
+func (s *State) ShopCultivateNeedsEnter(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.shopCultivateObserved {
+		return true
+	}
+	if s.shopCultivateResetMs <= 0 {
+		return false
+	}
+	return gameDayID(now) > gameDayID(time.UnixMilli(s.shopCultivateResetMs))
 }
 
 // ShopCultivateOffers returns current material-shop offers enriched with the

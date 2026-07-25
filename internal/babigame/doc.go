@@ -38,7 +38,7 @@
 //	101        | Cultivation state (see below)    | cultivate.*
 //	103        | Collection rewards               | cultivate.recv, collectRwd.recv
 //	104        | Flower-art rack/shelves          | flowerRack.sell
-//	105        | Flower orders                    | orderFlower.finishOrder
+//	105        | Flower orders                    | orderFlower.finishOrder / finishSatinOrder / finishDecorateOrder
 //	106        | Flower art / share state          | flowerArt.makeFlowerArt, usr.share
 //	109        | Customer orders                  | orderCustomer.*
 //	112        | Gift bag shop                    | shopGiftbag.enter/buy
@@ -216,8 +216,9 @@
 //
 // The client treats recvIdx as the list of free-water slot indexes already
 // claimed for the current reset day. freeWater.recv sends {idx} for the active
-// c_gameCfg.$freeWaterTime slot only; idx 0 is valid and must not be omitted
-// from JSON.
+// c_gameCfg.$freeWaterTime slot only; automation claims during the first minute
+// of each window start (11:00 and 17:00 Asia/Shanghai). idx 0 is valid and must
+// not be omitted from JSON.
 //
 // # Zoo / Cat State (Namespace 33)
 //
@@ -249,7 +250,8 @@
 // c_randomEvent.place and dialogId must belong to that event's dialog list.
 // Namespace 129.0.1 is a whole-table replacement whenever present; missing
 // sparse fields retain the previous table, while null or an empty object means
-// a valid empty table.
+// a valid empty table. Within a replacement object, a null entry deletes that
+// event id (doAffair commonly clears the claimed affair this way).
 //
 // # Key RPCs
 //
@@ -271,9 +273,11 @@
 //
 // Orders:
 //
-//	orderFlower.finishOrder   {boxId}               → {7,22,105,119,124}
-//	orderCustomer.finishOrder {npcId}               → {7,22,101,109,119,124}
-//	orderCustomer.genOrder    {guestNpcIdList:[]}   → {109}
+//	orderFlower.finishOrder         {boxId}            → {7,22,105,119,124}
+//	orderFlower.finishSatinOrder    {}                 → {7,105,119,124}   satin resident order (ns 105.0.6)
+//	orderFlower.finishDecorateOrder {}                 → {7,105,119,124}   decorate resident order (ns 105.0.7)
+//	orderCustomer.finishOrder       {npcId}            → {7,22,101,109,119,124}
+//	orderCustomer.genOrder          {guestNpcIdList:[]} → {109}
 //
 // Flower art:
 //

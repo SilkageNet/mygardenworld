@@ -19,11 +19,11 @@ const raceTakeLeadWindow = 4 * time.Second
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 10 * time.Minute
 
-func shopOperations(s *state.State, policy *pb.Policy) []PlannedOp {
+func shopOperations(s *state.State, policy *pb.Policy, now time.Time) []PlannedOp {
 	shop := policy.GetBasic().GetShop()
 	var ops []PlannedOp
 	ops = append(ops, giftbagOperations(s, shop)...)
-	ops = append(ops, cultivateShopOperations(s, shop)...)
+	ops = append(ops, cultivateShopOperations(s, shop, now)...)
 	vipShop := shop.GetVipShop()
 	if vipShop.GetAutoBuy() {
 		blocked := markerOp(CategoryBasic, "basic.shop.vip", "buy", "VIP 商店购买需要成本和状态确认", 115)
@@ -59,14 +59,18 @@ func freeVideoGiftbag(offer state.ShopGiftbagOfferView) bool {
 		offer.MoneyID == 0 && offer.Price == 0 && offer.PriceMax == 0
 }
 
-func cultivateShopOperations(s *state.State, shop *pb.ShopPolicy) []PlannedOp {
+func cultivateShopOperations(s *state.State, shop *pb.ShopPolicy, now time.Time) []PlannedOp {
 	cultivateShop := shop.GetCultivateShop()
 	if !cultivateShop.GetAutoBuy() {
 		return nil
 	}
 	goal := Goal{ID: "basic.shop.cultivate", Category: CategoryBasic, Domain: "basic.shop.cultivate", Label: "材料商店", Priority: 54}
-	if !s.ShopCultivateObserved() {
-		return []PlannedOp{domainOp(clientproto.RPCShopCultivateEnter.String(), goal, "basic.shop.cultivate", "sync", "材料商店状态未同步，先进入商店获取价格", 5450, 0, 0, 0)}
+	if s.ShopCultivateNeedsEnter(now) {
+		reason := "材料商店状态未同步，先进入商店获取价格"
+		if s.ShopCultivateObserved() {
+			reason = "材料商店已跨日重置，先进入商店刷新购买记录"
+		}
+		return []PlannedOp{domainOp(clientproto.RPCShopCultivateEnter.String(), goal, "basic.shop.cultivate", "sync", reason, 5450, 0, 0, 0)}
 	}
 	allowed := int32Set(cultivateShop.GetItemIds())
 	inventory := s.Inventory()

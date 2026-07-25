@@ -264,7 +264,7 @@ func runtimeOperationLabel(kind string) string {
 func runtimeOrderCompletion(kind string) (key, label string, ok bool) {
 	switch kind {
 	case clientproto.RPCOrderFlowerFinishOrder.String():
-		return "resident_normal", "居民订单", true
+		return "resident_normal", "普通居民订单", true
 	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
 		return "resident_satin", "绸缎订单", true
 	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():

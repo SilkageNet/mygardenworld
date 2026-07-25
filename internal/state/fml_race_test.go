@@ -88,14 +88,26 @@ func TestFmlRaceTaskEmptyParamHasNoTargetLabel(t *testing.T) {
 
 func TestFmlRaceUnresolvedFlowerUsesIDLabel(t *testing.T) {
 	s := New()
-	// 23562 exists in catalog with placeholder name "0" / short_name "待定".
+	// 23515 exists in catalog with placeholder name "0" / short_name "待定".
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":915,"4":4028,"6":[23515],"10":25}]}}`))
+	task := s.FmlRace().Tasks[0]
+	if task.ParamID != 23515 {
+		t.Fatalf("ParamID = %d, want 23515", task.ParamID)
+	}
+	if task.TargetLabel != "#23515" {
+		t.Fatalf("TargetLabel = %q, want #23515 for unresolved flower name", task.TargetLabel)
+	}
+}
+
+func TestFmlRaceResolvedFlowerUsesCatalogName(t *testing.T) {
+	s := New()
 	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":915,"4":4028,"6":[23562],"10":25}]}}`))
 	task := s.FmlRace().Tasks[0]
 	if task.ParamID != 23562 {
 		t.Fatalf("ParamID = %d, want 23562", task.ParamID)
 	}
-	if task.TargetLabel != "#23562" {
-		t.Fatalf("TargetLabel = %q, want #23562 for unresolved flower name", task.TargetLabel)
+	if task.TargetLabel != "幽香绮囊" {
+		t.Fatalf("TargetLabel = %q, want 幽香绮囊", task.TargetLabel)
 	}
 }
 

@@ -469,16 +469,15 @@ func (s *State) WaterDrops() (int32, int32, int64) {
 }
 
 // AvailableWaterDrops returns the drops that automation may safely attempt to
-// spend. It is conservative: when the next recovery timestamp has elapsed but
-// the server has not pushed namespace 7 yet, advance the local recovery clock
-// with the c_item.restore interval and cap at the server-reported total.
+// spend. When the next recovery timestamp has elapsed but the server has not
+// pushed namespace 7 yet, advance the local recovery clock with the
+// c_item.restore interval (projected recovery never exceeds capacity). Inventory
+// that already exceeds waterDropsTotal — e.g. from packs — remains fully
+// spendable; only projected recovery is capacity-capped.
 func (s *State) AvailableWaterDrops(now time.Time) (int32, int32, int64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	current, nextMs, _ := s.projectedWaterDropsLocked(now)
-	if s.waterDropsTotal > 0 && current > s.waterDropsTotal {
-		current = s.waterDropsTotal
-	}
 	current -= s.waterDropsInFlight
 	if current < 0 {
 		current = 0
@@ -496,9 +495,6 @@ func (s *State) LockWaterDrops(n int32, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	current, _, _ := s.projectedWaterDropsLocked(now)
-	if s.waterDropsTotal > 0 && current > s.waterDropsTotal {
-		current = s.waterDropsTotal
-	}
 	if current-s.waterDropsInFlight < n {
 		return false
 	}

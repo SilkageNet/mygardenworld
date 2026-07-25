@@ -260,6 +260,14 @@ func opKindDesc(kind string) string {
 		return "花艺上架"
 	case clientproto.RPCFlowerRackRecvSellMoney.String():
 		return "花艺售出领取"
+	case clientproto.RPCOrderFlowerFinishOrder.String():
+		return "普通居民订单"
+	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
+		return "绸缎居民订单"
+	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
+		return "建材居民订单"
+	case clientproto.RPCOrderFlowerRecvOrderRwd.String():
+		return "居民订单领奖"
 	default:
 		return kind
 	}
@@ -305,7 +313,7 @@ func eventCategory(kind string) string {
 		return "basic"
 	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
 		return "basic"
-	case "order_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art":
+	case "order_finish", "order_satin_finish", "order_decorate_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art":
 		return "order"
 	case "flower_rack", "flower_rack_sell", "flower_rack_claim":
 		return "flower_art"
@@ -373,7 +381,7 @@ func eventDomain(kind string) string {
 		return "basic.map_event"
 	case "story_unlock":
 		return "basic.story"
-	case "order_finish", "order_reward", "order_ad":
+	case "order_finish", "order_satin_finish", "order_decorate_finish", "order_reward", "order_ad":
 		return "order.resident"
 	case "order_customer", "order_customer_info":
 		return "order.customer"
@@ -485,11 +493,15 @@ func eventLabel(kind string) string {
 	case "story_unlock":
 		return "剧情"
 	case "order_finish":
-		return "居民订单"
+		return "普通居民订单"
+	case "order_satin_finish":
+		return "绸缎订单"
+	case "order_decorate_finish":
+		return "建材订单"
 	case "order_customer", "order_customer_info":
 		return "顾客订单"
 	case "order_reward":
-		return "订单奖励"
+		return "居民订单领奖"
 	case "order_ad":
 		return "居民订单"
 	case "flower_art":

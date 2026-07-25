@@ -200,7 +200,14 @@ func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Dema
 	if len(executable) > 0 || remaining <= 0 {
 		return plantAssignmentPlan{executable: executable, blockedDiagnostic: diagnostics}
 	}
-	return plantAssignmentPlan{executable: autoReplantAssignments(candidates, remaining), blockedDiagnostic: diagnostics}
+	mode := plantingPolicy.GetAutoReplantMode()
+	if autoReplantUsesLowestStockBatch(mode) {
+		applyPlantedLandStock(s, candidates)
+	}
+	return plantAssignmentPlan{
+		executable:        autoReplantAssignments(candidates, remaining, mode),
+		blockedDiagnostic: diagnostics,
+	}
 }
 
 func executableAssignments(in []plantAssignment) []plantAssignment {
@@ -213,10 +220,47 @@ func executableAssignments(in []plantAssignment) []plantAssignment {
 	return out
 }
 
-func autoReplantAssignments(candidates []state.PlantableFlower, limit int32) []plantAssignment {
+// autoReplantBatchSize is how many empty lands one ALL/EXCLUDE auto-replant
+// step claims before re-ranking by effective stock.
+const autoReplantBatchSize int32 = 4
+
+func autoReplantUsesLowestStockBatch(mode pb.SelectionMode) bool {
+	switch mode {
+	case pb.SelectionMode_SELECTION_MODE_SPECIFIC:
+		return false
+	default:
+		// ALL, EXCLUDE, and unset modes share the lowest-stock batch path.
+		return true
+	}
+}
+
+func applyPlantedLandStock(s *state.State, candidates []state.PlantableFlower) {
+	if s == nil || len(candidates) == 0 {
+		return
+	}
+	planted := map[int32]int32{}
+	for _, land := range s.Lands() {
+		if !land.IsPlanted() {
+			continue
+		}
+		planted[int32(land.FlowerID)]++
+	}
+	for i := range candidates {
+		candidates[i].Stock += planted[candidates[i].FlowerID]
+	}
+}
+
+func autoReplantAssignments(candidates []state.PlantableFlower, limit int32, mode pb.SelectionMode) []plantAssignment {
 	if len(candidates) == 0 || limit <= 0 {
 		return nil
 	}
+	if autoReplantUsesLowestStockBatch(mode) {
+		return autoReplantLowestStockBatchAssignments(candidates, limit)
+	}
+	return autoReplantBalanceAssignments(candidates, limit)
+}
+
+func sortPlantableByStock(candidates []state.PlantableFlower) {
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].Stock != candidates[j].Stock {
 			return candidates[i].Stock < candidates[j].Stock
@@ -226,6 +270,42 @@ func autoReplantAssignments(candidates []state.PlantableFlower, limit int32) []p
 		}
 		return candidates[i].FlowerID < candidates[j].FlowerID
 	})
+}
+
+func autoReplantAssignment(flowerID, count int32) plantAssignment {
+	return plantAssignment{
+		FlowerID: flowerID,
+		Count:    count,
+		Priority: priorityFor(defaultDemandPriority(), GoalAutoReplant)*100 + 100,
+		GoalID:   GoalAutoReplant,
+		Reason:   "自主补种",
+	}
+}
+
+// autoReplantLowestStockBatchAssignments plants up to autoReplantBatchSize lands
+// of the current lowest-stock flower, then re-ranks and repeats. Used for ALL
+// and EXCLUDE auto-replant scopes.
+func autoReplantLowestStockBatchAssignments(candidates []state.PlantableFlower, limit int32) []plantAssignment {
+	var out []plantAssignment
+	remaining := limit
+	for remaining > 0 {
+		sortPlantableByStock(candidates)
+		count := autoReplantBatchSize
+		if count > remaining {
+			count = remaining
+		}
+		out = append(out, autoReplantAssignment(candidates[0].FlowerID, count))
+		candidates[0].Stock += count
+		remaining -= count
+	}
+	return out
+}
+
+// autoReplantBalanceAssignments keeps SPECIFIC-mode water-level balancing among
+// the selected flowers: raise every current minimum-stock flower toward the
+// next stock tier before moving on.
+func autoReplantBalanceAssignments(candidates []state.PlantableFlower, limit int32) []plantAssignment {
+	sortPlantableByStock(candidates)
 	var out []plantAssignment
 	remaining := limit
 	for remaining > 0 {
@@ -252,13 +332,7 @@ func autoReplantAssignments(candidates []state.PlantableFlower, limit int32) []p
 			if count > remaining {
 				count = remaining
 			}
-			out = append(out, plantAssignment{
-				FlowerID: candidates[i].FlowerID,
-				Count:    count,
-				Priority: priorityFor(defaultDemandPriority(), GoalAutoReplant)*100 + 100,
-				GoalID:   GoalAutoReplant,
-				Reason:   "自主补种",
-			})
+			out = append(out, autoReplantAssignment(candidates[i].FlowerID, count))
 			candidates[i].Stock += count
 			remaining -= count
 			advanced = true
@@ -266,15 +340,7 @@ func autoReplantAssignments(candidates []state.PlantableFlower, limit int32) []p
 		if !advanced {
 			break
 		}
-		sort.Slice(candidates, func(i, j int) bool {
-			if candidates[i].Stock != candidates[j].Stock {
-				return candidates[i].Stock < candidates[j].Stock
-			}
-			if candidates[i].Gold != candidates[j].Gold {
-				return candidates[i].Gold > candidates[j].Gold
-			}
-			return candidates[i].FlowerID < candidates[j].FlowerID
-		})
+		sortPlantableByStock(candidates)
 	}
 	return out
 }

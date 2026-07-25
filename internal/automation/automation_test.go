@@ -2440,13 +2440,23 @@ func TestBuildPlan_LowStockFallbackBalancesMultipleFlowers(t *testing.T) {
 
 	result := BuildPlan(s, p, time.Now())
 	countByFlower := map[int32]int32{}
+	var batches []int32
 	for _, op := range result.Operations {
 		if op.Domain == "farm.plant" {
-			countByFlower[op.FlowerID] += int32(len(op.LandIDs))
+			n := int32(len(op.LandIDs))
+			countByFlower[op.FlowerID] += n
+			batches = append(batches, n)
 		}
 	}
-	if countByFlower[23001] == 0 || countByFlower[23002] == 0 {
-		t.Fatalf("fallback should split across low-stock flowers, got %v ops=%+v", countByFlower, result.Operations)
+	// ALL mode: plant lowest stock in batches of 4, then re-rank.
+	// A0 → 4, then B1 → 2 → A:4 B:2.
+	if countByFlower[23001] != 4 || countByFlower[23002] != 2 {
+		t.Fatalf("fallback batch split want A:4 B:2, got %v ops=%+v", countByFlower, result.Operations)
+	}
+	for _, n := range batches {
+		if n <= 0 || n > autoReplantBatchSize {
+			t.Fatalf("ALL auto-replant batch size=%d, want 1..%d: %+v", n, autoReplantBatchSize, batches)
+		}
 	}
 }
 
@@ -2479,6 +2489,68 @@ func TestBuildPlan_LowStockFallbackUsesAllEmptyLand(t *testing.T) {
 	}
 	if countByFlower[23001] == 0 || countByFlower[23002] == 0 {
 		t.Fatalf("fallback should prefer low-stock flowers, got %v", countByFlower)
+	}
+}
+
+func TestBuildPlan_LowStockFallbackCountsPlantedLands(t *testing.T) {
+	s := state.New()
+	lands := emptyLands(4)
+	// Four lands already growing 23001 so effective stock A=0+4, B=1.
+	for i := 0; i < 4; i++ {
+		lands[itoa(2001+i)] = map[string]any{"0": 23001, "1": 2}
+	}
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 0,
+			"23002": 1,
+			"23003": 5,
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": lands}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	countByFlower := map[int32]int32{}
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" && op.Executable {
+			countByFlower[op.FlowerID] += int32(len(op.LandIDs))
+		}
+	}
+	if countByFlower[23002] != 4 || countByFlower[23001] != 0 {
+		t.Fatalf("planted lands should raise effective stock so B is planted next, got %v ops=%+v", countByFlower, result.Operations)
+	}
+}
+
+func TestBuildPlan_ExcludeModeUsesLowestStockBatches(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 0,
+			"23002": 1,
+			"23003": 5,
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(6)}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_EXCLUDE
+	p.Plant.Planting.AutoReplantExcludeFlowerIds = []int32{23003}
+
+	result := BuildPlan(s, p, time.Now())
+	countByFlower := map[int32]int32{}
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" {
+			countByFlower[op.FlowerID] += int32(len(op.LandIDs))
+		}
+	}
+	if countByFlower[23003] != 0 {
+		t.Fatalf("exclude mode planted excluded flower: %v", countByFlower)
+	}
+	if countByFlower[23001] != 4 || countByFlower[23002] != 2 {
+		t.Fatalf("exclude mode batch split want A:4 B:2, got %v ops=%+v", countByFlower, result.Operations)
 	}
 }
 

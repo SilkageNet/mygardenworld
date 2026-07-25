@@ -1517,29 +1517,31 @@ function RuntimeStatisticsPanel({ runtimeStatistics }: { runtimeStatistics?: Run
 }
 
 function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
-  const activeTasks = activity?.tasks.filter((task) => task.unlocked) ?? [];
-  const readyTasks = activity?.valid ? activeTasks.filter((task) => task.status === PlanStatus.READY && !task.received).length : 0;
-  const readyMilestones = activity?.valid ? activity.milestones.filter((milestone) => milestone.ready && !milestone.received).length : 0;
   const phase = activity?.phase ?? 0;
+  if (!activity?.found || (phase !== 1 && phase !== 2 && phase !== 3)) {
+    return null;
+  }
+
+  const activeTasks = activity.tasks.filter((task) => task.unlocked);
+  const readyTasks = activity.valid ? activeTasks.filter((task) => task.status === PlanStatus.READY && !task.received).length : 0;
+  const readyMilestones = activity.valid ? activity.milestones.filter((milestone) => milestone.ready && !milestone.received).length : 0;
 
   return (
     <CollapsibleCard
-      title={activity?.name || "花笺集芳"}
+      title={activity.name || "花笺集芳"}
       contentClassName="space-y-3"
       actions={
         <>
           <Badge variant={phase === 2 ? "secondary" : "outline"}>{cyclicNotePhaseLabel(phase)}</Badge>
-          {activity?.found && <Badge variant="outline">批次 {activity.batchId}</Badge>}
-          {activity?.found && !activity.valid && <Badge variant="destructive">配置异常</Badge>}
-          {activity?.valid && !activity.milestoneReceiptsObserved && <Badge variant="outline">里程碑待同步</Badge>}
+          <Badge variant="outline">批次 {activity.batchId}</Badge>
+          {!activity.valid && <Badge variant="destructive">配置异常</Badge>}
+          {activity.valid && !activity.milestoneReceiptsObserved && <Badge variant="outline">里程碑待同步</Badge>}
           {readyTasks + readyMilestones > 0 && <Badge variant="secondary">可领取 {readyTasks + readyMilestones}</Badge>}
         </>
       }
     >
-      {!activity?.observed ? (
+      {!activity.observed ? (
         <EmptyState title="花笺集芳状态尚未同步" detail="连接游戏后，监控会从活动状态中自动发现当前批次。" />
-      ) : !activity.found ? (
-        <EmptyState title="当前未发现花笺集芳活动" detail="活动批次按类型与服务端时间动态识别，不固定使用历史批次。" />
       ) : !activity.valid ? (
         <EmptyState title="花笺集芳配置或状态异常" detail="已阻塞自动化；等待完整模板与时间状态同步后再显示任务详情。" />
       ) : (
@@ -3062,7 +3064,13 @@ function PolicyPanel({
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={planting?.videoSpeedUpEnabled ?? false} onChange={(checked) => updatePlanting({ videoSpeedUpEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
                 <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
                 <NumberRow label="加速券上限" value={planting?.speedUpTicketMax || 0} min={0} onChange={(value) => updatePlanting({ speedUpTicketMax: value })} />
-                <NumberRow label="保留水滴" value={planting?.minWaterDrops || 0} min={0} onChange={(value) => updatePlanting({ minWaterDrops: value })} />
+                <NumberRow
+                  label="保留水滴"
+                  value={planting?.minWaterDrops || 0}
+                  min={0}
+                  onChange={(value) => updatePlanting({ minWaterDrops: value })}
+                  description="可用水滴=当前−保留，仅限制下种数量"
+                />
               </div>
             </PolicyGroup>
 
@@ -3277,14 +3285,26 @@ function PolicyPanel({
                   description="需先开启普通居民订单；上限按今日已完成次数生效"
                   onChange={(value) => updateResident({ normalDailyLimit: value })}
                 />
-                {SHOW_UNSUPPORTED_SETTINGS && (
-                  <>
-                    <ToggleRow label="绸缎订单" checked={resident?.satinEnabled ?? false} onChange={(checked) => updateResident({ satinEnabled: checked })} />
-                    <NumberRow label="绸缎订单上限" value={resident?.satinDailyLimit || 120} min={0} onChange={(value) => updateResident({ satinDailyLimit: value })} />
-                    <ToggleRow label="建材订单" checked={resident?.decorateEnabled ?? false} onChange={(checked) => updateResident({ decorateEnabled: checked })} />
-                    <NumberRow label="建材订单上限" value={resident?.decorateDailyLimit || 120} min={0} onChange={(value) => updateResident({ decorateDailyLimit: value })} />
-                  </>
-                )}
+                <ToggleRow label="绸缎订单" checked={resident?.satinEnabled ?? false} onChange={(checked) => updateResident({ satinEnabled: checked })} />
+                <NumberRow
+                  label="绸缎订单上限"
+                  value={resident?.satinDailyLimit || 120}
+                  min={1}
+                  max={120}
+                  disabled={!(resident?.satinEnabled ?? false)}
+                  description="需先开启绸缎订单；上限按今日已完成次数生效"
+                  onChange={(value) => updateResident({ satinDailyLimit: value })}
+                />
+                <ToggleRow label="建材订单" checked={resident?.decorateEnabled ?? false} onChange={(checked) => updateResident({ decorateEnabled: checked })} />
+                <NumberRow
+                  label="建材订单上限"
+                  value={resident?.decorateDailyLimit || 120}
+                  min={1}
+                  max={120}
+                  disabled={!(resident?.decorateEnabled ?? false)}
+                  description="需先开启建材订单；上限按今日已完成次数生效"
+                  onChange={(value) => updateResident({ decorateDailyLimit: value })}
+                />
                 <ToggleRow label="居民领奖" checked={resident?.rewardEnabled ?? false} onChange={(checked) => updateResident({ rewardEnabled: checked })} />
                 <QualityRow label="品质限定" value={resident?.qualities ?? []} onChange={(value) => updateResident({ qualities: value })} />
               </div>

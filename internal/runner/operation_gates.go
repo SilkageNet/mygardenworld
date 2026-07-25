@@ -214,6 +214,8 @@ func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.
 		return r.ensureWaterRqst(ctx)
 	}
 	if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() ||
+		op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
+		op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String() ||
 		op.Kind == clientproto.RPCOrderFlowerRecvOrderRwd.String() {
 		return r.ensureFlowerOrderRqst(ctx)
 	}
@@ -231,11 +233,17 @@ func isFlowerNotMatureError(err error) bool {
 }
 
 func isResidentOrderCooldownError(kind string, err error) bool {
-	return kind == clientproto.RPCOrderFlowerFinishOrder.String() && err != nil && strings.Contains(err.Error(), "冷却中")
+	return (kind == clientproto.RPCOrderFlowerFinishOrder.String() ||
+		kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
+		kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String()) &&
+		err != nil && strings.Contains(err.Error(), "冷却中")
 }
 
 func isResidentOrderDailyLimitError(kind string, err error) bool {
-	return kind == clientproto.RPCOrderFlowerFinishOrder.String() && err != nil && strings.Contains(err.Error(), "今日完成订单次数已达上限")
+	return (kind == clientproto.RPCOrderFlowerFinishOrder.String() ||
+		kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
+		kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String()) &&
+		err != nil && strings.Contains(err.Error(), "今日完成订单次数已达上限")
 }
 
 func isWaterwheelInvalidDataError(kind string, err error) bool {

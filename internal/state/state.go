@@ -76,6 +76,7 @@ type State struct {
 	shopGiftbagObserved    bool
 	shopCultivateCosts     map[int32]ItemCount // 113.1.<shopId> material-shop dynamic cost
 	shopCultivateBought    map[int32]int32     // 113.6.<shopId> bought count
+	shopCultivateResetMs   int64               // 113.2 lResetTime
 	shopCultivateObserved  bool
 	pearl                  PearlView
 	pearlPlaces            map[int32]*PearlPlaceView // 115.0.<placeId>
@@ -100,9 +101,10 @@ type State struct {
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 	residentOrderLimitUntilMs  int64
 	residentOrderLimitDayID    int32
-	// Bias tracks successful finishOrder calls since the last authoritative
-	// namespace-124 field-9 apply, so the policy daily limit still works when
-	// statistics are missing or lag behind.
+	// Bias tracks successful finishOrder calls only while namespace 124 has
+	// never been observed, so the policy daily limit still works before the
+	// first statistics sync. Once system stats exist, ResidentOrderFinishNum
+	// uses orderFlowerFinishNum exclusively.
 	residentOrderFinishBias      int32
 	residentOrderFinishBiasDayID int32
 	residentSatinOrder         ResidentSpecialOrder

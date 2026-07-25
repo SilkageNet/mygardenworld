@@ -439,19 +439,19 @@ func (s *State) videoDoubleActiveLocked(now time.Time) bool {
 }
 
 // NextFreeWaterIndex returns the currently claimable idx for freeWater.recv.
-// The mini client treats IFreeWater.recvIdx as the list of slots already
-// claimed today and only calls recv(idx) for the active free-water time window.
+// Catalog windows are 11:00–14:00 and 17:00–21:00 Asia/Shanghai; automation
+// only attempts recv during the first minute of each window start. When
+// namespace 117 has never been observed, unclaimed slots are assumed so the
+// first open-minute recv can bootstrap server state.
 func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if !s.freeWaterObserved {
-		return 0, false
-	}
 	received := s.freeWaterReceivedIdxLocked(now)
+	local := now.In(gameDayLocation())
 	if periods := freeWaterClaimPeriods(); len(periods) > 0 {
-		minute := now.Hour()*60 + now.Minute()
+		minute := local.Hour()*60 + local.Minute()
 		for _, period := range periods {
-			if !period.contains(minute) {
+			if !period.claimOpen(minute) {
 				continue
 			}
 			if received[period.idx] {
@@ -461,17 +461,15 @@ func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 		}
 		return 0, false
 	}
-	for idx := int32(0); idx < 2; idx++ {
-		if !received[idx] {
-			return idx, true
-		}
-	}
 	return 0, false
 }
 
 func (s *State) freeWaterReceivedIdxLocked(now time.Time) map[int32]bool {
 	received := make(map[int32]bool, len(s.freeWaterRecvIdx))
-	if s.freeWaterResetMs > 0 && dailyRefreshTime(now).After(time.UnixMilli(s.freeWaterResetMs).In(now.Location())) {
+	if !s.freeWaterObserved {
+		return received
+	}
+	if s.freeWaterResetMs > 0 && gameDayID(now) > gameDayID(time.UnixMilli(s.freeWaterResetMs)) {
 		return received
 	}
 	for _, idx := range s.freeWaterRecvIdx {
@@ -486,14 +484,13 @@ type freeWaterClaimPeriod struct {
 	endMin   int
 }
 
-func (p freeWaterClaimPeriod) contains(minute int) bool {
+// claimOpen is true only during the first minute of the catalog window
+// (e.g. 11:00–11:00:59 for the morning slot).
+func (p freeWaterClaimPeriod) claimOpen(minute int) bool {
 	if p.startMin == p.endMin {
 		return false
 	}
-	if p.startMin < p.endMin {
-		return minute >= p.startMin && minute < p.endMin
-	}
-	return minute >= p.startMin || minute < p.endMin
+	return minute == p.startMin
 }
 
 func freeWaterClaimPeriods() []freeWaterClaimPeriod {
@@ -550,6 +547,7 @@ func decodeFreeWaterConfigMinute(raw int32) (int, bool) {
 }
 
 func dailyRefreshTime(now time.Time) time.Time {
-	y, m, d := now.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, now.Location())
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, local.Location())
 }

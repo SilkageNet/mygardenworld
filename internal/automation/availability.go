@@ -173,6 +173,17 @@ func FormatCustomerOrderRequires(s *state.State, order *state.CustomerOrder) str
 	return "需 " + strings.Join(parts, "； ")
 }
 
+// FormatFlowerRequires builds a short flower requirement summary for logs.
+func FormatFlowerRequires(reqs []state.FlowerRequire) string {
+	var parts []string
+	for _, req := range reqs {
+		if req.FlowerID > 0 && req.Count > 0 {
+			parts = append(parts, fmt.Sprintf("%s×%d", itemLabel(req.FlowerID), req.Count))
+		}
+	}
+	return strings.Join(parts, "、")
+}
+
 // FormatFlowerArtOpDesc formats a flower-art operation with art, vase, and recipe flowers.
 func FormatFlowerArtOpDesc(artID, count int32) string {
 	if artID <= 0 {
@@ -267,23 +278,109 @@ func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goa
 	return blocked, true
 }
 
-func residentSpecialOrderBlockedOp(domain, label string, order state.ResidentSpecialOrder, finished, limit int32, goal Goal) PlannedOp {
-	blocked := markerOp(CategoryOrder, domain, "finish", label+"暂不执行", goal.Priority*100+130)
-	blocked.GoalID = goal.ID
-	blocked.Status = PlanStatusAdapterMissing
-	blocked.Executable = false
-	switch {
-	case limit <= 0:
-		blocked.BlockedReasons = []string{label + "日上限必须大于 0"}
-		blocked.Status = PlanStatusBlocked
-	case finished >= limit:
-		blocked.BlockedReasons = []string{fmt.Sprintf("%s今日已完成 %d/%d", label, finished, limit)}
-		blocked.Status = PlanStatusBlocked
-	case !order.Observed:
-		blocked.BlockedReasons = []string{label + "状态未观察到，无法确认需求和次数"}
-	default:
-		blocked.BlockedReasons = []string{label + "已观察到状态，但协议仅暴露聚合 flowers 字段，缺少可安全提交的花朵需求列表"}
+// residentSatinDailyLimit returns the effective satin resident-order cap:
+// policy limit, optionally tightened by c_orderFlower.$dailyMax2.
+func residentSatinDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
+	if policy == nil {
+		return 0
 	}
+	limit := policy.GetSatinDailyLimit()
+	if limit <= 0 {
+		return limit
+	}
+	if hardLimit := state.ResidentOrderSatinDailyMax(); hardLimit > 0 && hardLimit < limit {
+		return hardLimit
+	}
+	return limit
+}
+
+func residentSatinDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy) (reason string, reached bool) {
+	limit := residentSatinDailyLimit(policy)
+	if limit <= 0 {
+		return "绸缎居民订单上限必须大于 0", true
+	}
+	finished := s.Statistics().OrderSatinFinishNum
+	if finished >= limit {
+		return fmt.Sprintf("绸缎居民订单今日已完成 %d/%d", finished, limit), true
+	}
+	return "", false
+}
+
+// residentDecorateDailyLimit returns the effective decorate resident-order cap:
+// policy limit, optionally tightened by c_orderFlower.$dailyMax3.
+func residentDecorateDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
+	if policy == nil {
+		return 0
+	}
+	limit := policy.GetDecorateDailyLimit()
+	if limit <= 0 {
+		return limit
+	}
+	if hardLimit := state.ResidentOrderDecorateDailyMax(); hardLimit > 0 && hardLimit < limit {
+		return hardLimit
+	}
+	return limit
+}
+
+func residentDecorateDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy) (reason string, reached bool) {
+	limit := residentDecorateDailyLimit(policy)
+	if limit <= 0 {
+		return "建材居民订单上限必须大于 0", true
+	}
+	finished := s.Statistics().OrderDecorateFinishNum
+	if finished >= limit {
+		return fmt.Sprintf("建材居民订单今日已完成 %d/%d", finished, limit), true
+	}
+	return "", false
+}
+
+func residentSpecialOrderAllowed(order state.ResidentSpecialOrder, policy *pb.ResidentOrderPolicy) bool {
+	if !order.Observed || order.IsVideo != 0 || len(order.Requires) == 0 {
+		return false
+	}
+	qualities := int32Set(policy.GetQualities())
+	if len(qualities) == 0 {
+		return true
+	}
+	for _, req := range order.Requires {
+		if req.FlowerID <= 0 {
+			continue
+		}
+		if !qualities[flowerQuality(req.FlowerID)] {
+			return false
+		}
+	}
+	return true
+}
+
+func canFulfillResidentSpecialOrder(order state.ResidentSpecialOrder, entityID string, goal Goal, ledger *InventoryLedger) bool {
+	if len(order.Requires) == 0 {
+		return false
+	}
+	for _, req := range order.Requires {
+		id := demandID(goal.ID, entityID, "direct", DemandKindFlower, req.FlowerID)
+		if req.FlowerID == 0 || req.Count <= 0 || ledger.AllocatedForDemand(id, req.FlowerID) < req.Count {
+			return false
+		}
+	}
+	return true
+}
+
+func blockedResidentSpecialOrderOp(kind, domain, label string, order state.ResidentSpecialOrder, goal Goal, reason string) PlannedOp {
+	blocked := op(kind, goal, "finish", reason, goal.Priority*100+125, 0, 0, 0)
+	blocked.Domain = domain
+	blocked.Status = PlanStatusBlocked
+	blocked.Executable = false
+	if len(order.Requires) == 0 {
+		blocked.BlockedReasons = []string{label + "缺少可识别需求"}
+		return blocked
+	}
+	var reasons []string
+	for _, req := range order.Requires {
+		quality := flowerQuality(req.FlowerID)
+		reasons = append(reasons, fmt.Sprintf("%s 品质 %d 不在策略范围内", itemLabel(req.FlowerID), quality))
+	}
+	blocked.BlockedReasons = reasons
 	return blocked
 }
 

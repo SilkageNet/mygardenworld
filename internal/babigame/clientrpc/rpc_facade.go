@@ -4490,7 +4490,7 @@ func (r OrderFlowerRPC) FinishCommonOrder(ctx context.Context, req clientproto.O
 // OrderFlowerFinishDecorateOrderResponse is the namespace-delta response for gs.orderFlower.finishDecorateOrder.
 type OrderFlowerFinishDecorateOrderResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// FinishDecorateOrder calls gs.orderFlower.finishDecorateOrder. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
+// FinishDecorateOrder calls gs.orderFlower.finishDecorateOrder. game.js sends an empty request object.
 func (r OrderFlowerRPC) FinishDecorateOrder(ctx context.Context, req clientproto.OrderFlowerFinishDecorateOrderRequest, opts ...babigame.RequestOption) (OrderFlowerFinishDecorateOrderResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCOrderFlowerFinishDecorateOrder, req, opts...)
 }
@@ -4506,7 +4506,7 @@ func (r OrderFlowerRPC) FinishOrder(ctx context.Context, req clientproto.OrderFl
 // OrderFlowerFinishSatinOrderResponse is the namespace-delta response for gs.orderFlower.finishSatinOrder.
 type OrderFlowerFinishSatinOrderResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// FinishSatinOrder calls gs.orderFlower.finishSatinOrder. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
+// FinishSatinOrder calls gs.orderFlower.finishSatinOrder. game.js sends an empty request object.
 func (r OrderFlowerRPC) FinishSatinOrder(ctx context.Context, req clientproto.OrderFlowerFinishSatinOrderRequest, opts ...babigame.RequestOption) (OrderFlowerFinishSatinOrderResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCOrderFlowerFinishSatinOrder, req, opts...)
 }

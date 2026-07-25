@@ -774,6 +774,32 @@ func TestAvailableWaterDropsAfterRecoveryTimestamp(t *testing.T) {
 	}
 }
 
+func TestAvailableWaterDropsKeepsInventoryAboveCapacity(t *testing.T) {
+	s := New()
+	now := time.Now()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"7": 10000},
+			"33": map[string]any{"7": map[string]any{"1": 130}},
+		}},
+	})
+	current, total, _ := s.WaterDrops()
+	if current != 10000 || total != 130 {
+		t.Fatalf("WaterDrops got (%d,%d), want (10000,130)", current, total)
+	}
+	available, total, _ := s.AvailableWaterDrops(now)
+	if available != 10000 || total != 130 {
+		t.Fatalf("AvailableWaterDrops got (%d,%d), want (10000,130)", available, total)
+	}
+	if !s.LockWaterDrops(5000, now) {
+		t.Fatal("LockWaterDrops returned false for over-capacity inventory")
+	}
+	available, _, _ = s.AvailableWaterDrops(now)
+	if available != 5000 {
+		t.Fatalf("available after lock = %d, want 5000", available)
+	}
+}
+
 func TestLockWaterDropsReducesAvailableUntilReleased(t *testing.T) {
 	s := New()
 	now := time.Now()
@@ -1229,25 +1255,34 @@ func TestResidentOrderDailyLimitErrorSuppressesUntilNextGameDay(t *testing.T) {
 
 func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	s := New()
-	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
-	if _, ok := s.NextFreeWaterIndex(now); ok {
-		t.Fatal("free water should be unavailable before namespace 117 is observed")
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	openMorning := time.Date(2026, 7, 6, 11, 0, 30, 0, shanghai)
+	idx, ok := s.NextFreeWaterIndex(openMorning)
+	if !ok || idx != 0 {
+		t.Fatalf("NextFreeWaterIndex before observe got (%d,%t), want (0,true) at window start", idx, ok)
 	}
 
 	applyMap(t, s, map[string]any{
 		"117": map[string]any{
 			"1": []int32{0},
-			"2": now.UnixMilli(),
+			"2": openMorning.UnixMilli(),
 		},
 	})
-	if idx, ok := s.NextFreeWaterIndex(now); ok {
+	if idx, ok := s.NextFreeWaterIndex(openMorning); ok {
 		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable for already claimed slot 0", idx)
 	}
-	idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 18, 0, 0, 0, time.Local))
+	openEvening := time.Date(2026, 7, 6, 17, 0, 0, 0, shanghai)
+	idx, ok = s.NextFreeWaterIndex(openEvening)
 	if !ok || idx != 1 {
-		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (1,true)", idx, ok)
+		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (1,true) at evening window start", idx, ok)
 	}
-	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 10, 50, 0, 0, time.Local)); ok {
+	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 11, 1, 0, 0, shanghai)); ok {
+		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable after first claim minute", idx)
+	}
+	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 12, 0, 0, 0, shanghai)); ok {
+		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable mid-window", idx)
+	}
+	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 10, 50, 0, 0, shanghai)); ok {
 		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable before free-water window", idx)
 	}
 }
@@ -1713,7 +1748,8 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 				"10001": []int32{11, 3214},
 				"10002": []int32{11, 4215},
 			},
-			"6": map[string]any{"10001": 0},
+			"2": time.Date(2026, 7, 6, 0, 5, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60)).UnixMilli(),
+			"6": map[string]any{"10001": 0, "10002": 1},
 		},
 	})
 	if !s.ShopCultivateObserved() {
@@ -1727,6 +1763,9 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 	if first.ShopID != 10001 || first.ItemID != 1401 || first.ItemCount != 1 || first.CostItemID != 11 || first.CostCount != 3214 || first.BuyLimit != 1 || first.Remaining != 1 {
 		t.Fatalf("first shop cultivate offer mismatch: %+v", first)
 	}
+	if offers[1].Remaining != 0 {
+		t.Fatalf("second offer remaining=%d, want 0: %+v", offers[1].Remaining, offers[1])
+	}
 
 	applyMap(t, s, map[string]any{
 		"113": map[string]any{
@@ -1739,6 +1778,14 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 	}
 	if offers[0].Remaining != 0 {
 		t.Fatalf("remaining after bRecord update=%d, want 0: %+v", offers[0].Remaining, offers[0])
+	}
+	if offers[1].Remaining != 0 {
+		t.Fatalf("sparse buy delta wiped sibling bought count: %+v", offers[1])
+	}
+
+	nextDay := time.Date(2026, 7, 7, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	if !s.ShopCultivateNeedsEnter(nextDay) {
+		t.Fatal("ShopCultivateNeedsEnter=false after daily reset boundary, want true")
 	}
 }
 
@@ -1955,8 +2002,14 @@ func TestApplyV_OrderPalaceTeamAndResidentSpecialOrders(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
 		"105": map[string]any{"0": map[string]any{
-			"6": map[string]any{"0": 3, "1": 201, "2": 301, "3": 2, "6": 1779290100000},
-			"7": map[string]any{"0": 4, "1": 202, "2": 302, "3": 1, "7": 1779290200000},
+			"6": map[string]any{
+				"0": []any{[]any{23001, 2}, []any{23002, 1}},
+				"1": 201, "2": 301, "3": 2, "6": 1779290100000,
+			},
+			"7": map[string]any{
+				"0": []any{[]any{23003, 4}},
+				"1": 202, "2": 302, "3": 1, "7": 1779290200000,
+			},
 		}},
 		"107": map[string]any{"0": map[string]any{
 			"0": 77900091102482, "1": 1, "3": 5, "4": 23005, "6": 2, "14": 99,
@@ -1967,11 +2020,14 @@ func TestApplyV_OrderPalaceTeamAndResidentSpecialOrders(t *testing.T) {
 	})
 
 	satin := s.ResidentSatinOrder()
-	if !satin.Observed || satin.Flowers != 3 || satin.NPCID != 201 || satin.FinishCnt != 2 {
+	if !satin.Observed || satin.NPCID != 201 || satin.FinishCnt != 2 || len(satin.Requires) != 2 ||
+		satin.Requires[0] != (FlowerRequire{FlowerID: 23001, Count: 2}) ||
+		satin.Requires[1] != (FlowerRequire{FlowerID: 23002, Count: 1}) {
 		t.Fatalf("ResidentSatinOrder mismatch: %+v", satin)
 	}
 	decorate := s.ResidentDecorateOrder()
-	if !decorate.Observed || decorate.Flowers != 4 || decorate.NPCID != 202 || decorate.FinishCnt != 1 {
+	if !decorate.Observed || decorate.NPCID != 202 || decorate.FinishCnt != 1 || len(decorate.Requires) != 1 ||
+		decorate.Requires[0] != (FlowerRequire{FlowerID: 23003, Count: 4}) {
 		t.Fatalf("ResidentDecorateOrder mismatch: %+v", decorate)
 	}
 	team := s.TeamOrder()

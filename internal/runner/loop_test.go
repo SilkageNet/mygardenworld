@@ -174,6 +174,8 @@ func TestOrderPalaceAndTeamOperationSpecs(t *testing.T) {
 	}{
 		{name: "palace enter", op: automation.PlannedOp{Kind: clientproto.RPCOrderPalaceEnter.String()}, want: clientproto.OrderPalaceEnterRequest{}},
 		{name: "palace finish", op: automation.PlannedOp{Kind: clientproto.RPCOrderPalaceFinishOrder.String()}, want: clientproto.OrderPalaceFinishOrderRequest{}},
+		{name: "satin finish", op: automation.PlannedOp{Kind: clientproto.RPCOrderFlowerFinishSatinOrder.String()}, want: clientproto.OrderFlowerFinishSatinOrderRequest{}},
+		{name: "decorate finish", op: automation.PlannedOp{Kind: clientproto.RPCOrderFlowerFinishDecorateOrder.String()}, want: clientproto.OrderFlowerFinishDecorateOrderRequest{}},
 		{name: "team refresh", op: automation.PlannedOp{Kind: clientproto.RPCOrderTeamRefreshOrder.String()}, want: clientproto.OrderTeamRefreshOrderRequest{}},
 		{name: "team submit", op: automation.PlannedOp{Kind: clientproto.RPCOrderTeamSubmitOrder.String()}, want: clientproto.OrderTeamSubmitOrderRequest{}},
 	}
@@ -720,7 +722,7 @@ func TestNextRunnableOperationSkipsCoolingSideOperationAndKeepsFarmRunnable(t *t
 }
 
 func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
-	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 11, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	st := state.New()
 	st.ApplyVMap(map[string]any{
 		"114": map[string]any{
@@ -746,7 +748,7 @@ func TestNextRunnableOperationWaitsForLocalWaterwheelBucket(t *testing.T) {
 }
 
 func TestNextRunnableOperationSkipsWaterwheelAfterDailyLimit(t *testing.T) {
-	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 11, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	st := state.New()
 	st.ApplyVMap(map[string]any{
 		"114": map[string]any{
@@ -875,6 +877,12 @@ func TestIsResidentOrderDailyLimitError(t *testing.T) {
 	err := errors.New("rpc orderFlower.finishOrder: server: 今日完成订单次数已达上限")
 	if !isResidentOrderDailyLimitError(clientproto.RPCOrderFlowerFinishOrder.String(), err) {
 		t.Fatal("isResidentOrderDailyLimitError = false, want true")
+	}
+	if !isResidentOrderDailyLimitError(clientproto.RPCOrderFlowerFinishSatinOrder.String(), err) {
+		t.Fatal("isResidentOrderDailyLimitError = false for satin, want true")
+	}
+	if !isResidentOrderDailyLimitError(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), err) {
+		t.Fatal("isResidentOrderDailyLimitError = false for decorate, want true")
 	}
 	if isResidentOrderDailyLimitError(clientproto.RPCOrderCustomerFinishOrder.String(), err) {
 		t.Fatal("isResidentOrderDailyLimitError matched the wrong rpc")

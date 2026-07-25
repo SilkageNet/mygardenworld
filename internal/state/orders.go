@@ -244,8 +244,8 @@ func parseResidentSpecialOrder(raw json.RawMessage) ResidentSpecialOrder {
 		return ResidentSpecialOrder{}
 	}
 	view := ResidentSpecialOrder{Observed: true}
-	if n, ok := readInt32JSONField(fields, "0"); ok {
-		view.Flowers = n
+	if rawReqs, ok := fields["0"]; ok {
+		view.Requires = parseFlowerRequires(rawReqs)
 	}
 	if n, ok := readInt32JSONField(fields, "1"); ok {
 		view.NPCID = n
@@ -440,6 +440,11 @@ func (s *State) applyRandomEventsLocked(raw json.RawMessage) {
 			return
 		}
 		mapID := int32(parsedID)
+		// Whole-table replacements may mark removed events as null. Treat those
+		// keys as absent instead of failing the authoritative map closed.
+		if bytes.Equal(bytes.TrimSpace(rawEvent), []byte("null")) {
+			continue
+		}
 		var fields map[string]json.RawMessage
 		if json.Unmarshal(rawEvent, &fields) != nil || fields == nil {
 			s.invalidateRandomEventMapLocked(fmt.Sprintf("事件 %d 不是对象", mapID))
@@ -610,25 +615,50 @@ func responseAdvancesResidentOrderFinish(raw json.RawMessage) bool {
 	return ok && finishSeen
 }
 
-// ResidentOrderFinishNum returns today's effective ordinary resident finish
-// count: observed statistics plus unfinished local bias.
+// ResidentOrderFinishNum returns today's ordinary resident finish count from
+// namespace 124 (orderFlowerFinishNum). Local finish bias is only a fallback
+// when system statistics have not been observed yet.
 func (s *State) ResidentOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	day := gameDayID(now)
-	var n int32
-	if s.statistics.Observed && (s.statistics.DayID == 0 || s.statistics.DayID == day) {
-		n = s.statistics.OrderFlowerFinishNum
+	if s.statistics.Observed {
+		switch {
+		case s.statistics.DayID == 0 || s.statistics.DayID == day:
+			return s.statistics.OrderFlowerFinishNum
+		case s.statistics.DayID < day:
+			// Prior game-day snapshot: treat today's finishes as unset until
+			// the server publishes the new day's counters.
+			return 0
+		default:
+			return s.statistics.OrderFlowerFinishNum
+		}
 	}
 	if s.residentOrderFinishBiasDayID == day {
-		n += s.residentOrderFinishBias
+		return s.residentOrderFinishBias
 	}
-	return n
+	return 0
 }
 
 // ResidentOrderNormalDailyMax returns c_orderFlower.$dailyMax, the mini
 // client's hard daily cap for normal resident orders.
 func ResidentOrderNormalDailyMax() int32 {
+	return residentOrderCatalogDailyMax("$dailyMax")
+}
+
+// ResidentOrderSatinDailyMax returns c_orderFlower.$dailyMax2, the mini
+// client's hard daily cap for satin resident orders.
+func ResidentOrderSatinDailyMax() int32 {
+	return residentOrderCatalogDailyMax("$dailyMax2")
+}
+
+// ResidentOrderDecorateDailyMax returns c_orderFlower.$dailyMax3, the mini
+// client's hard daily cap for decorate resident orders.
+func ResidentOrderDecorateDailyMax() int32 {
+	return residentOrderCatalogDailyMax("$dailyMax3")
+}
+
+func residentOrderCatalogDailyMax(key string) int32 {
 	raw, ok := catalog.Tables["c_orderFlower"].Rows["-1"]
 	if !ok {
 		return 0
@@ -637,7 +667,7 @@ func ResidentOrderNormalDailyMax() int32 {
 	if json.Unmarshal(raw, &row) != nil {
 		return 0
 	}
-	return readInt32Any(row["$dailyMax"])
+	return readInt32Any(row[key])
 }
 
 func nextGameDayReset(now time.Time) time.Time {
@@ -648,6 +678,10 @@ func nextGameDayReset(now time.Time) time.Time {
 
 func gameDayID(now time.Time) int32 {
 	local := now.In(gameDayLocation())
+	// Game day rolls at 00:05 Asia/Shanghai; before that keep the previous day.
+	if local.Hour() == 0 && local.Minute() < 5 {
+		local = local.Add(-5 * time.Minute)
+	}
 	y, m, d := local.Date()
 	return int32(y*10000 + int(m)*100 + d)
 }
@@ -673,14 +707,18 @@ func (s *State) FlowerOrders() map[int32]*FlowerOrder {
 func (s *State) ResidentSatinOrder() ResidentSpecialOrder {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.residentSatinOrder
+	out := s.residentSatinOrder
+	out.Requires = append([]FlowerRequire(nil), s.residentSatinOrder.Requires...)
+	return out
 }
 
 // ResidentDecorateOrder returns the latest observed decorate resident order state.
 func (s *State) ResidentDecorateOrder() ResidentSpecialOrder {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.residentDecorateOrder
+	out := s.residentDecorateOrder
+	out.Requires = append([]FlowerRequire(nil), s.residentDecorateOrder.Requires...)
+	return out
 }
 
 // PalaceOrder returns the current palace order state.
@@ -809,6 +847,12 @@ func (s *State) FlowerOrderDeficits() map[int32]int32 {
 		if order != nil {
 			addRequires(order.Requires)
 		}
+	}
+	if s.residentSatinOrder.Observed && s.residentSatinOrder.IsVideo == 0 {
+		addRequires(s.residentSatinOrder.Requires)
+	}
+	if s.residentDecorateOrder.Observed && s.residentDecorateOrder.IsVideo == 0 {
+		addRequires(s.residentDecorateOrder.Requires)
 	}
 	if s.mainTask != nil && s.mainTask.Valid && !s.mainTask.Complete && s.mainTask.ProgressObserved {
 		if flowerID, missing, ok := MainTaskFlowerRequirement(s.mainTask.TaskID, s.mainTask.Finished); ok {
