@@ -5,16 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 type operationAttempt struct {
-	op        *automation.PlannedOp
-	args      any
-	startedAt time.Time
+	op         *automation.PlannedOp
+	args       any
+	startedAt  time.Time
+	goldBefore int32
 }
 
 type operationResult struct {
@@ -161,11 +165,12 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
-			Message:     fmt.Sprintf("%s 暂停: 服务端提示今日完成订单次数已达上限，已跳过居民订单以继续执行其他流程", opDesc(op)),
+			Message:     fmt.Sprintf("%s 暂停: 普通居民订单已达服务端今日上限，已跳过居民订单以继续执行其他流程", opDesc(op)),
 			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
+		r.lastResidentOrderLimitReason = "server_daily_limit"
 		return nil
 	case operationErrorWaterwheelInvalidData:
 		r.state.MarkWaterwheelUnavailable(result.finishedAt)
@@ -252,12 +257,33 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 func (r *Runner) handleOperationSuccess(ctx context.Context, result operationResult) {
 	op, args := result.op, result.args
 	r.stats.RecordOperationSuccess(op, result.finishedAt)
+	kind := "operation_ack"
+	label := operationEventLabel(op)
+	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
+	category := op.Category
+	switch op.Kind {
+	case clientproto.RPCFmlFlowerShareTake.String():
+		kind = "union_flower_take"
+		label = "公会摸花"
+		message = fmt.Sprintf("公会摸花成功%s", unionFlowerTakeMessageSuffix(op))
+	case clientproto.RPCFlowerRackSell.String():
+		kind = "flower_rack_sell"
+		label = "花艺上架"
+		category = automation.CategoryFlowerArt
+		message = flowerRackSellSuccessMessage(op)
+	case clientproto.RPCFlowerRackRecvSellMoney.String():
+		kind = "flower_rack_claim"
+		label = "花艺售出"
+		category = automation.CategoryFlowerArt
+		message = flowerRackClaimSuccessMessage(op, result.goldBefore, r.state.Gold())
+	}
 	r.emit(Event{
-		Kind:        "operation_ack",
-		Category:    op.Category,
+		Kind:        kind,
+		Category:    category,
 		Domain:      op.Domain,
 		Action:      op.Action,
-		Message:     fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op)),
+		Label:       label,
+		Message:     message,
 		PayloadJSON: operationPayload(op, args, result.raw, nil),
 	})
 	r.logOperation(ctx, op.Kind, args, json.RawMessage(result.raw))
@@ -268,6 +294,10 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	// remaining drop count, so do not spend it locally again.
 	if isWaterOp(op.Kind) && !waterResponseIncludesDrops(result.raw) {
 		r.state.MarkLandsWatered(op.LandIDs)
+	}
+	if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() {
+		r.state.NoteResidentOrderFinished(result.finishedAt, result.raw)
+		r.emitResidentOrderLimitInfo(r.Policy(), result.finishedAt)
 	}
 }
 
@@ -352,6 +382,129 @@ func (r *Runner) emitCustomerOrderInfo() {
 	}
 }
 
+// emitResidentOrderLimitInfo writes a clear log line when ordinary resident
+// orders are paused by the policy/server daily limit. Deduped by reason so
+// decision ticks do not spam the event stream.
+func (r *Runner) emitResidentOrderLimitInfo(policy *pb.Policy, now time.Time) {
+	if policy == nil || r.state == nil {
+		return
+	}
+	resident := policy.GetOrder().GetResident()
+	if !resident.GetNormalEnabled() {
+		r.lastResidentOrderLimitReason = ""
+		return
+	}
+	reason, reached := automation.ResidentNormalDailyLimitReached(r.state, resident, now)
+	if !reached {
+		r.lastResidentOrderLimitReason = ""
+		return
+	}
+	if reason == r.lastResidentOrderLimitReason {
+		return
+	}
+	r.lastResidentOrderLimitReason = reason
+	r.emit(Event{
+		Kind:     "operation_deferred",
+		Category: "order",
+		Domain:   "order.resident",
+		Action:   "blocked",
+		Label:    "居民订单",
+		Message:  fmt.Sprintf("居民订单暂停: %s，已跳过普通居民订单提交以继续执行其他流程", reason),
+		Level:    "warn",
+	})
+}
+
+func operationEventLabel(op *automation.PlannedOp) string {
+	if op == nil {
+		return ""
+	}
+	switch {
+	case op.Kind == clientproto.RPCFmlFlowerShareTake.String() || op.Domain == "union.flower.take":
+		return "公会摸花"
+	case op.Kind == clientproto.RPCFlowerRackSell.String():
+		return "花艺上架"
+	case op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String():
+		return "花艺售出"
+	}
+	return ""
+}
+
+func unionFlowerTakeMessageSuffix(op *automation.PlannedOp) string {
+	if op == nil {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	if op.FlowerID > 0 {
+		parts = append(parts, fmt.Sprintf("%s(#%d)", flowerName(int(op.FlowerID)), op.FlowerID))
+	}
+	if op.TargetUID > 0 {
+		parts = append(parts, fmt.Sprintf("成员=%d", op.TargetUID))
+	}
+	if op.TargetID > 0 {
+		parts = append(parts, fmt.Sprintf("槽位=%d", op.TargetID))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return ": " + strings.Join(parts, " ")
+}
+
+func flowerRackSellSuccessMessage(op *automation.PlannedOp) string {
+	if op == nil {
+		return "花艺上架成功"
+	}
+	parts := make([]string, 0, 2)
+	if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
+		parts = append(parts, desc)
+	} else if op.ItemID > 0 {
+		parts = append(parts, fmt.Sprintf("花艺#%d×%d", op.ItemID, op.Count))
+	}
+	if op.TargetID > 0 {
+		parts = append(parts, fmt.Sprintf("花架=%d", op.TargetID))
+	}
+	if len(parts) == 0 {
+		return "花艺上架成功"
+	}
+	return "花艺上架成功: " + strings.Join(parts, " ")
+}
+
+func flowerRackClaimSuccessMessage(op *automation.PlannedOp, goldBefore, goldAfter int32) string {
+	if op == nil {
+		return "花艺售出领取成功"
+	}
+	parts := make([]string, 0, 3)
+	if op.ItemID > 0 {
+		if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
+			parts = append(parts, desc)
+		} else {
+			parts = append(parts, fmt.Sprintf("花艺#%d×%d", op.ItemID, op.Count))
+		}
+	}
+	if goldGain := goldAfter - goldBefore; goldGain > 0 {
+		parts = append(parts, fmt.Sprintf("金币+%d", goldGain))
+	} else if expected := flowerRackExpectedGold(op.ItemID, op.Count); expected > 0 {
+		parts = append(parts, fmt.Sprintf("金币+%d", expected))
+	}
+	if op.TargetID > 0 {
+		parts = append(parts, fmt.Sprintf("花架=%d", op.TargetID))
+	}
+	if len(parts) == 0 {
+		return "花艺售出领取成功"
+	}
+	return "花艺售出领取成功: " + strings.Join(parts, " ")
+}
+
+func flowerRackExpectedGold(artID, count int32) int32 {
+	if artID <= 0 || count <= 0 {
+		return 0
+	}
+	recipe, ok := state.FlowerArtRecipeByID(artID)
+	if !ok || recipe.SaleValue <= 0 {
+		return 0
+	}
+	return recipe.SaleValue * count
+}
+
 func opDesc(op *automation.PlannedOp) string {
 	desc := opKindDesc(op.Kind)
 	if op.FlowerID == 0 || isRaceOpKind(op.Kind) {
@@ -382,6 +535,17 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		clientproto.RPCFmlLandHarvestAll.String():
 		if op.Reason != "" {
 			return " " + op.Reason
+		}
+	case clientproto.RPCFmlFlowerShareTake.String():
+		parts := make([]string, 0, 2)
+		if op.TargetUID > 0 {
+			parts = append(parts, fmt.Sprintf("成员=%d", op.TargetUID))
+		}
+		if op.TargetID > 0 {
+			parts = append(parts, fmt.Sprintf("槽位=%d", op.TargetID))
+		}
+		if len(parts) > 0 {
+			return " (" + strings.Join(parts, " ") + ")"
 		}
 	}
 	if suffix := landSuffix(op.LandIDs); suffix != "" {
@@ -446,6 +610,34 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 	case clientproto.RPCFlowerArtMakeFlowerArt.String():
 		if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
 			return " " + desc
+		}
+	case clientproto.RPCFlowerRackSell.String():
+		parts := make([]string, 0, 2)
+		if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
+			parts = append(parts, desc)
+		} else if op.ItemID > 0 {
+			parts = append(parts, fmt.Sprintf("花艺#%d×%d", op.ItemID, op.Count))
+		}
+		if op.TargetID > 0 {
+			parts = append(parts, fmt.Sprintf("花架=%d", op.TargetID))
+		}
+		if len(parts) > 0 {
+			return " " + strings.Join(parts, " ")
+		}
+	case clientproto.RPCFlowerRackRecvSellMoney.String():
+		parts := make([]string, 0, 2)
+		if op.ItemID > 0 {
+			if desc := automation.FormatFlowerArtOpDesc(op.ItemID, op.Count); desc != "" {
+				parts = append(parts, desc)
+			} else {
+				parts = append(parts, fmt.Sprintf("花艺#%d×%d", op.ItemID, op.Count))
+			}
+		}
+		if op.TargetID > 0 {
+			parts = append(parts, fmt.Sprintf("花架=%d", op.TargetID))
+		}
+		if len(parts) > 0 {
+			return " " + strings.Join(parts, " ")
 		}
 	}
 	return ""

@@ -219,6 +219,103 @@ func (svc *Services) LogoutAccount(ctx context.Context, req *connect.Request[pb.
 	return connect.NewResponse(&pb.LogoutAccountResponse{Account: out}), nil
 }
 
+func (svc *Services) RedeemCode(ctx context.Context, req *connect.Request[pb.RedeemCodeRequest]) (*connect.Response[pb.RedeemCodeResponse], error) {
+	code := strings.TrimSpace(req.Msg.GetCode())
+	if code == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem code required"))
+	}
+	accounts, err := svc.resolveRedeemAccounts(ctx, req.Msg.GetAccountIds())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	if len(accounts) == 0 {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("no accounts to redeem"))
+	}
+
+	resp := &pb.RedeemCodeResponse{Results: make([]*pb.RedeemCodeResult, 0, len(accounts))}
+	for _, acc := range accounts {
+		result := &pb.RedeemCodeResult{
+			AccountId:   strconv.FormatInt(acc.ID, 10),
+			AccountName: acc.Name,
+		}
+		r := svc.Manager.Get(acc.ID)
+		if r == nil || !r.Connected() {
+			started, startErr := svc.Manager.Start(ctx, acc.ID)
+			if startErr != nil {
+				result.Message = formatLoginErr(startErr)
+				resp.FailureCount++
+				resp.Results = append(resp.Results, result)
+				continue
+			}
+			r = started
+		}
+		if resultInfo, err := r.RedeemCode(ctx, code); err != nil {
+			result.Message = babigame.SafeUTF8(err.Error())
+			resp.FailureCount++
+			resp.Results = append(resp.Results, result)
+			continue
+		} else {
+			result.Ok = true
+			result.Message = redeemResultMessage(resultInfo)
+			resp.SuccessCount++
+			resp.Results = append(resp.Results, result)
+		}
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func redeemResultMessage(result runner.RedeemResult) string {
+	if result.Code == "" {
+		return "ok"
+	}
+	parts := make([]string, 0, len(result.Items))
+	for _, item := range result.Items {
+		name := item.Name
+		if name == "" {
+			name = fmt.Sprintf("#%d", item.ItemID)
+		}
+		parts = append(parts, fmt.Sprintf("%sx%d", name, item.Count))
+	}
+	switch {
+	case len(parts) > 0 && result.MailNew > 0:
+		return fmt.Sprintf("%s；另有 %d 封奖励邮件", strings.Join(parts, "、"), result.MailNew)
+	case len(parts) > 0:
+		return strings.Join(parts, "、")
+	case result.MailNew > 0:
+		return fmt.Sprintf("奖励已入邮件（%d 封待领取）", result.MailNew)
+	default:
+		return "ok"
+	}
+}
+
+func (svc *Services) resolveRedeemAccounts(ctx context.Context, accountIDs []string) ([]*store.Account, error) {
+	if len(accountIDs) == 0 {
+		var userID int64
+		if !auth.IsAdmin(ctx) {
+			userID = auth.UserIDFromContext(ctx)
+		}
+		return svc.DB.ListAccounts(ctx, userID)
+	}
+	out := make([]*store.Account, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	for _, raw := range accountIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			continue
+		}
+		acc, err := svc.resolveAccount(ctx, id, "")
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[acc.ID]; ok {
+			continue
+		}
+		seen[acc.ID] = struct{}{}
+		out = append(out, acc)
+	}
+	return out, nil
+}
+
 func mapErr(err error) error {
 	switch {
 	case errors.Is(err, store.ErrAccountNotFound):

@@ -175,7 +175,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	resp.Demands = demandsProto(plan.Demands)
 	resp.Vases = vasesProto(st.Vases())
 	resp.FlowerArtAvailability = flowerArtAvailabilityProto(st, plan)
-	resp.OrderStatistics = orderStatisticsProto(st.Statistics())
+	resp.OrderStatistics = orderStatisticsProto(st, now)
 	resp.InventoryLedger = inventoryLedgerProto(st.Inventory(), plan.Ledger)
 	resp.BlockingSummary = blockingSummaryProto(resp.DomainStatuses, plan)
 	return connect.NewResponse(resp), nil
@@ -1437,11 +1437,12 @@ func flowerArtAvailabilityProto(st *state.State, plan automation.PlanResult) []*
 	return out
 }
 
-func orderStatisticsProto(stats state.StatisticsView) *pb.OrderStatisticsView {
+func orderStatisticsProto(st *state.State, now time.Time) *pb.OrderStatisticsView {
+	stats := st.Statistics()
 	out := &pb.OrderStatisticsView{
 		Observed:                 stats.Observed,
 		DayId:                    stats.DayID,
-		ResidentNormalFinished:   stats.OrderFlowerFinishNum,
+		ResidentNormalFinished:   st.ResidentOrderFinishNum(now),
 		PalaceFinished:           stats.OrderPalaceFinishNum,
 		CustomerFinished:         stats.OrderCustomerFinishNum,
 		ResidentSatinFinished:    stats.OrderSatinFinishNum,

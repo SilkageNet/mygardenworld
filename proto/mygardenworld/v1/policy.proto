@@ -255,6 +255,9 @@ message FlowerArtPolicy {
   bool early_cancel_enabled = 4;
   bool create_reward_enabled = 7;
   bool collect_reward_enabled = 8;
+  // When true together with sell_enabled, skip auto listing (and rack craft for
+  // listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
+  bool sell_night_pause_enabled = 9;
 }
 
 message UnionPolicy {

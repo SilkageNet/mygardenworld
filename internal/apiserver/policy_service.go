@@ -35,8 +35,14 @@ func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetP
 	if err != nil {
 		return nil, mapErr(err)
 	}
+	// Preserve the live start/pause intent. Settings edits must not flip
+	// automation back on after the operator paused via AutomationService.Stop.
+	current, err := svc.policyFor(ctx, acc.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
 	policy := policycfg.Normalize(req.Msg.GetPolicy())
-	policy.AutomationEnabled = true
+	policy.AutomationEnabled = current.GetAutomationEnabled()
 	var runtime policyRuntime
 	if r := svc.Manager.Get(acc.ID); r != nil {
 		runtime = r

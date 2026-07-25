@@ -2116,8 +2116,11 @@ type FlowerArtPolicy struct {
 	EarlyCancelEnabled   bool                   `protobuf:"varint,4,opt,name=early_cancel_enabled,json=earlyCancelEnabled,proto3" json:"early_cancel_enabled,omitempty"`
 	CreateRewardEnabled  bool                   `protobuf:"varint,7,opt,name=create_reward_enabled,json=createRewardEnabled,proto3" json:"create_reward_enabled,omitempty"`
 	CollectRewardEnabled bool                   `protobuf:"varint,8,opt,name=collect_reward_enabled,json=collectRewardEnabled,proto3" json:"collect_reward_enabled,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// When true together with sell_enabled, skip auto listing (and rack craft for
+	// listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
+	SellNightPauseEnabled bool `protobuf:"varint,9,opt,name=sell_night_pause_enabled,json=sellNightPauseEnabled,proto3" json:"sell_night_pause_enabled,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *FlowerArtPolicy) Reset() {
@@ -2188,6 +2191,13 @@ func (x *FlowerArtPolicy) GetCreateRewardEnabled() bool {
 func (x *FlowerArtPolicy) GetCollectRewardEnabled() bool {
 	if x != nil {
 		return x.CollectRewardEnabled
+	}
+	return false
+}
+
+func (x *FlowerArtPolicy) GetSellNightPauseEnabled() bool {
+	if x != nil {
+		return x.SellNightPauseEnabled
 	}
 	return false
 }
@@ -3017,14 +3027,15 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x10one_more_enabled\x18\x02 \x01(\bR\x0eoneMoreEnabled\x124\n" +
 	"\x16submit_only_cultivated\x18\x03 \x01(\bR\x14submitOnlyCultivated\x12\x1c\n" +
 	"\tqualities\x18\x04 \x03(\x05R\tqualities\x12*\n" +
-	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xa1\x02\n" +
+	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xda\x02\n" +
 	"\x0fFlowerArtPolicy\x12*\n" +
 	"\x11auto_unlock_stand\x18\x01 \x01(\bR\x0fautoUnlockStand\x12!\n" +
 	"\fsell_enabled\x18\x02 \x01(\bR\vsellEnabled\x12#\n" +
 	"\rcraft_enabled\x18\x03 \x01(\bR\fcraftEnabled\x120\n" +
 	"\x14early_cancel_enabled\x18\x04 \x01(\bR\x12earlyCancelEnabled\x122\n" +
 	"\x15create_reward_enabled\x18\a \x01(\bR\x13createRewardEnabled\x124\n" +
-	"\x16collect_reward_enabled\x18\b \x01(\bR\x14collectRewardEnabled\"\xc7\x02\n" +
+	"\x16collect_reward_enabled\x18\b \x01(\bR\x14collectRewardEnabled\x127\n" +
+	"\x18sell_night_pause_enabled\x18\t \x01(\bR\x15sellNightPauseEnabled\"\xc7\x02\n" +
 	"\vUnionPolicy\x128\n" +
 	"\x05build\x18\x01 \x01(\v2\".mygardenworld.v1.UnionBuildPolicyR\x05build\x12;\n" +
 	"\x06flower\x18\x02 \x01(\v2#.mygardenworld.v1.UnionFlowerPolicyR\x06flower\x125\n" +

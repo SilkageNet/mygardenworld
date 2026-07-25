@@ -211,37 +211,60 @@ func syncOnlyOperation(op PlannedOp, reasons ...string) PlannedOp {
 	return op
 }
 
-func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goal Goal, now time.Time) (PlannedOp, bool) {
-	if until, ok := s.ResidentOrderDailyLimitReached(now); ok {
-		blocked := markerOp(CategoryOrder, "order.resident", "finish", "居民订单今日上限已达", goal.Priority*100+690)
-		blocked.GoalID = goal.ID
-		blocked.Status = PlanStatusBlocked
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{fmt.Sprintf("服务端提示今日完成订单次数已达上限，预计 %s 后再试", until.Format("01/02 15:04"))}
-		return blocked, true
+// residentNormalDailyLimit returns the effective ordinary resident-order cap:
+// policy limit, optionally tightened by c_orderFlower.$dailyMax.
+func residentNormalDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
+	if policy == nil {
+		return 0
 	}
 	limit := policy.GetNormalDailyLimit()
 	if limit <= 0 {
-		blocked := markerOp(CategoryOrder, "order.resident", "finish", "居民订单普通订单上限未设置", goal.Priority*100+690)
-		blocked.GoalID = goal.ID
-		blocked.Status = PlanStatusBlocked
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{"普通居民订单上限必须大于 0"}
-		return blocked, true
+		return limit
 	}
 	if hardLimit := state.ResidentOrderNormalDailyMax(); hardLimit > 0 && hardLimit < limit {
-		limit = hardLimit
+		return hardLimit
 	}
-	stats := s.Statistics()
-	if stats.Observed && stats.OrderFlowerFinishNum >= limit {
-		blocked := markerOp(CategoryOrder, "order.resident", "finish", "居民订单今日上限已达", goal.Priority*100+690)
-		blocked.GoalID = goal.ID
-		blocked.Status = PlanStatusBlocked
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{fmt.Sprintf("普通居民订单今日已完成 %d/%d", stats.OrderFlowerFinishNum, limit)}
-		return blocked, true
+	return limit
+}
+
+// ResidentNormalDailyLimitReached reports whether ordinary resident finishes
+// should stop for the policy daily cap (or a previously recorded server cap).
+func ResidentNormalDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy, now time.Time) (reason string, reached bool) {
+	return residentNormalDailyLimitReached(s, policy, now)
+}
+
+// residentNormalDailyLimitReached reports whether ordinary resident finishes
+// should stop for the policy daily cap (or a previously recorded server cap).
+func residentNormalDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy, now time.Time) (reason string, reached bool) {
+	if until, ok := s.ResidentOrderDailyLimitReached(now); ok {
+		return fmt.Sprintf("服务端提示今日完成订单次数已达上限，预计 %s 后再试", until.Format("01/02 15:04")), true
 	}
-	return PlannedOp{}, false
+	limit := residentNormalDailyLimit(policy)
+	if limit <= 0 {
+		return "普通居民订单上限必须大于 0", true
+	}
+	finished := s.ResidentOrderFinishNum(now)
+	if finished >= limit {
+		return fmt.Sprintf("普通居民订单今日已完成 %d/%d", finished, limit), true
+	}
+	return "", false
+}
+
+func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goal Goal, now time.Time) (PlannedOp, bool) {
+	reason, reached := residentNormalDailyLimitReached(s, policy, now)
+	if !reached {
+		return PlannedOp{}, false
+	}
+	label := "居民订单今日上限已达"
+	if strings.Contains(reason, "必须大于 0") {
+		label = "居民订单普通订单上限未设置"
+	}
+	blocked := markerOp(CategoryOrder, "order.resident", "finish", label, goal.Priority*100+690)
+	blocked.GoalID = goal.ID
+	blocked.Status = PlanStatusBlocked
+	blocked.Executable = false
+	blocked.BlockedReasons = []string{reason}
+	return blocked, true
 }
 
 func residentSpecialOrderBlockedOp(domain, label string, order state.ResidentSpecialOrder, finished, limit int32, goal Goal) PlannedOp {

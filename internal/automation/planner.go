@@ -31,7 +31,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	policy = DefaultPolicyIfNil(policy)
 	goals := enabledGoals(policy)
 	ledger := NewInventoryLedger(s.Inventory())
-	demands := buildDirectDemands(s, policy, goals)
+	demands := buildDirectDemands(s, policy, goals, now)
 	applyLedgerAllocations(demands, ledger)
 	production := buildProductionDemands(s, policy, goals, demands, ledger)
 	applyLedgerAllocations(production, ledger)

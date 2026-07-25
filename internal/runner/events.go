@@ -248,6 +248,18 @@ func opKindDesc(kind string) string {
 		return "公会土地收获"
 	case clientproto.RPCFmlLandHarvestAll.String():
 		return "公会土地一键收获"
+	case clientproto.RPCFmlFlowerShareRefresh.String():
+		return "刷新公会分享"
+	case clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String():
+		return "同步公会摸花列表"
+	case clientproto.RPCFmlFlowerShareRecvRwd.String():
+		return "领取公会分享奖励"
+	case clientproto.RPCFmlFlowerShareTake.String():
+		return "公会摸花"
+	case clientproto.RPCFlowerRackSell.String():
+		return "花艺上架"
+	case clientproto.RPCFlowerRackRecvSellMoney.String():
+		return "花艺售出领取"
 	default:
 		return kind
 	}
@@ -279,6 +291,8 @@ func eventCategory(kind string) string {
 	switch kind {
 	case "session", "session_expired", "session_relogin", "ws_disconnected":
 		return "account"
+	case "redeem_code":
+		return "redeem"
 	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
 		return "plant"
 	case "policy_changed":
@@ -291,9 +305,11 @@ func eventCategory(kind string) string {
 		return "basic"
 	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
 		return "basic"
-	case "order_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art", "flower_rack":
+	case "order_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art":
 		return "order"
-	case "union_build":
+	case "flower_rack", "flower_rack_sell", "flower_rack_claim":
+		return "flower_art"
+	case "union_build", "union_flower_take":
 		return "union"
 	case "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
 		return "race"
@@ -306,7 +322,7 @@ func eventCategory(kind string) string {
 
 func normalizeEventCategory(category, kind string) string {
 	switch category {
-	case "account", "basic", "plant", "order", "union", "race", "activity", "system":
+	case "account", "basic", "plant", "order", "flower_art", "union", "race", "activity", "redeem", "system":
 		return category
 	case "session":
 		return "account"
@@ -323,6 +339,8 @@ func eventDomain(kind string) string {
 	switch kind {
 	case "session", "session_expired", "session_relogin", "ws_disconnected":
 		return "account.session"
+	case "redeem_code":
+		return "redeem.code"
 	case "resource_changed":
 		return "basic.resource"
 	case "inventory_changed":
@@ -359,10 +377,14 @@ func eventDomain(kind string) string {
 		return "order.resident"
 	case "order_customer", "order_customer_info":
 		return "order.customer"
-	case "flower_art", "flower_rack":
+	case "flower_art":
+		return "order.flower_art"
+	case "flower_rack", "flower_rack_sell", "flower_rack_claim":
 		return "order.flower_art"
 	case "union_build":
 		return "union.build"
+	case "union_flower_take":
+		return "union.flower.take"
 	case "cultivate_recv", "cultivate_new":
 		return "farm.cultivate"
 	case "flower_upgrade":
@@ -376,6 +398,8 @@ func eventDomain(kind string) string {
 
 func eventAction(kind string) string {
 	switch {
+	case kind == "redeem_code":
+		return "use"
 	case kind == "operation_deferred":
 		return "blocked"
 	case strings.HasSuffix(kind, "_failed"):
@@ -393,6 +417,12 @@ func eventAction(kind string) string {
 		return "race"
 	case strings.Contains(kind, "build"):
 		return "build"
+	case strings.Contains(kind, "flower_take") || kind == "union_flower_take":
+		return "take"
+	case kind == "flower_rack_sell" || strings.Contains(kind, "flower_rack_sell"):
+		return "sell"
+	case kind == "flower_rack_claim" || strings.Contains(kind, "flower_rack_claim"):
+		return "claim"
 	case strings.Contains(kind, "upgrade"):
 		return "upgrade"
 	case strings.Contains(kind, "cultivate"):
@@ -412,6 +442,8 @@ func eventLabel(kind string) string {
 		return "重登"
 	case "ws_disconnected":
 		return "断开"
+	case "redeem_code":
+		return "兑换码"
 	case "resource_changed":
 		return "资源"
 	case "inventory_changed":
@@ -464,8 +496,14 @@ func eventLabel(kind string) string {
 		return "花艺"
 	case "flower_rack":
 		return "花架"
+	case "flower_rack_sell":
+		return "花艺上架"
+	case "flower_rack_claim":
+		return "花艺售出"
 	case "union_build":
 		return "公会建设"
+	case "union_flower_take":
+		return "公会摸花"
 	case "race_task_taken":
 		return "接取任务"
 	case "race_task_finished":

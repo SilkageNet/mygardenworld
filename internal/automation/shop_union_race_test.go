@@ -107,6 +107,33 @@ func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	}
 }
 
+func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
+	// Enabled + !AutoEnableModules: observe/sync the pool for UI, but never take.
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
+	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false}
+	ops := unionRaceOperations(s, policy, 0, time.Now())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter sync when modules off, got %+v", ops)
+	}
+
+	s = state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1}}}`))
+	ops = unionRaceOperations(s, policy, 0, time.Now())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected getTaskList sync when modules off, got %+v", ops)
+	}
+
+	s = state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
+	ops = unionRaceOperations(s, policy, 0, now)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected TTL refresh when modules off, got %+v", ops)
+	}
+}
+
 func TestUnionRaceScoreLimitFiltersLowScoreTasks(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{

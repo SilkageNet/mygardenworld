@@ -1905,6 +1905,52 @@ func TestApplyV_StatisticsTracksOrderFinishCounts(t *testing.T) {
 	}
 }
 
+func TestApplyV_StatisticsSparseDeltaPreservesOrderFlowerFinishNum(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260702": map[string]any{"1": 20260702, "9": 42, "10": 3, "12": 1779290172000},
+		}},
+	})
+	// Unrelated counter patch must not wipe ordinary resident finish count,
+	// otherwise the policy daily limit never trips.
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260702": map[string]any{"8": 9},
+		}},
+	})
+
+	stats := s.Statistics()
+	if !stats.Observed || stats.DayID != 20260702 {
+		t.Fatalf("Statistics day mismatch: %+v", stats)
+	}
+	if stats.OrderFlowerFinishNum != 42 {
+		t.Fatalf("OrderFlowerFinishNum=%d, want 42 after sparse delta", stats.OrderFlowerFinishNum)
+	}
+	if stats.FlowerArtSellNum != 9 || stats.OrderPalaceFinishNum != 3 {
+		t.Fatalf("sparse merge mismatch: %+v", stats)
+	}
+}
+
+func TestApplyV_StatisticsNewDayReplacesPriorCounters(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260702": map[string]any{"1": 20260702, "9": 42},
+		}},
+	})
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260703": map[string]any{"1": 20260703, "9": 1},
+		}},
+	})
+
+	stats := s.Statistics()
+	if stats.DayID != 20260703 || stats.OrderFlowerFinishNum != 1 {
+		t.Fatalf("Statistics new day mismatch: %+v", stats)
+	}
+}
+
 func TestApplyV_OrderPalaceTeamAndResidentSpecialOrders(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{

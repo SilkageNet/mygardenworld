@@ -23,6 +23,7 @@ import {
   LogOut,
   Minus,
   Package,
+  Pause,
   Play,
   Plus,
   RefreshCw,
@@ -33,6 +34,7 @@ import {
   ShoppingBag,
   Sparkles,
   Sprout,
+  Ticket,
   Trash2,
   Trophy,
   Users,
@@ -165,7 +167,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatAPIError, transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
-import { flowerDisplay, itemName } from "@/lib/game/catalog";
+import { allFlowers, flowerDisplay, itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 
 const accountClient = createClient(AccountService, transport);
@@ -179,6 +181,7 @@ const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
 const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "operation_ack",
+  "union_flower_take",
   "resource_changed",
   "inventory_changed",
   "land_changed",
@@ -361,10 +364,16 @@ function DashboardContent() {
   const [policyLoading, setPolicyLoading] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [busyAction, setBusyAction] = useState("");
+  const [busyAutomationAccountId, setBusyAutomationAccountId] = useState("");
   const [error, setError] = useState("");
   const [policyMessage, setPolicyMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
+  const [redeemOpen, setRedeemOpen] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+  const [redeemBusy, setRedeemBusy] = useState(false);
+  const [redeemSummary, setRedeemSummary] = useState("");
+  const [redeemResults, setRedeemResults] = useState<Array<{ accountName: string; ok: boolean; message: string }>>([]);
   const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("monitor");
   const didAutoSelectAccount = useRef(false);
   const accountsRef = useRef<Account[]>([]);
@@ -597,6 +606,77 @@ function DashboardContent() {
     }
   }
 
+  async function runAutomationToggle(accountId: string) {
+    const account = accountsRef.current.find((item) => item.id === accountId);
+    const status = statusesRef.current.get(accountId);
+    const online = account ? accountConnected(account, status) : Boolean(status?.connected);
+    setBusyAutomationAccountId(accountId);
+    setError("");
+    try {
+      if (online) {
+        await accountClient.logoutAccount({ id: accountId });
+      } else {
+        await accountClient.loginAccount({ id: accountId });
+      }
+      // Optimistic flip so the list button/badge update before the next poll.
+      setStatuses((prev) => {
+        const next = new Map(prev);
+        const current = next.get(accountId);
+        if (current) {
+          next.set(accountId, {
+            ...current,
+            connected: !online,
+            automationEnabled: !online,
+            health: online ? "offline" : "online",
+          });
+        }
+        return next;
+      });
+      setAccounts((prev) =>
+        prev.map((item) => (item.id === accountId ? { ...item, connected: !online } : item)),
+      );
+      await refreshStatus();
+      if (accountId === selectedAccountId) {
+        await refreshPolicy(accountId);
+        await refreshSnapshot(accountId, !online, { force: !online });
+      }
+    } catch (err) {
+      setError(formatAPIError(err, online ? "暂停失败" : "启动失败"));
+      await refreshStatus().catch(() => undefined);
+    } finally {
+      setBusyAutomationAccountId("");
+    }
+  }
+
+  async function submitRedeemCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = redeemCode.trim();
+    if (!code || accounts.length === 0 || redeemBusy) return;
+    setRedeemBusy(true);
+    setRedeemSummary("");
+    setRedeemResults([]);
+    setError("");
+    try {
+      const res = await accountClient.redeemCode({
+        code,
+        accountIds: accounts.map((account) => account.id),
+      });
+      setRedeemResults(
+        res.results.map((item) => ({
+          accountName: item.accountName || item.accountId,
+          ok: item.ok,
+          message: item.message || (item.ok ? "ok" : "失败"),
+        })),
+      );
+      setRedeemSummary(`成功 ${res.successCount} / 失败 ${res.failureCount}（共 ${res.results.length} 个账号）`);
+      await refreshStatus().catch(() => undefined);
+    } catch (err) {
+      setRedeemSummary(formatAPIError(err, "兑换失败"));
+    } finally {
+      setRedeemBusy(false);
+    }
+  }
+
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!addForm.username.trim() || !addForm.password) return;
@@ -687,9 +767,17 @@ function DashboardContent() {
             selectedAccountId={selectedAccountId}
             loading={loading}
             quota={accountQuota}
+            busyAutomationAccountId={busyAutomationAccountId}
             onRefresh={() => void refreshWorkspace()}
             onAdd={() => setAddOpen(true)}
+            onRedeem={() => {
+              setRedeemCode("");
+              setRedeemSummary("");
+              setRedeemResults([]);
+              setRedeemOpen(true);
+            }}
             onSelect={setSelectedAccountId}
+            onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
           />
         </aside>
 
@@ -791,6 +879,58 @@ function DashboardContent() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={redeemOpen}
+        onOpenChange={(open) => {
+          if (redeemBusy) return;
+          setRedeemOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>兑换码</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={(event) => void submitRedeemCode(event)}>
+            <p className="text-sm text-muted-foreground">
+              输入一次兑换码，将对当前账号列表中的全部 {accounts.length} 个账号依次兑换。离线账号会先尝试登录。
+            </p>
+            <Field label="兑换码">
+              <Input
+                value={redeemCode}
+                onChange={(event) => setRedeemCode(event.target.value)}
+                placeholder="粘贴兑换码"
+                autoComplete="off"
+                disabled={redeemBusy}
+              />
+            </Field>
+            {redeemSummary && (
+              <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm">{redeemSummary}</div>
+            )}
+            {redeemResults.length > 0 && (
+              <div className="dark-scrollbar max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-border/50 p-2 text-sm">
+                {redeemResults.map((item) => (
+                  <div key={`${item.accountName}-${item.message}`} className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 truncate font-medium">{item.accountName}</span>
+                    <span className={cn("min-w-0 text-right", item.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                      {item.ok ? (item.message && item.message !== "ok" ? item.message : "成功") : item.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setRedeemOpen(false)} disabled={redeemBusy}>
+                关闭
+              </Button>
+              <Button type="submit" disabled={redeemBusy || !redeemCode.trim() || accounts.length === 0}>
+                {redeemBusy ? <Loader2 className="size-4 animate-spin" /> : <Ticket className="size-4" />}
+                {redeemBusy ? "兑换中" : "全部兑换"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -801,18 +941,24 @@ function AccountListPanel({
   selectedAccountId,
   loading,
   quota,
+  busyAutomationAccountId,
   onRefresh,
   onAdd,
+  onRedeem,
   onSelect,
+  onAutomationToggle,
 }: {
   accounts: Account[];
   statuses: Map<string, AccountStatus>;
   selectedAccountId: string;
   loading: boolean;
   quota: AccountQuota | null;
+  busyAutomationAccountId: string;
   onRefresh: () => void;
   onAdd: () => void;
+  onRedeem: () => void;
   onSelect: (accountId: string) => void;
+  onAutomationToggle: (accountId: string) => void;
 }) {
   const hasAccounts = accounts.length > 0;
   const quotaReached = quota?.reached ?? false;
@@ -835,6 +981,11 @@ function AccountListPanel({
             <Button type="button" variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="刷新" disabled={loading}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
+            {hasAccounts && (
+              <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码">
+                <Ticket className="size-4" />
+              </Button>
+            )}
             {hasAccounts && (
               <Button
                 type="button"
@@ -869,29 +1020,61 @@ function AccountListPanel({
               const status = statuses.get(account.id);
               const selected = account.id === selectedAccountId;
               const identity = accountIdentity(account);
+              const online = accountConnected(account, status);
+              const automationBusy = busyAutomationAccountId === account.id;
               return (
-                <button
+                <div
                   key={account.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   className={cn(
-                    "w-full rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
+                    "w-full cursor-pointer rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
                     selected
                       ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
                       : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
                   onClick={() => onSelect(account.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelect(account.id);
+                    }
+                  }}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{identity.nickname}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                         <span>{identity.area}</span>
                         <span>{identity.channel}</span>
                       </div>
                     </div>
-                    <HealthBadge status={status} account={account} />
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant={online ? "secondary" : "default"}
+                        size="sm"
+                        className="h-7 px-2"
+                        aria-label={online ? "暂停并离线" : "启动并上线"}
+                        disabled={automationBusy}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onAutomationToggle(account.id);
+                        }}
+                      >
+                        {automationBusy ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : online ? (
+                          <Pause className="size-3.5" />
+                        ) : (
+                          <Play className="size-3.5" />
+                        )}
+                        {online ? "暂停" : "启动"}
+                      </Button>
+                      <HealthBadge status={status} account={account} />
+                    </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>
@@ -971,7 +1154,7 @@ function AccountDetailView({
       <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
       {activeTab === "monitor" && (
         <div className="min-h-0">
-          <MonitorTab snapshot={snapshot} status={status} />
+          <MonitorTab snapshot={snapshot} status={status} policy={policy} />
         </div>
       )}
       {activeTab === "logs" && (
@@ -1025,7 +1208,15 @@ function DashboardTabBar({
   );
 }
 
-function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
+function MonitorTab({
+  snapshot,
+  status,
+  policy,
+}: {
+  snapshot: GetSnapshotResponse | null;
+  status?: AccountStatus;
+  policy: Policy | null;
+}) {
   const runtimeStatistics = snapshot?.runtimeStatistics ?? status?.runtimeStatistics;
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -1035,7 +1226,7 @@ function MonitorTab({ snapshot, status }: { snapshot: GetSnapshotResponse | null
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
       <LandWarehouseMonitorPanel lands={snapshot?.lands ?? []} ledger={snapshot?.inventoryLedger} />
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
-      <FmlRaceMonitorPanel race={snapshot?.fmlRace} />
+      <FmlRaceMonitorPanel race={snapshot?.fmlRace} showTakenTask={policy?.union?.race?.autoEnableModules ?? false} />
       <DessertMonitorPanel activity={snapshot?.dessert} />
     </div>
   );
@@ -1426,7 +1617,7 @@ function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
   );
 }
 
-function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
+function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; showTakenTask: boolean }) {
   const tasks = race?.tasks ?? [];
   const taken = race?.taken;
   const observed = race?.observed ?? false;
@@ -1457,7 +1648,7 @@ function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
           ) : (
             <Badge variant="secondary">竞赛进行中</Badge>
           )}
-          {taken?.hasTask && <Badge variant="secondary">已接任务</Badge>}
+          {showTakenTask && taken?.hasTask && <Badge variant="secondary">已接任务</Badge>}
           {tasks.length > 0 && <Badge variant="outline">{tasks.length} 个可选</Badge>}
         </>
       }
@@ -1475,18 +1666,19 @@ function FmlRaceMonitorPanel({ race }: { race?: FmlRaceView }) {
         />
       ) : (
         <>
-          {taken?.hasTask ? (
-            <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
-              <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
-                <span>当前已接任务</span>
-              </div>
-              <div className="p-3">
-                <FmlRaceTakenCard taken={taken} />
-              </div>
-            </section>
-          ) : (
-            <div className="rounded-md border border-dashed border-border/58 px-3 py-2 text-sm text-muted-foreground">当前未接取任务</div>
-          )}
+          {showTakenTask &&
+            (taken?.hasTask ? (
+              <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+                <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+                  <span>当前已接任务</span>
+                </div>
+                <div className="p-3">
+                  <FmlRaceTakenCard taken={taken} />
+                </div>
+              </section>
+            ) : (
+              <div className="rounded-md border border-dashed border-border/58 px-3 py-2 text-sm text-muted-foreground">当前未接取任务</div>
+            ))}
 
           <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
             <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
@@ -2741,7 +2933,7 @@ function PolicyPanel({
     if (!policy) return;
     const currentOrder = policy.order ?? create(OrderPolicySchema);
     const current = currentOrder.flowerArt ?? create(FlowerArtPolicySchema);
-    updateOrder({ flowerArt: { ...current, ...patch } });
+    updateOrder({ flowerArt: create(FlowerArtPolicySchema, { ...current, ...patch }) });
   };
   const updateUnion = (patch: Partial<UnionPolicy>) => {
     if (!policy) return;
@@ -3076,7 +3268,15 @@ function PolicyPanel({
             <PolicyGroup title="居民订单" icon={<ListChecks />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="普通居民订单" checked={resident?.normalEnabled ?? false} onChange={(checked) => updateResident({ normalEnabled: checked })} />
-                <NumberRow label="普通订单上限" value={resident?.normalDailyLimit || 1260} min={0} onChange={(value) => updateResident({ normalDailyLimit: value })} />
+                <NumberRow
+                  label="普通订单上限"
+                  value={resident?.normalDailyLimit ?? 1200}
+                  min={1}
+                  max={1200}
+                  disabled={!(resident?.normalEnabled ?? false)}
+                  description="需先开启普通居民订单；上限按今日已完成次数生效"
+                  onChange={(value) => updateResident({ normalDailyLimit: value })}
+                />
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
                     <ToggleRow label="绸缎订单" checked={resident?.satinEnabled ?? false} onChange={(checked) => updateResident({ satinEnabled: checked })} />
@@ -3118,6 +3318,13 @@ function PolicyPanel({
                 <ToggleRow label="自动上架花艺" checked={flowerArt?.sellEnabled ?? false} onChange={(checked) => updateFlowerArt({ sellEnabled: checked })} />
                 <ToggleRow label="自动制作" checked={flowerArt?.craftEnabled ?? false} onChange={(checked) => updateFlowerArt({ craftEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="提前下架" checked={flowerArt?.earlyCancelEnabled ?? false} onChange={(checked) => updateFlowerArt({ earlyCancelEnabled: checked })} status={SETTING_STATUS.adapterMissing} />}
+                <ToggleRow
+                  label="0-8点关闭自动上架花艺"
+                  checked={flowerArt?.sellNightPauseEnabled ?? false}
+                  disabled={!flowerArt?.sellEnabled}
+                  description="需同时开启自动上架花艺；仅在 0:00-8:00（北京时间）暂停上架，领取收益不受影响"
+                  onChange={(checked) => updateFlowerArt({ sellNightPauseEnabled: checked })}
+                />
                 <ToggleRow label="花艺经验" checked={flowerArt?.createRewardEnabled ?? false} onChange={(checked) => updateFlowerArt({ createRewardEnabled: checked })} />
                 <ToggleRow label="图鉴奖励" checked={flowerArt?.collectRewardEnabled ?? false} onChange={(checked) => updateFlowerArt({ collectRewardEnabled: checked })} />
               </div>
@@ -3164,14 +3371,19 @@ function PolicyPanel({
                 <ToggleRow label="自动摸花" checked={unionFlower?.takeEnabled ?? false} onChange={(checked) => updateUnionFlower({ takeEnabled: checked })} />
                 <SegmentedRow label="摸花模式" value={unionFlower?.takeMode || SelectionMode.QUALITY} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateUnionFlower({ takeMode: value })} />
                 <QualityRow label="摸花品质" value={unionFlower?.takeQualities ?? []} onChange={(value) => updateUnionFlower({ takeQualities: value })} />
-                <IntListRow label="摸花花朵" value={unionFlower?.takeFlowerIds ?? []} onChange={(value) => updateUnionFlower({ takeFlowerIds: value })} />
+                <CatalogFlowerMultiSelectRow
+                  label="摸花花朵"
+                  value={unionFlower?.takeFlowerIds ?? []}
+                  onChange={(value) => updateUnionFlower({ takeFlowerIds: value })}
+                  className="sm:col-span-2"
+                />
               </div>
             </PolicyGroup>
 
             <PolicyGroup title="公会竞赛" icon={<Trophy />}>
               <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="自动完成" checked={unionRace?.enabled ?? false} onChange={(checked) => updateUnionRace({ enabled: checked })} />
-                <ToggleRow label="自动模块" checked={unionRace?.autoEnableModules ?? true} onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
+                <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步并展示任务池；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
+                <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进与提交竞赛任务；默认关闭" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
@@ -3386,6 +3598,162 @@ function IntListRow({ label, value, onChange }: { label: string; value: number[]
         onChange={(event) => onChange(parseIntList(event.target.value))}
         placeholder="用逗号分隔 ID"
       />
+    </div>
+  );
+}
+
+function CatalogFlowerMultiSelectRow({
+  label,
+  value,
+  onChange,
+  className,
+}: {
+  label: string;
+  value: number[];
+  onChange: (value: number[]) => void;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selectedSet = useMemo(() => new Set(value), [value]);
+  const catalogCount = useMemo(() => allFlowers().length, []);
+  const flowers = useMemo(() => {
+    const catalogFlowers = allFlowers().map((flower) => {
+      const display = flowerDisplay(flower.id);
+      return {
+        id: flower.id,
+        name: display.name,
+        seedName: display.seedName,
+        color: display.item?.color,
+      };
+    });
+    const known = new Set(catalogFlowers.map((flower) => flower.id));
+    for (const id of value) {
+      if (known.has(id)) continue;
+      const display = flowerDisplay(id);
+      catalogFlowers.push({
+        id,
+        name: display.name,
+        seedName: display.seedName,
+        color: display.item?.color,
+      });
+    }
+    return catalogFlowers.sort((a, b) => a.id - b.id);
+  }, [value]);
+  const visibleFlowers = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    if (!text) return flowers;
+    return flowers.filter((flower) => {
+      return String(flower.id).includes(text) || flower.name.toLowerCase().includes(text) || flower.seedName.toLowerCase().includes(text);
+    });
+  }, [flowers, query]);
+  const selectedPreview = value.slice(0, 4).map((id) => itemName(id)).filter(Boolean).join("、");
+  const extraCount = value.length > 4 ? value.length - 4 : 0;
+  const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
+
+  return (
+    <div className={cn("min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5", className)}>
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:gap-3">
+        <Label className="text-sm">{label}</Label>
+        <div className="flex gap-1">
+          <Badge variant="outline">花库 {catalogCount}</Badge>
+          <Badge variant={value.length > 0 ? "secondary" : "outline"}>{value.length > 0 ? `${value.length} 种` : "未选择"}</Badge>
+        </div>
+      </div>
+      <div className="flex min-h-8 w-full min-w-0 items-center gap-2 overflow-hidden">
+        <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+          {value.length === 0 ? "未选择时不限制" : `${selectedPreview}${extraCount > 0 ? ` 等 ${extraCount} 种` : ""}`}
+        </div>
+        <Button type="button" variant="outline" size="sm" className="min-h-10 shrink-0 px-3 sm:min-h-7" onClick={() => setOpen(true)}>
+          <Flower2 className="size-3.5" />
+          选择
+        </Button>
+      </div>
+
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (!nextOpen) setQuery("");
+        }}
+      >
+        <DialogContent className="flex h-[min(42rem,90dvh)] max-h-[90dvh] max-w-3xl flex-col overflow-hidden">
+          <DialogHeader className="mb-3 shrink-0">
+            <DialogTitle>{label}</DialogTitle>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+              <div className="relative min-w-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="搜索花名、种子或 ID"
+                  className="h-9 pl-9 max-sm:dark:bg-input max-sm:dark:shadow-none max-sm:dark:transition-none max-sm:dark:focus-visible:bg-input"
+                />
+              </div>
+              <Badge variant="outline" className="max-sm:dark:bg-input max-sm:dark:transition-none">已选 {value.length}</Badge>
+            </div>
+            <div className="dark-scrollbar min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-md border border-border/58 bg-white/42 p-2 dark:bg-muted">
+              {visibleFlowers.length === 0 ? (
+                <EmptyState title="没有匹配花朵" detail="换个名称或 ID 再试试" />
+              ) : (
+                <div className="grid grid-cols-1 gap-2 min-[540px]:grid-cols-2 lg:grid-cols-3">
+                  {visibleFlowers.map((flower) => {
+                    const selected = selectedSet.has(flower.id);
+                    return (
+                      <button
+                        key={flower.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => toggleFlower(flower.id)}
+                        className={cn(
+                          "flex min-h-[72px] w-full min-w-0 touch-manipulation items-start gap-2 rounded-md border px-3 py-2 text-left transition-colors max-sm:dark:transition-none",
+                          selected
+                            ? "border-primary bg-primary/10 text-foreground max-sm:dark:bg-secondary"
+                            : "border-border/58 bg-card/72 hover:bg-white/66 dark:hover:bg-white/8 max-sm:dark:bg-card max-sm:dark:hover:bg-card",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border",
+                            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white/54 text-transparent dark:bg-input",
+                          )}
+                        >
+                          <Check className="size-3" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="truncate text-sm font-medium">{flower.name}</span>
+                          <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{flower.id}</span>
+                            {flower.color ? <span>品质 {flower.color}</span> : null}
+                            {flower.seedName ? <span>{flower.seedName}</span> : null}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="mt-3 shrink-0 flex-row items-center justify-between border-t border-border/58 pt-3 [&>button]:min-h-10 [&>button]:min-w-24">
+            <Button type="button" variant="ghost" className="max-sm:dark:bg-card max-sm:dark:transition-none max-sm:dark:hover:bg-muted" onClick={() => onChange([])} disabled={value.length === 0}>
+              清空
+            </Button>
+            <Button
+              type="button"
+              className="max-sm:dark:transition-none"
+              onClick={() => {
+                setOpen(false);
+                setQuery("");
+              }}
+            >
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -3735,8 +4103,11 @@ function EventPanel({ events }: { events: Event[] }) {
     return counts;
   }, [events]);
   const categories = useMemo(() => {
-    const order = ["basic", "plant", "order", "union", "race", "activity", "account", "system"];
-    return [...categoryCounts.keys()].sort((a, b) => {
+    const order = ["basic", "plant", "order", "union", "flower_art", "race", "activity", "redeem", "account", "system"];
+    const keys = new Set(categoryCounts.keys());
+    keys.add("flower_art");
+    keys.add("redeem");
+    return [...keys].sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
       if (ai >= 0 && bi >= 0) return ai - bi;
@@ -3751,10 +4122,10 @@ function EventPanel({ events }: { events: Event[] }) {
   }, [activeCategory, events]);
 
   useEffect(() => {
-    if (activeCategory !== "all" && !categoryCounts.has(activeCategory)) {
+    if (activeCategory !== "all" && !categories.includes(activeCategory)) {
       setActiveCategory("all");
     }
-  }, [activeCategory, categoryCounts]);
+  }, [activeCategory, categories]);
 
   return (
     <Card className="cloud-surface min-h-0 flex-1">
@@ -3849,15 +4220,22 @@ function ToggleRow({
   onChange,
   status,
   description,
+  disabled = false,
 }: {
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   status?: SettingStatus;
   description?: string;
+  disabled?: boolean;
 }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+    <div
+      className={cn(
+        "flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5",
+        disabled && "opacity-55",
+      )}
+    >
       <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
         <span className="flex flex-col">
           <span>{label}</span>
@@ -3865,7 +4243,7 @@ function ToggleRow({
         </span>
         {status && <SettingStatusBadge status={status} />}
       </span>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
     </div>
   );
 }
@@ -4362,12 +4740,16 @@ function categoryLabel(category: string) {
       return "种植";
     case "order":
       return "订单";
+    case "flower_art":
+      return "花艺售卖";
     case "union":
       return "公会";
     case "race":
       return "竞赛";
     case "activity":
       return "活动";
+    case "redeem":
+      return "兑换码";
     case "account":
       return "账号";
     case "system":

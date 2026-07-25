@@ -2,6 +2,7 @@ package policycfg
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -59,6 +60,36 @@ func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
 	}
 	if !enabledPolicy.GetBasic().GetDisplacedSessionReloginEnabled() {
 		t.Fatal("explicit displaced-session switch did not survive policy JSON load")
+	}
+}
+
+func TestFlowerArtSellNightPauseRoundTrip(t *testing.T) {
+	in := automation.DefaultPolicy()
+	in.Order.FlowerArt.SellEnabled = true
+	in.Order.FlowerArt.SellNightPauseEnabled = true
+
+	raw, err := ToJSON(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw, `"sell_night_pause_enabled": true`) {
+		t.Fatalf("ToJSON missing sell_night_pause_enabled: %s", raw)
+	}
+
+	out, err := FromJSON(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.GetOrder().GetFlowerArt().GetSellNightPauseEnabled() {
+		t.Fatal("sell_night_pause_enabled did not survive policy JSON round trip")
+	}
+
+	legacy, err := FromJSON(`{"order":{"flower_art":{"sell_enabled":true}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.GetOrder().GetFlowerArt().GetSellNightPauseEnabled() {
+		t.Fatal("old policy without night pause should default off")
 	}
 }
 

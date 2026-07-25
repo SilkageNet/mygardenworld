@@ -23,6 +23,11 @@ service AccountService {
   // Stops the live runner/WS for the account and disables auto-resume.
   // Credentials stay stored; the account can be logged in again later.
   rpc LogoutAccount(LogoutAccountRequest) returns (LogoutAccountResponse);
+
+  // Redeem one gift code across accounts. Empty account_ids means every
+  // account owned by the caller (admin: all accounts). Offline accounts are
+  // started first so the game RPC can run.
+  rpc RedeemCode(RedeemCodeRequest) returns (RedeemCodeResponse);
 }
 
 message CreateAccountRequest {
@@ -72,4 +77,24 @@ message LogoutAccountRequest {
 
 message LogoutAccountResponse {
   Account account = 1;
+}
+
+message RedeemCodeRequest {
+  // Gift / redeem code from the game.
+  string code = 1;
+  // Optional subset of account ids. Empty = all accounts visible to the caller.
+  repeated string account_ids = 2;
+}
+
+message RedeemCodeResponse {
+  repeated RedeemCodeResult results = 1;
+  int32 success_count = 2;
+  int32 failure_count = 3;
+}
+
+message RedeemCodeResult {
+  string account_id = 1;
+  string account_name = 2;
+  bool ok = 3;
+  string message = 4;
 }

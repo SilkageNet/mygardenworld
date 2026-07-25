@@ -1935,6 +1935,25 @@ func ItemName(id int32) string {
 	return name
 }
 
+// MsgCodeText returns the Chinese tip text for a server m.code from c_msgCode.
+// Empty means the catalog has no usable row for that code.
+func MsgCodeText(code int32) string {
+	if code == 0 {
+		return ""
+	}
+	raw, ok := StaticRow("c_msgCode", code)
+	if !ok {
+		return ""
+	}
+	var row struct {
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return ""
+	}
+	return strings.TrimSpace(row.Text)
+}
+
 // ItemLabel returns ItemName, or "#<id>" when the catalog has no usable name.
 // Race task cards and op descriptions use this so unresolved flowers stay visible.
 func ItemLabel(id int32) string {

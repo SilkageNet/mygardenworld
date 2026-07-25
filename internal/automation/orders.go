@@ -116,20 +116,29 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			}
 		}
 		if order.GetFlowerArt().GetSellEnabled() {
+			slots := s.FlowerRackSlots()
 			for _, rackID := range s.FlowerRackClaimableSlotIDs(now) {
 				claim := op(clientproto.RPCFlowerRackRecvSellMoney.String(), goal, "claim", "花架售卖时间已到，可领取收益", flowerRackClaimPriority(goal), rackID, 0, 0)
+				if slot, ok := slots[rackID]; ok {
+					claim.ItemID = slot.ItemID
+					claim.Count = slot.Count
+				}
+				claim.Category = CategoryFlowerArt
 				ops = append(ops, claim)
 				break
 			}
-			for _, rackID := range s.EmptyFlowerRackSlotIDs() {
-				if artID, count, ok := bestRackArt(ledger); ok {
-					sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
-					ops = append(ops, sell)
-					break
-				}
-				if craft, ok := craftOperationForFlowerRack(s, order.GetFlowerArt(), goal, ledger); ok {
-					ops = append(ops, craft)
-					break
+			if flowerArtAutoListActive(order.GetFlowerArt(), now) {
+				for _, rackID := range s.EmptyFlowerRackSlotIDs() {
+					if artID, count, ok := bestRackArt(ledger); ok {
+						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
+						sell.Category = CategoryFlowerArt
+						ops = append(ops, sell)
+						break
+					}
+					if craft, ok := craftOperationForFlowerRack(s, order.GetFlowerArt(), goal, ledger); ok {
+						ops = append(ops, craft)
+						break
+					}
 				}
 			}
 		}
@@ -202,4 +211,17 @@ func craftOperationForFlowerRack(s *state.State, policy *pb.FlowerArtPolicy, goa
 	craft.VaseID = availability.Recipe.VaseID
 	craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
 	return craft, true
+}
+
+// flowerArtAutoListActive reports whether automatic flower-rack listing (and
+// craft-for-list) should run. Requires sell_enabled; when sell_night_pause_enabled
+// is also on, listing is skipped during 00:00-08:00 Asia/Shanghai.
+func flowerArtAutoListActive(policy *pb.FlowerArtPolicy, now time.Time) bool {
+	if policy == nil || !policy.GetSellEnabled() {
+		return false
+	}
+	if !policy.GetSellNightPauseEnabled() {
+		return true
+	}
+	return now.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Hour() >= 8
 }

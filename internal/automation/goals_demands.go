@@ -6,6 +6,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 	"sort"
 	"strconv"
+	"time"
 )
 
 func enabledGoals(policy *pb.Policy) []Goal {
@@ -56,7 +57,7 @@ func goalByID(goals []Goal, id string) (Goal, bool) {
 	return Goal{}, false
 }
 
-func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal) []Demand {
+func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now time.Time) []Demand {
 	inventory := s.Inventory()
 	var out []Demand
 	add := func(goal Goal, source, kind string, itemID, count int32, entityID, label string, blocked []string) {
@@ -89,13 +90,15 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal) []Deman
 	if goal, ok := goalByID(goals, GoalResidentOrder); ok {
 		resident := policy.GetOrder().GetResident()
 		if resident.GetNormalEnabled() {
-			for boxID, order := range s.FlowerOrders() {
-				if !residentFlowerOrderAllowed(order, resident) {
-					continue
-				}
-				entityID := strconv.FormatInt(int64(boxID), 10)
-				for _, req := range order.Requires {
-					add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, entityID, fmt.Sprintf("居民订单 #%d", boxID), nil)
+			if _, limited := residentNormalDailyLimitReached(s, resident, now); !limited {
+				for boxID, order := range s.FlowerOrders() {
+					if !residentFlowerOrderAllowed(order, resident) {
+						continue
+					}
+					entityID := strconv.FormatInt(int64(boxID), 10)
+					for _, req := range order.Requires {
+						add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, entityID, fmt.Sprintf("居民订单 #%d", boxID), nil)
+					}
 				}
 			}
 		}

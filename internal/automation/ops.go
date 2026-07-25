@@ -132,7 +132,7 @@ func categoryRank(category string) int {
 	switch category {
 	case CategoryPlant:
 		return 0
-	case CategoryOrder:
+	case CategoryOrder, CategoryFlowerArt:
 		return 1
 	case CategoryBasic:
 		return 2
@@ -199,7 +199,7 @@ func DefaultPolicy() *pb.Policy {
 		},
 		Order: &pb.OrderPolicy{
 			Customer:  &pb.CustomerOrderPolicy{},
-			Resident:  &pb.ResidentOrderPolicy{NormalDailyLimit: 1260, DecorateDailyLimit: 120, SatinDailyLimit: 120},
+			Resident:  &pb.ResidentOrderPolicy{NormalDailyLimit: 1200, DecorateDailyLimit: 120, SatinDailyLimit: 120},
 			Palace:    &pb.PalaceOrderPolicy{},
 			Team:      &pb.TeamOrderPolicy{},
 			FlowerArt: &pb.FlowerArtPolicy{},
@@ -208,8 +208,12 @@ func DefaultPolicy() *pb.Policy {
 			Build:  &pb.UnionBuildPolicy{},
 			Flower: &pb.UnionFlowerPolicy{},
 			Race: &pb.UnionRacePolicy{
+				// Enabled keeps enter/getTaskList (and TTL refresh) so the
+				// competition task pool is visible by default. Auto-complete
+				// of take/finish/upgrade/delete stays off until the operator
+				// turns on AutoEnableModules.
 				Enabled:                  true,
-				AutoEnableModules:        true,
+				AutoEnableModules:        false,
 				ExcludeOthersUpgradeTask: true,
 				MinTaskScore:             28,
 				TaskTypePriority:         defaultUnionRacePriority(),

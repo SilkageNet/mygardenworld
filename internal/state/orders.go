@@ -569,6 +569,63 @@ func (s *State) ResidentOrderDailyLimitReached(now time.Time) (time.Time, bool) 
 	return until, true
 }
 
+// NoteResidentOrderFinished records one successful ordinary resident-order
+// finish when the response did not already carry an authoritative field-9
+// statistics update (ApplyV clears the bias in that case).
+func (s *State) NoteResidentOrderFinished(now time.Time, raw json.RawMessage) {
+	if responseAdvancesResidentOrderFinish(raw) {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	day := gameDayID(now)
+	if s.residentOrderFinishBiasDayID != day {
+		s.residentOrderFinishBiasDayID = day
+		s.residentOrderFinishBias = 0
+	}
+	s.residentOrderFinishBias++
+}
+
+func responseAdvancesResidentOrderFinish(raw json.RawMessage) bool {
+	if len(raw) == 0 || string(raw) == "null" {
+		return false
+	}
+	var top map[string]json.RawMessage
+	if json.Unmarshal(raw, &top) != nil {
+		return false
+	}
+	raw124, ok := top["124"]
+	if !ok {
+		return false
+	}
+	var ns map[string]json.RawMessage
+	if json.Unmarshal(raw124, &ns) != nil {
+		return false
+	}
+	raw0, ok := ns["0"]
+	if !ok {
+		return false
+	}
+	_, finishSeen, ok := parseStatisticsViewMerged(StatisticsView{}, raw0)
+	return ok && finishSeen
+}
+
+// ResidentOrderFinishNum returns today's effective ordinary resident finish
+// count: observed statistics plus unfinished local bias.
+func (s *State) ResidentOrderFinishNum(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	day := gameDayID(now)
+	var n int32
+	if s.statistics.Observed && (s.statistics.DayID == 0 || s.statistics.DayID == day) {
+		n = s.statistics.OrderFlowerFinishNum
+	}
+	if s.residentOrderFinishBiasDayID == day {
+		n += s.residentOrderFinishBias
+	}
+	return n
+}
+
 // ResidentOrderNormalDailyMax returns c_orderFlower.$dailyMax, the mini
 // client's hard daily cap for normal resident orders.
 func ResidentOrderNormalDailyMax() int32 {

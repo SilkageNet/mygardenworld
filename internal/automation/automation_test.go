@@ -140,18 +140,19 @@ func TestBuildPlan_ResidentNormalDisabledDoesNotDemandOrSubmit(t *testing.T) {
 }
 
 func TestBuildPlan_ResidentNormalLimitBlocksSubmit(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
 		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
-		"124": map[string]any{"0": map[string]any{"20260702": map[string]any{"1": 20260702, "9": 5}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "9": 5}}},
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.Resident.NormalEnabled = true
 	p.Order.Resident.NormalDailyLimit = 5
 
-	result := BuildPlan(s, p, time.Now())
+	result := BuildPlan(s, p, now)
 	var blocked bool
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
@@ -163,6 +164,36 @@ func TestBuildPlan_ResidentNormalLimitBlocksSubmit(t *testing.T) {
 	}
 	if !blocked {
 		t.Fatalf("missing resident limit block: %+v", result.Operations)
+	}
+	for _, demand := range result.Demands {
+		if demand.GoalID == GoalResidentOrder {
+			t.Fatalf("resident demand should stop after daily limit: %+v", demand)
+		}
+	}
+}
+
+func TestBuildPlan_ResidentNormalLimitSurvivesSparseStatisticsDelta(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "9": 5}}},
+	})
+	// Sparse unrelated counter update previously wiped finish count to 0.
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"8": 1}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 5
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should stay blocked after sparse stats delta: %+v", op)
+		}
 	}
 }
 
@@ -241,6 +272,62 @@ func TestBuildPlan_ResidentMissingStatisticsStillSubmitsWithDiagnosticReason(t *
 		}
 	}
 	t.Fatalf("missing resident submit when statistics are absent: %+v", result.Operations)
+}
+
+func TestBuildPlan_ResidentLocalFinishBiasEnforcesLimitWithoutStatistics(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 2
+
+	s.NoteResidentOrderFinished(now, nil)
+	s.NoteResidentOrderFinished(now, nil)
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should be blocked by local finish bias: %+v", op)
+		}
+		if op.Domain == "order.resident" && !op.Executable && hasReasonContaining(op.BlockedReasons, "2/2") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing local bias limit block: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_ResidentFinishBiasClearedWhenStatisticsAdvance(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	s.NoteResidentOrderFinished(now, nil)
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "9": 1}}},
+	})
+	if got := s.ResidentOrderFinishNum(now); got != 1 {
+		t.Fatalf("ResidentOrderFinishNum=%d, want 1 after authoritative stats clear bias", got)
+	}
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 2
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			return
+		}
+	}
+	t.Fatalf("expected resident submit under limit after stats reconcile: %+v", result.Operations)
 }
 
 func TestBuildPlan_ResidentCooldownOmitsSubmitUntilReady(t *testing.T) {
@@ -663,6 +750,66 @@ func TestBuildPlan_FlowerRackUsesFixedRackCount(t *testing.T) {
 		}
 	}
 	t.Fatalf("missing rack sell op: %+v", result.Operations)
+}
+
+func TestBuildPlan_FlowerRackNightPauseSkipsListing(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"300208": 20,
+		}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.SellNightPauseEnabled = true
+
+	night := time.Date(2026, 7, 24, 3, 30, 0, 0, shanghai)
+	for _, op := range BuildPlan(s, p, night).Operations {
+		if op.Kind == clientproto.RPCFlowerRackSell.String() || op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			t.Fatalf("night pause should skip listing/craft-for-list: %+v", op)
+		}
+	}
+
+	day := time.Date(2026, 7, 24, 8, 0, 0, 0, shanghai)
+	found := false
+	for _, op := range BuildPlan(s, p, day).Operations {
+		if op.Kind == clientproto.RPCFlowerRackSell.String() {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("listing should resume at 08:00")
+	}
+}
+
+func TestBuildPlan_FlowerRackNightPauseKeepsClaim(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 7, 24, 2, 0, 0, 0, shanghai)
+	listedAt := now.Add(-time.Duration(state.FlowerRackSellDurationMs()) * time.Millisecond).UnixMilli()
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"104": map[string]any{"0": map[string]any{
+			"2": map[string]any{"1": 2, "2": 300208, "3": 1, "4": listedAt, "5": listedAt},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.SellNightPauseEnabled = true
+
+	for _, op := range BuildPlan(s, p, now).Operations {
+		if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
+			if !op.Executable || op.TargetID != 2 {
+				t.Fatalf("recvSellMoney op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("night pause must still allow claiming rack proceeds")
 }
 
 func TestBuildPlan_FlowerRackCraftsWhenNoStock(t *testing.T) {

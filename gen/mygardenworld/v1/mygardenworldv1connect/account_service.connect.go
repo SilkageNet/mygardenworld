@@ -48,6 +48,9 @@ const (
 	// AccountServiceLogoutAccountProcedure is the fully-qualified name of the AccountService's
 	// LogoutAccount RPC.
 	AccountServiceLogoutAccountProcedure = "/mygardenworld.v1.AccountService/LogoutAccount"
+	// AccountServiceRedeemCodeProcedure is the fully-qualified name of the AccountService's RedeemCode
+	// RPC.
+	AccountServiceRedeemCodeProcedure = "/mygardenworld.v1.AccountService/RedeemCode"
 )
 
 // AccountServiceClient is a client for the mygardenworld.v1.AccountService service.
@@ -64,6 +67,10 @@ type AccountServiceClient interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
+	// Redeem one gift code across accounts. Empty account_ids means every
+	// account owned by the caller (admin: all accounts). Offline accounts are
+	// started first so the game RPC can run.
+	RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error)
 }
 
 // NewAccountServiceClient constructs a client for the mygardenworld.v1.AccountService service. By
@@ -107,6 +114,12 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(accountServiceMethods.ByName("LogoutAccount")),
 			connect.WithClientOptions(opts...),
 		),
+		redeemCode: connect.NewClient[v1.RedeemCodeRequest, v1.RedeemCodeResponse](
+			httpClient,
+			baseURL+AccountServiceRedeemCodeProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("RedeemCode")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -117,6 +130,7 @@ type accountServiceClient struct {
 	listAccounts  *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
 	loginAccount  *connect.Client[v1.LoginAccountRequest, v1.LoginAccountResponse]
 	logoutAccount *connect.Client[v1.LogoutAccountRequest, v1.LogoutAccountResponse]
+	redeemCode    *connect.Client[v1.RedeemCodeRequest, v1.RedeemCodeResponse]
 }
 
 // CreateAccount calls mygardenworld.v1.AccountService.CreateAccount.
@@ -144,6 +158,11 @@ func (c *accountServiceClient) LogoutAccount(ctx context.Context, req *connect.R
 	return c.logoutAccount.CallUnary(ctx, req)
 }
 
+// RedeemCode calls mygardenworld.v1.AccountService.RedeemCode.
+func (c *accountServiceClient) RedeemCode(ctx context.Context, req *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error) {
+	return c.redeemCode.CallUnary(ctx, req)
+}
+
 // AccountServiceHandler is an implementation of the mygardenworld.v1.AccountService service.
 type AccountServiceHandler interface {
 	// Add a new game account. Stores the credentials and (optionally) attempts
@@ -158,6 +177,10 @@ type AccountServiceHandler interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
+	// Redeem one gift code across accounts. Empty account_ids means every
+	// account owned by the caller (admin: all accounts). Offline accounts are
+	// started first so the game RPC can run.
+	RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error)
 }
 
 // NewAccountServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -197,6 +220,12 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 		connect.WithSchema(accountServiceMethods.ByName("LogoutAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
+	accountServiceRedeemCodeHandler := connect.NewUnaryHandler(
+		AccountServiceRedeemCodeProcedure,
+		svc.RedeemCode,
+		connect.WithSchema(accountServiceMethods.ByName("RedeemCode")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/mygardenworld.v1.AccountService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AccountServiceCreateAccountProcedure:
@@ -209,6 +238,8 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 			accountServiceLoginAccountHandler.ServeHTTP(w, r)
 		case AccountServiceLogoutAccountProcedure:
 			accountServiceLogoutAccountHandler.ServeHTTP(w, r)
+		case AccountServiceRedeemCodeProcedure:
+			accountServiceRedeemCodeHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -236,4 +267,8 @@ func (UnimplementedAccountServiceHandler) LoginAccount(context.Context, *connect
 
 func (UnimplementedAccountServiceHandler) LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.LogoutAccount is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.RedeemCode is not implemented"))
 }

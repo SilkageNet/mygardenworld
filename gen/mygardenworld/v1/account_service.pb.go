@@ -522,6 +522,188 @@ func (x *LogoutAccountResponse) GetAccount() *Account {
 	return nil
 }
 
+type RedeemCodeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Gift / redeem code from the game.
+	Code string `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	// Optional subset of account ids. Empty = all accounts visible to the caller.
+	AccountIds    []string `protobuf:"bytes,2,rep,name=account_ids,json=accountIds,proto3" json:"account_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedeemCodeRequest) Reset() {
+	*x = RedeemCodeRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemCodeRequest) ProtoMessage() {}
+
+func (x *RedeemCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemCodeRequest.ProtoReflect.Descriptor instead.
+func (*RedeemCodeRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RedeemCodeRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *RedeemCodeRequest) GetAccountIds() []string {
+	if x != nil {
+		return x.AccountIds
+	}
+	return nil
+}
+
+type RedeemCodeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Results       []*RedeemCodeResult    `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	SuccessCount  int32                  `protobuf:"varint,2,opt,name=success_count,json=successCount,proto3" json:"success_count,omitempty"`
+	FailureCount  int32                  `protobuf:"varint,3,opt,name=failure_count,json=failureCount,proto3" json:"failure_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedeemCodeResponse) Reset() {
+	*x = RedeemCodeResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemCodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemCodeResponse) ProtoMessage() {}
+
+func (x *RedeemCodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemCodeResponse.ProtoReflect.Descriptor instead.
+func (*RedeemCodeResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RedeemCodeResponse) GetResults() []*RedeemCodeResult {
+	if x != nil {
+		return x.Results
+	}
+	return nil
+}
+
+func (x *RedeemCodeResponse) GetSuccessCount() int32 {
+	if x != nil {
+		return x.SuccessCount
+	}
+	return 0
+}
+
+func (x *RedeemCodeResponse) GetFailureCount() int32 {
+	if x != nil {
+		return x.FailureCount
+	}
+	return 0
+}
+
+type RedeemCodeResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	Ok            bool                   `protobuf:"varint,3,opt,name=ok,proto3" json:"ok,omitempty"`
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedeemCodeResult) Reset() {
+	*x = RedeemCodeResult{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemCodeResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemCodeResult) ProtoMessage() {}
+
+func (x *RedeemCodeResult) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemCodeResult.ProtoReflect.Descriptor instead.
+func (*RedeemCodeResult) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *RedeemCodeResult) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *RedeemCodeResult) GetAccountName() string {
+	if x != nil {
+		return x.AccountName
+	}
+	return ""
+}
+
+func (x *RedeemCodeResult) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *RedeemCodeResult) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_mygardenworld_v1_account_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
@@ -555,13 +737,29 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"L\n" +
 	"\x15LogoutAccountResponse\x123\n" +
-	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount2\xf4\x03\n" +
+	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount\"H\n" +
+	"\x11RedeemCodeRequest\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x1f\n" +
+	"\vaccount_ids\x18\x02 \x03(\tR\n" +
+	"accountIds\"\x9c\x01\n" +
+	"\x12RedeemCodeResponse\x12<\n" +
+	"\aresults\x18\x01 \x03(\v2\".mygardenworld.v1.RedeemCodeResultR\aresults\x12#\n" +
+	"\rsuccess_count\x18\x02 \x01(\x05R\fsuccessCount\x12#\n" +
+	"\rfailure_count\x18\x03 \x01(\x05R\ffailureCount\"~\n" +
+	"\x10RedeemCodeResult\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
+	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12\x0e\n" +
+	"\x02ok\x18\x03 \x01(\bR\x02ok\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage2\xcd\x04\n" +
 	"\x0eAccountService\x12`\n" +
 	"\rCreateAccount\x12&.mygardenworld.v1.CreateAccountRequest\x1a'.mygardenworld.v1.CreateAccountResponse\x12`\n" +
 	"\rDeleteAccount\x12&.mygardenworld.v1.DeleteAccountRequest\x1a'.mygardenworld.v1.DeleteAccountResponse\x12]\n" +
 	"\fListAccounts\x12%.mygardenworld.v1.ListAccountsRequest\x1a&.mygardenworld.v1.ListAccountsResponse\x12]\n" +
 	"\fLoginAccount\x12%.mygardenworld.v1.LoginAccountRequest\x1a&.mygardenworld.v1.LoginAccountResponse\x12`\n" +
-	"\rLogoutAccount\x12&.mygardenworld.v1.LogoutAccountRequest\x1a'.mygardenworld.v1.LogoutAccountResponseB\xd6\x01\n" +
+	"\rLogoutAccount\x12&.mygardenworld.v1.LogoutAccountRequest\x1a'.mygardenworld.v1.LogoutAccountResponse\x12W\n" +
+	"\n" +
+	"RedeemCode\x12#.mygardenworld.v1.RedeemCodeRequest\x1a$.mygardenworld.v1.RedeemCodeResponseB\xd6\x01\n" +
 	"\x14com.mygardenworld.v1B\x13AccountServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -576,7 +774,7 @@ func file_mygardenworld_v1_account_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_account_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_mygardenworld_v1_account_service_proto_goTypes = []any{
 	(*CreateAccountRequest)(nil),  // 0: mygardenworld.v1.CreateAccountRequest
 	(*CreateAccountResponse)(nil), // 1: mygardenworld.v1.CreateAccountResponse
@@ -588,32 +786,38 @@ var file_mygardenworld_v1_account_service_proto_goTypes = []any{
 	(*LoginAccountResponse)(nil),  // 7: mygardenworld.v1.LoginAccountResponse
 	(*LogoutAccountRequest)(nil),  // 8: mygardenworld.v1.LogoutAccountRequest
 	(*LogoutAccountResponse)(nil), // 9: mygardenworld.v1.LogoutAccountResponse
-	(Channel)(0),                  // 10: mygardenworld.v1.Channel
-	(*Account)(nil),               // 11: mygardenworld.v1.Account
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(*RedeemCodeRequest)(nil),     // 10: mygardenworld.v1.RedeemCodeRequest
+	(*RedeemCodeResponse)(nil),    // 11: mygardenworld.v1.RedeemCodeResponse
+	(*RedeemCodeResult)(nil),      // 12: mygardenworld.v1.RedeemCodeResult
+	(Channel)(0),                  // 13: mygardenworld.v1.Channel
+	(*Account)(nil),               // 14: mygardenworld.v1.Account
+	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_account_service_proto_depIdxs = []int32{
-	10, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
-	11, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
-	11, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
-	11, // 3: mygardenworld.v1.LoginAccountResponse.account:type_name -> mygardenworld.v1.Account
-	12, // 4: mygardenworld.v1.LoginAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
-	11, // 5: mygardenworld.v1.LogoutAccountResponse.account:type_name -> mygardenworld.v1.Account
-	0,  // 6: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
-	2,  // 7: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
-	4,  // 8: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
-	6,  // 9: mygardenworld.v1.AccountService.LoginAccount:input_type -> mygardenworld.v1.LoginAccountRequest
-	8,  // 10: mygardenworld.v1.AccountService.LogoutAccount:input_type -> mygardenworld.v1.LogoutAccountRequest
-	1,  // 11: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
-	3,  // 12: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
-	5,  // 13: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
-	7,  // 14: mygardenworld.v1.AccountService.LoginAccount:output_type -> mygardenworld.v1.LoginAccountResponse
-	9,  // 15: mygardenworld.v1.AccountService.LogoutAccount:output_type -> mygardenworld.v1.LogoutAccountResponse
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	13, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
+	14, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
+	14, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
+	14, // 3: mygardenworld.v1.LoginAccountResponse.account:type_name -> mygardenworld.v1.Account
+	15, // 4: mygardenworld.v1.LoginAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
+	14, // 5: mygardenworld.v1.LogoutAccountResponse.account:type_name -> mygardenworld.v1.Account
+	12, // 6: mygardenworld.v1.RedeemCodeResponse.results:type_name -> mygardenworld.v1.RedeemCodeResult
+	0,  // 7: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
+	2,  // 8: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
+	4,  // 9: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
+	6,  // 10: mygardenworld.v1.AccountService.LoginAccount:input_type -> mygardenworld.v1.LoginAccountRequest
+	8,  // 11: mygardenworld.v1.AccountService.LogoutAccount:input_type -> mygardenworld.v1.LogoutAccountRequest
+	10, // 12: mygardenworld.v1.AccountService.RedeemCode:input_type -> mygardenworld.v1.RedeemCodeRequest
+	1,  // 13: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
+	3,  // 14: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
+	5,  // 15: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
+	7,  // 16: mygardenworld.v1.AccountService.LoginAccount:output_type -> mygardenworld.v1.LoginAccountResponse
+	9,  // 17: mygardenworld.v1.AccountService.LogoutAccount:output_type -> mygardenworld.v1.LogoutAccountResponse
+	11, // 18: mygardenworld.v1.AccountService.RedeemCode:output_type -> mygardenworld.v1.RedeemCodeResponse
+	13, // [13:19] is the sub-list for method output_type
+	7,  // [7:13] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_account_service_proto_init() }
@@ -629,7 +833,7 @@ func file_mygardenworld_v1_account_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_account_service_proto_rawDesc), len(file_mygardenworld_v1_account_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

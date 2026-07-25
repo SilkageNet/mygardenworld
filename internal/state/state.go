@@ -100,6 +100,11 @@ type State struct {
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 	residentOrderLimitUntilMs  int64
 	residentOrderLimitDayID    int32
+	// Bias tracks successful finishOrder calls since the last authoritative
+	// namespace-124 field-9 apply, so the policy daily limit still works when
+	// statistics are missing or lag behind.
+	residentOrderFinishBias      int32
+	residentOrderFinishBiasDayID int32
 	residentSatinOrder         ResidentSpecialOrder
 	residentDecorateOrder      ResidentSpecialOrder
 	palaceOrder                PalaceOrderView // 108.0 宫廷订单

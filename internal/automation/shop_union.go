@@ -377,8 +377,8 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 
 // unionRaceOperations emits PlannedOps for the guild race task pool.
 // Lifecycle:
-//  1. enter + getTaskList (sync)
-//  2. takeTask (接取)
+//  1. enter + getTaskList (sync) — runs when Enabled, even if AutoEnableModules is off
+//  2. takeTask (接取) — requires AutoEnableModules
 //  3. raceTaskProgressDemands drives plant/harvest for 种植收获 (进行)
 //  4. finishTask when TargetCnt > 0 && FinishCnt >= TargetCnt (完成并领取积分;
 //     TargetCnt<=0 means unknown progress and must not auto-finish)
@@ -403,13 +403,20 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", 4398, 0, 0, 0)}
 	}
-
-	// autoEnableModules gates the sub-module execution (take/finish/upgrade/delete).
-	// When off, the race module is active but does not auto-execute tasks.
-	if !policy.GetAutoEnableModules() {
+	if !view.BatchActive {
 		return nil
 	}
-	if !view.BatchActive {
+
+	// autoEnableModules gates take/finish/upgrade/delete. When off, the race
+	// module still syncs (enter/getTaskList + TTL refresh) so the task pool
+	// remains visible, but does not auto-execute tasks.
+	if !policy.GetAutoEnableModules() {
+		if raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now) {
+			return []PlannedOp{domainOp(
+				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
+				"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
+			)}
+		}
 		return nil
 	}
 	var ops []PlannedOp

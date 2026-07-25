@@ -23,7 +23,11 @@ func TestEventMetadataDefaults(t *testing.T) {
 		{kind: "sign_claim", category: "basic", domain: "basic.sign", action: "claim", label: "签到", level: "info"},
 		{kind: "task_weekly", category: "basic", domain: "basic.task.weekly", action: "claim", label: "每周任务", level: "info"},
 		{kind: "order_ad", category: "order", domain: "order.resident", action: "order", label: "居民订单", level: "info"},
+		{kind: "flower_rack_sell", category: "flower_art", domain: "order.flower_art", action: "sell", label: "花艺上架", level: "info"},
+		{kind: "flower_rack_claim", category: "flower_art", domain: "order.flower_art", action: "claim", label: "花艺售出", level: "info"},
 		{kind: "union_build", category: "union", domain: "union.build", action: "build", label: "公会建设", level: "info"},
+		{kind: "union_flower_take", category: "union", domain: "union.flower.take", action: "take", label: "公会摸花", level: "info"},
+		{kind: "redeem_code", category: "redeem", domain: "redeem.code", action: "use", label: "兑换码", level: "info"},
 	}
 
 	for _, tt := range tests {

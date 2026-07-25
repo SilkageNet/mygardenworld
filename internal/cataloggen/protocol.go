@@ -507,6 +507,13 @@ func applyRPCOverrides(byName map[string]ProtocolRPC) {
 		{
 			Name: "celebrity.getAllTypesInfo", Group: "celebrity", Method: "getAllTypesInfo", RequestShape: protocolRequestEmpty,
 		},
+		{
+			Name: "redeem.useCode", Group: "redeem", Method: "useCode", RequestShape: protocolRequestFields,
+			RequestFields: []ProtocolField{{Name: "code", Index: 0}},
+		},
+		{
+			Name: "redeem.getInfo", Group: "redeem", Method: "getInfo", RequestShape: protocolRequestEmpty,
+		},
 	}
 	for _, override := range overrides {
 		byName[override.Name] = override

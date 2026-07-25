@@ -92,9 +92,10 @@ type Runner struct {
 	sideLaneFarmTurn      bool                 // a forced Side must yield once when Farm work is available
 	rqst                  rqstState            // 反作弊验证状态
 	unknownRPCCounts      map[string]int32     // runtime RPC names missing from the catalog
-	lastCustomerOrderInfo map[int32]string     // 顾客订单需求摘要去重
-	dessertSessionEpoch   uint64               // increments only after a fresh HTTP/WS login
-	dessertRound          dessertRoundRuntime  // shadow/autoplay state; never persisted
+	lastCustomerOrderInfo       map[int32]string // 顾客订单需求摘要去重
+	lastResidentOrderLimitReason string           // 普通居民订单上限日志去重
+	dessertSessionEpoch         uint64           // increments only after a fresh HTTP/WS login
+	dessertRound                dessertRoundRuntime  // shadow/autoplay state; never persisted
 
 	debugWriter *babigame.DebugFrameWriter
 

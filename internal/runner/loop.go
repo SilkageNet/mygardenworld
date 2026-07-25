@@ -8,6 +8,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
 const (
@@ -71,6 +72,7 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 
 	r.emitCustomerOrderInfo()
+	r.emitResidentOrderLimitInfo(snapshot.policy, now)
 
 	op := r.nextRunnableOperation(snapshot.policy, now)
 	if op == nil {
@@ -130,6 +132,9 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	}
 
 	attempt := operationAttempt{op: op, args: args, startedAt: time.Now()}
+	if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
+		attempt.goldBefore = r.state.Gold()
+	}
 	r.emitOperationPlanned(attempt)
 
 	raw, err := r.executePlannedOp(ctx, client, session, op)

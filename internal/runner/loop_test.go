@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -1041,5 +1042,46 @@ func TestCheckOperationResourcesUsesCostGates(t *testing.T) {
 
 	if err := r.checkOperationResources(op, time.Now()); err == nil {
 		t.Fatal("checkOperationResources() error=nil, want insufficient item gate error")
+	}
+}
+
+func TestEmitResidentOrderLimitInfoLogsOnce(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	st := state.New()
+	st.NoteResidentOrderFinished(now, nil)
+	st.NoteResidentOrderFinished(now, nil)
+	policy := automation.DefaultPolicy()
+	policy.Order.Resident.NormalEnabled = true
+	policy.Order.Resident.NormalDailyLimit = 2
+
+	bus := NewBus()
+	ch, cancel := bus.SubscribeLive(8)
+	defer cancel()
+	r := &Runner{
+		account: &store.Account{ID: 1, Name: "test"},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		state:   st,
+		policy:  policy,
+		bus:     bus,
+	}
+
+	r.emitResidentOrderLimitInfo(policy, now)
+	r.emitResidentOrderLimitInfo(policy, now)
+
+	select {
+	case event := <-ch:
+		if event.Kind != "operation_deferred" || event.Domain != "order.resident" {
+			t.Fatalf("event=%+v, want deferred resident limit", event)
+		}
+		if !strings.Contains(event.Message, "普通居民订单今日已完成") || !strings.Contains(event.Message, "2/2") {
+			t.Fatalf("message=%q, want policy limit details", event.Message)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing resident limit log event")
+	}
+	select {
+	case event := <-ch:
+		t.Fatalf("unexpected duplicate limit log: %+v", event)
+	case <-time.After(50 * time.Millisecond):
 	}
 }
