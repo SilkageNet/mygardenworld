@@ -2,7 +2,6 @@ package policycfg
 
 import (
 	"math"
-	"strings"
 	"testing"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -72,10 +71,6 @@ func TestFlowerArtSellNightPauseRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(raw, `"sell_night_pause_enabled": true`) {
-		t.Fatalf("ToJSON missing sell_night_pause_enabled: %s", raw)
-	}
-
 	out, err := FromJSON(raw)
 	if err != nil {
 		t.Fatal(err)

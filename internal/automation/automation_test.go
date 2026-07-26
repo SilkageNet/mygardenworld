@@ -1088,7 +1088,7 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 }
 
 func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
-	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.Local)
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	cases := []struct {
 		name      string
 		drops     int32
