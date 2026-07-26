@@ -173,39 +173,52 @@ func (s *State) applyStatisticsLocked(raw json.RawMessage) {
 	// present fields into the current day so orderFlowerFinishNum is not wiped
 	// by an unrelated patch (e.g. flowerArtSellNum-only), which would disable
 	// the ordinary resident-order daily limit.
-	if view, finishSeen, ok := parseStatisticsViewMerged(s.statistics, raw0); ok {
+	if view, countersSeen, ok := parseStatisticsViewMerged(s.statistics, raw0); ok {
 		prevDay := s.statistics.DayID
 		s.statistics = view
-		if finishSeen || (view.DayID != 0 && prevDay != 0 && view.DayID != prevDay) {
+		dayChanged := view.DayID != 0 && prevDay != 0 && view.DayID != prevDay
+		if countersSeen.normal || dayChanged {
 			s.residentOrderFinishBias = 0
 			if view.DayID != 0 {
 				s.residentOrderFinishBiasDayID = view.DayID
+			}
+		}
+		if countersSeen.satin || dayChanged {
+			s.residentSatinFinishBias = 0
+			if view.DayID != 0 {
+				s.residentSatinFinishBiasDayID = view.DayID
+			}
+		}
+		if countersSeen.decorate || dayChanged {
+			s.residentDecorateFinishBias = 0
+			if view.DayID != 0 {
+				s.residentDecorateFinishBiasDayID = view.DayID
 			}
 		}
 		s.clearResidentOrderLimitIfStatisticsResetLocked(view)
 	}
 }
 
-func parseStatisticsView(raw json.RawMessage) (StatisticsView, bool) {
-	view, _, ok := parseStatisticsViewMerged(StatisticsView{}, raw)
-	return view, ok
+type statisticsCountersSeen struct {
+	normal   bool
+	satin    bool
+	decorate bool
 }
 
-func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (StatisticsView, bool, bool) {
+func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (StatisticsView, statisticsCountersSeen, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return StatisticsView{}, false, false
+		return StatisticsView{}, statisticsCountersSeen{}, false
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return StatisticsView{}, false, false
+		return StatisticsView{}, statisticsCountersSeen{}, false
 	}
-	if _, ok := fields["9"]; ok {
-		view, finishSeen, ok := mergeStatisticsFields(prev, fields, 0)
-		return view, finishSeen, ok
+	if hasStatisticsField(fields) {
+		return mergeStatisticsFields(prev, fields, 0)
 	}
 	var best StatisticsView
 	seen := false
-	finishSeen := false
+	countersSeen := statisticsCountersSeen{}
 	for dayIDStr, rawEntry := range fields {
 		var entryFields map[string]json.RawMessage
 		if err := json.Unmarshal(rawEntry, &entryFields); err != nil {
@@ -216,31 +229,35 @@ func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (Statis
 		if prev.Observed && (dayHint == 0 || prev.DayID == 0 || prev.DayID == dayHint) {
 			base = prev
 		}
-		entry, entryFinish, ok := mergeStatisticsFields(base, entryFields, dayHint)
+		entry, entryCounters, ok := mergeStatisticsFields(base, entryFields, dayHint)
 		if !ok {
 			continue
 		}
 		if !seen || entry.DayID >= best.DayID {
 			best = entry
-			finishSeen = entryFinish
+			countersSeen = entryCounters
 			seen = true
 		}
 	}
 	if seen {
-		return best, finishSeen, true
+		return best, countersSeen, true
 	}
-	return StatisticsView{}, false, false
+	return StatisticsView{}, statisticsCountersSeen{}, false
 }
 
-func parseStatisticsFields(fields map[string]json.RawMessage) (StatisticsView, bool) {
-	view, _, ok := mergeStatisticsFields(StatisticsView{}, fields, 0)
-	return view, ok
+func hasStatisticsField(fields map[string]json.RawMessage) bool {
+	for _, key := range []string{"1", "8", "9", "10", "11", "12", "13", "14", "16"} {
+		if _, ok := fields[key]; ok {
+			return true
+		}
+	}
+	return false
 }
 
-func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessage, dayHint int32) (StatisticsView, bool, bool) {
+func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessage, dayHint int32) (StatisticsView, statisticsCountersSeen, bool) {
 	view := prev
 	seen := false
-	finishSeen := false
+	countersSeen := statisticsCountersSeen{}
 	if n, ok := readInt32JSONField(fields, "1"); ok {
 		if prev.Observed && prev.DayID != 0 && n != prev.DayID {
 			// New game day: drop prior-day counters rather than mixing them.
@@ -257,7 +274,7 @@ func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessag
 	}
 	if n, ok := readInt32JSONField(fields, "9"); ok {
 		view.OrderFlowerFinishNum = n
-		finishSeen = true
+		countersSeen.normal = true
 		seen = true
 	}
 	if n, ok := readInt32JSONField(fields, "10"); ok {
@@ -278,17 +295,19 @@ func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessag
 	}
 	if n, ok := readInt32JSONField(fields, "14"); ok {
 		view.OrderSatinFinishNum = n
+		countersSeen.satin = true
 		seen = true
 	}
 	if n, ok := readInt32JSONField(fields, "16"); ok {
 		view.OrderDecorateFinishNum = n
+		countersSeen.decorate = true
 		seen = true
 	}
 	if !seen {
-		return StatisticsView{}, false, false
+		return StatisticsView{}, statisticsCountersSeen{}, false
 	}
 	view.Observed = true
-	return view, finishSeen, true
+	return view, countersSeen, true
 }
 
 func (s *State) clearResidentOrderLimitIfStatisticsResetLocked(stats StatisticsView) {
@@ -440,9 +459,9 @@ func (s *State) videoDoubleActiveLocked(now time.Time) bool {
 
 // NextFreeWaterIndex returns the currently claimable idx for freeWater.recv.
 // Catalog windows are 11:00–14:00 and 17:00–21:00 Asia/Shanghai; automation
-// only attempts recv during the first minute of each window start. When
-// namespace 117 has never been observed, unclaimed slots are assumed so the
-// first open-minute recv can bootstrap server state.
+// may attempt recv throughout each window. When namespace 117 has never been
+// observed, unclaimed slots are assumed so an in-window recv can bootstrap
+// server state.
 func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -451,7 +470,7 @@ func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 	if periods := freeWaterClaimPeriods(); len(periods) > 0 {
 		minute := local.Hour()*60 + local.Minute()
 		for _, period := range periods {
-			if !period.claimOpen(minute) {
+			if !period.contains(minute) {
 				continue
 			}
 			if received[period.idx] {
@@ -484,13 +503,14 @@ type freeWaterClaimPeriod struct {
 	endMin   int
 }
 
-// claimOpen is true only during the first minute of the catalog window
-// (e.g. 11:00–11:00:59 for the morning slot).
-func (p freeWaterClaimPeriod) claimOpen(minute int) bool {
+func (p freeWaterClaimPeriod) contains(minute int) bool {
 	if p.startMin == p.endMin {
 		return false
 	}
-	return minute == p.startMin
+	if p.startMin < p.endMin {
+		return minute >= p.startMin && minute < p.endMin
+	}
+	return minute >= p.startMin || minute < p.endMin
 }
 
 func freeWaterClaimPeriods() []freeWaterClaimPeriod {
@@ -544,10 +564,4 @@ func decodeFreeWaterConfigMinute(raw int32) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-func dailyRefreshTime(now time.Time) time.Time {
-	local := now.In(gameDayLocation())
-	y, m, d := local.Date()
-	return time.Date(y, m, d, 0, 0, 0, 0, local.Location())
 }

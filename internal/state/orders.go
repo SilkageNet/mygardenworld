@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"time"
@@ -550,7 +551,7 @@ func parseOrderRequires(raw json.RawMessage) ([]FlowerRequire, []ItemRequire) {
 func (s *State) MarkResidentOrderDailyLimitReached(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.residentOrderLimitUntilMs = nextGameDayReset(now).UnixMilli()
+	s.residentOrderLimitUntilMs = NextGameDayReset(now).UnixMilli()
 	s.residentOrderLimitDayID = s.statistics.DayID
 	if s.residentOrderLimitDayID == 0 {
 		s.residentOrderLimitDayID = gameDayID(now)
@@ -578,66 +579,112 @@ func (s *State) ResidentOrderDailyLimitReached(now time.Time) (time.Time, bool) 
 // finish when the response did not already carry an authoritative field-9
 // statistics update (ApplyV clears the bias in that case).
 func (s *State) NoteResidentOrderFinished(now time.Time, raw json.RawMessage) {
-	if responseAdvancesResidentOrderFinish(raw) {
+	if responseStatisticsCounters(raw).normal {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	day := gameDayID(now)
-	if s.residentOrderFinishBiasDayID != day {
-		s.residentOrderFinishBiasDayID = day
-		s.residentOrderFinishBias = 0
-	}
-	s.residentOrderFinishBias++
+	noteResidentOrderFinish(&s.residentOrderFinishBias, &s.residentOrderFinishBiasDayID, now)
 }
 
-func responseAdvancesResidentOrderFinish(raw json.RawMessage) bool {
+// NoteResidentSatinOrderFinished records a successful satin resident order
+// whose response omitted the authoritative namespace-124 satin counter.
+func (s *State) NoteResidentSatinOrderFinished(now time.Time, raw json.RawMessage) {
+	if responseStatisticsCounters(raw).satin {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	noteResidentOrderFinish(&s.residentSatinFinishBias, &s.residentSatinFinishBiasDayID, now)
+}
+
+// NoteResidentDecorateOrderFinished records a successful decorate resident
+// order whose response omitted the authoritative namespace-124 counter.
+func (s *State) NoteResidentDecorateOrderFinished(now time.Time, raw json.RawMessage) {
+	if responseStatisticsCounters(raw).decorate {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	noteResidentOrderFinish(&s.residentDecorateFinishBias, &s.residentDecorateFinishBiasDayID, now)
+}
+
+func noteResidentOrderFinish(bias, biasDayID *int32, now time.Time) {
+	day := gameDayID(now)
+	if *biasDayID != day {
+		*biasDayID = day
+		*bias = 0
+	}
+	if *bias < math.MaxInt32 {
+		*bias++
+	}
+}
+
+func responseStatisticsCounters(raw json.RawMessage) statisticsCountersSeen {
 	if len(raw) == 0 || string(raw) == "null" {
-		return false
+		return statisticsCountersSeen{}
 	}
 	var top map[string]json.RawMessage
 	if json.Unmarshal(raw, &top) != nil {
-		return false
+		return statisticsCountersSeen{}
 	}
 	raw124, ok := top["124"]
 	if !ok {
-		return false
+		return statisticsCountersSeen{}
 	}
 	var ns map[string]json.RawMessage
 	if json.Unmarshal(raw124, &ns) != nil {
-		return false
+		return statisticsCountersSeen{}
 	}
 	raw0, ok := ns["0"]
 	if !ok {
-		return false
+		return statisticsCountersSeen{}
 	}
-	_, finishSeen, ok := parseStatisticsViewMerged(StatisticsView{}, raw0)
-	return ok && finishSeen
+	_, countersSeen, ok := parseStatisticsViewMerged(StatisticsView{}, raw0)
+	if !ok {
+		return statisticsCountersSeen{}
+	}
+	return countersSeen
 }
 
 // ResidentOrderFinishNum returns today's ordinary resident finish count from
-// namespace 124 (orderFlowerFinishNum). Local finish bias is only a fallback
-// when system statistics have not been observed yet.
+// namespace 124 plus successful local finishes not reflected by that counter.
 func (s *State) ResidentOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderFlowerFinishNum, s.residentOrderFinishBias, s.residentOrderFinishBiasDayID, now)
+}
+
+// ResidentSatinOrderFinishNum returns today's satin resident finish count.
+func (s *State) ResidentSatinOrderFinishNum(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderSatinFinishNum, s.residentSatinFinishBias, s.residentSatinFinishBiasDayID, now)
+}
+
+// ResidentDecorateOrderFinishNum returns today's decorate resident finish count.
+func (s *State) ResidentDecorateOrderFinishNum(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderDecorateFinishNum, s.residentDecorateFinishBias, s.residentDecorateFinishBiasDayID, now)
+}
+
+func residentOrderFinishCount(stats StatisticsView, observed, bias, biasDayID int32, now time.Time) int32 {
 	day := gameDayID(now)
-	if s.statistics.Observed {
-		switch {
-		case s.statistics.DayID == 0 || s.statistics.DayID == day:
-			return s.statistics.OrderFlowerFinishNum
-		case s.statistics.DayID < day:
-			// Prior game-day snapshot: treat today's finishes as unset until
-			// the server publishes the new day's counters.
-			return 0
-		default:
-			return s.statistics.OrderFlowerFinishNum
-		}
+	var count int64
+	if stats.Observed && (stats.DayID == 0 || stats.DayID >= day) {
+		count = int64(observed)
 	}
-	if s.residentOrderFinishBiasDayID == day {
-		return s.residentOrderFinishBias
+	if biasDayID == day && (!stats.Observed || stats.DayID == 0 || stats.DayID <= day) {
+		count += int64(bias)
 	}
-	return 0
+	if count < 0 {
+		return 0
+	}
+	if count > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(count)
 }
 
 // ResidentOrderNormalDailyMax returns c_orderFlower.$dailyMax, the mini
@@ -670,10 +717,15 @@ func residentOrderCatalogDailyMax(key string) int32 {
 	return readInt32Any(row[key])
 }
 
-func nextGameDayReset(now time.Time) time.Time {
+// NextGameDayReset returns the next 00:05 Asia/Shanghai game-day boundary.
+func NextGameDayReset(now time.Time) time.Time {
 	local := now.In(gameDayLocation())
 	y, m, d := local.Date()
-	return time.Date(y, m, d+1, 0, 5, 0, 0, local.Location())
+	reset := time.Date(y, m, d, 0, 5, 0, 0, local.Location())
+	if !reset.After(local) {
+		reset = time.Date(y, m, d+1, 0, 5, 0, 0, local.Location())
+	}
+	return reset
 }
 
 func gameDayID(now time.Time) int32 {

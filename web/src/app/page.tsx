@@ -4123,10 +4123,8 @@ function EventPanel({ events }: { events: Event[] }) {
     return counts;
   }, [events]);
   const categories = useMemo(() => {
-    const order = ["basic", "plant", "order", "union", "flower_art", "race", "activity", "redeem", "account", "system"];
+    const order = ["basic", "plant", "order", "union", "race", "activity", "account", "system"];
     const keys = new Set(categoryCounts.keys());
-    keys.add("flower_art");
-    keys.add("redeem");
     return [...keys].sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
@@ -4739,8 +4737,14 @@ function operationReasonLabel(reason: string) {
 }
 
 function eventCategory(event: Event) {
+  if (event.category === "flower_art") return "order";
+  if (event.category === "redeem") return "system";
   if (event.category) return event.category;
-  if (event.domain) return event.domain.split(".")[0] || "system";
+  if (event.domain) {
+    const category = event.domain.split(".")[0];
+    if (category === "redeem") return "system";
+    return category || "system";
+  }
   return "system";
 }
 
@@ -4760,16 +4764,12 @@ function categoryLabel(category: string) {
       return "种植";
     case "order":
       return "订单";
-    case "flower_art":
-      return "花艺售卖";
     case "union":
       return "公会";
     case "race":
       return "竞赛";
     case "activity":
       return "活动";
-    case "redeem":
-      return "兑换码";
     case "account":
       return "账号";
     case "system":

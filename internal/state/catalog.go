@@ -1557,8 +1557,8 @@ func readStoryMainInt64(raw json.RawMessage) (int64, bool) {
 }
 
 // StoryMainTerminal returns the only catalog-derived completed progress pair.
-// With the current decoded client this is 149:0, immediately after chapter
-// 148's final section 15706.
+// With the current decoded client this is 157:0, immediately after chapter
+// 156's final section 16506.
 func StoryMainTerminal() (chapter, sectionIdx int32, ok bool) {
 	table, exists := StaticTableByName("c_storyMainChapter")
 	if !exists {

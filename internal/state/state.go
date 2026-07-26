@@ -68,7 +68,7 @@ type State struct {
 	fmlFlowerShare         FmlFlowerShareView     // 25.107 自己的公会鲜花分享
 	fmlOtherFlowerShares   map[int64]*FmlFlowerShareView
 	fmlOtherShareObserved  bool
-	fmlRace                FmlRaceView // 25.110/111/114 公会竞赛
+	fmlRace                FmlRaceView     // 25.110/111/114 公会竞赛
 	shopGiftbagDRecord     map[int32]int32 // 112.1 daily purchase counts
 	shopGiftbagWRecord     map[int32]int32 // 112.2 weekly purchase counts
 	shopGiftbagMRecord     map[int32]int32 // 112.3 monthly purchase counts
@@ -101,16 +101,20 @@ type State struct {
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 	residentOrderLimitUntilMs  int64
 	residentOrderLimitDayID    int32
-	// Bias tracks successful finishOrder calls only while namespace 124 has
-	// never been observed, so the policy daily limit still works before the
-	// first statistics sync. Once system stats exist, ResidentOrderFinishNum
-	// uses orderFlowerFinishNum exclusively.
-	residentOrderFinishBias      int32
-	residentOrderFinishBiasDayID int32
-	residentSatinOrder         ResidentSpecialOrder
-	residentDecorateOrder      ResidentSpecialOrder
-	palaceOrder                PalaceOrderView // 108.0 宫廷订单
-	teamOrder                  TeamOrderView   // 107.0 组团订单
+	// Per-kind biases track successful finish calls whose responses omit the
+	// matching namespace-124 counter. Effective daily counts merge the latest
+	// authoritative counter with the current-day bias until the server catches
+	// up and publishes that counter.
+	residentOrderFinishBias         int32
+	residentOrderFinishBiasDayID    int32
+	residentSatinFinishBias         int32
+	residentSatinFinishBiasDayID    int32
+	residentDecorateFinishBias      int32
+	residentDecorateFinishBiasDayID int32
+	residentSatinOrder              ResidentSpecialOrder
+	residentDecorateOrder           ResidentSpecialOrder
+	palaceOrder                     PalaceOrderView // 108.0 宫廷订单
+	teamOrder                       TeamOrderView   // 107.0 组团订单
 
 	mainTask             *MainTaskView                  // 22.0 当前主线任务
 	mainTaskReceipts     map[int32]int32                // 22.0.4 完整领奖映射

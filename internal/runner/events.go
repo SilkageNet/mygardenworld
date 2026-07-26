@@ -300,7 +300,7 @@ func eventCategory(kind string) string {
 	case "session", "session_expired", "session_relogin", "ws_disconnected":
 		return "account"
 	case "redeem_code":
-		return "redeem"
+		return "system"
 	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
 		return "plant"
 	case "policy_changed":
@@ -316,7 +316,7 @@ func eventCategory(kind string) string {
 	case "order_finish", "order_satin_finish", "order_decorate_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art":
 		return "order"
 	case "flower_rack", "flower_rack_sell", "flower_rack_claim":
-		return "flower_art"
+		return "order"
 	case "union_build", "union_flower_take":
 		return "union"
 	case "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
@@ -330,8 +330,12 @@ func eventCategory(kind string) string {
 
 func normalizeEventCategory(category, kind string) string {
 	switch category {
-	case "account", "basic", "plant", "order", "flower_art", "union", "race", "activity", "redeem", "system":
+	case "account", "basic", "plant", "order", "union", "race", "activity", "system":
 		return category
+	case "flower_art":
+		return "order"
+	case "redeem":
+		return "system"
 	case "session":
 		return "account"
 	case "operation", "land", "cultivation":

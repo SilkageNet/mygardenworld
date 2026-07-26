@@ -44,34 +44,36 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		}
 		if resident.GetSatinEnabled() {
 			satin := s.ResidentSatinOrder()
-			if reason, limited := residentSatinDailyLimitReached(s, resident); limited {
+			reason, limited := residentSatinDailyLimitReached(s, resident, now)
+			switch {
+			case limited:
 				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单今日上限已达", goal.Priority*100+695)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
 				blocked.BlockedReasons = []string{reason}
 				ops = append(ops, blocked)
-			} else if !satin.Observed {
+			case !satin.Observed:
 				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单未同步", goal.Priority*100+125)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
 				blocked.BlockedReasons = []string{"绸缎居民订单状态未观察到"}
 				ops = append(ops, blocked)
-			} else if satin.IsVideo != 0 {
+			case satin.IsVideo != 0:
 				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单需看广告", goal.Priority*100+125)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
 				blocked.BlockedReasons = []string{"当前绸缎订单为广告订单，暂不自动提交"}
 				ops = append(ops, blocked)
-			} else if len(satin.Requires) == 0 {
+			case len(satin.Requires) == 0:
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishSatinOrder.String(), "order.resident.satin", "绸缎居民订单", satin, goal, "绸缎居民订单缺少可识别需求"))
-			} else if !satin.CooldownReady(now) {
+			case !satin.CooldownReady(now):
 				// Wait for cooldown; no blocked marker needed.
-			} else if !residentSpecialOrderAllowed(satin, resident) {
+			case !residentSpecialOrderAllowed(satin, resident):
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishSatinOrder.String(), "order.resident.satin", "绸缎居民订单", satin, goal, "绸缎居民订单品质不符合策略"))
-			} else if canFulfillResidentSpecialOrder(satin, "satin", goal, ledger) {
+			case canFulfillResidentSpecialOrder(satin, "satin", goal, ledger):
 				finish := op(clientproto.RPCOrderFlowerFinishSatinOrder.String(), goal, "finish", withOrderReason("绸缎居民订单可交付", FormatFlowerRequires(satin.Requires)), goal.Priority*100+710, 0, 0, 0)
 				finish.Domain = "order.resident.satin"
 				ops = append(ops, finish)
@@ -79,34 +81,36 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		}
 		if resident.GetDecorateEnabled() {
 			decorate := s.ResidentDecorateOrder()
-			if reason, limited := residentDecorateDailyLimitReached(s, resident); limited {
+			reason, limited := residentDecorateDailyLimitReached(s, resident, now)
+			switch {
+			case limited:
 				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单今日上限已达", goal.Priority*100+694)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
 				blocked.BlockedReasons = []string{reason}
 				ops = append(ops, blocked)
-			} else if !decorate.Observed {
+			case !decorate.Observed:
 				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单未同步", goal.Priority*100+124)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
 				blocked.BlockedReasons = []string{"建材居民订单状态未观察到"}
 				ops = append(ops, blocked)
-			} else if decorate.IsVideo != 0 {
+			case decorate.IsVideo != 0:
 				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单需看广告", goal.Priority*100+124)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
 				blocked.BlockedReasons = []string{"当前建材订单为广告订单，暂不自动提交"}
 				ops = append(ops, blocked)
-			} else if len(decorate.Requires) == 0 {
+			case len(decorate.Requires) == 0:
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), "order.resident.decorate", "建材居民订单", decorate, goal, "建材居民订单缺少可识别需求"))
-			} else if !decorate.CooldownReady(now) {
+			case !decorate.CooldownReady(now):
 				// Wait for cooldown; no blocked marker needed.
-			} else if !residentSpecialOrderAllowed(decorate, resident) {
+			case !residentSpecialOrderAllowed(decorate, resident):
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), "order.resident.decorate", "建材居民订单", decorate, goal, "建材居民订单品质不符合策略"))
-			} else if canFulfillResidentSpecialOrder(decorate, "decorate", goal, ledger) {
+			case canFulfillResidentSpecialOrder(decorate, "decorate", goal, ledger):
 				finish := op(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), goal, "finish", withOrderReason("建材居民订单可交付", FormatFlowerRequires(decorate.Requires)), goal.Priority*100+705, 0, 0, 0)
 				finish.Domain = "order.resident.decorate"
 				ops = append(ops, finish)
@@ -182,21 +186,22 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		}
 		if order.GetFlowerArt().GetSellEnabled() {
 			slots := s.FlowerRackSlots()
-			for _, rackID := range s.FlowerRackClaimableSlotIDs(now) {
+			claimable := s.FlowerRackClaimableSlotIDs(now)
+			if len(claimable) > 0 {
+				rackID := claimable[0]
 				claim := op(clientproto.RPCFlowerRackRecvSellMoney.String(), goal, "claim", "花架售卖时间已到，可领取收益", flowerRackClaimPriority(goal), rackID, 0, 0)
 				if slot, ok := slots[rackID]; ok {
 					claim.ItemID = slot.ItemID
 					claim.Count = slot.Count
 				}
-				claim.Category = CategoryFlowerArt
+				claim.Category = CategoryOrder
 				ops = append(ops, claim)
-				break
 			}
 			if flowerArtAutoListActive(order.GetFlowerArt(), now) {
 				for _, rackID := range s.EmptyFlowerRackSlotIDs() {
 					if artID, count, ok := bestRackArt(ledger); ok {
 						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
-						sell.Category = CategoryFlowerArt
+						sell.Category = CategoryOrder
 						ops = append(ops, sell)
 						break
 					}

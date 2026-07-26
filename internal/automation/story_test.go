@@ -39,7 +39,7 @@ func TestStoryPlannerStopsAtCompleteAndBlocksInvalidObservedState(t *testing.T) 
 	policy.Basic.Task.StoryEnabled = true
 
 	complete := state.New()
-	applyMap(t, complete, map[string]any{"7": map[string]any{"101": map[string]any{"1": 149, "2": 0}}})
+	applyMap(t, complete, map[string]any{"7": map[string]any{"101": map[string]any{"1": 157, "2": 0}}})
 	if ops := storyPlanOperations(BuildPlan(complete, policy, time.Now()).Operations); len(ops) != 0 {
 		t.Fatalf("completed story still planned operations: %+v", ops)
 	}
@@ -50,7 +50,7 @@ func TestStoryPlannerStopsAtCompleteAndBlocksInvalidObservedState(t *testing.T) 
 	if len(ops) != 1 || ops[0].Status != PlanStatusBlocked || ops[0].Executable || ops[0].Kind == clientproto.RPCStoryMainEnter.String() {
 		t.Fatalf("invalid observed story=%+v", ops)
 	}
-	for _, progress := range [][2]int32{{149, 1}, {150, 0}} {
+	for _, progress := range [][2]int32{{157, 1}, {158, 0}} {
 		s := state.New()
 		applyMap(t, s, map[string]any{"7": map[string]any{"101": map[string]any{"1": progress[0], "2": progress[1]}}})
 		ops = storyPlanOperations(BuildPlan(s, policy, time.Now()).Operations)

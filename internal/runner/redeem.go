@@ -38,6 +38,9 @@ func (r *Runner) RedeemCode(ctx context.Context, code string) (RedeemResult, err
 	if code == "" {
 		return out, fmt.Errorf("empty redeem code")
 	}
+	r.operationMu.Lock()
+	defer r.operationMu.Unlock()
+
 	r.mu.RLock()
 	client := r.client
 	session := r.session
@@ -93,7 +96,7 @@ func (r *Runner) emitRedeemEvent(ok bool, code string, items []RedeemItemGain, m
 	if !ok {
 		r.emit(Event{
 			Kind:        "redeem_code",
-			Category:    automation.CategoryRedeem,
+			Category:    automation.CategorySystem,
 			Domain:      "redeem.code",
 			Action:      "failed",
 			Label:       "兑换码",
@@ -105,7 +108,7 @@ func (r *Runner) emitRedeemEvent(ok bool, code string, items []RedeemItemGain, m
 	}
 	r.emit(Event{
 		Kind:        "redeem_code",
-		Category:    automation.CategoryRedeem,
+		Category:    automation.CategorySystem,
 		Domain:      "redeem.code",
 		Action:      "use",
 		Label:       "兑换码",

@@ -1,9 +1,11 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
@@ -35,6 +37,42 @@ func TestRedeemCodeRejectsEmpty(t *testing.T) {
 	}
 }
 
+func TestRedeemCodeWaitsForActiveAutomationOperation(t *testing.T) {
+	r := &Runner{state: state.New()}
+	r.operationMu.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			r.operationMu.Unlock()
+		}
+	}()
+
+	started := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		close(started)
+		_, err := r.RedeemCode(context.Background(), "CODE")
+		done <- err
+	}()
+	<-started
+	select {
+	case err := <-done:
+		t.Fatalf("RedeemCode returned before operation lock was released: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	r.operationMu.Unlock()
+	locked = false
+	select {
+	case err := <-done:
+		if err == nil || err.Error() != "account not connected" {
+			t.Fatalf("RedeemCode error=%v, want account not connected after lock release", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("RedeemCode did not continue after operation lock was released")
+	}
+}
+
 func TestRedeemSuccessMessageIncludesCodeAndItems(t *testing.T) {
 	msg := redeemSuccessMessage("SUMMER-1", []RedeemItemGain{
 		{ItemID: 1, Name: "元宝", Count: 100},
@@ -58,7 +96,7 @@ func TestRedeemGainsDiff(t *testing.T) {
 }
 
 func TestEventMetadataRedeemCode(t *testing.T) {
-	if got := eventCategory("redeem_code"); got != "redeem" {
+	if got := eventCategory("redeem_code"); got != "system" {
 		t.Fatalf("category=%q", got)
 	}
 	if got := eventDomain("redeem_code"); got != "redeem.code" {
@@ -67,7 +105,7 @@ func TestEventMetadataRedeemCode(t *testing.T) {
 	if got := eventLabel("redeem_code"); got != "兑换码" {
 		t.Fatalf("label=%q", got)
 	}
-	if got := normalizeEventCategory("redeem", "redeem_code"); got != "redeem" {
+	if got := normalizeEventCategory("redeem", "redeem_code"); got != "system" {
 		t.Fatalf("normalize=%q", got)
 	}
 }

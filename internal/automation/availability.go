@@ -294,12 +294,12 @@ func residentSatinDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
 	return limit
 }
 
-func residentSatinDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy) (reason string, reached bool) {
+func residentSatinDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy, now time.Time) (reason string, reached bool) {
 	limit := residentSatinDailyLimit(policy)
 	if limit <= 0 {
 		return "绸缎居民订单上限必须大于 0", true
 	}
-	finished := s.Statistics().OrderSatinFinishNum
+	finished := s.ResidentSatinOrderFinishNum(now)
 	if finished >= limit {
 		return fmt.Sprintf("绸缎居民订单今日已完成 %d/%d", finished, limit), true
 	}
@@ -322,12 +322,12 @@ func residentDecorateDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
 	return limit
 }
 
-func residentDecorateDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy) (reason string, reached bool) {
+func residentDecorateDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy, now time.Time) (reason string, reached bool) {
 	limit := residentDecorateDailyLimit(policy)
 	if limit <= 0 {
 		return "建材居民订单上限必须大于 0", true
 	}
-	finished := s.Statistics().OrderDecorateFinishNum
+	finished := s.ResidentDecorateOrderFinishNum(now)
 	if finished >= limit {
 		return fmt.Sprintf("建材居民订单今日已完成 %d/%d", finished, limit), true
 	}

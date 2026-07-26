@@ -101,6 +101,9 @@ func (r *Runner) readTickSnapshot() tickSnapshot {
 }
 
 func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) {
+	r.operationMu.Lock()
+	defer r.operationMu.Unlock()
+
 	var opErr error
 	finishOperation := r.beginOperation(op.Kind)
 	defer func() { finishOperation(opErr) }()

@@ -66,13 +66,14 @@ type Runner struct {
 	account *store.Account
 	log     *slog.Logger
 
-	mu      sync.RWMutex
-	client  *babigame.Client
-	httpc   *babigame.HTTPClient
-	session *babigame.Session
-	state   *state.State
-	policy  *pb.Policy
-	stats   *RuntimeStats
+	mu          sync.RWMutex
+	operationMu sync.Mutex // serializes state-changing RPCs and their before/after snapshots
+	client      *babigame.Client
+	httpc       *babigame.HTTPClient
+	session     *babigame.Session
+	state       *state.State
+	policy      *pb.Policy
+	stats       *RuntimeStats
 
 	lastWaterSyncTick      time.Time // 节流水资源状态刷新
 	lastReputationSyncTick time.Time // 节流礼仪分/健康分刷新
@@ -86,16 +87,16 @@ type Runner struct {
 	lastOperationError        string
 	lastOperationErrorAt      time.Time
 
-	harvestBlockedUntil   map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
-	operationCooldowns    map[string]operationCooldown
-	sideLaneFirstWait     map[string]time.Time // runnable Side scope first observed behind Farm work
-	sideLaneFarmTurn      bool                 // a forced Side must yield once when Farm work is available
-	rqst                  rqstState            // 反作弊验证状态
-	unknownRPCCounts      map[string]int32     // runtime RPC names missing from the catalog
-	lastCustomerOrderInfo       map[int32]string // 顾客订单需求摘要去重
-	lastResidentOrderLimitReason string           // 普通居民订单上限日志去重
-	dessertSessionEpoch         uint64           // increments only after a fresh HTTP/WS login
-	dessertRound                dessertRoundRuntime  // shadow/autoplay state; never persisted
+	harvestBlockedUntil          map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
+	operationCooldowns           map[string]operationCooldown
+	sideLaneFirstWait            map[string]time.Time // runnable Side scope first observed behind Farm work
+	sideLaneFarmTurn             bool                 // a forced Side must yield once when Farm work is available
+	rqst                         rqstState            // 反作弊验证状态
+	unknownRPCCounts             map[string]int32     // runtime RPC names missing from the catalog
+	lastCustomerOrderInfo        map[int32]string     // 顾客订单需求摘要去重
+	lastResidentOrderLimitReason string               // 普通居民订单上限日志去重
+	dessertSessionEpoch          uint64               // increments only after a fresh HTTP/WS login
+	dessertRound                 dessertRoundRuntime  // shadow/autoplay state; never persisted
 
 	debugWriter *babigame.DebugFrameWriter
 

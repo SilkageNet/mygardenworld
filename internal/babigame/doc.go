@@ -81,7 +81,7 @@
 //	7.13.1.105 int64              usrExtra.lastAntiFraudQATime timestamp (ms)
 //	7.17.0.1   int                Own reputation/礼仪分 score; active refresh uses reputation.view
 //	7.101.1    int                Main-story chapter containing the next section to unlock
-//	7.101.2    int                Zero-based next-section index; decoded terminal is 149:0
+//	7.101.2    int                Zero-based next-section index; decoded terminal is 157:0
 //	7.4.111.2  int                Daily story stars obtained (display statistic, never an unlock gate)
 //
 // # Anti-fraud daily reward (Namespace 140)
@@ -216,8 +216,8 @@
 //
 // The client treats recvIdx as the list of free-water slot indexes already
 // claimed for the current reset day. freeWater.recv sends {idx} for the active
-// c_gameCfg.$freeWaterTime slot only; automation claims during the first minute
-// of each window start (11:00 and 17:00 Asia/Shanghai). idx 0 is valid and must
+// c_gameCfg.$freeWaterTime slot only; automation may claim throughout the
+// configured windows (11:00–14:00 and 17:00–21:00 Asia/Shanghai). idx 0 is valid and must
 // not be omitted from JSON.
 //
 // # Zoo / Cat State (Namespace 33)

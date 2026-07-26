@@ -132,7 +132,7 @@ func categoryRank(category string) int {
 	switch category {
 	case CategoryPlant:
 		return 0
-	case CategoryOrder, CategoryFlowerArt:
+	case CategoryOrder:
 		return 1
 	case CategoryBasic:
 		return 2

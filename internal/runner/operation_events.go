@@ -160,7 +160,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			r.state.MarkResidentOrderDailyLimitReached(now)
 		}
 		until, ok := r.state.ResidentOrderDailyLimitReached(now)
-		cooldown := 24 * time.Hour
+		cooldown := state.NextGameDayReset(now).Sub(now)
 		if !isSpecial && ok {
 			cooldown = until.Sub(now)
 		}
@@ -301,12 +301,12 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	case clientproto.RPCFlowerRackSell.String():
 		kind = "flower_rack_sell"
 		label = "花艺上架"
-		category = automation.CategoryFlowerArt
+		category = automation.CategoryOrder
 		message = flowerRackSellSuccessMessage(op)
 	case clientproto.RPCFlowerRackRecvSellMoney.String():
 		kind = "flower_rack_claim"
 		label = "花艺售出"
-		category = automation.CategoryFlowerArt
+		category = automation.CategoryOrder
 		message = flowerRackClaimSuccessMessage(op, result.goldBefore, r.state.Gold())
 	}
 	r.emit(Event{
@@ -327,9 +327,14 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	if isWaterOp(op.Kind) && !waterResponseIncludesDrops(result.raw) {
 		r.state.MarkLandsWatered(op.LandIDs)
 	}
-	if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() {
+	switch op.Kind {
+	case clientproto.RPCOrderFlowerFinishOrder.String():
 		r.state.NoteResidentOrderFinished(result.finishedAt, result.raw)
 		r.emitResidentOrderLimitInfo(r.Policy(), result.finishedAt)
+	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
+		r.state.NoteResidentSatinOrderFinished(result.finishedAt, result.raw)
+	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
+		r.state.NoteResidentDecorateOrderFinished(result.finishedAt, result.raw)
 	}
 }
 

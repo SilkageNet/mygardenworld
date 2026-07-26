@@ -1,6 +1,7 @@
 package automation
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
@@ -328,6 +329,75 @@ func TestBuildPlan_ResidentFinishBiasClearedWhenStatisticsAdvance(t *testing.T) 
 		}
 	}
 	t.Fatalf("expected resident submit under limit after stats reconcile: %+v", result.Operations)
+}
+
+func TestResidentOrderFinishCountsMergeBiasAndResetByGameDay(t *testing.T) {
+	location := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, location)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{
+			"1": 20260724, "9": 1, "14": 1, "16": 1,
+		}}},
+	})
+
+	s.NoteResidentOrderFinished(now, nil)
+	s.NoteResidentSatinOrderFinished(now, nil)
+	s.NoteResidentDecorateOrderFinished(now, nil)
+	if got := s.ResidentOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentOrderFinishNum=%d, want observed 1 + local 1", got)
+	}
+	if got := s.ResidentSatinOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentSatinOrderFinishNum=%d, want observed 1 + local 1", got)
+	}
+	if got := s.ResidentDecorateOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentDecorateOrderFinishNum=%d, want observed 1 + local 1", got)
+	}
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"8": 4}}},
+	})
+	if got := s.ResidentSatinOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentSatinOrderFinishNum after sparse stats=%d, want 2", got)
+	}
+	if got := s.ResidentDecorateOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentDecorateOrderFinishNum after sparse stats=%d, want 2", got)
+	}
+
+	policy := DefaultPolicy().GetOrder().GetResident()
+	policy.SatinDailyLimit = 2
+	policy.DecorateDailyLimit = 2
+	if reason, reached := residentSatinDailyLimitReached(s, policy, now); !reached || !strings.Contains(reason, "2/2") {
+		t.Fatalf("satin limit=(%q,%t), want 2/2 reached", reason, reached)
+	}
+	if reason, reached := residentDecorateDailyLimitReached(s, policy, now); !reached || !strings.Contains(reason, "2/2") {
+		t.Fatalf("decorate limit=(%q,%t), want 2/2 reached", reason, reached)
+	}
+
+	nextDay := now.Add(24 * time.Hour)
+	if got := s.ResidentOrderFinishNum(nextDay); got != 0 {
+		t.Fatalf("ResidentOrderFinishNum next day=%d, want 0", got)
+	}
+	if got := s.ResidentSatinOrderFinishNum(nextDay); got != 0 {
+		t.Fatalf("ResidentSatinOrderFinishNum next day=%d, want 0", got)
+	}
+	if got := s.ResidentDecorateOrderFinishNum(nextDay); got != 0 {
+		t.Fatalf("ResidentDecorateOrderFinishNum next day=%d, want 0", got)
+	}
+}
+
+func TestResidentSpecialFinishResponseCounterPreventsDoubleCount(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	raw := json.RawMessage(`{"124":{"0":{"20260724":{"1":20260724,"14":2,"16":3}}}}`)
+	s.ApplyV(raw)
+	s.NoteResidentSatinOrderFinished(now, raw)
+	s.NoteResidentDecorateOrderFinished(now, raw)
+	if got := s.ResidentSatinOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentSatinOrderFinishNum=%d, want authoritative 2", got)
+	}
+	if got := s.ResidentDecorateOrderFinishNum(now); got != 3 {
+		t.Fatalf("ResidentDecorateOrderFinishNum=%d, want authoritative 3", got)
+	}
 }
 
 func TestBuildPlan_ResidentCooldownOmitsSubmitUntilReady(t *testing.T) {

@@ -230,8 +230,8 @@ func TestExecuteStoryUnlockPreflightFailureDoesNotCallRPCAndCanCooldown(t *testi
 
 func TestExecuteStoryUnlockAcceptsExactTerminalTransition(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"56":200}},"101":{"1":148,"2":5}}}`))
-	raw := json.RawMessage(`{"7":{"2":{"2":{"56":5}},"101":{"1":149,"2":0}}}`)
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"56":200}},"101":{"1":156,"2":5}}}`))
+	raw := json.RawMessage(`{"7":{"2":{"2":{"56":5}},"101":{"1":157,"2":0}}}`)
 	applyCount := 0
 	_, err := executeStoryUnlock(context.Background(), clientproto.StoryMainUnlockRequest{}, storyUnlockExecution{
 		preflight: func() (state.StoryUnlockSnapshot, error) {
@@ -246,7 +246,7 @@ func TestExecuteStoryUnlockAcceptsExactTerminalTransition(t *testing.T) {
 		applied: s.StoryUnlockApplied,
 	})
 	story, _ := s.StoryMain()
-	if err != nil || applyCount != 1 || !story.Valid || !story.Complete || story.Chapter != 149 || story.SectionIdx != 0 {
+	if err != nil || applyCount != 1 || !story.Valid || !story.Complete || story.Chapter != 157 || story.SectionIdx != 0 {
 		t.Fatalf("err=%v apply=%d story=%+v", err, applyCount, story)
 	}
 }

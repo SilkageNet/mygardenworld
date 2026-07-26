@@ -1253,6 +1253,20 @@ func TestResidentOrderDailyLimitErrorSuppressesUntilNextGameDay(t *testing.T) {
 	}
 }
 
+func TestNextGameDayResetUsesCurrentBoundaryBeforeZeroFive(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	beforeReset := time.Date(2026, 7, 6, 0, 2, 0, 0, shanghai)
+	wantToday := time.Date(2026, 7, 6, 0, 5, 0, 0, shanghai)
+	if got := NextGameDayReset(beforeReset); !got.Equal(wantToday) {
+		t.Fatalf("NextGameDayReset before boundary=%s, want %s", got, wantToday)
+	}
+	afterReset := time.Date(2026, 7, 6, 0, 6, 0, 0, shanghai)
+	wantTomorrow := time.Date(2026, 7, 7, 0, 5, 0, 0, shanghai)
+	if got := NextGameDayReset(afterReset); !got.Equal(wantTomorrow) {
+		t.Fatalf("NextGameDayReset after boundary=%s, want %s", got, wantTomorrow)
+	}
+}
+
 func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	s := New()
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -1276,11 +1290,12 @@ func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	if !ok || idx != 1 {
 		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (1,true) at evening window start", idx, ok)
 	}
-	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 11, 1, 0, 0, shanghai)); ok {
-		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable after first claim minute", idx)
+	unobserved := New()
+	if idx, ok := unobserved.NextFreeWaterIndex(time.Date(2026, 7, 6, 11, 1, 0, 0, shanghai)); !ok || idx != 0 {
+		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (0,true) after first claim minute", idx, ok)
 	}
-	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 12, 0, 0, 0, shanghai)); ok {
-		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable mid-window", idx)
+	if idx, ok := unobserved.NextFreeWaterIndex(time.Date(2026, 7, 6, 12, 0, 0, 0, shanghai)); !ok || idx != 0 {
+		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (0,true) mid-window", idx, ok)
 	}
 	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 10, 50, 0, 0, shanghai)); ok {
 		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable before free-water window", idx)

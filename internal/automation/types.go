@@ -7,16 +7,14 @@ import (
 )
 
 const (
-	CategoryAccount   = "account"
-	CategoryBasic     = "basic"
-	CategoryPlant     = "plant"
-	CategoryOrder     = "order"
-	CategoryFlowerArt = "flower_art"
-	CategoryUnion     = "union"
-	CategoryRace      = "race"
-	CategoryActivity  = "activity"
-	CategoryRedeem    = "redeem"
-	CategorySystem    = "system"
+	CategoryAccount  = "account"
+	CategoryBasic    = "basic"
+	CategoryPlant    = "plant"
+	CategoryOrder    = "order"
+	CategoryUnion    = "union"
+	CategoryRace     = "race"
+	CategoryActivity = "activity"
+	CategorySystem   = "system"
 )
 
 const (

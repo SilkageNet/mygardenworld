@@ -27,11 +27,11 @@ func TestEventMetadataDefaults(t *testing.T) {
 		{kind: "order_satin_finish", category: "order", domain: "order.resident", action: "order", label: "绸缎订单", level: "info"},
 		{kind: "order_decorate_finish", category: "order", domain: "order.resident", action: "order", label: "建材订单", level: "info"},
 		{kind: "order_reward", category: "order", domain: "order.resident", action: "claim", label: "居民订单领奖", level: "info"},
-		{kind: "flower_rack_sell", category: "flower_art", domain: "order.flower_art", action: "sell", label: "花艺上架", level: "info"},
-		{kind: "flower_rack_claim", category: "flower_art", domain: "order.flower_art", action: "claim", label: "花艺售出", level: "info"},
+		{kind: "flower_rack_sell", category: "order", domain: "order.flower_art", action: "sell", label: "花艺上架", level: "info"},
+		{kind: "flower_rack_claim", category: "order", domain: "order.flower_art", action: "claim", label: "花艺售出", level: "info"},
 		{kind: "union_build", category: "union", domain: "union.build", action: "build", label: "公会建设", level: "info"},
 		{kind: "union_flower_take", category: "union", domain: "union.flower.take", action: "take", label: "公会摸花", level: "info"},
-		{kind: "redeem_code", category: "redeem", domain: "redeem.code", action: "use", label: "兑换码", level: "info"},
+		{kind: "redeem_code", category: "system", domain: "redeem.code", action: "use", label: "兑换码", level: "info"},
 	}
 
 	for _, tt := range tests {
@@ -62,6 +62,8 @@ func TestNormalizeEventCategoryRejectsLegacyBuckets(t *testing.T) {
 		"resource":    "basic",
 		"reward":      "basic",
 		"task":        "basic",
+		"flower_art":  "order",
+		"redeem":      "system",
 	}
 	for legacy, want := range cases {
 		if got := normalizeEventCategory(legacy, "resource_changed"); got != want {
