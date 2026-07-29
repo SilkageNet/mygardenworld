@@ -42,7 +42,7 @@
 //	106        | Flower art / share state          | flowerArt.makeFlowerArt, usr.share
 //	109        | Customer orders                  | orderCustomer.*
 //	112        | Gift bag shop                    | shopGiftbag.enter/buy
-//	113        | Cultivation material shop        | shopCultivate.enter/buy
+//	113        | Cultivation material shop        | shopCultivate.enter/refresh/buy
 //	114        | Waterwheel state (see below)     | waterwheel.*
 //	115        | Pearl state                       | pearl.*, pearlPlace.*
 //	116        | Benefit-box state (see below)    | benefitBox.draw
@@ -210,15 +210,27 @@
 // is positive, benefitBox.draw can claim one reward; resetCntTime is the
 // client-visible reset/cooldown timestamp.
 //
+// # Shop Cultivate / Material Shop (Namespace 113)
+//
+// Structure: {"0": uid, "1": infoMap, "2": lResetTime, "3": larTime, "4": mrCount,
+// "5": lmrTime, "6": bRecord, "7": uTime, "8": cTime}
+//
+// infoMap holds dynamic [costItemId, costCount] per shopId. bRecord tracks buy
+// counts against c_shop_cultivate.bLimit. Free auto-refresh uses
+// c_shop_cultivate.$autoRefreshCd (9000s ≈ 2h30m) relative to larTime and is
+// capped by $frTimes (vs mrCount). When the CD elapses and free times remain,
+// automation calls shopCultivate.refresh before buy; after free times are used
+// it must not refresh (paid refresh costs yuanbao via $nrResults).
+//
 // # Free Water (Namespace 117)
 //
 // Structure: {"0": uid, "1": recvIdx, "2": rTime, "3": uTime, "4": cTime}
 //
 // The client treats recvIdx as the list of free-water slot indexes already
 // claimed for the current reset day. freeWater.recv sends {idx} for the active
-// c_gameCfg.$freeWaterTime slot only; automation claims during the first minute
-// of each window start (11:00 and 17:00 Asia/Shanghai). idx 0 is valid and must
-// not be omitted from JSON.
+// c_gameCfg.$freeWaterTime slot only; automation claims any time that window is
+// open (typically 11:00–14:00 and 17:00–21:00 Asia/Shanghai) while the slot is
+// still unclaimed. idx 0 is valid and must not be omitted from JSON.
 //
 // # Zoo / Cat State (Namespace 33)
 //
@@ -314,6 +326,7 @@
 //	shopGiftbag.enter    {}                        → {112}
 //	shopGiftbag.buy      {shopId,num}              → {7,112}
 //	shopCultivate.enter  {}                        → {113}
+//	shopCultivate.refresh {}                       → {113}
 //	shopCultivate.buy    {shopId}                  → {7,113}
 //	Fml.build            {id}                      → {7,25}           guild build/donation
 //	fmlLand.harvest      {landIds}                 → {7,25}

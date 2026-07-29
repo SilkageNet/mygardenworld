@@ -35,7 +35,7 @@ func Recommend(land state.LandView, now time.Time) (kind, reason string) {
 	return KindWait, fmt.Sprintf("state=%d not actionable", land.State)
 }
 
-func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time) []PlannedOp {
+func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time, suppressAutoReplant bool) []PlannedOp {
 	if policy == nil {
 		return nil
 	}
@@ -59,7 +59,12 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
-	raceDriven := hasRacePlantDemand(demands)
+	// Race plant-harvest must keep driving farm while the task is unfinished:
+	// after planting, pending yield clears the plant demand, but lands still
+	// need watering (and later harvest). suppressAutoReplant is true for that
+	// whole window.
+	raceProgress := suppressAutoReplant
+	raceDriven := hasRacePlantDemand(demands) || raceProgress
 	if (plantingPolicy.GetAutoHarvestEnabled() || raceDriven) && len(harvest) > 0 {
 		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
 	}
@@ -67,7 +72,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		return ops
 	}
 	if len(plant) > 0 {
-		plan := planPlantAssignments(s, policy, demands, int32(len(plant)))
+		plan := planPlantAssignments(s, policy, demands, int32(len(plant)), suppressAutoReplant || raceDriven)
 		cursor := 0
 		for _, assignment := range plan.executable {
 			if cursor >= len(plant) {
@@ -87,6 +92,15 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 		for _, diagnostic := range plan.blockedDiagnostic {
 			ops = append(ops, blockedPlantDiagnosticOp(diagnostic))
+		}
+	}
+	if len(water) > 0 {
+		// When only race auto-complete is driving the farm (planting auto off),
+		// water the race flower lands that still need their first water.
+		if !plantingPolicy.GetAutoEnabled() && raceProgress {
+			if flowerID := racePlantHarvestFlowerID(s, demands); flowerID > 0 {
+				water = filterLandIDsByFlower(s, water, flowerID)
+			}
 		}
 	}
 	if len(water) > 0 {
@@ -145,25 +159,29 @@ const blockedPlantDiagnosticPriority int32 = 1000
 const blockedPlantDiagnosticReason = "需求花朵尚未培育，无法种植"
 
 func plantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, emptyCount int32) []plantAssignment {
-	return planPlantAssignments(s, policy, demands, emptyCount).executable
+	return planPlantAssignments(s, policy, demands, emptyCount, false).executable
 }
 
-func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, emptyCount int32) plantAssignmentPlan {
+func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Demand, emptyCount int32, suppressAutoReplant bool) plantAssignmentPlan {
 	if emptyCount <= 0 {
 		return plantAssignmentPlan{}
 	}
 	plantingPolicy := policy.GetPlanting()
 	allowed, blocked := autoReplantFlowerFilters(plantingPolicy)
-	candidates := s.PlantableFlowers(allowed, blocked)
+	candidates := filterPlantableByAutoReplantQualities(s.PlantableFlowers(allowed, blocked), plantingPolicy)
 	plantable := map[int32]state.PlantableFlower{}
 	for _, candidate := range s.PlantableFlowers(nil, nil) {
 		plantable[candidate.FlowerID] = candidate
 	}
+	demandPlanting := plantingPolicy.GetDemandPriorityEnabled()
 	var out []plantAssignment
 	var diagnostics []plantAssignment
 	remaining := emptyCount
 	for _, demand := range demands {
 		if demand.Kind != DemandKindFlower || demand.Missing <= 0 || len(demand.BlockedReasons) > 0 {
+			continue
+		}
+		if !demandPlanting && !isRaceDrivenFlowerDemand(demand) {
 			continue
 		}
 		if _, ok := plantable[demand.ItemID]; !ok {
@@ -197,16 +215,68 @@ func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Dema
 		remaining -= count
 	}
 	executable := executableAssignments(out)
-	if len(executable) > 0 || remaining <= 0 {
+	if remaining <= 0 || suppressAutoReplant {
 		return plantAssignmentPlan{executable: executable, blockedDiagnostic: diagnostics}
 	}
 	mode := plantingPolicy.GetAutoReplantMode()
 	if autoReplantUsesLowestStockBatch(mode) {
 		applyPlantedLandStock(s, candidates)
+		applyAssignmentStock(candidates, executable)
 	}
+	fallback := autoReplantAssignments(candidates, remaining, mode)
 	return plantAssignmentPlan{
-		executable:        autoReplantAssignments(candidates, remaining, mode),
+		executable:        append(executable, fallback...),
 		blockedDiagnostic: diagnostics,
+	}
+}
+
+func isRaceDrivenFlowerDemand(demand Demand) bool {
+	return demand.GoalID == raceActionGoal && demand.Source == "race_task"
+}
+
+func racePlantHarvestFlowerID(s *state.State, demands []Demand) int32 {
+	for _, demand := range demands {
+		if isRaceDrivenFlowerDemand(demand) && demand.ItemID > 0 {
+			return demand.ItemID
+		}
+	}
+	if s == nil {
+		return 0
+	}
+	taken := s.FmlRace().Taken
+	if taken.HasTask && taken.TaskType == raceTaskTypePlantHarvest && taken.ParamID > 0 {
+		return taken.ParamID
+	}
+	return 0
+}
+
+func filterLandIDsByFlower(s *state.State, landIDs []int32, flowerID int32) []int32 {
+	if s == nil || flowerID <= 0 || len(landIDs) == 0 {
+		return landIDs
+	}
+	lands := s.Lands()
+	out := make([]int32, 0, len(landIDs))
+	for _, id := range landIDs {
+		if int32(lands[id].FlowerID) == flowerID {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func applyAssignmentStock(candidates []state.PlantableFlower, assignments []plantAssignment) {
+	if len(candidates) == 0 || len(assignments) == 0 {
+		return
+	}
+	added := map[int32]int32{}
+	for _, assignment := range assignments {
+		if assignment.FlowerID <= 0 || assignment.Count <= 0 {
+			continue
+		}
+		added[assignment.FlowerID] += assignment.Count
+	}
+	for i := range candidates {
+		candidates[i].Stock += added[candidates[i].FlowerID]
 	}
 }
 
@@ -264,9 +334,6 @@ func sortPlantableByStock(candidates []state.PlantableFlower) {
 	sort.Slice(candidates, func(i, j int) bool {
 		if candidates[i].Stock != candidates[j].Stock {
 			return candidates[i].Stock < candidates[j].Stock
-		}
-		if candidates[i].Gold != candidates[j].Gold {
-			return candidates[i].Gold > candidates[j].Gold
 		}
 		return candidates[i].FlowerID < candidates[j].FlowerID
 	})
@@ -357,6 +424,29 @@ func autoReplantFlowerFilters(policy *pb.PlantingPolicy) (allowed []int32, block
 	default:
 		return nil, nil
 	}
+}
+
+// filterPlantableByAutoReplantQualities applies quality limits for ALL-mode
+// autonomous replanting. Empty qualities means every quality is allowed.
+func filterPlantableByAutoReplantQualities(candidates []state.PlantableFlower, policy *pb.PlantingPolicy) []state.PlantableFlower {
+	if policy == nil {
+		return candidates
+	}
+	switch policy.GetAutoReplantMode() {
+	case pb.SelectionMode_SELECTION_MODE_SPECIFIC, pb.SelectionMode_SELECTION_MODE_EXCLUDE:
+		return candidates
+	}
+	allowed := int32Set(policy.GetAutoReplantQualities())
+	if len(allowed) == 0 {
+		return candidates
+	}
+	out := make([]state.PlantableFlower, 0, len(candidates))
+	for _, candidate := range candidates {
+		if allowed[flowerQuality(candidate.FlowerID)] {
+			out = append(out, candidate)
+		}
+	}
+	return out
 }
 
 func uniquePositiveInt32s(values []int32) []int32 {

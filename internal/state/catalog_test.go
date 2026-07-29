@@ -121,6 +121,27 @@ func TestFmlRaceTaskUpgradeCost(t *testing.T) {
 	}
 }
 
+func TestFmlRaceBaseAndTotalTaskNum(t *testing.T) {
+	if got := FmlRaceBaseTaskNum(0); got != 9 {
+		t.Fatalf("default lvl1 base=%d, want 9", got)
+	}
+	if got := FmlRaceBaseTaskNum(3); got != 15 {
+		t.Fatalf("乙级 base=%d, want 15", got)
+	}
+	if got := FmlRaceBaseTaskNum(4); got != 18 {
+		t.Fatalf("甲级 base=%d, want 18", got)
+	}
+	if got := FmlRaceTotalTaskNum(0, 2); got != 0 {
+		t.Fatalf("unknown raceLvl total=%d, want 0", got)
+	}
+	if got := FmlRaceTotalTaskNum(4, 2); got != 18 {
+		t.Fatalf("total ignores buy=%d, want 18", got)
+	}
+	if got := FmlRaceTotalTaskNum(1, 0); got != 9 {
+		t.Fatalf("total no buy=%d, want 9", got)
+	}
+}
+
 func TestZooEventInfoDynamicReward(t *testing.T) {
 	event, ok := ZooEventInfoByID(2096)
 	if !ok {
@@ -155,6 +176,20 @@ func TestFlowerUpgradeCostForLevel(t *testing.T) {
 	}
 	if cost.ItemID != 22006 || cost.Count != 6 || cost.Gold != 1400 {
 		t.Fatalf("FlowerUpgradeCostForLevel(23006,4)=%+v, want item 22006 count 6 gold 1400", cost)
+	}
+}
+
+func TestFlowerLvlYieldByID(t *testing.T) {
+	y1, ok := FlowerLvlYieldByID(23001, 1)
+	if !ok || y1.CropGets != 2 || y1.Frequencys != 1 || y1.FlowersPerPlant() != 2 {
+		t.Fatalf("FlowerLvlYieldByID(23001,1)=%+v ok=%v, want cropGets=2 frequencys=1", y1, ok)
+	}
+	y10, ok := FlowerLvlYieldByID(23001, 10)
+	if !ok || y10.CropGets != 3 || y10.Frequencys != 3 || y10.FlowersPerPlant() != 9 {
+		t.Fatalf("FlowerLvlYieldByID(23001,10)=%+v ok=%v, want cropGets=3 frequencys=3", y10, ok)
+	}
+	if _, ok := FlowerLvlYieldByID(23001, 0); ok {
+		t.Fatal("FlowerLvlYieldByID(23001,0) should be false")
 	}
 }
 

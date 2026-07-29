@@ -70,6 +70,10 @@ func (r *Runner) tick(ctx context.Context) {
 		r.resetSideLaneFairness()
 		return
 	}
+	r.tickResidentOrderSync(ctx, snapshot.client, snapshot.session, snapshot.policy)
+	if r.isSessionInvalidated() {
+		return
+	}
 
 	r.emitCustomerOrderInfo()
 	r.emitResidentOrderLimitInfo(snapshot.policy, now)

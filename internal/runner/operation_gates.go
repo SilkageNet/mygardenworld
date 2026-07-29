@@ -273,6 +273,26 @@ func isRaceTakeAlreadyTakenError(kind string, err error) bool {
 	return rpcErr.Envelope.ErrorCodeOfLangJS() == "fmlRace_tips1"
 }
 
+func isFmlFlowerTakeDailyLimitError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlFlowerShareTake.String() || err == nil {
+		return false
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "今日拿取次数已达上限") || strings.Contains(msg, "fmlShare_tips8") {
+		return true
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		if rpcErr.Envelope.ErrorCodeOfLangJS() == "fmlShare_tips8" {
+			return true
+		}
+		if strings.Contains(rpcErr.Envelope.ErrorMsg(), "今日拿取次数已达上限") {
+			return true
+		}
+	}
+	return false
+}
+
 func isTaskGroupFinishedError(kind string, err error) bool {
 	if err == nil {
 		return false

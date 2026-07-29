@@ -96,6 +96,22 @@ type FlowerUpgradeCost struct {
 	Gold   int32
 }
 
+// FlowerLvlYield is the harvest profile from one c_flowerLvl row: flowers per
+// harvest action (cropGets) and harvest rounds per planting (frequencys).
+type FlowerLvlYield struct {
+	Level      int32
+	CropGets   int32
+	Frequencys int32
+}
+
+// FlowersPerPlant returns cropGets * frequencys, or 0 when either side is unset.
+func (y FlowerLvlYield) FlowersPerPlant() int32 {
+	if y.CropGets <= 0 || y.Frequencys <= 0 {
+		return 0
+	}
+	return y.CropGets * y.Frequencys
+}
+
 // FlowerArtRecipe describes the flower-art craft input from c_flowerArt.
 type FlowerArtRecipe struct {
 	ArtID     int32
@@ -1720,6 +1736,40 @@ func ZooSouvenirCollectMilestones() []ZooSouvenirCollectInfo {
 	return out
 }
 
+// FmlRaceBaseTaskNum returns c_fmlRace(raceLvl).taskNum — the free task quota
+// for a guild race tier. Missing/invalid tiers fall back to level 1 (client
+// default: raceLvl||1). Returns 0 only when the catalog row is unavailable.
+func FmlRaceBaseTaskNum(raceLvl int32) int32 {
+	if raceLvl <= 0 {
+		raceLvl = 1
+	}
+	raw, ok := StaticRow("c_fmlRace", raceLvl)
+	if !ok && raceLvl != 1 {
+		raw, ok = StaticRow("c_fmlRace", 1)
+	}
+	if !ok {
+		return 0
+	}
+	var row struct {
+		TaskNum int32 `json:"taskNum"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.TaskNum <= 0 {
+		return 0
+	}
+	return row.TaskNum
+}
+
+// FmlRaceTotalTaskNum is the client-visible max free task count for a guild
+// race tier: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, 丙=12, 丁=9).
+// Purchased extras (buyTaskNum) are not included. Unknown raceLvl returns 0
+// so the UI does not fall back to 丁级's 9.
+func FmlRaceTotalTaskNum(raceLvl, _ int32) int32 {
+	if raceLvl <= 0 {
+		return 0
+	}
+	return FmlRaceBaseTaskNum(raceLvl)
+}
+
 // FmlRaceTaskTypeByID returns c_fmlRaceTask.type for a catalog task id.
 // When the row is missing, the id itself is returned so callers that already
 // store a type id (e.g. tests) keep working.
@@ -1983,6 +2033,26 @@ func FlowerBouquetItemID(flowerID int32) int32 {
 		return 0
 	}
 	return itemID
+}
+
+// FlowerLvlYieldByID returns cropGets/frequencys for a flower at cultivation
+// level. The client table key is flowerId*100+level.
+func FlowerLvlYieldByID(flowerID, level int32) (FlowerLvlYield, bool) {
+	if flowerID <= 0 || level <= 0 {
+		return FlowerLvlYield{}, false
+	}
+	raw, ok := StaticRow("c_flowerLvl", flowerID*100+level)
+	if !ok {
+		return FlowerLvlYield{}, false
+	}
+	var row struct {
+		CropGets   int32 `json:"cropGets"`
+		Frequencys int32 `json:"frequencys"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.CropGets <= 0 || row.Frequencys <= 0 {
+		return FlowerLvlYield{}, false
+	}
+	return FlowerLvlYield{Level: level, CropGets: row.CropGets, Frequencys: row.Frequencys}, true
 }
 
 // FlowerUpgradeCostForLevel returns the cost to upgrade a flower from its

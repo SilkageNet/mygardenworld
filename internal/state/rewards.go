@@ -93,6 +93,18 @@ func (s *State) applyShopCultivateLocked(raw json.RawMessage) {
 			s.shopCultivateResetMs = n
 		}
 	}
+	if rawLar, ok := fields["3"]; ok {
+		var n int64
+		if json.Unmarshal(rawLar, &n) == nil {
+			s.shopCultivateLarMs = n
+		}
+	}
+	if rawMr, ok := fields["4"]; ok {
+		var n int32
+		if json.Unmarshal(rawMr, &n) == nil {
+			s.shopCultivateMrCount = n
+		}
+	}
 	fullSnapshot := false
 	if rawInfo, ok := fields["1"]; ok {
 		fullSnapshot = true
@@ -433,6 +445,26 @@ func (s *State) ShopCultivateNeedsEnter(now time.Time) bool {
 	return gameDayID(now) > gameDayID(time.UnixMilli(s.shopCultivateResetMs))
 }
 
+// ShopCultivateAutoRefreshReady reports whether a free material-shop refresh is
+// available: the $autoRefreshCd since 113.3 larTime has elapsed, and free
+// refresh times ($frTimes vs 113.4 mrCount) remain. Once free times are used
+// up, further refresh costs yuanbao ($nrResults) and must not be automated.
+func (s *State) ShopCultivateAutoRefreshReady(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.shopCultivateObserved || s.shopCultivateLarMs <= 0 {
+		return false
+	}
+	if frTimes := shopCultivateFreeRefreshTimes(); s.shopCultivateMrCount >= frTimes {
+		return false
+	}
+	cd := shopCultivateAutoRefreshCD()
+	if cd <= 0 {
+		return false
+	}
+	return !now.Before(time.UnixMilli(s.shopCultivateLarMs).Add(cd))
+}
+
 // ShopCultivateOffers returns current material-shop offers enriched with the
 // static item/limit metadata from c_shop_cultivate.
 func (s *State) ShopCultivateOffers() []ShopCultivateOfferView {
@@ -725,6 +757,43 @@ func shopCultivateStatic(shopID int32) (itemID, itemCount, buyLimit, sortOrder i
 		sortOrder = n
 	}
 	return itemID, itemCount, buyLimit, sortOrder, itemID > 0
+}
+
+// shopCultivateAutoRefreshCD is c_shop_cultivate[-1].$autoRefreshCd (seconds).
+// Catalog value is 9000 (2h30m); clients often display the remaining countdown
+// rounded up by one second.
+func shopCultivateAutoRefreshCD() time.Duration {
+	rawRow, ok := StaticRow("c_shop_cultivate", -1)
+	if !ok {
+		return 9000 * time.Second
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return 9000 * time.Second
+	}
+	n, ok := readInt32JSONField(row, "$autoRefreshCd")
+	if !ok || n <= 0 {
+		return 9000 * time.Second
+	}
+	return time.Duration(n) * time.Second
+}
+
+// shopCultivateFreeRefreshTimes is c_shop_cultivate[-1].$frTimes.
+// After this many refreshes (113.4 mrCount), refresh costs yuanbao via $nrResults.
+func shopCultivateFreeRefreshTimes() int32 {
+	rawRow, ok := StaticRow("c_shop_cultivate", -1)
+	if !ok {
+		return 3
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return 3
+	}
+	n, ok := readInt32JSONField(row, "$frTimes")
+	if !ok || n < 0 {
+		return 3
+	}
+	return n
 }
 
 func shopGiftbagStatic(shopID int32, rawRow json.RawMessage) (ShopGiftbagOfferView, bool) {

@@ -370,6 +370,16 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 		BatchStatus:     view.BatchStatus,
 		TasksSyncedAtMs: view.TasksSyncedAtMs,
 	}
+	if view.TaskQuotaObserved {
+		out.TaskQuotaObserved = true
+		out.FinishedTaskNum = view.FinishedTaskNum
+		raceLvl := view.RaceLvl
+		if raceLvl <= 0 {
+			raceLvl = s.FmlBuild().RaceLvl
+		}
+		out.RaceLvl = raceLvl
+		out.TotalTaskNum = state.FmlRaceTotalTaskNum(raceLvl, view.BuyTaskNum)
+	}
 
 	if view.Taken.HasTask {
 		taskType := view.Taken.TaskType
@@ -1191,7 +1201,7 @@ func plannedOperationsProto(ops []automation.PlannedOp, diag runner.Diagnostics)
 	for _, op := range ops {
 		cooldownUntil := op.CooldownUntil
 		cooldownReason := op.CooldownReason
-		if cd, ok := cooldowns[op.OperationID]; ok {
+		if cd, ok := lookupPlannedOperationCooldown(cooldowns, op); ok {
 			cooldownUntil = cd.Until
 			cooldownReason = cd.Reason
 		}
@@ -1246,6 +1256,20 @@ func cooldownsByOperation(diag runner.Diagnostics) map[string]runner.OperationCo
 		out[cd.OperationID] = cd
 	}
 	return out
+}
+
+func lookupPlannedOperationCooldown(cooldowns map[string]runner.OperationCooldownSnapshot, op automation.PlannedOp) (runner.OperationCooldownSnapshot, bool) {
+	if key := strings.TrimSpace(op.CooldownKey); key != "" {
+		if cd, ok := cooldowns[key]; ok {
+			return cd, true
+		}
+	}
+	if op.OperationID != "" {
+		if cd, ok := cooldowns[op.OperationID]; ok {
+			return cd, true
+		}
+	}
+	return runner.OperationCooldownSnapshot{}, false
 }
 
 func executionLaneProto(lane string) pb.ExecutionLane {
@@ -1445,8 +1469,8 @@ func orderStatisticsProto(st *state.State, now time.Time) *pb.OrderStatisticsVie
 		ResidentNormalFinished:   st.ResidentOrderFinishNum(now),
 		PalaceFinished:           stats.OrderPalaceFinishNum,
 		CustomerFinished:         stats.OrderCustomerFinishNum,
-		ResidentSatinFinished:    stats.OrderSatinFinishNum,
-		ResidentDecorateFinished: stats.OrderDecorateFinishNum,
+		ResidentSatinFinished:    st.ResidentSatinFinishNum(now),
+		ResidentDecorateFinished: st.ResidentDecorateFinishNum(now),
 		FlowerArtSold:            stats.FlowerArtSellNum,
 		UpdatedAtMs:              stats.UTimeMs,
 		CreatedAtMs:              stats.CTimeMs,

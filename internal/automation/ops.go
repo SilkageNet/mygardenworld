@@ -94,7 +94,10 @@ func operationComesBefore(left, right PlannedOp) bool {
 	if left.Domain != right.Domain {
 		return left.Domain < right.Domain
 	}
-	return left.OperationID < right.OperationID
+	// Equal-rank ops keep planner insertion order (SliceStable). Do not tie-break
+	// on OperationID: auto-replant batches encode flower IDs there, and string
+	// order would starve high flower IDs even when they have the lowest stock.
+	return false
 }
 
 // A pure cyclic-note auto-replant remains a farm-lane operation for runner
@@ -182,11 +185,12 @@ func DefaultPolicy() *pb.Policy {
 				TargetLevel: 20,
 			},
 			Planting: &pb.PlantingPolicy{
-				AutoEnabled:        true,
-				AutoHarvestEnabled: true,
-				DemandPriority:     defaultDemandPriority(),
-				MinWaterDrops:      5,
-				AutoReplantMode:    pb.SelectionMode_SELECTION_MODE_ALL,
+				AutoEnabled:           true,
+				AutoHarvestEnabled:    true,
+				DemandPriority:        defaultDemandPriority(),
+				DemandPriorityEnabled: false,
+				MinWaterDrops:         5,
+				AutoReplantMode:       pb.SelectionMode_SELECTION_MODE_ALL,
 			},
 			FriendSteal: &pb.FriendStealPolicy{},
 			Elves:       &pb.FlowerElvesPolicy{},

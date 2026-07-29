@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type PointerEvent, type ReactNode } from "react";
 import { create } from "@bufbuild/protobuf";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
@@ -175,7 +175,7 @@ const policyClient = createClient(PolicyService, transport);
 const queryClient = createClient(QueryService, transport);
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
-const EVENT_LIMIT = 120;
+const EVENT_LIMIT = 500;
 const EVENT_RECONNECT_INITIAL_MS = 1000;
 const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
@@ -186,6 +186,8 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "inventory_changed",
   "land_changed",
   "order_finish",
+  "order_satin_finish",
+  "order_decorate_finish",
   "order_customer",
   "flower_art",
   "flower_rack",
@@ -205,7 +207,7 @@ const GOAL_OPTIONS = [
   { id: "fallback.auto_replant", label: "自主补种", defaultPriority: 10 },
 ];
 
-type DashboardTabId = "monitor" | "settings" | "logs";
+type DashboardTabId = "monitor" | "settings" | "logs" | "race" | "land" | "warehouse";
 type PolicyTabId = "basic" | "order" | "union" | "other" | "activity";
 type AccountQuota = {
   current: number;
@@ -234,9 +236,13 @@ const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] =
   { id: "monitor", label: "监控", icon: <BadgeCheck /> },
   { id: "settings", label: "设置", icon: <ShieldCheck /> },
   { id: "logs", label: "日志", icon: <CalendarDays /> },
+  { id: "race", label: "公会竞赛", icon: <Trophy /> },
+  { id: "land", label: "土地", icon: <Sprout /> },
+  { id: "warehouse", label: "仓库", icon: <Package /> },
 ];
 
 const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
+const QUALITY_LABELS: Record<number, string> = { 1: "凡", 2: "普", 3: "珍", 4: "华", 5: "仙" };
 
 const SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
@@ -1154,7 +1160,7 @@ function AccountDetailView({
       <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
       {activeTab === "monitor" && (
         <div className="min-h-0">
-          <MonitorTab snapshot={snapshot} status={status} policy={policy} />
+          <MonitorTab snapshot={snapshot} status={status} />
         </div>
       )}
       {activeTab === "logs" && (
@@ -1173,6 +1179,21 @@ function AccountDetailView({
             onPolicyChange={onPolicyChange}
             onSave={onPolicySave}
           />
+        </div>
+      )}
+      {activeTab === "race" && (
+        <div className="min-h-0">
+          <RaceTab snapshot={snapshot} policy={policy} />
+        </div>
+      )}
+      {activeTab === "land" && (
+        <div className="min-h-0">
+          <LandTab snapshot={snapshot} policy={policy} />
+        </div>
+      )}
+      {activeTab === "warehouse" && (
+        <div className="min-h-0">
+          <WarehouseTab snapshot={snapshot} />
         </div>
       )}
     </div>
@@ -1211,11 +1232,9 @@ function DashboardTabBar({
 function MonitorTab({
   snapshot,
   status,
-  policy,
 }: {
   snapshot: GetSnapshotResponse | null;
   status?: AccountStatus;
-  policy: Policy | null;
 }) {
   const runtimeStatistics = snapshot?.runtimeStatistics ?? status?.runtimeStatistics;
   return (
@@ -1224,10 +1243,49 @@ function MonitorTab({
       <RuntimeStatisticsPanel runtimeStatistics={runtimeStatistics} />
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
-      <LandWarehouseMonitorPanel lands={snapshot?.lands ?? []} ledger={snapshot?.inventoryLedger} />
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
-      <FmlRaceMonitorPanel race={snapshot?.fmlRace} showTakenTask={policy?.union?.race?.autoEnableModules ?? false} />
       <DessertMonitorPanel activity={snapshot?.dessert} />
+    </div>
+  );
+}
+
+function RaceTab({
+  snapshot,
+  policy,
+}: {
+  snapshot: GetSnapshotResponse | null;
+  policy: Policy | null;
+}) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <FmlRaceMonitorPanel race={snapshot?.fmlRace} showTakenTask={policy?.union?.race?.enabled ?? true} />
+    </div>
+  );
+}
+
+function LandTab({
+  snapshot,
+  policy,
+}: {
+  snapshot: GetSnapshotResponse | null;
+  policy: Policy | null;
+}) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <LandMonitorPanel
+        lands={snapshot?.lands ?? []}
+        waterDrops={snapshot?.waterDrops ?? 0}
+        waterDropsTotal={snapshot?.waterDropsTotal ?? 0}
+        minWaterDrops={policy?.planting?.minWaterDrops ?? 0}
+      />
+    </div>
+  );
+}
+
+function WarehouseTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <WarehouseMonitorPanel ledger={snapshot?.inventoryLedger} />
     </div>
   );
 }
@@ -1626,6 +1684,9 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
   const batchActive = race?.batchActive ?? false;
   const batchStartMs = race?.batchStartMs ?? BigInt(0);
   const batchEndMs = race?.batchEndMs ?? BigInt(0);
+  const taskQuotaObserved = race?.taskQuotaObserved ?? false;
+  const finishedTaskNum = race?.finishedTaskNum ?? 0;
+  const totalTaskNum = race?.totalTaskNum ?? 0;
 
   const formatMs = (ms: bigint) => {
     if (ms === BigInt(0)) return "";
@@ -1650,6 +1711,14 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
           ) : (
             <Badge variant="secondary">竞赛进行中</Badge>
           )}
+          {taskQuotaObserved && totalTaskNum > 0 && (
+            <Badge variant="outline">
+              已做 {finishedTaskNum}/{totalTaskNum}
+            </Badge>
+          )}
+          {taskQuotaObserved && totalTaskNum <= 0 && (
+            <Badge variant="outline">已做 {finishedTaskNum}</Badge>
+          )}
           {showTakenTask && taken?.hasTask && <Badge variant="secondary">已接任务</Badge>}
           {tasks.length > 0 && <Badge variant="outline">{tasks.length} 个可选</Badge>}
         </>
@@ -1668,6 +1737,15 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
         />
       ) : (
         <>
+          {taskQuotaObserved && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-border/58 bg-white/34 px-3 py-2 text-sm dark:bg-white/5">
+              <span className="text-muted-foreground">任务次数</span>
+              <span className="font-medium">
+                {totalTaskNum > 0 ? `已做 ${finishedTaskNum} / 总 ${totalTaskNum}` : `已做 ${finishedTaskNum}`}
+              </span>
+            </div>
+          )}
+
           {showTakenTask &&
             (taken?.hasTask ? (
               <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
@@ -2424,109 +2502,156 @@ function RequirementChips({ requirements }: { requirements: RequirementView[] })
   );
 }
 
-function LandWarehouseMonitorPanel({ lands, ledger }: { lands: LandView[]; ledger?: InventoryLedgerView }) {
-  const openedCount = lands.filter((land) => land.landStatus === "opened").length;
-  const inventoryCount = (ledger?.items ?? []).filter((item) => item.owned > 0 || item.allocated > 0).length;
-  return (
-    <CollapsibleCard
-      title="土地/仓库监控"
-      contentClassName="grid gap-3 xl:grid-cols-2"
-      actions={
-        <>
-          <Badge variant="secondary">土地 {openedCount}</Badge>
-          <Badge variant="secondary">仓库 {inventoryCount}</Badge>
-        </>
-      }
-    >
-      <LandStatusPanel lands={lands} />
-      <InventoryLedgerPanel ledger={ledger} />
-    </CollapsibleCard>
-  );
-}
-
-function LandStatusPanel({ lands }: { lands: LandView[] }) {
-  const visibleLands = useMemo(
-    () => lands.filter((land) => land.landStatus === "opened").sort((a, b) => a.landId - b.landId),
-    [lands],
-  );
-  const recommendationStats = useMemo(() => {
+function LandMonitorPanel({
+  lands,
+  waterDrops,
+  waterDropsTotal,
+  minWaterDrops,
+}: {
+  lands: LandView[];
+  waterDrops: number;
+  waterDropsTotal: number;
+  minWaterDrops: number;
+}) {
+  const landsByDisplay = useMemo(() => {
+    const map = new Map<number, LandView>();
+    for (const land of lands) {
+      map.set(landDisplayNumber(land.landId), land);
+    }
+    return map;
+  }, [lands]);
+  const mapSlots = useMemo(() => {
+    // 8×8 map order: left 1-32 by rows of 4, right 33-64 by rows of 4.
+    // Row 0: 1-4, 33-36 … Row 7: 29-32, 61-64
+    const slots: number[] = [];
+    for (let row = 0; row < 8; row++) {
+      for (let i = 0; i < 4; i++) slots.push(row * 4 + 1 + i);
+      for (let i = 0; i < 4; i++) slots.push(33 + row * 4 + i);
+    }
+    return slots;
+  }, []);
+  const recommendationCounts = useMemo(() => {
     const stats = new Map<string, number>();
-    for (const land of visibleLands) {
+    for (const land of lands) {
+      if (land.landStatus !== "opened") continue;
       stats.set(land.recommendation || "unknown", (stats.get(land.recommendation || "unknown") ?? 0) + 1);
     }
-    const visibleKeys = new Set(["harvest", "plant", "water", "wait"]);
-    return [...stats.entries()].filter(([key]) => visibleKeys.has(key)).sort((a, b) => b[1] - a[1]);
-  }, [visibleLands]);
+    return stats;
+  }, [lands]);
+  const availableWaterDrops = Math.max(0, waterDrops - minWaterDrops);
   const openedCount = lands.filter((land) => land.landStatus === "opened").length;
   const unopenedCount = lands.filter((land) => land.landStatus === "unopened").length;
   const lockedCount = lands.filter((land) => land.landStatus === "locked").length;
+  const statusOrder = ["harvest", "plant", "water", "wait"] as const;
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
-      <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
-        <span>土地</span>
-        <div className="flex flex-wrap justify-end gap-1.5">
+    <CollapsibleCard
+      title="土地"
+      actions={
+        <>
           <Badge variant="secondary">已开 {openedCount}</Badge>
           {unopenedCount > 0 && <Badge variant="outline">未开 {unopenedCount}</Badge>}
           {lockedCount > 0 && <Badge variant="outline">锁定 {lockedCount}</Badge>}
-        </div>
-      </div>
-      <div className="p-3">
-        {lands.length === 0 ? (
-          <EmptyState title="暂无土地快照" />
-        ) : visibleLands.length === 0 ? (
-          <EmptyState title="暂无已开放土地" />
-        ) : (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {recommendationStats.map(([key, count]) => (
-                <Badge key={key} variant="outline">
-                  {recommendationLabel(key)} {count}
-                </Badge>
-              ))}
-            </div>
-            <div className="dark-scrollbar grid max-h-[440px] gap-2 overflow-y-auto pr-0.5 sm:h-[560px] sm:max-h-none sm:grid-cols-2 sm:pr-1">
-              {visibleLands.map((land) => (
-                <LandTile key={land.landId} land={land} />
-              ))}
+        </>
+      }
+    >
+      {lands.length === 0 ? (
+        <EmptyState title="暂无土地快照" />
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {statusOrder.map((key) => {
+              const count = recommendationCounts.get(key) ?? 0;
+              return (
+                <Fragment key={key}>
+                  {count > 0 && (
+                    <Badge variant="outline">
+                      {recommendationLabel(key)} {count}
+                    </Badge>
+                  )}
+                  {key === "plant" && (
+                    <>
+                      <Badge variant="outline">
+                        水滴总数 {formatCount(waterDrops)}/{formatCount(waterDropsTotal)}
+                      </Badge>
+                      {minWaterDrops > 0 && <Badge variant="outline">可用水滴 {formatCount(availableWaterDrops)}</Badge>}
+                    </>
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
+          <div className="dark-scrollbar max-h-[440px] overflow-y-auto pr-0.5 sm:h-[560px] sm:max-h-none sm:pr-1">
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr)) 0.75rem repeat(4, minmax(0, 1fr))" }}
+            >
+              {mapSlots.flatMap((display, index) => {
+                const tile = (() => {
+                  const land = landsByDisplay.get(display);
+                  if (!land) {
+                    return (
+                      <div
+                        key={`slot-${display}`}
+                        className="flex min-h-[78px] items-center justify-center rounded-md border border-dashed border-border/45 text-xs text-muted-foreground"
+                      >
+                        #{display}
+                      </div>
+                    );
+                  }
+                  return <LandTile key={land.landId} land={land} />;
+                })();
+                if (index % 8 !== 4) return [tile];
+                return [<div key={`aisle-${index}`} className="min-h-[78px]" aria-hidden />, tile];
+              })}
             </div>
           </div>
-        )}
-      </div>
-    </section>
+        </div>
+      )}
+    </CollapsibleCard>
   );
 }
 
 function LandTile({ land }: { land: LandView }) {
   const planted = land.flowerId > 0;
   const status = land.landStatus || (land.observed ? "opened" : "unknown");
+  const opened = status === "opened";
   const recommendation = recommendationLabel(land.recommendation);
   const timing = landTimingLabel(land, status);
   return (
     <div
       className={cn(
-        "min-h-[78px] rounded-md border border-border/58 bg-white/58 p-2 shadow-sm transition-colors dark:bg-white/6",
-        land.recommendation === "harvest" && "border-primary/50 bg-primary/8",
-        land.recommendation === "water" && "border-sky-300/70 bg-sky-50/72 dark:bg-sky-500/10",
-        land.recommendation === "plant" && "border-amber-300/70 bg-amber-50/76 dark:bg-amber-400/10",
-        !land.observed && "opacity-70",
+        "min-h-[78px] rounded-md border border-border/58 bg-white/58 p-1.5 shadow-sm transition-colors dark:bg-white/6 sm:p-2",
+        opened && land.recommendation === "harvest" && "border-primary/50 bg-primary/8",
+        opened && land.recommendation === "water" && "border-sky-300/70 bg-sky-50/72 dark:bg-sky-500/10",
+        opened && land.recommendation === "plant" && "border-amber-300/70 bg-amber-50/76 dark:bg-amber-400/10",
+        !opened && "opacity-70",
+        !land.observed && opened && "opacity-70",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">
-          <div className="font-mono text-sm font-medium">{landDisplayName(land.landId)}</div>
+          <div className="font-mono text-xs font-medium sm:text-sm">{landDisplayName(land.landId)}</div>
         </div>
-        <Badge variant={land.recommendation === "harvest" ? "secondary" : "outline"} className="h-5 px-1.5 text-[11px]">
-          {recommendation}
+        <Badge variant={opened && land.recommendation === "harvest" ? "secondary" : "outline"} className="h-5 shrink-0 px-1 text-[10px] sm:px-1.5 sm:text-[11px]">
+          {opened ? recommendation : landStatusLabel(status)}
         </Badge>
       </div>
-      <div className="mt-1 truncate text-sm">{planted ? itemName(land.flowerId) : "空地"}</div>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span className="truncate">
-          {land.lvl ? `${land.lvl}级` : "-"}
-          {planted ? ` · 收${land.harvestCnt || 0}` : ""}
-        </span>
-        <span className="shrink-0">{timing}</span>
+      <div className="mt-1 truncate text-xs sm:text-sm">{opened ? (planted ? itemName(land.flowerId) : "空地") : landStatusLabel(status)}</div>
+      <div className="mt-1 text-[10px] text-muted-foreground sm:text-xs">
+        <div className="truncate">
+          {opened ? (
+            <>
+              {land.lvl ? `${land.lvl}级` : "-"}
+              {planted ? ` · 收${land.harvestCnt || 0}` : ""}
+            </>
+          ) : land.openLevel > 0 ? (
+            `${land.openLevel}级解锁`
+          ) : (
+            "-"
+          )}
+        </div>
+        <div className="text-left">{timing}</div>
       </div>
     </div>
   );
@@ -2554,7 +2679,7 @@ function warehouseSearchPlaceholder(category: WarehouseCategory) {
   }
 }
 
-function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
+function WarehouseMonitorPanel({ ledger }: { ledger?: InventoryLedgerView }) {
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [warehouseCategory, setWarehouseCategory] = useState<WarehouseCategory>("flower");
   const inventoryItems = useMemo(() => {
@@ -2585,90 +2710,89 @@ function InventoryLedgerPanel({ ledger }: { ledger?: InventoryLedgerView }) {
   const categoryLabel = warehouseCategoryLabel(warehouseCategory);
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
-      <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
-        <span>仓库</span>
-        {inventoryItems.length > 0 && (
-          <div className="flex flex-wrap justify-end gap-1.5">
+    <CollapsibleCard
+      title="仓库"
+      actions={
+        inventoryItems.length > 0 ? (
+          <>
             <Badge variant="secondary">种类 {inventoryItems.length}</Badge>
             {inventoryQuery.trim() && <Badge variant="outline">匹配 {visibleItems.length}</Badge>}
+          </>
+        ) : undefined
+      }
+    >
+      {inventoryItems.length > 0 && (
+        <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(296px,1fr)_minmax(150px,0.65fr)] lg:items-center">
+          <div className="grid min-w-0 grid-cols-3 rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5">
+            {WAREHOUSE_CATEGORIES.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                aria-pressed={warehouseCategory === category.id}
+                onClick={() => {
+                  setWarehouseCategory(category.id);
+                  setInventoryQuery("");
+                }}
+                className={cn(
+                  "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
+                  warehouseCategory === category.id
+                    ? "bg-white text-foreground shadow-sm dark:bg-muted"
+                    : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
+                )}
+              >
+                <span className="shrink-0 [&_svg]:size-3.5">{category.icon}</span>
+                <span className="shrink-0 whitespace-nowrap">{category.label}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{categoryCounts.get(category.id) ?? 0}</span>
+              </button>
+            ))}
           </div>
-        )}
-      </div>
-      <div className="p-3">
-        {inventoryItems.length > 0 && (
-          <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(296px,1fr)_minmax(150px,0.65fr)] lg:items-center">
-            <div className="grid min-w-0 grid-cols-3 rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5">
-              {WAREHOUSE_CATEGORIES.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  aria-pressed={warehouseCategory === category.id}
-                  onClick={() => {
-                    setWarehouseCategory(category.id);
-                    setInventoryQuery("");
-                  }}
-                  className={cn(
-                    "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded px-2 text-xs font-medium transition-colors",
-                    warehouseCategory === category.id
-                      ? "bg-white text-foreground shadow-sm dark:bg-muted"
-                      : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
-                  )}
-                >
-                  <span className="shrink-0 [&_svg]:size-3.5">{category.icon}</span>
-                  <span className="shrink-0 whitespace-nowrap">{category.label}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">{categoryCounts.get(category.id) ?? 0}</span>
-                </button>
-              ))}
-            </div>
-            <div className="relative min-w-0">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={inventoryQuery}
-                onChange={(event) => setInventoryQuery(event.target.value)}
-                placeholder={warehouseSearchPlaceholder(warehouseCategory)}
-                className="h-10 rounded-md pl-9"
-              />
-            </div>
+          <div className="relative min-w-0">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={inventoryQuery}
+              onChange={(event) => setInventoryQuery(event.target.value)}
+              placeholder={warehouseSearchPlaceholder(warehouseCategory)}
+              className="h-10 rounded-md pl-9"
+            />
           </div>
-        )}
-        {inventoryItems.length === 0 ? (
-          <EmptyState title="暂无仓库数据" />
-        ) : categoryItems.length === 0 ? (
-          <EmptyState title={`暂无${categoryLabel}`} />
-        ) : visibleItems.length === 0 ? (
-          <EmptyState title={`没有匹配${categoryLabel}`} detail="换个名称或 ID 再试试" />
-        ) : (
-          <div className="dark-scrollbar max-h-[440px] overflow-y-auto rounded-md border border-border/58 bg-white/42 sm:h-[560px] sm:max-h-none dark:bg-white/5">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-card/92 shadow-[0_1px_0_0_var(--border)] backdrop-blur-xl">
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="h-9 text-xs">名称</TableHead>
-                  <TableHead className="h-9 text-xs">数量</TableHead>
-                  <TableHead className="h-9 text-xs">预留</TableHead>
-                  <TableHead className="h-9 text-xs">可用</TableHead>
+        </div>
+      )}
+      {inventoryItems.length === 0 ? (
+        <EmptyState title="暂无仓库数据" />
+      ) : categoryItems.length === 0 ? (
+        <EmptyState title={`暂无${categoryLabel}`} />
+      ) : visibleItems.length === 0 ? (
+        <EmptyState title={`没有匹配${categoryLabel}`} detail="换个名称或 ID 再试试" />
+      ) : (
+        <div className="dark-scrollbar max-h-[440px] overflow-y-auto rounded-md border border-border/58 bg-white/42 sm:h-[560px] sm:max-h-none dark:bg-white/5">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-card/92 shadow-[0_1px_0_0_var(--border)] backdrop-blur-xl">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="h-9 text-xs">名称</TableHead>
+                <TableHead className="h-9 text-xs">数量</TableHead>
+                <TableHead className="h-9 text-xs">预留</TableHead>
+                <TableHead className="h-9 text-xs">可用</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleItems.map((item) => (
+                <TableRow key={item.itemId} className="h-10 hover:bg-muted/35">
+                  <TableCell className="min-w-0">
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate font-medium">{item.itemName || itemName(item.itemId)}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{item.itemId}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{item.owned}</TableCell>
+                  <TableCell className={cn(item.allocated > 0 && "text-primary")}>{item.allocated}</TableCell>
+                  <TableCell className={cn(item.available < 0 && "text-destructive")}>{item.available}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleItems.map((item) => (
-                  <TableRow key={item.itemId} className="h-10 hover:bg-muted/35">
-                    <TableCell className="min-w-0">
-                      <div className="flex min-w-0 items-baseline gap-2">
-                        <span className="truncate font-medium">{item.itemName || itemName(item.itemId)}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">{item.itemId}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.owned}</TableCell>
-                    <TableCell className={cn(item.allocated > 0 && "text-primary")}>{item.allocated}</TableCell>
-                    <TableCell className={cn(item.available < 0 && "text-destructive")}>{item.available}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
-    </section>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </CollapsibleCard>
   );
 }
 
@@ -3082,19 +3206,37 @@ function PolicyPanel({
                   options={AUTO_REPLANT_SELECTION_MODE_OPTIONS}
                   onChange={(value) => updatePlanting({ autoReplantMode: value })}
                 />
-                <FlowerMultiSelectRow
-                  label={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? "排除补种" : "指定补种"}
-                  value={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? planting?.autoReplantExcludeFlowerIds ?? [] : planting?.autoReplantFlowerIds ?? []}
-                  plantableFlowers={snapshot?.plantableFlowers ?? []}
-                  synced={Boolean(snapshot)}
-                  onChange={(value) =>
-                    (planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE
-                      ? updatePlanting({ autoReplantExcludeFlowerIds: value })
-                      : updatePlanting({ autoReplantFlowerIds: value })
-                  }
-                />
+                {(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.ALL ? (
+                  <QualityRow
+                    label="补种品质"
+                    value={planting?.autoReplantQualities ?? []}
+                    onChange={(value) => updatePlanting({ autoReplantQualities: value })}
+                    labels={QUALITY_LABELS}
+                    emptyMeansAll
+                  />
+                ) : (
+                  <FlowerMultiSelectRow
+                    label={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? "排除补种" : "指定补种"}
+                    value={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? planting?.autoReplantExcludeFlowerIds ?? [] : planting?.autoReplantFlowerIds ?? []}
+                    plantableFlowers={snapshot?.plantableFlowers ?? []}
+                    synced={Boolean(snapshot)}
+                    onChange={(value) =>
+                      (planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE
+                        ? updatePlanting({ autoReplantExcludeFlowerIds: value })
+                        : updatePlanting({ autoReplantFlowerIds: value })
+                    }
+                  />
+                )}
               </div>
-              <DemandPriorityEditor value={planting?.demandPriority ?? {}} onChange={(demandPriority) => updatePlanting({ demandPriority })} />
+              <ToggleRow
+                label="生产需求优先级"
+                checked={planting?.demandPriorityEnabled ?? false}
+                onChange={(checked) => updatePlanting({ demandPriorityEnabled: checked })}
+                description="开启后按下方排序优先为缺花订单/任务补种；关闭时空地只按库存自主补种"
+              />
+              {planting?.demandPriorityEnabled ? (
+                <DemandPriorityEditor value={planting?.demandPriority ?? {}} onChange={(demandPriority) => updatePlanting({ demandPriority })} />
+              ) : null}
             </PolicyGroup>
 
             <PolicyGroup title="培育配置" icon={<Flower2 />}>
@@ -3285,7 +3427,16 @@ function PolicyPanel({
                   description="需先开启普通居民订单；上限按今日已完成次数生效"
                   onChange={(value) => updateResident({ normalDailyLimit: value })}
                 />
-                <ToggleRow label="绸缎订单" checked={resident?.satinEnabled ?? false} onChange={(checked) => updateResident({ satinEnabled: checked })} />
+                <ToggleRow
+                  label="绸缎订单"
+                  checked={resident?.satinEnabled ?? false}
+                  onChange={(checked) =>
+                    updateResident({
+                      satinEnabled: checked,
+                      ...(checked && !(resident?.satinDailyLimit > 0) ? { satinDailyLimit: 120 } : {}),
+                    })
+                  }
+                />
                 <NumberRow
                   label="绸缎订单上限"
                   value={resident?.satinDailyLimit || 120}
@@ -3295,7 +3446,16 @@ function PolicyPanel({
                   description="需先开启绸缎订单；上限按今日已完成次数生效"
                   onChange={(value) => updateResident({ satinDailyLimit: value })}
                 />
-                <ToggleRow label="建材订单" checked={resident?.decorateEnabled ?? false} onChange={(checked) => updateResident({ decorateEnabled: checked })} />
+                <ToggleRow
+                  label="建材订单"
+                  checked={resident?.decorateEnabled ?? false}
+                  onChange={(checked) =>
+                    updateResident({
+                      decorateEnabled: checked,
+                      ...(checked && !(resident?.decorateDailyLimit > 0) ? { decorateDailyLimit: 120 } : {}),
+                    })
+                  }
+                />
                 <NumberRow
                   label="建材订单上限"
                   value={resident?.decorateDailyLimit || 120}
@@ -3402,8 +3562,8 @@ function PolicyPanel({
 
             <PolicyGroup title="公会竞赛" icon={<Trophy />}>
               <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步并展示任务池；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
-                <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进与提交竞赛任务；默认关闭" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
+                <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步任务池与当前已接任务（只读展示）；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
+                <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进种植/提交与放弃竞赛任务；默认关闭。未开启时仍会同步并显示已接任务，但不会自动执行" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
@@ -3833,6 +3993,7 @@ function FlowerMultiSelectRow({
     }
     return options.sort((a, b) => {
       if (a.plantable !== b.plantable) return a.plantable ? -1 : 1;
+      if (a.stock !== b.stock) return a.stock - b.stock;
       return a.id - b.id;
     });
   }, [plantableFlowers, value]);
@@ -3960,24 +4121,51 @@ function FlowerMultiSelectRow({
   );
 }
 
-function QualityRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
+function QualityRow({
+  label,
+  value,
+  onChange,
+  labels,
+  emptyMeansAll = false,
+}: {
+  label: string;
+  value: number[];
+  onChange: (value: number[]) => void;
+  labels?: Record<number, string>;
+  emptyMeansAll?: boolean;
+}) {
+  const selectedSet = useMemo(() => {
+    if (emptyMeansAll && value.length === 0) return new Set(QUALITY_OPTIONS);
+    return new Set(value);
+  }, [emptyMeansAll, value]);
+
+  const toggleQuality = (quality: number) => {
+    const current = emptyMeansAll && value.length === 0 ? [...QUALITY_OPTIONS] : value;
+    const next = toggleNumber(current, quality);
+    if (emptyMeansAll && next.length === QUALITY_OPTIONS.length) {
+      onChange([]);
+      return;
+    }
+    onChange(next);
+  };
+
   return (
     <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
       <div className="flex gap-1">
         {QUALITY_OPTIONS.map((quality) => {
-          const selected = value.includes(quality);
+          const selected = selectedSet.has(quality);
           return (
             <button
               key={quality}
               type="button"
-              onClick={() => onChange(toggleNumber(value, quality))}
+              onClick={() => toggleQuality(quality)}
               className={cn(
-                "flex size-7 items-center justify-center rounded border text-xs font-medium",
+                "flex h-7 min-w-7 items-center justify-center rounded border px-1.5 text-xs font-medium",
                 selected ? "border-primary bg-primary text-primary-foreground" : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",
               )}
             >
-              {quality}
+              {labels?.[quality] ?? quality}
             </button>
           );
         })}
@@ -4061,8 +4249,7 @@ function DemandPriorityEditor({
   return (
     <div className="mt-3 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex items-center justify-between gap-3">
-        <Label className="text-sm">生产需求优先级</Label>
-        <span className="text-xs text-muted-foreground">缺花补种排序</span>
+        <span className="text-xs text-muted-foreground">拖拽调整缺花补种顺序</span>
       </div>
       <div
         className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
@@ -4745,7 +4932,12 @@ function eventCategory(event: Event) {
 }
 
 function eventTitle(event: Event) {
-  return event.label || [event.domain, event.action].filter(Boolean).join(".") || event.kind || "-";
+  if (event.label) return event.label;
+  if (event.kind === "order_satin_finish") return "绸缎订单";
+  if (event.kind === "order_decorate_finish") return "建材订单";
+  if (event.domain?.includes("resident.satin")) return "绸缎订单";
+  if (event.domain?.includes("resident.decorate")) return "建材订单";
+  return [event.domain, event.action].filter(Boolean).join(".") || event.kind || "-";
 }
 
 function eventMessage(event: Event) {
@@ -4813,9 +5005,13 @@ function landStatusLabel(status: string) {
   }
 }
 
+function landDisplayNumber(landId: number) {
+  if (landId >= 1001 && landId < 2000) return landId - 1000;
+  return landId;
+}
+
 function landDisplayName(landId: number) {
-  if (landId >= 1001 && landId < 2000) return `#${landId - 1000}`;
-  return `#${landId}`;
+  return `#${landDisplayNumber(landId)}`;
 }
 
 function landTimingLabel(land: LandView, status: string) {

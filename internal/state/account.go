@@ -440,9 +440,9 @@ func (s *State) videoDoubleActiveLocked(now time.Time) bool {
 
 // NextFreeWaterIndex returns the currently claimable idx for freeWater.recv.
 // Catalog windows are 11:00–14:00 and 17:00–21:00 Asia/Shanghai; automation
-// only attempts recv during the first minute of each window start. When
-// namespace 117 has never been observed, unclaimed slots are assumed so the
-// first open-minute recv can bootstrap server state.
+// claims any time the active window is open and that slot is still unclaimed.
+// When namespace 117 has never been observed, unclaimed slots are assumed so
+// the first in-window recv can bootstrap server state.
 func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -484,13 +484,13 @@ type freeWaterClaimPeriod struct {
 	endMin   int
 }
 
-// claimOpen is true only during the first minute of the catalog window
-// (e.g. 11:00–11:00:59 for the morning slot).
+// claimOpen is true while the catalog window is active (start inclusive,
+// end exclusive), e.g. 11:00–13:59 for a [11,14] morning slot.
 func (p freeWaterClaimPeriod) claimOpen(minute int) bool {
 	if p.startMin == p.endMin {
 		return false
 	}
-	return minute == p.startMin
+	return minute >= p.startMin && minute < p.endMin
 }
 
 func freeWaterClaimPeriods() []freeWaterClaimPeriod {

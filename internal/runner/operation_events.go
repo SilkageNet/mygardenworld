@@ -40,6 +40,7 @@ const (
 	operationErrorWaterDropRejected       operationErrorKind = "water_drop_rejected"
 	operationErrorTaskGroupFinished       operationErrorKind = "task_group_finished"
 	operationErrorRaceTakeAlreadyTaken    operationErrorKind = "race_take_already_taken"
+	operationErrorFmlFlowerTakeDailyLimit operationErrorKind = "fml_flower_take_daily_limit"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -60,6 +61,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorTaskGroupFinished
 	case isRaceTakeAlreadyTakenError(kind, err):
 		return operationErrorRaceTakeAlreadyTaken
+	case isFmlFlowerTakeDailyLimitError(kind, err):
+		return operationErrorFmlFlowerTakeDailyLimit
 	default:
 		return operationErrorOrdinary
 	}
@@ -112,6 +115,7 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 		Category:    attempt.op.Category,
 		Domain:      attempt.op.Domain,
 		Action:      attempt.op.Action,
+		Label:       operationEventLabel(attempt.op),
 		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(attempt.op), r.opSuffix(attempt.op)),
 		PayloadJSON: operationPayload(attempt.op, attempt.args, nil, nil),
 	})
@@ -139,7 +143,14 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "retryAfterSeconds": int(harvestRetryWait.Seconds())})
 		return nil
 	case operationErrorResidentOrderCooldown:
-		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "服务端提示订单冷却中", 30*time.Second)
+		// Ordinary resident orders use $orderCd≈42s; satin/decorate use
+		// $orderCd2/$orderCd3=60s and commonly surface as ~61s after ceil.
+		cooldown := 30 * time.Second
+		if op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
+			op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String() {
+			cooldown = 61 * time.Second
+		}
+		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "服务端提示订单冷却中", cooldown)
 		r.emit(Event{
 			Kind:        "operation_deferred",
 			Category:    op.Category,
@@ -154,20 +165,47 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		return nil
 	case operationErrorResidentOrderDailyLimit:
 		now := result.finishedAt
-		isSpecial := op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
-			op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String()
-		if !isSpecial {
+		var until time.Time
+		var ok bool
+		isSpecial := false
+		switch op.Kind {
+		case clientproto.RPCOrderFlowerFinishSatinOrder.String():
+			isSpecial = true
+			r.state.MarkResidentSatinDailyLimitReached(now)
+			until, ok = r.state.ResidentSatinDailyLimitReached(now)
+			// Close short retry timers; planner consults the state marker until 00:00.
+			r.clearResidentSpecialOrderRetryTimers(op.Kind)
+		case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
+			isSpecial = true
+			r.state.MarkResidentDecorateDailyLimitReached(now)
+			until, ok = r.state.ResidentDecorateDailyLimitReached(now)
+			r.clearResidentSpecialOrderRetryTimers(op.Kind)
+		default:
 			r.state.MarkResidentOrderDailyLimitReached(now)
+			until, ok = r.state.ResidentOrderDailyLimitReached(now)
 		}
-		until, ok := r.state.ResidentOrderDailyLimitReached(now)
-		cooldown := 24 * time.Hour
-		if !isSpecial && ok {
-			cooldown = until.Sub(now)
-		}
-		payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示今日完成订单次数已达上限", cooldown)
 		label := operationEventLabel(op)
 		if label == "" {
 			label = "普通居民订单"
+		}
+		payloadOp := op
+		message := fmt.Sprintf("%s 暂停: %s已达服务端今日上限，已跳过以继续执行其他流程", opDesc(op), label)
+		if isSpecial {
+			resetAt := until
+			if !ok {
+				resetAt = state.NextCalendarDayReset(now)
+			}
+			message = fmt.Sprintf("%s 暂停: %s已达服务端今日上限，已关闭重试，等待次日0点（%s）后再继续",
+				opDesc(op), label, resetAt.Format("01/02 15:04"))
+		} else {
+			cooldown := 24 * time.Hour
+			if ok {
+				cooldown = until.Sub(now)
+			}
+			if cooldown <= 0 {
+				cooldown = time.Minute
+			}
+			payloadOp = r.cooldownSideOperation(op, now, err, "服务端提示今日完成订单次数已达上限", cooldown)
 		}
 		r.emit(Event{
 			Kind:        "operation_deferred",
@@ -175,12 +213,12 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Domain:      op.Domain,
 			Action:      "blocked",
 			Label:       label,
-			Message:     fmt.Sprintf("%s 暂停: %s已达服务端今日上限，已跳过以继续执行其他流程", opDesc(op), label),
+			Message:     message,
 			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
-		if !isSpecial {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() {
 			r.lastResidentOrderLimitReason = "server_daily_limit"
 		}
 		return nil
@@ -251,6 +289,30 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_taken_resync"})
 		return nil
+	case operationErrorFmlFlowerTakeDailyLimit:
+		now := result.finishedAt
+		r.state.MarkFmlFlowerTakeDailyLimitReached(now)
+		// Share one cooldown across all take targets (slot/uid variants).
+		if strings.TrimSpace(op.CooldownKey) == "" {
+			op.CooldownKey = "union.flower.take"
+		}
+		cooldown := state.NextCalendarDayReset(now).Sub(now)
+		if cooldown <= 0 {
+			cooldown = time.Minute
+		}
+		payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示今日拿取次数已达上限", cooldown)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 暂停: 服务端提示今日拿取次数已达上限，已跳过摸花以继续执行其他流程", opDesc(op)),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
+		return nil
 	default:
 		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "", 0)
 		r.emit(Event{
@@ -298,6 +360,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		kind = "union_flower_take"
 		label = "公会摸花"
 		message = fmt.Sprintf("公会摸花成功%s", unionFlowerTakeMessageSuffix(op))
+		r.state.NoteFmlFlowerShareTake(op.TargetUID, op.TargetID)
 	case clientproto.RPCFlowerRackSell.String():
 		kind = "flower_rack_sell"
 		label = "花艺上架"

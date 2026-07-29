@@ -44,7 +44,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		}
 		if resident.GetSatinEnabled() {
 			satin := s.ResidentSatinOrder()
-			if reason, limited := residentSatinDailyLimitReached(s, resident); limited {
+			if reason, limited := residentSatinDailyLimitReached(s, resident, now); limited {
 				blocked := markerOp(CategoryOrder, "order.resident.satin", "finish", "绸缎居民订单今日上限已达", goal.Priority*100+695)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
@@ -63,7 +63,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
-				blocked.BlockedReasons = []string{"当前绸缎订单为广告订单，暂不自动提交"}
+				blocked.BlockedReasons = []string{"当前绸缎订单为广告订单，暂不自动提交；请自行看广告，看完或重启后会重新同步并继续"}
 				ops = append(ops, blocked)
 			} else if len(satin.Requires) == 0 {
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishSatinOrder.String(), "order.resident.satin", "绸缎居民订单", satin, goal, "绸缎居民订单缺少可识别需求"))
@@ -79,7 +79,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		}
 		if resident.GetDecorateEnabled() {
 			decorate := s.ResidentDecorateOrder()
-			if reason, limited := residentDecorateDailyLimitReached(s, resident); limited {
+			if reason, limited := residentDecorateDailyLimitReached(s, resident, now); limited {
 				blocked := markerOp(CategoryOrder, "order.resident.decorate", "finish", "建材居民订单今日上限已达", goal.Priority*100+694)
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
@@ -98,7 +98,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
-				blocked.BlockedReasons = []string{"当前建材订单为广告订单，暂不自动提交"}
+				blocked.BlockedReasons = []string{"当前建材订单为广告订单，暂不自动提交；请自行看广告，看完或重启后会重新同步并继续"}
 				ops = append(ops, blocked)
 			} else if len(decorate.Requires) == 0 {
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), "order.resident.decorate", "建材居民订单", decorate, goal, "建材居民订单缺少可识别需求"))

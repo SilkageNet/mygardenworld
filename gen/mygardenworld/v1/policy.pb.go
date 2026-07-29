@@ -1232,13 +1232,20 @@ type PlantingPolicy struct {
 	UseSpeedUpTicket    bool                   `protobuf:"varint,10,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
 	SpeedUpTicketMax    int32                  `protobuf:"varint,11,opt,name=speed_up_ticket_max,json=speedUpTicketMax,proto3" json:"speed_up_ticket_max,omitempty"`
 	DemandPriority      map[string]int32       `protobuf:"bytes,14,rep,name=demand_priority,json=demandPriority,proto3" json:"demand_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// When false (default), empty-land planting uses autonomous replant only.
+	// When true, missing flowers for enabled tasks/orders claim empty land first,
+	// ordered by demand_priority, then autonomous replant fills any remainder.
+	DemandPriorityEnabled bool `protobuf:"varint,18,opt,name=demand_priority_enabled,json=demandPriorityEnabled,proto3" json:"demand_priority_enabled,omitempty"`
 	// These fields only limit autonomous empty-land replanting. Demand-driven
 	// planting for enabled tasks/orders always uses the required flower.
 	AutoReplantMode             SelectionMode `protobuf:"varint,15,opt,name=auto_replant_mode,json=autoReplantMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"auto_replant_mode,omitempty"`
 	AutoReplantFlowerIds        []int32       `protobuf:"varint,16,rep,packed,name=auto_replant_flower_ids,json=autoReplantFlowerIds,proto3" json:"auto_replant_flower_ids,omitempty"`
 	AutoReplantExcludeFlowerIds []int32       `protobuf:"varint,17,rep,packed,name=auto_replant_exclude_flower_ids,json=autoReplantExcludeFlowerIds,proto3" json:"auto_replant_exclude_flower_ids,omitempty"`
-	unknownFields               protoimpl.UnknownFields
-	sizeCache                   protoimpl.SizeCache
+	// When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
+	// Otherwise only the selected qualities are eligible for autonomous replanting.
+	AutoReplantQualities []int32 `protobuf:"varint,19,rep,packed,name=auto_replant_qualities,json=autoReplantQualities,proto3" json:"auto_replant_qualities,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *PlantingPolicy) Reset() {
@@ -1327,6 +1334,13 @@ func (x *PlantingPolicy) GetDemandPriority() map[string]int32 {
 	return nil
 }
 
+func (x *PlantingPolicy) GetDemandPriorityEnabled() bool {
+	if x != nil {
+		return x.DemandPriorityEnabled
+	}
+	return false
+}
+
 func (x *PlantingPolicy) GetAutoReplantMode() SelectionMode {
 	if x != nil {
 		return x.AutoReplantMode
@@ -1344,6 +1358,13 @@ func (x *PlantingPolicy) GetAutoReplantFlowerIds() []int32 {
 func (x *PlantingPolicy) GetAutoReplantExcludeFlowerIds() []int32 {
 	if x != nil {
 		return x.AutoReplantExcludeFlowerIds
+	}
+	return nil
+}
+
+func (x *PlantingPolicy) GetAutoReplantQualities() []int32 {
+	if x != nil {
+		return x.AutoReplantQualities
 	}
 	return nil
 }
@@ -2934,7 +2955,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
 	"\x0fupgrade_enabled\x18\x03 \x01(\bR\x0eupgradeEnabled\x12!\n" +
-	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xb6\x05\n" +
+	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xa4\x06\n" +
 	"\x0ePlantingPolicy\x12!\n" +
 	"\fauto_enabled\x18\x01 \x01(\bR\vautoEnabled\x12(\n" +
 	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x120\n" +
@@ -2944,10 +2965,12 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x13use_speed_up_ticket\x18\n" +
 	" \x01(\bR\x10useSpeedUpTicket\x12-\n" +
 	"\x13speed_up_ticket_max\x18\v \x01(\x05R\x10speedUpTicketMax\x12]\n" +
-	"\x0fdemand_priority\x18\x0e \x03(\v24.mygardenworld.v1.PlantingPolicy.DemandPriorityEntryR\x0edemandPriority\x12K\n" +
+	"\x0fdemand_priority\x18\x0e \x03(\v24.mygardenworld.v1.PlantingPolicy.DemandPriorityEntryR\x0edemandPriority\x126\n" +
+	"\x17demand_priority_enabled\x18\x12 \x01(\bR\x15demandPriorityEnabled\x12K\n" +
 	"\x11auto_replant_mode\x18\x0f \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\x0fautoReplantMode\x125\n" +
 	"\x17auto_replant_flower_ids\x18\x10 \x03(\x05R\x14autoReplantFlowerIds\x12D\n" +
-	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x1aA\n" +
+	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x124\n" +
+	"\x16auto_replant_qualities\x18\x13 \x03(\x05R\x14autoReplantQualities\x1aA\n" +
 	"\x13DemandPriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xdd\x02\n" +

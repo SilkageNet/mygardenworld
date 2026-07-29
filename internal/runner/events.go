@@ -228,6 +228,12 @@ func opKindDesc(kind string) string {
 		return "防骗问答"
 	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
 		return "领取防骗宝箱"
+	case clientproto.RPCShopCultivateEnter.String():
+		return "同步材料商店"
+	case clientproto.RPCShopCultivateRefresh.String():
+		return "刷新材料商店"
+	case clientproto.RPCShopCultivateBuy.String():
+		return "材料商店购买"
 	case clientproto.RPCFmlRaceEnter.String():
 		return "进入公会竞赛"
 	case clientproto.RPCFmlRaceGetTaskList.String():

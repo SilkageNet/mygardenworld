@@ -38,7 +38,7 @@ func raceStateJSONWithParams(tasks [][5]int32, plantParam int32) string {
 		}
 		pool = "[" + strings.Join(parts, ",") + "]"
 	}
-	return `{"25":{"111":{"1":1},"114":` + pool + `}}`
+	return `{"25":{"111":{"1":1},"117":{"5":4},"114":` + pool + `}}`
 }
 
 // applyRaceState seeds cultivated flower 23001 plus an active race task pool.
@@ -118,14 +118,14 @@ func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	}
 
 	s = state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
 	ops = unionRaceOperations(s, policy, 0, time.Now())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected getTaskList sync when modules off, got %+v", ops)
 	}
 
 	s = state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
 	ops = unionRaceOperations(s, policy, 0, now)
@@ -218,8 +218,8 @@ func TestUnionRacePriorityZeroFallsThroughToPositive(t *testing.T) {
 
 func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 	s := state.New()
-	// Taken material-shop 3017 (priority 0), unfinished.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3017,"10":24,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":16}}}}}`))
+	// Taken material-shop 3017 (priority 0), unfinished with no progress.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3017,"10":24,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":0}}}}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{
 		3017: 0,
@@ -237,6 +237,50 @@ func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 	}
 	if !hasGiveUp {
 		t.Fatalf("expected giveUp for priority-0 taken task, got %+v", ops)
+	}
+}
+
+func TestUnionRaceNoGiveUpWhenTakenHasProgress(t *testing.T) {
+	s := state.New()
+	// Low score + priority 0 + FinishCnt>0 → keep (do not cancel mid-progress).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3017,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":16}}}}}`))
+	policy := testRacePolicy()
+	policy.MinTaskScore = 24
+	policy.TaskTypePriority = map[int32]int32{3017: 0, 3036: 5}
+	for _, op := range unionRaceOperations(s, policy, 999, time.Now()) {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("must not giveUp a started task, got %+v", op)
+		}
+	}
+}
+
+func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
+	s := state.New()
+	// Taken msId=99 not present in observed pool; FinishCnt=0 → give up.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23022]}}}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
+	var giveUp *PlannedOp
+	for i := range ops {
+		if ops[i].Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			giveUp = &ops[i]
+			break
+		}
+	}
+	if giveUp == nil {
+		t.Fatalf("expected giveUp for taken task missing from pool, got %+v", ops)
+	}
+	if !strings.Contains(giveUp.Reason, "不在任务池") {
+		t.Fatalf("giveUp reason = %q, want 不在任务池", giveUp.Reason)
+	}
+}
+
+func TestUnionRaceNoGiveUpMissingFromPoolWhenHasProgress(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":12,"4":[23022]}}}}}`))
+	for _, op := range unionRaceOperations(s, testRacePolicy(), 999, time.Now()) {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("must not giveUp started task missing from pool, got %+v", op)
+		}
 	}
 }
 
@@ -264,7 +308,7 @@ func TestUnionRaceFinishCompletedTask(t *testing.T) {
 	// Field 110 is a map keyed by UID string: {"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}
 	// Field 7 is TakeTaskData with TaskMsId(0), TaskId(1), TargetCnt(2), FinishCnt(3).
 	// Set roleID=999 via namespace 7 -> "0" -> "0".
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 999, time.Now())
 	var hasFinish, hasTake bool
@@ -310,7 +354,7 @@ func TestUnionRaceOnlyUpgradeTaskFilter(t *testing.T) {
 func TestUnionRaceBatchInactiveProducesNoOps(t *testing.T) {
 	s := state.New()
 	// Ended batch (status=2) with closed window → no race ops.
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}]}}`))
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now())
 	if len(ops) != 0 {
@@ -332,7 +376,7 @@ func TestUnionRaceEnterEmittedWhenOnlyTaskStubsObserved(t *testing.T) {
 func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 	s := state.New()
 	// Enter response carries batch 111 but not task pool 114.
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4}}}`))
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
@@ -346,7 +390,7 @@ func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 	s := state.New()
 	// Observed pool with a plant-harvest row that never got field-6 param detail.
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
 	if got := s.FmlRace(); !got.TasksObserved || len(got.Tasks) != 2 || got.Tasks[0].ParamID != 0 || got.Tasks[1].ParamID != 23001 {
 		t.Fatalf("seed pool = %+v", got)
 	}
@@ -369,7 +413,7 @@ func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 func TestUnionRaceUpgradeOpEmission(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.UpgradeTask = true
 	policy.MaxSpendDiamond = 100
@@ -431,7 +475,7 @@ func TestUnionRaceDeleteLowScoreOpEmission(t *testing.T) {
 
 func TestUnionRaceDeleteSkipsOccupiedTask(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[{"0":1,"4":4001,"6":[23001],"10":5,"12":88,"14":0,"15":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":5,"12":88,"14":0,"15":0}]}}`))
 	policy := testRacePolicy()
 	policy.DeleteLowScoreTask = true
 	policy.DeleteTaskMaxScore = 10
@@ -447,7 +491,7 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 	s := state.New()
 	// Task pool: task msId=1, score=5. Taken task: msId=1, not completed (0/3).
 	// Field 110: {"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}  — FinishCnt=0
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10 // lower bound: skip tasks with Score <= 10
 	ops := unionRaceOperations(s, policy, 999, time.Now())
@@ -465,7 +509,7 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 func TestUnionRaceGiveUpUncultivatedTakenPlantHarvest(t *testing.T) {
 	s := state.New()
 	// Taken plant-harvest for uncultivated flower 23099 — impossible to complete.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23099],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23099]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23099],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23099]}}}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
 	var giveUp *PlannedOp
 	for i := range ops {
@@ -488,7 +532,7 @@ func TestUnionRaceGiveUpUncultivatedTakenPlantHarvest(t *testing.T) {
 func TestUnionRaceNoGiveUpCultivatedTakenPlantHarvest(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23001]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23001]}}}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -500,7 +544,7 @@ func TestUnionRaceNoGiveUpCultivatedTakenPlantHarvest(t *testing.T) {
 func TestUnionRaceNoGiveUpWhenTaskComplete(t *testing.T) {
 	s := state.New()
 	// Task pool: task msId=1, score=5. Taken task: msId=1, completed (3/3).
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10
 	ops := unionRaceOperations(s, policy, 999, time.Now())
@@ -513,7 +557,7 @@ func TestUnionRaceNoGiveUpWhenTaskComplete(t *testing.T) {
 
 func TestUnionRaceDoesNotFinishUnknownZeroTarget(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1},"114":[{"0":1,"4":4001,"6":[23001],"10":9}],"110":{"42":{"7":{"0":1,"1":4001,"2":0,"3":0,"4":[23001]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9}],"110":{"42":{"7":{"0":1,"1":4001,"2":0,"3":0,"4":[23001]}}}}}`))
 
 	for _, op := range unionRaceOperations(s, testRacePolicy(), 0, time.Now()) {
 		if op.Kind == clientproto.RPCFmlRaceFinishTask.String() {
@@ -526,7 +570,7 @@ func TestUnionRaceNoGiveUpWhenNoScoreLimit(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// Task pool: task msId=1, score=5. Taken plant-harvest is completable; no score limit.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 0 // no filtering
 	ops := unionRaceOperations(s, policy, 999, time.Now())
@@ -540,8 +584,8 @@ func TestUnionRaceNoGiveUpWhenNoScoreLimit(t *testing.T) {
 func TestUnionRaceNoGiveUpWhenTakenScoreUnknown(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	// Taken task present but missing from the pool → Score stays 0.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"114":[],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
+	// Task is in the pool but Score unresolved (0); FinishCnt=0 → do not give up for score alone.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":0,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10
 	ops := unionRaceOperations(s, policy, 999, time.Now())
@@ -558,7 +602,7 @@ func TestUnionRaceSkipsFarFutureAppearTime(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
 	)))
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
 	for _, op := range ops {
@@ -575,7 +619,7 @@ func TestUnionRacePrefersReadyOverUpcoming(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":5,"14":0,"15":0},{"0":2,"4":3036,"5":%d,"6":[23001],"10":99,"14":0,"15":0}]}}`,
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":5,"14":0,"15":0},{"0":2,"4":3036,"5":%d,"6":[23001],"10":99,"14":0,"15":0}]}}`,
 		readyAppear, upcomingAppear,
 	)))
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
@@ -593,7 +637,7 @@ func TestUnionRacePreemptiveTakeWithinLead(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
 	)))
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now)
 	if len(ops) == 0 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
@@ -619,7 +663,7 @@ func TestUnionRaceSkipsUncultivatedPlantHarvest(t *testing.T) {
 func TestUnionRaceTakesCultivatedPlantHarvestOverUncultivated(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
 		{"0":1,"4":3036,"6":[23099],"10":99,"14":0,"15":0},
 		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
 	]}}`))
@@ -637,7 +681,7 @@ func TestUnionRaceTakesCultivatedPlantHarvestOverUncultivated(t *testing.T) {
 
 func TestUnionRaceDoesNotTakeUnsupportedFallback(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
 		{"0":1,"4":3036,"6":[23099],"10":50,"14":0,"15":0},
 		{"0":2,"4":3044,"10":10,"14":0,"15":0}
 	]}}`))
@@ -847,7 +891,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 func TestUnionRacePeriodicGetTaskListAfterTTL(t *testing.T) {
 	s := state.New()
 	// Empty pool: TasksObserved, nothing to take.
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	if synced <= 0 {
 		t.Fatal("need TasksSyncedAtMs from apply")
@@ -862,7 +906,7 @@ func TestUnionRacePeriodicGetTaskListAfterTTL(t *testing.T) {
 
 func TestUnionRaceNoPeriodicGetTaskListWithinTTL(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
 	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval - time.Second)
@@ -898,7 +942,7 @@ func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32, tas
 	if plantParam > 0 {
 		s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(plantParam)}})
 	}
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"114":[{"0":1,"4":3036,"6":[23001],"10":20}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":20}]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
 	appear := plannerNow.Add(appearRem).UnixMilli()
@@ -946,7 +990,7 @@ func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 	// takeable — a HasTask-guard regression would emit takeTask.
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// No 110 takeTaskData; pool marks uid=999 on msId=55. Another free task exists.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{}}}`))
 	if !s.FmlRace().Taken.HasTask {
 		t.Fatal("expected synthesized taken")
 	}
@@ -961,7 +1005,7 @@ func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 	s := state.New()
 	// Synthesized taken with TargetCnt=0/FinishCnt=0 must not finish.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceFinishTask.String() {
@@ -975,8 +1019,8 @@ func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 
 func TestUnionRaceGiveUpSynthesizedTakenPriorityZero(t *testing.T) {
 	s := state.New()
-	// Synthesized taken from pool UID: task type 3017 (priority 0), unfinished.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":3017,"7":10,"8":1,"10":25,"12":999}],"110":{}}}`))
+	// Synthesized taken from pool UID: task type 3017 (priority 0), no progress.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":3017,"7":10,"8":0,"10":25,"12":999}],"110":{}}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{
 		3017: 0,

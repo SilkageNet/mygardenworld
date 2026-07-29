@@ -331,6 +331,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.ShopCultivate().Enter(ctx, req)
 		},
 	),
+	clientproto.RPCShopCultivateRefresh.String(): stateDeltaOperation(
+		staticRequest(clientproto.ShopCultivateRefreshRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopCultivateRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.ShopCultivate().Refresh(ctx, req)
+		},
+	),
 	clientproto.RPCShopCultivateBuy.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.ShopCultivateBuyRequest, error) {
 			return clientproto.ShopCultivateBuyRequest{ShopId: op.TargetID}, nil
@@ -514,14 +520,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlRace().UpgradeTask(ctx, req)
 		},
 	),
-	clientproto.RPCFmlRaceEnter.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.FmlRaceEnterRequest, error) {
+	clientproto.RPCFmlRaceEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
 			return clientproto.FmlRaceEnterRequest{}, nil
 		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.FmlRace().Enter(ctx, req)
-		},
-	),
+		run: runFmlRaceEnter,
+	},
 	clientproto.RPCFmlRaceGetTaskList.String(): {
 		args: func(op *automation.PlannedOp) (any, error) {
 			return clientproto.FmlRaceGetTaskListRequest{}, nil

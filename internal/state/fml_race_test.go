@@ -231,6 +231,45 @@ func TestFmlRaceTakenPrefers110OverPoolUID(t *testing.T) {
 	}
 }
 
+func TestFmlRaceFullPoolReplacesStaleTakenWithout110(t *testing.T) {
+	s := New()
+	// Stale Taken: 鹤望兰 (#23022), score unresolved — typical orphan after a
+	// prior bad synthesize that sparse syncs never cleared.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":1,"4":4001,"6":[23022],"7":280,"8":0,"10":9,"12":999}],"110":{}}}`))
+	if !s.FmlRace().Taken.HasTask || s.FmlRace().Taken.ParamID != 23022 {
+		t.Fatalf("seed stale taken = %+v", s.FmlRace().Taken)
+	}
+	// Authoritative getTaskList: 鹤望兰 gone; 花笼流芳 (#23331) held by self; no 110.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":2,"4":4001,"6":[23331],"7":280,"8":12,"10":31,"12":999},{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}]}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 2 || got.Taken.ParamID != 23331 {
+		t.Fatalf("full pool must replace stale Taken with pool UID row, got %+v", got.Taken)
+	}
+	if got.Taken.Score != 31 || got.Taken.FinishCnt != 12 || got.Taken.TargetLabel != "花笼流芳" {
+		t.Fatalf("replaced taken detail = %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceFullPoolClearsOrphanTakenWhenNoPoolUID(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":1,"4":4001,"6":[23022],"7":280,"8":0,"10":9,"12":999}],"110":{}}}`))
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}]}}`))
+	if s.FmlRace().Taken.HasTask {
+		t.Fatalf("full pool with no UID==self must clear orphan Taken, got %+v", s.FmlRace().Taken)
+	}
+}
+
+func TestFmlRaceFullPoolKeeps110TakenOverPoolUID(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"7":{"0":99,"1":4001,"2":50,"3":5,"4":[23022]}}}}}`))
+	// Same apply-style full pool with conflicting UID row + fresh 110 for 鹤望兰.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"114":[{"0":2,"4":4001,"6":[23331],"7":280,"8":0,"10":31,"12":999}],"110":{"42":{"7":{"0":99,"1":4001,"2":50,"3":5,"4":[23022]}}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 99 || got.Taken.ParamID != 23022 {
+		t.Fatalf("110 in full-pool apply must still win, got %+v", got.Taken)
+	}
+}
+
 func TestFmlRaceTakenEnrichedTargetCntFromPool(t *testing.T) {
 	s := New()
 	// 110 has takeTaskData with TargetCnt=0/FinishCnt=0 (server omitted fields 2/3);
@@ -269,5 +308,67 @@ func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
 	// Pool rows preserved so UI/planner still see last snapshot until re-sync.
 	if len(got.Tasks) != 1 {
 		t.Fatalf("tasks wiped: %+v", got.Tasks)
+	}
+}
+
+func TestFmlRaceUsrRcdTaskQuota(t *testing.T) {
+	s := New()
+	// batchId key; fTaskNum=3, buyTaskNum=2, no taken task.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"0":{"103":4},"110":{"42":{"0":99,"1":42,"3":3,"6":2}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved {
+		t.Fatalf("TaskQuotaObserved=false: %+v", got)
+	}
+	if got.FinishedTaskNum != 3 || got.BuyTaskNum != 2 {
+		t.Fatalf("quota finished=%d buy=%d, want 3/2", got.FinishedTaskNum, got.BuyTaskNum)
+	}
+	if got.Taken.HasTask {
+		t.Fatalf("unexpected taken: %+v", got.Taken)
+	}
+	if s.FmlBuild().RaceLvl != 4 {
+		t.Fatalf("RaceLvl=%d, want 4", s.FmlBuild().RaceLvl)
+	}
+	if total := FmlRaceTotalTaskNum(s.FmlBuild().RaceLvl, got.BuyTaskNum); total != 18 {
+		// c_fmlRace(4).taskNum=18 (buyTaskNum not included in displayed total)
+		t.Fatalf("total=%d, want 18", total)
+	}
+}
+
+func TestFmlRaceCurRcdRaceLvl(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"117":{"0":42,"1":7,"5":4},"110":{"42":{"3":6,"6":0}}}}`))
+	got := s.FmlRace()
+	if got.RaceLvl != 4 || !got.RaceLvlObserved {
+		t.Fatalf("RaceLvl=%d observed=%v, want 4/true from CurFmlRaceRcd", got.RaceLvl, got.RaceLvlObserved)
+	}
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 6 {
+		t.Fatalf("quota=%+v", got)
+	}
+	if total := FmlRaceTotalTaskNum(got.RaceLvl, got.BuyTaskNum); total != 18 {
+		t.Fatalf("total=%d, want 18", total)
+	}
+}
+
+func TestFmlRaceGroupRcdRaceLvl(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":7},"111":{"0":42,"1":1,"2":1000,"3":9000},"112":[{"0":42,"1":7,"5":4},{"0":42,"1":8,"5":4}]}}`))
+	got := s.FmlRace()
+	if got.RaceLvl != 4 {
+		t.Fatalf("RaceLvl=%d, want 4 from group list fid match", got.RaceLvl)
+	}
+}
+
+func TestFmlRaceUsrRcdTaskQuotaPreservedWithoutTaken(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"3":5,"6":1,"7":{"0":9,"1":4001,"2":3,"3":1}}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 5 || !got.Taken.HasTask {
+		t.Fatalf("with taken: %+v", got)
+	}
+	// Later 110 without takeTaskData still updates quota and clears taken.
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":6,"6":1}}}}`))
+	got = s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 6 || got.Taken.HasTask {
+		t.Fatalf("after finish clear: %+v", got)
 	}
 }

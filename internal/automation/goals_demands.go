@@ -103,7 +103,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 			}
 		}
 		if resident.GetSatinEnabled() {
-			if _, limited := residentSatinDailyLimitReached(s, resident); !limited {
+			if _, limited := residentSatinDailyLimitReached(s, resident, now); !limited {
 				satin := s.ResidentSatinOrder()
 				if residentSpecialOrderAllowed(satin, resident) && satin.CooldownReady(now) {
 					for _, req := range satin.Requires {
@@ -113,7 +113,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 			}
 		}
 		if resident.GetDecorateEnabled() {
-			if _, limited := residentDecorateDailyLimitReached(s, resident); !limited {
+			if _, limited := residentDecorateDailyLimitReached(s, resident, now); !limited {
 				decorate := s.ResidentDecorateOrder()
 				if residentSpecialOrderAllowed(decorate, resident) && decorate.CooldownReady(now) {
 					for _, req := range decorate.Requires {

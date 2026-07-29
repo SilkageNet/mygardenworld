@@ -65,10 +65,12 @@ type State struct {
 	fmlLandObserved        bool
 	fmlLands               map[int32]*FmlLandView // 25.102.1.<landId> 公会土地
 	fmlForestEnergy        FmlForestEnergyView    // 25.127 能量森林
-	fmlFlowerShare         FmlFlowerShareView     // 25.107 自己的公会鲜花分享
-	fmlOtherFlowerShares   map[int64]*FmlFlowerShareView
-	fmlOtherShareObserved  bool
-	fmlRace                FmlRaceView // 25.110/111/114 公会竞赛
+	fmlFlowerShare             FmlFlowerShareView // 25.107 自己的公会鲜花分享
+	fmlOtherFlowerShares       map[int64]*FmlFlowerShareView
+	fmlOtherShareObserved      bool
+	fmlOtherShareSyncedAtMs    int64 // local wall time when 25.108 was last applied
+	fmlFlowerTakeLimitUntilMs  int64 // server/local: 今日摸花次数已达上限，到该时刻前不再摸花
+	fmlRace                    FmlRaceView // 25.110/111/114 公会竞赛
 	shopGiftbagDRecord     map[int32]int32 // 112.1 daily purchase counts
 	shopGiftbagWRecord     map[int32]int32 // 112.2 weekly purchase counts
 	shopGiftbagMRecord     map[int32]int32 // 112.3 monthly purchase counts
@@ -77,6 +79,8 @@ type State struct {
 	shopCultivateCosts     map[int32]ItemCount // 113.1.<shopId> material-shop dynamic cost
 	shopCultivateBought    map[int32]int32     // 113.6.<shopId> bought count
 	shopCultivateResetMs   int64               // 113.2 lResetTime
+	shopCultivateLarMs     int64               // 113.3 larTime: last free auto-refresh
+	shopCultivateMrCount   int32               // 113.4 mrCount: used free/manual refresh count
 	shopCultivateObserved  bool
 	pearl                  PearlView
 	pearlPlaces            map[int32]*PearlPlaceView // 115.0.<placeId>
@@ -101,14 +105,20 @@ type State struct {
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 	residentOrderLimitUntilMs  int64
 	residentOrderLimitDayID    int32
+	// Satin/decorate server daily caps (reset at 00:00 Asia/Shanghai). Kept
+	// separate from ordinary residentOrderLimit* because those use the 00:05
+	// game-day boundary, and because side-op sync clears satin/decorate
+	// operation cooldowns — the planner must consult state, not cooldowns.
+	residentSatinLimitUntilMs    int64
+	residentDecorateLimitUntilMs int64
 	// Bias tracks successful finishOrder calls only while namespace 124 has
 	// never been observed, so the policy daily limit still works before the
 	// first statistics sync. Once system stats exist, ResidentOrderFinishNum
 	// uses orderFlowerFinishNum exclusively.
 	residentOrderFinishBias      int32
 	residentOrderFinishBiasDayID int32
-	residentSatinOrder         ResidentSpecialOrder
-	residentDecorateOrder      ResidentSpecialOrder
+	residentSatinOrder           ResidentSpecialOrder
+	residentDecorateOrder        ResidentSpecialOrder
 	palaceOrder                PalaceOrderView // 108.0 宫廷订单
 	teamOrder                  TeamOrderView   // 107.0 组团订单
 

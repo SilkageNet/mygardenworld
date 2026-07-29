@@ -141,6 +141,14 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
+	// Refresh satin/decorate order slots + daily counters after every
+	// start/reconnect so a user-watched ad or midnight reset is observed.
+	r.syncResidentOrderState(ctx, client, session, "startup")
+	if r.isSessionInvalidated() {
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
+		return nil, r.sessionInvalidatedError("session invalidated during startup")
+	}
 	if err := r.enforceReputationGuard(ctx, client, session, "startup", time.Now()); err != nil {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -178,6 +186,7 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
 	r.resetPearlHireSession()
 	r.resetDessertRoundSession()
+	r.resetResidentOrderSession()
 	if r.state != nil {
 		r.state.ResetDessertSession()
 	}

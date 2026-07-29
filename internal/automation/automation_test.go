@@ -225,6 +225,48 @@ func TestBuildPlan_ResidentServerDailyLimitMarkerBlocksSubmit(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_ResidentSatinDecorateServerDailyLimitMarkerBlocksSubmit(t *testing.T) {
+	now := time.Date(2026, 7, 5, 20, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23001": 5, "23003": 5}}},
+		"105": map[string]any{"0": map[string]any{
+			"6": map[string]any{"0": []any{[]any{23001, 2}}, "1": 201, "3": 1},
+			"7": map[string]any{"0": []any{[]any{23003, 2}}, "1": 202, "3": 1},
+		}},
+		"124": map[string]any{"0": map[string]any{"20260705": map[string]any{"1": 20260705, "14": 0, "16": 0}}},
+	})
+	s.MarkResidentSatinDailyLimitReached(now)
+	s.MarkResidentDecorateDailyLimitReached(now)
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = false
+	p.Order.Resident.SatinEnabled = true
+	p.Order.Resident.SatinDailyLimit = 120
+	p.Order.Resident.DecorateEnabled = true
+	p.Order.Resident.DecorateDailyLimit = 120
+
+	result := BuildPlan(s, p, now)
+	var satinBlocked, decorateBlocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() && op.Executable {
+			t.Fatalf("satin submit should be blocked after server daily limit: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String() && op.Executable {
+			t.Fatalf("decorate submit should be blocked after server daily limit: %+v", op)
+		}
+		if op.Domain == "order.resident.satin" && !op.Executable && hasReasonContaining(op.BlockedReasons, "今日完成订单次数已达上限") {
+			satinBlocked = true
+		}
+		if op.Domain == "order.resident.decorate" && !op.Executable && hasReasonContaining(op.BlockedReasons, "今日完成订单次数已达上限") {
+			decorateBlocked = true
+		}
+	}
+	if !satinBlocked || !decorateBlocked {
+		t.Fatalf("missing satin/decorate server limit blocks (satin=%v decorate=%v): %+v", satinBlocked, decorateBlocked, result.Operations)
+	}
+}
+
 func TestBuildPlan_ResidentQualityMismatchBlocksSubmit(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -360,6 +402,57 @@ func TestBuildPlan_ResidentCooldownOmitsSubmitUntilReady(t *testing.T) {
 	t.Fatalf("missing resident submit after cooldown: %+v", result.Operations)
 }
 
+func TestBuildPlan_ResidentSatinDecorateZeroLimitDefaultsAndCooldown(t *testing.T) {
+	now := time.Date(2026, 7, 26, 8, 0, 0, 0, time.UTC)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23001": 5, "23003": 5}}},
+		"105": map[string]any{"0": map[string]any{
+			"6": map[string]any{
+				"0": []any{[]any{23001, 2}}, "1": 201, "3": 1,
+				"6": now.Add(61 * time.Second).UnixMilli(),
+			},
+			"7": map[string]any{
+				"0": []any{[]any{23003, 2}}, "1": 202, "3": 1,
+			},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = false
+	p.Order.Resident.SatinEnabled = true
+	p.Order.Resident.SatinDailyLimit = 0 // UI used to show 120 while policy stayed 0
+	p.Order.Resident.DecorateEnabled = true
+	p.Order.Resident.DecorateDailyLimit = 0
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() && op.Executable {
+			t.Fatalf("satin submit should wait ~61s cooldown: %+v", op)
+		}
+		if strings.Contains(strings.Join(op.BlockedReasons, " "), "上限必须大于 0") {
+			t.Fatalf("zero policy limit should default instead of blocking: %+v", op)
+		}
+	}
+	var decorateReady bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishDecorateOrder.String() && op.Executable {
+			decorateReady = true
+		}
+	}
+	if !decorateReady {
+		t.Fatalf("decorate submit missing with zero policy limit: %+v", result.Operations)
+	}
+
+	result = BuildPlan(s, p, now.Add(61*time.Second))
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() && op.Executable {
+			return
+		}
+	}
+	t.Fatalf("missing satin submit after 61s cooldown: %+v", result.Operations)
+}
+
 func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -377,6 +470,7 @@ func TestBuildPlan_CustomerArtDemandDrivesPlanting(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.Customer.Enabled = true
+	p.Plant.Planting.DemandPriorityEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
 	var planted bool
@@ -2005,10 +2099,12 @@ func TestBuildPlan_PearlHireAndBuyTicketBlocked(t *testing.T) {
 
 func TestBuildPlan_ShopCultivateBuyWithGoldBudget(t *testing.T) {
 	s := state.New()
+	now := time.Date(2026, 7, 26, 14, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{"44": 5000}},
 		"113": map[string]any{
 			"1": map[string]any{"10001": []int32{11, 3214}},
+			"3": now.Add(-time.Hour).UnixMilli(),
 			"6": map[string]any{"10001": 0},
 		},
 	})
@@ -2018,11 +2114,76 @@ func TestBuildPlan_ShopCultivateBuyWithGoldBudget(t *testing.T) {
 	p.Basic.Shop.CultivateShop.MaxSpendGold = 4000
 	p.Basic.Shop.CultivateShop.ItemIds = []int32{1401}
 
-	result := BuildPlan(s, p, time.Now())
+	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
 		if op.Domain == "basic.shop.cultivate" {
 			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || op.ItemID != 1401 || op.GoldCost != 3214 || !op.Executable || op.SyncOnly {
 				t.Fatalf("shop cultivate buy op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop cultivate buy op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopCultivateRefreshWhenAutoCDReady(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 26, 17, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	lar := now.Add(-9001 * time.Second)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 5000}},
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 3214}},
+			"3": lar.UnixMilli(),
+			"4": 0,
+			"6": map[string]any{"10001": 0},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+	p.Basic.Shop.CultivateShop.MaxSpendGold = 4000
+	p.Basic.Shop.CultivateShop.ItemIds = []int32{1401}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Kind != clientproto.RPCShopCultivateRefresh.String() || op.Action != "refresh" || !op.Executable {
+				t.Fatalf("shop cultivate refresh op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop cultivate refresh op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopCultivateNoPaidRefreshAfterFreeTimes(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 26, 17, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	lar := now.Add(-9001 * time.Second)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 5000}},
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 3214}},
+			"3": lar.UnixMilli(),
+			"4": 3, // $frTimes exhausted; further refresh costs yuanbao
+			"6": map[string]any{"10001": 0},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+	p.Basic.Shop.CultivateShop.MaxSpendGold = 4000
+	p.Basic.Shop.CultivateShop.ItemIds = []int32{1401}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Kind == clientproto.RPCShopCultivateRefresh.String() {
+				t.Fatalf("must not yuanbao-refresh after free times: %+v", op)
+			}
+			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || !op.Executable {
+				t.Fatalf("expected buy from current shelf after free times exhausted: %+v", op)
 			}
 			return
 		}
@@ -2311,11 +2472,21 @@ func TestBuildPlan_UnionFlowerShareReward(t *testing.T) {
 
 func TestBuildPlan_UnionFlowerTakeSyncWhenUnobserved(t *testing.T) {
 	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+			},
+		},
+	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Union.Flower.TakeEnabled = true
 
-	result := BuildPlan(s, p, time.Now())
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
 		if op.Domain == "union.flower.take" {
 			if op.Kind != clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String() || !op.Executable || op.SyncOnly {
@@ -2334,6 +2505,12 @@ func TestBuildPlan_UnionFlowerTakeSpecificFlower(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
 		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+				"3": time.Now().UnixMilli(),
+			},
 			"108": []any{
 				map[string]any{
 					"0": 77900091102483,
@@ -2356,7 +2533,8 @@ func TestBuildPlan_UnionFlowerTakeSpecificFlower(t *testing.T) {
 	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
 	p.Union.Flower.TakeFlowerIds = []int32{23011}
 
-	result := BuildPlan(s, p, time.Now())
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
 		if op.Domain == "union.flower.take" {
 			if op.Kind != clientproto.RPCFmlFlowerShareTake.String() || !op.Executable || op.SyncOnly {
@@ -2369,6 +2547,228 @@ func TestBuildPlan_UnionFlowerTakeSpecificFlower(t *testing.T) {
 		}
 	}
 	t.Fatalf("missing union flower take op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerTakeSkipsWhenDailyLimitReached(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 1},
+					},
+				},
+			},
+		},
+	})
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Hour)
+	s.MarkFmlFlowerTakeDailyLimitReached(now)
+
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			t.Fatalf("expected no union flower take after daily limit, got %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionFlowerTakeSkipsWhenTdyTakeCntExhausted(t *testing.T) {
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Hour)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"0": map[string]any{
+				"0":   1001,
+				"102": 2,
+			},
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 2,
+				"3": now.UnixMilli(),
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 1},
+					},
+				},
+			},
+		},
+	})
+	if !s.FmlFlowerTakeExhausted(now) {
+		t.Fatalf("FmlFlowerTakeExhausted=false, want true (tdy=%d limit=%d)", s.FmlFlowerShare().TdyTakeCnt, s.FmlFlowerTakeLimit())
+	}
+
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			t.Fatalf("expected no union flower take when tdyTakeCnt exhausted, got %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionFlowerTakeContinuesWhenGuildLimitUnobserved(t *testing.T) {
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Hour)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 1,
+				"3": now.UnixMilli(),
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 1},
+					},
+				},
+			},
+		},
+	})
+	if s.FmlFlowerTakeExhausted(now) {
+		t.Fatal("unobserved FlowerTakeCnt must not exhaust after a single take")
+	}
+
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" && op.Kind == clientproto.RPCFmlFlowerShareTake.String() {
+			return
+		}
+	}
+	t.Fatalf("expected continued take while guild limit unobserved, got %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerTakeSkipsBeforeWindow(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{"0": 1, "1": map[string]any{}, "2": 0},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{"2": map[string]any{"0": 23011, "1": 6, "2": 1}},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	before := state.FmlFlowerTakeWindowStart(time.Now()).Add(-time.Second)
+	result := BuildPlan(s, p, before)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			t.Fatalf("expected no take before 00:01, got %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionFlowerTakeNoMatchDoesNotTake(t *testing.T) {
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{"0": 1, "1": map[string]any{}, "2": 0, "3": now.UnixMilli()},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{"2": map[string]any{"0": 23011, "1": 6, "2": 1}},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Union.Flower.TakeFlowerIds = []int32{99999}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			t.Fatalf("expected no take when no matching flower, got %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionFlowerTakeHourlyResync(t *testing.T) {
+	s := state.New()
+	synced := time.Now().UnixMilli()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{"0": 1, "1": map[string]any{}, "2": 0, "3": synced},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{"2": map[string]any{"0": 23011, "1": 6, "2": 1}},
+				},
+			},
+		},
+	})
+	if got := s.OtherFmlFlowerSharesSyncedAtMs(); got <= 0 {
+		t.Fatal("expected other-share syncedAt")
+	}
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	fresh := state.FmlFlowerTakeWindowStart(time.UnixMilli(synced)).Add(time.Minute)
+	if fresh.UnixMilli() < synced {
+		fresh = time.UnixMilli(synced).Add(time.Minute)
+	}
+	result := BuildPlan(s, p, fresh)
+	foundTake := false
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" && op.Kind == clientproto.RPCFmlFlowerShareTake.String() {
+			foundTake = true
+		}
+		if op.Kind == clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String() {
+			t.Fatalf("fresh list should not resync, got %+v", op)
+		}
+	}
+	if !foundTake {
+		t.Fatalf("expected take while list fresh: %+v", result.Operations)
+	}
+
+	stale := time.UnixMilli(s.OtherFmlFlowerSharesSyncedAtMs()).Add(time.Hour + time.Second)
+	if !state.FmlFlowerTakeWindowOpen(stale) {
+		stale = state.FmlFlowerTakeWindowStart(stale).Add(time.Hour)
+	}
+	result = BuildPlan(s, p, stale)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String() {
+			return
+		}
+	}
+	t.Fatalf("expected hourly resync, got %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionForestSyncWhenUnobserved(t *testing.T) {
@@ -2457,6 +2857,68 @@ func TestBuildPlan_LowStockFallbackBalancesMultipleFlowers(t *testing.T) {
 		if n <= 0 || n > autoReplantBatchSize {
 			t.Fatalf("ALL auto-replant batch size=%d, want 1..%d: %+v", n, autoReplantBatchSize, batches)
 		}
+	}
+}
+
+func TestBuildPlan_AutoReplantAllModeQualityFilter(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23014": 200, // 蓝星花 凡
+			"23077": 10,  // 迎春花 普, lower stock
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(4)}},
+		"101": map[string]any{"0": cultivate(23014, 23077)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	// Empty qualities = all → prefer lowest stock 迎春花.
+	result := BuildPlan(s, p, time.Now())
+	first := Plan(s, p, time.Now())
+	if first == nil || first.FlowerID != 23077 {
+		t.Fatalf("empty qualities should plant lowest-stock 23077, got %+v ops=%+v", first, result.Operations)
+	}
+
+	// Only 凡 (1) → 迎春花 excluded even though lower stock.
+	p.Plant.Planting.AutoReplantQualities = []int32{1}
+	first = Plan(s, p, time.Now())
+	if first == nil || first.FlowerID != 23014 {
+		t.Fatalf("quality=凡 should plant 23014, got %+v", first)
+	}
+}
+
+func TestBuildPlan_LowStockAutoReplantKeepsStockOrderOverFlowerID(t *testing.T) {
+	// High flower IDs used to starve: equal-priority plant ops were re-sorted by
+	// OperationID (which embeds flower=ID), so 23014 ran before lower-stock 23077.
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23014": 167,
+			"23077": 163,
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(8)}},
+		"101": map[string]any{"0": cultivate(23014, 23077)},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var plantOps []PlannedOp
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" && op.Executable {
+			plantOps = append(plantOps, op)
+		}
+	}
+	if len(plantOps) == 0 {
+		t.Fatalf("expected plant ops: %+v", result.Operations)
+	}
+	if plantOps[0].FlowerID != 23077 {
+		t.Fatalf("first plant op should be lowest-stock 23077, got flower=%d ops=%+v", plantOps[0].FlowerID, plantOps)
+	}
+	if Plan(s, p, time.Now()).FlowerID != 23077 {
+		t.Fatalf("Plan() should select lowest-stock 23077 first, got %+v", Plan(s, p, time.Now()))
 	}
 }
 
@@ -2584,6 +3046,7 @@ func TestPlanPlantAssignments_BlockedDemandDoesNotConsumeFallback(t *testing.T) 
 		"101": map[string]any{"0": cultivate(23002)},
 	})
 	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
 
 	plan := planPlantAssignments(s, p.Plant, []Demand{{
 		ID:       "demand-23001",
@@ -2593,7 +3056,7 @@ func TestPlanPlantAssignments_BlockedDemandDoesNotConsumeFallback(t *testing.T) 
 		Missing:  1,
 		Priority: 90,
 		Label:    "顾客订单",
-	}}, 2)
+	}}, 2, false)
 	if len(plan.blockedDiagnostic) != 1 {
 		t.Fatalf("blocked diagnostics len=%d, want 1: %+v", len(plan.blockedDiagnostic), plan)
 	}
@@ -2619,6 +3082,7 @@ func TestFarmOps_BlockedDemandEmitsDiagnosticPlantOperation(t *testing.T) {
 		"101": map[string]any{"0": cultivate(23002)},
 	})
 	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
 	demands := []Demand{{
 		ID:       "demand-23001",
 		GoalID:   GoalCustomerOrder,
@@ -2629,7 +3093,7 @@ func TestFarmOps_BlockedDemandEmitsDiagnosticPlantOperation(t *testing.T) {
 		Label:    "顾客订单",
 	}}
 
-	ops := farmOps(s, p.Plant, demands, time.Now())
+	ops := farmOps(s, p.Plant, demands, time.Now(), false)
 	var blocked *PlannedOp
 	var fallback *PlannedOp
 	for i := range ops {
@@ -2663,6 +3127,7 @@ func TestPlantAssignments_AutoReplantRangeDoesNotRestrictDemand(t *testing.T) {
 		"101": map[string]any{"0": cultivate(23001, 23002)},
 	})
 	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
 	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
 	p.Plant.Planting.AutoReplantFlowerIds = []int32{23002}
 
@@ -2689,6 +3154,7 @@ func TestPlantAssignments_TaskDemandFillsAvailableEmptyLand(t *testing.T) {
 		"101": map[string]any{"0": cultivate(23001)},
 	})
 	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
 
 	assignments := plantAssignments(s, p.Plant, []Demand{{
 		ID:       "demand-23001",
@@ -2701,6 +3167,84 @@ func TestPlantAssignments_TaskDemandFillsAvailableEmptyLand(t *testing.T) {
 	}}, 6)
 	if len(assignments) != 1 || assignments[0].FlowerID != 23001 || assignments[0].Count != 6 {
 		t.Fatalf("task demand should fill available empty land, got %+v", assignments)
+	}
+}
+
+func TestPlantAssignments_DemandPriorityDisabledSkipsDemandUsesStock(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 5,
+			"23002": 0,
+			"23003": 8,
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	// Default: DemandPriorityEnabled=false → ignore order demand, plant lowest stock.
+
+	assignments := plantAssignments(s, p.Plant, []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  6,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}, 4)
+	if len(assignments) == 0 {
+		t.Fatalf("expected auto-replant assignments: %+v", assignments)
+	}
+	for _, assignment := range assignments {
+		if assignment.GoalID != GoalAutoReplant {
+			t.Fatalf("demand priority off should not claim lands for orders, got %+v", assignments)
+		}
+		if assignment.FlowerID != 23002 {
+			t.Fatalf("ALL mode should plant lowest stock 23002, got %+v", assignments)
+		}
+	}
+}
+
+func TestPlantAssignments_DemandPriorityEnabledFillsRemainderWithAutoReplant(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 10,
+			"23002": 0,
+			"23003": 8,
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23002, 23003)},
+	})
+	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
+
+	assignments := plantAssignments(s, p.Plant, []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  2,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}, 6)
+	if len(assignments) < 2 {
+		t.Fatalf("want demand + auto-replant remainder, got %+v", assignments)
+	}
+	if assignments[0].GoalID != GoalCustomerOrder || assignments[0].FlowerID != 23001 || assignments[0].Count != 2 {
+		t.Fatalf("demand should claim first: %+v", assignments)
+	}
+	var fallback int32
+	for _, assignment := range assignments[1:] {
+		if assignment.GoalID != GoalAutoReplant {
+			t.Fatalf("remainder should be auto-replant, got %+v", assignments)
+		}
+		fallback += assignment.Count
+		if assignment.FlowerID != 23002 {
+			t.Fatalf("remainder should prefer lowest stock 23002, got %+v", assignments)
+		}
+	}
+	if fallback != 4 {
+		t.Fatalf("auto-replant remainder=%d, want 4: %+v", fallback, assignments)
 	}
 }
 

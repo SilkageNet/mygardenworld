@@ -123,6 +123,9 @@ func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	if planting.GetDemandPriority()[automation.GoalCustomerOrder] == 0 {
 		t.Fatalf("demand priorities not populated: %+v", planting.GetDemandPriority())
 	}
+	if planting.GetDemandPriorityEnabled() {
+		t.Fatal("demand_priority_enabled should default to false")
+	}
 	if planting.GetAutoReplantMode() != pb.SelectionMode_SELECTION_MODE_ALL {
 		t.Fatalf("auto replant mode=%v, want ALL", planting.GetAutoReplantMode())
 	}

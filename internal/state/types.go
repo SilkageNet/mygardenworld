@@ -243,6 +243,8 @@ type FmlBuildView struct {
 	FmlID               int32           `json:"fml_id,omitempty"`
 	TodayBuildNum       int32           `json:"today_build_num,omitempty"`
 	LastBuildTimeMs     int64           `json:"last_build_time_ms,omitempty"`
+	FlowerTakeCnt       int32           `json:"flower_take_cnt,omitempty"` // 25.0.102 公会摸花次数上限
+	RaceLvl             int32           `json:"race_lvl,omitempty"`       // 25.0.103 公会竞赛段位
 	BuildCountsObserved bool            `json:"build_counts_observed,omitempty"`
 	BuildCounts         map[int32]int32 `json:"build_counts,omitempty"`
 }
@@ -344,6 +346,19 @@ type FmlRaceView struct {
 	BatchEndMs    int64             // race batch end time in ms (field 3)
 	Tasks         []FmlRaceTaskView // available task pool (field 114)
 	Taken         FmlRaceTakenView  // current user's taken task (from field 110)
+	// TaskQuotaObserved is true after field 110 (usr rcd) was applied.
+	TaskQuotaObserved bool
+	// FinishedTaskNum is IFmlRaceUsrRcd.fTaskNum (completed tasks this batch).
+	FinishedTaskNum int32
+	// BuyTaskNum is IFmlRaceUsrRcd.buyTaskNum (purchased extra slots).
+	BuyTaskNum int32
+	// RaceLvl is the guild race tier for this batch (甲=4/乙=3/…), from
+	// CurFmlRaceRcd (117) / GroupFmlRaceRcdList (112) when present, else IFml.raceLvl (0.103).
+	RaceLvl int32
+	// RaceLvlObserved is true after RaceLvl > 0 was resolved from 117/112/0.103.
+	RaceLvlObserved bool
+	// RaceLvlSyncAtMs is local ms of the last enter attempt that sought raceLvl.
+	RaceLvlSyncAtMs int64
 	// MissingParamRefreshFP is the msId fingerprint of a pool that still lacked
 	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
 	// may still be issued for the current incomplete pool.

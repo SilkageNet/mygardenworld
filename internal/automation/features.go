@@ -76,6 +76,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.shop_giftbag_sync", Label: "礼包商店同步", Category: CategoryBasic, Domain: "basic.shop.giftbag", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_video_gift", Label: "视频礼包", Category: CategoryBasic, Domain: "basic.shop.video_gift", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_cultivate_sync", Label: "材料商店同步", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "sync", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.shop_cultivate_refresh", Label: "材料商店刷新", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "refresh", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_cultivate", Label: "材料商店", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "buy", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_vip", Label: "VIP 商店", Category: CategoryBasic, Domain: "basic.shop.vip", Action: "buy", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"VIP 商店成本和状态尚未确认"}},
 	{ID: "basic.zoo", Label: "宠物", Category: CategoryBasic, Domain: "basic.zoo", Action: "sync", Status: PlanStatusManaged, Executable: true},

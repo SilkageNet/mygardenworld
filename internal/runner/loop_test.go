@@ -330,6 +330,14 @@ func TestShopCultivateOperationArgs(t *testing.T) {
 		t.Fatalf("operationArgs(shopCultivate.enter)=%T, want ShopCultivateEnterRequest", args)
 	}
 
+	args, err = operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopCultivateRefresh.String()})
+	if err != nil {
+		t.Fatalf("operationArgs(shopCultivate.refresh): %v", err)
+	}
+	if _, ok := args.(clientproto.ShopCultivateRefreshRequest); !ok {
+		t.Fatalf("operationArgs(shopCultivate.refresh)=%T, want ShopCultivateRefreshRequest", args)
+	}
+
 	args, err = operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopCultivateBuy.String(), TargetID: 10001})
 	if err != nil {
 		t.Fatalf("operationArgs(shopCultivate.buy): %v", err)
@@ -873,6 +881,62 @@ func TestIsWaterwheelDailyLimitError(t *testing.T) {
 	}
 }
 
+func TestIsFmlFlowerTakeDailyLimitError(t *testing.T) {
+	err := errors.New(`rpc fmlFlowerShare.take: server: {"code":"fmlShare_tips8","msg":"今日拿取次数已达上限","args":[]}`)
+	if !isFmlFlowerTakeDailyLimitError(clientproto.RPCFmlFlowerShareTake.String(), err) {
+		t.Fatal("isFmlFlowerTakeDailyLimitError = false, want true")
+	}
+	if isFmlFlowerTakeDailyLimitError(clientproto.RPCFmlFlowerShareRecvRwd.String(), err) {
+		t.Fatal("isFmlFlowerTakeDailyLimitError matched the wrong rpc")
+	}
+	if got := classifyOperationError(clientproto.RPCFmlFlowerShareTake.String(), err); got != operationErrorFmlFlowerTakeDailyLimit {
+		t.Fatalf("classifyOperationError=%q, want %q", got, operationErrorFmlFlowerTakeDailyLimit)
+	}
+
+	rpcErr := &babigame.RPCServerError{
+		Name:     clientproto.RPCFmlFlowerShareTake,
+		Envelope: babigame.WSResponseD{M: json.RawMessage(`{"code":"fmlShare_tips8","msg":"今日拿取次数已达上限","args":[]}`)},
+	}
+	if !isFmlFlowerTakeDailyLimitError(clientproto.RPCFmlFlowerShareTake.String(), rpcErr) {
+		t.Fatal("RPCServerError tips8 should classify as daily limit")
+	}
+
+	r := newOperationEventTestRunner()
+	now := time.Now()
+	op := &automation.PlannedOp{
+		Kind:      clientproto.RPCFmlFlowerShareTake.String(),
+		Category:  automation.CategoryUnion,
+		Domain:    "union.flower.take",
+		Action:    "take",
+		Lane:      automation.LaneSide,
+		TargetUID: 662505100059,
+		TargetID:  3,
+	}
+	if err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              rpcErr,
+		finishedAt:       now,
+	}); err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if _, ok := r.state.FmlFlowerTakeDailyLimitReached(now); !ok {
+		t.Fatal("daily limit should be marked")
+	}
+	if !r.state.FmlFlowerTakeExhausted(now) {
+		t.Fatal("take should be exhausted after tips8")
+	}
+	if _, cooling := r.operationCoolingDown(&automation.PlannedOp{
+		Kind:        clientproto.RPCFmlFlowerShareTake.String(),
+		Lane:        automation.LaneSide,
+		Domain:      "union.flower.take",
+		CooldownKey: "union.flower.take",
+		TargetUID:   999,
+		TargetID:    1,
+	}, now.Add(time.Minute)); !cooling {
+		t.Fatal("shared union.flower.take cooldown should block other take targets")
+	}
+}
+
 func TestIsResidentOrderDailyLimitError(t *testing.T) {
 	err := errors.New("rpc orderFlower.finishOrder: server: 今日完成订单次数已达上限")
 	if !isResidentOrderDailyLimitError(clientproto.RPCOrderFlowerFinishOrder.String(), err) {
@@ -886,6 +950,68 @@ func TestIsResidentOrderDailyLimitError(t *testing.T) {
 	}
 	if isResidentOrderDailyLimitError(clientproto.RPCOrderCustomerFinishOrder.String(), err) {
 		t.Fatal("isResidentOrderDailyLimitError matched the wrong rpc")
+	}
+}
+
+func TestHandleResidentSatinDecorateDailyLimitMarksState(t *testing.T) {
+	err := errors.New("rpc orderFlower.finishSatinOrder: server: 今日完成订单次数已达上限")
+	now := time.Date(2026, 7, 5, 20, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	wantUntil := state.NextCalendarDayReset(now)
+
+	r := newOperationEventTestRunner()
+	satinKey := clientproto.RPCOrderFlowerFinishSatinOrder.String() + "|order.resident.satin|finish"
+	r.operationCooldowns[satinKey] = operationCooldown{
+		Until:  now.Add(61 * time.Second),
+		Reason: "服务端提示订单冷却中",
+	}
+	satin := &automation.PlannedOp{
+		Kind:     clientproto.RPCOrderFlowerFinishSatinOrder.String(),
+		Category: automation.CategoryOrder,
+		Domain:   "order.resident.satin",
+		Action:   "finish",
+		Lane:     automation.LaneSide,
+	}
+	if err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: satin},
+		err:              err,
+		finishedAt:       now,
+	}); err != nil {
+		t.Fatalf("handleOperationError satin=%v, want nil", err)
+	}
+	until, ok := r.state.ResidentSatinDailyLimitReached(now)
+	if !ok {
+		t.Fatal("satin daily limit should be marked in state")
+	}
+	if !until.Equal(wantUntil) {
+		t.Fatalf("satin limit until=%s, want next calendar day %s", until, wantUntil)
+	}
+	if _, ok := r.operationCooldowns[satinKey]; ok {
+		t.Fatal("satin retry timer should be closed after daily limit")
+	}
+	if _, cooling := r.operationCoolingDown(satin, now.Add(time.Minute)); cooling {
+		t.Fatal("satin should not keep a retry cooldown after daily limit")
+	}
+
+	r = newOperationEventTestRunner()
+	decorate := &automation.PlannedOp{
+		Kind:     clientproto.RPCOrderFlowerFinishDecorateOrder.String(),
+		Category: automation.CategoryOrder,
+		Domain:   "order.resident.decorate",
+		Action:   "finish",
+		Lane:     automation.LaneSide,
+	}
+	if err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: decorate},
+		err:              err,
+		finishedAt:       now,
+	}); err != nil {
+		t.Fatalf("handleOperationError decorate=%v, want nil", err)
+	}
+	if _, ok := r.state.ResidentDecorateDailyLimitReached(now); !ok {
+		t.Fatal("decorate daily limit should be marked in state")
+	}
+	if _, cooling := r.operationCoolingDown(decorate, now.Add(time.Minute)); cooling {
+		t.Fatal("decorate should not keep a retry cooldown after daily limit")
 	}
 }
 
@@ -950,6 +1076,12 @@ func TestClassifyOperationError(t *testing.T) {
 			kind: clientproto.RPCTaskDlyRecv.String(),
 			err:  errors.New("rpc taskDly.recv: server: 本组任务已经完结"),
 			want: operationErrorTaskGroupFinished,
+		},
+		{
+			name: "fml flower take daily limit",
+			kind: clientproto.RPCFmlFlowerShareTake.String(),
+			err:  errors.New(`rpc fmlFlowerShare.take: server: {"code":"fmlShare_tips8","msg":"今日拿取次数已达上限","args":[]}`),
+			want: operationErrorFmlFlowerTakeDailyLimit,
 		},
 		{
 			name: "ordinary failure",

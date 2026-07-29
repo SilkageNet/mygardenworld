@@ -574,6 +574,56 @@ func (s *State) ResidentOrderDailyLimitReached(now time.Time) (time.Time, bool) 
 	return until, true
 }
 
+// MarkResidentSatinDailyLimitReached records the server-side satin resident
+// order daily cap so the planner stops selecting finishSatinOrder until the
+// next 00:00 Asia/Shanghai reset.
+func (s *State) MarkResidentSatinDailyLimitReached(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.residentSatinLimitUntilMs = NextCalendarDayReset(now).UnixMilli()
+}
+
+// ResidentSatinDailyLimitReached reports a locally recorded server-side satin
+// resident order daily cap.
+func (s *State) ResidentSatinDailyLimitReached(now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.residentSatinLimitUntilMs <= 0 {
+		return time.Time{}, false
+	}
+	until := time.UnixMilli(s.residentSatinLimitUntilMs)
+	if !until.After(now) {
+		s.residentSatinLimitUntilMs = 0
+		return time.Time{}, false
+	}
+	return until, true
+}
+
+// MarkResidentDecorateDailyLimitReached records the server-side decorate
+// resident order daily cap so the planner stops selecting finishDecorateOrder
+// until the next 00:00 Asia/Shanghai reset.
+func (s *State) MarkResidentDecorateDailyLimitReached(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.residentDecorateLimitUntilMs = NextCalendarDayReset(now).UnixMilli()
+}
+
+// ResidentDecorateDailyLimitReached reports a locally recorded server-side
+// decorate resident order daily cap.
+func (s *State) ResidentDecorateDailyLimitReached(now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.residentDecorateLimitUntilMs <= 0 {
+		return time.Time{}, false
+	}
+	until := time.UnixMilli(s.residentDecorateLimitUntilMs)
+	if !until.After(now) {
+		s.residentDecorateLimitUntilMs = 0
+		return time.Time{}, false
+	}
+	return until, true
+}
+
 // NoteResidentOrderFinished records one successful ordinary resident-order
 // finish when the response did not already carry an authoritative field-9
 // statistics update (ApplyV clears the bias in that case).
@@ -640,6 +690,38 @@ func (s *State) ResidentOrderFinishNum(now time.Time) int32 {
 	return 0
 }
 
+// ResidentSatinFinishNum returns today's satin resident finish count. Counts
+// reset at 00:00 Asia/Shanghai; a prior-day statistics snapshot is treated as 0
+// until the server publishes the new day's counters.
+func (s *State) ResidentSatinFinishNum(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return specialOrderFinishNumLocked(s.statistics, s.statistics.OrderSatinFinishNum, now)
+}
+
+// ResidentDecorateFinishNum returns today's decorate resident finish count.
+// Counts reset at 00:00 Asia/Shanghai like satin orders.
+func (s *State) ResidentDecorateFinishNum(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return specialOrderFinishNumLocked(s.statistics, s.statistics.OrderDecorateFinishNum, now)
+}
+
+func specialOrderFinishNumLocked(stats StatisticsView, finished int32, now time.Time) int32 {
+	if !stats.Observed {
+		return 0
+	}
+	day := calendarDayID(now)
+	switch {
+	case stats.DayID == 0 || stats.DayID == day:
+		return finished
+	case stats.DayID < day:
+		return 0
+	default:
+		return finished
+	}
+}
+
 // ResidentOrderNormalDailyMax returns c_orderFlower.$dailyMax, the mini
 // client's hard daily cap for normal resident orders.
 func ResidentOrderNormalDailyMax() int32 {
@@ -676,12 +758,26 @@ func nextGameDayReset(now time.Time) time.Time {
 	return time.Date(y, m, d+1, 0, 5, 0, 0, local.Location())
 }
 
+// NextCalendarDayReset is the next 00:00 Asia/Shanghai boundary. Satin/decorate
+// resident-order daily counters reset here.
+func NextCalendarDayReset(now time.Time) time.Time {
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return time.Date(y, m, d+1, 0, 0, 0, 0, local.Location())
+}
+
 func gameDayID(now time.Time) int32 {
 	local := now.In(gameDayLocation())
 	// Game day rolls at 00:05 Asia/Shanghai; before that keep the previous day.
 	if local.Hour() == 0 && local.Minute() < 5 {
 		local = local.Add(-5 * time.Minute)
 	}
+	y, m, d := local.Date()
+	return int32(y*10000 + int(m)*100 + d)
+}
+
+func calendarDayID(now time.Time) int32 {
+	local := now.In(gameDayLocation())
 	y, m, d := local.Date()
 	return int32(y*10000 + int(m)*100 + d)
 }

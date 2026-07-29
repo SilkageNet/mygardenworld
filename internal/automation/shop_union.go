@@ -19,6 +19,10 @@ const raceTakeLeadWindow = 4 * time.Second
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 10 * time.Minute
 
+// fmlFlowerTakeListRefreshInterval is how often automation re-fetches the
+// guild other-share list while take quota remains.
+const fmlFlowerTakeListRefreshInterval = time.Hour
+
 func shopOperations(s *state.State, policy *pb.Policy, now time.Time) []PlannedOp {
 	shop := policy.GetBasic().GetShop()
 	var ops []PlannedOp
@@ -71,6 +75,9 @@ func cultivateShopOperations(s *state.State, shop *pb.ShopPolicy, now time.Time)
 			reason = "材料商店已跨日重置，先进入商店刷新购买记录"
 		}
 		return []PlannedOp{domainOp(clientproto.RPCShopCultivateEnter.String(), goal, "basic.shop.cultivate", "sync", reason, 5450, 0, 0, 0)}
+	}
+	if s.ShopCultivateAutoRefreshReady(now) {
+		return []PlannedOp{domainOp(clientproto.RPCShopCultivateRefresh.String(), goal, "basic.shop.cultivate", "refresh", "材料商店免费刷新可用，先刷新货架", 5420, 0, 0, 0)}
 	}
 	allowed := int32Set(cultivateShop.GetItemIds())
 	inventory := s.Inventory()
@@ -146,14 +153,14 @@ func unionOperations(s *state.State, union *pb.UnionPolicy, now time.Time) []Pla
 	uid := s.RoleID()
 	var ops []PlannedOp
 	ops = append(ops, unionBuildOperations(s, union.GetBuild())...)
-	ops = append(ops, unionFlowerOperations(s, union.GetFlower())...)
+	ops = append(ops, unionFlowerOperations(s, union.GetFlower(), now)...)
 	ops = append(ops, unionLandOperations(s, union.GetLand(), now)...)
 	ops = append(ops, unionRaceOperations(s, union.GetRace(), uid, now)...)
 	ops = append(ops, unionForestOperations(s, union.GetForestEnabled())...)
 	return ops
 }
 
-func unionFlowerOperations(s *state.State, policy *pb.UnionFlowerPolicy) []PlannedOp {
+func unionFlowerOperations(s *state.State, policy *pb.UnionFlowerPolicy, now time.Time) []PlannedOp {
 	if policy == nil || (!policy.GetShareEnabled() && !policy.GetTakeEnabled()) {
 		return nil
 	}
@@ -170,23 +177,54 @@ func unionFlowerOperations(s *state.State, policy *pb.UnionFlowerPolicy) []Plann
 		}
 	}
 	if policy.GetTakeEnabled() {
-		if !s.OtherFmlFlowerSharesObserved() {
-			sync := domainOp(clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String(), goal, "union.flower.take", "take", "公会摸花列表未观测，先同步", 4460, 0, 0, 0)
-			ops = append(ops, sync)
-		} else {
-			for _, candidate := range s.FmlFlowerTakeCandidates() {
-				if !unionFlowerTakeAllowed(candidate, policy) {
-					continue
-				}
-				take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", "公会成员分享鲜花可摸取", 4460, candidate.SlotID, 0, 1)
-				take.TargetUID = candidate.UID
-				take.FlowerID = candidate.FlowerID
-				ops = append(ops, take)
-				break
-			}
-		}
+		ops = append(ops, unionFlowerTakeOperations(s, policy, goal, now)...)
 	}
 	return ops
+}
+
+func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goal Goal, now time.Time) []PlannedOp {
+	// Daily window: only run at/after 00:01 Asia/Shanghai.
+	if !state.FmlFlowerTakeWindowOpen(now) {
+		return nil
+	}
+	// Quota exhausted: do not take and do not refresh the share list.
+	if _, ok := s.FmlFlowerTakeDailyLimitReached(now); ok {
+		return nil
+	}
+	if s.FmlFlowerTakeExhausted(now) {
+		return nil
+	}
+	// Need own share counters before deciding takes when possible.
+	if !s.FmlFlowerShareObserved() {
+		sync := domainOp(clientproto.RPCFmlFlowerShareRefresh.String(), goal, "union.flower.take", "take", "公会摸花次数未观测，先刷新分享状态", 4465, 0, 0, 0)
+		sync.CooldownKey = "union.flower.take"
+		return []PlannedOp{sync}
+	}
+	if !s.OtherFmlFlowerSharesObserved() || fmlFlowerTakeListStale(s, now) {
+		sync := domainOp(clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String(), goal, "union.flower.take", "take", "公会摸花列表未观测或超过1小时，重新拉取", 4460, 0, 0, 0)
+		sync.CooldownKey = "union.flower.take"
+		return []PlannedOp{sync}
+	}
+	for _, candidate := range s.FmlFlowerTakeCandidates() {
+		if !unionFlowerTakeAllowed(candidate, policy) {
+			continue
+		}
+		take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", "公会成员分享鲜花可摸取", 4460, candidate.SlotID, 0, 1)
+		take.TargetUID = candidate.UID
+		take.FlowerID = candidate.FlowerID
+		take.CooldownKey = "union.flower.take"
+		return []PlannedOp{take}
+	}
+	// List is fresh but no matching flowers — do not take.
+	return nil
+}
+
+func fmlFlowerTakeListStale(s *state.State, now time.Time) bool {
+	syncedAt := s.OtherFmlFlowerSharesSyncedAtMs()
+	if syncedAt <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(syncedAt).Add(fmlFlowerTakeListRefreshInterval))
 }
 
 func unionFlowerTakeAllowed(candidate state.FmlFlowerTakeCandidate, policy *pb.UnionFlowerPolicy) bool {
@@ -397,12 +435,24 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 
 	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
 
-	// Enter pushes CurFmlRaceBatch (111). Task pool / taken-task (114/110) require
-	// a follow-up getTaskList. Neither sync step is gated by autoEnableModules.
+	// Enter pushes CurFmlRaceBatch (111) and CurFmlRaceRcd (117, raceLvl).
+	// Login may already carry 111 without 117; re-enter once while raceLvl is
+	// unknown so task-quota totals use the correct guild tier (甲=18/乙=15/…).
+	// Task pool / taken-task (114/110) require a follow-up getTaskList.
+	// Neither sync step is gated by autoEnableModules.
 	// Also re-fetch when a plant-harvest row is missing flower ParamID (once per
 	// pool msId set — state.MissingParamRefreshFP prevents tight loops).
 	if !view.Observed {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)}
+	}
+	if view.BatchActive && view.RaceLvl <= 0 && s.FmlBuild().RaceLvl <= 0 {
+		const raceLvlSyncInterval = 10 * time.Minute
+		synced := view.RaceLvlSyncAtMs
+		if synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceLvlSyncInterval)) {
+			op := domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛同步段位与任务配额", 4399, 0, 0, 0)
+			op.CooldownKey = "union.race.enter.race_lvl"
+			return []PlannedOp{op}
+		}
 	}
 	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", 4398, 0, 0, 0)}
@@ -426,23 +476,10 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	var ops []PlannedOp
 
 	// 1a. Abandon a taken task that cannot or should not be kept.
-	// Score filter: min_task_score is a lower bound (Score <= minScore → give up).
-	// Score==0 means the pool has not resolved the taken task yet — do not give up
-	// for score alone.
-	// Plant-harvest: give up when the target flower is unknown or not cultivated.
 	// TargetCnt<=0 means progress unknown (e.g. synthesized from pool UID) — treat as unfinished.
+	// Tasks with FinishCnt>0 are kept (do not auto-cancel mid-progress).
 	if view.Taken.HasTask && (view.Taken.TargetCnt <= 0 || view.Taken.FinishCnt < view.Taken.TargetCnt) {
-		reason := ""
-		minScore := policy.GetMinTaskScore()
-		switch {
-		case minScore > 0 && view.Taken.Score > 0 && view.Taken.Score <= minScore:
-			reason = "公会竞赛放弃不符合分数要求的已接任务"
-		case raceTakenUncompletable(s, view.Taken):
-			reason = "公会竞赛放弃无法完成的种植收获任务"
-		case raceTakenPriorityZero(policy, view.Taken):
-			reason = "公会竞赛放弃优先级为0的已接任务"
-		}
-		if reason != "" {
+		if reason := raceTakenAbandonReason(s, policy, view); reason != "" {
 			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", reason, 4395, 0, 0, 0)
 			op.TaskMsID = view.Taken.TaskMsId
 			op.TaskID = view.Taken.TaskType
@@ -725,6 +762,60 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 		return ready
 	}
 	return upcoming
+}
+
+// raceTakenAbandonReason returns a non-empty give-up reason when a held
+// unfinished task should not be kept. Callers must only invoke this for
+// unfinished taken tasks (unknown progress TargetCnt<=0 counts as unfinished).
+//
+// Order (auto-complete on):
+//  1. FinishCnt>0 → keep (do not cancel mid-progress)
+//  2. Pool observed and TaskMsId missing from pool → give up
+//  3. Score <= min_task_score (Score==0 unresolved → do not give up for score alone)
+//  4. Plant-harvest uncompletable / priority 0
+func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView) string {
+	taken := view.Taken
+	if policy == nil || !taken.HasTask {
+		return ""
+	}
+	if taken.FinishCnt > 0 {
+		return ""
+	}
+	if view.TasksObserved {
+		if _, ok := raceTaskByMsID(view.Tasks, taken.TaskMsId); !ok {
+			return "公会竞赛放弃不在任务池中的已接任务"
+		}
+	}
+	minScore := policy.GetMinTaskScore()
+	switch {
+	case minScore > 0 && taken.Score > 0 && taken.Score <= minScore:
+		return "公会竞赛放弃不符合分数要求的已接任务"
+	case raceTakenUncompletable(s, taken):
+		return "公会竞赛放弃无法完成的种植收获任务"
+	case raceTakenPriorityZero(policy, taken):
+		return "公会竞赛放弃优先级为0的已接任务"
+	default:
+		return ""
+	}
+}
+
+// raceTakenBlocksProgress reports whether farm modules must not advance a held
+// race task — either it is about to be given up, or its score is still unknown
+// while a min_task_score gate is active (planting before score resolves caused
+// full-field race plants of sub-threshold tasks). Started tasks (FinishCnt>0)
+// are never blocked by the score-unresolved gate.
+func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView) bool {
+	taken := view.Taken
+	if !taken.HasTask {
+		return false
+	}
+	if raceTakenAbandonReason(s, policy, view) != "" {
+		return true
+	}
+	if taken.FinishCnt > 0 {
+		return false
+	}
+	return policy != nil && policy.GetMinTaskScore() > 0 && taken.Score == 0
 }
 
 // raceTakenUncompletable reports whether a held unfinished task can never be
