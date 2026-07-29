@@ -2036,15 +2036,29 @@ func FlowerBouquetItemID(flowerID int32) int32 {
 }
 
 // FlowerLvlYieldByID returns cropGets/frequencys for a flower at cultivation
-// level. The client table key is flowerId*100+level.
+// level. Prefer the per-flower c_flowerLvl row (key flowerId*100+level); when
+// that row is absent or lacks yield fields (newer flowers like 梦紫郁金香),
+// fall back to the shared c_flowerLvlCfg row for the same level — matching
+// client defaults so race plant sizing does not degrade to 1 flower/plant.
 func FlowerLvlYieldByID(flowerID, level int32) (FlowerLvlYield, bool) {
-	if flowerID <= 0 || level <= 0 {
+	if level <= 0 {
 		return FlowerLvlYield{}, false
 	}
-	raw, ok := StaticRow("c_flowerLvl", flowerID*100+level)
+	if flowerID > 0 {
+		if raw, ok := StaticRow("c_flowerLvl", flowerID*100+level); ok {
+			if y, ok := parseFlowerLvlYield(raw, level); ok {
+				return y, true
+			}
+		}
+	}
+	raw, ok := StaticRow("c_flowerLvlCfg", level)
 	if !ok {
 		return FlowerLvlYield{}, false
 	}
+	return parseFlowerLvlYield(raw, level)
+}
+
+func parseFlowerLvlYield(raw json.RawMessage, level int32) (FlowerLvlYield, bool) {
 	var row struct {
 		CropGets   int32 `json:"cropGets"`
 		Frequencys int32 `json:"frequencys"`

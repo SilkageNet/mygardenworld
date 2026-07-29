@@ -47,7 +47,6 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	// Race batch + task pool + user record (fields 111, 114, 110).
 	// Sparse merge: missing keys preserve prior race state. Only a meaningful
 	// CurFmlRaceBatch marks Observed — empty/null stubs must not block enter.
-	had110Task := false
 	if rawBatch, ok := ns25["111"]; ok {
 		applyFmlRaceBatchLocked(&s.fmlRace, rawBatch)
 	}
@@ -75,35 +74,13 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 				s.fmlRace.BuyTaskNum = buy
 			}
 		}
-		had110Task = s.fmlRace.Taken.HasTask
 	}
 	// Enrich taken task from the pool (score / param / label / progress / type).
-	// takeTask responses sometimes omit targetCnt (field 2) / finishCnt (field 3)
-	// in field 110.7; backfill from the matching pool row so that race progress
-	// demands can fire.
+	// takeTask / 110 often lag finishCnt while the matching pool row (field 8)
+	// advances; always take the higher FinishCnt/TargetCnt so finishTask can
+	// fire and plant demand shrinks with real progress.
 	if s.fmlRace.Taken.HasTask {
-		for _, t := range s.fmlRace.Tasks {
-			if t.MsId != s.fmlRace.Taken.TaskMsId {
-				continue
-			}
-			if s.fmlRace.Taken.Score == 0 {
-				s.fmlRace.Taken.Score = t.Score
-			}
-			if s.fmlRace.Taken.ParamID == 0 && t.ParamID != 0 {
-				s.fmlRace.Taken.ParamID = t.ParamID
-				s.fmlRace.Taken.TargetLabel = t.TargetLabel
-			}
-			if s.fmlRace.Taken.TargetCnt == 0 && t.TargetCnt > 0 {
-				s.fmlRace.Taken.TargetCnt = t.TargetCnt
-			}
-			if s.fmlRace.Taken.FinishCnt == 0 && t.FinishCnt > 0 {
-				s.fmlRace.Taken.FinishCnt = t.FinishCnt
-			}
-			if s.fmlRace.Taken.TaskType == 0 && t.TaskType > 0 {
-				s.fmlRace.Taken.TaskType = t.TaskType
-			}
-			break
-		}
+		enrichFmlRaceTakenFromTask(&s.fmlRace.Taken, s.fmlRace.Tasks)
 		if s.fmlRace.Taken.TargetLabel == "" && s.fmlRace.Taken.ParamID > 0 {
 			s.fmlRace.Taken.TargetLabel = ItemLabel(s.fmlRace.Taken.ParamID)
 		}
@@ -113,13 +90,11 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 			s.fmlRace.Taken = taken
 		}
 	}
-	// getTaskList often returns a full 114 without 110. Sparse preserve then
-	// keeps a stale Taken (e.g. 鹤望兰) after the real held task moved to
-	// another pool row (花笼流芳). When this apply did not assert a 110 task,
-	// the pool UID==self row is authoritative.
-	if fullRaceTaskPool && !had110Task {
-		reconcileFmlRaceTakenAfterFullPool(&s.fmlRace, s.roleID)
-	}
+	// Pool UID==self is the live holder. Prefer it over 110 takeTaskData whenever
+	// present — stale 110 (e.g. 鹤望兰 score 0) otherwise survives enter/sparse
+	// syncs and blocks take/giveUp. Full-pool getTaskList with no UID==self also
+	// clears orphans so UI does not keep a ghost task.
+	reconcileFmlRaceTakenWithPool(&s.fmlRace, s.roleID, fullRaceTaskPool)
 }
 
 func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -361,16 +336,108 @@ func synthesizeFmlRaceTakenFromPool(tasks []FmlRaceTaskView, roleID int64) (FmlR
 	return FmlRaceTakenView{}, false
 }
 
-// reconcileFmlRaceTakenAfterFullPool replaces stale Taken after an authoritative
-// getTaskList pool snapshot that did not include a fresh 110 takeTaskData.
-// Pool UID==self is the live holder; if none, clear Taken so UI/planner do not
-// keep an orphan task (score 0 / missing from pool).
-func reconcileFmlRaceTakenAfterFullPool(view *FmlRaceView, roleID int64) {
-	if taken, ok := synthesizeFmlRaceTakenFromPool(view.Tasks, roleID); ok {
-		view.Taken = taken
+// enrichFmlRaceTakenFromTask copies score/param/type gaps and monotonic
+// TargetCnt/FinishCnt from the pool row with the same msId (UID may be 0 on
+// some shards while progress still advances on field 7/8).
+func enrichFmlRaceTakenFromTask(taken *FmlRaceTakenView, tasks []FmlRaceTaskView) {
+	if taken == nil || !taken.HasTask || taken.TaskMsId == 0 {
 		return
 	}
-	view.Taken = FmlRaceTakenView{}
+	for _, t := range tasks {
+		if t.MsId != taken.TaskMsId {
+			continue
+		}
+		if taken.Score == 0 {
+			taken.Score = t.Score
+		}
+		if taken.ParamID == 0 && t.ParamID != 0 {
+			taken.ParamID = t.ParamID
+			taken.TargetLabel = t.TargetLabel
+		}
+		if t.TargetLabel != "" && taken.TargetLabel == "" {
+			taken.TargetLabel = t.TargetLabel
+		}
+		if t.TargetCnt > taken.TargetCnt {
+			taken.TargetCnt = t.TargetCnt
+		}
+		if t.FinishCnt > taken.FinishCnt {
+			taken.FinishCnt = t.FinishCnt
+		}
+		if taken.TaskType == 0 && t.TaskType > 0 {
+			taken.TaskType = t.TaskType
+		}
+		if taken.TaskId == 0 && t.TaskId > 0 {
+			taken.TaskId = t.TaskId
+		}
+		return
+	}
+}
+
+// reconcileFmlRaceTakenWithPool aligns Taken with the task pool.
+//
+// Pool UID==self is the live holder. When it points at a different TaskMsId than
+// 110 (stale 鹤望兰 / score-0 ghost), replace Taken entirely. When it matches the
+// current Taken msId, merge gaps and advance FinishCnt monotonically.
+//
+// Authoritative getTaskList (fullPool) with no UID==self clears Taken only when
+// the current msId is also gone from the pool (true orphan). Some shards keep
+// the holder's pool row at UID=0 while 110 still carries takeTaskData — clearing
+// those would drop a live task, skip finishTask, and allow a duplicate take.
+func reconcileFmlRaceTakenWithPool(view *FmlRaceView, roleID int64, fullPool bool) {
+	poolTaken, ok := synthesizeFmlRaceTakenFromPool(view.Tasks, roleID)
+	if !ok {
+		if fullPool && view.Taken.HasTask {
+			if racePoolHasMsID(view.Tasks, view.Taken.TaskMsId) {
+				enrichFmlRaceTakenFromTask(&view.Taken, view.Tasks)
+			} else {
+				view.Taken = FmlRaceTakenView{}
+			}
+		}
+		return
+	}
+	if !view.Taken.HasTask || view.Taken.TaskMsId != poolTaken.TaskMsId {
+		view.Taken = poolTaken
+		return
+	}
+	if view.Taken.Score == 0 {
+		view.Taken.Score = poolTaken.Score
+	}
+	if view.Taken.ParamID == 0 && poolTaken.ParamID != 0 {
+		view.Taken.ParamID = poolTaken.ParamID
+		view.Taken.TargetLabel = poolTaken.TargetLabel
+	}
+	if view.Taken.TargetLabel == "" && poolTaken.TargetLabel != "" {
+		view.Taken.TargetLabel = poolTaken.TargetLabel
+	}
+	if poolTaken.TargetCnt > view.Taken.TargetCnt {
+		view.Taken.TargetCnt = poolTaken.TargetCnt
+	}
+	if poolTaken.FinishCnt > view.Taken.FinishCnt {
+		view.Taken.FinishCnt = poolTaken.FinishCnt
+	}
+	if view.Taken.TaskType == 0 {
+		view.Taken.TaskType = poolTaken.TaskType
+	}
+	if view.Taken.TaskId == 0 {
+		view.Taken.TaskId = poolTaken.TaskId
+	}
+}
+
+func racePoolHasMsID(tasks []FmlRaceTaskView, msID int64) bool {
+	if msID == 0 {
+		return false
+	}
+	for _, t := range tasks {
+		if t.MsId == msID {
+			return true
+		}
+	}
+	return false
+}
+
+// reconcileFmlRaceTakenAfterFullPool is the full-pool entry point used by tests.
+func reconcileFmlRaceTakenAfterFullPool(view *FmlRaceView, roleID int64) {
+	reconcileFmlRaceTakenWithPool(view, roleID, true)
 }
 
 // firstInt32FromRaw returns the first numeric entry from a JSON array/number

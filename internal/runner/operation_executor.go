@@ -711,6 +711,9 @@ func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.Pla
 		v = normalizeFmlRaceEnterV(v)
 		rt.runner.state.ApplyV(v)
 		rt.runner.state.MarkFmlRaceLvlSyncAttempt()
+		// Enter may push sparse 114/110. Force the next tick to getTaskList so
+		// full-pool reconcile can replace stale Taken (e.g. 鹤望兰 score 0).
+		rt.runner.state.MarkFmlRaceTasksUnobserved()
 	}
 	return v, nil
 }

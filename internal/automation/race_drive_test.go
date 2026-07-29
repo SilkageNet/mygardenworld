@@ -113,6 +113,7 @@ func TestRaceNoPlantDemandWhenTakenBelowMinScore(t *testing.T) {
 		"7": map[string]any{"0": map[string]any{"0": 999}},
 		"25": map[string]any{
 			"111": map[string]any{"0": 1783872000000, "1": 1, "2": 1783990800000, "3": 1784466000000},
+			"117": map[string]any{"5": 4},
 			"114": []any{
 				map[string]any{"0": 99, "4": 4001, "6": []any{23001}, "10": 9, "12": 999, "14": 0, "15": 0},
 			},
@@ -422,6 +423,51 @@ func TestRacePlantDoesNotFillAllLandsOrAutoReplant(t *testing.T) {
 		if isPlantOperation(op.Kind) && op.Executable {
 			if op.FlowerID != 23001 || op.GoalID != "union.race" {
 				t.Fatalf("unexpected plant while race active: %+v", op)
+			}
+			plantCount += int32(len(op.LandIDs))
+		}
+	}
+	if plantCount != 24 {
+		t.Fatalf("planted %d lands, want 24 (not full 64)", plantCount)
+	}
+}
+
+func TestRacePlantUsesFlowerLvlCfgWhenFlowerRowMissing(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// 梦紫郁金香 (23436): no per-flower c_flowerLvl yield rows. Without
+	// c_flowerLvlCfg fallback, Missing collapses to remaining flowers and
+	// fills all 64 lands.
+	s := raceTakenPlantState(t, 0, 280)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"111": map[string]any{"0": 1783872000000, "1": 1, "2": 1783990800000, "3": 1784466000000},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{
+				"1783872000000": map[string]any{
+					"7": map[string]any{"0": 99, "1": 4001, "2": 280, "3": 0, "4": []any{23436}},
+				},
+			},
+		},
+		"100": map[string]any{"1": emptyLands(64)},
+		"101": map[string]any{"0": map[string]any{
+			"23436": map[string]any{"1": 23436, "2": 11, "4": 2},
+		}},
+	})
+	policy := racePlantPolicy(false)
+
+	result := BuildPlan(s, policy, now)
+	demand, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23436")
+	if !ok {
+		t.Fatalf("missing race demand, demands=%+v", result.Demands)
+	}
+	if demand.Missing != 24 {
+		t.Fatalf("demand Missing=%d, want 24 via c_flowerLvlCfg", demand.Missing)
+	}
+	var plantCount int32
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable {
+			if op.FlowerID != 23436 {
+				t.Fatalf("unexpected plant flower %d", op.FlowerID)
 			}
 			plantCount += int32(len(op.LandIDs))
 		}

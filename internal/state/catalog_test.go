@@ -191,6 +191,11 @@ func TestFlowerLvlYieldByID(t *testing.T) {
 	if _, ok := FlowerLvlYieldByID(23001, 0); ok {
 		t.Fatal("FlowerLvlYieldByID(23001,0) should be false")
 	}
+	// 梦紫郁金香 has no per-flower c_flowerLvl yield rows; use c_flowerLvlCfg.
+	y11, ok := FlowerLvlYieldByID(23436, 11)
+	if !ok || y11.CropGets != 3 || y11.Frequencys != 4 || y11.FlowersPerPlant() != 12 {
+		t.Fatalf("FlowerLvlYieldByID(23436,11)=%+v ok=%v, want cfg cropGets=3 frequencys=4", y11, ok)
+	}
 }
 
 func TestFlowerUpgradeCostForMaxLevel(t *testing.T) {
