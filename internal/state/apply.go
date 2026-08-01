@@ -192,6 +192,10 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 		s.applyZooLocked(rawNS33)
 	}
 
+	// After lands + race deltas: raise LocalFinishCnt from HarvestCnt bumps so
+	// plant-missing stops topping up before field 134 / emptied lands catch up.
+	s.syncFmlRaceLocalFinishLocked(changes)
+
 	resourcesChanged := s.gold != prevGold || s.currentWaterDropsLocked() != prevWaterDrops ||
 		s.waterDropsTotal != prevWaterDropsTotal || s.waterDropsNextMs != prevWaterDropsNext || s.level != prevLevel ||
 		s.experience != prevExp || s.vip != prevVip || s.vipExp != prevVipExp ||

@@ -1,6 +1,7 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -95,6 +96,12 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	// syncs and blocks take/giveUp. Full-pool getTaskList with no UID==self also
 	// clears orphans so UI does not keep a ghost task.
 	reconcileFmlRaceTakenWithPool(&s.fmlRace, s.roleID, fullRaceTaskPool)
+	// Field 134 carries live takeTaskData on plant-harvest (and finish) deltas.
+	// Apply last so harvest progress is not overwritten by a lagging 110 stub,
+	// and finishTask can fire on the next plan tick without waiting for getTaskList.
+	if rawTakenProg, ok := ns25["134"]; ok {
+		applyFmlRaceTakenProgressLocked(&s.fmlRace, rawTakenProg)
+	}
 }
 
 func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -433,6 +440,236 @@ func racePoolHasMsID(tasks []FmlRaceTaskView, msID int64) bool {
 		}
 	}
 	return false
+}
+
+// applyFmlRaceTakenProgressLocked merges NS25 field 134 into Taken.
+//
+// Harvest / plant-harvest responses push:
+//
+//	{"<batchId>":{"3":IFmlRaceTakeTask,"4":uTimeMs}}
+//
+// Field 3 empty/null clears Taken when the held msId matches (finish/give-up).
+// Non-empty takeTaskData advances FinishCnt/TargetCnt immediately so the
+// planner can emit finishTask without waiting for the next getTaskList.
+func applyFmlRaceTakenProgressLocked(view *FmlRaceView, raw json.RawMessage) {
+	if view == nil || isJSONNull(raw) {
+		return
+	}
+	var byBatch map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &byBatch); err != nil || len(byBatch) == 0 {
+		return
+	}
+	rawEntry, ok := pickFmlRaceTakenProgressEntry(byBatch, view.BatchID)
+	if !ok {
+		return
+	}
+	if isJSONNull(rawEntry) {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(rawEntry, &fields); err != nil {
+		return
+	}
+	rawTT, hasTT := fields["3"]
+	if !hasTT {
+		return
+	}
+	if isJSONNull(rawTT) || isJSONEmptyObject(rawTT) {
+		// Finished / abandoned: clear only when we were holding a task.
+		if view.Taken.HasTask {
+			view.Taken = FmlRaceTakenView{}
+			clearFmlRaceLocalFinish(view)
+		}
+		return
+	}
+	var tt clientproto.IFmlRaceTakeTask
+	if err := json.Unmarshal(rawTT, &tt); err != nil || tt.TaskMsId == 0 {
+		return
+	}
+	incoming := takenFromTakeTask(tt)
+	if !view.Taken.HasTask || view.Taken.TaskMsId != incoming.TaskMsId {
+		view.Taken = incoming
+		resetFmlRaceLocalFinish(view, incoming.TaskMsId, incoming.FinishCnt)
+	} else {
+		mergeFmlRaceTakenProgress(&view.Taken, incoming)
+		bumpFmlRaceLocalFinish(view, incoming.FinishCnt)
+	}
+	bumpFmlRacePoolProgress(view.Tasks, incoming.TaskMsId, incoming.TargetCnt, incoming.FinishCnt)
+}
+
+func clearFmlRaceLocalFinish(view *FmlRaceView) {
+	if view == nil {
+		return
+	}
+	view.LocalFinishCnt = 0
+	view.LocalFinishTaskMsId = 0
+}
+
+func resetFmlRaceLocalFinish(view *FmlRaceView, taskMsId int64, finish int32) {
+	if view == nil {
+		return
+	}
+	view.LocalFinishTaskMsId = taskMsId
+	if finish < 0 {
+		finish = 0
+	}
+	view.LocalFinishCnt = finish
+}
+
+func bumpFmlRaceLocalFinish(view *FmlRaceView, finish int32) {
+	if view == nil || !view.Taken.HasTask {
+		return
+	}
+	if view.LocalFinishTaskMsId != view.Taken.TaskMsId {
+		resetFmlRaceLocalFinish(view, view.Taken.TaskMsId, view.Taken.FinishCnt)
+	}
+	if finish > view.LocalFinishCnt {
+		view.LocalFinishCnt = finish
+	}
+	if view.Taken.FinishCnt > view.LocalFinishCnt {
+		view.LocalFinishCnt = view.Taken.FinishCnt
+	}
+}
+
+// syncFmlRaceLocalFinishLocked keeps LocalFinishCnt ahead of lagging server
+// FinishCnt using land HarvestCnt deltas for the held plant-harvest flower.
+//
+// Mid-cycle harvests bump HarvestCnt while the flower stays planted. The final
+// harvest often clears the plot in the same delta (`100.1.<id>={}`), so we also
+// credit remaining frequencys-HarvestCnt rounds when a race flower disappears.
+func (s *State) syncFmlRaceLocalFinishLocked(landChanges []LandChange) {
+	view := &s.fmlRace
+	if !view.Taken.HasTask {
+		clearFmlRaceLocalFinish(view)
+		return
+	}
+	bumpFmlRaceLocalFinish(view, view.Taken.FinishCnt)
+	taskType := view.Taken.TaskType
+	if taskType == 0 {
+		taskType = FmlRaceTaskTypeByID(view.Taken.TaskId)
+	}
+	if taskType != 3036 || view.Taken.ParamID <= 0 || len(landChanges) == 0 {
+		return
+	}
+	flowerID := view.Taken.ParamID
+	fallbackLvl := int32(0)
+	if cv, ok := s.cultivations[flowerID]; ok && cv.Lvl > 0 {
+		fallbackLvl = cv.Lvl
+	}
+	for _, ch := range landChanges {
+		before := ch.Before
+		after := ch.After
+		if int32(before.FlowerID) != flowerID {
+			continue
+		}
+		lvl := int32(before.Lvl)
+		if lvl <= 0 {
+			lvl = int32(after.Lvl)
+		}
+		if lvl <= 0 {
+			lvl = fallbackLvl
+		}
+		yield, ok := FlowerLvlYieldByID(flowerID, lvl)
+		if !ok || yield.CropGets <= 0 {
+			continue
+		}
+		deltaRounds := int32(0)
+		switch {
+		case int32(after.FlowerID) == flowerID && after.HarvestCnt > before.HarvestCnt:
+			deltaRounds = int32(after.HarvestCnt - before.HarvestCnt)
+		case after.FlowerID == 0:
+			// Final harvest cleared the land — credit unfinished rounds.
+			if yield.Frequencys > 0 {
+				remaining := yield.Frequencys - int32(before.HarvestCnt)
+				if remaining > 0 {
+					deltaRounds = remaining
+				}
+			} else {
+				deltaRounds = 1
+			}
+		}
+		if deltaRounds <= 0 {
+			continue
+		}
+		view.LocalFinishCnt += deltaRounds * yield.CropGets
+	}
+}
+
+func pickFmlRaceTakenProgressEntry(byBatch map[string]json.RawMessage, batchID int64) (json.RawMessage, bool) {
+	if batchID > 0 {
+		if raw, ok := byBatch[strconv.FormatInt(batchID, 10)]; ok {
+			return raw, true
+		}
+	}
+	for _, raw := range byBatch {
+		return raw, true
+	}
+	return nil, false
+}
+
+func isJSONEmptyObject(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) == 2 && trimmed[0] == '{' && trimmed[1] == '}'
+}
+
+func takenFromTakeTask(tt clientproto.IFmlRaceTakeTask) FmlRaceTakenView {
+	paramID := firstInt32FromRaw(tt.Param)
+	return FmlRaceTakenView{
+		TaskMsId:    tt.TaskMsId,
+		TaskId:      tt.TaskId,
+		TaskType:    FmlRaceTaskTypeByID(tt.TaskId),
+		TargetCnt:   tt.TargetCnt,
+		FinishCnt:   tt.FinishCnt,
+		ParamID:     paramID,
+		TargetLabel: ItemLabel(paramID),
+		HasTask:     true,
+	}
+}
+
+func mergeFmlRaceTakenProgress(dst *FmlRaceTakenView, src FmlRaceTakenView) {
+	if dst == nil || !src.HasTask {
+		return
+	}
+	if src.Score > 0 && dst.Score == 0 {
+		dst.Score = src.Score
+	}
+	if src.ParamID > 0 && dst.ParamID == 0 {
+		dst.ParamID = src.ParamID
+		dst.TargetLabel = src.TargetLabel
+	}
+	if src.TargetLabel != "" && dst.TargetLabel == "" {
+		dst.TargetLabel = src.TargetLabel
+	}
+	if src.TargetCnt > dst.TargetCnt {
+		dst.TargetCnt = src.TargetCnt
+	}
+	if src.FinishCnt > dst.FinishCnt {
+		dst.FinishCnt = src.FinishCnt
+	}
+	if src.TaskType > 0 && dst.TaskType == 0 {
+		dst.TaskType = src.TaskType
+	}
+	if src.TaskId > 0 && dst.TaskId == 0 {
+		dst.TaskId = src.TaskId
+	}
+}
+
+func bumpFmlRacePoolProgress(tasks []FmlRaceTaskView, msID int64, target, finish int32) {
+	if msID == 0 {
+		return
+	}
+	for i := range tasks {
+		if tasks[i].MsId != msID {
+			continue
+		}
+		if target > tasks[i].TargetCnt {
+			tasks[i].TargetCnt = target
+		}
+		if finish > tasks[i].FinishCnt {
+			tasks[i].FinishCnt = finish
+		}
+		return
+	}
 }
 
 // reconcileFmlRaceTakenAfterFullPool is the full-pool entry point used by tests.
@@ -1275,21 +1512,10 @@ func parseFmlRaceTaken(raw json.RawMessage, uid, batchID int64) FmlRaceTakenView
 }
 
 func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
-	tt := rcd.TakeTaskData
-	if tt.TaskMsId == 0 {
+	if rcd.TakeTaskData.TaskMsId == 0 {
 		return FmlRaceTakenView{}
 	}
-	paramID := firstInt32FromRaw(tt.Param)
-	return FmlRaceTakenView{
-		TaskMsId:    tt.TaskMsId,
-		TaskId:      tt.TaskId,
-		TaskType:    FmlRaceTaskTypeByID(tt.TaskId),
-		TargetCnt:   tt.TargetCnt,
-		FinishCnt:   tt.FinishCnt,
-		ParamID:     paramID,
-		TargetLabel: ItemLabel(paramID),
-		HasTask:     true,
-	}
+	return takenFromTakeTask(rcd.TakeTaskData)
 }
 
 // FmlRace returns the guild race view parsed from namespace 25.

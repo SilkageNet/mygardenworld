@@ -7,6 +7,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestNormalizeClampsReconnectInterval(t *testing.T) {
@@ -63,6 +64,30 @@ func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
 	}
 }
 
+func TestNormalizeAutoReplantMinLevelClamp(t *testing.T) {
+	if got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoReplantMinLevel: -3},
+	}}).GetPlant().GetPlanting().GetAutoReplantMinLevel(); got != 0 {
+		t.Fatalf("negative min level=%d, want 0", got)
+	}
+	if got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoReplantMinLevel: 11},
+	}}).GetPlant().GetPlanting().GetAutoReplantMinLevel(); got != 11 {
+		t.Fatalf("min level=%d, want 11", got)
+	}
+	got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoReplantMinLevel: 999},
+	}}).GetPlant().GetPlanting().GetAutoReplantMinLevel()
+	max := state.FlowerMaxLevel()
+	if max > 0 {
+		if got != max {
+			t.Fatalf("oversize min level=%d, want clamped to FlowerMaxLevel=%d", got, max)
+		}
+	} else if got < 0 {
+		t.Fatalf("min level=%d, want non-negative", got)
+	}
+}
+
 func TestFlowerArtSellNightPauseRoundTrip(t *testing.T) {
 	in := automation.DefaultPolicy()
 	in.Order.FlowerArt.SellEnabled = true
@@ -72,8 +97,8 @@ func TestFlowerArtSellNightPauseRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(raw, `"sell_night_pause_enabled": true`) {
-		t.Fatalf("ToJSON missing sell_night_pause_enabled: %s", raw)
+	if !strings.Contains(strings.ReplaceAll(raw, " ", ""), `"sell_night_pause_enabled":true`) {
+		t.Fatalf("ToJSON missing sell_night_pause_enabled=true: %s", raw)
 	}
 
 	out, err := FromJSON(raw)

@@ -214,6 +214,9 @@ func (svc *Services) LogoutAccount(ctx context.Context, req *connect.Request[pb.
 		return nil, mapErr(err)
 	}
 	_ = svc.Manager.Stop(acc.ID)
+	// Stop is a no-op when the runner already exited after a kick; still clear
+	// the cached 异常 reason so an intentional stop returns to plain offline.
+	svc.Manager.ClearLastDiagnostics(acc.ID)
 	out := store.AccountToProto(acc)
 	out.Connected = false
 	return connect.NewResponse(&pb.LogoutAccountResponse{Account: out}), nil

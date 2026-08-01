@@ -1462,6 +1462,60 @@ func TestBuildPlan_AntiScamBoxLifecycle(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_BenefitBoxOnlyInMorningWindow(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	// drawCnt=0 with resetCntTime overnight ago: local accrual makes boxes ready.
+	resetAt := time.Date(2026, 7, 29, 20, 0, 0, 0, shanghai)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"116": map[string]any{
+			"0": map[string]any{
+				"1": 0,
+				"2": resetAt.UnixMilli(),
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Benefit = &pb.BenefitPolicy{BoxEnabled: true}
+
+	cases := []struct {
+		name    string
+		now     time.Time
+		wantOps bool
+	}{
+		{name: "before window", now: time.Date(2026, 7, 30, 4, 29, 0, 0, shanghai), wantOps: false},
+		{name: "window start", now: time.Date(2026, 7, 30, 4, 30, 0, 0, shanghai), wantOps: true},
+		{name: "mid window", now: time.Date(2026, 7, 30, 4, 45, 0, 0, shanghai), wantOps: true},
+		{name: "window end", now: time.Date(2026, 7, 30, 5, 0, 0, 0, shanghai), wantOps: false},
+		{name: "daytime leftover", now: time.Date(2026, 7, 30, 12, 0, 0, 0, shanghai), wantOps: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := BuildPlan(s, p, tc.now)
+			var claim *PlannedOp
+			for i := range result.Operations {
+				if result.Operations[i].Kind == clientproto.RPCBenefitBoxDraw.String() {
+					claim = &result.Operations[i]
+					break
+				}
+			}
+			if tc.wantOps {
+				if claim == nil {
+					t.Fatalf("missing benefit box claim; ops=%+v", result.Operations)
+				}
+				if claim.Count != 8 {
+					t.Fatalf("benefit box count=%d, want accrued 8; op=%+v", claim.Count, claim)
+				}
+				return
+			}
+			if claim != nil {
+				t.Fatalf("benefit box claim = true, want false; ops=%+v", result.Operations)
+			}
+		})
+	}
+}
+
 func TestBuildPlan_DoubleCoinBlockedUnlessActive(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
 	p := DefaultPolicy()
@@ -2886,6 +2940,92 @@ func TestBuildPlan_AutoReplantAllModeQualityFilter(t *testing.T) {
 	first = Plan(s, p, time.Now())
 	if first == nil || first.FlowerID != 23014 {
 		t.Fatalf("quality=凡 should plant 23014, got %+v", first)
+	}
+}
+
+func TestBuildPlan_AutoReplantMinLevelFilter(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23014": 200, // lv1, higher stock
+			"23077": 10,  // lv11, lower stock
+		}}},
+		"100": map[string]any{"0": map[string]any{"1": emptyLands(4)}},
+		"101": map[string]any{"0": map[string]any{
+			"23014": map[string]any{"1": 23014, "2": 1, "4": 2},
+			"23077": map[string]any{"1": 23077, "2": 11, "4": 2},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	// No min level → prefer lowest stock 23077.
+	first := Plan(s, p, time.Now())
+	if first == nil || first.FlowerID != 23077 {
+		t.Fatalf("min_level=0 should plant lowest-stock 23077, got %+v", first)
+	}
+
+	// Min level 11 → still 23077 (only eligible flower at >=11).
+	p.Plant.Planting.AutoReplantMinLevel = 11
+	first = Plan(s, p, time.Now())
+	if first == nil || first.FlowerID != 23077 {
+		t.Fatalf("min_level=11 should plant 23077, got %+v", first)
+	}
+
+	// Min level 12 → 23077 excluded; fall back to 23014 only if it meets... it doesn't.
+	// So no plant ops from auto-replant. Drop min to 1 and confirm 23014 when 23077 is too low.
+	p.Plant.Planting.AutoReplantMinLevel = 12
+	first = Plan(s, p, time.Now())
+	if first != nil && first.Domain == "farm.plant" && first.FlowerID == 23077 {
+		t.Fatalf("min_level=12 should not plant lv11 flower 23077, got %+v", first)
+	}
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "farm.plant" && op.Executable {
+			t.Fatalf("min_level=12 should yield no plantable candidates, got %+v", op)
+		}
+	}
+
+	// Only lv1 flower meets... wait, raise 23014 to lv12 and confirm it is chosen.
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": map[string]any{
+			"23014": map[string]any{"1": 23014, "2": 12, "4": 2},
+			"23077": map[string]any{"1": 23077, "2": 11, "4": 2},
+		}},
+	})
+	first = Plan(s, p, time.Now())
+	if first == nil || first.FlowerID != 23014 {
+		t.Fatalf("min_level=12 should plant lv12 23014, got %+v", first)
+	}
+}
+
+func TestPlantAssignments_AutoReplantMinLevelDoesNotRestrictDemand(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 1, "4": 2},
+			"23002": map[string]any{"1": 23002, "2": 15, "4": 2},
+		}},
+	})
+	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
+	p.Plant.Planting.AutoReplantMinLevel = 11
+
+	assignments := plantAssignments(s, p.Plant, []Demand{{
+		ID:       "demand-23001",
+		GoalID:   GoalCustomerOrder,
+		Kind:     DemandKindFlower,
+		ItemID:   23001,
+		Missing:  6,
+		Priority: 90,
+		Label:    "顾客订单",
+	}}, 3)
+	if len(assignments) != 1 {
+		t.Fatalf("assignments len=%d, want 1: %+v", len(assignments), assignments)
+	}
+	if assignments[0].FlowerID != 23001 || assignments[0].Count != 3 || assignments[0].GoalID != GoalCustomerOrder {
+		t.Fatalf("task demand should bypass min-level filter, assignments=%+v", assignments)
 	}
 }
 

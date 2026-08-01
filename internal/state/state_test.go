@@ -1433,6 +1433,33 @@ func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	}
 }
 
+func TestBenefitBoxDrawsAccrueLocallyUntilMax(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	resetAt := time.Date(2026, 7, 29, 20, 0, 0, 0, shanghai)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"116": map[string]any{
+			"0": map[string]any{
+				"1": 0,
+				"2": resetAt.UnixMilli(),
+			},
+		},
+	})
+	if got := s.BenefitBoxDrawsRemaining(resetAt); got != 0 {
+		t.Fatalf("BenefitBoxDrawsRemaining at reset = %d, want 0", got)
+	}
+	if got := s.BenefitBoxDrawsRemaining(resetAt.Add(3 * time.Hour)); got != 3 {
+		t.Fatalf("BenefitBoxDrawsRemaining after 3h = %d, want 3", got)
+	}
+	morning := time.Date(2026, 7, 30, 4, 30, 0, 0, shanghai)
+	if got := s.BenefitBoxDrawsRemaining(morning); got != 8 {
+		t.Fatalf("BenefitBoxDrawsRemaining at morning = %d, want capped 8", got)
+	}
+	if !s.BenefitBoxReady(morning) {
+		t.Fatal("BenefitBoxReady at morning = false, want true after overnight accrual from drawCnt=0")
+	}
+}
+
 func TestApplyV_ReadyDailyTaskIDs(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{

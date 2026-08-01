@@ -622,6 +622,16 @@ func (r *Runner) sessionInvalidatedError(message string) error {
 	return fmt.Errorf("%s: %s", message, reason)
 }
 
+// discardSessionInvalidation clears kick/expiry markers before an intentional
+// Manager.Stop so forgetWhenDone does not re-cache them as 异常.
+func (r *Runner) discardSessionInvalidation() {
+	r.mu.Lock()
+	r.sessionInvalidated = false
+	r.sessionInvalidatedReason = ""
+	r.sessionAutoRelogin = false
+	r.mu.Unlock()
+}
+
 func (r *Runner) disableAutomationPreferenceForInvalidatedSession(ctx context.Context, reason string) {
 	p := r.Policy()
 	if !p.GetAutomationEnabled() {

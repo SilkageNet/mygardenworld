@@ -523,11 +523,13 @@ func normalizeViewRow(tableName, id string, row map[string]any) (map[string]any,
 		out[name] = normalizeViewValue(tableName, name, cleaned)
 	}
 	if tableName == "c_item" {
-		if display, ok := stringValue(out["display_name"]); ok && display != "" {
+		// Client sometimes ships unfinished rows with literal "0" names;
+		// treat those as empty so short_name / name can fill display_name.
+		if display, ok := usableItemLabel(out["display_name"]); ok {
 			out["display_name"] = display
-		} else if short, ok := stringValue(out["short_name"]); ok && short != "" {
+		} else if short, ok := usableItemLabel(out["short_name"]); ok {
 			out["display_name"] = short
-		} else if name, ok := stringValue(out["name"]); ok && name != "" {
+		} else if name, ok := usableItemLabel(out["name"]); ok {
 			out["display_name"] = name
 		}
 	}
@@ -920,6 +922,18 @@ func stringOf(v any) string {
 func stringValue(v any) (string, bool) {
 	s, ok := v.(string)
 	return s, ok
+}
+
+func usableItemLabel(v any) (string, bool) {
+	s, ok := stringValue(v)
+	if !ok {
+		return "", false
+	}
+	s = strings.TrimSpace(s)
+	if s == "" || s == "0" {
+		return "", false
+	}
+	return s, true
 }
 
 func camelToSnake(s string) string {

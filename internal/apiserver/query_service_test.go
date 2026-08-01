@@ -941,3 +941,34 @@ func TestDomainStatusesExposeCooldownSummary(t *testing.T) {
 	}
 	t.Fatal("missing basic domain status")
 }
+
+func TestApplyStoppedRunnerDiagnosticsKeepsPhoneKickAbnormal(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	out := &pb.AccountStatus{AccountId: "1", AccountName: "main"}
+	reason := "账号已在其他设备登录，当前会话被替换"
+	applyStoppedRunnerDiagnostics(out, policy, runner.Diagnostics{
+		SessionInvalidatedReason: reason,
+		BlockedReasons:           []string{"会话已失效"},
+	})
+	if out.GetHealth() != "session_expired" {
+		t.Fatalf("health=%q, want session_expired", out.GetHealth())
+	}
+	if out.GetLastError() != reason {
+		t.Fatalf("last_error=%q, want kick reason", out.GetLastError())
+	}
+	if out.GetDiagnostics().GetSessionInvalidatedReason() != reason {
+		t.Fatalf("diagnostics reason=%q, want kick reason", out.GetDiagnostics().GetSessionInvalidatedReason())
+	}
+}
+
+func TestApplyStoppedRunnerDiagnosticsPlainOfflineWithoutCache(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	out := &pb.AccountStatus{AccountId: "1", AccountName: "main"}
+	applyStoppedRunnerDiagnostics(out, policy, runner.Diagnostics{})
+	if out.GetHealth() != "offline" {
+		t.Fatalf("health=%q, want offline", out.GetHealth())
+	}
+	if out.GetLastError() != "" {
+		t.Fatalf("last_error=%q, want empty", out.GetLastError())
+	}
+}

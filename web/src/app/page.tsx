@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
+  Square,
   Sprout,
   Ticket,
   Trash2,
@@ -654,6 +655,41 @@ function DashboardContent() {
     }
   }
 
+  async function runAutomationStop(accountId: string) {
+    setBusyAutomationAccountId(accountId);
+    setError("");
+    try {
+      await accountClient.logoutAccount({ id: accountId });
+      setStatuses((prev) => {
+        const next = new Map(prev);
+        const current = next.get(accountId);
+        if (current) {
+          next.set(accountId, {
+            ...current,
+            connected: false,
+            automationEnabled: false,
+            health: "offline",
+            lastError: "",
+          });
+        }
+        return next;
+      });
+      setAccounts((prev) =>
+        prev.map((item) => (item.id === accountId ? { ...item, connected: false } : item)),
+      );
+      await refreshStatus();
+      if (accountId === selectedAccountId) {
+        await refreshPolicy(accountId);
+        await refreshSnapshot(accountId, false);
+      }
+    } catch (err) {
+      setError(formatAPIError(err, "停止失败"));
+      await refreshStatus().catch(() => undefined);
+    } finally {
+      setBusyAutomationAccountId("");
+    }
+  }
+
   async function submitRedeemCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = redeemCode.trim();
@@ -784,6 +820,7 @@ function DashboardContent() {
             }}
             onSelect={setSelectedAccountId}
             onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
+            onAutomationStop={(accountId) => void runAutomationStop(accountId)}
           />
         </aside>
 
@@ -953,6 +990,7 @@ function AccountListPanel({
   onRedeem,
   onSelect,
   onAutomationToggle,
+  onAutomationStop,
 }: {
   accounts: Account[];
   statuses: Map<string, AccountStatus>;
@@ -965,6 +1003,7 @@ function AccountListPanel({
   onRedeem: () => void;
   onSelect: (accountId: string) => void;
   onAutomationToggle: (accountId: string) => void;
+  onAutomationStop: (accountId: string) => void;
 }) {
   const hasAccounts = accounts.length > 0;
   const quotaReached = quota?.reached ?? false;
@@ -1027,6 +1066,7 @@ function AccountListPanel({
               const selected = account.id === selectedAccountId;
               const identity = accountIdentity(account);
               const online = accountConnected(account, status);
+              const abnormal = accountIsAbnormal(status);
               const automationBusy = busyAutomationAccountId === account.id;
               return (
                 <div
@@ -1077,6 +1117,27 @@ function AccountListPanel({
                         )}
                         {online ? "暂停" : "启动"}
                       </Button>
+                      {abnormal && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2"
+                          aria-label="停止并离线"
+                          disabled={automationBusy}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onAutomationStop(account.id);
+                          }}
+                        >
+                          {automationBusy ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Square className="size-3.5" />
+                          )}
+                          停止
+                        </Button>
+                      )}
                       <HealthBadge status={status} account={account} />
                     </div>
                   </div>
@@ -1276,7 +1337,7 @@ function LandTab({
         lands={snapshot?.lands ?? []}
         waterDrops={snapshot?.waterDrops ?? 0}
         waterDropsTotal={snapshot?.waterDropsTotal ?? 0}
-        minWaterDrops={policy?.planting?.minWaterDrops ?? 0}
+        minWaterDrops={policy?.plant?.planting?.minWaterDrops ?? 0}
       />
     </div>
   );
@@ -2570,16 +2631,16 @@ function LandMonitorPanel({
                     </Badge>
                   )}
                   {key === "plant" && (
-                    <>
-                      <Badge variant="outline">
-                        水滴总数 {formatCount(waterDrops)}/{formatCount(waterDropsTotal)}
-                      </Badge>
-                      {minWaterDrops > 0 && <Badge variant="outline">可用水滴 {formatCount(availableWaterDrops)}</Badge>}
-                    </>
+                    <Badge variant="outline">
+                      水滴总数 {formatCount(waterDrops)}/{formatCount(waterDropsTotal)}
+                    </Badge>
                   )}
                 </Fragment>
               );
             })}
+            {minWaterDrops > 0 && (
+              <Badge variant="outline">可用水滴数 {formatCount(availableWaterDrops)}</Badge>
+            )}
           </div>
           <div className="dark-scrollbar max-h-[440px] overflow-y-auto pr-0.5 sm:h-[560px] sm:max-h-none sm:pr-1">
             <div
@@ -3227,6 +3288,14 @@ function PolicyPanel({
                     }
                   />
                 )}
+                <NumberRow
+                  label="最低种植等级"
+                  value={planting?.autoReplantMinLevel || 0}
+                  min={0}
+                  max={20}
+                  onChange={(value) => updatePlanting({ autoReplantMinLevel: value })}
+                  description="0=不限；设为11则只种培育等级11-20的鲜花"
+                />
               </div>
               <ToggleRow
                 label="生产需求优先级"
@@ -4530,11 +4599,15 @@ function EmptyState({ title, detail }: { title: string; detail?: string }) {
   );
 }
 
+function accountIsAbnormal(status?: AccountStatus) {
+  if (accountStatusIssues(status).length > 0) return true;
+  return status?.health === "blocked" || status?.health === "session_expired" || Boolean(status?.lastError);
+}
+
 function HealthBadge({ account, status }: { account: Account; status?: AccountStatus }) {
   const connected = accountConnected(account, status);
-  if (accountStatusIssues(status).length > 0) return <Badge variant="destructive">异常</Badge>;
+  if (accountIsAbnormal(status)) return <Badge variant="destructive">异常</Badge>;
   if (!connected) return <Badge variant="outline">离线</Badge>;
-  if (status?.health === "blocked" || status?.lastError) return <Badge variant="destructive">异常</Badge>;
   return <Badge variant="secondary">在线</Badge>;
 }
 

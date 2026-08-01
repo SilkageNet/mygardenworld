@@ -15,10 +15,11 @@ import (
 )
 
 type operationAttempt struct {
-	op         *automation.PlannedOp
-	args       any
-	startedAt  time.Time
-	goldBefore int32
+	op          *automation.PlannedOp
+	args        any
+	startedAt   time.Time
+	goldBefore  int32
+	levelBefore int32
 }
 
 type operationResult struct {
@@ -371,6 +372,11 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "花艺售出"
 		category = automation.CategoryFlowerArt
 		message = flowerRackClaimSuccessMessage(op, result.goldBefore, r.state.Gold())
+	case clientproto.RPCCultivateUpgrade.String():
+		kind = "flower_upgrade"
+		label = "鲜花升级"
+		category = automation.CategoryPlant
+		message = flowerUpgradeSuccessMessage(op, result.levelBefore, r.state)
 	}
 	r.emit(Event{
 		Kind:        kind,
@@ -393,6 +399,12 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() {
 		r.state.NoteResidentOrderFinished(result.finishedAt, result.raw)
 		r.emitResidentOrderLimitInfo(r.Policy(), result.finishedAt)
+	}
+	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() &&
+		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRace()) {
+		// Customer-order race FinishCnt advances via getTaskList, not harvest
+		// field 134. Force a pool refresh on the next tick.
+		r.state.MarkFmlRaceTasksUnobserved()
 	}
 }
 
@@ -638,6 +650,36 @@ func flowerRackExpectedGold(artID, count int32) int32 {
 	return recipe.SaleValue * count
 }
 
+// flowerUpgradeSuccessMessage formats "花名 lvN-lvM" for cultivate.upgrade logs.
+func flowerUpgradeSuccessMessage(op *automation.PlannedOp, fromLevel int32, st *state.State) string {
+	name := "花朵"
+	if op != nil && op.FlowerID > 0 {
+		name = flowerName(int(op.FlowerID))
+	}
+	if fromLevel <= 0 && op != nil && op.Count > 0 {
+		fromLevel = op.Count
+	}
+	toLevel := int32(0)
+	if st != nil && op != nil && op.FlowerID > 0 {
+		if cv, ok := st.Cultivations()[op.FlowerID]; ok && cv.Lvl > 0 {
+			toLevel = cv.Lvl
+		}
+	}
+	if fromLevel <= 0 && toLevel > 1 {
+		fromLevel = toLevel - 1
+	}
+	if toLevel <= 0 && fromLevel > 0 {
+		toLevel = fromLevel + 1
+	}
+	if fromLevel > 0 && toLevel > fromLevel {
+		return fmt.Sprintf("鲜花升级: %s lv%d-lv%d", name, fromLevel, toLevel)
+	}
+	if fromLevel > 0 {
+		return fmt.Sprintf("鲜花升级: %s lv%d", name, fromLevel)
+	}
+	return fmt.Sprintf("鲜花升级: %s", name)
+}
+
 func opDesc(op *automation.PlannedOp) string {
 	desc := opKindDesc(op.Kind)
 	if op.FlowerID == 0 || isRaceOpKind(op.Kind) {
@@ -771,6 +813,14 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		}
 		if len(parts) > 0 {
 			return " " + strings.Join(parts, " ")
+		}
+	case clientproto.RPCCultivateUpgrade.String():
+		if op.Count > 0 {
+			return fmt.Sprintf(" lv%d-lv%d", op.Count, op.Count+1)
+		}
+	case clientproto.RPCBenefitBoxDraw.String():
+		if op.Count > 0 {
+			return fmt.Sprintf(" ×%d", op.Count)
 		}
 	}
 	return ""

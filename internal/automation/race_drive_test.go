@@ -327,7 +327,7 @@ func TestRacePlantMissingUsesFlowerLvlYield(t *testing.T) {
 func TestRacePlantMissingCreditsPlantedLands(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := raceTakenPlantState(t, 2, 10)
-	// Four planted lands at lvl 1 cover ceil(8/2)=4 slots — no more planting.
+	// Four planted lands at lvl 1 (2 flowers each, 0 harvests) cover remaining 8.
 	applyMap(t, s, map[string]any{
 		"100": map[string]any{"1": map[string]any{
 			"1001": map[string]any{"0": 23001, "1": 2, "2": 1, "3": 0},
@@ -340,25 +340,25 @@ func TestRacePlantMissingCreditsPlantedLands(t *testing.T) {
 
 	result := BuildPlan(s, policy, now)
 	if _, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001"); ok {
-		t.Fatalf("planted slots covering need must not emit plant demand, demands=%+v", result.Demands)
+		t.Fatalf("planted yield covering remaining must not emit plant demand, demands=%+v", result.Demands)
 	}
 	for _, op := range result.Operations {
 		if isPlantOperation(op.Kind) && op.FlowerID == 23001 && op.Executable {
-			t.Fatalf("must not plant when planted slots cover race need, op=%+v", op)
+			t.Fatalf("must not plant when pending yield covers race remaining, op=%+v", op)
 		}
 	}
 }
 
-func TestRacePlantDoesNotTopUpAfterPartialHarvest(t *testing.T) {
+func TestRacePlantDoesNotTopUpWhenPendingCoversSyncedProgress(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
-	// Target 280, lvl 11 → 3×4=12/plant → 24 slots. FinishCnt still 0 after
-	// first harvest round (lagging server progress) must not plant more.
-	s := raceTakenPlantState(t, 0, 280)
+	// Target 280, lvl 11 → 3×4=12/plant. 24 lands already took first harvest
+	// round; FinishCnt synced to 72 via field 134. Pending roundsLeft=3 → 216
+	// covers remaining 208 — no top-up onto empty lands.
+	s := raceTakenPlantState(t, 72, 280)
 	lands := map[string]any{}
 	for i := 0; i < 24; i++ {
 		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 11, "3": 1}
 	}
-	// Leave empty lands available that the old pending-yield math would fill.
 	for i := 24; i < 32; i++ {
 		lands[itoa(1001+i)] = map[string]any{}
 	}
@@ -372,19 +372,213 @@ func TestRacePlantDoesNotTopUpAfterPartialHarvest(t *testing.T) {
 
 	result := BuildPlan(s, policy, now)
 	if _, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001"); ok {
-		t.Fatalf("partially harvested slots must not request top-up plants, demands=%+v", result.Demands)
+		t.Fatalf("pending yield covering synced remaining must not top-up, demands=%+v", result.Demands)
 	}
 	for _, op := range result.Operations {
 		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
-			t.Fatalf("must not top-up plant after partial harvest: %+v", op)
+			t.Fatalf("must not top-up when pending covers progress: %+v", op)
 		}
+	}
+}
+
+func TestRacePlantTopsUpWhenPendingCannotCoverTarget(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// Remaining 280, only 10 lands planted (pending 10*12=120). After verifying
+	// progress+pending cannot finish the task, top-up ceil((280-120)/12)=14.
+	s := raceTakenPlantState(t, 0, 280)
+	lands := map[string]any{}
+	for i := 0; i < 10; i++ {
+		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 1, "2": 11, "3": 0}
+	}
+	for i := 10; i < 40; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": lands},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	policy := racePlantPolicy(false)
+
+	result := BuildPlan(s, policy, now)
+	demand, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001")
+	if !ok {
+		t.Fatalf("missing race top-up demand, demands=%+v", result.Demands)
+	}
+	if demand.Missing != 14 {
+		t.Fatalf("demand Missing=%d, want 14 top-up", demand.Missing)
+	}
+	var plantCount int32
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+			plantCount += int32(len(op.LandIDs))
+		}
+	}
+	if plantCount != 14 {
+		t.Fatalf("planted %d lands, want 14 top-up while 10 still growing", plantCount)
+	}
+}
+
+func TestRacePlantReplantsAfterAllRaceLandsClearIfIncomplete(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// Target 280, lvl11 → 12/plant. First round planted only 10 lands and fully
+	// harvested them (LocalFinish=120). Lands cleared, task still short → plant
+	// ceil((280-120)/12)=14 more.
+	s := raceTakenPlantState(t, 0, 280)
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	lands := map[string]any{}
+	for i := 0; i < 10; i++ {
+		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 11, "3": 0}
+	}
+	for i := 10; i < 40; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": lands}})
+	harvested := map[string]any{}
+	for i := 0; i < 10; i++ {
+		harvested[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 11, "3": 4}
+	}
+	for i := 10; i < 40; i++ {
+		harvested[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": harvested}})
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": emptyLands(40)}})
+	got := s.FmlRace()
+	if got.LocalFinishCnt < 120 {
+		t.Fatalf("LocalFinishCnt=%d, want >=120 after 10×4×3 harvests", got.LocalFinishCnt)
+	}
+	policy := racePlantPolicy(false)
+	result := BuildPlan(s, policy, now)
+	demand, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001")
+	if !ok {
+		t.Fatalf("missing race demand after clear, demands=%+v", result.Demands)
+	}
+	if demand.Missing != 14 {
+		t.Fatalf("demand Missing=%d, want 14 after first round cleared", demand.Missing)
+	}
+	var plantCount int32
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+			plantCount += int32(len(op.LandIDs))
+		}
+	}
+	if plantCount != 14 {
+		t.Fatalf("planted %d lands, want 14 replant after clear", plantCount)
+	}
+}
+
+func TestRacePlantNoReplantDuringPartialSpeedupHarvest(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// 24 lands planted for target 280. First 5 fully harvested and emptied after
+	// speedup; 19 still growing. progress 60 + pending 19*12=228 covers 280 —
+	// must not replant into the 5 empty slots.
+	s := raceTakenPlantState(t, 0, 280)
+	lands := map[string]any{}
+	for i := 0; i < 5; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	for i := 5; i < 24; i++ {
+		lands[itoa(1001+i)] = map[string]any{
+			"0": 23001, "1": 2, "2": 11, "3": 0,
+			"5": now.Add(2 * time.Hour).UnixMilli(),
+		}
+	}
+	for i := 24; i < 40; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 20},
+		}},
+		"100": map[string]any{"1": lands},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	// Simulate LocalFinish from the 5 cleared lands (5×12=60).
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"110": map[string]any{
+				"1783872000000": map[string]any{
+					"7": map[string]any{"0": 99, "1": 4001, "2": 280, "3": 60, "4": []any{23001}},
+				},
+			},
+		},
+	})
+	policy := racePlantPolicy(true)
+	result := BuildPlan(s, policy, now)
+	if _, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001"); ok {
+		t.Fatalf("partial speedup harvest must not emit replant demand, demands=%+v", result.Demands)
+	}
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+			t.Fatalf("must not replant while remaining race flowers still growing: %+v", op)
+		}
+	}
+	var hasSpeedup bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			hasSpeedup = true
+			break
+		}
+	}
+	if !hasSpeedup {
+		t.Fatal("expected speedup on remaining growing race lands")
+	}
+}
+
+func TestRacePlantTopsUpAfterHarvestRoundWhenShort(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// Target 280, lvl11 → 12/plant. First round: 10 lands harvested once
+	// (HarvestCnt=1 → local harvested 30, pending 10*9=90). Remaining need
+	// 280-30-90=160 → ceil(160/12)=14 top-up onto empty lands.
+	s := raceTakenPlantState(t, 0, 280)
+	lands := map[string]any{}
+	for i := 0; i < 10; i++ {
+		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 11, "3": 1}
+	}
+	for i := 10; i < 40; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": lands},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	if got := racePlantHarvestPlantMissing(s, 23001, 280, 0); got != 14 {
+		t.Fatalf("racePlantHarvestPlantMissing after first round=%d, want 14", got)
+	}
+	policy := racePlantPolicy(false)
+	result := BuildPlan(s, policy, now)
+	demand, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001")
+	if !ok {
+		t.Fatalf("missing top-up demand after harvest round, demands=%+v", result.Demands)
+	}
+	if demand.Missing != 14 {
+		t.Fatalf("demand Missing=%d, want 14", demand.Missing)
+	}
+	var plantCount int32
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+			plantCount += int32(len(op.LandIDs))
+		}
+	}
+	if plantCount != 14 {
+		t.Fatalf("planted %d lands, want 14 after harvest-round shortfall", plantCount)
 	}
 }
 
 func TestRacePlantHarvestPlantMissingUnit(t *testing.T) {
 	s := raceTakenPlantState(t, 0, 10)
 	// lvl 1 empty farm: 8 flowers → 4 plants.
-	if got := racePlantHarvestPlantMissing(s, 23001, 8); got != 4 {
+	if got := racePlantHarvestPlantMissing(s, 23001, 8, 0); got != 4 {
 		t.Fatalf("racePlantHarvestPlantMissing(empty,8)=%d, want 4", got)
 	}
 	applyMap(t, s, map[string]any{
@@ -393,8 +587,162 @@ func TestRacePlantHarvestPlantMissingUnit(t *testing.T) {
 		}},
 	})
 	// lvl 20: cropGets=5 × frequencys=5 = 25 → ceil(600/25)=24.
-	if got := racePlantHarvestPlantMissing(s, 23001, 600); got != 24 {
+	if got := racePlantHarvestPlantMissing(s, 23001, 600, 0); got != 24 {
 		t.Fatalf("racePlantHarvestPlantMissing(lvl20,600)=%d, want 24", got)
+	}
+	// 2 planted lands: pending 2*25=50, shortfall 550 → ceil(550/25)=22 top-up.
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 1, "2": 20, "3": 0},
+			"1002": map[string]any{"0": 23001, "1": 1, "2": 20, "3": 0},
+		}},
+	})
+	if got := racePlantHarvestPlantMissing(s, 23001, 600, 0); got != 22 {
+		t.Fatalf("racePlantHarvestPlantMissing(2 planted,600)=%d, want 22", got)
+	}
+}
+
+func TestRacePlantNoTopUpWhenFinishCntLagsHarvestCnt(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// 榴莲千层: target 600, lvl16 → 4×4=16/plant → first plant 38 lands.
+	// After speedup first-round harvest, HarvestCnt=1 on all 38 but FinishCnt
+	// still 0 (field 134 lag). Pending 38*12=456 looks short of 600 and would
+	// top-up 9 lands without local-harvest credit; local 38*4=152 covers the gap.
+	s := raceTakenPlantState(t, 0, 600)
+	lands := map[string]any{}
+	for i := 0; i < 38; i++ {
+		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 16, "3": 1}
+	}
+	for i := 38; i < 64; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": lands},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 16, "4": 2},
+		}},
+	})
+	if got := racePlantHarvestPlantMissing(s, 23001, 600, 0); got != 0 {
+		t.Fatalf("racePlantHarvestPlantMissing(lag FinishCnt)=%d, want 0", got)
+	}
+	policy := racePlantPolicy(false)
+	result := BuildPlan(s, policy, now)
+	if _, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001"); ok {
+		t.Fatalf("FinishCnt lag must not top-up, demands=%+v", result.Demands)
+	}
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+			t.Fatalf("must not top-up while FinishCnt lags harvest: %+v", op)
+		}
+	}
+}
+
+func TestRacePlantNoTopUpWhenLocalFinishCoversAfterLandsClear(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	// Target 300, lvl11 → 12/plant → max 25 slots. After full harvest of 25
+	// lands, lands are empty and FinishCnt still 0, but LocalFinishCnt=300 from
+	// HarvestCnt deltas — must not replant another 25.
+	s := raceTakenPlantState(t, 0, 300)
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	// Plant then harvest one round on 25 lands (LocalFinish rises, FinishCnt=0).
+	lands := map[string]any{}
+	for i := 0; i < 25; i++ {
+		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 11, "3": 0}
+	}
+	for i := 25; i < 64; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": lands}})
+	harvested := map[string]any{}
+	for i := 0; i < 25; i++ {
+		harvested[itoa(1001+i)] = map[string]any{"0": 23001, "1": 2, "2": 11, "3": 4}
+	}
+	for i := 25; i < 64; i++ {
+		harvested[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": harvested}})
+	// Clear all race lands (emptied after final harvest).
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": emptyLands(64)}})
+	got := s.FmlRace()
+	if got.LocalFinishCnt < 300 {
+		t.Fatalf("LocalFinishCnt=%d, want >=300 after 25×4×3 harvests", got.LocalFinishCnt)
+	}
+	if got := racePlantHarvestPlantMissing(s, 23001, 300, got.LocalFinishCnt); got != 0 {
+		t.Fatalf("racePlantHarvestPlantMissing after clear=%d, want 0", got)
+	}
+	policy := racePlantPolicy(false)
+	result := BuildPlan(s, policy, now)
+	for _, op := range result.Operations {
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+			t.Fatalf("must not replant after local progress covers target: %+v", op)
+		}
+	}
+}
+
+func TestRacePlantSlotCapBlocksCascadeTopUp(t *testing.T) {
+	// 25 planted lands at lvl11 cover 25*12=300 == target — no top-up.
+	s := raceTakenPlantState(t, 0, 300)
+	lands := map[string]any{}
+	for i := 0; i < 25; i++ {
+		lands[itoa(1001+i)] = map[string]any{"0": 23001, "1": 1, "2": 11, "3": 0}
+	}
+	for i := 25; i < 64; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": lands},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	if got := racePlantHarvestPlantMissing(s, 23001, 300, 0); got != 0 {
+		t.Fatalf("racePlantHarvestPlantMissing(25 planted)=%d, want 0", got)
+	}
+	// 24 planted covers only 288 — shortfall 12 → top-up 1.
+	for i := 24; i < 25; i++ {
+		lands[itoa(1001+i)] = map[string]any{}
+	}
+	applyMap(t, s, map[string]any{"100": map[string]any{"1": lands}})
+	if got := racePlantHarvestPlantMissing(s, 23001, 300, 0); got != 1 {
+		t.Fatalf("racePlantHarvestPlantMissing(24 planted)=%d, want 1", got)
+	}
+}
+
+func TestRacePlantTopsUpWhileRaceHarvestReadyIfShort(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 0, 300)
+	// One land ready to harvest (pending 12) leaves a large shortfall — harvest
+	// and top-up plant in the same plan.
+	lands := emptyLands(64)
+	lands["1001"] = map[string]any{"0": 23001, "1": 3, "2": 11, "3": 0}
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": lands},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+		}},
+	})
+	policy := racePlantPolicy(false)
+	result := BuildPlan(s, policy, now)
+	var sawHarvest bool
+	var plantCount int32
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() && op.Executable {
+			sawHarvest = true
+		}
+		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 && op.GoalID == "union.race" {
+			plantCount += int32(len(op.LandIDs))
+		}
+	}
+	if !sawHarvest {
+		t.Fatal("expected harvest op for ready race land")
+	}
+	// pending 12 → need 288 → ceil(288/12)=24
+	if plantCount != 24 {
+		t.Fatalf("planted %d lands, want 24 top-up while harvest-ready", plantCount)
 	}
 }
 

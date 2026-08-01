@@ -69,7 +69,7 @@ func (l LandView) ToJSON() map[string]any {
 // CultivateView mirrors the G.ICultivate schema from namespace 101.
 //
 //	field 1 = flowerId
-//	field 2 = lvl (cultivation level, 0-5)
+//	field 2 = lvl (cultivation level; catalog max via FlowerMaxLevel)
 //	field 3 = culTime (ms; cultivation completion timestamp)
 //	field 4 = status (0=idle, 1=cultivating, 2=received/ready for upgrade)
 //	field 5 = uTime (ms; last update)
@@ -363,6 +363,15 @@ type FmlRaceView struct {
 	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
 	// may still be issued for the current incomplete pool.
 	MissingParamRefreshFP string
+	// LocalFinishCnt is a high-water harvest progress for the current taken
+	// plant-harvest task. It advances from field 134 and from land HarvestCnt
+	// deltas so the planner does not top-up-plant when FinishCnt lags or when
+	// cleared lands drop out of the live planted set. Never used for finishTask
+	// (server FinishCnt remains authoritative for claiming).
+	LocalFinishCnt int32
+	// LocalFinishTaskMsId is the TaskMsId LocalFinishCnt applies to; reset on
+	// task change / clear.
+	LocalFinishTaskMsId int64
 }
 
 // ShopCultivateOfferView is one buyable material-shop offer from namespace 113.
@@ -519,6 +528,7 @@ type ItemRequire struct {
 type PlantableFlower struct {
 	FlowerID   int32 `json:"flower_id"`
 	Stock      int32 `json:"stock"`
+	Lvl        int32 `json:"lvl,omitempty"`
 	Gold       int32 `json:"gold,omitempty"`
 	Experience int32 `json:"experience,omitempty"`
 }

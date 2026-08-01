@@ -72,7 +72,8 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		return ops
 	}
 	if len(plant) > 0 {
-		plan := planPlantAssignments(s, policy, demands, int32(len(plant)), suppressAutoReplant || raceDriven)
+		plantDemands := demands
+		plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressAutoReplant || raceDriven)
 		cursor := 0
 		for _, assignment := range plan.executable {
 			if cursor >= len(plant) {
@@ -168,7 +169,10 @@ func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Dema
 	}
 	plantingPolicy := policy.GetPlanting()
 	allowed, blocked := autoReplantFlowerFilters(plantingPolicy)
-	candidates := filterPlantableByAutoReplantQualities(s.PlantableFlowers(allowed, blocked), plantingPolicy)
+	candidates := filterPlantableByAutoReplantMinLevel(
+		filterPlantableByAutoReplantQualities(s.PlantableFlowers(allowed, blocked), plantingPolicy),
+		plantingPolicy,
+	)
 	plantable := map[int32]state.PlantableFlower{}
 	for _, candidate := range s.PlantableFlowers(nil, nil) {
 		plantable[candidate.FlowerID] = candidate
@@ -443,6 +447,25 @@ func filterPlantableByAutoReplantQualities(candidates []state.PlantableFlower, p
 	out := make([]state.PlantableFlower, 0, len(candidates))
 	for _, candidate := range candidates {
 		if allowed[flowerQuality(candidate.FlowerID)] {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+// filterPlantableByAutoReplantMinLevel keeps flowers whose cultivate level is
+// at least the configured minimum. 0 (or negative) means no level filter.
+func filterPlantableByAutoReplantMinLevel(candidates []state.PlantableFlower, policy *pb.PlantingPolicy) []state.PlantableFlower {
+	if policy == nil {
+		return candidates
+	}
+	minLevel := policy.GetAutoReplantMinLevel()
+	if minLevel <= 0 {
+		return candidates
+	}
+	out := make([]state.PlantableFlower, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Lvl >= minLevel {
 			out = append(out, candidate)
 		}
 	}

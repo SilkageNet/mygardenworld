@@ -139,6 +139,11 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
 		attempt.goldBefore = r.state.Gold()
 	}
+	if op.Kind == clientproto.RPCCultivateUpgrade.String() && op.FlowerID > 0 {
+		if cv, ok := r.state.Cultivations()[op.FlowerID]; ok {
+			attempt.levelBefore = cv.Lvl
+		}
+	}
 	r.emitOperationPlanned(attempt)
 
 	raw, err := r.executePlannedOp(ctx, client, session, op)

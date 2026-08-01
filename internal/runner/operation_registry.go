@@ -236,12 +236,10 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FreeWater().Recv(ctx, req)
 		},
 	),
-	clientproto.RPCBenefitBoxDraw.String(): stateDeltaOperation(
-		staticRequest(clientproto.BenefitBoxDrawRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.BenefitBoxDrawRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.BenefitBox().Draw(ctx, req)
-		},
-	),
+	clientproto.RPCBenefitBoxDraw.String(): {
+		args: staticAnyRequest(clientproto.BenefitBoxDrawRequest{}),
+		run:  runBenefitBoxDraw,
+	},
 	clientproto.RPCZooEnterZoo.String(): stateDeltaOperation(
 		staticRequest(clientproto.ZooEnterZooRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ZooEnterZooRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

@@ -1,0 +1,17 @@
+---
+description: When mygardenworld catalog lookups miss or return placeholders, fall back to previously parsed mini-program data
+alwaysApply: true
+---
+
+# Catalog lookup fallback
+
+When flower / item / config queries in this repo return missing, empty, or placeholder values (e.g. name/`display_name` = `"0"`):
+
+1. Prefer `short_name`, seed item name, and elite item name from the same catalog row.
+2. Then check the latest parsed sources under `tmp/`:
+   - Unpacked mini: `tmp/mini` (from `tmp/wx47e577dc5b3fde6f/<ver>/`)
+   - Last generated snapshot: `tmp/catalog_161_state.json` / `tmp/catalog_161_web.json` if present
+   - Encrypted pkgs: decrypt `V1MMWX` with appid `wx47e577dc5b3fde6f`, then `tmp/unpack_wxapkg.mjs`, then `gardencatalog`
+3. Do not conclude “does not exist” until those parsed sources have been checked.
+
+Current client baseline after 161 refresh: version `390.0.32`, flowers `533`.

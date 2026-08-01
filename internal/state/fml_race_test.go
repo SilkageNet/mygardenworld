@@ -336,6 +336,88 @@ func TestFmlRaceFullPoolKeepsTakenWhenMsIDStillInPoolUIDZero(t *testing.T) {
 	}
 }
 
+func TestFmlRaceTakenProgressFromField134OnHarvest(t *testing.T) {
+	s := New()
+	// Seed held plant-harvest task at 48/300.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	if s.FmlRace().Taken.FinishCnt != 48 {
+		t.Fatalf("seed FinishCnt=%d, want 48", s.FmlRace().Taken.FinishCnt)
+	}
+	// Harvest ACK shape: 25.134 batch map with takeTaskData at field 3.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1785368365572},"4":1785358559363}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 715 {
+		t.Fatalf("134 must keep Taken, got %+v", got.Taken)
+	}
+	if got.Taken.FinishCnt != 300 || got.Taken.TargetCnt != 300 {
+		t.Fatalf("134 progress = %d/%d, want 300/300", got.Taken.FinishCnt, got.Taken.TargetCnt)
+	}
+	if got.Taken.ParamID != 23577 {
+		t.Fatalf("ParamID=%d, want 23577", got.Taken.ParamID)
+	}
+	if got.LocalFinishCnt != 300 || got.LocalFinishTaskMsId != 715 {
+		t.Fatalf("LocalFinish=%d msId=%d, want 300/715", got.LocalFinishCnt, got.LocalFinishTaskMsId)
+	}
+}
+
+func TestFmlRaceLocalFinishAdvancesFromLandHarvestBeforeField134(t *testing.T) {
+	s := New()
+	// Held plant-harvest 花椅轻摇-style task; FinishCnt still 0.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":99,"1":3028,"2":300,"3":0,"4":[23001]}}}},"101":{"0":{"23001":{"1":23001,"2":11,"4":2}}},"100":{"1":{"1001":{"0":23001,"1":2,"2":11,"3":0}}}}`))
+	if s.FmlRace().Taken.FinishCnt != 0 {
+		t.Fatalf("seed FinishCnt=%d, want 0", s.FmlRace().Taken.FinishCnt)
+	}
+	// Harvest bumps land HarvestCnt without field 134 yet (cropGets=3 at lvl11 cfg).
+	s.ApplyV(json.RawMessage(`{"100":{"1":{"1001":{"0":23001,"1":2,"2":11,"3":1}}}}`))
+	got := s.FmlRace()
+	if got.Taken.FinishCnt != 0 {
+		t.Fatalf("server FinishCnt must stay 0, got %d", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 3 {
+		t.Fatalf("LocalFinishCnt=%d, want 3 from HarvestCnt delta", got.LocalFinishCnt)
+	}
+	// Later 134 catches up higher — local high-water follows.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":99,"1":3028,"2":300,"3":12,"4":[23001]},"4":1}}}}`))
+	got = s.FmlRace()
+	if got.Taken.FinishCnt != 12 {
+		t.Fatalf("FinishCnt=%d, want 12", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 12 {
+		t.Fatalf("LocalFinishCnt=%d, want 12 after 134", got.LocalFinishCnt)
+	}
+}
+
+func TestFmlRaceLocalFinishCreditsFinalClearHarvest(t *testing.T) {
+	s := New()
+	// Last harvest round often clears the plot in the same delta ({}).
+	// Before: HarvestCnt=3 of frequencys=4 → credit 1 remaining round × cropGets=3.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":99,"1":3028,"2":300,"3":0,"4":[23001]}}}},"101":{"0":{"23001":{"1":23001,"2":11,"4":2}}},"100":{"1":{"1001":{"0":23001,"1":2,"2":11,"3":3}}}}`))
+	s.ApplyV(json.RawMessage(`{"100":{"1":{"1001":{}}}}`))
+	got := s.FmlRace()
+	if got.Taken.FinishCnt != 0 {
+		t.Fatalf("server FinishCnt must stay 0, got %d", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 3 {
+		t.Fatalf("LocalFinishCnt=%d, want 3 from final clear harvest", got.LocalFinishCnt)
+	}
+}
+
+func TestFmlRaceTakenClearedByEmptyField134(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":300,"4":[23577]}}}}}`))
+	if !s.FmlRace().Taken.HasTask {
+		t.Fatal("expected seeded Taken")
+	}
+	// finishTask ACK clears takeTaskData via empty object in 134.3.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{},"4":1785364748931}}}}`))
+	if s.FmlRace().Taken.HasTask {
+		t.Fatalf("empty 134.3 must clear Taken, got %+v", s.FmlRace().Taken)
+	}
+	if s.FmlRace().LocalFinishCnt != 0 || s.FmlRace().LocalFinishTaskMsId != 0 {
+		t.Fatalf("clear must reset LocalFinish, got %+v", s.FmlRace())
+	}
+}
+
 func TestFmlRaceTakenEnrichedTargetCntFromPool(t *testing.T) {
 	s := New()
 	// 110 has takeTaskData with TargetCnt=0/FinishCnt=0 (server omitted fields 2/3);

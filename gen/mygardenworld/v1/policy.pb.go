@@ -1244,8 +1244,13 @@ type PlantingPolicy struct {
 	// When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
 	// Otherwise only the selected qualities are eligible for autonomous replanting.
 	AutoReplantQualities []int32 `protobuf:"varint,19,rep,packed,name=auto_replant_qualities,json=autoReplantQualities,proto3" json:"auto_replant_qualities,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Minimum cultivate level for autonomous empty-land replanting. 0 means no
+	// level filter. When set (e.g. 11), only flowers at that level or above are
+	// planted (through FlowerMaxLevel, typically 20). Does not restrict
+	// demand-driven planting for tasks/orders.
+	AutoReplantMinLevel int32 `protobuf:"varint,20,opt,name=auto_replant_min_level,json=autoReplantMinLevel,proto3" json:"auto_replant_min_level,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *PlantingPolicy) Reset() {
@@ -1367,6 +1372,13 @@ func (x *PlantingPolicy) GetAutoReplantQualities() []int32 {
 		return x.AutoReplantQualities
 	}
 	return nil
+}
+
+func (x *PlantingPolicy) GetAutoReplantMinLevel() int32 {
+	if x != nil {
+		return x.AutoReplantMinLevel
+	}
+	return 0
 }
 
 type FriendStealPolicy struct {
@@ -2955,7 +2967,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
 	"\x0fupgrade_enabled\x18\x03 \x01(\bR\x0eupgradeEnabled\x12!\n" +
-	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xa4\x06\n" +
+	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xd9\x06\n" +
 	"\x0ePlantingPolicy\x12!\n" +
 	"\fauto_enabled\x18\x01 \x01(\bR\vautoEnabled\x12(\n" +
 	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x120\n" +
@@ -2970,7 +2982,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x11auto_replant_mode\x18\x0f \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\x0fautoReplantMode\x125\n" +
 	"\x17auto_replant_flower_ids\x18\x10 \x03(\x05R\x14autoReplantFlowerIds\x12D\n" +
 	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x124\n" +
-	"\x16auto_replant_qualities\x18\x13 \x03(\x05R\x14autoReplantQualities\x1aA\n" +
+	"\x16auto_replant_qualities\x18\x13 \x03(\x05R\x14autoReplantQualities\x123\n" +
+	"\x16auto_replant_min_level\x18\x14 \x01(\x05R\x13autoReplantMinLevel\x1aA\n" +
 	"\x13DemandPriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xdd\x02\n" +

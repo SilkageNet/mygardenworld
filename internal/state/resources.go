@@ -337,6 +337,7 @@ func (s *State) PlantableFlowers(allowed []int32, blocked []int32) []PlantableFl
 		out = append(out, PlantableFlower{
 			FlowerID:   id,
 			Stock:      s.inventory[id],
+			Lvl:        cv.Lvl,
 			Gold:       info.Gold,
 			Experience: info.Experience,
 		})

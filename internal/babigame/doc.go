@@ -206,9 +206,12 @@
 //
 // Structure: {"0": {"0": uid, "1": drawCnt, "2": resetCntTime, "3": uTime, "4": cTime}}
 //
-// The client uses drawCnt as the currently available free draw count. When it
-// is positive, benefitBox.draw can claim one reward; resetCntTime is the
-// client-visible reset/cooldown timestamp.
+// The client uses drawCnt as the observed free-draw baseline. When below
+// c_benefitBox.$boxMax (8), boxes refill every $boxCd seconds (3600) relative
+// to resetCntTime without a namespace push — see BenefitBoxCtrl.getBenefitBoxInfo.
+// Automation claims only during 04:30–05:00 Asia/Shanghai: it reads that
+// accrued unopened count, then calls benefitBox.draw once per box. Daytime
+// opens are left for the player.
 //
 // # Shop Cultivate / Material Shop (Namespace 113)
 //
