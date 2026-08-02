@@ -6,6 +6,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -86,6 +87,12 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	}
 	if cp.Plant.Planting.MinWaterDrops <= 0 {
 		cp.Plant.Planting.MinWaterDrops = def.Plant.Planting.MinWaterDrops
+	}
+	if cp.Plant.Planting.AutoReplantMinLevel < 0 {
+		cp.Plant.Planting.AutoReplantMinLevel = 0
+	}
+	if maxLevel := state.FlowerMaxLevel(); maxLevel > 0 && cp.Plant.Planting.AutoReplantMinLevel > maxLevel {
+		cp.Plant.Planting.AutoReplantMinLevel = maxLevel
 	}
 	if cp.Plant.Planting.DemandPriority == nil {
 		cp.Plant.Planting.DemandPriority = map[string]int32{}

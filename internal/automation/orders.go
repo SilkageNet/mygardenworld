@@ -65,7 +65,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
-				blocked.BlockedReasons = []string{"当前绸缎订单为广告订单，暂不自动提交"}
+				blocked.BlockedReasons = []string{"当前绸缎订单为广告订单，暂不自动提交；请自行看广告，看完或重启后会重新同步并继续"}
 				ops = append(ops, blocked)
 			case len(satin.Requires) == 0:
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishSatinOrder.String(), "order.resident.satin", "绸缎居民订单", satin, goal, "绸缎居民订单缺少可识别需求"))
@@ -102,7 +102,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				blocked.GoalID = goal.ID
 				blocked.Status = PlanStatusBlocked
 				blocked.Executable = false
-				blocked.BlockedReasons = []string{"当前建材订单为广告订单，暂不自动提交"}
+				blocked.BlockedReasons = []string{"当前建材订单为广告订单，暂不自动提交；请自行看广告，看完或重启后会重新同步并继续"}
 				ops = append(ops, blocked)
 			case len(decorate.Requires) == 0:
 				ops = append(ops, blockedResidentSpecialOrderOp(clientproto.RPCOrderFlowerFinishDecorateOrder.String(), "order.resident.decorate", "建材居民订单", decorate, goal, "建材居民订单缺少可识别需求"))

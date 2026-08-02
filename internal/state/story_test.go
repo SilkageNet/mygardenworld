@@ -14,19 +14,19 @@ func TestStoryMainCatalogIsExactThroughTerminal(t *testing.T) {
 	var sentinel struct {
 		Max int32 `json:"$max"`
 	}
-	if json.Unmarshal(rawSentinel, &sentinel) != nil || sentinel.Max != 156 {
+	if json.Unmarshal(rawSentinel, &sentinel) != nil || sentinel.Max != 164 {
 		t.Fatalf("story sentinel=%+v", sentinel)
 	}
 	terminalChapter, terminalSection, ok := StoryMainTerminal()
-	if !ok || terminalChapter != 157 || terminalSection != 0 {
-		t.Fatalf("StoryMainTerminal=%d:%d,%t, want 157:0", terminalChapter, terminalSection, ok)
+	if !ok || terminalChapter != 165 || terminalSection != 0 {
+		t.Fatalf("StoryMainTerminal=%d:%d,%t, want 165:0", terminalChapter, terminalSection, ok)
 	}
 	first32, ok := StoryMainSection(32, 0)
 	if !ok || first32.SectionID != 4101 || !reflect.DeepEqual(first32.Cost, []ItemCount{{ItemID: 56, Count: 85}}) {
 		t.Fatalf("chapter 32 first section=%+v,%t", first32, ok)
 	}
-	last, ok := StoryMainSection(156, 5)
-	if !ok || last.SectionID != 16506 || !reflect.DeepEqual(last.Cost, []ItemCount{{ItemID: 56, Count: 195}}) {
+	last, ok := StoryMainSection(164, 5)
+	if !ok || last.SectionID != 17306 || !reflect.DeepEqual(last.Cost, []ItemCount{{ItemID: 56, Count: 195}}) {
 		t.Fatalf("last story section=%+v,%t", last, ok)
 	}
 	for chapter := int32(1); chapter < terminalChapter; chapter++ {
@@ -92,7 +92,7 @@ func TestApplyStoryMainStrictSparseAndComplete(t *testing.T) {
 		applyMap(t, s, map[string]any{"7": map[string]any{"101": map[string]any{"1": 33, "2": 0}}})
 	}
 
-	applyMap(t, s, map[string]any{"7": map[string]any{"101": map[string]any{"1": 157, "2": 0}}})
+	applyMap(t, s, map[string]any{"7": map[string]any{"101": map[string]any{"1": 165, "2": 0}}})
 	story, _ = s.StoryMain()
 	if !story.Valid || !story.Complete || story.SectionID != 0 || len(story.Cost) != 0 || !s.StoryMainReady() {
 		t.Fatalf("terminal story=%+v", story)
@@ -139,7 +139,7 @@ func TestStoryUnlockSnapshotRequiresExactProgressAndCost(t *testing.T) {
 	}{
 		{name: "within chapter", chapter: 32, section: 0, before: 200, nextChapter: 32, nextSection: 1, after: 115, want: true},
 		{name: "next chapter", chapter: 32, section: 5, before: 200, nextChapter: 33, nextSection: 0, after: 115, want: true},
-		{name: "terminal", chapter: 156, section: 5, before: 200, nextChapter: 157, nextSection: 0, after: 5, want: true},
+		{name: "terminal", chapter: 164, section: 5, before: 200, nextChapter: 165, nextSection: 0, after: 5, want: true},
 		{name: "wrong decrement", chapter: 32, section: 0, before: 200, nextChapter: 32, nextSection: 1, after: 116},
 		{name: "jumped progress", chapter: 32, section: 0, before: 200, nextChapter: 32, nextSection: 2, after: 115},
 	}

@@ -65,8 +65,8 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 			return nil, err
 		}
 		out.AutomationEnabled = policy.GetAutomationEnabled()
-		out.DomainStatuses = buildDomainStatuses(policy, runner.Diagnostics{}, false)
-		out.Health = "offline"
+		diag, _ := svc.Manager.LastDiagnostics(acc.ID)
+		applyStoppedRunnerDiagnostics(out, policy, diag)
 		if stats, ok := svc.Manager.RuntimeStats(acc.ID); ok {
 			out.RuntimeStatistics = runtimeStatisticsProto(stats)
 		}
@@ -157,8 +157,11 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Diagnostics:           runnerDiagnosticsProto(diag),
 		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
 		CyclicNote:            cyclicNoteProto(cyclicNote),
-		FmlRace:               fmlRaceProto(fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now),
-		Dessert:               dessertProto(dessert),
+		FmlRace: fmlRaceProto(
+			fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now,
+			policy.GetOrder().GetCustomer().GetEnabled(),
+		),
+		Dessert: dessertProto(dessert),
 	}
 	resp.Dessert.Runtime = dessertRuntimeProto(dessertRuntime)
 	if rep, ok := st.Reputation(); ok {
@@ -361,7 +364,7 @@ var fmlRaceTaskLabels = map[int32]string{
 	3052: "动物互动",
 }
 
-func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time) *pb.FmlRaceView {
+func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, customerEnabled bool) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
 		Observed:        view.Observed,
 		BatchActive:     view.BatchActive,
@@ -370,11 +373,27 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 		BatchStatus:     view.BatchStatus,
 		TasksSyncedAtMs: view.TasksSyncedAtMs,
 	}
+	if view.TaskQuotaObserved {
+		out.TaskQuotaObserved = true
+		out.FinishedTaskNum = view.FinishedTaskNum
+		raceLvl := view.RaceLvl
+		if raceLvl <= 0 {
+			raceLvl = s.FmlBuild().RaceLvl
+		}
+		out.RaceLvl = raceLvl
+		out.TotalTaskNum = state.FmlRaceTotalTaskNum(raceLvl, view.BuyTaskNum)
+	}
 
 	if view.Taken.HasTask {
 		taskType := view.Taken.TaskType
 		if taskType == 0 {
 			taskType = view.Taken.TaskId
+		}
+		finishCnt := view.Taken.FinishCnt
+		// Surface local harvest high-water when field 134 / pool FinishCnt lag
+		// so the monitor progress bar updates as soon as race flowers are cut.
+		if view.LocalFinishTaskMsId == view.Taken.TaskMsId && view.LocalFinishCnt > finishCnt {
+			finishCnt = view.LocalFinishCnt
 		}
 		out.Taken = &pb.FmlRaceTaken{
 			HasTask:     true,
@@ -383,7 +402,7 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			TaskType:    taskType,
 			TaskLabel:   fmlRaceTaskLabels[taskType],
 			TargetCnt:   view.Taken.TargetCnt,
-			FinishCnt:   view.Taken.FinishCnt,
+			FinishCnt:   finishCnt,
 			Score:       view.Taken.Score,
 			TargetLabel: view.Taken.TargetLabel,
 		}
@@ -404,7 +423,7 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			UpgradeUid:     t.UpgradeUid,
 			TargetLabel:    t.TargetLabel,
 			AppearTimeMs:   t.AppearTime,
-			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now),
+			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, customerEnabled),
 		})
 	}
 	return out
@@ -1191,7 +1210,7 @@ func plannedOperationsProto(ops []automation.PlannedOp, diag runner.Diagnostics)
 	for _, op := range ops {
 		cooldownUntil := op.CooldownUntil
 		cooldownReason := op.CooldownReason
-		if cd, ok := cooldowns[op.OperationID]; ok {
+		if cd, ok := lookupPlannedOperationCooldown(cooldowns, op); ok {
 			cooldownUntil = cd.Until
 			cooldownReason = cd.Reason
 		}
@@ -1246,6 +1265,20 @@ func cooldownsByOperation(diag runner.Diagnostics) map[string]runner.OperationCo
 		out[cd.OperationID] = cd
 	}
 	return out
+}
+
+func lookupPlannedOperationCooldown(cooldowns map[string]runner.OperationCooldownSnapshot, op automation.PlannedOp) (runner.OperationCooldownSnapshot, bool) {
+	if key := strings.TrimSpace(op.CooldownKey); key != "" {
+		if cd, ok := cooldowns[key]; ok {
+			return cd, true
+		}
+	}
+	if op.OperationID != "" {
+		if cd, ok := cooldowns[op.OperationID]; ok {
+			return cd, true
+		}
+	}
+	return runner.OperationCooldownSnapshot{}, false
 }
 
 func executionLaneProto(lane string) pb.ExecutionLane {
@@ -1681,6 +1714,19 @@ func accountHealth(connected bool, diag runner.Diagnostics) string {
 	default:
 		return "offline"
 	}
+}
+
+// applyStoppedRunnerDiagnostics fills status fields when no live runner remains.
+// Retained kick/expiry diagnostics keep the account in 异常 instead of bare offline.
+func applyStoppedRunnerDiagnostics(out *pb.AccountStatus, policy *pb.Policy, diag runner.Diagnostics) {
+	out.Diagnostics = runnerDiagnosticsProto(diag)
+	out.DomainStatuses = buildDomainStatuses(policy, diag, false)
+	out.Health = accountHealth(false, diag)
+	if diag.LastOperationError != "" {
+		out.LastError = diag.LastOperationError
+		return
+	}
+	out.LastError = diag.SessionInvalidatedReason
 }
 
 func basicEnabled(p *pb.BasicPolicy) bool {

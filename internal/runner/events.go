@@ -228,6 +228,14 @@ func opKindDesc(kind string) string {
 		return "防骗问答"
 	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
 		return "领取防骗宝箱"
+	case clientproto.RPCBenefitBoxDraw.String():
+		return "开启福利宝箱"
+	case clientproto.RPCShopCultivateEnter.String():
+		return "同步材料商店"
+	case clientproto.RPCShopCultivateRefresh.String():
+		return "刷新材料商店"
+	case clientproto.RPCShopCultivateBuy.String():
+		return "材料商店购买"
 	case clientproto.RPCFmlRaceEnter.String():
 		return "进入公会竞赛"
 	case clientproto.RPCFmlRaceGetTaskList.String():
@@ -268,6 +276,12 @@ func opKindDesc(kind string) string {
 		return "建材居民订单"
 	case clientproto.RPCOrderFlowerRecvOrderRwd.String():
 		return "居民订单领奖"
+	case clientproto.RPCCultivateRecv.String():
+		return "培育领取"
+	case clientproto.RPCCultivateCultivate.String():
+		return "培育"
+	case clientproto.RPCCultivateUpgrade.String():
+		return "鲜花升级"
 	default:
 		return kind
 	}
@@ -535,7 +549,7 @@ func eventLabel(kind string) string {
 	case "cultivate_new":
 		return "培育"
 	case "flower_upgrade":
-		return "花卉升级"
+		return "鲜花升级"
 	default:
 		return kind
 	}

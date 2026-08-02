@@ -144,6 +144,19 @@ func TestErrorCodeOfLangJS(t *testing.T) {
 	}
 }
 
+func TestErrorCodeOfLangJSFromStringCode(t *testing.T) {
+	d := WSResponseD{M: json.RawMessage(`{"code":"fmlShare_tips8","msg":"今日拿取次数已达上限","args":[]}`)}
+	if got := d.ErrorCodeOfLangJS(); got != "fmlShare_tips8" {
+		t.Fatalf("ErrorCodeOfLangJS=%q", got)
+	}
+	if got := d.ErrorMsg(); got != "今日拿取次数已达上限" {
+		t.Fatalf("ErrorMsg=%q", got)
+	}
+	if d.ErrorCode() != 0 {
+		t.Fatalf("ErrorCode=%d, want 0 for string tip codes", d.ErrorCode())
+	}
+}
+
 func TestClientDispatchTextFiresSessionExpired(t *testing.T) {
 	c := NewClient(&Session{Cfg: testConfig(t)})
 	called := false

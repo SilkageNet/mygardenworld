@@ -39,15 +39,39 @@ type WSResponseD struct {
 }
 
 type wsErrorMessage struct {
-	Msg          string `json:"msg"`
-	CodeOfLangJS string `json:"codeOfLangJs"`
-	Type         int    `json:"type"`
-	Code         int    `json:"code"`
+	Msg          string          `json:"msg"`
+	CodeOfLangJS string          `json:"codeOfLangJs"`
+	Type         int             `json:"type"`
+	Code         int             `json:"-"`
+	CodeRaw      json.RawMessage `json:"code"`
 	Param        struct {
 		IID         int32  `json:"iid"`
 		Reason      string `json:"reason"`
 		ExpiredTime int64  `json:"expiredTime"`
 	} `json:"param"`
+}
+
+func (m *wsErrorMessage) normalizeCode() {
+	if len(m.CodeRaw) == 0 || string(m.CodeRaw) == "null" {
+		return
+	}
+	var n int
+	if json.Unmarshal(m.CodeRaw, &n) == nil {
+		m.Code = n
+		return
+	}
+	var s string
+	if json.Unmarshal(m.CodeRaw, &s) != nil {
+		return
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return
+	}
+	// Tips payloads use {"code":"fmlShare_tips8","msg":"..."}.
+	if m.CodeOfLangJS == "" {
+		m.CodeOfLangJS = s
+	}
 }
 
 // ErrorMsg returns the server error message from the M field, or empty string
@@ -113,6 +137,7 @@ func (d WSResponseD) parseErrorMessage() (wsErrorMessage, bool) {
 	if json.Unmarshal(d.M, &m) != nil {
 		return wsErrorMessage{}, false
 	}
+	m.normalizeCode()
 	return m, true
 }
 

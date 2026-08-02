@@ -222,12 +222,199 @@ func TestFmlRaceTakenSynthesizedAfterNull110WithPoolUID(t *testing.T) {
 	}
 }
 
-func TestFmlRaceTakenPrefers110OverPoolUID(t *testing.T) {
+func TestFmlRaceTakenPrefersPoolUIDOver110(t *testing.T) {
 	s := New()
+	// Sparse apply with conflicting 110 (花笼流芳 msId 99) vs pool UID row (白百合 msId 55).
+	// Live holder is the pool UID==self row.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":55,"4":4001,"6":[23001],"7":100,"8":0,"10":9,"12":999}],"110":{"42":{"7":{"0":99,"1":4012,"2":50,"3":5,"4":[23363]}}}}}`))
 	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 55 || got.Taken.ParamID != 23001 {
+		t.Fatalf("pool UID==self must win over 110, got %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceSameMsIDKeeps110ProgressOverPool(t *testing.T) {
+	s := New()
+	// Matching msId: pool omits progress; 110 has FinishCnt=2/TargetCnt=10 — keep 110.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":99,"4":4001,"6":[23001],"10":30,"12":999}],"110":{"42":{"7":{"0":99,"1":4001,"2":10,"3":2,"4":[23001]}}}}}`))
+	got := s.FmlRace()
 	if !got.Taken.HasTask || got.Taken.TaskMsId != 99 {
-		t.Fatalf("110 must win over pool UID, got %+v", got.Taken)
+		t.Fatalf("taken = %+v", got.Taken)
+	}
+	if got.Taken.TargetCnt != 10 || got.Taken.FinishCnt != 2 {
+		t.Fatalf("must keep 110 progress, got target=%d finish=%d", got.Taken.TargetCnt, got.Taken.FinishCnt)
+	}
+	if got.Taken.Score != 30 {
+		t.Fatalf("Score = %d, want 30 from pool gap-fill", got.Taken.Score)
+	}
+}
+
+func TestFmlRaceFullPoolReplacesStaleTakenWithout110(t *testing.T) {
+	s := New()
+	// Stale Taken: 鹤望兰 (#23022), score unresolved — typical orphan after a
+	// prior bad synthesize that sparse syncs never cleared.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":1,"4":4001,"6":[23022],"7":280,"8":0,"10":9,"12":999}],"110":{}}}`))
+	if !s.FmlRace().Taken.HasTask || s.FmlRace().Taken.ParamID != 23022 {
+		t.Fatalf("seed stale taken = %+v", s.FmlRace().Taken)
+	}
+	// Authoritative getTaskList: 鹤望兰 gone; 花笼流芳 (#23331) held by self; no 110.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":2,"4":4001,"6":[23331],"7":280,"8":12,"10":31,"12":999},{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}]}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 2 || got.Taken.ParamID != 23331 {
+		t.Fatalf("full pool must replace stale Taken with pool UID row, got %+v", got.Taken)
+	}
+	if got.Taken.Score != 31 || got.Taken.FinishCnt != 12 || got.Taken.TargetLabel != "花笼流芳" {
+		t.Fatalf("replaced taken detail = %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceFullPoolClearsOrphanTakenWhenNoPoolUID(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":1,"4":4001,"6":[23022],"7":280,"8":0,"10":9,"12":999}],"110":{}}}`))
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}]}}`))
+	if s.FmlRace().Taken.HasTask {
+		t.Fatalf("full pool with no UID==self must clear orphan Taken, got %+v", s.FmlRace().Taken)
+	}
+}
+
+func TestFmlRaceFullPoolPoolUIDOverridesStale110(t *testing.T) {
+	s := New()
+	// Stale 110 still asserts 鹤望兰 (#23022) while the live holder in the
+	// authoritative pool is 花笼流芳 (#23331). Full-pool reconcile must prefer
+	// UID==self over the orphan 110 takeTaskData (UI score-0 ghost).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"7":{"0":99,"1":4001,"2":280,"3":0,"4":[23022]}}}}}`))
+	if !s.FmlRace().Taken.HasTask || s.FmlRace().Taken.ParamID != 23022 {
+		t.Fatalf("seed stale 110 taken = %+v", s.FmlRace().Taken)
+	}
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"114":[{"0":2,"4":4001,"6":[23331],"7":280,"8":12,"10":31,"12":999},{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}],"110":{"42":{"7":{"0":99,"1":4001,"2":280,"3":0,"4":[23022]}}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 2 || got.Taken.ParamID != 23331 {
+		t.Fatalf("full pool UID==self must override stale 110, got %+v", got.Taken)
+	}
+	if got.Taken.Score != 31 || got.Taken.FinishCnt != 12 || got.Taken.TargetLabel != "花笼流芳" {
+		t.Fatalf("overridden taken detail = %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceFullPoolClearsStale110WhenNoPoolUID(t *testing.T) {
+	s := New()
+	// Authoritative pool has no UID==self, but 110 still asserts 鹤望兰.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}],"110":{"42":{"7":{"0":99,"1":4001,"2":280,"3":0,"4":[23022]}}}}}`))
+	if s.FmlRace().Taken.HasTask {
+		t.Fatalf("full pool with stale 110 and no UID==self must clear Taken, got %+v", s.FmlRace().Taken)
+	}
+}
+
+func TestFmlRaceTakenFinishCntAdvancesFromPool(t *testing.T) {
+	s := New()
+	// 110 starts at FinishCnt=48; later full pool row (UID=0) reaches 300.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"42":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	if s.FmlRace().Taken.FinishCnt != 48 {
+		t.Fatalf("seed FinishCnt=%d, want 48", s.FmlRace().Taken.FinishCnt)
+	}
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":300,"10":28,"12":0}],"110":{"42":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 715 {
+		t.Fatalf("must keep live Taken (pool UID=0), got %+v", got.Taken)
+	}
+	if got.Taken.FinishCnt != 300 {
+		t.Fatalf("FinishCnt=%d, want 300 advanced from pool", got.Taken.FinishCnt)
+	}
+}
+
+func TestFmlRaceFullPoolKeepsTakenWhenMsIDStillInPoolUIDZero(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"7":{"0":715,"1":4013,"2":300,"3":128,"4":[23577]}}}}}`))
+	// Authoritative pool has the same msId but UID=0 (no UID==self row).
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":214,"10":28,"12":0},{"0":3,"4":4001,"6":[23001],"7":100,"8":0,"10":20,"12":0}],"110":{"42":{"7":{"0":715,"1":4013,"2":300,"3":128,"4":[23577]}}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 715 {
+		t.Fatalf("full pool must not clear Taken still present with UID=0, got %+v", got.Taken)
+	}
+	if got.Taken.FinishCnt != 214 {
+		t.Fatalf("FinishCnt=%d, want 214 from pool", got.Taken.FinishCnt)
+	}
+}
+
+func TestFmlRaceTakenProgressFromField134OnHarvest(t *testing.T) {
+	s := New()
+	// Seed held plant-harvest task at 48/300.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	if s.FmlRace().Taken.FinishCnt != 48 {
+		t.Fatalf("seed FinishCnt=%d, want 48", s.FmlRace().Taken.FinishCnt)
+	}
+	// Harvest ACK shape: 25.134 batch map with takeTaskData at field 3.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1785368365572},"4":1785358559363}}}}`))
+	got := s.FmlRace()
+	if !got.Taken.HasTask || got.Taken.TaskMsId != 715 {
+		t.Fatalf("134 must keep Taken, got %+v", got.Taken)
+	}
+	if got.Taken.FinishCnt != 300 || got.Taken.TargetCnt != 300 {
+		t.Fatalf("134 progress = %d/%d, want 300/300", got.Taken.FinishCnt, got.Taken.TargetCnt)
+	}
+	if got.Taken.ParamID != 23577 {
+		t.Fatalf("ParamID=%d, want 23577", got.Taken.ParamID)
+	}
+	if got.LocalFinishCnt != 300 || got.LocalFinishTaskMsId != 715 {
+		t.Fatalf("LocalFinish=%d msId=%d, want 300/715", got.LocalFinishCnt, got.LocalFinishTaskMsId)
+	}
+}
+
+func TestFmlRaceLocalFinishAdvancesFromLandHarvestBeforeField134(t *testing.T) {
+	s := New()
+	// Held plant-harvest 花椅轻摇-style task; FinishCnt still 0.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":99,"1":3028,"2":300,"3":0,"4":[23001]}}}},"101":{"0":{"23001":{"1":23001,"2":11,"4":2}}},"100":{"1":{"1001":{"0":23001,"1":2,"2":11,"3":0}}}}`))
+	if s.FmlRace().Taken.FinishCnt != 0 {
+		t.Fatalf("seed FinishCnt=%d, want 0", s.FmlRace().Taken.FinishCnt)
+	}
+	// Harvest bumps land HarvestCnt without field 134 yet (cropGets=3 at lvl11 cfg).
+	s.ApplyV(json.RawMessage(`{"100":{"1":{"1001":{"0":23001,"1":2,"2":11,"3":1}}}}`))
+	got := s.FmlRace()
+	if got.Taken.FinishCnt != 0 {
+		t.Fatalf("server FinishCnt must stay 0, got %d", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 3 {
+		t.Fatalf("LocalFinishCnt=%d, want 3 from HarvestCnt delta", got.LocalFinishCnt)
+	}
+	// Later 134 catches up higher — local high-water follows.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":99,"1":3028,"2":300,"3":12,"4":[23001]},"4":1}}}}`))
+	got = s.FmlRace()
+	if got.Taken.FinishCnt != 12 {
+		t.Fatalf("FinishCnt=%d, want 12", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 12 {
+		t.Fatalf("LocalFinishCnt=%d, want 12 after 134", got.LocalFinishCnt)
+	}
+}
+
+func TestFmlRaceLocalFinishCreditsFinalClearHarvest(t *testing.T) {
+	s := New()
+	// Last harvest round often clears the plot in the same delta ({}).
+	// Before: HarvestCnt=3 of frequencys=4 → credit 1 remaining round × cropGets=3.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":99,"1":3028,"2":300,"3":0,"4":[23001]}}}},"101":{"0":{"23001":{"1":23001,"2":11,"4":2}}},"100":{"1":{"1001":{"0":23001,"1":2,"2":11,"3":3}}}}`))
+	s.ApplyV(json.RawMessage(`{"100":{"1":{"1001":{}}}}`))
+	got := s.FmlRace()
+	if got.Taken.FinishCnt != 0 {
+		t.Fatalf("server FinishCnt must stay 0, got %d", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 3 {
+		t.Fatalf("LocalFinishCnt=%d, want 3 from final clear harvest", got.LocalFinishCnt)
+	}
+}
+
+func TestFmlRaceTakenClearedByEmptyField134(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":300,"4":[23577]}}}}}`))
+	if !s.FmlRace().Taken.HasTask {
+		t.Fatal("expected seeded Taken")
+	}
+	// finishTask ACK clears takeTaskData via empty object in 134.3.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{},"4":1785364748931}}}}`))
+	if s.FmlRace().Taken.HasTask {
+		t.Fatalf("empty 134.3 must clear Taken, got %+v", s.FmlRace().Taken)
+	}
+	if s.FmlRace().LocalFinishCnt != 0 || s.FmlRace().LocalFinishTaskMsId != 0 {
+		t.Fatalf("clear must reset LocalFinish, got %+v", s.FmlRace())
 	}
 }
 
@@ -269,5 +456,67 @@ func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
 	// Pool rows preserved so UI/planner still see last snapshot until re-sync.
 	if len(got.Tasks) != 1 {
 		t.Fatalf("tasks wiped: %+v", got.Tasks)
+	}
+}
+
+func TestFmlRaceUsrRcdTaskQuota(t *testing.T) {
+	s := New()
+	// batchId key; fTaskNum=3, buyTaskNum=2, no taken task.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"0":{"103":4},"110":{"42":{"0":99,"1":42,"3":3,"6":2}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved {
+		t.Fatalf("TaskQuotaObserved=false: %+v", got)
+	}
+	if got.FinishedTaskNum != 3 || got.BuyTaskNum != 2 {
+		t.Fatalf("quota finished=%d buy=%d, want 3/2", got.FinishedTaskNum, got.BuyTaskNum)
+	}
+	if got.Taken.HasTask {
+		t.Fatalf("unexpected taken: %+v", got.Taken)
+	}
+	if s.FmlBuild().RaceLvl != 4 {
+		t.Fatalf("RaceLvl=%d, want 4", s.FmlBuild().RaceLvl)
+	}
+	if total := FmlRaceTotalTaskNum(s.FmlBuild().RaceLvl, got.BuyTaskNum); total != 18 {
+		// c_fmlRace(4).taskNum=18 (buyTaskNum not included in displayed total)
+		t.Fatalf("total=%d, want 18", total)
+	}
+}
+
+func TestFmlRaceCurRcdRaceLvl(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"117":{"0":42,"1":7,"5":4},"110":{"42":{"3":6,"6":0}}}}`))
+	got := s.FmlRace()
+	if got.RaceLvl != 4 || !got.RaceLvlObserved {
+		t.Fatalf("RaceLvl=%d observed=%v, want 4/true from CurFmlRaceRcd", got.RaceLvl, got.RaceLvlObserved)
+	}
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 6 {
+		t.Fatalf("quota=%+v", got)
+	}
+	if total := FmlRaceTotalTaskNum(got.RaceLvl, got.BuyTaskNum); total != 18 {
+		t.Fatalf("total=%d, want 18", total)
+	}
+}
+
+func TestFmlRaceGroupRcdRaceLvl(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":7},"111":{"0":42,"1":1,"2":1000,"3":9000},"112":[{"0":42,"1":7,"5":4},{"0":42,"1":8,"5":4}]}}`))
+	got := s.FmlRace()
+	if got.RaceLvl != 4 {
+		t.Fatalf("RaceLvl=%d, want 4 from group list fid match", got.RaceLvl)
+	}
+}
+
+func TestFmlRaceUsrRcdTaskQuotaPreservedWithoutTaken(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"3":5,"6":1,"7":{"0":9,"1":4001,"2":3,"3":1}}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 5 || !got.Taken.HasTask {
+		t.Fatalf("with taken: %+v", got)
+	}
+	// Later 110 without takeTaskData still updates quota and clears taken.
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":6,"6":1}}}}`))
+	got = s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 6 || got.Taken.HasTask {
+		t.Fatalf("after finish clear: %+v", got)
 	}
 }

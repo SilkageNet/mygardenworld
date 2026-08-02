@@ -232,6 +232,14 @@ message FmlRaceView {
   int32 batch_status = 7;
   // Local ms when task pool (NS25 field 114) was last applied.
   int64 tasks_synced_at_ms = 8;
+  // True after NS25 field 110 (usr rcd) has been observed for task quota.
+  bool task_quota_observed = 9;
+  // Finished race tasks this batch (IFmlRaceUsrRcd.fTaskNum).
+  int32 finished_task_num = 10;
+  // Total race task quota: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, …).
+  int32 total_task_num = 11;
+  // Guild race tier used for total_task_num (甲=4, 乙=3, 丙=2, 丁=1).
+  int32 race_lvl = 12;
 }
 
 message FmlRaceTask {

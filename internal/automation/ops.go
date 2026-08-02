@@ -94,6 +94,13 @@ func operationComesBefore(left, right PlannedOp) bool {
 	if left.Domain != right.Domain {
 		return left.Domain < right.Domain
 	}
+	// Auto-replant batches encode flower IDs in OperationID. Preserve their
+	// stock-ranked insertion order so high IDs are not starved. Other operation
+	// families still need a stable, input-order-independent tie-break.
+	if left.GoalID == GoalAutoReplant && right.GoalID == GoalAutoReplant &&
+		isPlantOperation(left.Kind) && isPlantOperation(right.Kind) {
+		return false
+	}
 	return left.OperationID < right.OperationID
 }
 
@@ -182,11 +189,12 @@ func DefaultPolicy() *pb.Policy {
 				TargetLevel: 20,
 			},
 			Planting: &pb.PlantingPolicy{
-				AutoEnabled:        true,
-				AutoHarvestEnabled: true,
-				DemandPriority:     defaultDemandPriority(),
-				MinWaterDrops:      5,
-				AutoReplantMode:    pb.SelectionMode_SELECTION_MODE_ALL,
+				AutoEnabled:           true,
+				AutoHarvestEnabled:    true,
+				DemandPriority:        defaultDemandPriority(),
+				DemandPriorityEnabled: false,
+				MinWaterDrops:         5,
+				AutoReplantMode:       pb.SelectionMode_SELECTION_MODE_ALL,
 			},
 			FriendSteal: &pb.FriendStealPolicy{},
 			Elves:       &pb.FlowerElvesPolicy{},

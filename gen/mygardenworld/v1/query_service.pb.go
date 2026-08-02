@@ -1590,8 +1590,16 @@ type FmlRaceView struct {
 	BatchStatus  int32                  `protobuf:"varint,7,opt,name=batch_status,json=batchStatus,proto3" json:"batch_status,omitempty"`
 	// Local ms when task pool (NS25 field 114) was last applied.
 	TasksSyncedAtMs int64 `protobuf:"varint,8,opt,name=tasks_synced_at_ms,json=tasksSyncedAtMs,proto3" json:"tasks_synced_at_ms,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// True after NS25 field 110 (usr rcd) has been observed for task quota.
+	TaskQuotaObserved bool `protobuf:"varint,9,opt,name=task_quota_observed,json=taskQuotaObserved,proto3" json:"task_quota_observed,omitempty"`
+	// Finished race tasks this batch (IFmlRaceUsrRcd.fTaskNum).
+	FinishedTaskNum int32 `protobuf:"varint,10,opt,name=finished_task_num,json=finishedTaskNum,proto3" json:"finished_task_num,omitempty"`
+	// Total race task quota: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, …).
+	TotalTaskNum int32 `protobuf:"varint,11,opt,name=total_task_num,json=totalTaskNum,proto3" json:"total_task_num,omitempty"`
+	// Guild race tier used for total_task_num (甲=4, 乙=3, 丙=2, 丁=1).
+	RaceLvl       int32 `protobuf:"varint,12,opt,name=race_lvl,json=raceLvl,proto3" json:"race_lvl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FmlRaceView) Reset() {
@@ -1676,6 +1684,34 @@ func (x *FmlRaceView) GetBatchStatus() int32 {
 func (x *FmlRaceView) GetTasksSyncedAtMs() int64 {
 	if x != nil {
 		return x.TasksSyncedAtMs
+	}
+	return 0
+}
+
+func (x *FmlRaceView) GetTaskQuotaObserved() bool {
+	if x != nil {
+		return x.TaskQuotaObserved
+	}
+	return false
+}
+
+func (x *FmlRaceView) GetFinishedTaskNum() int32 {
+	if x != nil {
+		return x.FinishedTaskNum
+	}
+	return 0
+}
+
+func (x *FmlRaceView) GetTotalTaskNum() int32 {
+	if x != nil {
+		return x.TotalTaskNum
+	}
+	return 0
+}
+
+func (x *FmlRaceView) GetRaceLvl() int32 {
+	if x != nil {
+		return x.RaceLvl
 	}
 	return 0
 }
@@ -5531,7 +5567,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12\x1a\n" +
 	"\bprogress\x18\x06 \x01(\x05R\bprogress\x12!\n" +
 	"\fraw_progress\x18\a \x01(\x05R\vrawProgress\x12\x14\n" +
-	"\x05ready\x18\b \x01(\bR\x05ready\"\xcf\x02\n" +
+	"\x05ready\x18\b \x01(\bR\x05ready\"\xec\x03\n" +
 	"\vFmlRaceView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12!\n" +
 	"\fbatch_active\x18\x02 \x01(\bR\vbatchActive\x124\n" +
@@ -5541,7 +5577,12 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\fbatch_end_ms\x18\x06 \x01(\x03R\n" +
 	"batchEndMs\x12!\n" +
 	"\fbatch_status\x18\a \x01(\x05R\vbatchStatus\x12+\n" +
-	"\x12tasks_synced_at_ms\x18\b \x01(\x03R\x0ftasksSyncedAtMs\"\xc0\x02\n" +
+	"\x12tasks_synced_at_ms\x18\b \x01(\x03R\x0ftasksSyncedAtMs\x12.\n" +
+	"\x13task_quota_observed\x18\t \x01(\bR\x11taskQuotaObserved\x12*\n" +
+	"\x11finished_task_num\x18\n" +
+	" \x01(\x05R\x0ffinishedTaskNum\x12$\n" +
+	"\x0etotal_task_num\x18\v \x01(\x05R\ftotalTaskNum\x12\x19\n" +
+	"\brace_lvl\x18\f \x01(\x05R\araceLvl\"\xc0\x02\n" +
 	"\vFmlRaceTask\x12\x13\n" +
 	"\x05ms_id\x18\x01 \x01(\x03R\x04msId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x05R\x06taskId\x12\x1d\n" +

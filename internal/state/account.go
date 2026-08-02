@@ -397,18 +397,87 @@ func (s *State) applyVideoDoubleLocked(raw json.RawMessage) {
 	s.videoDouble = view
 }
 
-// BenefitBoxDrawsRemaining returns the number of free draws available.
-func (s *State) BenefitBoxDrawsRemaining() int32 {
+// BenefitBoxDrawsRemaining mirrors G.BenefitBoxCtrl.getBenefitBoxInfo:
+// drawCnt is the synced baseline; when below c_benefitBox.$boxMax, boxes
+// refill every $boxCd seconds relative to resetCntTime without a push.
+func (s *State) BenefitBoxDrawsRemaining(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.benefitBoxDrawCnt
+	return s.benefitBoxDrawsRemainingLocked(now)
 }
 
-// BenefitBoxReady returns true if there are draws available.
-func (s *State) BenefitBoxReady() bool {
+// BenefitBoxReady reports whether at least one free draw is available at now.
+func (s *State) BenefitBoxReady(now time.Time) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.benefitBoxObserved && s.benefitBoxDrawCnt > 0
+	return s.benefitBoxObserved && s.benefitBoxDrawsRemainingLocked(now) > 0
+}
+
+// BenefitBoxObserved reports whether namespace 116 has been seen at least once.
+func (s *State) BenefitBoxObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.benefitBoxObserved
+}
+
+func (s *State) benefitBoxDrawsRemainingLocked(now time.Time) int32 {
+	max := benefitBoxMax()
+	cnt := s.benefitBoxDrawCnt
+	if cnt >= max {
+		return max
+	}
+	if s.benefitBoxResetCntMs <= 0 {
+		return cnt
+	}
+	nowMs := now.UnixMilli()
+	if s.benefitBoxResetCntMs > nowMs {
+		return cnt
+	}
+	cdMs := int64(benefitBoxCD() / time.Millisecond)
+	if cdMs <= 0 {
+		return cnt
+	}
+	gained := (nowMs - s.benefitBoxResetCntMs) / cdMs
+	if gained <= 0 {
+		return cnt
+	}
+	total := cnt + int32(gained)
+	if total > max {
+		return max
+	}
+	return total
+}
+
+func benefitBoxCD() time.Duration {
+	rawRow, ok := StaticRow("c_benefitBox", -1)
+	if !ok {
+		return 3600 * time.Second
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return 3600 * time.Second
+	}
+	n, ok := readInt32JSONField(row, "$boxCd")
+	if !ok || n <= 0 {
+		return 3600 * time.Second
+	}
+	return time.Duration(n) * time.Second
+}
+
+func benefitBoxMax() int32 {
+	rawRow, ok := StaticRow("c_benefitBox", -1)
+	if !ok {
+		return 8
+	}
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal(rawRow, &row); err != nil {
+		return 8
+	}
+	n, ok := readInt32JSONField(row, "$boxMax")
+	if !ok || n <= 0 {
+		return 8
+	}
+	return n
 }
 
 // UsrExtra returns the tracked account-extension state.
@@ -459,9 +528,9 @@ func (s *State) videoDoubleActiveLocked(now time.Time) bool {
 
 // NextFreeWaterIndex returns the currently claimable idx for freeWater.recv.
 // Catalog windows are 11:00–14:00 and 17:00–21:00 Asia/Shanghai; automation
-// may attempt recv throughout each window. When namespace 117 has never been
-// observed, unclaimed slots are assumed so an in-window recv can bootstrap
-// server state.
+// claims any time the active window is open and that slot is still unclaimed.
+// When namespace 117 has never been observed, unclaimed slots are assumed so
+// the first in-window recv can bootstrap server state.
 func (s *State) NextFreeWaterIndex(now time.Time) (int32, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -503,6 +572,8 @@ type freeWaterClaimPeriod struct {
 	endMin   int
 }
 
+// contains reports whether minute is inside the catalog window. It supports
+// both ordinary and overnight windows; the start is inclusive and end exclusive.
 func (p freeWaterClaimPeriod) contains(minute int) bool {
 	if p.startMin == p.endMin {
 		return false

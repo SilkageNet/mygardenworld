@@ -31,8 +31,22 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx)
 		}
 	}
-	if benefit.GetBoxEnabled() && s.BenefitBoxReady() {
-		add(true, clientproto.RPCBenefitBoxDraw.String(), "basic.benefit", "claim", "福利宝箱可领取", 6400, 0)
+	// Only during 04:30–05:00 Asia/Shanghai. Count comes from the same
+	// getBenefitBoxInfo accrual as the mini client; the runner then calls
+	// benefitBox.draw once per unopened box. Daytime opens are left to the player.
+	if benefit.GetBoxEnabled() && benefitBoxClaimOpen(now) {
+		remaining := s.BenefitBoxDrawsRemaining(now)
+		if remaining > 0 || !s.BenefitBoxObserved() {
+			goal := Goal{ID: "basic.benefit", Category: CategoryBasic, Domain: "basic.benefit", Label: "basic.benefit", Priority: 64}
+			count := remaining
+			reason := fmt.Sprintf("福利宝箱未开 %d 次，凌晨窗口领取", remaining)
+			if !s.BenefitBoxObserved() {
+				count = 1
+				reason = "福利宝箱状态未同步，凌晨窗口通过 draw 同步并领取"
+			}
+			claim := op(clientproto.RPCBenefitBoxDraw.String(), goal, "claim", reason, 6400, 0, 0, count)
+			ops = append(ops, claim)
+		}
 	}
 	if benefit.GetDoubleCoinEnabled() && !s.VideoDoubleActive(now) {
 		reason := "双倍金币未生效，看视频奖励需要客户端 SDK token"
@@ -511,4 +525,15 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 func pearlPolicyEnabled(policy *pb.PearlPolicy) bool {
 	return policy.GetFreeEnabled() || policy.GetAutoHireEnabled() || policy.GetDrawEnabled() ||
 		policy.GetProtectEnabled() || policy.GetAutoBuyHireTicket()
+}
+
+// benefitBoxClaimOpen is true during 04:30–05:00 Asia/Shanghai. Automation
+// only drains the observed unclaimed drawCnt in this window; daytime boxes
+// are left for the player.
+func benefitBoxClaimOpen(now time.Time) bool {
+	local := now.In(time.FixedZone("Asia/Shanghai", 8*60*60))
+	minute := local.Hour()*60 + local.Minute()
+	const startMin = 4*60 + 30 // 04:30
+	const endMin = 5 * 60      // 05:00 exclusive
+	return minute >= startMin && minute < endMin
 }

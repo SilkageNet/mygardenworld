@@ -141,6 +141,14 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
+	// Refresh satin/decorate order slots + daily counters after every
+	// start/reconnect so a user-watched ad or midnight reset is observed.
+	r.syncResidentOrderState(ctx, client, session, "startup")
+	if r.isSessionInvalidated() {
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
+		return nil, r.sessionInvalidatedError("session invalidated during startup")
+	}
 	if err := r.enforceReputationGuard(ctx, client, session, "startup", time.Now()); err != nil {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -178,6 +186,7 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
 	r.resetPearlHireSession()
 	r.resetDessertRoundSession()
+	r.resetResidentOrderSession()
 	if r.state != nil {
 		r.state.ResetDessertSession()
 	}
@@ -611,6 +620,16 @@ func (r *Runner) sessionInvalidatedError(message string) error {
 		return errors.New(message)
 	}
 	return fmt.Errorf("%s: %s", message, reason)
+}
+
+// discardSessionInvalidation clears kick/expiry markers before an intentional
+// Manager.Stop so forgetWhenDone does not re-cache them as 异常.
+func (r *Runner) discardSessionInvalidation() {
+	r.mu.Lock()
+	r.sessionInvalidated = false
+	r.sessionInvalidatedReason = ""
+	r.sessionAutoRelogin = false
+	r.mu.Unlock()
 }
 
 func (r *Runner) disableAutomationPreferenceForInvalidatedSession(ctx context.Context, reason string) {

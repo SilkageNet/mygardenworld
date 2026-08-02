@@ -502,6 +502,115 @@ func TestApplyV_FmlFlowerShareState(t *testing.T) {
 	}
 }
 
+func TestFmlFlowerTakeDailyLimitSurvivesSparseShareDelta(t *testing.T) {
+	s := New()
+	now := time.Now()
+	s.MarkFmlFlowerTakeDailyLimitReached(now)
+	if !s.FmlFlowerTakeExhausted(now) {
+		t.Fatal("expected exhausted after MarkFmlFlowerTakeDailyLimitReached")
+	}
+	if _, ok := s.FmlFlowerTakeDailyLimitReached(now); !ok {
+		t.Fatal("expected daily limit mark")
+	}
+	before := s.FmlFlowerShare().TdyTakeCnt
+
+	// Sparse 25.107 without field 2 must not wipe tdyTakeCnt / clear the cap.
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{
+					"1": map[string]any{"0": 23005, "1": 10, "2": 3},
+				},
+			},
+		},
+	})
+	share := s.FmlFlowerShare()
+	if share.TdyTakeCnt != before {
+		t.Fatalf("tdyTakeCnt=%d after sparse delta, want preserved %d", share.TdyTakeCnt, before)
+	}
+	if _, ok := s.FmlFlowerTakeDailyLimitReached(now); !ok {
+		t.Fatal("daily limit mark cleared by sparse 107 delta")
+	}
+	if !s.FmlFlowerTakeExhausted(now) {
+		t.Fatal("exhausted cleared by sparse 107 delta")
+	}
+}
+
+func TestFmlFlowerTakeExhausted_IgnoresInitTakeNumWhenGuildLimitUnobserved(t *testing.T) {
+	s := New()
+	now := FmlFlowerTakeWindowStart(time.Now()).Add(time.Hour)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 1, // already took once today
+				"3": now.UnixMilli(),
+			},
+		},
+	})
+	if s.FmlBuild().FlowerTakeCnt != 0 {
+		t.Fatalf("FlowerTakeCnt=%d, want 0 (unobserved)", s.FmlBuild().FlowerTakeCnt)
+	}
+	if s.FmlFlowerTakeExhausted(now) {
+		t.Fatal("must not treat tdyTakeCnt>=$initTakeNum as exhausted when FlowerTakeCnt is unobserved")
+	}
+}
+
+func TestFmlFlowerTakeExhausted_UsesObservedGuildLimit(t *testing.T) {
+	s := New()
+	now := FmlFlowerTakeWindowStart(time.Now()).Add(time.Hour)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"0": map[string]any{
+				"0":   1001,
+				"102": 3,
+			},
+			"107": map[string]any{
+				"0": 1,
+				"1": map[string]any{},
+				"2": 2,
+				"3": now.UnixMilli(),
+			},
+		},
+	})
+	if s.FmlFlowerTakeExhausted(now) {
+		t.Fatal("tdy=2 limit=3 should not be exhausted")
+	}
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{"0": 1, "2": 3, "3": now.UnixMilli()},
+		},
+	})
+	if !s.FmlFlowerTakeExhausted(now) {
+		t.Fatal("tdy=3 limit=3 should be exhausted")
+	}
+}
+
+func TestNoteFmlFlowerShareTake_AdvancesDepletedSlot(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"108": []any{
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 1, "2": 0},
+					},
+				},
+			},
+		},
+	})
+	if n := len(s.FmlFlowerTakeCandidates()); n != 1 {
+		t.Fatalf("candidates=%d, want 1", n)
+	}
+	s.NoteFmlFlowerShareTake(77900091102484, 2)
+	if n := len(s.FmlFlowerTakeCandidates()); n != 0 {
+		t.Fatalf("after note candidates=%d, want 0", n)
+	}
+}
+
 func TestApplyV_RosterPopulatesLands(t *testing.T) {
 	// Cold-start `index.reLogin` shape: 100.0.1.<id> carries the full
 	// per-land state for every land in the player's roster. We verify both
@@ -1267,6 +1376,36 @@ func TestNextGameDayResetUsesCurrentBoundaryBeforeZeroFive(t *testing.T) {
 	}
 }
 
+func TestResidentSatinDecorateDailyLimitErrorSuppressesUntilNextCalendarDay(t *testing.T) {
+	now := time.Date(2026, 7, 5, 20, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := New()
+
+	s.MarkResidentSatinDailyLimitReached(now)
+	until, ok := s.ResidentSatinDailyLimitReached(now)
+	if !ok {
+		t.Fatal("ResidentSatinDailyLimitReached = false, want true after server limit error")
+	}
+	wantUntil := NextCalendarDayReset(now)
+	if !until.Equal(wantUntil) {
+		t.Fatalf("satin limit until = %s, want %s", until, wantUntil)
+	}
+	if _, ok := s.ResidentSatinDailyLimitReached(wantUntil); ok {
+		t.Fatal("ResidentSatinDailyLimitReached = true at reset boundary, want false")
+	}
+
+	s.MarkResidentDecorateDailyLimitReached(now)
+	until, ok = s.ResidentDecorateDailyLimitReached(now)
+	if !ok {
+		t.Fatal("ResidentDecorateDailyLimitReached = false, want true after server limit error")
+	}
+	if !until.Equal(wantUntil) {
+		t.Fatalf("decorate limit until = %s, want %s", until, wantUntil)
+	}
+	if _, ok := s.ResidentDecorateDailyLimitReached(wantUntil); ok {
+		t.Fatal("ResidentDecorateDailyLimitReached = true at reset boundary, want false")
+	}
+}
+
 func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	s := New()
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
@@ -1290,6 +1429,9 @@ func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	if !ok || idx != 1 {
 		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (1,true) at evening window start", idx, ok)
 	}
+	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 12, 0, 0, 0, shanghai)); ok {
+		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable mid-morning after slot 0 claimed", idx)
+	}
 	unobserved := New()
 	if idx, ok := unobserved.NextFreeWaterIndex(time.Date(2026, 7, 6, 11, 1, 0, 0, shanghai)); !ok || idx != 0 {
 		t.Fatalf("NextFreeWaterIndex got (%d,%t), want (0,true) after first claim minute", idx, ok)
@@ -1299,6 +1441,36 @@ func TestApplyV_FreeWaterTracksClaimedSlots(t *testing.T) {
 	}
 	if idx, ok := s.NextFreeWaterIndex(time.Date(2026, 7, 6, 10, 50, 0, 0, shanghai)); ok {
 		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable before free-water window", idx)
+	}
+	if idx, ok := unobserved.NextFreeWaterIndex(time.Date(2026, 7, 6, 14, 0, 0, 0, shanghai)); ok {
+		t.Fatalf("NextFreeWaterIndex got (%d,true), want unavailable at exclusive morning window end", idx)
+	}
+}
+
+func TestBenefitBoxDrawsAccrueLocallyUntilMax(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	resetAt := time.Date(2026, 7, 29, 20, 0, 0, 0, shanghai)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"116": map[string]any{
+			"0": map[string]any{
+				"1": 0,
+				"2": resetAt.UnixMilli(),
+			},
+		},
+	})
+	if got := s.BenefitBoxDrawsRemaining(resetAt); got != 0 {
+		t.Fatalf("BenefitBoxDrawsRemaining at reset = %d, want 0", got)
+	}
+	if got := s.BenefitBoxDrawsRemaining(resetAt.Add(3 * time.Hour)); got != 3 {
+		t.Fatalf("BenefitBoxDrawsRemaining after 3h = %d, want 3", got)
+	}
+	morning := time.Date(2026, 7, 30, 4, 30, 0, 0, shanghai)
+	if got := s.BenefitBoxDrawsRemaining(morning); got != 8 {
+		t.Fatalf("BenefitBoxDrawsRemaining at morning = %d, want capped 8", got)
+	}
+	if !s.BenefitBoxReady(morning) {
+		t.Fatal("BenefitBoxReady at morning = false, want true after overnight accrual from drawCnt=0")
 	}
 }
 
@@ -1804,6 +1976,37 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 	}
 }
 
+func TestApplyV_ShopCultivateAutoRefreshReady(t *testing.T) {
+	s := New()
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	lar := time.Date(2026, 7, 26, 12, 0, 0, 0, shanghai)
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 3214}},
+			"2": lar.UnixMilli(),
+			"3": lar.UnixMilli(),
+			"4": 0,
+			"6": map[string]any{"10001": 1},
+		},
+	})
+	if s.ShopCultivateAutoRefreshReady(lar.Add(8999 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshReady=true before $autoRefreshCd, want false")
+	}
+	if !s.ShopCultivateAutoRefreshReady(lar.Add(9000 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshReady=false at $autoRefreshCd, want true")
+	}
+	if !s.ShopCultivateAutoRefreshReady(lar.Add(9001 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshReady=false after $autoRefreshCd, want true")
+	}
+
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{"4": 3},
+	})
+	if s.ShopCultivateAutoRefreshReady(lar.Add(9001 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshReady=true after free refresh times exhausted, want false")
+	}
+}
+
 func TestApplyV_ShopGiftbagOffers(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
@@ -1998,7 +2201,7 @@ func TestApplyV_StatisticsNewDayReplacesPriorCounters(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
 		"124": map[string]any{"0": map[string]any{
-			"20260702": map[string]any{"1": 20260702, "9": 42},
+			"20260702": map[string]any{"1": 20260702, "9": 42, "14": 11, "16": 12},
 		}},
 	})
 	applyMap(t, s, map[string]any{
@@ -2010,6 +2213,66 @@ func TestApplyV_StatisticsNewDayReplacesPriorCounters(t *testing.T) {
 	stats := s.Statistics()
 	if stats.DayID != 20260703 || stats.OrderFlowerFinishNum != 1 {
 		t.Fatalf("Statistics new day mismatch: %+v", stats)
+	}
+	if stats.OrderSatinFinishNum != 0 || stats.OrderDecorateFinishNum != 0 {
+		t.Fatalf("satin/decorate should reset on new day: %+v", stats)
+	}
+}
+
+func TestResidentSatinDecorateFinishNumResetsAtMidnight(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260725": map[string]any{"1": 20260725, "14": 31, "16": 28},
+		}},
+	})
+
+	before := time.Date(2026, 7, 25, 23, 59, 0, 0, loc)
+	if got := s.ResidentSatinFinishNum(before); got != 31 {
+		t.Fatalf("satin before midnight=%d, want 31", got)
+	}
+	if got := s.ResidentDecorateFinishNum(before); got != 28 {
+		t.Fatalf("decorate before midnight=%d, want 28", got)
+	}
+
+	after := time.Date(2026, 7, 26, 0, 0, 0, 0, loc)
+	if got := s.ResidentSatinFinishNum(after); got != 0 {
+		t.Fatalf("satin after midnight=%d, want 0 until new-day stats", got)
+	}
+	if got := s.ResidentDecorateFinishNum(after); got != 0 {
+		t.Fatalf("decorate after midnight=%d, want 0 until new-day stats", got)
+	}
+	if reset := NextCalendarDayReset(before); !reset.Equal(after) {
+		t.Fatalf("NextCalendarDayReset=%s, want %s", reset, after)
+	}
+}
+
+func TestResidentSpecialFinishBiasResetsAtCalendarMidnight(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260725": map[string]any{"1": 20260725, "14": 1, "16": 2},
+		}},
+	})
+
+	before := time.Date(2026, 7, 25, 23, 59, 0, 0, loc)
+	s.NoteResidentSatinOrderFinished(before, nil)
+	s.NoteResidentDecorateOrderFinished(before, nil)
+	if got := s.ResidentSatinOrderFinishNum(before); got != 2 {
+		t.Fatalf("satin before midnight=%d, want observed 1 + local 1", got)
+	}
+	if got := s.ResidentDecorateOrderFinishNum(before); got != 3 {
+		t.Fatalf("decorate before midnight=%d, want observed 2 + local 1", got)
+	}
+
+	after := time.Date(2026, 7, 26, 0, 1, 0, 0, loc)
+	if got := s.ResidentSatinOrderFinishNum(after); got != 0 {
+		t.Fatalf("satin after midnight=%d, want 0", got)
+	}
+	if got := s.ResidentDecorateOrderFinishNum(after); got != 0 {
+		t.Fatalf("decorate after midnight=%d, want 0", got)
 	}
 }
 

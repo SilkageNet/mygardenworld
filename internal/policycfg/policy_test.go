@@ -6,6 +6,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestNormalizeClampsReconnectInterval(t *testing.T) {
@@ -59,6 +60,30 @@ func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
 	}
 	if !enabledPolicy.GetBasic().GetDisplacedSessionReloginEnabled() {
 		t.Fatal("explicit displaced-session switch did not survive policy JSON load")
+	}
+}
+
+func TestNormalizeAutoReplantMinLevelClamp(t *testing.T) {
+	if got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoReplantMinLevel: -3},
+	}}).GetPlant().GetPlanting().GetAutoReplantMinLevel(); got != 0 {
+		t.Fatalf("negative min level=%d, want 0", got)
+	}
+	if got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoReplantMinLevel: 11},
+	}}).GetPlant().GetPlanting().GetAutoReplantMinLevel(); got != 11 {
+		t.Fatalf("min level=%d, want 11", got)
+	}
+	got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoReplantMinLevel: 999},
+	}}).GetPlant().GetPlanting().GetAutoReplantMinLevel()
+	max := state.FlowerMaxLevel()
+	if max > 0 {
+		if got != max {
+			t.Fatalf("oversize min level=%d, want clamped to FlowerMaxLevel=%d", got, max)
+		}
+	} else if got < 0 {
+		t.Fatalf("min level=%d, want non-negative", got)
 	}
 }
 
@@ -117,6 +142,9 @@ func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	planting := p.GetPlant().GetPlanting()
 	if planting.GetDemandPriority()[automation.GoalCustomerOrder] == 0 {
 		t.Fatalf("demand priorities not populated: %+v", planting.GetDemandPriority())
+	}
+	if planting.GetDemandPriorityEnabled() {
+		t.Fatal("demand_priority_enabled should default to false")
 	}
 	if planting.GetAutoReplantMode() != pb.SelectionMode_SELECTION_MODE_ALL {
 		t.Fatalf("auto replant mode=%v, want ALL", planting.GetAutoReplantMode())

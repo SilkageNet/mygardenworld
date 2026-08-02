@@ -70,6 +70,10 @@ func (r *Runner) tick(ctx context.Context) {
 		r.resetSideLaneFairness()
 		return
 	}
+	r.tickResidentOrderSync(ctx, snapshot.client, snapshot.session, snapshot.policy)
+	if r.isSessionInvalidated() {
+		return
+	}
 
 	r.emitCustomerOrderInfo()
 	r.emitResidentOrderLimitInfo(snapshot.policy, now)
@@ -137,6 +141,11 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	attempt := operationAttempt{op: op, args: args, startedAt: time.Now()}
 	if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
 		attempt.goldBefore = r.state.Gold()
+	}
+	if op.Kind == clientproto.RPCCultivateUpgrade.String() && op.FlowerID > 0 {
+		if cv, ok := r.state.Cultivations()[op.FlowerID]; ok {
+			attempt.levelBefore = cv.Lvl
+		}
 	}
 	r.emitOperationPlanned(attempt)
 

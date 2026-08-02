@@ -694,6 +694,56 @@ func checkedStateDelta(resp babigame.RPCResponse[clientproto.StateDelta], err er
 	return checkedPayload(v, d, err)
 }
 
+func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fmlRace.enter requires runner state")
+	}
+	v, d, err := rpcResult(rt.rpc.FmlRace().Enter(
+		ctx,
+		clientproto.FmlRaceEnterRequest{},
+		babigame.WithPayloadApply(false),
+	))
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		v = normalizeFmlRaceEnterV(v)
+		rt.runner.state.ApplyV(v)
+		rt.runner.state.MarkFmlRaceLvlSyncAttempt()
+		// Enter may push sparse 114/110. Force the next tick to getTaskList so
+		// full-pool reconcile can replace stale Taken (e.g. 鹤望兰 score 0).
+		rt.runner.state.MarkFmlRaceTasksUnobserved()
+	}
+	return v, nil
+}
+
+// normalizeFmlRaceEnterV wraps a bare IFmlTot-shaped payload under namespace 25.
+// Some enter responses place fields like 111/117 at the top level of v; ApplyV
+// expects them under "25".
+func normalizeFmlRaceEnterV(v json.RawMessage) json.RawMessage {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(v, &top); err != nil || len(top) == 0 {
+		return v
+	}
+	if _, ok := top["25"]; ok {
+		return v
+	}
+	_, hasBatch := top["111"]
+	_, hasCurRcd := top["117"]
+	_, hasGroup := top["112"]
+	_, hasTasks := top["114"]
+	_, hasUsr := top["110"]
+	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr {
+		return v
+	}
+	wrapped, err := json.Marshal(map[string]json.RawMessage{"25": v})
+	if err != nil {
+		return v
+	}
+	return wrapped
+}
+
 func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
 	if rt.runner == nil || rt.runner.state == nil {
 		return nil, fmt.Errorf("fmlRace.getTaskList requires runner state")

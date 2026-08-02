@@ -32,6 +32,10 @@ type Manager struct {
 	runners   map[int64]*Runner
 	opLocks   map[int64]*sync.Mutex
 	lastStats map[int64]RuntimeStatsSnapshot
+	// lastDiag keeps the final diagnostics after a runner exits so status can
+	// still surface session-invalidation (e.g. phone login kick) as 异常
+	// instead of a bare offline badge.
+	lastDiag map[int64]Diagnostics
 }
 
 const restoreAccountTimeout = 90 * time.Second
@@ -54,6 +58,7 @@ func NewManager(db *store.DB, bus *Bus, log *slog.Logger) *Manager {
 		runners:   make(map[int64]*Runner),
 		opLocks:   make(map[int64]*sync.Mutex),
 		lastStats: make(map[int64]RuntimeStatsSnapshot),
+		lastDiag:  make(map[int64]Diagnostics),
 	}
 }
 
@@ -91,6 +96,22 @@ func (m *Manager) RuntimeStats(accountID int64) (RuntimeStatsSnapshot, bool) {
 	stats, ok := m.lastStats[accountID]
 	m.mu.RUnlock()
 	return stats, ok
+}
+
+// LastDiagnostics returns diagnostics retained after a runner stopped. Used
+// when Get returns nil so kick/expiry reasons are not lost.
+func (m *Manager) LastDiagnostics(accountID int64) (Diagnostics, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	diag, ok := m.lastDiag[accountID]
+	return diag, ok
+}
+
+// ClearLastDiagnostics drops any retained stop reason (intentional logout/stop).
+func (m *Manager) ClearLastDiagnostics(accountID int64) {
+	m.mu.Lock()
+	delete(m.lastDiag, accountID)
+	m.mu.Unlock()
 }
 
 // RestoreEnabledRunners starts every account whose persisted policy says
@@ -215,6 +236,7 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 	m.mu.Lock()
 	m.runners[accountID] = r
 	delete(m.lastStats, accountID)
+	delete(m.lastDiag, accountID)
 	m.mu.Unlock()
 	go m.forgetWhenDone(accountID, r)
 	return r, nil
@@ -222,9 +244,13 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 
 func (m *Manager) forgetWhenDone(accountID int64, r *Runner) {
 	<-r.Done()
+	diag := r.Diagnostics(time.Now())
 	m.mu.Lock()
-	m.lastStats[accountID] = r.RuntimeStats()
 	if m.runners[accountID] == r {
+		m.lastStats[accountID] = r.RuntimeStats()
+		if diag.SessionInvalidatedReason != "" {
+			m.lastDiag[accountID] = diag
+		}
 		delete(m.runners, accountID)
 	}
 	m.mu.Unlock()
@@ -243,10 +269,13 @@ func (m *Manager) stop(accountID int64) error {
 	m.mu.Lock()
 	r := m.runners[accountID]
 	delete(m.runners, accountID)
+	delete(m.lastDiag, accountID)
 	m.mu.Unlock()
 	if r == nil {
 		return errors.New("no active runner")
 	}
+	// Intentional stop/logout should not keep a kick reason as 异常.
+	r.discardSessionInvalidation()
 	r.Stop()
 	m.rememberStats(accountID, r)
 	return nil

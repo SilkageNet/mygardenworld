@@ -136,12 +136,24 @@ message PlantingPolicy {
   int32 speed_up_ticket_max = 11;
 
   map<string, int32> demand_priority = 14;
+  // When false (default), empty-land planting uses autonomous replant only.
+  // When true, missing flowers for enabled tasks/orders claim empty land first,
+  // ordered by demand_priority, then autonomous replant fills any remainder.
+  bool demand_priority_enabled = 18;
 
   // These fields only limit autonomous empty-land replanting. Demand-driven
   // planting for enabled tasks/orders always uses the required flower.
   SelectionMode auto_replant_mode = 15;
   repeated int32 auto_replant_flower_ids = 16;
   repeated int32 auto_replant_exclude_flower_ids = 17;
+  // When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
+  // Otherwise only the selected qualities are eligible for autonomous replanting.
+  repeated int32 auto_replant_qualities = 19;
+  // Minimum cultivate level for autonomous empty-land replanting. 0 means no
+  // level filter. When set (e.g. 11), only flowers at that level or above are
+  // planted (through FlowerMaxLevel, typically 20). Does not restrict
+  // demand-driven planting for tasks/orders.
+  int32 auto_replant_min_level = 20;
 }
 
 message FriendStealPolicy {

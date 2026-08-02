@@ -459,3 +459,114 @@ func TestDelayedReloginBackoffAndCancellation(t *testing.T) {
 		t.Fatalf("cancelled timer took %s to return", elapsed)
 	}
 }
+
+func TestManagerRetainsSessionInvalidationAfterFailClosedStop(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc, err := db.CreateAccount(ctx, user.ID, "main", "ios", "game", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	if policy.GetBasic().GetDisplacedSessionReloginEnabled() {
+		t.Fatal("default displaced-session relogin setting=true, want false")
+	}
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	mgr := NewManager(db, NewBus(), log)
+	r := New(babigame.Config{}, db, acc, mgr.Bus(), log)
+	r.SetPolicy(policy)
+
+	mgr.mu.Lock()
+	mgr.runners[acc.ID] = r
+	mgr.mu.Unlock()
+	go mgr.forgetWhenDone(acc.ID, r)
+
+	reason := "账号已在其他设备登录，当前会话被替换"
+	r.markSessionInvalidated(reason)
+	select {
+	case <-r.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("runner did not stop after fail-closed displacement")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for mgr.Get(acc.ID) != nil {
+		if time.Now().After(deadline) {
+			t.Fatal("manager still tracks runner after Done")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	diag, ok := mgr.LastDiagnostics(acc.ID)
+	if !ok {
+		t.Fatal("LastDiagnostics missing after phone-login kick")
+	}
+	if diag.SessionInvalidatedReason != reason {
+		t.Fatalf("SessionInvalidatedReason=%q, want %q", diag.SessionInvalidatedReason, reason)
+	}
+}
+
+func TestManagerStopClearsRetainedSessionInvalidation(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc, err := db.CreateAccount(ctx, user.ID, "main", "ios", "game", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.DisplacedSessionReloginEnabled = true
+
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	mgr := NewManager(db, NewBus(), log)
+	r := New(babigame.Config{}, db, acc, mgr.Bus(), log)
+	r.SetPolicy(policy)
+
+	mgr.mu.Lock()
+	mgr.runners[acc.ID] = r
+	mgr.mu.Unlock()
+	go mgr.forgetWhenDone(acc.ID, r)
+
+	r.markSessionInvalidated("账号已在其他设备登录，当前会话被替换")
+	if !r.autoReloginPending() {
+		t.Fatal("expected pending auto relogin before intentional stop")
+	}
+	if err := mgr.Stop(acc.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-r.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("runner did not stop")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, ok := mgr.LastDiagnostics(acc.ID)
+		if !ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("LastDiagnostics still retained after intentional Manager.Stop")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}

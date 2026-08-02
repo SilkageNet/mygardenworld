@@ -575,6 +575,56 @@ func (s *State) ResidentOrderDailyLimitReached(now time.Time) (time.Time, bool) 
 	return until, true
 }
 
+// MarkResidentSatinDailyLimitReached records the server-side satin resident
+// order daily cap so the planner stops selecting finishSatinOrder until the
+// next 00:00 Asia/Shanghai reset.
+func (s *State) MarkResidentSatinDailyLimitReached(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.residentSatinLimitUntilMs = NextCalendarDayReset(now).UnixMilli()
+}
+
+// ResidentSatinDailyLimitReached reports a locally recorded server-side satin
+// resident order daily cap.
+func (s *State) ResidentSatinDailyLimitReached(now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.residentSatinLimitUntilMs <= 0 {
+		return time.Time{}, false
+	}
+	until := time.UnixMilli(s.residentSatinLimitUntilMs)
+	if !until.After(now) {
+		s.residentSatinLimitUntilMs = 0
+		return time.Time{}, false
+	}
+	return until, true
+}
+
+// MarkResidentDecorateDailyLimitReached records the server-side decorate
+// resident order daily cap so the planner stops selecting finishDecorateOrder
+// until the next 00:00 Asia/Shanghai reset.
+func (s *State) MarkResidentDecorateDailyLimitReached(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.residentDecorateLimitUntilMs = NextCalendarDayReset(now).UnixMilli()
+}
+
+// ResidentDecorateDailyLimitReached reports a locally recorded server-side
+// decorate resident order daily cap.
+func (s *State) ResidentDecorateDailyLimitReached(now time.Time) (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.residentDecorateLimitUntilMs <= 0 {
+		return time.Time{}, false
+	}
+	until := time.UnixMilli(s.residentDecorateLimitUntilMs)
+	if !until.After(now) {
+		s.residentDecorateLimitUntilMs = 0
+		return time.Time{}, false
+	}
+	return until, true
+}
+
 // NoteResidentOrderFinished records one successful ordinary resident-order
 // finish when the response did not already carry an authoritative field-9
 // statistics update (ApplyV clears the bias in that case).
@@ -584,7 +634,7 @@ func (s *State) NoteResidentOrderFinished(now time.Time, raw json.RawMessage) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	noteResidentOrderFinish(&s.residentOrderFinishBias, &s.residentOrderFinishBiasDayID, now)
+	noteResidentOrderFinish(&s.residentOrderFinishBias, &s.residentOrderFinishBiasDayID, gameDayID(now))
 }
 
 // NoteResidentSatinOrderFinished records a successful satin resident order
@@ -595,7 +645,7 @@ func (s *State) NoteResidentSatinOrderFinished(now time.Time, raw json.RawMessag
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	noteResidentOrderFinish(&s.residentSatinFinishBias, &s.residentSatinFinishBiasDayID, now)
+	noteResidentOrderFinish(&s.residentSatinFinishBias, &s.residentSatinFinishBiasDayID, calendarDayID(now))
 }
 
 // NoteResidentDecorateOrderFinished records a successful decorate resident
@@ -606,11 +656,10 @@ func (s *State) NoteResidentDecorateOrderFinished(now time.Time, raw json.RawMes
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	noteResidentOrderFinish(&s.residentDecorateFinishBias, &s.residentDecorateFinishBiasDayID, now)
+	noteResidentOrderFinish(&s.residentDecorateFinishBias, &s.residentDecorateFinishBiasDayID, calendarDayID(now))
 }
 
-func noteResidentOrderFinish(bias, biasDayID *int32, now time.Time) {
-	day := gameDayID(now)
+func noteResidentOrderFinish(bias, biasDayID *int32, day int32) {
 	if *biasDayID != day {
 		*biasDayID = day
 		*bias = 0
@@ -652,25 +701,24 @@ func responseStatisticsCounters(raw json.RawMessage) statisticsCountersSeen {
 func (s *State) ResidentOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return residentOrderFinishCount(s.statistics, s.statistics.OrderFlowerFinishNum, s.residentOrderFinishBias, s.residentOrderFinishBiasDayID, now)
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderFlowerFinishNum, s.residentOrderFinishBias, s.residentOrderFinishBiasDayID, gameDayID(now))
 }
 
 // ResidentSatinOrderFinishNum returns today's satin resident finish count.
 func (s *State) ResidentSatinOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return residentOrderFinishCount(s.statistics, s.statistics.OrderSatinFinishNum, s.residentSatinFinishBias, s.residentSatinFinishBiasDayID, now)
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderSatinFinishNum, s.residentSatinFinishBias, s.residentSatinFinishBiasDayID, calendarDayID(now))
 }
 
 // ResidentDecorateOrderFinishNum returns today's decorate resident finish count.
 func (s *State) ResidentDecorateOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return residentOrderFinishCount(s.statistics, s.statistics.OrderDecorateFinishNum, s.residentDecorateFinishBias, s.residentDecorateFinishBiasDayID, now)
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderDecorateFinishNum, s.residentDecorateFinishBias, s.residentDecorateFinishBiasDayID, calendarDayID(now))
 }
 
-func residentOrderFinishCount(stats StatisticsView, observed, bias, biasDayID int32, now time.Time) int32 {
-	day := gameDayID(now)
+func residentOrderFinishCount(stats StatisticsView, observed, bias, biasDayID, day int32) int32 {
 	var count int64
 	if stats.Observed && (stats.DayID == 0 || stats.DayID >= day) {
 		count = int64(observed)
@@ -685,6 +733,19 @@ func residentOrderFinishCount(stats StatisticsView, observed, bias, biasDayID in
 		return math.MaxInt32
 	}
 	return int32(count)
+}
+
+// ResidentSatinFinishNum returns today's satin resident finish count. Counts
+// reset at 00:00 Asia/Shanghai; a prior-day statistics snapshot is treated as 0
+// until the server publishes the new day's counters.
+func (s *State) ResidentSatinFinishNum(now time.Time) int32 {
+	return s.ResidentSatinOrderFinishNum(now)
+}
+
+// ResidentDecorateFinishNum returns today's decorate resident finish count.
+// Counts reset at 00:00 Asia/Shanghai like satin orders.
+func (s *State) ResidentDecorateFinishNum(now time.Time) int32 {
+	return s.ResidentDecorateOrderFinishNum(now)
 }
 
 // ResidentOrderNormalDailyMax returns c_orderFlower.$dailyMax, the mini
@@ -728,12 +789,26 @@ func NextGameDayReset(now time.Time) time.Time {
 	return reset
 }
 
+// NextCalendarDayReset is the next 00:00 Asia/Shanghai boundary. Satin/decorate
+// resident-order daily counters reset here.
+func NextCalendarDayReset(now time.Time) time.Time {
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return time.Date(y, m, d+1, 0, 0, 0, 0, local.Location())
+}
+
 func gameDayID(now time.Time) int32 {
 	local := now.In(gameDayLocation())
 	// Game day rolls at 00:05 Asia/Shanghai; before that keep the previous day.
 	if local.Hour() == 0 && local.Minute() < 5 {
 		local = local.Add(-5 * time.Minute)
 	}
+	y, m, d := local.Date()
+	return int32(y*10000 + int(m)*100 + d)
+}
+
+func calendarDayID(now time.Time) int32 {
+	local := now.In(gameDayLocation())
 	y, m, d := local.Date()
 	return int32(y*10000 + int(m)*100 + d)
 }

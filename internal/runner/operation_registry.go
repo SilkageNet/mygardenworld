@@ -236,12 +236,10 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FreeWater().Recv(ctx, req)
 		},
 	),
-	clientproto.RPCBenefitBoxDraw.String(): stateDeltaOperation(
-		staticRequest(clientproto.BenefitBoxDrawRequest{}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.BenefitBoxDrawRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.BenefitBox().Draw(ctx, req)
-		},
-	),
+	clientproto.RPCBenefitBoxDraw.String(): {
+		args: staticAnyRequest(clientproto.BenefitBoxDrawRequest{}),
+		run:  runBenefitBoxDraw,
+	},
 	clientproto.RPCZooEnterZoo.String(): stateDeltaOperation(
 		staticRequest(clientproto.ZooEnterZooRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ZooEnterZooRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
@@ -329,6 +327,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 		staticRequest(clientproto.ShopCultivateEnterRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopCultivateEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.ShopCultivate().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCShopCultivateRefresh.String(): stateDeltaOperation(
+		staticRequest(clientproto.ShopCultivateRefreshRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopCultivateRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.ShopCultivate().Refresh(ctx, req)
 		},
 	),
 	clientproto.RPCShopCultivateBuy.String(): stateDeltaOperation(
@@ -514,14 +518,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlRace().UpgradeTask(ctx, req)
 		},
 	),
-	clientproto.RPCFmlRaceEnter.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.FmlRaceEnterRequest, error) {
+	clientproto.RPCFmlRaceEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
 			return clientproto.FmlRaceEnterRequest{}, nil
 		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlRaceEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.FmlRace().Enter(ctx, req)
-		},
-	),
+		run: runFmlRaceEnter,
+	},
 	clientproto.RPCFmlRaceGetTaskList.String(): {
 		args: func(op *automation.PlannedOp) (any, error) {
 			return clientproto.FmlRaceGetTaskListRequest{}, nil

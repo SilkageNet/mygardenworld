@@ -199,6 +199,7 @@ func TestCyclicNoteSpecificFlowerDemandPreventsPureActivityReplant(t *testing.T)
 		}}},
 	})
 	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy.Plant.Planting.DemandPriorityEnabled = true
 	policy.Order.Customer.Enabled = true
 
 	result := BuildPlan(s, policy, now)

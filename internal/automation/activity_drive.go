@@ -327,7 +327,10 @@ func runnableBusinessOperation(op PlannedOp) bool {
 
 func hasConcretePlantOperation(ops []PlannedOp) bool {
 	for _, op := range ops {
-		if runnableBusinessOperation(op) && isPlantOperation(op.Kind) && op.GoalID != GoalAutoReplant && op.DemandID != "" && len(op.LandIDs) > 0 {
+		// A concrete demand owns its assigned lands even when its operation is
+		// currently resource-blocked. Adding an activity-only fallback beside it
+		// would double-book those lands and hide the actionable diagnostic.
+		if isPlantOperation(op.Kind) && op.GoalID != GoalAutoReplant && op.DemandID != "" && len(op.LandIDs) > 0 {
 			return true
 		}
 	}

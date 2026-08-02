@@ -51,56 +51,65 @@ type State struct {
 
 	cultivations map[int32]*CultivateView // 101.0.<flowerId>
 
-	customerOrderSummary   CustomerOrderSummary      // 109.0 顾客订单元信息
-	customerOrders         map[int32]*CustomerOrder  // 109.0.1.<npcId> 当前活跃顾客订单
-	flowerRack             map[int32]*FlowerRackSlot // 104.0.<rackId> 花艺货架
-	mailObserved           bool
-	mails                  map[string]*MailView // 19.1[] keyed by msId/allId
-	vases                  map[int32]*VaseView  // 102.0.<vaseId> 已解锁花瓶
-	vaseObserved           bool
-	collectRewards         map[int32]*CollectRewardView // 103.0.<type> 图鉴/制作奖励状态
-	collectRewardObserved  bool
-	flowerArt              FlowerArtView // 106.0 花艺制作/分享状态
-	fmlBuild               FmlBuildView  // 25.0/25.133 公会建设状态
-	fmlLandObserved        bool
-	fmlLands               map[int32]*FmlLandView // 25.102.1.<landId> 公会土地
-	fmlForestEnergy        FmlForestEnergyView    // 25.127 能量森林
-	fmlFlowerShare         FmlFlowerShareView     // 25.107 自己的公会鲜花分享
-	fmlOtherFlowerShares   map[int64]*FmlFlowerShareView
-	fmlOtherShareObserved  bool
-	fmlRace                FmlRaceView     // 25.110/111/114 公会竞赛
-	shopGiftbagDRecord     map[int32]int32 // 112.1 daily purchase counts
-	shopGiftbagWRecord     map[int32]int32 // 112.2 weekly purchase counts
-	shopGiftbagMRecord     map[int32]int32 // 112.3 monthly purchase counts
-	shopGiftbagTRecord     map[int32]int32 // 112.4 total purchase counts
-	shopGiftbagObserved    bool
-	shopCultivateCosts     map[int32]ItemCount // 113.1.<shopId> material-shop dynamic cost
-	shopCultivateBought    map[int32]int32     // 113.6.<shopId> bought count
-	shopCultivateResetMs   int64               // 113.2 lResetTime
-	shopCultivateObserved  bool
-	pearl                  PearlView
-	pearlPlaces            map[int32]*PearlPlaceView // 115.0.<placeId>
-	pearlDrawCount         int32                     // count derived from 115.2 drawList
-	pearlDrawRaw           json.RawMessage
-	pearlObserved          bool
-	pearlFriendRelations   map[string]pearlFriendRelation
-	pearlFriendOrder       []string
-	pearlFriendsObserved   bool
-	pearlProfiles          map[int64]*PearlCandidateProfile
-	pearlHireStates        map[int64]*PearlCandidateHireState
-	pearlRecommendUIDs     []int64
-	pearlRecommendAtMs     int64
-	pearlRecommendObserved bool
-	pearlEnemies           map[int64]int64
-	pearlEnemiesObserved   bool
-	pearlHireFailedUntil   map[int64]int64
-	pearlHireSessionLocked bool
-	pearlHireLockReason    string
+	customerOrderSummary      CustomerOrderSummary      // 109.0 顾客订单元信息
+	customerOrders            map[int32]*CustomerOrder  // 109.0.1.<npcId> 当前活跃顾客订单
+	flowerRack                map[int32]*FlowerRackSlot // 104.0.<rackId> 花艺货架
+	mailObserved              bool
+	mails                     map[string]*MailView // 19.1[] keyed by msId/allId
+	vases                     map[int32]*VaseView  // 102.0.<vaseId> 已解锁花瓶
+	vaseObserved              bool
+	collectRewards            map[int32]*CollectRewardView // 103.0.<type> 图鉴/制作奖励状态
+	collectRewardObserved     bool
+	flowerArt                 FlowerArtView // 106.0 花艺制作/分享状态
+	fmlBuild                  FmlBuildView  // 25.0/25.133 公会建设状态
+	fmlLandObserved           bool
+	fmlLands                  map[int32]*FmlLandView // 25.102.1.<landId> 公会土地
+	fmlForestEnergy           FmlForestEnergyView    // 25.127 能量森林
+	fmlFlowerShare            FmlFlowerShareView     // 25.107 自己的公会鲜花分享
+	fmlOtherFlowerShares      map[int64]*FmlFlowerShareView
+	fmlOtherShareObserved     bool
+	fmlOtherShareSyncedAtMs   int64           // local wall time when 25.108 was last applied
+	fmlFlowerTakeLimitUntilMs int64           // server/local: 今日摸花次数已达上限，到该时刻前不再摸花
+	fmlRace                   FmlRaceView     // 25.110/111/114 公会竞赛
+	shopGiftbagDRecord        map[int32]int32 // 112.1 daily purchase counts
+	shopGiftbagWRecord        map[int32]int32 // 112.2 weekly purchase counts
+	shopGiftbagMRecord        map[int32]int32 // 112.3 monthly purchase counts
+	shopGiftbagTRecord        map[int32]int32 // 112.4 total purchase counts
+	shopGiftbagObserved       bool
+	shopCultivateCosts        map[int32]ItemCount // 113.1.<shopId> material-shop dynamic cost
+	shopCultivateBought       map[int32]int32     // 113.6.<shopId> bought count
+	shopCultivateResetMs      int64               // 113.2 lResetTime
+	shopCultivateLarMs        int64               // 113.3 larTime: last free auto-refresh
+	shopCultivateMrCount      int32               // 113.4 mrCount: used free/manual refresh count
+	shopCultivateObserved     bool
+	pearl                     PearlView
+	pearlPlaces               map[int32]*PearlPlaceView // 115.0.<placeId>
+	pearlDrawCount            int32                     // count derived from 115.2 drawList
+	pearlDrawRaw              json.RawMessage
+	pearlObserved             bool
+	pearlFriendRelations      map[string]pearlFriendRelation
+	pearlFriendOrder          []string
+	pearlFriendsObserved      bool
+	pearlProfiles             map[int64]*PearlCandidateProfile
+	pearlHireStates           map[int64]*PearlCandidateHireState
+	pearlRecommendUIDs        []int64
+	pearlRecommendAtMs        int64
+	pearlRecommendObserved    bool
+	pearlEnemies              map[int64]int64
+	pearlEnemiesObserved      bool
+	pearlHireFailedUntil      map[int64]int64
+	pearlHireSessionLocked    bool
+	pearlHireLockReason       string
 
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 	residentOrderLimitUntilMs  int64
 	residentOrderLimitDayID    int32
+	// Satin/decorate server daily caps reset at 00:00 Asia/Shanghai. They are
+	// separate from the ordinary 00:05 game-day boundary and remain effective
+	// even when side-operation synchronization clears short RPC cooldowns.
+	residentSatinLimitUntilMs    int64
+	residentDecorateLimitUntilMs int64
 	// Per-kind biases track successful finish calls whose responses omit the
 	// matching namespace-124 counter. Effective daily counts merge the latest
 	// authoritative counter with the current-day bias until the server catches

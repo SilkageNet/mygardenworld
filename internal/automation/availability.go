@@ -279,22 +279,30 @@ func residentOrderLimitBlock(s *state.State, policy *pb.ResidentOrderPolicy, goa
 }
 
 // residentSatinDailyLimit returns the effective satin resident-order cap:
-// policy limit, optionally tightened by c_orderFlower.$dailyMax2.
+// policy limit (defaulting to catalog $dailyMax2 when unset), optionally
+// tightened by that same hard cap.
 func residentSatinDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
 	if policy == nil {
 		return 0
 	}
 	limit := policy.GetSatinDailyLimit()
+	hardLimit := state.ResidentOrderSatinDailyMax()
 	if limit <= 0 {
-		return limit
+		if hardLimit > 0 {
+			return hardLimit
+		}
+		return 120
 	}
-	if hardLimit := state.ResidentOrderSatinDailyMax(); hardLimit > 0 && hardLimit < limit {
+	if hardLimit > 0 && hardLimit < limit {
 		return hardLimit
 	}
 	return limit
 }
 
 func residentSatinDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy, now time.Time) (reason string, reached bool) {
+	if until, ok := s.ResidentSatinDailyLimitReached(now); ok {
+		return fmt.Sprintf("服务端提示今日完成订单次数已达上限，等待次日0点（%s）后再继续", until.Format("01/02 15:04")), true
+	}
 	limit := residentSatinDailyLimit(policy)
 	if limit <= 0 {
 		return "绸缎居民订单上限必须大于 0", true
@@ -307,22 +315,30 @@ func residentSatinDailyLimitReached(s *state.State, policy *pb.ResidentOrderPoli
 }
 
 // residentDecorateDailyLimit returns the effective decorate resident-order cap:
-// policy limit, optionally tightened by c_orderFlower.$dailyMax3.
+// policy limit (defaulting to catalog $dailyMax3 when unset), optionally
+// tightened by that same hard cap.
 func residentDecorateDailyLimit(policy *pb.ResidentOrderPolicy) int32 {
 	if policy == nil {
 		return 0
 	}
 	limit := policy.GetDecorateDailyLimit()
+	hardLimit := state.ResidentOrderDecorateDailyMax()
 	if limit <= 0 {
-		return limit
+		if hardLimit > 0 {
+			return hardLimit
+		}
+		return 120
 	}
-	if hardLimit := state.ResidentOrderDecorateDailyMax(); hardLimit > 0 && hardLimit < limit {
+	if hardLimit > 0 && hardLimit < limit {
 		return hardLimit
 	}
 	return limit
 }
 
 func residentDecorateDailyLimitReached(s *state.State, policy *pb.ResidentOrderPolicy, now time.Time) (reason string, reached bool) {
+	if until, ok := s.ResidentDecorateDailyLimitReached(now); ok {
+		return fmt.Sprintf("服务端提示今日完成订单次数已达上限，等待次日0点（%s）后再继续", until.Format("01/02 15:04")), true
+	}
 	limit := residentDecorateDailyLimit(policy)
 	if limit <= 0 {
 		return "建材居民订单上限必须大于 0", true
