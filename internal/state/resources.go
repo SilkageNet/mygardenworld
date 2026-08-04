@@ -604,6 +604,14 @@ func (s *State) Experience() int32 {
 	return s.experience
 }
 
+// ExperienceToNextLevel returns remaining XP needed to reach the next player
+// level, the within-level requirement, and whether the account is at max level.
+func (s *State) ExperienceToNextLevel() (remaining, required int32, maxed bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return ExperienceToNextLevel(s.level, s.experience)
+}
+
 // Diamonds returns visible and secondary diamond balances (7.0.41, 7.0.42).
 func (s *State) Diamonds() (visible int32, paid int32) {
 	s.mu.RLock()

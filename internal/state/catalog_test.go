@@ -248,6 +248,39 @@ func TestFlowerMaxLevel(t *testing.T) {
 	}
 }
 
+func TestPlayerMaxLevel(t *testing.T) {
+	if got := PlayerMaxLevel(); got != 65 {
+		t.Fatalf("PlayerMaxLevel()=%d want 65", got)
+	}
+}
+
+func TestPlayerLevelExpRequired(t *testing.T) {
+	if got, ok := PlayerLevelExpRequired(1); !ok || got != 40 {
+		t.Fatalf("PlayerLevelExpRequired(1)=(%d,%t) want (40,true)", got, ok)
+	}
+	if got, ok := PlayerLevelExpRequired(10); !ok || got != 12000 {
+		t.Fatalf("PlayerLevelExpRequired(10)=(%d,%t) want (12000,true)", got, ok)
+	}
+	if got, ok := PlayerLevelExpRequired(65); ok || got != 0 {
+		t.Fatalf("PlayerLevelExpRequired(65)=(%d,%t) want (0,false)", got, ok)
+	}
+}
+
+func TestExperienceToNextLevel(t *testing.T) {
+	remaining, required, maxed := ExperienceToNextLevel(1, 10)
+	if remaining != 30 || required != 40 || maxed {
+		t.Fatalf("ExperienceToNextLevel(1,10)=(%d,%d,%t) want (30,40,false)", remaining, required, maxed)
+	}
+	remaining, required, maxed = ExperienceToNextLevel(1, 40)
+	if remaining != 0 || required != 40 || maxed {
+		t.Fatalf("ExperienceToNextLevel(1,40)=(%d,%d,%t) want (0,40,false)", remaining, required, maxed)
+	}
+	remaining, required, maxed = ExperienceToNextLevel(65, 0)
+	if remaining != 0 || required != 0 || !maxed {
+		t.Fatalf("ExperienceToNextLevel(65,0)=(%d,%d,%t) want (0,0,true)", remaining, required, maxed)
+	}
+}
+
 func TestLandUnlockOpenLevelKnown(t *testing.T) {
 	if level, ok := LandUnlockOpenLevel(1025); !ok || level != 13 {
 		t.Fatalf("LandUnlockOpenLevel(1025)=(%d,%t), want (13,true)", level, ok)

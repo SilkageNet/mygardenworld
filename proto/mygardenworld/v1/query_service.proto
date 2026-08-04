@@ -85,6 +85,11 @@ message AccountStatus {
   int64 reputation_last_sync_time_ms = 21;
   int64 reputation_last_view_time_ms = 22;
   RuntimeStatisticsView runtime_statistics = 23;
+  // Remaining within-level XP to advance; 0 when maxed or unknown.
+  int32 experience_to_next_level = 24;
+  // c_lvl[level].exp requirement for the current level; 0 when maxed.
+  int32 next_level_experience = 25;
+  bool level_maxed = 26;
 }
 
 message RunnerDiagnostics {
@@ -152,6 +157,11 @@ message GetSnapshotResponse {
   FmlRaceView fml_race = 40;
   DessertView dessert = 41;
   CyclicStoryView cyclic_story = 42;
+  // Remaining within-level XP to advance; 0 when maxed or unknown.
+  int32 experience_to_next_level = 43;
+  // c_lvl[level].exp requirement for the current level; 0 when maxed.
+  int32 next_level_experience = 44;
+  bool level_maxed = 45;
 }
 
 message CyclicNoteView {

@@ -88,6 +88,10 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	vip, vipExp := st.Vip()
 	out.Level = st.Level()
 	out.Experience = st.Experience()
+	expToNext, nextLevelExp, levelMaxed := st.ExperienceToNextLevel()
+	out.ExperienceToNextLevel = expToNext
+	out.NextLevelExperience = nextLevelExp
+	out.LevelMaxed = levelMaxed
 	out.Vip = vip
 	out.VipExp = vipExp
 	out.NobleEligible = st.NobleEligible()
@@ -127,6 +131,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	waterDrops, waterDropsTotal, waterDropsNextMs := st.WaterDrops()
 	diamondsFree, diamondsPaid := st.Diamonds()
 	vip, vipExp := st.Vip()
+	expToNext, nextLevelExp, levelMaxed := st.ExperienceToNextLevel()
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
 	cyclicStory, _ := st.CyclicStoryView(now)
@@ -146,6 +151,9 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		WaterDropsNextMs:      waterDropsNextMs,
 		Level:                 st.Level(),
 		Experience:            st.Experience(),
+		ExperienceToNextLevel: expToNext,
+		NextLevelExperience:   nextLevelExp,
+		LevelMaxed:            levelMaxed,
 		DiamondsFree:          diamondsFree,
 		DiamondsPaid:          diamondsPaid,
 		PendingTasks:          buildPendingTasksAtPolicy(st, now, policy.GetBasic().GetMapEventEnabled()),

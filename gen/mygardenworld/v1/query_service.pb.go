@@ -331,8 +331,13 @@ type AccountStatus struct {
 	ReputationLastSyncTimeMs int64                  `protobuf:"varint,21,opt,name=reputation_last_sync_time_ms,json=reputationLastSyncTimeMs,proto3" json:"reputation_last_sync_time_ms,omitempty"`
 	ReputationLastViewTimeMs int64                  `protobuf:"varint,22,opt,name=reputation_last_view_time_ms,json=reputationLastViewTimeMs,proto3" json:"reputation_last_view_time_ms,omitempty"`
 	RuntimeStatistics        *RuntimeStatisticsView `protobuf:"bytes,23,opt,name=runtime_statistics,json=runtimeStatistics,proto3" json:"runtime_statistics,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Remaining within-level XP to advance; 0 when maxed or unknown.
+	ExperienceToNextLevel int32 `protobuf:"varint,24,opt,name=experience_to_next_level,json=experienceToNextLevel,proto3" json:"experience_to_next_level,omitempty"`
+	// c_lvl[level].exp requirement for the current level; 0 when maxed.
+	NextLevelExperience int32 `protobuf:"varint,25,opt,name=next_level_experience,json=nextLevelExperience,proto3" json:"next_level_experience,omitempty"`
+	LevelMaxed          bool  `protobuf:"varint,26,opt,name=level_maxed,json=levelMaxed,proto3" json:"level_maxed,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *AccountStatus) Reset() {
@@ -517,6 +522,27 @@ func (x *AccountStatus) GetRuntimeStatistics() *RuntimeStatisticsView {
 		return x.RuntimeStatistics
 	}
 	return nil
+}
+
+func (x *AccountStatus) GetExperienceToNextLevel() int32 {
+	if x != nil {
+		return x.ExperienceToNextLevel
+	}
+	return 0
+}
+
+func (x *AccountStatus) GetNextLevelExperience() int32 {
+	if x != nil {
+		return x.NextLevelExperience
+	}
+	return 0
+}
+
+func (x *AccountStatus) GetLevelMaxed() bool {
+	if x != nil {
+		return x.LevelMaxed
+	}
+	return false
 }
 
 type RunnerDiagnostics struct {
@@ -748,8 +774,13 @@ type GetSnapshotResponse struct {
 	FmlRace                  *FmlRaceView                 `protobuf:"bytes,40,opt,name=fml_race,json=fmlRace,proto3" json:"fml_race,omitempty"`
 	Dessert                  *DessertView                 `protobuf:"bytes,41,opt,name=dessert,proto3" json:"dessert,omitempty"`
 	CyclicStory              *CyclicStoryView             `protobuf:"bytes,42,opt,name=cyclic_story,json=cyclicStory,proto3" json:"cyclic_story,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Remaining within-level XP to advance; 0 when maxed or unknown.
+	ExperienceToNextLevel int32 `protobuf:"varint,43,opt,name=experience_to_next_level,json=experienceToNextLevel,proto3" json:"experience_to_next_level,omitempty"`
+	// c_lvl[level].exp requirement for the current level; 0 when maxed.
+	NextLevelExperience int32 `protobuf:"varint,44,opt,name=next_level_experience,json=nextLevelExperience,proto3" json:"next_level_experience,omitempty"`
+	LevelMaxed          bool  `protobuf:"varint,45,opt,name=level_maxed,json=levelMaxed,proto3" json:"level_maxed,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *GetSnapshotResponse) Reset() {
@@ -1067,6 +1098,27 @@ func (x *GetSnapshotResponse) GetCyclicStory() *CyclicStoryView {
 		return x.CyclicStory
 	}
 	return nil
+}
+
+func (x *GetSnapshotResponse) GetExperienceToNextLevel() int32 {
+	if x != nil {
+		return x.ExperienceToNextLevel
+	}
+	return 0
+}
+
+func (x *GetSnapshotResponse) GetNextLevelExperience() int32 {
+	if x != nil {
+		return x.NextLevelExperience
+	}
+	return 0
+}
+
+func (x *GetSnapshotResponse) GetLevelMaxed() bool {
+	if x != nil {
+		return x.LevelMaxed
+	}
+	return false
 }
 
 type CyclicNoteView struct {
@@ -5776,7 +5828,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
 	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"P\n" +
 	"\x11GetStatusResponse\x12;\n" +
-	"\baccounts\x18\x01 \x03(\v2\x1f.mygardenworld.v1.AccountStatusR\baccounts\"\xb1\b\n" +
+	"\baccounts\x18\x01 \x03(\v2\x1f.mygardenworld.v1.AccountStatusR\baccounts\"\xbf\t\n" +
 	"\rAccountStatus\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
@@ -5805,7 +5857,11 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x10reputation_score\x18\x14 \x01(\x05R\x0freputationScore\x12>\n" +
 	"\x1creputation_last_sync_time_ms\x18\x15 \x01(\x03R\x18reputationLastSyncTimeMs\x12>\n" +
 	"\x1creputation_last_view_time_ms\x18\x16 \x01(\x03R\x18reputationLastViewTimeMs\x12V\n" +
-	"\x12runtime_statistics\x18\x17 \x01(\v2'.mygardenworld.v1.RuntimeStatisticsViewR\x11runtimeStatistics\x1a9\n" +
+	"\x12runtime_statistics\x18\x17 \x01(\v2'.mygardenworld.v1.RuntimeStatisticsViewR\x11runtimeStatistics\x127\n" +
+	"\x18experience_to_next_level\x18\x18 \x01(\x05R\x15experienceToNextLevel\x122\n" +
+	"\x15next_level_experience\x18\x19 \x01(\x05R\x13nextLevelExperience\x12\x1f\n" +
+	"\vlevel_maxed\x18\x1a \x01(\bR\n" +
+	"levelMaxed\x1a9\n" +
 	"\vByKindEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xd3\x05\n" +
@@ -5826,7 +5882,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x12GetSnapshotRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\xf5\x11\n" +
+	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\x83\x13\n" +
 	"\x13GetSnapshotResponse\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
@@ -5875,7 +5931,11 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"cyclicNote\x128\n" +
 	"\bfml_race\x18( \x01(\v2\x1d.mygardenworld.v1.FmlRaceViewR\afmlRace\x127\n" +
 	"\adessert\x18) \x01(\v2\x1d.mygardenworld.v1.DessertViewR\adessert\x12D\n" +
-	"\fcyclic_story\x18* \x01(\v2!.mygardenworld.v1.CyclicStoryViewR\vcyclicStory\x1a<\n" +
+	"\fcyclic_story\x18* \x01(\v2!.mygardenworld.v1.CyclicStoryViewR\vcyclicStory\x127\n" +
+	"\x18experience_to_next_level\x18+ \x01(\x05R\x15experienceToNextLevel\x122\n" +
+	"\x15next_level_experience\x18, \x01(\x05R\x13nextLevelExperience\x12\x1f\n" +
+	"\vlevel_maxed\x18- \x01(\bR\n" +
+	"levelMaxed\x1a<\n" +
 	"\x0eInventoryEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xcc\a\n" +

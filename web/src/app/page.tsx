@@ -37,6 +37,7 @@ import {
   Sprout,
   Ticket,
   Trash2,
+  TrendingUp,
   Trophy,
   Users,
   Waves,
@@ -170,7 +171,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatAPIError, transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
-import { allFlowers, flowerDisplay, itemName } from "@/lib/game/catalog";
+import { allFlowers, experienceToNextLevel, flowerDisplay, itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 
 const accountClient = createClient(AccountService, transport);
@@ -1708,7 +1709,26 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
   );
   const level = snapshot?.level ?? status?.level ?? 0;
   const experience = snapshot?.experience ?? status?.experience ?? 0;
+  const apiNextLevelExperience = snapshot?.nextLevelExperience ?? status?.nextLevelExperience ?? 0;
+  const apiLevelMaxed = snapshot?.levelMaxed ?? status?.levelMaxed ?? false;
+  const apiHasNextLevel = apiLevelMaxed || apiNextLevelExperience > 0;
+  const localNextLevel = experienceToNextLevel(level, experience);
+  const levelMaxed = apiHasNextLevel ? apiLevelMaxed : localNextLevel.maxed;
+  const nextLevelExperience = apiHasNextLevel ? apiNextLevelExperience : localNextLevel.required;
+  const experienceToNext = apiHasNextLevel
+    ? (snapshot?.experienceToNextLevel ?? status?.experienceToNextLevel ?? 0)
+    : localNextLevel.remaining;
   const reputationDetail = reputationObserved ? (reputationTime ? `同步 ${formatUnixTime(reputationTime)}` : "已同步") : "未同步";
+  const nextLevelValue = levelMaxed
+    ? "已满级"
+    : nextLevelExperience > 0
+      ? `${formatCount(experienceToNext)} 经验`
+      : "-";
+  const nextLevelDetail = levelMaxed
+    ? "已达最高等级"
+    : nextLevelExperience > 0
+      ? `当前 ${formatCount(experience)} / 需要 ${formatCount(nextLevelExperience)}`
+      : undefined;
   return (
     <CollapsibleCard title="监控概览" actions={snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}>
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
@@ -1719,6 +1739,14 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
           detail={reputationDetail}
         />
         <OverviewStat icon={<Trophy />} label="等级" value={level > 0 ? `${level}级` : "-"} detail={`经验 ${formatCount(experience)}`} />
+        <OverviewStat
+          icon={<TrendingUp />}
+          label="距下一等级"
+          value={nextLevelValue}
+          detail={nextLevelDetail}
+          wrap
+          compact
+        />
         <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
         <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
         <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
@@ -4729,14 +4757,38 @@ function EventPanel({ events }: { events: Event[] }) {
   );
 }
 
-function OverviewStat({ icon, label, value, detail }: { icon: ReactNode; label: string; value: ReactNode; detail?: ReactNode }) {
+function OverviewStat({
+  icon,
+  label,
+  value,
+  detail,
+  wrap = false,
+  compact = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+  wrap?: boolean;
+  compact?: boolean;
+}) {
   return (
     <div className="flex min-h-[72px] min-w-0 items-center gap-2 rounded-md border border-border/55 bg-white/52 px-2.5 py-2 shadow-sm transition-colors hover:bg-white/68 dark:bg-white/6 dark:hover:bg-white/9 sm:min-h-[76px] sm:gap-3 sm:px-3">
       <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-sky-600 shadow-sm dark:bg-white/8 dark:text-sky-300 sm:size-9 [&_svg]:size-4">{icon}</div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="truncate text-base font-semibold tabular-nums sm:text-lg">{value}</div>
-        {detail && <div className="truncate text-xs text-muted-foreground">{detail}</div>}
+        <div
+          className={cn(
+            "font-semibold tabular-nums",
+            compact ? "text-sm sm:text-base" : "text-base sm:text-lg",
+            wrap ? "whitespace-normal break-all" : "truncate",
+          )}
+        >
+          {value}
+        </div>
+        {detail && (
+          <div className={cn("text-xs text-muted-foreground", wrap ? "whitespace-normal break-all" : "truncate")}>{detail}</div>
+        )}
       </div>
     </div>
   );
