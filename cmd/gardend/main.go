@@ -293,6 +293,16 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	}
 	defer func() { _ = db.Close() }()
 	log.Info("opened sqlite", "path", dbPath)
+	maintenanceCtx, cancelMaintenance := context.WithCancel(ctx)
+	maintenanceDone := make(chan struct{})
+	go func() {
+		defer close(maintenanceDone)
+		runLogCleanupLoop(maintenanceCtx, db, log)
+	}()
+	defer func() {
+		cancelMaintenance()
+		<-maintenanceDone
+	}()
 
 	if err := seedAdmin(ctx, db, log, opts); err != nil {
 		return fmt.Errorf("seed admin: %w", err)

@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS operation_log (
     result_json TEXT    NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_oplog_account_ts ON operation_log(account_id, ts);
+CREATE INDEX IF NOT EXISTS idx_oplog_ts ON operation_log(ts);
 
 CREATE TABLE IF NOT EXISTS event_log (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +97,7 @@ CREATE TABLE IF NOT EXISTS event_log (
 );
 CREATE INDEX IF NOT EXISTS idx_event_log_account_id ON event_log(account_id, id);
 CREATE INDEX IF NOT EXISTS idx_event_log_kind_id ON event_log(kind, id);
+CREATE INDEX IF NOT EXISTS idx_event_log_ts ON event_log(ts);
 `
 
 // DB is the typed handle returned by Open.
