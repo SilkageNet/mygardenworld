@@ -177,9 +177,19 @@ func (s *State) applyStatisticsLocked(raw json.RawMessage) {
 		prevDay := s.statistics.DayID
 		s.statistics = view
 		dayChanged := view.DayID != 0 && prevDay != 0 && view.DayID != prevDay
-		if countersSeen.normal || dayChanged {
+		switch {
+		case countersSeen.normal:
+			// Authoritative field 9 replaces the local high-water for this day.
 			s.residentOrderFinishBias = 0
 			if view.DayID != 0 {
+				s.residentOrderFinishBiasDayID = view.DayID
+			}
+		case view.DayID != 0 && prevDay != 0 && view.DayID != prevDay:
+			// New game-day stats without field 9: drop bias that belonged to the
+			// previous day, but keep bias already accumulated for view.DayID
+			// (finishes after 00:05 before the server published today's counters).
+			if s.residentOrderFinishBiasDayID != view.DayID {
+				s.residentOrderFinishBias = 0
 				s.residentOrderFinishBiasDayID = view.DayID
 			}
 		}
@@ -224,7 +234,10 @@ func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (Statis
 		if err := json.Unmarshal(rawEntry, &entryFields); err != nil {
 			continue
 		}
-		dayHint := atoi32(dayIDStr)
+		// Live finishOrder patches key days by Asia/Shanghai midnight ms
+		// (e.g. "1785686400000"); atoi32 overflows and previously made
+		// ResidentOrderFinishNum treat today's counter as a prior-day 0.
+		dayHint := normalizeStatisticsDayID(atoi64(dayIDStr))
 		base := StatisticsView{}
 		if prev.Observed && (dayHint == 0 || prev.DayID == 0 || prev.DayID == dayHint) {
 			base = prev
@@ -258,7 +271,11 @@ func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessag
 	view := prev
 	seen := false
 	countersSeen := statisticsCountersSeen{}
-	if n, ok := readInt32JSONField(fields, "1"); ok {
+	if rawDay, ok := readInt64JSONField(fields, "1"); ok {
+		n := normalizeStatisticsDayID(rawDay)
+		if n == 0 {
+			n = int32(rawDay)
+		}
 		if prev.Observed && prev.DayID != 0 && n != prev.DayID {
 			// New game day: drop prior-day counters rather than mixing them.
 			view = StatisticsView{}
@@ -317,6 +334,26 @@ func (s *State) clearResidentOrderLimitIfStatisticsResetLocked(stats StatisticsV
 	if stats.DayID != 0 && s.residentOrderLimitDayID != 0 && stats.DayID != s.residentOrderLimitDayID {
 		s.residentOrderLimitUntilMs = 0
 		s.residentOrderLimitDayID = 0
+	}
+}
+
+// normalizeStatisticsDayID converts namespace-124 day identifiers to YYYYMMDD.
+// Clients may send either catalog-style YYYYMMDD or Asia/Shanghai midnight
+// unix milliseconds; the latter must not be forced through int32.
+func normalizeStatisticsDayID(v int64) int32 {
+	if v <= 0 {
+		return 0
+	}
+	if v >= 20000101 && v <= 21001231 {
+		return int32(v)
+	}
+	switch {
+	case v >= 1_000_000_000_000:
+		return calendarDayID(time.UnixMilli(v))
+	case v >= 1_000_000_000:
+		return calendarDayID(time.Unix(v, 0))
+	default:
+		return 0
 	}
 }
 

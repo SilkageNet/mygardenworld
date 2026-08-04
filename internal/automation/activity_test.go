@@ -9,23 +9,21 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
-func TestCyclicNotePolicyDefaultsFailClosedAndRequiresBothEnableFlags(t *testing.T) {
+func TestCyclicNotePolicyDefaultsFailClosedAndRequiresModuleEnable(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := cyclicNotePlannerState(t, now, 2, []any{4003, 2001, nil}, map[string]any{"4003": 80}, map[string]any{}, 120, []any{})
 
 	tests := []struct {
-		name            string
-		activityEnabled bool
-		moduleEnabled   bool
-		bools           map[string]bool
+		name          string
+		moduleEnabled bool
+		bools         map[string]bool
 	}{
-		{name: "all bool params default false", activityEnabled: true, moduleEnabled: true},
-		{name: "activity disabled", moduleEnabled: true, bools: map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true}},
-		{name: "module disabled", activityEnabled: true, bools: map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true}},
+		{name: "all bool params default false", moduleEnabled: true},
+		{name: "module disabled", bools: map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			policy := cyclicNotePlannerPolicy(tc.activityEnabled, tc.moduleEnabled, tc.bools)
+			policy := cyclicNotePlannerPolicy(false, tc.moduleEnabled, tc.bools)
 			if got := cyclicNotePlanOperations(BuildPlan(s, policy, now).Operations); len(got) != 0 {
 				t.Fatalf("cyclic-note operations=%+v, want none", got)
 			}
@@ -155,6 +153,7 @@ func TestCyclicNotePrioritySitsBetweenMajorGoalsAndOrdinaryFlowerRack(t *testing
 func cyclicNotePlannerPolicy(activityEnabled, moduleEnabled bool, bools map[string]bool) *pb.Policy {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
+	//nolint:staticcheck // The test intentionally verifies that the deprecated parent flag is ignored.
 	policy.Activity.Enabled = activityEnabled
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		cyclicNoteModuleKey: {Enabled: moduleEnabled, BoolParams: bools},

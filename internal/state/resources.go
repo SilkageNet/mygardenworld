@@ -274,6 +274,35 @@ func (s *State) MarkWaterDropsExhausted(now time.Time) {
 	}
 }
 
+// MarkInventoryItemExhausted reconciles local inventory after the server rejects
+// an RPC for material shortage (code 301 + param.iid). Zeroing the stale local
+// count prevents the planner from reissuing the same craft until an
+// authoritative namespace-7 update restores stock.
+func (s *State) MarkInventoryItemExhausted(itemID int32) {
+	if itemID <= 0 {
+		return
+	}
+	s.mu.Lock()
+	prevInventory := cloneInt32Map(s.inventory)
+	if prevInventory[itemID] <= 0 {
+		s.mu.Unlock()
+		return
+	}
+	s.inventory[itemID] = 0
+	if itemID == 7 {
+		s.hasWaterDropsItem = true
+		s.waterDropsInFlight = 0
+	}
+	invChanges := inventoryChanges(prevInventory, s.inventory)
+	inventorySnap := InventorySnapshot{Inventory: cloneInt32Map(s.inventory), Changes: invChanges}
+	inventoryCb := s.onInventoryChange
+	s.mu.Unlock()
+
+	if inventoryCb != nil && len(inventorySnap.Changes) > 0 {
+		inventoryCb(inventorySnap)
+	}
+}
+
 // Inventory returns a copy of the inventory map.
 func (s *State) Inventory() map[int32]int32 {
 	s.mu.RLock()
@@ -573,6 +602,14 @@ func (s *State) Experience() int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.experience
+}
+
+// ExperienceToNextLevel returns remaining XP needed to reach the next player
+// level, the within-level requirement, and whether the account is at max level.
+func (s *State) ExperienceToNextLevel() (remaining, required int32, maxed bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return ExperienceToNextLevel(s.level, s.experience)
 }
 
 // Diamonds returns visible and secondary diamond balances (7.0.41, 7.0.42).

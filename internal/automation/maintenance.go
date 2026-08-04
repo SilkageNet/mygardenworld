@@ -22,7 +22,13 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 		}
 	}
 	if planting.GetUseSpeedUpTicket() || raceSpeedupEnabled(s, policy.GetUnion().GetRace()) {
-		if lands, count := speedUpCandidates(s, now); count > 0 {
+		// Global planting speedup accelerates every growing land. Race-only
+		// "种植任务使用加速卡" must only hit the taken plant-harvest flower.
+		flowerFilter := int32(0)
+		if !planting.GetUseSpeedUpTicket() {
+			flowerFilter = s.FmlRace().Taken.ParamID
+		}
+		if lands, count := speedUpCandidates(s, now, flowerFilter); count > 0 {
 			reason := "存在可加速土地"
 			if !planting.GetUseSpeedUpTicket() {
 				reason = "公会竞赛种植任务使用加速卡"
@@ -61,26 +67,31 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 	add(unionFlower.GetShareEnabled() ||
 		unionLand.GetAutoPlantEnabled() ||
 		union.GetRedPacketEnabled(), CategoryUnion, "union.unknown", "公会扩展功能")
-	if policy.GetActivity().GetEnabled() {
-		for name, module := range policy.GetActivity().GetModules() {
-			if name != "cyclicNote" && name != "actDessert" && module != nil && module.GetEnabled() {
-				add(true, CategoryActivity, "activity."+name, "活动 "+name)
-			}
+	for name, module := range policy.GetActivity().GetModules() {
+		if name != "cyclicNote" && name != "actDessert" && name != "actCyclicStory" && module != nil && module.GetEnabled() {
+			add(true, CategoryActivity, "activity."+name, "活动 "+name)
 		}
 	}
 	return ops
 }
 
-func speedUpCandidates(s *state.State, now time.Time) ([]int32, int32) {
+// speedUpCandidates returns growing lands that still need tickets.
+// When flowerID > 0, only lands planted with that flower are eligible
+// (used by guild-race plant-harvest speedup).
+func speedUpCandidates(s *state.State, now time.Time, flowerID int32) ([]int32, int32) {
 	available := s.Inventory()[1001]
 	if available <= 0 {
 		return nil, 0
 	}
 	var ids []int32
 	for id, land := range s.Lands() {
-		if land.State == 2 && land.NextTimeMs > now.UnixMilli() {
-			ids = append(ids, id)
+		if land.State != 2 || land.NextTimeMs <= now.UnixMilli() {
+			continue
 		}
+		if flowerID > 0 && int32(land.FlowerID) != flowerID {
+			continue
+		}
+		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	want := int32(len(ids))

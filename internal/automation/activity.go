@@ -27,15 +27,24 @@ const (
 	dessertAutoOpenRewardBoxesKey          = "auto_open_reward_boxes"
 	dessertPriority                  int32 = 50 * 100
 	dessertCooldownKey                     = "activity.actDessert:reward"
+
+	cyclicStoryModuleKey                 = "actCyclicStory"
+	cyclicStoryAutoClaimOrderRewardsKey  = "auto_claim_order_rewards"
+	cyclicStoryAutoClaimProgressBoxesKey = "auto_claim_progress_boxes"
+	cyclicStoryMaxScoreKey               = "max_score"
+	cyclicStoryPriority            int32 = 50 * 100
 )
 
 // activityOperations combines independently gated activity modules. Each
-// module contributes at most one operation per planning cycle.
+// module contributes at most one operation per planning cycle. The parent
+// ActivityPolicy.enabled field is ignored; only each module's own enabled
+// flag gates execution.
 func activityOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time) []PlannedOp {
-	if s == nil || policy == nil || !policy.GetEnabled() {
+	if s == nil || policy == nil {
 		return nil
 	}
 	operations := cyclicNoteOperations(s, policy, now)
+	operations = append(operations, cyclicStoryOperations(s, policy, now)...)
 	operations = append(operations, dessertOperations(s, policy, now)...)
 	return operations
 }
@@ -43,7 +52,7 @@ func activityOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time
 // cyclicNoteOperations returns at most one safe 花笺集芳 side operation per
 // planning cycle. Missing bool params intentionally read as false.
 func cyclicNoteOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time) []PlannedOp {
-	if s == nil || policy == nil || !policy.GetEnabled() {
+	if s == nil || policy == nil {
 		return nil
 	}
 	module := policy.GetModules()[cyclicNoteModuleKey]
@@ -108,7 +117,7 @@ func cyclicNoteOperations(s *state.State, policy *pb.ActivityPolicy, now time.Ti
 // dessertOperations returns at most one capture-confirmed, cost-free dessert
 // operation in the strict enter -> task -> celebrity sync -> like order.
 func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time) []PlannedOp {
-	if s == nil || policy == nil || !policy.GetEnabled() {
+	if s == nil || policy == nil {
 		return nil
 	}
 	module := policy.GetModules()[dessertModuleKey]
@@ -234,5 +243,105 @@ func cyclicNotePlannedOp(kind, action, reason string, batchID, slotID, taskID, m
 		SlotID:         slotID,
 		TaskID:         taskID,
 		MilestoneIndex: milestoneIndex,
+	})
+}
+
+// cyclicStoryOperations returns at most one safe 莳花纪闻 side operation per
+// planning cycle. max_score=0 means unlimited; reaching the cap blocks order
+// claims that would raise score while milestones remain claimable.
+func cyclicStoryOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time) []PlannedOp {
+	if s == nil || policy == nil {
+		return nil
+	}
+	module := policy.GetModules()[cyclicStoryModuleKey]
+	if module == nil || !module.GetEnabled() {
+		return nil
+	}
+	bools := module.GetBoolParams()
+	claimOrders := bools[cyclicStoryAutoClaimOrderRewardsKey]
+	claimMilestones := bools[cyclicStoryAutoClaimProgressBoxesKey]
+	if !claimOrders && !claimMilestones {
+		return nil
+	}
+	maxScore := module.GetIntParams()[cyclicStoryMaxScoreKey]
+
+	view, ok := s.CyclicStoryView(now)
+	if !ok || !view.Found || view.BatchID <= 0 {
+		return nil
+	}
+	// Enter bootstraps fresh batches (and resyncs invalid order payloads)
+	// before score/bag make Valid=true.
+	if claimOrders || claimMilestones {
+		if snapshot, ready := s.CyclicStoryEnterSnapshot(now); ready && snapshot.BatchID == view.BatchID {
+			reason := "活动订单尚未初始化，进入莳花纪闻同步状态"
+			if view.OrdersObserved && !view.OrdersValid {
+				reason = "莳花纪闻订单状态异常，重新进入同步"
+			}
+			return []PlannedOp{cyclicStoryPlannedOp(
+				clientproto.RPCActCyclicStoryEnter.String(), "enter", reason,
+				snapshot.BatchID, 0, 0, 0, 0, nil,
+			)}
+		}
+	}
+	if !view.Valid {
+		return nil
+	}
+
+	underScoreCap := maxScore <= 0 || int64(view.Score) < maxScore
+	if claimOrders && view.Phase == 2 && underScoreCap {
+		for _, order := range view.Orders {
+			snapshot, ready := s.CyclicStoryOrderClaimSnapshot(now, view.BatchID, order.OrderIdx)
+			if !ready {
+				continue
+			}
+			return []PlannedOp{cyclicStoryPlannedOp(
+				clientproto.RPCActCyclicStoryRecvOrderRwd.String(), "claim_order", "莳花纪闻订单材料已齐，领取订单奖励",
+				snapshot.BatchID, snapshot.OrderIdx, snapshot.OrderID, 0, snapshot.FlowerID,
+				map[int32]int32{snapshot.FlowerID: snapshot.Cost},
+			)}
+		}
+	}
+
+	if claimMilestones && (view.Phase == 2 || view.Phase == 3) {
+		for _, milestone := range view.Milestones {
+			snapshot, ready := s.CyclicStoryMilestoneClaimSnapshot(now, view.BatchID, milestone.Index)
+			if !ready {
+				continue
+			}
+			return []PlannedOp{cyclicStoryPlannedOp(
+				clientproto.RPCActCyclicStoryRecv.String(), "claim_progress", "莳花纪闻积分达到里程碑，领取进度奖励",
+				snapshot.BatchID, 0, 0, snapshot.MilestoneIndex, 0, nil,
+			)}
+		}
+	}
+	return nil
+}
+
+func cyclicStoryPlannedOp(kind, action, reason string, batchID, orderIdx, orderID, milestoneIndex, flowerID int32, itemCost map[int32]int32) PlannedOp {
+	operationParts := []string{kind, strconv.FormatInt(int64(batchID), 10)}
+	if orderID > 0 {
+		operationParts = append(operationParts, strconv.FormatInt(int64(orderIdx), 10), strconv.FormatInt(int64(orderID), 10))
+	} else if milestoneIndex > 0 {
+		operationParts = append(operationParts, strconv.FormatInt(int64(milestoneIndex), 10))
+	}
+	return enrichPlannedOp(PlannedOp{
+		OperationID:    strings.Join(operationParts, ":"),
+		Kind:           kind,
+		Lane:           LaneSide,
+		FeatureID:      "activity.actCyclicStory." + action,
+		Category:       CategoryActivity,
+		Label:          "莳花纪闻",
+		Domain:         "activity.actCyclicStory",
+		Action:         action,
+		Status:         PlanStatusManaged,
+		Executable:     true,
+		Reason:         reason,
+		Priority:       cyclicStoryPriority,
+		BatchID:        batchID,
+		SlotID:         orderIdx,
+		TaskID:         orderID,
+		MilestoneIndex: milestoneIndex,
+		FlowerID:       flowerID,
+		ItemCost:       itemCost,
 	})
 }

@@ -15,11 +15,14 @@ import (
 )
 
 type operationAttempt struct {
-	op          *automation.PlannedOp
-	args        any
-	startedAt   time.Time
-	goldBefore  int32
-	levelBefore int32
+	op               *automation.PlannedOp
+	args             any
+	startedAt        time.Time
+	goldBefore       int32
+	levelBefore      int32
+	waterDropsBefore int32
+	scoreBefore      int32
+	scoreBeforeSet   bool
 }
 
 type operationResult struct {
@@ -32,16 +35,18 @@ type operationResult struct {
 type operationErrorKind string
 
 const (
-	operationErrorOrdinary                operationErrorKind = "ordinary"
-	operationErrorHarvestNotMature        operationErrorKind = "harvest_not_mature"
-	operationErrorResidentOrderCooldown   operationErrorKind = "resident_order_cooldown"
-	operationErrorResidentOrderDailyLimit operationErrorKind = "resident_order_daily_limit"
-	operationErrorWaterwheelInvalidData   operationErrorKind = "waterwheel_invalid_data"
-	operationErrorWaterwheelDailyLimit    operationErrorKind = "waterwheel_daily_limit"
-	operationErrorWaterDropRejected       operationErrorKind = "water_drop_rejected"
-	operationErrorTaskGroupFinished       operationErrorKind = "task_group_finished"
-	operationErrorRaceTakeAlreadyTaken    operationErrorKind = "race_take_already_taken"
-	operationErrorFmlFlowerTakeDailyLimit operationErrorKind = "fml_flower_take_daily_limit"
+	operationErrorOrdinary                  operationErrorKind = "ordinary"
+	operationErrorHarvestNotMature          operationErrorKind = "harvest_not_mature"
+	operationErrorResidentOrderCooldown     operationErrorKind = "resident_order_cooldown"
+	operationErrorResidentOrderDailyLimit   operationErrorKind = "resident_order_daily_limit"
+	operationErrorWaterwheelInvalidData     operationErrorKind = "waterwheel_invalid_data"
+	operationErrorWaterwheelDailyLimit      operationErrorKind = "waterwheel_daily_limit"
+	operationErrorWaterDropRejected         operationErrorKind = "water_drop_rejected"
+	operationErrorFlowerArtMaterialRejected operationErrorKind = "flower_art_material_rejected"
+	operationErrorTaskGroupFinished         operationErrorKind = "task_group_finished"
+	operationErrorRaceTakeAlreadyTaken      operationErrorKind = "race_take_already_taken"
+	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
+	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -58,12 +63,16 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorWaterwheelDailyLimit
 	case isWaterDropResourceRejectedError(kind, err):
 		return operationErrorWaterDropRejected
+	case isFlowerArtMaterialRejectedError(kind, err):
+		return operationErrorFlowerArtMaterialRejected
 	case isTaskGroupFinishedError(kind, err):
 		return operationErrorTaskGroupFinished
 	case isRaceTakeAlreadyTakenError(kind, err):
 		return operationErrorRaceTakeAlreadyTaken
 	case isFmlFlowerTakeDailyLimitError(kind, err):
 		return operationErrorFmlFlowerTakeDailyLimit
+	case isCyclicStoryOrderNotReadyError(kind, err):
+		return operationErrorCyclicStoryOrderNotReady
 	default:
 		return operationErrorOrdinary
 	}
@@ -264,6 +273,23 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "resource_stale"})
 		return nil
+	case operationErrorFlowerArtMaterialRejected:
+		itemID := flowerArtMaterialRejectedItemID(op.Kind, err)
+		if itemID > 0 {
+			r.state.MarkInventoryItemExhausted(itemID)
+		}
+		itemName := state.ItemLabel(itemID)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Message:     fmt.Sprintf("%s 暂缓: 服务端提示材料不足（%s），已校正本地库存，等待补充后重试", opDesc(op), itemName),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "resource_stale", "missingItemId": itemID})
+		return nil
 	case operationErrorTaskGroupFinished:
 		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "服务端提示本组任务已经完结", sideOperationMaxCooldown)
 		r.emit(Event{
@@ -313,6 +339,29 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
+		return nil
+	case operationErrorCyclicStoryOrderNotReady:
+		now := result.finishedAt
+		cooldown := sideOperationBaseCooldown
+		if until := cyclicStoryOrderCooldownUntil(r.state, op, now); until.After(now) {
+			cooldown = until.Sub(now)
+		}
+		tip := state.MsgCodeText(259)
+		if tip == "" {
+			tip = "未达成领取奖励的条件"
+		}
+		payloadOp := r.cooldownSideOperation(op, now, err, tip, cooldown)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 暂缓: 服务端提示%s，等待订单冷却后再试", opDesc(op), tip),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "order_not_ready"})
 		return nil
 	default:
 		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "", 0)
@@ -377,6 +426,31 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "鲜花升级"
 		category = automation.CategoryPlant
 		message = flowerUpgradeSuccessMessage(op, result.levelBefore, r.state)
+	case clientproto.RPCWaterwheelRecv.String():
+		kind = "waterwheel"
+		label = "水车水滴"
+		category = automation.CategoryWater
+		message = waterwheelClaimSuccessMessage(result.waterDropsBefore, r.state)
+	case clientproto.RPCFreeWaterRecv.String():
+		kind = "free_water"
+		label = "限时水滴"
+		category = automation.CategoryWater
+		message = freeWaterClaimSuccessMessage(op, result.waterDropsBefore, r.state)
+	case clientproto.RPCActCyclicStoryRecvOrderRwd.String():
+		kind = "activity_cyclic_story_order"
+		label = "莳花纪闻"
+		category = automation.CategoryActivity
+		message = cyclicStoryOrderClaimSuccessMessage(op, result.scoreBefore, result.scoreBeforeSet, r.state, result.finishedAt)
+	case clientproto.RPCActCyclicStoryEnter.String():
+		kind = "activity_cyclic_story_enter"
+		label = "莳花纪闻"
+		category = automation.CategoryActivity
+		message = fmt.Sprintf("同步莳花纪闻订单%s", r.opSuffix(op))
+	case clientproto.RPCActCyclicStoryRecv.String():
+		kind = "activity_cyclic_story_progress"
+		label = "莳花纪闻"
+		category = automation.CategoryActivity
+		message = cyclicStoryMilestoneClaimSuccessMessage(op, r.state, result.finishedAt)
 	}
 	r.emit(Event{
 		Kind:        kind,
@@ -545,8 +619,120 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "花艺上架"
 	case op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String():
 		return "花艺售出"
+	case op.Kind == clientproto.RPCWaterwheelRecv.String() || op.Domain == "basic.waterwheel":
+		return "水车水滴"
+	case op.Kind == clientproto.RPCFreeWaterRecv.String() || op.Domain == "basic.free_water":
+		return "限时水滴"
+	case op.Kind == clientproto.RPCActCyclicStoryEnter.String(),
+		op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String(),
+		op.Kind == clientproto.RPCActCyclicStoryRecv.String(),
+		op.Domain == "activity.actCyclicStory":
+		return "莳花纪闻"
 	}
 	return ""
+}
+
+func cyclicStoryOrderClaimSuccessMessage(op *automation.PlannedOp, scoreBefore int32, scoreBeforeSet bool, st *state.State, at time.Time) string {
+	count := int32(0)
+	flowerID := int32(0)
+	if op != nil {
+		flowerID = op.FlowerID
+		if flowerID > 0 {
+			count = op.ItemCost[flowerID]
+		}
+		if count <= 0 && len(op.ItemCost) == 1 {
+			for id, n := range op.ItemCost {
+				flowerID = id
+				count = n
+			}
+		}
+	}
+	flower := "鲜花"
+	if flowerID > 0 {
+		if name := flowerName(int(flowerID)); name != "" {
+			flower = name
+		} else {
+			flower = fmt.Sprintf("#%d", flowerID)
+		}
+	}
+
+	gained := cyclicStoryOrderScoreGain(op)
+	scoreAfter := int32(0)
+	scoreAfterOK := false
+	if st != nil {
+		if view, ok := st.CyclicStoryView(at); ok && view.Valid {
+			scoreAfter = view.Score
+			scoreAfterOK = true
+			if scoreBeforeSet && scoreAfter > scoreBefore {
+				gained = scoreAfter - scoreBefore
+			}
+		}
+	}
+
+	parts := make([]string, 0, 3)
+	switch {
+	case count > 0:
+		parts = append(parts, fmt.Sprintf("提交了%d朵%s", count, flower))
+	case flowerID > 0:
+		parts = append(parts, fmt.Sprintf("提交了%s", flower))
+	default:
+		parts = append(parts, "提交订单")
+	}
+	if gained > 0 {
+		parts = append(parts, fmt.Sprintf("获得了%d分", gained))
+	}
+	if scoreAfterOK {
+		parts = append(parts, fmt.Sprintf("累计%d分", scoreAfter))
+	}
+	return strings.Join(parts, "，")
+}
+
+func cyclicStoryOrderScoreGain(op *automation.PlannedOp) int32 {
+	if op == nil || op.TaskID <= 0 {
+		return 0
+	}
+	info := state.CyclicStoryOrderInfoByID(op.TaskID)
+	if !info.CatalogKnown {
+		return 0
+	}
+	currencyID := int32(1108)
+	if cfg, ok := state.CyclicStoryCatalogConfig(); ok && cfg.CurrencyItemID > 0 {
+		currencyID = cfg.CurrencyItemID
+	}
+	var gained int32
+	for _, reward := range info.Reward {
+		if reward.ItemID == currencyID && reward.Count > 0 {
+			gained += reward.Count
+		}
+	}
+	if gained > 0 {
+		return gained
+	}
+	for _, reward := range info.Reward {
+		if reward.Count > 0 {
+			gained += reward.Count
+		}
+	}
+	return gained
+}
+
+func cyclicStoryMilestoneClaimSuccessMessage(op *automation.PlannedOp, st *state.State, at time.Time) string {
+	idx := int32(0)
+	if op != nil {
+		idx = op.MilestoneIndex
+	}
+	if st != nil {
+		if view, ok := st.CyclicStoryView(at); ok && view.Valid {
+			if idx > 0 {
+				return fmt.Sprintf("领取积分里程碑 #%d，累计%d分", idx, view.Score)
+			}
+			return fmt.Sprintf("领取积分里程碑，累计%d分", view.Score)
+		}
+	}
+	if idx > 0 {
+		return fmt.Sprintf("领取积分里程碑 #%d", idx)
+	}
+	return "领取积分里程碑"
 }
 
 func residentOrderFinishSuccessMessage(label string, op *automation.PlannedOp) string {
@@ -655,6 +841,43 @@ func flowerRackExpectedGold(artID, count int32) int32 {
 	return recipe.SaleValue * count
 }
 
+func waterwheelClaimSuccessMessage(waterBefore int32, st *state.State) string {
+	after, total, _ := st.WaterDrops()
+	parts := []string{"水车水滴领取成功"}
+	if gain := after - waterBefore; gain > 0 {
+		parts = append(parts, fmt.Sprintf("+%d", gain))
+	}
+	if total > 0 {
+		parts = append(parts, fmt.Sprintf("当前 %d/%d", after, total))
+	} else {
+		parts = append(parts, fmt.Sprintf("当前 %d", after))
+	}
+	claimed := st.WaterwheelClaimedCount()
+	if max := state.WaterwheelBucketDailyMax(); max > 0 {
+		parts = append(parts, fmt.Sprintf("今日 %d/%d", claimed, max))
+	} else if claimed > 0 {
+		parts = append(parts, fmt.Sprintf("今日已领 %d", claimed))
+	}
+	return strings.Join(parts, " ")
+}
+
+func freeWaterClaimSuccessMessage(op *automation.PlannedOp, waterBefore int32, st *state.State) string {
+	after, total, _ := st.WaterDrops()
+	parts := []string{"限时水滴领取成功"}
+	if op != nil {
+		parts = append(parts, fmt.Sprintf("时段#%d", op.TargetID))
+	}
+	if gain := after - waterBefore; gain > 0 {
+		parts = append(parts, fmt.Sprintf("+%d", gain))
+	}
+	if total > 0 {
+		parts = append(parts, fmt.Sprintf("当前 %d/%d", after, total))
+	} else {
+		parts = append(parts, fmt.Sprintf("当前 %d", after))
+	}
+	return strings.Join(parts, " ")
+}
+
 // flowerUpgradeSuccessMessage formats "花名 lvN-lvM" for cultivate.upgrade logs.
 func flowerUpgradeSuccessMessage(op *automation.PlannedOp, fromLevel int32, st *state.State) string {
 	name := "花朵"
@@ -749,6 +972,18 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 			return fmt.Sprintf(" (活动批次=%d 槽位=%d 任务=%d)", op.BatchID, op.SlotID, op.TaskID)
 		}
 	case clientproto.RPCActCyclicNoteRecv.String():
+		if op.BatchID > 0 && op.MilestoneIndex > 0 {
+			return fmt.Sprintf(" (活动批次=%d 里程碑=%d)", op.BatchID, op.MilestoneIndex)
+		}
+	case clientproto.RPCActCyclicStoryEnter.String():
+		if op.BatchID > 0 {
+			return fmt.Sprintf(" (活动批次=%d)", op.BatchID)
+		}
+	case clientproto.RPCActCyclicStoryRecvOrderRwd.String():
+		if op.BatchID > 0 && op.TaskID > 0 {
+			return fmt.Sprintf(" (活动批次=%d 订单槽=%d 订单=%d)", op.BatchID, op.SlotID, op.TaskID)
+		}
+	case clientproto.RPCActCyclicStoryRecv.String():
 		if op.BatchID > 0 && op.MilestoneIndex > 0 {
 			return fmt.Sprintf(" (活动批次=%d 里程碑=%d)", op.BatchID, op.MilestoneIndex)
 		}

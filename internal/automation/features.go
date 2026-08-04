@@ -41,8 +41,8 @@ var featureSpecs = []FeatureSpec{
 	{ID: "plant.flower_pass", Label: "花之密令", Category: CategoryPlant, Domain: "farm.flower_pass", Action: "claim", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "plant.market", Label: "花贸市场", Category: CategoryPlant, Domain: "farm.market", Action: "run", Status: PlanStatusSyncOnly, SyncOnly: true},
 
-	{ID: "basic.waterwheel", Label: "水车水滴", Category: CategoryBasic, Domain: "basic.waterwheel", Action: "claim", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.free_water", Label: "限时水滴", Category: CategoryBasic, Domain: "basic.free_water", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.waterwheel", Label: "水车水滴", Category: CategoryWater, Domain: "basic.waterwheel", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.free_water", Label: "限时水滴", Category: CategoryWater, Domain: "basic.free_water", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.benefit_box", Label: "福利宝箱", Category: CategoryBasic, Domain: "basic.benefit", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.reputation", Label: "礼仪分监控", Category: CategoryBasic, Domain: "basic.reputation", Action: "guard", Status: PlanStatusManaged},
 	{ID: "basic.item_log", Label: "道具日志", Category: CategoryBasic, Domain: "basic.item_log", Action: "observe", Status: PlanStatusManaged, Executable: true},
@@ -127,7 +127,9 @@ var featureSpecs = []FeatureSpec{
 	{ID: "union.red_packet", Label: "公会红包", Category: CategoryUnion, Domain: "union.red_packet", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"缺少公会红包执行 adapter"}},
 	{ID: "union.forest", Label: "能量森林", Category: CategoryUnion, Domain: "union.forest", Action: "collect", Status: PlanStatusManaged, Executable: true},
 
-	activityFeature("actCyclicStory", "莳花纪闻/周期剧情", PlanStatusSyncOnly),
+	{ID: "activity.actCyclicStory.enter", Label: "莳花纪闻同步", Category: CategoryActivity, Domain: "activity.actCyclicStory", Action: "enter", Status: PlanStatusManaged, Executable: true},
+	{ID: "activity.actCyclicStory.claim_order", Label: "莳花纪闻订单奖励", Category: CategoryActivity, Domain: "activity.actCyclicStory", Action: "claim_order", Status: PlanStatusManaged, Executable: true},
+	{ID: "activity.actCyclicStory.claim_progress", Label: "莳花纪闻积分奖励", Category: CategoryActivity, Domain: "activity.actCyclicStory", Action: "claim_progress", Status: PlanStatusManaged, Executable: true},
 	{ID: "activity.actDessert.monitor", Label: "香卉甜糕监控", Category: CategoryActivity, Domain: "activity.actDessert", Action: "observe", Status: PlanStatusManaged},
 	{ID: "activity.actDessert.enter", Label: "香卉甜糕同步", Category: CategoryActivity, Domain: "activity.actDessert", Action: "enter", Status: PlanStatusManaged, Executable: true},
 	{ID: "activity.actDessert.claim_task", Label: "香卉甜糕任务奖励", Category: CategoryActivity, Domain: "activity.actDessert", Action: "claim_task", Status: PlanStatusManaged, Executable: true},

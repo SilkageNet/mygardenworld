@@ -147,6 +147,16 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 			attempt.levelBefore = cv.Lvl
 		}
 	}
+	if op.Kind == clientproto.RPCWaterwheelRecv.String() || op.Kind == clientproto.RPCFreeWaterRecv.String() {
+		waterDrops, _, _ := r.state.WaterDrops()
+		attempt.waterDropsBefore = waterDrops
+	}
+	if op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String() {
+		if view, ok := r.state.CyclicStoryView(attempt.startedAt); ok && view.Valid {
+			attempt.scoreBefore = view.Score
+			attempt.scoreBeforeSet = true
+		}
+	}
 	r.emitOperationPlanned(attempt)
 
 	raw, err := r.executePlannedOp(ctx, client, session, op)

@@ -442,6 +442,79 @@ func TestResidentSpecialFinishResponseCounterPreventsDoubleCount(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_ResidentLaggingStatisticsBiasStillEnforcesLimit(t *testing.T) {
+	// Regression: once namespace 124 is observed, finish responses that omit
+	// field 9 must still advance the local bias so NormalDailyLimit trips.
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "9": 1}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 3
+
+	s.NoteResidentOrderFinished(now, nil)
+	s.NoteResidentOrderFinished(now, nil)
+	if got := s.ResidentOrderFinishNum(now); got != 3 {
+		t.Fatalf("ResidentOrderFinishNum=%d, want 1(stats)+2(bias)", got)
+	}
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should be blocked by lagging-stats bias: %+v", op)
+		}
+		if op.Domain == "order.resident" && !op.Executable && hasReasonContaining(op.BlockedReasons, "3/3") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing lagging-stats limit block: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_ResidentPriorDayStatisticsBiasEnforcesLimitAfterRollover(t *testing.T) {
+	// Regression: after 00:05 the prior game-day snapshot must not report
+	// finished=0 forever; local bias for the new day still enforces the cap.
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 7, 25, 0, 10, 0, 0, loc)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{"0": 1, "2": [][]int32{{23005, 1}}}}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "9": 80}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+	p.Order.Resident.NormalDailyLimit = 2
+
+	s.NoteResidentOrderFinished(now, nil)
+	s.NoteResidentOrderFinished(now, nil)
+	if got := s.ResidentOrderFinishNum(now); got != 2 {
+		t.Fatalf("ResidentOrderFinishNum=%d, want 2 from new-day bias (prior DayID ignored)", got)
+	}
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() && op.Executable {
+			t.Fatalf("resident submit should be blocked after game-day rollover bias: %+v", op)
+		}
+		if op.Domain == "order.resident" && !op.Executable && hasReasonContaining(op.BlockedReasons, "2/2") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing post-rollover limit block: %+v", result.Operations)
+	}
+}
+
 func TestBuildPlan_ResidentCooldownOmitsSubmitUntilReady(t *testing.T) {
 	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
 	s := state.New()
@@ -1181,19 +1254,21 @@ func TestBuildPlan_DoesNotGenerateOneKeyOperations(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
+func TestBuildPlan_WaterClaimsRespectThresholdNotRegenCapacity(t *testing.T) {
 	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	cases := []struct {
-		name      string
-		drops     int32
-		total     int32
-		threshold int32
-		wantOps   bool
+		name           string
+		drops          int32
+		total          int32
+		threshold      int32
+		wantFreeWater  bool
+		wantWaterwheel bool
 	}{
-		{name: "below capacity", drops: 12, total: 130, wantOps: true},
-		{name: "at capacity", drops: 130, total: 130, wantOps: false},
-		{name: "above threshold", drops: 80, total: 130, threshold: 50, wantOps: false},
-		{name: "below threshold", drops: 20, total: 130, threshold: 50, wantOps: true},
+		{name: "below threshold", drops: 12, total: 130, wantFreeWater: true, wantWaterwheel: true},
+		{name: "at regen capacity still claims", drops: 130, total: 130, wantFreeWater: true, wantWaterwheel: true},
+		{name: "above regen capacity still claims", drops: 200, total: 130, wantFreeWater: true, wantWaterwheel: true},
+		{name: "above threshold", drops: 80, total: 130, threshold: 50, wantFreeWater: false, wantWaterwheel: false},
+		{name: "below threshold with capacity full", drops: 40, total: 130, threshold: 50, wantFreeWater: true, wantWaterwheel: true},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1203,11 +1278,17 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 					"32": map[string]any{"7": tt.drops},
 					"33": map[string]any{"7": map[string]any{"1": tt.total}},
 				}},
+				"114": map[string]any{
+					"1": 1,
+					// Accrue local buckets via uTime catch-up after enter.
+					"4": now.Add(-time.Hour).UnixMilli(),
+				},
 				"117": map[string]any{
 					"1": []int32{},
 					"2": now.UnixMilli(),
 				},
 			})
+			s.MarkWaterwheelEntered(now)
 			p := DefaultPolicy()
 			p.AutomationEnabled = true
 			p.Basic.WaterwheelEnabled = true
@@ -1226,11 +1307,11 @@ func TestBuildPlan_WaterClaimsRespectCapacityAndThreshold(t *testing.T) {
 					}
 				}
 			}
-			if gotWaterwheel {
-				t.Fatalf("waterwheel should wait for local bucket generation, ops=%+v", result.Operations)
+			if gotWaterwheel != tt.wantWaterwheel {
+				t.Fatalf("waterwheel claim = %t, want %t; ops=%+v", gotWaterwheel, tt.wantWaterwheel, result.Operations)
 			}
-			if gotFreeWater != tt.wantOps {
-				t.Fatalf("free water claim = %t, want %t; ops=%+v", gotFreeWater, tt.wantOps, result.Operations)
+			if gotFreeWater != tt.wantFreeWater {
+				t.Fatalf("free water claim = %t, want %t; ops=%+v", gotFreeWater, tt.wantFreeWater, result.Operations)
 			}
 		})
 	}
@@ -2666,6 +2747,60 @@ func TestBuildPlan_UnionFlowerTakeSpecificFlower(t *testing.T) {
 			}
 			if op.TargetUID != 77900091102484 || op.TargetID != 2 || op.FlowerID != 23011 || op.Count != 1 {
 				t.Fatalf("union flower take target mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union flower take op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerTakePrefersLowestStock(t *testing.T) {
+	// Both configured flowers are available; 23009 has lower FlowerID so the
+	// old first-match path would take it, but inventory stock favors 23011.
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23009": 50,
+			"23011": 3,
+		}}},
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+				"3": now.UnixMilli(),
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102483,
+					"1": map[string]any{
+						"1": map[string]any{"0": 23009, "1": 8, "2": 0},
+					},
+				},
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 0},
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+	p.Union.Flower.TakeFlowerIds = []int32{23009, 23011}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			if op.Kind != clientproto.RPCFmlFlowerShareTake.String() || !op.Executable {
+				t.Fatalf("union flower take op mismatch: %+v", op)
+			}
+			if op.FlowerID != 23011 || op.TargetUID != 77900091102484 || op.TargetID != 2 {
+				t.Fatalf("expected lowest-stock 23011, got %+v", op)
 			}
 			return
 		}

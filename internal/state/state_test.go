@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1083,6 +1084,44 @@ func TestMarkWaterDropsExhaustedClearsStaleDrops(t *testing.T) {
 	}
 }
 
+func TestMarkInventoryItemExhaustedClearsStaleStock(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23022": 4, "23001": 2}}},
+	})
+	if got := s.Inventory()[23022]; got != 4 {
+		t.Fatalf("Inventory[23022]=%d, want 4", got)
+	}
+
+	var inventoryChanged InventorySnapshot
+	s.SetOnInventoryChange(func(snap InventorySnapshot) {
+		inventoryChanged = snap
+	})
+	s.MarkInventoryItemExhausted(23022)
+
+	inv := s.Inventory()
+	if inv[23022] != 0 {
+		t.Fatalf("Inventory[23022]=%d, want 0", inv[23022])
+	}
+	if inv[23001] != 2 {
+		t.Fatalf("Inventory[23001]=%d, want 2 (untouched)", inv[23001])
+	}
+	if len(inventoryChanged.Changes) != 1 || inventoryChanged.Changes[0].ItemID != 23022 ||
+		inventoryChanged.Changes[0].Before != 4 || inventoryChanged.Changes[0].After != 0 {
+		t.Fatalf("inventory callback changes=%+v", inventoryChanged.Changes)
+	}
+
+	inventoryChanged = InventorySnapshot{}
+	s.MarkInventoryItemExhausted(23022)
+	if len(inventoryChanged.Changes) != 0 {
+		t.Fatalf("second exhaustion should be a no-op, got changes=%+v", inventoryChanged.Changes)
+	}
+	s.MarkInventoryItemExhausted(0)
+	if len(inventoryChanged.Changes) != 0 {
+		t.Fatalf("itemID 0 should be a no-op, got changes=%+v", inventoryChanged.Changes)
+	}
+}
+
 func TestWaterwheelCooldownUsesBucketCreateInterval(t *testing.T) {
 	interval := waterwheelBucketCreateInterval()
 	if interval <= 0 || interval >= time.Hour {
@@ -1146,6 +1185,65 @@ func TestWaterwheelUnavailableBackoffSuppressesReady(t *testing.T) {
 	}
 	if !s.WaterwheelEnterDue(time.Now().Add(interval + time.Second)) {
 		t.Fatal("WaterwheelEnterDue = false, want true after local backoff")
+	}
+}
+
+func TestWaterwheelEnterCatchesUpFromLastRecvTimestamp(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+	existMax := waterwheelBucketExistMax()
+	if existMax <= 1 {
+		t.Fatalf("waterwheelBucketExistMax = %d, want configured positive limit", existMax)
+	}
+
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 3,
+			// Long idle since last claim — same signal BucketMgr uses via leaveSceneTime.
+			"4": now.Add(-time.Duration(existMax+2) * interval).UnixMilli(),
+		},
+	})
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true before enter, want false")
+	}
+
+	s.MarkWaterwheelEntered(now)
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false after enter with accrued idle time, want catch-up ready")
+	}
+	s.mu.RLock()
+	got := s.waterwheelLocalBucketCountAtLocked(now, s.wwClaimedCount)
+	s.mu.RUnlock()
+	if got != existMax {
+		t.Fatalf("local bucket count = %d, want existMax catch-up %d", got, existMax)
+	}
+}
+
+func TestWaterwheelEnterWithoutPriorTimestampWaitsFullCreateCd(t *testing.T) {
+	interval := waterwheelBucketCreateInterval()
+	if interval <= 0 || interval >= time.Hour {
+		t.Fatalf("waterwheelBucketCreateInterval = %s, want configured short interval", interval)
+	}
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"114": map[string]any{
+			"1": 0,
+		},
+	})
+	s.MarkWaterwheelEntered(now)
+	if s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = true immediately after fresh enter, want false until create CD")
+	}
+	s.mu.Lock()
+	s.wwLocalGenMs = now.Add(-interval - time.Second).UnixMilli()
+	s.mu.Unlock()
+	if !s.WaterwheelCooldownReady() {
+		t.Fatal("WaterwheelCooldownReady = false after create CD, want true")
 	}
 }
 
@@ -2216,6 +2314,81 @@ func TestApplyV_StatisticsNewDayReplacesPriorCounters(t *testing.T) {
 	}
 	if stats.OrderSatinFinishNum != 0 || stats.OrderDecorateFinishNum != 0 {
 		t.Fatalf("satin/decorate should reset on new day: %+v", stats)
+	}
+}
+
+func TestApplyV_StatisticsMillisDayKeyKeepsResidentFinishLimit(t *testing.T) {
+	// Live orderFlower.finishOrder patches use Asia/Shanghai midnight ms as the
+	// day map key and omit field 1. atoi32 used to overflow that key so
+	// ResidentOrderFinishNum treated today's field 9 as a prior-day 0.
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 8, 3, 22, 0, 0, 0, loc)
+	dayStartMs := time.Date(2026, 8, 3, 0, 0, 0, 0, loc).UnixMilli() // 1785686400000
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			fmt.Sprintf("%d", dayStartMs): map[string]any{
+				"2": 1540590, "3": 623894, "9": 846, "12": dayStartMs + 8*time.Hour.Milliseconds(),
+			},
+		}},
+	})
+
+	stats := s.Statistics()
+	if !stats.Observed || stats.DayID != 20260803 {
+		t.Fatalf("Statistics day mismatch: %+v (dayStartMs=%d)", stats, dayStartMs)
+	}
+	if stats.OrderFlowerFinishNum != 846 {
+		t.Fatalf("OrderFlowerFinishNum=%d, want 846", stats.OrderFlowerFinishNum)
+	}
+	if got := s.ResidentOrderFinishNum(now); got != 846 {
+		t.Fatalf("ResidentOrderFinishNum=%d, want 846 so policy daily limit can trip", got)
+	}
+}
+
+func TestApplyV_StatisticsMillisField1NormalizesToYYYYMMDD(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 8, 3, 12, 0, 0, 0, loc)
+	dayStartMs := time.Date(2026, 8, 3, 0, 0, 0, 0, loc).UnixMilli()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			fmt.Sprintf("%d", dayStartMs): map[string]any{"1": dayStartMs, "9": 600},
+		}},
+	})
+	if got := s.Statistics().DayID; got != 20260803 {
+		t.Fatalf("DayID=%d, want 20260803 from ms field 1", got)
+	}
+	if got := s.ResidentOrderFinishNum(now); got != 600 {
+		t.Fatalf("ResidentOrderFinishNum=%d, want 600", got)
+	}
+}
+
+func TestResidentOrderFinishNumKeepsNewDayBiasAcrossSparseDayRollover(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 7, 25, 0, 10, 0, 0, loc)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260724": map[string]any{"1": 20260724, "9": 80},
+		}},
+	})
+	s.NoteResidentOrderFinished(now, nil)
+	s.NoteResidentOrderFinished(now, nil)
+	if got := s.ResidentOrderFinishNum(now); got != 2 {
+		t.Fatalf("before sparse rollover FinishNum=%d, want 2", got)
+	}
+	// New-day DayID without field 9 must not wipe bias already counted for 20260725.
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260725": map[string]any{"1": 20260725, "8": 1},
+		}},
+	})
+	if got := s.ResidentOrderFinishNum(now); got != 2 {
+		t.Fatalf("after sparse rollover FinishNum=%d, want 2 kept bias", got)
+	}
+	stats := s.Statistics()
+	if stats.DayID != 20260725 || stats.OrderFlowerFinishNum != 0 {
+		t.Fatalf("stats after sparse rollover=%+v, want day 20260725 finish 0", stats)
 	}
 }
 

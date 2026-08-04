@@ -1028,6 +1028,29 @@ func TestIsWaterDropResourceRejectedError(t *testing.T) {
 	}
 }
 
+func TestFlowerArtMaterialRejectedItemID(t *testing.T) {
+	err := errors.New(`rpc flowerArt.makeFlowerArt: server: {"code":301,"param":{"iid":23022}}`)
+	if got := flowerArtMaterialRejectedItemID(clientproto.RPCFlowerArtMakeFlowerArt.String(), err); got != 23022 {
+		t.Fatalf("flowerArtMaterialRejectedItemID=%d, want 23022", got)
+	}
+	if !isFlowerArtMaterialRejectedError(clientproto.RPCFlowerArtMakeFlowerArt.String(), err) {
+		t.Fatal("isFlowerArtMaterialRejectedError = false, want true")
+	}
+	if isFlowerArtMaterialRejectedError(clientproto.RPCFlowerRackSell.String(), err) {
+		t.Fatal("isFlowerArtMaterialRejectedError matched the wrong rpc")
+	}
+	if isFlowerArtMaterialRejectedError(clientproto.RPCFlowerArtMakeFlowerArt.String(), errors.New(`{"code":301,"param":{"iid":0}}`)) {
+		t.Fatal("isFlowerArtMaterialRejectedError matched iid 0")
+	}
+	rpcErr := &babigame.RPCServerError{
+		Name:     clientproto.RPCFlowerArtMakeFlowerArt,
+		Envelope: babigame.WSResponseD{M: json.RawMessage(`{"code":301,"param":{"iid":23022}}`)},
+	}
+	if got := flowerArtMaterialRejectedItemID(clientproto.RPCFlowerArtMakeFlowerArt.String(), rpcErr); got != 23022 {
+		t.Fatalf("RPCServerError itemID=%d, want 23022", got)
+	}
+}
+
 func TestClassifyOperationError(t *testing.T) {
 	cases := []struct {
 		name string
@@ -1072,6 +1095,12 @@ func TestClassifyOperationError(t *testing.T) {
 			want: operationErrorWaterDropRejected,
 		},
 		{
+			name: "flower art material rejected",
+			kind: clientproto.RPCFlowerArtMakeFlowerArt.String(),
+			err:  errors.New(`rpc flowerArt.makeFlowerArt: server: {"code":301,"param":{"iid":23022}}`),
+			want: operationErrorFlowerArtMaterialRejected,
+		},
+		{
 			name: "task group finished",
 			kind: clientproto.RPCTaskDlyRecv.String(),
 			err:  errors.New("rpc taskDly.recv: server: 本组任务已经完结"),
@@ -1103,6 +1132,34 @@ func TestClassifyOperationError(t *testing.T) {
 				t.Fatalf("classifyOperationError()=%s, want %s", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestHandleOperationErrorFlowerArtMaterialRejected(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	r := newOperationEventTestRunner()
+	r.state.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23022": 5}}},
+	})
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCFlowerArtMakeFlowerArt.String(),
+		Lane:     automation.LaneSide,
+		Category: automation.CategoryFlowerArt,
+		Domain:   automation.GoalFlowerArt,
+		Action:   "craft",
+		ItemID:   300504,
+		Count:    1,
+	}
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              errors.New(`rpc flowerArt.makeFlowerArt: server: {"code":301,"param":{"iid":23022}}`),
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if got := r.state.Inventory()[23022]; got != 0 {
+		t.Fatalf("Inventory[23022]=%d, want 0 after material rejection", got)
 	}
 }
 

@@ -16,19 +16,22 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	task := basic.GetTask()
 	benefit := basic.GetBenefit()
 	sign := basic.GetSign()
-	add := func(enabled bool, kind, domain, action, reason string, priority int32, targetID int32) {
+	add := func(enabled bool, kind, domain, action, reason string, priority int32, targetID int32, category string) {
 		if !enabled {
 			return
 		}
-		goal := Goal{ID: domain, Category: CategoryBasic, Domain: domain, Label: domain, Priority: priority / 100}
+		if category == "" {
+			category = CategoryBasic
+		}
+		goal := Goal{ID: domain, Category: category, Domain: domain, Label: domain, Priority: priority / 100}
 		ops = append(ops, op(kind, goal, action, reason, priority, targetID, 0, 0))
 	}
 	if basic.GetWaterwheelEnabled() && waterClaimAllowed(s, basic, now) && s.WaterwheelCooldownReady() {
-		add(true, clientproto.RPCWaterwheelRecv.String(), "basic.waterwheel", "claim", "水车水滴可领取", 6500, 0)
+		add(true, clientproto.RPCWaterwheelRecv.String(), "basic.waterwheel", "claim", "水车水滴可领取", 6500, 0, CategoryWater)
 	}
 	if basic.GetFreeWaterEnabled() && waterClaimAllowed(s, basic, now) {
 		if idx, ok := s.NextFreeWaterIndex(now); ok {
-			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx)
+			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx, CategoryWater)
 		}
 	}
 	// Only during 04:30–05:00 Asia/Shanghai. Count comes from the same
@@ -62,9 +65,9 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	if benefit.GetAntiScamBoxEnabled() {
 		if status, ok := s.AntiFraudQAStatus(); ok && status != state.AntiFraudQAStatusClaimed {
 			if status == 1 {
-				add(true, clientproto.RPCUsrExtraRecvAntiFraudQARwd.String(), "basic.benefit.anti_scam", "claim", "防骗宝箱问答奖励可领取", 6370, 0)
+				add(true, clientproto.RPCUsrExtraRecvAntiFraudQARwd.String(), "basic.benefit.anti_scam", "claim", "防骗宝箱问答奖励可领取", 6370, 0, CategoryBasic)
 			} else {
-				add(true, clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(), "basic.benefit.anti_scam", "answer", "防骗宝箱问答未完成，更新问答状态", 6375, 0)
+				add(true, clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String(), "basic.benefit.anti_scam", "answer", "防骗宝箱问答未完成，更新问答状态", 6375, 0, CategoryBasic)
 			}
 		}
 	}
@@ -73,13 +76,13 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	}
 	if task.GetDailyEnabled() {
 		for _, id := range s.ReadyDailyTaskIDs() {
-			add(true, clientproto.RPCTaskDlyRecv.String(), "basic.task.daily", "claim", "每日任务奖励可领取", 6250, id)
+			add(true, clientproto.RPCTaskDlyRecv.String(), "basic.task.daily", "claim", "每日任务奖励可领取", 6250, id, CategoryBasic)
 			break
 		}
 	}
 	if task.GetWeeklyEnabled() {
 		for _, id := range s.ReadyWeeklyTaskIDs() {
-			add(true, clientproto.RPCTaskWeekRecv.String(), "basic.task.weekly", "claim", "每周任务奖励可领取", 6200, id)
+			add(true, clientproto.RPCTaskWeekRecv.String(), "basic.task.weekly", "claim", "每周任务奖励可领取", 6200, id, CategoryBasic)
 			break
 		}
 	}
@@ -88,13 +91,13 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	}
 	if task.GetAchievementEnabled() {
 		for _, id := range s.ReadyAchievementTaskIDs() {
-			add(true, clientproto.RPCTaskAchRecv.String(), "basic.task.achievement", "claim", "成就任务奖励可领取", 6120, id)
+			add(true, clientproto.RPCTaskAchRecv.String(), "basic.task.achievement", "claim", "成就任务奖励可领取", 6120, id, CategoryBasic)
 			break
 		}
 	}
 	if basic.GetRoadGrowRewardEnabled() {
 		for _, id := range s.ReadyRoadGrowTaskIDs() {
-			add(true, clientproto.RPCRoadGrowRecv.String(), "basic.road_grow", "claim", "成长之路奖励可领取", 5980, id)
+			add(true, clientproto.RPCRoadGrowRecv.String(), "basic.road_grow", "claim", "成长之路奖励可领取", 5980, id, CategoryBasic)
 			break
 		}
 	}
@@ -104,7 +107,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	ops = append(ops, zooOperations(s, basic.GetZoo(), now)...)
 	if basic.GetMailEnabled() {
 		if !s.MailObserved() {
-			add(true, clientproto.RPCMailGetList.String(), "basic.mail", "sync", "邮件列表未同步，先获取列表", 5700, 0)
+			add(true, clientproto.RPCMailGetList.String(), "basic.mail", "sync", "邮件列表未同步，先获取列表", 5700, 0, CategoryBasic)
 		} else {
 			goal := Goal{ID: "basic.mail", Category: CategoryBasic, Domain: "basic.mail", Label: "邮件", Priority: 57}
 			for _, target := range s.ReadyMailPickTargets() {
@@ -349,12 +352,13 @@ func waterClaimAllowed(s *state.State, basic *pb.BasicPolicy, now time.Time) boo
 	if s == nil {
 		return false
 	}
-	waterDrops, total, _ := s.AvailableWaterDrops(now)
-	if total > 0 && waterDrops >= total {
-		return false
-	}
-	if threshold := basic.GetWaterClaimThreshold(); threshold > 0 && waterDrops >= threshold {
-		return false
+	// Regen capacity (e.g. 130) only caps natural recovery. Waterwheel / free-water
+	// claims can push inventory above that, so do not gate them on capacity.
+	if threshold := basic.GetWaterClaimThreshold(); threshold > 0 {
+		waterDrops, _, _ := s.AvailableWaterDrops(now)
+		if waterDrops >= threshold {
+			return false
+		}
 	}
 	return true
 }

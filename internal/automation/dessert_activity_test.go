@@ -17,20 +17,19 @@ func TestDessertPolicyDefaultsAndUnverifiedSwitchesFailClosed(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
 	for _, tc := range []struct {
-		name     string
-		activity bool
-		module   bool
-		bools    map[string]bool
+		name   string
+		module bool
+		bools  map[string]bool
 	}{
-		{name: "missing bools", activity: true, module: true},
-		{name: "activity disabled", module: true, bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
-		{name: "module disabled", activity: true, bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
-		{name: "unverified switches cannot execute", activity: true, module: true, bools: map[string]bool{
+		{name: "missing bools", module: true},
+		{name: "module disabled", bools: map[string]bool{dessertAutoClaimTaskRewardsKey: true}},
+		{name: "unverified switches cannot execute", module: true, bools: map[string]bool{
 			dessertAutoClaimProgressBoxesKey: true, "auto_play": true,
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			policy := dessertPlannerPolicy(tc.activity, tc.module, tc.bools)
+			// Parent ActivityPolicy.enabled is ignored; pass false intentionally.
+			policy := dessertPlannerPolicy(false, tc.module, tc.bools)
 			if got := dessertPlanOperations(BuildPlan(s, policy, now).Operations); len(got) != 0 {
 				t.Fatalf("dessert operations=%+v, want none", got)
 			}
@@ -151,6 +150,7 @@ func TestDessertFeatureCatalogUsesActionLevelSafety(t *testing.T) {
 func dessertPlannerPolicy(activityEnabled, moduleEnabled bool, bools map[string]bool) *pb.Policy {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
+	//nolint:staticcheck // The test intentionally verifies that the deprecated parent flag is ignored.
 	policy.Activity.Enabled = activityEnabled
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		dessertModuleKey: {Enabled: moduleEnabled, BoolParams: bools},

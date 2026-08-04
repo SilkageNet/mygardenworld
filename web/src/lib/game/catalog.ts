@@ -124,3 +124,101 @@ export function itemColorClass(item?: ItemInfo): string {
 export function allCatalogItems(): ItemInfo[] {
   return Object.values(gameCatalog.items);
 }
+
+// Mirrors backend c_lvl.$max / c_lvl[level].exp used by ExperienceToNextLevel.
+const PLAYER_MAX_LEVEL = 65;
+const PLAYER_LEVEL_EXP_REQUIRED: Record<number, number> = {
+  1: 40,
+  2: 120,
+  3: 320,
+  4: 650,
+  5: 1000,
+  6: 2100,
+  7: 3250,
+  8: 5000,
+  9: 7500,
+  10: 12000,
+  11: 13500,
+  12: 16300,
+  13: 19200,
+  14: 31000,
+  15: 36500,
+  16: 43900,
+  17: 51800,
+  18: 61600,
+  19: 81400,
+  20: 95100,
+  21: 116600,
+  22: 120400,
+  23: 129900,
+  24: 141000,
+  25: 415000,
+  26: 475000,
+  27: 708000,
+  28: 839000,
+  29: 1035000,
+  30: 1630000,
+  31: 2204000,
+  32: 2324000,
+  33: 2871000,
+  34: 3566000,
+  35: 3741000,
+  36: 4398000,
+  37: 5257000,
+  38: 6159000,
+  39: 7230000,
+  40: 8502000,
+  41: 9919000,
+  42: 11570000,
+  43: 13455000,
+  44: 15619000,
+  45: 18358000,
+  46: 22921000,
+  47: 24961000,
+  48: 27748000,
+  49: 33258000,
+  50: 40225000,
+  51: 49094000,
+  52: 60239000,
+  53: 74873000,
+  54: 93445000,
+  55: 117757000,
+  56: 139135000,
+  57: 181626000,
+  58: 241626000,
+  59: 321626000,
+  60: 471676000,
+  61: 671876070,
+  62: 922476120,
+  63: 1230484920,
+  64: 1730817920,
+};
+
+export function playerMaxLevel() {
+  return PLAYER_MAX_LEVEL;
+}
+
+export function playerLevelExpRequired(level: number) {
+  if (level <= 0) return undefined;
+  const required = PLAYER_LEVEL_EXP_REQUIRED[level];
+  return required && required > 0 ? required : undefined;
+}
+
+/** Remaining within-level XP to advance; mirrors backend ExperienceToNextLevel. */
+export function experienceToNextLevel(level: number, experience: number) {
+  if (level <= 0) {
+    return { remaining: 0, required: 0, maxed: false };
+  }
+  if (level >= PLAYER_MAX_LEVEL) {
+    return { remaining: 0, required: 0, maxed: true };
+  }
+  const required = playerLevelExpRequired(level);
+  if (!required) {
+    return { remaining: 0, required: 0, maxed: true };
+  }
+  return {
+    remaining: Math.max(0, required - experience),
+    required,
+    maxed: false,
+  };
+}

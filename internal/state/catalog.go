@@ -232,6 +232,25 @@ type CyclicNoteCatalog struct {
 	TaskSlotCount  int32
 }
 
+// CyclicStoryCatalog describes the static c_act metadata shared by every
+// 莳花纪闻 batch. Runtime batch ids and dates still come from namespace 23.
+type CyclicStoryCatalog struct {
+	TmpType        int32
+	Name           string
+	CurrencyItemID int32
+}
+
+// CyclicStoryOrderInfo is one fully validated c_actCyclicStory order row.
+// Unknown or malformed rows retain OrderID while CatalogKnown remains false.
+type CyclicStoryOrderInfo struct {
+	OrderID      int32
+	Group        int32
+	Cost         int32
+	Weight       int32
+	Reward       []ItemCount
+	CatalogKnown bool
+}
+
 // CyclicNoteTaskInfo is one fully validated c_actCyclicNote task joined with
 // its c_task_type description. Unknown or malformed rows retain TaskID while
 // CatalogKnown remains false, so runtime task-list positions can still be
@@ -510,6 +529,63 @@ func CyclicNoteCatalogConfig() (CyclicNoteCatalog, bool) {
 		CurrencyItemID: currencyID,
 		TaskSlotCount:  slotCount,
 	}, true
+}
+
+// CyclicStoryCatalogConfig returns the validated static configuration shared
+// by cyclic-story batches. The batch itself is deliberately not hard-coded:
+// namespace 23 selects it dynamically by TmpType.
+func CyclicStoryCatalogConfig() (CyclicStoryCatalog, bool) {
+	const cyclicStoryTmpType int32 = 4003
+	raw, ok := StaticRow("c_act", cyclicStoryTmpType)
+	if !ok {
+		return CyclicStoryCatalog{}, false
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return CyclicStoryCatalog{}, false
+	}
+	id, idOK := readStoryMainInt32(row["id"])
+	var name string
+	nameOK := json.Unmarshal(row["name"], &name) == nil && strings.TrimSpace(name) != ""
+	currencyID, currencyOK := readSinglePositiveCatalogID(row["scoreId"])
+	if !idOK || id != cyclicStoryTmpType || !nameOK || !currencyOK {
+		return CyclicStoryCatalog{}, false
+	}
+	return CyclicStoryCatalog{
+		TmpType:        cyclicStoryTmpType,
+		Name:           strings.TrimSpace(name),
+		CurrencyItemID: currencyID,
+	}, true
+}
+
+// CyclicStoryOrderInfoByID joins a c_actCyclicStory row. Unknown or malformed
+// rows retain OrderID while CatalogKnown remains false.
+func CyclicStoryOrderInfoByID(orderID int32) CyclicStoryOrderInfo {
+	unknown := CyclicStoryOrderInfo{OrderID: orderID}
+	if orderID <= 0 {
+		return unknown
+	}
+	raw, ok := StaticRow("c_actCyclicStory", orderID)
+	if !ok {
+		return unknown
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return unknown
+	}
+	id, idOK := readStoryMainInt32(row["id"])
+	group, groupOK := readStoryMainInt32(row["group"])
+	cost, costOK := readStoryMainInt32(row["cost"])
+	weight, weightOK := readStoryMainInt32(row["weight"])
+	reward, rewardOK := parseStoryMainCost(row["items"])
+	if !idOK || id != orderID || !groupOK || group <= 0 || !costOK || cost <= 0 ||
+		!weightOK || weight <= 0 || !rewardOK || len(reward) == 0 {
+		return unknown
+	}
+	return CyclicStoryOrderInfo{
+		OrderID: orderID, Group: group, Cost: cost, Weight: weight,
+		Reward: cloneCyclicNoteItems(reward), CatalogKnown: true,
+	}
 }
 
 // CyclicNoteTaskInfoByID joins a c_actCyclicNote row with c_task_type. The
@@ -1187,6 +1263,60 @@ func FlowerMaxLevel() int32 {
 		_ = json.Unmarshal(rawMax, &max)
 	}
 	return max
+}
+
+// PlayerMaxLevel returns the configured player level cap from c_lvl.$max.
+func PlayerMaxLevel() int32 {
+	raw, ok := StaticRow("c_lvl", -1)
+	if !ok {
+		return 0
+	}
+	var row struct {
+		Max int32 `json:"$max"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return 0
+	}
+	return row.Max
+}
+
+// PlayerLevelExpRequired returns the within-level experience needed to advance
+// from the given player level. Level 65 (the configured cap) has no exp row.
+func PlayerLevelExpRequired(level int32) (required int32, ok bool) {
+	if level <= 0 {
+		return 0, false
+	}
+	raw, exists := StaticRow("c_lvl", level)
+	if !exists {
+		return 0, false
+	}
+	var row struct {
+		Exp int32 `json:"exp"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.Exp <= 0 {
+		return 0, false
+	}
+	return row.Exp, true
+}
+
+// ExperienceToNextLevel returns remaining XP to the next player level.
+// Namespace 7.0.35 experience is progress within the current level; c_lvl[level].exp
+// is the requirement to advance. maxed is true at the configured level cap.
+func ExperienceToNextLevel(level, experience int32) (remaining, required int32, maxed bool) {
+	if level <= 0 {
+		return 0, 0, false
+	}
+	if maxLevel := PlayerMaxLevel(); maxLevel > 0 && level >= maxLevel {
+		return 0, 0, true
+	}
+	required, ok := PlayerLevelExpRequired(level)
+	if !ok {
+		return 0, 0, true
+	}
+	if experience >= required {
+		return 0, required, false
+	}
+	return required - experience, required, false
 }
 
 // MainTaskDefinition is one claimable row in the client-configured main-task

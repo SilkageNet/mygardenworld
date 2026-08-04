@@ -217,6 +217,77 @@ func TestRaceUseSpeedupTicketInTaskEnablesSpeedup(t *testing.T) {
 	}
 }
 
+// TestRaceSpeedupOnlyTargetsRaceFlower ensures race-only accel does not burn
+// tickets on unrelated growing crops sharing the field (Siri-style mixed plot).
+func TestRaceSpeedupOnlyTargetsRaceFlower(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 2, 10)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 5},
+		}},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()}, // race flower
+			"1002": map[string]any{"0": 23002, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()}, // other crop
+			"1003": map[string]any{"0": 23002, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+		}},
+	})
+	policy := racePlantPolicy(true)
+
+	result := BuildPlan(s, policy, now)
+	var speed *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			speed = op
+			break
+		}
+	}
+	if speed == nil {
+		t.Fatalf("expected race flower speedup, ops=%+v", result.Operations)
+	}
+	if len(speed.LandIDs) != 1 || speed.LandIDs[0] != 1001 {
+		t.Fatalf("race speedup LandIDs=%v, want only [1001]", speed.LandIDs)
+	}
+	if speed.ItemCost[1001] != 1 {
+		t.Fatalf("ItemCost=%v, want 1 ticket", speed.ItemCost)
+	}
+}
+
+func TestGlobalSpeedUpTicketStillCoversAllGrowingLands(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 2, 10)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 5},
+		}},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+			"1002": map[string]any{"0": 23002, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+		}},
+	})
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.UseSpeedUpTicket = true
+
+	result := BuildPlan(s, policy, now)
+	var speed *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			speed = op
+			break
+		}
+	}
+	if speed == nil {
+		t.Fatalf("expected global speedup, ops=%+v", result.Operations)
+	}
+	if len(speed.LandIDs) != 2 {
+		t.Fatalf("global speedup LandIDs=%v, want both growing lands", speed.LandIDs)
+	}
+}
+
 func TestRaceNoSpeedupWhenFlagOff(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := raceTakenPlantState(t, 2, 10)

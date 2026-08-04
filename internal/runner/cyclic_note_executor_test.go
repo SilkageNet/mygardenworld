@@ -425,6 +425,7 @@ func TestCyclicNotePolicyFlagsAreExplicitAndIndependent(t *testing.T) {
 	}
 
 	policy.AutomationEnabled = true
+	//nolint:staticcheck // Keep coverage for compatibility with persisted legacy policy JSON.
 	policy.Activity.Enabled = true
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		cyclicNoteModuleID: {Enabled: true, BoolParams: map[string]bool{}},

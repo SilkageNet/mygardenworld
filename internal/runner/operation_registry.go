@@ -554,6 +554,18 @@ var plannedOperationSpecs = map[string]operationSpec{
 		args: func(op *automation.PlannedOp) (any, error) { return cyclicNoteMilestoneClaimRequest(op) },
 		run:  runCyclicNoteMilestoneClaim,
 	},
+	clientproto.RPCActCyclicStoryEnter.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return cyclicStoryEnterRequest(op) },
+		run:  runCyclicStoryEnter,
+	},
+	clientproto.RPCActCyclicStoryRecvOrderRwd.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return cyclicStoryOrderClaimRequest(op) },
+		run:  runCyclicStoryOrderClaim,
+	},
+	clientproto.RPCActCyclicStoryRecv.String(): {
+		args: func(op *automation.PlannedOp) (any, error) { return cyclicStoryMilestoneClaimRequest(op) },
+		run:  runCyclicStoryMilestoneClaim,
+	},
 	clientproto.RPCActDessertEnter.String(): {
 		args: func(op *automation.PlannedOp) (any, error) { return dessertEnterRequest(op) },
 		run:  runDessertEnter,

@@ -25,6 +25,7 @@ func TestDessertRuntimePolicyIsFourLayeredAndBounded(t *testing.T) {
 	}
 
 	policy.AutomationEnabled = true
+	//nolint:staticcheck // Exercise compatibility with persisted legacy policy JSON.
 	policy.Activity.Enabled = true
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		dessertModuleID: {
@@ -481,6 +482,7 @@ func newDessertRuntimeTestRunner(t *testing.T, running bool, curID, step int32) 
 func dessertRuntimePolicy(autoPlay bool) *pb.Policy {
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
+	//nolint:staticcheck // Exercise compatibility with persisted legacy policy JSON.
 	policy.Activity.Enabled = true
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		dessertModuleID: {

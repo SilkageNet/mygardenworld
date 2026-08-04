@@ -1117,6 +1117,51 @@ func TestUnionRaceCustomerProgressSyncAfterInterval(t *testing.T) {
 	}
 }
 
+func TestRaceNeedsFinishProgressSyncCooldown(t *testing.T) {
+	view := state.FmlRaceView{
+		TasksObserved:       true,
+		TasksSyncedAtMs:     1_700_000_000_000,
+		Taken:               state.FmlRaceTakenView{HasTask: true, TaskMsId: 715, TargetCnt: 300, FinishCnt: 48},
+		LocalFinishTaskMsId: 715,
+		LocalFinishCnt:      300,
+	}
+	within := time.UnixMilli(view.TasksSyncedAtMs).Add(time.Second)
+	if raceNeedsFinishProgressSync(view, within) {
+		t.Fatal("must not re-sync within raceFinishProgressSyncInterval")
+	}
+	due := time.UnixMilli(view.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval + time.Second)
+	if !raceNeedsFinishProgressSync(view, due) {
+		t.Fatal("must sync after raceFinishProgressSyncInterval")
+	}
+}
+
+func TestUnionRaceFinishProgressSyncRespectsCooldown(t *testing.T) {
+	s := state.New()
+	// Held plant-harvest at 48/300; field 134 raises LocalFinishCnt to 300.
+	// Include 117 raceLvl so planner does not divert to enter for tier sync.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"117":{"5":4},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1785368365572},"4":1785358559363}}}}`))
+	// Re-apply pool so FinishCnt stays lagging at 48 while LocalFinish is 300.
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	got := s.FmlRace()
+	if got.LocalFinishCnt < 300 || got.Taken.FinishCnt != 48 {
+		t.Fatalf("seed local=%d finish=%d, want local>=300 finish=48", got.LocalFinishCnt, got.Taken.FinishCnt)
+	}
+	policy := testRacePolicy()
+	now := time.UnixMilli(got.TasksSyncedAtMs).Add(time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, true)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("finish-progress sync must respect cooldown, got %+v", ops)
+		}
+	}
+	later := time.UnixMilli(got.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval + time.Second)
+	ops = unionRaceOperations(s, policy, 999, later, true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected finish-progress sync after cooldown, got %+v", ops)
+	}
+}
+
 func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()

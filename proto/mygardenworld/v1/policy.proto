@@ -327,7 +327,8 @@ message UnionLandPolicy {
 }
 
 message ActivityPolicy {
-  bool enabled = 1;
+  // Deprecated: ignored. Each ActivityModulePolicy.enabled gates its own module.
+  bool enabled = 1 [deprecated = true];
   map<string, ActivityModulePolicy> modules = 2;
 }
 
