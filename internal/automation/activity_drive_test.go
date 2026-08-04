@@ -115,7 +115,6 @@ func TestCyclicNoteActionDemandRequiresAllActivityGates(t *testing.T) {
 		mutate func(*pb.Policy)
 	}{
 		{name: "global automation", mutate: func(p *pb.Policy) { p.AutomationEnabled = false }},
-		{name: "activity", mutate: func(p *pb.Policy) { p.Activity.Enabled = false }},
 		{name: "cyclic note module", mutate: func(p *pb.Policy) { p.Activity.Modules[cyclicNoteModuleKey].Enabled = false }},
 		{name: "satisfy tasks", mutate: func(p *pb.Policy) {
 			p.Activity.Modules[cyclicNoteModuleKey].BoolParams[cyclicNoteSatisfyTasksKey] = false

@@ -275,7 +275,7 @@ func executeCyclicNoteMilestoneClaim(ctx context.Context, req clientproto.ActCyc
 
 func (r *Runner) cyclicNoteAnyPolicyFlag(keys ...string) bool {
 	policy := r.Policy()
-	if !policy.GetAutomationEnabled() || !policy.GetActivity().GetEnabled() {
+	if !policy.GetAutomationEnabled() {
 		return false
 	}
 	module := policy.GetActivity().GetModules()[cyclicNoteModuleID]

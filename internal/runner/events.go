@@ -222,6 +222,12 @@ func opKindDesc(kind string) string {
 		return "领取花笺集芳任务奖励"
 	case clientproto.RPCActCyclicNoteRecv.String():
 		return "领取花笺集芳里程碑奖励"
+	case clientproto.RPCActCyclicStoryEnter.String():
+		return "同步莳花纪闻订单"
+	case clientproto.RPCActCyclicStoryRecvOrderRwd.String():
+		return "领取莳花纪闻订单奖励"
+	case clientproto.RPCActCyclicStoryRecv.String():
+		return "领取莳花纪闻里程碑奖励"
 	case clientproto.RPCTaskAchRecv.String():
 		return "领取成就任务"
 	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():
@@ -268,6 +274,10 @@ func opKindDesc(kind string) string {
 		return "花艺上架"
 	case clientproto.RPCFlowerRackRecvSellMoney.String():
 		return "花艺售出领取"
+	case clientproto.RPCWaterwheelRecv.String():
+		return "水车水滴"
+	case clientproto.RPCFreeWaterRecv.String():
+		return "限时水滴"
 	case clientproto.RPCOrderFlowerFinishOrder.String():
 		return "普通居民订单"
 	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
@@ -323,7 +333,9 @@ func eventCategory(kind string) string {
 		return "plant"
 	case "resource_changed", "inventory_changed":
 		return "basic"
-	case "waterwheel", "free_water", "benefit_box", "mail_claim", "sign_claim", "random_event":
+	case "waterwheel", "free_water":
+		return "water"
+	case "benefit_box", "mail_claim", "sign_claim", "random_event":
 		return "basic"
 	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
 		return "basic"
@@ -335,6 +347,8 @@ func eventCategory(kind string) string {
 		return "union"
 	case "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
 		return "race"
+	case "activity_cyclic_story_order", "activity_cyclic_story_enter", "activity_cyclic_story_progress":
+		return "activity"
 	case "cultivate_recv", "cultivate_new", "flower_upgrade":
 		return "plant"
 	default:
@@ -344,7 +358,7 @@ func eventCategory(kind string) string {
 
 func normalizeEventCategory(category, kind string) string {
 	switch category {
-	case "account", "basic", "plant", "order", "flower_art", "union", "race", "activity", "redeem", "system":
+	case "account", "basic", "plant", "order", "flower_art", "water", "union", "race", "activity", "redeem", "system":
 		return category
 	case "session":
 		return "account"
@@ -374,9 +388,9 @@ func eventDomain(kind string) string {
 	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
 		return "farm.operation"
 	case "waterwheel":
-		return "basic.waterwheel"
+		return "water.waterwheel"
 	case "free_water":
-		return "basic.free_water"
+		return "water.free_water"
 	case "benefit_box":
 		return "basic.benefit"
 	case "mail_claim":
@@ -485,9 +499,9 @@ func eventLabel(kind string) string {
 	case "policy_changed":
 		return "策略"
 	case "waterwheel":
-		return "水车"
+		return "水车水滴"
 	case "free_water":
-		return "水滴"
+		return "限时水滴"
 	case "benefit_box":
 		return "福利箱"
 	case "mail_claim":

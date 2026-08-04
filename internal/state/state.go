@@ -111,10 +111,10 @@ type State struct {
 	// operation cooldowns — the planner must consult state, not cooldowns.
 	residentSatinLimitUntilMs    int64
 	residentDecorateLimitUntilMs int64
-	// Bias tracks successful finishOrder calls only while namespace 124 has
-	// never been observed, so the policy daily limit still works before the
-	// first statistics sync. Once system stats exist, ResidentOrderFinishNum
-	// uses orderFlowerFinishNum exclusively.
+	// Bias tracks successful finishOrder calls since the last authoritative
+	// namespace-124 field-9 apply, so the policy daily limit still works when
+	// statistics are missing or lag behind (including after 00:05 while the
+	// prior game-day snapshot is still the latest Observed DayID).
 	residentOrderFinishBias      int32
 	residentOrderFinishBiasDayID int32
 	residentSatinOrder           ResidentSpecialOrder

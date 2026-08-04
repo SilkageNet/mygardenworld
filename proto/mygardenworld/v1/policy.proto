@@ -149,6 +149,11 @@ message PlantingPolicy {
   // When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
   // Otherwise only the selected qualities are eligible for autonomous replanting.
   repeated int32 auto_replant_qualities = 19;
+  // Minimum cultivate level for autonomous empty-land replanting. 0 means no
+  // level filter. When set (e.g. 11), only flowers at that level or above are
+  // planted (through FlowerMaxLevel, typically 20). Does not restrict
+  // demand-driven planting for tasks/orders.
+  int32 auto_replant_min_level = 20;
 }
 
 message FriendStealPolicy {
@@ -322,7 +327,8 @@ message UnionLandPolicy {
 }
 
 message ActivityPolicy {
-  bool enabled = 1;
+  // Deprecated: ignored. Each ActivityModulePolicy.enabled gates its own module.
+  bool enabled = 1 [deprecated = true];
   map<string, ActivityModulePolicy> modules = 2;
 }
 

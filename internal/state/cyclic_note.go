@@ -36,6 +36,7 @@ type activityBatchState struct {
 	FinishCountObserved bool
 	FinishCountValid    bool
 	LastRefreshTimeMs   int64
+	Story               cyclicStoryActivityState
 	Dessert             dessertActivityState
 }
 
@@ -179,6 +180,7 @@ func mergeActivityBatchFields(batch *activityBatchState, fields map[string]json.
 	}
 	if rawExt, present := fields["14"]; present {
 		mergeCyclicNoteExtension(batch, rawExt)
+		mergeCyclicStoryExtension(batch, rawExt)
 		mergeDessertExtension(batch, rawExt)
 	}
 }

@@ -120,6 +120,8 @@ import type {
   CyclicNoteMilestone,
   CyclicNoteTaskSlot,
   CyclicNoteView,
+  CyclicStoryOrder,
+  CyclicStoryView,
   DessertCelebrityLikeView,
   DessertMilestoneView,
   DessertModeView,
@@ -325,6 +327,17 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
     ],
   },
   {
+    id: "actCyclicStory",
+    label: "莳花纪闻",
+    boolParams: [
+      { key: "auto_claim_order_rewards", label: "自动领取订单奖励" },
+      { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
+    ],
+    intParams: [
+      { key: "max_score", label: "分数上限（0=不限制）", defaultValue: 0, min: 0 },
+    ],
+  },
+  {
     id: "actDessert",
     label: "香卉甜糕",
     boolParams: [
@@ -372,6 +385,7 @@ function DashboardContent() {
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [busyAction, setBusyAction] = useState("");
   const [busyAutomationAccountId, setBusyAutomationAccountId] = useState("");
+  const [busyBulkAutomation, setBusyBulkAutomation] = useState<"" | "start" | "pause">("");
   const [error, setError] = useState("");
   const [policyMessage, setPolicyMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -614,6 +628,7 @@ function DashboardContent() {
   }
 
   async function runAutomationToggle(accountId: string) {
+    if (busyBulkAutomation) return;
     const account = accountsRef.current.find((item) => item.id === accountId);
     const status = statusesRef.current.get(accountId);
     const online = account ? accountConnected(account, status) : Boolean(status?.connected);
@@ -656,6 +671,7 @@ function DashboardContent() {
   }
 
   async function runAutomationStop(accountId: string) {
+    if (busyBulkAutomation) return;
     setBusyAutomationAccountId(accountId);
     setError("");
     try {
@@ -687,6 +703,72 @@ function DashboardContent() {
       await refreshStatus().catch(() => undefined);
     } finally {
       setBusyAutomationAccountId("");
+    }
+  }
+
+  async function runAutomationBulk(action: "start" | "pause") {
+    if (busyBulkAutomation || busyAutomationAccountId) return;
+    const wantOnline = action === "start";
+    const targets = accountsRef.current.filter((account) => {
+      const online = accountConnected(account, statusesRef.current.get(account.id));
+      return online !== wantOnline;
+    });
+    if (targets.length === 0) return;
+
+    setBusyBulkAutomation(action);
+    setError("");
+    const failures: string[] = [];
+    let selectedTouched = false;
+
+    try {
+      for (const account of targets) {
+        setBusyAutomationAccountId(account.id);
+        try {
+          if (wantOnline) {
+            await accountClient.loginAccount({ id: account.id });
+          } else {
+            await accountClient.logoutAccount({ id: account.id });
+          }
+          setStatuses((prev) => {
+            const next = new Map(prev);
+            const current = next.get(account.id);
+            if (current) {
+              next.set(account.id, {
+                ...current,
+                connected: wantOnline,
+                automationEnabled: wantOnline,
+                health: wantOnline ? "online" : "offline",
+                ...(wantOnline ? {} : { lastError: "" }),
+              });
+            }
+            return next;
+          });
+          setAccounts((prev) =>
+            prev.map((item) => (item.id === account.id ? { ...item, connected: wantOnline } : item)),
+          );
+          if (account.id === selectedAccountId) selectedTouched = true;
+        } catch (err) {
+          failures.push(
+            `${accountNickname(account)}: ${formatAPIError(err, wantOnline ? "启动失败" : "暂停失败")}`,
+          );
+        }
+      }
+
+      await refreshStatus();
+      if (selectedTouched && selectedAccountId) {
+        await refreshPolicy(selectedAccountId);
+        await refreshSnapshot(selectedAccountId, wantOnline, { force: wantOnline });
+      }
+      if (failures.length > 0) {
+        setError(
+          failures.length === 1
+            ? failures[0]
+            : `${failures.length} 个账号失败：${failures.slice(0, 3).join("；")}${failures.length > 3 ? "…" : ""}`,
+        );
+      }
+    } finally {
+      setBusyAutomationAccountId("");
+      setBusyBulkAutomation("");
     }
   }
 
@@ -810,6 +892,7 @@ function DashboardContent() {
             loading={loading}
             quota={accountQuota}
             busyAutomationAccountId={busyAutomationAccountId}
+            busyBulkAutomation={busyBulkAutomation}
             onRefresh={() => void refreshWorkspace()}
             onAdd={() => setAddOpen(true)}
             onRedeem={() => {
@@ -821,6 +904,8 @@ function DashboardContent() {
             onSelect={setSelectedAccountId}
             onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
             onAutomationStop={(accountId) => void runAutomationStop(accountId)}
+            onBulkStart={() => void runAutomationBulk("start")}
+            onBulkPause={() => void runAutomationBulk("pause")}
           />
         </aside>
 
@@ -985,12 +1070,15 @@ function AccountListPanel({
   loading,
   quota,
   busyAutomationAccountId,
+  busyBulkAutomation,
   onRefresh,
   onAdd,
   onRedeem,
   onSelect,
   onAutomationToggle,
   onAutomationStop,
+  onBulkStart,
+  onBulkPause,
 }: {
   accounts: Account[];
   statuses: Map<string, AccountStatus>;
@@ -998,15 +1086,20 @@ function AccountListPanel({
   loading: boolean;
   quota: AccountQuota | null;
   busyAutomationAccountId: string;
+  busyBulkAutomation: "" | "start" | "pause";
   onRefresh: () => void;
   onAdd: () => void;
   onRedeem: () => void;
   onSelect: (accountId: string) => void;
   onAutomationToggle: (accountId: string) => void;
   onAutomationStop: (accountId: string) => void;
+  onBulkStart: () => void;
+  onBulkPause: () => void;
 }) {
   const hasAccounts = accounts.length > 0;
   const quotaReached = quota?.reached ?? false;
+  const bulkBusy = busyBulkAutomation !== "";
+  const automationLocked = bulkBusy || busyAutomationAccountId !== "";
   return (
     <Card className={cn("cloud-surface min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
       <CardHeader className="border-b border-border/45 pb-2.5 sm:pb-3">
@@ -1023,11 +1116,11 @@ function AccountListPanel({
             )}
           </div>
           <div className="flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="刷新" disabled={loading}>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="刷新" disabled={loading || bulkBusy}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
             {hasAccounts && (
-              <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码">
+              <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码" disabled={bulkBusy}>
                 <Ticket className="size-4" />
               </Button>
             )}
@@ -1038,13 +1131,48 @@ function AccountListPanel({
                 size="icon-sm"
                 onClick={onAdd}
                 aria-label="新增账号"
-                disabled={quotaReached}
+                disabled={quotaReached || bulkBusy}
               >
                 <Plus className="size-4" />
               </Button>
             )}
           </div>
         </div>
+        {hasAccounts && (
+          <div className="mt-2.5 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 flex-1 px-2"
+              aria-label="一键启动全部账号"
+              disabled={automationLocked}
+              onClick={onBulkStart}
+            >
+              {busyBulkAutomation === "start" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Play className="size-3.5" />
+              )}
+              一键启动
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 flex-1 px-2"
+              aria-label="一键暂停全部账号"
+              disabled={automationLocked}
+              onClick={onBulkPause}
+            >
+              {busyBulkAutomation === "pause" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Pause className="size-3.5" />
+              )}
+              一键暂停
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
         {!hasAccounts ? (
@@ -1067,7 +1195,8 @@ function AccountListPanel({
               const identity = accountIdentity(account);
               const online = accountConnected(account, status);
               const abnormal = accountIsAbnormal(status);
-              const automationBusy = busyAutomationAccountId === account.id;
+              const automationBusy = bulkBusy || busyAutomationAccountId === account.id;
+              const automationSpinning = busyAutomationAccountId === account.id;
               return (
                 <div
                   key={account.id}
@@ -1108,7 +1237,7 @@ function AccountListPanel({
                           onAutomationToggle(account.id);
                         }}
                       >
-                        {automationBusy ? (
+                        {automationSpinning ? (
                           <Loader2 className="size-3.5 animate-spin" />
                         ) : online ? (
                           <Pause className="size-3.5" />
@@ -1130,7 +1259,7 @@ function AccountListPanel({
                             onAutomationStop(account.id);
                           }}
                         >
-                          {automationBusy ? (
+                          {automationSpinning ? (
                             <Loader2 className="size-3.5 animate-spin" />
                           ) : (
                             <Square className="size-3.5" />
@@ -1305,6 +1434,7 @@ function MonitorTab({
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
+      <CyclicStoryMonitorPanel activity={snapshot?.cyclicStory} />
       <DessertMonitorPanel activity={snapshot?.dessert} />
     </div>
   );
@@ -1979,6 +2109,138 @@ function CyclicNoteStatusBadge({ status, received, unknown = false }: { status: 
   if (status === PlanStatus.BLOCKED) return <Badge variant="destructive">阻塞</Badge>;
   if (status === PlanStatus.SYNC_ONLY) return <Badge variant="outline">进行中</Badge>;
   return <Badge variant="outline">{planStatusLabel(status)}</Badge>;
+}
+
+function CyclicStoryMonitorPanel({ activity }: { activity?: CyclicStoryView }) {
+  const phase = activity?.phase ?? 0;
+  if (!activity?.found || (phase !== 1 && phase !== 2 && phase !== 3)) {
+    return null;
+  }
+
+  const activeOrders = activity.orders.filter((order) => order.orderId > 0 && !order.onCooldown);
+  const readyOrders = activity.valid ? activeOrders.filter((order) => order.status === PlanStatus.READY).length : 0;
+  const readyMilestones = activity.valid ? activity.milestones.filter((milestone) => milestone.ready && !milestone.received).length : 0;
+
+  return (
+    <CollapsibleCard
+      title={activity.name || "莳花纪闻"}
+      contentClassName="space-y-3"
+      actions={
+        <>
+          <Badge variant={phase === 2 ? "secondary" : "outline"}>{cyclicNotePhaseLabel(phase)}</Badge>
+          <Badge variant="outline">批次 {activity.batchId}</Badge>
+          {!activity.valid && <Badge variant="destructive">配置异常</Badge>}
+          {activity.valid && !activity.milestoneReceiptsObserved && <Badge variant="outline">里程碑待同步</Badge>}
+          {readyOrders + readyMilestones > 0 && <Badge variant="secondary">可领取 {readyOrders + readyMilestones}</Badge>}
+        </>
+      }
+    >
+      {!activity.observed ? (
+        <EmptyState title="莳花纪闻状态尚未同步" detail="连接游戏后，监控会从活动状态中自动发现当前批次。" />
+      ) : !activity.valid ? (
+        <EmptyState title="莳花纪闻配置或状态异常" detail="已阻塞自动化；等待完整模板与时间状态同步后再显示订单详情。" />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <OverviewStat
+              icon={<CalendarDays />}
+              label="活动阶段"
+              value={cyclicNotePhaseLabel(phase)}
+              detail={cyclicStoryPhaseDetail(activity)}
+            />
+            <OverviewStat icon={<Trophy />} label="累计积分" value={formatCount(activity.score)} detail={`完成订单 ${formatCount(activity.finishCount)} 次`} />
+            <OverviewStat
+              icon={<Flower2 />}
+              label="花史残页"
+              value={formatCount(activity.currencyBalance)}
+              detail={activity.currencyItemId > 0 ? `${itemName(activity.currencyItemId)} #${activity.currencyItemId}` : "活动货币未识别"}
+            />
+            <OverviewStat
+              icon={<ListChecks />}
+              label="订单槽"
+              value={`${activeOrders.length}/${activity.orders.length}`}
+              detail={readyOrders > 0 ? `${readyOrders} 个订单可交` : activity.ordersObserved ? "已同步" : "等待进入活动同步"}
+            />
+          </div>
+
+          {activity.description && <div className="rounded-md border border-border/58 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">{activity.description}</div>}
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>订单详情</span>
+              <Badge variant="secondary">{activity.orders.length} 槽</Badge>
+            </div>
+            {activity.orders.length === 0 ? (
+              <div className="p-3">
+                <EmptyState title={activity.ordersObserved ? "当前没有订单槽" : "订单列表尚未同步"} />
+              </div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-3">
+                {activity.orders.map((order) => (
+                  <CyclicStoryOrderCard key={`${activity.batchId}:${order.orderIdx}:${order.orderId}`} order={order} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>积分里程碑</span>
+              <Badge variant="secondary">积分 {formatCount(activity.score)}</Badge>
+            </div>
+            {activity.milestones.length === 0 ? (
+              <div className="p-3"><EmptyState title="当前没有里程碑" /></div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-3">
+                {activity.milestones.map((milestone) => (
+                  <CyclicNoteMilestoneCard key={milestone.index} milestone={milestone} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {activity.items.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {activity.items.map((item) => (
+                <ActivityItemChip key={item.itemId} item={item} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function CyclicStoryOrderCard({ order }: { order: CyclicStoryOrder }) {
+  if (order.onCooldown || order.orderId <= 0) {
+    return (
+      <div className="rounded-md border border-dashed border-border/70 bg-muted/15 p-3 text-sm text-muted-foreground">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">订单槽 {order.orderIdx}</span>
+          <Badge variant="outline">{order.onCooldown ? "冷却中" : "空闲"}</Badge>
+        </div>
+        <div className="mt-3 text-xs">仅监控，不会自动付费刷新或清 CD。</div>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">订单槽 {order.orderIdx} · #{order.orderId}</div>
+          <div className="mt-1 line-clamp-2 font-medium">
+            {order.flowerId > 0 ? `${itemName(order.flowerId)} x${formatCount(order.cost)}` : `订单 #${order.orderId}`}
+          </div>
+        </div>
+        <CyclicNoteStatusBadge status={order.status} received={false} unknown={!order.catalogKnown} />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+        <span>奖励</span>
+        {order.reward.length > 0 ? order.reward.map((item, index) => <ActivityItemChip key={`${item.itemId}:${index}`} item={item} compact />) : <span>未配置</span>}
+      </div>
+    </div>
+  );
 }
 
 function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
@@ -3361,9 +3623,9 @@ function PolicyPanel({
             <PolicyGroup title="邮件、福利、签到" icon={<BadgeCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="邮件" checked={basic?.mailEnabled ?? false} onChange={(checked) => updateBasic({ mailEnabled: checked })} />
-                <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} />
+                <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} description="广告桶走部分领取(skip)，不看视频；每次约3–7滴，非看视频+30" />
                 <ToggleRow label="限时水滴" checked={basic?.freeWaterEnabled ?? false} onChange={(checked) => updateBasic({ freeWaterEnabled: checked })} />
-                <NumberRow label="水滴领取阈值" value={basic?.waterClaimThreshold || 0} min={0} onChange={(value) => updateBasic({ waterClaimThreshold: value })} />
+                <NumberRow label="水滴领取阈值" value={basic?.waterClaimThreshold || 0} min={0} onChange={(value) => updateBasic({ waterClaimThreshold: value })} description="当前水滴≥该值时暂停水车/限时领取；0=不限制。与自然恢复上限(如130)无关" />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="双倍金币" checked={benefit?.doubleCoinEnabled ?? false} onChange={(checked) => updateBenefit({ doubleCoinEnabled: checked })} status={SETTING_STATUS.videoTokenMissing} />}
                 <ToggleRow label="福利宝箱" checked={benefit?.boxEnabled ?? false} onChange={(checked) => updateBenefit({ boxEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="分享奖励" checked={benefit?.shareRewardEnabled ?? false} onChange={(checked) => updateBenefit({ shareRewardEnabled: checked })} status={SETTING_STATUS.syncOnly} />}
@@ -3669,9 +3931,6 @@ function PolicyPanel({
 
         {activeTab === "activity" && (
           <div className="space-y-4">
-            <PolicyGroup title="活动总开关" icon={<CalendarDays />}>
-              <ToggleRow label="活动自动化" checked={activity?.enabled ?? false} onChange={(checked) => updateActivity({ enabled: checked })} />
-            </PolicyGroup>
             <div className="grid gap-3">
               {ACTIVITY_MODULES.map((module) => {
                 const modulePolicy = activity?.modules[module.id];
@@ -4379,10 +4638,12 @@ function EventPanel({ events }: { events: Event[] }) {
     return counts;
   }, [events]);
   const categories = useMemo(() => {
-    const order = ["basic", "plant", "order", "union", "flower_art", "race", "activity", "redeem", "account", "system"];
+    const order = ["basic", "water", "plant", "order", "union", "flower_art", "race", "activity", "redeem", "account", "system"];
     const keys = new Set(categoryCounts.keys());
     keys.add("flower_art");
     keys.add("redeem");
+    keys.add("water");
+    keys.add("activity");
     return [...keys].sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
@@ -4815,6 +5076,16 @@ function cyclicNotePhaseDetail(activity: CyclicNoteView) {
   return `${prefix} ${formatRemainingMilliseconds(remaining)}`;
 }
 
+function cyclicStoryPhaseDetail(activity: CyclicStoryView) {
+  if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
+  const endMs = Number(activity.phaseEndMs);
+  if (!Number.isFinite(endMs) || endMs <= 0) return "阶段时间尚未同步";
+  const remaining = endMs - Date.now();
+  if (remaining <= 0) return "等待服务端阶段更新";
+  const prefix = activity.phase === 1 ? "距开始" : activity.phase === 3 ? "领奖剩余" : "剩余";
+  return `${prefix} ${formatRemainingMilliseconds(remaining)}`;
+}
+
 function dessertPhaseDetail(activity: DessertView) {
   if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
   const endMs = Number(activity.phaseEndMs);
@@ -5008,6 +5279,8 @@ function eventTitle(event: Event) {
   if (event.label) return event.label;
   if (event.kind === "order_satin_finish") return "绸缎订单";
   if (event.kind === "order_decorate_finish") return "建材订单";
+  if (event.kind === "waterwheel") return "水车水滴";
+  if (event.kind === "free_water") return "限时水滴";
   if (event.domain?.includes("resident.satin")) return "绸缎订单";
   if (event.domain?.includes("resident.decorate")) return "建材订单";
   return [event.domain, event.action].filter(Boolean).join(".") || event.kind || "-";
@@ -5021,6 +5294,8 @@ function categoryLabel(category: string) {
   switch (category) {
     case "basic":
       return "基础";
+    case "water":
+      return "水滴";
     case "plant":
       return "种植";
     case "order":

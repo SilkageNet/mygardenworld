@@ -12,6 +12,7 @@ const (
 	CategoryPlant     = "plant"
 	CategoryOrder     = "order"
 	CategoryFlowerArt = "flower_art"
+	CategoryWater     = "water"
 	CategoryUnion     = "union"
 	CategoryRace      = "race"
 	CategoryActivity  = "activity"

@@ -1533,6 +1533,15 @@ func (s *State) MarkFmlRaceTasksUnobserved() {
 	s.fmlRace.TasksObserved = false
 }
 
+// MarkFmlRaceTasksSynced records a successful getTaskList round-trip even when
+// the payload omitted field 114, so the planner does not re-sync every tick.
+func (s *State) MarkFmlRaceTasksSynced() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.TasksObserved = true
+	s.fmlRace.TasksSyncedAtMs = time.Now().UnixMilli()
+}
+
 // MarkFmlRaceLvlSyncAttempt records that enter was used to seek raceLvl, so the
 // planner waits before retrying when the payload still omitted the tier.
 func (s *State) MarkFmlRaceLvlSyncAttempt() {

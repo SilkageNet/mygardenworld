@@ -110,14 +110,38 @@ func (s *State) WaterwheelEnterDue(now time.Time) bool {
 	return true
 }
 
+// WaterwheelObserved reports whether namespace 114 has been applied at least once.
+func (s *State) WaterwheelObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.wwObserved
+}
+
 // MarkWaterwheelEntered starts the local bucket-generation lifecycle after a
-// successful waterwheel.enter RPC.
+// successful waterwheel.enter RPC. It mirrors BucketMgr._resumeFromLeaveScene
+// using namespace 114.4 uTime (last claim/update): elapsed wall time since that
+// stamp is treated as offline bucket generation, capped by $bucketExistMax.
+// cTime is not used — it is record creation and would falsely backfill on a
+// fresh session the way leaveSceneTime does not.
 func (s *State) MarkWaterwheelEntered(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.wwEntered = true
-	s.wwLocalGenMs = now.UnixMilli()
 	s.wwBackoffUntil = 0
+	nowMs := now.UnixMilli()
+	anchor := nowMs
+	if s.wwLastRecvTs > 0 {
+		anchor = s.wwLastRecvTs
+		if interval := waterwheelBucketCreateInterval(); interval > 0 {
+			if existMax := waterwheelBucketExistMax(); existMax > 0 && anchor < nowMs {
+				maxCatchUp := int64(existMax) * int64(interval/time.Millisecond)
+				if nowMs-anchor > maxCatchUp {
+					anchor = nowMs - maxCatchUp
+				}
+			}
+		}
+	}
+	s.wwLocalGenMs = anchor
 }
 
 // MarkWaterwheelUnavailable temporarily suppresses local waterwheel claim
@@ -176,6 +200,11 @@ func waterwheelBucketDailyMax() int32 {
 		return 0
 	}
 	return readInt32Any(row["$bucketGetMax"])
+}
+
+// WaterwheelBucketDailyMax returns c_waterwheel.$bucketGetMax for claim logs.
+func WaterwheelBucketDailyMax() int32 {
+	return waterwheelBucketDailyMax()
 }
 
 func waterwheelBucketExistMax() int32 {

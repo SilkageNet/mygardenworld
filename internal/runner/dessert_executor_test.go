@@ -228,9 +228,14 @@ func TestDessertPolicyRequiresEveryEnableLayer(t *testing.T) {
 	if !r.dessertRewardBoxOpenAutomationEnabled() {
 		t.Fatal("reviewed single-box flag did not enable the exact open action")
 	}
+	// Parent ActivityPolicy.enabled is legacy/no-op; modules stay independent.
 	policy.Activity.Enabled = false
+	if !r.dessertEnterAutomationEnabled() || !r.dessertTaskClaimAutomationEnabled() || !r.dessertCelebrityLikeAutomationEnabled() || !r.dessertRewardBoxOpenAutomationEnabled() {
+		t.Fatal("legacy Activity parent flag unexpectedly disabled module actions")
+	}
+	policy.Activity.Modules[dessertModuleID].Enabled = false
 	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() || r.dessertRewardBoxOpenAutomationEnabled() {
-		t.Fatal("disabled Activity parent allowed dessert actions")
+		t.Fatal("disabled dessert module still allowed actions")
 	}
 }
 

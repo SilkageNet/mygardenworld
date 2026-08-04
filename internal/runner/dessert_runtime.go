@@ -126,7 +126,7 @@ func (r *Runner) DessertRuntimeSnapshot() DessertRuntimeSnapshot {
 
 func dessertPolicyConfig(policy *pb.Policy) dessertAutoplayPolicy {
 	config := dessertAutoplayPolicy{mode: 1}
-	if policy == nil || !policy.GetAutomationEnabled() || !policy.GetActivity().GetEnabled() {
+	if policy == nil || !policy.GetAutomationEnabled() {
 		return config
 	}
 	module := policy.GetActivity().GetModules()[dessertModuleID]

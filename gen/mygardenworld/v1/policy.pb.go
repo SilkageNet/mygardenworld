@@ -2700,7 +2700,10 @@ func (x *UnionLandPolicy) GetMaxFlowerLevel() int32 {
 }
 
 type ActivityPolicy struct {
-	state         protoimpl.MessageState           `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: ignored. Each ActivityModulePolicy.enabled gates its own module.
+	//
+	// Deprecated: Marked as deprecated in mygardenworld/v1/policy.proto.
 	Enabled       bool                             `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	Modules       map[string]*ActivityModulePolicy `protobuf:"bytes,2,rep,name=modules,proto3" json:"modules,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -2737,6 +2740,7 @@ func (*ActivityPolicy) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{28}
 }
 
+// Deprecated: Marked as deprecated in mygardenworld/v1/policy.proto.
 func (x *ActivityPolicy) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
@@ -3117,9 +3121,9 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\tqualities\x18\x04 \x03(\x05R\tqualities\x12\x1d\n" +
 	"\n" +
 	"flower_ids\x18\x05 \x03(\x05R\tflowerIds\x12(\n" +
-	"\x10max_flower_level\x18\x06 \x01(\x05R\x0emaxFlowerLevel\"\xd7\x01\n" +
-	"\x0eActivityPolicy\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12G\n" +
+	"\x10max_flower_level\x18\x06 \x01(\x05R\x0emaxFlowerLevel\"\xdb\x01\n" +
+	"\x0eActivityPolicy\x12\x1c\n" +
+	"\aenabled\x18\x01 \x01(\bB\x02\x18\x01R\aenabled\x12G\n" +
 	"\amodules\x18\x02 \x03(\v2-.mygardenworld.v1.ActivityPolicy.ModulesEntryR\amodules\x1ab\n" +
 	"\fModulesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +

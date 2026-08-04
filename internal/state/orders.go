@@ -665,29 +665,38 @@ func responseAdvancesResidentOrderFinish(raw json.RawMessage) bool {
 	return ok && finishSeen
 }
 
-// ResidentOrderFinishNum returns today's ordinary resident finish count from
-// namespace 124 (orderFlowerFinishNum). Local finish bias is only a fallback
-// when system statistics have not been observed yet.
+// ResidentOrderFinishNum returns today's effective ordinary resident finish
+// count: observed orderFlowerFinishNum plus local finish bias for finishes
+// whose responses lagged or omitted namespace-124 field 9. Bias must stay in
+// the sum after statistics are observed — otherwise the policy daily limit
+// never trips when field 9 stalls, including the post-00:05 window where the
+// prior game-day snapshot would otherwise report 0 forever.
 func (s *State) ResidentOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	day := gameDayID(now)
+	var n int32
 	if s.statistics.Observed {
 		switch {
 		case s.statistics.DayID == 0 || s.statistics.DayID == day:
-			return s.statistics.OrderFlowerFinishNum
+			n = s.statistics.OrderFlowerFinishNum
 		case s.statistics.DayID < day:
-			// Prior game-day snapshot: treat today's finishes as unset until
-			// the server publishes the new day's counters.
-			return 0
+			// Prior game-day snapshot: server counter for today is unset.
+			// Reject nonsensical DayIDs (e.g. historical int32-overflowed ms
+			// keys) so a live finish counter is not discarded as "yesterday".
+			if s.statistics.DayID >= 20000101 && s.statistics.DayID <= 21001231 {
+				n = 0
+			} else {
+				n = s.statistics.OrderFlowerFinishNum
+			}
 		default:
-			return s.statistics.OrderFlowerFinishNum
+			n = s.statistics.OrderFlowerFinishNum
 		}
 	}
 	if s.residentOrderFinishBiasDayID == day {
-		return s.residentOrderFinishBias
+		n += s.residentOrderFinishBias
 	}
-	return 0
+	return n
 }
 
 // ResidentSatinFinishNum returns today's satin resident finish count. Counts

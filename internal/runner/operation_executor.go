@@ -758,7 +758,16 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 		return nil, err
 	}
 	if babigame.HasPayload(v) {
+		// Same bare IFmlTot shape as enter: top-level 114/110 must sit under
+		// namespace 25, or ApplyV treats 114 as waterwheel and race
+		// TasksObserved never sticks — planner then re-syncs every tick.
+		v = normalizeFmlRaceEnterV(v)
 		rt.runner.state.ApplyVFullFmlRaceTaskPool(v)
+	}
+	// Successful RPC with empty/no-114 payload must still clear the
+	// !TasksObserved early-exit, or sync loops on the decision interval.
+	if !rt.runner.state.FmlRace().TasksObserved {
+		rt.runner.state.MarkFmlRaceTasksSynced()
 	}
 	return v, nil
 }

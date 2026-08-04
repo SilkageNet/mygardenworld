@@ -232,6 +232,25 @@ type CyclicNoteCatalog struct {
 	TaskSlotCount  int32
 }
 
+// CyclicStoryCatalog describes the static c_act metadata shared by every
+// 莳花纪闻 batch. Runtime batch ids and dates still come from namespace 23.
+type CyclicStoryCatalog struct {
+	TmpType        int32
+	Name           string
+	CurrencyItemID int32
+}
+
+// CyclicStoryOrderInfo is one fully validated c_actCyclicStory order row.
+// Unknown or malformed rows retain OrderID while CatalogKnown remains false.
+type CyclicStoryOrderInfo struct {
+	OrderID      int32
+	Group        int32
+	Cost         int32
+	Weight       int32
+	Reward       []ItemCount
+	CatalogKnown bool
+}
+
 // CyclicNoteTaskInfo is one fully validated c_actCyclicNote task joined with
 // its c_task_type description. Unknown or malformed rows retain TaskID while
 // CatalogKnown remains false, so runtime task-list positions can still be
@@ -510,6 +529,63 @@ func CyclicNoteCatalogConfig() (CyclicNoteCatalog, bool) {
 		CurrencyItemID: currencyID,
 		TaskSlotCount:  slotCount,
 	}, true
+}
+
+// CyclicStoryCatalogConfig returns the validated static configuration shared
+// by cyclic-story batches. The batch itself is deliberately not hard-coded:
+// namespace 23 selects it dynamically by TmpType.
+func CyclicStoryCatalogConfig() (CyclicStoryCatalog, bool) {
+	const cyclicStoryTmpType int32 = 4003
+	raw, ok := StaticRow("c_act", cyclicStoryTmpType)
+	if !ok {
+		return CyclicStoryCatalog{}, false
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return CyclicStoryCatalog{}, false
+	}
+	id, idOK := readStoryMainInt32(row["id"])
+	var name string
+	nameOK := json.Unmarshal(row["name"], &name) == nil && strings.TrimSpace(name) != ""
+	currencyID, currencyOK := readSinglePositiveCatalogID(row["scoreId"])
+	if !idOK || id != cyclicStoryTmpType || !nameOK || !currencyOK {
+		return CyclicStoryCatalog{}, false
+	}
+	return CyclicStoryCatalog{
+		TmpType:        cyclicStoryTmpType,
+		Name:           strings.TrimSpace(name),
+		CurrencyItemID: currencyID,
+	}, true
+}
+
+// CyclicStoryOrderInfoByID joins a c_actCyclicStory row. Unknown or malformed
+// rows retain OrderID while CatalogKnown remains false.
+func CyclicStoryOrderInfoByID(orderID int32) CyclicStoryOrderInfo {
+	unknown := CyclicStoryOrderInfo{OrderID: orderID}
+	if orderID <= 0 {
+		return unknown
+	}
+	raw, ok := StaticRow("c_actCyclicStory", orderID)
+	if !ok {
+		return unknown
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return unknown
+	}
+	id, idOK := readStoryMainInt32(row["id"])
+	group, groupOK := readStoryMainInt32(row["group"])
+	cost, costOK := readStoryMainInt32(row["cost"])
+	weight, weightOK := readStoryMainInt32(row["weight"])
+	reward, rewardOK := parseStoryMainCost(row["items"])
+	if !idOK || id != orderID || !groupOK || group <= 0 || !costOK || cost <= 0 ||
+		!weightOK || weight <= 0 || !rewardOK || len(reward) == 0 {
+		return unknown
+	}
+	return CyclicStoryOrderInfo{
+		OrderID: orderID, Group: group, Cost: cost, Weight: weight,
+		Reward: cloneCyclicNoteItems(reward), CatalogKnown: true,
+	}
 }
 
 // CyclicNoteTaskInfoByID joins a c_actCyclicNote row with c_task_type. The

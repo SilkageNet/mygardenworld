@@ -151,6 +151,7 @@ message GetSnapshotResponse {
   CyclicNoteView cyclic_note = 39;
   FmlRaceView fml_race = 40;
   DessertView dessert = 41;
+  CyclicStoryView cyclic_story = 42;
 }
 
 message CyclicNoteView {
@@ -220,6 +221,51 @@ message CyclicNoteMilestone {
   int32 progress = 6;
   int32 raw_progress = 7;
   bool ready = 8;
+}
+
+message CyclicStoryView {
+  bool observed = 1;
+  bool found = 2;
+  bool valid = 3;
+  int32 batch_id = 4;
+  int32 template_id = 5;
+  int32 template_type = 6;
+  int32 status = 7;
+  // Client-compatible activity phase: 0 before preview/unknown, 1 preview, 2 active,
+  // 3 reward grace period, 4 ended.
+  int32 phase = 8;
+  int64 phase_end_ms = 9;
+  int64 begin_ms = 10;
+  int64 visible_start_ms = 11;
+  int64 end_ms = 12;
+  int64 grace_end_ms = 13;
+  string name = 14;
+  string description = 15;
+  int32 score = 16;
+  repeated ActivityItem items = 17;
+  int32 currency_item_id = 18;
+  int32 currency_balance = 19;
+  int32 finish_count = 20;
+  int32 exp_order_num = 21;
+  int64 last_refresh_ms = 22;
+  repeated CyclicStoryOrder orders = 23;
+  repeated CyclicNoteMilestone milestones = 24;
+  bool orders_observed = 25;
+  bool milestone_receipts_observed = 26;
+}
+
+message CyclicStoryOrder {
+  int32 order_idx = 1;
+  int32 order_id = 2;
+  int32 flower_id = 3;
+  // Server may send unix seconds or milliseconds; keep int64 for both.
+  int64 order_time = 4;
+  int64 valid_time = 5;
+  int32 cost = 6;
+  bool catalog_known = 7;
+  bool on_cooldown = 8;
+  repeated ActivityItem reward = 9;
+  PlanStatus status = 10;
 }
 
 message FmlRaceView {

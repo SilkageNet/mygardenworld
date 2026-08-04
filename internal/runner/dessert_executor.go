@@ -396,7 +396,7 @@ func dessertCelebrityFullSyncDelta(raw json.RawMessage) bool {
 
 func (r *Runner) dessertPolicyFlag(key string) bool {
 	policy := r.Policy()
-	if !policy.GetAutomationEnabled() || !policy.GetActivity().GetEnabled() {
+	if !policy.GetAutomationEnabled() {
 		return false
 	}
 	module := policy.GetActivity().GetModules()[dessertModuleID]

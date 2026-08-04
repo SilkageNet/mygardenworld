@@ -61,11 +61,9 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 	add(unionFlower.GetShareEnabled() ||
 		unionLand.GetAutoPlantEnabled() ||
 		union.GetRedPacketEnabled(), CategoryUnion, "union.unknown", "公会扩展功能")
-	if policy.GetActivity().GetEnabled() {
-		for name, module := range policy.GetActivity().GetModules() {
-			if name != "cyclicNote" && name != "actDessert" && module != nil && module.GetEnabled() {
-				add(true, CategoryActivity, "activity."+name, "活动 "+name)
-			}
+	for name, module := range policy.GetActivity().GetModules() {
+		if name != "cyclicNote" && name != "actDessert" && name != "actCyclicStory" && module != nil && module.GetEnabled() {
+			add(true, CategoryActivity, "activity."+name, "活动 "+name)
 		}
 	}
 	return ops

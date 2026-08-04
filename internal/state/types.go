@@ -653,6 +653,88 @@ type CyclicNoteMilestoneView struct {
 	Reward   []ItemCount
 }
 
+// CyclicStoryView is a defensive snapshot of the dynamically selected
+// 莳花纪闻 (tmpType 4003) activity in namespace 23.
+type CyclicStoryView struct {
+	Observed bool
+	Found    bool
+	// Valid requires score/bag/orders sync. Brand-new batches often omit those
+	// until actCyclicStory.enter; use EnterReady for that bootstrap path.
+	Valid bool
+	// EnterReady means identity/template/phase are sound enough to call enter
+	// even when score, bag, claimed boxes, or orders are still missing.
+	EnterReady                bool
+	OrdersObserved            bool
+	OrdersValid               bool
+	MilestoneReceiptsObserved bool
+	BatchID                   int32
+	TmpID                     int32
+	TmpType                   int32
+	Status                    int32
+	Phase                     int32
+	VisibleStartMs            int64
+	BeginMs                   int64
+	EndMs                     int64
+	GraceEndMs                int64
+	PhaseEndMs                int64
+	Name                      string
+	Description               string
+	Score                     int32
+	Bag                       map[int32]int32
+	CurrencyItemID            int32
+	CurrencyBalance           int32
+	FinishCount               int32
+	FinishCountObserved       bool
+	ExpOrderNum               int32
+	ExpOrderNumObserved       bool
+	LastRefreshTimeMs         int64
+	ClaimedMilestoneIndexes   []int32
+	Orders                    []CyclicStoryOrderView
+	Milestones                []CyclicNoteMilestoneView
+}
+
+// CyclicStoryOrderView is one orderInfo slot keyed by server orderIdx.
+type CyclicStoryOrderView struct {
+	OrderIdx     int32
+	OrderID      int32
+	FlowerID     int32
+	OrderTime    int64
+	ValidTime    int64
+	Cost         int32
+	CatalogKnown bool
+	Reward       []ItemCount
+	OnCooldown   bool
+}
+
+// CyclicStoryEnterSnapshot freezes the exact active batch before an enter RPC.
+type CyclicStoryEnterSnapshot struct {
+	At      time.Time
+	BatchID int32
+	Phase   int32
+}
+
+// CyclicStoryOrderClaimSnapshot freezes one order slot before recvOrderRwd.
+type CyclicStoryOrderClaimSnapshot struct {
+	At                  time.Time
+	BatchID             int32
+	OrderIdx            int32
+	OrderID             int32
+	FlowerID            int32
+	Cost                int32
+	FinishCount         int32
+	FinishCountObserved bool
+	Score               int32
+}
+
+// CyclicStoryMilestoneClaimSnapshot freezes one score milestone before recv.
+type CyclicStoryMilestoneClaimSnapshot struct {
+	At             time.Time
+	BatchID        int32
+	MilestoneIndex int32
+	Target         int32
+	Score          int32
+}
+
 // DessertView is a defensive snapshot of the dynamically selected 香卉甜糕
 // (tmpType 5601) activity. Batch ids and dates always come from namespace 23.
 type DessertView struct {

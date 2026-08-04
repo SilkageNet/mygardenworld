@@ -129,6 +129,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	vip, vipExp := st.Vip()
 	diag := r.Diagnostics(now)
 	cyclicNote, _ := st.CyclicNoteView(now)
+	cyclicStory, _ := st.CyclicStoryView(now)
 	fmlRace := st.FmlRace()
 	dessert, _ := st.DessertView(now)
 	dessertRuntime := r.DessertRuntimeSnapshot()
@@ -157,6 +158,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		Diagnostics:           runnerDiagnosticsProto(diag),
 		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
 		CyclicNote:            cyclicNoteProto(cyclicNote),
+		CyclicStory:           cyclicStoryProto(cyclicStory),
 		FmlRace: fmlRaceProto(
 			fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now,
 			policy.GetOrder().GetCustomer().GetEnabled(),
@@ -323,6 +325,101 @@ func cyclicNoteProto(view state.CyclicNoteView) *pb.CyclicNoteView {
 		})
 	}
 	return out
+}
+
+func cyclicStoryProto(view state.CyclicStoryView) *pb.CyclicStoryView {
+	out := &pb.CyclicStoryView{
+		Observed:                  view.Observed,
+		Found:                     view.Found,
+		Valid:                     view.Valid,
+		BatchId:                   view.BatchID,
+		TemplateId:                view.TmpID,
+		TemplateType:              view.TmpType,
+		Status:                    view.Status,
+		Phase:                     view.Phase,
+		PhaseEndMs:                view.PhaseEndMs,
+		BeginMs:                   view.BeginMs,
+		VisibleStartMs:            view.VisibleStartMs,
+		EndMs:                     view.EndMs,
+		GraceEndMs:                view.GraceEndMs,
+		Name:                      view.Name,
+		Description:               view.Description,
+		Score:                     view.Score,
+		CurrencyItemId:            view.CurrencyItemID,
+		CurrencyBalance:           view.CurrencyBalance,
+		FinishCount:               view.FinishCount,
+		ExpOrderNum:               view.ExpOrderNum,
+		LastRefreshMs:             view.LastRefreshTimeMs,
+		OrdersObserved:            view.OrdersObserved,
+		MilestoneReceiptsObserved: view.MilestoneReceiptsObserved,
+	}
+
+	itemIDs := make([]int32, 0, len(view.Bag))
+	for itemID := range view.Bag {
+		itemIDs = append(itemIDs, itemID)
+	}
+	sort.Slice(itemIDs, func(i, j int) bool { return itemIDs[i] < itemIDs[j] })
+	for _, itemID := range itemIDs {
+		out.Items = append(out.Items, activityItemProto(state.ItemCount{ItemID: itemID, Count: view.Bag[itemID]}))
+	}
+
+	for _, order := range view.Orders {
+		out.Orders = append(out.Orders, &pb.CyclicStoryOrder{
+			OrderIdx:     order.OrderIdx,
+			OrderId:      order.OrderID,
+			FlowerId:     order.FlowerID,
+			OrderTime:    order.OrderTime,
+			ValidTime:    order.ValidTime,
+			Cost:         order.Cost,
+			CatalogKnown: order.CatalogKnown,
+			OnCooldown:   order.OnCooldown,
+			Reward:       activityItemsProto(order.Reward),
+			Status:       cyclicStoryOrderStatus(view, order),
+		})
+	}
+
+	for _, milestone := range view.Milestones {
+		milestoneClaimPhase := view.Phase == 2 || view.Phase == 3
+		ready := view.Valid && milestoneClaimPhase && view.MilestoneReceiptsObserved && milestone.Target > 0 && view.Score >= milestone.Target && !milestone.Received
+		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+		switch {
+		case !view.Valid || milestone.Target <= 0:
+			status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+		case !view.MilestoneReceiptsObserved:
+			status = pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+		case milestone.Received:
+			status = pb.PlanStatus_PLAN_STATUS_SKIPPED
+		case ready:
+			status = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		out.Milestones = append(out.Milestones, &pb.CyclicNoteMilestone{
+			Index:       milestone.Index,
+			Target:      milestone.Target,
+			Received:    milestone.Received,
+			Reward:      activityItemsProto(milestone.Reward),
+			Status:      status,
+			Progress:    clampProgress(view.Score, milestone.Target),
+			RawProgress: view.Score,
+			Ready:       ready,
+		})
+	}
+	return out
+}
+
+func cyclicStoryOrderStatus(view state.CyclicStoryView, order state.CyclicStoryOrderView) pb.PlanStatus {
+	if order.OnCooldown || order.OrderID <= 0 {
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	}
+	if !view.Valid || !order.CatalogKnown || order.FlowerID <= 0 || order.Cost <= 0 {
+		return pb.PlanStatus_PLAN_STATUS_BLOCKED
+	}
+	if !view.OrdersObserved {
+		return pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+	}
+	if view.Phase != 2 {
+		return pb.PlanStatus_PLAN_STATUS_SKIPPED
+	}
+	return pb.PlanStatus_PLAN_STATUS_READY
 }
 
 func cyclicNoteTaskStatus(view state.CyclicNoteView, task state.CyclicNoteTaskSlotView) pb.PlanStatus {
@@ -1055,6 +1152,7 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 	}
 
 	out = append(out, cyclicNotePendingTasks(st, now)...)
+	out = append(out, cyclicStoryPendingTasks(st, now)...)
 	out = append(out, dessertPendingTasks(st, now)...)
 
 	return out
@@ -1085,6 +1183,56 @@ func cyclicNotePendingTasksFromView(view state.CyclicNoteView) []*pb.PendingTask
 			Title:    title,
 			Finished: clampProgress(task.Progress, task.Target),
 			Target:   task.Target,
+			Status:   status,
+		})
+	}
+	return out
+}
+
+func cyclicStoryPendingTasks(st *state.State, now time.Time) []*pb.PendingTaskView {
+	view, _ := st.CyclicStoryView(now)
+	return cyclicStoryPendingTasksFromView(view)
+}
+
+func cyclicStoryPendingTasksFromView(view state.CyclicStoryView) []*pb.PendingTaskView {
+	if !view.Found || (view.Phase != 2 && view.Phase != 3) {
+		return nil
+	}
+	out := make([]*pb.PendingTaskView, 0, len(view.Orders)+len(view.Milestones))
+	if view.Phase == 2 {
+		for _, order := range view.Orders {
+			if order.OrderID <= 0 || order.OnCooldown {
+				continue
+			}
+			title := fmt.Sprintf("莳花纪闻订单 #%d", order.OrderID)
+			if order.FlowerID > 0 {
+				title = fmt.Sprintf("莳花纪闻订单 #%d（花 %d x%d）", order.OrderID, order.FlowerID, order.Cost)
+			}
+			out = append(out, &pb.PendingTaskView{
+				Category: "activity",
+				Id:       fmt.Sprintf("story:%d:%d:%d", view.BatchID, order.OrderIdx, order.OrderID),
+				Title:    title,
+				Finished: 0,
+				Target:   order.Cost,
+				Status:   cyclicStoryOrderStatus(view, order),
+			})
+		}
+	}
+	for _, milestone := range view.Milestones {
+		if milestone.Received || milestone.Target <= 0 {
+			continue
+		}
+		ready := view.Valid && view.MilestoneReceiptsObserved && view.Score >= milestone.Target
+		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
+		if ready {
+			status = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		out = append(out, &pb.PendingTaskView{
+			Category: "activity",
+			Id:       fmt.Sprintf("story-box:%d:%d", view.BatchID, milestone.Index),
+			Title:    fmt.Sprintf("莳花纪闻积分奖励 #%d", milestone.Index),
+			Finished: clampProgress(view.Score, milestone.Target),
+			Target:   milestone.Target,
 			Status:   status,
 		})
 	}
@@ -1776,9 +1924,10 @@ func unionEnabled(p *pb.UnionPolicy) bool {
 }
 
 func activityEnabled(p *pb.ActivityPolicy) bool {
-	if p == nil || !p.GetEnabled() {
+	if p == nil {
 		return false
 	}
+	// Parent ActivityPolicy.enabled is legacy/no-op; modules are independent.
 	for _, module := range p.GetModules() {
 		if module != nil && module.GetEnabled() {
 			return true

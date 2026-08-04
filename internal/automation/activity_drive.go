@@ -37,7 +37,7 @@ func cyclicNoteTaskActionDemands(s *state.State, policy *pb.Policy, now time.Tim
 		return nil
 	}
 	activity := policy.GetActivity()
-	if !activity.GetEnabled() {
+	if activity == nil {
 		return nil
 	}
 	module := activity.GetModules()[cyclicNoteModuleKey]

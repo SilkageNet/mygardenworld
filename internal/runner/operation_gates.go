@@ -12,6 +12,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automation.PlannedOp {
@@ -210,7 +211,9 @@ func (r *Runner) ensurePlannedOperationRqst(ctx context.Context, op *automation.
 		op.Kind == clientproto.RPCUsrLandPlantBatch.String() {
 		return r.ensurePlantRqst(ctx)
 	}
-	if isWaterOp(op.Kind) {
+	if isWaterOp(op.Kind) || op.Kind == clientproto.RPCWaterwheelRecv.String() {
+		// Mini client calls usrStatsCtrl.reportWater() (waterRqst.djst) before
+		// every waterwheel bucket click, same point type as land watering.
 		return r.ensureWaterRqst(ctx)
 	}
 	if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() ||
@@ -262,6 +265,47 @@ func isWaterDropResourceRejectedError(kind string, err error) bool {
 	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
 }
 
+// flowerArtMaterialRejectedItemID returns param.iid when makeFlowerArt fails with
+// a material-shortage envelope (code 301). Zero means the error is not that case.
+func flowerArtMaterialRejectedItemID(kind string, err error) int32 {
+	if kind != clientproto.RPCFlowerArtMakeFlowerArt.String() || err == nil {
+		return 0
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		if rpcErr.Envelope.ErrorCode() == 301 {
+			return rpcErr.Envelope.MissingItemID()
+		}
+		return 0
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, `"code":301`) {
+		return 0
+	}
+	const marker = `"iid":`
+	idx := strings.Index(msg, marker)
+	if idx < 0 {
+		return 0
+	}
+	rest := msg[idx+len(marker):]
+	var n int32
+	for i := 0; i < len(rest); i++ {
+		c := rest[i]
+		if c < '0' || c > '9' {
+			break
+		}
+		n = n*10 + int32(c-'0')
+		if n <= 0 {
+			return 0
+		}
+	}
+	return n
+}
+
+func isFlowerArtMaterialRejectedError(kind string, err error) bool {
+	return flowerArtMaterialRejectedItemID(kind, err) > 0
+}
+
 func isRaceTakeAlreadyTakenError(kind string, err error) bool {
 	if kind != clientproto.RPCFmlRaceTakeTask.String() || err == nil {
 		return false
@@ -271,6 +315,37 @@ func isRaceTakeAlreadyTakenError(kind string, err error) bool {
 		return false
 	}
 	return rpcErr.Envelope.ErrorCodeOfLangJS() == "fmlRace_tips1"
+}
+
+// isCyclicStoryOrderNotReadyError matches actCyclicStory.recvOrderRwd code 259
+// ("未达成领取奖励的条件!") — typically refreshCd / validTime not yet elapsed.
+func isCyclicStoryOrderNotReadyError(kind string, err error) bool {
+	if kind != clientproto.RPCActCyclicStoryRecvOrderRwd.String() || err == nil {
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil && rpcErr.Envelope.ErrorCode() == 259 {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, `"code":259`) || strings.Contains(msg, `"code": 259`)
+}
+
+func cyclicStoryOrderCooldownUntil(st *state.State, op *automation.PlannedOp, now time.Time) time.Time {
+	if st == nil || op == nil {
+		return time.Time{}
+	}
+	view, ok := st.CyclicStoryView(now)
+	if !ok {
+		return time.Time{}
+	}
+	for _, order := range view.Orders {
+		if order.OrderIdx != op.SlotID {
+			continue
+		}
+		return state.CyclicStoryValidUntil(order.ValidTime)
+	}
+	return time.Time{}
 }
 
 func isFmlFlowerTakeDailyLimitError(kind string, err error) bool {
@@ -367,5 +442,12 @@ func (r *Runner) tickWaterSourceSync(ctx context.Context, client *babigame.Clien
 		return
 	}
 	r.lastWaterSyncTick = now
+	// CooldownReady requires wwObserved. If enter returned an empty delta and
+	// login never pushed namespace 114, marking entered would permanently block
+	// both enter retries and claims.
+	if !r.state.WaterwheelObserved() {
+		r.log.Debug("waterwheel enter succeeded without namespace 114; deferring local bucket lifecycle")
+		return
+	}
 	r.state.MarkWaterwheelEntered(now)
 }

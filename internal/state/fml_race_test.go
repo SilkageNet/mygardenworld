@@ -459,6 +459,30 @@ func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
 	}
 }
 
+func TestMarkFmlRaceTasksSynced(t *testing.T) {
+	s := New()
+	before := time.Now().UnixMilli()
+	s.MarkFmlRaceTasksSynced()
+	after := time.Now().UnixMilli()
+	got := s.FmlRace()
+	if !got.TasksObserved {
+		t.Fatal("expected TasksObserved")
+	}
+	if got.TasksSyncedAtMs < before || got.TasksSyncedAtMs > after {
+		t.Fatalf("TasksSyncedAtMs=%d, want in [%d,%d]", got.TasksSyncedAtMs, before, after)
+	}
+}
+
+func TestFmlRaceBareTaskListWithoutNamespace25DoesNotObserve(t *testing.T) {
+	s := New()
+	// Top-level 114 is waterwheel NS, not race task pool — mimics getTaskList
+	// responses that omit the "25" wrapper (must be normalized before ApplyV).
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"114":[{"0":1,"4":4001,"6":[23001],"10":9}]}`))
+	if s.FmlRace().TasksObserved {
+		t.Fatal("bare top-level 114 must not set race TasksObserved")
+	}
+}
+
 func TestFmlRaceUsrRcdTaskQuota(t *testing.T) {
 	s := New()
 	// batchId key; fTaskNum=3, buyTaskNum=2, no taken task.

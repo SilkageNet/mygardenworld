@@ -19,6 +19,10 @@ const raceTakeLeadWindow = 4 * time.Second
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 10 * time.Minute
 
+// raceFinishProgressSyncInterval caps getTaskList retries when LocalFinishCnt
+// already meets the target but server FinishCnt still lags.
+const raceFinishProgressSyncInterval = 30 * time.Second
+
 // fmlFlowerTakeListRefreshInterval is how often automation re-fetches the
 // guild other-share list while take quota remains.
 const fmlFlowerTakeListRefreshInterval = time.Hour
@@ -210,18 +214,32 @@ func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goa
 		sync.CooldownKey = "union.flower.take"
 		return []PlannedOp{sync}
 	}
+	// Prefer the allowed share whose flower has the lowest personal inventory
+	// stock, so multi-flower take lists refill scarcest flowers first instead
+	// of always taking the first configured / lowest FlowerID match.
+	inventory := s.Inventory()
+	var best state.FmlFlowerTakeCandidate
+	found := false
+	bestStock := int32(0)
 	for _, candidate := range s.FmlFlowerTakeCandidates() {
 		if !unionFlowerTakeAllowed(candidate, policy) {
 			continue
 		}
-		take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", "公会成员分享鲜花可摸取", 4460, candidate.SlotID, 0, 1)
-		take.TargetUID = candidate.UID
-		take.FlowerID = candidate.FlowerID
-		take.CooldownKey = "union.flower.take"
-		return []PlannedOp{take}
+		stock := inventory[candidate.FlowerID]
+		if !found || stock < bestStock {
+			best = candidate
+			bestStock = stock
+			found = true
+		}
 	}
-	// List is fresh but no matching flowers — do not take.
-	return nil
+	if !found {
+		return nil
+	}
+	take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", "公会成员分享鲜花可摸取", 4460, best.SlotID, 0, 1)
+	take.TargetUID = best.UID
+	take.FlowerID = best.FlowerID
+	take.CooldownKey = "union.flower.take"
+	return []PlannedOp{take}
 }
 
 func fmlFlowerTakeListStale(s *state.State, now time.Time) bool {
@@ -474,7 +492,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// Local harvest high-water already covers the target but server FinishCnt
 	// still lags (missing/delayed field 134). Force getTaskList so pool field 8
 	// can advance FinishCnt and finishTask can fire on the next tick.
-	if policy.GetAutoEnableModules() && raceNeedsFinishProgressSync(view) {
+	if policy.GetAutoEnableModules() && raceNeedsFinishProgressSync(view, now) {
 		return []PlannedOp{domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 			"公会竞赛本地收获已达标，同步进度以便提交", 4397, 0, 0, 0,
@@ -639,12 +657,21 @@ func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
 // raceNeedsFinishProgressSync reports that plant-harvest LocalFinishCnt already
 // meets TargetCnt while authoritative FinishCnt has not, so the planner must
 // refresh the task pool instead of idling until the 10m TTL.
-func raceNeedsFinishProgressSync(view state.FmlRaceView) bool {
+// Recent successful getTaskList (within raceFinishProgressSyncInterval) is
+// respected so a lagging server FinishCnt cannot re-plan sync every decision tick.
+func raceNeedsFinishProgressSync(view state.FmlRaceView, now time.Time) bool {
 	taken := view.Taken
 	if !taken.HasTask || taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
 		return false
 	}
-	return view.LocalFinishTaskMsId == taken.TaskMsId && view.LocalFinishCnt >= taken.TargetCnt
+	if view.LocalFinishTaskMsId != taken.TaskMsId || view.LocalFinishCnt < taken.TargetCnt {
+		return false
+	}
+	if view.TasksObserved && view.TasksSyncedAtMs > 0 &&
+		now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval)) {
+		return false
+	}
+	return true
 }
 
 func raceHasNearTakeableCD(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time, customerEnabled bool) bool {
