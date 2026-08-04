@@ -32,14 +32,19 @@ var featureSpecs = []FeatureSpec{
 	{ID: "plant.water", Label: "浇水", Category: CategoryPlant, Domain: "farm.water", Action: "water", Status: PlanStatusReady, Executable: true},
 	{ID: "plant.land_unlock", Label: "土地开垦", Category: CategoryPlant, Domain: "farm.land", Action: "unlock", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.speed_up", Label: "加速", Category: CategoryPlant, Domain: "farm.speed_up", Action: "speed_up", Status: PlanStatusManaged, Executable: true},
+	{ID: "plant.video_speed_up", Label: "视频加速", Category: CategoryPlant, Domain: "farm.speed_up.video", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}},
 	{ID: "plant.cultivate", Label: "培育", Category: CategoryPlant, Domain: "farm.cultivate", Action: "cultivate", Status: PlanStatusManaged, Executable: true},
+	{ID: "plant.cultivate_video_speed_up", Label: "视频加速培育", Category: CategoryPlant, Domain: "farm.cultivate.video", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}},
 	{ID: "plant.cultivate_recv", Label: "培育领取", Category: CategoryPlant, Domain: "farm.cultivate", Action: "recv", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.upgrade", Label: "鲜花升级", Category: CategoryPlant, Domain: "farm.upgrade", Action: "upgrade", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.friend_steal", Label: "好友偷花", Category: CategoryPlant, Domain: "farm.friend_steal", Action: "steal", Status: PlanStatusSyncOnly, SyncOnly: true},
+	{ID: "plant.friend_steal_buy", Label: "购买偷取次数", Category: CategoryPlant, Domain: "farm.friend_steal", Action: "buy", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"购买成本和安全门槛尚未确认"}},
 	{ID: "plant.elves", Label: "花灵", Category: CategoryPlant, Domain: "farm.elves", Action: "run", Status: PlanStatusSyncOnly, SyncOnly: true},
+	{ID: "plant.elves_speed_up", Label: "花灵加速派遣", Category: CategoryPlant, Domain: "farm.elves", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"加速成本和执行协议尚未确认"}},
 	{ID: "plant.elves_pass", Label: "花灵密令", Category: CategoryPlant, Domain: "farm.elves.pass", Action: "claim", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "plant.flower_pass", Label: "花之密令", Category: CategoryPlant, Domain: "farm.flower_pass", Action: "claim", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "plant.market", Label: "花贸市场", Category: CategoryPlant, Domain: "farm.market", Action: "run", Status: PlanStatusSyncOnly, SyncOnly: true},
+	{ID: "plant.market_unlock", Label: "花贸市场解锁货架", Category: CategoryPlant, Domain: "farm.market", Action: "unlock", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"货架解锁成本尚未确认"}},
 
 	{ID: "basic.waterwheel", Label: "水车水滴", Category: CategoryWater, Domain: "basic.waterwheel", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.free_water", Label: "限时水滴", Category: CategoryWater, Domain: "basic.free_water", Action: "claim", Status: PlanStatusManaged, Executable: true},
@@ -105,8 +110,12 @@ var featureSpecs = []FeatureSpec{
 	{ID: "order.palace", Label: "宫廷订单", Category: CategoryOrder, Domain: "order.palace", Action: "finish", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "order.team_sync", Label: "组团订单同步", Category: CategoryOrder, Domain: "order.team", Action: "sync", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "order.team", Label: "组团订单", Category: CategoryOrder, Domain: "order.team", Action: "submit", Status: PlanStatusSyncOnly, SyncOnly: true},
+	{ID: "order.team_one_more", Label: "组团订单再来一单", Category: CategoryOrder, Domain: "order.team", Action: "one_more", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"再来一单的成本和状态尚未确认"}},
+	{ID: "order.flower_art_early_cancel", Label: "花架提前下架", Category: CategoryOrder, Domain: "order.flower_art", Action: "cancel", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"提前下架的状态和损失尚未确认"}},
 
 	{ID: "union.build", Label: "公会建设", Category: CategoryUnion, Domain: "union.build", Action: "build", Status: PlanStatusManaged, Executable: true},
+	{ID: "union.build_video", Label: "公会视频建设", Category: CategoryUnion, Domain: "union.build.video", Action: "build", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}},
+	{ID: "union.build_diamond", Label: "公会元宝建设", Category: CategoryUnion, Domain: "union.build.diamond", Action: "build", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"元宝成本和安全门槛尚未放开自动执行"}},
 	{ID: "union.flower", Label: "公会鲜花共享", Category: CategoryUnion, Domain: "union.flower", Action: "share_take", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "union.flower_share", Label: "公会分享", Category: CategoryUnion, Domain: "union.flower.share", Action: "share", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "union.flower_reward", Label: "公会分享奖励", Category: CategoryUnion, Domain: "union.flower.reward", Action: "claim", Status: PlanStatusManaged, Executable: true},
@@ -130,6 +139,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "activity.actCyclicStory.enter", Label: "莳花纪闻同步", Category: CategoryActivity, Domain: "activity.actCyclicStory", Action: "enter", Status: PlanStatusManaged, Executable: true},
 	{ID: "activity.actCyclicStory.claim_order", Label: "莳花纪闻订单奖励", Category: CategoryActivity, Domain: "activity.actCyclicStory", Action: "claim_order", Status: PlanStatusManaged, Executable: true},
 	{ID: "activity.actCyclicStory.claim_progress", Label: "莳花纪闻积分奖励", Category: CategoryActivity, Domain: "activity.actCyclicStory", Action: "claim_progress", Status: PlanStatusManaged, Executable: true},
+	activityFeature("actCyclicStory", "莳花纪闻", PlanStatusManaged),
 	{ID: "activity.actDessert.monitor", Label: "香卉甜糕监控", Category: CategoryActivity, Domain: "activity.actDessert", Action: "observe", Status: PlanStatusManaged},
 	{ID: "activity.actDessert.enter", Label: "香卉甜糕同步", Category: CategoryActivity, Domain: "activity.actDessert", Action: "enter", Status: PlanStatusManaged, Executable: true},
 	{ID: "activity.actDessert.claim_task", Label: "香卉甜糕任务奖励", Category: CategoryActivity, Domain: "activity.actDessert", Action: "claim_task", Status: PlanStatusManaged, Executable: true},
@@ -138,6 +148,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "activity.actDessert.progress_boxes", Label: "香卉甜糕进度箱", Category: CategoryActivity, Domain: "activity.actDessert", Action: "claim_progress", Status: PlanStatusBlocked, BlockedReasons: []string{"缺少 act.recvBoxes 成功抓包，保持阻塞"}},
 	{ID: "activity.actDessert.reward_boxes", Label: "香卉甜糕奖励箱", Category: CategoryActivity, Domain: "activity.actDessert", Action: "open_box", Status: PlanStatusManaged, Executable: true},
 	{ID: "activity.actDessert.game", Label: "香卉甜糕自动游玩", Category: CategoryActivity, Domain: "activity.actDessert", Action: "play", Status: PlanStatusBlocked, BlockedReasons: []string{"因果轨迹及物理回放证据尚未通过，保持阻塞"}},
+	activityFeature("actDessert", "香卉甜糕", PlanStatusManaged),
 	activityFeature("actDuanWu", "龙舟竞渡", PlanStatusAdapterMissing),
 	activityFeature("actElim", "花漾物语", PlanStatusSyncOnly),
 	activityFeature("actMerge2", "田园奇趣", PlanStatusSyncOnly),
@@ -155,6 +166,18 @@ var featureSpecs = []FeatureSpec{
 }
 
 var featureByDomainAction = buildFeatureIndex()
+
+// FeatureCatalog returns a defensive copy of the product capability catalog.
+// API and UI surfaces consume this catalog so execution support is described
+// by the same source that enriches planned operations.
+func FeatureCatalog() []FeatureSpec {
+	out := make([]FeatureSpec, len(featureSpecs))
+	for i, spec := range featureSpecs {
+		out[i] = spec
+		out[i].BlockedReasons = append([]string(nil), spec.BlockedReasons...)
+	}
+	return out
+}
 
 func activityFeature(name, label, status string) FeatureSpec {
 	spec := FeatureSpec{

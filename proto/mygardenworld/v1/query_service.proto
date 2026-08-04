@@ -53,10 +53,16 @@ message GetStatusRequest {
   // Empty = all accounts.
   string account_id = 1;
   string account_name = 2;
+  // Static capabilities are only needed during Web initialization. Polling
+  // callers leave this false to keep the status response lightweight.
+  bool include_feature_capabilities = 3;
 }
 
 message GetStatusResponse {
   repeated AccountStatus accounts = 1;
+  // Static product capabilities from automation.FeatureCatalog. These are
+  // response-scoped because every account shares the same catalog.
+  repeated FeatureCapability feature_capabilities = 2;
 }
 
 message AccountStatus {
@@ -90,6 +96,9 @@ message AccountStatus {
   // c_lvl[level].exp requirement for the current level; 0 when maxed.
   int32 next_level_experience = 25;
   bool level_maxed = 26;
+  // Last-known game-server idx. This is included in the polled runtime view
+  // so the Web UI does not need to re-list accounts after the first login.
+  int32 gs_idx = 27;
 }
 
 message RunnerDiagnostics {
@@ -553,6 +562,18 @@ message DomainStatus {
   ExecutionLane lane = 7;
   int64 cooldown_until_ms = 8;
   string cooldown_reason = 9;
+}
+
+message FeatureCapability {
+  string id = 1;
+  string label = 2;
+  string category = 3;
+  string domain = 4;
+  string action = 5;
+  PlanStatus status = 6;
+  bool executable = 7;
+  bool sync_only = 8;
+  repeated string blocked_reasons = 9;
 }
 
 message RequirementView {

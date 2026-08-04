@@ -1,18 +1,74 @@
 package apiserver
 
 import (
+	"context"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
 
+	"connectrpc.com/connect"
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
+
+func TestGetStatusIncludesCapabilitiesOnlyWhenRequested(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	svc := &Services{DB: db}
+
+	withCapabilities, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{
+		IncludeFeatureCapabilities: true,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(withCapabilities.Msg.GetFeatureCapabilities()) == 0 {
+		t.Fatal("requested feature capabilities are missing")
+	}
+	withoutCapabilities, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(withoutCapabilities.Msg.GetFeatureCapabilities()) != 0 {
+		t.Fatal("polling response unexpectedly contains feature capabilities")
+	}
+}
+
+func TestFeatureCapabilitiesExposeRaceUpgradeAsExecutable(t *testing.T) {
+	capabilities := featureCapabilitiesProto()
+	seen := make(map[string]struct{}, len(capabilities))
+	foundRaceUpgrade := false
+	for _, capability := range capabilities {
+		if _, exists := seen[capability.GetId()]; exists {
+			t.Fatalf("duplicate feature capability id %q", capability.GetId())
+		}
+		seen[capability.GetId()] = struct{}{}
+		if capability.GetId() != "union.race.upgrade" {
+			continue
+		}
+		if capability.GetStatus() != pb.PlanStatus_PLAN_STATUS_MANAGED ||
+			!capability.GetExecutable() ||
+			capability.GetSyncOnly() ||
+			len(capability.GetBlockedReasons()) != 0 {
+			t.Fatalf("race upgrade capability=%+v, want managed executable", capability)
+		}
+		foundRaceUpgrade = true
+	}
+	if !foundRaceUpgrade {
+		t.Fatal("race upgrade capability is missing")
+	}
+}
 
 func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 	lands := map[int32]state.LandView{

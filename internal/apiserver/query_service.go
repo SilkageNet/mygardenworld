@@ -23,6 +23,9 @@ import (
 
 func (svc *Services) GetStatus(ctx context.Context, req *connect.Request[pb.GetStatusRequest]) (*connect.Response[pb.GetStatusResponse], error) {
 	resp := &pb.GetStatusResponse{}
+	if req.Msg.GetIncludeFeatureCapabilities() {
+		resp.FeatureCapabilities = featureCapabilitiesProto()
+	}
 	if req.Msg.GetAccountId() != "" || req.Msg.GetAccountName() != "" {
 		acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
 		if err != nil {
@@ -57,6 +60,7 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	out := &pb.AccountStatus{
 		AccountId:   fmt.Sprintf("%d", acc.ID),
 		AccountName: acc.Name,
+		GsIdx:       acc.GsIdx,
 	}
 	r := svc.Manager.Get(acc.ID)
 	if r == nil {
@@ -1798,6 +1802,30 @@ func buildDomainStatuses(policy *pb.Policy, diag runner.Diagnostics, connected b
 	}
 	applyOperationCooldownsToDomainStatuses(statuses, diag.OperationCooldowns)
 	return statuses
+}
+
+func featureCapabilitiesProto() []*pb.FeatureCapability {
+	specs := automation.FeatureCatalog()
+	out := make([]*pb.FeatureCapability, 0, len(specs))
+	seen := make(map[string]struct{}, len(specs))
+	for _, spec := range specs {
+		if _, exists := seen[spec.ID]; exists {
+			continue
+		}
+		seen[spec.ID] = struct{}{}
+		out = append(out, &pb.FeatureCapability{
+			Id:             spec.ID,
+			Label:          spec.Label,
+			Category:       spec.Category,
+			Domain:         spec.Domain,
+			Action:         spec.Action,
+			Status:         planStatusProto(spec.Status),
+			Executable:     spec.Executable,
+			SyncOnly:       spec.SyncOnly,
+			BlockedReasons: append([]string(nil), spec.BlockedReasons...),
+		})
+	}
+	return out
 }
 
 func domainStatus(category, domain string, enabled bool, observed bool, blocked []string, lastErr string, connected bool) *pb.DomainStatus {
