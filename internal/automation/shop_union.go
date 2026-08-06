@@ -294,7 +294,7 @@ func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []Planned
 	}
 	goal := Goal{ID: "union.build", Category: CategoryUnion, Domain: "union.build", Label: "公会建设", Priority: 45}
 	if !s.FmlBuildObserved() {
-		blocked := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", "公会建设状态未观测", 4590, 0, 0, 0)
+		blocked := domainOp(clientproto.RPCFmlBld.String(), goal, "union.build", "build", "公会建设状态未观测", 4590, 0, 0, 0)
 		blocked.Status = PlanStatusAdapterMissing
 		blocked.Executable = false
 		blocked.BlockedReasons = []string{"未观察到公会 namespace 25，需先进入公会或补充 fml.enter 同步链路"}
@@ -302,7 +302,7 @@ func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []Planned
 	}
 	build := s.FmlBuild()
 	if !build.BuildCountsObserved {
-		blocked := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", "公会建设次数未观测", 4590, 0, 0, 0)
+		blocked := domainOp(clientproto.RPCFmlBld.String(), goal, "union.build", "build", "公会建设次数未观测", 4590, 0, 0, 0)
 		blocked.Status = PlanStatusAdapterMissing
 		blocked.Executable = false
 		blocked.BlockedReasons = []string{"未观察到 bldCountMap，无法确认今日建设次数"}
@@ -313,7 +313,7 @@ func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []Planned
 	for _, id := range unionBuildOptionIDs(policy) {
 		option, ok := state.FmlBuildOptionByID(id)
 		if !ok {
-			blocked := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", "公会建设档位配置缺失", 4500-id, id, 0, 0)
+			blocked := domainOp(clientproto.RPCFmlBld.String(), goal, "union.build", "build", "公会建设档位配置缺失", 4500-id, id, 0, 0)
 			blocked.Status = PlanStatusAdapterMissing
 			blocked.Executable = false
 			blocked.BlockedReasons = []string{"缺少 c_fmlBld 静态配置"}
@@ -329,7 +329,7 @@ func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []Planned
 		if reason == "" {
 			reason = fmt.Sprintf("公会建设 #%d", id)
 		}
-		buildOp := domainOp(clientproto.RPCFmlBuild.String(), goal, "union.build", "build", reason+"可执行", 4500-id, id, 0, 1)
+		buildOp := domainOp(clientproto.RPCFmlBld.String(), goal, "union.build", "build", reason+"可执行", 4500-id, id, 0, 1)
 		if blocked := applyUnionBuildCostGate(&buildOp, option, policy, s, inventory); len(blocked) > 0 {
 			buildOp.Status = PlanStatusAdapterMissing
 			buildOp.Executable = false
@@ -370,8 +370,13 @@ func unionBuildOptionIDs(policy *pb.UnionBuildPolicy) []int32 {
 }
 
 func applyUnionBuildCostGate(op *PlannedOp, option state.FmlBuildOption, policy *pb.UnionBuildPolicy, s *state.State, inventory map[int32]int32) []string {
+	// c_fmlBld id=1 is 视频捐献 (shareId→c_share hasVideo). Bare fml.bld({id:1})
+	// is rejected without the SDK video/share flow; runner does not forge that.
+	if option.ShareID > 0 {
+		return []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}
+	}
 	if option.ItemID <= 0 || option.Cost <= 0 {
-		return nil
+		return []string{"公会建设档位缺少可执行成本配置"}
 	}
 	switch option.ItemID {
 	case 11:
@@ -560,7 +565,11 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	// 2. Select a task to take (only if not currently holding one).
-	if !view.Taken.HasTask {
+	// TakeQuotaExhausted is sticky for this batch after the server reports
+	//「任务接取次数已达上限」— do not keep retrying exhausted takes.
+	// AutoStopOnQuotaDone also stops take when free-task quota is already used
+	// (finished >= total), without waiting for a take rejection.
+	if !view.Taken.HasTask && !view.TakeQuotaExhausted && !raceFreeTaskQuotaDone(s, view, policy) {
 		selected := selectRaceTasks(s, view.Tasks, policy, uid, now, customerEnabled)
 		if len(selected) > 0 {
 			best := selected[0]
@@ -708,6 +717,29 @@ func isRacePrimaryMutatingOp(op PlannedOp) bool {
 	default:
 		return false
 	}
+}
+
+// raceFreeTaskQuotaDone reports that AutoStopOnQuotaDone should block further
+// takeTask planning: usr-rcd quota was observed and finished_task_num already
+// covers the free tier total (c_fmlRace(raceLvl).taskNum). Purchased extras
+// (buyTaskNum) are intentionally ignored so automation stops at the UI「已做」
+// free quota. Unknown raceLvl / unobserved quota returns false.
+func raceFreeTaskQuotaDone(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy) bool {
+	if policy == nil || !policy.GetAutoStopOnQuotaDone() {
+		return false
+	}
+	if !view.TaskQuotaObserved {
+		return false
+	}
+	raceLvl := view.RaceLvl
+	if raceLvl <= 0 && s != nil {
+		raceLvl = s.FmlBuild().RaceLvl
+	}
+	total := state.FmlRaceTotalTaskNum(raceLvl, view.BuyTaskNum)
+	if total <= 0 {
+		return false
+	}
+	return view.FinishedTaskNum >= total
 }
 
 func raceFinishOperation(goal Goal, taken state.FmlRaceTakenView) PlannedOp {

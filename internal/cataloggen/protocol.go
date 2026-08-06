@@ -514,10 +514,16 @@ func applyRPCOverrides(byName map[string]ProtocolRPC) {
 		{
 			Name: "redeem.getInfo", Group: "redeem", Method: "getInfo", RequestShape: protocolRequestEmpty,
 		},
+		// Live client calls gs.fml.bld; IArg_build is a phantom that must not emit Fml.build.
+		{
+			Name: "fml.bld", Group: "fml", Method: "bld", RequestShape: protocolRequestFields,
+			RequestFields: []ProtocolField{{Name: "id", Index: 0}},
+		},
 	}
 	for _, override := range overrides {
 		byName[override.Name] = override
 	}
+	delete(byName, "Fml.build")
 }
 
 func foldRPCKey(group, method string) string {

@@ -142,6 +142,13 @@ const POLICY_TABS: { id: PolicyTabId; label: string; icon: ReactNode }[] = [
 const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
 const QUALITY_LABELS: Record<number, string> = { 1: "凡", 2: "普", 3: "珍", 4: "华", 5: "仙" };
 
+type FlowerPickerSortMode = "stock_desc" | "stock_asc";
+
+const FLOWER_PICKER_SORT_OPTIONS: { value: FlowerPickerSortMode; label: string }[] = [
+  { value: "stock_asc", label: "库存从低到高" },
+  { value: "stock_desc", label: "库存从高到低" },
+];
+
 const SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.QUALITY, label: "品质" },
@@ -939,6 +946,7 @@ export default function PolicyPanel({
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步任务池与当前已接任务（只读展示）；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
                 <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进种植/提交与放弃竞赛任务；默认关闭。未开启时仍会同步并显示已接任务，但不会自动执行" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
+                <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
@@ -1326,10 +1334,19 @@ function resetFlowerPickerFilters(
   setQuery: (value: string) => void,
   setQualityFilter: (value: number[]) => void,
   setLevelFilter: (value: number[]) => void,
+  setSortMode: (value: FlowerPickerSortMode) => void,
 ) {
   setQuery("");
   setQualityFilter([]);
   setLevelFilter([]);
+  setSortMode("stock_asc");
+}
+
+function compareFlowerPickerOptions(a: FlowerPickerOption, b: FlowerPickerOption, sortMode: FlowerPickerSortMode) {
+  if (a.plantable !== b.plantable) return a.plantable ? -1 : 1;
+  if (sortMode === "stock_desc" && a.stock !== b.stock) return b.stock - a.stock;
+  if (a.stock !== b.stock) return a.stock - b.stock;
+  return a.id - b.id;
 }
 
 function FlowerPickerFilterChip({
@@ -1374,6 +1391,7 @@ function FlowerMultiSelectRow({
   const [query, setQuery] = useState("");
   const [qualityFilter, setQualityFilter] = useState<number[]>([]);
   const [levelFilter, setLevelFilter] = useState<number[]>([]);
+  const [sortMode, setSortMode] = useState<FlowerPickerSortMode>("stock_asc");
   const selectedSet = useMemo(() => new Set(value), [value]);
   const flowers = useMemo<FlowerPickerOption[]>(() => {
     const options = plantableFlowers.map((flower) => {
@@ -1406,12 +1424,7 @@ function FlowerMultiSelectRow({
         plantable: false,
       });
     }
-    return options.sort((a, b) => {
-      if (a.plantable !== b.plantable) return a.plantable ? -1 : 1;
-      if (a.lvl !== b.lvl) return b.lvl - a.lvl;
-      if (a.stock !== b.stock) return a.stock - b.stock;
-      return a.id - b.id;
-    });
+    return options;
   }, [plantableFlowers, value]);
   const availableLevels = useMemo(() => {
     const levels = new Set<number>();
@@ -1420,24 +1433,34 @@ function FlowerMultiSelectRow({
     }
     return [...levels].sort((a, b) => a - b);
   }, [flowers]);
+  const qualityCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const quality of QUALITY_OPTIONS) counts[quality] = 0;
+    for (const flower of flowers) {
+      if (flower.quality > 0) counts[flower.quality] = (counts[flower.quality] ?? 0) + 1;
+    }
+    return counts;
+  }, [flowers]);
   const visibleFlowers = useMemo(() => {
     const text = query.trim().toLowerCase();
     const qualitySet = qualityFilter.length > 0 ? new Set(qualityFilter) : null;
     const levelSet = levelFilter.length > 0 ? new Set(levelFilter) : null;
-    return flowers.filter((flower) => {
-      if (qualitySet && !qualitySet.has(flower.quality)) return false;
-      if (levelSet && !levelSet.has(flower.lvl)) return false;
-      if (!text) return true;
-      const qualityLabel = QUALITY_LABELS[flower.quality] ?? "";
-      return (
-        String(flower.id).includes(text) ||
-        flower.name.toLowerCase().includes(text) ||
-        flower.seedName.toLowerCase().includes(text) ||
-        qualityLabel.includes(text) ||
-        (flower.lvl > 0 && (`lv${flower.lvl}` === text || `等级${flower.lvl}` === text || String(flower.lvl) === text))
-      );
-    });
-  }, [flowers, levelFilter, qualityFilter, query]);
+    return flowers
+      .filter((flower) => {
+        if (qualitySet && !qualitySet.has(flower.quality)) return false;
+        if (levelSet && !levelSet.has(flower.lvl)) return false;
+        if (!text) return true;
+        const qualityLabel = QUALITY_LABELS[flower.quality] ?? "";
+        return (
+          String(flower.id).includes(text) ||
+          flower.name.toLowerCase().includes(text) ||
+          flower.seedName.toLowerCase().includes(text) ||
+          qualityLabel.includes(text) ||
+          (flower.lvl > 0 && (`lv${flower.lvl}` === text || `等级${flower.lvl}` === text || String(flower.lvl) === text))
+        );
+      })
+      .sort((a, b) => compareFlowerPickerOptions(a, b, sortMode));
+  }, [flowers, levelFilter, qualityFilter, query, sortMode]);
   const selectedPreview = value.slice(0, 4).map((id) => itemName(id)).filter(Boolean).join("、");
   const extraCount = value.length > 4 ? value.length - 4 : 0;
   const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
@@ -1466,7 +1489,7 @@ function FlowerMultiSelectRow({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
-          if (!nextOpen) resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter);
+          if (!nextOpen) resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter, setSortMode);
         }}
       >
         <DialogContent className="flex h-[min(42rem,90dvh)] max-h-[90dvh] max-w-3xl flex-col overflow-hidden">
@@ -1496,7 +1519,7 @@ function FlowerMultiSelectRow({
                       selected={qualityFilter.includes(quality)}
                       onClick={() => setQualityFilter((current) => toggleNumber(current, quality))}
                     >
-                      {QUALITY_LABELS[quality]}
+                      {QUALITY_LABELS[quality]}({qualityCounts[quality] ?? 0})
                     </FlowerPickerFilterChip>
                   ))}
                 </div>
@@ -1532,6 +1555,20 @@ function FlowerMultiSelectRow({
                     清除筛选
                   </Button>
                 ) : null}
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="shrink-0 text-xs text-muted-foreground">排序</span>
+                <div className="flex flex-wrap gap-1">
+                  {FLOWER_PICKER_SORT_OPTIONS.map((option) => (
+                    <FlowerPickerFilterChip
+                      key={option.value}
+                      selected={sortMode === option.value}
+                      onClick={() => setSortMode(option.value)}
+                    >
+                      {option.label}
+                    </FlowerPickerFilterChip>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="dark-scrollbar min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-md border border-border/58 bg-white/42 p-2 dark:bg-muted">
@@ -1601,7 +1638,7 @@ function FlowerMultiSelectRow({
               className="max-sm:dark:transition-none"
               onClick={() => {
                 setOpen(false);
-                resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter);
+                resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter, setSortMode);
               }}
             >
               完成

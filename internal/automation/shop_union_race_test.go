@@ -154,6 +154,78 @@ func TestUnionRaceScoreLimitFiltersLowScoreTasks(t *testing.T) {
 	}
 }
 
+func TestUnionRaceTakeQuotaExhaustedSkipsTake(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
+	policy := testRacePolicy()
+	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take before quota exhausted, got %+v", ops)
+	}
+	s.MarkFmlRaceTakeQuotaExhausted()
+	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take after quota exhausted, got %+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceAutoStopOnQuotaDoneSkipsTake(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
+	// raceLvl=4 → free total 18; finished=18 means free quota is done.
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":18}}}}`))
+	if !s.FmlRace().TaskQuotaObserved || s.FmlRace().FinishedTaskNum != 18 {
+		t.Fatalf("quota not applied: %+v", s.FmlRace())
+	}
+
+	policy := testRacePolicy()
+	policy.AutoStopOnQuotaDone = true
+	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take when free quota done, got %+v", ops)
+		}
+	}
+
+	// With the switch off, keep taking until the server rejects.
+	policy.AutoStopOnQuotaDone = false
+	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take when auto-stop off, got %+v", ops)
+	}
+
+	// Remaining free quota still allows take while auto-stop is on.
+	s = state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":17}}}}`))
+	policy = testRacePolicy()
+	policy.AutoStopOnQuotaDone = true
+	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take with remaining quota, got %+v", ops)
+	}
+}
+
+func TestUnionRaceAutoStopOnQuotaDoneStillFinishesHeldTask(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
+	// Field 110 takeTaskData: TargetCnt=3, FinishCnt=3; fTaskNum=18 (free quota done).
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":18,"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
+	policy := testRacePolicy()
+	policy.AutoStopOnQuotaDone = true
+	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceFinishTask.String() {
+		t.Fatalf("expected finish despite quota done, got %+v", ops)
+	}
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take while finishing held task, got %+v", ops)
+		}
+	}
+}
+
 func TestUnionRacePrioritySorting(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{

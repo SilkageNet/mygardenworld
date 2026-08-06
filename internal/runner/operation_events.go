@@ -45,6 +45,8 @@ const (
 	operationErrorFlowerArtMaterialRejected operationErrorKind = "flower_art_material_rejected"
 	operationErrorTaskGroupFinished         operationErrorKind = "task_group_finished"
 	operationErrorRaceTakeAlreadyTaken      operationErrorKind = "race_take_already_taken"
+	operationErrorRaceTakeClaimedByOther    operationErrorKind = "race_take_claimed_by_other"
+	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 )
@@ -69,6 +71,10 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorTaskGroupFinished
 	case isRaceTakeAlreadyTakenError(kind, err):
 		return operationErrorRaceTakeAlreadyTaken
+	case isRaceTakeClaimedByOtherError(kind, err):
+		return operationErrorRaceTakeClaimedByOther
+	case isRaceTakeQuotaExceededError(kind, err):
+		return operationErrorRaceTakeQuotaExceeded
 	case isFmlFlowerTakeDailyLimitError(kind, err):
 		return operationErrorFmlFlowerTakeDailyLimit
 	case isCyclicStoryOrderNotReadyError(kind, err):
@@ -315,6 +321,36 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_taken_resync"})
+		return nil
+	case operationErrorRaceTakeClaimedByOther:
+		if op.TaskMsID != 0 {
+			r.state.MarkFmlRacePoolTaskClaimed(op.TaskMsID)
+		}
+		r.state.MarkFmlRaceTasksUnobserved()
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Message:     fmt.Sprintf("%s 暂缓: 服务端提示任务已被其他成员接取，已跳过该任务并重新同步任务池", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_claimed_by_other", "taskMsId": op.TaskMsID})
+		return nil
+	case operationErrorRaceTakeQuotaExceeded:
+		r.state.MarkFmlRaceTakeQuotaExhausted()
+		r.state.MarkFmlRaceTasksUnobserved()
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Message:     fmt.Sprintf("%s 暂停: 服务端提示任务接取次数已达上限，本轮竞赛不再自动接取", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_take_quota"})
 		return nil
 	case operationErrorFmlFlowerTakeDailyLimit:
 		now := result.finishedAt

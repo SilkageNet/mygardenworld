@@ -137,6 +137,32 @@ func TestFromJSONRaceScoreFieldCompatibility(t *testing.T) {
 	}
 }
 
+func TestFromJSONRaceAutoStopOnQuotaDoneBackfill(t *testing.T) {
+	legacy, err := FromJSON(`{"union":{"race":{"enabled":true,"min_task_score":28}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !legacy.GetUnion().GetRace().GetAutoStopOnQuotaDone() {
+		t.Fatal("legacy race policy missing auto_stop_on_quota_done should default on")
+	}
+
+	explicitOff, err := FromJSON(`{"union":{"race":{"auto_stop_on_quota_done":false}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicitOff.GetUnion().GetRace().GetAutoStopOnQuotaDone() {
+		t.Fatal("explicit auto_stop_on_quota_done=false must be preserved")
+	}
+
+	explicitOn, err := FromJSON(`{"union":{"race":{"autoStopOnQuotaDone":true}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !explicitOn.GetUnion().GetRace().GetAutoStopOnQuotaDone() {
+		t.Fatal("explicit autoStopOnQuotaDone=true must survive load")
+	}
+}
+
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()

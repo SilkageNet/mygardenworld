@@ -139,12 +139,16 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.BatchEndMs = 0
 		return
 	}
+	prevBatchID := view.BatchID
 	view.Observed = true
 	view.BatchID = batch.BatchId
 	view.BatchStatus = batch.Status
 	view.BatchStartMs = batch.StartTime
 	view.BatchEndMs = batch.EndTime
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
+	if prevBatchID != 0 && batch.BatchId != 0 && prevBatchID != batch.BatchId {
+		view.TakeQuotaExhausted = false
+	}
 }
 
 func applyFmlRaceCurRcdLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -1628,4 +1632,32 @@ func (s *State) MarkFmlRaceLvlSyncAttempt() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.RaceLvlSyncAtMs = time.Now().UnixMilli()
+}
+
+// MarkFmlRacePoolTaskClaimed marks a pool row as already taken so automation
+// will not re-select it before the next getTaskList refresh. Used when
+// takeTask reports the task was claimed by another member while local state
+// still showed UID==0.
+func (s *State) MarkFmlRacePoolTaskClaimed(msID int64) {
+	if msID == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.fmlRace.Tasks {
+		if s.fmlRace.Tasks[i].MsId != msID || s.fmlRace.Tasks[i].UID != 0 {
+			continue
+		}
+		// Placeholder non-self UID so RaceTakeSkipReason returns「已被接取」.
+		s.fmlRace.Tasks[i].UID = -1
+		return
+	}
+}
+
+// MarkFmlRaceTakeQuotaExhausted stops further takeTask planning for the current
+// race batch after the server reports the take-count limit.
+func (s *State) MarkFmlRaceTakeQuotaExhausted() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.TakeQuotaExhausted = true
 }

@@ -29,7 +29,7 @@
 //	22         | Daily/weekly task progress       | plant/water/harvest/cultivate
 //	23         | Activity state / cyclic tasks    | normal actions, actCyclicNote.*
 //	24         | Friend list                      | frd.enter
-//	25         | Guild / union state              | fml.*, Fml.build
+//	25         | Guild / union state              | fml.*, fml.bld
 //	27         | IM channel                       | im.getChannelId
 //	28         | Opponent/player summaries         | oppt.getDetailOppts
 //	31         | Share state                      | usr.share
@@ -331,7 +331,7 @@
 //	shopCultivate.enter  {}                        → {113}
 //	shopCultivate.refresh {}                       → {113}
 //	shopCultivate.buy    {shopId}                  → {7,113}
-//	Fml.build            {id}                      → {7,25}           guild build/donation
+//	fml.bld              {id}                      → {7,25}           guild build/donation
 //	fmlLand.harvest      {landIds}                 → {7,25}
 //	fmlFlowerShare.refresh {}                      → {25}
 //	fmlFlowerShare.getFmlOtherShareList {}         → {25}

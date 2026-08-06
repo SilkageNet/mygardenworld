@@ -316,6 +316,11 @@ message UnionRacePolicy {
   bool delete_low_score_task = 9;
   int32 delete_task_max_score = 10;
   int64 max_spend_diamond = 11;
+  // When true with auto_enable_modules, stop planning takeTask once this
+  // batch's free task quota is used up (finished_task_num >= total_task_num).
+  // Sync / finish / giveUp of an already-held task still run. Default on in
+  // DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
+  bool auto_stop_on_quota_done = 12;
 }
 
 message UnionLandPolicy {

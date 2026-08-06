@@ -1915,7 +1915,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCFlowerRackSell, Group: "flowerRack", Method: "sell", RequestShape: RPCRequestFields, RequestFields: []string{"rackId", "iid", "num"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerRackUnlockStand, Group: "flowerRack", Method: "unlockStand", RequestShape: RPCRequestFields, RequestFields: []string{"standId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlAutoJoin, Group: "fml", Method: "autoJoin", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
-	{Name: RPCFmlBld, Group: "fml", Method: "bld", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCFmlBld, Group: "fml", Method: "bld", RequestShape: RPCRequestFields, RequestFields: []string{"id"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlBuyRaceBoat, Group: "fml", Method: "buyRaceBoat", RequestShape: RPCRequestFields, RequestFields: []string{"boatId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlChgPos, Group: "fml", Method: "chgPos", RequestShape: RPCRequestFields, RequestFields: []string{"uid", "pos"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlChgTitle, Group: "fml", Method: "chgTitle", RequestShape: RPCRequestFields, RequestFields: []string{"titleId"}, ResponseSchema: "StateDelta"},

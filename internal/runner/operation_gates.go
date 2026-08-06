@@ -317,6 +317,44 @@ func isRaceTakeAlreadyTakenError(kind string, err error) bool {
 	return rpcErr.Envelope.ErrorCodeOfLangJS() == "fmlRace_tips1"
 }
 
+// isRaceTakeClaimedByOtherError matches takeTask when another guild member
+// already holds the target taskMsId (stale local pool still showed UID==0).
+func isRaceTakeClaimedByOtherError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlRaceTakeTask.String() || err == nil {
+		return false
+	}
+	const tip = "任务已被其他成员接取"
+	if strings.Contains(err.Error(), tip) {
+		return true
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		if strings.Contains(rpcErr.Envelope.ErrorMsg(), tip) {
+			return true
+		}
+	}
+	return false
+}
+
+// isRaceTakeQuotaExceededError matches takeTask when the account has no
+// remaining take slots for this race batch.
+func isRaceTakeQuotaExceededError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlRaceTakeTask.String() || err == nil {
+		return false
+	}
+	const tip = "任务接取次数已达上限"
+	if strings.Contains(err.Error(), tip) {
+		return true
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		if strings.Contains(rpcErr.Envelope.ErrorMsg(), tip) {
+			return true
+		}
+	}
+	return false
+}
+
 // isCyclicStoryOrderNotReadyError matches actCyclicStory.recvOrderRwd code 259
 // ("未达成领取奖励的条件!") — typically refreshCd / validTime not yet elapsed.
 func isCyclicStoryOrderNotReadyError(kind string, err error) bool {

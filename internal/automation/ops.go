@@ -222,6 +222,7 @@ func DefaultPolicy() *pb.Policy {
 				// turns on AutoEnableModules.
 				Enabled:                  true,
 				AutoEnableModules:        false,
+				AutoStopOnQuotaDone:      true,
 				ExcludeOthersUpgradeTask: true,
 				MinTaskScore:             28,
 				TaskTypePriority:         defaultUnionRacePriority(),

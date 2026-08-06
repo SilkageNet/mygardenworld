@@ -340,6 +340,8 @@ type FmlBuildOption struct {
 	ItemID     int32
 	Cost       int32
 	DailyLimit int32
+	// ShareID > 0 means rewarded-video / share flow (c_share), not a bare fml.bld.
+	ShareID int32
 }
 
 // FmlLandLvl describes one c_fmlLandLvl growth tier (seconds per flower + stock cap).
@@ -1979,7 +1981,7 @@ func FmlRaceTaskUpgradeCost(taskID, currentScore int32) (int32, bool) {
 }
 
 // FmlBuildOptionByID returns the client-visible cost for one guild build
-// option. The video/share option has no item cost.
+// option. Video/share tiers expose ShareID and have no item cost.
 func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 	raw, ok := StaticRow("c_fmlBld", id)
 	if !ok {
@@ -1989,11 +1991,17 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 		Name       string    `json:"name"`
 		Items      [][]int32 `json:"items"`
 		DailyCount int32     `json:"dailyCount"`
+		ShareID    int32     `json:"shareId"`
 	}
 	if json.Unmarshal(raw, &row) != nil {
 		return FmlBuildOption{}, false
 	}
-	out := FmlBuildOption{ID: id, Name: strings.TrimSpace(row.Name), DailyLimit: row.DailyCount}
+	out := FmlBuildOption{
+		ID:         id,
+		Name:       strings.TrimSpace(row.Name),
+		DailyLimit: row.DailyCount,
+		ShareID:    row.ShareID,
+	}
 	if len(row.Items) > 0 && len(row.Items[0]) >= 2 {
 		out.ItemID = row.Items[0][0]
 		if id == 2 {

@@ -203,6 +203,7 @@ func FromJSON(raw string) (*pb.Policy, error) {
 		return p, nil
 	}
 	compatAutoHarvest := shouldBackfillAutoHarvest(raw)
+	compatRaceAutoStop := shouldBackfillRaceAutoStopOnQuotaDone(raw)
 	raw = rewriteLegacyRaceScoreField(raw)
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
@@ -215,6 +216,15 @@ func FromJSON(raw string) (*pb.Policy, error) {
 			p.Plant.Planting = &pb.PlantingPolicy{}
 		}
 		p.Plant.Planting.AutoHarvestEnabled = true
+	}
+	if compatRaceAutoStop {
+		if p.Union == nil {
+			p.Union = &pb.UnionPolicy{}
+		}
+		if p.Union.Race == nil {
+			p.Union.Race = &pb.UnionRacePolicy{}
+		}
+		p.Union.Race.AutoStopOnQuotaDone = true
 	}
 	return Normalize(p), nil
 }
@@ -271,6 +281,24 @@ func shouldBackfillAutoHarvest(raw string) bool {
 		return false
 	}
 	return boolField(planting, "auto_enabled", "autoEnabled")
+}
+
+// shouldBackfillRaceAutoStopOnQuotaDone defaults the new race auto-stop switch
+// on for stored policies that never saw the field, matching DefaultPolicy.
+func shouldBackfillRaceAutoStopOnQuotaDone(raw string) bool {
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return false
+	}
+	union, ok := objectField(doc, "union")
+	if !ok {
+		return true
+	}
+	race, ok := objectField(union, "race")
+	if !ok {
+		return true
+	}
+	return !hasAnyField(race, "auto_stop_on_quota_done", "autoStopOnQuotaDone")
 }
 
 func objectField(obj map[string]any, key string) (map[string]any, bool) {

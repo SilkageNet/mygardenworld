@@ -539,6 +539,45 @@ func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
 	}
 }
 
+func TestMarkFmlRacePoolTaskClaimed(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":55,"4":4001,"10":9},{"0":66,"4":4001,"10":9}]}}`))
+	s.MarkFmlRacePoolTaskClaimed(55)
+	got := s.FmlRace()
+	var claimed, other FmlRaceTaskView
+	for _, task := range got.Tasks {
+		switch task.MsId {
+		case 55:
+			claimed = task
+		case 66:
+			other = task
+		}
+	}
+	if claimed.UID == 0 {
+		t.Fatal("msId 55 must be marked claimed (UID!=0)")
+	}
+	if other.UID != 0 {
+		t.Fatalf("msId 66 UID=%d, want 0", other.UID)
+	}
+	s.MarkFmlRacePoolTaskClaimed(0)
+	s.MarkFmlRacePoolTaskClaimed(999)
+}
+
+func TestMarkFmlRaceTakeQuotaExhausted(t *testing.T) {
+	s := New()
+	s.MarkFmlRaceTakeQuotaExhausted()
+	if !s.FmlRace().TakeQuotaExhausted {
+		t.Fatal("expected TakeQuotaExhausted")
+	}
+	// New batch identity clears the sticky flag.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":100,"1":1,"2":1000,"3":9000000000}}}`))
+	s.MarkFmlRaceTakeQuotaExhausted()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":200,"1":1,"2":1000,"3":9000000000}}}`))
+	if s.FmlRace().TakeQuotaExhausted {
+		t.Fatal("batch change must clear TakeQuotaExhausted")
+	}
+}
+
 func TestMarkFmlRaceTasksSynced(t *testing.T) {
 	s := New()
 	before := time.Now().UnixMilli()

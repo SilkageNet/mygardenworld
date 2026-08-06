@@ -2512,8 +2512,13 @@ type UnionRacePolicy struct {
 	DeleteLowScoreTask       bool            `protobuf:"varint,9,opt,name=delete_low_score_task,json=deleteLowScoreTask,proto3" json:"delete_low_score_task,omitempty"`
 	DeleteTaskMaxScore       int32           `protobuf:"varint,10,opt,name=delete_task_max_score,json=deleteTaskMaxScore,proto3" json:"delete_task_max_score,omitempty"`
 	MaxSpendDiamond          int64           `protobuf:"varint,11,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// When true with auto_enable_modules, stop planning takeTask once this
+	// batch's free task quota is used up (finished_task_num >= total_task_num).
+	// Sync / finish / giveUp of an already-held task still run. Default on in
+	// DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
+	AutoStopOnQuotaDone bool `protobuf:"varint,12,opt,name=auto_stop_on_quota_done,json=autoStopOnQuotaDone,proto3" json:"auto_stop_on_quota_done,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UnionRacePolicy) Reset() {
@@ -2621,6 +2626,13 @@ func (x *UnionRacePolicy) GetMaxSpendDiamond() int64 {
 		return x.MaxSpendDiamond
 	}
 	return 0
+}
+
+func (x *UnionRacePolicy) GetAutoStopOnQuotaDone() bool {
+	if x != nil {
+		return x.AutoStopOnQuotaDone
+	}
+	return false
 }
 
 type UnionLandPolicy struct {
@@ -3098,7 +3110,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\ftake_enabled\x18\x05 \x01(\bR\vtakeEnabled\x12<\n" +
 	"\ttake_mode\x18\x06 \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\btakeMode\x12%\n" +
 	"\x0etake_qualities\x18\a \x03(\x05R\rtakeQualities\x12&\n" +
-	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\x89\x05\n" +
+	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xbf\x05\n" +
 	"\x0fUnionRacePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
@@ -3111,7 +3123,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x15delete_low_score_task\x18\t \x01(\bR\x12deleteLowScoreTask\x121\n" +
 	"\x15delete_task_max_score\x18\n" +
 	" \x01(\x05R\x12deleteTaskMaxScore\x12*\n" +
-	"\x11max_spend_diamond\x18\v \x01(\x03R\x0fmaxSpendDiamond\x1aC\n" +
+	"\x11max_spend_diamond\x18\v \x01(\x03R\x0fmaxSpendDiamond\x124\n" +
+	"\x17auto_stop_on_quota_done\x18\f \x01(\bR\x13autoStopOnQuotaDone\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xcf\x01\n" +

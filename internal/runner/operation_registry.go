@@ -427,12 +427,15 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Pearl().Draw(ctx, req)
 		},
 	),
-	clientproto.RPCFmlBuild.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.FmlBuildRequest, error) {
-			return clientproto.FmlBuildRequest{ID: op.TargetID}, nil
+	clientproto.RPCFmlBld.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlBldRequest, error) {
+			if op.TargetID <= 0 {
+				return clientproto.FmlBldRequest{}, fmt.Errorf("fml.bld missing build option id")
+			}
+			return clientproto.FmlBldRequest{ID: op.TargetID}, nil
 		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlBuildRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.Fml().Build(ctx, req)
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlBldRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Fml().Bld(ctx, req)
 		},
 	),
 	clientproto.RPCFmlEnter.String(): stateDeltaOperation(

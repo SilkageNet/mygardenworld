@@ -528,17 +528,20 @@ func TestPearlOperationArgs(t *testing.T) {
 	}
 }
 
-func TestFmlBuildOperationArgs(t *testing.T) {
-	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlBuild.String(), TargetID: 2})
+func TestFmlBldOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlBld.String(), TargetID: 2})
 	if err != nil {
-		t.Fatalf("operationArgs(Fml.build): %v", err)
+		t.Fatalf("operationArgs(fml.bld): %v", err)
 	}
-	build, ok := args.(clientproto.FmlBuildRequest)
+	build, ok := args.(clientproto.FmlBldRequest)
 	if !ok {
-		t.Fatalf("operationArgs(Fml.build)=%T, want FmlBuildRequest", args)
+		t.Fatalf("operationArgs(fml.bld)=%T, want FmlBldRequest", args)
 	}
 	if build.ID != 2 {
-		t.Fatalf("FmlBuildRequest.ID=%d, want 2", build.ID)
+		t.Fatalf("FmlBldRequest.ID=%d, want 2", build.ID)
+	}
+	if _, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlBld.String(), TargetID: 0}); err == nil {
+		t.Fatal("operationArgs(fml.bld id=0) should fail")
 	}
 }
 

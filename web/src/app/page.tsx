@@ -1493,6 +1493,7 @@ function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Promise<bo
   });
 }
 
+const SPEED_UP_TICKET_ITEM_ID = 1001;
 const FLORAL_COIN_ITEM_ID = 1002;
 
 function CollapsibleCard({
@@ -1534,6 +1535,7 @@ function CollapsibleCard({
 
 function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
   const floralCoins = snapshot?.inventory[FLORAL_COIN_ITEM_ID] ?? 0;
+  const speedUpTickets = snapshot?.inventory[SPEED_UP_TICKET_ITEM_ID] ?? 0;
   const reputationObserved = snapshot?.reputationObserved ?? status?.reputationObserved ?? false;
   const reputationScore = snapshot?.reputationScore ?? status?.reputationScore ?? 0;
   const reputationTime = firstPositiveUnixTime(
@@ -1583,9 +1585,11 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
           compact
         />
         <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
-        <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
         <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
+        <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
         <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
+        <OverviewStat icon={<Ticket />} label="加速卡" value={formatCount(speedUpTickets)} />
+
       </div>
     </CollapsibleCard>
   );

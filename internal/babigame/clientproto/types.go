@@ -1474,7 +1474,11 @@ type FlowerRackUnlockStandRequest struct {
 
 type FmlAutoJoinRequest RawRequest
 
-type FmlBldRequest RawRequest
+// FmlBldRequest is gs.fml.bld (guild donate/build). Wire name is fml.bld;
+// IArg_build's {id} fields belong here (phantom Fml.build must not be used).
+type FmlBldRequest struct {
+	ID RPCID `json:"id,omitempty"`
+}
 
 type FmlBuildRequest struct {
 	ID RPCID `json:"id,omitempty"`

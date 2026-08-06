@@ -2948,7 +2948,7 @@ func (r FmlRPC) AutoJoin(ctx context.Context, req clientproto.FmlAutoJoinRequest
 // FmlBldResponse is the namespace-delta response for gs.fml.bld.
 type FmlBldResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// Bld calls gs.fml.bld. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
+// Bld calls gs.fml.bld. Request fields: id (c_fmlBld donate tier).
 func (r FmlRPC) Bld(ctx context.Context, req clientproto.FmlBldRequest, opts ...babigame.RequestOption) (FmlBldResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCFmlBld, req, opts...)
 }

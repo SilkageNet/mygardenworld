@@ -96,15 +96,15 @@ func TestStaticTableAndRow(t *testing.T) {
 
 func TestFmlBuildOptionByID(t *testing.T) {
 	video, ok := FmlBuildOptionByID(1)
-	if !ok || video.Cost != 0 || video.ItemID != 0 {
+	if !ok || video.Cost != 0 || video.ItemID != 0 || video.ShareID != 14 {
 		t.Fatalf("video build option=%+v ok=%t", video, ok)
 	}
 	gold, ok := FmlBuildOptionByID(2)
-	if !ok || gold.ItemID != 11 || gold.Cost <= 0 {
+	if !ok || gold.ItemID != 11 || gold.Cost <= 0 || gold.ShareID != 0 {
 		t.Fatalf("gold build option=%+v ok=%t", gold, ok)
 	}
 	diamond, ok := FmlBuildOptionByID(3)
-	if !ok || diamond.ItemID != 1 || diamond.Cost <= 0 {
+	if !ok || diamond.ItemID != 1 || diamond.Cost <= 0 || diamond.ShareID != 0 {
 		t.Fatalf("diamond build option=%+v ok=%t", diamond, ok)
 	}
 }

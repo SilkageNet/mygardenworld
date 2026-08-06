@@ -2470,36 +2470,43 @@ func TestBuildPlan_UnionBuildFreeAndGold(t *testing.T) {
 	p.Union.Build.GoldEnabled = true
 	p.Union.Build.MaxSpendGold = 12000
 
+	// Video tier (id=1) is adapter-missing; with gold enabled, planner skips to id=2.
 	result := BuildPlan(s, p, time.Now())
-	var freeSeen bool
 	for _, op := range result.Operations {
 		if op.Domain == "union.build" {
-			freeSeen = true
-			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 1 || !op.Executable || op.SyncOnly || op.GoldCost != 0 {
-				t.Fatalf("free union build op mismatch: %+v", op)
-			}
-			break
-		}
-	}
-	if !freeSeen {
-		t.Fatalf("missing free union build op: %+v", result.Operations)
-	}
-
-	applyMap(t, s, map[string]any{
-		"25": map[string]any{
-			"133": map[string]any{"1": 88, "5": map[string]any{"1": 1, "2": 0}},
-		},
-	})
-	result = BuildPlan(s, p, time.Now())
-	for _, op := range result.Operations {
-		if op.Domain == "union.build" {
-			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 2 || op.GoldCost != 10000 || !op.Executable || op.SyncOnly {
+			if op.Kind != clientproto.RPCFmlBld.String() || op.TargetID != 2 || op.GoldCost != 10000 || !op.Executable || op.SyncOnly {
 				t.Fatalf("gold union build op mismatch: %+v", op)
 			}
 			return
 		}
 	}
 	t.Fatalf("missing union build op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionBuildVideoBlocked(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"133": map[string]any{"1": 88, "5": map[string]any{"1": 0}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Build.FreeEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.build" {
+			if op.Kind != clientproto.RPCFmlBld.String() || op.TargetID != 1 || op.Executable {
+				t.Fatalf("video union build op should be blocked: %+v", op)
+			}
+			if !hasReasonContaining(op.BlockedReasons, "SDK 广告") {
+				t.Fatalf("blocked reasons = %v, want SDK 广告", op.BlockedReasons)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing blocked video union build op: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionBuildDiamondBlocked(t *testing.T) {
@@ -2518,7 +2525,7 @@ func TestBuildPlan_UnionBuildDiamondBlocked(t *testing.T) {
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Domain == "union.build" {
-			if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 10 || op.Executable || len(op.BlockedReasons) == 0 {
+			if op.Kind != clientproto.RPCFmlBld.String() || op.TargetID != 3 || op.DiamondCost != 10 || op.Executable || len(op.BlockedReasons) == 0 {
 				t.Fatalf("diamond union build op should be blocked: %+v", op)
 			}
 			return
@@ -2545,7 +2552,7 @@ func TestBuildPlan_UnionBuildDiamondUsesVisibleBalanceOnly(t *testing.T) {
 		if op.Domain != "union.build" {
 			continue
 		}
-		if op.Kind != clientproto.RPCFmlBuild.String() || op.TargetID != 3 || op.DiamondCost != 10 || op.Executable {
+		if op.Kind != clientproto.RPCFmlBld.String() || op.TargetID != 3 || op.DiamondCost != 10 || op.Executable {
 			t.Fatalf("diamond union build op mismatch: %+v", op)
 		}
 		if !hasReasonContaining(op.BlockedReasons, "元宝不足") {

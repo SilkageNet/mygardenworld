@@ -374,6 +374,10 @@ type FmlRaceView struct {
 	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
 	// may still be issued for the current incomplete pool.
 	MissingParamRefreshFP string
+	// TakeQuotaExhausted is set when takeTask returns「任务接取次数已达上限」.
+	// Cleared when the race batch identity changes. Blocks further take attempts
+	// for the remainder of this batch without marking the account abnormal.
+	TakeQuotaExhausted bool
 	// LocalFinishCnt is a high-water harvest progress for the current taken
 	// plant-harvest task. It advances from field 134 and from land HarvestCnt
 	// deltas so the planner does not top-up-plant when FinishCnt lags or when
