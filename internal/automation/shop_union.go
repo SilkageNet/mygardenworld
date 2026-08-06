@@ -20,7 +20,10 @@ const raceTakeLeadWindow = 4 * time.Second
 const raceTaskPoolRefreshInterval = 10 * time.Minute
 
 // raceFinishProgressSyncInterval caps getTaskList retries when LocalFinishCnt
-// already meets the target but server FinishCnt still lags.
+// already meets the target but server FinishCnt still lags. A successful
+// getTaskList that still leaves FinishCnt short clamps LocalFinishCnt (see
+// state.reconcileFmlRaceLocalFinishAfterFullPool), so this is a short nudge
+// rather than an unbounded poll.
 const raceFinishProgressSyncInterval = 30 * time.Second
 
 // fmlFlowerTakeListRefreshInterval is how often automation re-fetches the
@@ -451,6 +454,8 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 //
 // useSpeedupTicketInTask is honored by maintenanceOperations via
 // raceSpeedupEnabled while an unfinished plant-harvest task is held.
+// Near ExpireTime (last 10 minutes) automation also force-uses speedup
+// tickets as a completion fallback even when that toggle is off.
 func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, now time.Time, customerEnabled bool) []PlannedOp {
 	if policy == nil || !policy.GetEnabled() {
 		return nil

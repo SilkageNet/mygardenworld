@@ -333,6 +333,9 @@ message FmlRaceTaken {
   int32 score = 7;
   int32 task_type = 8;
   string target_label = 9;
+  // Held-task deadline in ms (IFmlRaceTakeTask.expireTime / pool takeExpireTime).
+  // 0 means unknown / not yet observed.
+  int64 expire_time_ms = 10;
 }
 
 message DessertView {
@@ -496,6 +499,8 @@ message PlantableFlowerView {
   int32 stock = 3;
   int32 gold = 4;
   int32 experience = 5;
+  // Cultivation level from namespace 101 (0 if unknown / not yet synced).
+  int32 lvl = 6;
 }
 
 message PendingTaskView {

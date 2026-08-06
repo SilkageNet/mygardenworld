@@ -2027,13 +2027,15 @@ func TestApplyV_CollectRewardSparseDeltaDoesNotCreateFalseArtReward(t *testing.T
 
 func TestApplyV_ShopCultivateOffers(t *testing.T) {
 	s := New()
+	day := time.Date(2026, 7, 6, 0, 5, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	applyMap(t, s, map[string]any{
 		"113": map[string]any{
 			"1": map[string]any{
 				"10001": []int32{11, 3214},
 				"10002": []int32{11, 4215},
 			},
-			"2": time.Date(2026, 7, 6, 0, 5, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60)).UnixMilli(),
+			"2": day.UnixMilli(),
+			"3": day.UnixMilli(),
 			"6": map[string]any{"10001": 0, "10002": 1},
 		},
 	})
@@ -2068,9 +2070,42 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 		t.Fatalf("sparse buy delta wiped sibling bought count: %+v", offers[1])
 	}
 
+	sameDay := time.Date(2026, 7, 6, 18, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	if s.ShopCultivateNeedsEnter(sameDay) {
+		t.Fatal("ShopCultivateNeedsEnter=true same day with lar/reset, want false")
+	}
+
 	nextDay := time.Date(2026, 7, 7, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	if !s.ShopCultivateNeedsEnter(nextDay) {
 		t.Fatal("ShopCultivateNeedsEnter=false after daily reset boundary, want true")
+	}
+}
+
+func TestShopCultivateNeedsEnterIncompleteTiming(t *testing.T) {
+	now := time.Date(2026, 7, 6, 18, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+
+	missingLar := New()
+	applyMap(t, missingLar, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 1000}},
+			"2": now.UnixMilli(),
+			"6": map[string]any{"10001": 1},
+		},
+	})
+	if !missingLar.ShopCultivateNeedsEnter(now) {
+		t.Fatal("NeedsEnter=false when larTime missing after buy-only patch, want true")
+	}
+
+	missingReset := New()
+	applyMap(t, missingReset, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 1000}},
+			"3": now.UnixMilli(),
+			"6": map[string]any{"10001": 1},
+		},
+	})
+	if !missingReset.ShopCultivateNeedsEnter(now) {
+		t.Fatal("NeedsEnter=false when lResetTime missing, want true")
 	}
 }
 

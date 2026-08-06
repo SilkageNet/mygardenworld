@@ -1854,6 +1854,29 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   const title = taken.targetLabel
     ? `${taken.taskLabel || `任务 #${taken.taskId}`} · ${taken.targetLabel}`
     : taken.taskLabel || `任务 #${taken.taskId}`;
+  const expireMs = Number(taken.expireTimeMs ?? BigInt(0));
+  const remainMs = expireMs > 0 ? expireMs - Date.now() : 0;
+  const expireUrgent = expireMs > 0 && remainMs <= 10 * 60 * 1000 && progress < 100;
+  const expireLabel =
+    expireMs > 0
+      ? new Date(expireMs).toLocaleString("zh-CN", {
+          month: "numeric",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })
+      : "";
+  const remainLabel = (() => {
+    if (expireMs <= 0) return "";
+    if (remainMs <= 0) return "已过期";
+    const totalSec = Math.floor(remainMs / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    if (h > 0) return `剩余 ${h}小时${m}分`;
+    if (m > 0) return `剩余 ${m}分钟`;
+    return `剩余 ${totalSec}秒`;
+  })();
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -1865,6 +1888,16 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
       </div>
       <div className="text-xs text-muted-foreground">
         进度 {taken.finishCnt} / {taken.targetCnt} · 分数 {taken.score}
+      </div>
+      <div className={`text-xs ${expireUrgent ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+        {expireLabel !== "" ? (
+          <>
+            {progress >= 100 ? "已完成，待提交" : expireUrgent ? "即将过期" : "过期时间"}：{expireLabel}
+            {remainLabel !== "" && progress < 100 ? `（${remainLabel}）` : null}
+          </>
+        ) : (
+          "过期时间：等待同步任务时长"
+        )}
       </div>
     </div>
   );

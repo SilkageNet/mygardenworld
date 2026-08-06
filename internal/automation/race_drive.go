@@ -14,18 +14,25 @@ const (
 	raceTaskTypePlantHarvest  int32 = 3036
 	raceTaskTypeCustomerOrder int32 = 3016
 
-	raceDemandPriority int32 = 85
+	// Above defaultDemandPriority GoalCustomerOrder (90) so race plant-harvest
+	// always claims empty lands before ordinary order flower demands.
+	raceDemandPriority int32 = 95
 	raceActionGoal           = "union.race"
 
 	// Customer-order race progress is only authoritative after getTaskList
-	// (no live field-134 harvest deltas). Refresh often enough that finishTask
-	// can fire soon after ordinary customer finishes advance the counter.
-	raceCustomerProgressSyncInterval = 30 * time.Second
+	// (no live field-134 harvest deltas). Successful customer finishes already
+	// MarkFmlRaceTasksUnobserved for an immediate refresh; this interval is only
+	// a slow fallback when finishes happen outside automation.
+	raceCustomerProgressSyncInterval = 10 * time.Minute
 
 	// Beat the ordinary customer-order lane (~11000+) so race sync/finish are
 	// not starved by endless gen/finish cycling.
 	raceCustomerSyncPriority   int32 = 12400
 	raceCustomerFinishPriority int32 = 12500
+
+	// raceExpireSpeedupLead is how long before a held plant-harvest task's
+	// ExpireTime automation force-uses speedup tickets as a completion fallback.
+	raceExpireSpeedupLead = 10 * time.Minute
 )
 
 // raceTaskProgressDemands converts the currently taken unfinished guild-race
@@ -394,13 +401,34 @@ func FormatRaceTaskOpDesc(taskType, paramID int32) string {
 	}
 }
 
-// raceSpeedupEnabled reports whether guild-race policy should unlock farm
+// raceSpeedupEnabledAt reports whether guild-race policy should unlock farm
 // speedup while an unfinished plant-harvest race task is held.
-func raceSpeedupEnabled(s *state.State, race *pb.UnionRacePolicy) bool {
-	if s == nil || race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() || !race.GetUseSpeedupTicketInTask() {
+//
+// Normal path: UseSpeedupTicketInTask. Urgency fallback: within
+// raceExpireSpeedupLead of ExpireTime even when that toggle is off, so a
+// nearly-expired held task can still burn tickets to finish in time.
+func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Time) bool {
+	if s == nil || race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
 	}
 	taken := s.FmlRace().Taken
-	return taken.HasTask && taken.TaskType == raceTaskTypePlantHarvest &&
-		taken.FinishCnt < taken.TargetCnt && !raceTakenBlocksProgress(s, race, s.FmlRace(), true)
+	if !taken.HasTask || taken.TaskType != raceTaskTypePlantHarvest ||
+		taken.FinishCnt >= taken.TargetCnt || raceTakenBlocksProgress(s, race, s.FmlRace(), true) {
+		return false
+	}
+	if race.GetUseSpeedupTicketInTask() {
+		return true
+	}
+	return raceExpireUrgentSpeedup(taken, now)
+}
+
+// raceExpireUrgentSpeedup is true when the held task has a known ExpireTime and
+// now is inside the last raceExpireSpeedupLead before that deadline.
+func raceExpireUrgentSpeedup(taken state.FmlRaceTakenView, now time.Time) bool {
+	if taken.ExpireTime <= 0 || taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
+		return false
+	}
+	deadline := time.UnixMilli(taken.ExpireTime)
+	leadStart := deadline.Add(-raceExpireSpeedupLead)
+	return !now.Before(leadStart)
 }

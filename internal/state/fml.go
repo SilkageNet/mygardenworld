@@ -18,6 +18,7 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	if err := json.Unmarshal(raw, &ns25); err != nil {
 		return
 	}
+	prevTaken := s.fmlRace.Taken
 	s.fmlBuild.Observed = true
 	if s.fmlBuild.BuildCounts == nil {
 		s.fmlBuild.BuildCounts = make(map[int32]int32)
@@ -102,6 +103,16 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	if rawTakenProg, ok := ns25["134"]; ok {
 		applyFmlRaceTakenProgressLocked(&s.fmlRace, rawTakenProg)
 	}
+	// Full-pool getTaskList is authoritative for FinishCnt. If LocalFinishCnt
+	// already claims the target but the synced FinishCnt is still short, the
+	// local high-water overcounted (or the lag will not resolve via re-fetch).
+	// Clamp so the planner resumes planting instead of getTaskList every 30s.
+	if fullRaceTaskPool {
+		reconcileFmlRaceLocalFinishAfterFullPool(&s.fmlRace)
+	}
+	// Stamp take time / fill ExpireTime = TakenAtMs + TakeLimitMin when the
+	// server omits expireTime (common on 110/pool until harvest progress).
+	finalizeFmlRaceTakenDeadline(&s.fmlRace, prevTaken, s.lastApplyMs)
 }
 
 func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -205,18 +216,20 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 	for _, t := range tasks {
 		paramID := firstInt32FromRaw(t.Param)
 		incoming = append(incoming, FmlRaceTaskView{
-			MsId:        t.MsId,
-			TaskId:      t.TaskId,
-			TaskType:    FmlRaceTaskTypeByID(t.TaskId),
-			Score:       t.Score,
-			IsUpgrade:   t.IsUpgrade,
-			UpgradeUid:  t.UpgradeUid,
-			UID:         t.UID,
-			ParamID:     paramID,
-			TargetLabel: ItemLabel(paramID),
-			AppearTime:  t.AppearTime,
-			TargetCnt:   t.TargetCnt,
-			FinishCnt:   t.FinishCnt,
+			MsId:           t.MsId,
+			TaskId:         t.TaskId,
+			TaskType:       FmlRaceTaskTypeByID(t.TaskId),
+			Score:          t.Score,
+			IsUpgrade:      t.IsUpgrade,
+			UpgradeUid:     t.UpgradeUid,
+			UID:            t.UID,
+			ParamID:        paramID,
+			TargetLabel:    ItemLabel(paramID),
+			AppearTime:     t.AppearTime,
+			TargetCnt:      t.TargetCnt,
+			FinishCnt:      t.FinishCnt,
+			TakeLimitMin:   t.TakeLimitMin,
+			TakeExpireTime: t.TakeExpireTime,
 		})
 	}
 	wasObserved := view.TasksObserved
@@ -309,6 +322,12 @@ func preserveFmlRaceTaskDetail(next, prev FmlRaceTaskView) FmlRaceTaskView {
 	if next.AppearTime == 0 && prev.AppearTime != 0 {
 		next.AppearTime = prev.AppearTime
 	}
+	if next.TakeLimitMin == 0 && prev.TakeLimitMin != 0 {
+		next.TakeLimitMin = prev.TakeLimitMin
+	}
+	if next.TakeExpireTime == 0 && prev.TakeExpireTime != 0 {
+		next.TakeExpireTime = prev.TakeExpireTime
+	}
 	return next
 }
 
@@ -329,15 +348,17 @@ func synthesizeFmlRaceTakenFromPool(tasks []FmlRaceTaskView, roleID int64) (FmlR
 			taskType = FmlRaceTaskTypeByID(t.TaskId)
 		}
 		return FmlRaceTakenView{
-			TaskMsId:    t.MsId,
-			TaskId:      t.TaskId,
-			TaskType:    taskType,
-			Score:       t.Score,
-			TargetCnt:   t.TargetCnt,
-			FinishCnt:   t.FinishCnt,
-			ParamID:     t.ParamID,
-			TargetLabel: t.TargetLabel,
-			HasTask:     true,
+			TaskMsId:     t.MsId,
+			TaskId:       t.TaskId,
+			TaskType:     taskType,
+			Score:        t.Score,
+			TargetCnt:    t.TargetCnt,
+			FinishCnt:    t.FinishCnt,
+			ParamID:      t.ParamID,
+			TargetLabel:  t.TargetLabel,
+			TakeLimitMin: t.TakeLimitMin,
+			ExpireTime:   t.TakeExpireTime,
+			HasTask:      true,
 		}, true
 	}
 	return FmlRaceTakenView{}, false
@@ -375,6 +396,12 @@ func enrichFmlRaceTakenFromTask(taken *FmlRaceTakenView, tasks []FmlRaceTaskView
 		}
 		if taken.TaskId == 0 && t.TaskId > 0 {
 			taken.TaskId = t.TaskId
+		}
+		if taken.TakeLimitMin == 0 && t.TakeLimitMin > 0 {
+			taken.TakeLimitMin = t.TakeLimitMin
+		}
+		if taken.ExpireTime == 0 && t.TakeExpireTime > 0 {
+			taken.ExpireTime = t.TakeExpireTime
 		}
 		return
 	}
@@ -427,6 +454,12 @@ func reconcileFmlRaceTakenWithPool(view *FmlRaceView, roleID int64, fullPool boo
 	}
 	if view.Taken.TaskId == 0 {
 		view.Taken.TaskId = poolTaken.TaskId
+	}
+	if view.Taken.TakeLimitMin == 0 && poolTaken.TakeLimitMin > 0 {
+		view.Taken.TakeLimitMin = poolTaken.TakeLimitMin
+	}
+	if view.Taken.ExpireTime == 0 && poolTaken.ExpireTime > 0 {
+		view.Taken.ExpireTime = poolTaken.ExpireTime
 	}
 }
 
@@ -531,6 +564,22 @@ func bumpFmlRaceLocalFinish(view *FmlRaceView, finish int32) {
 	}
 }
 
+// reconcileFmlRaceLocalFinishAfterFullPool drops an inflated LocalFinishCnt
+// after getTaskList left authoritative FinishCnt short of TargetCnt.
+func reconcileFmlRaceLocalFinishAfterFullPool(view *FmlRaceView) {
+	if view == nil {
+		return
+	}
+	taken := view.Taken
+	if !taken.HasTask || taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
+		return
+	}
+	if view.LocalFinishTaskMsId != taken.TaskMsId || view.LocalFinishCnt < taken.TargetCnt {
+		return
+	}
+	view.LocalFinishCnt = taken.FinishCnt
+}
+
 // syncFmlRaceLocalFinishLocked keeps LocalFinishCnt ahead of lagging server
 // FinishCnt using land HarvestCnt deltas for the held plant-harvest flower.
 //
@@ -622,6 +671,7 @@ func takenFromTakeTask(tt clientproto.IFmlRaceTakeTask) FmlRaceTakenView {
 		FinishCnt:   tt.FinishCnt,
 		ParamID:     paramID,
 		TargetLabel: ItemLabel(paramID),
+		ExpireTime:  tt.ExpireTime,
 		HasTask:     true,
 	}
 }
@@ -651,6 +701,47 @@ func mergeFmlRaceTakenProgress(dst *FmlRaceTakenView, src FmlRaceTakenView) {
 	}
 	if src.TaskId > 0 && dst.TaskId == 0 {
 		dst.TaskId = src.TaskId
+	}
+	if src.TakeLimitMin > 0 && dst.TakeLimitMin == 0 {
+		dst.TakeLimitMin = src.TakeLimitMin
+	}
+	if src.TakenAtMs > 0 && dst.TakenAtMs == 0 {
+		dst.TakenAtMs = src.TakenAtMs
+	}
+	if src.ExpireTime > 0 {
+		// Protocol expire wins over a locally computed deadline.
+		dst.ExpireTime = src.ExpireTime
+	}
+}
+
+// finalizeFmlRaceTakenDeadline stamps TakenAtMs on a new hold and fills
+// ExpireTime from TakenAtMs + TakeLimitMin when the server omitted expireTime.
+func finalizeFmlRaceTakenDeadline(view *FmlRaceView, prev FmlRaceTakenView, nowMs int64) {
+	if view == nil || !view.Taken.HasTask || view.Taken.TaskMsId == 0 {
+		return
+	}
+	enrichFmlRaceTakenFromTask(&view.Taken, view.Tasks)
+	if prev.HasTask && prev.TaskMsId == view.Taken.TaskMsId {
+		if view.Taken.TakenAtMs == 0 && prev.TakenAtMs > 0 {
+			view.Taken.TakenAtMs = prev.TakenAtMs
+		}
+		if view.Taken.TakeLimitMin == 0 && prev.TakeLimitMin > 0 {
+			view.Taken.TakeLimitMin = prev.TakeLimitMin
+		}
+		// Keep a previously computed deadline unless protocol already set one.
+		if view.Taken.ExpireTime == 0 && prev.ExpireTime > 0 {
+			view.Taken.ExpireTime = prev.ExpireTime
+		}
+	}
+	if view.Taken.TakenAtMs == 0 {
+		if nowMs > 0 {
+			view.Taken.TakenAtMs = nowMs
+		} else {
+			view.Taken.TakenAtMs = time.Now().UnixMilli()
+		}
+	}
+	if view.Taken.ExpireTime == 0 && view.Taken.TakenAtMs > 0 && view.Taken.TakeLimitMin > 0 {
+		view.Taken.ExpireTime = view.Taken.TakenAtMs + int64(view.Taken.TakeLimitMin)*int64(time.Minute/time.Millisecond)
 	}
 }
 

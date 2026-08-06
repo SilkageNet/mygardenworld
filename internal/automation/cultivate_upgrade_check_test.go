@@ -97,6 +97,39 @@ func TestBuildPlan_FlowerUpgradeDisabled(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_FlowerUpgradeUsesCfgFallback(t *testing.T) {
+	// 星垂绮夜 has no per-flower c_flowerLvl rows; cost must come from c_flowerLvlCfg.
+	const flowerID int32 = 23590
+	cost, ok := state.FlowerUpgradeCostForLevel(flowerID, 9)
+	if !ok {
+		t.Fatal("missing cfg fallback upgrade cost for 23590 lvl 9")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(cost.ItemID): cost.Count},
+			"44": cost.Gold,
+		}},
+		"101": map[string]any{"0": map[string]any{
+			itoa32(flowerID): map[string]any{"1": flowerID, "2": 9, "4": 2},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union = nil
+	p.Plant.Cultivate.Enabled = false
+	p.Plant.Cultivate.UpgradeEnabled = true
+	p.Plant.Cultivate.TargetLevel = 11
+
+	planned := Plan(s, p, time.Now())
+	if planned == nil || planned.Kind != clientproto.RPCCultivateUpgrade.String() {
+		t.Fatalf("Plan() should upgrade cfg-fallback flower, got %+v", planned)
+	}
+	if planned.FlowerID != flowerID || planned.GoldCost != cost.Gold || planned.ItemCost[cost.ItemID] != cost.Count {
+		t.Fatalf("upgrade mismatch: %+v want gold=%d item=%d x%d", planned, cost.Gold, cost.ItemID, cost.Count)
+	}
+}
+
 func TestBuildPlan_FlowerUpgradeStopsAtMaxLevel(t *testing.T) {
 	max := state.FlowerMaxLevel()
 	if max <= 1 {

@@ -21,17 +21,29 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 			ops = append(ops, unlock)
 		}
 	}
-	if planting.GetUseSpeedUpTicket() || raceSpeedupEnabled(s, policy.GetUnion().GetRace()) {
+	if planting.GetUseSpeedUpTicket() || raceSpeedupEnabledAt(s, policy.GetUnion().GetRace(), now) {
 		// Global planting speedup accelerates every growing land. Race-only
 		// "种植任务使用加速卡" must only hit the taken plant-harvest flower.
+		// When both are on, prefer the race flower first so limited tickets
+		// still serve guild competition before ordinary crops.
 		flowerFilter := int32(0)
-		if !planting.GetUseSpeedUpTicket() {
-			flowerFilter = s.FmlRace().Taken.ParamID
+		preferFlower := int32(0)
+		raceOn := raceSpeedupEnabledAt(s, policy.GetUnion().GetRace(), now)
+		if raceOn {
+			preferFlower = s.FmlRace().Taken.ParamID
 		}
-		if lands, count := speedUpCandidates(s, now, flowerFilter); count > 0 {
+		if !planting.GetUseSpeedUpTicket() {
+			flowerFilter = preferFlower
+			preferFlower = 0
+		}
+		if lands, count := speedUpCandidates(s, now, flowerFilter, preferFlower); count > 0 {
 			reason := "存在可加速土地"
 			if !planting.GetUseSpeedUpTicket() {
 				reason = "公会竞赛种植任务使用加速卡"
+				if raceExpireUrgentSpeedup(s.FmlRace().Taken, now) &&
+					!policy.GetUnion().GetRace().GetUseSpeedupTicketInTask() {
+					reason = "公会竞赛任务即将过期，使用加速卡"
+				}
 			}
 			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", reason, 7400, 0, 0, count)
 			speed.LandIDs = lands
@@ -78,7 +90,9 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 // speedUpCandidates returns growing lands that still need tickets.
 // When flowerID > 0, only lands planted with that flower are eligible
 // (used by guild-race plant-harvest speedup).
-func speedUpCandidates(s *state.State, now time.Time, flowerID int32) ([]int32, int32) {
+// When preferFlower > 0, matching lands are ordered first so scarce tickets
+// serve the race crop before other growing lands.
+func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int32) ([]int32, int32) {
 	available := s.Inventory()[1001]
 	if available <= 0 {
 		return nil, 0
@@ -93,7 +107,16 @@ func speedUpCandidates(s *state.State, now time.Time, flowerID int32) ([]int32, 
 		}
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	sort.Slice(ids, func(i, j int) bool {
+		if preferFlower > 0 {
+			li := int32(s.Lands()[ids[i]].FlowerID) == preferFlower
+			lj := int32(s.Lands()[ids[j]].FlowerID) == preferFlower
+			if li != lj {
+				return li
+			}
+		}
+		return ids[i] < ids[j]
+	})
 	want := int32(len(ids))
 	if want > available {
 		want = available

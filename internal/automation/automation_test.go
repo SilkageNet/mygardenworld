@@ -1498,6 +1498,34 @@ func TestBuildPlan_ShopCultivateEnterBeforeObserved(t *testing.T) {
 	t.Fatalf("missing shop cultivate sync op: %+v", result.Operations)
 }
 
+func TestBuildPlan_ShopCultivateEnterWhenLarTimeMissing(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 7, 26, 14, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	// Buy ACK shape: bRecord only — observed but no larTime/resetTime.
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 5_000_000}},
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 1000}},
+			"6": map[string]any{"10001": 1},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+	p.Basic.Shop.CultivateShop.MaxSpendGold = 50_000_000
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Kind != clientproto.RPCShopCultivateEnter.String() || op.Action != "sync" || !op.Executable {
+				t.Fatalf("incomplete shop state should re-enter, got %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop cultivate enter after incomplete observe: %+v", result.Operations)
+}
+
 func TestBuildPlan_ShopGiftbagEnterBeforeObserved(t *testing.T) {
 	s := state.New()
 	p := DefaultPolicy()
@@ -2309,6 +2337,7 @@ func TestBuildPlan_ShopCultivateBuyWithGoldBudget(t *testing.T) {
 		"7": map[string]any{"0": map[string]any{"44": 5000}},
 		"113": map[string]any{
 			"1": map[string]any{"10001": []int32{11, 3214}},
+			"2": now.Add(-time.Hour).UnixMilli(),
 			"3": now.Add(-time.Hour).UnixMilli(),
 			"6": map[string]any{"10001": 0},
 		},
@@ -2339,6 +2368,7 @@ func TestBuildPlan_ShopCultivateRefreshWhenAutoCDReady(t *testing.T) {
 		"7": map[string]any{"0": map[string]any{"44": 5000}},
 		"113": map[string]any{
 			"1": map[string]any{"10001": []int32{11, 3214}},
+			"2": lar.UnixMilli(),
 			"3": lar.UnixMilli(),
 			"4": 0,
 			"6": map[string]any{"10001": 0},
@@ -2370,6 +2400,7 @@ func TestBuildPlan_ShopCultivateNoPaidRefreshAfterFreeTimes(t *testing.T) {
 		"7": map[string]any{"0": map[string]any{"44": 5000}},
 		"113": map[string]any{
 			"1": map[string]any{"10001": []int32{11, 3214}},
+			"2": lar.UnixMilli(),
 			"3": lar.UnixMilli(),
 			"4": 3, // $frTimes exhausted; further refresh costs yuanbao
 			"6": map[string]any{"10001": 0},
@@ -2398,9 +2429,12 @@ func TestBuildPlan_ShopCultivateNoPaidRefreshAfterFreeTimes(t *testing.T) {
 
 func TestBuildPlan_ShopCultivateDiamondCostBlocked(t *testing.T) {
 	s := state.New()
+	now := time.Date(2026, 7, 26, 14, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	applyMap(t, s, map[string]any{
 		"113": map[string]any{
 			"1": map[string]any{"10001": []int32{1, 10}},
+			"2": now.UnixMilli(),
+			"3": now.UnixMilli(),
 			"6": map[string]any{"10001": 0},
 		},
 	})
@@ -2410,7 +2444,7 @@ func TestBuildPlan_ShopCultivateDiamondCostBlocked(t *testing.T) {
 	p.Basic.Shop.CultivateShop.MaxSpendDiamond = 20
 	p.Basic.Shop.CultivateShop.ItemIds = []int32{10001}
 
-	result := BuildPlan(s, p, time.Now())
+	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
 		if op.Domain == "basic.shop.cultivate" {
 			if op.Executable || len(op.BlockedReasons) == 0 {

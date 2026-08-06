@@ -306,18 +306,20 @@ type FmlFlowerTakeCandidate struct {
 
 // FmlRaceTaskView is a filtered view of an available race task from the pool.
 type FmlRaceTaskView struct {
-	MsId        int64  // task instance ID (used as taskMsId; millisecond-scale)
-	TaskId      int32  // c_fmlRaceTask catalog row id (protocol field 4)
-	TaskType    int32  // c_fmlRaceTask.type (priority / label key, e.g. 3036)
-	Score       int32  // task score
-	IsUpgrade   int32  // 1 if already upgraded
-	UpgradeUid  int64  // UID of the member who upgraded (0 if none)
-	UID         int64  // taker uid; non-zero means the task is already taken
-	ParamID     int32  // first param id when present (flower/item); 0 if none
-	TargetLabel string // catalog name for ParamID; empty when unavailable
-	AppearTime  int64  // protocol appearTime (ms); future = still on CD
-	TargetCnt   int32  // protocol targetCnt (field 7); 0 if absent
-	FinishCnt   int32  // protocol finishCnt (field 8); 0 if absent
+	MsId           int64  // task instance ID (used as taskMsId; millisecond-scale)
+	TaskId         int32  // c_fmlRaceTask catalog row id (protocol field 4)
+	TaskType       int32  // c_fmlRaceTask.type (priority / label key, e.g. 3036)
+	Score          int32  // task score
+	IsUpgrade      int32  // 1 if already upgraded
+	UpgradeUid     int64  // UID of the member who upgraded (0 if none)
+	UID            int64  // taker uid; non-zero means the task is already taken
+	ParamID        int32  // first param id when present (flower/item); 0 if none
+	TargetLabel    string // catalog name for ParamID; empty when unavailable
+	AppearTime     int64  // protocol appearTime (ms); future = still on CD
+	TargetCnt      int32  // protocol targetCnt (field 7); 0 if absent
+	FinishCnt      int32  // protocol finishCnt (field 8); 0 if absent
+	TakeLimitMin   int32  // protocol takeLimitMin (minutes allowed after take)
+	TakeExpireTime int64  // protocol takeExpireTime (ms); deadline once taken
 }
 
 // FmlRaceTakenView is the user's currently taken task progress.
@@ -330,7 +332,16 @@ type FmlRaceTakenView struct {
 	FinishCnt   int32
 	ParamID     int32
 	TargetLabel string
-	HasTask     bool // true if the user currently holds a task
+	// TakeLimitMin is the allowed duration in minutes after take (pool field 9).
+	TakeLimitMin int32
+	// TakenAtMs is local wall time when this TaskMsId hold was first observed.
+	// Used with TakeLimitMin to compute ExpireTime when the server omits it.
+	TakenAtMs int64
+	// ExpireTime is the held-task deadline in ms. Prefer protocol
+	// IFmlRaceTakeTask.expireTime / pool takeExpireTime; otherwise
+	// TakenAtMs + TakeLimitMin minutes.
+	ExpireTime int64
+	HasTask    bool // true if the user currently holds a task
 }
 
 // FmlRaceView is the race-related slice of namespace 25.

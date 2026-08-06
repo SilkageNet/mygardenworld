@@ -2209,9 +2209,10 @@ func parseFlowerLvlYield(raw json.RawMessage, level int32) (FlowerLvlYield, bool
 }
 
 // FlowerUpgradeCostForLevel returns the cost to upgrade a flower from its
-// current cultivation level. The client table key is flowerId*100+level.
-// The table row carries the required essence count and gold, while the essence
-// item itself is consistently flowerId-1000 (for example 23006 -> 22006).
+// current cultivation level. Prefer the per-flower c_flowerLvl row (key
+// flowerId*100+level); when that row is absent (newer flowers like 星垂绮夜 /
+// 梦紫郁金香), fall back to the shared c_flowerLvlCfg row for the same level.
+// Essence item id is always flowerId-1000 (for example 23006 -> 22006).
 func FlowerUpgradeCostForLevel(flowerID, level int32) (FlowerUpgradeCost, bool) {
 	if level <= 0 {
 		return FlowerUpgradeCost{}, false
@@ -2220,7 +2221,21 @@ func FlowerUpgradeCostForLevel(flowerID, level int32) (FlowerUpgradeCost, bool) 
 	if itemID == 0 {
 		return FlowerUpgradeCost{}, false
 	}
-	raw, ok := StaticRow("c_flowerLvl", flowerID*100+level)
+	if cost, ok := flowerUpgradeCostFromRaw(StaticRow("c_flowerLvl", flowerID*100+level)); ok {
+		cost.ItemID = itemID
+		return cost, true
+	}
+	if cost, ok := flowerUpgradeCostFromRaw(StaticRow("c_flowerLvlCfg", level)); ok {
+		cost.ItemID = itemID
+		return cost, true
+	}
+	return FlowerUpgradeCost{}, false
+}
+
+// flowerUpgradeCostFromRaw parses lvlUpCost/gldCost from either a per-flower
+// c_flowerLvl row (lvlUpCost is [itemId, count]) or a shared c_flowerLvlCfg
+// row (lvlUpCost is a bare count). ItemID is left zero for the caller to fill.
+func flowerUpgradeCostFromRaw(raw json.RawMessage, ok bool) (FlowerUpgradeCost, bool) {
 	if !ok {
 		return FlowerUpgradeCost{}, false
 	}
@@ -2228,21 +2243,35 @@ func FlowerUpgradeCostForLevel(flowerID, level int32) (FlowerUpgradeCost, bool) 
 	if json.Unmarshal(raw, &row) != nil {
 		return FlowerUpgradeCost{}, false
 	}
-	var count int32
-	if rawCost, ok := row["lvlUpCost"]; ok {
-		var pair []int32
-		if json.Unmarshal(rawCost, &pair) == nil && len(pair) >= 2 {
-			count = pair[1]
-		}
+	count := parseLvlUpCostCount(row["lvlUpCost"])
+	if count <= 0 {
+		return FlowerUpgradeCost{}, false
 	}
 	var gold int32
 	if rawGold, ok := row["gldCost"]; ok {
 		_ = json.Unmarshal(rawGold, &gold)
 	}
-	if count <= 0 {
-		return FlowerUpgradeCost{}, false
+	return FlowerUpgradeCost{Count: count, Gold: gold}, true
+}
+
+func parseLvlUpCostCount(raw json.RawMessage) int32 {
+	if len(raw) == 0 {
+		return 0
 	}
-	return FlowerUpgradeCost{ItemID: itemID, Count: count, Gold: gold}, true
+	var pair []int32
+	if json.Unmarshal(raw, &pair) == nil {
+		if len(pair) >= 2 {
+			return pair[1]
+		}
+		if len(pair) == 1 {
+			return pair[0]
+		}
+	}
+	var count int32
+	if json.Unmarshal(raw, &count) == nil {
+		return count
+	}
+	return 0
 }
 
 // FlowerArtRecipeByID returns the craft recipe for a flower-art item.

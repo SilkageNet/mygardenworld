@@ -88,6 +88,169 @@ func TestRacePlantDemandOverridesRegularFarmToggles(t *testing.T) {
 	t.Fatalf("active race task must still drive its farm module, ops=%+v demands=%+v", result.Operations, result.Demands)
 }
 
+func TestRacePlantBeatsHigherPriorityOrderDemand(t *testing.T) {
+	// Customer-order demand priority defaults to 90; race must still own empty
+	// lands first when DemandPriorityEnabled is on.
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 1, "4": 2},
+			"23002": map[string]any{"1": 23002, "2": 1, "4": 2},
+		}},
+	})
+	p := DefaultPolicy()
+	p.Plant.Planting.DemandPriorityEnabled = true
+
+	assignments := plantAssignments(s, p.Plant, []Demand{
+		{
+			ID:       "order-23002",
+			GoalID:   GoalCustomerOrder,
+			Kind:     DemandKindFlower,
+			ItemID:   23002,
+			Missing:  6,
+			Priority: 90,
+			Label:    "顾客订单",
+		},
+		{
+			ID:       "union.race:99:race_task:flower:23001",
+			GoalID:   raceActionGoal,
+			Source:   "race_task",
+			Kind:     DemandKindFlower,
+			ItemID:   23001,
+			Missing:  4,
+			Priority: raceDemandPriority,
+			Label:    "公会竞赛种植",
+		},
+	}, 3)
+	if len(assignments) == 0 {
+		t.Fatal("expected race plant assignment")
+	}
+	if assignments[0].GoalID != raceActionGoal || assignments[0].FlowerID != 23001 {
+		t.Fatalf("race must claim lands before customer order, got %+v", assignments)
+	}
+	if assignments[0].Count != 3 {
+		t.Fatalf("race should take all 3 empty lands, count=%d assignments=%+v", assignments[0].Count, assignments)
+	}
+}
+
+func TestRacePlantBeatsCustomerOrderInBuildPlan(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 0, 10)
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": emptyLands(3)},
+		"101": map[string]any{"0": cultivate(23001, 23002)},
+	})
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.DemandPriorityEnabled = true
+	policy.Order.Customer.Enabled = true
+
+	// Inject a higher-looking customer flower demand via direct plantAssignments
+	// path is covered above; here ensure BuildPlan race demand still plants 23001
+	// and auto-replant does not steal the slots for 23002.
+	result := BuildPlan(s, policy, now)
+	var plantedRace, plantedOther int32
+	for _, op := range result.Operations {
+		if !isPlantOperation(op.Kind) || !op.Executable {
+			continue
+		}
+		n := int32(len(op.LandIDs))
+		switch {
+		case op.FlowerID == 23001 && op.GoalID == raceActionGoal:
+			plantedRace += n
+		default:
+			plantedOther += n
+		}
+	}
+	if plantedRace == 0 {
+		t.Fatalf("expected race plant, ops=%+v demands=%+v", result.Operations, result.Demands)
+	}
+	if plantedOther > 0 {
+		t.Fatalf("race must suppress other planting, race=%d other=%d ops=%+v", plantedRace, plantedOther, result.Operations)
+	}
+}
+
+func TestRaceWatersBeforeOtherCropsWhenAutoOn(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 0, 10)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			// 7 drops on hand; MinWaterDrops=5 → only 2 usable. nextMs in the
+			// future so projection does not recover an extra drop.
+			"32": map[string]any{"7": 7},
+			"33": map[string]any{"7": map[string]any{"1": 130, "5": now.Add(time.Hour).UnixMilli()}},
+		}},
+		"100": map[string]any{"1": map[string]any{
+			// Lower land IDs are non-race; without prioritization they would
+			// consume the scarce water drops first.
+			"1001": map[string]any{"0": 23002, "1": 1, "2": 1, "3": 0},
+			"1002": map[string]any{"0": 23002, "1": 1, "2": 1, "3": 0},
+			"1003": map[string]any{"0": 23002, "1": 1, "2": 1, "3": 0},
+			"1004": map[string]any{"0": 23001, "1": 1, "2": 1, "3": 0},
+			"1005": map[string]any{"0": 23001, "1": 1, "2": 1, "3": 0},
+		}},
+		"101": map[string]any{"0": cultivate(23001, 23002)},
+	})
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.AutoEnabled = true
+	policy.Plant.Planting.MinWaterDrops = 5
+
+	result := BuildPlan(s, policy, now)
+	var water *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if (op.Kind == clientproto.RPCUsrLandWater.String() || op.Kind == clientproto.RPCUsrLandWaterBatch.String()) && op.Executable {
+			water = op
+			break
+		}
+	}
+	if water == nil {
+		t.Fatalf("expected water op, ops=%+v", result.Operations)
+	}
+	// usable = 7-5 = 2 drops → must be exactly the two race lands.
+	if len(water.LandIDs) != 2 {
+		t.Fatalf("water lands=%v, want exactly [1004 1005]", water.LandIDs)
+	}
+	for _, id := range water.LandIDs {
+		if id != 1004 && id != 1005 {
+			t.Fatalf("scarce water must hit race lands first, got %v", water.LandIDs)
+		}
+	}
+}
+
+func TestRaceSpeedupPreferredWhenGlobalSpeedupOn(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 2, 10)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 1}, // one ticket only
+		}},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23002, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+			"1002": map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+		}},
+	})
+	policy := racePlantPolicy(true)
+	policy.Plant.Planting.UseSpeedUpTicket = true
+
+	result := BuildPlan(s, policy, now)
+	var speed *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			speed = op
+			break
+		}
+	}
+	if speed == nil {
+		t.Fatalf("expected speedup, ops=%+v", result.Operations)
+	}
+	if len(speed.LandIDs) != 1 || speed.LandIDs[0] != 1002 {
+		t.Fatalf("global+race speedup must prefer race land 1002, got %v", speed.LandIDs)
+	}
+}
+
 func TestRaceTakenPlantHarvestEmitsFlowerDemand(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := raceTakenPlantState(t, 2, 10)
@@ -252,6 +415,84 @@ func TestRaceSpeedupOnlyTargetsRaceFlower(t *testing.T) {
 	}
 	if speed.ItemCost[1001] != 1 {
 		t.Fatalf("ItemCost=%v, want 1 ticket", speed.ItemCost)
+	}
+}
+
+// TestRaceExpireUrgentSpeedupWithoutToggle ensures that within 10 minutes of
+// ExpireTime, unfinished plant-harvest tasks force speedup even when
+// useSpeedupTicketInTask is off.
+func TestRaceExpireUrgentSpeedupWithoutToggle(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	expire := now.Add(5 * time.Minute).UnixMilli()
+	s := raceTakenPlantState(t, 2, 10)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 5},
+		}},
+		"25": map[string]any{
+			"110": map[string]any{
+				"1783872000000": map[string]any{
+					"7": map[string]any{"0": 99, "1": 4001, "2": 10, "3": 2, "4": []any{23001}, "5": expire},
+				},
+			},
+		},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+		}},
+	})
+	if got := s.FmlRace().Taken.ExpireTime; got != expire {
+		t.Fatalf("ExpireTime=%d, want %d", got, expire)
+	}
+	policy := racePlantPolicy(false) // UseSpeedupTicketInTask off
+
+	result := BuildPlan(s, policy, now)
+	var speed *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			speed = op
+			break
+		}
+	}
+	if speed == nil {
+		t.Fatalf("expected urgent expire speedup, ops=%+v", result.Operations)
+	}
+	if speed.Reason != "公会竞赛任务即将过期，使用加速卡" {
+		t.Fatalf("Reason=%q, want expire urgency reason", speed.Reason)
+	}
+	if len(speed.LandIDs) != 1 || speed.LandIDs[0] != 1001 {
+		t.Fatalf("LandIDs=%v, want [1001]", speed.LandIDs)
+	}
+}
+
+func TestRaceNoSpeedupFarFromExpireWithoutToggle(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	expire := now.Add(30 * time.Minute).UnixMilli() // outside 10m lead
+	s := raceTakenPlantState(t, 2, 10)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 5},
+		}},
+		"25": map[string]any{
+			"110": map[string]any{
+				"1783872000000": map[string]any{
+					"7": map[string]any{"0": 99, "1": 4001, "2": 10, "3": 2, "4": []any{23001}, "5": expire},
+				},
+			},
+		},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()},
+		}},
+	})
+	policy := racePlantPolicy(false)
+
+	result := BuildPlan(s, policy, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			t.Fatalf("must not speedup far from expire without toggle, got %+v", op)
+		}
 	}
 }
 

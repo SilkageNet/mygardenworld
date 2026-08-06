@@ -1317,8 +1317,45 @@ type FlowerPickerOption = {
   stock: number;
   gold: number;
   experience: number;
+  lvl: number;
+  quality: number;
   plantable: boolean;
 };
+
+function resetFlowerPickerFilters(
+  setQuery: (value: string) => void,
+  setQualityFilter: (value: number[]) => void,
+  setLevelFilter: (value: number[]) => void,
+) {
+  setQuery("");
+  setQualityFilter([]);
+  setLevelFilter([]);
+}
+
+function FlowerPickerFilterChip({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-7 min-w-7 items-center justify-center rounded border px-1.5 text-xs font-medium",
+        selected
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 function FlowerMultiSelectRow({
   label,
@@ -1335,6 +1372,8 @@ function FlowerMultiSelectRow({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [qualityFilter, setQualityFilter] = useState<number[]>([]);
+  const [levelFilter, setLevelFilter] = useState<number[]>([]);
   const selectedSet = useMemo(() => new Set(value), [value]);
   const flowers = useMemo<FlowerPickerOption[]>(() => {
     const options = plantableFlowers.map((flower) => {
@@ -1346,6 +1385,8 @@ function FlowerMultiSelectRow({
         stock: flower.stock,
         gold: flower.gold,
         experience: flower.experience,
+        lvl: flower.lvl,
+        quality: display.item?.color ?? 0,
         plantable: true,
       };
     });
@@ -1360,25 +1401,47 @@ function FlowerMultiSelectRow({
         stock: 0,
         gold: display.flower?.gold ?? 0,
         experience: display.flower?.experience ?? 0,
+        lvl: 0,
+        quality: display.item?.color ?? 0,
         plantable: false,
       });
     }
     return options.sort((a, b) => {
       if (a.plantable !== b.plantable) return a.plantable ? -1 : 1;
+      if (a.lvl !== b.lvl) return b.lvl - a.lvl;
       if (a.stock !== b.stock) return a.stock - b.stock;
       return a.id - b.id;
     });
   }, [plantableFlowers, value]);
+  const availableLevels = useMemo(() => {
+    const levels = new Set<number>();
+    for (const flower of flowers) {
+      if (flower.lvl > 0) levels.add(flower.lvl);
+    }
+    return [...levels].sort((a, b) => a - b);
+  }, [flowers]);
   const visibleFlowers = useMemo(() => {
     const text = query.trim().toLowerCase();
-    if (!text) return flowers;
+    const qualitySet = qualityFilter.length > 0 ? new Set(qualityFilter) : null;
+    const levelSet = levelFilter.length > 0 ? new Set(levelFilter) : null;
     return flowers.filter((flower) => {
-      return String(flower.id).includes(text) || flower.name.toLowerCase().includes(text) || flower.seedName.toLowerCase().includes(text);
+      if (qualitySet && !qualitySet.has(flower.quality)) return false;
+      if (levelSet && !levelSet.has(flower.lvl)) return false;
+      if (!text) return true;
+      const qualityLabel = QUALITY_LABELS[flower.quality] ?? "";
+      return (
+        String(flower.id).includes(text) ||
+        flower.name.toLowerCase().includes(text) ||
+        flower.seedName.toLowerCase().includes(text) ||
+        qualityLabel.includes(text) ||
+        (flower.lvl > 0 && (`lv${flower.lvl}` === text || `等级${flower.lvl}` === text || String(flower.lvl) === text))
+      );
     });
-  }, [flowers, query]);
+  }, [flowers, levelFilter, qualityFilter, query]);
   const selectedPreview = value.slice(0, 4).map((id) => itemName(id)).filter(Boolean).join("、");
   const extraCount = value.length > 4 ? value.length - 4 : 0;
   const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
+  const filterActive = qualityFilter.length > 0 || levelFilter.length > 0;
 
   return (
     <div className="min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
@@ -1403,7 +1466,7 @@ function FlowerMultiSelectRow({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
-          if (!nextOpen) setQuery("");
+          if (!nextOpen) resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter);
         }}
       >
         <DialogContent className="flex h-[min(42rem,90dvh)] max-h-[90dvh] max-w-3xl flex-col overflow-hidden">
@@ -1417,21 +1480,71 @@ function FlowerMultiSelectRow({
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索花名、种子或 ID"
+                  placeholder="搜索花名、种子、品质或 ID"
                   className="h-9 pl-9 max-sm:dark:bg-input max-sm:dark:shadow-none max-sm:dark:transition-none max-sm:dark:focus-visible:bg-input"
                 />
               </div>
               <Badge variant="outline" className="max-sm:dark:bg-input max-sm:dark:transition-none">已选 {value.length}</Badge>
             </div>
+            <div className="flex shrink-0 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="shrink-0 text-xs text-muted-foreground">品质</span>
+                <div className="flex flex-wrap gap-1">
+                  {QUALITY_OPTIONS.map((quality) => (
+                    <FlowerPickerFilterChip
+                      key={quality}
+                      selected={qualityFilter.includes(quality)}
+                      onClick={() => setQualityFilter((current) => toggleNumber(current, quality))}
+                    >
+                      {QUALITY_LABELS[quality]}
+                    </FlowerPickerFilterChip>
+                  ))}
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="shrink-0 text-xs text-muted-foreground">等级</span>
+                <div className="flex flex-wrap gap-1">
+                  {availableLevels.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">{synced ? "暂无等级数据" : "登录后同步等级"}</span>
+                  ) : (
+                    availableLevels.map((level) => (
+                      <FlowerPickerFilterChip
+                        key={level}
+                        selected={levelFilter.includes(level)}
+                        onClick={() => setLevelFilter((current) => toggleNumber(current, level))}
+                      >
+                        Lv.{level}
+                      </FlowerPickerFilterChip>
+                    ))
+                  )}
+                </div>
+                {filterActive ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-7 px-2 text-xs"
+                    onClick={() => {
+                      setQualityFilter([]);
+                      setLevelFilter([]);
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                ) : null}
+              </div>
+            </div>
             <div className="dark-scrollbar min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-md border border-border/58 bg-white/42 p-2 dark:bg-muted">
               {visibleFlowers.length === 0 ? (
-                <EmptyState title={synced ? "没有匹配花种" : "尚未同步可种花种"} detail={synced ? undefined : "登录账号并同步培育状态后可选择"} />
+                <EmptyState
+                  title={synced ? "没有匹配花种" : "尚未同步可种花种"}
+                  detail={synced ? (filterActive || query.trim() ? "试试调整品质/等级筛选或搜索词" : undefined) : "登录账号并同步培育状态后可选择"}
+                />
               ) : (
                 <div className="grid grid-cols-1 gap-2 min-[540px]:grid-cols-2 lg:grid-cols-3">
                   {visibleFlowers.map((flower) => {
                     const selected = selectedSet.has(flower.id);
-                    const display = flowerDisplay(flower.id);
-                    const color = display.item?.color;
+                    const qualityLabel = flower.quality > 0 ? QUALITY_LABELS[flower.quality] : "";
                     return (
                       <button
                         key={flower.id}
@@ -1456,11 +1569,12 @@ function FlowerMultiSelectRow({
                         <span className="min-w-0 flex-1">
                           <span className="flex min-w-0 items-center gap-1.5">
                             <span className="truncate text-sm font-medium">{flower.name}</span>
+                            {flower.lvl > 0 ? <Badge variant="secondary">Lv.{flower.lvl}</Badge> : null}
                             {!flower.plantable && <Badge variant="outline">当前不可种</Badge>}
                           </span>
                           <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span>{flower.id}</span>
-                            {color ? <span>品质 {color}</span> : null}
+                            {qualityLabel ? <span>{qualityLabel}</span> : null}
                             {flower.stock > 0 ? <span>库存 {formatCount(flower.stock)}</span> : null}
                             {flower.gold ? <span>金币 {formatCount(flower.gold)}</span> : null}
                           </span>
@@ -1473,7 +1587,13 @@ function FlowerMultiSelectRow({
             </div>
           </div>
           <DialogFooter className="mt-3 shrink-0 flex-row items-center justify-between border-t border-border/58 pt-3 [&>button]:min-h-10 [&>button]:min-w-24">
-            <Button type="button" variant="ghost" className="max-sm:dark:bg-card max-sm:dark:transition-none max-sm:dark:hover:bg-muted" onClick={() => onChange([])} disabled={value.length === 0}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="max-sm:dark:bg-card max-sm:dark:transition-none max-sm:dark:hover:bg-muted"
+              onClick={() => onChange([])}
+              disabled={value.length === 0}
+            >
               清空
             </Button>
             <Button
@@ -1481,7 +1601,7 @@ function FlowerMultiSelectRow({
               className="max-sm:dark:transition-none"
               onClick={() => {
                 setOpen(false);
-                setQuery("");
+                resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter);
               }}
             >
               完成

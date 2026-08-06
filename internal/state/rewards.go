@@ -432,15 +432,21 @@ func (s *State) ShopCultivateObserved() bool {
 }
 
 // ShopCultivateNeedsEnter reports whether material-shop state must be synced
-// via shopCultivate.enter (never observed, or daily reset boundary passed).
+// via shopCultivate.enter (never observed, incomplete timing fields, or daily
+// reset boundary passed).
+//
+// Buy ACKs often patch only 113.6 (bRecord) while leaving larTime unset. Without
+// larTime, AutoRefreshReady can never become true, so an emptied shelf stays
+// stuck for the rest of the day unless we force enter to reload full shop
+// state (infoMap + larTime + mrCount + lResetTime).
 func (s *State) ShopCultivateNeedsEnter(now time.Time) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.shopCultivateObserved {
 		return true
 	}
-	if s.shopCultivateResetMs <= 0 {
-		return false
+	if s.shopCultivateLarMs <= 0 || s.shopCultivateResetMs <= 0 {
+		return true
 	}
 	return gameDayID(now) > gameDayID(time.UnixMilli(s.shopCultivateResetMs))
 }

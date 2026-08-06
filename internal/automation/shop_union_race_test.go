@@ -1160,6 +1160,19 @@ func TestUnionRaceFinishProgressSyncRespectsCooldown(t *testing.T) {
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected finish-progress sync after cooldown, got %+v", ops)
 	}
+	// One authoritative getTaskList that still lags must clamp LocalFinish so
+	// the planner does not spin sync every raceFinishProgressSyncInterval.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	afterSync := s.FmlRace()
+	if afterSync.LocalFinishCnt != 48 {
+		t.Fatalf("LocalFinishCnt=%d after full pool, want clamped 48", afterSync.LocalFinishCnt)
+	}
+	ops = unionRaceOperations(s, policy, 999, time.UnixMilli(afterSync.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval+time.Second), true)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("must not keep finish-progress syncing after clamp, got %+v", ops)
+		}
+	}
 }
 
 func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {

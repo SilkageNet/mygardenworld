@@ -96,11 +96,14 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	if len(water) > 0 {
-		// When only race auto-complete is driving the farm (planting auto off),
-		// water the race flower lands that still need their first water.
-		if !plantingPolicy.GetAutoEnabled() && raceProgress {
-			if flowerID := racePlantHarvestFlowerID(s, demands); flowerID > 0 {
+		if flowerID := racePlantHarvestFlowerID(s, demands); flowerID > 0 && raceProgress {
+			if !plantingPolicy.GetAutoEnabled() {
+				// Race-only farm drive: water only the race flower.
 				water = filterLandIDsByFlower(s, water, flowerID)
+			} else {
+				// Auto planting on: still water race lands first so limited
+				// water drops are not spent on unrelated crops.
+				water = prioritizeLandIDsByFlower(s, water, flowerID)
 			}
 		}
 	}
@@ -181,12 +184,15 @@ func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Dema
 	var out []plantAssignment
 	var diagnostics []plantAssignment
 	remaining := emptyCount
-	for _, demand := range demands {
+	// Race plant-harvest first, then other flower demands. sortDemands already
+	// ranks by Priority, but an explicit race pass keeps guild competition
+	// first even if another demand's Priority is misconfigured higher.
+	assignFlowerDemand := func(demand Demand) {
 		if demand.Kind != DemandKindFlower || demand.Missing <= 0 || len(demand.BlockedReasons) > 0 {
-			continue
+			return
 		}
 		if !demandPlanting && !isRaceDrivenFlowerDemand(demand) {
-			continue
+			return
 		}
 		if _, ok := plantable[demand.ItemID]; !ok {
 			diagnostics = append(diagnostics, plantAssignment{
@@ -196,17 +202,17 @@ func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Dema
 				DemandID: demand.ID,
 				Reason:   blockedPlantDiagnosticReason,
 			})
-			continue
+			return
 		}
 		if remaining <= 0 {
-			continue
+			return
 		}
 		count := demand.Missing
 		if count > remaining {
 			count = remaining
 		}
 		if count <= 0 {
-			continue
+			return
 		}
 		out = append(out, plantAssignment{
 			FlowerID: demand.ItemID,
@@ -217,6 +223,16 @@ func planPlantAssignments(s *state.State, policy *pb.PlantPolicy, demands []Dema
 			Reason:   demand.Label,
 		})
 		remaining -= count
+	}
+	for _, demand := range demands {
+		if isRaceDrivenFlowerDemand(demand) {
+			assignFlowerDemand(demand)
+		}
+	}
+	for _, demand := range demands {
+		if !isRaceDrivenFlowerDemand(demand) {
+			assignFlowerDemand(demand)
+		}
 	}
 	executable := executableAssignments(out)
 	if remaining <= 0 || suppressAutoReplant {
@@ -266,6 +282,28 @@ func filterLandIDsByFlower(s *state.State, landIDs []int32, flowerID int32) []in
 		}
 	}
 	return out
+}
+
+// prioritizeLandIDsByFlower keeps all landIDs but moves matching flower lands
+// ahead so scarce resources (water drops) serve guild-race crops first.
+func prioritizeLandIDsByFlower(s *state.State, landIDs []int32, flowerID int32) []int32 {
+	if s == nil || flowerID <= 0 || len(landIDs) <= 1 {
+		return landIDs
+	}
+	lands := s.Lands()
+	matched := make([]int32, 0, len(landIDs))
+	rest := make([]int32, 0, len(landIDs))
+	for _, id := range landIDs {
+		if int32(lands[id].FlowerID) == flowerID {
+			matched = append(matched, id)
+		} else {
+			rest = append(rest, id)
+		}
+	}
+	if len(matched) == 0 || len(rest) == 0 {
+		return landIDs
+	}
+	return append(matched, rest...)
 }
 
 func applyAssignmentStock(candidates []state.PlantableFlower, assignments []plantAssignment) {

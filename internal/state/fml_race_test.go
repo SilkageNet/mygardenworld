@@ -194,7 +194,7 @@ func TestFmlRaceTasksSyncedAtMsSetOnEmptyPool(t *testing.T) {
 func TestFmlRaceTakenSynthesizedFromPoolUID(t *testing.T) {
 	s := New()
 	// roleID=999; 110 empty map (no takeTaskData); pool row uid=999.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":178,"4":4012,"6":[23363],"7":600,"8":12,"10":25,"12":999}],"110":{}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"114":[{"0":178,"4":4012,"6":[23363],"7":600,"8":12,"10":25,"12":999,"13":1785368365572}],"110":{}}}`))
 	got := s.FmlRace()
 	if !got.Taken.HasTask {
 		t.Fatalf("expected Taken from pool UID, got %+v", got.Taken)
@@ -205,6 +205,65 @@ func TestFmlRaceTakenSynthesizedFromPoolUID(t *testing.T) {
 	}
 	if got.Taken.TaskType == 0 {
 		t.Fatalf("expected TaskType resolved, got %+v", got.Taken)
+	}
+	if got.Taken.ExpireTime != 1785368365572 {
+		t.Fatalf("ExpireTime=%d, want takeExpireTime from pool field 13", got.Taken.ExpireTime)
+	}
+}
+
+func TestFmlRaceTakenExpireTimeFrom110(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577],"5":1785368365572}}}}}`))
+	got := s.FmlRace().Taken
+	if !got.HasTask || got.ExpireTime != 1785368365572 {
+		t.Fatalf("taken ExpireTime from 110 = %+v", got)
+	}
+	if got.TakenAtMs <= 0 {
+		t.Fatalf("TakenAtMs should be stamped, got %+v", got)
+	}
+}
+
+func TestFmlRaceTakenExpireTimeFromTakeLimitMin(t *testing.T) {
+	s := New()
+	// No protocol expireTime; pool carries takeLimitMin=270. Deadline = TakenAtMs + 270m.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"9":270,"10":28,"12":999,"13":null}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	got := s.FmlRace().Taken
+	if !got.HasTask || got.TaskMsId != 715 {
+		t.Fatalf("expected taken task, got %+v", got)
+	}
+	if got.TakeLimitMin != 270 {
+		t.Fatalf("TakeLimitMin=%d, want 270", got.TakeLimitMin)
+	}
+	if got.TakenAtMs <= 0 {
+		t.Fatalf("TakenAtMs unset: %+v", got)
+	}
+	wantExpire := got.TakenAtMs + int64(270)*int64(time.Minute/time.Millisecond)
+	if got.ExpireTime != wantExpire {
+		t.Fatalf("ExpireTime=%d, want TakenAtMs+270m=%d", got.ExpireTime, wantExpire)
+	}
+	// Re-apply 110 without wipe: TakenAtMs / ExpireTime must stick.
+	prevAt, prevExpire := got.TakenAtMs, got.ExpireTime
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":60,"4":[23577]}}}}}`))
+	got = s.FmlRace().Taken
+	if got.TakenAtMs != prevAt || got.ExpireTime != prevExpire {
+		t.Fatalf("deadline must persist across 110 refresh: before at=%d exp=%d after %+v", prevAt, prevExpire, got)
+	}
+	if got.FinishCnt != 60 {
+		t.Fatalf("FinishCnt=%d, want 60", got.FinishCnt)
+	}
+}
+
+func TestFmlRaceProtocolExpireWinsOverComputed(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"9":270,"10":28,"12":999}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	computed := s.FmlRace().Taken.ExpireTime
+	if computed <= 0 {
+		t.Fatal("expected computed expire before protocol")
+	}
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":48,"4":[23577],"5":1785368365572},"4":1}}}}`))
+	got := s.FmlRace().Taken
+	if got.ExpireTime != 1785368365572 {
+		t.Fatalf("protocol ExpireTime should win, got %d (computed was %d)", got.ExpireTime, computed)
 	}
 }
 
@@ -355,8 +414,29 @@ func TestFmlRaceTakenProgressFromField134OnHarvest(t *testing.T) {
 	if got.Taken.ParamID != 23577 {
 		t.Fatalf("ParamID=%d, want 23577", got.Taken.ParamID)
 	}
+	if got.Taken.ExpireTime != 1785368365572 {
+		t.Fatalf("ExpireTime=%d, want 1785368365572 from takeTaskData field 5", got.Taken.ExpireTime)
+	}
 	if got.LocalFinishCnt != 300 || got.LocalFinishTaskMsId != 715 {
 		t.Fatalf("LocalFinish=%d msId=%d, want 300/715", got.LocalFinishCnt, got.LocalFinishTaskMsId)
+	}
+}
+
+func TestFmlRaceFullPoolClampsLocalFinishWhenServerStillShort(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1},"4":1}}}}`))
+	if got := s.FmlRace(); got.LocalFinishCnt < 300 || got.Taken.FinishCnt != 300 {
+		t.Fatalf("seed after 134 local=%d finish=%d", got.LocalFinishCnt, got.Taken.FinishCnt)
+	}
+	// getTaskList still reports FinishCnt=48 — authoritative; clamp inflated local.
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":999}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	got := s.FmlRace()
+	if got.Taken.FinishCnt != 48 {
+		t.Fatalf("FinishCnt=%d, want 48 from full pool", got.Taken.FinishCnt)
+	}
+	if got.LocalFinishCnt != 48 {
+		t.Fatalf("LocalFinishCnt=%d, want clamped to 48", got.LocalFinishCnt)
 	}
 }
 

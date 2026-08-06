@@ -177,6 +177,24 @@ func TestFlowerUpgradeCostForLevel(t *testing.T) {
 	if cost.ItemID != 22006 || cost.Count != 6 || cost.Gold != 1400 {
 		t.Fatalf("FlowerUpgradeCostForLevel(23006,4)=%+v, want item 22006 count 6 gold 1400", cost)
 	}
+	// Prefer per-flower gold when the row exists (cfg gold for lvl4 is 400).
+	if cost.Gold == 400 {
+		t.Fatalf("FlowerUpgradeCostForLevel(23006,4) used cfg gold=%d, want per-flower 1400", cost.Gold)
+	}
+}
+
+func TestFlowerUpgradeCostForLevelFallsBackToCfg(t *testing.T) {
+	// 星垂绮夜 / 梦紫郁金香 have no per-flower c_flowerLvl rows.
+	for _, flowerID := range []int32{23590, 23436} {
+		cost, ok := FlowerUpgradeCostForLevel(flowerID, 9)
+		if !ok {
+			t.Fatalf("FlowerUpgradeCostForLevel(%d, 9) ok=false", flowerID)
+		}
+		wantItem := flowerID - 1000
+		if cost.ItemID != wantItem || cost.Count != 120 || cost.Gold != 6000 {
+			t.Fatalf("FlowerUpgradeCostForLevel(%d,9)=%+v, want item %d count 120 gold 6000", flowerID, cost, wantItem)
+		}
+	}
 }
 
 func TestFlowerLvlYieldByID(t *testing.T) {

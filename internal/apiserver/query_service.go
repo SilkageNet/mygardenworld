@@ -505,15 +505,16 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			finishCnt = view.LocalFinishCnt
 		}
 		out.Taken = &pb.FmlRaceTaken{
-			HasTask:     true,
-			TaskMsId:    view.Taken.TaskMsId,
-			TaskId:      view.Taken.TaskId,
-			TaskType:    taskType,
-			TaskLabel:   fmlRaceTaskLabels[taskType],
-			TargetCnt:   view.Taken.TargetCnt,
-			FinishCnt:   finishCnt,
-			Score:       view.Taken.Score,
-			TargetLabel: view.Taken.TargetLabel,
+			HasTask:      true,
+			TaskMsId:     view.Taken.TaskMsId,
+			TaskId:       view.Taken.TaskId,
+			TaskType:     taskType,
+			TaskLabel:    fmlRaceTaskLabels[taskType],
+			TargetCnt:    view.Taken.TargetCnt,
+			FinishCnt:    finishCnt,
+			Score:        view.Taken.Score,
+			TargetLabel:  view.Taken.TargetLabel,
+			ExpireTimeMs: view.Taken.ExpireTime,
 		}
 	}
 
@@ -1701,6 +1702,7 @@ func plantableFlowersProto(flowers []state.PlantableFlower) []*pb.PlantableFlowe
 			Stock:      flower.Stock,
 			Gold:       flower.Gold,
 			Experience: flower.Experience,
+			Lvl:        flower.Lvl,
 		})
 	}
 	return out

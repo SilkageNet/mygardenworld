@@ -2289,16 +2289,19 @@ func (x *FmlRaceTask) GetTakeSkipReason() string {
 }
 
 type FmlRaceTaken struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	HasTask       bool                   `protobuf:"varint,1,opt,name=has_task,json=hasTask,proto3" json:"has_task,omitempty"`
-	TaskMsId      int64                  `protobuf:"varint,2,opt,name=task_ms_id,json=taskMsId,proto3" json:"task_ms_id,omitempty"`
-	TaskId        int32                  `protobuf:"varint,3,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	TaskLabel     string                 `protobuf:"bytes,4,opt,name=task_label,json=taskLabel,proto3" json:"task_label,omitempty"`
-	TargetCnt     int32                  `protobuf:"varint,5,opt,name=target_cnt,json=targetCnt,proto3" json:"target_cnt,omitempty"`
-	FinishCnt     int32                  `protobuf:"varint,6,opt,name=finish_cnt,json=finishCnt,proto3" json:"finish_cnt,omitempty"`
-	Score         int32                  `protobuf:"varint,7,opt,name=score,proto3" json:"score,omitempty"`
-	TaskType      int32                  `protobuf:"varint,8,opt,name=task_type,json=taskType,proto3" json:"task_type,omitempty"`
-	TargetLabel   string                 `protobuf:"bytes,9,opt,name=target_label,json=targetLabel,proto3" json:"target_label,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	HasTask     bool                   `protobuf:"varint,1,opt,name=has_task,json=hasTask,proto3" json:"has_task,omitempty"`
+	TaskMsId    int64                  `protobuf:"varint,2,opt,name=task_ms_id,json=taskMsId,proto3" json:"task_ms_id,omitempty"`
+	TaskId      int32                  `protobuf:"varint,3,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	TaskLabel   string                 `protobuf:"bytes,4,opt,name=task_label,json=taskLabel,proto3" json:"task_label,omitempty"`
+	TargetCnt   int32                  `protobuf:"varint,5,opt,name=target_cnt,json=targetCnt,proto3" json:"target_cnt,omitempty"`
+	FinishCnt   int32                  `protobuf:"varint,6,opt,name=finish_cnt,json=finishCnt,proto3" json:"finish_cnt,omitempty"`
+	Score       int32                  `protobuf:"varint,7,opt,name=score,proto3" json:"score,omitempty"`
+	TaskType    int32                  `protobuf:"varint,8,opt,name=task_type,json=taskType,proto3" json:"task_type,omitempty"`
+	TargetLabel string                 `protobuf:"bytes,9,opt,name=target_label,json=targetLabel,proto3" json:"target_label,omitempty"`
+	// Held-task deadline in ms (IFmlRaceTakeTask.expireTime / pool takeExpireTime).
+	// 0 means unknown / not yet observed.
+	ExpireTimeMs  int64 `protobuf:"varint,10,opt,name=expire_time_ms,json=expireTimeMs,proto3" json:"expire_time_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2394,6 +2397,13 @@ func (x *FmlRaceTaken) GetTargetLabel() string {
 		return x.TargetLabel
 	}
 	return ""
+}
+
+func (x *FmlRaceTaken) GetExpireTimeMs() int64 {
+	if x != nil {
+		return x.ExpireTimeMs
+	}
+	return 0
 }
 
 type DessertView struct {
@@ -3593,12 +3603,14 @@ func (x *LandView) GetWasteland() []int32 {
 }
 
 type PlantableFlowerView struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	FlowerId      int32                  `protobuf:"varint,1,opt,name=flower_id,json=flowerId,proto3" json:"flower_id,omitempty"`
-	FlowerName    string                 `protobuf:"bytes,2,opt,name=flower_name,json=flowerName,proto3" json:"flower_name,omitempty"`
-	Stock         int32                  `protobuf:"varint,3,opt,name=stock,proto3" json:"stock,omitempty"`
-	Gold          int32                  `protobuf:"varint,4,opt,name=gold,proto3" json:"gold,omitempty"`
-	Experience    int32                  `protobuf:"varint,5,opt,name=experience,proto3" json:"experience,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	FlowerId   int32                  `protobuf:"varint,1,opt,name=flower_id,json=flowerId,proto3" json:"flower_id,omitempty"`
+	FlowerName string                 `protobuf:"bytes,2,opt,name=flower_name,json=flowerName,proto3" json:"flower_name,omitempty"`
+	Stock      int32                  `protobuf:"varint,3,opt,name=stock,proto3" json:"stock,omitempty"`
+	Gold       int32                  `protobuf:"varint,4,opt,name=gold,proto3" json:"gold,omitempty"`
+	Experience int32                  `protobuf:"varint,5,opt,name=experience,proto3" json:"experience,omitempty"`
+	// Cultivation level from namespace 101 (0 if unknown / not yet synced).
+	Lvl           int32 `protobuf:"varint,6,opt,name=lvl,proto3" json:"lvl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3664,6 +3676,13 @@ func (x *PlantableFlowerView) GetGold() int32 {
 func (x *PlantableFlowerView) GetExperience() int32 {
 	if x != nil {
 		return x.Experience
+	}
+	return 0
+}
+
+func (x *PlantableFlowerView) GetLvl() int32 {
+	if x != nil {
+		return x.Lvl
 	}
 	return 0
 }
@@ -6218,7 +6237,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\ftarget_label\x18\b \x01(\tR\vtargetLabel\x12$\n" +
 	"\x0eappear_time_ms\x18\t \x01(\x03R\fappearTimeMs\x12(\n" +
 	"\x10take_skip_reason\x18\n" +
-	" \x01(\tR\x0etakeSkipReason\"\x93\x02\n" +
+	" \x01(\tR\x0etakeSkipReason\"\xb9\x02\n" +
 	"\fFmlRaceTaken\x12\x19\n" +
 	"\bhas_task\x18\x01 \x01(\bR\ahasTask\x12\x1c\n" +
 	"\n" +
@@ -6232,7 +6251,9 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"finish_cnt\x18\x06 \x01(\x05R\tfinishCnt\x12\x14\n" +
 	"\x05score\x18\a \x01(\x05R\x05score\x12\x1b\n" +
 	"\ttask_type\x18\b \x01(\x05R\btaskType\x12!\n" +
-	"\ftarget_label\x18\t \x01(\tR\vtargetLabel\"\x94\r\n" +
+	"\ftarget_label\x18\t \x01(\tR\vtargetLabel\x12$\n" +
+	"\x0eexpire_time_ms\x18\n" +
+	" \x01(\x03R\fexpireTimeMs\"\x94\r\n" +
 	"\vDessertView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12\x14\n" +
 	"\x05found\x18\x02 \x01(\bR\x05found\x12\x14\n" +
@@ -6374,7 +6395,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"open_level\x18\f \x01(\x05R\topenLevel\x12\x1f\n" +
 	"\vunlock_cost\x18\r \x03(\x05R\n" +
 	"unlockCost\x12\x1c\n" +
-	"\twasteland\x18\x0e \x03(\x05R\twasteland\"\x9d\x01\n" +
+	"\twasteland\x18\x0e \x03(\x05R\twasteland\"\xaf\x01\n" +
 	"\x13PlantableFlowerView\x12\x1b\n" +
 	"\tflower_id\x18\x01 \x01(\x05R\bflowerId\x12\x1f\n" +
 	"\vflower_name\x18\x02 \x01(\tR\n" +
@@ -6383,7 +6404,8 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x04gold\x18\x04 \x01(\x05R\x04gold\x12\x1e\n" +
 	"\n" +
 	"experience\x18\x05 \x01(\x05R\n" +
-	"experience\"\xd9\x02\n" +
+	"experience\x12\x10\n" +
+	"\x03lvl\x18\x06 \x01(\x05R\x03lvl\"\xd9\x02\n" +
 	"\x0fPendingTaskView\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
