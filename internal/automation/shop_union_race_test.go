@@ -372,7 +372,7 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 		t.Fatalf("expected taskMsId 2 (exclude uid-100 upgraded task), got %d", ops[0].TaskMsID)
 	}
 
-	// Server often sets IsUpgrade without UpgradeUid; those must also be excluded.
+	// System upgrade (IsUpgrade=1, UpgradeUid=0) remains takeable.
 	s2 := state.New()
 	s2.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s2.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
@@ -380,8 +380,8 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
 	]}}`))
 	ops2 := unionRaceOperations(s2, policy, 999, time.Now(), true)
-	if len(ops2) != 1 || ops2[0].TaskMsID != 2 {
-		t.Fatalf("expected take msId 2 only when upgraded-without-uid present, got %+v", ops2)
+	if len(ops2) != 1 || ops2[0].TaskMsID != 1 {
+		t.Fatalf("expected take system-upgraded msId 1, got %+v", ops2)
 	}
 }
 
@@ -897,10 +897,14 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want:   "他人已升级",
 		},
 		{
-			name:   "upgraded with missing upgradeUid",
-			task:   state.FmlRaceTaskView{MsId: 16, TaskId: 3036, TaskType: 3036, Score: 28, ParamID: 23001, IsUpgrade: 1, UpgradeUid: 0},
-			policy: &pb.UnionRacePolicy{ExcludeOthersUpgradeTask: true},
-			want:   "他人已升级",
+			name: "system upgraded ok",
+			task: state.FmlRaceTaskView{MsId: 16, TaskId: 3036, TaskType: 3036, Score: 28, ParamID: 23001, IsUpgrade: 1, UpgradeUid: 0},
+			policy: func() *pb.UnionRacePolicy {
+				p := takeablePlant()
+				p.ExcludeOthersUpgradeTask = true
+				return p
+			}(),
+			want: "",
 		},
 		{
 			name: "own upgraded ok",

@@ -804,9 +804,9 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 	if policy.GetOnlyUpgradeTask() && t.IsUpgrade == 0 {
 		return "仅接已升级任务"
 	}
-	// Server often marks IsUpgrade=1 while omitting UpgradeUid (0). Treat any
-	// upgraded task not explicitly upgraded by this uid as "他人已升级".
-	if policy.GetExcludeOthersUpgradeTask() && t.IsUpgrade != 0 && t.UpgradeUid != uid {
+	// Only member upgrades carry UpgradeUid. UpgradeUid==0 is system upgrade
+	// and stays takeable when exclude-others is on.
+	if policy.GetExcludeOthersUpgradeTask() && t.UpgradeUid != 0 && t.UpgradeUid != uid {
 		return "他人已升级"
 	}
 	taskType := t.TaskType
