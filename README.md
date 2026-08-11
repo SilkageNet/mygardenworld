@@ -111,6 +111,8 @@ gardend serve --help
 
 协议和策略字段以 `proto/`、`internal/babigame/doc.go`、代码测试和 `AGENTS.md` 为准。设计说明应随代码、测试和 schema 更新，避免与当前实现脱节。
 
+公会竞赛的状态同步、任务选择和错误恢复约束见 [`docs/guild-race.md`](docs/guild-race.md)。
+
 ## 从源码构建
 
 ```sh

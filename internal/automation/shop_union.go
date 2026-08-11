@@ -773,8 +773,7 @@ func raceFinishOperation(goal Goal, taken state.FmlRaceTakenView) PlannedOp {
 
 // RaceTakeSkipReason returns the primary reason automation will not take this
 // pool task, or "" if it is takeable (including preemptive CD within raceTakeLeadWindow).
-// Priority matches docs/superpowers/specs/2026-07-15-race-task-take-skip-reason-design.md
-// and CD copy branching in docs/superpowers/specs/2026-07-15-race-cd-skip-copy-design.md.
+// Priority and CD copy branching are documented in docs/guild-race.md.
 func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time, customerEnabled bool) string {
 	if t.UID != 0 {
 		return "已被接取"
