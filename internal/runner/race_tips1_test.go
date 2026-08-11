@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -181,5 +182,74 @@ func TestHandleOperationErrorRaceTakeQuotaExceededSoftRecover(t *testing.T) {
 	}
 	if !view.TakeQuotaExhausted {
 		t.Fatal("must MarkFmlRaceTakeQuotaExhausted")
+	}
+}
+
+func TestIsRaceTakeOnCooldownError(t *testing.T) {
+	cd := &babigame.RPCServerError{
+		Name:     clientproto.RPCFmlRaceTakeTask,
+		Envelope: babigame.WSResponseD{M: json.RawMessage(`{"msg":"任务冷却中"}`)},
+	}
+	if !isRaceTakeOnCooldownError(clientproto.RPCFmlRaceTakeTask.String(), cd) {
+		t.Fatal("expected match")
+	}
+	if !isRaceTakeOnCooldownError(clientproto.RPCFmlRaceTakeTask.String(), errors.New("rpc fmlRace.takeTask: server: 任务冷却中")) {
+		t.Fatal("plain wrapped message must match")
+	}
+	if isRaceTakeOnCooldownError(clientproto.RPCFmlRaceTakeTask.String(), errors.New("任务已被其他成员接取")) {
+		t.Fatal("must not match claimed-by-other")
+	}
+	if isRaceTakeOnCooldownError(clientproto.RPCFmlRaceFinishTask.String(), cd) {
+		t.Fatal("must not match other RPCs")
+	}
+}
+
+func TestHandleOperationErrorRaceTakeOnCooldownWaitsAppearTime(t *testing.T) {
+	r := newOperationEventTestRunner()
+	now := time.UnixMilli(1_000_000)
+	appear := now.Add(3 * time.Second).UnixMilli()
+	r.state.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":814,"4":4007,"5":%d,"6":[23282],"10":21,"14":0,"15":0}]}}`,
+		appear,
+	)))
+	if !r.state.FmlRace().TasksObserved {
+		t.Fatal("seed TasksObserved")
+	}
+
+	cdErr := &babigame.RPCServerError{
+		Name: clientproto.RPCFmlRaceTakeTask,
+		Envelope: babigame.WSResponseD{
+			M: json.RawMessage(`{"msg":"任务冷却中"}`),
+		},
+	}
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCFmlRaceTakeTask.String(),
+		Lane:     automation.LaneSide,
+		Category: "race",
+		Domain:   "union.race.take",
+		Action:   "take",
+		TaskMsID: 814,
+	}
+	got := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              cdErr,
+		finishedAt:       now,
+	})
+	if got != nil {
+		t.Fatalf("task-cooldown must soft-recover (nil), got %v", got)
+	}
+	if r.state.FmlRace().TasksObserved {
+		t.Fatal("must MarkFmlRaceTasksUnobserved so pool refresh runs before retry")
+	}
+	cd, cooling := r.operationCoolingDown(op, now)
+	if !cooling {
+		t.Fatal("expected take cooldown")
+	}
+	wantUntil := time.UnixMilli(appear).Add(300 * time.Millisecond)
+	if !cd.Until.Equal(wantUntil) {
+		t.Fatalf("cooldown until=%v, want %v (AppearTime+pad)", cd.Until, wantUntil)
+	}
+	if d := cd.Until.Sub(now); d < 2*time.Second || d > 4*time.Second {
+		t.Fatalf("cooldown duration=%v, want ~3.3s not 60s ordinary backoff", d)
 	}
 }

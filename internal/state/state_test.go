@@ -2104,8 +2104,75 @@ func TestShopCultivateNeedsEnterIncompleteTiming(t *testing.T) {
 			"6": map[string]any{"10001": 1},
 		},
 	})
-	if !missingReset.ShopCultivateNeedsEnter(now) {
-		t.Fatal("NeedsEnter=false when lResetTime missing, want true")
+	// Enter/refresh often omit lResetTime; same-day larTime means already synced.
+	if missingReset.ShopCultivateNeedsEnter(now) {
+		t.Fatal("NeedsEnter=true when lResetTime missing but larTime is same day, want false")
+	}
+}
+
+func TestShopCultivateNeedsEnterStaleResetFreshLar(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 8, 10, 15, 0, 0, 0, shanghai)
+	staleReset := time.Date(2026, 8, 4, 0, 5, 0, 0, shanghai)
+	freshLar := time.Date(2026, 8, 10, 14, 55, 0, 0, shanghai)
+
+	s := New()
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 1000}},
+			"2": staleReset.UnixMilli(),
+			"3": freshLar.UnixMilli(),
+			"6": map[string]any{},
+		},
+	})
+	if s.ShopCultivateNeedsEnter(now) {
+		t.Fatal("NeedsEnter=true with stale lResetTime but same-day larTime, want false")
+	}
+
+	// Cross-day: both markers yesterday → need enter.
+	yesterday := time.Date(2026, 8, 9, 18, 0, 0, 0, shanghai)
+	s2 := New()
+	applyMap(t, s2, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 1000}},
+			"2": yesterday.UnixMilli(),
+			"3": yesterday.UnixMilli(),
+			"6": map[string]any{},
+		},
+	})
+	if !s2.ShopCultivateNeedsEnter(now) {
+		t.Fatal("NeedsEnter=false when both markers are prior game day, want true")
+	}
+}
+
+func TestApplyV_ShopCultivateFullSnapshotOmitsResetBumpsMarker(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	staleReset := time.Date(2026, 8, 4, 0, 5, 0, 0, shanghai)
+	now := time.Date(2026, 8, 10, 14, 55, 0, 0, shanghai)
+
+	s := New()
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10001": []int32{11, 1000}},
+			"2": staleReset.UnixMilli(),
+			"3": staleReset.UnixMilli(),
+		},
+	})
+	// Re-enter style patch: full infoMap + lar/uTime, no field 2.
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{"10004": []int32{11, 5001}},
+			"3": now.UnixMilli(),
+			"6": map[string]any{},
+			"7": now.UnixMilli(),
+		},
+	})
+	if s.ShopCultivateNeedsEnter(now.Add(time.Minute)) {
+		t.Fatal("NeedsEnter still true after full snapshot omitted lResetTime, want false")
+	}
+	offers := s.ShopCultivateOffers()
+	if len(offers) != 1 || offers[0].ShopID != 10004 {
+		t.Fatalf("offers after re-enter snapshot=%+v, want shop 10004", offers)
 	}
 }
 

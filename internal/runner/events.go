@@ -347,7 +347,7 @@ func eventCategory(kind string) string {
 		return "order"
 	case "union_build", "union_flower_take":
 		return "union"
-	case "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
+	case "race_enter", "race_task_sync", "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
 		return "race"
 	case "activity_cyclic_story_order", "activity_cyclic_story_enter", "activity_cyclic_story_progress":
 		return "activity"
@@ -427,6 +427,20 @@ func eventDomain(kind string) string {
 		return "union.build"
 	case "union_flower_take":
 		return "union.flower.take"
+	case "race_enter":
+		return "union.race.enter"
+	case "race_task_sync":
+		return "union.race.sync"
+	case "race_task_taken":
+		return "union.race.take"
+	case "race_task_finished":
+		return "union.race.finish"
+	case "race_task_upgraded":
+		return "union.race.upgrade"
+	case "race_task_deleted":
+		return "union.race.delete"
+	case "race_task_given_up":
+		return "union.race.giveUp"
 	case "cultivate_recv", "cultivate_new":
 		return "farm.cultivate"
 	case "flower_upgrade":
@@ -550,16 +564,20 @@ func eventLabel(kind string) string {
 		return "公会建设"
 	case "union_flower_take":
 		return "公会摸花"
+	case "race_enter":
+		return "进入公会竞赛"
+	case "race_task_sync":
+		return "同步竞赛任务"
 	case "race_task_taken":
-		return "接取任务"
+		return "接取竞赛任务"
 	case "race_task_finished":
-		return "完成任务"
+		return "完成竞赛任务"
 	case "race_task_upgraded":
-		return "升级任务"
+		return "升级竞赛任务"
 	case "race_task_deleted":
-		return "删除任务"
+		return "删除竞赛任务"
 	case "race_task_given_up":
-		return "放弃任务"
+		return "放弃竞赛任务"
 	case "cultivate_recv":
 		return "培育领取"
 	case "cultivate_new":

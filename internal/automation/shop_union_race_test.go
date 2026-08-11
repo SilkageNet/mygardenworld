@@ -371,6 +371,18 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 	if ops[0].TaskMsID != 2 {
 		t.Fatalf("expected taskMsId 2 (exclude uid-100 upgraded task), got %d", ops[0].TaskMsID)
 	}
+
+	// Server often sets IsUpgrade without UpgradeUid; those must also be excluded.
+	s2 := state.New()
+	s2.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	s2.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
+		{"0":1,"4":3036,"6":[23001],"10":28,"14":1,"15":0},
+		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
+	]}}`))
+	ops2 := unionRaceOperations(s2, policy, 999, time.Now(), true)
+	if len(ops2) != 1 || ops2[0].TaskMsID != 2 {
+		t.Fatalf("expected take msId 2 only when upgraded-without-uid present, got %+v", ops2)
+	}
 }
 
 func TestUnionRaceFinishCompletedTask(t *testing.T) {
@@ -815,7 +827,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: takeablePlant(),
-			want:   "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后可接",
+			want:   "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后可接",
 		},
 		{
 			name: "far CD plant not cultivated → refresh",
@@ -824,7 +836,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: policyBase(),
-			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
 		},
 		{
 			name: "far CD score gate would fail → refresh",
@@ -837,7 +849,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				p.MinTaskScore = 20
 				return p
 			}(),
-			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
 		},
 		{
 			name: "within lead is takeable",
@@ -864,7 +876,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: leadMs + 1,
 			},
 			policy: takeablePlant(),
-			want:   "冷却中，" + time.UnixMilli(leadMs+1).Local().Format("15:04") + " 后可接",
+			want:   "冷却中，" + time.UnixMilli(leadMs+1).Local().Format("15:04:05") + " 后可接",
 		},
 		{
 			name:   "score too low",
@@ -881,6 +893,12 @@ func TestRaceTakeSkipReason(t *testing.T) {
 		{
 			name:   "others upgraded",
 			task:   state.FmlRaceTaskView{MsId: 6, TaskId: 3030, TaskType: 3030, Score: 20, IsUpgrade: 1, UpgradeUid: 99},
+			policy: &pb.UnionRacePolicy{ExcludeOthersUpgradeTask: true},
+			want:   "他人已升级",
+		},
+		{
+			name:   "upgraded with missing upgradeUid",
+			task:   state.FmlRaceTaskView{MsId: 16, TaskId: 3036, TaskType: 3036, Score: 28, ParamID: 23001, IsUpgrade: 1, UpgradeUid: 0},
 			policy: &pb.UnionRacePolicy{ExcludeOthersUpgradeTask: true},
 			want:   "他人已升级",
 		},
@@ -958,7 +976,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: &pb.UnionRacePolicy{MinTaskScore: 20},
-			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
 		},
 	}
 
@@ -1048,7 +1066,8 @@ func TestUnionRacePeriodicRunsDespiteNearTakenCD(t *testing.T) {
 }
 
 func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
-	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
+	// Only the final approach window suppresses TTL sync; 20s is inside it.
+	s, now := raceStateAtTTL(t, 20*time.Second, 23001, 0)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
@@ -1057,6 +1076,16 @@ func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("outside lead must not take yet, got %+v", ops)
 		}
+	}
+}
+
+func TestUnionRacePeriodicRunsDespiteMidTakeableCD(t *testing.T) {
+	// 5m remaining used to suppress sync (tied to 10m TTL); keep refreshing so
+	// mid-wait upgrades/claims are observed before AppearTime.
+	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("mid takeable CD must not block periodic sync, got %+v", ops)
 	}
 }
 

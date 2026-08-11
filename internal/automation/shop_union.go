@@ -19,6 +19,12 @@ const raceTakeLeadWindow = 4 * time.Second
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 10 * time.Minute
 
+// raceNearCDSyncSuppressWindow is how close a filter-passing CD task must be
+// before periodic getTaskList is deferred. Keeping this much shorter than
+// raceTaskPoolRefreshInterval lets long CD waits still refresh upgrade/claim
+// state; only the final approach skips sync to favor take timing.
+const raceNearCDSyncSuppressWindow = 45 * time.Second
+
 // raceFinishProgressSyncInterval caps getTaskList retries when LocalFinishCnt
 // already meets the target but server FinishCnt still lags. A successful
 // getTaskList that still leaves FinishCnt short clamps LocalFinishCnt (see
@@ -708,7 +714,7 @@ func raceHasNearTakeableCD(s *state.State, tasks []state.FmlRaceTaskView, policy
 			continue
 		}
 		rem := time.Duration(t.AppearTime-nowMs) * time.Millisecond
-		if rem >= raceTaskPoolRefreshInterval {
+		if rem >= raceNearCDSyncSuppressWindow {
 			continue
 		}
 		if raceTakeNonCDSkipReason(s, t, policy, uid, customerEnabled) == "" {
@@ -780,11 +786,11 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 	}
 	leadUntil := now.Add(raceTakeLeadWindow).UnixMilli()
 	if t.AppearTime > 0 && t.AppearTime > leadUntil {
-		hhmm := time.UnixMilli(t.AppearTime).Local().Format("15:04")
+		hhmmss := time.UnixMilli(t.AppearTime).Local().Format("15:04:05")
 		if raceTakeNonCDSkipReason(s, t, policy, uid, customerEnabled) != "" {
-			return hhmm + " 后刷新"
+			return hhmmss + " 后刷新"
 		}
-		return "冷却中，" + hhmm + " 后可接"
+		return "冷却中，" + hhmmss + " 后可接"
 	}
 	return raceTakeNonCDSkipReason(s, t, policy, uid, customerEnabled)
 }
@@ -798,7 +804,9 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 	if policy.GetOnlyUpgradeTask() && t.IsUpgrade == 0 {
 		return "仅接已升级任务"
 	}
-	if policy.GetExcludeOthersUpgradeTask() && t.UpgradeUid != 0 && t.UpgradeUid != uid {
+	// Server often marks IsUpgrade=1 while omitting UpgradeUid (0). Treat any
+	// upgraded task not explicitly upgraded by this uid as "他人已升级".
+	if policy.GetExcludeOthersUpgradeTask() && t.IsUpgrade != 0 && t.UpgradeUid != uid {
 		return "他人已升级"
 	}
 	taskType := t.TaskType

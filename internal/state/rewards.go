@@ -83,9 +83,11 @@ func (s *State) applyShopCultivateLocked(raw json.RawMessage) {
 	if s.shopCultivateBought == nil {
 		s.shopCultivateBought = make(map[int32]int32)
 	}
+	hadResetField := false
 	if rawReset, ok := fields["2"]; ok {
 		var n int64
 		if json.Unmarshal(rawReset, &n) == nil {
+			hadResetField = true
 			if s.shopCultivateResetMs > 0 && n > 0 &&
 				gameDayID(time.UnixMilli(n)) > gameDayID(time.UnixMilli(s.shopCultivateResetMs)) {
 				s.shopCultivateBought = make(map[int32]int32)
@@ -136,6 +138,22 @@ func (s *State) applyShopCultivateLocked(raw json.RawMessage) {
 			for shopID, count := range readInt32RawMap(rawBought) {
 				s.shopCultivateBought[shopID] = count
 			}
+		}
+	}
+	// Re-enter / refresh often send a full infoMap + larTime but omit
+	// lResetTime. Keep resetMs aligned with the sync marker so
+	// ShopCultivateNeedsEnter does not spin on a stale prior-day value.
+	if fullSnapshot && !hadResetField {
+		syncMs := s.shopCultivateLarMs
+		if rawU, ok := fields["7"]; ok {
+			var n int64
+			if json.Unmarshal(rawU, &n) == nil && n > syncMs {
+				syncMs = n
+			}
+		}
+		if syncMs > 0 && (s.shopCultivateResetMs <= 0 ||
+			gameDayID(time.UnixMilli(syncMs)) > gameDayID(time.UnixMilli(s.shopCultivateResetMs))) {
+			s.shopCultivateResetMs = syncMs
 		}
 	}
 	s.shopCultivateObserved = true
@@ -439,16 +457,42 @@ func (s *State) ShopCultivateObserved() bool {
 // larTime, AutoRefreshReady can never become true, so an emptied shelf stays
 // stuck for the rest of the day unless we force enter to reload full shop
 // state (infoMap + larTime + mrCount + lResetTime).
+//
+// Enter/refresh responses also frequently omit 113.2 (lResetTime) while still
+// updating larTime / infoMap. Prefer the newer of resetMs and larMs when
+// deciding whether today's shelf has already been synced; otherwise a stale
+// prior-day resetMs keeps NeedsEnter true forever and blocks buy behind an
+// enter spin loop.
 func (s *State) ShopCultivateNeedsEnter(now time.Time) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.shopCultivateObserved {
 		return true
 	}
-	if s.shopCultivateLarMs <= 0 || s.shopCultivateResetMs <= 0 {
+	if s.shopCultivateLarMs <= 0 {
 		return true
 	}
-	return gameDayID(now) > gameDayID(time.UnixMilli(s.shopCultivateResetMs))
+	markerMs := shopCultivateSyncMarkerMs(s.shopCultivateResetMs, s.shopCultivateLarMs)
+	if markerMs <= 0 {
+		return true
+	}
+	return gameDayID(now) > gameDayID(time.UnixMilli(markerMs))
+}
+
+// shopCultivateSyncMarkerMs returns the best "synced for game day" timestamp.
+// larTime alone is enough after a successful enter/refresh that omitted
+// lResetTime; when both exist, the later game day wins.
+func shopCultivateSyncMarkerMs(resetMs, larMs int64) int64 {
+	switch {
+	case resetMs <= 0:
+		return larMs
+	case larMs <= 0:
+		return resetMs
+	case gameDayID(time.UnixMilli(larMs)) > gameDayID(time.UnixMilli(resetMs)):
+		return larMs
+	default:
+		return resetMs
+	}
 }
 
 // ShopCultivateAutoRefreshReady reports whether a free material-shop refresh is

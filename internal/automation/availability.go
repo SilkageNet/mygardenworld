@@ -564,7 +564,7 @@ func canFulfillFlowerOrder(order *state.FlowerOrder, boxID int32, goal Goal, led
 }
 
 func canFulfillCustomerOrder(order *state.CustomerOrder, npcID int32, goal Goal, ledger *InventoryLedger) bool {
-	if order == nil {
+	if order == nil || ledger == nil {
 		return false
 	}
 	hasRequirements := false
@@ -574,6 +574,12 @@ func canFulfillCustomerOrder(order *state.CustomerOrder, npcID int32, goal Goal,
 			continue
 		}
 		hasRequirements = true
+		// Prefer raw inventory so stale/over-allocated ledger rows cannot block a
+		// finish when stock is actually on hand; still require this demand's
+		// allocation so two NPCs cannot claim the same unit in one plan.
+		if ledger.Owned(req.FlowerID) < req.Count {
+			return false
+		}
 		id := demandID(goal.ID, entityID, "direct", DemandKindFlower, req.FlowerID)
 		if ledger.AllocatedForDemand(id, req.FlowerID) < req.Count {
 			return false
@@ -584,6 +590,9 @@ func canFulfillCustomerOrder(order *state.CustomerOrder, npcID int32, goal Goal,
 			continue
 		}
 		hasRequirements = true
+		if ledger.Owned(req.ItemID) < req.Count {
+			return false
+		}
 		id := demandID(goal.ID, entityID, "direct", DemandKindFlowerArt, req.ItemID)
 		if ledger.AllocatedForDemand(id, req.ItemID) < req.Count {
 			return false
