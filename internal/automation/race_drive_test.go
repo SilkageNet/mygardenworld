@@ -174,7 +174,7 @@ func TestRaceWatersBeforeOtherCropsWhenAutoOn(t *testing.T) {
 	s := raceTakenPlantState(t, 0, 10)
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
-			"0":  999,
+			"0": 999,
 			// 7 drops on hand; MinWaterDrops=5 → only 2 usable. nextMs in the
 			// future so projection does not recover an extra drop.
 			"32": map[string]any{"7": 7},
@@ -418,10 +418,10 @@ func TestRaceSpeedupOnlyTargetsRaceFlower(t *testing.T) {
 	}
 }
 
-// TestRaceExpireUrgentSpeedupWithoutToggle ensures that within 10 minutes of
-// ExpireTime, unfinished plant-harvest tasks force speedup even when
-// useSpeedupTicketInTask is off.
-func TestRaceExpireUrgentSpeedupWithoutToggle(t *testing.T) {
+// TestRaceExpireUrgentSpeedupWithExplicitFallback ensures that within 10
+// minutes of ExpireTime, unfinished plant-harvest tasks may use the separately
+// authorized urgency fallback while the regular speedup toggle stays off.
+func TestRaceExpireUrgentSpeedupWithExplicitFallback(t *testing.T) {
 	now := time.UnixMilli(1_700_000_000_000)
 	expire := now.Add(5 * time.Minute).UnixMilli()
 	s := raceTakenPlantState(t, 2, 10)
@@ -445,6 +445,7 @@ func TestRaceExpireUrgentSpeedupWithoutToggle(t *testing.T) {
 		t.Fatalf("ExpireTime=%d, want %d", got, expire)
 	}
 	policy := racePlantPolicy(false) // UseSpeedupTicketInTask off
+	policy.Union.Race.UrgentSpeedupEnabled = true
 
 	result := BuildPlan(s, policy, now)
 	var speed *PlannedOp
@@ -487,12 +488,45 @@ func TestRaceNoSpeedupFarFromExpireWithoutToggle(t *testing.T) {
 		}},
 	})
 	policy := racePlantPolicy(false)
+	policy.Union.Race.UrgentSpeedupEnabled = true
 
 	result := BuildPlan(s, policy, now)
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
 			t.Fatalf("must not speedup far from expire without toggle, got %+v", op)
 		}
+	}
+}
+
+func TestRaceExpiredTaskStopsProgressAndRefreshes(t *testing.T) {
+	now := time.UnixMilli(1_700_000_000_000)
+	s := raceTakenPlantState(t, 2, 10)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{
+				"1783872000000": map[string]any{
+					"7": map[string]any{"0": 99, "1": 4001, "2": 10, "3": 2, "4": []any{23001}, "5": now.Add(-time.Second).UnixMilli()},
+				},
+			},
+		},
+	})
+	s.MarkFmlRaceTasksUnobserved()
+	policy := racePlantPolicy(true)
+	policy.Union.Race.UrgentSpeedupEnabled = true
+
+	result := BuildPlan(s, policy, now)
+	foundSync := false
+	for _, op := range result.Operations {
+		switch {
+		case op.Kind == clientproto.RPCFmlRaceGetTaskList.String() && op.Executable:
+			foundSync = true
+		case (isPlantOperation(op.Kind) || op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String()) && op.Executable:
+			t.Fatalf("expired race task must not progress or spend tickets, op=%+v", op)
+		}
+	}
+	if !foundSync {
+		t.Fatalf("expired race task must refresh server state, ops=%+v", result.Operations)
 	}
 }
 

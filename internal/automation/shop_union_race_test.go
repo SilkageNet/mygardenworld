@@ -1212,7 +1212,7 @@ func TestUnionRaceFinishProgressSyncRespectsCooldown(t *testing.T) {
 	// Held plant-harvest at 48/300; field 134 raises LocalFinishCnt to 300.
 	// Include 117 raceLvl so planner does not divert to enter for tier sync.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"117":{"5":4},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
-	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1785368365572},"4":1785358559363}}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577]},"4":1785358559363}}}}`))
 	// Re-apply pool so FinishCnt stays lagging at 48 while LocalFinish is 300.
 	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
 	got := s.FmlRace()

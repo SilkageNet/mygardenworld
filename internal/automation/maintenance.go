@@ -97,8 +97,9 @@ func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int
 	if available <= 0 {
 		return nil, 0
 	}
+	lands := s.Lands()
 	var ids []int32
-	for id, land := range s.Lands() {
+	for id, land := range lands {
 		if land.State != 2 || land.NextTimeMs <= now.UnixMilli() {
 			continue
 		}
@@ -109,8 +110,8 @@ func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int
 	}
 	sort.Slice(ids, func(i, j int) bool {
 		if preferFlower > 0 {
-			li := int32(s.Lands()[ids[i]].FlowerID) == preferFlower
-			lj := int32(s.Lands()[ids[j]].FlowerID) == preferFlower
+			li := int32(lands[ids[i]].FlowerID) == preferFlower
+			lj := int32(lands[ids[j]].FlowerID) == preferFlower
 			if li != lj {
 				return li
 			}

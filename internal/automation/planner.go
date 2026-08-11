@@ -42,7 +42,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	}
 	// Race progress demands use FinishCnt as Have so they must skip the
 	// inventory ledger (inventory stock does not satisfy harvest counts).
-	demands = append(demands, raceTaskProgressDemands(s, policy)...)
+	demands = append(demands, raceTaskProgressDemands(s, policy, now)...)
 	annotateDemandStatuses(demands)
 	sortDemands(demands)
 	ops := buildOperations(s, policy, goals, demands, activityActions, ledger, now)
@@ -59,7 +59,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 
 func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	var ops []PlannedOp
-	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy))...)
+	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy, now))...)
 	ops = append(ops, orderOperations(s, policy, goals, demands, ledger, now)...)
 	ops = append(ops, basicOperations(s, policy, goals, now)...)
 	ops = append(ops, shopOperations(s, policy, now)...)

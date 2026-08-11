@@ -576,6 +576,19 @@ func TestMarkFmlRaceTakeQuotaExhausted(t *testing.T) {
 	if s.FmlRace().TakeQuotaExhausted {
 		t.Fatal("batch change must clear TakeQuotaExhausted")
 	}
+
+	// A batch can disappear between rounds before the next identity arrives.
+	// That transition must not leave the previous quota flag stuck forever.
+	s.MarkFmlRaceTakeQuotaExhausted()
+	s.ApplyV(json.RawMessage(`{"25":{"111":null}}`))
+	if s.FmlRace().TakeQuotaExhausted {
+		t.Fatal("cleared batch must clear TakeQuotaExhausted")
+	}
+	s.MarkFmlRaceTakeQuotaExhausted()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":300,"1":1,"2":1000,"3":9000000000}}}`))
+	if s.FmlRace().TakeQuotaExhausted {
+		t.Fatal("new batch after an empty identity must clear TakeQuotaExhausted")
+	}
 }
 
 func TestMarkFmlRaceTasksSynced(t *testing.T) {

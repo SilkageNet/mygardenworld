@@ -459,8 +459,8 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 //
 // useSpeedupTicketInTask is honored by maintenanceOperations via
 // raceSpeedupEnabled while an unfinished plant-harvest task is held.
-// Near ExpireTime (last 10 minutes) automation also force-uses speedup
-// tickets as a completion fallback even when that toggle is off.
+// Near ExpireTime (last 10 minutes), UrgentSpeedupEnabled can opt into using
+// speedup tickets as a completion fallback even when the regular toggle is off.
 func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, now time.Time, customerEnabled bool) []PlannedOp {
 	if policy == nil || !policy.GetEnabled() {
 		return nil
@@ -489,6 +489,16 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 	if !view.BatchActive {
+		return nil
+	}
+	if view.Taken.HasTask && raceTakenExpired(view.Taken, now) {
+		if !view.TasksObserved || view.TasksSyncedAtMs <= 0 ||
+			!now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceExpiredTaskSyncInterval)) {
+			return []PlannedOp{domainOp(
+				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
+				"公会竞赛已接任务过期，重新同步任务池", 4399, 0, 0, 0,
+			)}
+		}
 		return nil
 	}
 
@@ -566,7 +576,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 
 	// 2. Select a task to take (only if not currently holding one).
 	// TakeQuotaExhausted is sticky for this batch after the server reports
-	//「任务接取次数已达上限」— do not keep retrying exhausted takes.
+	// 「任务接取次数已达上限」— do not keep retrying exhausted takes.
 	// AutoStopOnQuotaDone also stops take when free-task quota is already used
 	// (finished >= total), without waiting for a take rejection.
 	if !view.Taken.HasTask && !view.TakeQuotaExhausted && !raceFreeTaskQuotaDone(s, view, policy) {

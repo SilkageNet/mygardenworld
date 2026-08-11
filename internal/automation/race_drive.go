@@ -31,8 +31,12 @@ const (
 	raceCustomerFinishPriority int32 = 12500
 
 	// raceExpireSpeedupLead is how long before a held plant-harvest task's
-	// ExpireTime automation force-uses speedup tickets as a completion fallback.
+	// ExpireTime the explicit urgency policy may use speedup tickets.
 	raceExpireSpeedupLead = 10 * time.Minute
+
+	// An expired local task is refreshed promptly, but a server response that
+	// still carries it must not cause a sync loop every planner tick.
+	raceExpiredTaskSyncInterval = 30 * time.Second
 )
 
 // raceTaskProgressDemands converts the currently taken unfinished guild-race
@@ -44,7 +48,7 @@ const (
 // target, Missing is the empty-land top-up count (ceil of the flower deficit).
 // LocalFinishCnt covers field-134 lag so emptied lands do not look like a
 // fresh deficit.
-func raceTaskProgressDemands(s *state.State, policy *pb.Policy) []Demand {
+func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) []Demand {
 	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
 		return nil
 	}
@@ -55,6 +59,9 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy) []Demand {
 	view := s.FmlRace()
 	taken := view.Taken
 	if !taken.HasTask || taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
+		return nil
+	}
+	if raceTakenExpired(taken, now) {
 		return nil
 	}
 	// Do not plant/harvest for a task we are about to give up (low score,
@@ -247,7 +254,7 @@ func hasRacePlantDemand(demands []Demand) bool {
 // raceSuppressesAutoReplant reports whether an unfinished plant-harvest race
 // task is being progressed. While true, farm planning plants only the
 // yield-calculated race slots and leaves remaining empty lands alone.
-func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy) bool {
+func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time) bool {
 	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
 		return false
 	}
@@ -261,6 +268,11 @@ func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy) bool {
 	}
 	if taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
 		return false
+	}
+	if raceTakenExpired(taken, now) {
+		// Freeze autonomous replant until getTaskList confirms the stale hold is
+		// gone; otherwise an expired race task can unexpectedly refill the farm.
+		return true
 	}
 	return !raceTakenBlocksProgress(s, race, s.FmlRace(), policy.GetOrder().GetCustomer().GetEnabled())
 }
@@ -404,9 +416,9 @@ func FormatRaceTaskOpDesc(taskType, paramID int32) string {
 // raceSpeedupEnabledAt reports whether guild-race policy should unlock farm
 // speedup while an unfinished plant-harvest race task is held.
 //
-// Normal path: UseSpeedupTicketInTask. Urgency fallback: within
-// raceExpireSpeedupLead of ExpireTime even when that toggle is off, so a
-// nearly-expired held task can still burn tickets to finish in time.
+// Normal path: UseSpeedupTicketInTask. Optional urgency fallback: within
+// raceExpireSpeedupLead of ExpireTime when UrgentSpeedupEnabled is explicitly
+// enabled, so emergency ticket spending never bypasses the operator's policy.
 func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Time) bool {
 	if s == nil || race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
@@ -419,7 +431,7 @@ func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Tim
 	if race.GetUseSpeedupTicketInTask() {
 		return true
 	}
-	return raceExpireUrgentSpeedup(taken, now)
+	return race.GetUrgentSpeedupEnabled() && raceExpireUrgentSpeedup(taken, now)
 }
 
 // raceExpireUrgentSpeedup is true when the held task has a known ExpireTime and
@@ -430,5 +442,9 @@ func raceExpireUrgentSpeedup(taken state.FmlRaceTakenView, now time.Time) bool {
 	}
 	deadline := time.UnixMilli(taken.ExpireTime)
 	leadStart := deadline.Add(-raceExpireSpeedupLead)
-	return !now.Before(leadStart)
+	return !now.Before(leadStart) && now.Before(deadline)
+}
+
+func raceTakenExpired(taken state.FmlRaceTakenView, now time.Time) bool {
+	return taken.HasTask && taken.ExpireTime > 0 && !now.Before(time.UnixMilli(taken.ExpireTime))
 }

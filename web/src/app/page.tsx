@@ -1854,13 +1854,22 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
 }
 
 function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
+  const [nowMs, setNowMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateNow = () => setNowMs(Date.now());
+    updateNow();
+    const timer = window.setInterval(updateNow, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const progress = taken.targetCnt > 0 ? Math.min(100, Math.round((taken.finishCnt / taken.targetCnt) * 100)) : 0;
   const title = taken.targetLabel
     ? `${taken.taskLabel || `任务 #${taken.taskId}`} · ${taken.targetLabel}`
     : taken.taskLabel || `任务 #${taken.taskId}`;
   const expireMs = Number(taken.expireTimeMs ?? BigInt(0));
-  const remainMs = expireMs > 0 ? expireMs - Date.now() : 0;
-  const expireUrgent = expireMs > 0 && remainMs <= 10 * 60 * 1000 && progress < 100;
+  const remainMs = expireMs > 0 && nowMs !== null ? expireMs - nowMs : 0;
+  const expireUrgent = expireMs > 0 && nowMs !== null && remainMs > 0 && remainMs <= 10 * 60 * 1000 && progress < 100;
   const expireLabel =
     expireMs > 0
       ? new Date(expireMs).toLocaleString("zh-CN", {
@@ -1872,7 +1881,7 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
         })
       : "";
   const remainLabel = (() => {
-    if (expireMs <= 0) return "";
+    if (expireMs <= 0 || nowMs === null) return "";
     if (remainMs <= 0) return "已过期";
     const totalSec = Math.floor(remainMs / 1000);
     const h = Math.floor(totalSec / 3600);

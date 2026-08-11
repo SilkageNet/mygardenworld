@@ -123,6 +123,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.BatchStatus = 0
 		view.BatchStartMs = 0
 		view.BatchEndMs = 0
+		view.TakeQuotaExhausted = false
 		return
 	}
 	var batch clientproto.IFmlRaceBatch
@@ -146,7 +147,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchStartMs = batch.StartTime
 	view.BatchEndMs = batch.EndTime
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
-	if prevBatchID != 0 && batch.BatchId != 0 && prevBatchID != batch.BatchId {
+	if batch.BatchId != prevBatchID {
 		view.TakeQuotaExhausted = false
 	}
 }

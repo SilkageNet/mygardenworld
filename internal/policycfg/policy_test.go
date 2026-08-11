@@ -163,6 +163,24 @@ func TestFromJSONRaceAutoStopOnQuotaDoneBackfill(t *testing.T) {
 	}
 }
 
+func TestRaceUrgentSpeedupRequiresExplicitPolicy(t *testing.T) {
+	legacy, err := FromJSON(`{"union":{"race":{"enabled":true}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacy.GetUnion().GetRace().GetUrgentSpeedupEnabled() {
+		t.Fatal("legacy policies must not opt into emergency ticket spending")
+	}
+
+	enabled, err := FromJSON(`{"union":{"race":{"urgent_speedup_enabled":true}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabled.GetUnion().GetRace().GetUrgentSpeedupEnabled() {
+		t.Fatal("explicit urgent_speedup_enabled=true must survive load")
+	}
+}
+
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()

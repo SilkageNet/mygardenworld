@@ -321,6 +321,10 @@ message UnionRacePolicy {
   // Sync / finish / giveUp of an already-held task still run. Default on in
   // DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
   bool auto_stop_on_quota_done = 12;
+  // Permit spending speed-up tickets during the final ten minutes of a held
+  // planting task even when use_speedup_ticket_in_task is false. Default off:
+  // emergency resource spending must be an explicit operator choice.
+  bool urgent_speedup_enabled = 13;
 }
 
 message UnionLandPolicy {
