@@ -3141,9 +3141,6 @@ function EventPanel({ events }: { events: Event[] }) {
   }, [categoryCounts]);
   const visibleEvents = useMemo(() => {
     if (activeCategory === "all") return displayEvents;
-    if (activeCategory === "race") {
-      return displayEvents.filter((event) => eventCategory(event) === "race" && !isRacePlannedLogEvent(event));
-    }
     return displayEvents.filter((event) => eventCategory(event) === activeCategory);
   }, [activeCategory, displayEvents]);
 
@@ -3726,10 +3723,6 @@ function isRaceSyncCompleteLogEvent(event: Event) {
 
 function isRaceSyncPlannedLogEvent(event: Event) {
   return event.kind === "operation_planned" && isRaceSyncLogEvent(event);
-}
-
-function isRacePlannedLogEvent(event: Event) {
-  return event.kind === "operation_planned" && eventCategory(event) === "race";
 }
 
 function eventTitle(event: Event) {

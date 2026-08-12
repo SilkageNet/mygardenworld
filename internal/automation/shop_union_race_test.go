@@ -1326,6 +1326,7 @@ func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 	p.Order.Customer.Enabled = true
 	p.Union.Race.Enabled = true
 	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
 	p.Union.Race.TaskTypePriority = map[int32]int32{3016: 4}
 
 	result := BuildPlan(s, p, now)
@@ -1342,5 +1343,26 @@ func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 	}
 	if !strings.Contains(linked.Reason, "公会竞赛顾客订单剩余") {
 		t.Fatalf("reason missing race pressure: %q", linked.Reason)
+	}
+}
+
+func TestBuildPlan_RaceGiveUpPreemptsCustomerFinish(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23005":10}}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]},"109":{"0":{"1":{"10":{"0":[[23005,1]],"1":10}},"2":` + fmt.Sprintf("%d", now.Add(time.Hour).UnixMilli()) + `}}}`))
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 24
+	p.Union.Race.TaskTypePriority = map[int32]int32{3016: 4}
+
+	result := BuildPlan(s, p, now)
+	if len(result.Operations) == 0 || result.Operations[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("giveUp must preempt customer finish for rejected held task, ops=%+v", result.Operations)
+	}
+	if op := Plan(s, p, now); op == nil || op.Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("Plan()=%+v, want immediate race giveUp", op)
 	}
 }

@@ -109,6 +109,12 @@ func operationComesBefore(left, right PlannedOp) bool {
 // priority 50 cannot jump ahead of main tasks or major orders merely because
 // usrLand RPCs normally own the farm lane.
 func operationLaneRank(op PlannedOp) int {
+	// A task selected for abandonment must be released before farm/order work.
+	// The op remains on the side lane for execution locking; this only prevents
+	// unrelated work from indefinitely delaying a policy-required give-up.
+	if op.Domain == "union.race.giveUp" {
+		return -1
+	}
 	if op.Lane == LaneFarm && op.GoalID == GoalAutoReplant && strings.HasPrefix(op.DemandID, cyclicNoteActionGoal+":") {
 		return laneRank(LaneSide)
 	}
