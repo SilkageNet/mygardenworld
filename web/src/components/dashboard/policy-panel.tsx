@@ -951,7 +951,7 @@ export default function PolicyPanel({
                 <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <ToggleRow label="临期兜底使用加速卡" checked={unionRace?.urgentSpeedupEnabled ?? false} description="已接种植任务进入最后 10 分钟时使用加速卡；默认关闭，只有明确开启才会额外消耗道具" onChange={(checked) => updateUnionRace({ urgentSpeedupEnabled: checked })} />
-                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
+                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过；已接且未完成的同样会自动放弃（需开启自动完成）。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />

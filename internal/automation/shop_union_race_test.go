@@ -312,24 +312,32 @@ func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 	}
 }
 
-func TestUnionRaceNoGiveUpWhenTakenHasProgress(t *testing.T) {
+func TestUnionRaceGiveUpLowScoreEvenWithProgress(t *testing.T) {
 	s := state.New()
-	// Low score + priority 0 + FinishCnt>0 → keep (do not cancel mid-progress).
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3017,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":16}}}}}`))
+	// Low score + FinishCnt>0 → still give up (do not plant a sub-threshold hold to completion).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":16,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 24
-	policy.TaskTypePriority = map[int32]int32{3017: 0, 3036: 5}
-	for _, op := range unionRaceOperations(s, policy, 999, time.Now(), true) {
+	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	var hasGiveUp bool
+	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
-			t.Fatalf("must not giveUp a started task, got %+v", op)
+			hasGiveUp = true
+			if op.TaskMsID != 1 {
+				t.Fatalf("giveUp taskMsId = %d, want 1", op.TaskMsID)
+			}
 		}
+	}
+	if !hasGiveUp {
+		t.Fatalf("expected giveUp for low-score taken task with progress, got %+v", ops)
 	}
 }
 
 func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
 	s := state.New()
-	// Taken msId=99 not present in observed pool; FinishCnt=0 → give up.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23022]}}}}}`))
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	// Taken msId=99 not present in observed pool; completable plant-harvest, FinishCnt=0 → give up for pool gap.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23001]}}}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
 	var giveUp *PlannedOp
 	for i := range ops {
@@ -348,7 +356,9 @@ func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
 
 func TestUnionRaceNoGiveUpMissingFromPoolWhenHasProgress(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":12,"4":[23022]}}}}}`))
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	// Completable hold missing from pool with FinishCnt>0 → keep (avoid dropping on a transient pool gap).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":12,"4":[23001]}}}}}`))
 	for _, op := range unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true) {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("must not giveUp started task missing from pool, got %+v", op)
@@ -587,6 +597,33 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 	}
 	if !hasGiveUp {
 		t.Fatalf("expected a giveUp op for task below score threshold, got %+v", ops)
+	}
+}
+
+func TestUnionRaceGiveUpUsesPoolScoreWhenTakenScoreUnset(t *testing.T) {
+	s := state.New()
+	// Pool only (no field 110): score=5 lives on the pool row.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}]}}`))
+	// Progress/take ACK creates Taken without score in the payload; finalize/enrich
+	// or raceTakenScore must still see pool score=5 and give up under min=10.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1":{"3":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
+	if got := s.FmlRace().Taken; !got.HasTask {
+		t.Fatalf("setup Taken=%+v, want HasTask", got)
+	}
+	if score := raceTakenScore(s.FmlRace()); score != 5 {
+		t.Fatalf("raceTakenScore=%d, want 5 from pool", score)
+	}
+	policy := testRacePolicy()
+	policy.MinTaskScore = 10
+	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	var hasGiveUp bool
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			hasGiveUp = true
+		}
+	}
+	if !hasGiveUp {
+		t.Fatalf("expected giveUp using pool score when take ACK omitted score, got %+v view=%+v", ops, s.FmlRace())
 	}
 }
 

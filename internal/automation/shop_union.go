@@ -917,26 +917,21 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 // unfinished taken tasks (unknown progress TargetCnt<=0 counts as unfinished).
 //
 // Order (auto-complete on):
-//  1. FinishCnt>0 → keep (do not cancel mid-progress)
-//  2. Pool observed and TaskMsId missing from pool → give up
-//  3. Score <= min_task_score (Score==0 unresolved → do not give up for score alone)
-//  4. Plant-harvest uncompletable / priority 0
+//  1. Score <= min_task_score (pool score fills Taken.Score==0; still-unresolved
+//     Score==0 → do not give up for score alone). Fires even when FinishCnt>0 so
+//     a sub-threshold hold is dropped instead of planted to completion.
+//  2. Plant-harvest uncompletable / customer module off / priority 0 (also with progress)
+//  3. Pool observed and TaskMsId missing from pool → give up only when FinishCnt==0
+//     (mid-progress keep avoids dropping a live task on a transient pool gap)
 func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, customerEnabled bool) string {
 	taken := view.Taken
 	if policy == nil || !taken.HasTask {
 		return ""
 	}
-	if taken.FinishCnt > 0 {
-		return ""
-	}
-	if view.TasksObserved {
-		if _, ok := raceTaskByMsID(view.Tasks, taken.TaskMsId); !ok {
-			return "公会竞赛放弃不在任务池中的已接任务"
-		}
-	}
+	score := raceTakenScore(view)
 	minScore := policy.GetMinTaskScore()
 	switch {
-	case minScore > 0 && taken.Score > 0 && taken.Score <= minScore:
+	case minScore > 0 && score > 0 && score <= minScore:
 		return "公会竞赛放弃不符合分数要求的已接任务"
 	case raceTakenUncompletable(s, taken, customerEnabled):
 		taskType := taken.TaskType
@@ -949,16 +944,35 @@ func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view sta
 		return "公会竞赛放弃无法完成的种植收获任务"
 	case raceTakenPriorityZero(policy, taken):
 		return "公会竞赛放弃优先级为0的已接任务"
-	default:
+	}
+	if taken.FinishCnt > 0 {
 		return ""
 	}
+	if view.TasksObserved {
+		if _, ok := raceTaskByMsID(view.Tasks, taken.TaskMsId); !ok {
+			return "公会竞赛放弃不在任务池中的已接任务"
+		}
+	}
+	return ""
+}
+
+// raceTakenScore prefers the held-task score, then the matching pool row when
+// field 110 omitted score and enrichment has not filled it yet.
+func raceTakenScore(view state.FmlRaceView) int32 {
+	if view.Taken.Score > 0 {
+		return view.Taken.Score
+	}
+	if task, ok := raceTaskByMsID(view.Tasks, view.Taken.TaskMsId); ok && task.Score > 0 {
+		return task.Score
+	}
+	return 0
 }
 
 // raceTakenBlocksProgress reports whether farm modules must not advance a held
 // race task — either it is about to be given up, or its score is still unknown
 // while a min_task_score gate is active (planting before score resolves caused
 // full-field race plants of sub-threshold tasks). Started tasks (FinishCnt>0)
-// are never blocked by the score-unresolved gate.
+// are never blocked by the score-unresolved gate alone.
 func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, customerEnabled bool) bool {
 	taken := view.Taken
 	if !taken.HasTask {
@@ -970,7 +984,7 @@ func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view st
 	if taken.FinishCnt > 0 {
 		return false
 	}
-	return policy != nil && policy.GetMinTaskScore() > 0 && taken.Score == 0
+	return policy != nil && policy.GetMinTaskScore() > 0 && raceTakenScore(view) == 0
 }
 
 // raceTakenUncompletable reports whether a held unfinished task can never be

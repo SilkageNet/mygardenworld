@@ -1918,6 +1918,9 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
 
 function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
 	const skipReason = (task.takeSkipReason ?? "").trim();
+	// Empty = ready now. "冷却中…后可接" = passes filters, waiting on AppearTime.
+	// Both are tasks automation would take; other skip reasons are hard rejects.
+	const takeable = skipReason === "" || skipReason.startsWith("冷却中");
 	// The server computes CD using the same lead window as task selection. Using
 	// that snapshot keeps rendering pure and the label consistent with automation.
 	const onCd = skipReason.startsWith("冷却中") || skipReason.endsWith("后刷新");
@@ -1926,7 +1929,12 @@ function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) 
 		: task.taskLabel || `任务 #${task.taskId}`;
 	const title = onCd ? `CD ${baseTitle}` : baseTitle;
   return (
-    <div className="rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+    <div
+      className={cn(
+        "rounded-md border-2 bg-white/36 px-3 py-2 dark:bg-white/5",
+        takeable ? "border-red-500 bg-red-500/5 dark:bg-red-500/10" : "border-border/55",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 text-sm font-medium">
           <span className="mr-1.5 tabular-nums text-muted-foreground">{index}.</span>
@@ -1938,7 +1946,11 @@ function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) 
         <span>分数 {task.score}</span>
         {task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}
       </div>
-      {skipReason !== "" && (
+      {skipReason === "" ? (
+        <div className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">可接取</div>
+      ) : skipReason.startsWith("冷却中") ? (
+        <div className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{skipReason}</div>
+      ) : (
         <div className="mt-1 text-xs text-muted-foreground">不可接取：{skipReason}</div>
       )}
     </div>
