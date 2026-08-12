@@ -312,24 +312,32 @@ func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 	}
 }
 
-func TestUnionRaceNoGiveUpWhenTakenHasProgress(t *testing.T) {
+func TestUnionRaceGiveUpLowScoreEvenWithProgress(t *testing.T) {
 	s := state.New()
-	// Low score + priority 0 + FinishCnt>0 → keep (do not cancel mid-progress).
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3017,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":16}}}}}`))
+	// Low score + FinishCnt>0 → still give up (do not plant a sub-threshold hold to completion).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":16,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 24
-	policy.TaskTypePriority = map[int32]int32{3017: 0, 3036: 5}
-	for _, op := range unionRaceOperations(s, policy, 999, time.Now(), true) {
+	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	var hasGiveUp bool
+	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
-			t.Fatalf("must not giveUp a started task, got %+v", op)
+			hasGiveUp = true
+			if op.TaskMsID != 1 {
+				t.Fatalf("giveUp taskMsId = %d, want 1", op.TaskMsID)
+			}
 		}
+	}
+	if !hasGiveUp {
+		t.Fatalf("expected giveUp for low-score taken task with progress, got %+v", ops)
 	}
 }
 
 func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
 	s := state.New()
-	// Taken msId=99 not present in observed pool; FinishCnt=0 → give up.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23022]}}}}}`))
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	// Taken msId=99 not present in observed pool; completable plant-harvest, FinishCnt=0 → give up for pool gap.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23001]}}}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
 	var giveUp *PlannedOp
 	for i := range ops {
@@ -348,7 +356,9 @@ func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
 
 func TestUnionRaceNoGiveUpMissingFromPoolWhenHasProgress(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":12,"4":[23022]}}}}}`))
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	// Completable hold missing from pool with FinishCnt>0 → keep (avoid dropping on a transient pool gap).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":12,"4":[23001]}}}}}`))
 	for _, op := range unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true) {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("must not giveUp started task missing from pool, got %+v", op)
@@ -370,6 +380,18 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 	}
 	if ops[0].TaskMsID != 2 {
 		t.Fatalf("expected taskMsId 2 (exclude uid-100 upgraded task), got %d", ops[0].TaskMsID)
+	}
+
+	// System upgrade (IsUpgrade=1, UpgradeUid=0) remains takeable.
+	s2 := state.New()
+	s2.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	s2.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
+		{"0":1,"4":3036,"6":[23001],"10":28,"14":1,"15":0},
+		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
+	]}}`))
+	ops2 := unionRaceOperations(s2, policy, 999, time.Now(), true)
+	if len(ops2) != 1 || ops2[0].TaskMsID != 1 {
+		t.Fatalf("expected take system-upgraded msId 1, got %+v", ops2)
 	}
 }
 
@@ -575,6 +597,33 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 	}
 	if !hasGiveUp {
 		t.Fatalf("expected a giveUp op for task below score threshold, got %+v", ops)
+	}
+}
+
+func TestUnionRaceGiveUpUsesPoolScoreWhenTakenScoreUnset(t *testing.T) {
+	s := state.New()
+	// Pool only (no field 110): score=5 lives on the pool row.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}]}}`))
+	// Progress/take ACK creates Taken without score in the payload; finalize/enrich
+	// or raceTakenScore must still see pool score=5 and give up under min=10.
+	s.ApplyV(json.RawMessage(`{"25":{"134":{"1":{"3":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
+	if got := s.FmlRace().Taken; !got.HasTask {
+		t.Fatalf("setup Taken=%+v, want HasTask", got)
+	}
+	if score := raceTakenScore(s.FmlRace()); score != 5 {
+		t.Fatalf("raceTakenScore=%d, want 5 from pool", score)
+	}
+	policy := testRacePolicy()
+	policy.MinTaskScore = 10
+	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	var hasGiveUp bool
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			hasGiveUp = true
+		}
+	}
+	if !hasGiveUp {
+		t.Fatalf("expected giveUp using pool score when take ACK omitted score, got %+v view=%+v", ops, s.FmlRace())
 	}
 }
 
@@ -815,7 +864,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: takeablePlant(),
-			want:   "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后可接",
+			want:   "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后可接",
 		},
 		{
 			name: "far CD plant not cultivated → refresh",
@@ -824,7 +873,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: policyBase(),
-			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
 		},
 		{
 			name: "far CD score gate would fail → refresh",
@@ -837,7 +886,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				p.MinTaskScore = 20
 				return p
 			}(),
-			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
 		},
 		{
 			name: "within lead is takeable",
@@ -864,7 +913,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: leadMs + 1,
 			},
 			policy: takeablePlant(),
-			want:   "冷却中，" + time.UnixMilli(leadMs+1).Local().Format("15:04") + " 后可接",
+			want:   "冷却中，" + time.UnixMilli(leadMs+1).Local().Format("15:04:05") + " 后可接",
 		},
 		{
 			name:   "score too low",
@@ -883,6 +932,16 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			task:   state.FmlRaceTaskView{MsId: 6, TaskId: 3030, TaskType: 3030, Score: 20, IsUpgrade: 1, UpgradeUid: 99},
 			policy: &pb.UnionRacePolicy{ExcludeOthersUpgradeTask: true},
 			want:   "他人已升级",
+		},
+		{
+			name: "system upgraded ok",
+			task: state.FmlRaceTaskView{MsId: 16, TaskId: 3036, TaskType: 3036, Score: 28, ParamID: 23001, IsUpgrade: 1, UpgradeUid: 0},
+			policy: func() *pb.UnionRacePolicy {
+				p := takeablePlant()
+				p.ExcludeOthersUpgradeTask = true
+				return p
+			}(),
+			want: "",
 		},
 		{
 			name: "own upgraded ok",
@@ -958,7 +1017,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: &pb.UnionRacePolicy{MinTaskScore: 20},
-			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04") + " 后刷新",
+			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
 		},
 	}
 
@@ -1048,7 +1107,8 @@ func TestUnionRacePeriodicRunsDespiteNearTakenCD(t *testing.T) {
 }
 
 func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
-	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
+	// Only the final approach window suppresses TTL sync; 20s is inside it.
+	s, now := raceStateAtTTL(t, 20*time.Second, 23001, 0)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
@@ -1057,6 +1117,16 @@ func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("outside lead must not take yet, got %+v", ops)
 		}
+	}
+}
+
+func TestUnionRacePeriodicRunsDespiteMidTakeableCD(t *testing.T) {
+	// 5m remaining used to suppress sync (tied to 10m TTL); keep refreshing so
+	// mid-wait upgrades/claims are observed before AppearTime.
+	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("mid takeable CD must not block periodic sync, got %+v", ops)
 	}
 }
 
@@ -1256,6 +1326,7 @@ func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 	p.Order.Customer.Enabled = true
 	p.Union.Race.Enabled = true
 	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
 	p.Union.Race.TaskTypePriority = map[int32]int32{3016: 4}
 
 	result := BuildPlan(s, p, now)
@@ -1272,5 +1343,26 @@ func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 	}
 	if !strings.Contains(linked.Reason, "公会竞赛顾客订单剩余") {
 		t.Fatalf("reason missing race pressure: %q", linked.Reason)
+	}
+}
+
+func TestBuildPlan_RaceGiveUpPreemptsCustomerFinish(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23005":10}}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]},"109":{"0":{"1":{"10":{"0":[[23005,1]],"1":10}},"2":` + fmt.Sprintf("%d", now.Add(time.Hour).UnixMilli()) + `}}}`))
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 24
+	p.Union.Race.TaskTypePriority = map[int32]int32{3016: 4}
+
+	result := BuildPlan(s, p, now)
+	if len(result.Operations) == 0 || result.Operations[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("giveUp must preempt customer finish for rejected held task, ops=%+v", result.Operations)
+	}
+	if op := Plan(s, p, now); op == nil || op.Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("Plan()=%+v, want immediate race giveUp", op)
 	}
 }

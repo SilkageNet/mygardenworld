@@ -47,6 +47,7 @@ const (
 	operationErrorRaceTakeAlreadyTaken      operationErrorKind = "race_take_already_taken"
 	operationErrorRaceTakeClaimedByOther    operationErrorKind = "race_take_claimed_by_other"
 	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
+	operationErrorRaceTakeOnCooldown         operationErrorKind = "race_take_on_cooldown"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
@@ -76,6 +77,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorRaceTakeClaimedByOther
 	case isRaceTakeQuotaExceededError(kind, err):
 		return operationErrorRaceTakeQuotaExceeded
+	case isRaceTakeOnCooldownError(kind, err):
+		return operationErrorRaceTakeOnCooldown
 	case isFmlFlowerTakeDailyLimitError(kind, err):
 		return operationErrorFmlFlowerTakeDailyLimit
 	case isCyclicStoryOrderNotReadyError(kind, err):
@@ -283,17 +286,21 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "resource_stale"})
 		return nil
 	case operationErrorFlowerArtMaterialRejected:
-		itemID := flowerArtMaterialRejectedItemID(op.Kind, err)
+		itemID := inventoryMaterialRejectedItemID(op.Kind, err)
 		if itemID > 0 {
 			r.state.MarkInventoryItemExhausted(itemID)
 		}
 		itemName := state.ItemLabel(itemID)
+		retryHint := "等待补充后重试"
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() {
+			retryHint = "下轮将按库存→制作→拒绝重新决策"
+		}
 		r.emit(Event{
 			Kind:        "operation_deferred",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
-			Message:     fmt.Sprintf("%s 暂缓: 服务端提示材料不足（%s），已校正本地库存，等待补充后重试", opDesc(op), itemName),
+			Message:     fmt.Sprintf("%s 暂缓: 服务端提示材料不足（%s），已校正本地库存，%s", opDesc(op), itemName, retryHint),
 			PayloadJSON: operationPayload(op, args, nil, err),
 			Level:       "warn",
 		})
@@ -354,6 +361,31 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_take_quota"})
+		return nil
+	case operationErrorRaceTakeOnCooldown:
+		// Preemptive take (lead window) often hits server CD. Do not use the
+		// ordinary 60s side-op backoff — wait until AppearTime (+pad) and
+		// resync the pool so mid-wait upgrades are visible before retry.
+		now := result.finishedAt
+		r.state.MarkFmlRaceTasksUnobserved()
+		cooldown := raceTakeOnCooldownWait(r.state, op, now)
+		payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示任务冷却中", cooldown)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 暂缓: 服务端提示任务冷却中，等待刷新后重试", opDesc(op)),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{
+			"error":             err.Error(),
+			"stage":             "race_take_cooldown",
+			"taskMsId":          op.TaskMsID,
+			"retryAfterSeconds": int(cooldown.Seconds()),
+		})
 		return nil
 	case operationErrorFmlFlowerTakeDailyLimit:
 		now := result.finishedAt
@@ -490,6 +522,41 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "莳花纪闻"
 		category = automation.CategoryActivity
 		message = cyclicStoryMilestoneClaimSuccessMessage(op, r.state, result.finishedAt)
+	case clientproto.RPCFmlRaceGetTaskList.String():
+		kind = "race_task_sync"
+		label = "同步竞赛任务"
+		category = automation.CategoryRace
+		message = "完成"
+	case clientproto.RPCFmlRaceEnter.String():
+		kind = "race_enter"
+		label = "进入公会竞赛"
+		category = automation.CategoryRace
+		message = "完成"
+	case clientproto.RPCFmlRaceTakeTask.String():
+		kind = "race_task_taken"
+		label = "接取竞赛任务"
+		category = automation.CategoryRace
+		message = raceTaskSuccessMessage(op)
+	case clientproto.RPCFmlRaceFinishTask.String():
+		kind = "race_task_finished"
+		label = "完成竞赛任务"
+		category = automation.CategoryRace
+		message = raceTaskSuccessMessage(op)
+	case clientproto.RPCFmlRaceUpgradeTask.String():
+		kind = "race_task_upgraded"
+		label = "升级竞赛任务"
+		category = automation.CategoryRace
+		message = raceTaskSuccessMessage(op)
+	case clientproto.RPCFmlRaceDelTask.String():
+		kind = "race_task_deleted"
+		label = "删除竞赛任务"
+		category = automation.CategoryRace
+		message = raceTaskSuccessMessage(op)
+	case clientproto.RPCFmlRaceGiveUpTask.String():
+		kind = "race_task_given_up"
+		label = "放弃竞赛任务"
+		category = automation.CategoryRace
+		message = raceTaskSuccessMessage(op)
 	}
 	r.emit(Event{
 		Kind:        kind,
@@ -667,8 +734,32 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		op.Kind == clientproto.RPCActCyclicStoryRecv.String(),
 		op.Domain == "activity.actCyclicStory":
 		return "莳花纪闻"
+	case op.Kind == clientproto.RPCFmlRaceGetTaskList.String():
+		return "同步竞赛任务"
+	case op.Kind == clientproto.RPCFmlRaceEnter.String():
+		return "进入公会竞赛"
+	case op.Kind == clientproto.RPCFmlRaceTakeTask.String():
+		return "接取竞赛任务"
+	case op.Kind == clientproto.RPCFmlRaceFinishTask.String():
+		return "完成竞赛任务"
+	case op.Kind == clientproto.RPCFmlRaceUpgradeTask.String():
+		return "升级竞赛任务"
+	case op.Kind == clientproto.RPCFmlRaceDelTask.String():
+		return "删除竞赛任务"
+	case op.Kind == clientproto.RPCFmlRaceGiveUpTask.String():
+		return "放弃竞赛任务"
 	}
 	return ""
+}
+
+func raceTaskSuccessMessage(op *automation.PlannedOp) string {
+	if op == nil {
+		return "完成"
+	}
+	if desc := automation.FormatRaceTaskOpDesc(op.TaskID, op.FlowerID); desc != "" {
+		return desc
+	}
+	return "完成"
 }
 
 func cyclicStoryOrderClaimSuccessMessage(op *automation.PlannedOp, scoreBefore int32, scoreBeforeSet bool, st *state.State, at time.Time) string {
