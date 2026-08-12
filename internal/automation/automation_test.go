@@ -758,6 +758,137 @@ func TestBuildPlan_CustomerArtCraftsFromInventoryWithoutCultivation(t *testing.T
 	t.Fatalf("missing customer craft op: %+v", result.Operations)
 }
 
+func TestBuildPlan_CustomerFinishWhenArtInStock(t *testing.T) {
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			t.Fatalf("should finish from stock before crafting: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
+			t.Fatalf("should finish from stock before rejecting: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() {
+			if !op.Executable || op.TargetID != 7 {
+				t.Fatalf("finish op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing customer finish op: %+v", result.Operations)
+}
+
+func TestBuildPlan_CustomerCraftsAfterStaleArtStockCleared(t *testing.T) {
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	stock := make(map[string]any, len(recipe.Flowers)+1)
+	stock[itoa32(recipe.ArtID)] = int32(1)
+	for _, flowerID := range recipe.Flowers {
+		stock[itoa32(flowerID)] = int32(1)
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": stock,
+			"34": 12,
+		}},
+		"102": map[string]any{"0": map[string]any{itoa32(recipe.VaseID): map[string]any{"1": recipe.VaseID}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = true
+
+	before := BuildPlan(s, p, time.Now())
+	for _, op := range before.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			goto cleared
+		}
+	}
+	t.Fatalf("expected finish while stale art stock present: %+v", before.Operations)
+
+cleared:
+	s.MarkInventoryItemExhausted(recipe.ArtID)
+	after := BuildPlan(s, p, time.Now())
+	for _, op := range after.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			t.Fatalf("should not finish after stale art cleared: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && op.Executable {
+			t.Fatalf("should craft materials instead of rejecting: %+v", op)
+		}
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.ItemID == recipe.ArtID {
+			if !op.Executable || op.Count != 1 {
+				t.Fatalf("craft op mismatch after stock clear: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing craft after stale art cleared: %+v", after.Operations)
+}
+
+func TestBuildPlan_CustomerRejectsWhenArtMissingAndUncraftable(t *testing.T) {
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{},
+			"34": 12,
+		}},
+		"102": map[string]any{"0": map[string]any{itoa32(recipe.VaseID): map[string]any{"1": recipe.VaseID}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.RejectUnavailableEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			t.Fatalf("should not finish without art stock: %+v", op)
+		}
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.Executable {
+			t.Fatalf("should not craft without flower materials: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() {
+			if !op.Executable || !strings.Contains(op.Reason, "库存不足且无法制作") {
+				t.Fatalf("reject op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing reject when uncraftable: %+v", result.Operations)
+}
+
 func TestBuildPlan_CustomerArtConfigLevelDoesNotReject(t *testing.T) {
 	recipe, ok := state.FlowerArtRecipeByID(301606)
 	if !ok {
@@ -2353,6 +2484,41 @@ func TestBuildPlan_ShopCultivateBuyWithGoldBudget(t *testing.T) {
 		if op.Domain == "basic.shop.cultivate" {
 			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || op.ItemID != 1401 || op.GoldCost != 3214 || !op.Executable || op.SyncOnly {
 				t.Fatalf("shop cultivate buy op mismatch: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing shop cultivate buy op: %+v", result.Operations)
+}
+
+func TestBuildPlan_ShopCultivateBuyDespiteStaleResetMs(t *testing.T) {
+	// Live failure mode (叶小楠): enter/refresh omit lResetTime while larTime is
+	// current; a prior-day resetMs previously forced an infinite enter loop and
+	// blocked buys even when infoMap still had remaining offers.
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 8, 10, 15, 0, 0, 0, shanghai)
+	staleReset := time.Date(2026, 8, 4, 0, 5, 0, 0, shanghai)
+	freshLar := time.Date(2026, 8, 10, 14, 55, 0, 0, shanghai)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 50_000_000}},
+		"113": map[string]any{
+			"1": map[string]any{"10004": []int32{11, 5001}},
+			"2": staleReset.UnixMilli(),
+			"3": freshLar.UnixMilli(),
+			"6": map[string]any{},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Shop.CultivateShop.AutoBuy = true
+	p.Basic.Shop.CultivateShop.MaxSpendGold = 50_000_000
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "basic.shop.cultivate" {
+			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10004 || !op.Executable {
+				t.Fatalf("expected buy despite stale resetMs, got %+v", op)
 			}
 			return
 		}

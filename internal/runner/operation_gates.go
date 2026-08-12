@@ -265,10 +265,18 @@ func isWaterDropResourceRejectedError(kind string, err error) bool {
 	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
 }
 
-// flowerArtMaterialRejectedItemID returns param.iid when makeFlowerArt fails with
-// a material-shortage envelope (code 301). Zero means the error is not that case.
-func flowerArtMaterialRejectedItemID(kind string, err error) int32 {
-	if kind != clientproto.RPCFlowerArtMakeFlowerArt.String() || err == nil {
+// inventoryMaterialRejectedItemID returns param.iid when an inventory-consuming
+// RPC fails with a material-shortage envelope (code 301). Zero means the error
+// is not that case. Covers flower-art craft and customer-order finish, where
+// stale local stock can otherwise loop the same rejected finish.
+func inventoryMaterialRejectedItemID(kind string, err error) int32 {
+	if err == nil {
+		return 0
+	}
+	switch kind {
+	case clientproto.RPCFlowerArtMakeFlowerArt.String(),
+		clientproto.RPCOrderCustomerFinishOrder.String():
+	default:
 		return 0
 	}
 	var rpcErr *babigame.RPCServerError
@@ -302,8 +310,12 @@ func flowerArtMaterialRejectedItemID(kind string, err error) int32 {
 	return n
 }
 
+func flowerArtMaterialRejectedItemID(kind string, err error) int32 {
+	return inventoryMaterialRejectedItemID(kind, err)
+}
+
 func isFlowerArtMaterialRejectedError(kind string, err error) bool {
-	return flowerArtMaterialRejectedItemID(kind, err) > 0
+	return inventoryMaterialRejectedItemID(kind, err) > 0
 }
 
 func isRaceTakeAlreadyTakenError(kind string, err error) bool {
@@ -353,6 +365,58 @@ func isRaceTakeQuotaExceededError(kind string, err error) bool {
 		}
 	}
 	return false
+}
+
+// isRaceTakeOnCooldownError matches takeTask when the pool row is still on
+// AppearTime CD (common after a preemptive lead-window attempt).
+func isRaceTakeOnCooldownError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlRaceTakeTask.String() || err == nil {
+		return false
+	}
+	const tip = "任务冷却中"
+	if strings.Contains(err.Error(), tip) {
+		return true
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		if strings.Contains(rpcErr.Envelope.ErrorMsg(), tip) {
+			return true
+		}
+	}
+	return false
+}
+
+// raceTakeOnCooldownWait returns how long to block take after a server CD tip.
+// Prefer waiting until the pool row's AppearTime (+pad) so we retry at refresh
+// instead of burning a 60s ordinary side-op backoff.
+func raceTakeOnCooldownWait(st *state.State, op *automation.PlannedOp, now time.Time) time.Duration {
+	const (
+		minWait = 200 * time.Millisecond
+		maxWait = 2 * time.Minute
+		pad     = 300 * time.Millisecond
+		fallback = 2 * time.Second
+	)
+	if st == nil || op == nil || op.TaskMsID == 0 {
+		return fallback
+	}
+	for _, t := range st.FmlRace().Tasks {
+		if t.MsId != op.TaskMsID || t.AppearTime <= 0 {
+			continue
+		}
+		until := time.UnixMilli(t.AppearTime).Add(pad)
+		if !until.After(now) {
+			return minWait
+		}
+		d := until.Sub(now)
+		if d > maxWait {
+			return maxWait
+		}
+		if d < minWait {
+			return minWait
+		}
+		return d
+	}
+	return fallback
 }
 
 // isCyclicStoryOrderNotReadyError matches actCyclicStory.recvOrderRwd code 259

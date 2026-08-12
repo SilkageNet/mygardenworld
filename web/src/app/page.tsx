@@ -1918,6 +1918,9 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
 
 function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
 	const skipReason = (task.takeSkipReason ?? "").trim();
+	// Empty = ready now. "冷却中…后可接" = passes filters, waiting on AppearTime.
+	// Both are tasks automation would take; other skip reasons are hard rejects.
+	const takeable = skipReason === "" || skipReason.startsWith("冷却中");
 	// The server computes CD using the same lead window as task selection. Using
 	// that snapshot keeps rendering pure and the label consistent with automation.
 	const onCd = skipReason.startsWith("冷却中") || skipReason.endsWith("后刷新");
@@ -1926,7 +1929,12 @@ function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) 
 		: task.taskLabel || `任务 #${task.taskId}`;
 	const title = onCd ? `CD ${baseTitle}` : baseTitle;
   return (
-    <div className="rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+    <div
+      className={cn(
+        "rounded-md border-2 bg-white/36 px-3 py-2 dark:bg-white/5",
+        takeable ? "border-red-500 bg-red-500/5 dark:bg-red-500/10" : "border-border/55",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 text-sm font-medium">
           <span className="mr-1.5 tabular-nums text-muted-foreground">{index}.</span>
@@ -1938,7 +1946,11 @@ function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) 
         <span>分数 {task.score}</span>
         {task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}
       </div>
-      {skipReason !== "" && (
+      {skipReason === "" ? (
+        <div className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">可接取</div>
+      ) : skipReason.startsWith("冷却中") ? (
+        <div className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{skipReason}</div>
+      ) : (
         <div className="mt-1 text-xs text-muted-foreground">不可接取：{skipReason}</div>
       )}
     </div>
@@ -3106,14 +3118,15 @@ function isRunnableOperation(operation: PlannedOperation) {
 
 function EventPanel({ events }: { events: Event[] }) {
   const [activeCategory, setActiveCategory] = useState("all");
+  const displayEvents = useMemo(() => collapseRaceSyncLogEvents(events), [events]);
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const event of events) {
+    for (const event of displayEvents) {
       const category = eventCategory(event);
       counts.set(category, (counts.get(category) ?? 0) + 1);
     }
     return counts;
-  }, [events]);
+  }, [displayEvents]);
   const categories = useMemo(() => {
     const order = ["basic", "water", "plant", "order", "union", "race", "activity", "account", "system"];
     const keys = new Set(categoryCounts.keys());
@@ -3127,9 +3140,12 @@ function EventPanel({ events }: { events: Event[] }) {
     });
   }, [categoryCounts]);
   const visibleEvents = useMemo(() => {
-    if (activeCategory === "all") return events;
-    return events.filter((event) => eventCategory(event) === activeCategory);
-  }, [activeCategory, events]);
+    if (activeCategory === "all") return displayEvents;
+    if (activeCategory === "race") {
+      return displayEvents.filter((event) => eventCategory(event) === "race" && !isRacePlannedLogEvent(event));
+    }
+    return displayEvents.filter((event) => eventCategory(event) === activeCategory);
+  }, [activeCategory, displayEvents]);
 
   useEffect(() => {
     if (activeCategory !== "all" && !categories.includes(activeCategory)) {
@@ -3678,6 +3694,42 @@ function eventCategory(event: Event) {
     return category || "system";
   }
   return "system";
+}
+
+/** Race getTaskList completions are frequent; keep only the newest one (events are newest-first). */
+function collapseRaceSyncLogEvents(events: Event[]): Event[] {
+  let keptLatestSyncComplete = false;
+  return events.filter((event) => {
+    if (isRaceSyncPlannedLogEvent(event)) return false;
+    if (!isRaceSyncCompleteLogEvent(event)) return true;
+    if (keptLatestSyncComplete) return false;
+    keptLatestSyncComplete = true;
+    return true;
+  });
+}
+
+function isRaceSyncLogEvent(event: Event) {
+  if (event.domain === "union.race.sync" || event.kind === "race_task_sync") return true;
+  const title = eventTitle(event);
+  const message = eventMessage(event);
+  return title.includes("同步竞赛任务") || message.includes("同步竞赛任务");
+}
+
+function isRaceSyncCompleteLogEvent(event: Event) {
+  if (!isRaceSyncLogEvent(event)) return false;
+  if (event.kind === "operation_planned") return false;
+  if (event.kind === "race_task_sync" || event.kind === "operation_ack") return true;
+  const title = eventTitle(event);
+  const message = eventMessage(event);
+  return title === "同步竞赛任务" || message.includes("同步竞赛任务 完成") || message === "完成";
+}
+
+function isRaceSyncPlannedLogEvent(event: Event) {
+  return event.kind === "operation_planned" && isRaceSyncLogEvent(event);
+}
+
+function isRacePlannedLogEvent(event: Event) {
+  return event.kind === "operation_planned" && eventCategory(event) === "race";
 }
 
 function eventTitle(event: Event) {

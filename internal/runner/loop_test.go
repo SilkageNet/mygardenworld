@@ -1104,6 +1104,12 @@ func TestClassifyOperationError(t *testing.T) {
 			want: operationErrorFlowerArtMaterialRejected,
 		},
 		{
+			name: "customer finish material rejected",
+			kind: clientproto.RPCOrderCustomerFinishOrder.String(),
+			err:  errors.New(`rpc orderCustomer.finishOrder: server: {"code":301,"param":{"iid":300505}}`),
+			want: operationErrorFlowerArtMaterialRejected,
+		},
+		{
 			name: "task group finished",
 			kind: clientproto.RPCTaskDlyRecv.String(),
 			err:  errors.New("rpc taskDly.recv: server: 本组任务已经完结"),
@@ -1163,6 +1169,33 @@ func TestHandleOperationErrorFlowerArtMaterialRejected(t *testing.T) {
 	}
 	if got := r.state.Inventory()[23022]; got != 0 {
 		t.Fatalf("Inventory[23022]=%d, want 0 after material rejection", got)
+	}
+}
+
+func TestHandleOperationErrorCustomerFinishMaterialRejected(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	r := newOperationEventTestRunner()
+	r.state.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"300505": 1}}},
+	})
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCOrderCustomerFinishOrder.String(),
+		Lane:     automation.LaneSide,
+		Category: automation.CategoryOrder,
+		Domain:   automation.GoalCustomerOrder,
+		Action:   "finish",
+		TargetID: 7,
+	}
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              errors.New(`rpc orderCustomer.finishOrder: server: {"code":301,"param":{"iid":300505}}`),
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if got := r.state.Inventory()[300505]; got != 0 {
+		t.Fatalf("Inventory[300505]=%d, want 0 after finish shortage", got)
 	}
 }
 

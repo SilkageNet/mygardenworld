@@ -936,6 +936,8 @@ export default function PolicyPanel({
                 <CatalogFlowerMultiSelectRow
                   label="摸花花朵"
                   value={unionFlower?.takeFlowerIds ?? []}
+                  inventory={snapshot?.inventory ?? {}}
+                  synced={Boolean(snapshot)}
                   onChange={(value) => updateUnionFlower({ takeFlowerIds: value })}
                   className="sm:col-span-2"
                 />
@@ -949,7 +951,7 @@ export default function PolicyPanel({
                 <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <ToggleRow label="临期兜底使用加速卡" checked={unionRace?.urgentSpeedupEnabled ?? false} description="已接种植任务进入最后 10 分钟时使用加速卡；默认关闭，只有明确开启才会额外消耗道具" onChange={(checked) => updateUnionRace({ urgentSpeedupEnabled: checked })} />
-                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过，0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
+                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过；已接且未完成的同样会自动放弃（需开启自动完成）。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />
@@ -1166,16 +1168,21 @@ function IntListRow({ label, value, onChange }: { label: string; value: number[]
 function CatalogFlowerMultiSelectRow({
   label,
   value,
+  inventory,
+  synced,
   onChange,
   className,
 }: {
   label: string;
   value: number[];
+  inventory: { [key: number]: number };
+  synced: boolean;
   onChange: (value: number[]) => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState<FlowerPickerSortMode>("stock_asc");
   const selectedSet = useMemo(() => new Set(value), [value]);
   const catalogCount = useMemo(() => allFlowers().length, []);
   const flowers = useMemo(() => {
@@ -1186,6 +1193,7 @@ function CatalogFlowerMultiSelectRow({
         name: display.name,
         seedName: display.seedName,
         color: display.item?.color,
+        stock: inventory[flower.id] ?? 0,
       };
     });
     const known = new Set(catalogFlowers.map((flower) => flower.id));
@@ -1197,17 +1205,24 @@ function CatalogFlowerMultiSelectRow({
         name: display.name,
         seedName: display.seedName,
         color: display.item?.color,
+        stock: inventory[id] ?? 0,
       });
     }
-    return catalogFlowers.sort((a, b) => a.id - b.id);
-  }, [value]);
+    return catalogFlowers;
+  }, [inventory, value]);
   const visibleFlowers = useMemo(() => {
     const text = query.trim().toLowerCase();
-    if (!text) return flowers;
-    return flowers.filter((flower) => {
-      return String(flower.id).includes(text) || flower.name.toLowerCase().includes(text) || flower.seedName.toLowerCase().includes(text);
-    });
-  }, [flowers, query]);
+    return flowers
+      .filter((flower) => {
+        if (!text) return true;
+        return String(flower.id).includes(text) || flower.name.toLowerCase().includes(text) || flower.seedName.toLowerCase().includes(text);
+      })
+      .sort((a, b) => {
+        if (sortMode === "stock_desc" && a.stock !== b.stock) return b.stock - a.stock;
+        if (a.stock !== b.stock) return a.stock - b.stock;
+        return a.id - b.id;
+      });
+  }, [flowers, query, sortMode]);
   const selectedPreview = value.slice(0, 4).map((id) => itemName(id)).filter(Boolean).join("、");
   const extraCount = value.length > 4 ? value.length - 4 : 0;
   const toggleFlower = (flowerID: number) => onChange(toggleNumber(value, flowerID));
@@ -1235,7 +1250,10 @@ function CatalogFlowerMultiSelectRow({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
-          if (!nextOpen) setQuery("");
+          if (!nextOpen) {
+            setQuery("");
+            setSortMode("stock_asc");
+          }
         }}
       >
         <DialogContent className="flex h-[min(42rem,90dvh)] max-h-[90dvh] max-w-3xl flex-col overflow-hidden">
@@ -1254,6 +1272,21 @@ function CatalogFlowerMultiSelectRow({
                 />
               </div>
               <Badge variant="outline" className="max-sm:dark:bg-input max-sm:dark:transition-none">已选 {value.length}</Badge>
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
+              <span className="shrink-0 text-xs text-muted-foreground">排序</span>
+              <div className="flex flex-wrap gap-1">
+                {FLOWER_PICKER_SORT_OPTIONS.map((option) => (
+                  <FlowerPickerFilterChip
+                    key={option.value}
+                    selected={sortMode === option.value}
+                    onClick={() => setSortMode(option.value)}
+                  >
+                    {option.label}
+                  </FlowerPickerFilterChip>
+                ))}
+              </div>
+              {!synced ? <span className="text-xs text-muted-foreground">登录后同步库存</span> : null}
             </div>
             <div className="dark-scrollbar min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain rounded-md border border-border/58 bg-white/42 p-2 dark:bg-muted">
               {visibleFlowers.length === 0 ? (
@@ -1288,6 +1321,7 @@ function CatalogFlowerMultiSelectRow({
                           <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <span>{flower.id}</span>
                             {flower.color ? <span>品质 {flower.color}</span> : null}
+                            <span>库存 {formatCount(flower.stock)}</span>
                             {flower.seedName ? <span>{flower.seedName}</span> : null}
                           </span>
                         </span>
@@ -1308,6 +1342,7 @@ function CatalogFlowerMultiSelectRow({
               onClick={() => {
                 setOpen(false);
                 setQuery("");
+                setSortMode("stock_asc");
               }}
             >
               完成

@@ -120,6 +120,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {
 		for npcID, customerOrder := range s.CustomerOrderDetails() {
 			reqSummary := FormatCustomerOrderRequires(s, customerOrder)
+			// Priority: inventory finish → craft when materials ready → reject.
 			if canFulfillCustomerOrder(customerOrder, npcID, goal, ledger) {
 				ops = append(ops, op(clientproto.RPCOrderCustomerFinishOrder.String(), goal, "finish", withOrderReason("顾客订单可交付", reqSummary), customerOperationPriority(goal, 200), npcID, 0, 0))
 				continue
@@ -222,14 +223,21 @@ func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, 
 	}
 	entityID := strconv.FormatInt(int64(npcID), 10)
 	for _, req := range order.ItemRequires {
-		demand, ok := demandByID(demands, demandID(goal.ID, entityID, "direct", DemandKindFlowerArt, req.ItemID))
-		if !ok || demand.Missing <= 0 {
+		if req.ItemID == 0 || req.Count <= 0 {
+			continue
+		}
+		have := int32(0)
+		if ledger != nil {
+			have = ledger.Owned(req.ItemID)
+		}
+		missing := req.Count - have
+		if missing <= 0 {
 			continue
 		}
 		allocated := allocatedCraftFlowerCounts(goal, entityID, req.ItemID, demands)
-		availability := FlowerArtAvailabilityWithAllocated(s, req.ItemID, demand.Missing, ledger, allocated)
+		availability := FlowerArtAvailabilityWithAllocated(s, req.ItemID, missing, ledger, allocated)
 		if !availability.Craftable {
-			blocked := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单花艺暂不可制作", goal.Priority*100+500, npcID, req.ItemID, demand.Missing)
+			blocked := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单花艺暂不可制作", goal.Priority*100+500, npcID, req.ItemID, missing)
 			blocked.Status = PlanStatusBlocked
 			blocked.Executable = false
 			blocked.VaseID = availability.Recipe.VaseID
@@ -237,7 +245,7 @@ func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, 
 			blocked.BlockedReasons = append([]string(nil), availability.BlockedReasons...)
 			return blocked, true
 		}
-		craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单缺少花艺成品，材料已满足", customerOperationPriority(goal, 150), npcID, req.ItemID, demand.Missing)
+		craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单缺少花艺成品，材料已满足", customerOperationPriority(goal, 150), npcID, req.ItemID, missing)
 		craft.VaseID = availability.Recipe.VaseID
 		craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
 		return craft, true
