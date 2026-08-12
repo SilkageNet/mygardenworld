@@ -418,6 +418,26 @@ func isTaskGroupFinishedError(kind string, err error) bool {
 	}
 }
 
+func isMailAlreadyPickedError(kind string, err error) bool {
+	if err == nil {
+		return false
+	}
+	switch kind {
+	case clientproto.RPCMailPick.String(), clientproto.RPCMailPickOneKey.String():
+	default:
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		code := rpcErr.Envelope.ErrorCodeOfLangJS()
+		if code == "mail_nonToPick" || code == "mail_alreadyPick" {
+			return true
+		}
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "附件已领取") || strings.Contains(msg, "不存在可以领取的邮件") || strings.Contains(msg, "mail_nonToPick") || strings.Contains(msg, "mail_alreadyPick")
+}
+
 func waterResponseIncludesDrops(raw json.RawMessage) bool {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {

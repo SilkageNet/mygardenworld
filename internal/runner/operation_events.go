@@ -49,6 +49,7 @@ const (
 	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
+	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -79,6 +80,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorFmlFlowerTakeDailyLimit
 	case isCyclicStoryOrderNotReadyError(kind, err):
 		return operationErrorCyclicStoryOrderNotReady
+	case isMailAlreadyPickedError(kind, err):
+		return operationErrorMailAlreadyPicked
 	default:
 		return operationErrorOrdinary
 	}

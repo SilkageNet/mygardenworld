@@ -24,7 +24,7 @@ func (s *State) applyMailLocked(raw json.RawMessage) {
 		s.mails = make(map[string]*MailView)
 	}
 	for _, rawEntry := range entries {
-		mail, ok := parseMailView(rawEntry)
+		mail, parsedFields, ok := parseMailViewWithFields(rawEntry)
 		if !ok {
 			continue
 		}
@@ -32,39 +32,72 @@ func (s *State) applyMailLocked(raw json.RawMessage) {
 		if key == "" {
 			continue
 		}
+		if old := s.mails[key]; old != nil {
+			mail = mergeMailView(*old, mail, parsedFields)
+		}
 		next := mail
 		s.mails[key] = &next
 	}
 }
 
-func parseMailView(raw json.RawMessage) (MailView, bool) {
+func parseMailViewWithFields(raw json.RawMessage) (MailView, map[string]bool, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return MailView{}, false
+		return MailView{}, nil, false
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return MailView{}, false
+		return MailView{}, nil, false
 	}
+	parsed := make(map[string]bool, len(fields))
 	view := MailView{}
 	if n, ok := readInt32JSONField(fields, "1"); ok {
 		view.MsID = n
+		parsed["1"] = true
 	}
 	if n, ok := readInt32JSONField(fields, "2"); ok {
 		view.AllID = n
+		parsed["2"] = true
 	}
 	if n, ok := readInt32JSONField(fields, "17"); ok {
 		view.IsDel = n
+		parsed["17"] = true
 	}
 	if n, ok := readInt32JSONField(fields, "18"); ok {
 		view.IsRead = n
+		parsed["18"] = true
 	}
 	if n, ok := readInt32JSONField(fields, "20"); ok {
 		view.IsPick = n
+		parsed["20"] = true
 	}
 	if rawItems, ok := fields["13"]; ok {
 		view.ItemsRaw = append(json.RawMessage(nil), rawItems...)
+		parsed["13"] = true
 	}
-	return view, view.MsID > 0 || view.AllID > 0
+	return view, parsed, view.MsID > 0 || view.AllID > 0
+}
+
+// mergeMailView applies a sparse server delta on top of a previously known mail entry.
+// Only fields that are present in the update (tracked by parsedFields) overwrite old values.
+func mergeMailView(old, new MailView, parsedFields map[string]bool) MailView {
+	out := new
+	if parsedFields == nil {
+		parsedFields = map[string]bool{}
+	}
+	// Preserve old values for fields that the sparse update didn't include.
+	if !parsedFields["17"] {
+		out.IsDel = old.IsDel
+	}
+	if !parsedFields["18"] {
+		out.IsRead = old.IsRead
+	}
+	if !parsedFields["20"] {
+		out.IsPick = old.IsPick
+	}
+	if !parsedFields["13"] && len(old.ItemsRaw) > 0 {
+		out.ItemsRaw = append(json.RawMessage(nil), old.ItemsRaw...)
+	}
+	return out
 }
 
 func mailKey(msID, allID int32) string {
