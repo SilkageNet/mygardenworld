@@ -3005,7 +3005,7 @@ function FmlLandTile({ land, flowerLvl }: { land: FmlLandView; flowerLvl: number
   const timing = fmlLandTimingLabel(land);
   const stockLabel =
     planted && land.stockCap > 0
-      ? `${land.harvestedCount + land.pendingHarvest}/${land.stockCap}`
+      ? `${land.pendingHarvest}/${land.stockCap}`
       : planted
         ? `收${land.harvestedCount || 0}`
         : "";
@@ -3977,7 +3977,7 @@ function fmlLandTimingLabel(land: FmlLandView) {
   }
   const nextTime = formatUnixTime(land.nextMatureMs);
   if (nextTime !== "-") return `下朵 ${nextTime}`;
-  if (land.flowerId > 0 && land.stockCap > 0 && land.harvestedCount + land.pendingHarvest >= land.stockCap) {
+  if (land.flowerId > 0 && land.stockCap > 0 && land.pendingHarvest >= land.stockCap) {
     return "库存已满";
   }
   return land.flowerId > 0 ? "成长中" : "空地";

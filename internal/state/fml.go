@@ -160,6 +160,14 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
 	if batch.BatchId != prevBatchID {
 		view.TakeQuotaExhausted = false
+		// Quota counters are per-batch. A new batch's sparse 110 row omits
+		// fTaskNum/buyTaskNum while zero, so presence-merge alone would keep
+		// the previous batch's counts and AutoStopOnQuotaDone could block all
+		// takes of the new batch. Reset and let 110/116 re-observe.
+		view.TaskQuotaObserved = false
+		view.FinishedTaskNum = 0
+		view.BuyTaskNum = 0
+		view.RaceQuotaSyncAtMs = 0
 	}
 }
 

@@ -599,6 +599,13 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		// refresh on the next tick after a successful hire.
 		r.state.MarkFmlRaceTasksUnobserved()
 	}
+	if (op.Kind == clientproto.RPCCultivateCultivate.String() ||
+		op.Kind == clientproto.RPCCultivateRecv.String()) &&
+		automation.RaceHoldsUnfinishedFlowerCultivate(r.state.FmlRace()) {
+		// Flower-cultivate race FinishCnt also advances only via getTaskList;
+		// without this hook submission waits on the 10-minute fallback sync.
+		r.state.MarkFmlRaceTasksUnobserved()
+	}
 }
 
 func (r *Runner) logOperation(ctx context.Context, kind string, args, result any) {

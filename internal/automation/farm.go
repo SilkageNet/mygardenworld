@@ -56,9 +56,9 @@ func harvestReadyAt(land state.LandView, harvestDelay time.Duration) (time.Time,
 		}
 		matureMs := land.PlantTimeMs
 		if matureMs <= 0 {
-			matureMs = land.NextTimeMs
-		}
-		if matureMs <= 0 {
+			// plantTime (field 7) missing: no reliable "became ready" tick.
+			// Fall back to immediate harvest — nextTime (field 5) is a future
+			// regrow timestamp on state=3 rows and would stall harvests.
 			return time.Time{}, false
 		}
 		return time.UnixMilli(matureMs).Add(harvestDelay), true

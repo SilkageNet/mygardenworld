@@ -677,6 +677,28 @@ func TestFmlRaceUsrRcdTaskQuotaPreservedWithoutTaken(t *testing.T) {
 	}
 }
 
+func TestFmlRaceQuotaResetsOnBatchChange(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"3":5,"6":1}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 5 {
+		t.Fatalf("batch A quota: %+v", got)
+	}
+	// New batch: sparse 110 rows omit "3"/"6" while the counters are zero.
+	// The old batch's counts must not leak into the new batch.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":43,"1":1,"2":1000,"3":9000},"110":{"43":{"9":1500}}}}`))
+	got = s.FmlRace()
+	if got.TaskQuotaObserved || got.FinishedTaskNum != 0 || got.BuyTaskNum != 0 {
+		t.Fatalf("batch B must reset quota: %+v", got)
+	}
+	// A full row for the new batch re-observes the quota.
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"43":{"3":1,"6":0}}}}`))
+	got = s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 1 {
+		t.Fatalf("batch B quota re-observe: %+v", got)
+	}
+}
+
 func TestFmlRaceUsrRcdGiveUpSparseDoesNotWipeFinished(t *testing.T) {
 	s := New()
 	// Live shape: finishTask sets fTaskNum=4; giveUpTask later sends only

@@ -476,7 +476,7 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 		name = fmt.Sprintf("花卉#%d", flowerID)
 	}
 	if leveling {
-		reason = reason + "；未满11级强制换种练级"
+		reason += "；未满11级强制换种练级"
 	}
 	plantReason := fmt.Sprintf("公会土地自动种植 %s×%d: %s", name, len(landIDs), reason)
 	// Plant above harvest so continuous mature-land harvest cannot starve empty
@@ -487,16 +487,11 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 	return plant, true
 }
 
-// selectUnionLandPlantFlower picks one flower for guild-land auto-plant:
-// optional policy filters (flower_ids / qualities / max_flower_level) first;
-// while any candidate is below level 11, plant the lowest-level flower (then
-// lowest stock) so every flower can reach 11; maturity minutes are ignored in
-// that phase. Once every candidate is at/above 11, prefer long-maturity and
-// break ties by lowest stock.
-func selectUnionLandPlantFlower(s *state.State, policy *pb.UnionLandPolicy) (flowerID int32, reason string) {
-	return selectUnionLandPlantFlowerFrom(filterUnionLandPlantCandidates(s.PlantableFlowers(nil, nil), policy), policy)
-}
-
+// selectUnionLandPlantFlowerFrom picks one flower for guild-land auto-plant
+// from already policy-filtered candidates: while any candidate is below level
+// 11, plant the lowest-level flower (then lowest stock) so every flower can
+// reach 11; maturity minutes are ignored in that phase. Once every candidate
+// is at/above 11, prefer long-maturity and break ties by lowest stock.
 func selectUnionLandPlantFlowerFrom(candidates []state.PlantableFlower, policy *pb.UnionLandPolicy) (flowerID int32, reason string) {
 	if len(candidates) == 0 {
 		return 0, ""
@@ -754,11 +749,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	syncPrio := int32(4398)
-	if RaceHoldsUnfinishedCustomerOrder(view) && gates.Customer {
+	switch {
+	case RaceHoldsUnfinishedCustomerOrder(view) && gates.Customer:
 		syncPrio = raceCustomerSyncPriority
-	} else if RaceHoldsUnfinishedPearlHire(view) && gates.Pearl {
+	case RaceHoldsUnfinishedPearlHire(view) && gates.Pearl:
 		syncPrio = racePearlSyncPriority
-	} else if RaceHoldsUnfinishedFlowerCultivate(view) && gates.Cultivate {
+	case RaceHoldsUnfinishedFlowerCultivate(view) && gates.Cultivate:
 		syncPrio = raceCultivateSyncPriority
 	}
 	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {

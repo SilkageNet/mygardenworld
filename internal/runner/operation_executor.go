@@ -719,8 +719,10 @@ func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.Pla
 }
 
 // normalizeFmlRaceEnterV wraps a bare IFmlTot-shaped payload under namespace 25.
-// Some enter responses place fields like 111/117 at the top level of v; ApplyV
-// expects them under "25".
+// Some enter/getTaskList/getFmlRaceUsrRankList responses place fields like
+// 111/117/116 at the top level of v; ApplyV expects them under "25". A bare
+// top-level 116 here is the race member rank list (25.116), never the benefit
+// box namespace — this helper is only called on race RPC payloads.
 func normalizeFmlRaceEnterV(v json.RawMessage) json.RawMessage {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(v, &top); err != nil || len(top) == 0 {
@@ -734,7 +736,8 @@ func normalizeFmlRaceEnterV(v json.RawMessage) json.RawMessage {
 	_, hasGroup := top["112"]
 	_, hasTasks := top["114"]
 	_, hasUsr := top["110"]
-	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr {
+	_, hasRank := top["116"]
+	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr && !hasRank {
 		return v
 	}
 	wrapped, err := json.Marshal(map[string]json.RawMessage{"25": v})
@@ -791,6 +794,10 @@ func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *auto
 		map[string]any{"batchId": batchID},
 		babigame.WithPayloadApply(false),
 	))
+	// Record the attempt even when the call fails: the planner emits this sync
+	// as an early return, and an unmarked failure would starve every other
+	// race op (finish/giveUp/take) behind endless retries.
+	rt.runner.state.MarkFmlRaceQuotaSyncAttempt()
 	v, err = checkedPayload(v, d, err)
 	if err != nil {
 		return nil, err
@@ -799,7 +806,6 @@ func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *auto
 		v = normalizeFmlRaceEnterV(v)
 		rt.runner.state.ApplyV(v)
 	}
-	rt.runner.state.MarkFmlRaceQuotaSyncAttempt()
 	return v, nil
 }
 
