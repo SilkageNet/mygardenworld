@@ -61,6 +61,7 @@ import type {
   DessertView,
   Event,
   FeatureCapability,
+  FmlLandView,
   FmlRaceTask,
   FmlRaceTaken,
   FmlRaceView,
@@ -70,6 +71,7 @@ import type {
   LandView,
   OrderStatisticsView,
   PendingTaskView,
+  PlantableFlowerView,
   PlannedOperation,
   RequirementView,
   RuntimeActionTotal,
@@ -1303,6 +1305,12 @@ function LandTab({
         waterDrops={snapshot?.waterDrops ?? 0}
         waterDropsTotal={snapshot?.waterDropsTotal ?? 0}
         minWaterDrops={policy?.plant?.planting?.minWaterDrops ?? 0}
+      />
+      <FmlLandMonitorPanel
+        lands={snapshot?.fmlLands ?? []}
+        plantableFlowers={snapshot?.plantableFlowers ?? []}
+        observed={snapshot?.fmlLandsObserved ?? false}
+        automationEnabled={policy?.automationEnabled ?? false}
       />
     </div>
   );
@@ -2901,6 +2909,141 @@ function LandTile({ land }: { land: LandView }) {
   );
 }
 
+function FmlLandMonitorPanel({
+  lands,
+  plantableFlowers,
+  observed,
+  automationEnabled,
+}: {
+  lands: FmlLandView[];
+  plantableFlowers: PlantableFlowerView[];
+  observed: boolean;
+  automationEnabled: boolean;
+}) {
+  const flowerLvlById = useMemo(() => {
+    const levels = new Map<number, number>();
+    for (const flower of plantableFlowers) {
+      if (flower.flowerId > 0 && flower.lvl > 0) {
+        levels.set(flower.flowerId, flower.lvl);
+      }
+    }
+    return levels;
+  }, [plantableFlowers]);
+  const recommendationCounts = useMemo(() => {
+    const stats = new Map<string, number>();
+    for (const land of lands) {
+      stats.set(land.recommendation || "unknown", (stats.get(land.recommendation || "unknown") ?? 0) + 1);
+    }
+    return stats;
+  }, [lands]);
+  const pendingTotal = useMemo(
+    () => lands.reduce((sum, land) => sum + (land.pendingHarvest || 0), 0),
+    [lands],
+  );
+  const plantedCount = lands.filter((land) => land.flowerId > 0).length;
+  const emptyCount = lands.filter((land) => land.flowerId <= 0).length;
+  const statusOrder = ["harvest", "plant", "wait"] as const;
+
+  return (
+    <CollapsibleCard
+      title="公会土地"
+      actions={
+        <>
+          {!observed ? (
+            <Badge variant="outline">等待同步</Badge>
+          ) : (
+            <Badge variant="secondary">已观测 {lands.length}</Badge>
+          )}
+          {observed && plantedCount > 0 && <Badge variant="outline">种植中 {plantedCount}</Badge>}
+          {observed && emptyCount > 0 && <Badge variant="outline">空地 {emptyCount}</Badge>}
+          {pendingTotal > 0 && <Badge variant="secondary">可收 {pendingTotal}</Badge>}
+        </>
+      }
+    >
+      {!observed ? (
+        <EmptyState
+          title="公会土地尚未同步"
+          detail={
+            automationEnabled
+              ? "账号运行中时会自动执行 fml.enter 拉取公会土地；稍等数秒后刷新即可。"
+              : "请先启动账号自动化，守护进程会自动进入公会并同步土地种植信息。"
+          }
+        />
+      ) : lands.length === 0 ? (
+        <EmptyState title="暂无公会土地" detail="当前账号还没有可观测的公会土地槽位。" />
+      ) : (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {statusOrder.map((key) => {
+              const count = recommendationCounts.get(key) ?? 0;
+              if (count <= 0) return null;
+              return (
+                <Badge key={key} variant="outline">
+                  {recommendationLabel(key)} {count}
+                </Badge>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {lands.map((land) => (
+              <FmlLandTile
+                key={land.landId}
+                land={land}
+                flowerLvl={land.flowerLvl > 0 ? land.flowerLvl : flowerLvlById.get(land.flowerId) ?? 0}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function FmlLandTile({ land, flowerLvl }: { land: FmlLandView; flowerLvl: number }) {
+  const planted = land.flowerId > 0;
+  const recommendation = recommendationLabel(land.recommendation);
+  const timing = fmlLandTimingLabel(land);
+  const stockLabel =
+    planted && land.stockCap > 0
+      ? `${land.harvestedCount + land.pendingHarvest}/${land.stockCap}`
+      : planted
+        ? `收${land.harvestedCount || 0}`
+        : "";
+  const flowerLabel = planted
+    ? flowerLvl > 0
+      ? `${itemName(land.flowerId)} lv${flowerLvl}`
+      : itemName(land.flowerId)
+    : "空地";
+  return (
+    <div
+      className={cn(
+        "min-h-[78px] rounded-md border border-border/58 bg-white/58 p-1.5 shadow-sm transition-colors dark:bg-white/6 sm:p-2",
+        land.recommendation === "harvest" && "border-primary/50 bg-primary/8",
+        land.recommendation === "plant" && "border-amber-300/70 bg-amber-50/76 dark:bg-amber-400/10",
+      )}
+    >
+      <div className="flex items-start justify-between gap-1">
+        <div className="font-mono text-xs font-medium sm:text-sm">#{land.landId}</div>
+        <Badge
+          variant={land.recommendation === "harvest" ? "secondary" : "outline"}
+          className="h-5 shrink-0 px-1 text-[10px] sm:px-1.5 sm:text-[11px]"
+        >
+          {recommendation}
+        </Badge>
+      </div>
+      <div className="mt-1 truncate text-xs sm:text-sm">{flowerLabel}</div>
+      <div className="mt-1 text-[10px] text-muted-foreground sm:text-xs">
+        <div className="truncate">
+          {`地${land.level}级`}
+          {stockLabel ? ` · ${stockLabel}` : ""}
+          {land.pendingHarvest > 0 ? ` · 待收${land.pendingHarvest}` : ""}
+        </div>
+        <div className="text-left">{timing}</div>
+      </div>
+    </div>
+  );
+}
+
 function warehouseCategoryForItem(item: InventoryLedgerItem): WarehouseCategory {
   const id = item.itemId;
   if (id >= 23000 && id < 24000) return "flower";
@@ -3823,6 +3966,21 @@ function landTimingLabel(land: LandView, status: string) {
   const nextTime = formatUnixTime(land.nextTimeMs);
   if (nextTime !== "-") return `成熟 ${nextTime}`;
   return land.flowerId > 0 ? "成长中" : "待同步";
+}
+
+function fmlLandTimingLabel(land: FmlLandView) {
+  switch (land.recommendation) {
+    case "harvest":
+      return land.pendingHarvest > 0 ? `可收获 ${land.pendingHarvest} 朵` : "可收获";
+    case "plant":
+      return "待种植";
+  }
+  const nextTime = formatUnixTime(land.nextMatureMs);
+  if (nextTime !== "-") return `下朵 ${nextTime}`;
+  if (land.flowerId > 0 && land.stockCap > 0 && land.harvestedCount + land.pendingHarvest >= land.stockCap) {
+    return "库存已满";
+  }
+  return land.flowerId > 0 ? "成长中" : "空地";
 }
 
 function formatTimestamp(ts?: Timestamp) {

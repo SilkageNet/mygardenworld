@@ -2216,6 +2216,74 @@ func parseFlowerLvlYield(raw json.RawMessage, level int32) (FlowerLvlYield, bool
 	return FlowerLvlYield{Level: level, CropGets: row.CropGets, Frequencys: row.Frequencys}, true
 }
 
+// FlowerLvlCDSeconds returns the catalog grow CD (seconds between harvests)
+// for a flower at cultivation level. Matches client G.CFG.getFlowerLvlCfg:
+//  1. Prefer the per-level c_flowerLvl row (key flowerId*100+level).
+//  2. Else, when a base c_flowerLvl(flowerId) row exists (newer flowers like
+//     花笼流芳), scale with calFlowerLvlTime: round(base.cd * cfg(level).cd / cfg(1).cd).
+//  3. Else fall back to bare c_flowerLvlCfg(level).cd.
+func FlowerLvlCDSeconds(flowerID, level int32) (int32, bool) {
+	if level <= 0 {
+		return 0, false
+	}
+	if flowerID > 0 {
+		if raw, ok := StaticRow("c_flowerLvl", flowerID*100+level); ok {
+			if cd, ok := parseFlowerLvlCD(raw); ok {
+				return cd, true
+			}
+		}
+		if cd, ok := flowerLvlCDFromBaseRow(flowerID, level); ok {
+			return cd, true
+		}
+	}
+	raw, ok := StaticRow("c_flowerLvlCfg", level)
+	if !ok {
+		return 0, false
+	}
+	return parseFlowerLvlCD(raw)
+}
+
+// flowerLvlCDFromBaseRow mirrors client scaling for flowers that only publish
+// a base c_flowerLvl(flowerId) row (cd/gldCost), not per-level flowerId*100+lvl rows.
+func flowerLvlCDFromBaseRow(flowerID, level int32) (int32, bool) {
+	baseRaw, ok := StaticRow("c_flowerLvl", flowerID)
+	if !ok {
+		return 0, false
+	}
+	baseCD, ok := parseFlowerLvlCD(baseRaw)
+	if !ok {
+		return 0, false
+	}
+	levelRaw, ok := StaticRow("c_flowerLvlCfg", level)
+	if !ok {
+		return 0, false
+	}
+	levelCD, ok := parseFlowerLvlCD(levelRaw)
+	if !ok {
+		return 0, false
+	}
+	baseCfgRaw, ok := StaticRow("c_flowerLvlCfg", 1)
+	if !ok {
+		return 0, false
+	}
+	baseCfgCD, ok := parseFlowerLvlCD(baseCfgRaw)
+	if !ok || baseCfgCD <= 0 {
+		return 0, false
+	}
+	// calFlowerLvlTime(base, levelCfg, cfg1) => Math.round(base * (levelCfg / cfg1))
+	return int32(math.Round(float64(baseCD) * float64(levelCD) / float64(baseCfgCD))), true
+}
+
+func parseFlowerLvlCD(raw json.RawMessage) (int32, bool) {
+	var row struct {
+		CD int32 `json:"cd"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.CD <= 0 {
+		return 0, false
+	}
+	return row.CD, true
+}
+
 // FlowerUpgradeCostForLevel returns the cost to upgrade a flower from its
 // current cultivation level. Prefer the per-flower c_flowerLvl row (key
 // flowerId*100+level); when that row is absent (newer flowers like 星垂绮夜 /

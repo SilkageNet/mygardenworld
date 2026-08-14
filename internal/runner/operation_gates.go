@@ -391,9 +391,9 @@ func isRaceTakeOnCooldownError(kind string, err error) bool {
 // instead of burning a 60s ordinary side-op backoff.
 func raceTakeOnCooldownWait(st *state.State, op *automation.PlannedOp, now time.Time) time.Duration {
 	const (
-		minWait  = 200 * time.Millisecond
-		maxWait  = 2 * time.Minute
-		pad      = 300 * time.Millisecond
+		minWait = 200 * time.Millisecond
+		maxWait = 2 * time.Minute
+		pad     = 10 * time.Millisecond
 		fallback = 2 * time.Second
 	)
 	if st == nil || op == nil || op.TaskMsID == 0 {

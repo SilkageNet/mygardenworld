@@ -377,6 +377,24 @@ func TestApplyV_FmlLandState(t *testing.T) {
 	}
 }
 
+func TestApplyV_FmlLandSparseStubMarksObserved(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"102": map[string]any{
+				"0": 12345,
+				"2": 1779290000000,
+			},
+		},
+	})
+	if !s.FmlLandObserved() {
+		t.Fatal("FmlLandObserved()=false after sparse 25.102 stub, want true")
+	}
+	if len(s.FmlLands()) != 0 {
+		t.Fatalf("sparse stub should keep empty land map, got %d", len(s.FmlLands()))
+	}
+}
+
 func TestReadyFmlLandHarvestIDs_ComputesFromStartTimeWhenMatureCountStale(t *testing.T) {
 	// Protocol often pushes matureFlwCnt=0 until the client recalculates from
 	// startTime + c_fmlLandLvl.time/stock. Automation must not wait for that.
@@ -405,6 +423,24 @@ func TestReadyFmlLandHarvestIDs_ComputesFromStartTimeWhenMatureCountStale(t *tes
 	pending := FmlLandPendingHarvest(s.FmlLands()[1], now)
 	if pending != 3 {
 		t.Fatalf("FmlLandPendingHarvest()=%d, want 3", pending)
+	}
+}
+
+func TestFmlLandNextMatureMs(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	land := FmlLandView{
+		LandID:      1,
+		Level:       0,
+		FlowerID:    23005,
+		StartTimeMs: now.Add(-10 * time.Minute).UnixMilli(), // 600s / 900s = 0 pending
+	}
+	next := FmlLandNextMatureMs(land, now)
+	want := land.StartTimeMs + 900_000
+	if next != want {
+		t.Fatalf("FmlLandNextMatureMs()=%d, want %d", next, want)
+	}
+	if FmlLandNextMatureMs(FmlLandView{LandID: 2}, now) != 0 {
+		t.Fatal("empty land should report next=0")
 	}
 }
 

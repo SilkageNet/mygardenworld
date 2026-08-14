@@ -246,6 +246,8 @@ func opKindDesc(kind string) string {
 		return "进入公会竞赛"
 	case clientproto.RPCFmlRaceGetTaskList.String():
 		return "同步竞赛任务"
+	case clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
+		return "同步竞赛已做次数"
 	case clientproto.RPCFmlRaceTakeTask.String():
 		return "接取竞赛任务"
 	case clientproto.RPCFmlRaceFinishTask.String():
@@ -264,6 +266,8 @@ func opKindDesc(kind string) string {
 		return "公会土地收获"
 	case clientproto.RPCFmlLandHarvestAll.String():
 		return "公会土地一键收获"
+	case clientproto.RPCFmlLandPlant.String():
+		return "公会土地种植"
 	case clientproto.RPCFmlFlowerShareRefresh.String():
 		return "刷新公会分享"
 	case clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String():

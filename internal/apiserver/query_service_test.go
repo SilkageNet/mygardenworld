@@ -70,6 +70,41 @@ func TestFeatureCapabilitiesExposeRaceUpgradeAsExecutable(t *testing.T) {
 	}
 }
 
+func TestBuildFmlLandViewsExposesPlantingInfo(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	lands := map[int32]state.FmlLandView{
+		2: {LandID: 2, Level: 0, FlowerID: 0},
+		1: {
+			LandID:      1,
+			Level:       0,
+			FlowerID:    23001,
+			StartTimeMs: now.Add(-45 * time.Minute).UnixMilli(), // 2700s / 900s = 3
+		},
+	}
+	cultivations := map[int32]state.CultivateView{
+		23001: {FlowerID: 23001, Lvl: 7},
+	}
+	got := buildFmlLandViews(lands, cultivations, now)
+	if len(got) != 2 {
+		t.Fatalf("len=%d, want 2", len(got))
+	}
+	if got[0].GetLandId() != 1 || got[1].GetLandId() != 2 {
+		t.Fatalf("order=%d,%d want 1,2", got[0].GetLandId(), got[1].GetLandId())
+	}
+	if got[0].GetRecommendation() != "harvest" || got[0].GetPendingHarvest() != 3 {
+		t.Fatalf("land 1 = %q pending=%d, want harvest pending=3", got[0].GetRecommendation(), got[0].GetPendingHarvest())
+	}
+	if got[0].GetTimeSec() <= 0 || got[0].GetStockCap() <= 0 {
+		t.Fatalf("land 1 missing c_fmlLandLvl metadata time=%d stock=%d", got[0].GetTimeSec(), got[0].GetStockCap())
+	}
+	if got[0].GetFlowerLvl() != 7 {
+		t.Fatalf("land 1 flower_lvl=%d, want 7", got[0].GetFlowerLvl())
+	}
+	if got[1].GetRecommendation() != "plant" || got[1].GetFlowerId() != 0 || got[1].GetFlowerLvl() != 0 {
+		t.Fatalf("land 2 = %q flower=%d lvl=%d, want plant empty", got[1].GetRecommendation(), got[1].GetFlowerId(), got[1].GetFlowerLvl())
+	}
+}
+
 func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 	lands := map[int32]state.LandView{
 		1001: {Observed: true, FlowerID: 23001, State: 1},
@@ -80,7 +115,7 @@ func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 		{ID: 1058, OpenLevel: 30, Cost: []int32{35, 800}},
 	}
 
-	got := buildLandViews(lands, farmLands, true, true, 1, time.Unix(0, 0))
+	got := buildLandViews(lands, farmLands, true, true, 1, time.Unix(0, 0), 0)
 	if len(got) != 3 {
 		t.Fatalf("expected runtime land roster, got %d", len(got))
 	}
@@ -110,7 +145,7 @@ func TestBuildLandViewsDoesNotInventNextFourWastelands(t *testing.T) {
 	}
 
 	farmLands := []state.FarmLandInfo{{ID: 1025, OpenLevel: 42, Cost: []int32{37, 1526}}}
-	got := buildLandViews(lands, farmLands, true, true, 13, time.Unix(0, 0))
+	got := buildLandViews(lands, farmLands, true, true, 13, time.Unix(0, 0), 0)
 	for _, land := range got {
 		if land.GetLandId() == 1025 {
 			if land.GetLandStatus() != "unopened" {
@@ -123,7 +158,7 @@ func TestBuildLandViewsDoesNotInventNextFourWastelands(t *testing.T) {
 }
 
 func TestBuildLandViewsDoesNotMarkStaticRowsBeforeRoster(t *testing.T) {
-	got := buildLandViews(map[int32]state.LandView{}, []state.FarmLandInfo{{ID: 1001, OpenLevel: 1, Cost: []int32{33, 800}}}, false, true, 1, time.Unix(0, 0))
+	got := buildLandViews(map[int32]state.LandView{}, []state.FarmLandInfo{{ID: 1001, OpenLevel: 1, Cost: []int32{33, 800}}}, false, true, 1, time.Unix(0, 0), 0)
 	for _, land := range got {
 		if land.GetLandId() == 1001 {
 			if land.GetLandStatus() != "locked" || land.GetReason() != "等待服务端土地清单" {
@@ -136,7 +171,7 @@ func TestBuildLandViewsDoesNotMarkStaticRowsBeforeRoster(t *testing.T) {
 }
 
 func TestBuildLandViewsDoesNotUseStaticLandConfigUntilRuntimeObserved(t *testing.T) {
-	got := buildLandViews(map[int32]state.LandView{}, nil, true, false, 13, time.Unix(0, 0))
+	got := buildLandViews(map[int32]state.LandView{}, nil, true, false, 13, time.Unix(0, 0), 0)
 	if len(got) != 0 {
 		t.Fatalf("got %d land rows, want no synthetic static rows before runtime config", len(got))
 	}

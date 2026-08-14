@@ -1249,6 +1249,10 @@ type PlantingPolicy struct {
 	// planted (through FlowerMaxLevel, typically 20). Does not restrict
 	// demand-driven planting for tasks/orders.
 	AutoReplantMinLevel int32 `protobuf:"varint,20,opt,name=auto_replant_min_level,json=autoReplantMinLevel,proto3" json:"auto_replant_min_level,omitempty"`
+	// Seconds to wait after a plant becomes harvestable before auto-harvest.
+	// 0 means harvest as soon as ready (state=3 immediately; state=2 still uses
+	// the short protocol ready grace). Does not affect manual harvest.
+	HarvestDelaySeconds int32 `protobuf:"varint,21,opt,name=harvest_delay_seconds,json=harvestDelaySeconds,proto3" json:"harvest_delay_seconds,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1377,6 +1381,13 @@ func (x *PlantingPolicy) GetAutoReplantQualities() []int32 {
 func (x *PlantingPolicy) GetAutoReplantMinLevel() int32 {
 	if x != nil {
 		return x.AutoReplantMinLevel
+	}
+	return 0
+}
+
+func (x *PlantingPolicy) GetHarvestDelaySeconds() int32 {
+	if x != nil {
+		return x.HarvestDelaySeconds
 	}
 	return 0
 }
@@ -2653,8 +2664,14 @@ type UnionLandPolicy struct {
 	Qualities        []int32                `protobuf:"varint,4,rep,packed,name=qualities,proto3" json:"qualities,omitempty"`
 	FlowerIds        []int32                `protobuf:"varint,5,rep,packed,name=flower_ids,json=flowerIds,proto3" json:"flower_ids,omitempty"`
 	MaxFlowerLevel   int32                  `protobuf:"varint,6,opt,name=max_flower_level,json=maxFlowerLevel,proto3" json:"max_flower_level,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// When auto-planting and every filtered plantable flower is at/above level 11,
+	// only consider flowers whose catalog grow CD is at least this many minutes.
+	// Below level 11, maturity is ignored and lands are force-replaced onto
+	// low-level flowers (except when the current crop matures within 2 minutes).
+	// 0 means default 20.
+	MinMaturityMinutes int32 `protobuf:"varint,7,opt,name=min_maturity_minutes,json=minMaturityMinutes,proto3" json:"min_maturity_minutes,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UnionLandPolicy) Reset() {
@@ -2718,6 +2735,13 @@ func (x *UnionLandPolicy) GetFlowerIds() []int32 {
 func (x *UnionLandPolicy) GetMaxFlowerLevel() int32 {
 	if x != nil {
 		return x.MaxFlowerLevel
+	}
+	return 0
+}
+
+func (x *UnionLandPolicy) GetMinMaturityMinutes() int32 {
+	if x != nil {
+		return x.MinMaturityMinutes
 	}
 	return 0
 }
@@ -2994,7 +3018,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
 	"\x0fupgrade_enabled\x18\x03 \x01(\bR\x0eupgradeEnabled\x12!\n" +
-	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\xd9\x06\n" +
+	"\ftarget_level\x18\x04 \x01(\x05R\vtargetLevel\"\x8d\a\n" +
 	"\x0ePlantingPolicy\x12!\n" +
 	"\fauto_enabled\x18\x01 \x01(\bR\vautoEnabled\x12(\n" +
 	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x120\n" +
@@ -3010,7 +3034,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x17auto_replant_flower_ids\x18\x10 \x03(\x05R\x14autoReplantFlowerIds\x12D\n" +
 	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x124\n" +
 	"\x16auto_replant_qualities\x18\x13 \x03(\x05R\x14autoReplantQualities\x123\n" +
-	"\x16auto_replant_min_level\x18\x14 \x01(\x05R\x13autoReplantMinLevel\x1aA\n" +
+	"\x16auto_replant_min_level\x18\x14 \x01(\x05R\x13autoReplantMinLevel\x122\n" +
+	"\x15harvest_delay_seconds\x18\x15 \x01(\x05R\x13harvestDelaySeconds\x1aA\n" +
 	"\x13DemandPriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xdd\x02\n" +
@@ -3139,14 +3164,15 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x16urgent_speedup_enabled\x18\r \x01(\bR\x14urgentSpeedupEnabled\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xcf\x01\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\x81\x02\n" +
 	"\x0fUnionLandPolicy\x12'\n" +
 	"\x0fharvest_enabled\x18\x01 \x01(\bR\x0eharvestEnabled\x12,\n" +
 	"\x12auto_plant_enabled\x18\x02 \x01(\bR\x10autoPlantEnabled\x12\x1c\n" +
 	"\tqualities\x18\x04 \x03(\x05R\tqualities\x12\x1d\n" +
 	"\n" +
 	"flower_ids\x18\x05 \x03(\x05R\tflowerIds\x12(\n" +
-	"\x10max_flower_level\x18\x06 \x01(\x05R\x0emaxFlowerLevel\"\xdb\x01\n" +
+	"\x10max_flower_level\x18\x06 \x01(\x05R\x0emaxFlowerLevel\x120\n" +
+	"\x14min_maturity_minutes\x18\a \x01(\x05R\x12minMaturityMinutes\"\xdb\x01\n" +
 	"\x0eActivityPolicy\x12\x1c\n" +
 	"\aenabled\x18\x01 \x01(\bB\x02\x18\x01R\aenabled\x12G\n" +
 	"\amodules\x18\x02 \x03(\v2-.mygardenworld.v1.ActivityPolicy.ModulesEntryR\amodules\x1ab\n" +

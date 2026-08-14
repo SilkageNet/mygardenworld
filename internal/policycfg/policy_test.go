@@ -2,6 +2,7 @@ package policycfg
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -84,6 +85,38 @@ func TestNormalizeAutoReplantMinLevelClamp(t *testing.T) {
 		}
 	} else if got < 0 {
 		t.Fatalf("min level=%d, want non-negative", got)
+	}
+}
+
+func TestNormalizeHarvestDelaySecondsClamp(t *testing.T) {
+	if got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{HarvestDelaySeconds: -5},
+	}}).GetPlant().GetPlanting().GetHarvestDelaySeconds(); got != 0 {
+		t.Fatalf("negative harvest delay=%d, want 0", got)
+	}
+	if got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{HarvestDelaySeconds: 45},
+	}}).GetPlant().GetPlanting().GetHarvestDelaySeconds(); got != 45 {
+		t.Fatalf("harvest delay=%d, want 45", got)
+	}
+}
+
+func TestToJSONRoundTripPreservesHarvestDelaySeconds(t *testing.T) {
+	in := automation.DefaultPolicy()
+	in.Plant.Planting.HarvestDelaySeconds = 300
+	raw, err := ToJSON(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw, `"harvest_delay_seconds"`) {
+		t.Fatalf("ToJSON missing harvest delay: %s", raw)
+	}
+	out, err := FromJSON(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := out.GetPlant().GetPlanting().GetHarvestDelaySeconds(); got != 300 {
+		t.Fatalf("FromJSON harvest delay=%d, want 300", got)
 	}
 }
 

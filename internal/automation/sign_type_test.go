@@ -76,6 +76,9 @@ func TestSignTypePlanSparseProgressDoesNotRepeatSign(t *testing.T) {
 	policy.AutomationEnabled = true
 	policy.Basic.Sign.DailyEnabled = true
 	policy.Union.Race.Enabled = false
+	// Land monitor syncs via fml.enter whenever 25.102 is unseen; keep it quiet
+	// so this test only asserts signType progress.
+	s.ApplyV(json.RawMessage(`{"25":{"102":{"0":{}}}}`))
 
 	if planned := Plan(s, policy, now); planned == nil || planned.Kind != clientproto.RPCSignTypeSign.String() {
 		t.Fatalf("initial plan = %+v", planned)

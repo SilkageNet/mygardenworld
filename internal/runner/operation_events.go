@@ -524,6 +524,11 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "同步竞赛任务"
 		category = automation.CategoryRace
 		message = "完成"
+	case clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
+		kind = "race_task_sync"
+		label = "同步竞赛已做次数"
+		category = automation.CategoryRace
+		message = "完成"
 	case clientproto.RPCFmlRaceEnter.String():
 		kind = "race_enter"
 		label = "进入公会竞赛"
@@ -586,6 +591,12 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRace()) {
 		// Customer-order race FinishCnt advances via getTaskList, not harvest
 		// field 134. Force a pool refresh on the next tick.
+		r.state.MarkFmlRaceTasksUnobserved()
+	}
+	if op.Kind == clientproto.RPCPearlPlaceHire.String() &&
+		automation.RaceHoldsUnfinishedPearlHire(r.state.FmlRace()) {
+		// Pearl-hire race FinishCnt advances via getTaskList. Force a pool
+		// refresh on the next tick after a successful hire.
 		r.state.MarkFmlRaceTasksUnobserved()
 	}
 }
@@ -733,6 +744,8 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "莳花纪闻"
 	case op.Kind == clientproto.RPCFmlRaceGetTaskList.String():
 		return "同步竞赛任务"
+	case op.Kind == clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
+		return "同步竞赛已做次数"
 	case op.Kind == clientproto.RPCFmlRaceEnter.String():
 		return "进入公会竞赛"
 	case op.Kind == clientproto.RPCFmlRaceTakeTask.String():
@@ -1062,7 +1075,8 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 	}
 	switch op.Kind {
 	case clientproto.RPCFmlLandHarvest.String(),
-		clientproto.RPCFmlLandHarvestAll.String():
+		clientproto.RPCFmlLandHarvestAll.String(),
+		clientproto.RPCFmlLandPlant.String():
 		if op.Reason != "" {
 			return " " + op.Reason
 		}
