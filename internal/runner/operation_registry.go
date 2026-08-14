@@ -452,6 +452,17 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlLand().Harvest(ctx, req)
 		},
 	),
+	clientproto.RPCFmlLandPlant.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FmlLandPlantRequest, error) {
+			if op.FlowerID <= 0 {
+				return clientproto.FmlLandPlantRequest{}, fmt.Errorf("fmlLand.plant missing flower id")
+			}
+			return clientproto.FmlLandPlantRequest{LandIds: op.LandIDs, FlwId: op.FlowerID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlLandPlantRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FmlLand().Plant(ctx, req)
+		},
+	),
 	clientproto.RPCFmlForestRefresh.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlForestRefreshRequest, error) {
 			return clientproto.FmlForestRefreshRequest{IsAutoCollect: op.TargetID}, nil
@@ -532,6 +543,16 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return clientproto.FmlRaceGetTaskListRequest{}, nil
 		},
 		run: runFmlRaceGetTaskList,
+	},
+	clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
+			if op.TaskMsID <= 0 {
+				return nil, fmt.Errorf("fmlRace.getFmlRaceUsrRankList requires batchId")
+			}
+			// Generated request uses int32 RPCID; race batchId is a ms timestamp.
+			return map[string]any{"batchId": op.TaskMsID}, nil
+		},
+		run: runFmlRaceGetUsrRankList,
 	},
 	clientproto.RPCFmlRaceGiveUpTask.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlRaceGiveUpTaskRequest, error) {

@@ -114,6 +114,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { settingStatusForCapability, type SettingStatus } from "@/lib/feature-capabilities";
 import { allFlowers, flowerDisplay, itemName } from "@/lib/game/catalog";
+import { flowerMatureCdSeconds } from "@/lib/game/flower-cd";
 import { cn } from "@/lib/utils";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
@@ -142,9 +143,16 @@ const POLICY_TABS: { id: PolicyTabId; label: string; icon: ReactNode }[] = [
 const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
 const QUALITY_LABELS: Record<number, string> = { 1: "凡", 2: "普", 3: "珍", 4: "华", 5: "仙" };
 
-type FlowerPickerSortMode = "stock_desc" | "stock_asc";
+type FlowerPickerSortMode = "stock_desc" | "stock_asc" | "mature_asc" | "mature_desc";
 
 const FLOWER_PICKER_SORT_OPTIONS: { value: FlowerPickerSortMode; label: string }[] = [
+  { value: "stock_asc", label: "库存从低到高" },
+  { value: "stock_desc", label: "库存从高到低" },
+];
+
+const PLANTABLE_FLOWER_PICKER_SORT_OPTIONS: { value: FlowerPickerSortMode; label: string }[] = [
+  { value: "mature_asc", label: "成熟从短到长" },
+  { value: "mature_desc", label: "成熟从长到短" },
   { value: "stock_asc", label: "库存从低到高" },
   { value: "stock_desc", label: "库存从高到低" },
 ];
@@ -177,6 +185,7 @@ type RaceTaskType = {
   id: number;
   label: string;
   defaultPriority: number;
+  note?: string;
 };
 
 const RACE_TASK_TYPES: RaceTaskType[] = [
@@ -191,7 +200,12 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
   { id: 3034, label: "花艺制作", defaultPriority: 0 },
   { id: 3035, label: "鲜花升级", defaultPriority: 0 },
   { id: 3036, label: "种植收获", defaultPriority: 5 },
-  { id: 3044, label: "花种培育", defaultPriority: 0 },
+  {
+    id: 3044,
+    label: "花种培育",
+    defaultPriority: 0,
+    note: "只接正好 36 分的花种培育（不是≥36）；需开启鲜花培育。已接的 36 分任务不自动放弃（优先级为 0 除外）",
+  },
   { id: 3052, label: "动物互动", defaultPriority: 0 },
 ];
 
@@ -309,7 +323,7 @@ export default function PolicyPanel({
   const updatePlant = (patch: Partial<PlantPolicy>) => {
     if (!policy) return;
     const current = policy.plant ?? create(PlantPolicySchema);
-    onPolicyChange({ ...policy, plant: { ...current, ...patch } });
+    onPolicyChange({ ...policy, plant: create(PlantPolicySchema, { ...current, ...patch }) });
   };
   const updateBasic = (patch: Partial<BasicPolicy>) => {
     if (!policy) return;
@@ -374,7 +388,7 @@ export default function PolicyPanel({
     if (!policy) return;
     const currentPlant = policy.plant ?? create(PlantPolicySchema);
     const current = currentPlant.planting ?? create(PlantingPolicySchema);
-    updatePlant({ planting: { ...current, ...patch } });
+    updatePlant({ planting: create(PlantingPolicySchema, { ...current, ...patch }) });
   };
   const updateCultivate = (patch: Partial<CultivatePolicy>) => {
     if (!policy) return;
@@ -558,6 +572,13 @@ export default function PolicyPanel({
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="自动种植" checked={planting?.autoEnabled ?? false} onChange={(checked) => updatePlanting({ autoEnabled: checked })} />
                 <ToggleRow label="自动收获" checked={planting?.autoHarvestEnabled ?? false} onChange={(checked) => updatePlanting({ autoHarvestEnabled: checked })} />
+                <NumberRow
+                  label="延时收获（秒）"
+                  value={planting?.harvestDelaySeconds || 0}
+                  min={0}
+                  onChange={(value) => updatePlanting({ harvestDelaySeconds: value })}
+                  description="植物成熟后等待多久再收获；0=立即收获"
+                />
                 <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={planting?.videoSpeedUpEnabled ?? false} onChange={(checked) => updatePlanting({ videoSpeedUpEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.video_speed_up")} />}
                 <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
@@ -899,14 +920,29 @@ export default function PolicyPanel({
             <PolicyGroup title="公会土地" icon={<Building2 />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="自动收获" checked={unionLand?.harvestEnabled ?? false} onChange={(checked) => updateUnionLand({ harvestEnabled: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && (
-                  <>
-                    <ToggleRow label="自动种植" checked={unionLand?.autoPlantEnabled ?? false} onChange={(checked) => updateUnionLand({ autoPlantEnabled: checked })} status={settingStatusForCapability(capabilities, "union.land_plant")} />
-                    <QualityRow label="指定品质" value={unionLand?.qualities ?? []} onChange={(value) => updateUnionLand({ qualities: value })} />
-                    <IntListRow label="指定花朵" value={unionLand?.flowerIds ?? []} onChange={(value) => updateUnionLand({ flowerIds: value })} />
-                    <NumberRow label="最高花朵等级" value={unionLand?.maxFlowerLevel || 0} min={0} onChange={(value) => updateUnionLand({ maxFlowerLevel: value })} />
-                  </>
-                )}
+                <ToggleRow label="自动种植" checked={unionLand?.autoPlantEnabled ?? false} onChange={(checked) => updateUnionLand({ autoPlantEnabled: checked })} />
+                <NumberRow
+                  label="成熟时长(分钟)"
+                  value={unionLand?.minMaturityMinutes || 20}
+                  min={1}
+                  onChange={(value) => updateUnionLand({ minMaturityMinutes: value })}
+                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长换种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                />
+                <FlowerMultiSelectRow
+                  label="指定花朵"
+                  value={unionLand?.flowerIds ?? []}
+                  plantableFlowers={snapshot?.plantableFlowers ?? []}
+                  synced={Boolean(snapshot)}
+                  onChange={(value) => updateUnionLand({ flowerIds: value })}
+                />
+                <QualityRow label="指定品质" value={unionLand?.qualities ?? []} onChange={(value) => updateUnionLand({ qualities: value })} />
+                <NumberRow
+                  label="最高花朵等级"
+                  value={unionLand?.maxFlowerLevel || 0}
+                  min={0}
+                  onChange={(value) => updateUnionLand({ maxFlowerLevel: value })}
+                  description="0 表示不限制；设置后只种培育等级不超过该值的花"
+                />
               </div>
             </PolicyGroup>
 
@@ -960,7 +996,7 @@ export default function PolicyPanel({
                 <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
               <div className="mt-3 space-y-2">
-                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前仅“种植收获”支持全自动推进。</p>
+                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前支持自动推进：种植收获、顾客订单、花种培育。</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {RACE_TASK_TYPES.map((task) => (
                     <NumberRow
@@ -968,6 +1004,7 @@ export default function PolicyPanel({
                       label={task.label}
                       value={unionRace?.taskTypePriority?.[task.id] ?? task.defaultPriority}
                       min={0}
+                      description={task.note}
                       onChange={(value) => updateUnionRace({ taskTypePriority: { ...(unionRace?.taskTypePriority ?? {}), [task.id]: value } })}
                     />
                   ))}
@@ -1151,7 +1188,17 @@ function NumericStepper({
   );
 }
 
-function IntListRow({ label, value, onChange }: { label: string; value: number[]; onChange: (value: number[]) => void }) {
+function IntListRow({
+  label,
+  value,
+  onChange,
+  description,
+}: {
+  label: string;
+  value: number[];
+  onChange: (value: number[]) => void;
+  description?: string;
+}) {
   return (
     <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <Label className="text-sm">{label}</Label>
@@ -1161,6 +1208,7 @@ function IntListRow({ label, value, onChange }: { label: string; value: number[]
         onChange={(event) => onChange(parseIntList(event.target.value))}
         placeholder="用逗号分隔 ID"
       />
+      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
@@ -1362,6 +1410,7 @@ type FlowerPickerOption = {
   gold: number;
   experience: number;
   lvl: number;
+  cdSeconds: number;
   quality: number;
   plantable: boolean;
 };
@@ -1371,18 +1420,39 @@ function resetFlowerPickerFilters(
   setQualityFilter: (value: number[]) => void,
   setLevelFilter: (value: number[]) => void,
   setSortMode: (value: FlowerPickerSortMode) => void,
+  defaultSortMode: FlowerPickerSortMode = "stock_asc",
 ) {
   setQuery("");
   setQualityFilter([]);
   setLevelFilter([]);
-  setSortMode("stock_asc");
+  setSortMode(defaultSortMode);
 }
 
 function compareFlowerPickerOptions(a: FlowerPickerOption, b: FlowerPickerOption, sortMode: FlowerPickerSortMode) {
   if (a.plantable !== b.plantable) return a.plantable ? -1 : 1;
+  if (sortMode === "mature_asc" || sortMode === "mature_desc") {
+    const aCD = a.cdSeconds > 0 ? a.cdSeconds : Number.POSITIVE_INFINITY;
+    const bCD = b.cdSeconds > 0 ? b.cdSeconds : Number.POSITIVE_INFINITY;
+    if (aCD !== bCD) return sortMode === "mature_desc" ? bCD - aCD : aCD - bCD;
+    if (a.stock !== b.stock) return a.stock - b.stock;
+    return a.id - b.id;
+  }
   if (sortMode === "stock_desc" && a.stock !== b.stock) return b.stock - a.stock;
   if (a.stock !== b.stock) return a.stock - b.stock;
   return a.id - b.id;
+}
+
+function formatFlowerMatureDuration(cdSeconds: number) {
+  if (cdSeconds <= 0) return "";
+  if (cdSeconds < 60) return `${cdSeconds}秒`;
+  const minutes = Math.floor(cdSeconds / 60);
+  const seconds = cdSeconds % 60;
+  if (minutes < 60) {
+    return seconds > 0 ? `${minutes}分${seconds}秒` : `${minutes}分钟`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  return remMinutes > 0 ? `${hours}小时${remMinutes}分` : `${hours}小时`;
 }
 
 function FlowerPickerFilterChip({
@@ -1427,7 +1497,7 @@ function FlowerMultiSelectRow({
   const [query, setQuery] = useState("");
   const [qualityFilter, setQualityFilter] = useState<number[]>([]);
   const [levelFilter, setLevelFilter] = useState<number[]>([]);
-  const [sortMode, setSortMode] = useState<FlowerPickerSortMode>("stock_asc");
+  const [sortMode, setSortMode] = useState<FlowerPickerSortMode>("mature_asc");
   const selectedSet = useMemo(() => new Set(value), [value]);
   const flowers = useMemo<FlowerPickerOption[]>(() => {
     const options = plantableFlowers.map((flower) => {
@@ -1440,6 +1510,8 @@ function FlowerMultiSelectRow({
         gold: flower.gold,
         experience: flower.experience,
         lvl: flower.lvl,
+        // Always recompute from current cultivation level (not catalog lvl1 / base row alone).
+        cdSeconds: flowerMatureCdSeconds(flower.flowerId, flower.lvl) || flower.cdSeconds,
         quality: display.item?.color ?? 0,
         plantable: true,
       };
@@ -1456,6 +1528,7 @@ function FlowerMultiSelectRow({
         gold: display.flower?.gold ?? 0,
         experience: display.flower?.experience ?? 0,
         lvl: 0,
+        cdSeconds: 0,
         quality: display.item?.color ?? 0,
         plantable: false,
       });
@@ -1525,7 +1598,7 @@ function FlowerMultiSelectRow({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
-          if (!nextOpen) resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter, setSortMode);
+          if (!nextOpen) resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter, setSortMode, "mature_asc");
         }}
       >
         <DialogContent className="flex h-[min(42rem,90dvh)] max-h-[90dvh] max-w-3xl flex-col overflow-hidden">
@@ -1595,7 +1668,7 @@ function FlowerMultiSelectRow({
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="shrink-0 text-xs text-muted-foreground">排序</span>
                 <div className="flex flex-wrap gap-1">
-                  {FLOWER_PICKER_SORT_OPTIONS.map((option) => (
+                  {PLANTABLE_FLOWER_PICKER_SORT_OPTIONS.map((option) => (
                     <FlowerPickerFilterChip
                       key={option.value}
                       selected={sortMode === option.value}
@@ -1618,6 +1691,7 @@ function FlowerMultiSelectRow({
                   {visibleFlowers.map((flower) => {
                     const selected = selectedSet.has(flower.id);
                     const qualityLabel = flower.quality > 0 ? QUALITY_LABELS[flower.quality] : "";
+                    const matureLabel = formatFlowerMatureDuration(flower.cdSeconds);
                     return (
                       <button
                         key={flower.id}
@@ -1641,12 +1715,18 @@ function FlowerMultiSelectRow({
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="shrink-0 text-xs text-muted-foreground">{flower.id}</span>
                             <span className="truncate text-sm font-medium">{flower.name}</span>
                             {flower.lvl > 0 ? <Badge variant="secondary">Lv.{flower.lvl}</Badge> : null}
                             {!flower.plantable && <Badge variant="outline">当前不可种</Badge>}
                           </span>
+                          {matureLabel ? (
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              成熟 {matureLabel}
+                              {flower.lvl > 0 ? `（按 Lv.${flower.lvl}）` : null}
+                            </span>
+                          ) : null}
                           <span className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                            <span>{flower.id}</span>
                             {qualityLabel ? <span>{qualityLabel}</span> : null}
                             {flower.stock > 0 ? <span>库存 {formatCount(flower.stock)}</span> : null}
                             {flower.gold ? <span>金币 {formatCount(flower.gold)}</span> : null}
@@ -1674,7 +1754,7 @@ function FlowerMultiSelectRow({
               className="max-sm:dark:transition-none"
               onClick={() => {
                 setOpen(false);
-                resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter, setSortMode);
+                resetFlowerPickerFilters(setQuery, setQualityFilter, setLevelFilter, setSortMode, "mature_asc");
               }}
             >
               完成

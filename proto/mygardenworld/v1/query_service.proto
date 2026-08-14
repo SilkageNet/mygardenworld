@@ -171,6 +171,10 @@ message GetSnapshotResponse {
   // c_lvl[level].exp requirement for the current level; 0 when maxed.
   int32 next_level_experience = 44;
   bool level_maxed = 45;
+  // Guild land planting state from namespace 25.102 (fmlLand.landMap).
+  repeated FmlLandView fml_lands = 46;
+  // True after 25.102 has been observed for this account session.
+  bool fml_lands_observed = 47;
 }
 
 message CyclicNoteView {
@@ -493,6 +497,32 @@ message LandView {
   repeated int32 wasteland = 14;
 }
 
+// FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
+message FmlLandView {
+  int32 land_id = 1;
+  // Guild land growth tier (c_fmlLandLvl), not flower cultivation level.
+  int32 level = 2;
+  int32 flower_id = 3;
+  int64 start_time_ms = 4;
+  // Protocol matureFlwCnt; often stale until the client UI recalculates.
+  int32 mature_flower_count = 5;
+  int32 harvested_count = 6;
+  int64 last_calc_time_ms = 7;
+  // Unclaimed mature flowers (max of protocol delta and startTime+c_fmlLandLvl).
+  int32 pending_harvest = 8;
+  // c_fmlLandLvl.stock for this land level; 0 when unknown.
+  int32 stock_cap = 9;
+  // c_fmlLandLvl.time seconds per produced flower; 0 when unknown.
+  int32 time_sec = 10;
+  // Next flower maturity ms when pending_harvest==0 and stock not full; else 0.
+  int64 next_mature_ms = 11;
+  // Local recommendation: harvest|plant|wait|unknown.
+  string recommendation = 12;
+  string reason = 13;
+  // Cultivation level of flower_id from namespace 101 (0 if empty/unknown).
+  int32 flower_lvl = 14;
+}
+
 message PlantableFlowerView {
   int32 flower_id = 1;
   string flower_name = 2;
@@ -501,6 +531,8 @@ message PlantableFlowerView {
   int32 experience = 5;
   // Cultivation level from namespace 101 (0 if unknown / not yet synced).
   int32 lvl = 6;
+  // Catalog grow CD in seconds at current lvl (c_flowerLvl / c_flowerLvlCfg); 0 if unknown.
+  int32 cd_seconds = 7;
 }
 
 message PendingTaskView {

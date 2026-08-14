@@ -809,8 +809,12 @@ type GetSnapshotResponse struct {
 	// c_lvl[level].exp requirement for the current level; 0 when maxed.
 	NextLevelExperience int32 `protobuf:"varint,44,opt,name=next_level_experience,json=nextLevelExperience,proto3" json:"next_level_experience,omitempty"`
 	LevelMaxed          bool  `protobuf:"varint,45,opt,name=level_maxed,json=levelMaxed,proto3" json:"level_maxed,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Guild land planting state from namespace 25.102 (fmlLand.landMap).
+	FmlLands []*FmlLandView `protobuf:"bytes,46,rep,name=fml_lands,json=fmlLands,proto3" json:"fml_lands,omitempty"`
+	// True after 25.102 has been observed for this account session.
+	FmlLandsObserved bool `protobuf:"varint,47,opt,name=fml_lands_observed,json=fmlLandsObserved,proto3" json:"fml_lands_observed,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetSnapshotResponse) Reset() {
@@ -1147,6 +1151,20 @@ func (x *GetSnapshotResponse) GetNextLevelExperience() int32 {
 func (x *GetSnapshotResponse) GetLevelMaxed() bool {
 	if x != nil {
 		return x.LevelMaxed
+	}
+	return false
+}
+
+func (x *GetSnapshotResponse) GetFmlLands() []*FmlLandView {
+	if x != nil {
+		return x.FmlLands
+	}
+	return nil
+}
+
+func (x *GetSnapshotResponse) GetFmlLandsObserved() bool {
+	if x != nil {
+		return x.FmlLandsObserved
 	}
 	return false
 }
@@ -3602,6 +3620,163 @@ func (x *LandView) GetWasteland() []int32 {
 	return nil
 }
 
+// FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
+type FmlLandView struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	LandId int32                  `protobuf:"varint,1,opt,name=land_id,json=landId,proto3" json:"land_id,omitempty"`
+	// Guild land growth tier (c_fmlLandLvl), not flower cultivation level.
+	Level       int32 `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
+	FlowerId    int32 `protobuf:"varint,3,opt,name=flower_id,json=flowerId,proto3" json:"flower_id,omitempty"`
+	StartTimeMs int64 `protobuf:"varint,4,opt,name=start_time_ms,json=startTimeMs,proto3" json:"start_time_ms,omitempty"`
+	// Protocol matureFlwCnt; often stale until the client UI recalculates.
+	MatureFlowerCount int32 `protobuf:"varint,5,opt,name=mature_flower_count,json=matureFlowerCount,proto3" json:"mature_flower_count,omitempty"`
+	HarvestedCount    int32 `protobuf:"varint,6,opt,name=harvested_count,json=harvestedCount,proto3" json:"harvested_count,omitempty"`
+	LastCalcTimeMs    int64 `protobuf:"varint,7,opt,name=last_calc_time_ms,json=lastCalcTimeMs,proto3" json:"last_calc_time_ms,omitempty"`
+	// Unclaimed mature flowers (max of protocol delta and startTime+c_fmlLandLvl).
+	PendingHarvest int32 `protobuf:"varint,8,opt,name=pending_harvest,json=pendingHarvest,proto3" json:"pending_harvest,omitempty"`
+	// c_fmlLandLvl.stock for this land level; 0 when unknown.
+	StockCap int32 `protobuf:"varint,9,opt,name=stock_cap,json=stockCap,proto3" json:"stock_cap,omitempty"`
+	// c_fmlLandLvl.time seconds per produced flower; 0 when unknown.
+	TimeSec int32 `protobuf:"varint,10,opt,name=time_sec,json=timeSec,proto3" json:"time_sec,omitempty"`
+	// Next flower maturity ms when pending_harvest==0 and stock not full; else 0.
+	NextMatureMs int64 `protobuf:"varint,11,opt,name=next_mature_ms,json=nextMatureMs,proto3" json:"next_mature_ms,omitempty"`
+	// Local recommendation: harvest|plant|wait|unknown.
+	Recommendation string `protobuf:"bytes,12,opt,name=recommendation,proto3" json:"recommendation,omitempty"`
+	Reason         string `protobuf:"bytes,13,opt,name=reason,proto3" json:"reason,omitempty"`
+	// Cultivation level of flower_id from namespace 101 (0 if empty/unknown).
+	FlowerLvl     int32 `protobuf:"varint,14,opt,name=flower_lvl,json=flowerLvl,proto3" json:"flower_lvl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FmlLandView) Reset() {
+	*x = FmlLandView{}
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FmlLandView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FmlLandView) ProtoMessage() {}
+
+func (x *FmlLandView) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FmlLandView.ProtoReflect.Descriptor instead.
+func (*FmlLandView) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *FmlLandView) GetLandId() int32 {
+	if x != nil {
+		return x.LandId
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetFlowerId() int32 {
+	if x != nil {
+		return x.FlowerId
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetStartTimeMs() int64 {
+	if x != nil {
+		return x.StartTimeMs
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetMatureFlowerCount() int32 {
+	if x != nil {
+		return x.MatureFlowerCount
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetHarvestedCount() int32 {
+	if x != nil {
+		return x.HarvestedCount
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetLastCalcTimeMs() int64 {
+	if x != nil {
+		return x.LastCalcTimeMs
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetPendingHarvest() int32 {
+	if x != nil {
+		return x.PendingHarvest
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetStockCap() int32 {
+	if x != nil {
+		return x.StockCap
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetTimeSec() int32 {
+	if x != nil {
+		return x.TimeSec
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetNextMatureMs() int64 {
+	if x != nil {
+		return x.NextMatureMs
+	}
+	return 0
+}
+
+func (x *FmlLandView) GetRecommendation() string {
+	if x != nil {
+		return x.Recommendation
+	}
+	return ""
+}
+
+func (x *FmlLandView) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *FmlLandView) GetFlowerLvl() int32 {
+	if x != nil {
+		return x.FlowerLvl
+	}
+	return 0
+}
+
 type PlantableFlowerView struct {
 	state      protoimpl.MessageState `protogen:"open.v1"`
 	FlowerId   int32                  `protobuf:"varint,1,opt,name=flower_id,json=flowerId,proto3" json:"flower_id,omitempty"`
@@ -3610,14 +3785,16 @@ type PlantableFlowerView struct {
 	Gold       int32                  `protobuf:"varint,4,opt,name=gold,proto3" json:"gold,omitempty"`
 	Experience int32                  `protobuf:"varint,5,opt,name=experience,proto3" json:"experience,omitempty"`
 	// Cultivation level from namespace 101 (0 if unknown / not yet synced).
-	Lvl           int32 `protobuf:"varint,6,opt,name=lvl,proto3" json:"lvl,omitempty"`
+	Lvl int32 `protobuf:"varint,6,opt,name=lvl,proto3" json:"lvl,omitempty"`
+	// Catalog grow CD in seconds at current lvl (c_flowerLvl / c_flowerLvlCfg); 0 if unknown.
+	CdSeconds     int32 `protobuf:"varint,7,opt,name=cd_seconds,json=cdSeconds,proto3" json:"cd_seconds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PlantableFlowerView) Reset() {
 	*x = PlantableFlowerView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[22]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3629,7 +3806,7 @@ func (x *PlantableFlowerView) String() string {
 func (*PlantableFlowerView) ProtoMessage() {}
 
 func (x *PlantableFlowerView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[22]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3642,7 +3819,7 @@ func (x *PlantableFlowerView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlantableFlowerView.ProtoReflect.Descriptor instead.
 func (*PlantableFlowerView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{22}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *PlantableFlowerView) GetFlowerId() int32 {
@@ -3687,6 +3864,13 @@ func (x *PlantableFlowerView) GetLvl() int32 {
 	return 0
 }
 
+func (x *PlantableFlowerView) GetCdSeconds() int32 {
+	if x != nil {
+		return x.CdSeconds
+	}
+	return 0
+}
+
 type PendingTaskView struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable category for grouping in the dashboard.
@@ -3707,7 +3891,7 @@ type PendingTaskView struct {
 
 func (x *PendingTaskView) Reset() {
 	*x = PendingTaskView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[23]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3719,7 +3903,7 @@ func (x *PendingTaskView) String() string {
 func (*PendingTaskView) ProtoMessage() {}
 
 func (x *PendingTaskView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[23]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3732,7 +3916,7 @@ func (x *PendingTaskView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingTaskView.ProtoReflect.Descriptor instead.
 func (*PendingTaskView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{23}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *PendingTaskView) GetCategory() string {
@@ -3842,7 +4026,7 @@ type PlannedOperation struct {
 
 func (x *PlannedOperation) Reset() {
 	*x = PlannedOperation{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[24]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3854,7 +4038,7 @@ func (x *PlannedOperation) String() string {
 func (*PlannedOperation) ProtoMessage() {}
 
 func (x *PlannedOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[24]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3867,7 +4051,7 @@ func (x *PlannedOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlannedOperation.ProtoReflect.Descriptor instead.
 func (*PlannedOperation) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{24}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *PlannedOperation) GetCategory() string {
@@ -4139,7 +4323,7 @@ type DomainStatus struct {
 
 func (x *DomainStatus) Reset() {
 	*x = DomainStatus{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[25]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4151,7 +4335,7 @@ func (x *DomainStatus) String() string {
 func (*DomainStatus) ProtoMessage() {}
 
 func (x *DomainStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[25]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4164,7 +4348,7 @@ func (x *DomainStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainStatus.ProtoReflect.Descriptor instead.
 func (*DomainStatus) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{25}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DomainStatus) GetCategory() string {
@@ -4247,7 +4431,7 @@ type FeatureCapability struct {
 
 func (x *FeatureCapability) Reset() {
 	*x = FeatureCapability{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[26]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4259,7 +4443,7 @@ func (x *FeatureCapability) String() string {
 func (*FeatureCapability) ProtoMessage() {}
 
 func (x *FeatureCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[26]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4272,7 +4456,7 @@ func (x *FeatureCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeatureCapability.ProtoReflect.Descriptor instead.
 func (*FeatureCapability) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{26}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *FeatureCapability) GetId() string {
@@ -4356,7 +4540,7 @@ type RequirementView struct {
 
 func (x *RequirementView) Reset() {
 	*x = RequirementView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[27]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4368,7 +4552,7 @@ func (x *RequirementView) String() string {
 func (*RequirementView) ProtoMessage() {}
 
 func (x *RequirementView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[27]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4381,7 +4565,7 @@ func (x *RequirementView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequirementView.ProtoReflect.Descriptor instead.
 func (*RequirementView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{27}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *RequirementView) GetItemId() int32 {
@@ -4468,7 +4652,7 @@ type DemandView struct {
 
 func (x *DemandView) Reset() {
 	*x = DemandView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[28]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4480,7 +4664,7 @@ func (x *DemandView) String() string {
 func (*DemandView) ProtoMessage() {}
 
 func (x *DemandView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[28]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4493,7 +4677,7 @@ func (x *DemandView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DemandView.ProtoReflect.Descriptor instead.
 func (*DemandView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{28}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DemandView) GetId() string {
@@ -4654,7 +4838,7 @@ type CostGate struct {
 
 func (x *CostGate) Reset() {
 	*x = CostGate{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[29]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4666,7 +4850,7 @@ func (x *CostGate) String() string {
 func (*CostGate) ProtoMessage() {}
 
 func (x *CostGate) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[29]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4679,7 +4863,7 @@ func (x *CostGate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CostGate.ProtoReflect.Descriptor instead.
 func (*CostGate) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{29}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CostGate) GetId() string {
@@ -4763,7 +4947,7 @@ type VaseView struct {
 
 func (x *VaseView) Reset() {
 	*x = VaseView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[30]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4775,7 +4959,7 @@ func (x *VaseView) String() string {
 func (*VaseView) ProtoMessage() {}
 
 func (x *VaseView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[30]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4788,7 +4972,7 @@ func (x *VaseView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VaseView.ProtoReflect.Descriptor instead.
 func (*VaseView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{30}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *VaseView) GetVaseId() int32 {
@@ -4830,7 +5014,7 @@ type FlowerArtAvailabilityView struct {
 
 func (x *FlowerArtAvailabilityView) Reset() {
 	*x = FlowerArtAvailabilityView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[31]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4842,7 +5026,7 @@ func (x *FlowerArtAvailabilityView) String() string {
 func (*FlowerArtAvailabilityView) ProtoMessage() {}
 
 func (x *FlowerArtAvailabilityView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[31]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4855,7 +5039,7 @@ func (x *FlowerArtAvailabilityView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlowerArtAvailabilityView.ProtoReflect.Descriptor instead.
 func (*FlowerArtAvailabilityView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{31}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *FlowerArtAvailabilityView) GetArtId() int32 {
@@ -4947,7 +5131,7 @@ type OrderStatisticsView struct {
 
 func (x *OrderStatisticsView) Reset() {
 	*x = OrderStatisticsView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[32]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4959,7 +5143,7 @@ func (x *OrderStatisticsView) String() string {
 func (*OrderStatisticsView) ProtoMessage() {}
 
 func (x *OrderStatisticsView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[32]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4972,7 +5156,7 @@ func (x *OrderStatisticsView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderStatisticsView.ProtoReflect.Descriptor instead.
 func (*OrderStatisticsView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{32}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *OrderStatisticsView) GetObserved() bool {
@@ -5061,7 +5245,7 @@ type InventoryLedgerView struct {
 
 func (x *InventoryLedgerView) Reset() {
 	*x = InventoryLedgerView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[33]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5073,7 +5257,7 @@ func (x *InventoryLedgerView) String() string {
 func (*InventoryLedgerView) ProtoMessage() {}
 
 func (x *InventoryLedgerView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[33]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5086,7 +5270,7 @@ func (x *InventoryLedgerView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryLedgerView.ProtoReflect.Descriptor instead.
 func (*InventoryLedgerView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{33}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *InventoryLedgerView) GetItems() []*InventoryLedgerItem {
@@ -5109,7 +5293,7 @@ type InventoryLedgerItem struct {
 
 func (x *InventoryLedgerItem) Reset() {
 	*x = InventoryLedgerItem{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[34]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5121,7 +5305,7 @@ func (x *InventoryLedgerItem) String() string {
 func (*InventoryLedgerItem) ProtoMessage() {}
 
 func (x *InventoryLedgerItem) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[34]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5134,7 +5318,7 @@ func (x *InventoryLedgerItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryLedgerItem.ProtoReflect.Descriptor instead.
 func (*InventoryLedgerItem) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{34}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *InventoryLedgerItem) GetItemId() int32 {
@@ -5182,7 +5366,7 @@ type BlockingSummary struct {
 
 func (x *BlockingSummary) Reset() {
 	*x = BlockingSummary{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[35]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5194,7 +5378,7 @@ func (x *BlockingSummary) String() string {
 func (*BlockingSummary) ProtoMessage() {}
 
 func (x *BlockingSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[35]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5207,7 +5391,7 @@ func (x *BlockingSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockingSummary.ProtoReflect.Descriptor instead.
 func (*BlockingSummary) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{35}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *BlockingSummary) GetTotal() int32 {
@@ -5238,7 +5422,7 @@ type BlockingGroup struct {
 
 func (x *BlockingGroup) Reset() {
 	*x = BlockingGroup{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[36]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5250,7 +5434,7 @@ func (x *BlockingGroup) String() string {
 func (*BlockingGroup) ProtoMessage() {}
 
 func (x *BlockingGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[36]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5263,7 +5447,7 @@ func (x *BlockingGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockingGroup.ProtoReflect.Descriptor instead.
 func (*BlockingGroup) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{36}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *BlockingGroup) GetCategory() string {
@@ -5325,7 +5509,7 @@ type RuntimeStatisticsView struct {
 
 func (x *RuntimeStatisticsView) Reset() {
 	*x = RuntimeStatisticsView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[37]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5337,7 +5521,7 @@ func (x *RuntimeStatisticsView) String() string {
 func (*RuntimeStatisticsView) ProtoMessage() {}
 
 func (x *RuntimeStatisticsView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[37]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5350,7 +5534,7 @@ func (x *RuntimeStatisticsView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeStatisticsView.ProtoReflect.Descriptor instead.
 func (*RuntimeStatisticsView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{37}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *RuntimeStatisticsView) GetStartedAt() *timestamppb.Timestamp {
@@ -5428,7 +5612,7 @@ type RuntimeResourceTotal struct {
 
 func (x *RuntimeResourceTotal) Reset() {
 	*x = RuntimeResourceTotal{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[38]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5440,7 +5624,7 @@ func (x *RuntimeResourceTotal) String() string {
 func (*RuntimeResourceTotal) ProtoMessage() {}
 
 func (x *RuntimeResourceTotal) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[38]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5453,7 +5637,7 @@ func (x *RuntimeResourceTotal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeResourceTotal.ProtoReflect.Descriptor instead.
 func (*RuntimeResourceTotal) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{38}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *RuntimeResourceTotal) GetKey() string {
@@ -5495,7 +5679,7 @@ type RuntimeActionTotal struct {
 
 func (x *RuntimeActionTotal) Reset() {
 	*x = RuntimeActionTotal{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[39]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5507,7 +5691,7 @@ func (x *RuntimeActionTotal) String() string {
 func (*RuntimeActionTotal) ProtoMessage() {}
 
 func (x *RuntimeActionTotal) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[39]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5520,7 +5704,7 @@ func (x *RuntimeActionTotal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeActionTotal.ProtoReflect.Descriptor instead.
 func (*RuntimeActionTotal) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{39}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *RuntimeActionTotal) GetKey() string {
@@ -5563,7 +5747,7 @@ type StreamEventsRequest struct {
 
 func (x *StreamEventsRequest) Reset() {
 	*x = StreamEventsRequest{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[40]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5575,7 +5759,7 @@ func (x *StreamEventsRequest) String() string {
 func (*StreamEventsRequest) ProtoMessage() {}
 
 func (x *StreamEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[40]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5588,7 +5772,7 @@ func (x *StreamEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamEventsRequest.ProtoReflect.Descriptor instead.
 func (*StreamEventsRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{40}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *StreamEventsRequest) GetAccountId() string {
@@ -5659,7 +5843,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[41]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5671,7 +5855,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[41]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5684,7 +5868,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{41}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *Event) GetId() int64 {
@@ -5800,7 +5984,7 @@ type DessertRuntimeView struct {
 
 func (x *DessertRuntimeView) Reset() {
 	*x = DessertRuntimeView{}
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[42]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5812,7 +5996,7 @@ func (x *DessertRuntimeView) String() string {
 func (*DessertRuntimeView) ProtoMessage() {}
 
 func (x *DessertRuntimeView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[42]
+	mi := &file_mygardenworld_v1_query_service_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5825,7 +6009,7 @@ func (x *DessertRuntimeView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DessertRuntimeView.ProtoReflect.Descriptor instead.
 func (*DessertRuntimeView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{42}
+	return file_mygardenworld_v1_query_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *DessertRuntimeView) GetObserved() bool {
@@ -6042,7 +6226,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x12GetSnapshotRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\x83\x13\n" +
+	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\xed\x13\n" +
 	"\x13GetSnapshotResponse\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
@@ -6095,7 +6279,9 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x18experience_to_next_level\x18+ \x01(\x05R\x15experienceToNextLevel\x122\n" +
 	"\x15next_level_experience\x18, \x01(\x05R\x13nextLevelExperience\x12\x1f\n" +
 	"\vlevel_maxed\x18- \x01(\bR\n" +
-	"levelMaxed\x1a<\n" +
+	"levelMaxed\x12:\n" +
+	"\tfml_lands\x18. \x03(\v2\x1d.mygardenworld.v1.FmlLandViewR\bfmlLands\x12,\n" +
+	"\x12fml_lands_observed\x18/ \x01(\bR\x10fmlLandsObserved\x1a<\n" +
 	"\x0eInventoryEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xcc\a\n" +
@@ -6395,7 +6581,24 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"open_level\x18\f \x01(\x05R\topenLevel\x12\x1f\n" +
 	"\vunlock_cost\x18\r \x03(\x05R\n" +
 	"unlockCost\x12\x1c\n" +
-	"\twasteland\x18\x0e \x03(\x05R\twasteland\"\xaf\x01\n" +
+	"\twasteland\x18\x0e \x03(\x05R\twasteland\"\xe7\x03\n" +
+	"\vFmlLandView\x12\x17\n" +
+	"\aland_id\x18\x01 \x01(\x05R\x06landId\x12\x14\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level\x12\x1b\n" +
+	"\tflower_id\x18\x03 \x01(\x05R\bflowerId\x12\"\n" +
+	"\rstart_time_ms\x18\x04 \x01(\x03R\vstartTimeMs\x12.\n" +
+	"\x13mature_flower_count\x18\x05 \x01(\x05R\x11matureFlowerCount\x12'\n" +
+	"\x0fharvested_count\x18\x06 \x01(\x05R\x0eharvestedCount\x12)\n" +
+	"\x11last_calc_time_ms\x18\a \x01(\x03R\x0elastCalcTimeMs\x12'\n" +
+	"\x0fpending_harvest\x18\b \x01(\x05R\x0ependingHarvest\x12\x1b\n" +
+	"\tstock_cap\x18\t \x01(\x05R\bstockCap\x12\x19\n" +
+	"\btime_sec\x18\n" +
+	" \x01(\x05R\atimeSec\x12$\n" +
+	"\x0enext_mature_ms\x18\v \x01(\x03R\fnextMatureMs\x12&\n" +
+	"\x0erecommendation\x18\f \x01(\tR\x0erecommendation\x12\x16\n" +
+	"\x06reason\x18\r \x01(\tR\x06reason\x12\x1d\n" +
+	"\n" +
+	"flower_lvl\x18\x0e \x01(\x05R\tflowerLvl\"\xce\x01\n" +
 	"\x13PlantableFlowerView\x12\x1b\n" +
 	"\tflower_id\x18\x01 \x01(\x05R\bflowerId\x12\x1f\n" +
 	"\vflower_name\x18\x02 \x01(\tR\n" +
@@ -6405,7 +6608,9 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\n" +
 	"experience\x18\x05 \x01(\x05R\n" +
 	"experience\x12\x10\n" +
-	"\x03lvl\x18\x06 \x01(\x05R\x03lvl\"\xd9\x02\n" +
+	"\x03lvl\x18\x06 \x01(\x05R\x03lvl\x12\x1d\n" +
+	"\n" +
+	"cd_seconds\x18\a \x01(\x05R\tcdSeconds\"\xd9\x02\n" +
 	"\x0fPendingTaskView\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
@@ -6697,7 +6902,7 @@ func file_mygardenworld_v1_query_service_proto_rawDescGZIP() []byte {
 }
 
 var file_mygardenworld_v1_query_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_mygardenworld_v1_query_service_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
+var file_mygardenworld_v1_query_service_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_mygardenworld_v1_query_service_proto_goTypes = []any{
 	(PlanStatus)(0),                   // 0: mygardenworld.v1.PlanStatus
 	(GateResourceKind)(0),             // 1: mygardenworld.v1.GateResourceKind
@@ -6724,127 +6929,129 @@ var file_mygardenworld_v1_query_service_proto_goTypes = []any{
 	(*DessertCelebrityLikeView)(nil),  // 22: mygardenworld.v1.DessertCelebrityLikeView
 	(*ActivityItem)(nil),              // 23: mygardenworld.v1.ActivityItem
 	(*LandView)(nil),                  // 24: mygardenworld.v1.LandView
-	(*PlantableFlowerView)(nil),       // 25: mygardenworld.v1.PlantableFlowerView
-	(*PendingTaskView)(nil),           // 26: mygardenworld.v1.PendingTaskView
-	(*PlannedOperation)(nil),          // 27: mygardenworld.v1.PlannedOperation
-	(*DomainStatus)(nil),              // 28: mygardenworld.v1.DomainStatus
-	(*FeatureCapability)(nil),         // 29: mygardenworld.v1.FeatureCapability
-	(*RequirementView)(nil),           // 30: mygardenworld.v1.RequirementView
-	(*DemandView)(nil),                // 31: mygardenworld.v1.DemandView
-	(*CostGate)(nil),                  // 32: mygardenworld.v1.CostGate
-	(*VaseView)(nil),                  // 33: mygardenworld.v1.VaseView
-	(*FlowerArtAvailabilityView)(nil), // 34: mygardenworld.v1.FlowerArtAvailabilityView
-	(*OrderStatisticsView)(nil),       // 35: mygardenworld.v1.OrderStatisticsView
-	(*InventoryLedgerView)(nil),       // 36: mygardenworld.v1.InventoryLedgerView
-	(*InventoryLedgerItem)(nil),       // 37: mygardenworld.v1.InventoryLedgerItem
-	(*BlockingSummary)(nil),           // 38: mygardenworld.v1.BlockingSummary
-	(*BlockingGroup)(nil),             // 39: mygardenworld.v1.BlockingGroup
-	(*RuntimeStatisticsView)(nil),     // 40: mygardenworld.v1.RuntimeStatisticsView
-	(*RuntimeResourceTotal)(nil),      // 41: mygardenworld.v1.RuntimeResourceTotal
-	(*RuntimeActionTotal)(nil),        // 42: mygardenworld.v1.RuntimeActionTotal
-	(*StreamEventsRequest)(nil),       // 43: mygardenworld.v1.StreamEventsRequest
-	(*Event)(nil),                     // 44: mygardenworld.v1.Event
-	(*DessertRuntimeView)(nil),        // 45: mygardenworld.v1.DessertRuntimeView
-	nil,                               // 46: mygardenworld.v1.AccountStatus.ByKindEntry
-	nil,                               // 47: mygardenworld.v1.GetSnapshotResponse.InventoryEntry
-	nil,                               // 48: mygardenworld.v1.PlannedOperation.ItemCostEntry
-	(*timestamppb.Timestamp)(nil),     // 49: google.protobuf.Timestamp
+	(*FmlLandView)(nil),               // 25: mygardenworld.v1.FmlLandView
+	(*PlantableFlowerView)(nil),       // 26: mygardenworld.v1.PlantableFlowerView
+	(*PendingTaskView)(nil),           // 27: mygardenworld.v1.PendingTaskView
+	(*PlannedOperation)(nil),          // 28: mygardenworld.v1.PlannedOperation
+	(*DomainStatus)(nil),              // 29: mygardenworld.v1.DomainStatus
+	(*FeatureCapability)(nil),         // 30: mygardenworld.v1.FeatureCapability
+	(*RequirementView)(nil),           // 31: mygardenworld.v1.RequirementView
+	(*DemandView)(nil),                // 32: mygardenworld.v1.DemandView
+	(*CostGate)(nil),                  // 33: mygardenworld.v1.CostGate
+	(*VaseView)(nil),                  // 34: mygardenworld.v1.VaseView
+	(*FlowerArtAvailabilityView)(nil), // 35: mygardenworld.v1.FlowerArtAvailabilityView
+	(*OrderStatisticsView)(nil),       // 36: mygardenworld.v1.OrderStatisticsView
+	(*InventoryLedgerView)(nil),       // 37: mygardenworld.v1.InventoryLedgerView
+	(*InventoryLedgerItem)(nil),       // 38: mygardenworld.v1.InventoryLedgerItem
+	(*BlockingSummary)(nil),           // 39: mygardenworld.v1.BlockingSummary
+	(*BlockingGroup)(nil),             // 40: mygardenworld.v1.BlockingGroup
+	(*RuntimeStatisticsView)(nil),     // 41: mygardenworld.v1.RuntimeStatisticsView
+	(*RuntimeResourceTotal)(nil),      // 42: mygardenworld.v1.RuntimeResourceTotal
+	(*RuntimeActionTotal)(nil),        // 43: mygardenworld.v1.RuntimeActionTotal
+	(*StreamEventsRequest)(nil),       // 44: mygardenworld.v1.StreamEventsRequest
+	(*Event)(nil),                     // 45: mygardenworld.v1.Event
+	(*DessertRuntimeView)(nil),        // 46: mygardenworld.v1.DessertRuntimeView
+	nil,                               // 47: mygardenworld.v1.AccountStatus.ByKindEntry
+	nil,                               // 48: mygardenworld.v1.GetSnapshotResponse.InventoryEntry
+	nil,                               // 49: mygardenworld.v1.PlannedOperation.ItemCostEntry
+	(*timestamppb.Timestamp)(nil),     // 50: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_query_service_proto_depIdxs = []int32{
 	5,  // 0: mygardenworld.v1.GetStatusResponse.accounts:type_name -> mygardenworld.v1.AccountStatus
-	29, // 1: mygardenworld.v1.GetStatusResponse.feature_capabilities:type_name -> mygardenworld.v1.FeatureCapability
-	49, // 2: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
-	46, // 3: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
+	30, // 1: mygardenworld.v1.GetStatusResponse.feature_capabilities:type_name -> mygardenworld.v1.FeatureCapability
+	50, // 2: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
+	47, // 3: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
 	6,  // 4: mygardenworld.v1.AccountStatus.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
-	28, // 5: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
-	40, // 6: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	49, // 7: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
-	49, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
-	49, // 9: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
-	49, // 10: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
+	29, // 5: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
+	41, // 6: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	50, // 7: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
+	50, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
+	50, // 9: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
+	50, // 10: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
 	24, // 11: mygardenworld.v1.GetSnapshotResponse.lands:type_name -> mygardenworld.v1.LandView
-	47, // 12: mygardenworld.v1.GetSnapshotResponse.inventory:type_name -> mygardenworld.v1.GetSnapshotResponse.InventoryEntry
-	49, // 13: mygardenworld.v1.GetSnapshotResponse.captured_at:type_name -> google.protobuf.Timestamp
-	26, // 14: mygardenworld.v1.GetSnapshotResponse.pending_tasks:type_name -> mygardenworld.v1.PendingTaskView
+	48, // 12: mygardenworld.v1.GetSnapshotResponse.inventory:type_name -> mygardenworld.v1.GetSnapshotResponse.InventoryEntry
+	50, // 13: mygardenworld.v1.GetSnapshotResponse.captured_at:type_name -> google.protobuf.Timestamp
+	27, // 14: mygardenworld.v1.GetSnapshotResponse.pending_tasks:type_name -> mygardenworld.v1.PendingTaskView
 	6,  // 15: mygardenworld.v1.GetSnapshotResponse.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
-	28, // 16: mygardenworld.v1.GetSnapshotResponse.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
-	27, // 17: mygardenworld.v1.GetSnapshotResponse.planned_operations:type_name -> mygardenworld.v1.PlannedOperation
-	31, // 18: mygardenworld.v1.GetSnapshotResponse.demands:type_name -> mygardenworld.v1.DemandView
-	33, // 19: mygardenworld.v1.GetSnapshotResponse.vases:type_name -> mygardenworld.v1.VaseView
-	34, // 20: mygardenworld.v1.GetSnapshotResponse.flower_art_availability:type_name -> mygardenworld.v1.FlowerArtAvailabilityView
-	35, // 21: mygardenworld.v1.GetSnapshotResponse.order_statistics:type_name -> mygardenworld.v1.OrderStatisticsView
-	36, // 22: mygardenworld.v1.GetSnapshotResponse.inventory_ledger:type_name -> mygardenworld.v1.InventoryLedgerView
-	38, // 23: mygardenworld.v1.GetSnapshotResponse.blocking_summary:type_name -> mygardenworld.v1.BlockingSummary
-	25, // 24: mygardenworld.v1.GetSnapshotResponse.plantable_flowers:type_name -> mygardenworld.v1.PlantableFlowerView
-	40, // 25: mygardenworld.v1.GetSnapshotResponse.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	29, // 16: mygardenworld.v1.GetSnapshotResponse.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
+	28, // 17: mygardenworld.v1.GetSnapshotResponse.planned_operations:type_name -> mygardenworld.v1.PlannedOperation
+	32, // 18: mygardenworld.v1.GetSnapshotResponse.demands:type_name -> mygardenworld.v1.DemandView
+	34, // 19: mygardenworld.v1.GetSnapshotResponse.vases:type_name -> mygardenworld.v1.VaseView
+	35, // 20: mygardenworld.v1.GetSnapshotResponse.flower_art_availability:type_name -> mygardenworld.v1.FlowerArtAvailabilityView
+	36, // 21: mygardenworld.v1.GetSnapshotResponse.order_statistics:type_name -> mygardenworld.v1.OrderStatisticsView
+	37, // 22: mygardenworld.v1.GetSnapshotResponse.inventory_ledger:type_name -> mygardenworld.v1.InventoryLedgerView
+	39, // 23: mygardenworld.v1.GetSnapshotResponse.blocking_summary:type_name -> mygardenworld.v1.BlockingSummary
+	26, // 24: mygardenworld.v1.GetSnapshotResponse.plantable_flowers:type_name -> mygardenworld.v1.PlantableFlowerView
+	41, // 25: mygardenworld.v1.GetSnapshotResponse.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
 	9,  // 26: mygardenworld.v1.GetSnapshotResponse.cyclic_note:type_name -> mygardenworld.v1.CyclicNoteView
 	14, // 27: mygardenworld.v1.GetSnapshotResponse.fml_race:type_name -> mygardenworld.v1.FmlRaceView
 	17, // 28: mygardenworld.v1.GetSnapshotResponse.dessert:type_name -> mygardenworld.v1.DessertView
 	12, // 29: mygardenworld.v1.GetSnapshotResponse.cyclic_story:type_name -> mygardenworld.v1.CyclicStoryView
-	23, // 30: mygardenworld.v1.CyclicNoteView.items:type_name -> mygardenworld.v1.ActivityItem
-	10, // 31: mygardenworld.v1.CyclicNoteView.tasks:type_name -> mygardenworld.v1.CyclicNoteTaskSlot
-	11, // 32: mygardenworld.v1.CyclicNoteView.milestones:type_name -> mygardenworld.v1.CyclicNoteMilestone
-	23, // 33: mygardenworld.v1.CyclicNoteTaskSlot.reward:type_name -> mygardenworld.v1.ActivityItem
-	23, // 34: mygardenworld.v1.CyclicNoteTaskSlot.finish_cost:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 35: mygardenworld.v1.CyclicNoteTaskSlot.status:type_name -> mygardenworld.v1.PlanStatus
-	23, // 36: mygardenworld.v1.CyclicNoteMilestone.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 37: mygardenworld.v1.CyclicNoteMilestone.status:type_name -> mygardenworld.v1.PlanStatus
-	23, // 38: mygardenworld.v1.CyclicStoryView.items:type_name -> mygardenworld.v1.ActivityItem
-	13, // 39: mygardenworld.v1.CyclicStoryView.orders:type_name -> mygardenworld.v1.CyclicStoryOrder
-	11, // 40: mygardenworld.v1.CyclicStoryView.milestones:type_name -> mygardenworld.v1.CyclicNoteMilestone
-	23, // 41: mygardenworld.v1.CyclicStoryOrder.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 42: mygardenworld.v1.CyclicStoryOrder.status:type_name -> mygardenworld.v1.PlanStatus
-	16, // 43: mygardenworld.v1.FmlRaceView.taken:type_name -> mygardenworld.v1.FmlRaceTaken
-	15, // 44: mygardenworld.v1.FmlRaceView.tasks:type_name -> mygardenworld.v1.FmlRaceTask
-	23, // 45: mygardenworld.v1.DessertView.items:type_name -> mygardenworld.v1.ActivityItem
-	18, // 46: mygardenworld.v1.DessertView.modes:type_name -> mygardenworld.v1.DessertModeView
-	20, // 47: mygardenworld.v1.DessertView.tasks:type_name -> mygardenworld.v1.DessertTaskView
-	21, // 48: mygardenworld.v1.DessertView.milestones:type_name -> mygardenworld.v1.DessertMilestoneView
-	22, // 49: mygardenworld.v1.DessertView.celebrity:type_name -> mygardenworld.v1.DessertCelebrityLikeView
-	45, // 50: mygardenworld.v1.DessertView.runtime:type_name -> mygardenworld.v1.DessertRuntimeView
-	19, // 51: mygardenworld.v1.DessertModeView.level_counts:type_name -> mygardenworld.v1.DessertLevelCountView
-	23, // 52: mygardenworld.v1.DessertTaskView.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 53: mygardenworld.v1.DessertTaskView.status:type_name -> mygardenworld.v1.PlanStatus
-	23, // 54: mygardenworld.v1.DessertMilestoneView.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 55: mygardenworld.v1.DessertMilestoneView.status:type_name -> mygardenworld.v1.PlanStatus
-	23, // 56: mygardenworld.v1.DessertCelebrityLikeView.reward:type_name -> mygardenworld.v1.ActivityItem
-	0,  // 57: mygardenworld.v1.DessertCelebrityLikeView.status:type_name -> mygardenworld.v1.PlanStatus
-	0,  // 58: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
-	30, // 59: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
-	48, // 60: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
-	0,  // 61: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
-	32, // 62: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
-	2,  // 63: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 64: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
-	2,  // 65: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 66: mygardenworld.v1.FeatureCapability.status:type_name -> mygardenworld.v1.PlanStatus
-	0,  // 67: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
-	32, // 68: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
-	1,  // 69: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
-	0,  // 70: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
-	30, // 71: mygardenworld.v1.FlowerArtAvailabilityView.requirements:type_name -> mygardenworld.v1.RequirementView
-	37, // 72: mygardenworld.v1.InventoryLedgerView.items:type_name -> mygardenworld.v1.InventoryLedgerItem
-	39, // 73: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
-	0,  // 74: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
-	49, // 75: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
-	49, // 76: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
-	49, // 77: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
-	41, // 78: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
-	42, // 79: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	42, // 80: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	42, // 81: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	49, // 82: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
-	3,  // 83: mygardenworld.v1.QueryService.GetStatus:input_type -> mygardenworld.v1.GetStatusRequest
-	7,  // 84: mygardenworld.v1.QueryService.GetSnapshot:input_type -> mygardenworld.v1.GetSnapshotRequest
-	43, // 85: mygardenworld.v1.QueryService.StreamEvents:input_type -> mygardenworld.v1.StreamEventsRequest
-	4,  // 86: mygardenworld.v1.QueryService.GetStatus:output_type -> mygardenworld.v1.GetStatusResponse
-	8,  // 87: mygardenworld.v1.QueryService.GetSnapshot:output_type -> mygardenworld.v1.GetSnapshotResponse
-	44, // 88: mygardenworld.v1.QueryService.StreamEvents:output_type -> mygardenworld.v1.Event
-	86, // [86:89] is the sub-list for method output_type
-	83, // [83:86] is the sub-list for method input_type
-	83, // [83:83] is the sub-list for extension type_name
-	83, // [83:83] is the sub-list for extension extendee
-	0,  // [0:83] is the sub-list for field type_name
+	25, // 30: mygardenworld.v1.GetSnapshotResponse.fml_lands:type_name -> mygardenworld.v1.FmlLandView
+	23, // 31: mygardenworld.v1.CyclicNoteView.items:type_name -> mygardenworld.v1.ActivityItem
+	10, // 32: mygardenworld.v1.CyclicNoteView.tasks:type_name -> mygardenworld.v1.CyclicNoteTaskSlot
+	11, // 33: mygardenworld.v1.CyclicNoteView.milestones:type_name -> mygardenworld.v1.CyclicNoteMilestone
+	23, // 34: mygardenworld.v1.CyclicNoteTaskSlot.reward:type_name -> mygardenworld.v1.ActivityItem
+	23, // 35: mygardenworld.v1.CyclicNoteTaskSlot.finish_cost:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 36: mygardenworld.v1.CyclicNoteTaskSlot.status:type_name -> mygardenworld.v1.PlanStatus
+	23, // 37: mygardenworld.v1.CyclicNoteMilestone.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 38: mygardenworld.v1.CyclicNoteMilestone.status:type_name -> mygardenworld.v1.PlanStatus
+	23, // 39: mygardenworld.v1.CyclicStoryView.items:type_name -> mygardenworld.v1.ActivityItem
+	13, // 40: mygardenworld.v1.CyclicStoryView.orders:type_name -> mygardenworld.v1.CyclicStoryOrder
+	11, // 41: mygardenworld.v1.CyclicStoryView.milestones:type_name -> mygardenworld.v1.CyclicNoteMilestone
+	23, // 42: mygardenworld.v1.CyclicStoryOrder.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 43: mygardenworld.v1.CyclicStoryOrder.status:type_name -> mygardenworld.v1.PlanStatus
+	16, // 44: mygardenworld.v1.FmlRaceView.taken:type_name -> mygardenworld.v1.FmlRaceTaken
+	15, // 45: mygardenworld.v1.FmlRaceView.tasks:type_name -> mygardenworld.v1.FmlRaceTask
+	23, // 46: mygardenworld.v1.DessertView.items:type_name -> mygardenworld.v1.ActivityItem
+	18, // 47: mygardenworld.v1.DessertView.modes:type_name -> mygardenworld.v1.DessertModeView
+	20, // 48: mygardenworld.v1.DessertView.tasks:type_name -> mygardenworld.v1.DessertTaskView
+	21, // 49: mygardenworld.v1.DessertView.milestones:type_name -> mygardenworld.v1.DessertMilestoneView
+	22, // 50: mygardenworld.v1.DessertView.celebrity:type_name -> mygardenworld.v1.DessertCelebrityLikeView
+	46, // 51: mygardenworld.v1.DessertView.runtime:type_name -> mygardenworld.v1.DessertRuntimeView
+	19, // 52: mygardenworld.v1.DessertModeView.level_counts:type_name -> mygardenworld.v1.DessertLevelCountView
+	23, // 53: mygardenworld.v1.DessertTaskView.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 54: mygardenworld.v1.DessertTaskView.status:type_name -> mygardenworld.v1.PlanStatus
+	23, // 55: mygardenworld.v1.DessertMilestoneView.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 56: mygardenworld.v1.DessertMilestoneView.status:type_name -> mygardenworld.v1.PlanStatus
+	23, // 57: mygardenworld.v1.DessertCelebrityLikeView.reward:type_name -> mygardenworld.v1.ActivityItem
+	0,  // 58: mygardenworld.v1.DessertCelebrityLikeView.status:type_name -> mygardenworld.v1.PlanStatus
+	0,  // 59: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
+	31, // 60: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
+	49, // 61: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
+	0,  // 62: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
+	33, // 63: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
+	2,  // 64: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 65: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
+	2,  // 66: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 67: mygardenworld.v1.FeatureCapability.status:type_name -> mygardenworld.v1.PlanStatus
+	0,  // 68: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
+	33, // 69: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
+	1,  // 70: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
+	0,  // 71: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
+	31, // 72: mygardenworld.v1.FlowerArtAvailabilityView.requirements:type_name -> mygardenworld.v1.RequirementView
+	38, // 73: mygardenworld.v1.InventoryLedgerView.items:type_name -> mygardenworld.v1.InventoryLedgerItem
+	40, // 74: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
+	0,  // 75: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
+	50, // 76: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
+	50, // 77: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
+	50, // 78: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
+	42, // 79: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
+	43, // 80: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	43, // 81: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	43, // 82: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	50, // 83: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
+	3,  // 84: mygardenworld.v1.QueryService.GetStatus:input_type -> mygardenworld.v1.GetStatusRequest
+	7,  // 85: mygardenworld.v1.QueryService.GetSnapshot:input_type -> mygardenworld.v1.GetSnapshotRequest
+	44, // 86: mygardenworld.v1.QueryService.StreamEvents:input_type -> mygardenworld.v1.StreamEventsRequest
+	4,  // 87: mygardenworld.v1.QueryService.GetStatus:output_type -> mygardenworld.v1.GetStatusResponse
+	8,  // 88: mygardenworld.v1.QueryService.GetSnapshot:output_type -> mygardenworld.v1.GetSnapshotResponse
+	45, // 89: mygardenworld.v1.QueryService.StreamEvents:output_type -> mygardenworld.v1.Event
+	87, // [87:90] is the sub-list for method output_type
+	84, // [84:87] is the sub-list for method input_type
+	84, // [84:84] is the sub-list for extension type_name
+	84, // [84:84] is the sub-list for extension extendee
+	0,  // [0:84] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_query_service_proto_init() }
@@ -6858,7 +7065,7 @@ func file_mygardenworld_v1_query_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_query_service_proto_rawDesc), len(file_mygardenworld_v1_query_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   46,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

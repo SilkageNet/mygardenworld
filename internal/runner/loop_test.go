@@ -573,6 +573,24 @@ func TestFmlLandHarvestOperationArgs(t *testing.T) {
 	}
 }
 
+func TestFmlLandPlantOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{
+		Kind:     clientproto.RPCFmlLandPlant.String(),
+		LandIDs:  []int32{1, 2},
+		FlowerID: 23005,
+	})
+	if err != nil {
+		t.Fatalf("operationArgs(fmlLand.plant): %v", err)
+	}
+	plant, ok := args.(clientproto.FmlLandPlantRequest)
+	if !ok {
+		t.Fatalf("operationArgs(fmlLand.plant)=%T, want FmlLandPlantRequest", args)
+	}
+	if len(plant.LandIds) != 2 || plant.LandIds[0] != 1 || plant.LandIds[1] != 2 || plant.FlwId != 23005 {
+		t.Fatalf("FmlLandPlantRequest=%+v, want landIds=[1 2] flwId=23005", plant)
+	}
+}
+
 func TestFmlForestRefreshOperationArgs(t *testing.T) {
 	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCFmlForestRefresh.String(), TargetID: 1})
 	if err != nil {
@@ -707,6 +725,9 @@ func TestNextRunnableOperationSkipsCoolingSideOperationAndKeepsFarmRunnable(t *t
 	policy.AutomationEnabled = true
 	policy.Basic.Task.DailyEnabled = true
 	policy.Union.Race.Enabled = false
+	// Land monitor syncs via fml.enter whenever 25.102 is unseen; keep it quiet
+	// so this test only asserts side cooldown + farm fallthrough.
+	st.ApplyVMap(map[string]any{"25": map[string]any{"102": map[string]any{"0": map[string]any{}}}})
 	r := &Runner{
 		state:              st,
 		operationCooldowns: map[string]operationCooldown{},

@@ -67,6 +67,8 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = append(ops, unionOperations(s, policy, now)...)
 	ops = driveCyclicNoteTaskOperations(policy, activityActions, ledger, ops)
 	ops = driveRaceCustomerOrderOperations(policy, demands, ops)
+	ops = driveRacePearlHireOperations(policy, demands, ops)
+	ops = driveRaceFlowerCultivateOperations(policy, demands, ops)
 	ops = append(ops, activityOperations(s, policy.GetActivity(), now)...)
 	ops = append(ops, blockedUnknownOperations(policy)...)
 	return ops

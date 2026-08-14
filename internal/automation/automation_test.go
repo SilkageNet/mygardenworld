@@ -33,6 +33,14 @@ func cultivate(flowers ...int32) map[string]any {
 	return out
 }
 
+func cultivateAtLevel(level int32, flowers ...int32) map[string]any {
+	out := make(map[string]any, len(flowers))
+	for _, id := range flowers {
+		out[itoa32(id)] = map[string]any{"1": id, "2": level, "4": 2}
+	}
+	return out
+}
+
 func itoa(v int) string {
 	return strconv.Itoa(v)
 }
@@ -67,12 +75,12 @@ func TestRecommend_State2WaitsForHarvestGrace(t *testing.T) {
 		NextTimeMs: now.Add(-1 * time.Second).UnixMilli(),
 	}
 
-	if kind, reason := Recommend(land, now); kind != KindWait {
+	if kind, reason := Recommend(land, now, 0); kind != KindWait {
 		t.Fatalf("state=2 should wait inside harvest grace, got kind=%s reason=%s", kind, reason)
 	}
 
 	land.NextTimeMs = now.Add(-harvestReadyGrace - time.Second).UnixMilli()
-	if kind, reason := Recommend(land, now); kind != KindHarvest {
+	if kind, reason := Recommend(land, now, 0); kind != KindHarvest {
 		t.Fatalf("state=2 should harvest after harvest grace, got kind=%s reason=%s", kind, reason)
 	}
 }
@@ -85,9 +93,79 @@ func TestRecommend_State3HarvestsImmediately(t *testing.T) {
 		State:    3,
 	}
 
-	if kind, reason := Recommend(land, now); kind != KindHarvest {
+	if kind, reason := Recommend(land, now, 0); kind != KindHarvest {
 		t.Fatalf("state=3 should harvest immediately, got kind=%s reason=%s", kind, reason)
 	}
+}
+
+func TestRecommend_HarvestDelayHoldsState3(t *testing.T) {
+	now := time.Date(2026, 7, 3, 15, 3, 59, 0, time.UTC)
+	delay := 30 * time.Second
+	land := state.LandView{
+		Observed:    true,
+		FlowerID:    23001,
+		State:       3,
+		PlantTimeMs: now.Add(-10 * time.Second).UnixMilli(),
+	}
+	if kind, reason := Recommend(land, now, delay); kind != KindWait {
+		t.Fatalf("state=3 should wait inside harvest delay, got kind=%s reason=%s", kind, reason)
+	}
+	land.PlantTimeMs = now.Add(-delay - time.Second).UnixMilli()
+	if kind, reason := Recommend(land, now, delay); kind != KindHarvest {
+		t.Fatalf("state=3 should harvest after delay, got kind=%s reason=%s", kind, reason)
+	}
+}
+
+func TestRecommend_HarvestDelayOverridesState2Grace(t *testing.T) {
+	now := time.Date(2026, 7, 3, 15, 3, 59, 0, time.UTC)
+	delay := 30 * time.Second
+	land := state.LandView{
+		Observed:   true,
+		FlowerID:   23001,
+		State:      2,
+		NextTimeMs: now.Add(-10 * time.Second).UnixMilli(),
+	}
+	if kind, reason := Recommend(land, now, delay); kind != KindWait {
+		t.Fatalf("state=2 should wait for configured delay beyond grace, got kind=%s reason=%s", kind, reason)
+	}
+	land.NextTimeMs = now.Add(-delay - time.Second).UnixMilli()
+	if kind, reason := Recommend(land, now, delay); kind != KindHarvest {
+		t.Fatalf("state=2 should harvest after configured delay, got kind=%s reason=%s", kind, reason)
+	}
+}
+
+func TestBuildPlan_HarvestRespectsDelay(t *testing.T) {
+	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3, "7": now.Add(-10 * time.Second).UnixMilli()},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Planting.AutoHarvestEnabled = true
+	p.Plant.Planting.HarvestDelaySeconds = 30
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() {
+			t.Fatalf("harvest should wait for delay, got %+v", op)
+		}
+	}
+
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3, "7": now.Add(-31 * time.Second).UnixMilli()},
+		}},
+	})
+	result = BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() {
+			return
+		}
+	}
+	t.Fatalf("missing delayed harvest op: %+v", result.Operations)
 }
 
 func TestBuildPlan_HarvestGroupsReadyLands(t *testing.T) {
@@ -2848,6 +2926,463 @@ func TestBuildPlan_UnionLandHarvestRequiresObservedState(t *testing.T) {
 		}
 	}
 	t.Fatalf("missing union land sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantPrefersLowLevelLowStock(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 10,
+			"23005": 2,
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23005)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+					"2": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.Kind != clientproto.RPCFmlLandPlant.String() || !op.Executable || op.FlowerID != 23005 {
+				t.Fatalf("union land plant should prefer low-level low-stock 23005: %+v", op)
+			}
+			if len(op.LandIDs) != 2 || op.Count != 2 {
+				t.Fatalf("union land plant should cover empty lands: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantPrefersLowestLevelWhileBelow11(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 1,
+			"23005": 1,
+		}}},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 8, "4": 2},
+			"23005": map[string]any{"1": 23005, "2": 3, "4": 2},
+		}},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	// Maturity must not override leveling priority below 11.
+	p.Union.Land.MinMaturityMinutes = 999
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23005 {
+				t.Fatalf("below-11 should prefer lowest cultivate level 23005, got %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land plant op for lowest level: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantForceReplacesOccupiedBelow11(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 50,
+			"23005": 1, // lowest stock among equal low levels
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23005)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23001,
+						// 5 minutes into 15-minute cycle → next mature in 10m (>2m grace)
+						"2": now.Add(-5 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+					"2": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23005 {
+				t.Fatalf("below-11 should force-plant lowest-stock 23005, got %+v", op)
+			}
+			if len(op.LandIDs) != 2 || op.LandIDs[0] != 1 || op.LandIDs[1] != 2 {
+				t.Fatalf("below-11 should force-replace land 1 and fill land 2, got %+v", op.LandIDs)
+			}
+			if !strings.Contains(op.Reason, "强制换种") {
+				t.Fatalf("reason should mention force replace: %q", op.Reason)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing force-replace below-11 plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantUsesLongMaturityWhenAllHighLevel(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 1,
+			"23078": 5,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23001, 23078)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 20
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23078 {
+				t.Fatalf("high-level auto-plant should pick long-maturity 23078, got %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land plant op for long maturity: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantRespectsFlowerIDs(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 1,
+			"23117": 99,
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23117)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.FlowerIds = []int32{23117}
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23117 {
+				t.Fatalf("flower_ids allowlist should force 莹白露薇 23117, got %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land plant op for flower_ids: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantReplacesAfterHarvestCycle(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 3,
+			"23117": 1,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23001, 23117)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23001,
+						"2": now.Add(-10 * time.Minute).UnixMilli(),
+						"3": 1,
+						"4": 1,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.FlowerIds = []int32{23117}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23117 || len(op.LandIDs) != 1 || op.LandIDs[0] != 1 {
+				t.Fatalf("post-level-11 replace should plant 23117 on land 1: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing post-level-11 replace plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantReplacesHourly(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 3,
+			"23078": 1,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23001, 23078)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23001,
+						"2": now.Add(-2 * time.Hour).UnixMilli(),
+						"3": 6,
+						"4": 6,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 20
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23078 || len(op.LandIDs) != 1 || op.LandIDs[0] != 1 {
+				t.Fatalf("level-11 replace should plant long-maturity 23078 on land 1: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing level-11 replace plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantForceReplaceBelowLevel11(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 3,
+			"23117": 1,
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23117)}, // level 1
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23001,
+						// Far from next mature (>2m): force replace with 23117.
+						"2": now.Add(-5 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+					"2": map[string]any{"0": 0}, // empty
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.FlowerIds = []int32{23117}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23117 {
+				t.Fatalf("below-11 plant flower=%d, want 23117", op.FlowerID)
+			}
+			if len(op.LandIDs) != 2 || op.LandIDs[0] != 1 || op.LandIDs[1] != 2 {
+				t.Fatalf("below-11 should force-replace land 1 and fill land 2, got %+v", op.LandIDs)
+			}
+			if !strings.Contains(op.Reason, "强制换种") {
+				t.Fatalf("reason should mention force replace: %q", op.Reason)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing force-replace plant op below level 11: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantWaitsNearMatureBelowLevel11(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 3,
+			"23117": 1,
+		}}},
+		"101": map[string]any{"0": cultivate(23001, 23117)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23001,
+						// Level-0 cycle is 900s; 810s elapsed → next mature in 90s (≤2m).
+						"2": now.Add(-810 * time.Second).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+					"2": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.FlowerIds = []int32{23117}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23117 {
+				t.Fatalf("plant flower=%d, want 23117", op.FlowerID)
+			}
+			if len(op.LandIDs) != 1 || op.LandIDs[0] != 2 {
+				t.Fatalf("near-mature land 1 should wait for harvest; only fill land 2, got %+v", op.LandIDs)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing empty-only plant while waiting near mature: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantSkipsFreshPlant(t *testing.T) {
+	// Same-flower occupied land stays untouched.
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23005": 1,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23005)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23005,
+						"2": now.Add(-10 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 999
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			t.Fatalf("same flower should not replant: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionLandAutoPlantRequiresEnabled(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"101": map[string]any{"0": cultivate(23005)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.HarvestEnabled = false
+	p.Union.Land.AutoPlantEnabled = false
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if strings.HasPrefix(op.Domain, "union.land") {
+			t.Fatalf("disabled union land should plan nothing: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionLandSyncWhenUnobservedEvenIfActionsDisabled(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.HarvestEnabled = false
+	p.Union.Land.AutoPlantEnabled = false
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land" && op.Action == "sync" {
+			if op.Kind != clientproto.RPCFmlEnter.String() || !op.Executable || op.SyncOnly {
+				t.Fatalf("unobserved union land should sync even when actions off: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land sync op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantSyncWithoutHarvest(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land" && op.Action == "sync" {
+			if op.Kind != clientproto.RPCFmlEnter.String() || !op.Executable {
+				t.Fatalf("auto-plant alone should still sync: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land sync for auto-plant: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionFlowerShareReward(t *testing.T) {

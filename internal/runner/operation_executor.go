@@ -772,6 +772,37 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	return v, nil
 }
 
+func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fmlRace.getFmlRaceUsrRankList requires runner state")
+	}
+	batchID := op.TaskMsID
+	if batchID <= 0 {
+		batchID = rt.runner.state.FmlRace().BatchID
+	}
+	if batchID <= 0 {
+		return nil, fmt.Errorf("fmlRace.getFmlRaceUsrRankList requires batchId")
+	}
+	// Generated FmlRaceGetFmlRaceUsrRankListRequest.BatchId is int32; race
+	// batchIds are millisecond timestamps, so send an int64 map value.
+	v, d, err := rpcResult(rt.rpc.CallStateDelta(
+		ctx,
+		clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String(),
+		map[string]any{"batchId": batchID},
+		babigame.WithPayloadApply(false),
+	))
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		v = normalizeFmlRaceEnterV(v)
+		rt.runner.state.ApplyV(v)
+	}
+	rt.runner.state.MarkFmlRaceQuotaSyncAttempt()
+	return v, nil
+}
+
 func runSignTypeEnter(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
 	typeID, err := plannedSignTypeID(op)
 	if err != nil {

@@ -24,6 +24,7 @@ func raceTakenPlantState(t *testing.T, finish, target int32) *state.State {
 			},
 			"110": map[string]any{
 				"1783872000000": map[string]any{
+					"3": 0, // fTaskNum — mark TaskQuotaObserved so usr-rank sync does not preempt
 					"7": map[string]any{"0": 99, "1": 4001, "2": target, "3": finish, "4": []any{23001}},
 				},
 			},
@@ -146,7 +147,8 @@ func TestRacePlantBeatsCustomerOrderInBuildPlan(t *testing.T) {
 
 	// Inject a higher-looking customer flower demand via direct plantAssignments
 	// path is covered above; here ensure BuildPlan race demand still plants 23001
-	// and auto-replant does not steal the slots for 23002.
+	// first. With only 3 empties and race needing 5, race claims every slot so
+	// auto-replant has nothing left.
 	result := BuildPlan(s, policy, now)
 	var plantedRace, plantedOther int32
 	for _, op := range result.Operations {
@@ -165,7 +167,7 @@ func TestRacePlantBeatsCustomerOrderInBuildPlan(t *testing.T) {
 		t.Fatalf("expected race plant, ops=%+v demands=%+v", result.Operations, result.Demands)
 	}
 	if plantedOther > 0 {
-		t.Fatalf("race must suppress other planting, race=%d other=%d ops=%+v", plantedRace, plantedOther, result.Operations)
+		t.Fatalf("race must claim all scarce empties before other planting, race=%d other=%d ops=%+v", plantedRace, plantedOther, result.Operations)
 	}
 }
 
@@ -282,6 +284,7 @@ func TestRaceNoPlantDemandWhenTakenBelowMinScore(t *testing.T) {
 			},
 			"110": map[string]any{
 				"1783872000000": map[string]any{
+					"3": 0,
 					"7": map[string]any{"0": 99, "1": 4001, "2": 10, "3": 0, "4": []any{23001}},
 				},
 			},
@@ -506,6 +509,7 @@ func TestRaceExpiredTaskStopsProgressAndRefreshes(t *testing.T) {
 			"117": map[string]any{"5": 4},
 			"110": map[string]any{
 				"1783872000000": map[string]any{
+					"3": 0,
 					"7": map[string]any{"0": 99, "1": 4001, "2": 10, "3": 2, "4": []any{23001}, "5": now.Add(-time.Second).UnixMilli()},
 				},
 			},
@@ -689,7 +693,7 @@ func TestRacePlantMissingCreditsPlantedLands(t *testing.T) {
 		t.Fatalf("planted yield covering remaining must not emit plant demand, demands=%+v", result.Demands)
 	}
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.FlowerID == 23001 && op.Executable {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal {
 			t.Fatalf("must not plant when pending yield covers race remaining, op=%+v", op)
 		}
 	}
@@ -699,7 +703,8 @@ func TestRacePlantDoesNotTopUpWhenPendingCoversSyncedProgress(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	// Target 280, lvl 11 → 3×4=12/plant. 24 lands already took first harvest
 	// round; FinishCnt synced to 72 via field 134. Pending roundsLeft=3 → 216
-	// covers remaining 208 — no top-up onto empty lands.
+	// covers remaining 208 — no race top-up onto empty lands (自主补种 may still
+	// fill leftovers when AutoEnabled).
 	s := raceTakenPlantState(t, 72, 280)
 	lands := map[string]any{}
 	for i := 0; i < 24; i++ {
@@ -721,7 +726,7 @@ func TestRacePlantDoesNotTopUpWhenPendingCoversSyncedProgress(t *testing.T) {
 		t.Fatalf("pending yield covering synced remaining must not top-up, demands=%+v", result.Demands)
 	}
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal {
 			t.Fatalf("must not top-up when pending covers progress: %+v", op)
 		}
 	}
@@ -757,7 +762,7 @@ func TestRacePlantTopsUpWhenPendingCannotCoverTarget(t *testing.T) {
 	}
 	var plantCount int32
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal && op.FlowerID == 23001 {
 			plantCount += int32(len(op.LandIDs))
 		}
 	}
@@ -809,7 +814,7 @@ func TestRacePlantReplantsAfterAllRaceLandsClearIfIncomplete(t *testing.T) {
 	}
 	var plantCount int32
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal && op.FlowerID == 23001 {
 			plantCount += int32(len(op.LandIDs))
 		}
 	}
@@ -863,7 +868,7 @@ func TestRacePlantNoReplantDuringPartialSpeedupHarvest(t *testing.T) {
 		t.Fatalf("partial speedup harvest must not emit replant demand, demands=%+v", result.Demands)
 	}
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal {
 			t.Fatalf("must not replant while remaining race flowers still growing: %+v", op)
 		}
 	}
@@ -912,7 +917,7 @@ func TestRacePlantTopsUpAfterHarvestRoundWhenShort(t *testing.T) {
 	}
 	var plantCount int32
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal && op.FlowerID == 23001 {
 			plantCount += int32(len(op.LandIDs))
 		}
 	}
@@ -977,7 +982,7 @@ func TestRacePlantNoTopUpWhenFinishCntLagsHarvestCnt(t *testing.T) {
 		t.Fatalf("FinishCnt lag must not top-up, demands=%+v", result.Demands)
 	}
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal {
 			t.Fatalf("must not top-up while FinishCnt lags harvest: %+v", op)
 		}
 	}
@@ -1023,7 +1028,7 @@ func TestRacePlantNoTopUpWhenLocalFinishCoversAfterLandsClear(t *testing.T) {
 	policy := racePlantPolicy(false)
 	result := BuildPlan(s, policy, now)
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable && op.FlowerID == 23001 {
+		if isPlantOperation(op.Kind) && op.Executable && op.GoalID == raceActionGoal {
 			t.Fatalf("must not replant after local progress covers target: %+v", op)
 		}
 	}
@@ -1092,14 +1097,20 @@ func TestRacePlantTopsUpWhileRaceHarvestReadyIfShort(t *testing.T) {
 	}
 }
 
-func TestRacePlantDoesNotFillAllLandsOrAutoReplant(t *testing.T) {
+func TestRacePlantClaimsYieldSlotsThenAutoReplantsLeftover(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	// Target 280 like 叶小楠; lvl 11 → 3×4=12 flowers/plant → ceil(280/12)=24.
+	// Auto planting on: race takes 24, leftover empties go to 自主补种.
 	s := raceTakenPlantState(t, 0, 280)
 	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 50,
+			"23002": 0,
+		}}},
 		"100": map[string]any{"1": emptyLands(64)},
 		"101": map[string]any{"0": map[string]any{
 			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+			"23002": map[string]any{"1": 23002, "2": 1, "4": 2},
 		}},
 	})
 	policy := racePlantPolicy(false)
@@ -1112,17 +1123,68 @@ func TestRacePlantDoesNotFillAllLandsOrAutoReplant(t *testing.T) {
 	if demand.Missing != 24 {
 		t.Fatalf("demand Missing=%d, want 24", demand.Missing)
 	}
-	var plantCount int32
+	var raceCount, fallbackCount, fallbackFlower int32
 	for _, op := range result.Operations {
-		if isPlantOperation(op.Kind) && op.Executable {
-			if op.FlowerID != 23001 || op.GoalID != "union.race" {
-				t.Fatalf("unexpected plant while race active: %+v", op)
+		if !isPlantOperation(op.Kind) || !op.Executable {
+			continue
+		}
+		n := int32(len(op.LandIDs))
+		switch op.GoalID {
+		case raceActionGoal:
+			if op.FlowerID != 23001 {
+				t.Fatalf("race plant flower=%d, want 23001: %+v", op.FlowerID, op)
 			}
-			plantCount += int32(len(op.LandIDs))
+			raceCount += n
+		case GoalAutoReplant:
+			fallbackCount += n
+			fallbackFlower = op.FlowerID
+		default:
+			t.Fatalf("unexpected plant goal %q: %+v", op.GoalID, op)
 		}
 	}
-	if plantCount != 24 {
-		t.Fatalf("planted %d lands, want 24 (not full 64)", plantCount)
+	if raceCount != 24 {
+		t.Fatalf("race planted %d lands, want 24", raceCount)
+	}
+	if fallbackCount != 40 {
+		t.Fatalf("auto-replant leftover=%d, want 40 ops=%+v", fallbackCount, result.Operations)
+	}
+	if fallbackFlower != 23002 {
+		t.Fatalf("leftover should prefer low-stock 23002, got flower=%d", fallbackFlower)
+	}
+}
+
+func TestRacePlantLeavesLeftoverEmptyWhenAutoOff(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 0, 280)
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": emptyLands(64)},
+		"101": map[string]any{"0": map[string]any{
+			"23001": map[string]any{"1": 23001, "2": 11, "4": 2},
+			"23002": map[string]any{"1": 23002, "2": 1, "4": 2},
+		}},
+	})
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.AutoEnabled = false
+	policy.Plant.Planting.AutoHarvestEnabled = false
+
+	result := BuildPlan(s, policy, now)
+	var raceCount, otherCount int32
+	for _, op := range result.Operations {
+		if !isPlantOperation(op.Kind) || !op.Executable {
+			continue
+		}
+		n := int32(len(op.LandIDs))
+		if op.GoalID == raceActionGoal && op.FlowerID == 23001 {
+			raceCount += n
+			continue
+		}
+		otherCount += n
+	}
+	if raceCount != 24 {
+		t.Fatalf("race planted %d lands, want 24", raceCount)
+	}
+	if otherCount != 0 {
+		t.Fatalf("auto off must leave leftover empty, other=%d ops=%+v", otherCount, result.Operations)
 	}
 }
 
@@ -1130,7 +1192,7 @@ func TestRacePlantUsesFlowerLvlCfgWhenFlowerRowMissing(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	// 梦紫郁金香 (23436): no per-flower c_flowerLvl yield rows. Without
 	// c_flowerLvlCfg fallback, Missing collapses to remaining flowers and
-	// fills all 64 lands.
+	// fills all 64 lands as race demand.
 	s := raceTakenPlantState(t, 0, 280)
 	applyMap(t, s, map[string]any{
 		"25": map[string]any{
@@ -1148,6 +1210,7 @@ func TestRacePlantUsesFlowerLvlCfgWhenFlowerRowMissing(t *testing.T) {
 		}},
 	})
 	policy := racePlantPolicy(false)
+	policy.Plant.Planting.AutoEnabled = false
 
 	result := BuildPlan(s, policy, now)
 	demand, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23436")
@@ -1160,14 +1223,14 @@ func TestRacePlantUsesFlowerLvlCfgWhenFlowerRowMissing(t *testing.T) {
 	var plantCount int32
 	for _, op := range result.Operations {
 		if isPlantOperation(op.Kind) && op.Executable {
-			if op.FlowerID != 23436 {
-				t.Fatalf("unexpected plant flower %d", op.FlowerID)
+			if op.FlowerID != 23436 || op.GoalID != raceActionGoal {
+				t.Fatalf("unexpected plant while measuring race yield slots: %+v", op)
 			}
 			plantCount += int32(len(op.LandIDs))
 		}
 	}
 	if plantCount != 24 {
-		t.Fatalf("planted %d lands, want 24 (not full 64)", plantCount)
+		t.Fatalf("planted %d lands, want 24 race slots (not full 64)", plantCount)
 	}
 }
 

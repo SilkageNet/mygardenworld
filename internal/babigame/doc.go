@@ -168,7 +168,30 @@
 // prefix (first-drop levels 1,1,2) to cover start, drop, merge, checkpoint,
 // and active settlement without replaying account-specific captured boards.
 //
-// Per-land fields (G.ILand schema, numeric-string keys):
+// # Guild Land State (Namespace 25.102)
+//
+// Guild/union planting lives under namespace 25 field 102 (IFmlLand):
+//
+//	25.102.0           uid
+//	25.102.1.<landId>  IOneFmlLand map (authoritative landMap replacement)
+//	25.102.2           uTime
+//	25.102.3           cTime
+//
+// Per-land fields (IOneFmlLand, numeric-string keys):
+//
+//	"0" = level (c_fmlLandLvl growth tier)
+//	"1" = flowerId (0 = empty)
+//	"2" = startTime (ms; plant start)
+//	"3" = matureFlwCnt (often stale until the client UI recalculates)
+//	"4" = harvestedFlwCnt
+//	"5" = lastCalcTime (ms)
+//
+// Pending harvest prefers max(protocol mature-harvested, startTime+c_fmlLandLvl
+// time/stock). Sync via fml.enter; mutate with fmlLand.harvest / fmlLand.plant.
+//
+// # Personal Land Fields (G.ILand, Namespace 100)
+//
+// Per-land fields use numeric-string keys:
 //
 //	"0" = flowerId (23000-23999; 0 = empty)
 //	"1" = state (1=just planted/needs water, 2=growing, 3=harvestable)
@@ -333,6 +356,7 @@
 //	shopCultivate.buy    {shopId}                  → {7,113}
 //	fml.bld              {id}                      → {7,25}           guild build/donation
 //	fmlLand.harvest      {landIds}                 → {7,25}
+//	fmlLand.plant        {landIds,flwId}           → {7,25}
 //	fmlFlowerShare.refresh {}                      → {25}
 //	fmlFlowerShare.getFmlOtherShareList {}         → {25}
 //	fmlFlowerShare.recvRwd {slotIds}               → {7,25}

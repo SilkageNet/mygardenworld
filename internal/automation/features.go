@@ -132,7 +132,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "union.land", Label: "公会土地", Category: CategoryUnion, Domain: "union.land", Action: "run", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "union.land_sync", Label: "公会土地同步", Category: CategoryUnion, Domain: "union.land", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "union.land_harvest", Label: "公会土地收获", Category: CategoryUnion, Domain: "union.land.harvest", Action: "harvest", Status: PlanStatusManaged, Executable: true},
-	{ID: "union.land_plant", Label: "公会土地种植", Category: CategoryUnion, Domain: "union.land.plant", Action: "plant", Status: PlanStatusSyncOnly, SyncOnly: true},
+	{ID: "union.land_plant", Label: "公会土地种植", Category: CategoryUnion, Domain: "union.land.plant", Action: "plant", Status: PlanStatusManaged, Executable: true},
 	{ID: "union.red_packet", Label: "公会红包", Category: CategoryUnion, Domain: "union.red_packet", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"缺少公会红包执行 adapter"}},
 	{ID: "union.forest", Label: "能量森林", Category: CategoryUnion, Domain: "union.forest", Action: "collect", Status: PlanStatusManaged, Executable: true},
 

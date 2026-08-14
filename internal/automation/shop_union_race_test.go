@@ -57,11 +57,27 @@ func testRacePolicy() *pb.UnionRacePolicy {
 	}
 }
 
+func raceGatesOn() RaceModuleGates {
+	return RaceModuleGates{Customer: true, Pearl: true, Cultivate: true}
+}
+
+func raceGatesNoCustomer() RaceModuleGates {
+	return RaceModuleGates{Customer: false, Pearl: true, Cultivate: true}
+}
+
+func raceGatesNoPearl() RaceModuleGates {
+	return RaceModuleGates{Customer: true, Pearl: false, Cultivate: true}
+}
+
+func raceGatesNoCultivate() RaceModuleGates {
+	return RaceModuleGates{Customer: true, Pearl: true, Cultivate: false}
+}
+
 func TestUnionRaceDisabledProducesNoOps(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
 	policy := &pb.UnionRacePolicy{Enabled: false}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when disabled, got %d: %+v", len(ops), ops)
 	}
@@ -71,7 +87,7 @@ func TestUnionRaceEnterIsExecutable(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 enter op, got %d: %+v", len(ops), ops)
 	}
@@ -89,7 +105,7 @@ func TestUnionRaceEnterNotEmittedWhenObserved(t *testing.T) {
 	// Race data present → Observed=true → no enter op.
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceEnter.String() {
 			t.Fatalf("should not emit enter when race data already observed")
@@ -101,7 +117,7 @@ func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
 	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false, MinTaskScore: 28}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when autoEnableModules off, got %d: %+v", len(ops), ops)
 	}
@@ -112,14 +128,14 @@ func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
 	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
 		t.Fatalf("expected enter sync when modules off, got %+v", ops)
 	}
 
 	s = state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
-	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected getTaskList sync when modules off, got %+v", ops)
 	}
@@ -128,7 +144,7 @@ func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	ops = unionRaceOperations(s, policy, 0, now, true)
+	ops = unionRaceOperations(s, policy, 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected TTL refresh when modules off, got %+v", ops)
 	}
@@ -142,7 +158,7 @@ func TestUnionRaceScoreLimitFiltersLowScoreTasks(t *testing.T) {
 	})
 	policy := testRacePolicy()
 	policy.MinTaskScore = 5 // lower bound: skip tasks with Score <= 5
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 take op, got %d: %+v", len(ops), ops)
 	}
@@ -158,12 +174,12 @@ func TestUnionRaceTakeQuotaExhaustedSkipsTake(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take before quota exhausted, got %+v", ops)
 	}
 	s.MarkFmlRaceTakeQuotaExhausted()
-	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take after quota exhausted, got %+v", ops)
@@ -182,7 +198,7 @@ func TestUnionRaceAutoStopOnQuotaDoneSkipsTake(t *testing.T) {
 
 	policy := testRacePolicy()
 	policy.AutoStopOnQuotaDone = true
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take when free quota done, got %+v", ops)
@@ -191,7 +207,7 @@ func TestUnionRaceAutoStopOnQuotaDoneSkipsTake(t *testing.T) {
 
 	// With the switch off, keep taking until the server rejects.
 	policy.AutoStopOnQuotaDone = false
-	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take when auto-stop off, got %+v", ops)
 	}
@@ -202,7 +218,7 @@ func TestUnionRaceAutoStopOnQuotaDoneSkipsTake(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":17}}}}`))
 	policy = testRacePolicy()
 	policy.AutoStopOnQuotaDone = true
-	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take with remaining quota, got %+v", ops)
 	}
@@ -215,7 +231,7 @@ func TestUnionRaceAutoStopOnQuotaDoneStillFinishesHeldTask(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":18,"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
 	policy.AutoStopOnQuotaDone = true
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceFinishTask.String() {
 		t.Fatalf("expected finish despite quota done, got %+v", ops)
 	}
@@ -237,7 +253,7 @@ func TestUnionRacePrioritySorting(t *testing.T) {
 		3036: 5,
 		3044: 4,
 	}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 take op, got %d", len(ops))
 	}
@@ -260,7 +276,7 @@ func TestUnionRacePriorityZeroNotTaken(t *testing.T) {
 		3036: 5,
 		3044: 4,
 	}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("priority 0 tasks must not be taken, got take msId=%d taskId=%d", op.TaskMsID, op.TaskID)
@@ -279,7 +295,7 @@ func TestUnionRacePriorityZeroFallsThroughToPositive(t *testing.T) {
 		3017: 0,
 		3036: 5,
 	}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take of priority>0 task, got %+v", ops)
 	}
@@ -297,7 +313,7 @@ func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 		3017: 0,
 		3036: 5,
 	}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	var hasGiveUp bool
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -318,7 +334,7 @@ func TestUnionRaceGiveUpLowScoreEvenWithProgress(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":16,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 24
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	var hasGiveUp bool
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -338,7 +354,7 @@ func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// Taken msId=99 not present in observed pool; completable plant-harvest, FinishCnt=0 → give up for pool gap.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23001]}}}}}`))
-	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
 	var giveUp *PlannedOp
 	for i := range ops {
 		if ops[i].Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -359,7 +375,7 @@ func TestUnionRaceNoGiveUpMissingFromPoolWhenHasProgress(t *testing.T) {
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// Completable hold missing from pool with FinishCnt>0 → keep (avoid dropping on a transient pool gap).
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":12,"4":[23001]}}}}}`))
-	for _, op := range unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true) {
+	for _, op := range unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn()) {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("must not giveUp started task missing from pool, got %+v", op)
 		}
@@ -374,7 +390,7 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 	})
 	policy := testRacePolicy()
 	policy.ExcludeOthersUpgradeTask = true
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true) // current uid 999
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn()) // current uid 999
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 take op, got %d", len(ops))
 	}
@@ -389,7 +405,7 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 		{"0":1,"4":3036,"6":[23001],"10":28,"14":1,"15":0},
 		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
 	]}}`))
-	ops2 := unionRaceOperations(s2, policy, 999, time.Now(), true)
+	ops2 := unionRaceOperations(s2, policy, 999, time.Now(), raceGatesOn())
 	if len(ops2) != 1 || ops2[0].TaskMsID != 1 {
 		t.Fatalf("expected take system-upgraded msId 1, got %+v", ops2)
 	}
@@ -404,7 +420,7 @@ func TestUnionRaceFinishCompletedTask(t *testing.T) {
 	// Set roleID=999 via namespace 7 -> "0" -> "0".
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	var hasFinish, hasTake bool
 	for _, op := range ops {
 		switch op.Kind {
@@ -436,7 +452,7 @@ func TestUnionRaceOnlyUpgradeTaskFilter(t *testing.T) {
 	policy := testRacePolicy()
 	policy.MinTaskScore = 5
 	policy.OnlyUpgradeTask = true
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 {
 		t.Fatalf("expected 1 take op, got %d", len(ops))
 	}
@@ -450,7 +466,7 @@ func TestUnionRaceBatchInactiveProducesNoOps(t *testing.T) {
 	// Ended batch (status=2) with closed window → no race ops.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}]}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when batch inactive, got %d: %+v", len(ops), ops)
 	}
@@ -461,7 +477,7 @@ func TestUnionRaceEnterEmittedWhenOnlyTaskStubsObserved(t *testing.T) {
 	// Task pool / usr stubs without a real CurFmlRaceBatch must still trigger enter.
 	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}],"110":{}}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
 		t.Fatalf("expected enter when batch not synced, got %+v", ops)
 	}
@@ -470,9 +486,10 @@ func TestUnionRaceEnterEmittedWhenOnlyTaskStubsObserved(t *testing.T) {
 func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 	s := state.New()
 	// Enter response carries batch 111 but not task pool 114.
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4}}}`))
+	// Seed fTaskNum so usr-rank quota sync does not preempt getTaskList.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}}}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected getTaskList after enter batch, got %+v", ops)
 	}
@@ -484,19 +501,19 @@ func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 	s := state.New()
 	// Observed pool with a plant-harvest row that never got field-6 param detail.
-	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}},"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
 	if got := s.FmlRace(); !got.TasksObserved || len(got.Tasks) != 2 || got.Tasks[0].ParamID != 0 || got.Tasks[1].ParamID != 23001 {
 		t.Fatalf("seed pool = %+v", got)
 	}
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected getTaskList to refresh missing flower param, got %+v", ops)
 	}
 
 	// Same incomplete pool after apply marks the refresh fingerprint — do not loop.
 	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
-	ops = unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
 			t.Fatalf("getTaskList must not re-fire for the same incomplete pool: %+v", ops)
@@ -507,11 +524,11 @@ func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 func TestUnionRaceUpgradeOpEmission(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"3":0,"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.UpgradeTask = true
 	policy.MaxSpendDiamond = 100
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	var hasUpgrade bool
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceUpgradeTask.String() {
@@ -536,7 +553,7 @@ func TestUnionRaceDoesNotUpgradeUnheldPoolTask(t *testing.T) {
 	policy.UpgradeTask = true
 	policy.MaxSpendDiamond = 100
 
-	for _, op := range unionRaceOperations(s, policy, 999, time.Now(), true) {
+	for _, op := range unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn()) {
 		if op.Kind == clientproto.RPCFmlRaceUpgradeTask.String() {
 			t.Fatalf("empty-request upgrade RPC must not target an unheld pool row: %+v", op)
 		}
@@ -552,7 +569,7 @@ func TestUnionRaceDeleteLowScoreOpEmission(t *testing.T) {
 	policy := testRacePolicy()
 	policy.DeleteLowScoreTask = true
 	policy.DeleteTaskMaxScore = 10
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	var hasDelete bool
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceDelTask.String() {
@@ -574,7 +591,7 @@ func TestUnionRaceDeleteSkipsOccupiedTask(t *testing.T) {
 	policy.DeleteLowScoreTask = true
 	policy.DeleteTaskMaxScore = 10
 
-	for _, op := range unionRaceOperations(s, policy, 0, time.Now(), true) {
+	for _, op := range unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn()) {
 		if op.Kind == clientproto.RPCFmlRaceDelTask.String() {
 			t.Fatalf("must not delete an occupied race task: %+v", op)
 		}
@@ -588,7 +605,7 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10 // lower bound: skip tasks with Score <= 10
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	var hasGiveUp bool
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -615,7 +632,7 @@ func TestUnionRaceGiveUpUsesPoolScoreWhenTakenScoreUnset(t *testing.T) {
 	}
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	var hasGiveUp bool
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -631,7 +648,7 @@ func TestUnionRaceGiveUpUncultivatedTakenPlantHarvest(t *testing.T) {
 	s := state.New()
 	// Taken plant-harvest for uncultivated flower 23099 — impossible to complete.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23099],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23099]}}}}}`))
-	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
 	var giveUp *PlannedOp
 	for i := range ops {
 		if ops[i].Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
@@ -654,7 +671,7 @@ func TestUnionRaceNoGiveUpCultivatedTakenPlantHarvest(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23001]}}}}}`))
-	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("must not giveUp cultivated plant-harvest, got %+v", ops)
@@ -668,7 +685,7 @@ func TestUnionRaceNoGiveUpWhenTaskComplete(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("should not giveUp a completed task, got %+v", ops)
@@ -680,7 +697,7 @@ func TestUnionRaceDoesNotFinishUnknownZeroTarget(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9}],"110":{"42":{"7":{"0":1,"1":4001,"2":0,"3":0,"4":[23001]}}}}}`))
 
-	for _, op := range unionRaceOperations(s, testRacePolicy(), 0, time.Now(), true) {
+	for _, op := range unionRaceOperations(s, testRacePolicy(), 0, time.Now(), raceGatesOn()) {
 		if op.Kind == clientproto.RPCFmlRaceFinishTask.String() {
 			t.Fatalf("zero/zero unresolved progress must not be treated as complete: %+v", op)
 		}
@@ -694,7 +711,7 @@ func TestUnionRaceNoGiveUpWhenNoScoreLimit(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 0 // no filtering
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("should not giveUp when no score limit, got %+v", ops)
@@ -709,7 +726,7 @@ func TestUnionRaceNoGiveUpWhenTakenScoreUnknown(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":0,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 10
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
 			t.Fatalf("should not giveUp when taken score is unresolved, got %+v", ops)
@@ -725,7 +742,7 @@ func TestUnionRaceSkipsFarFutureAppearTime(t *testing.T) {
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
 		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
 	)))
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take far-future CD task, got %+v", ops)
@@ -743,7 +760,7 @@ func TestUnionRacePrefersReadyOverUpcoming(t *testing.T) {
 		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":5,"14":0,"15":0},{"0":2,"4":3036,"5":%d,"6":[23001],"10":99,"14":0,"15":0}]}}`,
 		readyAppear, upcomingAppear,
 	)))
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	if len(ops) == 0 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take op, got %+v", ops)
 	}
@@ -760,7 +777,7 @@ func TestUnionRacePreemptiveTakeWithinLead(t *testing.T) {
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
 		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
 	)))
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	if len(ops) == 0 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected preemptive take within lead, got %+v", ops)
 	}
@@ -773,7 +790,7 @@ func TestUnionRaceSkipsUncultivatedPlantHarvest(t *testing.T) {
 	s := state.New()
 	// Only plant-harvest with unknown / uncultivated flower — no take.
 	s.ApplyV(json.RawMessage(raceStateJSONWithParams([][5]int32{{1, 3036, 10, 0, 0}}, 23099)))
-	ops := unionRaceOperations(s, testRacePolicy(), 0, time.Now(), true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take uncultivated plant-harvest, got %+v", ops)
@@ -788,7 +805,7 @@ func TestUnionRaceTakesCultivatedPlantHarvestOverUncultivated(t *testing.T) {
 		{"0":1,"4":3036,"6":[23099],"10":99,"14":0,"15":0},
 		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
 	]}}`))
-	ops := unionRaceOperations(s, testRacePolicy(), 0, time.Now(), true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, time.Now(), raceGatesOn())
 	if len(ops) == 0 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take of cultivated plant-harvest, got %+v", ops)
 	}
@@ -808,7 +825,7 @@ func TestUnionRaceDoesNotTakeUnsupportedFallback(t *testing.T) {
 	]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3036: 5, 3044: 4}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take an unsupported task merely as a fallback: %+v", op)
@@ -996,6 +1013,30 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want:   "优先级为0",
 		},
 		{
+			name:   "pearl hire takeable with priority",
+			task:   state.FmlRaceTaskView{MsId: 22, TaskId: 1022, TaskType: 3023, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3023: 4}},
+			want:   "",
+		},
+		{
+			name:   "pearl hire priority zero",
+			task:   state.FmlRaceTaskView{MsId: 23, TaskId: 1022, TaskType: 3023, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3023: 0}},
+			want:   "优先级为0",
+		},
+		{
+			name:   "flower cultivate score 36 ok",
+			task:   state.FmlRaceTaskView{MsId: 30, TaskId: 3044, TaskType: 3044, Score: 36},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
+			want:   "",
+		},
+		{
+			name:   "flower cultivate non-36 skipped",
+			task:   state.FmlRaceTaskView{MsId: 31, TaskId: 3044, TaskType: 3044, Score: 18},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
+			want:   "仅接36分花种培育",
+		},
+		{
 			name:   "default zero type skipped when map empty",
 			task:   state.FmlRaceTaskView{MsId: 17, TaskId: 3017, TaskType: 3017, Score: 24},
 			policy: &pb.UnionRacePolicy{},
@@ -1023,7 +1064,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := RaceTakeSkipReason(s, tc.task, tc.policy, uid, now, true)
+			got := RaceTakeSkipReason(s, tc.task, tc.policy, uid, now, raceGatesOn())
 			if got != tc.want {
 				t.Fatalf("RaceTakeSkipReason = %q, want %q", got, tc.want)
 			}
@@ -1041,7 +1082,7 @@ func TestUnionRacePeriodicGetTaskListAfterTTL(t *testing.T) {
 	}
 	policy := testRacePolicy()
 	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	ops := unionRaceOperations(s, policy, 0, now, true)
+	ops := unionRaceOperations(s, policy, 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected periodic getTaskList, got %+v", ops)
 	}
@@ -1053,7 +1094,7 @@ func TestUnionRaceNoPeriodicGetTaskListWithinTTL(t *testing.T) {
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
 	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval - time.Second)
-	ops := unionRaceOperations(s, policy, 0, now, true)
+	ops := unionRaceOperations(s, policy, 0, now, raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
 			t.Fatalf("unexpected getTaskList within TTL: %+v", ops)
@@ -1066,7 +1107,7 @@ func TestUnionRaceTakeWinsOverPeriodicSync(t *testing.T) {
 	applyRaceState(s, [][5]int32{{1, 3036, 20, 0, 0}})
 	synced := s.FmlRace().TasksSyncedAtMs
 	plannerNow := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
-	ops := unionRaceOperations(s, testRacePolicy(), 0, plannerNow, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, plannerNow, raceGatesOn())
 	if len(ops) < 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take first, got %+v", ops)
 	}
@@ -1100,7 +1141,7 @@ func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32, tas
 
 func TestUnionRacePeriodicRunsDespiteNearTakenCD(t *testing.T) {
 	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 99)
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("near taken CD must not defer periodic sync, got %+v", ops)
 	}
@@ -1109,7 +1150,7 @@ func TestUnionRacePeriodicRunsDespiteNearTakenCD(t *testing.T) {
 func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
 	// Only the final approach window suppresses TTL sync; 20s is inside it.
 	s, now := raceStateAtTTL(t, 20*time.Second, 23001, 0)
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
 			t.Fatalf("near takeable CD must defer periodic sync, got %+v", ops)
@@ -1124,7 +1165,7 @@ func TestUnionRacePeriodicRunsDespiteMidTakeableCD(t *testing.T) {
 	// 5m remaining used to suppress sync (tied to 10m TTL); keep refreshing so
 	// mid-wait upgrades/claims are observed before AppearTime.
 	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("mid takeable CD must not block periodic sync, got %+v", ops)
 	}
@@ -1132,7 +1173,7 @@ func TestUnionRacePeriodicRunsDespiteMidTakeableCD(t *testing.T) {
 
 func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
 	s, now := raceStateAtTTL(t, 15*time.Minute, 23001, 0)
-	ops := unionRaceOperations(s, testRacePolicy(), 0, now, true)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("far takeable CD must not block periodic sync, got %+v", ops)
 	}
@@ -1144,11 +1185,11 @@ func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 	// takeable — a HasTask-guard regression would emit takeTask.
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// No 110 takeTaskData; pool marks uid=999 on msId=55. Another free task exists.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"7":100,"8":10,"10":25,"12":999},{"0":56,"4":4001,"6":[23001],"7":50,"8":0,"10":30,"12":0}],"110":{"42":{"3":0}}}}`))
 	if !s.FmlRace().Taken.HasTask {
 		t.Fatal("expected synthesized taken")
 	}
-	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take while holding synthesized task, ops=%+v", ops)
@@ -1159,8 +1200,8 @@ func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 	s := state.New()
 	// Synthesized taken with TargetCnt=0/FinishCnt=0 must not finish.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{}}}`))
-	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), true)
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{"42":{"3":0}}}}`))
+	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceFinishTask.String() {
 			t.Fatalf("must not finish when TargetCnt unknown, ops=%+v", ops)
@@ -1174,13 +1215,13 @@ func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 func TestUnionRaceGiveUpSynthesizedTakenPriorityZero(t *testing.T) {
 	s := state.New()
 	// Synthesized taken from pool UID: task type 3017 (priority 0), no progress.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":3017,"7":10,"8":0,"10":25,"12":999}],"110":{}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":3017,"7":10,"8":0,"10":25,"12":999}],"110":{"42":{"3":0}}}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{
 		3017: 0,
 		3036: 5,
 	}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
 		t.Fatalf("expected giveUp for priority-0 synthesized taken, got %+v", ops)
 	}
@@ -1192,7 +1233,7 @@ func TestUnionRaceTakesCustomerOrderWhenEnabled(t *testing.T) {
 	applyRaceState(s, [][5]int32{{1, 3019, 24, 0, 0}})
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4, 3036: 5}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take of customer-order race task, got %+v", ops)
 	}
@@ -1201,20 +1242,125 @@ func TestUnionRaceTakesCustomerOrderWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestUnionRaceTakesPearlHireWhenEnabled(t *testing.T) {
+	s := state.New()
+	// Catalog task 1022 has type 3023 (珍珠采集雇佣).
+	applyRaceState(s, [][5]int32{{1, 1022, 24, 0, 0}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3023: 4, 3036: 5}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of pearl-hire race task, got %+v", ops)
+	}
+	if ops[0].TaskMsID != 1 || ops[0].TaskID != 3023 {
+		t.Fatalf("take detail = msId=%d taskID=%d, want 1/3023", ops[0].TaskMsID, ops[0].TaskID)
+	}
+}
+
+func TestUnionRaceTakesFlowerCultivateOnlyScore36(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{
+		{1, 3044, 18, 0, 0},
+		{2, 3044, 36, 0, 0},
+		{3, 3044, 9, 0, 0},
+	})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of 36-score flower-cultivate, got %+v", ops)
+	}
+	if ops[0].TaskMsID != 2 || ops[0].TaskID != 3044 {
+		t.Fatalf("take detail = msId=%d taskID=%d, want 2/3044", ops[0].TaskMsID, ops[0].TaskID)
+	}
+}
+
+func TestUnionRaceSkipsFlowerCultivateWhenModuleOff(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3044, 36, 0, 0}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesNoCultivate())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take flower-cultivate without cultivate module: %+v", op)
+		}
+	}
+	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3044, TaskType: 3044, Score: 36}, policy, 0, time.Now(), raceGatesNoCultivate())
+	if got != "鲜花培育模块未开启" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 鲜花培育模块未开启", got)
+	}
+}
+
+func TestUnionRaceGiveUpFlowerCultivateNon36(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":18,"12":999}]}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("expected giveUp for non-36 flower-cultivate, got %+v", ops)
+	}
+}
+
+func TestUnionRaceKeepsFlowerCultivate36EvenIfUncompletable(t *testing.T) {
+	s := state.New()
+	// 36-score flower-cultivate hold; cultivate module off + min_task_score above 36
+	// must still keep (only priority 0 may give up).
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`))
+	policy := testRacePolicy()
+	policy.MinTaskScore = 40
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesNoCultivate())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("must not giveUp 36-score flower-cultivate, got %+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceGiveUpFlowerCultivate36WhenPriorityZero(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 0}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("expected giveUp for priority-0 flower-cultivate, got %+v", ops)
+	}
+}
+
 func TestUnionRaceSkipsCustomerOrderWhenModuleOff(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3019, 24, 0, 0}})
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), false)
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesNoCustomer())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
 			t.Fatalf("must not take customer-order race without customer module: %+v", op)
 		}
 	}
-	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3019, TaskType: 3016, Score: 24}, policy, 0, time.Now(), false)
+	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3019, TaskType: 3016, Score: 24}, policy, 0, time.Now(), raceGatesNoCustomer())
 	if got != "顾客订单模块未开启" {
 		t.Fatalf("RaceTakeSkipReason = %q, want 顾客订单模块未开启", got)
+	}
+}
+
+func TestUnionRaceSkipsPearlHireWhenModuleOff(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 1022, 24, 0, 0}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3023: 4}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesNoPearl())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take pearl-hire race without pearl hire module: %+v", op)
+		}
+	}
+	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 1022, TaskType: 3023, Score: 24}, policy, 0, time.Now(), raceGatesNoPearl())
+	if got != "珍珠雇佣模块未开启" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 珍珠雇佣模块未开启", got)
 	}
 }
 
@@ -1223,7 +1369,7 @@ func TestUnionRaceFinishesCompletedCustomerOrder(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":5}}},"114":[{"0":71,"4":3019,"7":5,"8":5,"10":24,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), true)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceFinishTask.String() {
 		t.Fatalf("expected finish of completed customer-order race, got %+v", ops)
 	}
@@ -1232,14 +1378,39 @@ func TestUnionRaceFinishesCompletedCustomerOrder(t *testing.T) {
 	}
 }
 
+func TestUnionRaceFinishesCompletedPearlHire(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":3}}},"114":[{"0":71,"4":1022,"7":3,"8":3,"10":24,"12":999}]}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3023: 4}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceFinishTask.String() {
+		t.Fatalf("expected finish of completed pearl-hire race, got %+v", ops)
+	}
+	if ops[0].TaskMsID != 71 || ops[0].TaskID != 3023 || ops[0].Priority != racePearlFinishPriority {
+		t.Fatalf("finish op = %+v, want msId=71 type=3023 prio=%d", ops[0], racePearlFinishPriority)
+	}
+}
+
 func TestUnionRaceGiveUpCustomerOrderWhenModuleOff(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":0}}},"114":[{"0":71,"4":3019,"7":5,"8":0,"10":24,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), false)
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesNoCustomer())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
 		t.Fatalf("expected giveUp when customer module off, got %+v", ops)
+	}
+}
+
+func TestUnionRaceGiveUpPearlHireWhenModuleOff(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":0}}},"114":[{"0":71,"4":1022,"7":3,"8":0,"10":24,"12":999}]}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3023: 4}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesNoPearl())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("expected giveUp when pearl hire module off, got %+v", ops)
 	}
 }
 
@@ -1249,13 +1420,29 @@ func TestUnionRaceCustomerProgressSyncAfterInterval(t *testing.T) {
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4}
-	now := time.UnixMilli(synced).Add(raceCustomerProgressSyncInterval + time.Second)
-	ops := unionRaceOperations(s, policy, 999, now, true)
+	now := time.UnixMilli(synced).Add(raceModuleProgressSyncInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected customer progress sync, got %+v taken=%+v", ops, s.FmlRace().Taken)
 	}
 	if ops[0].Priority != raceCustomerSyncPriority {
 		t.Fatalf("sync priority=%d, want %d", ops[0].Priority, raceCustomerSyncPriority)
+	}
+}
+
+func TestUnionRacePearlProgressSyncAfterInterval(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":1}}},"114":[{"0":71,"4":1022,"7":3,"8":1,"10":24,"12":999}]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3023: 4}
+	now := time.UnixMilli(synced).Add(raceModuleProgressSyncInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected pearl progress sync, got %+v taken=%+v", ops, s.FmlRace().Taken)
+	}
+	if ops[0].Priority != racePearlSyncPriority {
+		t.Fatalf("sync priority=%d, want %d", ops[0].Priority, racePearlSyncPriority)
 	}
 }
 
@@ -1281,35 +1468,35 @@ func TestUnionRaceFinishProgressSyncRespectsCooldown(t *testing.T) {
 	s := state.New()
 	// Held plant-harvest at 48/300; field 134 raises LocalFinishCnt to 300.
 	// Include 117 raceLvl so planner does not divert to enter for tier sync.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"117":{"5":4},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"117":{"5":4},"110":{"1785081600000":{"3":0,"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577]},"4":1785358559363}}}}`))
 	// Re-apply pool so FinishCnt stays lagging at 48 while LocalFinish is 300.
-	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"3":0,"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
 	got := s.FmlRace()
 	if got.LocalFinishCnt < 300 || got.Taken.FinishCnt != 48 {
 		t.Fatalf("seed local=%d finish=%d, want local>=300 finish=48", got.LocalFinishCnt, got.Taken.FinishCnt)
 	}
 	policy := testRacePolicy()
 	now := time.UnixMilli(got.TasksSyncedAtMs).Add(time.Second)
-	ops := unionRaceOperations(s, policy, 999, now, true)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
 			t.Fatalf("finish-progress sync must respect cooldown, got %+v", ops)
 		}
 	}
 	later := time.UnixMilli(got.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval + time.Second)
-	ops = unionRaceOperations(s, policy, 999, later, true)
+	ops = unionRaceOperations(s, policy, 999, later, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected finish-progress sync after cooldown, got %+v", ops)
 	}
 	// One authoritative getTaskList that still lags must clamp LocalFinish so
 	// the planner does not spin sync every raceFinishProgressSyncInterval.
-	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}],"110":{"1785081600000":{"3":0,"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}}}}`))
 	afterSync := s.FmlRace()
 	if afterSync.LocalFinishCnt != 48 {
 		t.Fatalf("LocalFinishCnt=%d after full pool, want clamped 48", afterSync.LocalFinishCnt)
 	}
-	ops = unionRaceOperations(s, policy, 999, time.UnixMilli(afterSync.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval+time.Second), true)
+	ops = unionRaceOperations(s, policy, 999, time.UnixMilli(afterSync.TasksSyncedAtMs).Add(raceFinishProgressSyncInterval+time.Second), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
 			t.Fatalf("must not keep finish-progress syncing after clamp, got %+v", ops)
@@ -1364,5 +1551,36 @@ func TestBuildPlan_RaceGiveUpPreemptsCustomerFinish(t *testing.T) {
 	}
 	if op := Plan(s, p, now); op == nil || op.Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
 		t.Fatalf("Plan()=%+v, want immediate race giveUp", op)
+	}
+}
+
+func TestBuildPlan_RacePearlHireLinksHire(t *testing.T) {
+	now := time.Now().Add(2 * time.Second)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"1003":3}}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":1}}},"114":[{"0":71,"4":1022,"7":3,"8":1,"10":24,"12":999}]},"115":{"0":{"1":{"2":0,"3":null,"4":0,"9":1}},"1":{"5":{}}},"24":{"0":{"0":999},"1":[{"0":999,"1":2001}]},"28":{"5":[{"0":2001,"1":"safe","4":12}]}}`))
+	s.ApplyV(json.RawMessage(`{"115":{"5":{"2001":0}}}`))
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Pearl.AutoHireEnabled = true
+	p.Basic.Pearl.MaxHireTicketUsage = 2
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3023: 4}
+
+	result := BuildPlan(s, p, now)
+	var linked *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.FeatureID == "basic.pearl_hire" && strings.HasPrefix(op.DemandID, raceActionGoal+":") {
+			linked = op
+			break
+		}
+	}
+	if linked == nil {
+		t.Fatalf("expected race-linked pearl hire, ops=%+v demands=%+v taken=%+v", result.Operations, result.Demands, s.FmlRace().Taken)
+	}
+	if !strings.Contains(linked.Reason, "公会竞赛珍珠雇佣剩余") {
+		t.Fatalf("reason missing race pressure: %q", linked.Reason)
 	}
 }

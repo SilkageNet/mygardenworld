@@ -216,6 +216,38 @@ func TestFlowerLvlYieldByID(t *testing.T) {
 	}
 }
 
+func TestFlowerLvlCDSeconds(t *testing.T) {
+	cd, ok := FlowerLvlCDSeconds(23001, 1)
+	if !ok || cd != 55 {
+		t.Fatalf("FlowerLvlCDSeconds(23001,1)=%d ok=%v, want 55", cd, ok)
+	}
+	cd, ok = FlowerLvlCDSeconds(23078, 11)
+	if !ok || cd != 2700 {
+		t.Fatalf("FlowerLvlCDSeconds(23078,11)=%d ok=%v, want 2700", cd, ok)
+	}
+	if _, ok := FlowerLvlCDSeconds(23001, 0); ok {
+		t.Fatal("FlowerLvlCDSeconds(23001,0) should be false")
+	}
+	// 花笼流芳 / 梦紫郁金香 only publish base c_flowerLvl(flowerId); client scales
+	// with calFlowerLvlTime(base.cd, cfg(level).cd, cfg(1).cd).
+	cd, ok = FlowerLvlCDSeconds(23331, 1)
+	if !ok || cd != 3300 {
+		t.Fatalf("FlowerLvlCDSeconds(23331,1)=%d ok=%v, want 3300", cd, ok)
+	}
+	cd, ok = FlowerLvlCDSeconds(23331, 11)
+	if !ok || cd != 2475 {
+		t.Fatalf("FlowerLvlCDSeconds(23331,11)=%d ok=%v, want 2475", cd, ok)
+	}
+	cd, ok = FlowerLvlCDSeconds(23436, 1)
+	if !ok || cd != 3000 {
+		t.Fatalf("FlowerLvlCDSeconds(23436,1)=%d ok=%v, want 3000", cd, ok)
+	}
+	cd, ok = FlowerLvlCDSeconds(23436, 20)
+	if !ok || cd != 1750 {
+		t.Fatalf("FlowerLvlCDSeconds(23436,20)=%d ok=%v, want 1750", cd, ok)
+	}
+}
+
 func TestFlowerUpgradeCostForMaxLevel(t *testing.T) {
 	if cost, ok := FlowerUpgradeCostForLevel(23006, 20); ok {
 		t.Fatalf("FlowerUpgradeCostForLevel(23006,20)=(%+v,true), want false", cost)

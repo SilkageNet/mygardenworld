@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-func Recommend(land state.LandView, now time.Time) (kind, reason string) {
+func Recommend(land state.LandView, now time.Time, harvestDelay time.Duration) (kind, reason string) {
+	if harvestDelay < 0 {
+		harvestDelay = 0
+	}
 	if !land.Observed {
 		return KindUnknown, "no observed primary state"
 	}
@@ -17,15 +20,18 @@ func Recommend(land state.LandView, now time.Time) (kind, reason string) {
 		return KindPlant, "land is empty"
 	}
 	if land.State == 3 {
+		if readyAt, ok := harvestReadyAt(land, harvestDelay); ok && now.Before(readyAt) {
+			return KindWait, fmt.Sprintf("state=3 harvest delay; readyAt=%d", readyAt.UnixMilli())
+		}
 		return KindHarvest, "state=3 (initial bloom ready)"
 	}
 	if land.State == 2 {
 		if land.NextTimeMs > 0 {
-			readyAt := time.UnixMilli(land.NextTimeMs).Add(harvestReadyGrace)
+			readyAt, _ := harvestReadyAt(land, harvestDelay)
 			if !now.Before(readyAt) {
-				return KindHarvest, fmt.Sprintf("state=2, nextTime(%d)+grace elapsed", land.NextTimeMs)
+				return KindHarvest, fmt.Sprintf("state=2, nextTime(%d)+delay elapsed", land.NextTimeMs)
 			}
-			return KindWait, fmt.Sprintf("state=2 regrowing; nextTime=%d graceUntil=%d", land.NextTimeMs, readyAt.UnixMilli())
+			return KindWait, fmt.Sprintf("state=2 regrowing; nextTime=%d readyAt=%d", land.NextTimeMs, readyAt.UnixMilli())
 		}
 		return KindWait, fmt.Sprintf("state=2 regrowing; nextTime=%d", land.NextTimeMs)
 	}
@@ -35,11 +41,47 @@ func Recommend(land state.LandView, now time.Time) (kind, reason string) {
 	return KindWait, fmt.Sprintf("state=%d not actionable", land.State)
 }
 
+// harvestReadyAt is when auto-harvest may run. State 3 uses plantTime (last
+// state change into harvestable) plus the configured delay. State 2 uses
+// nextTime plus max(protocol grace, configured delay) so short delays still
+// avoid premature harvest races.
+func harvestReadyAt(land state.LandView, harvestDelay time.Duration) (time.Time, bool) {
+	if harvestDelay < 0 {
+		harvestDelay = 0
+	}
+	switch land.State {
+	case 3:
+		if harvestDelay <= 0 {
+			return time.Time{}, false
+		}
+		matureMs := land.PlantTimeMs
+		if matureMs <= 0 {
+			matureMs = land.NextTimeMs
+		}
+		if matureMs <= 0 {
+			return time.Time{}, false
+		}
+		return time.UnixMilli(matureMs).Add(harvestDelay), true
+	case 2:
+		if land.NextTimeMs <= 0 {
+			return time.Time{}, false
+		}
+		wait := harvestReadyGrace
+		if harvestDelay > wait {
+			wait = harvestDelay
+		}
+		return time.UnixMilli(land.NextTimeMs).Add(wait), true
+	default:
+		return time.Time{}, false
+	}
+}
+
 func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time, suppressAutoReplant bool) []PlannedOp {
 	if policy == nil {
 		return nil
 	}
 	plantingPolicy := policy.GetPlanting()
+	harvestDelay := time.Duration(plantingPolicy.GetHarvestDelaySeconds()) * time.Second
 	lands := s.Lands()
 	var harvest, water, plant []int32
 	ids := make([]int32, 0, len(lands))
@@ -48,7 +90,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	for _, id := range ids {
-		kind, _ := Recommend(lands[id], now)
+		kind, _ := Recommend(lands[id], now, harvestDelay)
 		switch kind {
 		case KindHarvest:
 			harvest = append(harvest, id)
@@ -61,8 +103,9 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	var ops []PlannedOp
 	// Race plant-harvest must keep driving farm while the task is unfinished:
 	// after planting, pending yield clears the plant demand, but lands still
-	// need watering (and later harvest). suppressAutoReplant is true for that
-	// whole window.
+	// need watering (and later harvest). raceProgress is true for that whole
+	// window. Race plant slots still claim first; leftover empties may
+	// auto-replant when ordinary AutoEnabled is on.
 	raceProgress := suppressAutoReplant
 	raceDriven := hasRacePlantDemand(demands) || raceProgress
 	if (plantingPolicy.GetAutoHarvestEnabled() || raceDriven) && len(harvest) > 0 {
@@ -73,7 +116,13 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	}
 	if len(plant) > 0 {
 		plantDemands := demands
-		plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressAutoReplant || raceDriven)
+		// Race-only drive (AutoEnabled off) must not fill leftover empties with
+		// 自主补种. Active race still assigns first; leftover empties auto-replant
+		// when AutoEnabled is on. Expired plant-harvest holds keep freezing
+		// replant until getTaskList clears the stale task.
+		suppressFallback := !plantingPolicy.GetAutoEnabled() ||
+			(raceProgress && raceTakenExpired(s.FmlRace().Taken, now))
+		plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressFallback)
 		cursor := 0
 		for _, assignment := range plan.executable {
 			if cursor >= len(plant) {

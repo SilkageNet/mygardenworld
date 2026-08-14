@@ -107,9 +107,10 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	}
 	lands := st.Lands()
 	out.KnownLands = int32(len(lands))
+	harvestDelay := time.Duration(r.Policy().GetPlant().GetPlanting().GetHarvestDelaySeconds()) * time.Second
 	byKind := map[string]int32{}
 	for _, l := range lands {
-		kind, _ := automation.Recommend(l, now)
+		kind, _ := automation.Recommend(l, now, harvestDelay)
 		byKind[kind]++
 	}
 	out.ByKind = byKind
@@ -173,7 +174,11 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		CyclicStory:           cyclicStoryProto(cyclicStory),
 		FmlRace: fmlRaceProto(
 			fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now,
-			policy.GetOrder().GetCustomer().GetEnabled(),
+			automation.RaceModuleGates{
+				Customer:  policy.GetOrder().GetCustomer().GetEnabled(),
+				Pearl:     policy.GetBasic().GetPearl().GetAutoHireEnabled(),
+				Cultivate: policy.GetPlant().GetCultivate().GetEnabled(),
+			},
 		),
 		Dessert: dessertProto(dessert),
 	}
@@ -185,7 +190,9 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		resp.ReputationLastViewTimeMs = rep.LastViewTimeMs
 	}
 	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
-	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now)
+	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
+	resp.FmlLandsObserved = st.FmlLandObserved()
+	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
 	plan := automation.BuildPlan(st, policy, now)
 	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
 	resp.PlannedOperations = plannedOperationsProto(plan.Operations, diag)
@@ -473,7 +480,7 @@ var fmlRaceTaskLabels = map[int32]string{
 	3052: "动物互动",
 }
 
-func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, customerEnabled bool) *pb.FmlRaceView {
+func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, gates automation.RaceModuleGates) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
 		Observed:        view.Observed,
 		BatchActive:     view.BatchActive,
@@ -533,7 +540,7 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			UpgradeUid:     t.UpgradeUid,
 			TargetLabel:    t.TargetLabel,
 			AppearTimeMs:   t.AppearTime,
-			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, customerEnabled),
+			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, gates),
 		})
 	}
 	return out
@@ -1696,6 +1703,10 @@ func plantableFlowersProto(flowers []state.PlantableFlower) []*pb.PlantableFlowe
 	}
 	out := make([]*pb.PlantableFlowerView, 0, len(flowers))
 	for _, flower := range flowers {
+		var cdSeconds int32
+		if cd, ok := state.FlowerLvlCDSeconds(flower.FlowerID, flower.Lvl); ok {
+			cdSeconds = cd
+		}
 		out = append(out, &pb.PlantableFlowerView{
 			FlowerId:   flower.FlowerID,
 			FlowerName: itemNameOrID(flower.FlowerID),
@@ -1703,6 +1714,7 @@ func plantableFlowersProto(flowers []state.PlantableFlower) []*pb.PlantableFlowe
 			Gold:       flower.Gold,
 			Experience: flower.Experience,
 			Lvl:        flower.Lvl,
+			CdSeconds:  cdSeconds,
 		})
 	}
 	return out
@@ -2006,7 +2018,61 @@ func cloneInt32Map(in map[int32]int32) map[int32]int32 {
 	return out
 }
 
-func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandInfo, rosterObserved bool, farmLandObserved bool, level int32, now time.Time) []*pb.LandView {
+func buildFmlLandViews(lands map[int32]state.FmlLandView, cultivations map[int32]state.CultivateView, now time.Time) []*pb.FmlLandView {
+	if len(lands) == 0 {
+		return nil
+	}
+	ids := make([]int32, 0, len(lands))
+	for id := range lands {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]*pb.FmlLandView, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, fmlLandViewProto(lands[id], cultivations, now))
+	}
+	return out
+}
+
+func fmlLandViewProto(land state.FmlLandView, cultivations map[int32]state.CultivateView, now time.Time) *pb.FmlLandView {
+	pending := state.FmlLandPendingHarvest(land, now)
+	kind, reason := "wait", "成长中"
+	switch {
+	case pending > 0:
+		kind, reason = "harvest", fmt.Sprintf("可收获 %d 朵", pending)
+	case land.FlowerID <= 0:
+		kind, reason = "plant", "空地可种植"
+	}
+	var stockCap, timeSec int32
+	if cfg, ok := state.FmlLandLvlByID(land.Level); ok {
+		stockCap = cfg.Stock
+		timeSec = cfg.TimeSec
+	}
+	var flowerLvl int32
+	if land.FlowerID > 0 {
+		if cv, ok := cultivations[land.FlowerID]; ok {
+			flowerLvl = cv.Lvl
+		}
+	}
+	return &pb.FmlLandView{
+		LandId:            land.LandID,
+		Level:             land.Level,
+		FlowerId:          land.FlowerID,
+		StartTimeMs:       land.StartTimeMs,
+		MatureFlowerCount: land.MatureFlowerCnt,
+		HarvestedCount:    land.HarvestedCnt,
+		LastCalcTimeMs:    land.LastCalcTimeMs,
+		PendingHarvest:    pending,
+		StockCap:          stockCap,
+		TimeSec:           timeSec,
+		NextMatureMs:      state.FmlLandNextMatureMs(land, now),
+		Recommendation:    kind,
+		Reason:            reason,
+		FlowerLvl:         flowerLvl,
+	}
+}
+
+func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandInfo, rosterObserved bool, farmLandObserved bool, level int32, now time.Time, harvestDelay time.Duration) []*pb.LandView {
 	out := make([]*pb.LandView, 0, len(lands))
 	seen := make(map[int32]struct{}, len(lands))
 	unopenedCount := 0
@@ -2016,7 +2082,7 @@ func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandIn
 		if isUnopened {
 			unopenedCount++
 		}
-		out = append(out, landViewProtoWithLimit(info.ID, l, info, observed, rosterObserved, farmLandObserved, level, now, unopenedCount))
+		out = append(out, landViewProtoWithLimit(info.ID, l, info, observed, rosterObserved, farmLandObserved, level, now, unopenedCount, harvestDelay))
 		seen[info.ID] = struct{}{}
 	}
 	extraIDs := make([]int32, 0)
@@ -2028,19 +2094,19 @@ func buildLandViews(lands map[int32]state.LandView, farmLands []state.FarmLandIn
 	}
 	sort.Slice(extraIDs, func(i, j int) bool { return extraIDs[i] < extraIDs[j] })
 	for _, id := range extraIDs {
-		out = append(out, landViewProtoWithLimit(id, lands[id], state.FarmLandInfo{}, true, rosterObserved, farmLandObserved, level, now, 0))
+		out = append(out, landViewProtoWithLimit(id, lands[id], state.FarmLandInfo{}, true, rosterObserved, farmLandObserved, level, now, 0, harvestDelay))
 	}
 	return out
 }
 
 const maxReclaimableLands = 6
 
-func landViewProtoWithLimit(id int32, l state.LandView, info state.FarmLandInfo, observed bool, rosterObserved bool, farmLandObserved bool, level int32, now time.Time, unopenedIdx int) *pb.LandView {
+func landViewProtoWithLimit(id int32, l state.LandView, info state.FarmLandInfo, observed bool, rosterObserved bool, farmLandObserved bool, level int32, now time.Time, unopenedIdx int, harvestDelay time.Duration) *pb.LandView {
 	kind, reason := "unknown", "等待服务端土地清单"
 	status := "locked"
 	switch {
 	case observed:
-		kind, reason = automation.Recommend(l, now)
+		kind, reason = automation.Recommend(l, now, harvestDelay)
 		status = "opened"
 	case !farmLandObserved:
 		kind, reason = "unknown", "等待当前客户端土地配置"
