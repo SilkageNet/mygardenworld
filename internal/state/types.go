@@ -370,6 +370,9 @@ type FmlRaceView struct {
 	RaceLvlObserved bool
 	// RaceLvlSyncAtMs is local ms of the last enter attempt that sought raceLvl.
 	RaceLvlSyncAtMs int64
+	// RaceQuotaSyncAtMs is local ms of the last getFmlRaceUsrRankList attempt
+	// that sought fTaskNum when TaskQuotaObserved was still false.
+	RaceQuotaSyncAtMs int64
 	// MissingParamRefreshFP is the msId fingerprint of a pool that still lacked
 	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
 	// may still be issued for the current incomplete pool.

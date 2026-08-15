@@ -245,11 +245,11 @@ func TestHandleOperationErrorRaceTakeOnCooldownWaitsAppearTime(t *testing.T) {
 	if !cooling {
 		t.Fatal("expected take cooldown")
 	}
-	wantUntil := time.UnixMilli(appear).Add(300 * time.Millisecond)
+	wantUntil := time.UnixMilli(appear).Add(10 * time.Millisecond)
 	if !cd.Until.Equal(wantUntil) {
 		t.Fatalf("cooldown until=%v, want %v (AppearTime+pad)", cd.Until, wantUntil)
 	}
 	if d := cd.Until.Sub(now); d < 2*time.Second || d > 4*time.Second {
-		t.Fatalf("cooldown duration=%v, want ~3.3s not 60s ordinary backoff", d)
+		t.Fatalf("cooldown duration=%v, want ~3.01s not 60s ordinary backoff", d)
 	}
 }

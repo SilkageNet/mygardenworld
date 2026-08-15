@@ -61,6 +61,12 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	if rawTasks, ok := ns25["114"]; ok {
 		applyFmlRaceTasksLocked(&s.fmlRace, rawTasks, s.lastApplyMs, fullRaceTaskPool)
 	}
+	// Field 116 under ns25 is FmlRaceUsrRankList ([]IFmlRaceUsrRcd), distinct
+	// from top-level namespace 116 (benefit box). Used to recover fTaskNum after
+	// restart when enter/getTaskList omit field 110.
+	if rawRank, ok := ns25["116"]; ok {
+		applyFmlRaceUsrRankQuotaLocked(&s.fmlRace, rawRank, s.roleID)
+	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
 		if isJSONNull(rawUsrRcd) {
 			s.fmlRace.Taken = FmlRaceTakenView{}
@@ -68,11 +74,16 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 			s.fmlRace.FinishedTaskNum = 0
 			s.fmlRace.BuyTaskNum = 0
 		} else {
-			taken, finished, buy, quotaOK := parseFmlRaceUsrRcd(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
+			// Sparse 110 (e.g. giveUpTask only sends giveUpTime/uTime) must not
+			// treat omitted fTaskNum/buyTaskNum as zero — that wipes UI「已做」.
+			taken, finished, buy, finishedOK, buyOK := parseFmlRaceUsrRcd(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
 			s.fmlRace.Taken = taken
-			if quotaOK {
+			if finishedOK {
 				s.fmlRace.TaskQuotaObserved = true
 				s.fmlRace.FinishedTaskNum = finished
+			}
+			if buyOK {
+				s.fmlRace.TaskQuotaObserved = true
 				s.fmlRace.BuyTaskNum = buy
 			}
 		}
@@ -149,6 +160,14 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
 	if batch.BatchId != prevBatchID {
 		view.TakeQuotaExhausted = false
+		// Quota counters are per-batch. A new batch's sparse 110 row omits
+		// fTaskNum/buyTaskNum while zero, so presence-merge alone would keep
+		// the previous batch's counts and AutoStopOnQuotaDone could block all
+		// takes of the new batch. Reset and let 110/116 re-observe.
+		view.TaskQuotaObserved = false
+		view.FinishedTaskNum = 0
+		view.BuyTaskNum = 0
+		view.RaceQuotaSyncAtMs = 0
 	}
 }
 
@@ -873,6 +892,9 @@ func (s *State) applyFmlLandObjectLocked(raw json.RawMessage) {
 	}
 	rawLandMap, ok := fields["1"]
 	if !ok {
+		// Sparse 25.102 stubs may omit landMap. Treat the namespace as observed
+		// without wiping any previously synced slots.
+		s.fmlLandObserved = true
 		return
 	}
 	var landMap map[string]json.RawMessage
@@ -1215,6 +1237,31 @@ func FmlLandPendingHarvest(land FmlLandView, now time.Time) int32 {
 	return stored
 }
 
+// FmlLandNextMatureMs returns when the next flower becomes harvestable.
+// Zero means empty, already pending, stock-full, or catalog/timing unknown.
+func FmlLandNextMatureMs(land FmlLandView, now time.Time) int64 {
+	if land.FlowerID <= 0 || land.StartTimeMs <= 0 {
+		return 0
+	}
+	if FmlLandPendingHarvest(land, now) > 0 {
+		return 0
+	}
+	cfg, ok := FmlLandLvlByID(land.Level)
+	if !ok || cfg.TimeSec <= 0 {
+		return 0
+	}
+	elapsedSec := (now.UnixMilli() - land.StartTimeMs) / 1000
+	if elapsedSec < 0 {
+		elapsedSec = 0
+	}
+	produced := elapsedSec / int64(cfg.TimeSec)
+	if cfg.Stock > 0 && produced >= int64(cfg.Stock) {
+		return 0
+	}
+	nextIndex := produced + 1
+	return land.StartTimeMs + nextIndex*int64(cfg.TimeSec)*1000
+}
+
 // ReadyFmlLandHarvestIDs returns guild lands with unclaimed mature flowers.
 func (s *State) ReadyFmlLandHarvestIDs(now time.Time) []int32 {
 	s.mu.RLock()
@@ -1540,17 +1587,56 @@ func fmlFlowerShareTakeMax() int32 {
 	return 4
 }
 
+// applyFmlRaceUsrRankQuotaLocked updates FinishedTaskNum/BuyTaskNum from
+// FmlRaceUsrRankList (ns25 field 116). Only the current uid row is applied;
+// takeTaskData is ignored so a rank snapshot cannot clobber live Taken.
+func applyFmlRaceUsrRankQuotaLocked(view *FmlRaceView, raw json.RawMessage, uid int64) {
+	if len(raw) == 0 || isJSONNull(raw) || uid <= 0 {
+		return
+	}
+	var rows []json.RawMessage
+	if json.Unmarshal(raw, &rows) != nil || len(rows) == 0 {
+		return
+	}
+	for _, row := range rows {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(row, &fields) != nil {
+			continue
+		}
+		var rcd clientproto.IFmlRaceUsrRcd
+		if json.Unmarshal(row, &rcd) != nil || rcd.UID != uid {
+			continue
+		}
+		if view.BatchID > 0 && rcd.BatchId > 0 && rcd.BatchId != view.BatchID {
+			continue
+		}
+		if _, ok := fields["3"]; ok {
+			view.FinishedTaskNum = rcd.FTaskNum
+			view.TaskQuotaObserved = true
+		}
+		if _, ok := fields["6"]; ok {
+			view.BuyTaskNum = rcd.BuyTaskNum
+			view.TaskQuotaObserved = true
+		}
+		return
+	}
+}
+
 // parseFmlRaceUsrRcd extracts taken-task progress and task-quota counters from
 // FmlRaceUsrRcdMap (namespace 25, field 110). Observed payloads key the map by
 // batchId (not uid). Prefer batchId, then uid, then any entry with TakeTaskData
-// (for taken) / any entry (for quota).
-func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (taken FmlRaceTakenView, finished, buy int32, quotaOK bool) {
+// (for taken) / any entry (for quota fields that are actually present).
+//
+// finishedOK / buyOK are true only when JSON keys "3" / "6" appear on the chosen
+// row. giveUpTask often returns {"8":giveUpTime,"9":uTime} without fTaskNum;
+// callers must keep prior FinishedTaskNum in that case.
+func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (taken FmlRaceTakenView, finished, buy int32, finishedOK, buyOK bool) {
 	if len(raw) == 0 {
-		return FmlRaceTakenView{}, 0, 0, false
+		return FmlRaceTakenView{}, 0, 0, false, false
 	}
-	var m map[string]clientproto.IFmlRaceUsrRcd
+	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil || len(m) == 0 {
-		return FmlRaceTakenView{}, 0, 0, false
+		return FmlRaceTakenView{}, 0, 0, false, false
 	}
 	tryKeys := make([]string, 0, 2)
 	if batchID > 0 {
@@ -1559,41 +1645,49 @@ func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (taken FmlRaceT
 	if uid > 0 {
 		tryKeys = append(tryKeys, strconv.FormatInt(uid, 10))
 	}
-	var preferred *clientproto.IFmlRaceUsrRcd
+	read := func(rcdRaw json.RawMessage) (FmlRaceTakenView, int32, int32, bool, bool) {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(rcdRaw, &fields) != nil {
+			return FmlRaceTakenView{}, 0, 0, false, false
+		}
+		var rcd clientproto.IFmlRaceUsrRcd
+		if json.Unmarshal(rcdRaw, &rcd) != nil {
+			return FmlRaceTakenView{}, 0, 0, false, false
+		}
+		_, fOK := fields["3"]
+		_, bOK := fields["6"]
+		return takenFromUsrRcd(rcd), rcd.FTaskNum, rcd.BuyTaskNum, fOK, bOK
+	}
+	var preferredRaw json.RawMessage
 	for _, key := range tryKeys {
-		if rcd, ok := m[key]; ok {
-			preferred = &rcd
+		if rcdRaw, ok := m[key]; ok {
+			preferredRaw = rcdRaw
 			break
 		}
 	}
-	if preferred != nil {
-		quotaOK = true
-		finished = preferred.FTaskNum
-		buy = preferred.BuyTaskNum
-		taken = takenFromUsrRcd(*preferred)
+	if preferredRaw != nil {
+		taken, finished, buy, finishedOK, buyOK = read(preferredRaw)
 		if taken.HasTask {
-			return taken, finished, buy, true
+			return taken, finished, buy, finishedOK, buyOK
 		}
 	}
-	for _, rcd := range m {
-		if view := takenFromUsrRcd(rcd); view.HasTask {
-			if !quotaOK {
-				finished = rcd.FTaskNum
-				buy = rcd.BuyTaskNum
-				quotaOK = true
-			}
-			return view, finished, buy, quotaOK
+	for _, rcdRaw := range m {
+		view, f, b, fOK, bOK := read(rcdRaw)
+		if !view.HasTask {
+			continue
 		}
+		if preferredRaw == nil {
+			finished, buy, finishedOK, buyOK = f, b, fOK, bOK
+		}
+		return view, finished, buy, finishedOK, buyOK
 	}
-	if !quotaOK {
-		for _, rcd := range m {
-			finished = rcd.FTaskNum
-			buy = rcd.BuyTaskNum
-			quotaOK = true
+	if preferredRaw == nil {
+		for _, rcdRaw := range m {
+			_, finished, buy, finishedOK, buyOK = read(rcdRaw)
 			break
 		}
 	}
-	return taken, finished, buy, quotaOK
+	return taken, finished, buy, finishedOK, buyOK
 }
 
 func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
@@ -1633,6 +1727,14 @@ func (s *State) MarkFmlRaceLvlSyncAttempt() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.RaceLvlSyncAtMs = time.Now().UnixMilli()
+}
+
+// MarkFmlRaceQuotaSyncAttempt records that getFmlRaceUsrRankList was used to
+// seek fTaskNum, so the planner backs off when the payload still omitted it.
+func (s *State) MarkFmlRaceQuotaSyncAttempt() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.RaceQuotaSyncAtMs = time.Now().UnixMilli()
 }
 
 // MarkFmlRacePoolTaskClaimed marks a pool row as already taken so automation

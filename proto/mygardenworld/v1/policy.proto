@@ -154,6 +154,11 @@ message PlantingPolicy {
   // planted (through FlowerMaxLevel, typically 20). Does not restrict
   // demand-driven planting for tasks/orders.
   int32 auto_replant_min_level = 20;
+
+  // Seconds to wait after a plant becomes harvestable before auto-harvest.
+  // 0 means harvest as soon as ready (state=3 immediately; state=2 still uses
+  // the short protocol ready grace). Does not affect manual harvest.
+  int32 harvest_delay_seconds = 21;
 }
 
 message FriendStealPolicy {
@@ -333,6 +338,12 @@ message UnionLandPolicy {
   repeated int32 qualities = 4;
   repeated int32 flower_ids = 5;
   int32 max_flower_level = 6;
+  // When auto-planting and every filtered plantable flower is at/above level 11,
+  // only consider flowers whose catalog grow CD is at least this many minutes.
+  // Below level 11, maturity is ignored and lands are force-replaced onto
+  // low-level flowers (except when the current crop matures within 2 minutes).
+  // 0 means default 20.
+  int32 min_maturity_minutes = 7;
 }
 
 message ActivityPolicy {

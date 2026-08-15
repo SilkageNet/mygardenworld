@@ -676,3 +676,67 @@ func TestFmlRaceUsrRcdTaskQuotaPreservedWithoutTaken(t *testing.T) {
 		t.Fatalf("after finish clear: %+v", got)
 	}
 }
+
+func TestFmlRaceQuotaResetsOnBatchChange(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"3":5,"6":1}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 5 {
+		t.Fatalf("batch A quota: %+v", got)
+	}
+	// New batch: sparse 110 rows omit "3"/"6" while the counters are zero.
+	// The old batch's counts must not leak into the new batch.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":43,"1":1,"2":1000,"3":9000},"110":{"43":{"9":1500}}}}`))
+	got = s.FmlRace()
+	if got.TaskQuotaObserved || got.FinishedTaskNum != 0 || got.BuyTaskNum != 0 {
+		t.Fatalf("batch B must reset quota: %+v", got)
+	}
+	// A full row for the new batch re-observes the quota.
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"43":{"3":1,"6":0}}}}`))
+	got = s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 1 {
+		t.Fatalf("batch B quota re-observe: %+v", got)
+	}
+}
+
+func TestFmlRaceUsrRcdGiveUpSparseDoesNotWipeFinished(t *testing.T) {
+	s := New()
+	// Live shape: finishTask sets fTaskNum=4; giveUpTask later sends only
+	// giveUpTime/uTime under the same batch key (叶小楠 2026-08-14).
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1786291200000,"1":1,"2":1000,"3":9000},"110":{"1786291200000":{"3":4,"4":126,"5":1000,"9":1000}}}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 4 {
+		t.Fatalf("after finish: %+v", got)
+	}
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"1786291200000":{"8":2000,"9":2000}}}}`))
+	got = s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 4 {
+		t.Fatalf("giveUp sparse must keep finished=4, got %+v", got)
+	}
+	if got.Taken.HasTask {
+		t.Fatalf("giveUp sparse should clear taken, got %+v", got.Taken)
+	}
+}
+
+func TestFmlRaceUsrRcdGiveUpSparseAloneDoesNotObserveQuota(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1786291200000,"1":1,"2":1000,"3":9000},"110":{"1786291200000":{"8":2000,"9":2000}}}}`))
+	got := s.FmlRace()
+	if got.TaskQuotaObserved || got.FinishedTaskNum != 0 {
+		t.Fatalf("sparse giveUp without fTaskNum must not mark quota observed: %+v", got)
+	}
+}
+
+func TestFmlRaceUsrRankListRecoversFinished(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":99}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"117":{"5":4}}}`))
+	if s.FmlRace().TaskQuotaObserved {
+		t.Fatal("quota must start unobserved")
+	}
+	// Rank list row for self with fTaskNum=4 / buyTaskNum=1.
+	s.ApplyV(json.RawMessage(`{"25":{"116":[{"0":99,"1":42,"3":4,"6":1},{"0":100,"1":42,"3":9,"6":0}]}}`))
+	got := s.FmlRace()
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 4 || got.BuyTaskNum != 1 {
+		t.Fatalf("rank list must recover quota for uid=99: %+v", got)
+	}
+}

@@ -91,6 +91,9 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Planting.AutoReplantMinLevel < 0 {
 		cp.Plant.Planting.AutoReplantMinLevel = 0
 	}
+	if cp.Plant.Planting.HarvestDelaySeconds < 0 {
+		cp.Plant.Planting.HarvestDelaySeconds = 0
+	}
 	if maxLevel := state.FlowerMaxLevel(); maxLevel > 0 && cp.Plant.Planting.AutoReplantMinLevel > maxLevel {
 		cp.Plant.Planting.AutoReplantMinLevel = maxLevel
 	}

@@ -719,8 +719,10 @@ func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.Pla
 }
 
 // normalizeFmlRaceEnterV wraps a bare IFmlTot-shaped payload under namespace 25.
-// Some enter responses place fields like 111/117 at the top level of v; ApplyV
-// expects them under "25".
+// Some enter/getTaskList/getFmlRaceUsrRankList responses place fields like
+// 111/117/116 at the top level of v; ApplyV expects them under "25". A bare
+// top-level 116 here is the race member rank list (25.116), never the benefit
+// box namespace — this helper is only called on race RPC payloads.
 func normalizeFmlRaceEnterV(v json.RawMessage) json.RawMessage {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(v, &top); err != nil || len(top) == 0 {
@@ -734,7 +736,8 @@ func normalizeFmlRaceEnterV(v json.RawMessage) json.RawMessage {
 	_, hasGroup := top["112"]
 	_, hasTasks := top["114"]
 	_, hasUsr := top["110"]
-	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr {
+	_, hasRank := top["116"]
+	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr && !hasRank {
 		return v
 	}
 	wrapped, err := json.Marshal(map[string]json.RawMessage{"25": v})
@@ -768,6 +771,40 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	// !TasksObserved early-exit, or sync loops on the decision interval.
 	if !rt.runner.state.FmlRace().TasksObserved {
 		rt.runner.state.MarkFmlRaceTasksSynced()
+	}
+	return v, nil
+}
+
+func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fmlRace.getFmlRaceUsrRankList requires runner state")
+	}
+	batchID := op.TaskMsID
+	if batchID <= 0 {
+		batchID = rt.runner.state.FmlRace().BatchID
+	}
+	if batchID <= 0 {
+		return nil, fmt.Errorf("fmlRace.getFmlRaceUsrRankList requires batchId")
+	}
+	// Generated FmlRaceGetFmlRaceUsrRankListRequest.BatchId is int32; race
+	// batchIds are millisecond timestamps, so send an int64 map value.
+	v, d, err := rpcResult(rt.rpc.CallStateDelta(
+		ctx,
+		clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String(),
+		map[string]any{"batchId": batchID},
+		babigame.WithPayloadApply(false),
+	))
+	// Record the attempt even when the call fails: the planner emits this sync
+	// as an early return, and an unmarked failure would starve every other
+	// race op (finish/giveUp/take) behind endless retries.
+	rt.runner.state.MarkFmlRaceQuotaSyncAttempt()
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		v = normalizeFmlRaceEnterV(v)
+		rt.runner.state.ApplyV(v)
 	}
 	return v, nil
 }

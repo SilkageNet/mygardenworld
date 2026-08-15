@@ -11,24 +11,37 @@ import (
 )
 
 const (
-	raceTaskTypePlantHarvest  int32 = 3036
-	raceTaskTypeCustomerOrder int32 = 3016
+	raceTaskTypePlantHarvest    int32 = 3036
+	raceTaskTypeCustomerOrder   int32 = 3016
+	raceTaskTypePearlHire       int32 = 3023
+	raceTaskTypeFlowerCultivate int32 = 3044
+
+	// Catalog flower-cultivate rows upgrade to score 36 (e.g. 9→18→36).
+	// Automation only takes/keeps that fully-upgraded score.
+	raceFlowerCultivateRequiredScore int32 = 36
 
 	// Above defaultDemandPriority GoalCustomerOrder (90) so race plant-harvest
 	// always claims empty lands before ordinary order flower demands.
 	raceDemandPriority int32 = 95
 	raceActionGoal           = "union.race"
 
-	// Customer-order race progress is only authoritative after getTaskList
-	// (no live field-134 harvest deltas). Successful customer finishes already
-	// MarkFmlRaceTasksUnobserved for an immediate refresh; this interval is only
-	// a slow fallback when finishes happen outside automation.
-	raceCustomerProgressSyncInterval = 10 * time.Minute
+	// Customer-order / pearl-hire / flower-cultivate race progress is only
+	// authoritative after getTaskList (no live field-134 harvest deltas).
+	// Successful module finishes MarkFmlRaceTasksUnobserved for an immediate
+	// refresh; this interval is only a slow fallback when finishes happen
+	// outside automation.
+	raceModuleProgressSyncInterval = 10 * time.Minute
 
 	// Beat the ordinary customer-order lane (~11000+) so race sync/finish are
-	// not starved by endless gen/finish cycling.
-	raceCustomerSyncPriority   int32 = 12400
-	raceCustomerFinishPriority int32 = 12500
+	// not starved by endless gen/finish cycling. Cultivate / pearl hire ops
+	// are lower priority; the same elevated sync/finish ranks keep race
+	// submission ahead of unrelated union work without blocking those modules.
+	raceCustomerSyncPriority    int32 = 12400
+	raceCustomerFinishPriority  int32 = 12500
+	racePearlSyncPriority       int32 = 12400
+	racePearlFinishPriority     int32 = 12500
+	raceCultivateSyncPriority   int32 = 12400
+	raceCultivateFinishPriority int32 = 12500
 
 	// raceExpireSpeedupLead is how long before a held plant-harvest task's
 	// ExpireTime the explicit urgency policy may use speedup tickets.
@@ -68,8 +81,8 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 	// missing from pool, uncompletable, priority 0), and do not progress while
 	// score is still unresolved under a min_task_score gate. Farm-lane plant
 	// ops otherwise outrank side-lane giveUp and can fill the whole farm first.
-	customerEnabled := policy.GetOrder().GetCustomer().GetEnabled()
-	if raceTakenBlocksProgress(s, race, view, customerEnabled) {
+	gates := raceModuleGatesFromPolicy(policy)
+	if raceTakenBlocksProgress(s, race, view, gates) {
 		return nil
 	}
 	switch taken.TaskType {
@@ -111,25 +124,33 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 			Missing:   plantsMissing,
 			Priority:  raceDemandPriority,
 		}}
-	case raceTaskTypeCustomerOrder:
-		// Action demand only — ordinary order.customer ops satisfy it. Inventory
-		// ledger must not allocate against FinishCnt-style progress.
+	case raceTaskTypeCustomerOrder, raceTaskTypePearlHire, raceTaskTypeFlowerCultivate:
+		// Action demand only — ordinary order.customer / pearl hire /
+		// farm.cultivate ops satisfy it. Inventory ledger must not allocate
+		// against FinishCnt-style progress.
 		missing := taken.TargetCnt - taken.FinishCnt
 		if missing <= 0 {
 			return nil
 		}
 		label := "公会竞赛顾客订单"
+		switch taken.TaskType {
+		case raceTaskTypePearlHire:
+			label = "公会竞赛珍珠雇佣"
+		case raceTaskTypeFlowerCultivate:
+			label = "公会竞赛花种培育"
+		}
 		if taken.TargetLabel != "" {
-			label = "公会竞赛顾客订单 " + taken.TargetLabel
+			label = label + " " + taken.TargetLabel
 		}
 		entityID := strconv.FormatInt(taken.TaskMsId, 10)
+		src := raceActionDemandSource(taken.TaskType)
 		return []Demand{{
-			ID:        demandID(raceActionGoal, entityID, "race_task", DemandKindAction, 0),
+			ID:        demandID(raceActionGoal, entityID, src, DemandKindAction, 0),
 			GoalID:    raceActionGoal,
 			Category:  CategoryRace,
 			Domain:    raceActionGoal,
 			EntityID:  entityID,
-			Source:    "race_task",
+			Source:    src,
 			Label:     label,
 			Kind:      DemandKindAction,
 			ItemID:    0,
@@ -142,6 +163,12 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 	default:
 		return nil
 	}
+}
+
+// raceActionDemandSource tags module-backed race action demands so customer /
+// pearl / cultivate drivers cannot cross-link each other's ops.
+func raceActionDemandSource(taskType int32) string {
+	return "race_task:" + strconv.FormatInt(int64(taskType), 10)
 }
 
 // racePlantHarvestPlantMissing converts race flower-count targets into how
@@ -252,8 +279,10 @@ func hasRacePlantDemand(demands []Demand) bool {
 }
 
 // raceSuppressesAutoReplant reports whether an unfinished plant-harvest race
-// task is being progressed. While true, farm planning plants only the
-// yield-calculated race slots and leaves remaining empty lands alone.
+// task should keep driving harvest/water (and race plant slots) even when
+// ordinary farm auto toggles are off. Leftover empty lands still follow
+// AutoEnabled for 自主补种 after race demand slots are assigned, except while
+// the held task is expired (freeze until getTaskList clears it).
 func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time) bool {
 	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
 		return false
@@ -274,14 +303,33 @@ func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time)
 		// gone; otherwise an expired race task can unexpectedly refill the farm.
 		return true
 	}
-	return !raceTakenBlocksProgress(s, race, s.FmlRace(), policy.GetOrder().GetCustomer().GetEnabled())
+	return !raceTakenBlocksProgress(s, race, s.FmlRace(), raceModuleGatesFromPolicy(policy))
+}
+
+// RaceModuleGates carries ordinary business-module switches that race take /
+// abandon / progress gates must honor (mirrors AutoEnableModules limits).
+type RaceModuleGates struct {
+	Customer  bool
+	Pearl     bool
+	Cultivate bool
+}
+
+func raceModuleGatesFromPolicy(policy *pb.Policy) RaceModuleGates {
+	if policy == nil {
+		return RaceModuleGates{}
+	}
+	return RaceModuleGates{
+		Customer:  policy.GetOrder().GetCustomer().GetEnabled(),
+		Pearl:     policy.GetBasic().GetPearl().GetAutoHireEnabled(),
+		Cultivate: policy.GetPlant().GetCultivate().GetEnabled(),
+	}
 }
 
 // raceTaskTypeAutoCompletable reports whether automation can take and finish
 // this guild-race task type (business-module gates are checked separately).
 func raceTaskTypeAutoCompletable(taskType int32) bool {
 	switch taskType {
-	case raceTaskTypePlantHarvest, raceTaskTypeCustomerOrder:
+	case raceTaskTypePlantHarvest, raceTaskTypeCustomerOrder, raceTaskTypePearlHire, raceTaskTypeFlowerCultivate:
 		return true
 	default:
 		return false
@@ -291,6 +339,22 @@ func raceTaskTypeAutoCompletable(taskType int32) bool {
 // RaceHoldsUnfinishedCustomerOrder reports whether the account currently holds
 // an incomplete customer-order race task.
 func RaceHoldsUnfinishedCustomerOrder(view state.FmlRaceView) bool {
+	return raceHoldsUnfinishedType(view, raceTaskTypeCustomerOrder)
+}
+
+// RaceHoldsUnfinishedPearlHire reports whether the account currently holds an
+// incomplete pearl-hire race task.
+func RaceHoldsUnfinishedPearlHire(view state.FmlRaceView) bool {
+	return raceHoldsUnfinishedType(view, raceTaskTypePearlHire)
+}
+
+// RaceHoldsUnfinishedFlowerCultivate reports whether the account currently
+// holds an incomplete flower-cultivate race task.
+func RaceHoldsUnfinishedFlowerCultivate(view state.FmlRaceView) bool {
+	return raceHoldsUnfinishedType(view, raceTaskTypeFlowerCultivate)
+}
+
+func raceHoldsUnfinishedType(view state.FmlRaceView, wantType int32) bool {
 	taken := view.Taken
 	if !taken.HasTask {
 		return false
@@ -299,7 +363,7 @@ func RaceHoldsUnfinishedCustomerOrder(view state.FmlRaceView) bool {
 	if taskType == 0 {
 		taskType = taken.TaskId
 	}
-	return taskType == raceTaskTypeCustomerOrder &&
+	return taskType == wantType &&
 		(taken.TargetCnt <= 0 || taken.FinishCnt < taken.TargetCnt)
 }
 
@@ -307,7 +371,25 @@ func RaceHoldsUnfinishedCustomerOrder(view state.FmlRaceView) bool {
 // task should re-fetch getTaskList so FinishCnt can catch up after ordinary
 // customer-order finishes.
 func raceNeedsCustomerProgressSync(view state.FmlRaceView, now time.Time) bool {
-	if !RaceHoldsUnfinishedCustomerOrder(view) {
+	return raceNeedsModuleProgressSync(view, RaceHoldsUnfinishedCustomerOrder(view), now)
+}
+
+// raceNeedsPearlProgressSync reports that an unfinished pearl-hire race task
+// should re-fetch getTaskList so FinishCnt can catch up after ordinary
+// pearlPlace.hire ops.
+func raceNeedsPearlProgressSync(view state.FmlRaceView, now time.Time) bool {
+	return raceNeedsModuleProgressSync(view, RaceHoldsUnfinishedPearlHire(view), now)
+}
+
+// raceNeedsCultivateProgressSync reports that an unfinished flower-cultivate
+// race task should re-fetch getTaskList so FinishCnt can catch up after
+// ordinary cultivate/recv ops.
+func raceNeedsCultivateProgressSync(view state.FmlRaceView, now time.Time) bool {
+	return raceNeedsModuleProgressSync(view, RaceHoldsUnfinishedFlowerCultivate(view), now)
+}
+
+func raceNeedsModuleProgressSync(view state.FmlRaceView, holds bool, now time.Time) bool {
+	if !holds {
 		return false
 	}
 	taken := view.Taken
@@ -317,20 +399,81 @@ func raceNeedsCustomerProgressSync(view state.FmlRaceView, now time.Time) bool {
 	if !view.TasksObserved || view.TasksSyncedAtMs <= 0 {
 		return true
 	}
-	return !now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceCustomerProgressSyncInterval))
+	return !now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceModuleProgressSyncInterval))
 }
 
 // driveRaceCustomerOrderOperations links ordinary customer-order finish ops to
 // the held race demand so the UI/reason shows race progress pressure. It never
 // enables the customer module by itself.
 func driveRaceCustomerOrderOperations(policy *pb.Policy, demands []Demand, ops []PlannedOp) []PlannedOp {
-	if policy == nil || !policy.GetOrder().GetCustomer().GetEnabled() || len(ops) == 0 {
+	return driveRaceActionModuleOperations(policy, demands, ops, raceTaskTypeCustomerOrder,
+		func(op PlannedOp) bool {
+			return runnableBusinessOperation(op) && op.Kind == clientproto.RPCOrderCustomerFinishOrder.String()
+		},
+		func(missing int32) string {
+			return fmt.Sprintf("公会竞赛顾客订单剩余 %d 次", missing)
+		},
+		func(p *pb.Policy) bool { return p != nil && p.GetOrder().GetCustomer().GetEnabled() },
+	)
+}
+
+// driveRacePearlHireOperations links ordinary pearl-hire planner ops to the
+// held race demand. It never enables auto-hire by itself.
+func driveRacePearlHireOperations(policy *pb.Policy, demands []Demand, ops []PlannedOp) []PlannedOp {
+	return driveRaceActionModuleOperations(policy, demands, ops, raceTaskTypePearlHire,
+		func(op PlannedOp) bool {
+			return op.FeatureID == "basic.pearl_hire" && racePearlPlannerKind(op.Kind)
+		},
+		func(missing int32) string {
+			return fmt.Sprintf("公会竞赛珍珠雇佣剩余 %d 次", missing)
+		},
+		func(p *pb.Policy) bool { return p != nil && p.GetBasic().GetPearl().GetAutoHireEnabled() },
+	)
+}
+
+// driveRaceFlowerCultivateOperations links ordinary cultivate start/recv ops to
+// the held race demand. It never enables the cultivate module by itself.
+func driveRaceFlowerCultivateOperations(policy *pb.Policy, demands []Demand, ops []PlannedOp) []PlannedOp {
+	return driveRaceActionModuleOperations(policy, demands, ops, raceTaskTypeFlowerCultivate,
+		func(op PlannedOp) bool {
+			if !runnableBusinessOperation(op) {
+				return false
+			}
+			switch op.Kind {
+			case clientproto.RPCCultivateCultivate.String(), clientproto.RPCCultivateRecv.String():
+				return true
+			default:
+				return false
+			}
+		},
+		func(missing int32) string {
+			return fmt.Sprintf("公会竞赛花种培育剩余 %d 次", missing)
+		},
+		func(p *pb.Policy) bool { return p != nil && p.GetPlant().GetCultivate().GetEnabled() },
+	)
+}
+
+func racePearlPlannerKind(kind string) bool {
+	return cyclicNotePearlPlannerKind(kind)
+}
+
+func driveRaceActionModuleOperations(
+	policy *pb.Policy,
+	demands []Demand,
+	ops []PlannedOp,
+	taskType int32,
+	match func(PlannedOp) bool,
+	reasonPrefix func(missing int32) string,
+	moduleOn func(*pb.Policy) bool,
+) []PlannedOp {
+	if !moduleOn(policy) || len(ops) == 0 {
 		return ops
 	}
+	wantSource := raceActionDemandSource(taskType)
 	var raceDemand Demand
 	found := false
 	for _, demand := range demands {
-		if demand.GoalID == raceActionGoal && demand.Source == "race_task" &&
+		if demand.GoalID == raceActionGoal && demand.Source == wantSource &&
 			demand.Kind == DemandKindAction && demand.Missing > 0 {
 			raceDemand = demand
 			found = true
@@ -340,14 +483,12 @@ func driveRaceCustomerOrderOperations(policy *pb.Policy, demands []Demand, ops [
 	if !found {
 		return ops
 	}
-	idx := deterministicOperationIndex(ops, func(op PlannedOp) bool {
-		return runnableBusinessOperation(op) && op.Kind == clientproto.RPCOrderCustomerFinishOrder.String()
-	})
+	idx := deterministicOperationIndex(ops, match)
 	if idx < 0 {
 		return ops
 	}
 	ops[idx].DemandID = raceDemand.ID
-	prefix := fmt.Sprintf("公会竞赛顾客订单剩余 %d 次", raceDemand.Missing)
+	prefix := reasonPrefix(raceDemand.Missing)
 	if ops[idx].Reason == "" {
 		ops[idx].Reason = prefix
 	} else {
@@ -369,7 +510,7 @@ func raceTaskTypeLabel(taskType int32) string {
 		return "材料商店购买"
 	case 3018:
 		return "宫廷订单"
-	case 3023:
+	case raceTaskTypePearlHire:
 		return "珍珠采集雇佣"
 	case 3024:
 		return "好友偷花"
@@ -381,7 +522,7 @@ func raceTaskTypeLabel(taskType int32) string {
 		return "鲜花升级"
 	case raceTaskTypePlantHarvest:
 		return "种植收获"
-	case 3044:
+	case raceTaskTypeFlowerCultivate:
 		return "花种培育"
 	case 3052:
 		return "动物互动"
@@ -425,7 +566,7 @@ func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Tim
 	}
 	taken := s.FmlRace().Taken
 	if !taken.HasTask || taken.TaskType != raceTaskTypePlantHarvest ||
-		taken.FinishCnt >= taken.TargetCnt || raceTakenBlocksProgress(s, race, s.FmlRace(), true) {
+		taken.FinishCnt >= taken.TargetCnt || raceTakenBlocksProgress(s, race, s.FmlRace(), RaceModuleGates{Customer: true, Pearl: true, Cultivate: true}) {
 		return false
 	}
 	if race.GetUseSpeedupTicketInTask() {
