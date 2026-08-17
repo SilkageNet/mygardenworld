@@ -664,10 +664,12 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 // Lifecycle:
 //  1. enter + getTaskList (sync) — runs when Enabled, even if AutoEnableModules is off
 //  2. takeTask (接取) — requires AutoEnableModules; supports 种植收获、顾客订单、
-//     珍珠采集雇佣、花种培育
+//     珍珠采集雇佣、花艺制作/售卖、花种培育
 //  3. progress — raceTaskProgressDemands drives plant/harvest for 种植收获;
-//     顾客订单 / 珍珠雇佣 / 花种培育 reuse ordinary order.customer /
-//     basic.pearl_hire / farm.cultivate ops (those modules must be enabled)
+//     顾客订单 / 珍珠雇佣 / 花艺 reuse ordinary (or race-owned flower-art) ops.
+//     花种培育 is take/finish only: no progress demand; FinishCnt advances
+//     outside race automation (manual / ordinary cultivate) and is synced via
+//     getTaskList before finishTask
 //  4. finishTask when TargetCnt > 0 && FinishCnt >= TargetCnt (完成并领取积分;
 //     TargetCnt<=0 means unknown progress and must not auto-finish)
 //
@@ -756,7 +758,9 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		syncPrio = racePearlSyncPriority
 	case RaceHoldsUnfinishedFlowerArtSell(view) || RaceHoldsUnfinishedFlowerArtCraft(view):
 		syncPrio = raceFlowerArtSyncPriority
-	case RaceHoldsUnfinishedFlowerCultivate(view) && gates.Cultivate:
+	// Cultivate holds (especially sticky score-36) may advance manually while
+	// plant.cultivate is off; still elevate getTaskList so FinishCnt can catch up.
+	case RaceHoldsUnfinishedFlowerCultivate(view):
 		syncPrio = raceCultivateSyncPriority
 	}
 	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {
@@ -796,7 +800,10 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	// Module-backed race progress needs getTaskList after ordinary finishes.
-	// Only while the matching module can still advance the counter.
+	// Customer/pearl sync only while those modules can still advance counters
+	// (module-off holds are abandoned). Flower-art sync has no ordinary toggle
+	// gate (race owns those ops). Flower-cultivate is take/finish only: sync
+	// FinishCnt from manual / ordinary cultivate without driving progress.
 	if len(ops) == 0 && gates.Customer && raceNeedsCustomerProgressSync(view, now) {
 		return []PlannedOp{domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
@@ -819,7 +826,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			reason, raceFlowerArtSyncPriority, 0, 0, 0,
 		)}
 	}
-	if len(ops) == 0 && gates.Cultivate && raceNeedsCultivateProgressSync(view, now) {
+	if len(ops) == 0 && raceNeedsCultivateProgressSync(view, now) {
 		return []PlannedOp{domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 			"公会竞赛花种培育进度同步", raceCultivateSyncPriority, 0, 0, 0,
@@ -1092,8 +1099,8 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 			return "珍珠雇佣模块未开启"
 		}
 	case raceTaskTypeFlowerCultivate:
-		// Take does not require plant.cultivate: holders may progress manually.
-		// Ordinary cultivate ops still gate on the module when driving progress.
+		// Take does not require plant.cultivate. Race does not drive cultivate
+		// ops — only take / sync FinishCnt / finishTask.
 		if t.Score != raceFlowerCultivateRequiredScore {
 			return fmt.Sprintf("仅接%d分花种培育", raceFlowerCultivateRequiredScore)
 		}
@@ -1152,7 +1159,8 @@ func raceTaskTypePriority(policy *pb.UnionRacePolicy, taskType int32) int32 {
 // required for take or progress.
 //
 // Flower-cultivate (3044): only Score==36 and FinishCnt==0; plant.cultivate is
-// not required for take (progress still needs the ordinary cultivate module).
+// not required. Race does not drive cultivate ops — only take, progress sync,
+// and finishTask once FinishCnt catches up.
 //
 // AppearTime gating: ready tasks (appearTime already due) are preferred. CD tasks
 // within raceTakeLeadWindow may be selected preemptively when no ready candidate
@@ -1196,18 +1204,17 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 // unfinished taken tasks (unknown progress TargetCnt<=0 counts as unfinished).
 //
 // Order (auto-complete on):
-//  1. Flower-cultivate at the required score (36): FinishCnt>0 never give up
-//     (synced/manual progress). Progress-0 holds only priority 0 may give up
-//     — keep even when the cultivate module is off, score is below
-//     min_task_score, or the pool row is missing.
+//  1. Flower-cultivate at the required score (36): never give up once held
+//     (manual take, priority 0, module off, min_task_score, missing pool row).
+//     Race does not drive cultivate progress — only sync + finishTask.
 //  2. Score <= min_task_score (pool score fills Taken.Score==0; still-unresolved
 //     Score==0 → do not give up for score alone). Fires even when FinishCnt>0 so
 //     a sub-threshold hold is dropped instead of planted to completion.
 //  3. Flower-cultivate with known score other than 36 → give up.
-//  4. Plant-harvest uncompletable / customer / pearl / cultivate module off /
-//     priority 0 (also with progress). Flower-cultivate module-off is not an
-//     abandon path once score is 36 (see step 1). Flower-art sell/craft never
-//     abandons for a missing ordinary sell/craft toggle.
+//  4. Plant-harvest uncompletable / customer / pearl module off / priority 0
+//     (also with progress). Flower-cultivate is never abandoned for a missing
+//     plant.cultivate toggle. Flower-art sell/craft never abandons for a
+//     missing ordinary sell/craft toggle.
 //  5. Pool observed and TaskMsId missing from pool → give up only when FinishCnt==0
 //     (mid-progress keep avoids dropping a live task on a transient pool gap)
 func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, gates RaceModuleGates) string {
@@ -1221,15 +1228,9 @@ func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view sta
 	if taskType == 0 {
 		taskType = taken.TaskId
 	}
-	// 36-point flower-cultivate: mid-progress holds are never given up (manual
-	// or synced progress). Progress-0 holds are sticky except priority 0.
+	// 36-point flower-cultivate: never give up once held (including manually
+	// taken holds and priority 0). Race only takes/finishes; progress is external.
 	if taskType == raceTaskTypeFlowerCultivate && score == raceFlowerCultivateRequiredScore {
-		if taken.FinishCnt > 0 {
-			return ""
-		}
-		if raceTakenPriorityZero(policy, taken) {
-			return "公会竞赛放弃优先级为0的已接任务"
-		}
 		return ""
 	}
 	switch {
@@ -1243,9 +1244,6 @@ func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view sta
 			return "公会竞赛放弃无法完成的顾客订单任务"
 		case raceTaskTypePearlHire:
 			return "公会竞赛放弃无法完成的珍珠雇佣任务"
-		case raceTaskTypeFlowerCultivate:
-			// Score unknown (not yet 36): treat module-off like other types.
-			return "公会竞赛放弃无法完成的花种培育任务"
 		default:
 			return "公会竞赛放弃无法完成的种植收获任务"
 		}
@@ -1296,9 +1294,9 @@ func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view st
 
 // raceTakenUncompletable reports whether a held unfinished task can never be
 // progressed by automation — plant-harvest with a missing/unplantable target, or
-// customer/pearl/cultivate while the ordinary module is off. Flower-art sell
-// and craft are always race-driven and are never uncompletable for a missing
-// sell/craft toggle.
+// customer/pearl while the ordinary module is off. Flower-art sell/craft are
+// race-driven. Flower-cultivate is take/finish only and is never treated as
+// uncompletable for a missing plant.cultivate toggle.
 func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates RaceModuleGates) bool {
 	taskType := taken.TaskType
 	if taskType == 0 {
@@ -1311,8 +1309,6 @@ func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates 
 		return !gates.Customer
 	case raceTaskTypePearlHire:
 		return !gates.Pearl
-	case raceTaskTypeFlowerCultivate:
-		return !gates.Cultivate
 	default:
 		return false
 	}

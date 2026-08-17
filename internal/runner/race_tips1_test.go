@@ -253,3 +253,63 @@ func TestHandleOperationErrorRaceTakeOnCooldownWaitsAppearTime(t *testing.T) {
 		t.Fatalf("cooldown duration=%v, want ~3.01s not 60s ordinary backoff", d)
 	}
 }
+
+func TestHandleOperationSuccessMarksRaceProgressUnobserved(t *testing.T) {
+	tests := []struct {
+		name   string
+		seed   string
+		kind   string
+		wantOK bool
+	}{
+		{
+			name:   "flower art craft",
+			seed:   `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1}}},"114":[{"0":71,"4":3034,"7":5,"8":1,"10":24,"12":999}]}}`,
+			kind:   clientproto.RPCFlowerArtMakeFlowerArt.String(),
+			wantOK: true,
+		},
+		{
+			name:   "flower art sell",
+			seed:   `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3030,"2":5,"3":1}}},"114":[{"0":71,"4":3030,"7":5,"8":1,"10":24,"12":999}]}}`,
+			kind:   clientproto.RPCFlowerRackSell.String(),
+			wantOK: true,
+		},
+		{
+			name:   "cultivate start",
+			seed:   `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`,
+			kind:   clientproto.RPCCultivateCultivate.String(),
+			wantOK: true,
+		},
+		{
+			name:   "cultivate recv",
+			seed:   `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`,
+			kind:   clientproto.RPCCultivateRecv.String(),
+			wantOK: true,
+		},
+		{
+			name:   "craft rpc while holding sell does not mark",
+			seed:   `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3030,"2":5,"3":1}}},"114":[{"0":71,"4":3030,"7":5,"8":1,"10":24,"12":999}]}}`,
+			kind:   clientproto.RPCFlowerArtMakeFlowerArt.String(),
+			wantOK: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newOperationEventTestRunner()
+			r.state.ApplyV(json.RawMessage(tc.seed))
+			if !r.state.FmlRace().TasksObserved {
+				t.Fatal("seed TasksObserved")
+			}
+			r.handleOperationSuccess(context.Background(), operationResult{
+				operationAttempt: operationAttempt{
+					op: &automation.PlannedOp{Kind: tc.kind, Category: "order", Domain: "test", Action: "test"},
+				},
+				finishedAt: time.Now(),
+				raw:        json.RawMessage(`{}`),
+			})
+			got := !r.state.FmlRace().TasksObserved
+			if got != tc.wantOK {
+				t.Fatalf("MarkFmlRaceTasksUnobserved=%v, want %v (taken=%+v)", got, tc.wantOK, r.state.FmlRace().Taken)
+			}
+		})
+	}
+}

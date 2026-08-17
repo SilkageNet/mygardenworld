@@ -1339,7 +1339,7 @@ func TestUnionRaceGiveUpFlowerCultivateNon36(t *testing.T) {
 func TestUnionRaceKeepsFlowerCultivate36EvenIfUncompletable(t *testing.T) {
 	s := state.New()
 	// 36-score flower-cultivate hold; cultivate module off + min_task_score above 36
-	// must still keep (only priority 0 may give up).
+	// must still keep (never give up once held at score 36).
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 40
@@ -1352,28 +1352,35 @@ func TestUnionRaceKeepsFlowerCultivate36EvenIfUncompletable(t *testing.T) {
 	}
 }
 
-func TestUnionRaceGiveUpFlowerCultivate36WhenPriorityZero(t *testing.T) {
-	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`))
-	policy := testRacePolicy()
-	policy.TaskTypePriority = map[int32]int32{3044: 0}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
-	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
-		t.Fatalf("expected giveUp for priority-0 flower-cultivate, got %+v", ops)
+func TestUnionRaceKeepsFlowerCultivate36EvenIfPriorityZero(t *testing.T) {
+	// Manual take or leftover hold: score 36 must not be given up when type
+	// priority is 0 (automation will not take new ones, but keeps existing).
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "progress zero",
+			raw:  `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`,
+		},
+		{
+			name: "mid progress",
+			raw:  `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`,
+		},
 	}
-}
-
-func TestUnionRaceKeepsFlowerCultivate36WithProgressEvenIfPriorityZero(t *testing.T) {
-	s := state.New()
-	// FinishCnt=1 on a 36-score hold; priority 0 must not give up mid-progress.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`))
-	policy := testRacePolicy()
-	policy.TaskTypePriority = map[int32]int32{3044: 0}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesNoCultivate())
-	for _, op := range ops {
-		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
-			t.Fatalf("must not giveUp mid-progress 36 flower-cultivate, got %+v", ops)
-		}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := state.New()
+			s.ApplyV(json.RawMessage(tc.raw))
+			policy := testRacePolicy()
+			policy.TaskTypePriority = map[int32]int32{3044: 0}
+			ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesNoCultivate())
+			for _, op := range ops {
+				if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+					t.Fatalf("must not giveUp 36 flower-cultivate when priority 0, got %+v", ops)
+				}
+			}
+		})
 	}
 }
 
@@ -1579,6 +1586,22 @@ func TestUnionRaceFlowerArtSellProgressSyncAfterInterval(t *testing.T) {
 	}
 	if ops[0].Priority != raceFlowerArtSyncPriority || !strings.Contains(ops[0].Reason, "花艺售卖") {
 		t.Fatalf("sync op = %+v, want sell sync at prio %d", ops[0], raceFlowerArtSyncPriority)
+	}
+}
+
+func TestUnionRaceCultivateProgressSyncAfterInterval(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	now := time.UnixMilli(synced).Add(raceModuleProgressSyncInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesNoCultivate())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected cultivate progress sync with module off, got %+v taken=%+v", ops, s.FmlRace().Taken)
+	}
+	if ops[0].Priority != raceCultivateSyncPriority || !strings.Contains(ops[0].Reason, "花种培育") {
+		t.Fatalf("sync op = %+v, want cultivate sync at prio %d", ops[0], raceCultivateSyncPriority)
 	}
 }
 
@@ -1826,7 +1849,7 @@ func TestBuildPlan_RaceFlowerArtCraftPicksHighestSeededPrice(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_RaceFlowerArtSellCancelsAfterFourMinutes(t *testing.T) {
+func TestBuildPlan_RaceFlowerArtSellCancelsAfterFiveMinutes(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	listedAt := now.Add(-raceFlowerArtRelistAfter - time.Second).UnixMilli()
 	s := state.New()
@@ -1838,7 +1861,7 @@ func TestBuildPlan_RaceFlowerArtSellCancelsAfterFourMinutes(t *testing.T) {
 			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3030, "2": 5, "3": 1}}},
 			"114": []any{map[string]any{"0": 71, "4": 3030, "7": 5, "8": 1, "10": 24, "12": 999}},
 		},
-		// Two occupied racks past 4 minutes; SellReady far in the future.
+		// Two occupied racks past raceFlowerArtRelistAfter; SellReady far in the future.
 		"104": map[string]any{"0": map[string]any{
 			"1": map[string]any{"1": 1, "2": 300208, "3": 2, "4": listedAt},
 			"2": map[string]any{"1": 2, "2": 300208, "3": 2, "4": listedAt},

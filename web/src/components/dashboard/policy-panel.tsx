@@ -209,7 +209,7 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
     id: 3044,
     label: "花种培育",
     defaultPriority: 0,
-    note: "只接正好 36 分且进度为 0 的花种培育（不是≥36）；不要求开启鲜花培育。已接的 36 分且有进度的不放弃；进度为 0 时仅优先级为 0 才放弃",
+    note: "只接正好 36 分且进度为 0；不要求开启鲜花培育。竞赛不主动培育，只接取并在进度达标后提交。已接的 36 分任务一律不放弃（含手动接取、优先级为 0）",
   },
   { id: 3052, label: "动物互动", defaultPriority: 0 },
 ];
@@ -1000,7 +1000,7 @@ export default function PolicyPanel({
                 <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
               <div className="mt-3 space-y-2">
-                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前支持自动推进：种植收获、顾客订单、花种培育。</p>
+                <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前支持自动推进：种植收获、顾客订单、珍珠雇佣、花艺制作/售卖；花种培育仅接取与提交。</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {RACE_TASK_TYPES.map((task) => (
                     <NumberRow

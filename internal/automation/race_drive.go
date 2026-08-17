@@ -32,7 +32,8 @@ const (
 	// is only authoritative after getTaskList (no live field-134 harvest
 	// deltas). Successful module finishes MarkFmlRaceTasksUnobserved for an
 	// immediate refresh; this interval is only a slow fallback when finishes
-	// happen outside automation.
+	// happen outside automation. Flower-cultivate is take/finish only — race
+	// never emits cultivate RPCs; sync still watches FinishCnt for submit.
 	raceModuleProgressSyncInterval = 10 * time.Minute
 
 	// Beat the ordinary customer-order lane (~11000+) so race sync/finish are
@@ -141,10 +142,11 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 			Priority:  raceDemandPriority,
 		}}
 	case raceTaskTypeCustomerOrder, raceTaskTypePearlHire,
-		raceTaskTypeFlowerArtSell, raceTaskTypeFlowerArtCraft, raceTaskTypeFlowerCultivate:
+		raceTaskTypeFlowerArtSell, raceTaskTypeFlowerArtCraft:
 		// Action demand only — ordinary order.customer / pearl hire /
-		// flowerRack.sell / flowerArt.makeFlowerArt / farm.cultivate ops
-		// satisfy it. Inventory ledger must not allocate against FinishCnt.
+		// flowerRack.sell / flowerArt.makeFlowerArt ops satisfy it.
+		// Flower-cultivate (3044) is take/finish only: no progress demand.
+		// Inventory ledger must not allocate against FinishCnt.
 		missing := taken.TargetCnt - taken.FinishCnt
 		if missing <= 0 {
 			return nil
@@ -157,8 +159,6 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 			label = "公会竞赛花艺售卖"
 		case raceTaskTypeFlowerArtCraft:
 			label = "公会竞赛花艺制作"
-		case raceTaskTypeFlowerCultivate:
-			label = "公会竞赛花种培育"
 		}
 		if taken.TargetLabel != "" {
 			label = label + " " + taken.TargetLabel
@@ -187,7 +187,7 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 }
 
 // raceActionDemandSource tags module-backed race action demands so customer /
-// pearl / flower-art / cultivate drivers cannot cross-link each other's ops.
+// pearl / flower-art drivers cannot cross-link each other's ops.
 func raceActionDemandSource(taskType int32) string {
 	return "race_task:" + strconv.FormatInt(int64(taskType), 10)
 }
@@ -330,7 +330,8 @@ func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time)
 // RaceModuleGates carries ordinary business-module switches that race take /
 // abandon / progress gates must honor (mirrors AutoEnableModules limits).
 // Flower-art sell (3030) and craft (3034) are race-driven and do not require
-// order.flower_art sell_enabled / craft_enabled.
+// order.flower_art sell_enabled / craft_enabled. Flower-cultivate (3044) is
+// take/finish only and does not require plant.cultivate.
 type RaceModuleGates struct {
 	Customer  bool
 	Pearl     bool
@@ -424,8 +425,9 @@ func raceNeedsFlowerArtProgressSync(view state.FmlRaceView, now time.Time) bool 
 }
 
 // raceNeedsCultivateProgressSync reports that an unfinished flower-cultivate
-// race task should re-fetch getTaskList so FinishCnt can catch up after
-// ordinary cultivate/recv ops.
+// race task should re-fetch getTaskList so FinishCnt can catch up. Not gated on
+// plant.cultivate: sticky score-36 holds may advance manually while the module
+// is off.
 func raceNeedsCultivateProgressSync(view state.FmlRaceView, now time.Time) bool {
 	return raceNeedsModuleProgressSync(view, RaceHoldsUnfinishedFlowerCultivate(view), now)
 }
@@ -777,28 +779,6 @@ func raceRecipeAllFlowersSeeded(s *state.State, recipe state.FlowerArtRecipe) bo
 		}
 	}
 	return true
-}
-
-// driveRaceFlowerCultivateOperations links ordinary cultivate start/recv ops to
-// the held race demand. It never enables the cultivate module by itself.
-func driveRaceFlowerCultivateOperations(policy *pb.Policy, demands []Demand, ops []PlannedOp) []PlannedOp {
-	return driveRaceActionModuleOperations(policy, demands, ops, raceTaskTypeFlowerCultivate,
-		func(op PlannedOp) bool {
-			if !runnableBusinessOperation(op) {
-				return false
-			}
-			switch op.Kind {
-			case clientproto.RPCCultivateCultivate.String(), clientproto.RPCCultivateRecv.String():
-				return true
-			default:
-				return false
-			}
-		},
-		func(missing int32) string {
-			return fmt.Sprintf("公会竞赛花种培育剩余 %d 次", missing)
-		},
-		func(p *pb.Policy) bool { return p != nil && p.GetPlant().GetCultivate().GetEnabled() },
-	)
 }
 
 func racePearlPlannerKind(kind string) bool {
