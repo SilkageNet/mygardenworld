@@ -196,15 +196,20 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
   { id: 3018, label: "宫廷订单", defaultPriority: 0 },
   { id: 3023, label: "珍珠采集雇佣", defaultPriority: 0 },
   { id: 3024, label: "好友偷花", defaultPriority: 0 },
-  { id: 3030, label: "花艺售卖", defaultPriority: 0 },
-  { id: 3034, label: "花艺制作", defaultPriority: 0 },
+  { id: 3030, label: "花艺售卖", defaultPriority: 0, note: "不要求「自动上架」；上架满5分钟会全部下架再挂；缺成品先按制作规则做最高价有种子花艺" },
+  {
+    id: 3034,
+    label: "花艺制作",
+    defaultPriority: 0,
+    note: "不要求「自动制作」；只做配方花都有种子且售价最高的花艺",
+  },
   { id: 3035, label: "鲜花升级", defaultPriority: 0 },
   { id: 3036, label: "种植收获", defaultPriority: 5 },
   {
     id: 3044,
     label: "花种培育",
     defaultPriority: 0,
-    note: "只接正好 36 分的花种培育（不是≥36）；需开启鲜花培育。已接的 36 分任务不自动放弃（优先级为 0 除外）",
+    note: "只接正好 36 分且进度为 0 的花种培育（不是≥36）；不要求开启鲜花培育。已接的 36 分且有进度的不放弃；进度为 0 时仅优先级为 0 才放弃",
   },
   { id: 3052, label: "动物互动", defaultPriority: 0 },
 ];
@@ -571,13 +576,13 @@ export default function PolicyPanel({
             <PolicyGroup title="土地与种植" icon={<Sprout />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="自动种植" checked={planting?.autoEnabled ?? false} onChange={(checked) => updatePlanting({ autoEnabled: checked })} />
-                <ToggleRow label="自动收获" checked={planting?.autoHarvestEnabled ?? false} onChange={(checked) => updatePlanting({ autoHarvestEnabled: checked })} />
+                <ToggleRow label="自动收获" checked={planting?.autoHarvestEnabled ?? false} description="关闭后普通农田不自动收；公会竞赛种植任务仍会强制收获竞赛花" onChange={(checked) => updatePlanting({ autoHarvestEnabled: checked })} />
                 <NumberRow
                   label="延时收获（秒）"
                   value={planting?.harvestDelaySeconds || 0}
                   min={0}
                   onChange={(value) => updatePlanting({ harvestDelaySeconds: value })}
-                  description="植物成熟后等待多久再收获；0=立即收获"
+                  description="植物成熟后等待多久再收获；0=立即收获。竞赛种植的花朵不受此间隔限制，默认直接收获"
                 />
                 <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={planting?.videoSpeedUpEnabled ?? false} onChange={(checked) => updatePlanting({ videoSpeedUpEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.video_speed_up")} />}
@@ -985,8 +990,7 @@ export default function PolicyPanel({
                 <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步任务池与当前已接任务（只读展示）；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
                 <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进种植/提交与放弃竞赛任务；默认关闭。未开启时仍会同步并显示已接任务，但不会自动执行" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
                 <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
-                <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
-                <ToggleRow label="临期兜底使用加速卡" checked={unionRace?.urgentSpeedupEnabled ?? false} description="已接种植任务进入最后 10 分钟时使用加速卡；默认关闭，只有明确开启才会额外消耗道具" onChange={(checked) => updateUnionRace({ urgentSpeedupEnabled: checked })} />
+                <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} description="已接种植收获任务全程可用加速卡。关闭时仍强制保底：任务最后 10 分钟自动对竞赛花使用加速卡" onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过；已接且未完成的同样会自动放弃（需开启自动完成）。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />

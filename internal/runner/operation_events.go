@@ -484,6 +484,11 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "花艺上架"
 		category = automation.CategoryOrder
 		message = flowerRackSellSuccessMessage(op)
+	case clientproto.RPCFlowerRackCancelSell.String():
+		kind = "flower_rack_cancel"
+		label = "花艺下架"
+		category = automation.CategoryOrder
+		message = fmt.Sprintf("花架下架 rack=%d", op.TargetID)
 	case clientproto.RPCFlowerRackRecvSellMoney.String():
 		kind = "flower_rack_claim"
 		label = "花艺售出"
@@ -597,6 +602,18 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		automation.RaceHoldsUnfinishedPearlHire(r.state.FmlRace()) {
 		// Pearl-hire race FinishCnt advances via getTaskList. Force a pool
 		// refresh on the next tick after a successful hire.
+		r.state.MarkFmlRaceTasksUnobserved()
+	}
+	if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() &&
+		automation.RaceHoldsUnfinishedFlowerArtCraft(r.state.FmlRace()) {
+		// Flower-art-craft race FinishCnt advances via getTaskList. Force a
+		// pool refresh on the next tick after a successful craft.
+		r.state.MarkFmlRaceTasksUnobserved()
+	}
+	if op.Kind == clientproto.RPCFlowerRackSell.String() &&
+		automation.RaceHoldsUnfinishedFlowerArtSell(r.state.FmlRace()) {
+		// Flower-art-sell race FinishCnt advances via getTaskList. Force a
+		// pool refresh on the next tick after a successful listing.
 		r.state.MarkFmlRaceTasksUnobserved()
 	}
 	if (op.Kind == clientproto.RPCCultivateCultivate.String() ||

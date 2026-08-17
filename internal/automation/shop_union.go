@@ -12,8 +12,8 @@ import (
 )
 
 // raceTakeLeadWindow is how early automation may emit takeTask for a CD pool
-// row that already meets filter rules (one planner tick).
-const raceTakeLeadWindow = 4 * time.Second
+// row that already meets filter rules.
+const raceTakeLeadWindow = 50 * time.Millisecond
 
 // raceTaskPoolRefreshInterval is how often automation re-fetches the task pool
 // when idle of giveUp/finish/take.
@@ -673,8 +673,8 @@ func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
 //
 // useSpeedupTicketInTask is honored by maintenanceOperations via
 // raceSpeedupEnabled while an unfinished plant-harvest task is held.
-// Near ExpireTime (last 10 minutes), UrgentSpeedupEnabled can opt into using
-// speedup tickets as a completion fallback even when the regular toggle is off.
+// Near ExpireTime (last 10 minutes), speedup tickets are always allowed as a
+// forced completion guarantee even when the regular toggle is off.
 func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, now time.Time, gates RaceModuleGates) []PlannedOp {
 	if policy == nil || !policy.GetEnabled() {
 		return nil
@@ -754,6 +754,8 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		syncPrio = raceCustomerSyncPriority
 	case RaceHoldsUnfinishedPearlHire(view) && gates.Pearl:
 		syncPrio = racePearlSyncPriority
+	case RaceHoldsUnfinishedFlowerArtSell(view) || RaceHoldsUnfinishedFlowerArtCraft(view):
+		syncPrio = raceFlowerArtSyncPriority
 	case RaceHoldsUnfinishedFlowerCultivate(view) && gates.Cultivate:
 		syncPrio = raceCultivateSyncPriority
 	}
@@ -805,6 +807,16 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		return []PlannedOp{domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 			"公会竞赛珍珠雇佣进度同步", racePearlSyncPriority, 0, 0, 0,
+		)}
+	}
+	if len(ops) == 0 && raceNeedsFlowerArtProgressSync(view, now) {
+		reason := "公会竞赛花艺制作进度同步"
+		if RaceHoldsUnfinishedFlowerArtSell(view) {
+			reason = "公会竞赛花艺售卖进度同步"
+		}
+		return []PlannedOp{domainOp(
+			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
+			reason, raceFlowerArtSyncPriority, 0, 0, 0,
 		)}
 	}
 	if len(ops) == 0 && gates.Cultivate && raceNeedsCultivateProgressSync(view, now) {
@@ -1009,6 +1021,8 @@ func raceFinishOperation(goal Goal, taken state.FmlRaceTakenView) PlannedOp {
 		prio = raceCustomerFinishPriority
 	case raceTaskTypePearlHire:
 		prio = racePearlFinishPriority
+	case raceTaskTypeFlowerArtSell, raceTaskTypeFlowerArtCraft:
+		prio = raceFlowerArtFinishPriority
 	case raceTaskTypeFlowerCultivate:
 		prio = raceCultivateFinishPriority
 	}
@@ -1078,11 +1092,13 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 			return "珍珠雇佣模块未开启"
 		}
 	case raceTaskTypeFlowerCultivate:
-		if !gates.Cultivate {
-			return "鲜花培育模块未开启"
-		}
+		// Take does not require plant.cultivate: holders may progress manually.
+		// Ordinary cultivate ops still gate on the module when driving progress.
 		if t.Score != raceFlowerCultivateRequiredScore {
 			return fmt.Sprintf("仅接%d分花种培育", raceFlowerCultivateRequiredScore)
+		}
+		if t.FinishCnt > 0 {
+			return "仅接进度为0的花种培育"
 		}
 	}
 	return ""
@@ -1131,6 +1147,13 @@ func raceTaskTypePriority(policy *pb.UnionRacePolicy, taskType int32) int32 {
 // Plant-harvest (3036): skip when ParamID is missing or the flower is not yet
 // cultivated (Status==2 && Lvl>0). Seed stock / empty land are not required.
 //
+// Flower-art sell (3030) / craft (3034): race auto-complete drives
+// flowerRack.sell / makeFlowerArt itself; order.flower_art toggles are not
+// required for take or progress.
+//
+// Flower-cultivate (3044): only Score==36 and FinishCnt==0; plant.cultivate is
+// not required for take (progress still needs the ordinary cultivate module).
+//
 // AppearTime gating: ready tasks (appearTime already due) are preferred. CD tasks
 // within raceTakeLeadWindow may be selected preemptively when no ready candidate
 // remains; farther CD tasks are skipped.
@@ -1173,7 +1196,8 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 // unfinished taken tasks (unknown progress TargetCnt<=0 counts as unfinished).
 //
 // Order (auto-complete on):
-//  1. Flower-cultivate at the required score (36): only priority 0 may give up
+//  1. Flower-cultivate at the required score (36): FinishCnt>0 never give up
+//     (synced/manual progress). Progress-0 holds only priority 0 may give up
 //     — keep even when the cultivate module is off, score is below
 //     min_task_score, or the pool row is missing.
 //  2. Score <= min_task_score (pool score fills Taken.Score==0; still-unresolved
@@ -1182,7 +1206,8 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 //  3. Flower-cultivate with known score other than 36 → give up.
 //  4. Plant-harvest uncompletable / customer / pearl / cultivate module off /
 //     priority 0 (also with progress). Flower-cultivate module-off is not an
-//     abandon path once score is 36 (see step 1).
+//     abandon path once score is 36 (see step 1). Flower-art sell/craft never
+//     abandons for a missing ordinary sell/craft toggle.
 //  5. Pool observed and TaskMsId missing from pool → give up only when FinishCnt==0
 //     (mid-progress keep avoids dropping a live task on a transient pool gap)
 func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, gates RaceModuleGates) string {
@@ -1196,8 +1221,12 @@ func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view sta
 	if taskType == 0 {
 		taskType = taken.TaskId
 	}
-	// 36-point flower-cultivate holds are sticky: only priority 0 drops them.
+	// 36-point flower-cultivate: mid-progress holds are never given up (manual
+	// or synced progress). Progress-0 holds are sticky except priority 0.
 	if taskType == raceTaskTypeFlowerCultivate && score == raceFlowerCultivateRequiredScore {
+		if taken.FinishCnt > 0 {
+			return ""
+		}
 		if raceTakenPriorityZero(policy, taken) {
 			return "公会竞赛放弃优先级为0的已接任务"
 		}
@@ -1267,7 +1296,9 @@ func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view st
 
 // raceTakenUncompletable reports whether a held unfinished task can never be
 // progressed by automation — plant-harvest with a missing/unplantable target, or
-// customer/pearl/cultivate while the ordinary module is off.
+// customer/pearl/cultivate while the ordinary module is off. Flower-art sell
+// and craft are always race-driven and are never uncompletable for a missing
+// sell/craft toggle.
 func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates RaceModuleGates) bool {
 	taskType := taken.TaskType
 	if taskType == 0 {

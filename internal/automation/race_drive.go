@@ -2,6 +2,7 @@ package automation
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -14,6 +15,8 @@ const (
 	raceTaskTypePlantHarvest    int32 = 3036
 	raceTaskTypeCustomerOrder   int32 = 3016
 	raceTaskTypePearlHire       int32 = 3023
+	raceTaskTypeFlowerArtSell   int32 = 3030
+	raceTaskTypeFlowerArtCraft  int32 = 3034
 	raceTaskTypeFlowerCultivate int32 = 3044
 
 	// Catalog flower-cultivate rows upgrade to score 36 (e.g. 9→18→36).
@@ -25,23 +28,36 @@ const (
 	raceDemandPriority int32 = 95
 	raceActionGoal           = "union.race"
 
-	// Customer-order / pearl-hire / flower-cultivate race progress is only
-	// authoritative after getTaskList (no live field-134 harvest deltas).
-	// Successful module finishes MarkFmlRaceTasksUnobserved for an immediate
-	// refresh; this interval is only a slow fallback when finishes happen
-	// outside automation.
+	// Customer-order / pearl-hire / flower-art / flower-cultivate race progress
+	// is only authoritative after getTaskList (no live field-134 harvest
+	// deltas). Successful module finishes MarkFmlRaceTasksUnobserved for an
+	// immediate refresh; this interval is only a slow fallback when finishes
+	// happen outside automation.
 	raceModuleProgressSyncInterval = 10 * time.Minute
 
 	// Beat the ordinary customer-order lane (~11000+) so race sync/finish are
-	// not starved by endless gen/finish cycling. Cultivate / pearl hire ops
-	// are lower priority; the same elevated sync/finish ranks keep race
-	// submission ahead of unrelated union work without blocking those modules.
-	raceCustomerSyncPriority    int32 = 12400
-	raceCustomerFinishPriority  int32 = 12500
-	racePearlSyncPriority       int32 = 12400
-	racePearlFinishPriority     int32 = 12500
-	raceCultivateSyncPriority   int32 = 12400
-	raceCultivateFinishPriority int32 = 12500
+	// not starved by endless gen/finish cycling. Cultivate / pearl hire /
+	// flower-art ops are lower priority; the same elevated sync/finish ranks
+	// keep race submission ahead of unrelated union work without blocking
+	// those modules.
+	raceCustomerSyncPriority      int32 = 12400
+	raceCustomerFinishPriority    int32 = 12500
+	racePearlSyncPriority         int32 = 12400
+	racePearlFinishPriority       int32 = 12500
+	raceFlowerArtSyncPriority     int32 = 12400
+	raceFlowerArtFinishPriority   int32 = 12500
+	// Above ordinary rack sell/craft (~4k–11k) so held race flower-art tasks
+	// advance before unrelated side-lane work; still below race finish/sync.
+	raceFlowerArtSellOpPriority   int32 = 12300
+	raceFlowerArtCraftOpPriority  int32 = 12300
+	raceFlowerArtClaimOpPriority  int32 = 12350
+	raceFlowerArtCancelOpPriority int32 = 12340
+	raceCultivateSyncPriority     int32 = 12400
+	raceCultivateFinishPriority   int32 = 12500
+
+	// Held flower-art-sell listings older than this are cancelled and re-listed
+	// so race FinishCnt can keep advancing without waiting for full sell windows.
+	raceFlowerArtRelistAfter = 5 * time.Minute
 
 	// raceExpireSpeedupLead is how long before a held plant-harvest task's
 	// ExpireTime the explicit urgency policy may use speedup tickets.
@@ -124,10 +140,11 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 			Missing:   plantsMissing,
 			Priority:  raceDemandPriority,
 		}}
-	case raceTaskTypeCustomerOrder, raceTaskTypePearlHire, raceTaskTypeFlowerCultivate:
+	case raceTaskTypeCustomerOrder, raceTaskTypePearlHire,
+		raceTaskTypeFlowerArtSell, raceTaskTypeFlowerArtCraft, raceTaskTypeFlowerCultivate:
 		// Action demand only — ordinary order.customer / pearl hire /
-		// farm.cultivate ops satisfy it. Inventory ledger must not allocate
-		// against FinishCnt-style progress.
+		// flowerRack.sell / flowerArt.makeFlowerArt / farm.cultivate ops
+		// satisfy it. Inventory ledger must not allocate against FinishCnt.
 		missing := taken.TargetCnt - taken.FinishCnt
 		if missing <= 0 {
 			return nil
@@ -136,6 +153,10 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 		switch taken.TaskType {
 		case raceTaskTypePearlHire:
 			label = "公会竞赛珍珠雇佣"
+		case raceTaskTypeFlowerArtSell:
+			label = "公会竞赛花艺售卖"
+		case raceTaskTypeFlowerArtCraft:
+			label = "公会竞赛花艺制作"
 		case raceTaskTypeFlowerCultivate:
 			label = "公会竞赛花种培育"
 		}
@@ -166,7 +187,7 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 }
 
 // raceActionDemandSource tags module-backed race action demands so customer /
-// pearl / cultivate drivers cannot cross-link each other's ops.
+// pearl / flower-art / cultivate drivers cannot cross-link each other's ops.
 func raceActionDemandSource(taskType int32) string {
 	return "race_task:" + strconv.FormatInt(int64(taskType), 10)
 }
@@ -308,6 +329,8 @@ func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time)
 
 // RaceModuleGates carries ordinary business-module switches that race take /
 // abandon / progress gates must honor (mirrors AutoEnableModules limits).
+// Flower-art sell (3030) and craft (3034) are race-driven and do not require
+// order.flower_art sell_enabled / craft_enabled.
 type RaceModuleGates struct {
 	Customer  bool
 	Pearl     bool
@@ -329,7 +352,8 @@ func raceModuleGatesFromPolicy(policy *pb.Policy) RaceModuleGates {
 // this guild-race task type (business-module gates are checked separately).
 func raceTaskTypeAutoCompletable(taskType int32) bool {
 	switch taskType {
-	case raceTaskTypePlantHarvest, raceTaskTypeCustomerOrder, raceTaskTypePearlHire, raceTaskTypeFlowerCultivate:
+	case raceTaskTypePlantHarvest, raceTaskTypeCustomerOrder, raceTaskTypePearlHire,
+		raceTaskTypeFlowerArtSell, raceTaskTypeFlowerArtCraft, raceTaskTypeFlowerCultivate:
 		return true
 	default:
 		return false
@@ -346,6 +370,18 @@ func RaceHoldsUnfinishedCustomerOrder(view state.FmlRaceView) bool {
 // incomplete pearl-hire race task.
 func RaceHoldsUnfinishedPearlHire(view state.FmlRaceView) bool {
 	return raceHoldsUnfinishedType(view, raceTaskTypePearlHire)
+}
+
+// RaceHoldsUnfinishedFlowerArtSell reports whether the account currently
+// holds an incomplete flower-art-sell race task.
+func RaceHoldsUnfinishedFlowerArtSell(view state.FmlRaceView) bool {
+	return raceHoldsUnfinishedType(view, raceTaskTypeFlowerArtSell)
+}
+
+// RaceHoldsUnfinishedFlowerArtCraft reports whether the account currently
+// holds an incomplete flower-art-craft race task.
+func RaceHoldsUnfinishedFlowerArtCraft(view state.FmlRaceView) bool {
+	return raceHoldsUnfinishedType(view, raceTaskTypeFlowerArtCraft)
 }
 
 // RaceHoldsUnfinishedFlowerCultivate reports whether the account currently
@@ -379,6 +415,12 @@ func raceNeedsCustomerProgressSync(view state.FmlRaceView, now time.Time) bool {
 // pearlPlace.hire ops.
 func raceNeedsPearlProgressSync(view state.FmlRaceView, now time.Time) bool {
 	return raceNeedsModuleProgressSync(view, RaceHoldsUnfinishedPearlHire(view), now)
+}
+
+// raceNeedsFlowerArtProgressSync reports that an unfinished flower-art sell
+// or craft race task should re-fetch getTaskList so FinishCnt can catch up.
+func raceNeedsFlowerArtProgressSync(view state.FmlRaceView, now time.Time) bool {
+	return raceNeedsModuleProgressSync(view, RaceHoldsUnfinishedFlowerArtSell(view) || RaceHoldsUnfinishedFlowerArtCraft(view), now)
 }
 
 // raceNeedsCultivateProgressSync reports that an unfinished flower-cultivate
@@ -429,6 +471,312 @@ func driveRacePearlHireOperations(policy *pb.Policy, demands []Demand, ops []Pla
 		},
 		func(p *pb.Policy) bool { return p != nil && p.GetBasic().GetPearl().GetAutoHireEnabled() },
 	)
+}
+
+// driveRaceFlowerArtSellOperations links ordinary flowerRack.sell ops to the
+// held race demand, or emits claim/sell/craft when none is planned. Does not
+// require sell_enabled — guild-race auto-complete owns progression for 3030.
+func driveRaceFlowerArtSellOperations(s *state.State, policy *pb.Policy, demands []Demand, ops []PlannedOp, ledger *InventoryLedger, now time.Time) []PlannedOp {
+	if policy == nil {
+		return ops
+	}
+	wantSource := raceActionDemandSource(raceTaskTypeFlowerArtSell)
+	var raceDemand Demand
+	found := false
+	for _, demand := range demands {
+		if demand.GoalID == raceActionGoal && demand.Source == wantSource &&
+			demand.Kind == DemandKindAction && demand.Missing > 0 {
+			raceDemand = demand
+			found = true
+			break
+		}
+	}
+	if !found {
+		return ops
+	}
+	prefix := fmt.Sprintf("公会竞赛花艺售卖剩余 %d 次", raceDemand.Missing)
+
+	// Free claimable racks first so sell can continue without sell_enabled.
+	if claim, ok := raceFlowerArtClaimOperation(s, raceDemand, prefix, now); ok {
+		return append(ops, claim)
+	}
+	// After 5 minutes of listing, cancel every occupied rack so the next ticks
+	// can re-list and keep race sell progress moving.
+	if cancels := raceFlowerArtCancelStaleListings(s, raceDemand, prefix, now); len(cancels) > 0 {
+		return append(ops, cancels...)
+	}
+
+	matchSell := func(op PlannedOp) bool {
+		return runnableBusinessOperation(op) && op.Kind == clientproto.RPCFlowerRackSell.String() &&
+			op.TargetID > 0 && op.ItemID > 0 && op.Count > 0
+	}
+	if idx := deterministicOperationIndex(ops, matchSell); idx >= 0 {
+		ops[idx].DemandID = raceDemand.ID
+		if ops[idx].Reason == "" {
+			ops[idx].Reason = prefix
+		} else {
+			ops[idx].Reason = prefix + "；" + ops[idx].Reason
+		}
+		count := ops[idx].Count
+		if count > raceDemand.Missing {
+			count = raceDemand.Missing
+		}
+		if ledger != nil {
+			if available := ledger.Available(ops[idx].ItemID); count > available {
+				count = available
+			}
+		}
+		if count > flowerRackPerSlotCount {
+			count = flowerRackPerSlotCount
+		}
+		if count <= 0 {
+			return ops
+		}
+		ops[idx].Count = count
+		ops[idx].ItemCost = map[int32]int32{ops[idx].ItemID: count}
+		if ops[idx].Priority < raceFlowerArtSellOpPriority {
+			ops[idx].Priority = raceFlowerArtSellOpPriority
+		}
+		return ops
+	}
+
+	if sell, ok := raceFlowerArtSellOperation(s, raceDemand, ledger, prefix); ok {
+		return append(ops, sell)
+	}
+	// No finished art in stock — craft one batch so the next tick can list it.
+	if craft, ok := raceFlowerArtCraftOperation(s, Demand{
+		ID:      raceDemand.ID,
+		Missing: raceDemand.Missing,
+	}, ledger); ok {
+		craft.Reason = prefix + "；缺少成品，先制作"
+		if craft.Priority < raceFlowerArtCraftOpPriority {
+			craft.Priority = raceFlowerArtCraftOpPriority
+		}
+		return append(ops, craft)
+	}
+	return ops
+}
+
+func raceFlowerArtClaimOperation(s *state.State, demand Demand, prefix string, now time.Time) (PlannedOp, bool) {
+	if s == nil || demand.Missing <= 0 {
+		return PlannedOp{}, false
+	}
+	claimable := s.FlowerRackClaimableSlotIDs(now)
+	if len(claimable) == 0 {
+		return PlannedOp{}, false
+	}
+	rackID := claimable[0]
+	goal := Goal{ID: GoalFlowerArt, Category: CategoryOrder, Domain: "order.flower_art", Label: "花艺/花架", Priority: 40}
+	claim := op(clientproto.RPCFlowerRackRecvSellMoney.String(), goal, "claim",
+		prefix+"；花架售卖时间已到，领取以腾空位",
+		raceFlowerArtClaimOpPriority, rackID, 0, 0)
+	claim.DemandID = demand.ID
+	if slot, ok := s.FlowerRackSlots()[rackID]; ok {
+		claim.ItemID = slot.ItemID
+		claim.Count = slot.Count
+	}
+	return claim, true
+}
+
+// raceFlowerArtCancelStaleListings cancels every occupied rack whose listing is
+// at least raceFlowerArtRelistAfter old and not yet claimable. Claimable racks
+// are left for recvSellMoney so gold is not discarded.
+func raceFlowerArtCancelStaleListings(s *state.State, demand Demand, prefix string, now time.Time) []PlannedOp {
+	if s == nil || demand.Missing <= 0 {
+		return nil
+	}
+	nowMs := now.UnixMilli()
+	cutoff := now.Add(-raceFlowerArtRelistAfter).UnixMilli()
+	type stale struct {
+		rackID int32
+		slot   state.FlowerRackSlot
+	}
+	var staleSlots []stale
+	for rackID, slot := range s.FlowerRackSlots() {
+		if slot.ItemID <= 0 || slot.Count <= 0 || slot.ListedAtMs <= 0 {
+			continue
+		}
+		if slot.SellReadyAtMs > 0 && nowMs >= slot.SellReadyAtMs {
+			continue
+		}
+		if slot.ListedAtMs > cutoff {
+			continue
+		}
+		staleSlots = append(staleSlots, stale{rackID: rackID, slot: slot})
+	}
+	if len(staleSlots) == 0 {
+		return nil
+	}
+	sort.Slice(staleSlots, func(i, j int) bool { return staleSlots[i].rackID < staleSlots[j].rackID })
+	goal := Goal{ID: GoalFlowerArt, Category: CategoryOrder, Domain: "order.flower_art", Label: "花艺/花架", Priority: 40}
+	out := make([]PlannedOp, 0, len(staleSlots))
+	for _, item := range staleSlots {
+		cancel := op(clientproto.RPCFlowerRackCancelSell.String(), goal, "cancel",
+			prefix+"；上架已满5分钟，全部下架再挂",
+			raceFlowerArtCancelOpPriority, item.rackID, item.slot.ItemID, item.slot.Count)
+		cancel.DemandID = demand.ID
+		// Ordinary early-cancel is adapter-missing; race owns this path.
+		cancel.Status = PlanStatusManaged
+		cancel.Executable = true
+		cancel.SyncOnly = false
+		cancel.BlockedReasons = nil
+		cancel.FeatureID = "union.race.flower_art_cancel"
+		out = append(out, cancel)
+	}
+	return out
+}
+
+func raceFlowerArtSellOperation(s *state.State, demand Demand, ledger *InventoryLedger, prefix string) (PlannedOp, bool) {
+	if s == nil || demand.Missing <= 0 {
+		return PlannedOp{}, false
+	}
+	empty := s.EmptyFlowerRackSlotIDs()
+	if len(empty) == 0 {
+		return PlannedOp{}, false
+	}
+	if ledger == nil {
+		ledger = NewInventoryLedger(s.Inventory())
+	}
+	artID, count, ok := bestRackArt(ledger)
+	if !ok || count <= 0 {
+		return PlannedOp{}, false
+	}
+	if count > demand.Missing {
+		count = demand.Missing
+	}
+	goal := Goal{ID: GoalFlowerArt, Category: CategoryOrder, Domain: "order.flower_art", Label: "花艺/花架", Priority: 40}
+	sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", prefix,
+		raceFlowerArtSellOpPriority, empty[0], artID, count)
+	sell.DemandID = demand.ID
+	sell.ItemCost = map[int32]int32{artID: count}
+	return sell, true
+}
+
+// driveRaceFlowerArtCraftOperations links ordinary makeFlowerArt ops to the
+// held race demand, or emits a race-driven craft when none is planned. Does
+// not require craft_enabled / sell_enabled — guild-race auto-complete owns
+// progression for task type 3034.
+func driveRaceFlowerArtCraftOperations(s *state.State, policy *pb.Policy, demands []Demand, ops []PlannedOp, ledger *InventoryLedger) []PlannedOp {
+	if policy == nil {
+		return ops
+	}
+	wantSource := raceActionDemandSource(raceTaskTypeFlowerArtCraft)
+	var raceDemand Demand
+	found := false
+	for _, demand := range demands {
+		if demand.GoalID == raceActionGoal && demand.Source == wantSource &&
+			demand.Kind == DemandKindAction && demand.Missing > 0 {
+			raceDemand = demand
+			found = true
+			break
+		}
+	}
+	if !found {
+		return ops
+	}
+	match := func(op PlannedOp) bool {
+		return runnableBusinessOperation(op) && op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String()
+	}
+	idx := deterministicOperationIndex(ops, match)
+	if idx >= 0 {
+		ops[idx].DemandID = raceDemand.ID
+		prefix := fmt.Sprintf("公会竞赛花艺制作剩余 %d 次", raceDemand.Missing)
+		if ops[idx].Reason == "" {
+			ops[idx].Reason = prefix
+		} else {
+			ops[idx].Reason = prefix + "；" + ops[idx].Reason
+		}
+		if ops[idx].Count > raceDemand.Missing {
+			ops[idx].Count = raceDemand.Missing
+		}
+		if ops[idx].Priority < raceFlowerArtCraftOpPriority {
+			ops[idx].Priority = raceFlowerArtCraftOpPriority
+		}
+		return ops
+	}
+	craft, ok := raceFlowerArtCraftOperation(s, raceDemand, ledger)
+	if !ok {
+		return ops
+	}
+	return append(ops, craft)
+}
+
+// raceFlowerArtCraftOperation picks a craftable flower-art recipe for race
+// progression: every recipe flower must already have seeds (cultivated), then
+// the highest SaleValue wins. Unlike rack craft, it does not require
+// sell_enabled, craft_enabled, or an empty rack.
+func raceFlowerArtCraftOperation(s *state.State, demand Demand, ledger *InventoryLedger) (PlannedOp, bool) {
+	if s == nil || demand.Missing <= 0 {
+		return PlannedOp{}, false
+	}
+	if ledger == nil {
+		ledger = NewInventoryLedger(s.Inventory())
+	}
+	recipe, count, ok := raceBestSeededCraftableRecipe(s, ledger, demand.Missing)
+	if !ok {
+		return PlannedOp{}, false
+	}
+	goal := Goal{ID: GoalFlowerArt, Category: CategoryOrder, Domain: "order.flower_art", Label: "花艺/花架", Priority: 40}
+	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft",
+		fmt.Sprintf("公会竞赛花艺制作剩余 %d 次；选价最高有种子配方", demand.Missing),
+		raceFlowerArtCraftOpPriority, 0, recipe.ArtID, count)
+	craft.DemandID = demand.ID
+	craft.VaseID = recipe.VaseID
+	craft.FlowerIDs = append([]int32(nil), recipe.Flowers...)
+	return craft, true
+}
+
+// raceBestSeededCraftableRecipe returns the craftable recipe whose flowers are
+// all cultivated (有种子) and whose SaleValue is highest.
+func raceBestSeededCraftableRecipe(s *state.State, ledger *InventoryLedger, missing int32) (state.FlowerArtRecipe, int32, bool) {
+	var best state.FlowerArtRecipe
+	var bestCount int32
+	found := false
+	for _, recipe := range rackCandidateRecipes() {
+		if !raceRecipeAllFlowersSeeded(s, recipe) {
+			continue
+		}
+		if len(artBlockedReasons(s, recipe)) > 0 {
+			continue
+		}
+		count := maxCraftableCount(recipe, ledger)
+		if count <= 0 {
+			continue
+		}
+		if count > missing {
+			count = missing
+		}
+		if count > flowerRackPerSlotCount {
+			count = flowerRackPerSlotCount
+		}
+		if !found || recipe.SaleValue > best.SaleValue ||
+			(recipe.SaleValue == best.SaleValue && recipe.ArtID < best.ArtID) {
+			best = recipe
+			bestCount = count
+			found = true
+		}
+	}
+	return best, bestCount, found
+}
+
+func raceRecipeAllFlowersSeeded(s *state.State, recipe state.FlowerArtRecipe) bool {
+	if len(recipe.Flowers) == 0 {
+		return false
+	}
+	seen := make(map[int32]struct{}, len(recipe.Flowers))
+	for _, flowerID := range recipe.Flowers {
+		if flowerID <= 0 {
+			return false
+		}
+		if _, ok := seen[flowerID]; ok {
+			continue
+		}
+		seen[flowerID] = struct{}{}
+		if !flowerCultivated(s, flowerID) {
+			return false
+		}
+	}
+	return true
 }
 
 // driveRaceFlowerCultivateOperations links ordinary cultivate start/recv ops to
@@ -514,9 +862,9 @@ func raceTaskTypeLabel(taskType int32) string {
 		return "珍珠采集雇佣"
 	case 3024:
 		return "好友偷花"
-	case 3030:
+	case raceTaskTypeFlowerArtSell:
 		return "花艺售卖"
-	case 3034:
+	case raceTaskTypeFlowerArtCraft:
 		return "花艺制作"
 	case 3035:
 		return "鲜花升级"
@@ -557,9 +905,11 @@ func FormatRaceTaskOpDesc(taskType, paramID int32) string {
 // raceSpeedupEnabledAt reports whether guild-race policy should unlock farm
 // speedup while an unfinished plant-harvest race task is held.
 //
-// Normal path: UseSpeedupTicketInTask. Optional urgency fallback: within
-// raceExpireSpeedupLead of ExpireTime when UrgentSpeedupEnabled is explicitly
-// enabled, so emergency ticket spending never bypasses the operator's policy.
+// Normal path: UseSpeedupTicketInTask for the whole held task. Forced
+// completion guarantee: within raceExpireSpeedupLead of ExpireTime, spend
+// tickets on the race flower even when that toggle (and ordinary planting
+// speedup) are off — UrgentSpeedupEnabled is ignored so the last-10-minute
+// completion guarantee cannot be accidentally left disabled.
 func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Time) bool {
 	if s == nil || race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
@@ -572,7 +922,7 @@ func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Tim
 	if race.GetUseSpeedupTicketInTask() {
 		return true
 	}
-	return race.GetUrgentSpeedupEnabled() && raceExpireUrgentSpeedup(taken, now)
+	return raceExpireUrgentSpeedup(taken, now)
 }
 
 // raceExpireUrgentSpeedup is true when the held task has a known ExpireTime and

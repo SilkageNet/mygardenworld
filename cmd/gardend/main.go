@@ -438,8 +438,25 @@ func runServe(ctx context.Context, opts serveOpts) error {
 }
 
 func seedAdmin(ctx context.Context, db *store.DB, log *slog.Logger, opts serveOpts) error {
-	_, err := db.GetUserByUsername(ctx, opts.AdminUsername)
+	user, err := db.GetUserByUsername(ctx, opts.AdminUsername)
 	if err == nil {
+		if opts.AdminPassword == "" {
+			return nil
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(opts.AdminPassword)); err == nil {
+			return nil
+		}
+		if err := apiserver.ValidatePassword(opts.AdminPassword); err != nil {
+			return err
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(opts.AdminPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		if err := db.UpdateUserPasswordHash(ctx, user.ID, string(hash)); err != nil {
+			return err
+		}
+		log.Info("updated admin password from serve flags", "username", opts.AdminUsername)
 		return nil
 	}
 	if !errors.Is(err, store.ErrUserNotFound) {
@@ -455,7 +472,7 @@ func seedAdmin(ctx context.Context, db *store.DB, log *slog.Logger, opts serveOp
 	if err != nil {
 		return err
 	}
-	user, err := db.CreateUser(ctx, opts.AdminUsername, opts.AdminEmail, string(hash))
+	user, err = db.CreateUser(ctx, opts.AdminUsername, opts.AdminEmail, string(hash))
 	if err != nil {
 		return err
 	}
