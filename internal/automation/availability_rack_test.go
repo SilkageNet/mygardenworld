@@ -30,6 +30,29 @@ func TestBestRackArtByCountPrefersHighestStock(t *testing.T) {
 	}
 }
 
+func TestBestRackArtByCountComparesUncappedStock(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"300208": 12,
+			"301612": 20,
+		}}},
+		"102": map[string]any{"0": map[string]any{
+			"3002": map[string]any{"1": 3002},
+			"3016": map[string]any{"1": 3016},
+		}},
+	})
+	ledger := NewInventoryLedger(s.Inventory())
+
+	artID, count, ok := bestRackArtByCount(s, &pb.FlowerArtPolicy{}, ledger)
+	if !ok {
+		t.Fatal("expected rack art")
+	}
+	if artID != 301612 || count != flowerRackPerSlotCount {
+		t.Fatalf("bestRackArtByCount()=%d,%d want highest-stock 301612,%d", artID, count, flowerRackPerSlotCount)
+	}
+}
+
 func TestBestRackArtByCountRespectsSellArtIDs(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{

@@ -475,6 +475,22 @@ func recipeFlowerCounts(recipe state.FlowerArtRecipe) map[int32]int32 {
 	return out
 }
 
+func flowerArtCraftItemCost(flowerIDs []int32, count int32) map[int32]int32 {
+	if count <= 0 {
+		return nil
+	}
+	out := make(map[int32]int32)
+	for _, flowerID := range flowerIDs {
+		if flowerID > 0 {
+			out[flowerID] += count
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func maxCraftableCount(recipe state.FlowerArtRecipe, ledger *InventoryLedger) int32 {
 	if recipe.ArtID <= 0 || ledger == nil {
 		return 0
@@ -560,6 +576,7 @@ func bestArtByInventoryCount(recipes []state.FlowerArtRecipe, ledger *InventoryL
 	}
 	var bestArtID int32
 	var bestCount int32
+	var bestAvailable int32
 	found := false
 	for _, recipe := range recipes {
 		available := ledger.Available(recipe.ArtID)
@@ -570,9 +587,10 @@ func bestArtByInventoryCount(recipes []state.FlowerArtRecipe, ledger *InventoryL
 		if listCount > flowerRackPerSlotCount {
 			listCount = flowerRackPerSlotCount
 		}
-		if !found || listCount > bestCount || (listCount == bestCount && recipe.ArtID < bestArtID) {
+		if !found || available > bestAvailable || (available == bestAvailable && recipe.ArtID < bestArtID) {
 			bestArtID = recipe.ArtID
 			bestCount = listCount
+			bestAvailable = available
 			found = true
 		}
 	}

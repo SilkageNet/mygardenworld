@@ -41,12 +41,12 @@ const (
 	// flower-art ops are lower priority; the same elevated sync/finish ranks
 	// keep race submission ahead of unrelated union work without blocking
 	// those modules.
-	raceCustomerSyncPriority      int32 = 12400
-	raceCustomerFinishPriority    int32 = 12500
-	racePearlSyncPriority         int32 = 12400
-	racePearlFinishPriority       int32 = 12500
-	raceFlowerArtSyncPriority     int32 = 12400
-	raceFlowerArtFinishPriority   int32 = 12500
+	raceCustomerSyncPriority    int32 = 12400
+	raceCustomerFinishPriority  int32 = 12500
+	racePearlSyncPriority       int32 = 12400
+	racePearlFinishPriority     int32 = 12500
+	raceFlowerArtSyncPriority   int32 = 12400
+	raceFlowerArtFinishPriority int32 = 12500
 	// Above ordinary rack sell/craft (~4k–11k) so held race flower-art tasks
 	// advance before unrelated side-lane work; still below race finish/sync.
 	raceFlowerArtSellOpPriority   int32 = 12300
@@ -691,6 +691,7 @@ func driveRaceFlowerArtCraftOperations(s *state.State, policy *pb.Policy, demand
 		if ops[idx].Count > raceDemand.Missing {
 			ops[idx].Count = raceDemand.Missing
 		}
+		ops[idx].ItemCost = flowerArtCraftItemCost(ops[idx].FlowerIDs, ops[idx].Count)
 		if ops[idx].Priority < raceFlowerArtCraftOpPriority {
 			ops[idx].Priority = raceFlowerArtCraftOpPriority
 		}
@@ -725,6 +726,7 @@ func raceFlowerArtCraftOperation(s *state.State, demand Demand, ledger *Inventor
 	craft.DemandID = demand.ID
 	craft.VaseID = recipe.VaseID
 	craft.FlowerIDs = append([]int32(nil), recipe.Flowers...)
+	craft.ItemCost = flowerArtCraftItemCost(craft.FlowerIDs, craft.Count)
 	return craft, true
 }
 

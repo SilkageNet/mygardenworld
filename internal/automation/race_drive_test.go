@@ -449,7 +449,6 @@ func TestRaceExpireUrgentSpeedupForcedFallback(t *testing.T) {
 		t.Fatalf("ExpireTime=%d, want %d", got, expire)
 	}
 	policy := racePlantPolicy(false) // UseSpeedupTicketInTask off
-	policy.Union.Race.UrgentSpeedupEnabled = false
 
 	result := BuildPlan(s, policy, now)
 	var speed *PlannedOp
@@ -517,7 +516,6 @@ func TestRaceExpiredTaskStopsProgressAndRefreshes(t *testing.T) {
 	})
 	s.MarkFmlRaceTasksUnobserved()
 	policy := racePlantPolicy(true)
-	policy.Union.Race.UrgentSpeedupEnabled = true
 
 	result := BuildPlan(s, policy, now)
 	foundSync := false

@@ -248,6 +248,7 @@ func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, 
 		craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单缺少花艺成品，材料已满足", customerOperationPriority(goal, 150), npcID, req.ItemID, missing)
 		craft.VaseID = availability.Recipe.VaseID
 		craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
+		craft.ItemCost = flowerArtCraftItemCost(craft.FlowerIDs, craft.Count)
 		return craft, true
 	}
 	return PlannedOp{}, false
@@ -288,6 +289,7 @@ func craftOperationForFlowerRack(s *state.State, policy *pb.FlowerArtPolicy, goa
 	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "花架缺少花艺成品，材料已满足", goal.Priority*100+450, 0, artID, count)
 	craft.VaseID = availability.Recipe.VaseID
 	craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
+	craft.ItemCost = flowerArtCraftItemCost(craft.FlowerIDs, craft.Count)
 	return craft, true
 }
 

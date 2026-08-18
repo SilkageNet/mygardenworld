@@ -47,7 +47,7 @@ const (
 	operationErrorRaceTakeAlreadyTaken      operationErrorKind = "race_take_already_taken"
 	operationErrorRaceTakeClaimedByOther    operationErrorKind = "race_take_claimed_by_other"
 	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
-	operationErrorRaceTakeOnCooldown         operationErrorKind = "race_take_on_cooldown"
+	operationErrorRaceTakeOnCooldown        operationErrorKind = "race_take_on_cooldown"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 )

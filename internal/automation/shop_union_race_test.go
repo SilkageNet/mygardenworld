@@ -1916,6 +1916,9 @@ func TestBuildPlan_RaceFlowerArtCraftEmitsMake(t *testing.T) {
 	if linked.Priority != raceFlowerArtCraftOpPriority {
 		t.Fatalf("craft priority=%d, want race floor %d", linked.Priority, raceFlowerArtCraftOpPriority)
 	}
+	if linked.ItemCost[23005] != linked.Count || linked.ItemCost[23007] != linked.Count || linked.ItemCost[23008] != linked.Count {
+		t.Fatalf("craft ItemCost=%v, want one of each recipe flower per craft", linked.ItemCost)
+	}
 }
 
 func TestBuildPlan_RaceFlowerArtCraftPicksHighestSeededPrice(t *testing.T) {
