@@ -82,6 +82,14 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	}
 	plantingPolicy := policy.GetPlanting()
 	harvestDelay := time.Duration(plantingPolicy.GetHarvestDelaySeconds()) * time.Second
+	// Race plant-harvest must keep driving farm while the task is unfinished:
+	// after planting, pending yield clears the plant demand, but lands still
+	// need watering (and later harvest). raceProgress is true for that whole
+	// window. Race plant slots still claim first; leftover empties may
+	// auto-replant when ordinary AutoEnabled is on.
+	raceProgress := suppressAutoReplant
+	raceDriven := hasRacePlantDemand(demands) || raceProgress
+	raceFlowerID := racePlantHarvestFlowerID(s, demands)
 	lands := s.Lands()
 	var harvest, water, plant []int32
 	ids := make([]int32, 0, len(lands))
@@ -90,7 +98,14 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	for _, id := range ids {
-		kind, _ := Recommend(lands[id], now, harvestDelay)
+		land := lands[id]
+		delay := harvestDelay
+		// Competition crop: ignore configured harvest_delay_seconds and pick
+		// as soon as ready (state=2 still keeps the short protocol grace).
+		if raceFlowerID > 0 && int32(land.FlowerID) == raceFlowerID {
+			delay = 0
+		}
+		kind, _ := Recommend(land, now, delay)
 		switch kind {
 		case KindHarvest:
 			harvest = append(harvest, id)
@@ -101,15 +116,15 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
-	// Race plant-harvest must keep driving farm while the task is unfinished:
-	// after planting, pending yield clears the plant demand, but lands still
-	// need watering (and later harvest). raceProgress is true for that whole
-	// window. Race plant slots still claim first; leftover empties may
-	// auto-replant when ordinary AutoEnabled is on.
-	raceProgress := suppressAutoReplant
-	raceDriven := hasRacePlantDemand(demands) || raceProgress
 	if (plantingPolicy.GetAutoHarvestEnabled() || raceDriven) && len(harvest) > 0 {
-		ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
+		// Without ordinary auto-harvest, only race flowers are forced; other
+		// ready lands stay untouched until AutoHarvestEnabled is on.
+		if raceDriven && !plantingPolicy.GetAutoHarvestEnabled() && raceFlowerID > 0 {
+			harvest = filterLandIDsByFlower(s, harvest, raceFlowerID)
+		}
+		if len(harvest) > 0 {
+			ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
+		}
 	}
 	if !plantingPolicy.GetAutoEnabled() && !raceDriven {
 		return ops

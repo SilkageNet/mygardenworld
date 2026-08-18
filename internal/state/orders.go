@@ -869,6 +869,28 @@ func (s *State) Statistics() StatisticsView {
 	return s.statistics
 }
 
+// StatisticsDays returns observed daily statistics, newest day first.
+func (s *State) StatisticsDays() []StatisticsView {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.statisticsByDay) == 0 {
+		if s.statistics.Observed {
+			return []StatisticsView{s.statistics}
+		}
+		return nil
+	}
+	ids := make([]int32, 0, len(s.statisticsByDay))
+	for dayID := range s.statisticsByDay {
+		ids = append(ids, dayID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] > ids[j] })
+	out := make([]StatisticsView, 0, len(ids))
+	for _, dayID := range ids {
+		out = append(out, s.statisticsByDay[dayID])
+	}
+	return out
+}
+
 // FlowerRackSlots returns the current flower-art shelf slots.
 func (s *State) FlowerRackSlots() map[int32]FlowerRackSlot {
 	s.mu.RLock()

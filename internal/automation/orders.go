@@ -200,7 +200,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			}
 			if flowerArtAutoListActive(order.GetFlowerArt(), now) {
 				for _, rackID := range s.EmptyFlowerRackSlotIDs() {
-					if artID, count, ok := bestRackArt(ledger); ok {
+					if artID, count, ok := bestRackArt(s, order.GetFlowerArt(), ledger); ok {
 						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
 						sell.Category = CategoryOrder
 						ops = append(ops, sell)

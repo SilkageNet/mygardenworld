@@ -244,7 +244,7 @@ type FmlBuildView struct {
 	TodayBuildNum       int32           `json:"today_build_num,omitempty"`
 	LastBuildTimeMs     int64           `json:"last_build_time_ms,omitempty"`
 	FlowerTakeCnt       int32           `json:"flower_take_cnt,omitempty"` // 25.0.102 公会摸花次数上限
-	RaceLvl             int32           `json:"race_lvl,omitempty"`       // 25.0.103 公会竞赛段位
+	RaceLvl             int32           `json:"race_lvl,omitempty"`        // 25.0.103 公会竞赛段位
 	BuildCountsObserved bool            `json:"build_counts_observed,omitempty"`
 	BuildCounts         map[int32]int32 `json:"build_counts,omitempty"`
 }
@@ -346,17 +346,17 @@ type FmlRaceTakenView struct {
 
 // FmlRaceView is the race-related slice of namespace 25.
 type FmlRaceView struct {
-	Observed      bool              // true after a meaningful CurFmlRaceBatch (field 111) was synced
-	TasksObserved bool              // true after FmlRaceTaskList (field 114) has been received
+	Observed      bool // true after a meaningful CurFmlRaceBatch (field 111) was synced
+	TasksObserved bool // true after FmlRaceTaskList (field 114) has been received
 	// TasksSyncedAtMs is local wall time (ms) when field 114 was last applied.
 	TasksSyncedAtMs int64
-	BatchActive   bool              // true if status/time window indicates an active race
-	BatchID       int64             // CurFmlRaceBatch.batchId (field 0; millisecond timestamp)
-	BatchStatus   int32             // raw Status value from server (field 1 of CurFmlRaceBatch)
-	BatchStartMs  int64             // race batch start time in ms (field 2)
-	BatchEndMs    int64             // race batch end time in ms (field 3)
-	Tasks         []FmlRaceTaskView // available task pool (field 114)
-	Taken         FmlRaceTakenView  // current user's taken task (from field 110)
+	BatchActive     bool              // true if status/time window indicates an active race
+	BatchID         int64             // CurFmlRaceBatch.batchId (field 0; millisecond timestamp)
+	BatchStatus     int32             // raw Status value from server (field 1 of CurFmlRaceBatch)
+	BatchStartMs    int64             // race batch start time in ms (field 2)
+	BatchEndMs      int64             // race batch end time in ms (field 3)
+	Tasks           []FmlRaceTaskView // available task pool (field 114)
+	Taken           FmlRaceTakenView  // current user's taken task (from field 110)
 	// TaskQuotaObserved is true after field 110 (usr rcd) was applied.
 	TaskQuotaObserved bool
 	// FinishedTaskNum is IFmlRaceUsrRcd.fTaskNum (completed tasks this batch).
@@ -1137,12 +1137,20 @@ type VideoDoubleView struct {
 type StatisticsView struct {
 	Observed               bool  `json:"observed,omitempty"`
 	DayID                  int32 `json:"day_id,omitempty"`
+	Gold                   int32 `json:"gold,omitempty"`
+	Experience             int32 `json:"experience,omitempty"`
+	Diamonds               int32 `json:"diamonds,omitempty"`
+	SpeedUpCard            int32 `json:"speed_up_card,omitempty"`
+	FlowerShopCoin         int32 `json:"flower_shop_coin,omitempty"`
+	FlowerHarvestNum       int32 `json:"flower_harvest_num,omitempty"`
+	FlowerArtSellNum       int32 `json:"flower_art_sell_num,omitempty"`
 	OrderFlowerFinishNum   int32 `json:"order_flower_finish_num,omitempty"`
 	OrderPalaceFinishNum   int32 `json:"order_palace_finish_num,omitempty"`
 	OrderCustomerFinishNum int32 `json:"order_customer_finish_num,omitempty"`
 	OrderSatinFinishNum    int32 `json:"order_satin_finish_num,omitempty"`
+	Satin                  int32 `json:"satin,omitempty"`
 	OrderDecorateFinishNum int32 `json:"order_decorate_finish_num,omitempty"`
-	FlowerArtSellNum       int32 `json:"flower_art_sell_num,omitempty"`
+	Wood                   int32 `json:"wood,omitempty"`
 	UTimeMs                int64 `json:"u_time_ms,omitempty"`
 	CTimeMs                int64 `json:"c_time_ms,omitempty"`
 }

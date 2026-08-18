@@ -278,6 +278,8 @@ func opKindDesc(kind string) string {
 		return "公会摸花"
 	case clientproto.RPCFlowerRackSell.String():
 		return "花艺上架"
+	case clientproto.RPCFlowerRackCancelSell.String():
+		return "花艺下架"
 	case clientproto.RPCFlowerRackRecvSellMoney.String():
 		return "花艺售出领取"
 	case clientproto.RPCWaterwheelRecv.String():
