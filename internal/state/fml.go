@@ -157,7 +157,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchStatus = batch.Status
 	view.BatchStartMs = batch.StartTime
 	view.BatchEndMs = batch.EndTime
-	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime)
+	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime, time.Now())
 	if batch.BatchId != prevBatchID {
 		view.TakeQuotaExhausted = false
 		// Quota counters are per-batch. A new batch's sparse 110 row omits
@@ -811,7 +811,7 @@ func firstInt32FromRaw(raw json.RawMessage) int32 {
 // status==1 is the primary in-progress signal; when status is still 0 but the
 // server already published a start/end window, treat the open window as active.
 // status==2 (ended) always stays inactive.
-func fmlRaceBatchActive(status int32, startMs, endMs int64) bool {
+func fmlRaceBatchActive(status int32, startMs, endMs int64, now time.Time) bool {
 	if status == 2 {
 		return false
 	}
@@ -821,8 +821,50 @@ func fmlRaceBatchActive(status int32, startMs, endMs int64) bool {
 	if startMs <= 0 || endMs <= startMs {
 		return false
 	}
-	now := time.Now().UnixMilli()
-	return now >= startMs && now < endMs
+	ms := now.UnixMilli()
+	return ms >= startMs && ms < endMs
+}
+
+// ActiveAt re-evaluates BatchActive at planner/UI time so a published
+// status==0 window can open without waiting for another field-111 apply.
+func (v FmlRaceView) ActiveAt(now time.Time) bool {
+	return fmlRaceBatchActive(v.BatchStatus, v.BatchStartMs, v.BatchEndMs, now)
+}
+
+// Observed guild-race session: Tuesday 09:00 to Sunday 21:00 Asia/Shanghai.
+// Production batch 1783990800000–1784466000000 is 2026-07-14 09:00 – 2026-07-19 21:00.
+const (
+	fmlRaceCalendarStartWeekday = time.Tuesday
+	fmlRaceCalendarStartHour    = 9
+	fmlRaceCalendarEndWeekday   = time.Sunday
+	fmlRaceCalendarEndHour      = 21
+)
+
+// FmlRaceCalendarSessionStart is the Tuesday 09:00 Asia/Shanghai that opened
+// the current race week (last Tuesday when called Mon–Sun).
+func FmlRaceCalendarSessionStart(now time.Time) time.Time {
+	loc := gameDayLocation()
+	local := now.In(loc)
+	daysSinceStart := (int(local.Weekday()) - int(fmlRaceCalendarStartWeekday) + 7) % 7
+	y, m, d := local.Date()
+	return time.Date(y, m, d, fmlRaceCalendarStartHour, 0, 0, 0, loc).AddDate(0, 0, -daysSinceStart)
+}
+
+// FmlRaceCalendarSessionEnd is Sunday 21:00 Asia/Shanghai of the same race week.
+func FmlRaceCalendarSessionEnd(now time.Time) time.Time {
+	start := FmlRaceCalendarSessionStart(now)
+	days := int(fmlRaceCalendarEndWeekday - fmlRaceCalendarStartWeekday)
+	if days < 0 {
+		days += 7
+	}
+	return time.Date(start.Year(), start.Month(), start.Day(), fmlRaceCalendarEndHour, 0, 0, 0, start.Location()).AddDate(0, 0, days)
+}
+
+// FmlRaceCalendarInSession reports the observed weekly open window.
+func FmlRaceCalendarInSession(now time.Time) bool {
+	start := FmlRaceCalendarSessionStart(now)
+	end := FmlRaceCalendarSessionEnd(now)
+	return !now.Before(start) && now.Before(end)
 }
 
 func (s *State) applyFmlObjectLocked(raw json.RawMessage) {
@@ -1724,9 +1766,15 @@ func (s *State) MarkFmlRaceTasksSynced() {
 // MarkFmlRaceLvlSyncAttempt records that enter was used to seek raceLvl, so the
 // planner waits before retrying when the payload still omitted the tier.
 func (s *State) MarkFmlRaceLvlSyncAttempt() {
+	s.MarkFmlRaceLvlSyncAttemptAt(time.Now())
+}
+
+// MarkFmlRaceLvlSyncAttemptAt records an enter attempt at a specific time so
+// inactive-batch re-enter and raceLvl retry share one clock.
+func (s *State) MarkFmlRaceLvlSyncAttemptAt(at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fmlRace.RaceLvlSyncAtMs = time.Now().UnixMilli()
+	s.fmlRace.RaceLvlSyncAtMs = at.UnixMilli()
 }
 
 // MarkFmlRaceQuotaSyncAttempt records that getFmlRaceUsrRankList was used to

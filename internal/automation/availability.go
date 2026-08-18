@@ -495,21 +495,88 @@ func maxCraftableCount(recipe state.FlowerArtRecipe, ledger *InventoryLedger) in
 	return max
 }
 
-func bestRackArt(ledger *InventoryLedger) (int32, int32, bool) {
+func bestRackArt(s *state.State, policy *pb.FlowerArtPolicy, ledger *InventoryLedger) (int32, int32, bool) {
+	return bestRackArtByCount(s, policy, ledger)
+}
+
+func bestRackArtForRace(s *state.State, ledger *InventoryLedger) (int32, int32, bool) {
+	candidates := rackArtCandidates(s, nil)
+	return bestArtByInventoryCount(candidates, ledger)
+}
+
+func rackArtCandidates(s *state.State, preferredArtIDs []int32) []state.FlowerArtRecipe {
+	all := rackCandidateRecipes()
+	if len(preferredArtIDs) == 0 {
+		return filterRecipesByUnlockedVase(s, all)
+	}
+	preferred := int32Set(preferredArtIDs)
+	out := make([]state.FlowerArtRecipe, 0, len(preferred))
+	for _, recipe := range all {
+		if preferred[recipe.ArtID] {
+			out = append(out, recipe)
+		}
+	}
+	return filterRecipesByUnlockedVase(s, out)
+}
+
+func filterRecipesByUnlockedVase(s *state.State, recipes []state.FlowerArtRecipe) []state.FlowerArtRecipe {
+	if s == nil || len(recipes) == 0 {
+		return recipes
+	}
+	if !s.VaseObserved() {
+		return recipes
+	}
+	out := make([]state.FlowerArtRecipe, 0, len(recipes))
+	for _, recipe := range recipes {
+		if s.HasVase(recipe.VaseID) {
+			out = append(out, recipe)
+		}
+	}
+	return out
+}
+
+func bestRackArtByCount(s *state.State, policy *pb.FlowerArtPolicy, ledger *InventoryLedger) (int32, int32, bool) {
 	if ledger == nil {
 		return 0, 0, false
 	}
-	for _, recipe := range rackCandidateRecipes() {
+	var preferred []int32
+	if policy != nil {
+		preferred = policy.GetSellArtIds()
+	}
+	candidates := rackArtCandidates(s, preferred)
+	artID, count, ok := bestArtByInventoryCount(candidates, ledger)
+	if ok {
+		return artID, count, true
+	}
+	if len(preferred) > 0 {
+		return bestArtByInventoryCount(filterRecipesByUnlockedVase(s, rackCandidateRecipes()), ledger)
+	}
+	return 0, 0, false
+}
+
+func bestArtByInventoryCount(recipes []state.FlowerArtRecipe, ledger *InventoryLedger) (int32, int32, bool) {
+	if ledger == nil || len(recipes) == 0 {
+		return 0, 0, false
+	}
+	var bestArtID int32
+	var bestCount int32
+	found := false
+	for _, recipe := range recipes {
 		available := ledger.Available(recipe.ArtID)
 		if available <= 0 {
 			continue
 		}
-		if available > flowerRackPerSlotCount {
-			available = flowerRackPerSlotCount
+		listCount := available
+		if listCount > flowerRackPerSlotCount {
+			listCount = flowerRackPerSlotCount
 		}
-		return recipe.ArtID, available, true
+		if !found || listCount > bestCount || (listCount == bestCount && recipe.ArtID < bestArtID) {
+			bestArtID = recipe.ArtID
+			bestCount = listCount
+			found = true
+		}
 	}
-	return 0, 0, false
+	return bestArtID, bestCount, found
 }
 
 func rackCraftTarget(s *state.State, policy *pb.FlowerArtPolicy, ledger *InventoryLedger) (int32, int32, bool) {
@@ -522,12 +589,29 @@ func rackCraftTarget(s *state.State, policy *pb.FlowerArtPolicy, ledger *Invento
 	if ledger == nil {
 		ledger = NewInventoryLedger(s.Inventory())
 	}
-	for _, recipe := range rackCandidateRecipes() {
+	candidates := rackArtCandidates(s, policy.GetSellArtIds())
+	for _, recipe := range candidates {
 		if ledger.Available(recipe.ArtID) > 0 {
 			return 0, 0, false
 		}
 	}
-	for _, recipe := range rackCandidateRecipes() {
+	if artID, count, ok := rackCraftRecipeTarget(candidates, s, ledger); ok {
+		return artID, count, true
+	}
+	if len(policy.GetSellArtIds()) > 0 {
+		fallback := filterRecipesByUnlockedVase(s, rackCandidateRecipes())
+		for _, recipe := range fallback {
+			if ledger.Available(recipe.ArtID) > 0 {
+				return 0, 0, false
+			}
+		}
+		return rackCraftRecipeTarget(fallback, s, ledger)
+	}
+	return 0, 0, false
+}
+
+func rackCraftRecipeTarget(recipes []state.FlowerArtRecipe, s *state.State, ledger *InventoryLedger) (int32, int32, bool) {
+	for _, recipe := range recipes {
 		if len(artBlockedReasons(s, recipe)) > 0 {
 			continue
 		}

@@ -277,6 +277,10 @@ message FlowerArtPolicy {
   // When true together with sell_enabled, skip auto listing (and rack craft for
   // listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
   bool sell_night_pause_enabled = 9;
+  // Preferred finished flower-art ids to list on the rack. Only arts whose vase
+  // is unlocked are considered. Empty means list the finished art with the
+  // highest inventory count among unlocked-vase recipes.
+  repeated int32 sell_art_ids = 10;
 }
 
 message UnionPolicy {

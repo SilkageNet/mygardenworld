@@ -2404,6 +2404,10 @@ func TestApplyV_StatisticsTracksOrderFinishCounts(t *testing.T) {
 	if stats.DayID != 20260702 || stats.OrderFlowerFinishNum != 7 || stats.OrderPalaceFinishNum != 8 || stats.UTimeMs != 1779290172000 {
 		t.Fatalf("Statistics mismatch: %+v", stats)
 	}
+	days := s.StatisticsDays()
+	if len(days) != 2 || days[0].DayID != 20260702 || days[1].DayID != 20260701 || days[1].OrderFlowerFinishNum != 3 {
+		t.Fatalf("StatisticsDays mismatch: %+v", days)
+	}
 }
 
 func TestApplyV_StatisticsSparseDeltaPreservesOrderFlowerFinishNum(t *testing.T) {
@@ -2453,6 +2457,10 @@ func TestApplyV_StatisticsNewDayReplacesPriorCounters(t *testing.T) {
 	if stats.OrderSatinFinishNum != 0 || stats.OrderDecorateFinishNum != 0 {
 		t.Fatalf("satin/decorate should reset on new day: %+v", stats)
 	}
+	days := s.StatisticsDays()
+	if len(days) != 2 || days[1].DayID != 20260702 || days[1].OrderFlowerFinishNum != 42 {
+		t.Fatalf("prior-day history should be kept: %+v", days)
+	}
 }
 
 func TestApplyV_StatisticsMillisDayKeyKeepsResidentFinishLimit(t *testing.T) {
@@ -2478,6 +2486,9 @@ func TestApplyV_StatisticsMillisDayKeyKeepsResidentFinishLimit(t *testing.T) {
 	if stats.OrderFlowerFinishNum != 846 {
 		t.Fatalf("OrderFlowerFinishNum=%d, want 846", stats.OrderFlowerFinishNum)
 	}
+	if stats.Gold != 1540590 || stats.Experience != 623894 {
+		t.Fatalf("business counters mismatch: %+v", stats)
+	}
 	if got := s.ResidentOrderFinishNum(now); got != 846 {
 		t.Fatalf("ResidentOrderFinishNum=%d, want 846 so policy daily limit can trip", got)
 	}
@@ -2498,6 +2509,41 @@ func TestApplyV_StatisticsMillisField1NormalizesToYYYYMMDD(t *testing.T) {
 	}
 	if got := s.ResidentOrderFinishNum(now); got != 600 {
 		t.Fatalf("ResidentOrderFinishNum=%d, want 600", got)
+	}
+}
+
+func TestApplyV_StatisticsTracksBusinessCountersAndHistory(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260817": map[string]any{
+				"1": 20260817, "2": 100, "3": 200, "7": 30, "9": 4,
+			},
+			"20260818": map[string]any{
+				"1": 20260818, "2": 1540590, "3": 623894, "4": 12, "5": 3, "6": 88,
+				"7": 410, "8": 9, "9": 846, "10": 2, "11": 5, "14": 7, "15": 11, "16": 8, "17": 19,
+			},
+		}},
+	})
+	stats := s.Statistics()
+	if stats.DayID != 20260818 || stats.Gold != 1540590 || stats.Experience != 623894 || stats.Diamonds != 12 {
+		t.Fatalf("today business stats mismatch: %+v", stats)
+	}
+	if stats.SpeedUpCard != 3 || stats.FlowerShopCoin != 88 || stats.FlowerHarvestNum != 410 || stats.Wood != 19 || stats.Satin != 11 {
+		t.Fatalf("today resource counters mismatch: %+v", stats)
+	}
+	applyMap(t, s, map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260818": map[string]any{"2": 1541590, "7": 411},
+		}},
+	})
+	stats = s.Statistics()
+	if stats.Gold != 1541590 || stats.FlowerHarvestNum != 411 || stats.Experience != 623894 || stats.OrderFlowerFinishNum != 846 {
+		t.Fatalf("sparse business merge mismatch: %+v", stats)
+	}
+	days := s.StatisticsDays()
+	if len(days) != 2 || days[1].DayID != 20260817 || days[1].Gold != 100 || days[1].FlowerHarvestNum != 30 {
+		t.Fatalf("business history mismatch: %+v", days)
 	}
 }
 

@@ -238,8 +238,8 @@ func TestHandleOperationErrorRaceTakeOnCooldownWaitsAppearTime(t *testing.T) {
 	if got != nil {
 		t.Fatalf("task-cooldown must soft-recover (nil), got %v", got)
 	}
-	if r.state.FmlRace().TasksObserved {
-		t.Fatal("must MarkFmlRaceTasksUnobserved so pool refresh runs before retry")
+	if !r.state.FmlRace().TasksObserved {
+		t.Fatal("cooldown retry must keep the current pool observed")
 	}
 	cd, cooling := r.operationCoolingDown(op, now)
 	if !cooling {

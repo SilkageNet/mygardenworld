@@ -57,6 +57,14 @@ func testRacePolicy() *pb.UnionRacePolicy {
 	}
 }
 
+func testEnabledRaceFullPolicy() *pb.Policy {
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race = testRacePolicy()
+	p.Union.Race.TaskTypePriority = defaultUnionRacePriority()
+	return p
+}
+
 func raceGatesOn() RaceModuleGates {
 	return RaceModuleGates{Customer: true, Pearl: true, Cultivate: true}
 }
@@ -463,12 +471,66 @@ func TestUnionRaceOnlyUpgradeTaskFilter(t *testing.T) {
 
 func TestUnionRaceBatchInactiveProducesNoOps(t *testing.T) {
 	s := state.New()
-	// Ended batch (status=2) with closed window → no race ops.
+	// Ended batch (status=2) with closed window → no race ops off-season.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}]}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	monday := time.Date(2026, 8, 17, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	ops := unionRaceOperations(s, policy, 0, monday, raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when batch inactive, got %d: %+v", len(ops), ops)
+	}
+}
+
+func TestUnionRaceEnterAtWeeklyOpen(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
+	open := time.Date(2026, 8, 18, 9, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	ops := unionRaceOperations(s, testRacePolicy(), 0, open, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter at Tuesday 09:00, got %+v", ops)
+	}
+	if ops[0].CooldownKey != "union.race.enter.batch" {
+		t.Fatalf("cooldown key = %q", ops[0].CooldownKey)
+	}
+}
+
+func TestUnionRaceNoEnterBeforeWeeklyOpen(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
+	before := time.Date(2026, 8, 18, 8, 59, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	ops := unionRaceOperations(s, testRacePolicy(), 0, before, raceGatesOn())
+	if len(ops) != 0 {
+		t.Fatalf("expected no enter before Tuesday 09:00, got %+v", ops)
+	}
+}
+
+func TestUnionRaceEnterWhenPublishedStartArrives(t *testing.T) {
+	s := state.New()
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start := time.Date(2026, 8, 18, 9, 0, 0, 0, loc)
+	end := time.Date(2026, 8, 23, 21, 0, 0, 0, loc)
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"0":42,"1":0,"2":%d,"3":%d},"117":{"5":4}}}`,
+		start.UnixMilli(), end.UnixMilli(),
+	)))
+	ops := unionRaceOperations(s, testRacePolicy(), 0, start, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter when published start arrives, got %+v", ops)
+	}
+}
+
+func TestUnionRaceInactiveEnterWaitsForRetry(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
+	open := time.Date(2026, 8, 18, 9, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s.MarkFmlRaceLvlSyncAttemptAt(open)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, open.Add(10*time.Second), raceGatesOn())
+	if len(ops) != 0 {
+		t.Fatalf("expected no enter within retry interval, got %+v", ops)
+	}
+	ops = unionRaceOperations(s, testRacePolicy(), 0, open.Add(raceInactiveEnterRetryInterval), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter after retry interval, got %+v", ops)
 	}
 }
 
@@ -783,6 +845,63 @@ func TestUnionRacePreemptiveTakeWithinLead(t *testing.T) {
 	}
 	if ops[0].TaskMsID != 7 {
 		t.Fatalf("taskMsId = %d, want 7", ops[0].TaskMsID)
+	}
+}
+
+func TestRaceTakeWakeAt(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	s := state.New()
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		now.Add(5*time.Second).UnixMilli(),
+	)))
+	policy := testEnabledRaceFullPolicy()
+
+	wake := RaceTakeWakeAt(s, policy, now)
+	want := now.Add(5*time.Second - raceTakeLeadWindow)
+	if !wake.Equal(want) {
+		t.Fatalf("RaceTakeWakeAt=%v, want AppearTime-lead %v", wake, want)
+	}
+
+	if got := RaceTakeWakeAt(s, policy, want); !got.IsZero() {
+		t.Fatalf("inside lead window must not schedule a future wake, got %v", got)
+	}
+
+	off := testEnabledRaceFullPolicy()
+	off.Union.Race.AutoEnableModules = false
+	if got := RaceTakeWakeAt(s, off, now); !got.IsZero() {
+		t.Fatalf("auto-complete off must not wake, got %v", got)
+	}
+}
+
+func TestRaceTakeWakeAtSkipsWhenAlreadyTakeableOrHeld(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	policy := testEnabledRaceFullPolicy()
+
+	ready := state.New()
+	ready.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	ready.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		now.UnixMilli(),
+	)))
+	if got := RaceTakeWakeAt(ready, policy, now); !got.IsZero() {
+		t.Fatalf("already-due task must take this tick, got wake %v", got)
+	}
+
+	held := state.New()
+	held.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	held.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"6":[23001],"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":7,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
+	if got := RaceTakeWakeAt(held, policy, now); !got.IsZero() {
+		t.Fatalf("held task must not wake for another take, got %v", got)
+	}
+}
+
+func TestRaceTakeLaneRankPreemptsFarm(t *testing.T) {
+	take := PlannedOp{Domain: "union.race.take", Lane: LaneSide, Priority: 4380}
+	harvest := PlannedOp{Domain: "farm.harvest", Lane: LaneFarm, Priority: 9000}
+	if !operationComesBefore(take, harvest) {
+		t.Fatal("race take must sort before farm harvest")
 	}
 }
 

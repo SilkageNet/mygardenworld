@@ -173,7 +173,9 @@ func (s *State) applyStatisticsLocked(raw json.RawMessage) {
 	// present fields into the current day so orderFlowerFinishNum is not wiped
 	// by an unrelated patch (e.g. flowerArtSellNum-only), which would disable
 	// the ordinary resident-order daily limit.
-	if view, countersSeen, ok := parseStatisticsViewMerged(s.statistics, raw0); ok {
+	days, view, countersSeen, ok := parseStatisticsDays(s.statisticsByDay, s.statistics, raw0)
+	if ok {
+		s.statisticsByDay = days
 		prevDay := s.statistics.DayID
 		s.statistics = view
 		dayChanged := view.DayID != 0 && prevDay != 0 && view.DayID != prevDay
@@ -216,15 +218,27 @@ type statisticsCountersSeen struct {
 }
 
 func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (StatisticsView, statisticsCountersSeen, bool) {
+	_, latest, seen, ok := parseStatisticsDays(nil, prev, raw)
+	return latest, seen, ok
+}
+
+func parseStatisticsDays(prevDays map[int32]StatisticsView, prevLatest StatisticsView, raw json.RawMessage) (map[int32]StatisticsView, StatisticsView, statisticsCountersSeen, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return StatisticsView{}, statisticsCountersSeen{}, false
+		return nil, StatisticsView{}, statisticsCountersSeen{}, false
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return StatisticsView{}, statisticsCountersSeen{}, false
+		return nil, StatisticsView{}, statisticsCountersSeen{}, false
 	}
+	days := cloneStatisticsDays(prevDays)
 	if hasStatisticsField(fields) {
-		return mergeStatisticsFields(prev, fields, 0)
+		base := statisticsDayBase(days, prevLatest, prevLatest.DayID)
+		view, countersSeen, ok := mergeStatisticsFields(base, fields, 0)
+		if !ok {
+			return nil, StatisticsView{}, statisticsCountersSeen{}, false
+		}
+		storeStatisticsDay(days, view)
+		return days, view, countersSeen, true
 	}
 	var best StatisticsView
 	seen := false
@@ -238,14 +252,12 @@ func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (Statis
 		// (e.g. "1785686400000"); atoi32 overflows and previously made
 		// ResidentOrderFinishNum treat today's counter as a prior-day 0.
 		dayHint := normalizeStatisticsDayID(atoi64(dayIDStr))
-		base := StatisticsView{}
-		if prev.Observed && (dayHint == 0 || prev.DayID == 0 || prev.DayID == dayHint) {
-			base = prev
-		}
+		base := statisticsDayBase(days, prevLatest, dayHint)
 		entry, entryCounters, ok := mergeStatisticsFields(base, entryFields, dayHint)
 		if !ok {
 			continue
 		}
+		storeStatisticsDay(days, entry)
 		if !seen || entry.DayID >= best.DayID {
 			best = entry
 			countersSeen = entryCounters
@@ -253,13 +265,40 @@ func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (Statis
 		}
 	}
 	if seen {
-		return best, countersSeen, true
+		return days, best, countersSeen, true
 	}
-	return StatisticsView{}, statisticsCountersSeen{}, false
+	return nil, StatisticsView{}, statisticsCountersSeen{}, false
+}
+
+func cloneStatisticsDays(in map[int32]StatisticsView) map[int32]StatisticsView {
+	out := make(map[int32]StatisticsView, len(in))
+	for dayID, view := range in {
+		out[dayID] = view
+	}
+	return out
+}
+
+func statisticsDayBase(days map[int32]StatisticsView, prevLatest StatisticsView, dayID int32) StatisticsView {
+	if dayID != 0 {
+		if stored, ok := days[dayID]; ok {
+			return stored
+		}
+	}
+	if prevLatest.Observed && (dayID == 0 || prevLatest.DayID == 0 || prevLatest.DayID == dayID) {
+		return prevLatest
+	}
+	return StatisticsView{}
+}
+
+func storeStatisticsDay(days map[int32]StatisticsView, view StatisticsView) {
+	if view.DayID == 0 {
+		return
+	}
+	days[view.DayID] = view
 }
 
 func hasStatisticsField(fields map[string]json.RawMessage) bool {
-	for _, key := range []string{"1", "8", "9", "10", "11", "12", "13", "14", "16"} {
+	for _, key := range []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"} {
 		if _, ok := fields[key]; ok {
 			return true
 		}
@@ -284,6 +323,30 @@ func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessag
 		seen = true
 	} else if view.DayID == 0 && dayHint != 0 {
 		view.DayID = dayHint
+	}
+	if n, ok := readInt32JSONField(fields, "2"); ok {
+		view.Gold = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "3"); ok {
+		view.Experience = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "4"); ok {
+		view.Diamonds = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "5"); ok {
+		view.SpeedUpCard = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "6"); ok {
+		view.FlowerShopCoin = n
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "7"); ok {
+		view.FlowerHarvestNum = n
+		seen = true
 	}
 	if n, ok := readInt32JSONField(fields, "8"); ok {
 		view.FlowerArtSellNum = n
@@ -315,9 +378,17 @@ func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessag
 		countersSeen.satin = true
 		seen = true
 	}
+	if n, ok := readInt32JSONField(fields, "15"); ok {
+		view.Satin = n
+		seen = true
+	}
 	if n, ok := readInt32JSONField(fields, "16"); ok {
 		view.OrderDecorateFinishNum = n
 		countersSeen.decorate = true
+		seen = true
+	}
+	if n, ok := readInt32JSONField(fields, "17"); ok {
+		view.Wood = n
 		seen = true
 	}
 	if !seen {

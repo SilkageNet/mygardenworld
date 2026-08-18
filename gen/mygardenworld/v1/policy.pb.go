@@ -1252,6 +1252,8 @@ type PlantingPolicy struct {
 	// Seconds to wait after a plant becomes harvestable before auto-harvest.
 	// 0 means harvest as soon as ready (state=3 immediately; state=2 still uses
 	// the short protocol ready grace). Does not affect manual harvest.
+	// Guild-race plant-harvest flowers always ignore this delay (harvest ASAP)
+	// while an unfinished race task is held, even when auto_harvest_enabled is off.
 	HarvestDelaySeconds int32 `protobuf:"varint,21,opt,name=harvest_delay_seconds,json=harvestDelaySeconds,proto3" json:"harvest_delay_seconds,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -2163,8 +2165,12 @@ type FlowerArtPolicy struct {
 	// When true together with sell_enabled, skip auto listing (and rack craft for
 	// listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
 	SellNightPauseEnabled bool `protobuf:"varint,9,opt,name=sell_night_pause_enabled,json=sellNightPauseEnabled,proto3" json:"sell_night_pause_enabled,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Preferred finished flower-art ids to list on the rack. Only arts whose vase
+	// is unlocked are considered. Empty means list the finished art with the
+	// highest inventory count among unlocked-vase recipes.
+	SellArtIds    []int32 `protobuf:"varint,10,rep,packed,name=sell_art_ids,json=sellArtIds,proto3" json:"sell_art_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FlowerArtPolicy) Reset() {
@@ -2244,6 +2250,13 @@ func (x *FlowerArtPolicy) GetSellNightPauseEnabled() bool {
 		return x.SellNightPauseEnabled
 	}
 	return false
+}
+
+func (x *FlowerArtPolicy) GetSellArtIds() []int32 {
+	if x != nil {
+		return x.SellArtIds
+	}
+	return nil
 }
 
 type UnionPolicy struct {
@@ -2528,9 +2541,9 @@ type UnionRacePolicy struct {
 	// Sync / finish / giveUp of an already-held task still run. Default on in
 	// DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
 	AutoStopOnQuotaDone bool `protobuf:"varint,12,opt,name=auto_stop_on_quota_done,json=autoStopOnQuotaDone,proto3" json:"auto_stop_on_quota_done,omitempty"`
-	// Permit spending speed-up tickets during the final ten minutes of a held
-	// planting task even when use_speedup_ticket_in_task is false. Default off:
-	// emergency resource spending must be an explicit operator choice.
+	// Deprecated: ignored. Last-10-minute race plant speedup is always forced
+	// when auto_enable_modules is on, even if use_speedup_ticket_in_task is false.
+	// Kept for wire/API compatibility with stored policy JSON.
 	UrgentSpeedupEnabled bool `protobuf:"varint,13,opt,name=urgent_speedup_enabled,json=urgentSpeedupEnabled,proto3" json:"urgent_speedup_enabled,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
@@ -3115,7 +3128,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x10one_more_enabled\x18\x02 \x01(\bR\x0eoneMoreEnabled\x124\n" +
 	"\x16submit_only_cultivated\x18\x03 \x01(\bR\x14submitOnlyCultivated\x12\x1c\n" +
 	"\tqualities\x18\x04 \x03(\x05R\tqualities\x12*\n" +
-	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xda\x02\n" +
+	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xfc\x02\n" +
 	"\x0fFlowerArtPolicy\x12*\n" +
 	"\x11auto_unlock_stand\x18\x01 \x01(\bR\x0fautoUnlockStand\x12!\n" +
 	"\fsell_enabled\x18\x02 \x01(\bR\vsellEnabled\x12#\n" +
@@ -3123,7 +3136,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x14early_cancel_enabled\x18\x04 \x01(\bR\x12earlyCancelEnabled\x122\n" +
 	"\x15create_reward_enabled\x18\a \x01(\bR\x13createRewardEnabled\x124\n" +
 	"\x16collect_reward_enabled\x18\b \x01(\bR\x14collectRewardEnabled\x127\n" +
-	"\x18sell_night_pause_enabled\x18\t \x01(\bR\x15sellNightPauseEnabled\"\xc7\x02\n" +
+	"\x18sell_night_pause_enabled\x18\t \x01(\bR\x15sellNightPauseEnabled\x12 \n" +
+	"\fsell_art_ids\x18\n" +
+	" \x03(\x05R\n" +
+	"sellArtIds\"\xc7\x02\n" +
 	"\vUnionPolicy\x128\n" +
 	"\x05build\x18\x01 \x01(\v2\".mygardenworld.v1.UnionBuildPolicyR\x05build\x12;\n" +
 	"\x06flower\x18\x02 \x01(\v2#.mygardenworld.v1.UnionFlowerPolicyR\x06flower\x125\n" +

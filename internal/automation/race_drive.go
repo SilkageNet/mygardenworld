@@ -639,7 +639,7 @@ func raceFlowerArtSellOperation(s *state.State, demand Demand, ledger *Inventory
 	if ledger == nil {
 		ledger = NewInventoryLedger(s.Inventory())
 	}
-	artID, count, ok := bestRackArt(ledger)
+	artID, count, ok := bestRackArtForRace(s, ledger)
 	if !ok || count <= 0 {
 		return PlannedOp{}, false
 	}

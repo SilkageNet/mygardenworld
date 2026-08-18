@@ -362,9 +362,8 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 	case operationErrorRaceTakeOnCooldown:
 		// Preemptive take (lead window) often hits server CD. Do not use the
 		// ordinary 60s side-op backoff — wait until AppearTime (+pad) and
-		// resync the pool so mid-wait upgrades are visible before retry.
+		// keep the current pool so the retry tick can take instead of syncing.
 		now := result.finishedAt
-		r.state.MarkFmlRaceTasksUnobserved()
 		cooldown := raceTakeOnCooldownWait(r.state, op, now)
 		payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示任务冷却中", cooldown)
 		r.emit(Event{

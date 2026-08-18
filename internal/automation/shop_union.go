@@ -12,8 +12,9 @@ import (
 )
 
 // raceTakeLeadWindow is how early automation may emit takeTask for a CD pool
-// row that already meets filter rules.
-const raceTakeLeadWindow = 50 * time.Millisecond
+// row that already meets filter rules. The decision loop wakes at
+// AppearTime-lead so the default 4s tick cannot miss this window.
+const raceTakeLeadWindow = 300 * time.Millisecond
 
 // raceTaskPoolRefreshInterval is how often automation re-fetches the task pool
 // when idle of giveUp/finish/take.
@@ -31,6 +32,10 @@ const raceNearCDSyncSuppressWindow = 45 * time.Second
 // state.reconcileFmlRaceLocalFinishAfterFullPool), so this is a short nudge
 // rather than an unbounded poll.
 const raceFinishProgressSyncInterval = 30 * time.Second
+
+// raceInactiveEnterRetryInterval is how often enter may re-probe after an
+// inactive batch once the weekly session (or a published start window) is open.
+const raceInactiveEnterRetryInterval = 30 * time.Second
 
 // fmlFlowerTakeListRefreshInterval is how often automation re-fetches the
 // guild other-share list while take quota remains.
@@ -695,6 +700,19 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if !view.Observed {
 		return []PlannedOp{domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)}
 	}
+	// Re-evaluate the published start/end window at planner time. Apply-time
+	// BatchActive stays false if enter ran before Tuesday 09:00.
+	view.BatchActive = view.ActiveAt(now)
+	if view.BatchStatus != 1 {
+		if raceShouldEnterInactiveBatch(view, now) {
+			op := domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛开赛同步批次", 4400, 0, 0, 0)
+			op.CooldownKey = "union.race.enter.batch"
+			return []PlannedOp{op}
+		}
+		if !view.BatchActive {
+			return nil
+		}
+	}
 	if view.BatchActive && view.RaceLvl <= 0 && s.FmlBuild().RaceLvl <= 0 {
 		const raceLvlSyncInterval = 10 * time.Minute
 		synced := view.RaceLvlSyncAtMs
@@ -933,6 +951,36 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	return ops
 }
 
+// raceShouldEnterInactiveBatch re-probes fmlRace.enter when the stored batch is
+// not in-progress. Without this, an ended last-week snapshot (status==2) or a
+// published future window (status==0) never discovers Tuesday 09:00 opening.
+func raceShouldEnterInactiveBatch(view state.FmlRaceView, now time.Time) bool {
+	if view.BatchStatus != 2 && view.BatchStartMs > 0 {
+		start := time.UnixMilli(view.BatchStartMs)
+		if now.Before(start) {
+			return false
+		}
+		if view.BatchEndMs <= 0 || now.Before(time.UnixMilli(view.BatchEndMs)) {
+			return raceInactiveEnterRetryDue(view, now, start)
+		}
+	}
+	if !state.FmlRaceCalendarInSession(now) {
+		return false
+	}
+	return raceInactiveEnterRetryDue(view, now, state.FmlRaceCalendarSessionStart(now))
+}
+
+func raceInactiveEnterRetryDue(view state.FmlRaceView, now, sessionStart time.Time) bool {
+	if view.RaceLvlSyncAtMs <= 0 {
+		return true
+	}
+	last := time.UnixMilli(view.RaceLvlSyncAtMs)
+	if !sessionStart.IsZero() && last.Before(sessionStart) {
+		return true
+	}
+	return !now.Before(last.Add(raceInactiveEnterRetryInterval))
+}
+
 func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
 	if !view.BatchActive || !view.TasksObserved {
 		return false
@@ -981,6 +1029,51 @@ func raceHasNearTakeableCD(s *state.State, tasks []state.FmlRaceTaskView, policy
 		}
 	}
 	return false
+}
+
+// RaceTakeWakeAt is when the decision loop should next tick to emit takeTask
+// for a filter-passing CD pool row: AppearTime minus raceTakeLeadWindow.
+// Zero means there is nothing to wait for (already holding, already takeable
+// this tick, auto-complete off, or no eligible CD task).
+func RaceTakeWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.Time {
+	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
+		return time.Time{}
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
+		return time.Time{}
+	}
+	view := s.FmlRace()
+	view.BatchActive = view.ActiveAt(now)
+	if !view.BatchActive || !view.TasksObserved || view.Taken.HasTask ||
+		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		return time.Time{}
+	}
+	uid := s.RoleID()
+	gates := raceModuleGatesFromPolicy(policy)
+	nowMs := now.UnixMilli()
+	leadMs := raceTakeLeadWindow.Milliseconds()
+	var bestAppear int64
+	anyTakeableNow := false
+	for _, t := range view.Tasks {
+		if t.UID != 0 {
+			continue
+		}
+		if raceTakeNonCDSkipReason(s, t, race, uid, gates) != "" {
+			continue
+		}
+		if t.AppearTime <= 0 || t.AppearTime <= nowMs || t.AppearTime-nowMs <= leadMs {
+			anyTakeableNow = true
+			continue
+		}
+		if bestAppear == 0 || t.AppearTime < bestAppear {
+			bestAppear = t.AppearTime
+		}
+	}
+	if anyTakeableNow || bestAppear == 0 {
+		return time.Time{}
+	}
+	return time.UnixMilli(bestAppear - leadMs)
 }
 
 func isRacePrimaryMutatingOp(op PlannedOp) bool {
