@@ -216,6 +216,17 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FlowerRack().Sell(ctx, req)
 		},
 	),
+	clientproto.RPCFlowerRackCancelSell.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerRackCancelSellRequest, error) {
+			if op.TargetID <= 0 {
+				return clientproto.FlowerRackCancelSellRequest{}, fmt.Errorf("flower rack cancel missing rackId")
+			}
+			return clientproto.FlowerRackCancelSellRequest{RackId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerRackCancelSellRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerRack().CancelSell(ctx, req)
+		},
+	),
 	clientproto.RPCFlowerRackRecvSellMoney.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FlowerRackRecvSellMoneyRequest, error) {
 			return clientproto.FlowerRackRecvSellMoneyRequest{RackId: op.TargetID}, nil

@@ -167,6 +167,7 @@ type State struct {
 	reputation           ReputationView
 	videoDouble          VideoDoubleView
 	statistics           StatisticsView
+	statisticsByDay      map[int32]StatisticsView
 	zoo                  ZooView
 	zooPets              map[int32]*ZooPetView
 	zooLogs              map[string]*ZooLogView
@@ -278,6 +279,7 @@ func New() *State {
 		signTypes:         make(map[int32]*SignTypeView),
 		baseRewards:       make(map[int32]*BaseRewardView),
 		signTypeEnterAtMs: make(map[int32]int64),
+		statisticsByDay:   make(map[int32]StatisticsView),
 		zooPets:           make(map[int32]*ZooPetView),
 		zooLogs:           make(map[string]*ZooLogView),
 		zooSouvenirs:      make(map[int32]*ZooSouvenirView),

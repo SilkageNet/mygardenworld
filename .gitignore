@@ -45,6 +45,14 @@ Thumbs.db
 /docs.local/
 *.local.*
 
+# Personal local launch / autostart tooling (do not commit)
+/scripts/desktop_launcher/
+/scripts/autostart.env
+/scripts/autostart.env.example
+/scripts/install-autostart.ps1
+/scripts/uninstall-autostart.ps1
+/scripts/start-gardend.ps1
+
 # Generated static web bundle copied into the Go embed package for release builds
 /internal/webui/static/*
 !/internal/webui/static/placeholder.txt

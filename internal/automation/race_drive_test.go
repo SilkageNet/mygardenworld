@@ -421,10 +421,11 @@ func TestRaceSpeedupOnlyTargetsRaceFlower(t *testing.T) {
 	}
 }
 
-// TestRaceExpireUrgentSpeedupWithExplicitFallback ensures that within 10
-// minutes of ExpireTime, unfinished plant-harvest tasks may use the separately
-// authorized urgency fallback while the regular speedup toggle stays off.
-func TestRaceExpireUrgentSpeedupWithExplicitFallback(t *testing.T) {
+// TestRaceExpireUrgentSpeedupForcedFallback ensures that within 10 minutes of
+// ExpireTime, unfinished plant-harvest tasks always use speedup tickets even
+// when both the regular race toggle and the legacy urgent_speedup_enabled
+// field are off.
+func TestRaceExpireUrgentSpeedupForcedFallback(t *testing.T) {
 	now := time.UnixMilli(1_700_000_000_000)
 	expire := now.Add(5 * time.Minute).UnixMilli()
 	s := raceTakenPlantState(t, 2, 10)
@@ -448,7 +449,6 @@ func TestRaceExpireUrgentSpeedupWithExplicitFallback(t *testing.T) {
 		t.Fatalf("ExpireTime=%d, want %d", got, expire)
 	}
 	policy := racePlantPolicy(false) // UseSpeedupTicketInTask off
-	policy.Union.Race.UrgentSpeedupEnabled = true
 
 	result := BuildPlan(s, policy, now)
 	var speed *PlannedOp
@@ -460,7 +460,7 @@ func TestRaceExpireUrgentSpeedupWithExplicitFallback(t *testing.T) {
 		}
 	}
 	if speed == nil {
-		t.Fatalf("expected urgent expire speedup, ops=%+v", result.Operations)
+		t.Fatalf("expected forced urgent expire speedup, ops=%+v", result.Operations)
 	}
 	if speed.Reason != "公会竞赛任务即将过期，使用加速卡" {
 		t.Fatalf("Reason=%q, want expire urgency reason", speed.Reason)
@@ -491,7 +491,6 @@ func TestRaceNoSpeedupFarFromExpireWithoutToggle(t *testing.T) {
 		}},
 	})
 	policy := racePlantPolicy(false)
-	policy.Union.Race.UrgentSpeedupEnabled = true
 
 	result := BuildPlan(s, policy, now)
 	for _, op := range result.Operations {
@@ -517,7 +516,6 @@ func TestRaceExpiredTaskStopsProgressAndRefreshes(t *testing.T) {
 	})
 	s.MarkFmlRaceTasksUnobserved()
 	policy := racePlantPolicy(true)
-	policy.Union.Race.UrgentSpeedupEnabled = true
 
 	result := BuildPlan(s, policy, now)
 	foundSync := false
@@ -1281,5 +1279,71 @@ func TestRaceWatersPlantedFlowerWhenPlantingAutoOff(t *testing.T) {
 	}
 	if len(water.LandIDs) != 5 {
 		t.Fatalf("water lands=%v, want 5 race flower lands", water.LandIDs)
+	}
+}
+
+func TestRaceHarvestsWhenAutoHarvestOff(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 0, 10)
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3, "2": 1},
+			"1002": map[string]any{"0": 23002, "1": 3, "2": 1}, // non-race ready
+		}},
+	})
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.AutoEnabled = false
+	policy.Plant.Planting.AutoHarvestEnabled = false
+
+	result := BuildPlan(s, policy, now)
+	var harvest *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() && op.Executable {
+			harvest = op
+			break
+		}
+	}
+	if harvest == nil {
+		t.Fatalf("race must force-harvest competition flower when auto harvest is off, ops=%+v", result.Operations)
+	}
+	if len(harvest.LandIDs) != 1 || harvest.LandIDs[0] != 1001 {
+		t.Fatalf("race-only harvest LandIDs=%v, want [1001]", harvest.LandIDs)
+	}
+}
+
+func TestRaceFlowerIgnoresHarvestDelay(t *testing.T) {
+	now := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	s := raceTakenPlantState(t, 0, 10)
+	// Race flower matured 10s ago; non-race flower same. Configured delay=30s.
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23001, "1": 3, "2": 1, "7": now.Add(-10 * time.Second).UnixMilli()},
+			"1002": map[string]any{"0": 23002, "1": 3, "2": 1, "7": now.Add(-10 * time.Second).UnixMilli()},
+		}},
+	})
+	policy := racePlantPolicy(false)
+	policy.Plant.Planting.AutoHarvestEnabled = true
+	policy.Plant.Planting.HarvestDelaySeconds = 30
+
+	result := BuildPlan(s, policy, now)
+	var harvest *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() && op.Executable {
+			harvest = op
+			break
+		}
+	}
+	if harvest == nil {
+		t.Fatalf("race flower must harvest immediately despite delay, ops=%+v", result.Operations)
+	}
+	for _, id := range harvest.LandIDs {
+		if id == 1002 {
+			t.Fatalf("non-race flower must still respect harvest delay, got LandIDs=%v", harvest.LandIDs)
+		}
+	}
+	if len(harvest.LandIDs) != 1 || harvest.LandIDs[0] != 1001 {
+		t.Fatalf("LandIDs=%v, want only race land [1001]", harvest.LandIDs)
 	}
 }

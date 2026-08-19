@@ -1137,12 +1137,20 @@ type VideoDoubleView struct {
 type StatisticsView struct {
 	Observed               bool  `json:"observed,omitempty"`
 	DayID                  int32 `json:"day_id,omitempty"`
+	Gold                   int32 `json:"gold,omitempty"`
+	Experience             int32 `json:"experience,omitempty"`
+	Diamonds               int32 `json:"diamonds,omitempty"`
+	SpeedUpCard            int32 `json:"speed_up_card,omitempty"`
+	FlowerShopCoin         int32 `json:"flower_shop_coin,omitempty"`
+	FlowerHarvestNum       int32 `json:"flower_harvest_num,omitempty"`
+	FlowerArtSellNum       int32 `json:"flower_art_sell_num,omitempty"`
 	OrderFlowerFinishNum   int32 `json:"order_flower_finish_num,omitempty"`
 	OrderPalaceFinishNum   int32 `json:"order_palace_finish_num,omitempty"`
 	OrderCustomerFinishNum int32 `json:"order_customer_finish_num,omitempty"`
 	OrderSatinFinishNum    int32 `json:"order_satin_finish_num,omitempty"`
+	Satin                  int32 `json:"satin,omitempty"`
 	OrderDecorateFinishNum int32 `json:"order_decorate_finish_num,omitempty"`
-	FlowerArtSellNum       int32 `json:"flower_art_sell_num,omitempty"`
+	Wood                   int32 `json:"wood,omitempty"`
 	UTimeMs                int64 `json:"u_time_ms,omitempty"`
 	CTimeMs                int64 `json:"c_time_ms,omitempty"`
 }

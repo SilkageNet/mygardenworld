@@ -196,13 +196,15 @@ func TestFromJSONRaceAutoStopOnQuotaDoneBackfill(t *testing.T) {
 	}
 }
 
-func TestRaceUrgentSpeedupRequiresExplicitPolicy(t *testing.T) {
+func TestRaceUrgentSpeedupFieldStillRoundTrips(t *testing.T) {
+	// Field is deprecated (runtime always forces last-10-minute speedup) but
+	// stored JSON must keep loading without error for older policies.
 	legacy, err := FromJSON(`{"union":{"race":{"enabled":true}}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if legacy.GetUnion().GetRace().GetUrgentSpeedupEnabled() {
-		t.Fatal("legacy policies must not opt into emergency ticket spending")
+		t.Fatal("omitted urgent_speedup_enabled must stay false on load")
 	}
 
 	enabled, err := FromJSON(`{"union":{"race":{"urgent_speedup_enabled":true}}}`)

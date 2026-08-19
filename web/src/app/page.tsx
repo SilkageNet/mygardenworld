@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   BadgeCheck,
+  BarChart3,
   CalendarDays,
   Check,
   ChevronDown,
@@ -48,7 +49,9 @@ import { ExecutionLane, PlanStatus, QueryService } from "@/gen/mygardenworld/v1/
 import type {
   AccountStatus,
   ActivityItem,
+  BusinessStatisticsView,
   CyclicNoteMilestone,
+  DailyBusinessStatisticsView,
   CyclicNoteTaskSlot,
   CyclicNoteView,
   CyclicStoryOrder,
@@ -133,7 +136,7 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "benefit_box",
 ]);
 
-type DashboardTabId = "monitor" | "settings" | "logs" | "race" | "land" | "warehouse";
+type DashboardTabId = "monitor" | "settings" | "logs" | "race" | "land" | "warehouse" | "business";
 type AccountQuota = {
   current: number;
   max: number;
@@ -154,6 +157,7 @@ const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] =
   { id: "race", label: "公会竞赛", icon: <Trophy /> },
   { id: "land", label: "土地", icon: <Sprout /> },
   { id: "warehouse", label: "仓库", icon: <Package /> },
+  { id: "business", label: "营业统计", icon: <BarChart3 /> },
 ];
 
 
@@ -743,7 +747,12 @@ function DashboardContent() {
         </aside>
 
         {hasAccounts && (
-          <section className={cn("dark-scrollbar min-h-0 min-w-0 w-full xl:h-full xl:overflow-y-auto xl:pr-1", !selectedAccount && "hidden xl:block")}>
+          <section
+            className={cn(
+              "min-h-0 min-w-0 w-full xl:flex xl:h-full xl:flex-col xl:overflow-hidden xl:pr-1",
+              !selectedAccount && "hidden xl:block",
+            )}
+          >
             {selectedAccount ? (
               <AccountDetailView
                 account={selectedAccount}
@@ -1169,8 +1178,15 @@ function AccountDetailView({
   onPolicyChange: (policy: Policy | null) => void;
   onPolicySave: () => void;
 }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0 });
+  }, [account.id]);
+
   return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 sm:gap-4 xl:h-full">
+    <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 sm:gap-4 xl:h-full xl:overflow-hidden">
       <div className="shrink-0">
         <HeaderPanel
           account={account}
@@ -1184,18 +1200,18 @@ function AccountDetailView({
         />
       </div>
       <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
-      {activeTab === "monitor" && (
-        <div className="min-h-0">
-          <MonitorTab snapshot={snapshot} status={status} />
-        </div>
-      )}
-      {activeTab === "logs" && (
-        <div className="flex min-h-0 flex-1">
-          <EventPanel events={events} />
-        </div>
-      )}
-      {activeTab === "settings" && (
-        <div className="min-h-0">
+      <div
+        ref={contentRef}
+        className={cn(
+          "min-h-0",
+          activeTab === "logs"
+            ? "flex flex-1 xl:min-h-0 xl:overflow-hidden"
+            : "dark-scrollbar xl:flex-1 xl:overflow-y-auto xl:pr-0.5",
+        )}
+      >
+        {activeTab === "monitor" && <MonitorTab snapshot={snapshot} status={status} />}
+        {activeTab === "logs" && <EventPanel events={events} />}
+        {activeTab === "settings" && (
           <PolicyPanel
             policy={policy}
             snapshot={snapshot}
@@ -1206,23 +1222,12 @@ function AccountDetailView({
             onPolicyChange={onPolicyChange}
             onSave={onPolicySave}
           />
-        </div>
-      )}
-      {activeTab === "race" && (
-        <div className="min-h-0">
-          <RaceTab snapshot={snapshot} policy={policy} />
-        </div>
-      )}
-      {activeTab === "land" && (
-        <div className="min-h-0">
-          <LandTab snapshot={snapshot} policy={policy} />
-        </div>
-      )}
-      {activeTab === "warehouse" && (
-        <div className="min-h-0">
-          <WarehouseTab snapshot={snapshot} />
-        </div>
-      )}
+        )}
+        {activeTab === "race" && <RaceTab snapshot={snapshot} policy={policy} />}
+        {activeTab === "land" && <LandTab snapshot={snapshot} policy={policy} />}
+        {activeTab === "warehouse" && <WarehouseTab snapshot={snapshot} />}
+        {activeTab === "business" && <BusinessTab snapshot={snapshot} />}
+      </div>
     </div>
   );
 }
@@ -1235,7 +1240,7 @@ function DashboardTabBar({
   onChange: (tab: DashboardTabId) => void;
 }) {
   return (
-    <div className="dark-scrollbar sticky top-[3.25rem] z-10 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-white/58 bg-white/62 p-1 shadow-sm shadow-sky-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-card/72 sm:top-14 xl:static">
+    <div className="dark-scrollbar sticky top-[3.25rem] z-20 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-white/58 bg-white/62 p-1 shadow-sm shadow-sky-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-card/72 sm:top-14 xl:static">
       {DASHBOARD_TABS.map((tab) => (
         <button
           key={tab.id}
@@ -1320,6 +1325,14 @@ function WarehouseTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
   return (
     <div className="space-y-3 sm:space-y-4">
       <WarehouseMonitorPanel ledger={snapshot?.inventoryLedger} />
+    </div>
+  );
+}
+
+function BusinessTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <BusinessStatisticsPanel statistics={snapshot?.businessStatistics} />
     </div>
   );
 }
@@ -3183,6 +3196,105 @@ function WarehouseMonitorPanel({ ledger }: { ledger?: InventoryLedgerView }) {
   );
 }
 
+function BusinessStatisticsPanel({ statistics }: { statistics?: BusinessStatisticsView }) {
+  const observed = statistics?.observed ?? false;
+  const today = statistics?.today;
+  const days = statistics?.days ?? [];
+  const orderTotal = today
+    ? today.residentNormalFinished + today.customerFinished + today.palaceFinished + today.residentSatinFinished + today.residentDecorateFinished
+    : 0;
+
+  return (
+    <CollapsibleCard
+      title="营业统计"
+      contentClassName="space-y-3"
+      actions={
+        observed ? (
+          <>
+            {today?.dayId ? <Badge variant="secondary">{formatDayId(today.dayId)}</Badge> : null}
+            {today?.updatedAtMs ? <Badge variant="outline">更新 {formatUnixTime(today.updatedAtMs)}</Badge> : null}
+          </>
+        ) : (
+          <Badge variant="outline">未同步</Badge>
+        )
+      }
+    >
+      {!observed || !today ? (
+        <EmptyState title="暂无营业统计" detail="登录后同步今日收益、收获和订单完成数" />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <OverviewStat icon={<Coins />} label="金币" value={formatCount(today.gold)} detail="今日获得" />
+            <OverviewStat icon={<TrendingUp />} label="经验" value={formatCount(today.experience)} detail="今日获得" />
+            <OverviewStat icon={<Gem />} label="元宝" value={formatCount(today.diamonds)} detail="今日获得" />
+            <OverviewStat icon={<Flower2 />} label="收获鲜花" value={formatCount(today.flowerHarvestNum)} detail="今日收获" />
+            <OverviewStat icon={<Sparkles />} label="花艺售出" value={formatCount(today.flowerArtSold)} />
+            <OverviewStat icon={<ListChecks />} label="完成订单" value={formatCount(orderTotal)} detail="居民/顾客/宫廷/绸缎/建材" />
+            <OverviewStat icon={<Ticket />} label="加速券" value={formatCount(today.speedUpCard)} />
+            <OverviewStat icon={<HandCoins />} label="花币" value={formatCount(today.flowerShopCoin)} />
+          </div>
+
+          <div className="dark-scrollbar flex gap-2 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-2">
+            {businessOrderItems(today).map((item) => (
+              <div key={item.label} className="flex min-w-[5.5rem] shrink-0 items-center justify-between gap-3 rounded bg-background/70 px-3 py-2 text-sm sm:min-w-24">
+                <span className="text-muted-foreground">{item.label}</span>
+                <span className="font-semibold tabular-nums">{formatCount(item.value)}</span>
+              </div>
+            ))}
+          </div>
+
+          {days.length > 0 && (
+            <div className="dark-scrollbar max-h-[440px] overflow-auto rounded-md border border-border/58 bg-white/42 sm:h-[560px] sm:max-h-none dark:bg-white/5">
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-card/92 shadow-[0_1px_0_0_var(--border)] backdrop-blur-xl">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="h-9 text-xs">日期</TableHead>
+                    <TableHead className="h-9 text-xs">金币</TableHead>
+                    <TableHead className="h-9 text-xs">经验</TableHead>
+                    <TableHead className="h-9 text-xs">元宝</TableHead>
+                    <TableHead className="h-9 text-xs">收获</TableHead>
+                    <TableHead className="h-9 text-xs">花艺</TableHead>
+                    <TableHead className="h-9 text-xs">居民</TableHead>
+                    <TableHead className="h-9 text-xs">顾客</TableHead>
+                    <TableHead className="h-9 text-xs">宫廷</TableHead>
+                    <TableHead className="h-9 text-xs">绸缎</TableHead>
+                    <TableHead className="h-9 text-xs">建材</TableHead>
+                    <TableHead className="h-9 text-xs">加速券</TableHead>
+                    <TableHead className="h-9 text-xs">花币</TableHead>
+                    <TableHead className="h-9 text-xs">绸缎库存</TableHead>
+                    <TableHead className="h-9 text-xs">木材</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {days.map((day) => (
+                    <TableRow key={day.dayId} className="h-10 hover:bg-muted/35">
+                      <TableCell className="font-medium tabular-nums">{formatDayId(day.dayId)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.gold)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.experience)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.diamonds)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.flowerHarvestNum)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.flowerArtSold)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.residentNormalFinished)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.customerFinished)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.palaceFinished)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.residentSatinFinished)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.residentDecorateFinished)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.speedUpCard)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.flowerShopCoin)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.satin)}</TableCell>
+                      <TableCell className="tabular-nums">{formatCount(day.wood)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
 function OperationPanel({ operations }: { operations: PlannedOperation[] }) {
   const queueOperations = operations.filter(isQueueOperation);
   const farmOperations = queueOperations.filter((operation) => operation.lane === ExecutionLane.FARM);
@@ -3571,6 +3683,19 @@ function orderStatisticItems(statistics?: OrderStatisticsView) {
     { label: "绸缎", value: statistics?.residentSatinFinished ?? 0 },
     { label: "建材", value: statistics?.residentDecorateFinished ?? 0 },
     { label: "花艺", value: statistics?.flowerArtSold ?? 0 },
+  ];
+}
+
+function businessOrderItems(day?: DailyBusinessStatisticsView) {
+  return [
+    { label: "居民", value: day?.residentNormalFinished ?? 0 },
+    { label: "顾客", value: day?.customerFinished ?? 0 },
+    { label: "宫廷", value: day?.palaceFinished ?? 0 },
+    { label: "绸缎", value: day?.residentSatinFinished ?? 0 },
+    { label: "建材", value: day?.residentDecorateFinished ?? 0 },
+    { label: "花艺", value: day?.flowerArtSold ?? 0 },
+    { label: "绸缎库存", value: day?.satin ?? 0 },
+    { label: "木材", value: day?.wood ?? 0 },
   ];
 }
 
@@ -4003,6 +4128,14 @@ function formatUnixTime(value?: bigint) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(milliseconds));
+}
+
+function formatDayId(dayId?: number) {
+  if (!dayId || dayId < 20000101 || dayId > 21001231) return dayId ? String(dayId) : "-";
+  const year = Math.floor(dayId / 10000);
+  const month = Math.floor((dayId % 10000) / 100);
+  const day = dayId % 100;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function firstPositiveUnixTime(...values: (bigint | undefined)[]) {

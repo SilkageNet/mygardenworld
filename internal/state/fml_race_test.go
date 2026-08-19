@@ -740,3 +740,44 @@ func TestFmlRaceUsrRankListRecoversFinished(t *testing.T) {
 		t.Fatalf("rank list must recover quota for uid=99: %+v", got)
 	}
 }
+
+func TestFmlRaceCalendarSessionWindow(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	cases := []struct {
+		name string
+		now  time.Time
+		want bool
+	}{
+		{"monday", time.Date(2026, 8, 17, 12, 0, 0, 0, loc), false},
+		{"tuesday_before", time.Date(2026, 8, 18, 8, 59, 59, 0, loc), false},
+		{"tuesday_open", time.Date(2026, 8, 18, 9, 0, 0, 0, loc), true},
+		{"friday", time.Date(2026, 8, 21, 15, 0, 0, 0, loc), true},
+		{"sunday_before_end", time.Date(2026, 8, 23, 20, 59, 59, 0, loc), true},
+		{"sunday_end", time.Date(2026, 8, 23, 21, 0, 0, 0, loc), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := FmlRaceCalendarInSession(tc.now); got != tc.want {
+				t.Fatalf("FmlRaceCalendarInSession(%s)=%v, want %v", tc.now, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFmlRaceActiveAtOpensPublishedWindow(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start := time.Date(2026, 8, 18, 9, 0, 0, 0, loc)
+	end := time.Date(2026, 8, 23, 21, 0, 0, 0, loc)
+	view := FmlRaceView{BatchStatus: 0, BatchStartMs: start.UnixMilli(), BatchEndMs: end.UnixMilli()}
+	if view.ActiveAt(start.Add(-time.Second)) {
+		t.Fatal("status=0 window must stay inactive before start")
+	}
+	if !view.ActiveAt(start) {
+		t.Fatal("status=0 window must become active at start")
+	}
+	ended := view
+	ended.BatchStatus = 2
+	if ended.ActiveAt(start) {
+		t.Fatal("status=2 must stay inactive after weekly open")
+	}
+}

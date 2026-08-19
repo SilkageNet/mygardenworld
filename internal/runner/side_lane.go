@@ -63,6 +63,17 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 		r.sideLaneFarmTurn = false
 	}
 
+	// Contested race take (and required give-up) must not wait for farm-first
+	// fairness or a pending farmTurn; missing AppearTime by a tick loses the row.
+	if urgent := firstUrgentRaceOp(runnable); urgent != nil {
+		if urgent.scope != "" {
+			delete(r.sideLaneFirstWait, urgent.scope)
+		}
+		r.sideLaneFarmTurn = true
+		selected := urgent.op
+		return &selected
+	}
+
 	firstFarm := -1
 	firstDueSide := -1
 	for i := range runnable {
@@ -105,6 +116,16 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 		delete(r.sideLaneFirstWait, selected.scope)
 	}
 	return &selected.op
+}
+
+func firstUrgentRaceOp(runnable []runnableOperationCandidate) *runnableOperationCandidate {
+	for i := range runnable {
+		switch runnable[i].op.Domain {
+		case "union.race.take", "union.race.giveUp":
+			return &runnable[i]
+		}
+	}
+	return nil
 }
 
 func isSideLane(op automation.PlannedOp) bool {

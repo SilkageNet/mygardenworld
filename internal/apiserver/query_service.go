@@ -190,6 +190,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		resp.ReputationLastViewTimeMs = rep.LastViewTimeMs
 	}
 	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
+	resp.SellableFlowerArts = sellableFlowerArtsProto(st)
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
 	resp.FmlLandsObserved = st.FmlLandObserved()
 	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
@@ -200,6 +201,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	resp.Vases = vasesProto(st.Vases())
 	resp.FlowerArtAvailability = flowerArtAvailabilityProto(st, plan)
 	resp.OrderStatistics = orderStatisticsProto(st, now)
+	resp.BusinessStatistics = businessStatisticsProto(st)
 	resp.InventoryLedger = inventoryLedgerProto(st.Inventory(), plan.Ledger)
 	resp.BlockingSummary = blockingSummaryProto(resp.DomainStatuses, plan)
 	return connect.NewResponse(resp), nil
@@ -483,7 +485,7 @@ var fmlRaceTaskLabels = map[int32]string{
 func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, gates automation.RaceModuleGates) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
 		Observed:        view.Observed,
-		BatchActive:     view.BatchActive,
+		BatchActive:     view.ActiveAt(now),
 		BatchStartMs:    view.BatchStartMs,
 		BatchEndMs:      view.BatchEndMs,
 		BatchStatus:     view.BatchStatus,
@@ -1658,6 +1660,42 @@ func orderStatisticsProto(st *state.State, now time.Time) *pb.OrderStatisticsVie
 	return out
 }
 
+func businessStatisticsProto(st *state.State) *pb.BusinessStatisticsView {
+	days := st.StatisticsDays()
+	out := &pb.BusinessStatisticsView{Observed: st.Statistics().Observed}
+	if len(days) == 0 {
+		return out
+	}
+	out.Days = make([]*pb.DailyBusinessStatisticsView, 0, len(days))
+	for _, day := range days {
+		out.Days = append(out.Days, dailyBusinessStatisticsProto(day))
+	}
+	out.Today = out.Days[0]
+	return out
+}
+
+func dailyBusinessStatisticsProto(stats state.StatisticsView) *pb.DailyBusinessStatisticsView {
+	return &pb.DailyBusinessStatisticsView{
+		DayId:                    stats.DayID,
+		Gold:                     stats.Gold,
+		Experience:               stats.Experience,
+		Diamonds:                 stats.Diamonds,
+		SpeedUpCard:              stats.SpeedUpCard,
+		FlowerShopCoin:           stats.FlowerShopCoin,
+		FlowerHarvestNum:         stats.FlowerHarvestNum,
+		FlowerArtSold:            stats.FlowerArtSellNum,
+		ResidentNormalFinished:   stats.OrderFlowerFinishNum,
+		PalaceFinished:           stats.OrderPalaceFinishNum,
+		CustomerFinished:         stats.OrderCustomerFinishNum,
+		ResidentSatinFinished:    stats.OrderSatinFinishNum,
+		Satin:                    stats.Satin,
+		ResidentDecorateFinished: stats.OrderDecorateFinishNum,
+		Wood:                     stats.Wood,
+		UpdatedAtMs:              stats.UTimeMs,
+		CreatedAtMs:              stats.CTimeMs,
+	}
+}
+
 func inventoryLedgerProto(inventory map[int32]int32, ledger *automation.InventoryLedger) *pb.InventoryLedgerView {
 	ids := make([]int32, 0, len(inventory))
 	seen := map[int32]struct{}{}
@@ -1716,6 +1754,32 @@ func plantableFlowersProto(flowers []state.PlantableFlower) []*pb.PlantableFlowe
 			Lvl:        flower.Lvl,
 			CdSeconds:  cdSeconds,
 		})
+	}
+	return out
+}
+
+func sellableFlowerArtsProto(st *state.State) []*pb.SellableFlowerArtView {
+	if st == nil {
+		return nil
+	}
+	inventory := st.Inventory()
+	out := make([]*pb.SellableFlowerArtView, 0)
+	for _, recipe := range state.AllFlowerArtRecipes() {
+		if st.VaseObserved() && !st.HasVase(recipe.VaseID) {
+			continue
+		}
+		stock := inventory[recipe.ArtID]
+		out = append(out, &pb.SellableFlowerArtView{
+			ArtId:     recipe.ArtID,
+			ArtName:   itemNameOrID(recipe.ArtID),
+			VaseId:    recipe.VaseID,
+			VaseName:  itemNameOrID(recipe.VaseID),
+			Stock:     stock,
+			SaleValue: recipe.SaleValue,
+		})
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

@@ -641,6 +641,31 @@ func TestDessertProtoProjectsSanitizedDeterministicMonitoringView(t *testing.T) 
 	}
 }
 
+func TestBusinessStatisticsProtoExposesDailyHistory(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"124": map[string]any{"0": map[string]any{
+			"20260817": map[string]any{"1": 20260817, "2": 100, "7": 12, "9": 3},
+			"20260818": map[string]any{"1": 20260818, "2": 1540590, "3": 623894, "7": 410, "8": 9, "9": 846},
+		}},
+	})
+
+	got := businessStatisticsProto(st)
+	if !got.GetObserved() || got.GetToday().GetDayId() != 20260818 || got.GetToday().GetGold() != 1540590 {
+		t.Fatalf("today business statistics=%+v", got)
+	}
+	if got.GetToday().GetExperience() != 623894 || got.GetToday().GetFlowerHarvestNum() != 410 || got.GetToday().GetResidentNormalFinished() != 846 {
+		t.Fatalf("today counters=%+v", got.GetToday())
+	}
+	if len(got.GetDays()) != 2 || got.GetDays()[1].GetDayId() != 20260817 || got.GetDays()[1].GetGold() != 100 {
+		t.Fatalf("business history=%+v", got.GetDays())
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("business_statistics")
+	if field == nil || field.Number() != 48 {
+		t.Fatalf("GetSnapshotResponse business_statistics field=%v, want field 48", field)
+	}
+}
+
 func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T) {
 	snapshot := runner.DessertRuntimeSnapshot{
 		Observed:             true,

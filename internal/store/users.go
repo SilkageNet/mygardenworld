@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -104,6 +105,18 @@ func (d *DB) UpdateUser(ctx context.Context, id int64, role *string, maxAccounts
 		}
 	}
 	return d.GetUserByID(ctx, id)
+}
+
+// UpdateUserPasswordHash replaces the stored bcrypt hash for a user.
+func (d *DB) UpdateUserPasswordHash(ctx context.Context, id int64, passwordHash string) error {
+	if strings.TrimSpace(passwordHash) == "" {
+		return fmt.Errorf("password hash is empty")
+	}
+	_, err := d.ExecContext(ctx,
+		`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,
+		passwordHash, time.Now().UTC(), id,
+	)
+	return err
 }
 
 func scanUser(s scannable) (*User, error) {

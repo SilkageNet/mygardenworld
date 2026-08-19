@@ -158,6 +158,8 @@ message PlantingPolicy {
   // Seconds to wait after a plant becomes harvestable before auto-harvest.
   // 0 means harvest as soon as ready (state=3 immediately; state=2 still uses
   // the short protocol ready grace). Does not affect manual harvest.
+  // Guild-race plant-harvest flowers always ignore this delay (harvest ASAP)
+  // while an unfinished race task is held, even when auto_harvest_enabled is off.
   int32 harvest_delay_seconds = 21;
 }
 
@@ -275,6 +277,10 @@ message FlowerArtPolicy {
   // When true together with sell_enabled, skip auto listing (and rack craft for
   // listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
   bool sell_night_pause_enabled = 9;
+  // Preferred finished flower-art ids to list on the rack. Only arts whose vase
+  // is unlocked are considered. Empty means list the finished art with the
+  // highest inventory count among unlocked-vase recipes.
+  repeated int32 sell_art_ids = 10;
 }
 
 message UnionPolicy {
@@ -326,9 +332,9 @@ message UnionRacePolicy {
   // Sync / finish / giveUp of an already-held task still run. Default on in
   // DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
   bool auto_stop_on_quota_done = 12;
-  // Permit spending speed-up tickets during the final ten minutes of a held
-  // planting task even when use_speedup_ticket_in_task is false. Default off:
-  // emergency resource spending must be an explicit operator choice.
+  // Deprecated: ignored. Last-10-minute race plant speedup is always forced
+  // when auto_enable_modules is on, even if use_speedup_ticket_in_task is false.
+  // Kept for wire/API compatibility with stored policy JSON.
   bool urgent_speedup_enabled = 13;
 }
 

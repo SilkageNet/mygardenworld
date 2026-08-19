@@ -57,6 +57,14 @@ func testRacePolicy() *pb.UnionRacePolicy {
 	}
 }
 
+func testEnabledRaceFullPolicy() *pb.Policy {
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race = testRacePolicy()
+	p.Union.Race.TaskTypePriority = defaultUnionRacePriority()
+	return p
+}
+
 func raceGatesOn() RaceModuleGates {
 	return RaceModuleGates{Customer: true, Pearl: true, Cultivate: true}
 }
@@ -463,12 +471,66 @@ func TestUnionRaceOnlyUpgradeTaskFilter(t *testing.T) {
 
 func TestUnionRaceBatchInactiveProducesNoOps(t *testing.T) {
 	s := state.New()
-	// Ended batch (status=2) with closed window → no race ops.
+	// Ended batch (status=2) with closed window → no race ops off-season.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}]}}`))
 	policy := testRacePolicy()
-	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	monday := time.Date(2026, 8, 17, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	ops := unionRaceOperations(s, policy, 0, monday, raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when batch inactive, got %d: %+v", len(ops), ops)
+	}
+}
+
+func TestUnionRaceEnterAtWeeklyOpen(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
+	open := time.Date(2026, 8, 18, 9, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	ops := unionRaceOperations(s, testRacePolicy(), 0, open, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter at Tuesday 09:00, got %+v", ops)
+	}
+	if ops[0].CooldownKey != "union.race.enter.batch" {
+		t.Fatalf("cooldown key = %q", ops[0].CooldownKey)
+	}
+}
+
+func TestUnionRaceNoEnterBeforeWeeklyOpen(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
+	before := time.Date(2026, 8, 18, 8, 59, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	ops := unionRaceOperations(s, testRacePolicy(), 0, before, raceGatesOn())
+	if len(ops) != 0 {
+		t.Fatalf("expected no enter before Tuesday 09:00, got %+v", ops)
+	}
+}
+
+func TestUnionRaceEnterWhenPublishedStartArrives(t *testing.T) {
+	s := state.New()
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	start := time.Date(2026, 8, 18, 9, 0, 0, 0, loc)
+	end := time.Date(2026, 8, 23, 21, 0, 0, 0, loc)
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"0":42,"1":0,"2":%d,"3":%d},"117":{"5":4}}}`,
+		start.UnixMilli(), end.UnixMilli(),
+	)))
+	ops := unionRaceOperations(s, testRacePolicy(), 0, start, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter when published start arrives, got %+v", ops)
+	}
+}
+
+func TestUnionRaceInactiveEnterWaitsForRetry(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
+	open := time.Date(2026, 8, 18, 9, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s.MarkFmlRaceLvlSyncAttemptAt(open)
+	ops := unionRaceOperations(s, testRacePolicy(), 0, open.Add(10*time.Second), raceGatesOn())
+	if len(ops) != 0 {
+		t.Fatalf("expected no enter within retry interval, got %+v", ops)
+	}
+	ops = unionRaceOperations(s, testRacePolicy(), 0, open.Add(raceInactiveEnterRetryInterval), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("expected enter after retry interval, got %+v", ops)
 	}
 }
 
@@ -753,7 +815,7 @@ func TestUnionRaceSkipsFarFutureAppearTime(t *testing.T) {
 func TestUnionRacePrefersReadyOverUpcoming(t *testing.T) {
 	now := time.UnixMilli(1_000_000)
 	readyAppear := now.UnixMilli()
-	upcomingAppear := now.Add(2 * time.Second).UnixMilli()
+	upcomingAppear := now.Add(raceTakeLeadWindow / 2).UnixMilli()
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
@@ -771,7 +833,7 @@ func TestUnionRacePrefersReadyOverUpcoming(t *testing.T) {
 
 func TestUnionRacePreemptiveTakeWithinLead(t *testing.T) {
 	now := time.UnixMilli(1_000_000)
-	appear := now.Add(2 * time.Second).UnixMilli()
+	appear := now.Add(raceTakeLeadWindow / 2).UnixMilli()
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
@@ -783,6 +845,63 @@ func TestUnionRacePreemptiveTakeWithinLead(t *testing.T) {
 	}
 	if ops[0].TaskMsID != 7 {
 		t.Fatalf("taskMsId = %d, want 7", ops[0].TaskMsID)
+	}
+}
+
+func TestRaceTakeWakeAt(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	s := state.New()
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		now.Add(5*time.Second).UnixMilli(),
+	)))
+	policy := testEnabledRaceFullPolicy()
+
+	wake := RaceTakeWakeAt(s, policy, now)
+	want := now.Add(5*time.Second - raceTakeLeadWindow)
+	if !wake.Equal(want) {
+		t.Fatalf("RaceTakeWakeAt=%v, want AppearTime-lead %v", wake, want)
+	}
+
+	if got := RaceTakeWakeAt(s, policy, want); !got.IsZero() {
+		t.Fatalf("inside lead window must not schedule a future wake, got %v", got)
+	}
+
+	off := testEnabledRaceFullPolicy()
+	off.Union.Race.AutoEnableModules = false
+	if got := RaceTakeWakeAt(s, off, now); !got.IsZero() {
+		t.Fatalf("auto-complete off must not wake, got %v", got)
+	}
+}
+
+func TestRaceTakeWakeAtSkipsWhenAlreadyTakeableOrHeld(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	policy := testEnabledRaceFullPolicy()
+
+	ready := state.New()
+	ready.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	ready.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		now.UnixMilli(),
+	)))
+	if got := RaceTakeWakeAt(ready, policy, now); !got.IsZero() {
+		t.Fatalf("already-due task must take this tick, got wake %v", got)
+	}
+
+	held := state.New()
+	held.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	held.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"6":[23001],"10":10,"14":0,"15":0}],"110":{"999":{"7":{"0":7,"1":3036,"2":3,"3":0,"4":[23001]}}}}}`))
+	if got := RaceTakeWakeAt(held, policy, now); !got.IsZero() {
+		t.Fatalf("held task must not wake for another take, got %v", got)
+	}
+}
+
+func TestRaceTakeLaneRankPreemptsFarm(t *testing.T) {
+	take := PlannedOp{Domain: "union.race.take", Lane: LaneSide, Priority: 4380}
+	harvest := PlannedOp{Domain: "farm.harvest", Lane: LaneFarm, Priority: 9000}
+	if !operationComesBefore(take, harvest) {
+		t.Fatal("race take must sort before farm harvest")
 	}
 }
 
@@ -1025,6 +1144,24 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want:   "优先级为0",
 		},
 		{
+			name:   "flower art sell takeable with priority",
+			task:   state.FmlRaceTaskView{MsId: 26, TaskId: 3030, TaskType: 3030, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3030: 4}},
+			want:   "",
+		},
+		{
+			name:   "flower art craft takeable with priority",
+			task:   state.FmlRaceTaskView{MsId: 24, TaskId: 3034, TaskType: 3034, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 4}},
+			want:   "",
+		},
+		{
+			name:   "flower art craft priority zero",
+			task:   state.FmlRaceTaskView{MsId: 25, TaskId: 3034, TaskType: 3034, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 0}},
+			want:   "优先级为0",
+		},
+		{
 			name:   "flower cultivate score 36 ok",
 			task:   state.FmlRaceTaskView{MsId: 30, TaskId: 3044, TaskType: 3044, Score: 36},
 			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
@@ -1035,6 +1172,12 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			task:   state.FmlRaceTaskView{MsId: 31, TaskId: 3044, TaskType: 3044, Score: 18},
 			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
 			want:   "仅接36分花种培育",
+		},
+		{
+			name:   "flower cultivate progress skipped",
+			task:   state.FmlRaceTaskView{MsId: 32, TaskId: 3044, TaskType: 3044, Score: 36, FinishCnt: 1, TargetCnt: 4},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
+			want:   "仅接进度为0的花种培育",
 		},
 		{
 			name:   "default zero type skipped when map empty",
@@ -1275,20 +1418,29 @@ func TestUnionRaceTakesFlowerCultivateOnlyScore36(t *testing.T) {
 	}
 }
 
-func TestUnionRaceSkipsFlowerCultivateWhenModuleOff(t *testing.T) {
+func TestUnionRaceTakesFlowerCultivateWhenModuleOff(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3044, 36, 0, 0}})
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3044: 4}
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesNoCultivate())
-	for _, op := range ops {
-		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
-			t.Fatalf("must not take flower-cultivate without cultivate module: %+v", op)
-		}
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of flower-cultivate without cultivate module, got %+v", ops)
 	}
 	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3044, TaskType: 3044, Score: 36}, policy, 0, time.Now(), raceGatesNoCultivate())
-	if got != "鲜花培育模块未开启" {
-		t.Fatalf("RaceTakeSkipReason = %q, want 鲜花培育模块未开启", got)
+	if got != "" {
+		t.Fatalf("RaceTakeSkipReason = %q, want empty", got)
+	}
+}
+
+func TestUnionRaceSkipsFlowerCultivateWithProgress(t *testing.T) {
+	s := state.New()
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	task := state.FmlRaceTaskView{MsId: 1, TaskId: 3044, TaskType: 3044, Score: 36, FinishCnt: 2, TargetCnt: 4}
+	got := RaceTakeSkipReason(s, task, policy, 0, time.Now(), raceGatesNoCultivate())
+	if got != "仅接进度为0的花种培育" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 仅接进度为0的花种培育", got)
 	}
 }
 
@@ -1306,7 +1458,7 @@ func TestUnionRaceGiveUpFlowerCultivateNon36(t *testing.T) {
 func TestUnionRaceKeepsFlowerCultivate36EvenIfUncompletable(t *testing.T) {
 	s := state.New()
 	// 36-score flower-cultivate hold; cultivate module off + min_task_score above 36
-	// must still keep (only priority 0 may give up).
+	// must still keep (never give up once held at score 36).
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.MinTaskScore = 40
@@ -1319,14 +1471,35 @@ func TestUnionRaceKeepsFlowerCultivate36EvenIfUncompletable(t *testing.T) {
 	}
 }
 
-func TestUnionRaceGiveUpFlowerCultivate36WhenPriorityZero(t *testing.T) {
-	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`))
-	policy := testRacePolicy()
-	policy.TaskTypePriority = map[int32]int32{3044: 0}
-	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
-	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
-		t.Fatalf("expected giveUp for priority-0 flower-cultivate, got %+v", ops)
+func TestUnionRaceKeepsFlowerCultivate36EvenIfPriorityZero(t *testing.T) {
+	// Manual take or leftover hold: score 36 must not be given up when type
+	// priority is 0 (automation will not take new ones, but keeps existing).
+	cases := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "progress zero",
+			raw:  `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":36,"12":999}]}}`,
+		},
+		{
+			name: "mid progress",
+			raw:  `{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := state.New()
+			s.ApplyV(json.RawMessage(tc.raw))
+			policy := testRacePolicy()
+			policy.TaskTypePriority = map[int32]int32{3044: 0}
+			ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesNoCultivate())
+			for _, op := range ops {
+				if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+					t.Fatalf("must not giveUp 36 flower-cultivate when priority 0, got %+v", ops)
+				}
+			}
+		})
 	}
 }
 
@@ -1361,6 +1534,50 @@ func TestUnionRaceSkipsPearlHireWhenModuleOff(t *testing.T) {
 	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 1022, TaskType: 3023, Score: 24}, policy, 0, time.Now(), raceGatesNoPearl())
 	if got != "珍珠雇佣模块未开启" {
 		t.Fatalf("RaceTakeSkipReason = %q, want 珍珠雇佣模块未开启", got)
+	}
+}
+
+func TestUnionRaceTakesFlowerArtCraft(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3034, 24, 0, 0}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3034: 4}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of flower-art craft, got %+v", ops)
+	}
+	if ops[0].TaskMsID != 1 || ops[0].TaskID != 3034 {
+		t.Fatalf("take detail = msId=%d taskID=%d, want 1/3034", ops[0].TaskMsID, ops[0].TaskID)
+	}
+}
+
+func TestUnionRaceTakesFlowerArtWithoutCraftModule(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3034, 24, 0, 0}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3034: 4}
+	// Gates without flower-art toggle still take — race owns craft progression.
+	ops := unionRaceOperations(s, policy, 0, time.Now(), RaceModuleGates{})
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of flower-art craft without craft module, got %+v", ops)
+	}
+	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3034, TaskType: 3034, Score: 24}, policy, 0, time.Now(), RaceModuleGates{})
+	if got != "" {
+		t.Fatalf("RaceTakeSkipReason = %q, want empty", got)
+	}
+}
+
+func TestUnionRaceTakesFlowerArtSell(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3030, 24, 0, 0}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3030: 4}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), RaceModuleGates{})
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
+		t.Fatalf("expected take of flower-art sell, got %+v", ops)
+	}
+	if ops[0].TaskMsID != 1 || ops[0].TaskID != 3030 {
+		t.Fatalf("take detail = msId=%d taskID=%d, want 1/3030", ops[0].TaskMsID, ops[0].TaskID)
 	}
 }
 
@@ -1414,6 +1631,19 @@ func TestUnionRaceGiveUpPearlHireWhenModuleOff(t *testing.T) {
 	}
 }
 
+func TestUnionRaceKeepsFlowerArtWhenCraftModuleOff(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1}}},"114":[{"0":71,"4":3034,"7":5,"8":1,"10":24,"12":999}]}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3034: 4}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), RaceModuleGates{})
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("must not giveUp flower-art craft when craft toggle off: %+v", ops)
+		}
+	}
+}
+
 func TestUnionRaceCustomerProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]}}`))
@@ -1443,6 +1673,54 @@ func TestUnionRacePearlProgressSyncAfterInterval(t *testing.T) {
 	}
 	if ops[0].Priority != racePearlSyncPriority {
 		t.Fatalf("sync priority=%d, want %d", ops[0].Priority, racePearlSyncPriority)
+	}
+}
+
+func TestUnionRaceFlowerArtProgressSyncAfterInterval(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1}}},"114":[{"0":71,"4":3034,"7":5,"8":1,"10":24,"12":999}]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3034: 4}
+	now := time.UnixMilli(synced).Add(raceModuleProgressSyncInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected flower-art craft progress sync, got %+v taken=%+v", ops, s.FmlRace().Taken)
+	}
+	if ops[0].Priority != raceFlowerArtSyncPriority || !strings.Contains(ops[0].Reason, "花艺制作") {
+		t.Fatalf("sync op = %+v, want craft sync at prio %d", ops[0], raceFlowerArtSyncPriority)
+	}
+}
+
+func TestUnionRaceFlowerArtSellProgressSyncAfterInterval(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3030,"2":5,"3":1}}},"114":[{"0":71,"4":3030,"7":5,"8":1,"10":24,"12":999}]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3030: 4}
+	now := time.UnixMilli(synced).Add(raceModuleProgressSyncInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected flower-art sell progress sync, got %+v taken=%+v", ops, s.FmlRace().Taken)
+	}
+	if ops[0].Priority != raceFlowerArtSyncPriority || !strings.Contains(ops[0].Reason, "花艺售卖") {
+		t.Fatalf("sync op = %+v, want sell sync at prio %d", ops[0], raceFlowerArtSyncPriority)
+	}
+}
+
+func TestUnionRaceCultivateProgressSyncAfterInterval(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`))
+	synced := s.FmlRace().TasksSyncedAtMs
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3044: 4}
+	now := time.UnixMilli(synced).Add(raceModuleProgressSyncInterval + time.Second)
+	ops := unionRaceOperations(s, policy, 999, now, raceGatesNoCultivate())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("expected cultivate progress sync with module off, got %+v taken=%+v", ops, s.FmlRace().Taken)
+	}
+	if ops[0].Priority != raceCultivateSyncPriority || !strings.Contains(ops[0].Reason, "花种培育") {
+		t.Fatalf("sync op = %+v, want cultivate sync at prio %d", ops[0], raceCultivateSyncPriority)
 	}
 }
 
@@ -1582,5 +1860,258 @@ func TestBuildPlan_RacePearlHireLinksHire(t *testing.T) {
 	}
 	if !strings.Contains(linked.Reason, "公会竞赛珍珠雇佣剩余") {
 		t.Fatalf("reason missing race pressure: %q", linked.Reason)
+	}
+}
+
+func TestBuildPlan_RaceFlowerArtCraftEmitsMake(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	// Held flower-art-craft race (1/5). Craft materials + vase unlocked; craft/
+	// sell toggles off — race must still emit high-priority makeFlowerArt.
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"23005": 4, "23007": 4, "23008": 4},
+			"34": 12,
+		}},
+		"25": map[string]any{
+			"111": map[string]any{"1": 1},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3034, "2": 5, "3": 1}}},
+			"114": []any{map[string]any{"0": 71, "4": 3034, "7": 5, "8": 1, "10": 24, "12": 999}},
+		},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.CraftEnabled = false
+	p.Order.FlowerArt.SellEnabled = false
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3034: 4}
+
+	result := BuildPlan(s, p, now)
+	var linked *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && strings.HasPrefix(op.DemandID, raceActionGoal+":") {
+			linked = op
+			break
+		}
+	}
+	if linked == nil {
+		t.Fatalf("expected race-driven flower-art craft, ops=%+v demands=%+v taken=%+v", result.Operations, result.Demands, s.FmlRace().Taken)
+	}
+	if !strings.Contains(linked.Reason, "公会竞赛花艺制作剩余") {
+		t.Fatalf("reason missing race pressure: %q", linked.Reason)
+	}
+	if linked.Count <= 0 || linked.Count > 4 {
+		t.Fatalf("craft count=%d, want 1..4 (remaining race progress)", linked.Count)
+	}
+	if !linked.Executable {
+		t.Fatalf("race craft should be executable: %+v", linked)
+	}
+	if linked.Priority != raceFlowerArtCraftOpPriority {
+		t.Fatalf("craft priority=%d, want race floor %d", linked.Priority, raceFlowerArtCraftOpPriority)
+	}
+	if linked.ItemCost[23005] != linked.Count || linked.ItemCost[23007] != linked.Count || linked.ItemCost[23008] != linked.Count {
+		t.Fatalf("craft ItemCost=%v, want one of each recipe flower per craft", linked.ItemCost)
+	}
+}
+
+func TestBuildPlan_RaceFlowerArtCraftPicksHighestSeededPrice(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	// 300208 sale=170 needs 23005/23007/23008; 301612 sale=320 needs 23070/23075/23003.
+	// Both seeded and craftable → race must pick 301612.
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0": 999,
+			"32": map[string]any{
+				"23005": 4, "23007": 4, "23008": 4,
+				"23070": 4, "23075": 4, "23003": 4,
+			},
+			"34": 12,
+		}},
+		"25": map[string]any{
+			"111": map[string]any{"1": 1},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3034, "2": 5, "3": 1}}},
+			"114": []any{map[string]any{"0": 71, "4": 3034, "7": 5, "8": 1, "10": 24, "12": 999}},
+		},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008, 23070, 23075, 23003)},
+		"102": map[string]any{"0": map[string]any{
+			"3002": map[string]any{"1": 3002},
+			"3016": map[string]any{"1": 3016},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3034: 4}
+
+	result := BuildPlan(s, p, now)
+	var craft *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && strings.HasPrefix(op.DemandID, raceActionGoal+":") {
+			craft = op
+			break
+		}
+	}
+	if craft == nil {
+		t.Fatalf("expected race craft, ops=%+v", result.Operations)
+	}
+	if craft.ItemID != 301612 {
+		t.Fatalf("craft ItemID=%d, want highest-priced seeded 301612; op=%+v", craft.ItemID, craft)
+	}
+}
+
+func TestBuildPlan_RaceFlowerArtSellCancelsAfterFiveMinutes(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	listedAt := now.Add(-raceFlowerArtRelistAfter - time.Second).UnixMilli()
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"0": 999, "32": map[string]any{"300208": 4}}},
+		"25": map[string]any{
+			"111": map[string]any{"1": 1},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3030, "2": 5, "3": 1}}},
+			"114": []any{map[string]any{"0": 71, "4": 3030, "7": 5, "8": 1, "10": 24, "12": 999}},
+		},
+		// Two occupied racks past raceFlowerArtRelistAfter; SellReady far in the future.
+		"104": map[string]any{"0": map[string]any{
+			"1": map[string]any{"1": 1, "2": 300208, "3": 2, "4": listedAt},
+			"2": map[string]any{"1": 2, "2": 300208, "3": 2, "4": listedAt},
+			"3": map[string]any{"1": 3, "2": 0, "3": 0},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3030: 4}
+
+	result := BuildPlan(s, p, now)
+	var cancels []PlannedOp
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFlowerRackCancelSell.String() && strings.HasPrefix(op.DemandID, raceActionGoal+":") {
+			cancels = append(cancels, op)
+		}
+	}
+	if len(cancels) != 2 {
+		t.Fatalf("expected cancel of both stale racks, got %d ops=%+v", len(cancels), result.Operations)
+	}
+	for _, cancel := range cancels {
+		if !cancel.Executable || cancel.Priority != raceFlowerArtCancelOpPriority {
+			t.Fatalf("cancel not executable at race priority: %+v", cancel)
+		}
+		if !strings.Contains(cancel.Reason, "5分钟") {
+			t.Fatalf("cancel reason = %q", cancel.Reason)
+		}
+	}
+}
+
+func TestBuildPlan_RaceFlowerArtSellEmitsListing(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	// Held flower-art-sell race (1/5). Finished art in stock + empty rack;
+	// sell_enabled off — race must list on its own.
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"300208": 4},
+		}},
+		"25": map[string]any{
+			"111": map[string]any{"1": 1},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3030, "2": 5, "3": 1}}},
+			"114": []any{map[string]any{"0": 71, "4": 3030, "7": 5, "8": 1, "10": 24, "12": 999}},
+		},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = false
+	p.Order.FlowerArt.CraftEnabled = false
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3030: 4}
+
+	result := BuildPlan(s, p, now)
+	var linked *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCFlowerRackSell.String() && strings.HasPrefix(op.DemandID, raceActionGoal+":") {
+			linked = op
+			break
+		}
+	}
+	if linked == nil {
+		t.Fatalf("expected race-driven flower-art sell, ops=%+v demands=%+v taken=%+v", result.Operations, result.Demands, s.FmlRace().Taken)
+	}
+	if !strings.Contains(linked.Reason, "公会竞赛花艺售卖剩余") {
+		t.Fatalf("reason missing race pressure: %q", linked.Reason)
+	}
+	if linked.ItemID != 300208 || linked.Count <= 0 || linked.Count > 4 {
+		t.Fatalf("sell op mismatch: %+v", linked)
+	}
+	if !linked.Executable || linked.Priority != raceFlowerArtSellOpPriority {
+		t.Fatalf("race sell should be executable at race priority: %+v", linked)
+	}
+}
+
+func TestBuildPlan_RaceFlowerArtSellCraftsWhenNoStock(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	// Sell race held, empty rack, flower materials only — must craft before list.
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"23005": 4, "23007": 4, "23008": 4},
+			"34": 12,
+		}},
+		"25": map[string]any{
+			"111": map[string]any{"1": 1},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3030, "2": 5, "3": 1}}},
+			"114": []any{map[string]any{"0": 71, "4": 3030, "7": 5, "8": 1, "10": 24, "12": 999}},
+		},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.FlowerArt.SellEnabled = false
+	p.Order.FlowerArt.CraftEnabled = false
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3030: 4}
+
+	result := BuildPlan(s, p, now)
+	var craft *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && strings.HasPrefix(op.DemandID, raceActionGoal+":") {
+			craft = op
+			break
+		}
+	}
+	if craft == nil {
+		t.Fatalf("expected race sell to craft when stock empty, ops=%+v", result.Operations)
+	}
+	if !strings.Contains(craft.Reason, "公会竞赛花艺售卖剩余") || !strings.Contains(craft.Reason, "先制作") {
+		t.Fatalf("craft reason = %q, want sell pressure + craft hint", craft.Reason)
+	}
+	if !craft.Executable {
+		t.Fatalf("support craft should be executable: %+v", craft)
 	}
 }

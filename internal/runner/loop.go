@@ -17,9 +17,11 @@ const (
 	waterSourceSyncPeriod = 60 * time.Second
 )
 
+const minDecisionWake = 5 * time.Millisecond
+
 func (r *Runner) decisionLoop(ctx context.Context) {
 	for {
-		interval := r.tickInterval()
+		interval := r.nextTickInterval(time.Now())
 		r.setNextDecisionAt(time.Now().Add(interval))
 		timer := time.NewTimer(interval)
 		select {
@@ -44,6 +46,48 @@ func (r *Runner) tickInterval() time.Duration {
 		d = 4 * time.Second
 	}
 	return d
+}
+
+// nextTickInterval shortens the default decision interval so a filter-passing
+// race CD task is planned at AppearTime-lead, and a take that hit server CD
+// retries at AppearTime rather than waiting out the next 4s tick.
+func (r *Runner) nextTickInterval(now time.Time) time.Duration {
+	interval := r.tickInterval()
+	soonest := interval
+	consider := func(at time.Time) {
+		if at.IsZero() {
+			return
+		}
+		d := at.Sub(now)
+		if d > 0 && d < soonest {
+			soonest = d
+		}
+	}
+	r.mu.RLock()
+	policy := r.policy
+	st := r.state
+	r.mu.RUnlock()
+	consider(automation.RaceTakeWakeAt(st, policy, now))
+	consider(r.soonestRaceTakeCooldownUntil(now))
+	if soonest < minDecisionWake {
+		return minDecisionWake
+	}
+	return soonest
+}
+
+func (r *Runner) soonestRaceTakeCooldownUntil(now time.Time) time.Time {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var soonest time.Time
+	for _, cd := range r.operationCooldowns {
+		if cd.Domain != "union.race.take" || !cd.Until.After(now) {
+			continue
+		}
+		if soonest.IsZero() || cd.Until.Before(soonest) {
+			soonest = cd.Until
+		}
+	}
+	return soonest
 }
 
 func (r *Runner) tick(ctx context.Context) {
