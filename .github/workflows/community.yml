@@ -1,0 +1,31 @@
+name: Community
+
+on:
+  issues:
+    types:
+      - opened
+  # This workflow only posts a comment. It never checks out or executes PR code.
+  pull_request_target:
+    types:
+      - opened
+
+permissions: {}
+
+jobs:
+  welcome:
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Welcome first-time contributors
+        uses: actions/first-interaction@v3.1.0
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
+            感谢提交 Issue。请确保已填写复现步骤、运行环境和版本信息，并移除账号、密码、会话及抓包中的敏感数据。维护者会在有足够信息后进行确认。
+          pr_message: |
+            感谢贡献代码。请按 PR 模板说明变更范围、验证结果和协议/资源安全影响；CI 通过后，维护者会继续进行代码审查。

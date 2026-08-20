@@ -1,0 +1,78 @@
+name: Bug 报告
+description: 报告可以稳定复现的功能、协议或部署问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请提供最小、可复现的信息；不要提交账号、密码、会话令牌、Cookie 或未经脱敏的抓包。
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，确认没有重复问题。
+          required: true
+        - label: 我已移除所有账号、凭据和会话等敏感信息。
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: mygardenworld 版本
+      description: 请填写 Release 版本或 commit SHA。
+      placeholder: v0.2.10 / e76131a
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: 操作系统、CPU 架构及安装方式。
+      placeholder: Ubuntu 24.04 amd64，GitHub Release 二进制
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 说明实际发生了什么，以及问题出现的频率。
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 使用……配置启动
+        2. 执行……
+        3. 观察到……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 说明你认为正确的结果。
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 脱敏日志
+      description: 可选。请只粘贴与问题直接相关且已脱敏的日志。
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 其他信息
+      description: 可选。截图、相关配置或协议观测证据等。
