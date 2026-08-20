@@ -146,6 +146,7 @@ func cyclicStoryPlannerPolicy(activityEnabled, moduleEnabled bool, bools map[str
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Activity = &pb.ActivityPolicy{
+		//nolint:staticcheck // Verify that the deprecated parent flag is ignored in favor of module gates.
 		Enabled: activityEnabled,
 		Modules: map[string]*pb.ActivityModulePolicy{
 			cyclicStoryModuleKey: {
