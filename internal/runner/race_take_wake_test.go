@@ -101,6 +101,47 @@ func TestNextTickIntervalWakesImmediatelyForRaceBootstrap(t *testing.T) {
 	}
 }
 
+func TestNextTickIntervalWaitsForCoolingRaceBootstrap(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	st := state.New()
+	st.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
+	st.MarkFmlRaceTasksUnobserved()
+	p := automation.DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race.Enabled = true
+	p.DecisionIntervalSeconds = 4
+	r := &Runner{
+		state:  st,
+		policy: p,
+		operationCooldowns: map[string]operationCooldown{
+			"union.race.sync": {
+				Domain: "union.race.sync",
+				Until:  now.Add(time.Second),
+			},
+		},
+	}
+
+	if got := r.nextTickInterval(now); got != time.Second {
+		t.Fatalf("nextTickInterval=%v, want race bootstrap cooldown 1s", got)
+	}
+}
+
+func TestNextTickIntervalDoesNotBootstrapCompletedRaceWhenAutoModulesOff(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	st := state.New()
+	st.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":5,"4":3036,"7":3,"8":3,"10":24,"12":999}],"110":{"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}}}`))
+	p := automation.DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = false
+	p.DecisionIntervalSeconds = 4
+	r := &Runner{state: st, policy: p}
+
+	if got := r.nextTickInterval(now); got != 4*time.Second {
+		t.Fatalf("nextTickInterval=%v, want default interval with race auto modules off", got)
+	}
+}
+
 func TestNextTickIntervalKeepsDefaultWithoutRace(t *testing.T) {
 	r := &Runner{state: state.New(), policy: &pb.Policy{DecisionIntervalSeconds: 4}}
 	if got := r.nextTickInterval(time.UnixMilli(1_000_000)); got != 4*time.Second {

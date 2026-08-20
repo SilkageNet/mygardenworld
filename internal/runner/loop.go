@@ -70,8 +70,12 @@ func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 	st := r.state
 	r.mu.RUnlock()
 	consider(automation.RaceTakeWakeAt(st, policy, now))
-	consider(r.soonestRaceOpCooldownUntil(now))
-	if automation.RaceBootstrapDue(st, policy, now) {
+	raceCooldownUntil := r.soonestRaceOpCooldownUntil(now)
+	consider(raceCooldownUntil)
+	// A failed bootstrap op carries a short runner cooldown. Respect it here;
+	// otherwise RaceBootstrapDue would force a 5ms loop until the cooldown
+	// expires even though selectRunnableOperation cannot run the race op.
+	if automation.RaceBootstrapDue(st, policy, now) && raceCooldownUntil.IsZero() {
 		return minDecisionWake
 	}
 	if soonest < minDecisionWake {

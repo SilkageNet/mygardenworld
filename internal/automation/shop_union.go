@@ -1147,7 +1147,7 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 		return true
 	}
 	if view.Taken.HasTask && view.Taken.TargetCnt > 0 && view.Taken.FinishCnt >= view.Taken.TargetCnt {
-		return true
+		return race.GetAutoEnableModules()
 	}
 	if !race.GetAutoEnableModules() {
 		return false
