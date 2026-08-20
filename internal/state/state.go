@@ -172,8 +172,12 @@ type State struct {
 	zooPets              map[int32]*ZooPetView
 	zooLogs              map[string]*ZooLogView
 	zooSouvenirs         map[int32]*ZooSouvenirView
+	zooDecorates         map[int32]*ZooDecorateView
+	zooDecorateSuits     map[int32]*ZooDecorateSuitView
 	zooLogsObserved      bool
 	zooSouvenirsObserved bool
+	zooDecoratesObserved bool
+	zooDecSuitsObserved  bool
 	zooObserved          bool
 
 	// Recent server-side activity timestamp; updated on every apply.

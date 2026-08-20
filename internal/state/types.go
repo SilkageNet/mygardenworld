@@ -1157,14 +1157,22 @@ type StatisticsView struct {
 
 // ZooView is the tracked subset of namespace 33.0 (G.IZoo).
 type ZooView struct {
-	Observed                  bool    `json:"observed,omitempty"`
-	UID                       int64   `json:"uid,omitempty"`
-	Comfort                   int32   `json:"comfort,omitempty"`
-	PetIDs                    []int32 `json:"pet_ids,omitempty"`
-	ReadLogTimeMs             int64   `json:"read_log_time_ms,omitempty"`
-	UpdatedAtMs               int64   `json:"updated_at_ms,omitempty"`
-	SouvenirRewardIDs         []int32 `json:"souvenir_reward_ids,omitempty"`
-	SouvenirRewardIDsObserved bool    `json:"souvenir_reward_ids_observed,omitempty"`
+	Observed                  bool              `json:"observed,omitempty"`
+	UID                       int64             `json:"uid,omitempty"`
+	Comfort                   int32             `json:"comfort,omitempty"`
+	PetIDs                    []int32           `json:"pet_ids,omitempty"`
+	ReadLogTimeMs             int64             `json:"read_log_time_ms,omitempty"`
+	UpdatedAtMs               int64             `json:"updated_at_ms,omitempty"`
+	CreatedAtMs               int64             `json:"created_at_ms,omitempty"`
+	AsleepBeginTimeMs         int64             `json:"asleep_begin_time_ms,omitempty"`
+	LastSetSleepTimeMs        int64             `json:"last_set_sleep_time_ms,omitempty"`
+	LastSetSleepTimeObserved  bool              `json:"last_set_sleep_time_observed,omitempty"`
+	GuideIDs                  []int32           `json:"guide_ids,omitempty"`
+	HasChangeSleep            int32             `json:"has_change_sleep,omitempty"`
+	SouvenirRewardIDs         []int32           `json:"souvenir_reward_ids,omitempty"`
+	SouvenirRewardIDsObserved bool              `json:"souvenir_reward_ids_observed,omitempty"`
+	ZooDecorateMap            map[int32][]int32 `json:"zoo_decorate_map,omitempty"`
+	ZooDecorateMapObserved    bool              `json:"zoo_decorate_map_observed,omitempty"`
 }
 
 // ZooSouvenirView is one namespace 33.4.<tempId> souvenir record.
@@ -1186,28 +1194,74 @@ type ZooSouvenirView struct {
 
 // ZooPetView is one pet from namespace 33.1.<petId> (G.IZooPet).
 type ZooPetView struct {
-	PetID                int32           `json:"pet_id"`
-	UID                  int64           `json:"uid,omitempty"`
-	MoodValue            int32           `json:"mood_value,omitempty"`
-	MoodObserved         bool            `json:"mood_observed,omitempty"`
-	SatietyValue         int32           `json:"satiety_value,omitempty"`
-	SatietyObserved      bool            `json:"satiety_observed,omitempty"`
-	FoodstuffIDs         []int32         `json:"foodstuff_ids,omitempty"`
-	FoodstuffObserved    bool            `json:"foodstuff_observed,omitempty"`
-	Status               int32           `json:"status,omitempty"`
-	StatusObserved       bool            `json:"status_observed,omitempty"`
-	GoOutEventID         int32           `json:"go_out_event_id,omitempty"`
-	SpecialEventIDs      []int32         `json:"special_event_ids,omitempty"`
-	StrokeCdTimeMs       int64           `json:"stroke_cd_time_ms,omitempty"`
-	StrokeCdTimeObserved bool            `json:"stroke_cd_time_observed,omitempty"`
-	StatusCdTimeMs       int64           `json:"status_cd_time_ms,omitempty"`
-	StatusCdTimeObserved bool            `json:"status_cd_time_observed,omitempty"`
-	GoOutCdTimeMs        int64           `json:"go_out_cd_time_ms,omitempty"`
-	GetHomeTimeMs        int64           `json:"get_home_time_ms,omitempty"`
-	ReadLogTimeMs        int64           `json:"read_log_time_ms,omitempty"`
-	ReadLogTimeObserved  bool            `json:"read_log_time_observed,omitempty"`
-	UpdatedAtMs          int64           `json:"updated_at_ms,omitempty"`
-	EventTriggerTimes    map[int32]int64 `json:"event_trigger_times,omitempty"`
+	PetID                  int32           `json:"pet_id"`
+	UID                    int64           `json:"uid,omitempty"`
+	MoodValue              int32           `json:"mood_value,omitempty"`
+	MoodObserved           bool            `json:"mood_observed,omitempty"`
+	SatietyValue           int32           `json:"satiety_value,omitempty"`
+	SatietyObserved        bool            `json:"satiety_observed,omitempty"`
+	FoodstuffIDs           []int32         `json:"foodstuff_ids,omitempty"`
+	FoodstuffObserved      bool            `json:"foodstuff_observed,omitempty"`
+	Status                 int32           `json:"status,omitempty"`
+	StatusObserved         bool            `json:"status_observed,omitempty"`
+	Name                   string          `json:"name,omitempty"`
+	NameObserved           bool            `json:"name_observed,omitempty"`
+	ConDozeCount           int32           `json:"con_doze_count,omitempty"`
+	StrokeCd               int32           `json:"stroke_cd,omitempty"`
+	StrokeCdObserved       bool            `json:"stroke_cd_observed,omitempty"`
+	GoOutEventID           int32           `json:"go_out_event_id,omitempty"`
+	SpecialEventIDs        []int32         `json:"special_event_ids,omitempty"`
+	LastStrokeTimeMs       int64           `json:"last_stroke_time_ms,omitempty"`
+	LastStrokeTimeObserved bool            `json:"last_stroke_time_observed,omitempty"`
+	StrokeCdTimeMs         int64           `json:"stroke_cd_time_ms,omitempty"`
+	StrokeCdTimeObserved   bool            `json:"stroke_cd_time_observed,omitempty"`
+	GetHomeTimeMs          int64           `json:"get_home_time_ms,omitempty"`
+	StatusCdTimeMs         int64           `json:"status_cd_time_ms,omitempty"`
+	StatusCdTimeObserved   bool            `json:"status_cd_time_observed,omitempty"`
+	GoOutCdTimeMs          int64           `json:"go_out_cd_time_ms,omitempty"`
+	CalTimeMs              int64           `json:"cal_time_ms,omitempty"`
+	CalTimeObserved        bool            `json:"cal_time_observed,omitempty"`
+	HungerTimeMs           int64           `json:"hunger_time_ms,omitempty"`
+	HungerTimeObserved     bool            `json:"hunger_time_observed,omitempty"`
+	ReadLogTimeMs          int64           `json:"read_log_time_ms,omitempty"`
+	ReadLogTimeObserved    bool            `json:"read_log_time_observed,omitempty"`
+	Ext                    json.RawMessage `json:"ext,omitempty"`
+	ExtObserved            bool            `json:"ext_observed,omitempty"`
+	UpdatedAtMs            int64           `json:"updated_at_ms,omitempty"`
+	CreatedAtMs            int64           `json:"created_at_ms,omitempty"`
+	EventTriggerTimes      map[int32]int64 `json:"event_trigger_times,omitempty"`
+}
+
+// ZooDecorateSuitView is one namespace 33.6.<tempId> (G.IZooDecorateSuit).
+type ZooDecorateSuitView struct {
+	MapTempID         int32 `json:"map_temp_id"`
+	UID               int64 `json:"uid,omitempty"`
+	UIDObserved       bool  `json:"uid_observed,omitempty"`
+	TempID            int32 `json:"temp_id,omitempty"`
+	TempIDObserved    bool  `json:"temp_id_observed,omitempty"`
+	ActCount          int32 `json:"act_count,omitempty"`
+	ActCountObserved  bool  `json:"act_count_observed,omitempty"`
+	UpdatedAtMs       int64 `json:"updated_at_ms,omitempty"`
+	UpdatedAtObserved bool  `json:"updated_at_observed,omitempty"`
+	CreatedAtMs       int64 `json:"created_at_ms,omitempty"`
+	CreatedAtObserved bool  `json:"created_at_observed,omitempty"`
+}
+
+// ZooDecorateView is one namespace 33.5.<tempId> (G.IZooDecorate).
+type ZooDecorateView struct {
+	MapTempID         int32 `json:"map_temp_id"`
+	UID               int64 `json:"uid,omitempty"`
+	UIDObserved       bool  `json:"uid_observed,omitempty"`
+	TempID            int32 `json:"temp_id,omitempty"`
+	TempIDObserved    bool  `json:"temp_id_observed,omitempty"`
+	IsRead            int32 `json:"is_read,omitempty"`
+	IsReadObserved    bool  `json:"is_read_observed,omitempty"`
+	Comfort           int32 `json:"comfort,omitempty"`
+	ComfortObserved   bool  `json:"comfort_observed,omitempty"`
+	UpdatedAtMs       int64 `json:"updated_at_ms,omitempty"`
+	UpdatedAtObserved bool  `json:"updated_at_observed,omitempty"`
+	CreatedAtMs       int64 `json:"created_at_ms,omitempty"`
+	CreatedAtObserved bool  `json:"created_at_observed,omitempty"`
 }
 
 // ZooLogExtView is field 11 of one namespace 33.2 log entry.
