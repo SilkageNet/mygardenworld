@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 const (
@@ -68,19 +70,27 @@ func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 	st := r.state
 	r.mu.RUnlock()
 	consider(automation.RaceTakeWakeAt(st, policy, now))
-	consider(r.soonestRaceTakeCooldownUntil(now))
+	consider(r.soonestRaceOpCooldownUntil(now))
+	if automation.RaceBootstrapDue(st, policy, now) {
+		return minDecisionWake
+	}
 	if soonest < minDecisionWake {
 		return minDecisionWake
 	}
 	return soonest
 }
 
-func (r *Runner) soonestRaceTakeCooldownUntil(now time.Time) time.Time {
+func (r *Runner) soonestRaceOpCooldownUntil(now time.Time) time.Time {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var soonest time.Time
 	for _, cd := range r.operationCooldowns {
-		if cd.Domain != "union.race.take" || !cd.Until.After(now) {
+		if !cd.Until.After(now) {
+			continue
+		}
+		switch cd.Domain {
+		case "union.race.take", "union.race.sync", "union.race.enter":
+		default:
 			continue
 		}
 		if soonest.IsZero() || cd.Until.Before(soonest) {
@@ -98,6 +108,14 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 
 	now := time.Now()
+	if snapshot.policy != nil && snapshot.policy.GetAutomationEnabled() &&
+		automation.RaceBootstrapDue(r.state, snapshot.policy, now) {
+		if op := r.nextRunnableOperation(snapshot.policy, now); op != nil && automation.IsUrgentRaceOp(*op) {
+			r.runOperationTick(ctx, snapshot.client, snapshot.session, op, now)
+			return
+		}
+	}
+
 	r.state.RefreshWaterDrops(now)
 	r.tickWaterSourceSync(ctx, snapshot.client, snapshot.session)
 	if r.isSessionInvalidated() {
@@ -201,9 +219,25 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 			attempt.scoreBeforeSet = true
 		}
 	}
+	if op.Kind == clientproto.RPCFmlRaceTakeTask.String() && !r.state.FmlRace().TasksObserved {
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 任务池尚未同步", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, nil),
+			Level:       "warn",
+		})
+		return
+	}
 	r.emitOperationPlanned(attempt)
 
 	raw, err := r.executePlannedOp(ctx, client, session, op)
+	if isRaceTakeOnCooldownError(op.Kind, err) {
+		raw, err = r.retryRaceTakeUntilAppear(ctx, client, session, op)
+	}
 	result := operationResult{
 		operationAttempt: attempt,
 		raw:              raw,
@@ -215,4 +249,67 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 		return
 	}
 	r.handleOperationSuccess(ctx, result)
+}
+
+const (
+	raceTakeCDRetryPad = 80 * time.Millisecond
+	raceTakeCDRetryGap = 10 * time.Millisecond
+	raceTakeCDRetryMax = 8
+)
+
+// retryRaceTakeUntilAppear re-sends takeTask at AppearTime after a preemptive
+// lead-window CD rejection, instead of waiting for the next 4s decision tick.
+func (r *Runner) retryRaceTakeUntilAppear(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp) (json.RawMessage, error) {
+	appear := raceTakeAppearTime(r.state, op)
+	deadline := time.Now().Add(raceTakeCDRetryPad)
+	if !appear.IsZero() {
+		deadline = appear.Add(raceTakeCDRetryPad)
+	}
+	var raw json.RawMessage
+	var err error
+	for i := 0; i < raceTakeCDRetryMax; i++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		now := time.Now()
+		if sleep := raceTakeRetrySleep(now, appear); sleep > 0 {
+			timer := time.NewTimer(sleep)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
+		}
+		raw, err = r.executePlannedOp(ctx, client, session, op)
+		if err == nil || !isRaceTakeOnCooldownError(op.Kind, err) {
+			return raw, err
+		}
+		if !time.Now().Before(deadline) {
+			break
+		}
+	}
+	return raw, err
+}
+
+func raceTakeAppearTime(st *state.State, op *automation.PlannedOp) time.Time {
+	if st == nil || op == nil || op.TaskMsID == 0 {
+		return time.Time{}
+	}
+	for _, t := range st.FmlRace().Tasks {
+		if t.MsId == op.TaskMsID && t.AppearTime > 0 {
+			return time.UnixMilli(t.AppearTime)
+		}
+	}
+	return time.Time{}
+}
+
+func raceTakeRetrySleep(now, appear time.Time) time.Duration {
+	if appear.IsZero() {
+		return raceTakeCDRetryGap
+	}
+	if now.Before(appear) {
+		return appear.Sub(now)
+	}
+	return raceTakeCDRetryGap
 }

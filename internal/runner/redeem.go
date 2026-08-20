@@ -62,9 +62,7 @@ func (r *Runner) RedeemCode(ctx context.Context, code string) (RedeemResult, err
 		babigame.WithApplyV(r.state.ApplyV),
 	)
 	rpc := clientrpc.NewClient(rawRPC)
-	// Request shape is still RawRequest in generated clientproto; game.js and
-	// callFriend.useCode both use a named "code" field.
-	resp, err := rpc.Redeem().UseCode(ctx, clientproto.RedeemUseCodeRequest{"code": code})
+	resp, err := rpc.Redeem().UseCode(ctx, clientproto.RedeemUseCodeRequest{Code: code})
 	if err != nil {
 		msg := formatRedeemServerError(err, babigame.WSResponseD{})
 		r.emitRedeemEvent(false, code, nil, 0, msg)

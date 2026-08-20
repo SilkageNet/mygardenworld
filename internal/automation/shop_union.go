@@ -494,9 +494,10 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 
 // selectUnionLandPlantFlowerFrom picks one flower for guild-land auto-plant
 // from already policy-filtered candidates: while any candidate is below level
-// 11, plant the lowest-level flower (then lowest stock) so every flower can
-// reach 11; maturity minutes are ignored in that phase. Once every candidate
-// is at/above 11, prefer long-maturity and break ties by lowest stock.
+// 11, plant the highest-quality flower first (华>珍>普>凡), then lowest level
+// and lowest stock so every flower can reach 11; maturity minutes are ignored
+// in that phase. Once every candidate is at/above 11, prefer long-maturity and
+// break ties by lowest stock.
 func selectUnionLandPlantFlowerFrom(candidates []state.PlantableFlower, policy *pb.UnionLandPolicy) (flowerID int32, reason string) {
 	if len(candidates) == 0 {
 		return 0, ""
@@ -514,8 +515,8 @@ func selectUnionLandPlantFlowerFrom(candidates []state.PlantableFlower, policy *
 		}
 	}
 	if len(lowLevel) > 0 {
-		best := pickLowestLevelThenStock(lowLevel)
-		return best.FlowerID, fmt.Sprintf("优先未满%d级（等级低且库存少），确保全部升到%d", preferBelow, preferBelow)
+		best := pickHighestQualityThenLevelStock(lowLevel)
+		return best.FlowerID, fmt.Sprintf("优先未满%d级（品阶高，其次等级低、库存少），确保全部升到%d", preferBelow, preferBelow)
 	}
 	if longMature := filterPlantableByMinCD(candidates, minCD); len(longMature) > 0 {
 		best := pickLowestStockPlantable(longMature)
@@ -595,16 +596,24 @@ func pickLowestStockPlantable(candidates []state.PlantableFlower) state.Plantabl
 	return best
 }
 
-func pickLowestLevelThenStock(candidates []state.PlantableFlower) state.PlantableFlower {
+// pickHighestQualityThenLevelStock prefers higher item.color (仙>华>珍>普>凡),
+// then lowest cultivate level, then lowest stock, then lower flower id.
+func pickHighestQualityThenLevelStock(candidates []state.PlantableFlower) state.PlantableFlower {
 	best := candidates[0]
+	bestQuality := flowerQuality(best.FlowerID)
 	for i := 1; i < len(candidates); i++ {
 		candidate := candidates[i]
+		quality := flowerQuality(candidate.FlowerID)
 		switch {
-		case candidate.Lvl < best.Lvl:
+		case quality > bestQuality:
 			best = candidate
-		case candidate.Lvl == best.Lvl && candidate.Stock < best.Stock:
+			bestQuality = quality
+		case quality == bestQuality && candidate.Lvl < best.Lvl:
 			best = candidate
-		case candidate.Lvl == best.Lvl && candidate.Stock == best.Stock && candidate.FlowerID < best.FlowerID:
+		case quality == bestQuality && candidate.Lvl == best.Lvl && candidate.Stock < best.Stock:
+			best = candidate
+		case quality == bestQuality && candidate.Lvl == best.Lvl && candidate.Stock == best.Stock &&
+			candidate.FlowerID < best.FlowerID:
 			best = candidate
 		}
 	}
@@ -698,7 +707,14 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// Also re-fetch when a plant-harvest row is missing flower ParamID (once per
 	// pool msId set — state.MissingParamRefreshFP prevents tight loops).
 	if !view.Observed {
-		return []PlannedOp{domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)}
+		// Outside an active/calendar contest, enter stays a normal side op so
+		// farm/order work is not delayed. During the weekly window, login with
+		// no batch yet must still enter before farm so the pool can be claimed.
+		op := domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛进入同步", 4400, 0, 0, 0)
+		if state.FmlRaceCalendarInSession(now) {
+			op.PreemptFarm = true
+		}
+		return []PlannedOp{op}
 	}
 	// Re-evaluate the published start/end window at planner time. Apply-time
 	// BatchActive stays false if enter ran before Tuesday 09:00.
@@ -707,6 +723,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		if raceShouldEnterInactiveBatch(view, now) {
 			op := domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛开赛同步批次", 4400, 0, 0, 0)
 			op.CooldownKey = "union.race.enter.batch"
+			op.PreemptFarm = true
 			return []PlannedOp{op}
 		}
 		if !view.BatchActive {
@@ -719,6 +736,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		if synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceLvlSyncInterval)) {
 			op := domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛同步段位与任务配额", 4399, 0, 0, 0)
 			op.CooldownKey = "union.race.enter.race_lvl"
+			op.PreemptFarm = true
 			return []PlannedOp{op}
 		}
 	}
@@ -743,10 +761,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if view.Taken.HasTask && raceTakenExpired(view.Taken, now) {
 		if !view.TasksObserved || view.TasksSyncedAtMs <= 0 ||
 			!now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceExpiredTaskSyncInterval)) {
-			return []PlannedOp{domainOp(
+			op := domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 				"公会竞赛已接任务过期，重新同步任务池", 4399, 0, 0, 0,
-			)}
+			)
+			op.PreemptFarm = true
+			return []PlannedOp{op}
 		}
 		return nil
 	}
@@ -762,10 +782,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// still lags (missing/delayed field 134). Force getTaskList so pool field 8
 	// can advance FinishCnt and finishTask can fire on the next tick.
 	if policy.GetAutoEnableModules() && raceNeedsFinishProgressSync(view, now) {
-		return []PlannedOp{domainOp(
+		op := domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 			"公会竞赛本地收获已达标，同步进度以便提交", 4397, 0, 0, 0,
-		)}
+		)
+		op.PreemptFarm = true
+		return []PlannedOp{op}
 	}
 
 	syncPrio := int32(4398)
@@ -782,7 +804,9 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		syncPrio = raceCultivateSyncPriority
 	}
 	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {
-		return []PlannedOp{domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", syncPrio, 0, 0, 0)}
+		op := domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", syncPrio, 0, 0, 0)
+		op.PreemptFarm = true
+		return []PlannedOp{op}
 	}
 
 	// autoEnableModules gates take/finish/upgrade/delete. When off, the race
@@ -813,6 +837,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 				op.TaskID = view.Taken.TaskId
 			}
 			op.FlowerID = view.Taken.ParamID
+			op.PreemptFarm = true
 			ops = append(ops, op)
 		}
 	}
@@ -873,6 +898,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 				op.TaskID = best.TaskId
 			}
 			op.FlowerID = best.ParamID
+			op.PreemptFarm = true
 			ops = append(ops, op)
 		}
 	}
@@ -1076,6 +1102,77 @@ func RaceTakeWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.Time 
 	return time.UnixMilli(bestAppear - leadMs)
 }
 
+// RaceTakeDue reports that takeTask should fire on this tick (ready now or
+// inside raceTakeLeadWindow). The decision loop uses this to skip water /
+// resident / reputation preamble so the 300ms lead is not eaten before RPC.
+func RaceTakeDue(s *state.State, policy *pb.Policy, now time.Time) bool {
+	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
+		return false
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
+		return false
+	}
+	view := s.FmlRace()
+	view.BatchActive = view.ActiveAt(now)
+	if !view.BatchActive || !view.TasksObserved || view.Taken.HasTask ||
+		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		return false
+	}
+	return len(selectRaceTasks(s, view.Tasks, race, s.RoleID(), now, raceModuleGatesFromPolicy(policy))) > 0
+}
+
+// RaceBootstrapDue reports that race enter / getTaskList / take / finish must
+// run before farm or order work: unobserved pool after login, takeable rows, or
+// a held task ready to submit.
+func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
+	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
+		return false
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() {
+		return false
+	}
+	view := s.FmlRace()
+	if !view.Observed {
+		// First enter only preempts during the weekly contest window.
+		return state.FmlRaceCalendarInSession(now)
+	}
+	view.BatchActive = view.ActiveAt(now)
+	if !view.BatchActive {
+		// Still allow calendar-window enter probes (status may still be 0).
+		return raceShouldEnterInactiveBatch(view, now)
+	}
+	if !view.TasksObserved {
+		return true
+	}
+	if view.Taken.HasTask && view.Taken.TargetCnt > 0 && view.Taken.FinishCnt >= view.Taken.TargetCnt {
+		return true
+	}
+	if !race.GetAutoEnableModules() {
+		return false
+	}
+	return RaceTakeDue(s, policy, now)
+}
+
+// IsUrgentRaceOp reports ops that must preempt farm/order lanes (login sync,
+// take/giveUp/finish). Routine TTL refresh and bare off-week enter stay normal.
+func IsUrgentRaceOp(op PlannedOp) bool {
+	return op.PreemptFarm
+}
+
+// IsUrgentRaceDomain reports domains that may preempt farm/order when the
+// planned op also carries PreemptFarm (see IsUrgentRaceOp).
+func IsUrgentRaceDomain(domain string) bool {
+	switch domain {
+	case "union.race.enter", "union.race.sync", "union.race.take",
+		"union.race.giveUp", "union.race.finish":
+		return true
+	default:
+		return false
+	}
+}
+
 func isRacePrimaryMutatingOp(op PlannedOp) bool {
 	switch op.Kind {
 	case clientproto.RPCFmlRaceGiveUpTask.String(),
@@ -1133,6 +1230,7 @@ func raceFinishOperation(goal Goal, taken state.FmlRaceTakenView) PlannedOp {
 		op.TaskID = taken.TaskId
 	}
 	op.FlowerID = taken.ParamID
+	op.PreemptFarm = true
 	return op
 }
 

@@ -204,6 +204,118 @@ func TestIsRaceTakeOnCooldownError(t *testing.T) {
 	}
 }
 
+func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn1s(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.state.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":814,"4":4001,"5":3036,"10":9}]}}`))
+	if !r.state.FmlRace().TasksObserved {
+		t.Fatal("seed TasksObserved")
+	}
+
+	syncErr := &babigame.RPCServerError{
+		Name: clientproto.RPCFmlRaceGetTaskList,
+		Envelope: babigame.WSResponseD{
+			M: json.RawMessage(`{"code":221,"args":[]}`),
+		},
+	}
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCFmlRaceGetTaskList.String(),
+		Lane:     automation.LaneSide,
+		Category: "race",
+		Domain:   "union.race.sync",
+		Action:   "sync",
+	}
+	now := time.Now()
+	got := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              syncErr,
+		finishedAt:       now,
+	})
+	if got != nil {
+		t.Fatalf("getTaskList failure must soft-recover (nil), got %v", got)
+	}
+	if r.state.FmlRace().Observed {
+		t.Fatal("code 221 must MarkFmlRaceSessionStale (Observed=false)")
+	}
+	cd, cooling := r.operationCoolingDown(op, now.Add(500 * time.Millisecond))
+	if !cooling {
+		t.Fatal("expected 1s sync cooldown")
+	}
+	if d := cd.Until.Sub(now); d < time.Second || d > 2*time.Second {
+		t.Fatalf("cooldown duration=%v, want ~1s not 60s", d)
+	}
+}
+
+func TestHandleOperationErrorRaceTake221ForcesEnter(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.state.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":814,"4":4001,"5":3036,"10":9}]}}`))
+
+	takeErr := &babigame.RPCServerError{
+		Name: clientproto.RPCFmlRaceTakeTask,
+		Envelope: babigame.WSResponseD{
+			M: json.RawMessage(`{"code":221,"args":[]}`),
+		},
+	}
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCFmlRaceTakeTask.String(),
+		Lane:     automation.LaneSide,
+		Category: "race",
+		Domain:   "union.race.take",
+		Action:   "take",
+		TaskMsID: 814,
+	}
+	got := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              takeErr,
+		finishedAt:       time.Now(),
+	})
+	if got != nil {
+		t.Fatalf("take 221 must soft-recover (nil), got %v", got)
+	}
+	view := r.state.FmlRace()
+	if view.Observed || view.TasksObserved {
+		t.Fatalf("take 221 must session-stale: Observed=%v TasksObserved=%v", view.Observed, view.TasksObserved)
+	}
+}
+
+func TestHandleOperationErrorRaceTakeOrdinaryFailureRetriesImmediately(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.state.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":814,"4":4001,"5":3036,"10":9,"11":0}]}}`))
+	if !r.state.FmlRace().TasksObserved {
+		t.Fatal("seed TasksObserved")
+	}
+
+	// Generic take reject (not code 221) — previously fell through to 60s backoff.
+	takeErr := &babigame.RPCServerError{
+		Name: clientproto.RPCFmlRaceTakeTask,
+		Envelope: babigame.WSResponseD{
+			M: json.RawMessage(`{"code":999,"msg":"接取失败"}`),
+		},
+	}
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCFmlRaceTakeTask.String(),
+		Lane:     automation.LaneSide,
+		Category: "race",
+		Domain:   "union.race.take",
+		Action:   "take",
+		TaskMsID: 814,
+	}
+	now := time.Now()
+	got := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              takeErr,
+		finishedAt:       now,
+	})
+	if got != nil {
+		t.Fatalf("ordinary take failure must soft-recover (nil), got %v", got)
+	}
+	if r.state.FmlRace().TasksObserved {
+		t.Fatal("must MarkFmlRaceTasksUnobserved for immediate resync/retry")
+	}
+	if _, cooling := r.operationCoolingDown(op, now.Add(time.Second)); cooling {
+		t.Fatal("must not apply 60s side-op backoff on take failure")
+	}
+}
+
 func TestHandleOperationErrorRaceTakeOnCooldownWaitsAppearTime(t *testing.T) {
 	r := newOperationEventTestRunner()
 	now := time.UnixMilli(1_000_000)
@@ -245,12 +357,12 @@ func TestHandleOperationErrorRaceTakeOnCooldownWaitsAppearTime(t *testing.T) {
 	if !cooling {
 		t.Fatal("expected take cooldown")
 	}
-	wantUntil := time.UnixMilli(appear).Add(10 * time.Millisecond)
+	wantUntil := time.UnixMilli(appear)
 	if !cd.Until.Equal(wantUntil) {
-		t.Fatalf("cooldown until=%v, want %v (AppearTime+pad)", cd.Until, wantUntil)
+		t.Fatalf("cooldown until=%v, want %v (AppearTime)", cd.Until, wantUntil)
 	}
 	if d := cd.Until.Sub(now); d < 2*time.Second || d > 4*time.Second {
-		t.Fatalf("cooldown duration=%v, want ~3.01s not 60s ordinary backoff", d)
+		t.Fatalf("cooldown duration=%v, want ~3s not 60s ordinary backoff", d)
 	}
 }
 

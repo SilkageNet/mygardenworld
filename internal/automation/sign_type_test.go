@@ -101,6 +101,7 @@ func TestSignTypePlanHonorsBaseRewardAndCrossDayGates(t *testing.T) {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
 	policy.Basic.Sign.DailyEnabled = true
+	policy.Union.Race.Enabled = false
 
 	t.Run("base reward today suppresses signType", func(t *testing.T) {
 		s := state.New()

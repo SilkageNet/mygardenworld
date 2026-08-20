@@ -120,8 +120,7 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 
 func firstUrgentRaceOp(runnable []runnableOperationCandidate) *runnableOperationCandidate {
 	for i := range runnable {
-		switch runnable[i].op.Domain {
-		case "union.race.take", "union.race.giveUp":
+		if automation.IsUrgentRaceOp(runnable[i].op) {
 			return &runnable[i]
 		}
 	}

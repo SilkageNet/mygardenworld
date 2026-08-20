@@ -369,6 +369,28 @@ func isRaceTakeQuotaExceededError(kind string, err error) bool {
 
 // isRaceTakeOnCooldownError matches takeTask when the pool row is still on
 // AppearTime CD (common after a preemptive lead-window attempt).
+const raceSyncRetryCooldown = 1 * time.Second
+
+// raceTransientSessionCode is returned when the client race session is stale
+// (common on getTaskList/takeTask before a fresh enter).
+const raceTransientSessionCode = 221
+
+func isRaceTransientSessionError(kind string, err error) bool {
+	if err == nil || !isFmlRaceRPCKind(kind) {
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil && rpcErr.Envelope.ErrorCode() == raceTransientSessionCode {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, `"code":221`) || strings.Contains(msg, `"code": 221`)
+}
+
+func isFmlRaceRPCKind(kind string) bool {
+	return strings.HasPrefix(kind, "fmlRace.")
+}
+
 func isRaceTakeOnCooldownError(kind string, err error) bool {
 	if kind != clientproto.RPCFmlRaceTakeTask.String() || err == nil {
 		return false
@@ -387,13 +409,12 @@ func isRaceTakeOnCooldownError(kind string, err error) bool {
 }
 
 // raceTakeOnCooldownWait returns how long to block take after a server CD tip.
-// Prefer waiting until the pool row's AppearTime (+pad) so we retry at refresh
+// Prefer waiting until the pool row's AppearTime so we retry at refresh
 // instead of burning a 60s ordinary side-op backoff.
 func raceTakeOnCooldownWait(st *state.State, op *automation.PlannedOp, now time.Time) time.Duration {
 	const (
-		minWait = 200 * time.Millisecond
-		maxWait = 2 * time.Minute
-		pad     = 10 * time.Millisecond
+		minWait  = 5 * time.Millisecond
+		maxWait  = 2 * time.Minute
 		fallback = 2 * time.Second
 	)
 	if st == nil || op == nil || op.TaskMsID == 0 {
@@ -403,7 +424,7 @@ func raceTakeOnCooldownWait(st *state.State, op *automation.PlannedOp, now time.
 		if t.MsId != op.TaskMsID || t.AppearTime <= 0 {
 			continue
 		}
-		until := time.UnixMilli(t.AppearTime).Add(pad)
+		until := time.UnixMilli(t.AppearTime)
 		if !until.After(now) {
 			return minWait
 		}
@@ -480,6 +501,12 @@ func isTaskGroupFinishedError(kind string, err error) bool {
 	default:
 		return false
 	}
+}
+
+func isMailAlreadyPickedError(kind string, err error) bool {
+	return kind == clientproto.RPCMailPick.String() &&
+		err != nil &&
+		strings.Contains(err.Error(), "邮件附件已领取")
 }
 
 func waterResponseIncludesDrops(raw json.RawMessage) bool {

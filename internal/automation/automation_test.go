@@ -1104,6 +1104,7 @@ func TestPlan_FarmLaneBeatsCustomerOrderGeneration(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoEnabled = true
 	p.Order.Customer.Enabled = true
+	p.Union.Race.Enabled = false
 
 	op := Plan(s, p, now)
 	if op == nil || op.Kind != clientproto.RPCUsrLandHarvest.String() || op.Lane != LaneFarm {
@@ -1131,6 +1132,7 @@ func TestBuildPlan_FarmLaneBeatsDailyTaskClaim(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoEnabled = true
 	p.Basic.Task.DailyEnabled = true
+	p.Union.Race.Enabled = false
 
 	result := BuildPlan(s, p, now)
 	if len(result.Operations) == 0 {
@@ -1428,6 +1430,7 @@ func TestPlan_FlowerRackClaimBeatsHarvest(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoEnabled = true
 	p.Order.FlowerArt.SellEnabled = true
+	p.Union.Race.Enabled = false
 
 	op := Plan(s, p, now)
 	if op == nil || op.Kind != clientproto.RPCFlowerRackRecvSellMoney.String() {
@@ -2350,6 +2353,7 @@ func TestBuildPlan_ZooLogPrecedesSouvenirReward(t *testing.T) {
 	p.AutomationEnabled = true
 	p.Basic.Zoo.Enabled = true
 	p.Basic.Zoo.AutoEventEnabled = true
+	p.Union.Race.Enabled = false
 
 	result := BuildPlan(s, p, time.Now())
 	readIndex, claimIndex := -1, -1
@@ -2992,13 +2996,56 @@ func TestBuildPlan_UnionLandAutoPlantPrefersLowestLevelWhileBelow11(t *testing.T
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Domain == "union.land.plant" {
+			// Same quality (凡): still prefer the lower cultivate level.
 			if op.FlowerID != 23005 {
-				t.Fatalf("below-11 should prefer lowest cultivate level 23005, got %+v", op)
+				t.Fatalf("same-quality below-11 should prefer lowest cultivate level 23005, got %+v", op)
 			}
 			return
 		}
 	}
 	t.Fatalf("missing union land plant op for lowest level: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantPrefersHigherQualityWhileBelow11(t *testing.T) {
+	// 花扇鹊嬉=华(4), 轻粉蓝铃花=普(2). Even with higher level / higher stock,
+	// the华品 flower must be planted first while leveling below 11.
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23310": 50,
+			"23603": 1,
+		}}},
+		"101": map[string]any{"0": map[string]any{
+			"23310": map[string]any{"1": 23310, "2": 8, "4": 2},
+			"23603": map[string]any{"1": 23603, "2": 2, "4": 2},
+		}},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+					"2": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 999
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23310 {
+				t.Fatalf("below-11 should prefer higher-quality 花扇鹊嬉(23310) over 轻粉蓝铃花(23603), got %+v", op)
+			}
+			if !strings.Contains(op.Reason, "品阶高") {
+				t.Fatalf("reason should mention quality priority: %q", op.Reason)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union land plant op for higher quality: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionLandAutoPlantForceReplacesOccupiedBelow11(t *testing.T) {
@@ -3874,6 +3921,7 @@ func TestBuildPlan_AutoReplantAllModeQualityFilter(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_ALL
+	p.Union.Race.Enabled = false
 
 	// Empty qualities = all → prefer lowest stock 迎春花.
 	result := BuildPlan(s, p, time.Now())
@@ -3906,6 +3954,7 @@ func TestBuildPlan_AutoReplantMinLevelFilter(t *testing.T) {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoReplantMode = pb.SelectionMode_SELECTION_MODE_ALL
+	p.Union.Race.Enabled = false
 
 	// No min level → prefer lowest stock 23077.
 	first := Plan(s, p, time.Now())
@@ -3990,6 +4039,7 @@ func TestBuildPlan_LowStockAutoReplantKeepsStockOrderOverFlowerID(t *testing.T) 
 	})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
+	p.Union.Race.Enabled = false
 
 	result := BuildPlan(s, p, time.Now())
 	var plantOps []PlannedOp

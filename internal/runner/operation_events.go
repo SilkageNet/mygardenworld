@@ -50,6 +50,7 @@ const (
 	operationErrorRaceTakeOnCooldown        operationErrorKind = "race_take_on_cooldown"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
+	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -82,6 +83,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorFmlFlowerTakeDailyLimit
 	case isCyclicStoryOrderNotReadyError(kind, err):
 		return operationErrorCyclicStoryOrderNotReady
+	case isMailAlreadyPickedError(kind, err):
+		return operationErrorMailAlreadyPicked
 	default:
 		return operationErrorOrdinary
 	}
@@ -430,7 +433,47 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "order_not_ready"})
 		return nil
+	case operationErrorMailAlreadyPicked:
+		r.state.MarkMailPicked(op.TargetID, op.ItemID)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端提示邮件附件已领取，已校正本地邮件状态", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "mail_already_picked", "msId": op.TargetID, "allId": op.ItemID})
+		return nil
 	default:
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() ||
+			op.Kind == clientproto.RPCFmlRaceEnter.String() {
+			return r.handleRaceSyncFailure(ctx, result, "race_sync_retry")
+		}
+		// Contested takeTask must not sit behind the ordinary 60s side-op
+		// backoff. Code 221 means the race session is stale — enter before sync.
+		// Other rejects only mark the pool unobserved for an immediate getTaskList.
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			if isRaceTransientSessionError(op.Kind, err) {
+				return r.handleRaceSessionStale(ctx, result, "race_take_session_stale")
+			}
+			r.state.MarkFmlRaceTasksUnobserved()
+			r.clearOperationCooldown(op)
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Label:       operationEventLabel(op),
+				Message:     fmt.Sprintf("%s 暂缓: 接取失败，将立即重新同步任务池后重试", opDesc(op)),
+				PayloadJSON: operationPayload(op, args, nil, err),
+				Level:       "warn",
+			})
+			r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "race_take_retry"})
+			return nil
+		}
 		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "", 0)
 		r.emit(Event{
 			Kind:        "operation_failed",
@@ -443,6 +486,56 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error()})
 		return err
 	}
+}
+
+func (r *Runner) handleRaceSyncFailure(ctx context.Context, result operationResult, stage string) error {
+	op, args, err := result.op, result.args, result.err
+	if isRaceTransientSessionError(op.Kind, err) {
+		r.state.MarkFmlRaceSessionStale()
+	} else {
+		r.state.MarkFmlRaceTasksUnobserved()
+	}
+	reason := "竞赛同步失败，稍后重试"
+	message := fmt.Sprintf("%s 暂缓: 同步失败，1 秒后重试", opDesc(op))
+	if isRaceTransientSessionError(op.Kind, err) {
+		reason = "竞赛会话需重新进入，稍后重试"
+		message = fmt.Sprintf("%s 暂缓: 竞赛会话需重新进入，1 秒后重试", opDesc(op))
+	}
+	payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, reason, raceSyncRetryCooldown)
+	r.emit(Event{
+		Kind:        "operation_deferred",
+		Category:    op.Category,
+		Domain:      op.Domain,
+		Action:      "blocked",
+		Label:       operationEventLabel(op),
+		Message:     message,
+		PayloadJSON: operationPayload(payloadOp, args, nil, err),
+		Level:       "warn",
+	})
+	r.logOperation(ctx, op.Kind, args, map[string]any{
+		"error":             err.Error(),
+		"stage":             stage,
+		"retryAfterSeconds": int(raceSyncRetryCooldown.Seconds()),
+	})
+	return nil
+}
+
+func (r *Runner) handleRaceSessionStale(ctx context.Context, result operationResult, stage string) error {
+	op, args, err := result.op, result.args, result.err
+	r.state.MarkFmlRaceSessionStale()
+	r.clearOperationCooldown(op)
+	r.emit(Event{
+		Kind:        "operation_deferred",
+		Category:    op.Category,
+		Domain:      op.Domain,
+		Action:      "blocked",
+		Label:       operationEventLabel(op),
+		Message:     fmt.Sprintf("%s 暂缓: 竞赛会话需重新进入后再接取", opDesc(op)),
+		PayloadJSON: operationPayload(op, args, nil, err),
+		Level:       "warn",
+	})
+	r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": stage})
+	return nil
 }
 
 func (r *Runner) handleOperationSuccess(ctx context.Context, result operationResult) {
@@ -563,6 +656,13 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "放弃竞赛任务"
 		category = automation.CategoryRace
 		message = raceTaskSuccessMessage(op)
+	case clientproto.RPCMailPick.String():
+		kind = "mail_claim"
+		label = "邮件"
+		message = fmt.Sprintf("领取邮件附件 msId=%d allId=%d", op.TargetID, op.ItemID)
+		// Successful pick responses often omit ns19.isPick; mark locally so the
+		// planner does not retry and hit「邮件附件已领取」.
+		r.state.MarkMailPicked(op.TargetID, op.ItemID)
 	}
 	r.emit(Event{
 		Kind:        kind,

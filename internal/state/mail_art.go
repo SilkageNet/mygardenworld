@@ -24,7 +24,7 @@ func (s *State) applyMailLocked(raw json.RawMessage) {
 		s.mails = make(map[string]*MailView)
 	}
 	for _, rawEntry := range entries {
-		mail, ok := parseMailView(rawEntry)
+		mail, present, ok := parseMailView(rawEntry)
 		if !ok {
 			continue
 		}
@@ -32,20 +32,31 @@ func (s *State) applyMailLocked(raw json.RawMessage) {
 		if key == "" {
 			continue
 		}
+		if prev, exists := s.mails[key]; exists && prev != nil {
+			mail = mergeMailView(*prev, mail, present)
+		}
 		next := mail
 		s.mails[key] = &next
 	}
 }
 
-func parseMailView(raw json.RawMessage) (MailView, bool) {
+type mailFieldsPresent struct {
+	isDel  bool
+	isRead bool
+	isPick bool
+	items  bool
+}
+
+func parseMailView(raw json.RawMessage) (MailView, mailFieldsPresent, bool) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return MailView{}, false
+		return MailView{}, mailFieldsPresent{}, false
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return MailView{}, false
+		return MailView{}, mailFieldsPresent{}, false
 	}
 	view := MailView{}
+	var present mailFieldsPresent
 	if n, ok := readInt32JSONField(fields, "1"); ok {
 		view.MsID = n
 	}
@@ -54,17 +65,66 @@ func parseMailView(raw json.RawMessage) (MailView, bool) {
 	}
 	if n, ok := readInt32JSONField(fields, "17"); ok {
 		view.IsDel = n
+		present.isDel = true
 	}
 	if n, ok := readInt32JSONField(fields, "18"); ok {
 		view.IsRead = n
+		present.isRead = true
 	}
 	if n, ok := readInt32JSONField(fields, "20"); ok {
 		view.IsPick = n
+		present.isPick = true
 	}
 	if rawItems, ok := fields["13"]; ok {
 		view.ItemsRaw = append(json.RawMessage(nil), rawItems...)
+		present.items = true
 	}
-	return view, view.MsID > 0 || view.AllID > 0
+	return view, present, view.MsID > 0 || view.AllID > 0
+}
+
+// mergeMailView keeps previously observed fields when a sparse ns19 delta omits
+// them. mail.pick often returns a partial row without isPick=1; replacing the
+// whole entry would leave ReadyMailPickTargets retrying and hit「附件已领取」.
+func mergeMailView(prev, incoming MailView, present mailFieldsPresent) MailView {
+	out := prev
+	if incoming.MsID > 0 {
+		out.MsID = incoming.MsID
+	}
+	if incoming.AllID > 0 {
+		out.AllID = incoming.AllID
+	}
+	if present.isDel {
+		out.IsDel = incoming.IsDel
+	}
+	if present.isRead {
+		out.IsRead = incoming.IsRead
+	}
+	if present.isPick {
+		out.IsPick = incoming.IsPick
+	}
+	if present.items {
+		out.ItemsRaw = append(json.RawMessage(nil), incoming.ItemsRaw...)
+	}
+	return out
+}
+
+// MarkMailPicked marks one mail as claimed so automation stops retrying pick
+// when the server already applied the claim but local ns19 lagged.
+func (s *State) MarkMailPicked(msID, allID int32) {
+	key := mailKey(msID, allID)
+	if key == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.mails == nil {
+		return
+	}
+	mail, ok := s.mails[key]
+	if !ok || mail == nil {
+		return
+	}
+	mail.IsPick = 1
 }
 
 func mailKey(msID, allID int32) string {

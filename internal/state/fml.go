@@ -1754,6 +1754,15 @@ func (s *State) MarkFmlRaceTasksUnobserved() {
 	s.fmlRace.TasksObserved = false
 }
 
+// MarkFmlRaceSessionStale clears enter + task-pool observation so the planner
+// runs enter → getTaskList before take after transient server rejects (e.g. 221).
+func (s *State) MarkFmlRaceSessionStale() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.Observed = false
+	s.fmlRace.TasksObserved = false
+}
+
 // MarkFmlRaceTasksSynced records a successful getTaskList round-trip even when
 // the payload omitted field 114, so the planner does not re-sync every tick.
 func (s *State) MarkFmlRaceTasksSynced() {

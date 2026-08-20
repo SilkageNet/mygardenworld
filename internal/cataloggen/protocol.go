@@ -702,6 +702,15 @@ func inferStateFieldType(schema ProtocolSchema, field ProtocolField, known map[s
 			return "bool"
 		}
 	}
+	// Guild-race IDs are millisecond-scale; param/gain arrive as scalar or array.
+	if strings.HasPrefix(schema.Name, "G.IFmlRace") {
+		switch field.Name {
+		case "batchId", "msId", "taskMsId":
+			return "int64"
+		case "param", "gain":
+			return "RawValue"
+		}
+	}
 	if schema.Name == "G.IFreeWater" && field.Name == "recvIdx" {
 		return "[]int32"
 	}
@@ -1154,6 +1163,9 @@ func inferRPCFieldType(field ProtocolField) string {
 		return "RPCPoint"
 	case "aid", "uid", "dUid", "dstUid", "targetUid", "helpUid":
 		return "RPCUID"
+	case "taskMsId", "msId":
+		// Race task instance IDs are millisecond timestamps (beyond int32).
+		return "int64"
 	case "uids", "dstUids", "frdUids":
 		return "RPCUIDList"
 	case "isNative", "isAnonymous", "isOpen", "isSubscribeOpen", "agree", "force", "withMb", "isAll":

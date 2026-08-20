@@ -257,6 +257,9 @@ type PlannedOp struct {
 	Status         string
 	Executable     bool
 	SyncOnly       bool
+	// PreemptFarm ranks this op above the farm lane (login race sync/take,
+	// finish, giveUp). Side-lane locking is unchanged.
+	PreemptFarm    bool
 	Reason         string
 	BlockedReasons []string
 	Priority       int32

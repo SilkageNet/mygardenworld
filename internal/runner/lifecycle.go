@@ -189,6 +189,9 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetResidentOrderSession()
 	if r.state != nil {
 		r.state.ResetDessertSession()
+		// Contest window: every login/reconnect must re-fetch the task pool
+		// before farm/order work so takeable rows are claimed immediately.
+		r.state.MarkFmlRaceTasksUnobserved()
 	}
 }
 

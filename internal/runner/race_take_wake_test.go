@@ -56,9 +56,69 @@ func TestNextTickIntervalWakesForRaceTakeCooldown(t *testing.T) {
 	}
 }
 
+func TestNextTickIntervalWakesForRaceSyncCooldown(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	r := &Runner{
+		state:  state.New(),
+		policy: &pb.Policy{DecisionIntervalSeconds: 4, AutomationEnabled: true},
+		operationCooldowns: map[string]operationCooldown{
+			"union.race.sync": {
+				Domain: "union.race.sync",
+				Until:  now.Add(time.Second),
+			},
+		},
+	}
+	got := r.nextTickInterval(now)
+	if got != time.Second {
+		t.Fatalf("nextTickInterval=%v, want 1s sync cooldown wake", got)
+	}
+}
+
+func TestRaceTakeRetrySleep(t *testing.T) {
+	appear := time.UnixMilli(2_000_000)
+	if got := raceTakeRetrySleep(appear.Add(-150*time.Millisecond), appear); got != 150*time.Millisecond {
+		t.Fatalf("before appear sleep=%v, want 150ms", got)
+	}
+	if got := raceTakeRetrySleep(appear, appear); got != raceTakeCDRetryGap {
+		t.Fatalf("at appear sleep=%v, want retry gap", got)
+	}
+	if got := raceTakeRetrySleep(appear.Add(time.Millisecond), appear); got != raceTakeCDRetryGap {
+		t.Fatalf("after appear sleep=%v, want retry gap", got)
+	}
+}
+
+func TestNextTickIntervalWakesImmediatelyForRaceBootstrap(t *testing.T) {
+	st := state.New()
+	st.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
+	st.MarkFmlRaceTasksUnobserved()
+	p := automation.DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race.Enabled = true
+	p.DecisionIntervalSeconds = 4
+	r := &Runner{state: st, policy: p}
+	if got := r.nextTickInterval(time.UnixMilli(1_000_000)); got != minDecisionWake {
+		t.Fatalf("nextTickInterval=%v, want immediate bootstrap %v", got, minDecisionWake)
+	}
+}
+
 func TestNextTickIntervalKeepsDefaultWithoutRace(t *testing.T) {
 	r := &Runner{state: state.New(), policy: &pb.Policy{DecisionIntervalSeconds: 4}}
 	if got := r.nextTickInterval(time.UnixMilli(1_000_000)); got != 4*time.Second {
 		t.Fatalf("nextTickInterval=%v, want 4s", got)
+	}
+}
+
+func TestNextTickIntervalDoesNotBootstrapOutsideContestWithoutBatch(t *testing.T) {
+	// Monday 2026-07-13 is outside Tue–Sun race calendar; bare !Observed enter
+	// must not force minDecisionWake.
+	st := state.New()
+	p := automation.DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Race.Enabled = true
+	p.DecisionIntervalSeconds = 4
+	r := &Runner{state: st, policy: p}
+	monday := time.Date(2026, 7, 13, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	if got := r.nextTickInterval(monday); got != 4*time.Second {
+		t.Fatalf("nextTickInterval=%v, want 4s outside contest calendar", got)
 	}
 }

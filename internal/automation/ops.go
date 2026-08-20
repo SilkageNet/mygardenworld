@@ -109,10 +109,9 @@ func operationComesBefore(left, right PlannedOp) bool {
 // priority 50 cannot jump ahead of main tasks or major orders merely because
 // usrLand RPCs normally own the farm lane.
 func operationLaneRank(op PlannedOp) int {
-	// Give-up and contested take must run before farm/order work. Both stay on
-	// the side lane for execution locking; this only prevents harvest/plant
-	// from delaying a policy-required give-up or a lead-window snipe.
-	if op.Domain == "union.race.giveUp" || op.Domain == "union.race.take" {
+	// Login/contest bootstrap and contested take/finish stay on the side lane
+	// for locking, but sort ahead of farm/order work.
+	if IsUrgentRaceOp(op) {
 		return -1
 	}
 	if op.Lane == LaneFarm && op.GoalID == GoalAutoReplant && strings.HasPrefix(op.DemandID, cyclicNoteActionGoal+":") {
@@ -143,18 +142,20 @@ func laneRank(lane string) int {
 
 func categoryRank(category string) int {
 	switch category {
-	case CategoryPlant:
+	case CategoryRace:
 		return 0
-	case CategoryOrder, CategoryFlowerArt, CategoryWater:
+	case CategoryPlant:
 		return 1
-	case CategoryBasic:
+	case CategoryOrder, CategoryFlowerArt, CategoryWater:
 		return 2
-	case CategoryUnion:
+	case CategoryBasic:
 		return 3
-	case CategoryActivity:
+	case CategoryUnion:
 		return 4
-	case CategoryAccount:
+	case CategoryActivity:
 		return 5
+	case CategoryAccount:
+		return 6
 	default:
 		return 9
 	}

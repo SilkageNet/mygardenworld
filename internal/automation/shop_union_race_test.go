@@ -863,9 +863,15 @@ func TestRaceTakeWakeAt(t *testing.T) {
 	if !wake.Equal(want) {
 		t.Fatalf("RaceTakeWakeAt=%v, want AppearTime-lead %v", wake, want)
 	}
+	if RaceTakeDue(s, policy, now) {
+		t.Fatal("5s before appear must not be due yet")
+	}
 
 	if got := RaceTakeWakeAt(s, policy, want); !got.IsZero() {
 		t.Fatalf("inside lead window must not schedule a future wake, got %v", got)
+	}
+	if !RaceTakeDue(s, policy, want) {
+		t.Fatal("inside lead window must be due for immediate take")
 	}
 
 	off := testEnabledRaceFullPolicy()
@@ -898,10 +904,70 @@ func TestRaceTakeWakeAtSkipsWhenAlreadyTakeableOrHeld(t *testing.T) {
 }
 
 func TestRaceTakeLaneRankPreemptsFarm(t *testing.T) {
-	take := PlannedOp{Domain: "union.race.take", Lane: LaneSide, Priority: 4380}
+	take := PlannedOp{Domain: "union.race.take", Lane: LaneSide, Priority: 4380, PreemptFarm: true}
 	harvest := PlannedOp{Domain: "farm.harvest", Lane: LaneFarm, Priority: 9000}
 	if !operationComesBefore(take, harvest) {
 		t.Fatal("race take must sort before farm harvest")
+	}
+}
+
+func TestRaceEnterSyncFinishLaneRankPreemptsFarmAndOrders(t *testing.T) {
+	harvest := PlannedOp{Domain: "farm.harvest", Lane: LaneFarm, Priority: 9000}
+	customer := PlannedOp{Domain: "order.customer", Lane: LaneSide, Priority: 5000, Category: CategoryOrder}
+	for _, domain := range []string{"union.race.enter", "union.race.sync", "union.race.finish"} {
+		op := PlannedOp{Domain: domain, Lane: LaneSide, Priority: 4380, Category: CategoryRace, PreemptFarm: true}
+		if !operationComesBefore(op, harvest) {
+			t.Fatalf("%s must sort before farm harvest", domain)
+		}
+		if !operationComesBefore(op, customer) {
+			t.Fatalf("%s must sort before customer order", domain)
+		}
+	}
+	plainEnter := PlannedOp{Domain: "union.race.enter", Lane: LaneSide, Priority: 4400, Category: CategoryRace}
+	if operationComesBefore(plainEnter, harvest) {
+		t.Fatal("non-preempt enter must not sort before farm harvest")
+	}
+}
+
+func TestRaceBootstrapDueAfterLoginUnobserved(t *testing.T) {
+	now := time.UnixMilli(1_000_000)
+	s := state.New()
+	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		now.UnixMilli(),
+	)))
+	policy := testEnabledRaceFullPolicy()
+	if !RaceBootstrapDue(s, policy, now) {
+		t.Fatal("observed pool with takeable row must bootstrap")
+	}
+	s.MarkFmlRaceTasksUnobserved()
+	if !RaceBootstrapDue(s, policy, now) {
+		t.Fatal("login-unobserved pool must bootstrap before farm/order")
+	}
+	off := testEnabledRaceFullPolicy()
+	off.Union.Race.Enabled = false
+	if RaceBootstrapDue(s, off, now) {
+		t.Fatal("race disabled must not bootstrap")
+	}
+}
+
+func TestBuildPlan_RaceSyncPreemptsHarvestAfterLogin(t *testing.T) {
+	now := time.UnixMilli(1_700_000)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23001":10}}},"100":{"1":{"1001":{"0":23001,"1":3,"2":1,"7":1}}},"25":{"111":{"1":1},"117":{"5":4}}}`))
+	s.MarkFmlRaceTasksUnobserved()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Plant.Planting.AutoHarvestEnabled = true
+	p.Union.Race.Enabled = true
+	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.MinTaskScore = 0
+	p.Union.Race.TaskTypePriority = map[int32]int32{3036: 5}
+
+	op := Plan(s, p, now)
+	if op == nil || op.Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("Plan()=%+v, want getTaskList before harvest after login", op)
 	}
 }
 

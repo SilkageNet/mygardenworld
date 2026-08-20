@@ -1922,6 +1922,50 @@ func TestApplyV_MailTracksPickTargets(t *testing.T) {
 	}
 }
 
+func TestApplyV_MailSparseDeltaPreservesIsPick(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"19": map[string]any{
+			"1": []any{
+				map[string]any{"1": 101, "2": 201, "13": [][]int32{{1, 5}}, "17": 0, "18": 0, "20": 1},
+			},
+		},
+	})
+	// Sparse pick/follow-up delta often omits field 20; must not wipe isPick.
+	applyMap(t, s, map[string]any{
+		"19": map[string]any{
+			"1": []any{
+				map[string]any{"1": 101, "2": 201, "18": 1},
+			},
+		},
+	})
+	mails := s.Mails()
+	if len(mails) != 1 || mails[0].IsPick != 1 || mails[0].IsRead != 1 || len(mails[0].ItemsRaw) == 0 {
+		t.Fatalf("sparse merge wiped mail fields: %+v", mails)
+	}
+	if got := s.ReadyMailPickTargets(); len(got) != 0 {
+		t.Fatalf("ReadyMailPickTargets=%+v, want none after preserved isPick", got)
+	}
+}
+
+func TestMarkMailPickedStopsReadyTargets(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"19": map[string]any{
+			"1": []any{
+				map[string]any{"1": 101, "2": 201, "13": [][]int32{{1, 5}}, "20": 0},
+			},
+		},
+	})
+	if got := s.ReadyMailPickTargets(); len(got) != 1 {
+		t.Fatalf("ReadyMailPickTargets=%+v, want one", got)
+	}
+	s.MarkMailPicked(101, 201)
+	if got := s.ReadyMailPickTargets(); len(got) != 0 {
+		t.Fatalf("ReadyMailPickTargets=%+v after MarkMailPicked, want none", got)
+	}
+}
+
 func TestApplyV_VasesAndFlowerArtState(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{

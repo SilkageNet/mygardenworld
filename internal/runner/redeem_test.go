@@ -13,7 +13,7 @@ import (
 )
 
 func TestRedeemUseCodeRequestJSON(t *testing.T) {
-	req := clientproto.RedeemUseCodeRequest{"code": "ABC-123"}
+	req := clientproto.RedeemUseCodeRequest{Code: "ABC-123"}
 	raw, err := json.Marshal(req)
 	if err != nil {
 		t.Fatal(err)

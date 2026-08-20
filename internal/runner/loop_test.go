@@ -696,6 +696,7 @@ func TestNextRunnableOperationFallsThroughBlockedHarvest(t *testing.T) {
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
 	policy.Plant.Planting.AutoEnabled = true
+	policy.Union.Race.Enabled = false
 	r := &Runner{
 		state:               st,
 		harvestBlockedUntil: map[int32]time.Time{1001: now.Add(time.Minute)},
@@ -1143,6 +1144,12 @@ func TestClassifyOperationError(t *testing.T) {
 			want: operationErrorFmlFlowerTakeDailyLimit,
 		},
 		{
+			name: "mail already picked",
+			kind: clientproto.RPCMailPick.String(),
+			err:  errors.New("rpc mail.pick: server: 邮件附件已领取"),
+			want: operationErrorMailAlreadyPicked,
+		},
+		{
 			name: "ordinary failure",
 			kind: clientproto.RPCFreeWaterRecv.String(),
 			err:  errors.New("rpc freeWater.recv: server busy"),
@@ -1217,6 +1224,38 @@ func TestHandleOperationErrorCustomerFinishMaterialRejected(t *testing.T) {
 	}
 	if got := r.state.Inventory()[300505]; got != 0 {
 		t.Fatalf("Inventory[300505]=%d, want 0 after finish shortage", got)
+	}
+}
+
+func TestHandleOperationErrorMailAlreadyPicked(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	r := newOperationEventTestRunner()
+	r.state.ApplyVMap(map[string]any{
+		"19": map[string]any{
+			"1": []any{
+				map[string]any{"1": 101, "2": 201, "13": [][]int32{{1, 5}}, "20": 0},
+			},
+		},
+	})
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCMailPick.String(),
+		Lane:     automation.LaneSide,
+		Category: automation.CategoryBasic,
+		Domain:   "basic.mail",
+		Action:   "claim",
+		TargetID: 101,
+		ItemID:   201,
+	}
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              errors.New("rpc mail.pick: server: 邮件附件已领取"),
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if got := r.state.ReadyMailPickTargets(); len(got) != 0 {
+		t.Fatalf("ReadyMailPickTargets=%+v, want none after already-picked recovery", got)
 	}
 }
 

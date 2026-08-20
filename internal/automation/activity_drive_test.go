@@ -232,6 +232,7 @@ func TestCyclicNoteActivityPlantRanksBelowReadyCustomerOrder(t *testing.T) {
 	})
 	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.Customer.Enabled = true
+	policy.Union.Race.Enabled = false
 
 	op := Plan(s, policy, now)
 	if op == nil || op.Kind != clientproto.RPCOrderCustomerFinishOrder.String() || op.TargetID != 7 {

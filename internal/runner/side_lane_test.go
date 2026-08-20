@@ -9,6 +9,16 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 )
 
+func TestSideLaneRaceSyncPreemptsFarm(t *testing.T) {
+	now := time.Date(2026, 7, 12, 11, 5, 0, 0, time.UTC)
+	r := newSideLaneTestRunner()
+	farm := runnableLaneOp("farm.harvest", automation.LaneFarm, "")
+	sync := runnableLaneOp("fmlRace.getTaskList", automation.LaneSide, "union.race.sync")
+	sync.Domain = "union.race.sync"
+	sync.PreemptFarm = true
+	assertSelectedOperation(t, r.selectRunnableOperation([]automation.PlannedOp{farm, sync}, now), sync.OperationID)
+}
+
 func TestSideLaneRaceTakePreemptsFarmAndFarmTurn(t *testing.T) {
 	now := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
 	r := newSideLaneTestRunner()
@@ -16,6 +26,7 @@ func TestSideLaneRaceTakePreemptsFarmAndFarmTurn(t *testing.T) {
 	farm := runnableLaneOp("farm.harvest", automation.LaneFarm, "")
 	take := runnableLaneOp("fmlRace.takeTask", automation.LaneSide, "union.race.take")
 	take.Domain = "union.race.take"
+	take.PreemptFarm = true
 	candidates := []automation.PlannedOp{farm, take}
 
 	assertSelectedOperation(t, r.selectRunnableOperation(candidates, now), take.OperationID)

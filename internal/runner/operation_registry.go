@@ -677,7 +677,7 @@ var plannedOperationSpecs = map[string]operationSpec{
 	),
 	clientproto.RPCMailPick.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.MailPickRequest, error) {
-			return clientproto.MailPickRequest{MsId: op.TargetID, AllId: op.ItemID}, nil
+			return clientproto.MailPickRequest{MsId: int64(op.TargetID), AllId: op.ItemID}, nil
 		},
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.MailPickRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.Mail().Pick(ctx, req)
