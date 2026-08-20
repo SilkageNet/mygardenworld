@@ -68,7 +68,7 @@ func parseZooView(raw json.RawMessage, base ZooView) (ZooView, bool) {
 	if rawSleep, observed := fields["5"]; observed {
 		view.LastSetSleepTimeObserved = false
 		view.LastSetSleepTimeMs = 0
-		if n, ok := readInt64Raw(rawSleep); ok {
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawSleep)); ok {
 			view.LastSetSleepTimeMs = n
 			view.LastSetSleepTimeObserved = true
 		}
@@ -202,21 +202,23 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 		}
 	}
 	if rawName, observed := fields["6"]; observed {
-		pet.NameObserved = true
+		pet.NameObserved = false
 		pet.Name = ""
 		var s string
-		if len(rawName) > 0 && string(rawName) != "null" && json.Unmarshal(rawName, &s) == nil {
+		if trimmed := bytes.TrimSpace(rawName); len(trimmed) > 0 && string(trimmed) != "null" && json.Unmarshal(trimmed, &s) == nil {
 			pet.Name = s
+			pet.NameObserved = true
 		}
 	}
 	if n, ok := readInt32JSONField(fields, "7"); ok {
 		pet.ConDozeCount = n
 	}
 	if rawStrokeCd, observed := fields["8"]; observed {
-		pet.StrokeCdObserved = true
+		pet.StrokeCdObserved = false
 		pet.StrokeCd = 0
-		if n, ok := readInt32Raw(rawStrokeCd); ok {
+		if n, ok := readZooLogInt32Raw(bytes.TrimSpace(rawStrokeCd)); ok {
 			pet.StrokeCd = n
+			pet.StrokeCdObserved = true
 		}
 	}
 	if n, ok := readInt32JSONField(fields, "9"); ok {
@@ -228,7 +230,7 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if rawLastStroke, observed := fields["11"]; observed {
 		pet.LastStrokeTimeObserved = false
 		pet.LastStrokeTimeMs = 0
-		if n, ok := readInt64Raw(rawLastStroke); ok {
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawLastStroke)); ok {
 			pet.LastStrokeTimeMs = n
 			pet.LastStrokeTimeObserved = true
 		}
@@ -256,7 +258,7 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if rawCalTime, observed := fields["16"]; observed {
 		pet.CalTimeObserved = false
 		pet.CalTimeMs = 0
-		if n, ok := readInt64Raw(rawCalTime); ok {
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawCalTime)); ok {
 			pet.CalTimeMs = n
 			pet.CalTimeObserved = true
 		}
@@ -264,21 +266,23 @@ func parseZooPetView(raw json.RawMessage, base ZooPetView) (ZooPetView, bool) {
 	if rawHunger, observed := fields["17"]; observed {
 		pet.HungerTimeObserved = false
 		pet.HungerTimeMs = 0
-		if n, ok := readInt64Raw(rawHunger); ok {
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawHunger)); ok {
 			pet.HungerTimeMs = n
 			pet.HungerTimeObserved = true
 		}
 	}
 	if rawExt, observed := fields["18"]; observed {
+		pet.Ext = nil
+		pet.ExtObserved = false
 		if trimmed := bytes.TrimSpace(rawExt); len(trimmed) > 0 && string(trimmed) != "null" && isZooLogJSONObject(rawExt) {
-			pet.Ext = rawExt
+			pet.Ext = append(json.RawMessage(nil), rawExt...)
 			pet.ExtObserved = true
 		}
 	}
 	if rawReadLogTime, observed := fields["19"]; observed {
+		pet.ReadLogTimeObserved = false
+		pet.ReadLogTimeMs = 0
 		if trimmed := bytes.TrimSpace(rawReadLogTime); len(trimmed) > 0 && string(trimmed) != "null" {
-			pet.ReadLogTimeObserved = false
-			pet.ReadLogTimeMs = 0
 			if n, ok := readZooLogInt64Raw(rawReadLogTime); ok {
 				pet.ReadLogTimeMs = n
 				pet.ReadLogTimeObserved = true
@@ -520,24 +524,32 @@ func parseZooLogView(raw json.RawMessage, base ZooLogView) (ZooLogView, bool) {
 	setInt32("6", &log.EventType, &log.EventTypeObserved)
 	setInt32("7", &log.ProType, &log.ProTypeObserved)
 	if rawGain, present := fields["8"]; present {
+		log.Gain = nil
+		log.GainObserved = false
 		if trimmed := bytes.TrimSpace(rawGain); len(trimmed) > 0 && string(trimmed) != "null" {
 			log.Gain, log.GainObserved = readZooLogItemMap(rawGain)
 			valid = valid && log.GainObserved
 		}
 	}
 	if rawConsume, present := fields["9"]; present {
+		log.Consume = nil
+		log.ConsumeObserved = false
 		if trimmed := bytes.TrimSpace(rawConsume); len(trimmed) > 0 && string(trimmed) != "null" {
 			log.Consume, log.ConsumeObserved = readZooLogItemMap(rawConsume)
 			valid = valid && log.ConsumeObserved
 		}
 	}
 	if rawSouvenir, present := fields["10"]; present {
+		log.Souvenir = nil
+		log.SouvenirObserved = false
 		if trimmed := bytes.TrimSpace(rawSouvenir); len(trimmed) > 0 && string(trimmed) != "null" {
 			log.Souvenir, log.SouvenirObserved = readZooLogItemMap(rawSouvenir)
 			valid = valid && log.SouvenirObserved
 		}
 	}
 	if rawExt, present := fields["11"]; present {
+		log.Ext = ZooLogExtView{}
+		log.ExtObserved = false
 		if trimmed := bytes.TrimSpace(rawExt); len(trimmed) > 0 && string(trimmed) != "null" {
 			ext, ok := parseZooLogExtView(rawExt)
 			if ok {
@@ -815,6 +827,13 @@ func (s *State) ZooDecorateSuits() map[int32]ZooDecorateSuitView {
 		}
 	}
 	return out
+}
+
+// ZooDecorateSuitsObserved reports whether namespace 33.6 has been observed.
+func (s *State) ZooDecorateSuitsObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.zooDecorateSuitsObserved
 }
 
 // ZooSouvenirCount is the client's collection progress: the number of
@@ -1493,18 +1512,27 @@ func parseZooDecorateView(raw json.RawMessage, base ZooDecorateView) (ZooDecorat
 		return ZooDecorateView{}, false
 	}
 	dec := base
-	if n, ok := readInt64JSONField(fields, "0"); ok {
-		dec.UID = n
+	if rawUID, present := fields["0"]; present {
+		dec.UID = 0
+		dec.UIDObserved = false
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawUID)); ok {
+			dec.UID = n
+			dec.UIDObserved = true
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
-		dec.TempID = n
-		dec.TempIDObserved = true
+	if rawTempID, present := fields["1"]; present {
+		dec.TempID = dec.MapTempID
+		dec.TempIDObserved = false
+		if n, ok := readZooLogInt32Raw(bytes.TrimSpace(rawTempID)); ok && n > 0 {
+			dec.TempID = n
+			dec.TempIDObserved = true
+		}
 	}
 	if rawIsRead, present := fields["2"]; present {
 		dec.IsRead = 0
 		dec.IsReadObserved = false
 		if trimmed := bytes.TrimSpace(rawIsRead); len(trimmed) > 0 && string(trimmed) != "null" {
-			if n, ok := readInt32Raw(rawIsRead); ok {
+			if n, ok := readZooLogInt32Raw(trimmed); ok {
 				dec.IsRead = n
 				dec.IsReadObserved = true
 			}
@@ -1514,19 +1542,27 @@ func parseZooDecorateView(raw json.RawMessage, base ZooDecorateView) (ZooDecorat
 		dec.Comfort = 0
 		dec.ComfortObserved = false
 		if trimmed := bytes.TrimSpace(rawComfort); len(trimmed) > 0 && string(trimmed) != "null" {
-			if n, ok := readInt32Raw(rawComfort); ok {
+			if n, ok := readZooLogInt32Raw(trimmed); ok {
 				dec.Comfort = n
 				dec.ComfortObserved = true
 			}
 		}
 	}
-	if n, ok := readInt64JSONField(fields, "4"); ok {
-		dec.UpdatedAtMs = n
-		dec.UpdatedAtObserved = true
+	if rawUpdatedAt, present := fields["4"]; present {
+		dec.UpdatedAtMs = 0
+		dec.UpdatedAtObserved = false
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawUpdatedAt)); ok {
+			dec.UpdatedAtMs = n
+			dec.UpdatedAtObserved = true
+		}
 	}
-	if n, ok := readInt64JSONField(fields, "5"); ok {
-		dec.CreatedAtMs = n
-		dec.CreatedAtObserved = true
+	if rawCreatedAt, present := fields["5"]; present {
+		dec.CreatedAtMs = 0
+		dec.CreatedAtObserved = false
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawCreatedAt)); ok {
+			dec.CreatedAtMs = n
+			dec.CreatedAtObserved = true
+		}
 	}
 	if dec.TempIDObserved && dec.TempID != dec.MapTempID {
 		dec.TempID = dec.MapTempID
@@ -1537,14 +1573,17 @@ func parseZooDecorateView(raw json.RawMessage, base ZooDecorateView) (ZooDecorat
 
 func (s *State) applyZooDecorateSuitMapLocked(raw json.RawMessage) {
 	if !isZooLogJSONObject(raw) {
+		s.zooDecorateSuitsObserved = false
 		s.zooDecorateSuits = make(map[int32]*ZooDecorateSuitView)
 		return
 	}
 	var suitMap map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &suitMap); err != nil {
+		s.zooDecorateSuitsObserved = false
 		s.zooDecorateSuits = make(map[int32]*ZooDecorateSuitView)
 		return
 	}
+	s.zooDecorateSuitsObserved = true
 	if s.zooDecorateSuits == nil {
 		s.zooDecorateSuits = make(map[int32]*ZooDecorateSuitView)
 	}
@@ -1579,30 +1618,47 @@ func parseZooDecorateSuitView(raw json.RawMessage, base ZooDecorateSuitView) (Zo
 		return ZooDecorateSuitView{}, false
 	}
 	suit := base
-	if n, ok := readInt64JSONField(fields, "0"); ok {
-		suit.UID = n
+	if rawUID, present := fields["0"]; present {
+		suit.UID = 0
+		suit.UIDObserved = false
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawUID)); ok {
+			suit.UID = n
+			suit.UIDObserved = true
+		}
 	}
-	if n, ok := readInt32JSONField(fields, "1"); ok && n > 0 {
-		suit.TempID = n
-		suit.TempIDObserved = true
+	if rawTempID, present := fields["1"]; present {
+		suit.TempID = suit.MapTempID
+		suit.TempIDObserved = false
+		if n, ok := readZooLogInt32Raw(bytes.TrimSpace(rawTempID)); ok && n > 0 {
+			suit.TempID = n
+			suit.TempIDObserved = true
+		}
 	}
 	if rawActCount, present := fields["2"]; present {
 		suit.ActCount = 0
 		suit.ActCountObserved = false
 		if trimmed := bytes.TrimSpace(rawActCount); len(trimmed) > 0 && string(trimmed) != "null" {
-			if n, ok := readInt32Raw(rawActCount); ok {
+			if n, ok := readZooLogInt32Raw(trimmed); ok {
 				suit.ActCount = n
 				suit.ActCountObserved = true
 			}
 		}
 	}
-	if n, ok := readInt64JSONField(fields, "3"); ok {
-		suit.UpdatedAtMs = n
-		suit.UpdatedAtObserved = true
+	if rawUpdatedAt, present := fields["3"]; present {
+		suit.UpdatedAtMs = 0
+		suit.UpdatedAtObserved = false
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawUpdatedAt)); ok {
+			suit.UpdatedAtMs = n
+			suit.UpdatedAtObserved = true
+		}
 	}
-	if n, ok := readInt64JSONField(fields, "4"); ok {
-		suit.CreatedAtMs = n
-		suit.CreatedAtObserved = true
+	if rawCreatedAt, present := fields["4"]; present {
+		suit.CreatedAtMs = 0
+		suit.CreatedAtObserved = false
+		if n, ok := readZooLogInt64Raw(bytes.TrimSpace(rawCreatedAt)); ok {
+			suit.CreatedAtMs = n
+			suit.CreatedAtObserved = true
+		}
 	}
 	if suit.TempIDObserved && suit.TempID != suit.MapTempID {
 		suit.TempID = suit.MapTempID

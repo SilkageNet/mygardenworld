@@ -337,6 +337,63 @@ func TestZooCompletedLogsReadOncePerPetAndRequireObservedReadTime(t *testing.T) 
 	}
 }
 
+func TestZooSparseNullClearsSafetyObservations(t *testing.T) {
+	tests := []struct {
+		name          string
+		field         string
+		blockedReason string
+		observed      func(ZooLogView) bool
+	}{
+		{name: "gain", field: "8", blockedReason: "收益字段未完整观测", observed: func(log ZooLogView) bool { return log.GainObserved }},
+		{name: "consume", field: "9", blockedReason: "消耗字段未观测", observed: func(log ZooLogView) bool { return log.ConsumeObserved }},
+		{name: "souvenir", field: "10", blockedReason: "纪念品字段未完整观测", observed: func(log ZooLogView) bool { return log.SouvenirObserved }},
+		{name: "ext", field: "11", blockedReason: "扩展消耗字段未完整观测", observed: func(log ZooLogView) bool { return log.ExtObserved }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := New()
+			applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{
+				"7|42": safeZooLogFields(7, 42, 2096, 2000),
+			}}})
+			applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{
+				"7|42": map[string]any{tc.field: nil},
+			}}})
+
+			log := s.ZooLogs()["7|42"]
+			if tc.observed(log) {
+				t.Fatalf("explicit null retained observed %s state: %+v", tc.name, log)
+			}
+			if log.Malformed {
+				t.Fatalf("explicit null should be unobserved, not malformed: %+v", log)
+			}
+			actions := s.ZooEventActions()
+			if len(actions) != 1 || !actions[0].Blocked || !strings.Contains(actions[0].BlockedReason, tc.blockedReason) {
+				t.Fatalf("explicit null actions=%+v, want blocked reason containing %q", actions, tc.blockedReason)
+			}
+		})
+	}
+
+	t.Run("pet read time and ext", func(t *testing.T) {
+		s := New()
+		applyMap(t, s, map[string]any{"33": map[string]any{
+			"1": map[string]any{"7": map[string]any{"1": 7, "18": map[string]any{"kind": "observed"}, "19": 1000}},
+			"2": map[string]any{"7|41": completedZooLogFields(7, 41, 2001, 1500)},
+		}})
+		applyMap(t, s, map[string]any{"33": map[string]any{
+			"1": map[string]any{"7": map[string]any{"18": nil, "19": nil}},
+		}})
+
+		pet := s.ZooPets()[7]
+		if pet.ReadLogTimeObserved || pet.ReadLogTimeMs != 0 || pet.ExtObserved || len(pet.Ext) != 0 {
+			t.Fatalf("explicit null retained stale pet safety fields: %+v", pet)
+		}
+		actions := s.ZooEventActions()
+		if len(actions) != 1 || !actions[0].Blocked || !strings.Contains(actions[0].BlockedReason, "已读日志时间未观测") {
+			t.Fatalf("explicit null pet actions=%+v", actions)
+		}
+	})
+}
+
 func safeZooLogFields(petID, index, eventID int32, createdAt int64) map[string]any {
 	return map[string]any{
 		"0": int64(12345), "1": petID, "2": index, "3": 0, "4": 0,

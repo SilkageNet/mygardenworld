@@ -1150,6 +1150,24 @@ func TestClassifyOperationError(t *testing.T) {
 			want: operationErrorMailAlreadyPicked,
 		},
 		{
+			name: "mail has nothing left to pick",
+			kind: clientproto.RPCMailPick.String(),
+			err:  errors.New("rpc mail.pick: server: 不存在可以领取的邮件"),
+			want: operationErrorMailAlreadyPicked,
+		},
+		{
+			name: "mail non-to-pick error code",
+			kind: clientproto.RPCMailPick.String(),
+			err:  errors.New("rpc mail.pick: server: mail_nonToPick"),
+			want: operationErrorMailAlreadyPicked,
+		},
+		{
+			name: "mail already-picked error code",
+			kind: clientproto.RPCMailPick.String(),
+			err:  errors.New("rpc mail.pick: server: mail_alreadyPick"),
+			want: operationErrorMailAlreadyPicked,
+		},
+		{
 			name: "ordinary failure",
 			kind: clientproto.RPCFreeWaterRecv.String(),
 			err:  errors.New("rpc freeWater.recv: server busy"),

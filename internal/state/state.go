@@ -159,26 +159,26 @@ type State struct {
 	freeWaterRecvIdx  []int32 // 117.1 client recvIdx list: free-water slots already claimed today
 	freeWaterResetMs  int64   // 117.2 reset timestamp
 
-	benefitBoxDrawCnt    int32 // 116.0.1 drawCnt
-	benefitBoxResetCntMs int64 // 116.0.2 resetCntTime
-	benefitBoxUTimeMs    int64 // 116.0.3 uTime
-	benefitBoxObserved   bool  // namespace 116 has been observed at least once
-	usrExtra             UsrExtraView
-	reputation           ReputationView
-	videoDouble          VideoDoubleView
-	statistics           StatisticsView
-	statisticsByDay      map[int32]StatisticsView
-	zoo                  ZooView
-	zooPets              map[int32]*ZooPetView
-	zooLogs              map[string]*ZooLogView
-	zooSouvenirs         map[int32]*ZooSouvenirView
-	zooDecorates         map[int32]*ZooDecorateView
-	zooDecorateSuits     map[int32]*ZooDecorateSuitView
-	zooLogsObserved      bool
-	zooSouvenirsObserved bool
-	zooDecoratesObserved bool
-	zooDecSuitsObserved  bool
-	zooObserved          bool
+	benefitBoxDrawCnt        int32 // 116.0.1 drawCnt
+	benefitBoxResetCntMs     int64 // 116.0.2 resetCntTime
+	benefitBoxUTimeMs        int64 // 116.0.3 uTime
+	benefitBoxObserved       bool  // namespace 116 has been observed at least once
+	usrExtra                 UsrExtraView
+	reputation               ReputationView
+	videoDouble              VideoDoubleView
+	statistics               StatisticsView
+	statisticsByDay          map[int32]StatisticsView
+	zoo                      ZooView
+	zooPets                  map[int32]*ZooPetView
+	zooLogs                  map[string]*ZooLogView
+	zooSouvenirs             map[int32]*ZooSouvenirView
+	zooDecorates             map[int32]*ZooDecorateView
+	zooDecorateSuits         map[int32]*ZooDecorateSuitView
+	zooLogsObserved          bool
+	zooSouvenirsObserved     bool
+	zooDecoratesObserved     bool
+	zooDecorateSuitsObserved bool
+	zooObserved              bool
 
 	// Recent server-side activity timestamp; updated on every apply.
 	lastApplyMs int64
