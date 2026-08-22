@@ -2086,7 +2086,15 @@ type FmlRaceView struct {
 	// Total race task quota: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, …).
 	TotalTaskNum int32 `protobuf:"varint,11,opt,name=total_task_num,json=totalTaskNum,proto3" json:"total_task_num,omitempty"`
 	// Guild race tier used for total_task_num (甲=4, 乙=3, 丙=2, 丁=1).
-	RaceLvl       int32 `protobuf:"varint,12,opt,name=race_lvl,json=raceLvl,proto3" json:"race_lvl,omitempty"`
+	RaceLvl int32 `protobuf:"varint,12,opt,name=race_lvl,json=raceLvl,proto3" json:"race_lvl,omitempty"`
+	// Personal cumulative race score this batch (IFmlRaceUsrRcd.score).
+	Score int32 `protobuf:"varint,13,opt,name=score,proto3" json:"score,omitempty"`
+	// True after NS25 field 110/116 carried personal score for the current uid.
+	ScoreObserved bool `protobuf:"varint,14,opt,name=score_observed,json=scoreObserved,proto3" json:"score_observed,omitempty"`
+	// 1-based personal rank within guild members from FmlRaceUsrRankList (116).
+	Rank int32 `protobuf:"varint,15,opt,name=rank,proto3" json:"rank,omitempty"`
+	// True after a usable member rank list ranked the current uid.
+	RankObserved  bool `protobuf:"varint,16,opt,name=rank_observed,json=rankObserved,proto3" json:"rank_observed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2203,6 +2211,34 @@ func (x *FmlRaceView) GetRaceLvl() int32 {
 		return x.RaceLvl
 	}
 	return 0
+}
+
+func (x *FmlRaceView) GetScore() int32 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *FmlRaceView) GetScoreObserved() bool {
+	if x != nil {
+		return x.ScoreObserved
+	}
+	return false
+}
+
+func (x *FmlRaceView) GetRank() int32 {
+	if x != nil {
+		return x.Rank
+	}
+	return 0
+}
+
+func (x *FmlRaceView) GetRankObserved() bool {
+	if x != nil {
+		return x.RankObserved
+	}
+	return false
 }
 
 type FmlRaceTask struct {
@@ -6729,7 +6765,7 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"onCooldown\x126\n" +
 	"\x06reward\x18\t \x03(\v2\x1e.mygardenworld.v1.ActivityItemR\x06reward\x124\n" +
 	"\x06status\x18\n" +
-	" \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\"\xec\x03\n" +
+	" \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\"\xe2\x04\n" +
 	"\vFmlRaceView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12!\n" +
 	"\fbatch_active\x18\x02 \x01(\bR\vbatchActive\x124\n" +
@@ -6744,7 +6780,11 @@ const file_mygardenworld_v1_query_service_proto_rawDesc = "" +
 	"\x11finished_task_num\x18\n" +
 	" \x01(\x05R\x0ffinishedTaskNum\x12$\n" +
 	"\x0etotal_task_num\x18\v \x01(\x05R\ftotalTaskNum\x12\x19\n" +
-	"\brace_lvl\x18\f \x01(\x05R\araceLvl\"\xc0\x02\n" +
+	"\brace_lvl\x18\f \x01(\x05R\araceLvl\x12\x14\n" +
+	"\x05score\x18\r \x01(\x05R\x05score\x12%\n" +
+	"\x0escore_observed\x18\x0e \x01(\bR\rscoreObserved\x12\x12\n" +
+	"\x04rank\x18\x0f \x01(\x05R\x04rank\x12#\n" +
+	"\rrank_observed\x18\x10 \x01(\bR\frankObserved\"\xc0\x02\n" +
 	"\vFmlRaceTask\x12\x13\n" +
 	"\x05ms_id\x18\x01 \x01(\x03R\x04msId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x05R\x06taskId\x12\x1d\n" +

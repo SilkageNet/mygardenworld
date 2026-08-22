@@ -874,6 +874,121 @@ func TestBuildPlan_CustomerFinishWhenArtInStock(t *testing.T) {
 	t.Fatalf("missing customer finish op: %+v", result.Operations)
 }
 
+func TestBuildPlan_CustomerDailyLimitBlocksFinishAndGenerate(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "11": 2}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.DailyLimit = 2
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			t.Fatalf("customer finish should be blocked by daily limit: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerGenOrder.String() && op.Executable {
+			t.Fatalf("customer generate should be blocked by daily limit: %+v", op)
+		}
+		if op.Domain == "order.customer" && !op.Executable && hasReasonContaining(op.BlockedReasons, "2/2") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing customer daily limit block: %+v", result.Operations)
+	}
+	for _, demand := range result.Demands {
+		if demand.GoalID == GoalCustomerOrder {
+			t.Fatalf("customer demands should be omitted at daily limit: %+v", demand)
+		}
+	}
+}
+
+func TestBuildPlan_CustomerLocalFinishBiasEnforcesLimitWithoutStatistics(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.DailyLimit = 2
+
+	s.NoteCustomerOrderFinished(now, nil)
+	s.NoteCustomerOrderFinished(now, nil)
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			t.Fatalf("customer finish should be blocked by local finish bias: %+v", op)
+		}
+		if op.Domain == "order.customer" && !op.Executable && hasReasonContaining(op.BlockedReasons, "2/2") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing local bias limit block: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_CustomerDailyLimitZeroMeansUnlimited(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "11": 99}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.DailyLimit = 0
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			return
+		}
+	}
+	t.Fatalf("expected customer finish when daily limit is 0 (unlimited): %+v", result.Operations)
+}
+
 func TestBuildPlan_CustomerCraftsAfterStaleArtStockCleared(t *testing.T) {
 	recipe, ok := state.FlowerArtRecipeByID(300505)
 	if !ok {

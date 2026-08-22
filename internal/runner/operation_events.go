@@ -690,6 +690,9 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		r.state.NoteResidentSatinOrderFinished(result.finishedAt, result.raw)
 	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
 		r.state.NoteResidentDecorateOrderFinished(result.finishedAt, result.raw)
+	case clientproto.RPCOrderCustomerFinishOrder.String():
+		r.state.NoteCustomerOrderFinished(result.finishedAt, result.raw)
+		r.emitCustomerOrderLimitInfo(r.Policy(), result.finishedAt)
 	}
 	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() &&
 		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRace()) {
@@ -833,6 +836,38 @@ func (r *Runner) emitResidentOrderLimitInfo(policy *pb.Policy, now time.Time) {
 		Action:   "blocked",
 		Label:    "普通居民订单",
 		Message:  fmt.Sprintf("普通居民订单暂停: %s，已跳过提交以继续执行其他流程", reason),
+		Level:    "warn",
+	})
+}
+
+// emitCustomerOrderLimitInfo writes a clear log line when customer orders are
+// paused by the policy daily limit. Deduped by reason so decision ticks do not
+// spam the event stream.
+func (r *Runner) emitCustomerOrderLimitInfo(policy *pb.Policy, now time.Time) {
+	if policy == nil || r.state == nil {
+		return
+	}
+	customer := policy.GetOrder().GetCustomer()
+	if !customer.GetEnabled() {
+		r.lastCustomerOrderLimitReason = ""
+		return
+	}
+	reason, reached := automation.CustomerDailyLimitReached(r.state, customer, now)
+	if !reached {
+		r.lastCustomerOrderLimitReason = ""
+		return
+	}
+	if reason == r.lastCustomerOrderLimitReason {
+		return
+	}
+	r.lastCustomerOrderLimitReason = reason
+	r.emit(Event{
+		Kind:     "operation_deferred",
+		Category: "order",
+		Domain:   "order.customer",
+		Action:   "blocked",
+		Label:    "顾客订单",
+		Message:  fmt.Sprintf("顾客订单暂停: %s，已跳过接单/交付以继续执行其他流程", reason),
 		Level:    "warn",
 	})
 }

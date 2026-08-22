@@ -659,6 +659,18 @@ func (s *State) NoteResidentDecorateOrderFinished(now time.Time, raw json.RawMes
 	noteResidentOrderFinish(&s.residentDecorateFinishBias, &s.residentDecorateFinishBiasDayID, calendarDayID(now))
 }
 
+// NoteCustomerOrderFinished records one successful customer-order finish when
+// the response did not already carry an authoritative field-11 statistics
+// update (ApplyV clears the bias in that case).
+func (s *State) NoteCustomerOrderFinished(now time.Time, raw json.RawMessage) {
+	if responseStatisticsCounters(raw).customer {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	noteResidentOrderFinish(&s.customerOrderFinishBias, &s.customerOrderFinishBiasDayID, gameDayID(now))
+}
+
 func noteResidentOrderFinish(bias, biasDayID *int32, day int32) {
 	if *biasDayID != day {
 		*biasDayID = day
@@ -716,6 +728,14 @@ func (s *State) ResidentDecorateOrderFinishNum(now time.Time) int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return residentOrderFinishCount(s.statistics, s.statistics.OrderDecorateFinishNum, s.residentDecorateFinishBias, s.residentDecorateFinishBiasDayID, calendarDayID(now))
+}
+
+// CustomerOrderFinishNum returns today's customer-order finish count from
+// namespace 124 plus successful local finishes not reflected by that counter.
+func (s *State) CustomerOrderFinishNum(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return residentOrderFinishCount(s.statistics, s.statistics.OrderCustomerFinishNum, s.customerOrderFinishBias, s.customerOrderFinishBiasDayID, gameDayID(now))
 }
 
 func residentOrderFinishCount(stats StatisticsView, observed, bias, biasDayID, day int32) int32 {

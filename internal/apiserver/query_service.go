@@ -501,6 +501,14 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 		out.RaceLvl = raceLvl
 		out.TotalTaskNum = state.FmlRaceTotalTaskNum(raceLvl, view.BuyTaskNum)
 	}
+	if view.ScoreObserved {
+		out.ScoreObserved = true
+		out.Score = view.Score
+	}
+	if view.RankObserved {
+		out.RankObserved = true
+		out.Rank = view.Rank
+	}
 
 	if view.Taken.HasTask {
 		taskType := view.Taken.TaskType
@@ -1647,7 +1655,7 @@ func orderStatisticsProto(st *state.State, now time.Time) *pb.OrderStatisticsVie
 		DayId:                    stats.DayID,
 		ResidentNormalFinished:   st.ResidentOrderFinishNum(now),
 		PalaceFinished:           stats.OrderPalaceFinishNum,
-		CustomerFinished:         stats.OrderCustomerFinishNum,
+		CustomerFinished:         st.CustomerOrderFinishNum(now),
 		ResidentSatinFinished:    st.ResidentSatinOrderFinishNum(now),
 		ResidentDecorateFinished: st.ResidentDecorateOrderFinishNum(now),
 		FlowerArtSold:            stats.FlowerArtSellNum,

@@ -25,8 +25,12 @@ func raceTakenPlantState(t *testing.T, finish, target int32) *state.State {
 			"110": map[string]any{
 				"1783872000000": map[string]any{
 					"3": 0, // fTaskNum — mark TaskQuotaObserved so usr-rank sync does not preempt
+					"4": 0, // score — mark ScoreObserved
 					"7": map[string]any{"0": 99, "1": 4001, "2": target, "3": finish, "4": []any{23001}},
 				},
+			},
+			"116": []any{
+				map[string]any{"0": 999, "1": 1783872000000, "3": 0, "4": 0},
 			},
 		},
 		"100": map[string]any{"1": emptyLands(3)},
@@ -285,8 +289,12 @@ func TestRaceNoPlantDemandWhenTakenBelowMinScore(t *testing.T) {
 			"110": map[string]any{
 				"1783872000000": map[string]any{
 					"3": 0,
+					"4": 0,
 					"7": map[string]any{"0": 99, "1": 4001, "2": 10, "3": 0, "4": []any{23001}},
 				},
+			},
+			"116": []any{
+				map[string]any{"0": 999, "1": 1783872000000, "3": 0, "4": 0},
 			},
 		},
 		"100": map[string]any{"1": emptyLands(3)},

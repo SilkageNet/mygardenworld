@@ -370,8 +370,19 @@ type FmlRaceView struct {
 	RaceLvlObserved bool
 	// RaceLvlSyncAtMs is local ms of the last enter attempt that sought raceLvl.
 	RaceLvlSyncAtMs int64
+	// Score is IFmlRaceUsrRcd.score — personal cumulative race points this batch.
+	Score int32
+	// ScoreTimeMs is IFmlRaceUsrRcd.scoreTime (ms) when Score was last set server-side.
+	ScoreTimeMs int64
+	// ScoreObserved is true after field 110/116 carried score (key "4") for self.
+	ScoreObserved bool
+	// Rank is 1-based personal standing within the guild member list from field 116
+	// (sorted by score desc, then scoreTime asc). 0 when unknown.
+	Rank int32
+	// RankObserved is true after a usable FmlRaceUsrRankList (116) ranked self.
+	RankObserved bool
 	// RaceQuotaSyncAtMs is local ms of the last getFmlRaceUsrRankList attempt
-	// that sought fTaskNum when TaskQuotaObserved was still false.
+	// that sought fTaskNum / personal score / rank.
 	RaceQuotaSyncAtMs int64
 	// MissingParamRefreshFP is the msId fingerprint of a pool that still lacked
 	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
