@@ -1,11 +1,13 @@
 package automation
 
 import (
+	"fmt"
+	"strconv"
+	"time"
+
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"strconv"
-	"time"
 )
 
 func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, ledger *InventoryLedger, now time.Time) []PlannedOp {
@@ -122,8 +124,18 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		if blocked, ok := customerOrderLimitBlock(s, customer, goal, now); ok {
 			ops = append(ops, blocked)
 		} else {
+			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRace())
 			for npcID, customerOrder := range s.CustomerOrderDetails() {
 				reqSummary := FormatCustomerOrderRequires(s, customerOrder)
+				if !customerOrderMeetsMinFlowerArt(customerOrder, customer, bypassMinArt) {
+					artCount := customerOrderFlowerArtCount(customerOrder)
+					minArt := customer.GetMinFlowerArtCount()
+					reject := op(clientproto.RPCOrderCustomerRejectOrder.String(), goal, "reject",
+						withOrderReason(fmt.Sprintf("顾客订单花艺件数 %d < 最低要求 %d，执行拒绝", artCount, minArt), reqSummary),
+						customerOperationPriority(goal, 185), npcID, 0, 0)
+					ops = append(ops, reject)
+					continue
+				}
 				// Priority: inventory finish → craft when materials ready → reject.
 				if canFulfillCustomerOrder(customerOrder, npcID, goal, ledger) {
 					ops = append(ops, op(clientproto.RPCOrderCustomerFinishOrder.String(), goal, "finish", withOrderReason("顾客订单可交付", reqSummary), customerOperationPriority(goal, 200), npcID, 0, 0))

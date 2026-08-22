@@ -384,6 +384,36 @@ func customerOrderLimitBlock(s *state.State, policy *pb.CustomerOrderPolicy, goa
 	return blocked, true
 }
 
+// customerOrderFlowerArtCount returns the total flower-art pieces required by a
+// customer order (sum of ItemRequires counts).
+func customerOrderFlowerArtCount(order *state.CustomerOrder) int32 {
+	if order == nil {
+		return 0
+	}
+	var total int32
+	for _, req := range order.ItemRequires {
+		if req.ItemID > 0 && req.Count > 0 {
+			total += req.Count
+		}
+	}
+	return total
+}
+
+// customerOrderMeetsMinFlowerArt reports whether the order satisfies the
+// configured minimum flower-art piece count. A non-positive min means no filter.
+// When bypass is true (held unfinished customer-order race task), the min is
+// ignored so race progress can continue.
+func customerOrderMeetsMinFlowerArt(order *state.CustomerOrder, policy *pb.CustomerOrderPolicy, bypass bool) bool {
+	if bypass || policy == nil {
+		return true
+	}
+	min := policy.GetMinFlowerArtCount()
+	if min <= 0 {
+		return true
+	}
+	return customerOrderFlowerArtCount(order) >= min
+}
+
 func residentSpecialOrderAllowed(order state.ResidentSpecialOrder, policy *pb.ResidentOrderPolicy) bool {
 	if !order.Observed || order.IsVideo != 0 || len(order.Requires) == 0 {
 		return false

@@ -900,6 +900,15 @@ export default function PolicyPanel({
                   description="0 表示不限制；按今日已完成次数生效"
                   onChange={(value) => updateCustomer({ dailyLimit: value })}
                 />
+                <NumberRow
+                  label="最少花艺"
+                  value={customer?.minFlowerArtCount ?? 0}
+                  min={0}
+                  max={3}
+                  disabled={!(customer?.enabled ?? false)}
+                  description="0 不限；设 2 只做需 2/3 件花艺的单，设 3 只做需 3 件的单；已接竞赛顾客任务时不受此限"
+                  onChange={(value) => updateCustomer({ minFlowerArtCount: value })}
+                />
                 <ToggleRow label="暂时无货" checked={customer?.rejectUnavailableEnabled ?? false} onChange={(checked) => updateCustomer({ rejectUnavailableEnabled: checked })} />
                 <StatusRow label="今日进度" value={customerOrderStatusLabel} tone={customerOrderStatusTone} />
               </div>

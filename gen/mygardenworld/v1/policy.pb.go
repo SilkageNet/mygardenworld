@@ -1879,9 +1879,12 @@ type CustomerOrderPolicy struct {
 	Enabled                  bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	RejectUnavailableEnabled bool                   `protobuf:"varint,2,opt,name=reject_unavailable_enabled,json=rejectUnavailableEnabled,proto3" json:"reject_unavailable_enabled,omitempty"`
 	// Daily finish cap from namespace-124 orderCustomerFinishNum. 0 means unlimited.
-	DailyLimit    int32 `protobuf:"varint,3,opt,name=daily_limit,json=dailyLimit,proto3" json:"daily_limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DailyLimit int32 `protobuf:"varint,3,opt,name=daily_limit,json=dailyLimit,proto3" json:"daily_limit,omitempty"`
+	// Minimum flower-art piece count to accept. Orders below this are rejected.
+	// 0 means no filter; 2 accepts 2+ arts; 3 accepts only 3+ arts.
+	MinFlowerArtCount int32 `protobuf:"varint,4,opt,name=min_flower_art_count,json=minFlowerArtCount,proto3" json:"min_flower_art_count,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *CustomerOrderPolicy) Reset() {
@@ -1931,6 +1934,13 @@ func (x *CustomerOrderPolicy) GetRejectUnavailableEnabled() bool {
 func (x *CustomerOrderPolicy) GetDailyLimit() int32 {
 	if x != nil {
 		return x.DailyLimit
+	}
+	return 0
+}
+
+func (x *CustomerOrderPolicy) GetMinFlowerArtCount() int32 {
+	if x != nil {
+		return x.MinFlowerArtCount
 	}
 	return 0
 }
@@ -3126,12 +3136,13 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x06palace\x18\x03 \x01(\v2#.mygardenworld.v1.PalaceOrderPolicyR\x06palace\x125\n" +
 	"\x04team\x18\x04 \x01(\v2!.mygardenworld.v1.TeamOrderPolicyR\x04team\x12@\n" +
 	"\n" +
-	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"\x8e\x01\n" +
+	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"\xbf\x01\n" +
 	"\x13CustomerOrderPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12<\n" +
 	"\x1areject_unavailable_enabled\x18\x02 \x01(\bR\x18rejectUnavailableEnabled\x12\x1f\n" +
 	"\vdaily_limit\x18\x03 \x01(\x05R\n" +
-	"dailyLimit\"\xdd\x02\n" +
+	"dailyLimit\x12/\n" +
+	"\x14min_flower_art_count\x18\x04 \x01(\x05R\x11minFlowerArtCount\"\xdd\x02\n" +
 	"\x13ResidentOrderPolicy\x12%\n" +
 	"\x0enormal_enabled\x18\x01 \x01(\bR\rnormalEnabled\x12,\n" +
 	"\x12normal_daily_limit\x18\x02 \x01(\x05R\x10normalDailyLimit\x12)\n" +

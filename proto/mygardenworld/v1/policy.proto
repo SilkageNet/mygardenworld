@@ -243,6 +243,9 @@ message CustomerOrderPolicy {
   bool reject_unavailable_enabled = 2;
   // Daily finish cap from namespace-124 orderCustomerFinishNum. 0 means unlimited.
   int32 daily_limit = 3;
+  // Minimum flower-art piece count to accept. Orders below this are rejected.
+  // 0 means no filter; 2 accepts 2+ arts; 3 accepts only 3+ arts.
+  int32 min_flower_art_count = 4;
 }
 
 message ResidentOrderPolicy {
