@@ -315,12 +315,21 @@ export default function PolicyPanel({
   const unionLand = union?.land;
   const activity = policy?.activity;
   const customerOrdersObserved = snapshot?.observedNamespaces.includes("109") ?? false;
-  const customerOrderCount = snapshot?.pendingTasks.filter((taskItem) => taskItem.category === "顾客订单").length ?? 0;
-  const customerOrderSyncLabel = snapshot
-    ? customerOrdersObserved
-      ? `已同步 109，当前 ${customerOrderCount} 单`
-      : "未同步 109"
-    : "状态未加载";
+  const customerFinishedToday = snapshot?.orderStatistics?.customerFinished ?? 0;
+  const customerStatsObserved = snapshot?.orderStatistics?.observed ?? false;
+  const customerDailyLimit = customer?.dailyLimit ?? 0;
+  const customerLimitReached = customerDailyLimit > 0 && customerFinishedToday >= customerDailyLimit;
+  const customerPendingCount = snapshot?.pendingTasks.filter((taskItem) => taskItem.category === "顾客订单").length ?? 0;
+  const customerOrderStatusLabel = !snapshot
+    ? "状态未加载"
+    : !customerStatsObserved
+      ? customerOrdersObserved
+        ? `今日进度未同步（当前挂单 ${customerPendingCount}）`
+        : "未同步订单统计"
+      : customerDailyLimit > 0
+        ? `今日已完成 ${customerFinishedToday}/${customerDailyLimit}`
+        : `今日已完成 ${customerFinishedToday}`;
+  const customerOrderStatusTone = !snapshot || !customerStatsObserved ? "muted" : customerLimitReached ? "warn" : "ready";
 
   const updatePolicy = (patch: Partial<Policy>) => {
     if (!policy) return;
@@ -882,8 +891,26 @@ export default function PolicyPanel({
             <PolicyGroup title="顾客订单" icon={<Package />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="顾客订单" checked={customer?.enabled ?? false} onChange={(checked) => updateCustomer({ enabled: checked })} />
+                <NumberRow
+                  label="每日上限"
+                  value={customer?.dailyLimit ?? 0}
+                  min={0}
+                  max={9999}
+                  disabled={!(customer?.enabled ?? false)}
+                  description="0 表示不限制；按今日已完成次数生效"
+                  onChange={(value) => updateCustomer({ dailyLimit: value })}
+                />
+                <NumberRow
+                  label="最少花艺"
+                  value={customer?.minFlowerArtCount ?? 0}
+                  min={0}
+                  max={3}
+                  disabled={!(customer?.enabled ?? false)}
+                  description="0 不限；设 2 只做需 2/3 件花艺的单，设 3 只做需 3 件的单；已接竞赛顾客任务时不受此限"
+                  onChange={(value) => updateCustomer({ minFlowerArtCount: value })}
+                />
                 <ToggleRow label="暂时无货" checked={customer?.rejectUnavailableEnabled ?? false} onChange={(checked) => updateCustomer({ rejectUnavailableEnabled: checked })} />
-                <StatusRow label="订单状态" value={customerOrderSyncLabel} tone={customerOrdersObserved ? "ready" : "muted"} />
+                <StatusRow label="今日进度" value={customerOrderStatusLabel} tone={customerOrderStatusTone} />
               </div>
             </PolicyGroup>
 
@@ -996,6 +1023,7 @@ export default function PolicyPanel({
             <PolicyGroup title="公会竞赛" icon={<Trophy />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步任务池与当前已接任务（只读展示）；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
+                <ToggleRow label="显示个人得分排名" checked={unionRace?.showPersonalScoreRank ?? false} description="开启后在竞赛页展示当期个人累计得分与公会内排名；默认关闭" onChange={(checked) => updateUnionRace({ showPersonalScoreRank: checked })} />
                 <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进种植/提交与放弃竞赛任务；默认关闭。未开启时仍会同步并显示已接任务，但不会自动执行" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
                 <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} description="已接种植收获任务全程可用加速卡。关闭时仍强制保底：任务最后 10 分钟自动对竞赛花使用加速卡" onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
@@ -1081,11 +1109,11 @@ function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode
   );
 }
 
-function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" }) {
+function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" | "warn" }) {
   return (
     <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <Label className="min-w-0 text-sm">{label}</Label>
-      <Badge variant={tone === "ready" ? "secondary" : "outline"}>{value}</Badge>
+      <Badge variant={tone === "ready" ? "secondary" : tone === "warn" ? "destructive" : "outline"}>{value}</Badge>
     </div>
   );
 }

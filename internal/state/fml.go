@@ -65,7 +65,7 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	// from top-level namespace 116 (benefit box). Used to recover fTaskNum after
 	// restart when enter/getTaskList omit field 110.
 	if rawRank, ok := ns25["116"]; ok {
-		applyFmlRaceUsrRankQuotaLocked(&s.fmlRace, rawRank, s.roleID)
+		applyFmlRaceUsrRankListLocked(&s.fmlRace, rawRank, s.roleID)
 	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
 		if isJSONNull(rawUsrRcd) {
@@ -73,10 +73,13 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 			s.fmlRace.TaskQuotaObserved = false
 			s.fmlRace.FinishedTaskNum = 0
 			s.fmlRace.BuyTaskNum = 0
+			s.fmlRace.ScoreObserved = false
+			s.fmlRace.Score = 0
+			s.fmlRace.ScoreTimeMs = 0
 		} else {
 			// Sparse 110 (e.g. giveUpTask only sends giveUpTime/uTime) must not
 			// treat omitted fTaskNum/buyTaskNum as zero — that wipes UI「已做」.
-			taken, finished, buy, finishedOK, buyOK := parseFmlRaceUsrRcd(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
+			taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK := parseFmlRaceUsrRcd(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
 			s.fmlRace.Taken = taken
 			if finishedOK {
 				s.fmlRace.TaskQuotaObserved = true
@@ -85,6 +88,11 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 			if buyOK {
 				s.fmlRace.TaskQuotaObserved = true
 				s.fmlRace.BuyTaskNum = buy
+			}
+			if scoreOK {
+				s.fmlRace.ScoreObserved = true
+				s.fmlRace.Score = score
+				s.fmlRace.ScoreTimeMs = scoreTime
 			}
 		}
 	}
@@ -167,6 +175,11 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.TaskQuotaObserved = false
 		view.FinishedTaskNum = 0
 		view.BuyTaskNum = 0
+		view.ScoreObserved = false
+		view.Score = 0
+		view.ScoreTimeMs = 0
+		view.RankObserved = false
+		view.Rank = 0
 		view.RaceQuotaSyncAtMs = 0
 	}
 }
@@ -1629,10 +1642,11 @@ func fmlFlowerShareTakeMax() int32 {
 	return 4
 }
 
-// applyFmlRaceUsrRankQuotaLocked updates FinishedTaskNum/BuyTaskNum from
-// FmlRaceUsrRankList (ns25 field 116). Only the current uid row is applied;
-// takeTaskData is ignored so a rank snapshot cannot clobber live Taken.
-func applyFmlRaceUsrRankQuotaLocked(view *FmlRaceView, raw json.RawMessage, uid int64) {
+// applyFmlRaceUsrRankListLocked updates FinishedTaskNum/BuyTaskNum/Score from
+// FmlRaceUsrRankList (ns25 field 116) and derives personal Rank by sorting the
+// list (score desc, scoreTime asc). takeTaskData is ignored so a rank snapshot
+// cannot clobber live Taken.
+func applyFmlRaceUsrRankListLocked(view *FmlRaceView, raw json.RawMessage, uid int64) {
 	if len(raw) == 0 || isJSONNull(raw) || uid <= 0 {
 		return
 	}
@@ -1640,18 +1654,35 @@ func applyFmlRaceUsrRankQuotaLocked(view *FmlRaceView, raw json.RawMessage, uid 
 	if json.Unmarshal(raw, &rows) != nil || len(rows) == 0 {
 		return
 	}
+	type rankRow struct {
+		uid       int64
+		score     int32
+		scoreTime int64
+	}
+	ranked := make([]rankRow, 0, len(rows))
+	var selfFound bool
 	for _, row := range rows {
 		var fields map[string]json.RawMessage
 		if json.Unmarshal(row, &fields) != nil {
 			continue
 		}
 		var rcd clientproto.IFmlRaceUsrRcd
-		if json.Unmarshal(row, &rcd) != nil || rcd.UID != uid {
+		if json.Unmarshal(row, &rcd) != nil || rcd.UID == 0 {
 			continue
 		}
 		if view.BatchID > 0 && rcd.BatchId > 0 && rcd.BatchId != view.BatchID {
 			continue
 		}
+		_, hasScore := fields["4"]
+		ranked = append(ranked, rankRow{
+			uid:       rcd.UID,
+			score:     rcd.Score,
+			scoreTime: rcd.ScoreTime,
+		})
+		if rcd.UID != uid {
+			continue
+		}
+		selfFound = true
 		if _, ok := fields["3"]; ok {
 			view.FinishedTaskNum = rcd.FTaskNum
 			view.TaskQuotaObserved = true
@@ -1660,25 +1691,61 @@ func applyFmlRaceUsrRankQuotaLocked(view *FmlRaceView, raw json.RawMessage, uid 
 			view.BuyTaskNum = rcd.BuyTaskNum
 			view.TaskQuotaObserved = true
 		}
+		if hasScore {
+			view.Score = rcd.Score
+			view.ScoreObserved = true
+			if _, ok := fields["5"]; ok {
+				view.ScoreTimeMs = rcd.ScoreTime
+			}
+		}
+	}
+	if !selfFound || len(ranked) == 0 {
+		return
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].score != ranked[j].score {
+			return ranked[i].score > ranked[j].score
+		}
+		if ranked[i].scoreTime != ranked[j].scoreTime {
+			// Earlier scoreTime ranks higher on a tie (reached the score first).
+			if ranked[i].scoreTime == 0 {
+				return false
+			}
+			if ranked[j].scoreTime == 0 {
+				return true
+			}
+			return ranked[i].scoreTime < ranked[j].scoreTime
+		}
+		return ranked[i].uid < ranked[j].uid
+	})
+	for i, row := range ranked {
+		if row.uid != uid {
+			continue
+		}
+		view.Rank = int32(i + 1)
+		view.RankObserved = true
 		return
 	}
 }
 
-// parseFmlRaceUsrRcd extracts taken-task progress and task-quota counters from
-// FmlRaceUsrRcdMap (namespace 25, field 110). Observed payloads key the map by
-// batchId (not uid). Prefer batchId, then uid, then any entry with TakeTaskData
-// (for taken) / any entry (for quota fields that are actually present).
+// parseFmlRaceUsrRcd extracts taken-task progress, task-quota counters, and
+// personal race score from FmlRaceUsrRcdMap (namespace 25, field 110). Observed
+// payloads key the map by batchId (not uid). Prefer batchId, then uid, then any
+// entry with TakeTaskData (for taken) / any entry (for quota/score fields that
+// are actually present).
 //
-// finishedOK / buyOK are true only when JSON keys "3" / "6" appear on the chosen
-// row. giveUpTask often returns {"8":giveUpTime,"9":uTime} without fTaskNum;
-// callers must keep prior FinishedTaskNum in that case.
-func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (taken FmlRaceTakenView, finished, buy int32, finishedOK, buyOK bool) {
+// finishedOK / buyOK / scoreOK are true only when JSON keys "3" / "6" / "4"
+// appear on the chosen row. giveUpTask often returns {"8":giveUpTime,"9":uTime}
+// without fTaskNum; callers must keep prior FinishedTaskNum in that case.
+func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (
+	taken FmlRaceTakenView, finished, buy, score int32, scoreTime int64, finishedOK, buyOK, scoreOK bool,
+) {
 	if len(raw) == 0 {
-		return FmlRaceTakenView{}, 0, 0, false, false
+		return FmlRaceTakenView{}, 0, 0, 0, 0, false, false, false
 	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil || len(m) == 0 {
-		return FmlRaceTakenView{}, 0, 0, false, false
+		return FmlRaceTakenView{}, 0, 0, 0, 0, false, false, false
 	}
 	tryKeys := make([]string, 0, 2)
 	if batchID > 0 {
@@ -1687,18 +1754,45 @@ func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (taken FmlRaceT
 	if uid > 0 {
 		tryKeys = append(tryKeys, strconv.FormatInt(uid, 10))
 	}
-	read := func(rcdRaw json.RawMessage) (FmlRaceTakenView, int32, int32, bool, bool) {
+	type usrRcdFields struct {
+		taken     FmlRaceTakenView
+		finished  int32
+		buy       int32
+		score     int32
+		scoreTime int64
+		fOK       bool
+		bOK       bool
+		sOK       bool
+	}
+	read := func(rcdRaw json.RawMessage) usrRcdFields {
 		var fields map[string]json.RawMessage
 		if json.Unmarshal(rcdRaw, &fields) != nil {
-			return FmlRaceTakenView{}, 0, 0, false, false
+			return usrRcdFields{}
 		}
 		var rcd clientproto.IFmlRaceUsrRcd
 		if json.Unmarshal(rcdRaw, &rcd) != nil {
-			return FmlRaceTakenView{}, 0, 0, false, false
+			return usrRcdFields{}
 		}
 		_, fOK := fields["3"]
 		_, bOK := fields["6"]
-		return takenFromUsrRcd(rcd), rcd.FTaskNum, rcd.BuyTaskNum, fOK, bOK
+		_, sOK := fields["4"]
+		scoreTime := int64(0)
+		if _, ok := fields["5"]; ok {
+			scoreTime = rcd.ScoreTime
+		}
+		return usrRcdFields{
+			taken:     takenFromUsrRcd(rcd),
+			finished:  rcd.FTaskNum,
+			buy:       rcd.BuyTaskNum,
+			score:     rcd.Score,
+			scoreTime: scoreTime,
+			fOK:       fOK,
+			bOK:       bOK,
+			sOK:       sOK,
+		}
+	}
+	pack := func(r usrRcdFields) (FmlRaceTakenView, int32, int32, int32, int64, bool, bool, bool) {
+		return r.taken, r.finished, r.buy, r.score, r.scoreTime, r.fOK, r.bOK, r.sOK
 	}
 	var preferredRaw json.RawMessage
 	for _, key := range tryKeys {
@@ -1708,28 +1802,28 @@ func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (taken FmlRaceT
 		}
 	}
 	if preferredRaw != nil {
-		taken, finished, buy, finishedOK, buyOK = read(preferredRaw)
-		if taken.HasTask {
-			return taken, finished, buy, finishedOK, buyOK
+		r := read(preferredRaw)
+		taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK = pack(r)
+		if r.taken.HasTask {
+			return taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK
 		}
 	}
 	for _, rcdRaw := range m {
-		view, f, b, fOK, bOK := read(rcdRaw)
-		if !view.HasTask {
+		r := read(rcdRaw)
+		if !r.taken.HasTask {
 			continue
 		}
 		if preferredRaw == nil {
-			finished, buy, finishedOK, buyOK = f, b, fOK, bOK
+			finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK = r.finished, r.buy, r.score, r.scoreTime, r.fOK, r.bOK, r.sOK
 		}
-		return view, finished, buy, finishedOK, buyOK
+		return r.taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK
 	}
 	if preferredRaw == nil {
 		for _, rcdRaw := range m {
-			_, finished, buy, finishedOK, buyOK = read(rcdRaw)
-			break
+			return pack(read(rcdRaw))
 		}
 	}
-	return taken, finished, buy, finishedOK, buyOK
+	return taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK
 }
 
 func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
@@ -1787,7 +1881,8 @@ func (s *State) MarkFmlRaceLvlSyncAttemptAt(at time.Time) {
 }
 
 // MarkFmlRaceQuotaSyncAttempt records that getFmlRaceUsrRankList was used to
-// seek fTaskNum, so the planner backs off when the payload still omitted it.
+// seek fTaskNum / personal score / rank, so the planner backs off when the
+// payload still omitted them.
 func (s *State) MarkFmlRaceQuotaSyncAttempt() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

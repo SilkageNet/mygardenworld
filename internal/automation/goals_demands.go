@@ -124,33 +124,40 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 		}
 	}
 	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {
-		for npcID, order := range s.CustomerOrderDetails() {
-			if order == nil {
-				continue
-			}
-			entityID := strconv.FormatInt(int64(npcID), 10)
-			label := fmt.Sprintf("顾客订单 NPC=%d", npcID)
-			for _, req := range order.Requires {
-				add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, entityID, label, nil)
-			}
-			for _, req := range order.ItemRequires {
-				if req.ItemID <= 0 || req.Count <= 0 {
+		if _, limited := customerDailyLimitReached(s, policy.GetOrder().GetCustomer(), now); !limited {
+			customerPolicy := policy.GetOrder().GetCustomer()
+			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRace())
+			for npcID, order := range s.CustomerOrderDetails() {
+				if order == nil {
 					continue
 				}
-				missingArt := req.Count - inventory[req.ItemID]
-				if missingArt < 0 {
-					missingArt = 0
-				}
-				recipe, ok := state.FlowerArtRecipeByID(req.ItemID)
-				if !ok {
-					add(goal, "direct", DemandKindFlowerArt, req.ItemID, req.Count, entityID, label, []string{"缺少花艺配方"})
+				if !customerOrderMeetsMinFlowerArt(order, customerPolicy, bypassMinArt) {
 					continue
 				}
-				var blocked []string
-				if missingArt > 0 {
-					blocked = artBlockedReasons(s, recipe)
+				entityID := strconv.FormatInt(int64(npcID), 10)
+				label := fmt.Sprintf("顾客订单 NPC=%d", npcID)
+				for _, req := range order.Requires {
+					add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, entityID, label, nil)
 				}
-				add(goal, "direct", DemandKindFlowerArt, req.ItemID, req.Count, entityID, label, blocked)
+				for _, req := range order.ItemRequires {
+					if req.ItemID <= 0 || req.Count <= 0 {
+						continue
+					}
+					missingArt := req.Count - inventory[req.ItemID]
+					if missingArt < 0 {
+						missingArt = 0
+					}
+					recipe, ok := state.FlowerArtRecipeByID(req.ItemID)
+					if !ok {
+						add(goal, "direct", DemandKindFlowerArt, req.ItemID, req.Count, entityID, label, []string{"缺少花艺配方"})
+						continue
+					}
+					var blocked []string
+					if missingArt > 0 {
+						blocked = artBlockedReasons(s, recipe)
+					}
+					add(goal, "direct", DemandKindFlowerArt, req.ItemID, req.Count, entityID, label, blocked)
+				}
 			}
 		}
 	}

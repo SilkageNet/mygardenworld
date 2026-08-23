@@ -120,6 +120,8 @@ type State struct {
 	residentSatinFinishBiasDayID    int32
 	residentDecorateFinishBias      int32
 	residentDecorateFinishBiasDayID int32
+	customerOrderFinishBias         int32
+	customerOrderFinishBiasDayID    int32
 	residentSatinOrder              ResidentSpecialOrder
 	residentDecorateOrder           ResidentSpecialOrder
 	palaceOrder                     PalaceOrderView // 108.0 宫廷订单

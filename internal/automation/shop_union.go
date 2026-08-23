@@ -743,7 +743,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if !view.BatchActive {
 		return nil
 	}
-	// enter/getTaskList omit field 110; recover fTaskNum from member rank list
+	// enter/getTaskList may omit field 110; recover fTaskNum from member rank list
 	// so UI「已做」and AutoStopOnQuotaDone work after restart.
 	if !view.TaskQuotaObserved && view.BatchID > 0 {
 		const raceQuotaSyncInterval = 10 * time.Minute
@@ -813,6 +813,9 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// module still syncs (enter/getTaskList + TTL refresh) so the task pool
 	// remains visible, but does not auto-execute tasks.
 	if !policy.GetAutoEnableModules() {
+		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
+			return []PlannedOp{op}
+		}
 		if raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
 			return []PlannedOp{domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
@@ -971,6 +974,14 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 					break // one delete per cycle
 				}
 			}
+		}
+	}
+
+	// Idle: sync personal score/rank without preempting take/finish/giveUp.
+	// getTaskList also piggybacks a member-rank fetch for the common path.
+	if len(ops) == 0 {
+		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
+			return []PlannedOp{op}
 		}
 	}
 
@@ -1182,6 +1193,30 @@ func isRacePrimaryMutatingOp(op PlannedOp) bool {
 	default:
 		return false
 	}
+}
+
+// raceUsrRankScoreSyncOp plans getFmlRaceUsrRankList for personal score/rank
+// when missing, or periodically after a dedicated sync. Callers must only use
+// this when it would not preempt primary race take/finish/giveUp work.
+func raceUsrRankScoreSyncOp(view state.FmlRaceView, goal Goal, now time.Time) (PlannedOp, bool) {
+	if view.BatchID <= 0 {
+		return PlannedOp{}, false
+	}
+	needScoreRank := !view.ScoreObserved || !view.RankObserved
+	const raceScoreRankSyncInterval = 10 * time.Minute
+	synced := view.RaceQuotaSyncAtMs
+	backoffOK := synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceScoreRankSyncInterval))
+	periodic := !needScoreRank && synced > 0 && !now.Before(time.UnixMilli(synced).Add(raceScoreRankSyncInterval))
+	if !(needScoreRank && backoffOK) && !periodic {
+		return PlannedOp{}, false
+	}
+	op := domainOp(
+		clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String(), goal, "union.race.sync", "sync",
+		"公会竞赛同步个人得分与排名", 4398, 0, 0, 0,
+	)
+	op.TaskMsID = view.BatchID
+	op.CooldownKey = "union.race.usr_rank"
+	return op, true
 }
 
 // raceFreeTaskQuotaDone reports that AutoStopOnQuotaDone should block further

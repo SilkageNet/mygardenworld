@@ -350,6 +350,70 @@ func residentDecorateDailyLimitReached(s *state.State, policy *pb.ResidentOrderP
 	return "", false
 }
 
+// CustomerDailyLimitReached reports whether customer-order automation should
+// stop for the configured daily finish cap. A non-positive limit means unlimited.
+func CustomerDailyLimitReached(s *state.State, policy *pb.CustomerOrderPolicy, now time.Time) (reason string, reached bool) {
+	return customerDailyLimitReached(s, policy, now)
+}
+
+func customerDailyLimitReached(s *state.State, policy *pb.CustomerOrderPolicy, now time.Time) (reason string, reached bool) {
+	if policy == nil {
+		return "", false
+	}
+	limit := policy.GetDailyLimit()
+	if limit <= 0 {
+		return "", false
+	}
+	finished := s.CustomerOrderFinishNum(now)
+	if finished >= limit {
+		return fmt.Sprintf("顾客订单今日已完成 %d/%d", finished, limit), true
+	}
+	return "", false
+}
+
+func customerOrderLimitBlock(s *state.State, policy *pb.CustomerOrderPolicy, goal Goal, now time.Time) (PlannedOp, bool) {
+	reason, reached := customerDailyLimitReached(s, policy, now)
+	if !reached {
+		return PlannedOp{}, false
+	}
+	blocked := markerOp(CategoryOrder, "order.customer", "finish", "顾客订单今日上限已达", goal.Priority*100+690)
+	blocked.GoalID = goal.ID
+	blocked.Status = PlanStatusBlocked
+	blocked.Executable = false
+	blocked.BlockedReasons = []string{reason}
+	return blocked, true
+}
+
+// customerOrderFlowerArtCount returns the total flower-art pieces required by a
+// customer order (sum of ItemRequires counts).
+func customerOrderFlowerArtCount(order *state.CustomerOrder) int32 {
+	if order == nil {
+		return 0
+	}
+	var total int32
+	for _, req := range order.ItemRequires {
+		if req.ItemID > 0 && req.Count > 0 {
+			total += req.Count
+		}
+	}
+	return total
+}
+
+// customerOrderMeetsMinFlowerArt reports whether the order satisfies the
+// configured minimum flower-art piece count. A non-positive min means no filter.
+// When bypass is true (held unfinished customer-order race task), the min is
+// ignored so race progress can continue.
+func customerOrderMeetsMinFlowerArt(order *state.CustomerOrder, policy *pb.CustomerOrderPolicy, bypass bool) bool {
+	if bypass || policy == nil {
+		return true
+	}
+	min := policy.GetMinFlowerArtCount()
+	if min <= 0 {
+		return true
+	}
+	return customerOrderFlowerArtCount(order) >= min
+}
+
 func residentSpecialOrderAllowed(order state.ResidentSpecialOrder, policy *pb.ResidentOrderPolicy) bool {
 	if !order.Observed || order.IsVideo != 0 || len(order.Requires) == 0 {
 		return false

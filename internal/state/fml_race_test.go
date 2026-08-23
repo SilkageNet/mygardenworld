@@ -741,6 +741,42 @@ func TestFmlRaceUsrRankListRecoversFinished(t *testing.T) {
 	}
 }
 
+func TestFmlRaceUsrRankListPersonalScoreAndRank(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":99}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000}}}`))
+	// Self score 80 (earlier time) vs peer 100 vs peer 80 (later) → rank 2.
+	s.ApplyV(json.RawMessage(`{"25":{"116":[
+		{"0":100,"1":42,"3":5,"4":100,"5":2000},
+		{"0":99,"1":42,"3":4,"4":80,"5":1000,"6":1},
+		{"0":101,"1":42,"3":3,"4":80,"5":3000}
+	]}}`))
+	got := s.FmlRace()
+	if !got.ScoreObserved || got.Score != 80 {
+		t.Fatalf("score = observed=%v score=%d, want 80", got.ScoreObserved, got.Score)
+	}
+	if !got.RankObserved || got.Rank != 2 {
+		t.Fatalf("rank = observed=%v rank=%d, want 2", got.RankObserved, got.Rank)
+	}
+	if !got.TaskQuotaObserved || got.FinishedTaskNum != 4 {
+		t.Fatalf("quota still required: %+v", got)
+	}
+}
+
+func TestFmlRaceUsrRcdScorePresenceMerge(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":99}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000},"110":{"42":{"0":99,"1":42,"3":2,"4":55,"5":1500}}}}`))
+	got := s.FmlRace()
+	if !got.ScoreObserved || got.Score != 55 || got.ScoreTimeMs != 1500 {
+		t.Fatalf("110 score not applied: %+v", got)
+	}
+	// Sparse giveUp-style 110 must not wipe score.
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"8":9999,"9":10000}}}}`))
+	got = s.FmlRace()
+	if !got.ScoreObserved || got.Score != 55 || got.ScoreTimeMs != 1500 {
+		t.Fatalf("sparse 110 wiped score: %+v", got)
+	}
+}
+
 func TestFmlRaceCalendarSessionWindow(t *testing.T) {
 	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
 	cases := []struct {

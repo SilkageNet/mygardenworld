@@ -313,6 +313,14 @@ message FmlRaceView {
   int32 total_task_num = 11;
   // Guild race tier used for total_task_num (甲=4, 乙=3, 丙=2, 丁=1).
   int32 race_lvl = 12;
+  // Personal cumulative race score this batch (IFmlRaceUsrRcd.score).
+  int32 score = 13;
+  // True after NS25 field 110/116 carried personal score for the current uid.
+  bool score_observed = 14;
+  // 1-based personal rank within guild members from FmlRaceUsrRankList (116).
+  int32 rank = 15;
+  // True after a usable member rank list ranked the current uid.
+  bool rank_observed = 16;
 }
 
 message FmlRaceTask {

@@ -874,6 +874,267 @@ func TestBuildPlan_CustomerFinishWhenArtInStock(t *testing.T) {
 	t.Fatalf("missing customer finish op: %+v", result.Operations)
 }
 
+func TestBuildPlan_CustomerDailyLimitBlocksFinishAndGenerate(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "11": 2}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.DailyLimit = 2
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			t.Fatalf("customer finish should be blocked by daily limit: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerGenOrder.String() && op.Executable {
+			t.Fatalf("customer generate should be blocked by daily limit: %+v", op)
+		}
+		if op.Domain == "order.customer" && !op.Executable && hasReasonContaining(op.BlockedReasons, "2/2") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing customer daily limit block: %+v", result.Operations)
+	}
+	for _, demand := range result.Demands {
+		if demand.GoalID == GoalCustomerOrder {
+			t.Fatalf("customer demands should be omitted at daily limit: %+v", demand)
+		}
+	}
+}
+
+func TestBuildPlan_CustomerLocalFinishBiasEnforcesLimitWithoutStatistics(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.DailyLimit = 2
+
+	s.NoteCustomerOrderFinished(now, nil)
+	s.NoteCustomerOrderFinished(now, nil)
+
+	result := BuildPlan(s, p, now)
+	var blocked bool
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			t.Fatalf("customer finish should be blocked by local finish bias: %+v", op)
+		}
+		if op.Domain == "order.customer" && !op.Executable && hasReasonContaining(op.BlockedReasons, "2/2") {
+			blocked = true
+		}
+	}
+	if !blocked {
+		t.Fatalf("missing local bias limit block: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_CustomerDailyLimitZeroMeansUnlimited(t *testing.T) {
+	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	recipe, ok := state.FlowerArtRecipeByID(300505)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300505) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{itoa32(recipe.ArtID): 1},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": recipe.ArtID, "2": 1, "3": 1},
+		}}},
+		"124": map[string]any{"0": map[string]any{"20260724": map[string]any{"1": 20260724, "11": 99}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.DailyLimit = 0
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable {
+			return
+		}
+	}
+	t.Fatalf("expected customer finish when daily limit is 0 (unlimited): %+v", result.Operations)
+}
+
+func TestBuildPlan_CustomerMinFlowerArtRejectsBelowThreshold(t *testing.T) {
+	recipe2, ok := state.FlowerArtRecipeByID(300207)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300207) ok=false")
+	}
+	recipe3, ok := state.FlowerArtRecipeByID(300208)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300208) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{
+				itoa32(recipe2.ArtID): 2,
+				itoa32(recipe3.ArtID): 3,
+			},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1": map[string]any{"0": 2, "1": recipe2.ArtID, "2": 2, "3": 1},
+			"3": map[string]any{"0": 2, "1": recipe3.ArtID, "2": 3, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.MinFlowerArtCount = 3
+
+	result := BuildPlan(s, p, time.Now())
+	var rejectedBelow, finishedOK bool
+	for _, op := range result.Operations {
+		switch {
+		case op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && op.Executable && op.TargetID == 1:
+			if !strings.Contains(op.Reason, "花艺件数 2 < 最低要求 3") {
+				t.Fatalf("reject reason mismatch: %+v", op)
+			}
+			rejectedBelow = true
+		case op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable && op.TargetID == 3:
+			finishedOK = true
+		case op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable && op.TargetID == 1:
+			t.Fatalf("should not finish below-threshold order: %+v", op)
+		}
+	}
+	if !rejectedBelow || !finishedOK {
+		t.Fatalf("want reject npc=1 and finish npc=3, ops=%+v", result.Operations)
+	}
+	for _, demand := range result.Demands {
+		if demand.GoalID == GoalCustomerOrder && demand.EntityID == "1" {
+			t.Fatalf("below-threshold order must not create demands: %+v", demand)
+		}
+	}
+}
+
+func TestBuildPlan_CustomerMinFlowerArtTwoAcceptsTwoAndThree(t *testing.T) {
+	recipe2, ok := state.FlowerArtRecipeByID(300207)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300207) ok=false")
+	}
+	recipe3, ok := state.FlowerArtRecipeByID(300208)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300208) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{
+				itoa32(recipe2.ArtID): 2,
+				itoa32(recipe3.ArtID): 3,
+			},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1": map[string]any{"0": 2, "1": recipe2.ArtID, "2": 2, "3": 1},
+			"3": map[string]any{"0": 2, "1": recipe3.ArtID, "2": 3, "3": 1},
+			"5": map[string]any{"0": 2, "1": recipe2.ArtID, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.MinFlowerArtCount = 2
+
+	result := BuildPlan(s, p, time.Now())
+	var finishedTwo, finishedThree, rejectedOne bool
+	for _, op := range result.Operations {
+		switch {
+		case op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable && op.TargetID == 1:
+			finishedTwo = true
+		case op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable && op.TargetID == 3:
+			finishedThree = true
+		case op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && op.Executable && op.TargetID == 5:
+			rejectedOne = true
+		case op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable && op.TargetID == 5:
+			t.Fatalf("should not finish 1-art order when min=2: %+v", op)
+		}
+	}
+	if !finishedTwo || !finishedThree || !rejectedOne {
+		t.Fatalf("want finish 2+3 and reject 1, ops=%+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_CustomerMinFlowerArtBypassedWhenRaceHoldsCustomerTask(t *testing.T) {
+	recipe2, ok := state.FlowerArtRecipeByID(300207)
+	if !ok {
+		t.Fatal("FlowerArtRecipeByID(300207) ok=false")
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0": 999,
+			"32": map[string]any{
+				itoa32(recipe2.ArtID): 2,
+			},
+			"34": 12,
+		}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1": map[string]any{"0": 2, "1": recipe2.ArtID, "2": 2, "3": 1},
+		}}},
+		// Unfinished customer-order race task (type 3016 via catalog 3019).
+		"25": map[string]any{
+			"111": map[string]any{"1": 1},
+			"117": map[string]any{"5": 4},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3019, "2": 5, "3": 0}}},
+			"114": []any{map[string]any{"0": 71, "4": 3019, "7": 5, "8": 0, "10": 24, "12": 999}},
+		},
+	})
+	if !RaceHoldsUnfinishedCustomerOrder(s.FmlRace()) {
+		t.Fatalf("expected unfinished customer race task, got %+v", s.FmlRace().Taken)
+	}
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.Customer.MinFlowerArtCount = 3
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() && op.Executable && op.TargetID == 1 {
+			t.Fatalf("race-held customer task must bypass min flower-art reject: %+v", op)
+		}
+		if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() && op.Executable && op.TargetID == 1 {
+			return
+		}
+	}
+	t.Fatalf("expected finish of below-threshold order while race holds customer task: %+v", result.Operations)
+}
+
 func TestBuildPlan_CustomerCraftsAfterStaleArtStockCleared(t *testing.T) {
 	recipe, ok := state.FlowerArtRecipeByID(300505)
 	if !ok {
