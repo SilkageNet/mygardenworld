@@ -1207,7 +1207,7 @@ func raceUsrRankScoreSyncOp(view state.FmlRaceView, goal Goal, now time.Time) (P
 	synced := view.RaceQuotaSyncAtMs
 	backoffOK := synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceScoreRankSyncInterval))
 	periodic := !needScoreRank && synced > 0 && !now.Before(time.UnixMilli(synced).Add(raceScoreRankSyncInterval))
-	if !(needScoreRank && backoffOK) && !periodic {
+	if (!needScoreRank || !backoffOK) && !periodic {
 		return PlannedOp{}, false
 	}
 	op := domainOp(

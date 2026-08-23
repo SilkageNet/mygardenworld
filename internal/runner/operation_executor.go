@@ -775,9 +775,8 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	// Piggyback member rank list so personal score/rank stay fresh whenever
 	// the task pool syncs (enter bootstrap, TTL refresh, progress catch-up).
 	if batchID := rt.runner.state.FmlRace().BatchID; batchID > 0 {
-		if _, rankErr := runFmlRaceGetUsrRankList(ctx, rt, &automation.PlannedOp{TaskMsID: batchID}); rankErr != nil {
-			// Soft: pool sync already succeeded; rank can retry on the next tick.
-		}
+		// Soft: pool sync already succeeded; rank can retry on the next tick.
+		_, _ = runFmlRaceGetUsrRankList(ctx, rt, &automation.PlannedOp{TaskMsID: batchID})
 	}
 	return v, nil
 }
