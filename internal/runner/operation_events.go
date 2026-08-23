@@ -34,6 +34,8 @@ type operationResult struct {
 
 type operationErrorKind string
 
+const customerOrderGenerationNoopCooldown = 10 * time.Minute
+
 const (
 	operationErrorOrdinary                  operationErrorKind = "ordinary"
 	operationErrorHarvestNotMature          operationErrorKind = "harvest_not_mature"
@@ -675,6 +677,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	})
 	r.logOperation(ctx, op.Kind, args, json.RawMessage(result.raw))
 	r.clearOperationCooldown(op)
+	r.deferNoopCustomerOrderGeneration(op, result.finishedAt)
 
 	// Some successful water RPC responses omit inventory deltas. When the
 	// server did include item 7, ApplyV has already installed the authoritative
@@ -725,6 +728,29 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		// without this hook submission waits on the 10-minute fallback sync.
 		r.state.MarkFmlRaceTasksUnobserved()
 	}
+}
+
+// deferNoopCustomerOrderGeneration prevents an accepted genOrder response
+// that leaves namespace 109 empty and ready from being retried every decision
+// tick. A later namespace push can still produce a real order immediately;
+// only another generation attempt is held back.
+func (r *Runner) deferNoopCustomerOrderGeneration(op *automation.PlannedOp, now time.Time) {
+	if op == nil || op.Kind != clientproto.RPCOrderCustomerGenOrder.String() ||
+		r.state == nil || !r.state.CustomerOrderGenerationReady(now) {
+		return
+	}
+	reason := "服务端本次未生成顾客订单，10 分钟后重试"
+	payloadOp := r.cooldownSideOperation(op, now, nil, reason, customerOrderGenerationNoopCooldown)
+	r.emit(Event{
+		Kind:        "operation_deferred",
+		Category:    automation.CategoryOrder,
+		Domain:      op.Domain,
+		Action:      "blocked",
+		Label:       operationEventLabel(op),
+		Message:     fmt.Sprintf("%s 暂缓: %s", opDesc(op), reason),
+		PayloadJSON: operationPayload(payloadOp, nil, nil, nil),
+		Level:       "warn",
+	})
 }
 
 func (r *Runner) logOperation(ctx context.Context, kind string, args, result any) {
