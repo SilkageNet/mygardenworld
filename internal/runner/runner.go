@@ -96,6 +96,7 @@ type Runner struct {
 	unknownRPCCounts             map[string]int32     // runtime RPC names missing from the catalog
 	lastCustomerOrderInfo        map[int32]string     // 顾客订单需求摘要去重
 	lastResidentOrderLimitReason string               // 普通居民订单上限日志去重
+	lastCustomerOrderLimitReason string               // 顾客订单上限日志去重
 	dessertSessionEpoch          uint64               // increments only after a fresh HTTP/WS login
 	dessertRound                 dessertRoundRuntime  // shadow/autoplay state; never persisted
 

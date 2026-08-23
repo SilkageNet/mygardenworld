@@ -38,13 +38,24 @@ func raceStateJSONWithParams(tasks [][5]int32, plantParam int32) string {
 		}
 		pool = "[" + strings.Join(parts, ",") + "]"
 	}
-	return `{"25":{"111":{"1":1},"117":{"5":4},"114":` + pool + `}}`
+	return `{"25":{"111":{"0":42,"1":1},"117":{"5":4},"110":{"42":{"3":0,"4":0}},"114":` + pool + `}}`
 }
 
 // applyRaceState seeds cultivated flower 23001 plus an active race task pool.
 func applyRaceState(s *state.State, tasks [][5]int32) {
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(raceStateJSON(tasks)))
+	// Bind rank-list uid to self so ScoreObserved/RankObserved stick and
+	// getFmlRaceUsrRankList does not preempt take/finish in unit tests.
+	uid := s.RoleID()
+	if uid <= 0 {
+		uid = 999
+		s.ApplyV(json.RawMessage(fmt.Sprintf(`{"7":{"0":{"0":%d}}}`, uid)))
+	}
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"116":[{"0":%d,"1":42,"3":0,"4":0}],"110":{"42":{"0":%d,"3":0,"4":0}}}}`,
+		uid, uid,
+	)))
 }
 
 // testRacePolicy returns a policy with the common defaults for race tests:
@@ -123,9 +134,9 @@ func TestUnionRaceEnterNotEmittedWhenObserved(t *testing.T) {
 
 func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
+	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
 	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false, MinTaskScore: 28}
-	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when autoEnableModules off, got %d: %+v", len(ops), ops)
 	}
@@ -586,7 +597,7 @@ func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 func TestUnionRaceUpgradeOpEmission(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"3":0,"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"3":0,"4":10,"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}},"116":[{"0":999,"1":42,"3":0,"4":10,"5":1000}]}}`))
 	policy := testRacePolicy()
 	policy.UpgradeTask = true
 	policy.MaxSpendDiamond = 100
@@ -1424,7 +1435,7 @@ func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 func TestUnionRaceGiveUpSynthesizedTakenPriorityZero(t *testing.T) {
 	s := state.New()
 	// Synthesized taken from pool UID: task type 3017 (priority 0), no progress.
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":3017,"7":10,"8":0,"10":25,"12":999}],"110":{"42":{"3":0}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":3017,"7":10,"8":0,"10":25,"12":999}],"110":{"42":{"3":0,"4":0}},"116":[{"0":999,"1":42,"3":0,"4":0}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{
 		3017: 0,

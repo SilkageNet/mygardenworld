@@ -1878,8 +1878,13 @@ type CustomerOrderPolicy struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
 	Enabled                  bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	RejectUnavailableEnabled bool                   `protobuf:"varint,2,opt,name=reject_unavailable_enabled,json=rejectUnavailableEnabled,proto3" json:"reject_unavailable_enabled,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Daily finish cap from namespace-124 orderCustomerFinishNum. 0 means unlimited.
+	DailyLimit int32 `protobuf:"varint,3,opt,name=daily_limit,json=dailyLimit,proto3" json:"daily_limit,omitempty"`
+	// Minimum flower-art piece count to accept. Orders below this are rejected.
+	// 0 means no filter; 2 accepts 2+ arts; 3 accepts only 3+ arts.
+	MinFlowerArtCount int32 `protobuf:"varint,4,opt,name=min_flower_art_count,json=minFlowerArtCount,proto3" json:"min_flower_art_count,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *CustomerOrderPolicy) Reset() {
@@ -1924,6 +1929,20 @@ func (x *CustomerOrderPolicy) GetRejectUnavailableEnabled() bool {
 		return x.RejectUnavailableEnabled
 	}
 	return false
+}
+
+func (x *CustomerOrderPolicy) GetDailyLimit() int32 {
+	if x != nil {
+		return x.DailyLimit
+	}
+	return 0
+}
+
+func (x *CustomerOrderPolicy) GetMinFlowerArtCount() int32 {
+	if x != nil {
+		return x.MinFlowerArtCount
+	}
+	return 0
 }
 
 type ResidentOrderPolicy struct {
@@ -2545,8 +2564,11 @@ type UnionRacePolicy struct {
 	// when auto_enable_modules is on, even if use_speedup_ticket_in_task is false.
 	// Kept for wire/API compatibility with stored policy JSON.
 	UrgentSpeedupEnabled bool `protobuf:"varint,13,opt,name=urgent_speedup_enabled,json=urgentSpeedupEnabled,proto3" json:"urgent_speedup_enabled,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// When true, the race monitor shows personal cumulative score and guild-member
+	// rank for the current batch. Default off.
+	ShowPersonalScoreRank bool `protobuf:"varint,14,opt,name=show_personal_score_rank,json=showPersonalScoreRank,proto3" json:"show_personal_score_rank,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *UnionRacePolicy) Reset() {
@@ -2666,6 +2688,13 @@ func (x *UnionRacePolicy) GetAutoStopOnQuotaDone() bool {
 func (x *UnionRacePolicy) GetUrgentSpeedupEnabled() bool {
 	if x != nil {
 		return x.UrgentSpeedupEnabled
+	}
+	return false
+}
+
+func (x *UnionRacePolicy) GetShowPersonalScoreRank() bool {
+	if x != nil {
+		return x.ShowPersonalScoreRank
 	}
 	return false
 }
@@ -3107,10 +3136,13 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x06palace\x18\x03 \x01(\v2#.mygardenworld.v1.PalaceOrderPolicyR\x06palace\x125\n" +
 	"\x04team\x18\x04 \x01(\v2!.mygardenworld.v1.TeamOrderPolicyR\x04team\x12@\n" +
 	"\n" +
-	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"m\n" +
+	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"\xbf\x01\n" +
 	"\x13CustomerOrderPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12<\n" +
-	"\x1areject_unavailable_enabled\x18\x02 \x01(\bR\x18rejectUnavailableEnabled\"\xdd\x02\n" +
+	"\x1areject_unavailable_enabled\x18\x02 \x01(\bR\x18rejectUnavailableEnabled\x12\x1f\n" +
+	"\vdaily_limit\x18\x03 \x01(\x05R\n" +
+	"dailyLimit\x12/\n" +
+	"\x14min_flower_art_count\x18\x04 \x01(\x05R\x11minFlowerArtCount\"\xdd\x02\n" +
 	"\x13ResidentOrderPolicy\x12%\n" +
 	"\x0enormal_enabled\x18\x01 \x01(\bR\rnormalEnabled\x12,\n" +
 	"\x12normal_daily_limit\x18\x02 \x01(\x05R\x10normalDailyLimit\x12)\n" +
@@ -3162,7 +3194,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\ftake_enabled\x18\x05 \x01(\bR\vtakeEnabled\x12<\n" +
 	"\ttake_mode\x18\x06 \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\btakeMode\x12%\n" +
 	"\x0etake_qualities\x18\a \x03(\x05R\rtakeQualities\x12&\n" +
-	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xf5\x05\n" +
+	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xae\x06\n" +
 	"\x0fUnionRacePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
@@ -3177,7 +3209,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	" \x01(\x05R\x12deleteTaskMaxScore\x12*\n" +
 	"\x11max_spend_diamond\x18\v \x01(\x03R\x0fmaxSpendDiamond\x124\n" +
 	"\x17auto_stop_on_quota_done\x18\f \x01(\bR\x13autoStopOnQuotaDone\x124\n" +
-	"\x16urgent_speedup_enabled\x18\r \x01(\bR\x14urgentSpeedupEnabled\x1aC\n" +
+	"\x16urgent_speedup_enabled\x18\r \x01(\bR\x14urgentSpeedupEnabled\x127\n" +
+	"\x18show_personal_score_rank\x18\x0e \x01(\bR\x15showPersonalScoreRank\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\x81\x02\n" +

@@ -207,6 +207,18 @@ func (s *State) applyStatisticsLocked(raw json.RawMessage) {
 				s.residentDecorateFinishBiasDayID = view.DayID
 			}
 		}
+		switch {
+		case countersSeen.customer:
+			s.customerOrderFinishBias = 0
+			if view.DayID != 0 {
+				s.customerOrderFinishBiasDayID = view.DayID
+			}
+		case view.DayID != 0 && prevDay != 0 && view.DayID != prevDay:
+			if s.customerOrderFinishBiasDayID != view.DayID {
+				s.customerOrderFinishBias = 0
+				s.customerOrderFinishBiasDayID = view.DayID
+			}
+		}
 		s.clearResidentOrderLimitIfStatisticsResetLocked(view)
 	}
 }
@@ -215,6 +227,7 @@ type statisticsCountersSeen struct {
 	normal   bool
 	satin    bool
 	decorate bool
+	customer bool
 }
 
 func parseStatisticsViewMerged(prev StatisticsView, raw json.RawMessage) (StatisticsView, statisticsCountersSeen, bool) {
@@ -363,6 +376,7 @@ func mergeStatisticsFields(prev StatisticsView, fields map[string]json.RawMessag
 	}
 	if n, ok := readInt32JSONField(fields, "11"); ok {
 		view.OrderCustomerFinishNum = n
+		countersSeen.customer = true
 		seen = true
 	}
 	if n, ok := readInt64JSONField(fields, "12"); ok {

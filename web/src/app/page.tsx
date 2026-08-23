@@ -208,6 +208,11 @@ function DashboardContent() {
   const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
   const accountsLoadedRef = useRef(false);
   const capabilitiesLoadedRef = useRef(false);
+  // Bumped on each getPolicy so a slow response from account A cannot overwrite
+  // the panel after the user has switched to account B (and then save A's policy
+  // onto B).
+  const policyFetchGenRef = useRef(0);
+  const policyOwnerAccountIdRef = useRef("");
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId) ?? null,
@@ -304,20 +309,29 @@ function DashboardContent() {
   }, [canReadSnapshot]);
 
   const refreshPolicy = useCallback(async (accountId: string) => {
+    const fetchGen = ++policyFetchGenRef.current;
     if (!accountId) {
+      policyOwnerAccountIdRef.current = "";
       setPolicy(null);
+      setPolicyLoading(false);
       return;
     }
     setPolicyLoading(true);
     try {
       const res = await policyClient.getPolicy({ accountId });
+      if (fetchGen !== policyFetchGenRef.current) return;
+      policyOwnerAccountIdRef.current = accountId;
       setPolicy(res.policy ?? create(PolicySchema));
       setPolicyMessage("");
     } catch (err) {
+      if (fetchGen !== policyFetchGenRef.current) return;
+      policyOwnerAccountIdRef.current = "";
       setPolicy(null);
       setPolicyMessage(formatAPIError(err, "读取策略失败"));
     } finally {
-      setPolicyLoading(false);
+      if (fetchGen === policyFetchGenRef.current) {
+        setPolicyLoading(false);
+      }
     }
   }, []);
 
@@ -359,8 +373,11 @@ function DashboardContent() {
 
   useEffect(() => {
     if (!selectedAccountId) {
+      policyFetchGenRef.current += 1;
+      policyOwnerAccountIdRef.current = "";
       setSnapshot(null);
       setPolicy(null);
+      setPolicyLoading(false);
       setEvents([]);
       return;
     }
@@ -371,8 +388,19 @@ function DashboardContent() {
       setSnapshotLoading(false);
       setError((current) => (isRunnerNotStartedError(current) ? "" : current));
     }
+  }, [refreshSnapshot, selectedAccountId, selectedConnected]);
+
+  useEffect(() => {
+    if (!selectedAccountId) {
+      return;
+    }
+    // Drop the previous account's editable policy immediately so a late getPolicy
+    // cannot leave the wrong blob on screen (or get saved onto this account).
+    policyOwnerAccountIdRef.current = "";
+    setPolicy(null);
+    setPolicyMessage("");
     void refreshPolicy(selectedAccountId);
-  }, [refreshPolicy, refreshSnapshot, selectedAccountId, selectedConnected]);
+  }, [refreshPolicy, selectedAccountId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -678,6 +706,8 @@ function DashboardContent() {
     setError("");
     try {
       await accountClient.deleteAccount({ id: selectedAccount.id });
+      policyFetchGenRef.current += 1;
+      policyOwnerAccountIdRef.current = "";
       const nextAccounts = accounts.filter((account) => account.id !== selectedAccount.id);
       setSelectedAccountId(nextAccounts[0]?.id ?? "");
       setSnapshot(null);
@@ -692,16 +722,26 @@ function DashboardContent() {
 
   async function savePolicy() {
     if (!selectedAccount || !policy) return;
+    const accountId = selectedAccount.id;
+    if (policyOwnerAccountIdRef.current !== accountId) {
+      setPolicyMessage("策略尚未与当前账号对齐，请等待加载完成后再保存");
+      return;
+    }
     setSavingPolicy(true);
     setPolicyMessage("");
     try {
-      const res = await policyClient.setPolicy({ accountId: selectedAccount.id, policy });
+      const res = await policyClient.setPolicy({ accountId, policy });
+      if (policyOwnerAccountIdRef.current !== accountId) return;
       setPolicy(res.policy ?? policy);
       setPolicyMessage("");
       await refreshStatuses();
-      await refreshSnapshot(selectedAccount.id);
+      if (policyOwnerAccountIdRef.current === accountId) {
+        await refreshSnapshot(accountId);
+      }
     } catch (err) {
-      setPolicyMessage(formatAPIError(err, "保存失败"));
+      if (policyOwnerAccountIdRef.current === accountId) {
+        setPolicyMessage(formatAPIError(err, "保存失败"));
+      }
     } finally {
       setSavingPolicy(false);
     }
@@ -1291,7 +1331,11 @@ function RaceTab({
 }) {
   return (
     <div className="space-y-3 sm:space-y-4">
-      <FmlRaceMonitorPanel race={snapshot?.fmlRace} showTakenTask={policy?.union?.race?.enabled ?? true} />
+      <FmlRaceMonitorPanel
+        race={snapshot?.fmlRace}
+        showTakenTask={policy?.union?.race?.enabled ?? true}
+        showPersonalScoreRank={policy?.union?.race?.showPersonalScoreRank ?? false}
+      />
     </div>
   );
 }
@@ -1756,7 +1800,15 @@ function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
   );
 }
 
-function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; showTakenTask: boolean }) {
+function FmlRaceMonitorPanel({
+  race,
+  showTakenTask,
+  showPersonalScoreRank = false,
+}: {
+  race?: FmlRaceView;
+  showTakenTask: boolean;
+  showPersonalScoreRank?: boolean;
+}) {
   const tasks = race?.tasks ?? [];
   const taken = race?.taken;
   const observed = race?.observed ?? false;
@@ -1766,6 +1818,11 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
   const taskQuotaObserved = race?.taskQuotaObserved ?? false;
   const finishedTaskNum = race?.finishedTaskNum ?? 0;
   const totalTaskNum = race?.totalTaskNum ?? 0;
+  const scoreObserved = race?.scoreObserved ?? false;
+  const score = race?.score ?? 0;
+  const rankObserved = race?.rankObserved ?? false;
+  const rank = race?.rank ?? 0;
+  const showScoreRank = showPersonalScoreRank;
 
   const formatMs = (ms: bigint) => {
     if (ms === BigInt(0)) return "";
@@ -1798,6 +1855,12 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
           {taskQuotaObserved && totalTaskNum <= 0 && (
             <Badge variant="outline">已做 {finishedTaskNum}</Badge>
           )}
+          {showScoreRank && scoreObserved && (
+            <Badge variant="outline">得分 {score}</Badge>
+          )}
+          {showScoreRank && rankObserved && rank > 0 && (
+            <Badge variant="outline">第 {rank} 名</Badge>
+          )}
           {showTakenTask && taken?.hasTask && <Badge variant="secondary">已接任务</Badge>}
           {tasks.length > 0 && <Badge variant="outline">{tasks.length} 个可选</Badge>}
         </>
@@ -1816,12 +1879,31 @@ function FmlRaceMonitorPanel({ race, showTakenTask }: { race?: FmlRaceView; show
         />
       ) : (
         <>
-          {taskQuotaObserved && (
-            <div className="flex items-center justify-between gap-2 rounded-md border border-border/58 bg-white/34 px-3 py-2 text-sm dark:bg-white/5">
-              <span className="text-muted-foreground">任务次数</span>
-              <span className="font-medium">
-                {totalTaskNum > 0 ? `已做 ${finishedTaskNum} / 总 ${totalTaskNum}` : `已做 ${finishedTaskNum}`}
-              </span>
+          {(showScoreRank || taskQuotaObserved) && (
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border border-border/58 bg-white/34 px-3 py-2 text-sm dark:bg-white/5">
+              {showScoreRank && (
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                  <span className="text-muted-foreground">个人竞赛</span>
+                  <span className="font-medium">
+                    {scoreObserved || rankObserved ? (
+                      <>
+                        {scoreObserved ? `得分 ${score}` : "得分 —"}
+                        {rankObserved && rank > 0 ? ` · 第 ${rank} 名` : ""}
+                      </>
+                    ) : (
+                      <span className="font-normal text-muted-foreground">得分与排名同步中…</span>
+                    )}
+                  </span>
+                </div>
+              )}
+              {taskQuotaObserved && (
+                <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                  <span className="text-muted-foreground">任务次数</span>
+                  <span className="font-medium">
+                    {totalTaskNum > 0 ? `已做 ${finishedTaskNum} / 总 ${totalTaskNum}` : `已做 ${finishedTaskNum}`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
