@@ -423,6 +423,59 @@ func readInt64(m map[string]any, keys ...string) int64 {
 	return 0
 }
 
+func readInt64Slice(m map[string]any, keys ...string) []int64 {
+	for _, k := range keys {
+		v, ok := m[k]
+		if !ok || v == nil {
+			continue
+		}
+		switch x := v.(type) {
+		case []any:
+			out := make([]int64, 0, len(x))
+			for _, item := range x {
+				if uid := readInt64Any(item); uid > 0 {
+					out = append(out, uid)
+				}
+			}
+			if len(out) > 0 {
+				return out
+			}
+		case map[string]any:
+			out := make([]int64, 0, len(x))
+			for key, item := range x {
+				if uid := readInt64Any(item); uid > 0 {
+					out = append(out, uid)
+					continue
+				}
+				if uid, err := parseInt64Key(key); err == nil && uid > 0 {
+					out = append(out, uid)
+				}
+			}
+			if len(out) > 0 {
+				return out
+			}
+		}
+	}
+	return nil
+}
+
+func readInt64Any(v any) int64 {
+	switch x := v.(type) {
+	case float64:
+		return int64(x)
+	case int:
+		return int64(x)
+	case int32:
+		return int64(x)
+	case int64:
+		return x
+	case json.Number:
+		i, _ := x.Int64()
+		return i
+	}
+	return 0
+}
+
 func readInt32Any(v any) int32 {
 	switch x := v.(type) {
 	case float64:

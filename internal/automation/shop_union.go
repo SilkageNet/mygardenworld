@@ -470,6 +470,7 @@ func unionLandOperations(s *state.State, policy *pb.UnionLandPolicy, now time.Ti
 const (
 	unionLandPreferBelowLevel   int32 = 11
 	unionLandDefaultMaturityMin int32 = 20
+	unionLandDefaultReplantMin  int32 = 60
 	// When leveling flowers below 11, skip force-replace if the current crop
 	// matures within this grace window so harvest can finish first.
 	unionLandNearMatureGrace = 2 * time.Minute
@@ -482,7 +483,7 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 		return PlannedOp{}, false
 	}
 	leveling := unionLandHasBelowLevel(candidates)
-	landIDs := unionLandPlantableIDs(s, flowerID, now, leveling)
+	landIDs := unionLandPlantableIDs(s, flowerID, now, leveling, policy)
 	if len(landIDs) == 0 {
 		return PlannedOp{}, false
 	}
@@ -630,12 +631,35 @@ func pickHighestQualityThenLevelStock(candidates []state.PlantableFlower) state.
 	return best
 }
 
+func unionLandMinReplantMinutes(policy *pb.UnionLandPolicy) int32 {
+	if policy == nil {
+		return unionLandDefaultReplantMin
+	}
+	min := policy.GetMinReplantMinutes()
+	if min <= 0 {
+		return unionLandDefaultReplantMin
+	}
+	return min
+}
+
+// unionLandReplantCooldownElapsed reports whether an occupied land's current
+// crop has been planted long enough to allow post-level-11 replacement.
+func unionLandReplantCooldownElapsed(land state.FmlLandView, now time.Time, minMinutes int32) bool {
+	if land.StartTimeMs <= 0 {
+		return false
+	}
+	elapsed := now.Sub(time.UnixMilli(land.StartTimeMs))
+	return elapsed >= time.Duration(minMinutes)*time.Minute
+}
+
 // unionLandPlantableIDs returns empty slots and replace targets.
 // While any filtered flower is below level 11, occupied lands with a different
 // flower are force-replaced unless harvest is pending or the next mature is
 // within 2 minutes (wait for harvest, then switch). After every flower reaches
-// 11, occupied lands may be replaced freely for long-maturity selection.
-func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveling bool) []int32 {
+// 11, empty slots are always filled; occupied lands with a different flower
+// are replaced only after min_replant_minutes (default 60), so multiple flower
+// types can coexist across guild lands.
+func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveling bool, policy *pb.UnionLandPolicy) []int32 {
 	lands := s.FmlLands()
 	ids := make([]int32, 0, len(lands))
 	for id := range lands {
@@ -655,13 +679,17 @@ func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveli
 		if land.FlowerID == flowerID {
 			continue
 		}
-		if leveling && unionLandNearMature(land, now) {
-			// Current crop matures within 2 minutes: harvest first, then switch.
+		if leveling {
+			if unionLandNearMature(land, now) {
+				// Current crop matures within 2 minutes: harvest first, then switch.
+				continue
+			}
+			out = append(out, id)
 			continue
 		}
-		// Leveling: force replace when farther than the grace window.
-		// Post-11: replace freely for maturity/stock selection.
-		out = append(out, id)
+		if unionLandReplantCooldownElapsed(land, now, unionLandMinReplantMinutes(policy)) {
+			out = append(out, id)
+		}
 	}
 	return out
 }

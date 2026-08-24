@@ -179,6 +179,19 @@ message GetSnapshotResponse {
   BusinessStatisticsView business_statistics = 48;
   // Finished flower arts that can be listed when their vase is unlocked.
   repeated SellableFlowerArtView sellable_flower_arts = 49;
+  // Friend list for basic friend-touch policy (names + steal quota).
+  repeated FriendTouchFriendView friend_touch_friends = 50;
+  bool friend_touch_friends_observed = 51;
+}
+
+message FriendTouchFriendView {
+  int64 uid = 1;
+  string name = 2;
+  int32 stolen_count = 3;
+  int32 steal_max = 4;
+  int32 steal_left = 5;
+  bool can_steal = 6;
+  bool profile_observed = 7;
 }
 
 message CyclicNoteView {

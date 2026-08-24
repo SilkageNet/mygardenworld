@@ -47,6 +47,7 @@ func (s *State) applyPearlFriendsLocked(raw json.RawMessage) {
 	}
 	rawBase, hasBase := fields["0"]
 	if hasBase {
+		s.applyFrdStealCntBuyLocked(rawBase)
 		var baseFields map[string]json.RawMessage
 		if json.Unmarshal(rawBase, &baseFields) != nil {
 			return
