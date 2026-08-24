@@ -595,7 +595,6 @@ export default function PolicyPanel({
                   description="植物成熟后等待多久再收获；0=立即收获。竞赛种植的花朵不受此间隔限制，默认直接收获"
                 />
                 <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速" checked={planting?.videoSpeedUpEnabled ?? false} onChange={(checked) => updatePlanting({ videoSpeedUpEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.video_speed_up")} />}
                 <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
                 <NumberRow label="加速券上限" value={planting?.speedUpTicketMax || 0} min={0} onChange={(value) => updatePlanting({ speedUpTicketMax: value })} />
                 <NumberRow
@@ -660,7 +659,6 @@ export default function PolicyPanel({
             <PolicyGroup title="培育配置" icon={<Flower2 />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="自动培育" checked={cultivate?.enabled ?? false} onChange={(checked) => updateCultivate({ enabled: checked })} />
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频加速培育" checked={cultivate?.videoSpeedUpEnabled ?? false} onChange={(checked) => updateCultivate({ videoSpeedUpEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.cultivate_video_speed_up")} />}
                 <ToggleRow label="鲜花升级" checked={cultivate?.upgradeEnabled ?? false} onChange={(checked) => updateCultivate({ upgradeEnabled: checked })} />
                 <NumberRow label="目标等级" value={cultivate?.targetLevel || 20} min={1} onChange={(value) => updateCultivate({ targetLevel: value })} />
               </div>
@@ -710,10 +708,9 @@ export default function PolicyPanel({
             <PolicyGroup title="邮件、福利、签到" icon={<BadgeCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="邮件" checked={basic?.mailEnabled ?? false} onChange={(checked) => updateBasic({ mailEnabled: checked })} />
-                <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} description="广告桶走部分领取(skip)，不看视频；每次约3–7滴，非看视频+30" />
+                <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} description="广告桶仅使用服务端明确支持的 skip→recv 路径，不触发或伪造广告 SDK 回调；每次约3–7滴，普通桶约30滴" />
                 <ToggleRow label="限时水滴" checked={basic?.freeWaterEnabled ?? false} onChange={(checked) => updateBasic({ freeWaterEnabled: checked })} />
                 <NumberRow label="水滴领取阈值" value={basic?.waterClaimThreshold || 0} min={0} onChange={(value) => updateBasic({ waterClaimThreshold: value })} description="当前水滴≥该值时暂停水车/限时领取；0=不限制。与自然恢复上限(如130)无关" />
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="双倍金币" checked={benefit?.doubleCoinEnabled ?? false} onChange={(checked) => updateBenefit({ doubleCoinEnabled: checked })} status={settingStatusForCapability(capabilities, "basic.double_coin")} />}
                 <ToggleRow label="福利宝箱" checked={benefit?.boxEnabled ?? false} onChange={(checked) => updateBenefit({ boxEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="分享奖励" checked={benefit?.shareRewardEnabled ?? false} onChange={(checked) => updateBenefit({ shareRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "basic.share_reward")} />}
                 <ToggleRow label="防骗宝箱" checked={benefit?.antiScamBoxEnabled ?? false} onChange={(checked) => updateBenefit({ antiScamBoxEnabled: checked })} />
@@ -741,8 +738,10 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="商城" icon={<ShoppingBag />}>
+              <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                激励视频和广告礼包不提供自动化：系统不会伪造广告 SDK 回调或 token。仅支持协议明确允许直接领取或跳过广告的流程。
+              </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow label="视频礼包" checked={shop?.videoFreeGiftEnabled ?? false} onChange={(checked) => updateShop({ videoFreeGiftEnabled: checked })} />
                 <ToggleRow label="材料商店" checked={cultivateShop?.autoBuy ?? false} onChange={(checked) => updateCultivateShop({ autoBuy: checked })} />
                 <BigIntNumberRow label="材料金币上限" value={cultivateShop?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateCultivateShop({ maxSpendGold: value })} />
                 <IntListRow label="材料商品 ID" value={cultivateShop?.itemIds ?? []} onChange={(value) => updateCultivateShop({ itemIds: value })} />
@@ -988,7 +987,6 @@ export default function PolicyPanel({
 
             <PolicyGroup title="公会建设" icon={<Coins />}>
               <div className="grid gap-2 sm:grid-cols-2">
-                {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="视频建设" checked={unionBuild?.freeEnabled ?? false} onChange={(checked) => updateUnionBuild({ freeEnabled: checked })} status={settingStatusForCapability(capabilities, "union.build_video")} />}
                 <ToggleRow label="金币建设" checked={unionBuild?.goldEnabled ?? false} onChange={(checked) => updateUnionBuild({ goldEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="元宝建设" checked={unionBuild?.diamondEnabled ?? false} onChange={(checked) => updateUnionBuild({ diamondEnabled: checked })} status={settingStatusForCapability(capabilities, "union.build_diamond")} />}
                 <BigIntNumberRow label="金币上限" value={unionBuild?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateUnionBuild({ maxSpendGold: value })} />

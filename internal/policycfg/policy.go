@@ -185,7 +185,55 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.DecisionIntervalSeconds <= 0 {
 		cp.DecisionIntervalSeconds = def.DecisionIntervalSeconds
 	}
+	clearUnsupportedSDKAdAutomation(cp)
 	return cp
+}
+
+// UnsupportedSDKAdFeatures reports legacy policy switches that require a
+// client advertising SDK callback or token. Callers should inspect the raw
+// request before Normalize clears these fields for persisted-policy safety.
+func UnsupportedSDKAdFeatures(p *pb.Policy) []string {
+	if p == nil {
+		return nil
+	}
+	var features []string
+	if p.GetPlant().GetPlanting().GetVideoSpeedUpEnabled() {
+		features = append(features, "视频加速")
+	}
+	if p.GetPlant().GetCultivate().GetVideoSpeedUpEnabled() {
+		features = append(features, "视频加速培育")
+	}
+	if p.GetBasic().GetBenefit().GetDoubleCoinEnabled() {
+		features = append(features, "双倍金币")
+	}
+	if p.GetBasic().GetShop().GetVideoFreeGiftEnabled() {
+		features = append(features, "视频礼包")
+	}
+	if p.GetUnion().GetBuild().GetFreeEnabled() {
+		features = append(features, "公会视频建设")
+	}
+	return features
+}
+
+func clearUnsupportedSDKAdAutomation(p *pb.Policy) {
+	if p == nil {
+		return
+	}
+	if planting := p.GetPlant().GetPlanting(); planting != nil {
+		planting.VideoSpeedUpEnabled = false
+	}
+	if cultivate := p.GetPlant().GetCultivate(); cultivate != nil {
+		cultivate.VideoSpeedUpEnabled = false
+	}
+	if benefit := p.GetBasic().GetBenefit(); benefit != nil {
+		benefit.DoubleCoinEnabled = false
+	}
+	if shop := p.GetBasic().GetShop(); shop != nil {
+		shop.VideoFreeGiftEnabled = false
+	}
+	if build := p.GetUnion().GetBuild(); build != nil {
+		build.FreeEnabled = false
+	}
 }
 
 func Clone(p *pb.Policy) *pb.Policy {

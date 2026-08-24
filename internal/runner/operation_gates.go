@@ -35,6 +35,21 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 	if op == nil {
 		return nil
 	}
+	// Defense in depth: even if a future planner regression emits one of these
+	// operations as executable, do not send a request that depends on fabricated
+	// advertising SDK callbacks or tokens.
+	switch op.Kind {
+	case clientproto.RPCShopGiftbagBuy.String():
+		for _, offer := range r.state.ShopGiftbagOffers() {
+			if offer.ShopID == op.TargetID && offer.ShareID > 0 {
+				return fmt.Errorf("%s: 视频礼包 shareId=%d", automation.SDKAdUnsupportedReason, offer.ShareID)
+			}
+		}
+	case clientproto.RPCFmlBld.String():
+		if option, ok := state.FmlBuildOptionByID(op.TargetID); ok && option.ShareID > 0 {
+			return fmt.Errorf("%s: 公会建设 shareId=%d", automation.SDKAdUnsupportedReason, option.ShareID)
+		}
+	}
 	for _, gate := range op.CostGates {
 		if err := r.checkCostGate(op, gate, now); err != nil {
 			return err

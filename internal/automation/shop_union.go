@@ -62,22 +62,32 @@ func giftbagOperations(s *state.State, shop *pb.ShopPolicy) []PlannedOp {
 	if !shop.GetVideoFreeGiftEnabled() {
 		return nil
 	}
-	goal := Goal{ID: "basic.shop.giftbag", Category: CategoryBasic, Domain: "basic.shop.giftbag", Label: "视频礼包", Priority: 54}
-	if !s.ShopGiftbagObserved() {
-		return []PlannedOp{domainOp(clientproto.RPCShopGiftbagEnter.String(), goal, "basic.shop.giftbag", "sync", "礼包商店状态未同步，先进入商店获取购买记录", 5480, 0, 0, 0)}
-	}
+	goal := Goal{ID: "basic.shop.giftbag", Category: CategoryBasic, Domain: "basic.shop.giftbag", Label: "免费礼包", Priority: 54}
 	for _, offer := range s.ShopGiftbagOffers() {
-		if !freeVideoGiftbag(offer) || offer.Remaining <= 0 {
+		if !zeroCostGiftbag(offer) || offer.Remaining <= 0 {
 			continue
 		}
-		buy := domainOp(clientproto.RPCShopGiftbagBuy.String(), goal, "basic.shop.video_gift", "claim", "视频免费礼包可领取", 5470, offer.ShopID, 0, 1)
+		if offer.ShareID > 0 {
+			blocked := markerOp(CategoryBasic, "basic.shop.video_gift", "claim", "视频礼包需要广告 SDK 回调，已拒绝自动领取", 5470)
+			blocked.TargetID = offer.ShopID
+			blocked.Status = PlanStatusAdapterMissing
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{SDKAdUnsupportedReason}
+			return []PlannedOp{blocked}
+		}
+		// A future zero-cost offer may be automated only when the observed
+		// protocol explicitly has no advertising/share proof requirement.
+		if !s.ShopGiftbagObserved() {
+			return []PlannedOp{domainOp(clientproto.RPCShopGiftbagEnter.String(), goal, "basic.shop.giftbag", "sync", "免费礼包状态未同步，先进入商店获取领取记录", 5480, 0, 0, 0)}
+		}
+		buy := domainOp(clientproto.RPCShopGiftbagBuy.String(), goal, "basic.shop.giftbag", "claim", "无广告回调要求的免费礼包可领取", 5470, offer.ShopID, 0, 1)
 		return []PlannedOp{buy}
 	}
 	return nil
 }
 
-func freeVideoGiftbag(offer state.ShopGiftbagOfferView) bool {
-	return offer.Type == 1 && offer.ShareID > 0 && offer.RchgID == 0 &&
+func zeroCostGiftbag(offer state.ShopGiftbagOfferView) bool {
+	return offer.Type == 1 && offer.RchgID == 0 &&
 		offer.MoneyID == 0 && offer.Price == 0 && offer.PriceMax == 0
 }
 
@@ -384,7 +394,7 @@ func applyUnionBuildCostGate(op *PlannedOp, option state.FmlBuildOption, policy 
 	// c_fmlBld id=1 is 视频捐献 (shareId→c_share hasVideo). Bare fml.bld({id:1})
 	// is rejected without the SDK video/share flow; runner does not forge that.
 	if option.ShareID > 0 {
-		return []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}
+		return []string{SDKAdUnsupportedReason}
 	}
 	if option.ItemID <= 0 || option.Cost <= 0 {
 		return []string{"公会建设档位缺少可执行成本配置"}

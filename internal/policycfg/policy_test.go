@@ -46,6 +46,43 @@ func TestNormalizeDisplacedSessionReloginDefaultsOffAndPreservesChoice(t *testin
 	}
 }
 
+func TestNormalizeClearsUnsupportedSDKAdAutomation(t *testing.T) {
+	p := automation.DefaultPolicy()
+	p.Plant.Planting.VideoSpeedUpEnabled = true
+	p.Plant.Cultivate.VideoSpeedUpEnabled = true
+	p.Basic.Benefit.DoubleCoinEnabled = true
+	p.Basic.Shop.VideoFreeGiftEnabled = true
+	p.Union.Build.FreeEnabled = true
+
+	features := UnsupportedSDKAdFeatures(p)
+	if len(features) != 5 {
+		t.Fatalf("UnsupportedSDKAdFeatures() = %v, want five features", features)
+	}
+	normalized := Normalize(p)
+	if got := UnsupportedSDKAdFeatures(normalized); len(got) != 0 {
+		t.Fatalf("Normalize() retained unsupported SDK ad features: %v", got)
+	}
+	// Normalize clones its input, so API validation can still inspect the raw
+	// request and reject it explicitly.
+	if got := UnsupportedSDKAdFeatures(p); len(got) != 5 {
+		t.Fatalf("Normalize() mutated input features: %v", got)
+	}
+}
+
+func TestFromJSONClearsLegacySDKAdAutomation(t *testing.T) {
+	p, err := FromJSON(`{
+		"plant":{"planting":{"video_speed_up_enabled":true},"cultivate":{"video_speed_up_enabled":true}},
+		"basic":{"benefit":{"double_coin_enabled":true},"shop":{"video_free_gift_enabled":true}},
+		"union":{"build":{"free_enabled":true}}
+	}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := UnsupportedSDKAdFeatures(p); len(got) != 0 {
+		t.Fatalf("legacy SDK ad switches survived load: %v", got)
+	}
+}
+
 func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
 	oldPolicy, err := FromJSON(`{"basic":{"reconnect_interval_seconds":45}}`)
 	if err != nil {

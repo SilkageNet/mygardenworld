@@ -1999,7 +1999,7 @@ func TestBuildPlan_ShopCultivateEnterWhenLarTimeMissing(t *testing.T) {
 	t.Fatalf("missing shop cultivate enter after incomplete observe: %+v", result.Operations)
 }
 
-func TestBuildPlan_ShopGiftbagEnterBeforeObserved(t *testing.T) {
+func TestBuildPlan_ShopGiftbagVideoGiftBlockedBeforeObserved(t *testing.T) {
 	s := state.New()
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
@@ -2007,14 +2007,14 @@ func TestBuildPlan_ShopGiftbagEnterBeforeObserved(t *testing.T) {
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
-		if op.Domain == "basic.shop.giftbag" {
-			if op.Kind != clientproto.RPCShopGiftbagEnter.String() || op.Action != "sync" || !op.Executable || op.SyncOnly {
-				t.Fatalf("shop giftbag sync op mismatch: %+v", op)
+		if op.Domain == "basic.shop.video_gift" {
+			if op.Executable || op.Status != PlanStatusAdapterMissing || op.TargetID != 1 || !hasReasonContaining(op.BlockedReasons, "SDK 广告") {
+				t.Fatalf("unobserved video gift should be blocked: %+v", op)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing shop giftbag sync op: %+v", result.Operations)
+	t.Fatalf("missing blocked video gift op: %+v", result.Operations)
 }
 
 func TestBuildPlan_ShopGiftbagVideoGift(t *testing.T) {
@@ -2031,13 +2031,13 @@ func TestBuildPlan_ShopGiftbagVideoGift(t *testing.T) {
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Domain == "basic.shop.video_gift" {
-			if op.Kind != clientproto.RPCShopGiftbagBuy.String() || op.TargetID != 1 || op.Count != 1 || !op.Executable || op.SyncOnly {
-				t.Fatalf("shop giftbag buy op mismatch: %+v", op)
+			if op.Executable || op.Status != PlanStatusAdapterMissing || op.TargetID != 1 || !hasReasonContaining(op.BlockedReasons, "SDK 广告") {
+				t.Fatalf("observed video gift should be blocked: %+v", op)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing shop giftbag buy op: %+v", result.Operations)
+	t.Fatalf("missing blocked video gift op: %+v", result.Operations)
 }
 
 func TestBuildPlan_ShopGiftbagPaidGiftIgnoredAndVipBlocked(t *testing.T) {

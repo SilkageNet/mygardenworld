@@ -373,6 +373,40 @@ func TestShopGiftbagOperationArgs(t *testing.T) {
 	}
 }
 
+func TestSDKAdOperationsRejectedBeforeExecution(t *testing.T) {
+	r := &Runner{state: state.New()}
+	now := time.Now()
+	tests := []struct {
+		name string
+		op   automation.PlannedOp
+	}{
+		{
+			name: "video giftbag",
+			op: automation.PlannedOp{
+				Kind:     clientproto.RPCShopGiftbagBuy.String(),
+				TargetID: 1,
+				Count:    1,
+			},
+		},
+		{
+			name: "video union build",
+			op: automation.PlannedOp{
+				Kind:     clientproto.RPCFmlBld.String(),
+				TargetID: 1,
+				Count:    1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := r.checkOperationResources(&tt.op, now)
+			if err == nil || !strings.Contains(err.Error(), "SDK 广告") || !strings.Contains(err.Error(), "不会编造") {
+				t.Fatalf("checkOperationResources() error = %v, want explicit SDK ad rejection", err)
+			}
+		})
+	}
+}
+
 func TestUsrExtraAntiFraudOperationArgs(t *testing.T) {
 	cases := []struct {
 		name string

@@ -52,14 +52,14 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		}
 	}
 	if benefit.GetDoubleCoinEnabled() && !s.VideoDoubleActive(now) {
-		reason := "双倍金币未生效，看视频奖励需要客户端 SDK token"
+		reason := "双倍金币未生效，已拒绝需要广告 SDK 回调的自动领取"
 		if !s.VideoDoubleObserved() {
-			reason = "双倍金币状态未同步，看视频奖励需要客户端 SDK token"
+			reason = "双倍金币状态未同步，已拒绝需要广告 SDK 回调的自动领取"
 		}
 		blocked := markerOp(CategoryBasic, "basic.benefit.double_coin", "claim", reason, 6385)
 		blocked.Status = PlanStatusAdapterMissing
 		blocked.Executable = false
-		blocked.BlockedReasons = []string{"客户端通过 UT.share(11,{opType:1}) 完成激励视频后调用 usr.share；本地 runner 不伪造视频完成或 SDK token"}
+		blocked.BlockedReasons = []string{SDKAdUnsupportedReason}
 		ops = append(ops, blocked)
 	}
 	if benefit.GetAntiScamBoxEnabled() {
