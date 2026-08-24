@@ -3,6 +3,8 @@ package apiserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	connect "connectrpc.com/connect"
 
@@ -34,6 +36,12 @@ func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetP
 	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
 	if err != nil {
 		return nil, mapErr(err)
+	}
+	if features := policycfg.UnsupportedSDKAdFeatures(req.Msg.GetPolicy()); len(features) > 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf(
+			"不支持需要客户端 SDK 广告回调的自动化，也不会编造回调参数或 token: %s",
+			strings.Join(features, "、"),
+		))
 	}
 	// Preserve the live start/pause intent. Settings edits must not flip
 	// automation back on after the operator paused via AutomationService.Stop.

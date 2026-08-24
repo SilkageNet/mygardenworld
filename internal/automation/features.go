@@ -9,6 +9,11 @@ const (
 	PlanStatusAdapterMissing = "adapter_missing"
 	PlanStatusBlocked        = "blocked"
 	PlanStatusSkipped        = "skipped"
+
+	// SDKAdUnsupportedReason is the product boundary for reward flows that
+	// require a client-side advertising SDK callback or token. The runner must
+	// never synthesize those proofs.
+	SDKAdUnsupportedReason = "需要客户端 SDK 广告回调或 token；本项目不支持广告 SDK 自动化，也不会编造回调参数"
 )
 
 // FeatureSpec is the shared feature catalog used by plan generation and UI
@@ -32,9 +37,9 @@ var featureSpecs = []FeatureSpec{
 	{ID: "plant.water", Label: "浇水", Category: CategoryPlant, Domain: "farm.water", Action: "water", Status: PlanStatusReady, Executable: true},
 	{ID: "plant.land_unlock", Label: "土地开垦", Category: CategoryPlant, Domain: "farm.land", Action: "unlock", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.speed_up", Label: "加速", Category: CategoryPlant, Domain: "farm.speed_up", Action: "speed_up", Status: PlanStatusManaged, Executable: true},
-	{ID: "plant.video_speed_up", Label: "视频加速", Category: CategoryPlant, Domain: "farm.speed_up.video", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}},
+	{ID: "plant.video_speed_up", Label: "视频加速", Category: CategoryPlant, Domain: "farm.speed_up.video", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{SDKAdUnsupportedReason}},
 	{ID: "plant.cultivate", Label: "培育", Category: CategoryPlant, Domain: "farm.cultivate", Action: "cultivate", Status: PlanStatusManaged, Executable: true},
-	{ID: "plant.cultivate_video_speed_up", Label: "视频加速培育", Category: CategoryPlant, Domain: "farm.cultivate.video", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}},
+	{ID: "plant.cultivate_video_speed_up", Label: "视频加速培育", Category: CategoryPlant, Domain: "farm.cultivate.video", Action: "speed_up", Status: PlanStatusAdapterMissing, BlockedReasons: []string{SDKAdUnsupportedReason}},
 	{ID: "plant.cultivate_recv", Label: "培育领取", Category: CategoryPlant, Domain: "farm.cultivate", Action: "recv", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.upgrade", Label: "鲜花升级", Category: CategoryPlant, Domain: "farm.upgrade", Action: "upgrade", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.friend_steal", Label: "好友偷花", Category: CategoryPlant, Domain: "farm.friend_steal", Action: "steal", Status: PlanStatusSyncOnly, SyncOnly: true},
@@ -54,7 +59,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.mail_sync", Label: "邮件同步", Category: CategoryBasic, Domain: "basic.mail", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.mail", Label: "邮件", Category: CategoryBasic, Domain: "basic.mail", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.welfare", Label: "福利", Category: CategoryBasic, Domain: "basic.welfare", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"缺少福利执行 adapter"}},
-	{ID: "basic.double_coin", Label: "双倍金币", Category: CategoryBasic, Domain: "basic.benefit.double_coin", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"看视频双倍金币需要客户端 SDK 广告 token，暂不自动执行"}},
+	{ID: "basic.double_coin", Label: "双倍金币", Category: CategoryBasic, Domain: "basic.benefit.double_coin", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{SDKAdUnsupportedReason}},
 	{ID: "basic.share_reward", Label: "分享奖励", Category: CategoryBasic, Domain: "basic.benefit.share", Action: "claim", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "basic.anti_scam_box", Label: "防骗宝箱", Category: CategoryBasic, Domain: "basic.benefit.anti_scam", Action: "answer", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.anti_scam_box", Label: "防骗宝箱", Category: CategoryBasic, Domain: "basic.benefit.anti_scam", Action: "claim", Status: PlanStatusManaged, Executable: true},
@@ -79,7 +84,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "basic.pearl_buy_hire_ticket", Label: "买雇佣书", Category: CategoryBasic, Domain: "basic.pearl.buy_hire_ticket", Action: "buy", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"元宝成本尚未放开自动执行"}},
 	{ID: "basic.shop", Label: "商城", Category: CategoryBasic, Domain: "basic.shop", Action: "buy", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "basic.shop_giftbag_sync", Label: "礼包商店同步", Category: CategoryBasic, Domain: "basic.shop.giftbag", Action: "sync", Status: PlanStatusManaged, Executable: true},
-	{ID: "basic.shop_video_gift", Label: "视频礼包", Category: CategoryBasic, Domain: "basic.shop.video_gift", Action: "claim", Status: PlanStatusManaged, Executable: true},
+	{ID: "basic.shop_video_gift", Label: "视频礼包", Category: CategoryBasic, Domain: "basic.shop.video_gift", Action: "claim", Status: PlanStatusAdapterMissing, BlockedReasons: []string{SDKAdUnsupportedReason}},
 	{ID: "basic.shop_cultivate_sync", Label: "材料商店同步", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_cultivate_refresh", Label: "材料商店刷新", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "refresh", Status: PlanStatusManaged, Executable: true},
 	{ID: "basic.shop_cultivate", Label: "材料商店", Category: CategoryBasic, Domain: "basic.shop.cultivate", Action: "buy", Status: PlanStatusManaged, Executable: true},
@@ -114,7 +119,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "order.flower_art_early_cancel", Label: "花架提前下架", Category: CategoryOrder, Domain: "order.flower_art", Action: "cancel", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"提前下架的状态和损失尚未确认"}},
 
 	{ID: "union.build", Label: "公会建设", Category: CategoryUnion, Domain: "union.build", Action: "build", Status: PlanStatusManaged, Executable: true},
-	{ID: "union.build_video", Label: "公会视频建设", Category: CategoryUnion, Domain: "union.build.video", Action: "build", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"依赖客户端 SDK 广告 token，本地 runner 不伪造视频完成"}},
+	{ID: "union.build_video", Label: "公会视频建设", Category: CategoryUnion, Domain: "union.build.video", Action: "build", Status: PlanStatusAdapterMissing, BlockedReasons: []string{SDKAdUnsupportedReason}},
 	{ID: "union.build_diamond", Label: "公会元宝建设", Category: CategoryUnion, Domain: "union.build.diamond", Action: "build", Status: PlanStatusAdapterMissing, BlockedReasons: []string{"元宝成本和安全门槛尚未放开自动执行"}},
 	{ID: "union.flower", Label: "公会鲜花共享", Category: CategoryUnion, Domain: "union.flower", Action: "share_take", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "union.flower_share", Label: "公会分享", Category: CategoryUnion, Domain: "union.flower.share", Action: "share", Status: PlanStatusSyncOnly, SyncOnly: true},
