@@ -203,8 +203,12 @@ func DefaultPolicy() *pb.Policy {
 				MinWaterDrops:         5,
 				AutoReplantMode:       pb.SelectionMode_SELECTION_MODE_ALL,
 			},
-			FriendSteal: &pb.FriendStealPolicy{},
-			Elves:       &pb.FlowerElvesPolicy{},
+			FriendSteal: &pb.FriendStealPolicy{
+				Mode:         pb.SelectionMode_SELECTION_MODE_ALL,
+				FriendMode:   pb.SelectionMode_SELECTION_MODE_ALL,
+				FriendCounts: map[int64]int32{},
+			},
+			Elves: &pb.FlowerElvesPolicy{},
 			Market: &pb.FlowerMarketPolicy{
 				PutMode:    pb.MarketPutMode_MARKET_PUT_MODE_INVENTORY,
 				BuyMode:    pb.MarketBuyMode_MARKET_BUY_MODE_ALL,

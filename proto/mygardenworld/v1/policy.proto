@@ -42,6 +42,27 @@ message BasicPolicy {
   // perform a fresh login after reconnect_interval_seconds. Disabled by
   // default; ordinary session expiry never uses this recovery path.
   bool displaced_session_relogin_enabled = 16;
+
+  // Deprecated compatibility field from the initial KK implementation.
+  // Normalize migrates it to plant.friend_steal; new clients must not write it.
+  FriendTouchPolicy friend_touch = 17;
+}
+
+// Friend flower pick (摘花/摸花) via frdSteal.*.
+// mode ALL: pick every stealable friend up to daily quota.
+// mode SPECIFIC: pick only friend_counts targets.
+// exclude_uids skips friends in both modes.
+message FriendTouchPolicy {
+  bool enabled = 1;
+  bool steal_elves = 2;
+  map<int64, int32> friend_counts = 3;
+  // Exchange friendship coins (item 1305) for extra per-friend pick quota.
+  bool auto_buy_times = 4;
+  int32 max_buy_per_friend = 5;
+  // SELECTION_MODE_ALL or SELECTION_MODE_SPECIFIC. Unspecified falls back to
+  // SPECIFIC when friend_counts is non-empty, otherwise ALL.
+  SelectionMode mode = 6;
+  repeated int64 exclude_uids = 7;
 }
 
 message ReputationPolicy {
@@ -171,8 +192,18 @@ message FriendStealPolicy {
   repeated int32 flower_ids = 5;
   repeated int32 exclude_flower_ids = 6;
   bool auto_buy_times = 7;
+  // Deprecated speculative settings. Extra attempts cost friendship coins,
+  // not diamonds; these values are ignored after normalization.
   int32 buy_count = 8;
   int64 max_spend_diamond = 9;
+
+  // Friend selection is separate from mode, which selects flower types.
+  // Only ALL and SPECIFIC are accepted here.
+  SelectionMode friend_mode = 10;
+  map<int64, int32> friend_counts = 11;
+  repeated int64 exclude_uids = 12;
+  // Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
+  int32 max_buy_per_friend = 13;
 }
 
 message FlowerElvesPolicy {
@@ -358,6 +389,11 @@ message UnionLandPolicy {
   // low-level flowers (except when the current crop matures within 2 minutes).
   // 0 means default 20.
   int32 min_maturity_minutes = 7;
+  // After every filtered plantable flower is at/above level 11, occupied lands
+  // with a different flower are only replaced once the current crop has been
+  // planted for at least this many minutes. Empty slots are always filled.
+  // Multiple flower types may coexist across guild lands. 0 means default 60.
+  int32 min_replant_minutes = 8;
 }
 
 message ActivityPolicy {

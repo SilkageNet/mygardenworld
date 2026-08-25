@@ -15,14 +15,18 @@ import (
 )
 
 type operationAttempt struct {
-	op               *automation.PlannedOp
-	args             any
-	startedAt        time.Time
-	goldBefore       int32
-	levelBefore      int32
-	waterDropsBefore int32
-	scoreBefore      int32
-	scoreBeforeSet   bool
+	op                         *automation.PlannedOp
+	args                       any
+	startedAt                  time.Time
+	goldBefore                 int32
+	levelBefore                int32
+	waterDropsBefore           int32
+	scoreBefore                int32
+	scoreBeforeSet             bool
+	friendStealUsedBefore      int32
+	friendStealUsedBeforeSet   bool
+	friendStealBoughtBefore    int32
+	friendStealBoughtBeforeSet bool
 }
 
 type operationResult struct {
@@ -548,6 +552,18 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
 	category := op.Category
 	switch op.Kind {
+	case clientproto.RPCFrdStealEnterFrdSteal.String():
+		view := r.state.FriendTouch(result.finishedAt)
+		if view.VisitUID == op.TargetUID {
+			if _, ok := state.ReadyFriendStealLandID(view.VisitLands, result.finishedAt); !ok {
+				r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(5*time.Minute))
+			}
+		}
+	case clientproto.RPCFrdStealSteal.String():
+		r.state.NoteFriendStealSuccess(op.TargetUID, op.TargetID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
+		r.state.ClearFriendTouchSkipEnter(op.TargetUID)
+	case clientproto.RPCFrdExtBuyStealCnt.String():
+		r.state.NoteFriendStealPurchase(op.TargetUID, result.friendStealBoughtBefore, result.friendStealBoughtBeforeSet, result.finishedAt)
 	case clientproto.RPCOrderFlowerFinishOrder.String():
 		kind = "order_finish"
 		label = "普通居民订单"

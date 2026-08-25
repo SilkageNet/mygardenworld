@@ -41,6 +41,8 @@
 //	105        | Flower orders                    | orderFlower.finishOrder / finishSatinOrder / finishDecorateOrder
 //	106        | Flower art / share state          | flowerArt.makeFlowerArt, usr.share
 //	109        | Customer orders                  | orderCustomer.*
+//	110        | Friend availability/status       | frdExt.getFrdOtherInfoByUids
+//	111        | Friend flower-pick state/land    | frdSteal.*
 //	112        | Gift bag shop                    | shopGiftbag.enter/buy
 //	113        | Cultivation material shop        | shopCultivate.enter/refresh/buy
 //	114        | Waterwheel state (see below)     | waterwheel.*
@@ -124,6 +126,28 @@
 // client-side `$ext.iv`: exact zero is safe; nonzero or malformed-present data
 // locks automatic hiring for the rest of the session.
 //
+// # Friend Flower Pick State (Namespaces 24, 110, 111)
+//
+// Automatic friend flower picking is driven only by observed state:
+//
+//	24.0.9        relation reset timestamp used for the daily purchase map
+//	24.0.104      friend UID -> extra attempts already bought today
+//	24.1[]        authoritative friend relationships
+//	110.1.<uid>.0 isSteal; nonzero means the friend currently exposes a pick opportunity
+//	111.0.1       friend UID -> attempts already used today
+//	111.0.3       daily reset timestamp for the used-attempt map
+//	111.1.0       currently visited friend UID
+//	111.1.1       visited friend's land map
+//	111.2         sparse visited-land changes
+//
+// c_frd currently declares $stealMax=10, $pickMax=10, and $pickAddCost=1;
+// item 1305 is the friendship coin used by frdExt.buyStealCnt. The runner
+// validates friendship membership, current-day used/bought maps, recent
+// isSteal state, inventory cost, and the exact land again immediately before
+// mutation. Unknown or stale state is a hard stop. The observed request field
+// stealElves exists, but flower-elf availability and success deltas are not yet
+// live-verified, so automation always sends stealElves=0.
+//
 // # Cyclic Note Activity (Namespace 23)
 //
 // 花笺集芳 is discovered from live batch/template state rather than a fixed
@@ -197,8 +221,11 @@
 //	"1" = state (1=just planted/needs water, 2=growing, 3=harvestable)
 //	"2" = level
 //	"3" = harvestCount
+//	"4" = stealUids (players who already picked this plot)
 //	"5" = nextTimeMs (regrow completion timestamp)
+//	"6" = elvesId (observed schema; automatic elf picking is unsupported)
 //	"7" = plantTimeMs (last state change)
+//	"8" = elvesStealUids (observed schema; automatic elf picking is unsupported)
 //
 // # Cultivation State (Namespace 101)
 //
@@ -344,6 +371,10 @@
 //	pearl.setProtectState {protectState}           → {115}
 //	frd.enter            {needFriendList:1,needApplyList:0,needBlackList:0} → {24,28,...}
 //	oppt.getDetailOppts  {uids:[uid],extKeys:[1]}  → {28}
+//	frdExt.getFrdOtherInfoByUids {uids:[uid],steal:1} → {110}
+//	frdExt.buyStealCnt   {frdUid,buyCnt:1}        → {7,24,...}       costs c_frd.$pickAddCost item 1305
+//	frdSteal.enterFrdSteal {point:[22,frdUid]}    → {111,...}
+//	frdSteal.steal      {frdUid,landId,stealElves:0} → {7,111,...}
 //	pearl.getHireStateByUids {uids:[uid]}          → {115.5}
 //	pearl.getRecommendList {}                      → {115.5,115.6}
 //	pearlPlace.hire      {placeId,dstUid}           → {7,115,...}

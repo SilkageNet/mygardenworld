@@ -97,6 +97,7 @@ import type {
 import type {
   FeatureCapability,
   GetSnapshotResponse,
+  FriendTouchFriendView,
   PlantableFlowerView,
   SellableFlowerArtView,
 } from "@/gen/mygardenworld/v1/query_service_pb";
@@ -169,6 +170,11 @@ const AUTO_REPLANT_SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.SPECIFIC, label: "指定" },
   { value: SelectionMode.EXCLUDE, label: "排除" },
+];
+
+const FRIEND_TOUCH_MODE_OPTIONS = [
+  { value: SelectionMode.ALL, label: "全部可摘" },
+  { value: SelectionMode.SPECIFIC, label: "指定次数" },
 ];
 
 const MARKET_PUT_MODE_OPTIONS = [
@@ -343,7 +349,7 @@ export default function PolicyPanel({
   const updateBasic = (patch: Partial<BasicPolicy>) => {
     if (!policy) return;
     const current = policy.basic ?? create(BasicPolicySchema);
-    onPolicyChange({ ...policy, basic: { ...current, ...patch } });
+    onPolicyChange({ ...policy, basic: create(BasicPolicySchema, { ...current, ...patch }) });
   };
   const updateReputation = (patch: Partial<ReputationPolicy>) => {
     if (!policy) return;
@@ -374,6 +380,25 @@ export default function PolicyPanel({
     const currentBasic = policy.basic ?? create(BasicPolicySchema);
     const current = currentBasic.pearl ?? create(PearlPolicySchema);
     updateBasic({ pearl: { ...current, ...patch } });
+  };
+  const updateFriendTouchCount = (uid: bigint, count: number) => {
+    const key = uid.toString();
+    const next = { ...(friendSteal?.friendCounts ?? {}) };
+    if (count <= 0) {
+      delete next[key];
+    } else {
+      next[key] = count;
+    }
+    updateFriendSteal({ friendCounts: next });
+  };
+  const updateFriendTouchExcluded = (uid: bigint, excluded: boolean) => {
+    const current = friendSteal?.excludeUids ?? [];
+    const next = excluded
+      ? current.includes(uid)
+        ? current
+        : [...current, uid]
+      : current.filter((value) => value !== uid);
+    updateFriendSteal({ excludeUids: next });
   };
   const updateShop = (patch: Partial<ShopPolicy>) => {
     if (!policy) return;
@@ -737,6 +762,83 @@ export default function PolicyPanel({
               </div>
             </PolicyGroup>
 
+            <PolicyGroup title="好友摸花" icon={<Users />}>
+			  <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+				仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
+				<code>stealElves=1</code>。
+			  </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow
+                  label="自动摸花"
+				  checked={friendSteal?.enabled ?? false}
+				  onChange={(checked) => updateFriendSteal({ enabled: checked })}
+				  status={settingStatusForCapability(capabilities, "plant.friend_steal")}
+                />
+                <SegmentedRow
+				  label="好友范围"
+				  value={friendSteal?.friendMode || SelectionMode.ALL}
+                  options={FRIEND_TOUCH_MODE_OPTIONS}
+				  onChange={(value) => updateFriendSteal({ friendMode: value })}
+                />
+				<SegmentedRow
+				  label="鲜花范围"
+				  value={friendSteal?.mode || SelectionMode.ALL}
+				  options={SELECTION_MODE_OPTIONS}
+				  onChange={(value) => updateFriendSteal({ mode: value })}
+				/>
+				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.QUALITY && (
+				  <QualityRow
+					label="指定品质"
+					value={friendSteal?.qualities ?? []}
+					onChange={(value) => updateFriendSteal({ qualities: value })}
+				  />
+				)}
+				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.SPECIFIC && (
+				  <CatalogFlowerMultiSelectRow
+					label="指定鲜花"
+					value={friendSteal?.flowerIds ?? []}
+					inventory={snapshot?.inventory ?? {}}
+					synced={Boolean(snapshot)}
+					onChange={(value) => updateFriendSteal({ flowerIds: value })}
+				  />
+				)}
+				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE && (
+				  <CatalogFlowerMultiSelectRow
+					label="排除鲜花"
+					value={friendSteal?.excludeFlowerIds ?? []}
+					inventory={snapshot?.inventory ?? {}}
+					synced={Boolean(snapshot)}
+					onChange={(value) => updateFriendSteal({ excludeFlowerIds: value })}
+				  />
+				)}
+                <ToggleRow
+                  label="友情币兑换次数"
+				  checked={friendSteal?.autoBuyTimes ?? false}
+				  onChange={(checked) => updateFriendSteal({ autoBuyTimes: checked })}
+				  status={settingStatusForCapability(capabilities, "plant.friend_steal_buy")}
+                />
+                <NumberRow
+                  label="每好友兑换上限"
+				  value={friendSteal?.maxBuyPerFriend || 0}
+                  min={0}
+				  max={10}
+				  onChange={(value) => updateFriendSteal({ maxBuyPerFriend: value })}
+				  description="每次消耗 1 友情币；0 使用静态目录 $pickMax（当前为 10）"
+                />
+              </div>
+              <FriendTouchFriendList
+                friends={snapshot?.friendTouchFriends ?? []}
+                observed={snapshot?.friendTouchFriendsObserved ?? false}
+				mode={friendSteal?.friendMode || SelectionMode.ALL}
+				counts={friendSteal?.friendCounts ?? {}}
+				excluded={new Set((friendSteal?.excludeUids ?? []).map((uid) => uid.toString()))}
+				autoBuy={friendSteal?.autoBuyTimes ?? false}
+				maxBuyPerFriend={friendSteal?.maxBuyPerFriend || 10}
+                onCountChange={updateFriendTouchCount}
+                onExcludedChange={updateFriendTouchExcluded}
+              />
+            </PolicyGroup>
+
             <PolicyGroup title="商城" icon={<ShoppingBag />}>
               <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
                 激励视频和广告礼包不提供自动化：系统不会伪造广告 SDK 回调或 token。仅支持协议明确允许直接领取或跳过广告的流程。
@@ -774,20 +876,6 @@ export default function PolicyPanel({
 
             {SHOW_UNSUPPORTED_SETTINGS && (
               <>
-                <PolicyGroup title="好友偷花" icon={<HandCoins />}>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <ToggleRow label="自动偷花" checked={friendSteal?.enabled ?? false} onChange={(checked) => updateFriendSteal({ enabled: checked })} status={settingStatusForCapability(capabilities, "plant.friend_steal")} />
-                    <ToggleRow label="偷取花灵" checked={friendSteal?.stealElves ?? false} onChange={(checked) => updateFriendSteal({ stealElves: checked })} />
-                    <SegmentedRow label="偷花模式" value={friendSteal?.mode || SelectionMode.ALL} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateFriendSteal({ mode: value })} />
-                    <QualityRow label="指定品质" value={friendSteal?.qualities ?? []} onChange={(value) => updateFriendSteal({ qualities: value })} />
-                    <IntListRow label="指定花朵" value={friendSteal?.flowerIds ?? []} onChange={(value) => updateFriendSteal({ flowerIds: value })} />
-                    <IntListRow label="排除花朵" value={friendSteal?.excludeFlowerIds ?? []} onChange={(value) => updateFriendSteal({ excludeFlowerIds: value })} />
-                    <ToggleRow label="购买偷取次数" checked={friendSteal?.autoBuyTimes ?? false} onChange={(checked) => updateFriendSteal({ autoBuyTimes: checked })} status={settingStatusForCapability(capabilities, "plant.friend_steal_buy")} />
-                    <NumberRow label="购买次数" value={friendSteal?.buyCount || 0} min={0} onChange={(value) => updateFriendSteal({ buyCount: value })} />
-                    <BigIntNumberRow label="元宝上限" value={friendSteal?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateFriendSteal({ maxSpendDiamond: value })} />
-                  </div>
-                </PolicyGroup>
-
                 <PolicyGroup title="花灵与密令" icon={<Sparkles />}>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <ToggleRow label="自动种花灵" checked={elves?.enabled ?? false} onChange={(checked) => updateElves({ enabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves")} />
@@ -965,7 +1053,14 @@ export default function PolicyPanel({
                   value={unionLand?.minMaturityMinutes || 20}
                   min={1}
                   onChange={(value) => updateUnionLand({ minMaturityMinutes: value })}
-                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长换种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长选种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                />
+                <NumberRow
+                  label="改种冷却(分钟)"
+                  value={unionLand?.minReplantMinutes || 60}
+                  min={1}
+                  onChange={(value) => updateUnionLand({ minReplantMinutes: value })}
+                  description="全部≥11级后：空地随时补种；已种地块需满此时间才允许改种其他花，多种花可并存。未满11级练级换种不受此限制。"
                 />
                 <FlowerMultiSelectRow
                   label="指定花朵"
@@ -2212,6 +2307,117 @@ function SettingStatusBadge({ status }: { status: SettingStatus }) {
     <Badge variant={variant} title={status.detail} className="shrink-0">
       {status.label}
     </Badge>
+  );
+}
+
+function FriendTouchFriendList({
+  friends,
+  observed,
+  mode,
+  counts,
+  excluded,
+  autoBuy,
+  maxBuyPerFriend,
+  onCountChange,
+  onExcludedChange,
+}: {
+  friends: FriendTouchFriendView[];
+  observed: boolean;
+  mode: SelectionMode;
+  counts: Record<string, number>;
+  excluded: Set<string>;
+  autoBuy: boolean;
+  maxBuyPerFriend: number;
+  onCountChange: (uid: bigint, count: number) => void;
+  onExcludedChange: (uid: bigint, excluded: boolean) => void;
+}) {
+  const specific = mode === SelectionMode.SPECIFIC;
+  if (!observed) {
+    return (
+      <EmptyState
+        title="尚未同步好友列表"
+		detail="请先开启自动摸花并保存；下一轮会同步好友列表，随后即可配置指定目标。"
+      />
+    );
+  }
+  if (friends.length === 0) {
+    return <EmptyState title="暂无好友" detail="游戏好友列表为空时无法配置摸花目标。" />;
+  }
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="text-xs text-muted-foreground">
+          {specific
+            ? "为指定好友设置今日摸花次数；可勾选排除不主动摸取"
+            : "自动摸取全部可摘好友；勾选排除后跳过该好友"}
+        </span>
+        <span className="text-xs text-muted-foreground">{friends.length} 人</span>
+      </div>
+      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+        {friends.map((friend) => {
+          const key = friend.uid.toString();
+          const target = counts[key] ?? 0;
+          const isExcluded = excluded.has(key);
+          const displayName = friend.name.trim() || (friend.profileObserved ? `UID ${key}` : `好友 ${key}`);
+		  const progress =
+			friend.quotaObserved
+              ? `今日 ${friend.stolenCount}/${friend.stealMax}`
+			  : "次数未同步";
+		  const targetMax = friend.baseStealMax + (autoBuy ? maxBuyPerFriend : friend.boughtCount);
+          return (
+            <div
+              key={key}
+              className={cn(
+                "flex flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5",
+                isExcluded && "opacity-60",
+              )}
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="truncate text-sm font-medium">{displayName}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>UID {key}</span>
+                    <span>{progress}</span>
+					{friend.availabilityObserved && friend.canSteal ? (
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                        可摘
+                      </Badge>
+					) : friend.availabilityObserved ? (
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+                        暂不可摘
+                      </Badge>
+					) : (
+					  <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+						状态待同步
+					  </Badge>
+                    )}
+                  </div>
+                </div>
+                <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                  <Switch checked={isExcluded} onCheckedChange={(checked) => onExcludedChange(friend.uid, checked)} />
+                  排除
+                </label>
+              </div>
+              {specific && !isExcluded && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">目标次数</span>
+                  <NumericStepper
+                    label={`${displayName} 目标次数`}
+                    value={target.toString()}
+                    min={0}
+					max={targetMax > 0 ? targetMax : undefined}
+                    decrementDisabled={target <= 0}
+                    onDecrement={() => onCountChange(friend.uid, target - 1)}
+                    onIncrement={() => onCountChange(friend.uid, target + 1)}
+                    onValueChange={(nextValue) => onCountChange(friend.uid, parseNumber(nextValue, 0))}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

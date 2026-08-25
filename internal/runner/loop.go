@@ -205,6 +205,13 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	}
 
 	attempt := operationAttempt{op: op, args: args, startedAt: time.Now()}
+	if op.Kind == clientproto.RPCFrdStealSteal.String() || op.Kind == clientproto.RPCFrdExtBuyStealCnt.String() {
+		used, bought, usedObserved, boughtObserved := r.state.FriendStealCounters(op.TargetUID, attempt.startedAt)
+		attempt.friendStealUsedBefore = used
+		attempt.friendStealUsedBeforeSet = usedObserved
+		attempt.friendStealBoughtBefore = bought
+		attempt.friendStealBoughtBeforeSet = boughtObserved
+	}
 	if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
 		attempt.goldBefore = r.state.Gold()
 	}

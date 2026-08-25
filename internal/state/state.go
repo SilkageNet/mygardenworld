@@ -101,6 +101,21 @@ type State struct {
 	pearlHireSessionLocked    bool
 	pearlHireLockReason       string
 
+	frdStealObserved       bool
+	frdStealRTimeMs        int64
+	frdStealMap            map[int64]int32
+	frdStealCntBuyObserved bool
+	frdStealCntBuyRTimeMs  int64
+	frdStealCntBuyMap      map[int64]int32
+	frdOtherInfo           map[int64]FriendOtherInfoView
+	frdOtherInfoObserved   bool
+	// Latest friend garden opened via frdSteal.enterFrdSteal (NS 111.1/111.2).
+	frdVisitUID   int64
+	frdVisitAtMs  int64
+	frdVisitLands map[int32]LandView
+	// Skip re-entering a friend garden after a visit found no stealable plots.
+	frdStealSkipEnterUntil map[int64]int64
+
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
 	residentOrderLimitUntilMs  int64
