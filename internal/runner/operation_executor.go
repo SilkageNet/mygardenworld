@@ -473,19 +473,59 @@ func friendTouchBuyRequest(op *automation.PlannedOp) (clientproto.FrdExtBuySteal
 	return clientproto.FrdExtBuyStealCntRequest{FrdUid: op.TargetUID, BuyCnt: op.Count}, nil
 }
 
-func friendTouchEnterRequest(op *automation.PlannedOp) (clientproto.FrdStealEnterFrdStealRequest, error) {
+func friendTouchVerificationArgs(op *automation.PlannedOp) (any, error) {
+	if err := validateFriendTouchVerificationOperation(op); err != nil {
+		return nil, err
+	}
+	// Do not put the account-bound fingerprint into operation logs.
+	return map[string]any{"point": []any{int32(rqstPointFriendSteal), "<device-fingerprint>"}}, nil
+}
+
+func validateFriendTouchVerificationOperation(op *automation.PlannedOp) error {
+	if op == nil {
+		return fmt.Errorf("frdSteal.enterFrdSteal verification operation is nil")
+	}
+	if op.Count != 0 || op.TargetID != 0 || op.TargetUID != 0 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 ||
+		len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
+		plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+		return fmt.Errorf("frdSteal.enterFrdSteal verification carries unexpected fields")
+	}
+	return nil
+}
+
+func runFriendTouchVerification(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	if err := validateFriendTouchVerificationOperation(op); err != nil {
+		return nil, err
+	}
+	if rt.runner == nil {
+		return nil, fmt.Errorf("frdSteal.enterFrdSteal runner unavailable")
+	}
+	rt.runner.mu.RLock()
+	session := rt.runner.session
+	rt.runner.mu.RUnlock()
+	if session == nil {
+		return nil, fmt.Errorf("frdSteal.enterFrdSteal session unavailable")
+	}
+	req := clientproto.FrdStealEnterFrdStealRequest{
+		"point": []any{int32(rqstPointFriendSteal), buildDeviceFingerprint(session.DeviceID)},
+	}
+	raw, err := checkedStateDelta(rt.rpc.FrdSteal().EnterFrdSteal(ctx, req))
+	if err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
+func friendTouchGardenRequest(op *automation.PlannedOp) (clientproto.FrdHomeGetFrdHomeInfoRequest, error) {
 	if op == nil || op.TargetUID <= 0 {
-		return nil, fmt.Errorf("frdSteal.enterFrdSteal requires frdUid")
+		return clientproto.FrdHomeGetFrdHomeInfoRequest{}, fmt.Errorf("frdHome.getFrdHomeInfo requires frdUid")
 	}
 	if op.Count != 0 || op.TargetID != 0 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 ||
 		len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
 		plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
-		return nil, fmt.Errorf("frdSteal.enterFrdSteal carries unexpected fields")
+		return clientproto.FrdHomeGetFrdHomeInfoRequest{}, fmt.Errorf("frdHome.getFrdHomeInfo carries unexpected fields")
 	}
-	// Observed client biEnter shape: point=[22, frdUid].
-	return clientproto.FrdStealEnterFrdStealRequest{
-		"point": []any{int32(22), op.TargetUID},
-	}, nil
+	return clientproto.FrdHomeGetFrdHomeInfoRequest{FrdUid: op.TargetUID}, nil
 }
 
 func friendTouchStealRequest(op *automation.PlannedOp) (clientproto.FrdStealStealRequest, error) {

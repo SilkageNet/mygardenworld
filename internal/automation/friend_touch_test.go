@@ -23,11 +23,11 @@ func TestFriendTouchPlansStealAfterSync(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() || op.TargetUID != 2001 {
-		t.Fatalf("want enterFrdSteal, got %+v", op)
+	if op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() || op.TargetUID != 2001 {
+		t.Fatalf("want getFrdHomeInfo, got %+v", op)
 	}
 
-	s.ApplyV([]byte(`{"111":{"1":{"0":2001,"1":{"11":{"0":23001,"1":3},"12":{"0":23002,"1":1}}}}}`))
+	s.ApplyV([]byte(`{"133":{"0":{"0":2001,"1":{"11":{"0":23001,"1":3,"2":1},"12":{"0":23002,"1":1,"2":1}}}}}`))
 	now = time.Now()
 	op, ok = PlanOneFriendTouch(s, policy, now)
 	if !ok {
@@ -49,6 +49,19 @@ func TestFriendTouchSyncsFriendsFirst(t *testing.T) {
 	op, ok := PlanOneFriendTouch(s, policy, now)
 	if !ok || op.Kind != clientproto.RPCFrdEnter.String() {
 		t.Fatalf("want frd.enter, got %+v ok=%v", op, ok)
+	}
+}
+
+func TestFriendTouchVerifiesFeatureBeforeAvailability(t *testing.T) {
+	s := state.New()
+	now := time.Now()
+	nowMs := formatInt(now.UnixMilli())
+	s.ApplyV([]byte(`{"7":{"0":{"0":100}},"24":{"0":{"0":100,"9":` + nowMs + `},"1":[{"0":100,"1":2001}]},"28":{"5":[{"0":2001,"1":"好友2001","4":20}]}}`))
+	policy := &pb.FriendStealPolicy{Enabled: true, FriendMode: pb.SelectionMode_SELECTION_MODE_ALL}
+
+	op, ok := PlanOneFriendTouch(s, policy, now)
+	if !ok || op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() || op.TargetUID != 0 || len(op.TargetUIDs) != 0 {
+		t.Fatalf("want global enterFrdSteal verification, got %+v ok=%v", op, ok)
 	}
 }
 
@@ -84,7 +97,7 @@ func TestFriendTouchAllModeSkipsExcluded(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() || op.TargetUID != 2002 {
+	if op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() || op.TargetUID != 2002 {
 		t.Fatalf("want enter uid 2002, got %+v", op)
 	}
 }
@@ -103,7 +116,7 @@ func TestFriendTouchSpecificRespectsExclude(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() {
+	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() {
 		t.Fatalf("want enter uid 2002, got %+v", op)
 	}
 }
@@ -120,7 +133,7 @@ func TestFriendTouchSkipsNonStealableFriend(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() {
+	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() {
 		t.Fatalf("want enter uid 2002, got %+v", op)
 	}
 }
@@ -147,7 +160,7 @@ func TestFriendTouchPrefersHigherQualityLowerStockLand(t *testing.T) {
 		FriendCounts: map[int64]int32{2001: 1},
 	}
 	now := applyFriendTouchFixture(s, []int64{2001}, map[int64]bool{2001: true}, map[int64]int32{2001: 0})
-	s.ApplyV([]byte(`{"111":{"1":{"0":2001,"1":{"11":{"0":23001,"1":3},"12":{"0":23002,"1":3}}}}}`))
+	s.ApplyV([]byte(`{"133":{"0":{"0":2001,"1":{"11":{"0":23001,"1":3,"2":1},"12":{"0":23002,"1":3,"2":1}}}}}`))
 
 	op, ok := PlanOneFriendTouch(s, policy, now)
 	if !ok {
@@ -196,7 +209,7 @@ func TestFriendTouchEmptyVisitDoesNotMutatePlannerState(t *testing.T) {
 	s := state.New()
 	policy := &pb.FriendStealPolicy{Enabled: true, FriendMode: pb.SelectionMode_SELECTION_MODE_ALL}
 	now := applyFriendTouchFixture(s, []int64{2001}, map[int64]bool{2001: true}, map[int64]int32{2001: 0})
-	s.ApplyV([]byte(`{"111":{"1":{"0":2001,"1":{}}}}`))
+	s.ApplyV([]byte(`{"133":{"0":{"0":2001,"1":{}}}}`))
 	if op, ok := PlanOneFriendTouch(s, policy, now); ok {
 		t.Fatalf("empty observed garden should be a no-op, got %+v", op)
 	}
@@ -222,7 +235,7 @@ func TestValidateFriendTouchMutationRejectsChangedLand(t *testing.T) {
 		FriendCounts: map[int64]int32{2001: 1},
 	}
 	now := applyFriendTouchFixture(s, []int64{2001}, map[int64]bool{2001: true}, map[int64]int32{2001: 0})
-	s.ApplyV([]byte(`{"111":{"1":{"0":2001,"1":{"11":{"0":23001,"1":3}}}}}`))
+	s.ApplyV([]byte(`{"133":{"0":{"0":2001,"1":{"11":{"0":23001,"1":3,"2":1}}}}}`))
 	op, ok := PlanOneFriendTouch(s, policy, now)
 	if !ok || op.Kind != clientproto.RPCFrdStealSteal.String() {
 		t.Fatalf("want queued steal, got %+v ok=%v", op, ok)

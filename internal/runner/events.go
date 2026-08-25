@@ -307,7 +307,9 @@ func opKindDesc(kind string) string {
 	case clientproto.RPCFrdExtBuyStealCnt.String():
 		return "兑换摘花次数"
 	case clientproto.RPCFrdStealEnterFrdSteal.String():
-		return "进入好友花园"
+		return "同步摸花校验"
+	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
+		return "同步好友花园"
 	case clientproto.RPCFrdStealSteal.String():
 		return "好友摸花"
 	default:

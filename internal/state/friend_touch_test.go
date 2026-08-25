@@ -57,8 +57,8 @@ func TestFriendTouchPurchaseMapOmittedIsObservedEmpty(t *testing.T) {
 func TestPickFriendStealLandIDPrefersQualityAndStock(t *testing.T) {
 	now := time.Now()
 	lands := map[int32]LandView{
-		11: {FlowerID: 23001, State: 3, Observed: true},
-		12: {FlowerID: 23002, State: 3, Observed: true},
+		11: {FlowerID: 23001, State: 3, Lvl: 1, Observed: true},
+		12: {FlowerID: 23002, State: 3, Lvl: 1, Observed: true},
 	}
 	inventory := map[int32]int32{23001: 5, 23002: 50}
 	landID, ok := PickFriendStealLandID(lands, inventory, 100, now)
@@ -70,8 +70,8 @@ func TestPickFriendStealLandIDPrefersQualityAndStock(t *testing.T) {
 func TestPickFriendStealLandIDSkipsAlreadyStolenPlot(t *testing.T) {
 	now := time.Now()
 	lands := map[int32]LandView{
-		11: {FlowerID: 23002, State: 3, Observed: true, StealUIDs: []int64{100}},
-		12: {FlowerID: 23001, State: 3, Observed: true},
+		11: {FlowerID: 23002, State: 3, Lvl: 10, Observed: true, StealUIDs: []int64{100}},
+		12: {FlowerID: 23001, State: 3, Lvl: 1, Observed: true},
 	}
 	landID, ok := PickFriendStealLandID(lands, nil, 100, now)
 	if !ok || landID != 12 {
@@ -82,8 +82,8 @@ func TestPickFriendStealLandIDSkipsAlreadyStolenPlot(t *testing.T) {
 func TestPickFriendStealLandIDAppliesPolicySelection(t *testing.T) {
 	now := time.Now()
 	lands := map[int32]LandView{
-		11: {FlowerID: 23001, State: 3},
-		12: {FlowerID: 23002, State: 3},
+		11: {FlowerID: 23001, State: 3, Lvl: 1},
+		12: {FlowerID: 23002, State: 3, Lvl: 1},
 	}
 	landID, ok := PickFriendStealLandIDWithSelection(lands, nil, 100, now, FriendStealSelection{FlowerIDs: []int32{23002}})
 	if !ok || landID != 12 {
@@ -94,11 +94,46 @@ func TestPickFriendStealLandIDAppliesPolicySelection(t *testing.T) {
 	}
 }
 
+func TestPickFriendStealLandIDRespectsOwnerReserve(t *testing.T) {
+	now := time.Now()
+	lands := map[int32]LandView{
+		// Level 1 has cropGets=2 and left=1, so one previous friend pick
+		// exhausts this plot even when the current account is not in stealUids.
+		11: {FlowerID: 23001, State: 3, Lvl: 1, StealUIDs: []int64{999}},
+		12: {FlowerID: 23002, State: 3, Lvl: 1},
+	}
+	landID, ok := PickFriendStealLandID(lands, nil, 100, now)
+	if !ok || landID != 12 {
+		t.Fatalf("land=%d ok=%v, want reserve-safe land 12", landID, ok)
+	}
+}
+
+func TestPickFriendStealLandIDSkipsFlowerElfPlot(t *testing.T) {
+	lands := map[int32]LandView{
+		11: {FlowerID: 23001, State: 3, Lvl: 1, ElvesID: 7001},
+		12: {FlowerID: 23002, State: 3, Lvl: 1},
+	}
+	landID, ok := PickFriendStealLandID(lands, nil, 100, time.Now())
+	if !ok || landID != 12 {
+		t.Fatalf("land=%d ok=%v, want ordinary flower land 12", landID, ok)
+	}
+}
+
+func TestApplyFrdHomeGarden(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"133":{"0":{"0":2001,"1":{"11":{"0":23001,"1":3,"2":1,"6":7001,"8":[999]}}}}}`))
+	view := s.FriendTouch(time.Now())
+	land := view.VisitLands[11]
+	if view.VisitUID != 2001 || land.FlowerID != 23001 || land.Lvl != 1 || land.ElvesID != 7001 || len(land.ElvesStealUIDs) != 1 || land.ElvesStealUIDs[0] != 999 {
+		t.Fatalf("unexpected frdHome snapshot: uid=%d land=%+v", view.VisitUID, land)
+	}
+}
+
 func TestFriendStealSuccessReconcilesOmittedDelta(t *testing.T) {
 	s := New()
 	now := time.Now()
 	nowText := strconv.FormatInt(now.UnixMilli(), 10)
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":100}},"24":{"0":{"0":100,"9":` + nowText + `,"104":{}},"1":[]},"111":{"0":{"1":{"2001":2},"3":` + nowText + `},"1":{"0":2001,"1":{"11":{"0":23001,"1":3}}}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":100}},"24":{"0":{"0":100,"9":` + nowText + `,"104":{}},"1":[]},"111":{"0":{"1":{"2001":2},"3":` + nowText + `}},"133":{"0":{"0":2001,"1":{"11":{"0":23001,"1":3,"2":1}}}}}`))
 	used, bought, usedObserved, boughtObserved := s.FriendStealCounters(2001, now)
 	if used != 2 || bought != 0 || !usedObserved || !boughtObserved {
 		t.Fatalf("unexpected counters before reconcile: %d/%d %v/%v", used, bought, usedObserved, boughtObserved)

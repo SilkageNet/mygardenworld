@@ -100,6 +100,19 @@ func (s *State) applyFrdStealLocked(raw json.RawMessage) {
 	}
 }
 
+// applyFrdHomeLocked applies IFrdHomeTot (namespace 133). The official client
+// fetches a friend's current garden with frdHome.getFrdHomeInfo; namespace 111
+// only owns pick counters and sparse post-pick land changes.
+func (s *State) applyFrdHomeLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return
+	}
+	if rawUsrLand, ok := fields["0"]; ok {
+		s.applyFrdVisitUsrLandLocked(rawUsrLand)
+	}
+}
+
 func (s *State) applyFrdExtTotLocked(raw json.RawMessage) {
 	var fields map[string]json.RawMessage
 	if json.Unmarshal(raw, &fields) != nil {
@@ -457,7 +470,17 @@ func friendLandStealable(land LandView, selfUID int64, nowMs int64) bool {
 	if !land.IsPlanted() {
 		return false
 	}
+	// The official client treats a flower-elf plot as a separate action and
+	// always sends stealElves=1. Until that mutation is supported and verified,
+	// never downgrade it to an ordinary flower pick.
+	if land.ElvesID > 0 {
+		return false
+	}
 	if selfUID > 0 && int64SliceContains(land.StealUIDs, selfUID) {
+		return false
+	}
+	yield, ok := FlowerLvlYieldByID(int32(land.FlowerID), int32(land.Lvl))
+	if !ok || yield.CropGets-int32(len(land.StealUIDs)) <= yield.Left {
 		return false
 	}
 	switch land.State {
@@ -487,7 +510,7 @@ func int64SliceContains(values []int64, target int64) bool {
 	return false
 }
 
-// MarkFriendTouchSkipEnter suppresses enterFrdSteal for a friend until cooldown elapses.
+// MarkFriendTouchSkipEnter suppresses repeated friend-garden fetches until cooldown elapses.
 func (s *State) MarkFriendTouchSkipEnter(uid int64, until time.Time) {
 	if s == nil || uid <= 0 {
 		return
@@ -500,7 +523,7 @@ func (s *State) MarkFriendTouchSkipEnter(uid int64, until time.Time) {
 	s.frdStealSkipEnterUntil[uid] = until.UnixMilli()
 }
 
-// FriendTouchSkipEnter reports whether enterFrdSteal should be deferred for uid.
+// FriendTouchSkipEnter reports whether a friend-garden fetch should be deferred for uid.
 func (s *State) FriendTouchSkipEnter(uid int64, now time.Time) bool {
 	if s == nil || uid <= 0 {
 		return false
@@ -511,7 +534,7 @@ func (s *State) FriendTouchSkipEnter(uid int64, now time.Time) bool {
 	return ok && untilMs > now.UnixMilli()
 }
 
-// ClearFriendTouchSkipEnter removes an enter cooldown after a successful steal.
+// ClearFriendTouchSkipEnter removes a garden-fetch cooldown after a successful steal.
 func (s *State) ClearFriendTouchSkipEnter(uid int64) {
 	if s == nil || uid <= 0 {
 		return

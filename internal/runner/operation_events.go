@@ -552,10 +552,10 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
 	category := op.Category
 	switch op.Kind {
-	case clientproto.RPCFrdStealEnterFrdSteal.String():
+	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
 		view := r.state.FriendTouch(result.finishedAt)
 		if view.VisitUID == op.TargetUID {
-			if _, ok := state.ReadyFriendStealLandID(view.VisitLands, result.finishedAt); !ok {
+			if _, ok := state.PickFriendStealLandID(view.VisitLands, nil, r.state.RoleID(), result.finishedAt); !ok {
 				r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(5*time.Minute))
 			}
 		}

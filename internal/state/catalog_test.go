@@ -199,20 +199,20 @@ func TestFlowerUpgradeCostForLevelFallsBackToCfg(t *testing.T) {
 
 func TestFlowerLvlYieldByID(t *testing.T) {
 	y1, ok := FlowerLvlYieldByID(23001, 1)
-	if !ok || y1.CropGets != 2 || y1.Frequencys != 1 || y1.FlowersPerPlant() != 2 {
-		t.Fatalf("FlowerLvlYieldByID(23001,1)=%+v ok=%v, want cropGets=2 frequencys=1", y1, ok)
+	if !ok || y1.CropGets != 2 || y1.Left != 1 || y1.Frequencys != 1 || y1.FlowersPerPlant() != 2 {
+		t.Fatalf("FlowerLvlYieldByID(23001,1)=%+v ok=%v, want cropGets=2 left=1 frequencys=1", y1, ok)
 	}
 	y10, ok := FlowerLvlYieldByID(23001, 10)
-	if !ok || y10.CropGets != 3 || y10.Frequencys != 3 || y10.FlowersPerPlant() != 9 {
-		t.Fatalf("FlowerLvlYieldByID(23001,10)=%+v ok=%v, want cropGets=3 frequencys=3", y10, ok)
+	if !ok || y10.CropGets != 3 || y10.Left != 1 || y10.Frequencys != 3 || y10.FlowersPerPlant() != 9 {
+		t.Fatalf("FlowerLvlYieldByID(23001,10)=%+v ok=%v, want cropGets=3 left=1 frequencys=3", y10, ok)
 	}
 	if _, ok := FlowerLvlYieldByID(23001, 0); ok {
 		t.Fatal("FlowerLvlYieldByID(23001,0) should be false")
 	}
 	// 梦紫郁金香 has no per-flower c_flowerLvl yield rows; use c_flowerLvlCfg.
 	y11, ok := FlowerLvlYieldByID(23436, 11)
-	if !ok || y11.CropGets != 3 || y11.Frequencys != 4 || y11.FlowersPerPlant() != 12 {
-		t.Fatalf("FlowerLvlYieldByID(23436,11)=%+v ok=%v, want cfg cropGets=3 frequencys=4", y11, ok)
+	if !ok || y11.CropGets != 3 || y11.Left != 1 || y11.Frequencys != 4 || y11.FlowersPerPlant() != 12 {
+		t.Fatalf("FlowerLvlYieldByID(23436,11)=%+v ok=%v, want cfg cropGets=3 left=1 frequencys=4", y11, ok)
 	}
 }
 

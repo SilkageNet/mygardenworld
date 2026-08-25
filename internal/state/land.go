@@ -87,7 +87,7 @@ func (s *State) upsertLandLocked(lid int32, next LandView, _ string) (LandChange
 func landViewEqual(a, b LandView) bool {
 	if a.FlowerID != b.FlowerID || a.State != b.State || a.Lvl != b.Lvl ||
 		a.HarvestCnt != b.HarvestCnt || a.NextTimeMs != b.NextTimeMs ||
-		a.PlantTimeMs != b.PlantTimeMs || a.Observed != b.Observed {
+		a.ElvesID != b.ElvesID || a.PlantTimeMs != b.PlantTimeMs || a.Observed != b.Observed {
 		return false
 	}
 	if len(a.StealUIDs) != len(b.StealUIDs) {
@@ -95,6 +95,14 @@ func landViewEqual(a, b LandView) bool {
 	}
 	for i := range a.StealUIDs {
 		if a.StealUIDs[i] != b.StealUIDs[i] {
+			return false
+		}
+	}
+	if len(a.ElvesStealUIDs) != len(b.ElvesStealUIDs) {
+		return false
+	}
+	for i := range a.ElvesStealUIDs {
+		if a.ElvesStealUIDs[i] != b.ElvesStealUIDs[i] {
 			return false
 		}
 	}
