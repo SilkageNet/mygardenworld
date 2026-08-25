@@ -39,6 +39,10 @@ func TestAccountsWithAutomationEnabledUsesPersistedPolicy(t *testing.T) {
 	if _, err := db.CreateAccount(ctx, user.ID, "default", "ios", "game3", "pw3"); err != nil {
 		t.Fatal(err)
 	}
+	alipay, err := db.CreateAccount(ctx, user.ID, "alipay", "alipay", "game4", "grant")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	enabledPolicy := automation.DefaultPolicy()
 	enabledPolicy.AutomationEnabled = true
@@ -47,6 +51,9 @@ func TestAccountsWithAutomationEnabledUsesPersistedPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.SavePolicyJSON(ctx, enabled.ID, enabledRaw); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SavePolicyJSON(ctx, alipay.ID, enabledRaw); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,8 +71,8 @@ func TestAccountsWithAutomationEnabledUsesPersistedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].ID != enabled.ID {
-		t.Fatalf("accountsWithAutomationEnabled()=%+v, want only account %d", got, enabled.ID)
+	if len(got) != 2 || got[0].ID != enabled.ID || got[1].ID != alipay.ID {
+		t.Fatalf("accountsWithAutomationEnabled()=%+v, want accounts %d and %d", got, enabled.ID, alipay.ID)
 	}
 }
 

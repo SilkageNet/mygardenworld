@@ -31,6 +31,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1connect"
 	"github.com/SilkageNet/mygardenworld/internal/apiserver"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -314,12 +315,19 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	mgr := runner.NewManager(db, bus, log)
 	mgr.DebugDir = opts.DebugDir
 	defer mgr.Shutdown()
+	alipayCfg, err := babigame.ConfigForChannel(babigame.ChannelAlipay)
+	if err != nil {
+		return fmt.Errorf("configure Alipay channel: %w", err)
+	}
 
 	svc := &apiserver.Services{
 		DB:      db,
 		Manager: mgr,
 		JWT:     jwtSvc,
 		Log:     log,
+		AlipayLogins: apiserver.NewAlipayLoginCoordinator(
+			babigame.NewAlipayClient(alipayCfg),
+		),
 		LoginLimiter: apiserver.NewLoginLimiter(apiserver.LoginLimiterConfig{
 			Window:       opts.AuthWindow,
 			UserFailures: opts.AuthUserFails,

@@ -22,12 +22,16 @@ const (
 
 	// ChannelIOS is the iOS channel currently supported by the adapter.
 	ChannelIOS Channel = "ios"
+
+	// ChannelAlipay is the Alipay mini-game / PC game-center channel. It uses
+	// QR authorization instead of the gfsdk username/password exchange.
+	ChannelAlipay Channel = "alipay"
 )
 
 // SupportedChannels lists every Channel the daemon can spin up. New channels
 // get added here once their behavior is understood.
 func SupportedChannels() []Channel {
-	return []Channel{ChannelIOS}
+	return []Channel{ChannelIOS, ChannelAlipay}
 }
 
 // IsSupported reports whether c has a working ConfigForChannel mapping.
@@ -71,6 +75,8 @@ func ConfigForChannel(c Channel) (Config, error) {
 	switch c {
 	case ChannelIOS:
 		return iOSConfig(), nil
+	case ChannelAlipay:
+		return alipayConfig(), nil
 	case ChannelUnspecified:
 		return Config{}, fmt.Errorf("channel required (one of %v)", supportedChannelStrings())
 	default:
@@ -92,6 +98,13 @@ func iOSConfig() Config {
 		GameVersion:       "360.0.24",
 		RNVersion:         "v3.3.2.41",
 		SDKVersion:        "7.0.4",
+		SDKPlatform:       "iOS",
+		MobilePlatform:    "ios",
+		GamePlatform:      "mobilegame",
+		OSType:            1,
+		IsNative:          true,
+		IsSimulator:       1,
+		DeviceType:        "Phone",
 		MdGid:             160,
 		ChannelID:         459,
 		PackageID:         494,
@@ -121,6 +134,59 @@ func iOSConfig() Config {
 		ScreenWidthPx:     "1179",
 		NetworkType:       "wifi",
 		SysLanguage:       "zh-Hans-CN",
+		RuntimeLanguage:   "zh",
+		TimeZoneHour:      "8",
+	}
+}
+
+// alipayConfig contains the identifiers observed from the production Alipay
+// mini-game package served by wanyiwan on 2026-08-25. Keep this channel
+// isolated from iOS: version and host drift must never silently cross channels.
+func alipayConfig() Config {
+	return Config{
+		AppID:             "180020010001270314",
+		PackageName:       "cn.hysj.zfb.minigame",
+		AppVersion:        "0.0.0",
+		AppVersionCode:    "0",
+		ClientVersion:     "412.0.4",
+		GameVersion:       "412.0.4",
+		SDKVersion:        "7.0.4",
+		SDKPlatform:       "Browser",
+		MobilePlatform:    "browser",
+		GamePlatform:      "minigame",
+		OSType:            0,
+		IsNative:          false,
+		IsSimulator:       0,
+		DeviceType:        "PC",
+		MdGid:             163,
+		ChannelID:         538,
+		PackageID:         520,
+		SDKID:             10000,
+		Env:               "prod",
+		Area:              "cn",
+		ZoneCode:          "my",
+		GWXorMask:         0x77,
+		GWSignKey:         "smallaitt",
+		WSSentinel:        "$#|#$",
+		HostAPI:           "apizfbfast.babigame.cn",
+		HostMOAC:          "apizfbfast.babigame.cn",
+		HostAPIRP:         "apizfbrp.babigame.cn",
+		HostAPIPush:       "apizfbfast.babigame.cn",
+		HostGW:            "hygnhmzfb.babigame.cn",
+		HostCDN:           "hyhmcl.babigame.cn",
+		HostCustomer:      "customsrevicesource.babigame.cn",
+		HostWSDefault:     "hygnhmzfb.babigame.cn",
+		HostWSDefaultPort: 443,
+		UserAgent:         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36",
+		OSVersion:         "macOS 10.15.7",
+		DeviceBrand:       "Apple",
+		DeviceModel:       "PC Browser",
+		CPUType:           "x86_64",
+		RAMMB:             "8192",
+		ScreenHeightPx:    "1080",
+		ScreenWidthPx:     "1920",
+		NetworkType:       "wifi",
+		SysLanguage:       "zh-CN",
 		RuntimeLanguage:   "zh",
 		TimeZoneHour:      "8",
 	}

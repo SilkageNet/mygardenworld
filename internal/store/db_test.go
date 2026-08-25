@@ -124,6 +124,23 @@ func TestAccountPasswordIsEncryptedAtRest(t *testing.T) {
 	if username != "game" || password != "secret-password" {
 		t.Fatalf("credentials=(%q,%q), want game/secret-password", username, password)
 	}
+
+	if err := db.UpdateAccountCredentials(ctx, acc.ID, "game-refreshed", "refreshed-secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT password_enc FROM accounts WHERE id = ?`, acc.ID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(stored, passwordVersionV1) || strings.Contains(stored, "refreshed-secret") {
+		t.Fatalf("updated password is not encrypted: %q", stored)
+	}
+	username, password, err = db.GetCredentials(ctx, acc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if username != "game-refreshed" || password != "refreshed-secret" {
+		t.Fatalf("updated credentials=(%q,%q), want game-refreshed/refreshed-secret", username, password)
+	}
 }
 
 func TestEventLogPersistsAndFilters(t *testing.T) {

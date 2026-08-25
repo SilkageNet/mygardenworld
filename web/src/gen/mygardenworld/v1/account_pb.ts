@@ -41,8 +41,8 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
    * Distribution channel the daemon should speak with for this account.
    * The protocol layer picks host fronts, version pinning, and device
    * fingerprint based on this value. Required at creation time.
-   * Currently only CHANNEL_IOS is implemented; Android variants are pending
-   * capture-driven configs. CHANNEL_UNSPECIFIED is rejected at the API.
+   * CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
+   * encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
    *
    * @generated from field: mygardenworld.v1.Channel channel = 11;
    */

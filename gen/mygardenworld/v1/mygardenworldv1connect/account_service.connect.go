@@ -45,6 +45,12 @@ const (
 	// AccountServiceLoginAccountProcedure is the fully-qualified name of the AccountService's
 	// LoginAccount RPC.
 	AccountServiceLoginAccountProcedure = "/mygardenworld.v1.AccountService/LoginAccount"
+	// AccountServiceStartAlipayLoginProcedure is the fully-qualified name of the AccountService's
+	// StartAlipayLogin RPC.
+	AccountServiceStartAlipayLoginProcedure = "/mygardenworld.v1.AccountService/StartAlipayLogin"
+	// AccountServicePollAlipayLoginProcedure is the fully-qualified name of the AccountService's
+	// PollAlipayLogin RPC.
+	AccountServicePollAlipayLoginProcedure = "/mygardenworld.v1.AccountService/PollAlipayLogin"
 	// AccountServiceLogoutAccountProcedure is the fully-qualified name of the AccountService's
 	// LogoutAccount RPC.
 	AccountServiceLogoutAccountProcedure = "/mygardenworld.v1.AccountService/LogoutAccount"
@@ -64,6 +70,12 @@ type AccountServiceClient interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error)
+	// Starts a short-lived Alipay PC game-center QR authorization. The returned
+	// qr_content must be rendered locally as a QR code and is never persisted.
+	StartAlipayLogin(context.Context, *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error)
+	// Polls the QR authorization and, once authorized, verifies the common game
+	// login chain, creates or refreshes the local account, and starts automation.
+	PollAlipayLogin(context.Context, *connect.Request[v1.PollAlipayLoginRequest]) (*connect.Response[v1.PollAlipayLoginResponse], error)
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
@@ -108,6 +120,18 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(accountServiceMethods.ByName("LoginAccount")),
 			connect.WithClientOptions(opts...),
 		),
+		startAlipayLogin: connect.NewClient[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse](
+			httpClient,
+			baseURL+AccountServiceStartAlipayLoginProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("StartAlipayLogin")),
+			connect.WithClientOptions(opts...),
+		),
+		pollAlipayLogin: connect.NewClient[v1.PollAlipayLoginRequest, v1.PollAlipayLoginResponse](
+			httpClient,
+			baseURL+AccountServicePollAlipayLoginProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("PollAlipayLogin")),
+			connect.WithClientOptions(opts...),
+		),
 		logoutAccount: connect.NewClient[v1.LogoutAccountRequest, v1.LogoutAccountResponse](
 			httpClient,
 			baseURL+AccountServiceLogoutAccountProcedure,
@@ -125,12 +149,14 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // accountServiceClient implements AccountServiceClient.
 type accountServiceClient struct {
-	createAccount *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
-	deleteAccount *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
-	listAccounts  *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	loginAccount  *connect.Client[v1.LoginAccountRequest, v1.LoginAccountResponse]
-	logoutAccount *connect.Client[v1.LogoutAccountRequest, v1.LogoutAccountResponse]
-	redeemCode    *connect.Client[v1.RedeemCodeRequest, v1.RedeemCodeResponse]
+	createAccount    *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
+	deleteAccount    *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
+	listAccounts     *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	loginAccount     *connect.Client[v1.LoginAccountRequest, v1.LoginAccountResponse]
+	startAlipayLogin *connect.Client[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse]
+	pollAlipayLogin  *connect.Client[v1.PollAlipayLoginRequest, v1.PollAlipayLoginResponse]
+	logoutAccount    *connect.Client[v1.LogoutAccountRequest, v1.LogoutAccountResponse]
+	redeemCode       *connect.Client[v1.RedeemCodeRequest, v1.RedeemCodeResponse]
 }
 
 // CreateAccount calls mygardenworld.v1.AccountService.CreateAccount.
@@ -151,6 +177,16 @@ func (c *accountServiceClient) ListAccounts(ctx context.Context, req *connect.Re
 // LoginAccount calls mygardenworld.v1.AccountService.LoginAccount.
 func (c *accountServiceClient) LoginAccount(ctx context.Context, req *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error) {
 	return c.loginAccount.CallUnary(ctx, req)
+}
+
+// StartAlipayLogin calls mygardenworld.v1.AccountService.StartAlipayLogin.
+func (c *accountServiceClient) StartAlipayLogin(ctx context.Context, req *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error) {
+	return c.startAlipayLogin.CallUnary(ctx, req)
+}
+
+// PollAlipayLogin calls mygardenworld.v1.AccountService.PollAlipayLogin.
+func (c *accountServiceClient) PollAlipayLogin(ctx context.Context, req *connect.Request[v1.PollAlipayLoginRequest]) (*connect.Response[v1.PollAlipayLoginResponse], error) {
+	return c.pollAlipayLogin.CallUnary(ctx, req)
 }
 
 // LogoutAccount calls mygardenworld.v1.AccountService.LogoutAccount.
@@ -174,6 +210,12 @@ type AccountServiceHandler interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error)
+	// Starts a short-lived Alipay PC game-center QR authorization. The returned
+	// qr_content must be rendered locally as a QR code and is never persisted.
+	StartAlipayLogin(context.Context, *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error)
+	// Polls the QR authorization and, once authorized, verifies the common game
+	// login chain, creates or refreshes the local account, and starts automation.
+	PollAlipayLogin(context.Context, *connect.Request[v1.PollAlipayLoginRequest]) (*connect.Response[v1.PollAlipayLoginResponse], error)
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
@@ -214,6 +256,18 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 		connect.WithSchema(accountServiceMethods.ByName("LoginAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
+	accountServiceStartAlipayLoginHandler := connect.NewUnaryHandler(
+		AccountServiceStartAlipayLoginProcedure,
+		svc.StartAlipayLogin,
+		connect.WithSchema(accountServiceMethods.ByName("StartAlipayLogin")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServicePollAlipayLoginHandler := connect.NewUnaryHandler(
+		AccountServicePollAlipayLoginProcedure,
+		svc.PollAlipayLogin,
+		connect.WithSchema(accountServiceMethods.ByName("PollAlipayLogin")),
+		connect.WithHandlerOptions(opts...),
+	)
 	accountServiceLogoutAccountHandler := connect.NewUnaryHandler(
 		AccountServiceLogoutAccountProcedure,
 		svc.LogoutAccount,
@@ -236,6 +290,10 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 			accountServiceListAccountsHandler.ServeHTTP(w, r)
 		case AccountServiceLoginAccountProcedure:
 			accountServiceLoginAccountHandler.ServeHTTP(w, r)
+		case AccountServiceStartAlipayLoginProcedure:
+			accountServiceStartAlipayLoginHandler.ServeHTTP(w, r)
+		case AccountServicePollAlipayLoginProcedure:
+			accountServicePollAlipayLoginHandler.ServeHTTP(w, r)
 		case AccountServiceLogoutAccountProcedure:
 			accountServiceLogoutAccountHandler.ServeHTTP(w, r)
 		case AccountServiceRedeemCodeProcedure:
@@ -263,6 +321,14 @@ func (UnimplementedAccountServiceHandler) ListAccounts(context.Context, *connect
 
 func (UnimplementedAccountServiceHandler) LoginAccount(context.Context, *connect.Request[v1.LoginAccountRequest]) (*connect.Response[v1.LoginAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.LoginAccount is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) StartAlipayLogin(context.Context, *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.StartAlipayLogin is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) PollAlipayLogin(context.Context, *connect.Request[v1.PollAlipayLoginRequest]) (*connect.Response[v1.PollAlipayLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.PollAlipayLogin is not implemented"))
 }
 
 func (UnimplementedAccountServiceHandler) LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error) {

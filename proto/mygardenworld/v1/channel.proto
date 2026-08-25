@@ -16,5 +16,9 @@ enum Channel {
   // verified, May 2026.
   CHANNEL_IOS = 1;
 
-  // Add Android channel values only after each variant has a verified capture.
+  // Alipay mini-game channel (cn.hysj.zfb.minigame). Account binding uses
+  // the AccountService QR flow; username/password creation is not accepted.
+  CHANNEL_ALIPAY = 2;
+
+  // Add other Android channel values only after each variant has a verified capture.
 }

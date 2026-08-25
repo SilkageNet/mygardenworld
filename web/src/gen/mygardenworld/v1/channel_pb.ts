@@ -9,7 +9,7 @@ import { enumDesc, fileDesc } from "@bufbuild/protobuf/codegenv2";
  * Describes the file mygardenworld/v1/channel.proto.
  */
 export const file_mygardenworld_v1_channel: GenFile = /*@__PURE__*/
-  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2NoYW5uZWwucHJvdG8SEG15Z2FyZGVud29ybGQudjEqMwoHQ2hhbm5lbBIXChNDSEFOTkVMX1VOU1BFQ0lGSUVEEAASDwoLQ0hBTk5FTF9JT1MQAUKFAQoUY29tLm15Z2FyZGVud29ybGQudjFCDENoYW5uZWxQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw");
+  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2NoYW5uZWwucHJvdG8SEG15Z2FyZGVud29ybGQudjEqRwoHQ2hhbm5lbBIXChNDSEFOTkVMX1VOU1BFQ0lGSUVEEAASDwoLQ0hBTk5FTF9JT1MQARISCg5DSEFOTkVMX0FMSVBBWRACQoUBChRjb20ubXlnYXJkZW53b3JsZC52MUIMQ2hhbm5lbFByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
 
 /**
  * Channel identifies the gfsdk distribution / platform variant we should
@@ -36,6 +36,14 @@ export enum Channel {
    * @generated from enum value: CHANNEL_IOS = 1;
    */
   IOS = 1,
+
+  /**
+   * Alipay mini-game channel (cn.hysj.zfb.minigame). Account binding uses
+   * the AccountService QR flow; username/password creation is not accepted.
+   *
+   * @generated from enum value: CHANNEL_ALIPAY = 2;
+   */
+  ALIPAY = 2,
 }
 
 /**

@@ -2,8 +2,8 @@
 // @generated from file mygardenworld/v1/account_service.proto (package mygardenworld.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Account } from "./account_pb";
@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account_service.proto.
  */
 export const file_mygardenworld_v1_account_service: GenFile = /*@__PURE__*/
-  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKHAQoUQ3JlYXRlQWNjb3VudFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIqCgdjaGFubmVsGAUgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhEKCWxvZ2luX25vdxgEIAEoCCJYChVDcmVhdGVBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudBITCgtsb2dpbl9lcnJvchgCIAEoCSIwChREZWxldGVBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50Ii8KE0xvZ2luQWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJ0ChRMb2dpbkFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EjAKDGxvZ2dlZF9pbl9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMAoUTG9nb3V0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJDChVMb2dvdXRBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudCI2ChFSZWRlZW1Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJEhMKC2FjY291bnRfaWRzGAIgAygJIncKElJlZGVlbUNvZGVSZXNwb25zZRIzCgdyZXN1bHRzGAEgAygLMiIubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVzdWx0EhUKDXN1Y2Nlc3NfY291bnQYAiABKAUSFQoNZmFpbHVyZV9jb3VudBgDIAEoBSJZChBSZWRlZW1Db2RlUmVzdWx0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEgoKAm9rGAMgASgIEg8KB21lc3NhZ2UYBCABKAkyzQQKDkFjY291bnRTZXJ2aWNlEmAKDUNyZWF0ZUFjY291bnQSJi5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXF1ZXN0GicubXlnYXJkZW53b3JsZC52MS5DcmVhdGVBY2NvdW50UmVzcG9uc2USYAoNRGVsZXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkRlbGV0ZUFjY291bnRSZXNwb25zZRJdCgxMaXN0QWNjb3VudHMSJS5teWdhcmRlbndvcmxkLnYxLkxpc3RBY2NvdW50c1JlcXVlc3QaJi5teWdhcmRlbndvcmxkLnYxLkxpc3RBY2NvdW50c1Jlc3BvbnNlEl0KDExvZ2luQWNjb3VudBIlLm15Z2FyZGVud29ybGQudjEuTG9naW5BY2NvdW50UmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTG9naW5BY2NvdW50UmVzcG9uc2USYAoNTG9nb3V0QWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuTG9nb3V0QWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkxvZ291dEFjY291bnRSZXNwb25zZRJXCgpSZWRlZW1Db2RlEiMubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlc3BvbnNlQowBChRjb20ubXlnYXJkZW53b3JsZC52MUITQWNjb3VudFNlcnZpY2VQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
+  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKHAQoUQ3JlYXRlQWNjb3VudFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIqCgdjaGFubmVsGAUgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhEKCWxvZ2luX25vdxgEIAEoCCJYChVDcmVhdGVBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudBITCgtsb2dpbl9lcnJvchgCIAEoCSIwChREZWxldGVBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50Ii8KE0xvZ2luQWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJ0ChRMb2dpbkFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EjAKDGxvZ2dlZF9pbl9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiJwoXU3RhcnRBbGlwYXlMb2dpblJlcXVlc3QSDAoEbmFtZRgBIAEoCSKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyIqChZQb2xsQWxpcGF5TG9naW5SZXF1ZXN0EhAKCGxvZ2luX2lkGAEgASgJIr8BChdQb2xsQWxpcGF5TG9naW5SZXNwb25zZRIzCgZzdGF0dXMYASABKA4yIy5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luU3RhdHVzEioKB2FjY291bnQYAiABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSEwoLbG9naW5fZXJyb3IYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMAoUTG9nb3V0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJDChVMb2dvdXRBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudCI2ChFSZWRlZW1Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJEhMKC2FjY291bnRfaWRzGAIgAygJIncKElJlZGVlbUNvZGVSZXNwb25zZRIzCgdyZXN1bHRzGAEgAygLMiIubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVzdWx0EhUKDXN1Y2Nlc3NfY291bnQYAiABKAUSFQoNZmFpbHVyZV9jb3VudBgDIAEoBSJZChBSZWRlZW1Db2RlUmVzdWx0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEgoKAm9rGAMgASgIEg8KB21lc3NhZ2UYBCABKAkq6QEKEUFsaXBheUxvZ2luU3RhdHVzEiMKH0FMSVBBWV9MT0dJTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIoCiRBTElQQVlfTE9HSU5fU1RBVFVTX1dBSVRJTkdfRk9SX1NDQU4QARIiCh5BTElQQVlfTE9HSU5fU1RBVFVTX1BST0NFU1NJTkcQAhIgChxBTElQQVlfTE9HSU5fU1RBVFVTX0NPTVBMRVRFEAMSHwobQUxJUEFZX0xPR0lOX1NUQVRVU19FWFBJUkVEEAQSHgoaQUxJUEFZX0xPR0lOX1NUQVRVU19GQUlMRUQQBTKgBgoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USXQoMTG9naW5BY2NvdW50EiUubXlnYXJkZW53b3JsZC52MS5Mb2dpbkFjY291bnRSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5Mb2dpbkFjY291bnRSZXNwb25zZRJpChBTdGFydEFsaXBheUxvZ2luEikubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEmYKD1BvbGxBbGlwYXlMb2dpbhIoLm15Z2FyZGVud29ybGQudjEuUG9sbEFsaXBheUxvZ2luUmVxdWVzdBopLm15Z2FyZGVud29ybGQudjEuUG9sbEFsaXBheUxvZ2luUmVzcG9uc2USYAoNTG9nb3V0QWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuTG9nb3V0QWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkxvZ291dEFjY291bnRSZXNwb25zZRJXCgpSZWRlZW1Db2RlEiMubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlc3BvbnNlQowBChRjb20ubXlnYXJkZW53b3JsZC52MUITQWNjb3VudFNlcnZpY2VQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.CreateAccountRequest
@@ -195,6 +195,106 @@ export const LoginAccountResponseSchema: GenMessage<LoginAccountResponse> = /*@_
   messageDesc(file_mygardenworld_v1_account_service, 7);
 
 /**
+ * @generated from message mygardenworld.v1.StartAlipayLoginRequest
+ */
+export type StartAlipayLoginRequest = Message<"mygardenworld.v1.StartAlipayLoginRequest"> & {
+  /**
+   * Optional local display name. Empty derives a unique name from game state.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message mygardenworld.v1.StartAlipayLoginRequest.
+ * Use `create(StartAlipayLoginRequestSchema)` to create a new message.
+ */
+export const StartAlipayLoginRequestSchema: GenMessage<StartAlipayLoginRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 8);
+
+/**
+ * @generated from message mygardenworld.v1.StartAlipayLoginResponse
+ */
+export type StartAlipayLoginResponse = Message<"mygardenworld.v1.StartAlipayLoginResponse"> & {
+  /**
+   * @generated from field: string login_id = 1;
+   */
+  loginId: string;
+
+  /**
+   * @generated from field: string qr_content = 2;
+   */
+  qrContent: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 3;
+   */
+  expiresAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.AlipayLoginStatus status = 4;
+   */
+  status: AlipayLoginStatus;
+};
+
+/**
+ * Describes the message mygardenworld.v1.StartAlipayLoginResponse.
+ * Use `create(StartAlipayLoginResponseSchema)` to create a new message.
+ */
+export const StartAlipayLoginResponseSchema: GenMessage<StartAlipayLoginResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 9);
+
+/**
+ * @generated from message mygardenworld.v1.PollAlipayLoginRequest
+ */
+export type PollAlipayLoginRequest = Message<"mygardenworld.v1.PollAlipayLoginRequest"> & {
+  /**
+   * @generated from field: string login_id = 1;
+   */
+  loginId: string;
+};
+
+/**
+ * Describes the message mygardenworld.v1.PollAlipayLoginRequest.
+ * Use `create(PollAlipayLoginRequestSchema)` to create a new message.
+ */
+export const PollAlipayLoginRequestSchema: GenMessage<PollAlipayLoginRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 10);
+
+/**
+ * @generated from message mygardenworld.v1.PollAlipayLoginResponse
+ */
+export type PollAlipayLoginResponse = Message<"mygardenworld.v1.PollAlipayLoginResponse"> & {
+  /**
+   * @generated from field: mygardenworld.v1.AlipayLoginStatus status = 1;
+   */
+  status: AlipayLoginStatus;
+
+  /**
+   * @generated from field: mygardenworld.v1.Account account = 2;
+   */
+  account?: Account | undefined;
+
+  /**
+   * @generated from field: string login_error = 3;
+   */
+  loginError: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 4;
+   */
+  expiresAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.PollAlipayLoginResponse.
+ * Use `create(PollAlipayLoginResponseSchema)` to create a new message.
+ */
+export const PollAlipayLoginResponseSchema: GenMessage<PollAlipayLoginResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 11);
+
+/**
  * @generated from message mygardenworld.v1.LogoutAccountRequest
  */
 export type LogoutAccountRequest = Message<"mygardenworld.v1.LogoutAccountRequest"> & {
@@ -214,7 +314,7 @@ export type LogoutAccountRequest = Message<"mygardenworld.v1.LogoutAccountReques
  * Use `create(LogoutAccountRequestSchema)` to create a new message.
  */
 export const LogoutAccountRequestSchema: GenMessage<LogoutAccountRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 8);
+  messageDesc(file_mygardenworld_v1_account_service, 12);
 
 /**
  * @generated from message mygardenworld.v1.LogoutAccountResponse
@@ -231,7 +331,7 @@ export type LogoutAccountResponse = Message<"mygardenworld.v1.LogoutAccountRespo
  * Use `create(LogoutAccountResponseSchema)` to create a new message.
  */
 export const LogoutAccountResponseSchema: GenMessage<LogoutAccountResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 9);
+  messageDesc(file_mygardenworld_v1_account_service, 13);
 
 /**
  * @generated from message mygardenworld.v1.RedeemCodeRequest
@@ -257,7 +357,7 @@ export type RedeemCodeRequest = Message<"mygardenworld.v1.RedeemCodeRequest"> & 
  * Use `create(RedeemCodeRequestSchema)` to create a new message.
  */
 export const RedeemCodeRequestSchema: GenMessage<RedeemCodeRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 10);
+  messageDesc(file_mygardenworld_v1_account_service, 14);
 
 /**
  * @generated from message mygardenworld.v1.RedeemCodeResponse
@@ -284,7 +384,7 @@ export type RedeemCodeResponse = Message<"mygardenworld.v1.RedeemCodeResponse"> 
  * Use `create(RedeemCodeResponseSchema)` to create a new message.
  */
 export const RedeemCodeResponseSchema: GenMessage<RedeemCodeResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 11);
+  messageDesc(file_mygardenworld_v1_account_service, 15);
 
 /**
  * @generated from message mygardenworld.v1.RedeemCodeResult
@@ -316,7 +416,48 @@ export type RedeemCodeResult = Message<"mygardenworld.v1.RedeemCodeResult"> & {
  * Use `create(RedeemCodeResultSchema)` to create a new message.
  */
 export const RedeemCodeResultSchema: GenMessage<RedeemCodeResult> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 12);
+  messageDesc(file_mygardenworld_v1_account_service, 16);
+
+/**
+ * @generated from enum mygardenworld.v1.AlipayLoginStatus
+ */
+export enum AlipayLoginStatus {
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN = 1;
+   */
+  WAITING_FOR_SCAN = 1,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_PROCESSING = 2;
+   */
+  PROCESSING = 2,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_COMPLETE = 3;
+   */
+  COMPLETE = 3,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_EXPIRED = 4;
+   */
+  EXPIRED = 4,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_FAILED = 5;
+   */
+  FAILED = 5,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.AlipayLoginStatus.
+ */
+export const AlipayLoginStatusSchema: GenEnum<AlipayLoginStatus> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_account_service, 0);
 
 /**
  * @generated from service mygardenworld.v1.AccountService
@@ -361,6 +502,28 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof LoginAccountRequestSchema;
     output: typeof LoginAccountResponseSchema;
+  },
+  /**
+   * Starts a short-lived Alipay PC game-center QR authorization. The returned
+   * qr_content must be rendered locally as a QR code and is never persisted.
+   *
+   * @generated from rpc mygardenworld.v1.AccountService.StartAlipayLogin
+   */
+  startAlipayLogin: {
+    methodKind: "unary";
+    input: typeof StartAlipayLoginRequestSchema;
+    output: typeof StartAlipayLoginResponseSchema;
+  },
+  /**
+   * Polls the QR authorization and, once authorized, verifies the common game
+   * login chain and creates the local account with automation disabled.
+   *
+   * @generated from rpc mygardenworld.v1.AccountService.PollAlipayLogin
+   */
+  pollAlipayLogin: {
+    methodKind: "unary";
+    input: typeof PollAlipayLoginRequestSchema;
+    output: typeof PollAlipayLoginResponseSchema;
   },
   /**
    * Stops the live runner/WS for the account and disables auto-resume.

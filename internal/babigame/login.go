@@ -42,6 +42,12 @@ func finishLogin(ctx context.Context, http *HTTPClient, native NativeLogin, isSi
 	if err != nil {
 		return nil, err
 	}
+	return FinishLoginWithGameLogin(ctx, http, native, gameLogin, isSimulator)
+}
+
+// FinishLoginWithGameLogin is the common channel-independent half of login:
+// /game/login result -> /gw index.login -> route discovery -> Session.
+func FinishLoginWithGameLogin(ctx context.Context, http *HTTPClient, native NativeLogin, gameLogin GameLoginResult, isSimulator int) (*Session, error) {
 	// Non-fatal; server returns this for UI flags only.
 	_, _ = http.QueryLoginParams(ctx)
 
