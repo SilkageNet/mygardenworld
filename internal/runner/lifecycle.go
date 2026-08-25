@@ -146,6 +146,10 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
 	}
+	// index.login + lazySync form the authoritative startup baseline. If neither
+	// supplied IFmlTot.mb (25.1), this account has no current guild membership;
+	// stale IFml/race records must not wake any guild planner.
+	r.state.FinalizeFmlMembershipSnapshot()
 	// Only now may the shadow controller observe activity state. During a
 	// reconnecting fresh login the State still contains the previous epoch's
 	// board until index.login/lazySync have supplied this epoch's baseline.

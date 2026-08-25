@@ -834,10 +834,13 @@ func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.Pla
 	if err != nil {
 		return nil, err
 	}
+	// A successful enter is still an authoritative probe when the channel
+	// returns an empty delta. Record it unconditionally so planner bootstrap
+	// backs off instead of tight-looping and starving farm/order operations.
+	rt.runner.state.MarkFmlRaceLvlSyncAttempt()
 	if babigame.HasPayload(v) {
 		v = normalizeFmlRaceEnterV(v)
 		rt.runner.state.ApplyV(v)
-		rt.runner.state.MarkFmlRaceLvlSyncAttempt()
 		// Enter may push sparse 114/110. Force the next tick to getTaskList so
 		// full-pool reconcile can replace stale Taken (e.g. 鹤望兰 score 0).
 		rt.runner.state.MarkFmlRaceTasksUnobserved()

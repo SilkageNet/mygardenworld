@@ -26,6 +26,9 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	if rawFml, ok := ns25["0"]; ok {
 		s.applyFmlObjectLocked(rawFml)
 	}
+	if rawMember, ok := ns25["1"]; ok {
+		s.applyFmlMemberObjectLocked(rawMember)
+	}
 	if rawBuild, ok := ns25["133"]; ok {
 		s.applyFmlBuildObjectLocked(rawBuild)
 	}
@@ -912,6 +915,28 @@ func (s *State) applyFmlObjectLocked(raw json.RawMessage) {
 	}
 }
 
+// applyFmlMemberObjectLocked tracks IFmlTot.mb (25.1), the authoritative
+// current-user guild membership record. IFmlTot.fml (25.0) can survive as
+// cached guild/race data after the user has left and is therefore not proof of
+// current membership.
+func (s *State) applyFmlMemberObjectLocked(raw json.RawMessage) {
+	s.fmlBuild.MembershipObserved = true
+	s.fmlBuild.MemberFmlID = 0
+	if len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return
+	}
+	if id, ok := readInt32JSONField(fields, "1"); ok {
+		s.fmlBuild.MemberFmlID = id
+		if s.fmlBuild.FmlID <= 0 {
+			s.fmlBuild.FmlID = id
+		}
+	}
+}
+
 func (s *State) applyFmlBuildObjectLocked(raw json.RawMessage) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return
@@ -1209,6 +1234,30 @@ func (s *State) FmlBuildObserved() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.fmlBuild.Observed
+}
+
+// MarkNoFmlMembership records an authoritative server response that the
+// account is not currently a guild member. It lets every guild planner stop
+// immediately even if stale IFml/race records remain in the login snapshot.
+func (s *State) MarkNoFmlMembership() {
+	s.mu.Lock()
+	s.fmlBuild.MembershipObserved = true
+	s.fmlBuild.MemberFmlID = 0
+	s.mu.Unlock()
+}
+
+// FinalizeFmlMembershipSnapshot closes the startup index.login + lazySync
+// baseline. A joined account receives IFmlTot.mb (25.1) in that baseline; if
+// it was absent from both responses, the account is authoritatively not in a
+// guild. This must only be called after the full startup sync, not for sparse
+// operation deltas.
+func (s *State) FinalizeFmlMembershipSnapshot() {
+	s.mu.Lock()
+	if !s.fmlBuild.MembershipObserved {
+		s.fmlBuild.MembershipObserved = true
+		s.fmlBuild.MemberFmlID = 0
+	}
+	s.mu.Unlock()
 }
 
 // FmlLandObserved reports whether namespace 25.102 has been observed.
