@@ -342,6 +342,46 @@ func TestApplyV_FmlBuildState(t *testing.T) {
 	}
 }
 
+func TestApplyV_FmlMembershipUsesCurrentMemberRecord(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"0": map[string]any{"0": 88},
+			"1": map[string]any{"0": 77900091102482, "1": 88},
+		},
+	})
+	got := s.FmlBuild()
+	if !got.MembershipObserved || got.MemberFmlID != 88 {
+		t.Fatalf("joined membership=%+v, want observed fid 88", got)
+	}
+
+	// Cached IFml data can remain after leaving. A null current-member record
+	// is authoritative and must clear membership without trusting 25.0.
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"0": map[string]any{"0": 88},
+			"1": nil,
+		},
+	})
+	got = s.FmlBuild()
+	if !got.MembershipObserved || got.MemberFmlID != 0 {
+		t.Fatalf("left membership=%+v, want observed no guild", got)
+	}
+}
+
+func TestFinalizeFmlMembershipSnapshotMarksMissingMemberAsNoGuild(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88},"111":{"0":1787658000000,"1":1}}}`))
+	if got := s.FmlBuild(); got.MembershipObserved {
+		t.Fatalf("sparse state must remain unknown before startup finalization: %+v", got)
+	}
+	s.FinalizeFmlMembershipSnapshot()
+	got := s.FmlBuild()
+	if !got.MembershipObserved || got.MemberFmlID != 0 {
+		t.Fatalf("finalized membership=%+v, want observed no guild", got)
+	}
+}
+
 func TestApplyV_FmlLandState(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{

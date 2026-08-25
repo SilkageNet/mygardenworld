@@ -88,7 +88,21 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	} else {
 		r.log.Warn("query package config failed", "err", err)
 	}
-	session, err := babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
+	var (
+		session *babigame.Session
+		err     error
+	)
+	switch babigame.Channel(r.account.Channel) {
+	case babigame.ChannelIOS:
+		session, err = babigame.PerformLoginWithPassword(ctx, httpc, username, password, r.cfg.IsSimulator)
+	case babigame.ChannelAlipay:
+		session, err = babigame.NewAlipayClient(r.cfg).LoginWithWebGrant(ctx, httpc, babigame.AlipayWebGrant{
+			Token:  password,
+			UserID: username,
+		})
+	default:
+		err = fmt.Errorf("unsupported channel %q", r.account.Channel)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("login: %w", err)
 	}
@@ -115,7 +129,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 
 	// The official client sends index.login as the first WS initialization
 	// call after the HTTP login and route-token bootstrap.
-	if v, err := client.Login(ctx, 1); err == nil {
+	if v, err := client.Login(ctx, r.cfg.IsSimulator); err == nil {
 		r.state.ApplyV(v)
 		r.syncAccountDisplayName(ctx, v, session)
 	} else {
@@ -132,6 +146,10 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
 	}
+	// index.login + lazySync form the authoritative startup baseline. If neither
+	// supplied IFmlTot.mb (25.1), this account has no current guild membership;
+	// stale IFml/race records must not wake any guild planner.
+	r.state.FinalizeFmlMembershipSnapshot()
 	// Only now may the shadow controller observe activity state. During a
 	// reconnecting fresh login the State still contains the previous epoch's
 	// board until index.login/lazySync have supplied this epoch's baseline.

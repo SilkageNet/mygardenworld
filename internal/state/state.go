@@ -109,7 +109,9 @@ type State struct {
 	frdStealCntBuyMap      map[int64]int32
 	frdOtherInfo           map[int64]FriendOtherInfoView
 	frdOtherInfoObserved   bool
-	// Latest friend garden opened via frdSteal.enterFrdSteal (NS 111.1/111.2).
+	// Latest friend garden fetched via frdHome.getFrdHomeInfo (NS 133.0).
+	// NS 111.1 is retained as a compatibility source and NS 111.2 applies
+	// sparse post-pick changes to the same snapshot.
 	frdVisitUID   int64
 	frdVisitAtMs  int64
 	frdVisitLands map[int32]LandView

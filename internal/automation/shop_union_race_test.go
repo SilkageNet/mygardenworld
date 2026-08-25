@@ -104,7 +104,7 @@ func TestUnionRaceDisabledProducesNoOps(t *testing.T) {
 
 func TestUnionRaceEnterIsExecutable(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88}}}`))
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 {
@@ -116,6 +116,54 @@ func TestUnionRaceEnterIsExecutable(t *testing.T) {
 	}
 	if !op.Executable || op.SyncOnly {
 		t.Fatalf("enter must be executable (not sync-only), got executable=%v syncOnly=%v status=%s", op.Executable, op.SyncOnly, op.Status)
+	}
+}
+
+func TestUnionRaceWithoutGuildProducesNoOps(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
+	policy := testRacePolicy()
+	if ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn()); len(ops) != 0 {
+		t.Fatalf("account without guild must not run race logic: %+v", ops)
+	}
+	full := testEnabledRaceFullPolicy()
+	if RaceBootstrapDue(s, full, time.Date(2026, time.August, 25, 10, 0, 0, 0, time.Local)) {
+		t.Fatal("account without guild must not trigger urgent race bootstrap")
+	}
+}
+
+func TestUnionRaceIgnoresStaleRaceSnapshotAfterLeavingGuild(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88},"1":null,"111":{"0":1787658000000,"1":1,"2":1787658000000,"3":1788109200000},"114":[{"0":1,"4":3036,"10":36}]}}`))
+	policy := testRacePolicy()
+	if ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn()); len(ops) != 0 {
+		t.Fatalf("stale race snapshot after leaving guild must be ignored: %+v", ops)
+	}
+	full := testEnabledRaceFullPolicy()
+	if RaceBootstrapDue(s, full, time.Now()) {
+		t.Fatal("stale race snapshot after leaving guild must not trigger bootstrap")
+	}
+}
+
+func TestUnionRaceEmptyEnterProbeBacksOffWithoutStarvingOtherWork(t *testing.T) {
+	now := time.Date(2026, time.August, 25, 10, 0, 0, 0, time.Local)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88}}}`))
+	s.MarkFmlRaceLvlSyncAttemptAt(now)
+	policy := testRacePolicy()
+
+	ops := unionRaceOperations(s, policy, 0, now.Add(time.Second), raceGatesOn())
+	if len(ops) != 0 {
+		t.Fatalf("recent successful enter probe must back off, got %+v", ops)
+	}
+	full := testEnabledRaceFullPolicy()
+	if RaceBootstrapDue(s, full, now.Add(time.Second)) {
+		t.Fatal("recent empty enter probe must not keep urgent bootstrap awake")
+	}
+
+	ops = unionRaceOperations(s, policy, 0, now.Add(raceEnterProbeInterval+time.Second), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
+		t.Fatalf("enter probe must become eligible after backoff, got %+v", ops)
 	}
 }
 
@@ -145,7 +193,7 @@ func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	// Enabled + !AutoEnableModules: observe/sync the pool for UI, but never take.
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"25":{"0":{}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88}}}`))
 	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false}
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
@@ -548,7 +596,7 @@ func TestUnionRaceInactiveEnterWaitsForRetry(t *testing.T) {
 func TestUnionRaceEnterEmittedWhenOnlyTaskStubsObserved(t *testing.T) {
 	s := state.New()
 	// Task pool / usr stubs without a real CurFmlRaceBatch must still trigger enter.
-	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}],"110":{}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}],"110":{}}}`))
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {

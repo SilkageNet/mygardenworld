@@ -1178,6 +1178,18 @@ func TestClassifyOperationError(t *testing.T) {
 			want: operationErrorFmlFlowerTakeDailyLimit,
 		},
 		{
+			name: "fml enter account has no guild",
+			kind: clientproto.RPCFmlEnter.String(),
+			err:  errors.New(`rpc fml.enter: server: {"code":109,"args":[]}`),
+			want: operationErrorFmlNotJoined,
+		},
+		{
+			name: "race account has no guild",
+			kind: clientproto.RPCFmlRaceGetTaskList.String(),
+			err:  errors.New("rpc fmlRace.getTaskList: server: 您还未加入任何公会"),
+			want: operationErrorFmlNotJoined,
+		},
+		{
 			name: "mail already picked",
 			kind: clientproto.RPCMailPick.String(),
 			err:  errors.New("rpc mail.pick: server: 邮件附件已领取"),

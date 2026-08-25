@@ -150,7 +150,7 @@ type Account struct {
 // daemon's CreateAccount handler validates it before invoking us.
 func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, username, password string) (*Account, error) {
 	if channel == "" {
-		channel = "ios"
+		return nil, errors.New("CreateAccount: channel required")
 	}
 	now := time.Now().UTC()
 	passwordEnc, err := d.encodePassword(password)
@@ -169,6 +169,45 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 	}
 	id, _ := res.LastInsertId()
 	return d.GetAccountByID(ctx, id)
+}
+
+// UpdateAccountCredentials replaces the channel identity and encrypted grant
+// used for fresh login. QR-bound channels call this after a successful
+// re-authorization so an existing account never retries with a stale grant.
+func (d *DB) UpdateAccountCredentials(ctx context.Context, id int64, username, password string) error {
+	if id <= 0 || strings.TrimSpace(username) == "" || password == "" {
+		return errors.New("UpdateAccountCredentials: id, username and password required")
+	}
+	passwordEnc, err := d.encodePassword(password)
+	if err != nil {
+		return fmt.Errorf("encode password: %w", err)
+	}
+	res, err := d.ExecContext(ctx,
+		`UPDATE accounts SET username = ?, password_enc = ?, updated_at = ? WHERE id = ?`,
+		username, passwordEnc, time.Now().UTC(), id,
+	)
+	if err != nil {
+		return fmt.Errorf("update account credentials: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrAccountNotFound
+	}
+	return nil
+}
+
+// GetAccountByChannelUsername finds an already-bound channel identity for one
+// dashboard user. It prevents repeated QR scans from creating duplicates.
+func (d *DB) GetAccountByChannelUsername(ctx context.Context, userID int64, channel, username string) (*Account, error) {
+	row := d.QueryRowContext(ctx,
+		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+         FROM accounts WHERE user_id = ? AND channel = ? AND username = ? ORDER BY id ASC LIMIT 1`,
+		userID, channel, username)
+	acc, err := scanAccount(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrAccountNotFound
+	}
+	return acc, err
 }
 
 // UniqueAccountName returns base, or base with a numeric suffix, scoped to the
@@ -453,6 +492,8 @@ func channelToProto(s string) pb.Channel {
 	switch s {
 	case "ios":
 		return pb.Channel_CHANNEL_IOS
+	case "alipay":
+		return pb.Channel_CHANNEL_ALIPAY
 	default:
 		return pb.Channel_CHANNEL_UNSPECIFIED
 	}
@@ -463,6 +504,8 @@ func ChannelFromProto(c pb.Channel) string {
 	switch c {
 	case pb.Channel_CHANNEL_IOS:
 		return "ios"
+	case pb.Channel_CHANNEL_ALIPAY:
+		return "alipay"
 	default:
 		return ""
 	}

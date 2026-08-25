@@ -35,6 +35,9 @@ const (
 	// The official iOS App Store build (cn.lbwdhysj.gf.ios). Captured and
 	// verified, May 2026.
 	Channel_CHANNEL_IOS Channel = 1
+	// Alipay mini-game channel (cn.hysj.zfb.minigame). Account binding uses
+	// the AccountService QR flow; username/password creation is not accepted.
+	Channel_CHANNEL_ALIPAY Channel = 2
 )
 
 // Enum value maps for Channel.
@@ -42,10 +45,12 @@ var (
 	Channel_name = map[int32]string{
 		0: "CHANNEL_UNSPECIFIED",
 		1: "CHANNEL_IOS",
+		2: "CHANNEL_ALIPAY",
 	}
 	Channel_value = map[string]int32{
 		"CHANNEL_UNSPECIFIED": 0,
 		"CHANNEL_IOS":         1,
+		"CHANNEL_ALIPAY":      2,
 	}
 )
 
@@ -80,10 +85,11 @@ var File_mygardenworld_v1_channel_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_channel_proto_rawDesc = "" +
 	"\n" +
-	"\x1emygardenworld/v1/channel.proto\x12\x10mygardenworld.v1*3\n" +
+	"\x1emygardenworld/v1/channel.proto\x12\x10mygardenworld.v1*G\n" +
 	"\aChannel\x12\x17\n" +
 	"\x13CHANNEL_UNSPECIFIED\x10\x00\x12\x0f\n" +
-	"\vCHANNEL_IOS\x10\x01B\xcf\x01\n" +
+	"\vCHANNEL_IOS\x10\x01\x12\x12\n" +
+	"\x0eCHANNEL_ALIPAY\x10\x02B\xcf\x01\n" +
 	"\x14com.mygardenworld.v1B\fChannelProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (

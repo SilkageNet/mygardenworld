@@ -12,6 +12,13 @@ type Config struct {
 	GameVersion    string // 330.0.31
 	RNVersion      string // v3.3.2.32
 	SDKVersion     string // 7.0.4
+	SDKPlatform    string // iOS / Android / Browser
+	MobilePlatform string // ios / android / browser
+	GamePlatform   string // mobilegame / minigame
+	OSType         int    // protocol enum used by index.login
+	IsNative       bool
+	IsSimulator    int
+	DeviceType     string // Phone / PC
 
 	// Channel / project
 	MdGid     int    // 160
@@ -41,7 +48,7 @@ type Config struct {
 	HostWSDefault     string
 	HostWSDefaultPort int // 54825 (port_ssl)
 
-	// iOS device fingerprint template
+	// Channel-specific device fingerprint template.
 	UserAgent       string
 	OSVersion       string
 	DeviceBrand     string

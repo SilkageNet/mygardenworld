@@ -122,6 +122,9 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	if rawNS111, ok := top["111"]; ok {
 		s.applyFrdStealLocked(rawNS111)
 	}
+	if rawNS133, ok := top["133"]; ok {
+		s.applyFrdHomeLocked(rawNS133)
+	}
 	if rawNS101, ok := top["101"]; ok {
 		s.applyCultivationsLocked(rawNS101)
 	}

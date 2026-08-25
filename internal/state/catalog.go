@@ -97,10 +97,12 @@ type FlowerUpgradeCost struct {
 }
 
 // FlowerLvlYield is the harvest profile from one c_flowerLvl row: flowers per
-// harvest action (cropGets) and harvest rounds per planting (frequencys).
+// harvest action (cropGets), flowers reserved from friend picks (left), and
+// harvest rounds per planting (frequencys).
 type FlowerLvlYield struct {
 	Level      int32
 	CropGets   int32
+	Left       int32
 	Frequencys int32
 }
 
@@ -2182,7 +2184,7 @@ func FlowerBouquetItemID(flowerID int32) int32 {
 	return itemID
 }
 
-// FlowerLvlYieldByID returns cropGets/frequencys for a flower at cultivation
+// FlowerLvlYieldByID returns cropGets/left/frequencys for a flower at cultivation
 // level. Prefer the per-flower c_flowerLvl row (key flowerId*100+level); when
 // that row is absent or lacks yield fields (newer flowers like 梦紫郁金香),
 // fall back to the shared c_flowerLvlCfg row for the same level — matching
@@ -2208,12 +2210,13 @@ func FlowerLvlYieldByID(flowerID, level int32) (FlowerLvlYield, bool) {
 func parseFlowerLvlYield(raw json.RawMessage, level int32) (FlowerLvlYield, bool) {
 	var row struct {
 		CropGets   int32 `json:"cropGets"`
+		Left       int32 `json:"left"`
 		Frequencys int32 `json:"frequencys"`
 	}
-	if json.Unmarshal(raw, &row) != nil || row.CropGets <= 0 || row.Frequencys <= 0 {
+	if json.Unmarshal(raw, &row) != nil || row.CropGets <= 0 || row.Left < 0 || row.Frequencys <= 0 {
 		return FlowerLvlYield{}, false
 	}
-	return FlowerLvlYield{Level: level, CropGets: row.CropGets, Frequencys: row.Frequencys}, true
+	return FlowerLvlYield{Level: level, CropGets: row.CropGets, Left: row.Left, Frequencys: row.Frequencys}, true
 }
 
 // FlowerLvlCDSeconds returns the catalog grow CD (seconds between harvests)

@@ -31,6 +31,7 @@ type Services struct {
 	JWT          *auth.JWT
 	Log          *slog.Logger
 	LoginLimiter *LoginLimiter
+	AlipayLogins *AlipayLoginCoordinator
 }
 
 // Compile-time assertions: every service interface is implemented.
@@ -87,6 +88,9 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 	}
 	if !babigame.IsSupported(babigame.Channel(channelStr)) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("channel %q not supported (one of %v)", channelStr, supportedChannelStrings()))
+	}
+	if channelStr == string(babigame.ChannelAlipay) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("alipay accounts must use StartAlipayLogin"))
 	}
 	userID := auth.UserIDFromContext(ctx)
 	if userID > 0 {

@@ -62,6 +62,9 @@ func PlanOneFriendTouch(s *state.State, policy *pb.FriendStealPolicy, now time.T
 	if len(profileUIDs) > 0 {
 		return friendTouchSyncOp(clientproto.RPCOpptGetDetailOppts.String(), goal, "profile", "摸花目标好友名称未同步", firstUIDs(profileUIDs), friendTouchPriority+5), true
 	}
+	if !friendTouchStealMapFresh(view, now) {
+		return friendTouchVerificationOp(goal), true
+	}
 	otherUIDs := friendTouchOtherInfoUIDs(view, targets, now)
 	if len(otherUIDs) > 0 {
 		return friendTouchSyncOp(clientproto.RPCFrdExtGetFrdOtherInfoByUids.String(), goal, "availability", "好友可摸状态未同步或已过期", firstUIDs(otherUIDs), friendTouchPriority+4), true
@@ -72,12 +75,6 @@ func PlanOneFriendTouch(s *state.State, policy *pb.FriendStealPolicy, now time.T
 		info := view.OtherInfo[target.UID]
 		if !friendTouchInfoFresh(info.ObservedAt, now) || !info.IsSteal {
 			continue
-		}
-		if !friendTouchStealMapFresh(view, now) {
-			if !friendTouchVisitFresh(view, target.UID, now) {
-				return friendTouchEnterOp(goal, view, target.UID, "进入好友花园并同步今日已摸次数"), true
-			}
-			return blockedFriendTouch("frdSteal 今日已摸次数未随进入好友花园回包同步，拒绝假定为 0"), true
 		}
 
 		stolen := view.StealMap[target.UID]
@@ -105,7 +102,7 @@ func PlanOneFriendTouch(s *state.State, policy *pb.FriendStealPolicy, now time.T
 			continue
 		}
 		if !friendTouchVisitFresh(view, target.UID, now) {
-			return friendTouchEnterOp(goal, view, target.UID, "进入好友花园，准备单次摸花"), true
+			return friendTouchGardenOp(goal, view, target.UID, "同步好友花园，准备单次摸花"), true
 		}
 		landID, ok := state.PickFriendStealLandIDWithSelection(view.VisitLands, s.Inventory(), s.RoleID(), now, selection)
 		if !ok {
@@ -126,9 +123,15 @@ func friendTouchGoal() Goal {
 	return Goal{ID: "farm.friend_steal", Category: CategoryPlant, Domain: "farm.friend_steal", Label: "好友摸花", Priority: 55}
 }
 
-func friendTouchEnterOp(goal Goal, view state.FriendTouchView, uid int64, reason string) PlannedOp {
-	planned := friendTouchBaseOp(clientproto.RPCFrdStealEnterFrdSteal.String(), goal, "enter", fmt.Sprintf("%s %s", reason, friendTouchLabel(view, uid)), friendTouchPriority+3)
-	planned.OperationID = clientproto.RPCFrdStealEnterFrdSteal.String() + ":" + strconv.FormatInt(uid, 10)
+func friendTouchVerificationOp(goal Goal) PlannedOp {
+	planned := friendTouchBaseOp(clientproto.RPCFrdStealEnterFrdSteal.String(), goal, "sync", "摸花校验状态未同步，先按客户端流程刷新今日次数", friendTouchPriority+4)
+	planned.OperationID = clientproto.RPCFrdStealEnterFrdSteal.String() + ":friend_touch:verification"
+	return planned
+}
+
+func friendTouchGardenOp(goal Goal, view state.FriendTouchView, uid int64, reason string) PlannedOp {
+	planned := friendTouchBaseOp(clientproto.RPCFrdHomeGetFrdHomeInfo.String(), goal, "enter", fmt.Sprintf("%s %s", reason, friendTouchLabel(view, uid)), friendTouchPriority+3)
+	planned.OperationID = clientproto.RPCFrdHomeGetFrdHomeInfo.String() + ":" + strconv.FormatInt(uid, 10)
 	planned.TargetUID = uid
 	return planned
 }

@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Compo
 import { create } from "@bufbuild/protobuf";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
+import { QRCodeSVG } from "qrcode.react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -39,7 +40,7 @@ import {
   Waves,
 } from "lucide-react";
 
-import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
+import { AccountService, AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
@@ -163,11 +164,18 @@ const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] =
 
 const EMPTY_ADD_FORM = {
   channel: Channel.IOS,
+  name: "",
   username: "",
   password: "",
 };
 
 type AddAccountForm = typeof EMPTY_ADD_FORM;
+type AlipayQRState = {
+  loginId: string;
+  content: string;
+  status: AlipayLoginStatus;
+  error: string;
+};
 
 export default function HomePage() {
   return (
@@ -197,6 +205,7 @@ function DashboardContent() {
   const [policyMessage, setPolicyMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
+  const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
   const [redeemBusy, setRedeemBusy] = useState(false);
@@ -349,6 +358,54 @@ function DashboardContent() {
   useEffect(() => {
     void initializeWorkspace();
   }, [initializeWorkspace]);
+
+  useEffect(() => {
+    if (
+      !addOpen ||
+      addForm.channel !== Channel.ALIPAY ||
+      !alipayQR?.loginId ||
+      (alipayQR.status !== AlipayLoginStatus.WAITING_FOR_SCAN && alipayQR.status !== AlipayLoginStatus.PROCESSING)
+    ) {
+      return;
+    }
+    let active = true;
+    let polling = false;
+
+    const poll = async () => {
+      if (polling) return;
+      polling = true;
+      try {
+        const response = await accountClient.pollAlipayLogin({ loginId: alipayQR.loginId });
+        if (!active) return;
+        if (response.status === AlipayLoginStatus.COMPLETE && response.account) {
+          setSelectedAccountId(response.account.id);
+          setAddOpen(false);
+          setAddForm(EMPTY_ADD_FORM);
+          setAlipayQR(null);
+          await refreshAccountCollection();
+          return;
+        }
+        setAlipayQR((current) => current && current.loginId === alipayQR.loginId
+          ? { ...current, status: response.status, error: response.loginError }
+          : current);
+      } catch (err) {
+        if (active) {
+          setAlipayQR((current) => current && current.loginId === alipayQR.loginId
+            ? { ...current, status: AlipayLoginStatus.FAILED, error: formatAPIError(err, "扫码登录失败") }
+            : current);
+        }
+      } finally {
+        polling = false;
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), 1000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [addForm.channel, addOpen, alipayQR?.loginId, alipayQR?.status, refreshAccountCollection]);
 
   useEffect(() => {
     if (accounts.length === 0) {
@@ -668,15 +725,22 @@ function DashboardContent() {
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!addForm.username.trim() || !addForm.password) return;
+    if (addForm.channel === Channel.ALIPAY) {
+      if (!alipayQR || alipayQR.status === AlipayLoginStatus.EXPIRED || alipayQR.status === AlipayLoginStatus.FAILED) {
+        await startAlipayLogin();
+      }
+      return;
+    }
     if (accountQuota?.reached) {
       setError(`账号已满（${accountQuota.current}/${accountQuota.max}）`);
       return;
     }
+    if (!addForm.username.trim() || !addForm.password) return;
     setBusyAction("create");
     setError("");
     try {
       const res = await accountClient.createAccount({
+        name: addForm.name.trim(),
         username: addForm.username.trim(),
         password: addForm.password,
         channel: addForm.channel,
@@ -693,6 +757,25 @@ function DashboardContent() {
       }
     } catch (err) {
       setError(formatAPIError(err, "新增账号失败"));
+    } finally {
+      setBusyAction("");
+    }
+  }
+
+  async function startAlipayLogin() {
+    setBusyAction("create");
+    setError("");
+    setAlipayQR(null);
+    try {
+      const response = await accountClient.startAlipayLogin({});
+      setAlipayQR({
+        loginId: response.loginId,
+        content: response.qrContent,
+        status: response.status,
+        error: "",
+      });
+    } catch (err) {
+      setError(formatAPIError(err, "获取支付宝二维码失败"));
     } finally {
       setBusyAction("");
     }
@@ -822,14 +905,23 @@ function DashboardContent() {
         )}
       </div>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) {
+            setAddForm(EMPTY_ADD_FORM);
+            setAlipayQR(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
           </DialogHeader>
           <form className="space-y-4" onSubmit={createAccount}>
             <Field label="渠道">
-              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="渠道">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="渠道">
                 <button
                   type="button"
                   role="radio"
@@ -840,51 +932,96 @@ function DashboardContent() {
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border/70 text-muted-foreground hover:text-foreground",
                   )}
-                  onClick={() => setAddForm((prev) => ({ ...prev, channel: Channel.IOS }))}
+                  onClick={() => {
+                    setAddForm((prev) => ({ ...prev, channel: Channel.IOS }));
+                    setAlipayQR(null);
+                  }}
                   disabled={creatingAccount}
                 >
                   iOS
                 </button>
                 <button
                   type="button"
-                  className="h-10 cursor-not-allowed rounded-md border border-border/70 px-3 text-sm font-medium text-muted-foreground/50"
-                  disabled
+                  role="radio"
+                  aria-checked={addForm.channel === Channel.ALIPAY}
+                  className={cn(
+                    "h-10 rounded-md border px-3 text-sm font-medium transition-colors",
+                    addForm.channel === Channel.ALIPAY
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border/70 text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={() => {
+                    setAddForm((prev) => ({ ...prev, channel: Channel.ALIPAY }));
+                    setAlipayQR(null);
+                  }}
+                  disabled={creatingAccount}
                 >
-                  安卓
-                </button>
-                <button
-                  type="button"
-                  className="h-10 cursor-not-allowed rounded-md border border-border/70 px-3 text-sm font-medium text-muted-foreground/50"
-                  disabled
-                >
-                  微信
+                  支付宝
                 </button>
               </div>
             </Field>
-            <Field label="账号">
-              <Input
-                value={addForm.username}
-                onChange={(event) => setAddForm((prev) => ({ ...prev, username: event.target.value }))}
-                autoComplete="username"
-                disabled={creatingAccount}
-              />
-            </Field>
-            <Field label="密码">
-              <Input
-                type="password"
-                value={addForm.password}
-                onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
-                autoComplete="current-password"
-                disabled={creatingAccount}
-              />
-            </Field>
+            {addForm.channel === Channel.ALIPAY ? (
+              <>
+                <div className="rounded-md border border-border/60 bg-white/52 p-4 text-center dark:bg-white/5">
+                  {alipayQR?.content ? (
+                    <div className="space-y-3">
+                      <div className="mx-auto w-fit rounded-md bg-white p-3 shadow-sm">
+                        <QRCodeSVG value={alipayQR.content} size={208} level="M" />
+                      </div>
+                      <div className="text-sm font-medium">{alipayLoginStatusLabel(alipayQR.status)}</div>
+                      {alipayQR.error && <div className="text-xs text-destructive">{alipayQR.error}</div>}
+                      {(alipayQR.status === AlipayLoginStatus.EXPIRED || alipayQR.status === AlipayLoginStatus.FAILED) && (
+                        <Button type="button" variant="outline" size="sm" onClick={() => void startAlipayLogin()} disabled={creatingAccount}>
+                          <RefreshCw className="size-4" />
+                          重新获取
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="py-6 text-sm text-muted-foreground">点击下方按钮生成二维码，再使用支付宝扫码确认。</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <Field label="账号">
+                  <Input
+                    value={addForm.username}
+                    onChange={(event) => setAddForm((prev) => ({ ...prev, username: event.target.value }))}
+                    autoComplete="username"
+                    disabled={creatingAccount}
+                  />
+                </Field>
+                <Field label="密码">
+                  <Input
+                    type="password"
+                    value={addForm.password}
+                    onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
+                    autoComplete="current-password"
+                    disabled={creatingAccount}
+                  />
+                </Field>
+              </>
+            )}
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAddOpen(false)} disabled={creatingAccount}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setAddOpen(false);
+                  setAddForm(EMPTY_ADD_FORM);
+                  setAlipayQR(null);
+                }}
+                disabled={creatingAccount}
+              >
                 取消
               </Button>
-              <Button type="submit" disabled={creatingAccount || accountQuota?.reached}>
+              <Button
+                type="submit"
+                disabled={creatingAccount || (addForm.channel !== Channel.ALIPAY && accountQuota?.reached) || (addForm.channel === Channel.ALIPAY && Boolean(alipayQR) && alipayQR?.status !== AlipayLoginStatus.EXPIRED && alipayQR?.status !== AlipayLoginStatus.FAILED)}
+              >
                 {creatingAccount ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                {creatingAccount ? "添加中" : "新增"}
+                {creatingAccount ? "处理中" : addForm.channel === Channel.ALIPAY ? "获取二维码" : "新增"}
               </Button>
             </DialogFooter>
           </form>
@@ -1522,8 +1659,27 @@ function channelLabel(channel: Channel) {
   switch (channel) {
     case Channel.IOS:
       return "iOS";
+    case Channel.ALIPAY:
+      return "支付宝";
     default:
       return "未知渠道";
+  }
+}
+
+function alipayLoginStatusLabel(status: AlipayLoginStatus) {
+  switch (status) {
+    case AlipayLoginStatus.WAITING_FOR_SCAN:
+      return "等待支付宝扫码确认";
+    case AlipayLoginStatus.PROCESSING:
+      return "正在验证游戏登录…";
+    case AlipayLoginStatus.COMPLETE:
+      return "绑定完成";
+    case AlipayLoginStatus.EXPIRED:
+      return "二维码已过期";
+    case AlipayLoginStatus.FAILED:
+      return "登录验证失败";
+    default:
+      return "准备扫码";
   }
 }
 

@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -81,7 +82,7 @@ func (c *HTTPClient) headersSDK() http.Header {
 	h := c.headersBasic()
 	h.Set("appid", c.Cfg.AppID)
 	h.Set("packagename", c.Cfg.PackageName)
-	h.Set("platform", "iOS")
+	h.Set("platform", c.Cfg.SDKPlatform)
 	h.Set("version", "v"+c.Cfg.AppVersion)
 	h.Set("deviceid", c.DeviceID)
 	h.Set("lang", "zh")
@@ -207,7 +208,7 @@ func (c *HTTPClient) AccountLoginUsername(ctx context.Context, username, passwor
 		"deviceId":               c.DeviceID,
 		"appId":                  c.Cfg.AppID,
 		"packageName":            c.Cfg.PackageName,
-		"platform":               "iOS",
+		"platform":               c.Cfg.SDKPlatform,
 		"version":                "v" + c.Cfg.AppVersion,
 		"name":                   username,
 		"value":                  base64.StdEncoding.EncodeToString([]byte(password)),
@@ -244,7 +245,7 @@ func (c *HTTPClient) AccountTokenVerify(ctx context.Context) (map[string]any, er
 		"deviceId":    c.DeviceID,
 		"appId":       c.Cfg.AppID,
 		"packageName": c.Cfg.PackageName,
-		"platform":    "iOS",
+		"platform":    c.Cfg.SDKPlatform,
 		"version":     "v" + c.Cfg.AppVersion,
 	}
 	resp, _, err := c.PostJSON(ctx, c.Cfg.HostMOAC, "/account/v3/token/verify", body, c.headersSDK())
@@ -259,12 +260,12 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 	}
 	appInfo := map[string]any{
 		"_ip":                 clientIP,
-		"_os":                 "ios",
+		"_os":                 c.Cfg.MobilePlatform,
 		"_ram":                c.Cfg.RAMMB,
 		"_os_version":         c.Cfg.OSVersion,
 		"_cpu_type":           c.Cfg.CPUType,
 		"_time_zone":          c.Cfg.TimeZoneHour,
-		"_game_platform":      "mobilegame",
+		"_game_platform":      c.Cfg.GamePlatform,
 		"_game_version":       c.Cfg.GameVersion,
 		"_sdk_version":        c.Cfg.SDKVersion,
 		"_screen_height":      c.Cfg.ScreenHeightPx,
@@ -272,8 +273,8 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		"_network_type":       c.Cfg.NetworkType,
 		"_package_version":    c.Cfg.AppVersion,
 		"_native_version":     c.Cfg.AppVersion,
-		"_equipment_model":    "iphone 15 pro",
-		"_equipment_brand":    "apple",
+		"_equipment_model":    strings.ToLower(c.Cfg.DeviceModel),
+		"_equipment_brand":    strings.ToLower(c.Cfg.DeviceBrand),
 		"_deviceId":           c.DeviceID,
 		"_equipment_language": "zh",
 		"_runtime_language":   c.Cfg.RuntimeLanguage,
@@ -289,7 +290,7 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		"isNewDevice":    native.IsNewDevice,
 		"hotCloudData":   `""`,
 		"deeplinkUrl":    "",
-		"mobilePlatform": "ios",
+		"mobilePlatform": c.Cfg.MobilePlatform,
 		"idfv":           idfv,
 		"caid1_md5":      caid1MD5,
 		"caid2_md5":      caid2MD5,
@@ -299,11 +300,18 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		"appInfo":        string(appInfoJSON),
 		"uuid":           c.UUID,
 	}
+	return c.GameLoginWithPayload(ctx, body)
+}
+
+// GameLoginWithPayload submits a channel-native /game/login payload and
+// parses the common redirect token result. Password channels build this
+// payload in GameLogin; grant-based channels such as Alipay build their own.
+func (c *HTTPClient) GameLoginWithPayload(ctx context.Context, body map[string]any) (GameLoginResult, error) {
 	resp, _, err := c.PostJSON(ctx, c.Cfg.HostAPI, c.gamePath("login"), body, c.headersBasic())
 	if err != nil {
 		return GameLoginResult{}, fmt.Errorf("game/login: %w", err)
 	}
-	if status, _ := resp["status"].(string); status != "success" {
+	if !gameLoginSucceeded(resp["status"]) {
 		return GameLoginResult{}, fmt.Errorf("game/login non-success: %v", resp)
 	}
 	rawURL, _ := resp["url"].(string)
@@ -327,6 +335,21 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		Content:     content,
 		RedirectURL: rawURL,
 	}, nil
+}
+
+func gameLoginSucceeded(status any) bool {
+	switch v := status.(type) {
+	case string:
+		return v == "success" || v == "1"
+	case float64:
+		return v == 1
+	case int:
+		return v == 1
+	case json.Number:
+		return v.String() == "1"
+	default:
+		return false
+	}
 }
 
 // QueryLoginParams pulls the post-login feature config (token-bound).
@@ -373,7 +396,7 @@ func (c *HTTPClient) GWIndexLogin(ctx context.Context, login GameLoginResult, is
 			"params":        params,
 			"msBeforeLogin": before,
 			"msAfterLogin":  nowMsTime(),
-			"osType":        1,
+			"osType":        c.Cfg.OSType,
 			"deviceId":      c.DeviceID,
 			"isSimulator":   isSimulator,
 			"clientVersion": c.Cfg.ClientVersion,

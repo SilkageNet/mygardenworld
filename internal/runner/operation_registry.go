@@ -392,10 +392,14 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FrdExt().BuyStealCnt(ctx, req)
 		},
 	),
-	clientproto.RPCFrdStealEnterFrdSteal.String(): stateDeltaOperation(
-		friendTouchEnterRequest,
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdStealEnterFrdStealRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.FrdSteal().EnterFrdSteal(ctx, req)
+	clientproto.RPCFrdStealEnterFrdSteal.String(): {
+		args: friendTouchVerificationArgs,
+		run:  runFriendTouchVerification,
+	},
+	clientproto.RPCFrdHomeGetFrdHomeInfo.String(): stateDeltaOperation(
+		friendTouchGardenRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdHomeGetFrdHomeInfoRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FrdHome().GetFrdHomeInfo(ctx, req)
 		},
 	),
 	clientproto.RPCFrdStealSteal.String(): stateDeltaOperation(

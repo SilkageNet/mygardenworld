@@ -182,6 +182,13 @@ func unionOperations(s *state.State, policy *pb.Policy, now time.Time) []Planned
 	if union == nil {
 		return nil
 	}
+	// IFmlTot.mb (25.1) is the authoritative current-user membership record.
+	// When it explicitly says the account has no guild, do not run any guild
+	// sync or mutation, even if stale IFml/race snapshots are still present.
+	build := s.FmlBuild()
+	if build.MembershipObserved && build.MemberFmlID <= 0 {
+		return nil
+	}
 	uid := s.RoleID()
 	gates := raceModuleGatesFromPolicy(policy)
 	var ops []PlannedOp
@@ -734,6 +741,16 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		return nil
 	}
 	view := s.FmlRace()
+	build := s.FmlBuild()
+	if build.MembershipObserved && build.MemberFmlID <= 0 {
+		return nil
+	}
+	// A race batch is itself proof of guild membership for sparse deltas. Until
+	// one has been observed, require the authoritative guild ID from namespace
+	// 25.0 before sending any race bootstrap RPC.
+	if !view.Observed && build.FmlID <= 0 {
+		return nil
+	}
 
 	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
 
@@ -745,6 +762,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// Also re-fetch when a plant-harvest row is missing flower ParamID (once per
 	// pool msId set — state.MissingParamRefreshFP prevents tight loops).
 	if !view.Observed {
+		// Some channel fronts acknowledge enter with an empty delta when no
+		// meaningful race snapshot is available. Back off after that successful
+		// probe so race bootstrap cannot starve ordinary farm/order work.
+		if raceEnterProbeCoolingDown(view, now) {
+			return nil
+		}
 		// Outside an active/calendar contest, enter stays a normal side op so
 		// farm/order work is not delayed. During the weekly window, login with
 		// no batch yet must still enter before farm so the pool can be claimed.
@@ -769,9 +792,8 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 	if view.BatchActive && view.RaceLvl <= 0 && s.FmlBuild().RaceLvl <= 0 {
-		const raceLvlSyncInterval = 10 * time.Minute
 		synced := view.RaceLvlSyncAtMs
-		if synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceLvlSyncInterval)) {
+		if synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceEnterProbeInterval)) {
 			op := domainOp(clientproto.RPCFmlRaceEnter.String(), goal, "union.race.enter", "enter", "公会竞赛同步段位与任务配额", 4399, 0, 0, 0)
 			op.CooldownKey = "union.race.enter.race_lvl"
 			op.PreemptFarm = true
@@ -1026,6 +1048,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	return ops
 }
 
+const raceEnterProbeInterval = 10 * time.Minute
+
+func raceEnterProbeCoolingDown(view state.FmlRaceView, now time.Time) bool {
+	return view.RaceLvlSyncAtMs > 0 && now.Before(time.UnixMilli(view.RaceLvlSyncAtMs).Add(raceEnterProbeInterval))
+}
+
 // raceShouldEnterInactiveBatch re-probes fmlRace.enter when the stored batch is
 // not in-progress. Without this, an ended last-week snapshot (status==2) or a
 // published future window (status==0) never discovers Tuesday 09:00 opening.
@@ -1183,7 +1211,17 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 		return false
 	}
 	view := s.FmlRace()
+	build := s.FmlBuild()
+	if build.MembershipObserved && build.MemberFmlID <= 0 {
+		return false
+	}
+	if !view.Observed && build.FmlID <= 0 {
+		return false
+	}
 	if !view.Observed {
+		if raceEnterProbeCoolingDown(view, now) {
+			return false
+		}
 		// First enter only preempts during the weekly contest window.
 		return state.FmlRaceCalendarInSession(now)
 	}

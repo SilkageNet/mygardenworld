@@ -20,6 +20,14 @@ service AccountService {
   // session token, routeToken, gsHost. Daemon will rebuild the WS.
   rpc LoginAccount(LoginAccountRequest) returns (LoginAccountResponse);
 
+  // Starts a short-lived Alipay PC game-center QR authorization. The returned
+  // qr_content must be rendered locally as a QR code and is never persisted.
+  rpc StartAlipayLogin(StartAlipayLoginRequest) returns (StartAlipayLoginResponse);
+
+  // Polls the QR authorization and, once authorized, verifies the common game
+  // login chain, creates or refreshes the local account, and starts automation.
+  rpc PollAlipayLogin(PollAlipayLoginRequest) returns (PollAlipayLoginResponse);
+
   // Stops the live runner/WS for the account and disables auto-resume.
   // Credentials stay stored; the account can be logged in again later.
   rpc LogoutAccount(LogoutAccountRequest) returns (LogoutAccountResponse);
@@ -68,6 +76,38 @@ message LoginAccountRequest {
 message LoginAccountResponse {
   Account account = 1;
   google.protobuf.Timestamp logged_in_at = 2;
+}
+
+enum AlipayLoginStatus {
+  ALIPAY_LOGIN_STATUS_UNSPECIFIED = 0;
+  ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN = 1;
+  ALIPAY_LOGIN_STATUS_PROCESSING = 2;
+  ALIPAY_LOGIN_STATUS_COMPLETE = 3;
+  ALIPAY_LOGIN_STATUS_EXPIRED = 4;
+  ALIPAY_LOGIN_STATUS_FAILED = 5;
+}
+
+message StartAlipayLoginRequest {
+  // Optional local display name. Empty derives a unique name from game state.
+  string name = 1;
+}
+
+message StartAlipayLoginResponse {
+  string login_id = 1;
+  string qr_content = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  AlipayLoginStatus status = 4;
+}
+
+message PollAlipayLoginRequest {
+  string login_id = 1;
+}
+
+message PollAlipayLoginResponse {
+  AlipayLoginStatus status = 1;
+  Account account = 2;
+  string login_error = 3;
+  google.protobuf.Timestamp expires_at = 4;
 }
 
 message LogoutAccountRequest {

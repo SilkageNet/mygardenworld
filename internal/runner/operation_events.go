@@ -54,6 +54,7 @@ const (
 	operationErrorRaceTakeClaimedByOther    operationErrorKind = "race_take_claimed_by_other"
 	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
 	operationErrorRaceTakeOnCooldown        operationErrorKind = "race_take_on_cooldown"
+	operationErrorFmlNotJoined              operationErrorKind = "fml_not_joined"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
@@ -85,6 +86,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorRaceTakeQuotaExceeded
 	case isRaceTakeOnCooldownError(kind, err):
 		return operationErrorRaceTakeOnCooldown
+	case isFmlNotJoinedError(kind, err):
+		return operationErrorFmlNotJoined
 	case isFmlFlowerTakeDailyLimitError(kind, err):
 		return operationErrorFmlFlowerTakeDailyLimit
 	case isCyclicStoryOrderNotReadyError(kind, err):
@@ -152,6 +155,21 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
 	switch classifyOperationError(op.Kind, err) {
+	case operationErrorFmlNotJoined:
+		r.state.MarkNoFmlMembership()
+		r.clearOperationCooldown(op)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 账号未加入公会，已停止公会相关自动化", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "fml_not_joined"})
+		return nil
 	case operationErrorHarvestNotMature:
 		landIDs := op.LandIDs
 		var landErr *harvestLandError
@@ -552,10 +570,10 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
 	category := op.Category
 	switch op.Kind {
-	case clientproto.RPCFrdStealEnterFrdSteal.String():
+	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
 		view := r.state.FriendTouch(result.finishedAt)
 		if view.VisitUID == op.TargetUID {
-			if _, ok := state.ReadyFriendStealLandID(view.VisitLands, result.finishedAt); !ok {
+			if _, ok := state.PickFriendStealLandID(view.VisitLands, nil, r.state.RoleID(), result.finishedAt); !ok {
 				r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(5*time.Minute))
 			}
 		}

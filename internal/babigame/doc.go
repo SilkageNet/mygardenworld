@@ -373,7 +373,8 @@
 //	oppt.getDetailOppts  {uids:[uid],extKeys:[1]}  → {28}
 //	frdExt.getFrdOtherInfoByUids {uids:[uid],steal:1} → {110}
 //	frdExt.buyStealCnt   {frdUid,buyCnt:1}        → {7,24,...}       costs c_frd.$pickAddCost item 1305
-//	frdSteal.enterFrdSteal {point:[22,frdUid]}    → {111,...}
+//	frdSteal.enterFrdSteal {point:[22,deviceFingerprint]} → {111,...}
+//	frdHome.getFrdHomeInfo {frdUid}              → {133,...}
 //	frdSteal.steal      {frdUid,landId,stealElves:0} → {7,111,...}
 //	pearl.getHireStateByUids {uids:[uid]}          → {115.5}
 //	pearl.getRecommendList {}                      → {115.5,115.6}

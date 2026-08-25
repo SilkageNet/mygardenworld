@@ -14,19 +14,23 @@ const FlowerSeedHigh = 24000
 //
 //	field 0 = flowerId
 //	field 1 = state (1=just planted, 3=initial bloom ready, 2=regrowing)
-//	field 2 = lvl (land level)
+//	field 2 = lvl (planted flower cultivation level)
 //	field 3 = harvestCnt (times this plant has been harvested)
 //	field 4 = stealUids (uids that already stole from this plot)
 //	field 5 = nextTime (ms; next state transition - regrow ready)
+//	field 6 = elvesId (flower elf occupying this plot)
 //	field 7 = plantTime (ms; last plant/state-change tick)
+//	field 8 = elvesStealUids (uids that already attempted the flower elf)
 type LandView struct {
-	FlowerID    int     `json:"flower_id,omitempty"`
-	State       int     `json:"state,omitempty"`
-	Lvl         int     `json:"lvl,omitempty"`
-	HarvestCnt  int     `json:"harvest_cnt,omitempty"`
-	StealUIDs   []int64 `json:"steal_uids,omitempty"`
-	NextTimeMs  int64   `json:"next_time_ms,omitempty"`
-	PlantTimeMs int64   `json:"plant_time_ms,omitempty"`
+	FlowerID       int     `json:"flower_id,omitempty"`
+	State          int     `json:"state,omitempty"`
+	Lvl            int     `json:"lvl,omitempty"`
+	HarvestCnt     int     `json:"harvest_cnt,omitempty"`
+	StealUIDs      []int64 `json:"steal_uids,omitempty"`
+	NextTimeMs     int64   `json:"next_time_ms,omitempty"`
+	ElvesID        int     `json:"elves_id,omitempty"`
+	PlantTimeMs    int64   `json:"plant_time_ms,omitempty"`
+	ElvesStealUIDs []int64 `json:"elves_steal_uids,omitempty"`
 
 	// Observed = the server has confirmed this land's state at least once
 	// (including the empty-after-harvest state). Distinguishes "land we have
@@ -38,7 +42,7 @@ type LandView struct {
 func (l LandView) IsPlanted() bool { return l.FlowerID != 0 }
 
 // FromPrimary builds a LandView from the raw `100.1.<id>` JSON dict. Server
-// responses use numeric-string keys ("0".."7"), per the G.ILand schema.
+// responses use numeric-string keys ("0".."9"), per the G.ILand schema.
 func FromPrimary(raw map[string]any) LandView {
 	v := LandView{Observed: true}
 	v.FlowerID = readInt(raw, "0")
@@ -47,7 +51,9 @@ func FromPrimary(raw map[string]any) LandView {
 	v.HarvestCnt = readInt(raw, "3")
 	v.StealUIDs = readInt64Slice(raw, "4")
 	v.NextTimeMs = readInt64(raw, "5")
+	v.ElvesID = readInt(raw, "6")
 	v.PlantTimeMs = readInt64(raw, "7")
+	v.ElvesStealUIDs = readInt64Slice(raw, "8")
 	return v
 }
 
@@ -59,13 +65,16 @@ func EmptyObserved() LandView { return LandView{Observed: true} }
 // ToJSON returns the LandView as JSON for event emission.
 func (l LandView) ToJSON() map[string]any {
 	return map[string]any{
-		"flowerId":   l.FlowerID,
-		"state":      l.State,
-		"lvl":        l.Lvl,
-		"harvestCnt": l.HarvestCnt,
-		"nextTime":   l.NextTimeMs,
-		"plantTime":  l.PlantTimeMs,
-		"observed":   l.Observed,
+		"flowerId":       l.FlowerID,
+		"state":          l.State,
+		"lvl":            l.Lvl,
+		"harvestCnt":     l.HarvestCnt,
+		"stealUids":      l.StealUIDs,
+		"nextTime":       l.NextTimeMs,
+		"elvesId":        l.ElvesID,
+		"plantTime":      l.PlantTimeMs,
+		"elvesStealUids": l.ElvesStealUIDs,
+		"observed":       l.Observed,
 	}
 }
 
@@ -244,6 +253,8 @@ type CollectRewardView struct {
 type FmlBuildView struct {
 	Observed            bool            `json:"observed,omitempty"`
 	FmlID               int32           `json:"fml_id,omitempty"`
+	MembershipObserved  bool            `json:"membership_observed,omitempty"`
+	MemberFmlID         int32           `json:"member_fml_id,omitempty"`
 	TodayBuildNum       int32           `json:"today_build_num,omitempty"`
 	LastBuildTimeMs     int64           `json:"last_build_time_ms,omitempty"`
 	FlowerTakeCnt       int32           `json:"flower_take_cnt,omitempty"` // 25.0.102 公会摸花次数上限

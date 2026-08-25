@@ -16,6 +16,7 @@ const (
 	rqstPointWater         = 3
 	rqstPointCustomerOrder = 4
 	rqstPointFlowerOrder   = 5
+	rqstPointFriendSteal   = 22
 )
 
 // sendRqstVerification sends the anti-cheat verification RPC that the game

@@ -33,8 +33,8 @@ type Account struct {
 	// Distribution channel the daemon should speak with for this account.
 	// The protocol layer picks host fronts, version pinning, and device
 	// fingerprint based on this value. Required at creation time.
-	// Currently only CHANNEL_IOS is implemented; Android variants are pending
-	// capture-driven configs. CHANNEL_UNSPECIFIED is rejected at the API.
+	// CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
+	// encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
 	Channel Channel `protobuf:"varint,11,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
 	// gfsdk login username. Logged-in operations key off this.
 	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`

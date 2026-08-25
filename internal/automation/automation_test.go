@@ -4012,7 +4012,10 @@ func TestBuildPlan_UnionFlowerTakeSkipsWhenTdyTakeCntExhausted(t *testing.T) {
 
 func TestBuildPlan_UnionFlowerTakeContinuesWhenGuildLimitUnobserved(t *testing.T) {
 	s := state.New()
-	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Hour)
+	now := time.Now()
+	if windowStart := state.FmlFlowerTakeWindowStart(now); now.Before(windowStart) {
+		now = windowStart.Add(time.Minute)
+	}
 	applyMap(t, s, map[string]any{
 		"25": map[string]any{
 			"107": map[string]any{
