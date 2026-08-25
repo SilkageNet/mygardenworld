@@ -71,35 +71,21 @@ func (d *DB) RotateRefreshToken(ctx context.Context, oldToken, newToken string, 
 	var userID int64
 	var storedExpiry time.Time
 	if err := tx.QueryRowContext(ctx,
-		`SELECT user_id, expires_at FROM refresh_tokens WHERE token_hash = ?`,
+		`DELETE FROM refresh_tokens WHERE token_hash = ? RETURNING user_id, expires_at`,
 		oldHash,
 	).Scan(&userID, &storedExpiry); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrTokenInvalid
 		}
-		return fmt.Errorf("load refresh token for rotation: %w", err)
+		return fmt.Errorf("consume refresh token: %w", err)
 	}
 	if !time.Now().Before(storedExpiry) {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE token_hash = ?`, oldHash); err != nil {
-			return fmt.Errorf("delete expired refresh token: %w", err)
-		}
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("commit expired refresh token cleanup: %w", err)
 		}
 		return ErrTokenInvalid
 	}
 
-	res, err := tx.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE token_hash = ?`, oldHash)
-	if err != nil {
-		return fmt.Errorf("consume refresh token: %w", err)
-	}
-	deleted, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("count consumed refresh tokens: %w", err)
-	}
-	if deleted != 1 {
-		return ErrTokenInvalid
-	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO refresh_tokens(user_id, token_hash, expires_at) VALUES (?, ?, ?)`,
 		userID, hashToken(newToken), expiresAt.UTC(),
