@@ -56,6 +56,21 @@ func TestAccountsWithAutomationEnabledUsesPersistedPolicy(t *testing.T) {
 	if err := db.SavePolicyJSON(ctx, alipay.ID, enabledRaw); err != nil {
 		t.Fatal(err)
 	}
+	disabledOwner, err := db.CreateUser(ctx, "disabled-owner", "disabled@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	disabledStatus := "disabled"
+	if _, err := db.UpdateUser(ctx, disabledOwner.ID, nil, nil, &disabledStatus); err != nil {
+		t.Fatal(err)
+	}
+	disabledOwnerAccount, err := db.CreateAccount(ctx, disabledOwner.ID, "disabled-owner-account", "ios", "game5", "pw5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SavePolicyJSON(ctx, disabledOwnerAccount.ID, enabledRaw); err != nil {
+		t.Fatal(err)
+	}
 
 	disabledPolicy := automation.DefaultPolicy()
 	disabledRaw, err := policycfg.ToJSON(disabledPolicy)

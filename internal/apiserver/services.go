@@ -135,7 +135,9 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 		if r, err := svc.Manager.Start(ctx, acc.ID); err != nil {
 			resp.LoginError = formatLoginErr(err)
 		} else {
-			svc.enableAutomation(ctx, acc.ID, r)
+			if err := svc.enableAutomation(ctx, acc.ID, r); err != nil {
+				resp.LoginError = formatLoginErr(err)
+			}
 			out := store.AccountToProto(r.Account())
 			out.Connected = r.Connected()
 			resp.Account = out
@@ -199,7 +201,9 @@ func (svc *Services) LoginAccount(ctx context.Context, req *connect.Request[pb.L
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	svc.enableAutomation(ctx, acc.ID, r)
+	if err := svc.enableAutomation(ctx, acc.ID, r); err != nil {
+		return nil, mapErr(err)
+	}
 	out := store.AccountToProto(r.Account())
 	out.Connected = r.Connected()
 	return connect.NewResponse(&pb.LoginAccountResponse{
@@ -335,6 +339,8 @@ func mapErr(err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, store.ErrUserExists):
 		return connect.NewError(connect.CodeAlreadyExists, err)
+	case errors.Is(err, store.ErrLastActiveAdmin):
+		return connect.NewError(connect.CodeFailedPrecondition, err)
 	case errors.Is(err, store.ErrTokenInvalid):
 		return connect.NewError(connect.CodeUnauthenticated, err)
 	}

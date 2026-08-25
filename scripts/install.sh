@@ -49,12 +49,32 @@ if [ ! -f "${SCRIPT_DIR}/gardend" ]; then
     VERSION=${LATEST_URL##*/}
     ASSET="${APP_NAME}_${VERSION}_${DOWNLOAD_OS}_${DOWNLOAD_ARCH}.tar.gz"
     curl -fL "https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}" -o "${TMP_DIR}/${ASSET}"
+    curl -fL "https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt" -o "${TMP_DIR}/checksums.txt"
   elif command -v wget >/dev/null 2>&1; then
     VERSION=$(wget -qO- "https://api.github.com/repos/${REPO}/releases/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
     ASSET="${APP_NAME}_${VERSION}_${DOWNLOAD_OS}_${DOWNLOAD_ARCH}.tar.gz"
     wget -q "https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}" -O "${TMP_DIR}/${ASSET}"
+    wget -q "https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt" -O "${TMP_DIR}/checksums.txt"
   else
     echo "error: curl or wget is required to download ${APP_NAME}" >&2
+    exit 1
+  fi
+
+  EXPECTED_SHA256=$(awk -v asset="$ASSET" '$2 == asset || $2 == "*" asset { print $1; exit }' "${TMP_DIR}/checksums.txt")
+  if [ -z "$EXPECTED_SHA256" ]; then
+    echo "error: checksums.txt has no entry for ${ASSET}" >&2
+    exit 1
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_SHA256=$(sha256sum "${TMP_DIR}/${ASSET}" | awk '{print $1}')
+  elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL_SHA256=$(shasum -a 256 "${TMP_DIR}/${ASSET}" | awk '{print $1}')
+  else
+    echo "error: sha256sum or shasum is required to verify ${ASSET}" >&2
+    exit 1
+  fi
+  if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+    echo "error: checksum mismatch for ${ASSET}" >&2
     exit 1
   fi
 

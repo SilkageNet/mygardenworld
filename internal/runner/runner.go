@@ -56,8 +56,8 @@ func (e Event) ToProto() *pb.Event {
 
 // Runner owns the live game session for a single account.
 //
-// The protocol Config is per-account: it's resolved from `account.Platform`
-// at start time so iOS and Android sessions can run side-by-side and we
+// The protocol Config is per-account: it's resolved from `account.Channel`
+// at start time so iOS and Alipay sessions can run side-by-side and we
 // don't smuggle a "default" host map into something that should be a hard
 // per-account choice.
 type Runner struct {

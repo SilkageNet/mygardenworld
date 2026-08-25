@@ -24,8 +24,8 @@ const (
 // Channel identifies the gfsdk distribution / platform variant we should
 // impersonate when talking to the babigame backend. Different channels can
 // hit different host fronts, ship different version pinning, and require
-// different signing fingerprints (Android WeChat vs Alipay vs official APK
-// vs iOS App Store, etc.). Pick at account creation time; the daemon
+// different signing fingerprints (for example Alipay vs iOS App Store).
+// Pick at account creation time; the daemon
 // resolves the wire-level Config from this on every login.
 type Channel int32
 

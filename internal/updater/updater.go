@@ -312,7 +312,7 @@ func verifyChecksum(ctx context.Context, opts Options, release *githubRelease, a
 		}
 	}
 	if checksumAsset.Name == "" || checksumAsset.BrowserDownloadURL == "" {
-		return false, nil
+		return false, errors.New("release is missing required checksums.txt")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checksumAsset.BrowserDownloadURL, nil)
 	if err != nil {

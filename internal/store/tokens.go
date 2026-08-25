@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -51,6 +52,50 @@ func (d *DB) RevokeRefreshToken(ctx context.Context, token string) error {
 func (d *DB) RevokeAllRefreshTokens(ctx context.Context, userID int64) error {
 	_, err := d.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE user_id = ?`, userID)
 	return err
+}
+
+// RotateRefreshToken atomically consumes one refresh token and stores its
+// replacement. If any part of the rotation fails, the old token remains
+// valid; concurrent replays of the same token can only succeed once.
+func (d *DB) RotateRefreshToken(ctx context.Context, oldToken, newToken string, expiresAt time.Time) error {
+	if oldToken == "" || newToken == "" || oldToken == newToken {
+		return ErrTokenInvalid
+	}
+	tx, err := d.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin refresh token rotation: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	oldHash := hashToken(oldToken)
+	var userID int64
+	var storedExpiry time.Time
+	if err := tx.QueryRowContext(ctx,
+		`DELETE FROM refresh_tokens WHERE token_hash = ? RETURNING user_id, expires_at`,
+		oldHash,
+	).Scan(&userID, &storedExpiry); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrTokenInvalid
+		}
+		return fmt.Errorf("consume refresh token: %w", err)
+	}
+	if !time.Now().Before(storedExpiry) {
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit expired refresh token cleanup: %w", err)
+		}
+		return ErrTokenInvalid
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO refresh_tokens(user_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+		userID, hashToken(newToken), expiresAt.UTC(),
+	); err != nil {
+		return fmt.Errorf("store rotated refresh token: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit refresh token rotation: %w", err)
+	}
+	return nil
 }
 
 func (d *DB) revokeTokenHash(ctx context.Context, hash string) error {

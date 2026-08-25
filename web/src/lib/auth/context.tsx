@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { createClient } from "@connectrpc/connect";
 import { AuthService } from "@/gen/mygardenworld/v1/auth_pb";
 import type { User } from "@/gen/mygardenworld/v1/auth_pb";
-import { clearClientAuthState, getAccessToken, refreshAccessToken, setAccessToken, transport } from "@/lib/api/client";
+import { AUTH_EXPIRED_EVENT, clearClientAuthState, getAccessToken, refreshAccessToken, setAccessToken, transport } from "@/lib/api/client";
 
 interface AuthState {
   user: User | null;
@@ -24,6 +24,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearClientAuthState();
+      setUser(null);
+      setLoading(false);
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
   }, []);
 
   useEffect(() => {

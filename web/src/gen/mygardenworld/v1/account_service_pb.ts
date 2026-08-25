@@ -516,7 +516,7 @@ export const AccountService: GenService<{
   },
   /**
    * Polls the QR authorization and, once authorized, verifies the common game
-   * login chain and creates the local account with automation disabled.
+   * login chain, creates or refreshes the local account, and starts automation.
    *
    * @generated from rpc mygardenworld.v1.AccountService.PollAlipayLogin
    */

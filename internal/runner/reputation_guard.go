@@ -112,13 +112,21 @@ func (r *Runner) disableAutomationForReputation(score, threshold int32, stage st
 		p.AutomationEnabled = false
 		r.SetPolicy(p)
 		if r.db != nil {
-			_ = r.db.DeleteSession(context.Background(), r.account.ID)
+			if err := r.db.DeleteSession(context.Background(), r.account.ID); err != nil {
+				r.log.Warn("delete session after reputation guard failed", "err", err)
+			}
 			if raw, err := policycfg.ToJSON(p); err == nil {
-				_ = r.db.SavePolicyJSON(context.Background(), r.account.ID, raw)
+				if err := r.db.SavePolicyJSON(context.Background(), r.account.ID, raw); err != nil {
+					r.log.Error("persist reputation guard policy failed", "err", err)
+				}
+			} else {
+				r.log.Error("marshal reputation guard policy failed", "err", err)
 			}
 		}
 	} else if r.db != nil {
-		_ = r.db.DeleteSession(context.Background(), r.account.ID)
+		if err := r.db.DeleteSession(context.Background(), r.account.ID); err != nil {
+			r.log.Warn("delete session after reputation guard failed", "err", err)
+		}
 	}
 	payload, _ := json.Marshal(map[string]any{
 		"score":              score,
@@ -137,10 +145,12 @@ func (r *Runner) disableAutomationForReputation(score, threshold int32, stage st
 		PayloadJSON: string(payload),
 	})
 	if r.db != nil {
-		_ = r.db.LogOperation(context.Background(), r.account.ID, "reputation.guard",
+		if err := r.db.LogOperation(context.Background(), r.account.ID, "reputation.guard",
 			map[string]any{"stage": stage},
 			map[string]any{"score": score, "threshold": threshold, "automation_enabled": false},
-		)
+		); err != nil {
+			r.log.Warn("persist reputation guard operation failed", "err", err)
+		}
 	}
 }
 

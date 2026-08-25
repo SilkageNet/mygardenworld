@@ -11,6 +11,7 @@ import (
 
 var ErrUserNotFound = errors.New("user not found")
 var ErrUserExists = errors.New("user already exists")
+var ErrLastActiveAdmin = errors.New("cannot remove the last active admin")
 
 type User struct {
 	ID           int64
@@ -25,10 +26,18 @@ type User struct {
 }
 
 func (d *DB) CreateUser(ctx context.Context, username, email, passwordHash string) (*User, error) {
+	return d.CreateUserWithOptions(ctx, username, email, passwordHash, "user", 5, "active")
+}
+
+// CreateUserWithOptions inserts the complete user record in one statement so
+// API validation failures or database errors cannot leave a partially
+// configured user behind.
+func (d *DB) CreateUserWithOptions(ctx context.Context, username, email, passwordHash, role string, maxAccounts int, status string) (*User, error) {
 	now := time.Now().UTC()
 	res, err := d.ExecContext(ctx,
-		`INSERT INTO users(username, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-		username, email, passwordHash, now, now,
+		`INSERT INTO users(username, email, password_hash, role, max_accounts, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		username, email, passwordHash, role, maxAccounts, status, now, now,
 	)
 	if err != nil {
 		if isUniqueErr(err) {
@@ -36,7 +45,10 @@ func (d *DB) CreateUser(ctx context.Context, username, email, passwordHash strin
 		}
 		return nil, fmt.Errorf("insert user: %w", err)
 	}
-	id, _ := res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("read inserted user id: %w", err)
+	}
 	return d.GetUserByID(ctx, id)
 }
 
@@ -89,19 +101,47 @@ func (d *DB) ListUsers(ctx context.Context, offset, limit int) ([]*User, int, er
 }
 
 func (d *DB) UpdateUser(ctx context.Context, id int64, role *string, maxAccounts *int, status *string) (*User, error) {
+	sets := make([]string, 0, 4)
+	args := make([]any, 0, 5)
 	if role != nil {
-		if _, err := d.ExecContext(ctx, `UPDATE users SET role = ?, updated_at = ? WHERE id = ?`, *role, time.Now().UTC(), id); err != nil {
-			return nil, err
-		}
+		sets = append(sets, "role = ?")
+		args = append(args, *role)
 	}
 	if maxAccounts != nil {
-		if _, err := d.ExecContext(ctx, `UPDATE users SET max_accounts = ?, updated_at = ? WHERE id = ?`, *maxAccounts, time.Now().UTC(), id); err != nil {
-			return nil, err
-		}
+		sets = append(sets, "max_accounts = ?")
+		args = append(args, *maxAccounts)
 	}
 	if status != nil {
-		if _, err := d.ExecContext(ctx, `UPDATE users SET status = ?, updated_at = ? WHERE id = ?`, *status, time.Now().UTC(), id); err != nil {
+		sets = append(sets, "status = ?")
+		args = append(args, *status)
+	}
+	if len(sets) > 0 {
+		sets = append(sets, "updated_at = ?")
+		args = append(args, time.Now().UTC(), id)
+		query := `UPDATE users SET ` + strings.Join(sets, ", ") + ` WHERE id = ?`
+		removesActiveAdmin := (role != nil && *role != "admin") || (status != nil && *status != "active")
+		if removesActiveAdmin {
+			query += ` AND NOT (
+				role = 'admin' AND status = 'active'
+				AND (SELECT COUNT(*) FROM users WHERE role = 'admin' AND status = 'active') <= 1
+			)`
+		}
+		res, err := d.ExecContext(ctx, query, args...)
+		if err != nil {
 			return nil, err
+		}
+		updated, err := res.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		if updated == 0 {
+			user, err := d.GetUserByID(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			if removesActiveAdmin && user.Role == "admin" && user.Status == "active" {
+				return nil, ErrLastActiveAdmin
+			}
 		}
 	}
 	return d.GetUserByID(ctx, id)

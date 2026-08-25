@@ -31,7 +31,7 @@ gen/             — Generated code (do not edit)
 - Observed protocol behavior is source of truth. See `doc.go` in the protocol package.
 - Channel-scoped config: no global defaults. Each account resolves its own Config via ConfigForChannel.
 - State is fed namespace fragments from WS responses. Known typed state is domain-oriented and keeps raw snapshots for protocol gaps.
-- Policy, planner, runner events, and Web filters share one category set: `basic`, `plant`, `order`, `union`, `activity`, plus operational `account` and `system`.
+- Policy, planner, runner events, and Web filters share one category set: `basic`, `plant`, `order`, `water`, `union`, `race`, `activity`, plus operational `account` and `system`.
 - Policy is stored as one protojson blob in `account_policies.policy_json`; public policy APIs replace/import/export/copy the whole policy.
 - Automation runs every 4s (configurable). Priority: hard state/resource gates > harvest > plant/order deficits > water > orders/flower art > cultivate/upgrade > basic rewards > union > market/pearl/shop/zoo > activity.
 - Every mutating action with gold, diamond, item, or count cost must pass observed-state resource gates. Diamond-cost operations are blocked by default unless explicitly implemented. Each land watering costs 1 drop.

@@ -4,6 +4,8 @@ import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
 let accessToken: string | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
 
+export const AUTH_EXPIRED_EVENT = "mygardenworld:auth-expired";
+
 const authInterceptor: Interceptor = (next) => async (req) => {
   const token = getAccessToken();
   if (token) {
@@ -31,7 +33,7 @@ const authInterceptor: Interceptor = (next) => async (req) => {
       }
       if (typeof window !== "undefined") {
         clearClientAuthState();
-        window.location.href = "/login";
+        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
       }
     }
     throw err;

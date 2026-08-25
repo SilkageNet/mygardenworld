@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -126,7 +127,7 @@ func TestChecksumForAsset(t *testing.T) {
 	}
 }
 
-func TestRunVerifiesChecksumWhenPresent(t *testing.T) {
+func TestRunRequiresAndVerifiesChecksum(t *testing.T) {
 	dir := t.TempDir()
 	binaryName := "gardend"
 	target := filepath.Join(dir, binaryName)
@@ -191,6 +192,18 @@ func TestRunVerifiesChecksumWhenPresent(t *testing.T) {
 	}
 	if string(data) != "new-binary" {
 		t.Fatalf("target=%q", data)
+	}
+}
+
+func TestVerifyChecksumRejectsReleaseWithoutChecksumAsset(t *testing.T) {
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "archive.tar.gz")
+	if err := os.WriteFile(archivePath, []byte("archive"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := verifyChecksum(context.Background(), normalizeOptions(Options{}), &githubRelease{}, filepath.Base(archivePath), archivePath)
+	if err == nil || !strings.Contains(err.Error(), "checksums.txt") {
+		t.Fatalf("verifyChecksum() error = %v, want missing checksums.txt", err)
 	}
 }
 

@@ -12,8 +12,8 @@ type Config struct {
 	GameVersion    string // 330.0.31
 	RNVersion      string // v3.3.2.32
 	SDKVersion     string // 7.0.4
-	SDKPlatform    string // iOS / Android / Browser
-	MobilePlatform string // ios / android / browser
+	SDKPlatform    string // iOS / Browser
+	MobilePlatform string // ios / browser
 	GamePlatform   string // mobilegame / minigame
 	OSType         int    // protocol enum used by index.login
 	IsNative       bool

@@ -2,10 +2,18 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"connectrpc.com/connect"
 )
+
+var ErrIdentityDisabled = errors.New("account disabled")
+
+// IdentityResolver reloads authorization state after JWT authentication so
+// role changes and account disabling take effect immediately instead of only
+// after the access token expires.
+type IdentityResolver func(context.Context, int64) (*Identity, error)
 
 var publicProcedures = map[string]bool{
 	"/mygardenworld.v1.AuthService/Login":   true,
@@ -14,11 +22,16 @@ var publicProcedures = map[string]bool{
 }
 
 type Interceptor struct {
-	jwtSvc *JWT
+	jwtSvc   *JWT
+	resolver IdentityResolver
 }
 
-func NewInterceptor(jwtSvc *JWT) *Interceptor {
-	return &Interceptor{jwtSvc: jwtSvc}
+func NewInterceptor(jwtSvc *JWT, resolver ...IdentityResolver) *Interceptor {
+	i := &Interceptor{jwtSvc: jwtSvc}
+	if len(resolver) > 0 {
+		i.resolver = resolver[0]
+	}
+	return i
 }
 
 func (i *Interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -29,6 +42,10 @@ func (i *Interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		id, err := extractIdentity(i.jwtSvc, req.Header())
 		if err != nil {
 			return nil, connect.NewError(connect.CodeUnauthenticated, err)
+		}
+		id, err = i.resolveIdentity(ctx, id)
+		if err != nil {
+			return nil, identityResolutionError(err)
 		}
 		ctx = ContextWithIdentity(ctx, id)
 		return next(ctx, req)
@@ -48,9 +65,34 @@ func (i *Interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		if err != nil {
 			return connect.NewError(connect.CodeUnauthenticated, err)
 		}
+		id, err = i.resolveIdentity(ctx, id)
+		if err != nil {
+			return identityResolutionError(err)
+		}
 		ctx = ContextWithIdentity(ctx, id)
 		return next(ctx, conn)
 	}
+}
+
+func (i *Interceptor) resolveIdentity(ctx context.Context, claimed *Identity) (*Identity, error) {
+	if i.resolver == nil {
+		return claimed, nil
+	}
+	current, err := i.resolver(ctx, claimed.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if current == nil || current.UserID != claimed.UserID {
+		return nil, ErrTokenInvalid
+	}
+	return current, nil
+}
+
+func identityResolutionError(err error) error {
+	if errors.Is(err, ErrTokenInvalid) || errors.Is(err, ErrIdentityDisabled) {
+		return connect.NewError(connect.CodeUnauthenticated, err)
+	}
+	return connect.NewError(connect.CodeInternal, err)
 }
 
 func extractIdentity(jwtSvc *JWT, headers interface{ Get(string) string }) (*Identity, error) {

@@ -85,8 +85,10 @@ func (svc *Services) persistAndApplyPolicy(ctx context.Context, accountID int64,
 }
 
 func (svc *Services) policyFor(ctx context.Context, accountID int64) (*pb.Policy, error) {
-	if r := svc.Manager.Get(accountID); r != nil {
-		return r.Policy(), nil
+	if svc.Manager != nil {
+		if r := svc.Manager.Get(accountID); r != nil {
+			return r.Policy(), nil
+		}
 	}
 	raw, err := svc.DB.LoadPolicyJSON(ctx, accountID)
 	if err != nil {

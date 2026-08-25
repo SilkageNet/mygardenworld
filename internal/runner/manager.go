@@ -17,8 +17,8 @@ import (
 //
 // Manager intentionally has no global babigame.Config: each runner resolves
 // its protocol Config from the account row's platform via
-// babigame.ConfigForPlatform. That keeps host pinning a per-account
-// decision (an iOS account and an Android account can coexist) and
+// babigame.ConfigForChannel. That keeps host pinning a per-account
+// decision (an iOS account and an Alipay account can coexist) and
 // guarantees we fail fast in Start when an account's platform is not
 // supported by this build.
 type Manager struct {
@@ -156,6 +156,13 @@ func (m *Manager) accountsWithAutomationEnabled(ctx context.Context) ([]*store.A
 	}
 	out := make([]*store.Account, 0, len(accounts))
 	for _, acc := range accounts {
+		user, err := m.db.GetUserByID(ctx, acc.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("load owner for %q: %w", acc.Name, err)
+		}
+		if user.Status != "active" {
+			continue
+		}
 		rawPolicy, err := m.db.LoadPolicyJSON(ctx, acc.ID)
 		if err != nil {
 			return nil, fmt.Errorf("load policy for %q: %w", acc.Name, err)
@@ -174,8 +181,8 @@ func (m *Manager) accountsWithAutomationEnabled(ctx context.Context) ([]*store.A
 // Start either reuses an existing runner or creates+starts a new one for the
 // account. Login is performed on first start; subsequent calls are no-ops.
 //
-// Returns an error when the account's platform is not supported by this
-// build. We never fall back to a "default" platform - that would silently
+// Returns an error when the account's channel is not supported by this
+// build. We never fall back to a "default" channel - that would silently
 // hit the wrong host fronts.
 func (m *Manager) Start(ctx context.Context, accountID int64) (*Runner, error) {
 	lock := m.accountLock(accountID)
