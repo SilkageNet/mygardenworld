@@ -37,7 +37,7 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 						}
 						next[lid] = view
 						before, existed := s.lands[lid]
-						if !existed || before != view {
+						if !existed || !landViewEqual(before, view) {
 							changes = append(changes, LandChange{LandID: lid, Before: before, After: view})
 						}
 					}
@@ -77,11 +77,28 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 
 func (s *State) upsertLandLocked(lid int32, next LandView, _ string) (LandChange, bool) {
 	prev, existed := s.lands[lid]
-	if existed && prev == next {
+	if existed && landViewEqual(prev, next) {
 		return LandChange{}, false
 	}
 	s.lands[lid] = next
 	return LandChange{LandID: lid, Before: prev, After: next}, true
+}
+
+func landViewEqual(a, b LandView) bool {
+	if a.FlowerID != b.FlowerID || a.State != b.State || a.Lvl != b.Lvl ||
+		a.HarvestCnt != b.HarvestCnt || a.NextTimeMs != b.NextTimeMs ||
+		a.PlantTimeMs != b.PlantTimeMs || a.Observed != b.Observed {
+		return false
+	}
+	if len(a.StealUIDs) != len(b.StealUIDs) {
+		return false
+	}
+	for i := range a.StealUIDs {
+		if a.StealUIDs[i] != b.StealUIDs[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Lands returns a copy of the land map.

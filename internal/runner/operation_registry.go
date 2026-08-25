@@ -380,6 +380,30 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Frd().Enter(ctx, req)
 		},
 	),
+	clientproto.RPCFrdExtGetFrdOtherInfoByUids.String(): stateDeltaOperation(
+		friendTouchOtherInfoRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdExtGetFrdOtherInfoByUidsRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FrdExt().GetFrdOtherInfoByUids(ctx, req)
+		},
+	),
+	clientproto.RPCFrdExtBuyStealCnt.String(): stateDeltaOperation(
+		friendTouchBuyRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdExtBuyStealCntRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FrdExt().BuyStealCnt(ctx, req)
+		},
+	),
+	clientproto.RPCFrdStealEnterFrdSteal.String(): stateDeltaOperation(
+		friendTouchEnterRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdStealEnterFrdStealRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FrdSteal().EnterFrdSteal(ctx, req)
+		},
+	),
+	clientproto.RPCFrdStealSteal.String(): stateDeltaOperation(
+		friendTouchStealRequest,
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FrdStealStealRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FrdSteal().Steal(ctx, req)
+		},
+	),
 	clientproto.RPCOpptGetDetailOppts.String(): stateDeltaOperation(
 		pearlCandidateDetailRequest,
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.OpptGetDetailOpptsRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

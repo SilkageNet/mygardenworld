@@ -70,6 +70,19 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Zoo == nil {
 		cp.Basic.Zoo = proto.Clone(def.Basic.Zoo).(*pb.ZooPolicy)
 	}
+	if cp.Basic.FriendTouch == nil {
+		cp.Basic.FriendTouch = proto.Clone(def.Basic.FriendTouch).(*pb.FriendTouchPolicy)
+	}
+	if cp.Basic.FriendTouch.FriendCounts == nil {
+		cp.Basic.FriendTouch.FriendCounts = map[int64]int32{}
+	}
+	if cp.Basic.FriendTouch.Mode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED {
+		if len(cp.Basic.FriendTouch.FriendCounts) > 0 {
+			cp.Basic.FriendTouch.Mode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+		} else {
+			cp.Basic.FriendTouch.Mode = def.Basic.FriendTouch.Mode
+		}
+	}
 	if cp.Plant == nil {
 		cp.Plant = proto.Clone(def.Plant).(*pb.PlantPolicy)
 	}

@@ -190,6 +190,10 @@ func DefaultPolicy() *pb.Policy {
 				VipShop:       &pb.VipShopPolicy{},
 			},
 			Zoo: &pb.ZooPolicy{},
+			FriendTouch: &pb.FriendTouchPolicy{
+				Mode:         pb.SelectionMode_SELECTION_MODE_ALL,
+				FriendCounts: map[int64]int32{},
+			},
 		},
 		Plant: &pb.PlantPolicy{
 			Cultivate: &pb.CultivatePolicy{

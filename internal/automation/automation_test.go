@@ -3437,9 +3437,9 @@ func TestBuildPlan_UnionLandAutoPlantReplacesAfterHarvestCycle(t *testing.T) {
 					"1": map[string]any{
 						"0": 0,
 						"1": 23001,
-						"2": now.Add(-10 * time.Minute).UnixMilli(),
-						"3": 1,
-						"4": 1,
+						"2": now.Add(-70 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 999,
 					},
 				},
 			},
@@ -3629,6 +3629,83 @@ func TestBuildPlan_UnionLandAutoPlantSkipsFreshPlant(t *testing.T) {
 			t.Fatalf("same flower should not replant: %+v", op)
 		}
 	}
+}
+
+func TestBuildPlan_UnionLandAutoPlantSkipsReplaceWithinReplantCooldown(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 3,
+			"23078": 1,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23001, 23078)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23001,
+						"2": now.Add(-10 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 20
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			t.Fatalf("occupied land within replant cooldown should not be replaced: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionLandAutoPlantFillsEmptyOnlyWithMixedFlowers(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23001": 3,
+			"23078": 1,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23001, 23078)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{"0": 0},
+					"2": map[string]any{
+						"0": 0,
+						"1": 23001,
+						"2": now.Add(-10 * time.Minute).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 20
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			if op.FlowerID != 23078 || len(op.LandIDs) != 1 || op.LandIDs[0] != 1 {
+				t.Fatalf("should only fill empty land 1, not replace land 2: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing empty-only plant with mixed flowers: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionLandAutoPlantRequiresEnabled(t *testing.T) {

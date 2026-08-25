@@ -191,6 +191,8 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	}
 	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
 	resp.SellableFlowerArts = sellableFlowerArtsProto(st)
+	resp.FriendTouchFriends = friendTouchFriendsProto(st.FriendTouchFriends(now))
+	resp.FriendTouchFriendsObserved = st.FriendTouch(now).FriendsObserved
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
 	resp.FmlLandsObserved = st.FmlLandObserved()
 	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
@@ -1788,6 +1790,25 @@ func sellableFlowerArtsProto(st *state.State) []*pb.SellableFlowerArtView {
 	}
 	if len(out) == 0 {
 		return nil
+	}
+	return out
+}
+
+func friendTouchFriendsProto(friends []state.FriendTouchFriendView) []*pb.FriendTouchFriendView {
+	if len(friends) == 0 {
+		return nil
+	}
+	out := make([]*pb.FriendTouchFriendView, 0, len(friends))
+	for _, friend := range friends {
+		out = append(out, &pb.FriendTouchFriendView{
+			Uid:             friend.UID,
+			Name:            friend.Name,
+			StolenCount:     friend.StolenCount,
+			StealMax:        friend.StealMax,
+			StealLeft:       friend.StealLeft,
+			CanSteal:        friend.CanSteal,
+			ProfileObserved: friend.ProfileObserved,
+		})
 	}
 	return out
 }

@@ -300,6 +300,16 @@ func opKindDesc(kind string) string {
 		return "培育"
 	case clientproto.RPCCultivateUpgrade.String():
 		return "鲜花升级"
+	case clientproto.RPCFrdEnter.String():
+		return "同步好友列表"
+	case clientproto.RPCFrdExtGetFrdOtherInfoByUids.String():
+		return "同步好友摘花状态"
+	case clientproto.RPCFrdExtBuyStealCnt.String():
+		return "兑换摘花次数"
+	case clientproto.RPCFrdStealEnterFrdSteal.String():
+		return "进入好友花园"
+	case clientproto.RPCFrdStealSteal.String():
+		return "好友摸花"
 	default:
 		return kind
 	}

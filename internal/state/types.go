@@ -16,15 +16,17 @@ const FlowerSeedHigh = 24000
 //	field 1 = state (1=just planted, 3=initial bloom ready, 2=regrowing)
 //	field 2 = lvl (land level)
 //	field 3 = harvestCnt (times this plant has been harvested)
+//	field 4 = stealUids (uids that already stole from this plot)
 //	field 5 = nextTime (ms; next state transition - regrow ready)
 //	field 7 = plantTime (ms; last plant/state-change tick)
 type LandView struct {
-	FlowerID    int   `json:"flower_id,omitempty"`
-	State       int   `json:"state,omitempty"`
-	Lvl         int   `json:"lvl,omitempty"`
-	HarvestCnt  int   `json:"harvest_cnt,omitempty"`
-	NextTimeMs  int64 `json:"next_time_ms,omitempty"`
-	PlantTimeMs int64 `json:"plant_time_ms,omitempty"`
+	FlowerID    int     `json:"flower_id,omitempty"`
+	State       int     `json:"state,omitempty"`
+	Lvl         int     `json:"lvl,omitempty"`
+	HarvestCnt  int     `json:"harvest_cnt,omitempty"`
+	StealUIDs   []int64 `json:"steal_uids,omitempty"`
+	NextTimeMs  int64   `json:"next_time_ms,omitempty"`
+	PlantTimeMs int64   `json:"plant_time_ms,omitempty"`
 
 	// Observed = the server has confirmed this land's state at least once
 	// (including the empty-after-harvest state). Distinguishes "land we have
@@ -43,6 +45,7 @@ func FromPrimary(raw map[string]any) LandView {
 	v.State = readInt(raw, "1")
 	v.Lvl = readInt(raw, "2")
 	v.HarvestCnt = readInt(raw, "3")
+	v.StealUIDs = readInt64Slice(raw, "4")
 	v.NextTimeMs = readInt64(raw, "5")
 	v.PlantTimeMs = readInt64(raw, "7")
 	return v

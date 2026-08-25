@@ -40,6 +40,7 @@ import {
   FlowerMarketPolicySchema,
   FlowerArtPolicySchema,
   FriendStealPolicySchema,
+  FriendTouchPolicySchema,
   MarketBuyMode,
   MarketPutMode,
   OrderPolicySchema,
@@ -74,6 +75,7 @@ import type {
   FlowerMarketPolicy,
   FlowerArtPolicy,
   FriendStealPolicy,
+  FriendTouchPolicy,
   OrderPolicy,
   PalaceOrderPolicy,
   PearlPolicy,
@@ -97,6 +99,7 @@ import type {
 import type {
   FeatureCapability,
   GetSnapshotResponse,
+  FriendTouchFriendView,
   PlantableFlowerView,
   SellableFlowerArtView,
 } from "@/gen/mygardenworld/v1/query_service_pb";
@@ -169,6 +172,11 @@ const AUTO_REPLANT_SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.SPECIFIC, label: "指定" },
   { value: SelectionMode.EXCLUDE, label: "排除" },
+];
+
+const FRIEND_TOUCH_MODE_OPTIONS = [
+  { value: SelectionMode.ALL, label: "全部可摘" },
+  { value: SelectionMode.SPECIFIC, label: "指定次数" },
 ];
 
 const MARKET_PUT_MODE_OPTIONS = [
@@ -298,6 +306,7 @@ export default function PolicyPanel({
   const benefit = basic?.benefit;
   const sign = basic?.sign;
   const pearl = basic?.pearl;
+  const friendTouch = basic?.friendTouch;
   const shop = basic?.shop;
   const cultivateShop = shop?.cultivateShop;
   const vipShop = shop?.vipShop;
@@ -343,7 +352,7 @@ export default function PolicyPanel({
   const updateBasic = (patch: Partial<BasicPolicy>) => {
     if (!policy) return;
     const current = policy.basic ?? create(BasicPolicySchema);
-    onPolicyChange({ ...policy, basic: { ...current, ...patch } });
+    onPolicyChange({ ...policy, basic: create(BasicPolicySchema, { ...current, ...patch }) });
   };
   const updateReputation = (patch: Partial<ReputationPolicy>) => {
     if (!policy) return;
@@ -374,6 +383,31 @@ export default function PolicyPanel({
     const currentBasic = policy.basic ?? create(BasicPolicySchema);
     const current = currentBasic.pearl ?? create(PearlPolicySchema);
     updateBasic({ pearl: { ...current, ...patch } });
+  };
+  const updateFriendTouch = (patch: Partial<FriendTouchPolicy>) => {
+    if (!policy) return;
+    const currentBasic = policy.basic ?? create(BasicPolicySchema);
+    const current = currentBasic.friendTouch ?? create(FriendTouchPolicySchema);
+    updateBasic({ friendTouch: create(FriendTouchPolicySchema, { ...current, ...patch }) });
+  };
+  const updateFriendTouchCount = (uid: bigint, count: number) => {
+    const key = uid.toString();
+    const next = { ...(friendTouch?.friendCounts ?? {}) };
+    if (count <= 0) {
+      delete next[key];
+    } else {
+      next[key] = count;
+    }
+    updateFriendTouch({ friendCounts: next });
+  };
+  const updateFriendTouchExcluded = (uid: bigint, excluded: boolean) => {
+    const current = friendTouch?.excludeUids ?? [];
+    const next = excluded
+      ? current.includes(uid)
+        ? current
+        : [...current, uid]
+      : current.filter((value) => value !== uid);
+    updateFriendTouch({ excludeUids: next });
   };
   const updateShop = (patch: Partial<ShopPolicy>) => {
     if (!policy) return;
@@ -737,6 +771,48 @@ export default function PolicyPanel({
               </div>
             </PolicyGroup>
 
+            <PolicyGroup title="好友摸花" icon={<Users />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow
+                  label="自动摸花"
+                  checked={friendTouch?.enabled ?? false}
+                  onChange={(checked) => updateFriendTouch({ enabled: checked })}
+                  status={settingStatusForCapability(capabilities, "basic.friend_touch")}
+                />
+                <SegmentedRow
+                  label="摸花模式"
+                  value={friendTouch?.mode || SelectionMode.ALL}
+                  options={FRIEND_TOUCH_MODE_OPTIONS}
+                  onChange={(value) => updateFriendTouch({ mode: value })}
+                />
+                <ToggleRow
+                  label="友情币兑换次数"
+                  checked={friendTouch?.autoBuyTimes ?? false}
+                  onChange={(checked) => updateFriendTouch({ autoBuyTimes: checked })}
+                  status={settingStatusForCapability(capabilities, "basic.friend_touch_buy")}
+                />
+                <NumberRow
+                  label="每好友兑换上限"
+                  value={friendTouch?.maxBuyPerFriend || 0}
+                  min={0}
+                  onChange={(value) => updateFriendTouch({ maxBuyPerFriend: value })}
+                  description="0 表示使用游戏默认上限"
+                />
+                {SHOW_UNSUPPORTED_SETTINGS && (
+                  <ToggleRow label="摘取花灵" checked={friendTouch?.stealElves ?? false} onChange={(checked) => updateFriendTouch({ stealElves: checked })} />
+                )}
+              </div>
+              <FriendTouchFriendList
+                friends={snapshot?.friendTouchFriends ?? []}
+                observed={snapshot?.friendTouchFriendsObserved ?? false}
+                mode={friendTouch?.mode || SelectionMode.ALL}
+                counts={friendTouch?.friendCounts ?? {}}
+                excluded={new Set((friendTouch?.excludeUids ?? []).map((uid) => uid.toString()))}
+                onCountChange={updateFriendTouchCount}
+                onExcludedChange={updateFriendTouchExcluded}
+              />
+            </PolicyGroup>
+
             <PolicyGroup title="商城" icon={<ShoppingBag />}>
               <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
                 激励视频和广告礼包不提供自动化：系统不会伪造广告 SDK 回调或 token。仅支持协议明确允许直接领取或跳过广告的流程。
@@ -965,7 +1041,14 @@ export default function PolicyPanel({
                   value={unionLand?.minMaturityMinutes || 20}
                   min={1}
                   onChange={(value) => updateUnionLand({ minMaturityMinutes: value })}
-                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长换种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长选种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                />
+                <NumberRow
+                  label="改种冷却(分钟)"
+                  value={unionLand?.minReplantMinutes || 60}
+                  min={1}
+                  onChange={(value) => updateUnionLand({ minReplantMinutes: value })}
+                  description="全部≥11级后：空地随时补种；已种地块需满此时间才允许改种其他花，多种花可并存。未满11级练级换种不受此限制。"
                 />
                 <FlowerMultiSelectRow
                   label="指定花朵"
@@ -2212,6 +2295,110 @@ function SettingStatusBadge({ status }: { status: SettingStatus }) {
     <Badge variant={variant} title={status.detail} className="shrink-0">
       {status.label}
     </Badge>
+  );
+}
+
+function FriendTouchFriendList({
+  friends,
+  observed,
+  mode,
+  counts,
+  excluded,
+  onCountChange,
+  onExcludedChange,
+}: {
+  friends: FriendTouchFriendView[];
+  observed: boolean;
+  mode: SelectionMode;
+  counts: Record<string, number>;
+  excluded: Set<string>;
+  onCountChange: (uid: bigint, count: number) => void;
+  onExcludedChange: (uid: bigint, excluded: boolean) => void;
+}) {
+  const specific = mode === SelectionMode.SPECIFIC;
+  if (!observed) {
+    return (
+      <EmptyState
+        title="尚未同步好友列表"
+        detail="账号自动化开启后，登录空闲时会自动同步好友；同步完成后可配置摸花目标。"
+      />
+    );
+  }
+  if (friends.length === 0) {
+    return <EmptyState title="暂无好友" detail="游戏好友列表为空时无法配置摸花目标。" />;
+  }
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="text-xs text-muted-foreground">
+          {specific
+            ? "为指定好友设置今日摸花次数；可勾选排除不主动摸取"
+            : "自动摸取全部可摘好友；勾选排除后跳过该好友"}
+        </span>
+        <span className="text-xs text-muted-foreground">{friends.length} 人</span>
+      </div>
+      <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+        {friends.map((friend) => {
+          const key = friend.uid.toString();
+          const target = counts[key] ?? 0;
+          const isExcluded = excluded.has(key);
+          const displayName = friend.name.trim() || (friend.profileObserved ? `UID ${key}` : `好友 ${key}`);
+          const progress =
+            friend.stealMax > 0
+              ? `今日 ${friend.stolenCount}/${friend.stealMax}`
+              : friend.stolenCount > 0
+                ? `今日已摘 ${friend.stolenCount}`
+                : "次数未同步";
+          return (
+            <div
+              key={key}
+              className={cn(
+                "flex flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5",
+                isExcluded && "opacity-60",
+              )}
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 space-y-0.5">
+                  <div className="truncate text-sm font-medium">{displayName}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>UID {key}</span>
+                    <span>{progress}</span>
+                    {friend.canSteal ? (
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                        可摘
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+                        暂不可摘
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                  <Switch checked={isExcluded} onCheckedChange={(checked) => onExcludedChange(friend.uid, checked)} />
+                  排除
+                </label>
+              </div>
+              {specific && !isExcluded && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">目标次数</span>
+                  <NumericStepper
+                    label={`${displayName} 目标次数`}
+                    value={target.toString()}
+                    min={0}
+                    max={friend.stealMax > 0 ? friend.stealMax * 2 : undefined}
+                    decrementDisabled={target <= 0}
+                    onDecrement={() => onCountChange(friend.uid, target - 1)}
+                    onIncrement={() => onCountChange(friend.uid, target + 1)}
+                    onValueChange={(nextValue) => onCountChange(friend.uid, parseNumber(nextValue, 0))}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
