@@ -38,6 +38,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Check Go module files
+        run: go mod tidy -diff
+
       - name: Lint Go
         uses: golangci/golangci-lint-action@v9.0.0
         with:
@@ -61,3 +64,15 @@ jobs:
 
       - name: Build web
         run: NEXT_PUBLIC_API_URL= pnpm --dir web build
+
+      - name: Validate installer scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sh -n scripts/install.sh
+          pwsh -NoLogo -NoProfile -Command '
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+          '

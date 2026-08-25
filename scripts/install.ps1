@@ -38,12 +38,33 @@ if (-not (Test-Path $Gardend)) {
     if (-not $Asset) {
         throw "no release asset found for $DownloadOS/$DownloadArch"
     }
+    $ChecksumAsset = $Release.assets | Where-Object { $_.name -eq "checksums.txt" } | Select-Object -First 1
+    if (-not $ChecksumAsset) {
+        throw "release is missing required checksums.txt"
+    }
 
     $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "$AppName-install-$([Guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
     try {
         $Archive = Join-Path $TempDir $Asset.name
+        $Checksums = Join-Path $TempDir "checksums.txt"
         Invoke-WebRequest -Uri $Asset.browser_download_url -OutFile $Archive
+        Invoke-WebRequest -Uri $ChecksumAsset.browser_download_url -OutFile $Checksums
+        $ExpectedHash = $null
+        foreach ($Line in Get-Content -LiteralPath $Checksums) {
+            $Parts = $Line.Trim() -split "\s+", 2
+            if ($Parts.Count -ge 2 -and [System.IO.Path]::GetFileName($Parts[1].TrimStart("*")) -eq $Asset.name) {
+                $ExpectedHash = $Parts[0]
+                break
+            }
+        }
+        if (-not $ExpectedHash) {
+            throw "checksums.txt has no entry for $($Asset.name)"
+        }
+        $ActualHash = (Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash
+        if ($ActualHash -ne $ExpectedHash) {
+            throw "checksum mismatch for $($Asset.name)"
+        }
         Expand-Archive -Path $Archive -DestinationPath $TempDir -Force
         $DownloadedGardend = Get-ChildItem -Path $TempDir -Recurse -File -Filter "gardend.exe" | Select-Object -First 1
         if (-not $DownloadedGardend) {

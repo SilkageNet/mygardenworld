@@ -17,6 +17,8 @@ import (
 	"github.com/andybalholm/brotli"
 )
 
+const maxProtocolResponseBytes int64 = 16 << 20
+
 // HTTPClient drives the REST side of the protocol (login chain, BI reports,
 // LiveActivity push). One per session. Safe for concurrent use only when
 // callers serialize their requests.
@@ -114,7 +116,7 @@ func (c *HTTPClient) PostJSON(ctx context.Context, host, path string, body any, 
 		return nil, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := readAllLimited(resp.Body, maxProtocolResponseBytes)
 	if err != nil {
 		return nil, respBytes, &UpstreamError{
 			Op:          "POST " + path,
@@ -128,7 +130,7 @@ func (c *HTTPClient) PostJSON(ctx context.Context, host, path string, body any, 
 			Message:     "read body",
 		}
 	}
-	respBytes, err = decompressBody(respBytes, resp.Header.Get("Content-Encoding"))
+	respBytes, err = decompressBodyLimited(respBytes, resp.Header.Get("Content-Encoding"), maxProtocolResponseBytes)
 	if err != nil {
 		return nil, respBytes, &UpstreamError{
 			Op:          "POST " + path,
@@ -175,23 +177,44 @@ func (c *HTTPClient) PostJSON(ctx context.Context, host, path string, body any, 
 }
 
 func decompressBody(data []byte, encoding string) ([]byte, error) {
+	return decompressBodyLimited(data, encoding, 0)
+}
+
+func decompressBodyLimited(data []byte, encoding string, maxBytes int64) ([]byte, error) {
 	switch encoding {
 	case "br":
-		return io.ReadAll(brotli.NewReader(bytes.NewReader(data)))
+		return readAllLimited(brotli.NewReader(bytes.NewReader(data)), maxBytes)
 	case "gzip":
 		r, err := gzip.NewReader(bytes.NewReader(data))
 		if err != nil {
 			return data, err
 		}
 		defer func() { _ = r.Close() }()
-		return io.ReadAll(r)
+		return readAllLimited(r, maxBytes)
 	case "deflate":
 		r := flate.NewReader(bytes.NewReader(data))
 		defer func() { _ = r.Close() }()
-		return io.ReadAll(r)
+		return readAllLimited(r, maxBytes)
 	default:
+		if maxBytes > 0 && int64(len(data)) > maxBytes {
+			return data[:maxBytes], fmt.Errorf("response body exceeds %d bytes", maxBytes)
+		}
 		return data, nil
 	}
+}
+
+func readAllLimited(r io.Reader, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 {
+		return io.ReadAll(r)
+	}
+	data, err := io.ReadAll(io.LimitReader(r, maxBytes+1))
+	if err != nil {
+		return data, err
+	}
+	if int64(len(data)) > maxBytes {
+		return data[:maxBytes], fmt.Errorf("response body exceeds %d bytes", maxBytes)
+	}
+	return data, nil
 }
 
 // AccountLoginUsername performs the gfsdk username/password login.
