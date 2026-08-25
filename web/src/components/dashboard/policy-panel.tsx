@@ -40,7 +40,6 @@ import {
   FlowerMarketPolicySchema,
   FlowerArtPolicySchema,
   FriendStealPolicySchema,
-  FriendTouchPolicySchema,
   MarketBuyMode,
   MarketPutMode,
   OrderPolicySchema,
@@ -75,7 +74,6 @@ import type {
   FlowerMarketPolicy,
   FlowerArtPolicy,
   FriendStealPolicy,
-  FriendTouchPolicy,
   OrderPolicy,
   PalaceOrderPolicy,
   PearlPolicy,
@@ -306,7 +304,6 @@ export default function PolicyPanel({
   const benefit = basic?.benefit;
   const sign = basic?.sign;
   const pearl = basic?.pearl;
-  const friendTouch = basic?.friendTouch;
   const shop = basic?.shop;
   const cultivateShop = shop?.cultivateShop;
   const vipShop = shop?.vipShop;
@@ -384,30 +381,24 @@ export default function PolicyPanel({
     const current = currentBasic.pearl ?? create(PearlPolicySchema);
     updateBasic({ pearl: { ...current, ...patch } });
   };
-  const updateFriendTouch = (patch: Partial<FriendTouchPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.friendTouch ?? create(FriendTouchPolicySchema);
-    updateBasic({ friendTouch: create(FriendTouchPolicySchema, { ...current, ...patch }) });
-  };
   const updateFriendTouchCount = (uid: bigint, count: number) => {
     const key = uid.toString();
-    const next = { ...(friendTouch?.friendCounts ?? {}) };
+    const next = { ...(friendSteal?.friendCounts ?? {}) };
     if (count <= 0) {
       delete next[key];
     } else {
       next[key] = count;
     }
-    updateFriendTouch({ friendCounts: next });
+    updateFriendSteal({ friendCounts: next });
   };
   const updateFriendTouchExcluded = (uid: bigint, excluded: boolean) => {
-    const current = friendTouch?.excludeUids ?? [];
+    const current = friendSteal?.excludeUids ?? [];
     const next = excluded
       ? current.includes(uid)
         ? current
         : [...current, uid]
       : current.filter((value) => value !== uid);
-    updateFriendTouch({ excludeUids: next });
+    updateFriendSteal({ excludeUids: next });
   };
   const updateShop = (patch: Partial<ShopPolicy>) => {
     if (!policy) return;
@@ -772,42 +763,77 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="好友摸花" icon={<Users />}>
+			  <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+				仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
+				<code>stealElves=1</code>。
+			  </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow
                   label="自动摸花"
-                  checked={friendTouch?.enabled ?? false}
-                  onChange={(checked) => updateFriendTouch({ enabled: checked })}
-                  status={settingStatusForCapability(capabilities, "basic.friend_touch")}
+				  checked={friendSteal?.enabled ?? false}
+				  onChange={(checked) => updateFriendSteal({ enabled: checked })}
+				  status={settingStatusForCapability(capabilities, "plant.friend_steal")}
                 />
                 <SegmentedRow
-                  label="摸花模式"
-                  value={friendTouch?.mode || SelectionMode.ALL}
+				  label="好友范围"
+				  value={friendSteal?.friendMode || SelectionMode.ALL}
                   options={FRIEND_TOUCH_MODE_OPTIONS}
-                  onChange={(value) => updateFriendTouch({ mode: value })}
+				  onChange={(value) => updateFriendSteal({ friendMode: value })}
                 />
+				<SegmentedRow
+				  label="鲜花范围"
+				  value={friendSteal?.mode || SelectionMode.ALL}
+				  options={SELECTION_MODE_OPTIONS}
+				  onChange={(value) => updateFriendSteal({ mode: value })}
+				/>
+				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.QUALITY && (
+				  <QualityRow
+					label="指定品质"
+					value={friendSteal?.qualities ?? []}
+					onChange={(value) => updateFriendSteal({ qualities: value })}
+				  />
+				)}
+				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.SPECIFIC && (
+				  <CatalogFlowerMultiSelectRow
+					label="指定鲜花"
+					value={friendSteal?.flowerIds ?? []}
+					inventory={snapshot?.inventory ?? {}}
+					synced={Boolean(snapshot)}
+					onChange={(value) => updateFriendSteal({ flowerIds: value })}
+				  />
+				)}
+				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE && (
+				  <CatalogFlowerMultiSelectRow
+					label="排除鲜花"
+					value={friendSteal?.excludeFlowerIds ?? []}
+					inventory={snapshot?.inventory ?? {}}
+					synced={Boolean(snapshot)}
+					onChange={(value) => updateFriendSteal({ excludeFlowerIds: value })}
+				  />
+				)}
                 <ToggleRow
                   label="友情币兑换次数"
-                  checked={friendTouch?.autoBuyTimes ?? false}
-                  onChange={(checked) => updateFriendTouch({ autoBuyTimes: checked })}
-                  status={settingStatusForCapability(capabilities, "basic.friend_touch_buy")}
+				  checked={friendSteal?.autoBuyTimes ?? false}
+				  onChange={(checked) => updateFriendSteal({ autoBuyTimes: checked })}
+				  status={settingStatusForCapability(capabilities, "plant.friend_steal_buy")}
                 />
                 <NumberRow
                   label="每好友兑换上限"
-                  value={friendTouch?.maxBuyPerFriend || 0}
+				  value={friendSteal?.maxBuyPerFriend || 0}
                   min={0}
-                  onChange={(value) => updateFriendTouch({ maxBuyPerFriend: value })}
-                  description="0 表示使用游戏默认上限"
+				  max={10}
+				  onChange={(value) => updateFriendSteal({ maxBuyPerFriend: value })}
+				  description="每次消耗 1 友情币；0 使用静态目录 $pickMax（当前为 10）"
                 />
-                {SHOW_UNSUPPORTED_SETTINGS && (
-                  <ToggleRow label="摘取花灵" checked={friendTouch?.stealElves ?? false} onChange={(checked) => updateFriendTouch({ stealElves: checked })} />
-                )}
               </div>
               <FriendTouchFriendList
                 friends={snapshot?.friendTouchFriends ?? []}
                 observed={snapshot?.friendTouchFriendsObserved ?? false}
-                mode={friendTouch?.mode || SelectionMode.ALL}
-                counts={friendTouch?.friendCounts ?? {}}
-                excluded={new Set((friendTouch?.excludeUids ?? []).map((uid) => uid.toString()))}
+				mode={friendSteal?.friendMode || SelectionMode.ALL}
+				counts={friendSteal?.friendCounts ?? {}}
+				excluded={new Set((friendSteal?.excludeUids ?? []).map((uid) => uid.toString()))}
+				autoBuy={friendSteal?.autoBuyTimes ?? false}
+				maxBuyPerFriend={friendSteal?.maxBuyPerFriend || 10}
                 onCountChange={updateFriendTouchCount}
                 onExcludedChange={updateFriendTouchExcluded}
               />
@@ -850,20 +876,6 @@ export default function PolicyPanel({
 
             {SHOW_UNSUPPORTED_SETTINGS && (
               <>
-                <PolicyGroup title="好友偷花" icon={<HandCoins />}>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <ToggleRow label="自动偷花" checked={friendSteal?.enabled ?? false} onChange={(checked) => updateFriendSteal({ enabled: checked })} status={settingStatusForCapability(capabilities, "plant.friend_steal")} />
-                    <ToggleRow label="偷取花灵" checked={friendSteal?.stealElves ?? false} onChange={(checked) => updateFriendSteal({ stealElves: checked })} />
-                    <SegmentedRow label="偷花模式" value={friendSteal?.mode || SelectionMode.ALL} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateFriendSteal({ mode: value })} />
-                    <QualityRow label="指定品质" value={friendSteal?.qualities ?? []} onChange={(value) => updateFriendSteal({ qualities: value })} />
-                    <IntListRow label="指定花朵" value={friendSteal?.flowerIds ?? []} onChange={(value) => updateFriendSteal({ flowerIds: value })} />
-                    <IntListRow label="排除花朵" value={friendSteal?.excludeFlowerIds ?? []} onChange={(value) => updateFriendSteal({ excludeFlowerIds: value })} />
-                    <ToggleRow label="购买偷取次数" checked={friendSteal?.autoBuyTimes ?? false} onChange={(checked) => updateFriendSteal({ autoBuyTimes: checked })} status={settingStatusForCapability(capabilities, "plant.friend_steal_buy")} />
-                    <NumberRow label="购买次数" value={friendSteal?.buyCount || 0} min={0} onChange={(value) => updateFriendSteal({ buyCount: value })} />
-                    <BigIntNumberRow label="元宝上限" value={friendSteal?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateFriendSteal({ maxSpendDiamond: value })} />
-                  </div>
-                </PolicyGroup>
-
                 <PolicyGroup title="花灵与密令" icon={<Sparkles />}>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <ToggleRow label="自动种花灵" checked={elves?.enabled ?? false} onChange={(checked) => updateElves({ enabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves")} />
@@ -2304,6 +2316,8 @@ function FriendTouchFriendList({
   mode,
   counts,
   excluded,
+  autoBuy,
+  maxBuyPerFriend,
   onCountChange,
   onExcludedChange,
 }: {
@@ -2312,6 +2326,8 @@ function FriendTouchFriendList({
   mode: SelectionMode;
   counts: Record<string, number>;
   excluded: Set<string>;
+  autoBuy: boolean;
+  maxBuyPerFriend: number;
   onCountChange: (uid: bigint, count: number) => void;
   onExcludedChange: (uid: bigint, excluded: boolean) => void;
 }) {
@@ -2320,7 +2336,7 @@ function FriendTouchFriendList({
     return (
       <EmptyState
         title="尚未同步好友列表"
-        detail="账号自动化开启后，登录空闲时会自动同步好友；同步完成后可配置摸花目标。"
+		detail="请先开启自动摸花并保存；下一轮会同步好友列表，随后即可配置指定目标。"
       />
     );
   }
@@ -2343,12 +2359,11 @@ function FriendTouchFriendList({
           const target = counts[key] ?? 0;
           const isExcluded = excluded.has(key);
           const displayName = friend.name.trim() || (friend.profileObserved ? `UID ${key}` : `好友 ${key}`);
-          const progress =
-            friend.stealMax > 0
+		  const progress =
+			friend.quotaObserved
               ? `今日 ${friend.stolenCount}/${friend.stealMax}`
-              : friend.stolenCount > 0
-                ? `今日已摘 ${friend.stolenCount}`
-                : "次数未同步";
+			  : "次数未同步";
+		  const targetMax = friend.baseStealMax + (autoBuy ? maxBuyPerFriend : friend.boughtCount);
           return (
             <div
               key={key}
@@ -2363,14 +2378,18 @@ function FriendTouchFriendList({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>UID {key}</span>
                     <span>{progress}</span>
-                    {friend.canSteal ? (
+					{friend.availabilityObserved && friend.canSteal ? (
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                         可摘
                       </Badge>
-                    ) : (
+					) : friend.availabilityObserved ? (
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
                         暂不可摘
                       </Badge>
+					) : (
+					  <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+						状态待同步
+					  </Badge>
                     )}
                   </div>
                 </div>
@@ -2386,7 +2405,7 @@ function FriendTouchFriendList({
                     label={`${displayName} 目标次数`}
                     value={target.toString()}
                     min={0}
-                    max={friend.stealMax > 0 ? friend.stealMax * 2 : undefined}
+					max={targetMax > 0 ? targetMax : undefined}
                     decrementDisabled={target <= 0}
                     onDecrement={() => onCountChange(friend.uid, target - 1)}
                     onIncrement={() => onCountChange(friend.uid, target + 1)}

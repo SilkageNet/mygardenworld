@@ -121,7 +121,6 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		ops = append(ops, signTypeOperations(s, now)...)
 	}
 	ops = append(ops, pearlOperations(s, basic.GetPearl(), now)...)
-	ops = append(ops, friendTouchOperations(s, basic.GetFriendTouch(), now)...)
 	return ops
 }
 

@@ -1801,13 +1801,17 @@ func friendTouchFriendsProto(friends []state.FriendTouchFriendView) []*pb.Friend
 	out := make([]*pb.FriendTouchFriendView, 0, len(friends))
 	for _, friend := range friends {
 		out = append(out, &pb.FriendTouchFriendView{
-			Uid:             friend.UID,
-			Name:            friend.Name,
-			StolenCount:     friend.StolenCount,
-			StealMax:        friend.StealMax,
-			StealLeft:       friend.StealLeft,
-			CanSteal:        friend.CanSteal,
-			ProfileObserved: friend.ProfileObserved,
+			Uid:                  friend.UID,
+			Name:                 friend.Name,
+			StolenCount:          friend.StolenCount,
+			StealMax:             friend.StealMax,
+			StealLeft:            friend.StealLeft,
+			CanSteal:             friend.CanSteal,
+			ProfileObserved:      friend.ProfileObserved,
+			BaseStealMax:         friend.BaseStealMax,
+			BoughtCount:          friend.BoughtCount,
+			QuotaObserved:        friend.QuotaObserved,
+			AvailabilityObserved: friend.AvailabilityObserved,
 		})
 	}
 	return out

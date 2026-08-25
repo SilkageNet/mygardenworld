@@ -27,30 +27,35 @@ type FriendTouchConfig struct {
 
 // FriendTouchFriendView is one friend row for policy UI and planners.
 type FriendTouchFriendView struct {
-	UID             int64  `json:"uid"`
-	Name            string `json:"name,omitempty"`
-	StolenCount     int32  `json:"stolen_count,omitempty"`
-	StealMax        int32  `json:"steal_max,omitempty"`
-	StealLeft       int32  `json:"steal_left,omitempty"`
-	CanSteal        bool   `json:"can_steal,omitempty"`
-	ProfileObserved bool   `json:"profile_observed,omitempty"`
+	UID                  int64  `json:"uid"`
+	Name                 string `json:"name,omitempty"`
+	StolenCount          int32  `json:"stolen_count,omitempty"`
+	StealMax             int32  `json:"steal_max,omitempty"`
+	StealLeft            int32  `json:"steal_left,omitempty"`
+	CanSteal             bool   `json:"can_steal,omitempty"`
+	ProfileObserved      bool   `json:"profile_observed,omitempty"`
+	BaseStealMax         int32  `json:"base_steal_max,omitempty"`
+	BoughtCount          int32  `json:"bought_count,omitempty"`
+	QuotaObserved        bool   `json:"quota_observed,omitempty"`
+	AvailabilityObserved bool   `json:"availability_observed,omitempty"`
 }
 
 // FriendTouchView is the session-scoped friend-touch state snapshot.
 type FriendTouchView struct {
-	StealObserved      bool
-	StealRTimeMs       int64
-	StealMap           map[int64]int32
-	StealCntBuyMap     map[int64]int32
-	StealCntBuyRTimeMs int64
-	OtherInfo          map[int64]FriendOtherInfoView
-	OtherInfoObserved  bool
-	FriendUIDs         []int64
-	FriendsObserved    bool
-	Profiles           map[int64]PearlCandidateProfile
-	VisitUID           int64
-	VisitObservedAtMs  int64
-	VisitLands         map[int32]LandView
+	StealObserved       bool
+	StealRTimeMs        int64
+	StealMap            map[int64]int32
+	StealCntBuyMap      map[int64]int32
+	StealCntBuyRTimeMs  int64
+	StealCntBuyObserved bool
+	OtherInfo           map[int64]FriendOtherInfoView
+	OtherInfoObserved   bool
+	FriendUIDs          []int64
+	FriendsObserved     bool
+	Profiles            map[int64]PearlCandidateProfile
+	VisitUID            int64
+	VisitObservedAtMs   int64
+	VisitLands          map[int32]LandView
 }
 
 func FriendTouchConfigFromCatalog() (FriendTouchConfig, bool) {
@@ -128,12 +133,10 @@ func (s *State) applyFrdStealObjectLocked(raw json.RawMessage) {
 		} else {
 			parsed := parseInt64Int32Map(rawMap)
 			if parsed != nil {
-				if s.frdStealMap == nil {
-					s.frdStealMap = make(map[int64]int32)
-				}
-				for uid, count := range parsed {
-					s.frdStealMap[uid] = count
-				}
+				// IFrdSteal.stealMap is an authoritative current-day map when
+				// present. Replacement prevents yesterday's omitted UIDs from
+				// surviving a reset as non-zero usage.
+				s.frdStealMap = parsed
 			}
 		}
 	}
@@ -206,13 +209,7 @@ func parseFriendLandMap(raw json.RawMessage) map[int32]LandView {
 		if json.Unmarshal(rawLand, &landFields) != nil {
 			continue
 		}
-		land := FromPrimary(landFields)
-		// Mirror client refreshLandMap: state=2 with past nextTime becomes ready.
-		if land.State == 2 && land.NextTimeMs > 0 && land.NextTimeMs <= time.Now().UnixMilli() {
-			land.State = 3
-			land.NextTimeMs = 0
-		}
-		out[int32(landID64)] = land
+		out[int32(landID64)] = FromPrimary(landFields)
 	}
 	return out
 }
@@ -263,22 +260,21 @@ func (s *State) applyFrdStealCntBuyLocked(raw json.RawMessage) {
 	if json.Unmarshal(raw, &fields) != nil {
 		return
 	}
+	// This function is called only for a full namespace-24 base object. An
+	// omitted/null field 104 therefore means an observed empty purchase map,
+	// not unknown state.
+	s.frdStealCntBuyObserved = true
+	s.frdStealCntBuyMap = nil
 	if rawRTime, ok := fields["9"]; ok {
 		if ms, ok := readExactInt64Raw(rawRTime); ok {
 			s.frdStealCntBuyRTimeMs = ms
 		}
 	}
 	if rawMap, ok := fields["104"]; ok {
-		if isJSONNull(rawMap) {
-			s.frdStealCntBuyMap = nil
-		} else if parsed := parseInt64Int32Map(rawMap); parsed != nil {
-			if s.frdStealCntBuyMap == nil {
-				s.frdStealCntBuyMap = make(map[int64]int32)
+		if !isJSONNull(rawMap) {
+			if parsed := parseInt64Int32Map(rawMap); parsed != nil {
+				s.frdStealCntBuyMap = parsed
 			}
-			for uid, count := range parsed {
-				s.frdStealCntBuyMap[uid] = count
-			}
-			s.frdStealCntBuyObserved = true
 		}
 	}
 }
@@ -314,46 +310,20 @@ func frdStealMapFresh(rTimeMs int64, now time.Time) bool {
 	return calendarDayID(now) == calendarDayID(time.UnixMilli(rTimeMs))
 }
 
-func (s *State) frdStealCountLocked(uid int64, now time.Time) int32 {
-	if uid <= 0 || !s.frdStealObserved || !frdStealMapFresh(s.frdStealRTimeMs, now) {
-		return 0
-	}
-	return s.frdStealMap[uid]
-}
-
-func (s *State) frdStealBuyCountLocked(uid int64, now time.Time) int32 {
-	if uid <= 0 || !s.frdStealCntBuyObserved || !frdStealMapFresh(s.frdStealCntBuyRTimeMs, now) {
-		return 0
-	}
-	return s.frdStealCntBuyMap[uid]
-}
-
-func (s *State) frdStealMaxLocked(uid int64, cfg FriendTouchConfig, now time.Time) int32 {
-	return cfg.StealMax + s.frdStealBuyCountLocked(uid, now)
-}
-
-func (s *State) frdStealLeftLocked(uid int64, cfg FriendTouchConfig, now time.Time) int32 {
-	max := s.frdStealMaxLocked(uid, cfg, now)
-	left := max - s.frdStealCountLocked(uid, now)
-	if left < 0 {
-		return 0
-	}
-	return left
-}
-
 // FriendTouch returns a defensive snapshot for planners and query APIs.
 func (s *State) FriendTouch(now time.Time) FriendTouchView {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	view := FriendTouchView{
-		StealObserved:      s.frdStealObserved,
-		StealRTimeMs:       s.frdStealRTimeMs,
-		StealCntBuyRTimeMs: s.frdStealCntBuyRTimeMs,
-		OtherInfoObserved:  s.frdOtherInfoObserved,
-		FriendsObserved:    s.pearlFriendsObserved,
-		FriendUIDs:         s.pearlFriendUIDsLocked(),
-		VisitUID:           s.frdVisitUID,
-		VisitObservedAtMs:  s.frdVisitAtMs,
+		StealObserved:       s.frdStealObserved,
+		StealRTimeMs:        s.frdStealRTimeMs,
+		StealCntBuyRTimeMs:  s.frdStealCntBuyRTimeMs,
+		StealCntBuyObserved: s.frdStealCntBuyObserved,
+		OtherInfoObserved:   s.frdOtherInfoObserved,
+		FriendsObserved:     s.pearlFriendsObserved,
+		FriendUIDs:          s.pearlFriendUIDsLocked(),
+		VisitUID:            s.frdVisitUID,
+		VisitObservedAtMs:   s.frdVisitAtMs,
 	}
 	if frdStealMapFresh(s.frdStealRTimeMs, now) && len(s.frdStealMap) > 0 {
 		view.StealMap = cloneInt64Int32Map(s.frdStealMap)
@@ -384,10 +354,8 @@ func (s *State) FriendTouch(now time.Time) FriendTouchView {
 	return view
 }
 
-const friendTouchSkipEnterCooldown = 5 * time.Minute
-
 // ReadyFriendStealLandID picks one stealable plot on the currently opened friend garden.
-// Deprecated: use PickFriendStealLandID for quality/stock-aware selection.
+// New policy-aware code should use PickFriendStealLandIDWithSelection.
 func ReadyFriendStealLandID(lands map[int32]LandView, now time.Time) (int32, bool) {
 	return PickFriendStealLandID(lands, nil, 0, now)
 }
@@ -395,9 +363,26 @@ func ReadyFriendStealLandID(lands map[int32]LandView, now time.Time) (int32, boo
 // PickFriendStealLandID prefers higher flower quality, then lower inventory stock,
 // then lower land level, then lower land id. Lands already stolen by selfUID are skipped.
 func PickFriendStealLandID(lands map[int32]LandView, inventory map[int32]int32, selfUID int64, now time.Time) (int32, bool) {
+	return PickFriendStealLandIDWithSelection(lands, inventory, selfUID, now, FriendStealSelection{})
+}
+
+// FriendStealSelection is a catalog-level flower filter. At most one allow
+// list is populated by policy normalization; the exclude list is independent.
+type FriendStealSelection struct {
+	Qualities        []int32
+	FlowerIDs        []int32
+	ExcludeFlowerIDs []int32
+}
+
+// PickFriendStealLandIDWithSelection applies policy flower filters before the
+// deterministic quality/stock ordering used by PickFriendStealLandID.
+func PickFriendStealLandIDWithSelection(lands map[int32]LandView, inventory map[int32]int32, selfUID int64, now time.Time, selection FriendStealSelection) (int32, bool) {
 	if len(lands) == 0 {
 		return 0, false
 	}
+	qualities := positiveInt32Set(selection.Qualities)
+	flowerIDs := positiveInt32Set(selection.FlowerIDs)
+	excludedFlowerIDs := positiveInt32Set(selection.ExcludeFlowerIDs)
 	nowMs := now.UnixMilli()
 	type candidate struct {
 		landID   int32
@@ -413,6 +398,15 @@ func PickFriendStealLandID(lands map[int32]LandView, inventory map[int32]int32, 
 		}
 		flowerID := int32(land.FlowerID)
 		quality := friendFlowerQuality(flowerID)
+		if len(qualities) > 0 && !qualities[quality] {
+			continue
+		}
+		if len(flowerIDs) > 0 && !flowerIDs[flowerID] {
+			continue
+		}
+		if excludedFlowerIDs[flowerID] {
+			continue
+		}
 		stock := int32(0)
 		if inventory != nil {
 			stock = inventory[flowerID]
@@ -444,6 +438,19 @@ func PickFriendStealLandID(lands map[int32]LandView, inventory map[int32]int32, 
 		}
 	})
 	return candidates[0].landID, true
+}
+
+func positiveInt32Set(values []int32) map[int32]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[int32]bool, len(values))
+	for _, value := range values {
+		if value > 0 {
+			out[value] = true
+		}
+	}
+	return out
 }
 
 func friendLandStealable(land LandView, selfUID int64, nowMs int64) bool {
@@ -514,6 +521,71 @@ func (s *State) ClearFriendTouchSkipEnter(uid int64) {
 	delete(s.frdStealSkipEnterUntil, uid)
 }
 
+// FriendStealCounters returns current-day counters and independent observation
+// flags for the used-attempt and bought-attempt maps.
+func (s *State) FriendStealCounters(uid int64, now time.Time) (used, bought int32, usedObserved, boughtObserved bool) {
+	if s == nil || uid <= 0 {
+		return 0, 0, false, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	usedObserved = s.frdStealObserved && frdStealMapFresh(s.frdStealRTimeMs, now)
+	boughtObserved = s.frdStealCntBuyObserved && frdStealMapFresh(s.frdStealCntBuyRTimeMs, now)
+	if usedObserved {
+		used = s.frdStealMap[uid]
+	}
+	if boughtObserved {
+		bought = s.frdStealCntBuyMap[uid]
+	}
+	return used, bought, usedObserved, boughtObserved
+}
+
+// NoteFriendStealSuccess reconciles successful responses that omit their
+// namespace-111 delta. It never lowers an authoritative counter.
+func (s *State) NoteFriendStealSuccess(uid int64, landID int32, usedBefore int32, usedBeforeObserved bool, now time.Time) {
+	if s == nil || uid <= 0 || landID <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if usedBeforeObserved && s.frdStealObserved && frdStealMapFresh(s.frdStealRTimeMs, now) {
+		if s.frdStealMap == nil {
+			s.frdStealMap = make(map[int64]int32)
+		}
+		if minimum := usedBefore + 1; s.frdStealMap[uid] < minimum {
+			s.frdStealMap[uid] = minimum
+		}
+	}
+	if s.frdVisitUID != uid {
+		return
+	}
+	land, exists := s.frdVisitLands[landID]
+	if !exists || s.roleID <= 0 || int64SliceContains(land.StealUIDs, s.roleID) {
+		return
+	}
+	land.StealUIDs = append(land.StealUIDs, s.roleID)
+	s.frdVisitLands[landID] = land
+}
+
+// NoteFriendStealPurchase reconciles a successful purchase response that omits
+// namespace-24 field 104, preventing a duplicate friendship-coin spend.
+func (s *State) NoteFriendStealPurchase(uid int64, boughtBefore int32, boughtBeforeObserved bool, now time.Time) {
+	if s == nil || uid <= 0 || !boughtBeforeObserved {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.frdStealCntBuyObserved || !frdStealMapFresh(s.frdStealCntBuyRTimeMs, now) {
+		return
+	}
+	if s.frdStealCntBuyMap == nil {
+		s.frdStealCntBuyMap = make(map[int64]int32)
+	}
+	if minimum := boughtBefore + 1; s.frdStealCntBuyMap[uid] < minimum {
+		s.frdStealCntBuyMap[uid] = minimum
+	}
+}
+
 // FriendTouchFriends builds UI rows for all known friends.
 func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 	cfg, ok := FriendTouchConfigFromCatalog()
@@ -529,21 +601,24 @@ func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 			Name:            profile.Name,
 			ProfileObserved: profile.ObservedAtMs > 0,
 			StolenCount:     view.StealMap[uid],
+			BaseStealMax:    cfg.StealMax,
+			BoughtCount:     view.StealCntBuyMap[uid],
 			StealMax:        cfg.StealMax + view.StealCntBuyMap[uid],
 			StealLeft:       0,
+			QuotaObserved:   friendTouchQuotaFresh(view, now),
 		}
-		if !frdStealMapFresh(view.StealRTimeMs, now) {
+		if !row.QuotaObserved {
 			row.StolenCount = 0
-		}
-		if !frdStealMapFresh(view.StealCntBuyRTimeMs, now) {
 			row.StealMax = cfg.StealMax
+			row.BoughtCount = 0
 		}
 		row.StealLeft = row.StealMax - row.StolenCount
 		if row.StealLeft < 0 {
 			row.StealLeft = 0
 		}
 		if info, exists := view.OtherInfo[uid]; exists {
-			row.CanSteal = info.IsSteal && row.StealLeft > 0
+			row.AvailabilityObserved = info.ObservedAt > 0 && now.UnixMilli()-info.ObservedAt <= (30*time.Second).Milliseconds()
+			row.CanSteal = row.QuotaObserved && row.AvailabilityObserved && info.IsSteal && row.StealLeft > 0
 		}
 		out = append(out, row)
 	}
@@ -561,6 +636,11 @@ func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 		return out[i].UID < out[j].UID
 	})
 	return out
+}
+
+func friendTouchQuotaFresh(view FriendTouchView, now time.Time) bool {
+	return view.StealObserved && view.StealCntBuyObserved &&
+		frdStealMapFresh(view.StealRTimeMs, now) && frdStealMapFresh(view.StealCntBuyRTimeMs, now)
 }
 
 func cloneInt64Int32Map(in map[int64]int32) map[int64]int32 {

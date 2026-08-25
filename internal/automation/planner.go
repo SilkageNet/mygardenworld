@@ -60,6 +60,7 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	var ops []PlannedOp
 	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy, now))...)
+	ops = append(ops, friendTouchOperations(s, policy.GetPlant().GetFriendSteal(), now)...)
 	ops = append(ops, orderOperations(s, policy, goals, demands, ledger, now)...)
 	ops = append(ops, basicOperations(s, policy, goals, now)...)
 	ops = append(ops, shopOperations(s, policy, now)...)

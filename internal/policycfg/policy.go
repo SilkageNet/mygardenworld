@@ -3,6 +3,7 @@ package policycfg
 import (
 	"encoding/json"
 	"math"
+	"sort"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
@@ -12,6 +13,104 @@ import (
 )
 
 const maxReconnectIntervalSeconds = 24 * 60 * 60
+
+func migrateLegacyFriendTouch(dst *pb.FriendStealPolicy, legacy *pb.FriendTouchPolicy) {
+	if dst == nil || legacy == nil {
+		return
+	}
+	if legacy.GetEnabled() {
+		dst.Enabled = true
+	}
+	if legacy.GetStealElves() {
+		dst.StealElves = true
+	}
+	if legacy.GetAutoBuyTimes() {
+		dst.AutoBuyTimes = true
+	}
+	if dst.GetFriendMode() == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED {
+		dst.FriendMode = legacy.GetMode()
+	}
+	if len(dst.GetFriendCounts()) == 0 && len(legacy.GetFriendCounts()) > 0 {
+		dst.FriendCounts = make(map[int64]int32, len(legacy.GetFriendCounts()))
+		for uid, count := range legacy.GetFriendCounts() {
+			dst.FriendCounts[uid] = count
+		}
+		// Copying the legacy targets means its friend-selection mode is the
+		// authoritative companion value, even when DefaultPolicy supplied ALL.
+		dst.FriendMode = legacy.GetMode()
+	}
+	if len(dst.GetExcludeUids()) == 0 {
+		dst.ExcludeUids = append([]int64(nil), legacy.GetExcludeUids()...)
+	}
+	if dst.GetMaxBuyPerFriend() == 0 {
+		dst.MaxBuyPerFriend = legacy.GetMaxBuyPerFriend()
+	}
+}
+
+func normalizeFriendSteal(policy, def *pb.FriendStealPolicy) {
+	if policy == nil {
+		return
+	}
+	switch policy.GetMode() {
+	case pb.SelectionMode_SELECTION_MODE_ALL,
+		pb.SelectionMode_SELECTION_MODE_QUALITY,
+		pb.SelectionMode_SELECTION_MODE_SPECIFIC,
+		pb.SelectionMode_SELECTION_MODE_EXCLUDE:
+	default:
+		policy.Mode = def.GetMode()
+	}
+	switch policy.GetFriendMode() {
+	case pb.SelectionMode_SELECTION_MODE_ALL, pb.SelectionMode_SELECTION_MODE_SPECIFIC:
+	default:
+		if len(policy.GetFriendCounts()) > 0 {
+			policy.FriendMode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
+		} else {
+			policy.FriendMode = def.GetFriendMode()
+		}
+	}
+	if policy.FriendCounts == nil {
+		policy.FriendCounts = map[int64]int32{}
+	}
+	maxTarget := int32(20)
+	maxBuy := int32(10)
+	if cfg, ok := state.FriendTouchConfigFromCatalog(); ok {
+		maxTarget = cfg.StealMax + cfg.PickMax
+		maxBuy = cfg.PickMax
+	}
+	for uid, count := range policy.FriendCounts {
+		if uid <= 0 || count <= 0 {
+			delete(policy.FriendCounts, uid)
+			continue
+		}
+		if count > maxTarget {
+			policy.FriendCounts[uid] = maxTarget
+		}
+	}
+	if policy.MaxBuyPerFriend < 0 {
+		policy.MaxBuyPerFriend = 0
+	} else if policy.MaxBuyPerFriend > maxBuy {
+		policy.MaxBuyPerFriend = maxBuy
+	}
+	seen := make(map[int64]struct{}, len(policy.ExcludeUids))
+	clean := policy.ExcludeUids[:0]
+	for _, uid := range policy.ExcludeUids {
+		if uid <= 0 {
+			continue
+		}
+		if _, exists := seen[uid]; exists {
+			continue
+		}
+		seen[uid] = struct{}{}
+		clean = append(clean, uid)
+	}
+	sort.Slice(clean, func(i, j int) bool { return clean[i] < clean[j] })
+	policy.ExcludeUids = clean
+	// These fields came from an unverified earlier model. The observed client
+	// catalog charges item 1305 instead of diamonds, so they must not survive as
+	// apparent safety limits.
+	policy.BuyCount = 0
+	policy.MaxSpendDiamond = 0
+}
 
 var jsonMarshal = protojson.MarshalOptions{
 	EmitUnpopulated: true,
@@ -29,6 +128,7 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	}
 	cp := proto.Clone(p).(*pb.Policy)
 	def := automation.DefaultPolicy()
+	var legacyFriendTouch *pb.FriendTouchPolicy
 	if cp.Basic == nil {
 		cp.Basic = proto.Clone(def.Basic).(*pb.BasicPolicy)
 	}
@@ -70,18 +170,9 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Zoo == nil {
 		cp.Basic.Zoo = proto.Clone(def.Basic.Zoo).(*pb.ZooPolicy)
 	}
-	if cp.Basic.FriendTouch == nil {
-		cp.Basic.FriendTouch = proto.Clone(def.Basic.FriendTouch).(*pb.FriendTouchPolicy)
-	}
-	if cp.Basic.FriendTouch.FriendCounts == nil {
-		cp.Basic.FriendTouch.FriendCounts = map[int64]int32{}
-	}
-	if cp.Basic.FriendTouch.Mode == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED {
-		if len(cp.Basic.FriendTouch.FriendCounts) > 0 {
-			cp.Basic.FriendTouch.Mode = pb.SelectionMode_SELECTION_MODE_SPECIFIC
-		} else {
-			cp.Basic.FriendTouch.Mode = def.Basic.FriendTouch.Mode
-		}
+	if cp.Basic.FriendTouch != nil {
+		legacyFriendTouch = proto.Clone(cp.Basic.FriendTouch).(*pb.FriendTouchPolicy)
+		cp.Basic.FriendTouch = nil
 	}
 	if cp.Plant == nil {
 		cp.Plant = proto.Clone(def.Plant).(*pb.PlantPolicy)
@@ -121,6 +212,8 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.FriendSteal == nil {
 		cp.Plant.FriendSteal = proto.Clone(def.Plant.FriendSteal).(*pb.FriendStealPolicy)
 	}
+	migrateLegacyFriendTouch(cp.Plant.FriendSteal, legacyFriendTouch)
+	normalizeFriendSteal(cp.Plant.FriendSteal, def.Plant.FriendSteal)
 	if cp.Plant.Elves == nil {
 		cp.Plant.Elves = proto.Clone(def.Plant.Elves).(*pb.FlowerElvesPolicy)
 	}

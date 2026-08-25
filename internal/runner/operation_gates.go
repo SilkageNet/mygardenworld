@@ -49,6 +49,10 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 		if option, ok := state.FmlBuildOptionByID(op.TargetID); ok && option.ShareID > 0 {
 			return fmt.Errorf("%s: 公会建设 shareId=%d", automation.SDKAdUnsupportedReason, option.ShareID)
 		}
+	case clientproto.RPCFrdStealSteal.String(), clientproto.RPCFrdExtBuyStealCnt.String():
+		if err := automation.ValidateFriendTouchMutation(r.state, r.Policy().GetPlant().GetFriendSteal(), op, now); err != nil {
+			return err
+		}
 	}
 	for _, gate := range op.CostGates {
 		if err := r.checkCostGate(op, gate, now); err != nil {

@@ -43,7 +43,8 @@ message BasicPolicy {
   // default; ordinary session expiry never uses this recovery path.
   bool displaced_session_relogin_enabled = 16;
 
-  // Friend flower touch (摘花/摸花) via frdSteal.*.
+  // Deprecated compatibility field from the initial KK implementation.
+  // Normalize migrates it to plant.friend_steal; new clients must not write it.
   FriendTouchPolicy friend_touch = 17;
 }
 
@@ -191,8 +192,18 @@ message FriendStealPolicy {
   repeated int32 flower_ids = 5;
   repeated int32 exclude_flower_ids = 6;
   bool auto_buy_times = 7;
+  // Deprecated speculative settings. Extra attempts cost friendship coins,
+  // not diamonds; these values are ignored after normalization.
   int32 buy_count = 8;
   int64 max_spend_diamond = 9;
+
+  // Friend selection is separate from mode, which selects flower types.
+  // Only ALL and SPECIFIC are accepted here.
+  SelectionMode friend_mode = 10;
+  map<int64, int32> friend_counts = 11;
+  repeated int64 exclude_uids = 12;
+  // Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
+  int32 max_buy_per_friend = 13;
 }
 
 message FlowerElvesPolicy {

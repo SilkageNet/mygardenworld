@@ -492,19 +492,15 @@ func friendTouchStealRequest(op *automation.PlannedOp) (clientproto.FrdStealStea
 	if op == nil || op.TargetUID <= 0 || op.TargetID <= 0 || op.Count != 1 {
 		return clientproto.FrdStealStealRequest{}, fmt.Errorf("frdSteal.steal requires frdUid, landId and count=1")
 	}
-	if len(op.TargetUIDs) != 0 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 ||
+	if len(op.TargetUIDs) != 0 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 || op.SlotID != 0 ||
 		len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
 		plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
 		return clientproto.FrdStealStealRequest{}, fmt.Errorf("frdSteal.steal carries unexpected fields")
 	}
-	stealElves := clientproto.RPCInt(0)
-	if op.SlotID != 0 {
-		stealElves = 1
-	}
 	return clientproto.FrdStealStealRequest{
 		FrdUid:     op.TargetUID,
 		LandId:     op.TargetID,
-		StealElves: stealElves,
+		StealElves: 0,
 	}, nil
 }
 
