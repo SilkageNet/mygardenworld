@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -14,6 +15,9 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/policycfg"
+	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
@@ -110,6 +114,68 @@ func TestCreateUserRejectsWeakPassword(t *testing.T) {
 		t.Fatalf("CreateUser code=%s err=%v, want InvalidArgument", connect.CodeOf(err), err)
 	}
 }
+
+func TestCreateUserValidatesOptionsBeforeInsert(t *testing.T) {
+	ctx := auth.ContextWithIdentity(context.Background(), &auth.Identity{UserID: 1, Role: "admin"})
+	svc := newAuthTestService(t, LoginLimiterConfig{})
+
+	_, err := svc.CreateUser(ctx, connect.NewRequest(&pb.CreateUserRequest{
+		Username: " partial ",
+		Email:    "partial@example.test",
+		Password: "ValidPass123!",
+		Role:     stringPtr("owner"),
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("CreateUser code=%s err=%v, want InvalidArgument", connect.CodeOf(err), err)
+	}
+	if _, err := svc.DB.GetUserByUsername(context.Background(), "partial"); !errors.Is(err, store.ErrUserNotFound) {
+		t.Fatalf("invalid CreateUser left a user behind: %v", err)
+	}
+}
+
+func TestDisableUserStopsRestoreAndRevokesRefreshTokens(t *testing.T) {
+	ctx := context.Background()
+	adminCtx := auth.ContextWithIdentity(ctx, &auth.Identity{UserID: 1, Role: "admin"})
+	svc := newAuthTestService(t, LoginLimiterConfig{})
+	svc.Manager = runner.NewManager(svc.DB, runner.NewBus(), svc.Log)
+	user, err := svc.DB.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account, err := svc.DB.CreateAccount(ctx, user.ID, "main", "ios", "game", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	if err := svc.persistPolicy(ctx, account.ID, policy); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DB.SaveRefreshToken(ctx, user.ID, "refresh-token", time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	status := "disabled"
+	if _, err := svc.UpdateUser(adminCtx, connect.NewRequest(&pb.UpdateUserRequest{UserId: user.ID, Status: &status})); err != nil {
+		t.Fatal(err)
+	}
+	storedPolicy, err := svc.DB.LoadPolicyJSON(ctx, account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	effective, err := policycfg.FromJSON(storedPolicy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if effective.GetAutomationEnabled() {
+		t.Fatal("disabled user's persisted automation remains enabled")
+	}
+	if _, err := svc.DB.ValidateRefreshToken(ctx, "refresh-token"); !errors.Is(err, store.ErrTokenInvalid) {
+		t.Fatalf("disabled user's refresh token error = %v, want ErrTokenInvalid", err)
+	}
+}
+
+func stringPtr(value string) *string { return &value }
 
 func newAuthTestService(t *testing.T, limiterCfg LoginLimiterConfig) *Services {
 	t.Helper()

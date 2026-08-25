@@ -116,13 +116,16 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)
 	}
 	if err := sqldb.PingContext(ctx); err != nil {
+		_ = sqldb.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
 	if _, err := sqldb.ExecContext(ctx, schema); err != nil {
+		_ = sqldb.Close()
 		return nil, fmt.Errorf("schema: %w", err)
 	}
 	credentialKey, err := loadOrCreateCredentialKey(path)
 	if err != nil {
+		_ = sqldb.Close()
 		return nil, fmt.Errorf("credential key: %w", err)
 	}
 	return &DB{DB: sqldb, credentialKey: credentialKey}, nil
@@ -167,7 +170,10 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 		}
 		return nil, fmt.Errorf("insert account: %w", err)
 	}
-	id, _ := res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("read inserted account id: %w", err)
+	}
 	return d.GetAccountByID(ctx, id)
 }
 
@@ -189,7 +195,10 @@ func (d *DB) UpdateAccountCredentials(ctx context.Context, id int64, username, p
 	if err != nil {
 		return fmt.Errorf("update account credentials: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count updated account credentials: %w", err)
+	}
 	if n == 0 {
 		return ErrAccountNotFound
 	}
@@ -255,7 +264,10 @@ func (d *DB) RenameAccount(ctx context.Context, id int64, name string) (*Account
 		}
 		return nil, fmt.Errorf("rename account: %w", err)
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("count renamed accounts: %w", err)
+	}
 	if n == 0 {
 		return nil, ErrAccountNotFound
 	}
@@ -280,7 +292,10 @@ func (d *DB) DeleteAccount(ctx context.Context, id int64, name string) error {
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count deleted accounts: %w", err)
+	}
 	if n == 0 {
 		return ErrAccountNotFound
 	}

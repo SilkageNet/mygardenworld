@@ -225,7 +225,9 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, requ
 		if startErr != nil {
 			return nil, fmt.Errorf("restart Alipay account: %w", startErr)
 		}
-		svc.enableAutomation(ctx, existing.ID, r)
+		if err := svc.enableAutomation(ctx, existing.ID, r); err != nil {
+			return nil, fmt.Errorf("enable Alipay account automation: %w", err)
+		}
 		return r.Account(), nil
 	}
 	name := strings.TrimSpace(requestedName)
@@ -244,7 +246,9 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, requ
 	if err != nil {
 		return nil, fmt.Errorf("start Alipay account: %w", err)
 	}
-	svc.enableAutomation(ctx, account.ID, r)
+	if err := svc.enableAutomation(ctx, account.ID, r); err != nil {
+		return nil, fmt.Errorf("enable Alipay account automation: %w", err)
+	}
 	return r.Account(), nil
 }
 

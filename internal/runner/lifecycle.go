@@ -107,11 +107,15 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		return nil, fmt.Errorf("login: %w", err)
 	}
 
-	if blob, err := babigame.MarshalSessionJSON(session); err == nil {
-		_ = r.db.SaveSession(ctx, r.account.ID, blob, nil)
+	if blob, err := babigame.MarshalSessionJSON(session); err != nil {
+		r.log.Warn("marshal login session failed", "err", err)
+	} else if err := r.db.SaveSession(ctx, r.account.ID, blob, nil); err != nil {
+		r.log.Warn("persist login session failed", "err", err)
 	}
 	now := time.Now().UTC()
-	_ = r.db.UpdateLogin(ctx, r.account.ID, session.AID, int32(session.GsIdx), session.WSURL(), now)
+	if err := r.db.UpdateLogin(ctx, r.account.ID, session.AID, int32(session.GsIdx), session.WSURL(), now); err != nil {
+		r.log.Warn("persist login metadata failed", "err", err)
+	}
 
 	client := r.newClient(session)
 	if err := client.Connect(ctx); err != nil {
@@ -145,6 +149,8 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	}
 	if v, err := client.LazySync(ctx); err == nil {
 		r.state.ApplyV(v)
+	} else {
+		r.log.Warn("ws lazy sync failed", "err", err)
 	}
 	// index.login + lazySync form the authoritative startup baseline. If neither
 	// supplied IFmlTot.mb (25.1), this account has no current guild membership;

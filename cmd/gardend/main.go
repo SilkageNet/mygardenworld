@@ -336,7 +336,19 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		}),
 	}
 
-	authInterceptor := auth.NewInterceptor(jwtSvc)
+	authInterceptor := auth.NewInterceptor(jwtSvc, func(ctx context.Context, userID int64) (*auth.Identity, error) {
+		user, err := db.GetUserByID(ctx, userID)
+		if err != nil {
+			if errors.Is(err, store.ErrUserNotFound) {
+				return nil, auth.ErrTokenInvalid
+			}
+			return nil, err
+		}
+		if user.Status != "active" {
+			return nil, auth.ErrIdentityDisabled
+		}
+		return &auth.Identity{UserID: user.ID, Role: user.Role}, nil
+	})
 	protectedOpts := []connect.HandlerOption{
 		connect.WithInterceptors(authInterceptor),
 		connect.WithReadMaxBytes(opts.MaxReqBytes),

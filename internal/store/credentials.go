@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,17 +19,10 @@ const (
 
 func loadOrCreateCredentialKey(dbPath string) ([]byte, error) {
 	keyPath := dbPath + ".key"
-	if raw, err := os.ReadFile(keyPath); err == nil {
-		key, err := base64.RawStdEncoding.DecodeString(strings.TrimSpace(string(raw)))
-		if err != nil {
-			return nil, fmt.Errorf("decode %s: %w", keyPath, err)
-		}
-		if len(key) != credentialKeyBytes {
-			return nil, fmt.Errorf("decode %s: got %d bytes, want %d", keyPath, len(key), credentialKeyBytes)
-		}
+	if key, err := readCredentialKey(keyPath); err == nil {
 		return key, nil
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("read %s: %w", keyPath, err)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, err
 	}
 
 	key := make([]byte, credentialKeyBytes)
@@ -39,8 +33,50 @@ func loadOrCreateCredentialKey(dbPath string) ([]byte, error) {
 		return nil, err
 	}
 	encoded := base64.RawStdEncoding.EncodeToString(key)
-	if err := os.WriteFile(keyPath, []byte(encoded+"\n"), 0o600); err != nil {
-		return nil, fmt.Errorf("write %s: %w", keyPath, err)
+	tmp, err := os.CreateTemp(filepath.Dir(keyPath), ".credential-key-*")
+	if err != nil {
+		return nil, fmt.Errorf("create credential key temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("protect credential key temp file: %w", err)
+	}
+	if _, err := tmp.WriteString(encoded + "\n"); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("write credential key temp file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return nil, fmt.Errorf("sync credential key temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, fmt.Errorf("close credential key temp file: %w", err)
+	}
+
+	// Publish only a complete file and never replace a key another process may
+	// have created concurrently. Every contender then uses the same key.
+	if err := os.Link(tmpPath, keyPath); err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return readCredentialKey(keyPath)
+		}
+		return nil, fmt.Errorf("publish %s: %w", keyPath, err)
+	}
+	return key, nil
+}
+
+func readCredentialKey(keyPath string) ([]byte, error) {
+	raw, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", keyPath, err)
+	}
+	key, err := base64.RawStdEncoding.DecodeString(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return nil, fmt.Errorf("decode %s: %w", keyPath, err)
+	}
+	if len(key) != credentialKeyBytes {
+		return nil, fmt.Errorf("decode %s: got %d bytes, want %d", keyPath, len(key), credentialKeyBytes)
 	}
 	return key, nil
 }

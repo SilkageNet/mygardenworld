@@ -49,6 +49,10 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 		svc.logAuth("warn", "auth_login_disabled", username, remote, user.ID)
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("账号已被禁用"))
 	}
+	count, err := svc.DB.CountAccountsByUser(ctx, user.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
 	pair, err := svc.JWT.GenerateTokenPair(user.ID, user.Role)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -56,7 +60,6 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
 	resp := connect.NewResponse(&pb.AuthResponse{
 		AccessToken: pair.AccessToken,
 		User:        userToProto(user, count),
@@ -108,7 +111,6 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("登录已过期，请重新登录"))
 	}
-	_ = svc.DB.RevokeRefreshToken(ctx, token)
 	user, err := svc.DB.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, mapErr(err)
@@ -116,14 +118,17 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 	if user.Status != "active" {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("账号已被禁用"))
 	}
+	count, err := svc.DB.CountAccountsByUser(ctx, user.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
 	pair, err := svc.JWT.GenerateTokenPair(user.ID, user.Role)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
-		return nil, connect.NewError(connect.CodeInternal, err)
+	if err := svc.DB.RotateRefreshToken(ctx, token, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
+		return nil, mapErr(err)
 	}
-	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
 	resp := connect.NewResponse(&pb.AuthResponse{
 		AccessToken: pair.AccessToken,
 		User:        userToProto(user, count),
@@ -134,7 +139,9 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 
 func (svc *Services) Logout(ctx context.Context, req *connect.Request[pb.LogoutRequest]) (*connect.Response[pb.LogoutResponse], error) {
 	if token := refreshTokenFromRequest(req.Header(), req.Msg.GetRefreshToken()); token != "" {
-		_ = svc.DB.RevokeRefreshToken(ctx, token)
+		if err := svc.DB.RevokeRefreshToken(ctx, token); err != nil && svc.Log != nil {
+			svc.Log.Warn("revoke refresh token during logout failed", "err", err)
+		}
 	}
 	resp := connect.NewResponse(&pb.LogoutResponse{})
 	clearRefreshCookie(resp.Header(), req.Header())
@@ -150,7 +157,10 @@ func (svc *Services) GetMe(ctx context.Context, _ *connect.Request[pb.GetMeReque
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	count, _ := svc.DB.CountAccountsByUser(ctx, user.ID)
+	count, err := svc.DB.CountAccountsByUser(ctx, user.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
 	return connect.NewResponse(&pb.GetMeResponse{User: userToProto(user, count)}), nil
 }
 

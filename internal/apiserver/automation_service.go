@@ -19,7 +19,9 @@ func (svc *Services) Start(ctx context.Context, req *connect.Request[pb.StartReq
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	svc.enableAutomation(ctx, acc.ID, r)
+	if err := svc.enableAutomation(ctx, acc.ID, r); err != nil {
+		return nil, mapErr(err)
+	}
 	return connect.NewResponse(&pb.StartResponse{}), nil
 }
 
@@ -54,18 +56,21 @@ func policyEvent(enabled bool) runner.Event {
 	return runner.Event{Kind: "policy_changed", Category: "system", Domain: "policy", Action: "set", Message: message, PayloadJSON: string(payload)}
 }
 
-func (svc *Services) enableAutomation(ctx context.Context, accountID int64, r *runner.Runner) {
+func (svc *Services) enableAutomation(ctx context.Context, accountID int64, r *runner.Runner) error {
 	if r == nil {
-		return
+		return nil
 	}
 	p := r.Policy()
-	if p.GetAutomationEnabled() {
-		return
-	}
+	wasEnabled := p.GetAutomationEnabled()
 	p.AutomationEnabled = true
-	r.SetPolicy(p)
-	_ = svc.persistPolicy(ctx, accountID, p)
-	r.Emit(policyEvent(true))
+	if err := svc.persistPolicy(ctx, accountID, p); err != nil {
+		return err
+	}
+	if !wasEnabled {
+		r.SetPolicy(p)
+		r.Emit(policyEvent(true))
+	}
+	return nil
 }
 
 func (svc *Services) disableAutomation(ctx context.Context, accountID int64, r *runner.Runner) error {
@@ -73,13 +78,14 @@ func (svc *Services) disableAutomation(ctx context.Context, accountID int64, r *
 	if err != nil {
 		return err
 	}
-	if !p.GetAutomationEnabled() {
-		return nil
-	}
 	p.AutomationEnabled = false
 	if r != nil {
-		r.SetPolicy(p)
-		r.Emit(policyEvent(false))
+		live := r.Policy()
+		if live.GetAutomationEnabled() {
+			live.AutomationEnabled = false
+			r.SetPolicy(live)
+			r.Emit(policyEvent(false))
+		}
 	}
 	return svc.persistPolicy(ctx, accountID, p)
 }

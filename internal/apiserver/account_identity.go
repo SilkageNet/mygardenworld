@@ -24,8 +24,14 @@ func (svc *Services) saveLoginProbe(ctx context.Context, accountID int64, sessio
 	if session == nil {
 		return
 	}
-	if blob, err := babigame.MarshalSessionJSON(session); err == nil {
-		_ = svc.DB.SaveSession(ctx, accountID, blob, nil)
+	if blob, err := babigame.MarshalSessionJSON(session); err != nil {
+		if svc.Log != nil {
+			svc.Log.Warn("marshal probed login session failed", "account_id", accountID, "err", err)
+		}
+	} else if err := svc.DB.SaveSession(ctx, accountID, blob, nil); err != nil && svc.Log != nil {
+		svc.Log.Warn("persist probed login session failed", "account_id", accountID, "err", err)
 	}
-	_ = svc.DB.UpdateLogin(ctx, accountID, session.AID, int32(session.GsIdx), session.WSURL(), time.Now().UTC())
+	if err := svc.DB.UpdateLogin(ctx, accountID, session.AID, int32(session.GsIdx), session.WSURL(), time.Now().UTC()); err != nil && svc.Log != nil {
+		svc.Log.Warn("persist probed login metadata failed", "account_id", accountID, "err", err)
+	}
 }
