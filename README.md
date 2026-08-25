@@ -59,7 +59,9 @@ http://127.0.0.1:50051
 
 Web 控制台适合日常可视化管理账号、查看田地/库存/任务、启停自动化和调整策略。首次启动后使用启动参数里的 `--admin-username` 和 `--admin-password` 登录，然后在页面里添加游戏账号。
 
-自动化策略按 **基础、种植、订单、公会、活动** 五个业务域组织；账号会话与内部错误分别进入 **account** 和 **system** 日志分类。策略、执行计划、运行状态和日志过滤使用同一套分类。
+游戏账号只提供已验证的 **iOS** 与 **Alipay** 两种渠道。iOS 账号通过游戏账号密码登录；Alipay 账号在 Web 控制台中扫码授权，账号标识和授权凭据由流程自动获取，不需要手工填写游戏用户名。
+
+自动化策略与运行记录按 **基础、种植、订单、水资源、公会、公会竞赛、活动** 七个业务分类组织；账号会话与内部错误分别进入 **account** 和 **system** 分类。策略、执行计划、运行状态和日志过滤使用同一套分类。
 
 ## 安全默认
 
@@ -87,6 +89,8 @@ gardend serve \
 ```sh
 gardend update
 ```
+
+从仓库直接运行的安装脚本和内置更新器都会下载 Release 的 `checksums.txt` 并强制校验 SHA-256；手动下载 Release 归档时也应使用同页的校验文件核对摘要。校验文件缺失或摘要不一致时，自动安装和更新都会拒绝继续。
 
 更多用法请查看命令帮助：
 
@@ -117,6 +121,8 @@ gardend serve --help
 
 ## 从源码构建
 
+需要 Go 1.26.6 或更高版本；前端发布环境使用 Node.js 22 和 pnpm 10。
+
 ```sh
 make build
 make test
@@ -129,9 +135,13 @@ make frontend
 
 ## 发版
 
-推送符合 `v*` 的 tag 会触发 GitHub Actions 自动构建 Release：
+合并并确认 `main` 的 CI 通过后，推送 `vMAJOR.MINOR.PATCH` tag 会触发 GitHub Actions。工作流会确认 tag 位于 `main`、重新测试和构建前端、执行 Go 测试与 vet、生成六个平台压缩包，并在上传前复核 SHA-256：
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git switch main
+git pull --ff-only
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
+
+请把示例中的 `vX.Y.Z` 替换为实际版本号；Release 说明由 GitHub 根据上一个版本自动生成。

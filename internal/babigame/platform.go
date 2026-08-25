@@ -6,9 +6,9 @@ import (
 )
 
 // Channel identifies the distribution / platform variant used by the adapter.
-// Different channels can hit different host fronts, ship
-// different version pinning, and require different device fingerprints
-// (Android WeChat vs Alipay vs official APK vs iOS App Store, etc.).
+// Different channels can hit different host fronts, ship different version
+// pinning, and require different device fingerprints. This adapter currently
+// supports only Alipay and the iOS App Store build.
 //
 // Channel values are kept in sync with the proto enum mygardenworld.v1.Channel.
 // Persistence stores the channel as the lowercase name ("ios"); the gRPC
