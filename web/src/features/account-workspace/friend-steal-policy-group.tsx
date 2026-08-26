@@ -1,6 +1,6 @@
 import { Users } from "lucide-react";
 import { SelectionMode, type FriendStealPolicy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AssetsView, FeatureCapability, GardenView } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AssetsView, FeatureCapability, GardenView } from "@/lib/api/query-models";
 import { CatalogFlowerMultiSelectRow } from "@/components/dashboard/flower-picker-controls";
 import {
   FriendTouchFriendList,

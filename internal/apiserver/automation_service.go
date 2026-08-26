@@ -10,8 +10,8 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 )
 
-func (svc *Services) Start(ctx context.Context, req *connect.Request[pb.StartRequest]) (*connect.Response[pb.StartResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+func (svc *Services) EnableAutomation(ctx context.Context, req *connect.Request[pb.EnableAutomationRequest]) (*connect.Response[pb.EnableAutomationResponse], error) {
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -22,29 +22,18 @@ func (svc *Services) Start(ctx context.Context, req *connect.Request[pb.StartReq
 	if err := svc.enableAutomation(ctx, acc.ID, r); err != nil {
 		return nil, mapErr(err)
 	}
-	return connect.NewResponse(&pb.StartResponse{}), nil
+	return connect.NewResponse(&pb.EnableAutomationResponse{}), nil
 }
 
-func (svc *Services) Stop(ctx context.Context, req *connect.Request[pb.StopRequest]) (*connect.Response[pb.StopResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+func (svc *Services) DisableAutomation(ctx context.Context, req *connect.Request[pb.DisableAutomationRequest]) (*connect.Response[pb.DisableAutomationResponse], error) {
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, mapErr(err)
 	}
 	if err := svc.disableAutomation(ctx, acc.ID, svc.Manager.Get(acc.ID)); err != nil {
 		return nil, mapErr(err)
 	}
-	return connect.NewResponse(&pb.StopResponse{}), nil
-}
-
-func (svc *Services) Reload(ctx context.Context, req *connect.Request[pb.ReloadRequest]) (*connect.Response[pb.ReloadResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	if _, err := svc.Manager.Reload(ctx, acc.ID); err != nil {
-		return nil, mapErr(err)
-	}
-	return connect.NewResponse(&pb.ReloadResponse{}), nil
+	return connect.NewResponse(&pb.DisableAutomationResponse{}), nil
 }
 
 func policyEvent(enabled bool) runner.Event {

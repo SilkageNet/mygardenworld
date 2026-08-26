@@ -61,9 +61,8 @@ func TestDessertAutoplayCannotProduceLiveGameOperations(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
 	policy := dessertPlannerPolicy(true, map[string]bool{"auto_play": true, "resume_existing_round": true})
-	policy.Activity.Modules[dessertModuleKey].IntParams = map[string]int64{
-		"mode": 1, "max_energy_per_session": 100, "min_energy_reserve": 0,
-	}
+	policy.Activity.Dessert.Mode = 1
+	policy.Activity.Dessert.MaxEnergyPerSession = 100
 	blocked := map[string]struct{}{
 		clientproto.RPCActDessertGameStart.String(): {},
 		clientproto.RPCActDessertGameSync.String():  {},
@@ -150,8 +149,15 @@ func TestDessertFeatureCatalogUsesActionLevelSafety(t *testing.T) {
 func dessertPlannerPolicy(moduleEnabled bool, bools map[string]bool) *pb.Policy {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
-		dessertModuleKey: {Enabled: moduleEnabled, BoolParams: bools},
+	policy.Activity.Dessert = &pb.DessertPolicy{
+		Enabled:                moduleEnabled,
+		AutoClaimTaskRewards:   bools[dessertAutoClaimTaskRewardsKey],
+		AutoLikeCelebrity:      bools[dessertAutoLikeCelebrityKey],
+		AutoClaimProgressBoxes: bools[dessertAutoClaimProgressBoxesKey],
+		AutoOpenRewardBoxes:    bools[dessertAutoOpenRewardBoxesKey],
+		AutoPlay:               bools["auto_play"],
+		ResumeExistingRound:    bools["resume_existing_round"],
+		Mode:                   1,
 	}
 	return policy
 }

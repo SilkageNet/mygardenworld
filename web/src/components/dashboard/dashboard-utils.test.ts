@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountStatus, Event } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountStatus, Event } from "@/lib/api/query-models";
 import {
   accountAreaLabel,
   accountNickname,
@@ -15,7 +15,7 @@ import {
 function account(overrides: Partial<Account> = {}): Account {
   return {
     $typeName: "mygardenworld.v1.Account",
-    id: "1",
+    id: BigInt(1),
     name: "海棠 · 第3区",
     channel: Channel.IOS,
     username: "game",
@@ -31,7 +31,7 @@ function event(overrides: Partial<Event>): Event {
   return {
     $typeName: "mygardenworld.v1.Event",
     id: BigInt(1),
-    accountId: "1",
+    accountId: BigInt(1),
     accountName: "main",
     kind: "operation_ack",
     message: "",

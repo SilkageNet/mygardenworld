@@ -153,9 +153,6 @@ func (d *DB) UniqueAccountName(ctx context.Context, userID, excludeID int64, bas
 			return candidate, nil
 		}
 		if err != nil {
-			if errors.Is(err, ErrAccountAmbiguous) {
-				continue
-			}
 			return "", err
 		}
 		if acc.ID == excludeID {
@@ -191,21 +188,12 @@ func (d *DB) RenameAccount(ctx context.Context, id int64, name string) (*Account
 	return d.GetAccountByID(ctx, id)
 }
 
-// DeleteAccount removes the account and its dependent rows by id or name.
-func (d *DB) DeleteAccount(ctx context.Context, id int64, name string) error {
-	if id == 0 && name == "" {
-		return errors.New("DeleteAccount: id or name required")
+// DeleteAccount removes the account and its dependent rows by stable id.
+func (d *DB) DeleteAccount(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return errors.New("DeleteAccount: valid id required")
 	}
-	var query string
-	var arg any
-	if id != 0 {
-		query = `DELETE FROM accounts WHERE id = ?`
-		arg = id
-	} else {
-		query = `DELETE FROM accounts WHERE name = ?`
-		arg = name
-	}
-	res, err := d.ExecContext(ctx, query, arg)
+	res, err := d.ExecContext(ctx, `DELETE FROM accounts WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -262,42 +250,22 @@ func (d *DB) GetAccountByID(ctx context.Context, id int64) (*Account, error) {
 	return acc, err
 }
 
-// GetAccountByName resolves an account by user-scoped name. When userID is
-// zero, the lookup is global and returns ErrAccountAmbiguous if multiple users
-// have the same account name.
+// GetAccountByName resolves an account by its user-scoped display name. Names
+// are presentation data; public APIs select accounts exclusively by id.
 func (d *DB) GetAccountByName(ctx context.Context, userID int64, name string) (*Account, error) {
-	query := `SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
-         FROM accounts WHERE name = ? ORDER BY id ASC LIMIT 2`
-	args := []any{name}
-	if userID > 0 {
-		query = `SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
-         FROM accounts WHERE user_id = ? AND name = ? ORDER BY id ASC LIMIT 2`
-		args = []any{userID, name}
+	if userID <= 0 || strings.TrimSpace(name) == "" {
+		return nil, errors.New("GetAccountByName: user id and name required")
 	}
-	rows, err := d.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	var matches []*Account
-	for rows.Next() {
-		acc, err := scanAccount(rows)
-		if err != nil {
-			return nil, err
-		}
-		matches = append(matches, acc)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	switch len(matches) {
-	case 0:
+	row := d.QueryRowContext(ctx,
+		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+         FROM accounts WHERE user_id = ? AND name = ?`,
+		userID, name,
+	)
+	acc, err := scanAccount(row)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrAccountNotFound
-	case 1:
-		return matches[0], nil
-	default:
-		return nil, ErrAccountAmbiguous
 	}
+	return acc, err
 }
 
 // GetCredentials returns the cleartext username and password. Used by the
@@ -416,7 +384,7 @@ func AccountToProto(a *Account) *pb.Account {
 		return nil
 	}
 	out := &pb.Account{
-		Id:       fmt.Sprintf("%d", a.ID),
+		Id:       a.ID,
 		Name:     a.Name,
 		Channel:  channelToProto(a.Channel),
 		Username: a.Username,

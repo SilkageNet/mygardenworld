@@ -15,9 +15,9 @@ message CreateUserRequest {
   string username = 1;
   string email = 2;
   string password = 3;
-  optional string role = 4;
+  optional UserRole role = 4;
   optional int32 max_accounts = 5;
-  optional string status = 6;
+  optional UserStatus status = 6;
 }
 
 message CreateUserResponse {
@@ -36,9 +36,9 @@ message ListUsersResponse {
 
 message UpdateUserRequest {
   int64 user_id = 1;
-  optional string role = 2;
+  optional UserRole role = 2;
   optional int32 max_accounts = 3;
-  optional string status = 4;
+  optional UserStatus status = 4;
 }
 
 message UpdateUserResponse {

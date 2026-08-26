@@ -26,20 +26,14 @@ const (
 // `password` is never returned in responses; only used at create/login time.
 type Account struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Stable id (rowid as string) used everywhere else.
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Stable SQLite row id used everywhere else.
+	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Human-friendly nickname; unique per platform user.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	// Distribution channel the daemon should speak with for this account.
-	// The protocol layer picks host fronts, version pinning, and device
-	// fingerprint based on this value. Required at creation time.
-	// CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
-	// encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
-	Channel Channel `protobuf:"varint,11,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
 	// gfsdk login username. Logged-in operations key off this.
 	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	// Player platform id (`acc.id`) once the daemon has logged in at least once.
-	// Empty until the first successful login.
+	// Zero until the first successful login.
 	Aid int64 `protobuf:"varint,4,opt,name=aid,proto3" json:"aid,omitempty"`
 	// Last-known game-server idx (`acc.lastGsIdx`).
 	GsIdx int32 `protobuf:"varint,5,opt,name=gs_idx,json=gsIdx,proto3" json:"gs_idx,omitempty"`
@@ -49,9 +43,15 @@ type Account struct {
 	// Last login attempt timestamp. Useful for rate-limit decisions.
 	LastLoginAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_login_at,json=lastLoginAt,proto3" json:"last_login_at,omitempty"`
 	// True when the daemon currently holds a live WS for this account.
-	Connected     bool                   `protobuf:"varint,8,opt,name=connected,proto3" json:"connected,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Connected bool                   `protobuf:"varint,8,opt,name=connected,proto3" json:"connected,omitempty"`
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Distribution channel the daemon should speak with for this account.
+	// The protocol layer picks host fronts, version pinning, and device
+	// fingerprint based on this value. Required at creation time.
+	// CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
+	// encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
+	Channel       Channel `protobuf:"varint,11,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -86,11 +86,11 @@ func (*Account) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_account_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Account) GetId() string {
+func (x *Account) GetId() int64 {
 	if x != nil {
 		return x.Id
 	}
-	return ""
+	return 0
 }
 
 func (x *Account) GetName() string {
@@ -98,13 +98,6 @@ func (x *Account) GetName() string {
 		return x.Name
 	}
 	return ""
-}
-
-func (x *Account) GetChannel() Channel {
-	if x != nil {
-		return x.Channel
-	}
-	return Channel_CHANNEL_UNSPECIFIED
 }
 
 func (x *Account) GetUsername() string {
@@ -163,15 +156,21 @@ func (x *Account) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Account) GetChannel() Channel {
+	if x != nil {
+		return x.Channel
+	}
+	return Channel_CHANNEL_UNSPECIFIED
+}
+
 var File_mygardenworld_v1_account_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_account_proto_rawDesc = "" +
 	"\n" +
 	"\x1emygardenworld/v1/account.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/channel.proto\"\x92\x03\n" +
 	"\aAccount\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x123\n" +
-	"\achannel\x18\v \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel\x12\x1a\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
 	"\busername\x18\x03 \x01(\tR\busername\x12\x10\n" +
 	"\x03aid\x18\x04 \x01(\x03R\x03aid\x12\x15\n" +
 	"\x06gs_idx\x18\x05 \x01(\x05R\x05gsIdx\x12\x15\n" +
@@ -182,7 +181,8 @@ const file_mygardenworld_v1_account_proto_rawDesc = "" +
 	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAtB\xcf\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x123\n" +
+	"\achannel\x18\v \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannelB\xcf\x01\n" +
 	"\x14com.mygardenworld.v1B\fAccountProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -200,14 +200,14 @@ func file_mygardenworld_v1_account_proto_rawDescGZIP() []byte {
 var file_mygardenworld_v1_account_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_mygardenworld_v1_account_proto_goTypes = []any{
 	(*Account)(nil),               // 0: mygardenworld.v1.Account
-	(Channel)(0),                  // 1: mygardenworld.v1.Channel
-	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
+	(*timestamppb.Timestamp)(nil), // 1: google.protobuf.Timestamp
+	(Channel)(0),                  // 2: mygardenworld.v1.Channel
 }
 var file_mygardenworld_v1_account_proto_depIdxs = []int32{
-	1, // 0: mygardenworld.v1.Account.channel:type_name -> mygardenworld.v1.Channel
-	2, // 1: mygardenworld.v1.Account.last_login_at:type_name -> google.protobuf.Timestamp
-	2, // 2: mygardenworld.v1.Account.created_at:type_name -> google.protobuf.Timestamp
-	2, // 3: mygardenworld.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
+	1, // 0: mygardenworld.v1.Account.last_login_at:type_name -> google.protobuf.Timestamp
+	1, // 1: mygardenworld.v1.Account.created_at:type_name -> google.protobuf.Timestamp
+	1, // 2: mygardenworld.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
+	2, // 3: mygardenworld.v1.Account.channel:type_name -> mygardenworld.v1.Channel
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name

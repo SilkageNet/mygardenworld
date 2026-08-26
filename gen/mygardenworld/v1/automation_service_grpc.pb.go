@@ -19,9 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutomationService_Start_FullMethodName  = "/mygardenworld.v1.AutomationService/Start"
-	AutomationService_Stop_FullMethodName   = "/mygardenworld.v1.AutomationService/Stop"
-	AutomationService_Reload_FullMethodName = "/mygardenworld.v1.AutomationService/Reload"
+	AutomationService_EnableAutomation_FullMethodName  = "/mygardenworld.v1.AutomationService/EnableAutomation"
+	AutomationService_DisableAutomation_FullMethodName = "/mygardenworld.v1.AutomationService/DisableAutomation"
 )
 
 // AutomationServiceClient is the client API for AutomationService service.
@@ -30,13 +29,10 @@ const (
 type AutomationServiceClient interface {
 	// Enables the automation loop on the account. Equivalent to setting
 	// policy.automation_enabled = true and waking the runner.
-	Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error)
+	EnableAutomation(ctx context.Context, in *EnableAutomationRequest, opts ...grpc.CallOption) (*EnableAutomationResponse, error)
 	// Disables the automation loop. WS connection stays up and state tracking
 	// continues; only mutating RPCs are suppressed.
-	Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error)
-	// Force-rebuild the runner: tear down and reopen the WS, refresh session.
-	// Useful when seeing protocol drift; not needed in normal operation.
-	Reload(ctx context.Context, in *ReloadRequest, opts ...grpc.CallOption) (*ReloadResponse, error)
+	DisableAutomation(ctx context.Context, in *DisableAutomationRequest, opts ...grpc.CallOption) (*DisableAutomationResponse, error)
 }
 
 type automationServiceClient struct {
@@ -47,30 +43,20 @@ func NewAutomationServiceClient(cc grpc.ClientConnInterface) AutomationServiceCl
 	return &automationServiceClient{cc}
 }
 
-func (c *automationServiceClient) Start(ctx context.Context, in *StartRequest, opts ...grpc.CallOption) (*StartResponse, error) {
+func (c *automationServiceClient) EnableAutomation(ctx context.Context, in *EnableAutomationRequest, opts ...grpc.CallOption) (*EnableAutomationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(StartResponse)
-	err := c.cc.Invoke(ctx, AutomationService_Start_FullMethodName, in, out, cOpts...)
+	out := new(EnableAutomationResponse)
+	err := c.cc.Invoke(ctx, AutomationService_EnableAutomation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *automationServiceClient) Stop(ctx context.Context, in *StopRequest, opts ...grpc.CallOption) (*StopResponse, error) {
+func (c *automationServiceClient) DisableAutomation(ctx context.Context, in *DisableAutomationRequest, opts ...grpc.CallOption) (*DisableAutomationResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(StopResponse)
-	err := c.cc.Invoke(ctx, AutomationService_Stop_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *automationServiceClient) Reload(ctx context.Context, in *ReloadRequest, opts ...grpc.CallOption) (*ReloadResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReloadResponse)
-	err := c.cc.Invoke(ctx, AutomationService_Reload_FullMethodName, in, out, cOpts...)
+	out := new(DisableAutomationResponse)
+	err := c.cc.Invoke(ctx, AutomationService_DisableAutomation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +69,10 @@ func (c *automationServiceClient) Reload(ctx context.Context, in *ReloadRequest,
 type AutomationServiceServer interface {
 	// Enables the automation loop on the account. Equivalent to setting
 	// policy.automation_enabled = true and waking the runner.
-	Start(context.Context, *StartRequest) (*StartResponse, error)
+	EnableAutomation(context.Context, *EnableAutomationRequest) (*EnableAutomationResponse, error)
 	// Disables the automation loop. WS connection stays up and state tracking
 	// continues; only mutating RPCs are suppressed.
-	Stop(context.Context, *StopRequest) (*StopResponse, error)
-	// Force-rebuild the runner: tear down and reopen the WS, refresh session.
-	// Useful when seeing protocol drift; not needed in normal operation.
-	Reload(context.Context, *ReloadRequest) (*ReloadResponse, error)
+	DisableAutomation(context.Context, *DisableAutomationRequest) (*DisableAutomationResponse, error)
 }
 
 // UnimplementedAutomationServiceServer should be embedded to have
@@ -99,14 +82,11 @@ type AutomationServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedAutomationServiceServer struct{}
 
-func (UnimplementedAutomationServiceServer) Start(context.Context, *StartRequest) (*StartResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Start not implemented")
+func (UnimplementedAutomationServiceServer) EnableAutomation(context.Context, *EnableAutomationRequest) (*EnableAutomationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EnableAutomation not implemented")
 }
-func (UnimplementedAutomationServiceServer) Stop(context.Context, *StopRequest) (*StopResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Stop not implemented")
-}
-func (UnimplementedAutomationServiceServer) Reload(context.Context, *ReloadRequest) (*ReloadResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Reload not implemented")
+func (UnimplementedAutomationServiceServer) DisableAutomation(context.Context, *DisableAutomationRequest) (*DisableAutomationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DisableAutomation not implemented")
 }
 func (UnimplementedAutomationServiceServer) testEmbeddedByValue() {}
 
@@ -128,56 +108,38 @@ func RegisterAutomationServiceServer(s grpc.ServiceRegistrar, srv AutomationServ
 	s.RegisterService(&AutomationService_ServiceDesc, srv)
 }
 
-func _AutomationService_Start_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StartRequest)
+func _AutomationService_EnableAutomation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EnableAutomationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutomationServiceServer).Start(ctx, in)
+		return srv.(AutomationServiceServer).EnableAutomation(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutomationService_Start_FullMethodName,
+		FullMethod: AutomationService_EnableAutomation_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutomationServiceServer).Start(ctx, req.(*StartRequest))
+		return srv.(AutomationServiceServer).EnableAutomation(ctx, req.(*EnableAutomationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AutomationService_Stop_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StopRequest)
+func _AutomationService_DisableAutomation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisableAutomationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AutomationServiceServer).Stop(ctx, in)
+		return srv.(AutomationServiceServer).DisableAutomation(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AutomationService_Stop_FullMethodName,
+		FullMethod: AutomationService_DisableAutomation_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutomationServiceServer).Stop(ctx, req.(*StopRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AutomationService_Reload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReloadRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AutomationServiceServer).Reload(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AutomationService_Reload_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AutomationServiceServer).Reload(ctx, req.(*ReloadRequest))
+		return srv.(AutomationServiceServer).DisableAutomation(ctx, req.(*DisableAutomationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -190,16 +152,12 @@ var AutomationService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AutomationServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Start",
-			Handler:    _AutomationService_Start_Handler,
+			MethodName: "EnableAutomation",
+			Handler:    _AutomationService_EnableAutomation_Handler,
 		},
 		{
-			MethodName: "Stop",
-			Handler:    _AutomationService_Stop_Handler,
-		},
-		{
-			MethodName: "Reload",
-			Handler:    _AutomationService_Reload_Handler,
+			MethodName: "DisableAutomation",
+			Handler:    _AutomationService_DisableAutomation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

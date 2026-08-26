@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Activity, BookOpenText, Building2, Settings2 } from "lucide-react";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AccountStatus, Event, FeatureCapability } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/query-models";
 import PolicyPanel, { type PolicySection } from "@/components/dashboard/policy-panel";
 import {
   BusinessStatisticsPanel,

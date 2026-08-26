@@ -14,7 +14,11 @@ func TestMigratePolicyDocumentV2ProducesStrictCurrentPolicy(t *testing.T) {
 		"basic":{"friend_touch":{"enabled":true,"mode":"SELECTION_MODE_SPECIFIC","friend_counts":{"2001":3}}},
 		"plant":{"planting":{"auto_enabled":true},"friend_steal":{"buy_count":5,"max_spend_diamond":"100"}},
 		"union":{"race":{"max_task_score":19,"urgent_speedup_enabled":true}},
-		"activity":{"enabled":true,"modules":{}}
+		"activity":{"enabled":true,"modules":{
+			"cyclicNote":{"enabled":true,"bool_params":{"satisfy_tasks":true}},
+			"actCyclicStory":{"enabled":true,"int_params":{"max_score":"88"}},
+			"actDessert":{"enabled":true,"bool_params":{"auto_play":true},"int_params":{"mode":"1"}}
+		}}
 	}`
 	migrated, err := migratePolicyDocumentV2(raw)
 	if err != nil {
@@ -40,6 +44,11 @@ func TestMigratePolicyDocumentV2ProducesStrictCurrentPolicy(t *testing.T) {
 	}
 	if race := policy.GetUnion().GetRace(); race.GetMinTaskScore() != 19 || !race.GetAutoStopOnQuotaDone() {
 		t.Fatalf("race policy not migrated: %+v", race)
+	}
+	if !policy.GetActivity().GetCyclicNote().GetSatisfyTasks() ||
+		policy.GetActivity().GetCyclicStory().GetMaxScore() != 88 ||
+		!policy.GetActivity().GetDessert().GetAutoPlay() || policy.GetActivity().GetDessert().GetMode() != 1 {
+		t.Fatalf("typed activity policy not migrated: %+v", policy.GetActivity())
 	}
 }
 

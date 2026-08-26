@@ -26,9 +26,9 @@ type CreateUserRequest struct {
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Email         string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	Password      string                 `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
-	Role          *string                `protobuf:"bytes,4,opt,name=role,proto3,oneof" json:"role,omitempty"`
+	Role          *UserRole              `protobuf:"varint,4,opt,name=role,proto3,enum=mygardenworld.v1.UserRole,oneof" json:"role,omitempty"`
 	MaxAccounts   *int32                 `protobuf:"varint,5,opt,name=max_accounts,json=maxAccounts,proto3,oneof" json:"max_accounts,omitempty"`
-	Status        *string                `protobuf:"bytes,6,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	Status        *UserStatus            `protobuf:"varint,6,opt,name=status,proto3,enum=mygardenworld.v1.UserStatus,oneof" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -84,11 +84,11 @@ func (x *CreateUserRequest) GetPassword() string {
 	return ""
 }
 
-func (x *CreateUserRequest) GetRole() string {
+func (x *CreateUserRequest) GetRole() UserRole {
 	if x != nil && x.Role != nil {
 		return *x.Role
 	}
-	return ""
+	return UserRole_USER_ROLE_UNSPECIFIED
 }
 
 func (x *CreateUserRequest) GetMaxAccounts() int32 {
@@ -98,11 +98,11 @@ func (x *CreateUserRequest) GetMaxAccounts() int32 {
 	return 0
 }
 
-func (x *CreateUserRequest) GetStatus() string {
+func (x *CreateUserRequest) GetStatus() UserStatus {
 	if x != nil && x.Status != nil {
 		return *x.Status
 	}
-	return ""
+	return UserStatus_USER_STATUS_UNSPECIFIED
 }
 
 type CreateUserResponse struct {
@@ -256,9 +256,9 @@ func (x *ListUsersResponse) GetTotal() int32 {
 type UpdateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Role          *string                `protobuf:"bytes,2,opt,name=role,proto3,oneof" json:"role,omitempty"`
+	Role          *UserRole              `protobuf:"varint,2,opt,name=role,proto3,enum=mygardenworld.v1.UserRole,oneof" json:"role,omitempty"`
 	MaxAccounts   *int32                 `protobuf:"varint,3,opt,name=max_accounts,json=maxAccounts,proto3,oneof" json:"max_accounts,omitempty"`
-	Status        *string                `protobuf:"bytes,4,opt,name=status,proto3,oneof" json:"status,omitempty"`
+	Status        *UserStatus            `protobuf:"varint,4,opt,name=status,proto3,enum=mygardenworld.v1.UserStatus,oneof" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -300,11 +300,11 @@ func (x *UpdateUserRequest) GetUserId() int64 {
 	return 0
 }
 
-func (x *UpdateUserRequest) GetRole() string {
+func (x *UpdateUserRequest) GetRole() UserRole {
 	if x != nil && x.Role != nil {
 		return *x.Role
 	}
-	return ""
+	return UserRole_USER_ROLE_UNSPECIFIED
 }
 
 func (x *UpdateUserRequest) GetMaxAccounts() int32 {
@@ -314,11 +314,11 @@ func (x *UpdateUserRequest) GetMaxAccounts() int32 {
 	return 0
 }
 
-func (x *UpdateUserRequest) GetStatus() string {
+func (x *UpdateUserRequest) GetStatus() UserStatus {
 	if x != nil && x.Status != nil {
 		return *x.Status
 	}
-	return ""
+	return UserStatus_USER_STATUS_UNSPECIFIED
 }
 
 type UpdateUserResponse struct {
@@ -473,14 +473,14 @@ var File_mygardenworld_v1_admin_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x1cmygardenworld/v1/admin.proto\x12\x10mygardenworld.v1\x1a\x1bmygardenworld/v1/auth.proto\"\xe4\x01\n" +
+	"\x1cmygardenworld/v1/admin.proto\x12\x10mygardenworld.v1\x1a\x1bmygardenworld/v1/auth.proto\"\x9e\x02\n" +
 	"\x11CreateUserRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
-	"\bpassword\x18\x03 \x01(\tR\bpassword\x12\x17\n" +
-	"\x04role\x18\x04 \x01(\tH\x00R\x04role\x88\x01\x01\x12&\n" +
-	"\fmax_accounts\x18\x05 \x01(\x05H\x01R\vmaxAccounts\x88\x01\x01\x12\x1b\n" +
-	"\x06status\x18\x06 \x01(\tH\x02R\x06status\x88\x01\x01B\a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\x123\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x1a.mygardenworld.v1.UserRoleH\x00R\x04role\x88\x01\x01\x12&\n" +
+	"\fmax_accounts\x18\x05 \x01(\x05H\x01R\vmaxAccounts\x88\x01\x01\x129\n" +
+	"\x06status\x18\x06 \x01(\x0e2\x1c.mygardenworld.v1.UserStatusH\x02R\x06status\x88\x01\x01B\a\n" +
 	"\x05_roleB\x0f\n" +
 	"\r_max_accountsB\t\n" +
 	"\a_status\"@\n" +
@@ -491,12 +491,12 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\"W\n" +
 	"\x11ListUsersResponse\x12,\n" +
 	"\x05users\x18\x01 \x03(\v2\x16.mygardenworld.v1.UserR\x05users\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total\"\xaf\x01\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xe9\x01\n" +
 	"\x11UpdateUserRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\x17\n" +
-	"\x04role\x18\x02 \x01(\tH\x00R\x04role\x88\x01\x01\x12&\n" +
-	"\fmax_accounts\x18\x03 \x01(\x05H\x01R\vmaxAccounts\x88\x01\x01\x12\x1b\n" +
-	"\x06status\x18\x04 \x01(\tH\x02R\x06status\x88\x01\x01B\a\n" +
+	"\auser_id\x18\x01 \x01(\x03R\x06userId\x123\n" +
+	"\x04role\x18\x02 \x01(\x0e2\x1a.mygardenworld.v1.UserRoleH\x00R\x04role\x88\x01\x01\x12&\n" +
+	"\fmax_accounts\x18\x03 \x01(\x05H\x01R\vmaxAccounts\x88\x01\x01\x129\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1c.mygardenworld.v1.UserStatusH\x02R\x06status\x88\x01\x01B\a\n" +
 	"\x05_roleB\x0f\n" +
 	"\r_max_accountsB\t\n" +
 	"\a_status\"@\n" +
@@ -541,25 +541,31 @@ var file_mygardenworld_v1_admin_proto_goTypes = []any{
 	(*UpdateUserResponse)(nil),     // 5: mygardenworld.v1.UpdateUserResponse
 	(*GetSystemStatsRequest)(nil),  // 6: mygardenworld.v1.GetSystemStatsRequest
 	(*GetSystemStatsResponse)(nil), // 7: mygardenworld.v1.GetSystemStatsResponse
-	(*User)(nil),                   // 8: mygardenworld.v1.User
+	(UserRole)(0),                  // 8: mygardenworld.v1.UserRole
+	(UserStatus)(0),                // 9: mygardenworld.v1.UserStatus
+	(*User)(nil),                   // 10: mygardenworld.v1.User
 }
 var file_mygardenworld_v1_admin_proto_depIdxs = []int32{
-	8, // 0: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
-	8, // 1: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
-	8, // 2: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
-	0, // 3: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
-	2, // 4: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
-	4, // 5: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
-	6, // 6: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
-	1, // 7: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
-	3, // 8: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
-	5, // 9: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
-	7, // 10: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	8,  // 0: mygardenworld.v1.CreateUserRequest.role:type_name -> mygardenworld.v1.UserRole
+	9,  // 1: mygardenworld.v1.CreateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
+	10, // 2: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
+	10, // 3: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
+	8,  // 4: mygardenworld.v1.UpdateUserRequest.role:type_name -> mygardenworld.v1.UserRole
+	9,  // 5: mygardenworld.v1.UpdateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
+	10, // 6: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
+	0,  // 7: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
+	2,  // 8: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
+	4,  // 9: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
+	6,  // 10: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
+	1,  // 11: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
+	3,  // 12: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
+	5,  // 13: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
+	7,  // 14: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
+	11, // [11:15] is the sub-list for method output_type
+	7,  // [7:11] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_admin_proto_init() }

@@ -15,7 +15,7 @@ import (
 
 const maxReconnectIntervalSeconds = 24 * 60 * 60
 
-const CurrentSchemaVersion uint32 = 1
+const CurrentSchemaVersion uint32 = 2
 
 var ErrSchemaVersion = errors.New("unsupported policy schema version")
 
@@ -257,8 +257,17 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Activity == nil {
 		cp.Activity = proto.Clone(def.Activity).(*pb.ActivityPolicy)
 	}
-	if cp.Activity.Modules == nil {
-		cp.Activity.Modules = map[string]*pb.ActivityModulePolicy{}
+	if cp.Activity.CyclicNote == nil {
+		cp.Activity.CyclicNote = proto.Clone(def.Activity.CyclicNote).(*pb.CyclicNotePolicy)
+	}
+	if cp.Activity.CyclicStory == nil {
+		cp.Activity.CyclicStory = proto.Clone(def.Activity.CyclicStory).(*pb.CyclicStoryPolicy)
+	}
+	if cp.Activity.Dessert == nil {
+		cp.Activity.Dessert = proto.Clone(def.Activity.Dessert).(*pb.DessertPolicy)
+	}
+	if cp.Activity.Dessert.Mode == 0 {
+		cp.Activity.Dessert.Mode = def.Activity.Dessert.Mode
 	}
 	if cp.DecisionIntervalSeconds <= 0 {
 		cp.DecisionIntervalSeconds = def.DecisionIntervalSeconds

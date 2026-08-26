@@ -12,27 +12,14 @@ import (
 )
 
 const (
-	cyclicNoteModuleKey                 = "cyclicNote"
-	cyclicNoteAutoClaimTaskRewardsKey   = "auto_claim_task_rewards"
-	cyclicNoteAutoClaimProgressBoxesKey = "auto_claim_progress_boxes"
-	cyclicNoteSatisfyTasksKey           = "satisfy_tasks"
 	// Operation priorities use goalPriority*100 scale. Activity base 50 must
 	// stay below main/major orders and above ordinary flower-rack work.
 	cyclicNotePriority int32 = 50 * 100
 
-	dessertModuleKey                       = "actDessert"
-	dessertAutoClaimTaskRewardsKey         = "auto_claim_task_rewards"
-	dessertAutoLikeCelebrityKey            = "auto_like_celebrity"
-	dessertAutoClaimProgressBoxesKey       = "auto_claim_progress_boxes"
-	dessertAutoOpenRewardBoxesKey          = "auto_open_reward_boxes"
-	dessertPriority                  int32 = 50 * 100
-	dessertCooldownKey                     = "activity.actDessert:reward"
+	dessertPriority    int32 = 50 * 100
+	dessertCooldownKey       = "activity.actDessert:reward"
 
-	cyclicStoryModuleKey                       = "actCyclicStory"
-	cyclicStoryAutoClaimOrderRewardsKey        = "auto_claim_order_rewards"
-	cyclicStoryAutoClaimProgressBoxesKey       = "auto_claim_progress_boxes"
-	cyclicStoryMaxScoreKey                     = "max_score"
-	cyclicStoryPriority                  int32 = 50 * 100
+	cyclicStoryPriority int32 = 50 * 100
 )
 
 // activityOperations combines independently gated activity modules. Each
@@ -48,19 +35,18 @@ func activityOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time
 }
 
 // cyclicNoteOperations returns at most one safe 花笺集芳 side operation per
-// planning cycle. Missing bool params intentionally read as false.
+// planning cycle.
 func cyclicNoteOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time) []PlannedOp {
 	if s == nil || policy == nil {
 		return nil
 	}
-	module := policy.GetModules()[cyclicNoteModuleKey]
+	module := policy.GetCyclicNote()
 	if module == nil || !module.GetEnabled() {
 		return nil
 	}
-	bools := module.GetBoolParams()
-	claimTasks := bools[cyclicNoteAutoClaimTaskRewardsKey]
-	claimMilestones := bools[cyclicNoteAutoClaimProgressBoxesKey]
-	satisfyTasks := bools[cyclicNoteSatisfyTasksKey]
+	claimTasks := module.GetAutoClaimTaskRewards()
+	claimMilestones := module.GetAutoClaimProgressBoxes()
+	satisfyTasks := module.GetSatisfyTasks()
 	if !claimTasks && !claimMilestones && !satisfyTasks {
 		return nil
 	}
@@ -118,14 +104,14 @@ func dessertOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time)
 	if s == nil || policy == nil {
 		return nil
 	}
-	module := policy.GetModules()[dessertModuleKey]
+	module := policy.GetDessert()
 	if module == nil || !module.GetEnabled() {
 		return nil
 	}
-	claimTasks := module.GetBoolParams()[dessertAutoClaimTaskRewardsKey]
-	likeCelebrity := module.GetBoolParams()[dessertAutoLikeCelebrityKey]
-	claimProgress := module.GetBoolParams()[dessertAutoClaimProgressBoxesKey]
-	openRewardBoxes := module.GetBoolParams()[dessertAutoOpenRewardBoxesKey]
+	claimTasks := module.GetAutoClaimTaskRewards()
+	likeCelebrity := module.GetAutoLikeCelebrity()
+	claimProgress := module.GetAutoClaimProgressBoxes()
+	openRewardBoxes := module.GetAutoOpenRewardBoxes()
 	claimProgressReady := claimProgress && babigame.DessertProgressBoxEvidenceGate()
 	openRewardBoxesReady := openRewardBoxes && babigame.DessertOpenRewardBoxEvidenceGate()
 	if !claimTasks && !likeCelebrity && !claimProgressReady && !openRewardBoxesReady {
@@ -251,17 +237,16 @@ func cyclicStoryOperations(s *state.State, policy *pb.ActivityPolicy, now time.T
 	if s == nil || policy == nil {
 		return nil
 	}
-	module := policy.GetModules()[cyclicStoryModuleKey]
+	module := policy.GetCyclicStory()
 	if module == nil || !module.GetEnabled() {
 		return nil
 	}
-	bools := module.GetBoolParams()
-	claimOrders := bools[cyclicStoryAutoClaimOrderRewardsKey]
-	claimMilestones := bools[cyclicStoryAutoClaimProgressBoxesKey]
+	claimOrders := module.GetAutoClaimOrderRewards()
+	claimMilestones := module.GetAutoClaimProgressBoxes()
 	if !claimOrders && !claimMilestones {
 		return nil
 	}
-	maxScore := module.GetIntParams()[cyclicStoryMaxScoreKey]
+	maxScore := module.GetMaxScore()
 
 	view, ok := s.CyclicStoryView(now)
 	if !ok || !view.Found || view.BatchID <= 0 {

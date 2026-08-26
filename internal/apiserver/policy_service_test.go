@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -111,7 +110,7 @@ func TestSetPolicyRejectsSDKAdAutomation(t *testing.T) {
 	requested := automation.DefaultPolicy()
 	requested.Basic.Shop.VideoFreeGiftEnabled = true
 	_, err = svc.SetPolicy(ctx, connect.NewRequest(&pb.SetPolicyRequest{
-		AccountId: fmt.Sprintf("%d", account.ID),
+		AccountId: account.ID,
 		Policy:    requested,
 	}))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "SDK 广告") || !strings.Contains(err.Error(), "视频礼包") {

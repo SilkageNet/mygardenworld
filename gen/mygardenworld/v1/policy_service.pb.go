@@ -23,8 +23,7 @@ const (
 
 type GetPolicyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -59,18 +58,11 @@ func (*GetPolicyRequest) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetPolicyRequest) GetAccountId() string {
+func (x *GetPolicyRequest) GetAccountId() int64 {
 	if x != nil {
 		return x.AccountId
 	}
-	return ""
-}
-
-func (x *GetPolicyRequest) GetAccountName() string {
-	if x != nil {
-		return x.AccountName
-	}
-	return ""
+	return 0
 }
 
 type GetPolicyResponse struct {
@@ -119,9 +111,8 @@ func (x *GetPolicyResponse) GetPolicy() *Policy {
 
 type SetPolicyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
-	Policy        *Policy                `protobuf:"bytes,3,opt,name=policy,proto3" json:"policy,omitempty"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Policy        *Policy                `protobuf:"bytes,2,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -156,18 +147,11 @@ func (*SetPolicyRequest) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_service_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *SetPolicyRequest) GetAccountId() string {
+func (x *SetPolicyRequest) GetAccountId() int64 {
 	if x != nil {
 		return x.AccountId
 	}
-	return ""
-}
-
-func (x *SetPolicyRequest) GetAccountName() string {
-	if x != nil {
-		return x.AccountName
-	}
-	return ""
+	return 0
 }
 
 func (x *SetPolicyRequest) GetPolicy() *Policy {
@@ -225,18 +209,16 @@ var File_mygardenworld_v1_policy_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_policy_service_proto_rawDesc = "" +
 	"\n" +
-	"%mygardenworld/v1/policy_service.proto\x12\x10mygardenworld.v1\x1a\x1dmygardenworld/v1/policy.proto\"T\n" +
+	"%mygardenworld/v1/policy_service.proto\x12\x10mygardenworld.v1\x1a\x1dmygardenworld/v1/policy.proto\"1\n" +
 	"\x10GetPolicyRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"E\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"E\n" +
 	"\x11GetPolicyResponse\x120\n" +
-	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"\x86\x01\n" +
+	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"c\n" +
 	"\x10SetPolicyRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x120\n" +
-	"\x06policy\x18\x03 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"E\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\x120\n" +
+	"\x06policy\x18\x02 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy\"E\n" +
 	"\x11SetPolicyResponse\x120\n" +
 	"\x06policy\x18\x01 \x01(\v2\x18.mygardenworld.v1.PolicyR\x06policy2\xbb\x01\n" +
 	"\rPolicyService\x12T\n" +

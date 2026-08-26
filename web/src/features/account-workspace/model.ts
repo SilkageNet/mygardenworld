@@ -5,7 +5,7 @@ import type {
   OrdersView,
   OverviewView,
   UnionView,
-} from "@/gen/mygardenworld/v1/query_service_pb";
+} from "@/lib/api/query-models";
 
 export type AccountViews = {
   overview: OverviewView | null;

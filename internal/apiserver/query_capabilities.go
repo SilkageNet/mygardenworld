@@ -105,16 +105,16 @@ func applyOperationCooldownsToDomainStatuses(statuses []*pb.DomainStatus, cooldo
 	}
 }
 
-func accountHealth(connected bool, diag runner.Diagnostics) string {
+func accountHealth(connected bool, diag runner.Diagnostics) pb.AccountHealth {
 	switch {
 	case diag.SessionInvalidatedReason != "":
-		return "session_expired"
+		return pb.AccountHealth_ACCOUNT_HEALTH_SESSION_EXPIRED
 	case len(diag.BlockedReasons) > 0:
-		return "blocked"
+		return pb.AccountHealth_ACCOUNT_HEALTH_BLOCKED
 	case connected:
-		return "online"
+		return pb.AccountHealth_ACCOUNT_HEALTH_ONLINE
 	default:
-		return "offline"
+		return pb.AccountHealth_ACCOUNT_HEALTH_OFFLINE
 	}
 }
 
@@ -181,13 +181,7 @@ func activityEnabled(p *pb.ActivityPolicy) bool {
 	if p == nil {
 		return false
 	}
-	// Activity modules are independently gated.
-	for _, module := range p.GetModules() {
-		if module != nil && module.GetEnabled() {
-			return true
-		}
-	}
-	return false
+	return p.GetCyclicNote().GetEnabled() || p.GetCyclicStory().GetEnabled() || p.GetDessert().GetEnabled()
 }
 
 func observedActivity(observed map[string]struct{}) bool {

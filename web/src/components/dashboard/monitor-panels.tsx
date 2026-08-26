@@ -2,8 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, CalendarDays, Check, ChevronDown, Coins, Flower2, Gem, HandCoins, ListChecks, Package, Search, ShieldCheck, ShoppingBag, Sparkles, Ticket, TrendingUp, Trophy, Waves } from "lucide-react";
-import { ExecutionLane, PlanStatus } from "@/gen/mygardenworld/v1/query_service_pb";
-import type { AccountStatus, AssetsView, BusinessStatisticsView, Event, FmlLandView, InventoryLedgerItem, InventoryLedgerView, LandView, OrderStatisticsView, OverviewView, PendingTaskView, PlantableFlowerView, PlannedOperation, RequirementView, RuntimeActionTotal, RuntimeStatisticsView } from "@/gen/mygardenworld/v1/query_service_pb";
+import { ExecutionLane, PlanStatus } from "@/lib/api/query-models";
+import type { AccountStatus, AssetsView, BusinessStatisticsView, Event, FmlLandView, InventoryLedgerItem, InventoryLedgerView, LandView, OrderStatisticsView, OverviewView, PendingTaskView, PlantableFlowerView, PlannedOperation, RequirementView, RuntimeActionTotal, RuntimeStatisticsView } from "@/lib/api/query-models";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

@@ -16,7 +16,7 @@ const REDEEM_CHANNELS = [Channel.IOS, Channel.ALIPAY] as const;
 
 export type RedeemCodeOutcome = {
   results: Array<{
-    accountId: string;
+    accountId: bigint;
     accountName: string;
     ok: boolean;
     message: string;
@@ -49,7 +49,7 @@ export default function RedeemCodeDialog({
   accounts: Account[];
   preferredChannel?: Channel;
   onOpenChange: (open: boolean) => void;
-  onRedeem: (code: string, accountIds: string[]) => Promise<RedeemCodeOutcome>;
+  onRedeem: (code: string, accountIds: bigint[]) => Promise<RedeemCodeOutcome>;
 }) {
   const channels = useMemo(() => availableRedeemChannels(accounts), [accounts]);
   const [channel, setChannel] = useState(() => initialRedeemChannel(accounts, preferredChannel));
@@ -144,8 +144,8 @@ export default function RedeemCodeDialog({
           {results.length > 0 && (
             <div className="dark-scrollbar max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-border/50 p-2 text-sm">
               {results.map((item) => (
-                <div key={item.accountId} className="flex items-start justify-between gap-2">
-                  <span className="min-w-0 truncate font-medium">{item.accountName || item.accountId}</span>
+                <div key={item.accountId.toString()} className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 truncate font-medium">{item.accountName || item.accountId.toString()}</span>
                   <span className={cn("min-w-0 text-right", item.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
                     {item.ok ? (item.message && item.message !== "ok" ? item.message : "成功") : item.message || "失败"}
                   </span>

@@ -6,19 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
-const (
-	dessertModuleID                         = "actDessert"
-	dessertAutoClaimTaskRewardsPolicy       = "auto_claim_task_rewards"
-	dessertAutoLikeCelebrityPolicy          = "auto_like_celebrity"
-	dessertAutoOpenRewardBoxesPolicy        = "auto_open_reward_boxes"
-	dessertCelebrityType              int32 = 5601
-)
+const dessertCelebrityType int32 = 5601
 
 type dessertEnterExecution struct {
 	preflight func() (state.DessertEnterSnapshot, error)
@@ -394,28 +389,35 @@ func dessertCelebrityFullSyncDelta(raw json.RawMessage) bool {
 	return false
 }
 
-func (r *Runner) dessertPolicyFlag(key string) bool {
+func (r *Runner) dessertPolicy() *pb.DessertPolicy {
 	policy := r.Policy()
 	if !policy.GetAutomationEnabled() {
-		return false
+		return nil
 	}
-	module := policy.GetActivity().GetModules()[dessertModuleID]
-	return module != nil && module.GetEnabled() && module.GetBoolParams()[key]
+	module := policy.GetActivity().GetDessert()
+	if module == nil || !module.GetEnabled() {
+		return nil
+	}
+	return module
 }
 
 func (r *Runner) dessertEnterAutomationEnabled() bool {
-	return r.dessertPolicyFlag(dessertAutoClaimTaskRewardsPolicy) || r.dessertPolicyFlag(dessertAutoLikeCelebrityPolicy) ||
-		r.dessertRewardBoxOpenAutomationEnabled()
+	module := r.dessertPolicy()
+	return module != nil && (module.GetAutoClaimTaskRewards() || module.GetAutoLikeCelebrity() ||
+		r.dessertRewardBoxOpenAutomationEnabled())
 }
 
 func (r *Runner) dessertTaskClaimAutomationEnabled() bool {
-	return r.dessertPolicyFlag(dessertAutoClaimTaskRewardsPolicy)
+	module := r.dessertPolicy()
+	return module != nil && module.GetAutoClaimTaskRewards()
 }
 
 func (r *Runner) dessertCelebrityLikeAutomationEnabled() bool {
-	return r.dessertPolicyFlag(dessertAutoLikeCelebrityPolicy)
+	module := r.dessertPolicy()
+	return module != nil && module.GetAutoLikeCelebrity()
 }
 
 func (r *Runner) dessertRewardBoxOpenAutomationEnabled() bool {
-	return babigame.DessertOpenRewardBoxEvidenceGate() && r.dessertPolicyFlag(dessertAutoOpenRewardBoxesPolicy)
+	module := r.dessertPolicy()
+	return babigame.DessertOpenRewardBoxEvidenceGate() && module != nil && module.GetAutoOpenRewardBoxes()
 }

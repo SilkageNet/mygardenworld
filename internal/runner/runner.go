@@ -23,7 +23,7 @@ import (
 type Event struct {
 	ID          int64
 	TS          time.Time
-	AccountID   string
+	AccountID   int64
 	AccountName string
 	Kind        string
 	Message     string

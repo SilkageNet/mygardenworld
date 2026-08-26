@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message UnionView {
+  int64 account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  bool membership_observed = 4;
+  bool in_union = 5;
+  int32 union_id = 6;
+  FmlRaceView race = 7;
+  repeated FmlLandView lands = 8;
+  bool lands_observed = 9;
+}
+
+message FmlRaceView {
+  bool observed = 1;
+  bool batch_active = 2;
+  FmlRaceTaken taken = 3;
+  repeated FmlRaceTask tasks = 4;
+  int64 batch_start_ms = 5;
+  int64 batch_end_ms = 6;
+  int32 batch_status = 7;
+  // Local ms when task pool (NS25 field 114) was last applied.
+  int64 tasks_synced_at_ms = 8;
+  // True after NS25 field 110 (usr rcd) has been observed for task quota.
+  bool task_quota_observed = 9;
+  // Finished race tasks this batch (IFmlRaceUsrRcd.fTaskNum).
+  int32 finished_task_num = 10;
+  // Total race task quota: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, …).
+  int32 total_task_num = 11;
+  // Guild race tier used for total_task_num (甲=4, 乙=3, 丙=2, 丁=1).
+  int32 race_lvl = 12;
+  // Personal cumulative race score this batch (IFmlRaceUsrRcd.score).
+  int32 score = 13;
+  // True after NS25 field 110/116 carried personal score for the current uid.
+  bool score_observed = 14;
+  // 1-based personal rank within guild members from FmlRaceUsrRankList (116).
+  int32 rank = 15;
+  // True after a usable member rank list ranked the current uid.
+  bool rank_observed = 16;
+}
+
+message FmlRaceTask {
+  int64 ms_id = 1;
+  int32 task_id = 2;
+  string task_label = 3;
+  int32 score = 4;
+  bool is_upgrade = 5;
+  int64 upgrade_uid = 6;
+  int32 task_type = 7;
+  // Catalog name for param target (flower/item); empty when param absent.
+  string target_label = 8;
+  // Protocol appearTime (ms). Future value means the slot is still on CD.
+  int64 appear_time_ms = 9;
+  // Empty = automation would consider takeable; otherwise primary skip reason.
+  string take_skip_reason = 10;
+}
+
+message FmlRaceTaken {
+  bool has_task = 1;
+  int64 task_ms_id = 2;
+  int32 task_id = 3;
+  string task_label = 4;
+  int32 target_cnt = 5;
+  int32 finish_cnt = 6;
+  int32 score = 7;
+  int32 task_type = 8;
+  string target_label = 9;
+  // Held-task deadline in ms (IFmlRaceTakeTask.expireTime / pool takeExpireTime).
+  // 0 means unknown / not yet observed.
+  int64 expire_time_ms = 10;
+}
+
+// FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
+message FmlLandView {
+  int32 land_id = 1;
+  // Guild land growth tier (c_fmlLandLvl), not flower cultivation level.
+  int32 level = 2;
+  int32 flower_id = 3;
+  int64 start_time_ms = 4;
+  // Protocol matureFlwCnt; often stale until the client UI recalculates.
+  int32 mature_flower_count = 5;
+  int32 harvested_count = 6;
+  int64 last_calc_time_ms = 7;
+  // Unclaimed mature flowers (max of protocol delta and startTime+c_fmlLandLvl).
+  int32 pending_harvest = 8;
+  // c_fmlLandLvl.stock for this land level; 0 when unknown.
+  int32 stock_cap = 9;
+  // c_fmlLandLvl.time seconds per produced flower; 0 when unknown.
+  int32 time_sec = 10;
+  // Next flower maturity ms when pending_harvest==0 and stock not full; else 0.
+  int64 next_mature_ms = 11;
+  // Local recommendation: harvest|plant|wait|unknown.
+  string recommendation = 12;
+  string reason = 13;
+  // Cultivation level of flower_id from namespace 101 (0 if empty/unknown).
+  int32 flower_lvl = 14;
+}

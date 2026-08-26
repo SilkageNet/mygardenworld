@@ -7,8 +7,8 @@ import "mygardenworld/v1/account.proto";
 import "mygardenworld/v1/channel.proto";
 
 service AccountService {
-  // Add a new game account. Stores the credentials and (optionally) attempts
-  // an initial login synchronously to surface bad creds immediately.
+  // Add an iOS game account. Verifies credentials, derives the display name,
+  // persists the account, and starts its runner and automation.
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
 
   // Soft-delete: stops the runner and removes the row + sessions/policies.
@@ -18,7 +18,7 @@ service AccountService {
 
   // Force a fresh username+password login for the account. Refreshes
   // session token, routeToken, gsHost. Daemon will rebuild the WS.
-  rpc LoginAccount(LoginAccountRequest) returns (LoginAccountResponse);
+  rpc ConnectAccount(ConnectAccountRequest) returns (ConnectAccountResponse);
 
   // Starts a short-lived Alipay PC game-center QR authorization. The returned
   // qr_content must be rendered locally as a QR code and is never persisted.
@@ -30,7 +30,7 @@ service AccountService {
 
   // Stops the live runner/WS for the account and disables auto-resume.
   // Credentials stay stored; the account can be logged in again later.
-  rpc LogoutAccount(LogoutAccountRequest) returns (LogoutAccountResponse);
+  rpc DisconnectAccount(DisconnectAccountRequest) returns (DisconnectAccountResponse);
 
   // Redeem one gift code across an explicit set of accounts from one channel.
   // Offline accounts are started first so the game RPC can run.
@@ -38,25 +38,21 @@ service AccountService {
 }
 
 message CreateAccountRequest {
-  string name = 1;
-  string username = 2;
-  string password = 3;
+  string username = 1;
+  string password = 2;
   // Required: distribution channel we should impersonate. CHANNEL_IOS today.
-  Channel channel = 5;
-  // If true, the daemon will attempt a login right after insertion.
-  bool login_now = 4;
+  Channel channel = 3;
 }
 
 message CreateAccountResponse {
   Account account = 1;
-  // Populated when login_now=true and the login succeeded; empty otherwise.
+  // Populated only when the account was persisted but its runner could not be
+  // started or automation could not be enabled.
   string login_error = 2;
 }
 
 message DeleteAccountRequest {
-  // Either id or name; whichever is set wins.
-  string id = 1;
-  string name = 2;
+  int64 id = 1;
 }
 
 message DeleteAccountResponse {}
@@ -67,12 +63,11 @@ message ListAccountsResponse {
   repeated Account accounts = 1;
 }
 
-message LoginAccountRequest {
-  string id = 1;
-  string name = 2;
+message ConnectAccountRequest {
+  int64 id = 1;
 }
 
-message LoginAccountResponse {
+message ConnectAccountResponse {
   Account account = 1;
   google.protobuf.Timestamp logged_in_at = 2;
 }
@@ -86,10 +81,7 @@ enum AlipayLoginStatus {
   ALIPAY_LOGIN_STATUS_FAILED = 5;
 }
 
-message StartAlipayLoginRequest {
-  // Optional local display name. Empty derives a unique name from game state.
-  string name = 1;
-}
+message StartAlipayLoginRequest {}
 
 message StartAlipayLoginResponse {
   string login_id = 1;
@@ -109,12 +101,11 @@ message PollAlipayLoginResponse {
   google.protobuf.Timestamp expires_at = 4;
 }
 
-message LogoutAccountRequest {
-  string id = 1;
-  string name = 2;
+message DisconnectAccountRequest {
+  int64 id = 1;
 }
 
-message LogoutAccountResponse {
+message DisconnectAccountResponse {
   Account account = 1;
 }
 
@@ -122,7 +113,7 @@ message RedeemCodeRequest {
   // Gift / redeem code from the game.
   string code = 1;
   // Required target account ids. Every account must belong to the same channel.
-  repeated string account_ids = 2;
+  repeated int64 account_ids = 2;
 }
 
 message RedeemCodeResponse {
@@ -132,7 +123,7 @@ message RedeemCodeResponse {
 }
 
 message RedeemCodeResult {
-  string account_id = 1;
+  int64 account_id = 1;
   string account_name = 2;
   bool ok = 3;
   string message = 4;

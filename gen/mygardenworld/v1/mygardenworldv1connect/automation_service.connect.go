@@ -33,26 +33,22 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// AutomationServiceStartProcedure is the fully-qualified name of the AutomationService's Start RPC.
-	AutomationServiceStartProcedure = "/mygardenworld.v1.AutomationService/Start"
-	// AutomationServiceStopProcedure is the fully-qualified name of the AutomationService's Stop RPC.
-	AutomationServiceStopProcedure = "/mygardenworld.v1.AutomationService/Stop"
-	// AutomationServiceReloadProcedure is the fully-qualified name of the AutomationService's Reload
-	// RPC.
-	AutomationServiceReloadProcedure = "/mygardenworld.v1.AutomationService/Reload"
+	// AutomationServiceEnableAutomationProcedure is the fully-qualified name of the AutomationService's
+	// EnableAutomation RPC.
+	AutomationServiceEnableAutomationProcedure = "/mygardenworld.v1.AutomationService/EnableAutomation"
+	// AutomationServiceDisableAutomationProcedure is the fully-qualified name of the
+	// AutomationService's DisableAutomation RPC.
+	AutomationServiceDisableAutomationProcedure = "/mygardenworld.v1.AutomationService/DisableAutomation"
 )
 
 // AutomationServiceClient is a client for the mygardenworld.v1.AutomationService service.
 type AutomationServiceClient interface {
 	// Enables the automation loop on the account. Equivalent to setting
 	// policy.automation_enabled = true and waking the runner.
-	Start(context.Context, *connect.Request[v1.StartRequest]) (*connect.Response[v1.StartResponse], error)
+	EnableAutomation(context.Context, *connect.Request[v1.EnableAutomationRequest]) (*connect.Response[v1.EnableAutomationResponse], error)
 	// Disables the automation loop. WS connection stays up and state tracking
 	// continues; only mutating RPCs are suppressed.
-	Stop(context.Context, *connect.Request[v1.StopRequest]) (*connect.Response[v1.StopResponse], error)
-	// Force-rebuild the runner: tear down and reopen the WS, refresh session.
-	// Useful when seeing protocol drift; not needed in normal operation.
-	Reload(context.Context, *connect.Request[v1.ReloadRequest]) (*connect.Response[v1.ReloadResponse], error)
+	DisableAutomation(context.Context, *connect.Request[v1.DisableAutomationRequest]) (*connect.Response[v1.DisableAutomationResponse], error)
 }
 
 // NewAutomationServiceClient constructs a client for the mygardenworld.v1.AutomationService
@@ -66,22 +62,16 @@ func NewAutomationServiceClient(httpClient connect.HTTPClient, baseURL string, o
 	baseURL = strings.TrimRight(baseURL, "/")
 	automationServiceMethods := v1.File_mygardenworld_v1_automation_service_proto.Services().ByName("AutomationService").Methods()
 	return &automationServiceClient{
-		start: connect.NewClient[v1.StartRequest, v1.StartResponse](
+		enableAutomation: connect.NewClient[v1.EnableAutomationRequest, v1.EnableAutomationResponse](
 			httpClient,
-			baseURL+AutomationServiceStartProcedure,
-			connect.WithSchema(automationServiceMethods.ByName("Start")),
+			baseURL+AutomationServiceEnableAutomationProcedure,
+			connect.WithSchema(automationServiceMethods.ByName("EnableAutomation")),
 			connect.WithClientOptions(opts...),
 		),
-		stop: connect.NewClient[v1.StopRequest, v1.StopResponse](
+		disableAutomation: connect.NewClient[v1.DisableAutomationRequest, v1.DisableAutomationResponse](
 			httpClient,
-			baseURL+AutomationServiceStopProcedure,
-			connect.WithSchema(automationServiceMethods.ByName("Stop")),
-			connect.WithClientOptions(opts...),
-		),
-		reload: connect.NewClient[v1.ReloadRequest, v1.ReloadResponse](
-			httpClient,
-			baseURL+AutomationServiceReloadProcedure,
-			connect.WithSchema(automationServiceMethods.ByName("Reload")),
+			baseURL+AutomationServiceDisableAutomationProcedure,
+			connect.WithSchema(automationServiceMethods.ByName("DisableAutomation")),
 			connect.WithClientOptions(opts...),
 		),
 	}
@@ -89,37 +79,28 @@ func NewAutomationServiceClient(httpClient connect.HTTPClient, baseURL string, o
 
 // automationServiceClient implements AutomationServiceClient.
 type automationServiceClient struct {
-	start  *connect.Client[v1.StartRequest, v1.StartResponse]
-	stop   *connect.Client[v1.StopRequest, v1.StopResponse]
-	reload *connect.Client[v1.ReloadRequest, v1.ReloadResponse]
+	enableAutomation  *connect.Client[v1.EnableAutomationRequest, v1.EnableAutomationResponse]
+	disableAutomation *connect.Client[v1.DisableAutomationRequest, v1.DisableAutomationResponse]
 }
 
-// Start calls mygardenworld.v1.AutomationService.Start.
-func (c *automationServiceClient) Start(ctx context.Context, req *connect.Request[v1.StartRequest]) (*connect.Response[v1.StartResponse], error) {
-	return c.start.CallUnary(ctx, req)
+// EnableAutomation calls mygardenworld.v1.AutomationService.EnableAutomation.
+func (c *automationServiceClient) EnableAutomation(ctx context.Context, req *connect.Request[v1.EnableAutomationRequest]) (*connect.Response[v1.EnableAutomationResponse], error) {
+	return c.enableAutomation.CallUnary(ctx, req)
 }
 
-// Stop calls mygardenworld.v1.AutomationService.Stop.
-func (c *automationServiceClient) Stop(ctx context.Context, req *connect.Request[v1.StopRequest]) (*connect.Response[v1.StopResponse], error) {
-	return c.stop.CallUnary(ctx, req)
-}
-
-// Reload calls mygardenworld.v1.AutomationService.Reload.
-func (c *automationServiceClient) Reload(ctx context.Context, req *connect.Request[v1.ReloadRequest]) (*connect.Response[v1.ReloadResponse], error) {
-	return c.reload.CallUnary(ctx, req)
+// DisableAutomation calls mygardenworld.v1.AutomationService.DisableAutomation.
+func (c *automationServiceClient) DisableAutomation(ctx context.Context, req *connect.Request[v1.DisableAutomationRequest]) (*connect.Response[v1.DisableAutomationResponse], error) {
+	return c.disableAutomation.CallUnary(ctx, req)
 }
 
 // AutomationServiceHandler is an implementation of the mygardenworld.v1.AutomationService service.
 type AutomationServiceHandler interface {
 	// Enables the automation loop on the account. Equivalent to setting
 	// policy.automation_enabled = true and waking the runner.
-	Start(context.Context, *connect.Request[v1.StartRequest]) (*connect.Response[v1.StartResponse], error)
+	EnableAutomation(context.Context, *connect.Request[v1.EnableAutomationRequest]) (*connect.Response[v1.EnableAutomationResponse], error)
 	// Disables the automation loop. WS connection stays up and state tracking
 	// continues; only mutating RPCs are suppressed.
-	Stop(context.Context, *connect.Request[v1.StopRequest]) (*connect.Response[v1.StopResponse], error)
-	// Force-rebuild the runner: tear down and reopen the WS, refresh session.
-	// Useful when seeing protocol drift; not needed in normal operation.
-	Reload(context.Context, *connect.Request[v1.ReloadRequest]) (*connect.Response[v1.ReloadResponse], error)
+	DisableAutomation(context.Context, *connect.Request[v1.DisableAutomationRequest]) (*connect.Response[v1.DisableAutomationResponse], error)
 }
 
 // NewAutomationServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -129,32 +110,24 @@ type AutomationServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewAutomationServiceHandler(svc AutomationServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	automationServiceMethods := v1.File_mygardenworld_v1_automation_service_proto.Services().ByName("AutomationService").Methods()
-	automationServiceStartHandler := connect.NewUnaryHandler(
-		AutomationServiceStartProcedure,
-		svc.Start,
-		connect.WithSchema(automationServiceMethods.ByName("Start")),
+	automationServiceEnableAutomationHandler := connect.NewUnaryHandler(
+		AutomationServiceEnableAutomationProcedure,
+		svc.EnableAutomation,
+		connect.WithSchema(automationServiceMethods.ByName("EnableAutomation")),
 		connect.WithHandlerOptions(opts...),
 	)
-	automationServiceStopHandler := connect.NewUnaryHandler(
-		AutomationServiceStopProcedure,
-		svc.Stop,
-		connect.WithSchema(automationServiceMethods.ByName("Stop")),
-		connect.WithHandlerOptions(opts...),
-	)
-	automationServiceReloadHandler := connect.NewUnaryHandler(
-		AutomationServiceReloadProcedure,
-		svc.Reload,
-		connect.WithSchema(automationServiceMethods.ByName("Reload")),
+	automationServiceDisableAutomationHandler := connect.NewUnaryHandler(
+		AutomationServiceDisableAutomationProcedure,
+		svc.DisableAutomation,
+		connect.WithSchema(automationServiceMethods.ByName("DisableAutomation")),
 		connect.WithHandlerOptions(opts...),
 	)
 	return "/mygardenworld.v1.AutomationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case AutomationServiceStartProcedure:
-			automationServiceStartHandler.ServeHTTP(w, r)
-		case AutomationServiceStopProcedure:
-			automationServiceStopHandler.ServeHTTP(w, r)
-		case AutomationServiceReloadProcedure:
-			automationServiceReloadHandler.ServeHTTP(w, r)
+		case AutomationServiceEnableAutomationProcedure:
+			automationServiceEnableAutomationHandler.ServeHTTP(w, r)
+		case AutomationServiceDisableAutomationProcedure:
+			automationServiceDisableAutomationHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -164,14 +137,10 @@ func NewAutomationServiceHandler(svc AutomationServiceHandler, opts ...connect.H
 // UnimplementedAutomationServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedAutomationServiceHandler struct{}
 
-func (UnimplementedAutomationServiceHandler) Start(context.Context, *connect.Request[v1.StartRequest]) (*connect.Response[v1.StartResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.Start is not implemented"))
+func (UnimplementedAutomationServiceHandler) EnableAutomation(context.Context, *connect.Request[v1.EnableAutomationRequest]) (*connect.Response[v1.EnableAutomationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.EnableAutomation is not implemented"))
 }
 
-func (UnimplementedAutomationServiceHandler) Stop(context.Context, *connect.Request[v1.StopRequest]) (*connect.Response[v1.StopResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.Stop is not implemented"))
-}
-
-func (UnimplementedAutomationServiceHandler) Reload(context.Context, *connect.Request[v1.ReloadRequest]) (*connect.Response[v1.ReloadResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.Reload is not implemented"))
+func (UnimplementedAutomationServiceHandler) DisableAutomation(context.Context, *connect.Request[v1.DisableAutomationRequest]) (*connect.Response[v1.DisableAutomationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.DisableAutomation is not implemented"))
 }

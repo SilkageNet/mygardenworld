@@ -174,8 +174,8 @@ func TestAccountNamesAreScopedByUser(t *testing.T) {
 	if got.ID != a1.ID {
 		t.Fatalf("GetAccountByName(user1, main) id=%d, want %d", got.ID, a1.ID)
 	}
-	if _, err := db.GetAccountByName(ctx, 0, "main"); !errors.Is(err, ErrAccountAmbiguous) {
-		t.Fatalf("global GetAccountByName(main) error=%v, want ErrAccountAmbiguous", err)
+	if _, err := db.GetAccountByName(ctx, 0, "main"); err == nil {
+		t.Fatal("GetAccountByName accepted a missing user id")
 	}
 }
 

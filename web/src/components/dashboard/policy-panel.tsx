@@ -2,9 +2,9 @@
 
 import { create } from "@bufbuild/protobuf";
 import { BadgeCheck, Building2, Coins, Flower2, Gem, HandCoins, ListChecks, Loader2, Package, Play, Save, ShieldCheck, ShoppingBag, Sparkles, Sprout, Trophy } from "lucide-react";
-import { ActivityModulePolicySchema, ActivityPolicySchema, BasicPolicySchema, BasicTaskPolicySchema, BenefitPolicySchema, CultivatePolicySchema, CustomerOrderPolicySchema, FlowerElvesPolicySchema, FlowerMarketPolicySchema, FlowerArtPolicySchema, FriendStealPolicySchema, MarketBuyMode, MarketPutMode, OrderPolicySchema, PalaceOrderPolicySchema, PearlPolicySchema, PlantPolicySchema, PlantingPolicySchema, ReputationPolicySchema, ResidentOrderPolicySchema, SelectionMode, SignPolicySchema, ShopBuyPolicySchema, ShopPolicySchema, TeamOrderPolicySchema, UnionBuildPolicySchema, UnionFlowerPolicySchema, UnionLandPolicySchema, UnionPolicySchema, UnionRacePolicySchema, VipShopPolicySchema, ZooPolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
-import type { ActivityModulePolicy, ActivityPolicy, BasicPolicy, BasicTaskPolicy, BenefitPolicy, CultivatePolicy, CustomerOrderPolicy, FlowerElvesPolicy, FlowerMarketPolicy, FlowerArtPolicy, FriendStealPolicy, OrderPolicy, PalaceOrderPolicy, PearlPolicy, PlantPolicy, PlantingPolicy, Policy, ReputationPolicy, ResidentOrderPolicy, ShopBuyPolicy, ShopPolicy, SignPolicy, TeamOrderPolicy, UnionBuildPolicy, UnionFlowerPolicy, UnionLandPolicy, UnionPolicy, UnionRacePolicy, VipShopPolicy, ZooPolicy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AssetsView, FeatureCapability, GardenView, OrdersView, OverviewView } from "@/gen/mygardenworld/v1/query_service_pb";
+import { ActivityPolicySchema, BasicPolicySchema, BasicTaskPolicySchema, BenefitPolicySchema, CultivatePolicySchema, CustomerOrderPolicySchema, CyclicNotePolicySchema, CyclicStoryPolicySchema, DessertPolicySchema, FlowerElvesPolicySchema, FlowerMarketPolicySchema, FlowerArtPolicySchema, FriendStealPolicySchema, MarketBuyMode, MarketPutMode, OrderPolicySchema, PalaceOrderPolicySchema, PearlPolicySchema, PlantPolicySchema, PlantingPolicySchema, ReputationPolicySchema, ResidentOrderPolicySchema, SelectionMode, SignPolicySchema, ShopBuyPolicySchema, ShopPolicySchema, TeamOrderPolicySchema, UnionBuildPolicySchema, UnionFlowerPolicySchema, UnionLandPolicySchema, UnionPolicySchema, UnionRacePolicySchema, VipShopPolicySchema, ZooPolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
+import type { ActivityPolicy, BasicPolicy, BasicTaskPolicy, BenefitPolicy, CultivatePolicy, CustomerOrderPolicy, CyclicNotePolicy, CyclicStoryPolicy, DessertPolicy, FlowerElvesPolicy, FlowerMarketPolicy, FlowerArtPolicy, FriendStealPolicy, OrderPolicy, PalaceOrderPolicy, PearlPolicy, PlantPolicy, PlantingPolicy, Policy, ReputationPolicy, ResidentOrderPolicy, ShopBuyPolicy, ShopPolicy, SignPolicy, TeamOrderPolicy, UnionBuildPolicy, UnionFlowerPolicy, UnionLandPolicy, UnionPolicy, UnionRacePolicy, VipShopPolicy, ZooPolicy } from "@/gen/mygardenworld/v1/policy_pb";
+import type { AssetsView, FeatureCapability, GardenView, OrdersView, OverviewView } from "@/lib/api/query-models";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { settingStatusForCapability } from "@/lib/feature-capabilities";
@@ -80,52 +80,6 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
     note: "只接正好 36 分且进度为 0；不要求开启鲜花培育。竞赛不主动培育，只接取并在进度达标后提交。已接的 36 分任务一律不放弃（含手动接取、优先级为 0）",
   },
   { id: 3052, label: "动物互动", defaultPriority: 0 },
-];
-
-type ActivityModuleMeta = {
-  id: string;
-  label: string;
-  boolParams?: { key: string; label: string }[];
-  intParams?: { key: string; label: string; defaultValue: number; min: number; max?: number }[];
-};
-
-const ACTIVITY_MODULES: ActivityModuleMeta[] = [
-  {
-    id: "cyclicNote",
-    label: "花笺集芳",
-    boolParams: [
-      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
-      { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
-      { key: "satisfy_tasks", label: "驱动已启用模块完成任务" },
-    ],
-  },
-  {
-    id: "actCyclicStory",
-    label: "莳花纪闻",
-    boolParams: [
-      { key: "auto_claim_order_rewards", label: "自动领取订单奖励" },
-      { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
-    ],
-    intParams: [
-      { key: "max_score", label: "分数上限（0=不限制）", defaultValue: 0, min: 0 },
-    ],
-  },
-  {
-    id: "actDessert",
-    label: "香卉甜糕",
-    boolParams: [
-      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
-      { key: "auto_like_celebrity", label: "自动免费点赞" },
-      { key: "auto_open_reward_boxes", label: "自动开启奖励箱（每次1个）" },
-      { key: "auto_play", label: "启用影子诊断（不执行）" },
-      { key: "resume_existing_round", label: "请求接管评估（当前硬锁）" },
-    ],
-    intParams: [
-      { key: "mode", label: "影子模式（仅 1 可用）", defaultValue: 1, min: 1, max: 1 },
-      { key: "max_energy_per_session", label: "会话体力预算（0=禁用；当前仅诊断）", defaultValue: 0, min: 0, max: 100 },
-      { key: "min_energy_reserve", label: "最低体力保留", defaultValue: 0, min: 0 },
-    ],
-  },
 ];
 
 export default function PolicyPanel({
@@ -386,24 +340,17 @@ export default function PolicyPanel({
     const current = policy.activity ?? create(ActivityPolicySchema);
     onPolicyChange({ ...policy, activity: { ...current, ...patch } });
   };
-  const updateActivityModule = (moduleID: string, patch: Partial<ActivityModulePolicy>) => {
-    if (!policy) return;
-    const currentActivity = policy.activity ?? create(ActivityPolicySchema);
-    const current = currentActivity.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivity({
-      modules: {
-        ...currentActivity.modules,
-        [moduleID]: { ...current, ...patch },
-      },
-    });
+  const updateCyclicNote = (patch: Partial<CyclicNotePolicy>) => {
+    const current = activity?.cyclicNote ?? create(CyclicNotePolicySchema);
+    updateActivity({ cyclicNote: create(CyclicNotePolicySchema, { ...current, ...patch }) });
   };
-  const updateActivityBoolParam = (moduleID: string, key: string, value: boolean) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, { boolParams: { ...current.boolParams, [key]: value } });
+  const updateCyclicStory = (patch: Partial<CyclicStoryPolicy>) => {
+    const current = activity?.cyclicStory ?? create(CyclicStoryPolicySchema);
+    updateActivity({ cyclicStory: create(CyclicStoryPolicySchema, { ...current, ...patch }) });
   };
-  const updateActivityIntParam = (moduleID: string, key: string, value: number, fallback: number) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, { intParams: { ...current.intParams, [key]: safeNumberToBigInt(value, fallback) } });
+  const updateDessert = (patch: Partial<DessertPolicy>) => {
+    const current = activity?.dessert ?? create(DessertPolicySchema);
+    updateActivity({ dessert: create(DessertPolicySchema, { ...current, ...patch }) });
   };
   if (loading) {
     return (
@@ -722,7 +669,7 @@ export default function PolicyPanel({
                   onChange={(checked) =>
                     updateResident({
                       satinEnabled: checked,
-					  ...(checked && !((resident?.satinDailyLimit ?? 0) > 0) ? { satinDailyLimit: 120 } : {}),
+                      ...(checked && !((resident?.satinDailyLimit ?? 0) > 0) ? { satinDailyLimit: 120 } : {}),
                     })
                   }
                 />
@@ -741,7 +688,7 @@ export default function PolicyPanel({
                   onChange={(checked) =>
                     updateResident({
                       decorateEnabled: checked,
-					  ...(checked && !((resident?.decorateDailyLimit ?? 0) > 0) ? { decorateDailyLimit: 120 } : {}),
+                      ...(checked && !((resident?.decorateDailyLimit ?? 0) > 0) ? { decorateDailyLimit: 120 } : {}),
                     })
                   }
                 />
@@ -939,37 +886,38 @@ export default function PolicyPanel({
         )}
 
         {section === "activities" && (
-          <div className="space-y-4">
-            <div className="grid gap-3">
-              {ACTIVITY_MODULES.map((module) => {
-                const modulePolicy = activity?.modules[module.id];
-                return (
-                  <PolicyGroup key={module.id} title={module.label} icon={<Play />}>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <ToggleRow label="启用" checked={modulePolicy?.enabled ?? false} onChange={(checked) => updateActivityModule(module.id, { enabled: checked })} status={settingStatusForCapability(capabilities, `activity.${module.id}`)} />
-                      {module.boolParams?.map((param) => (
-                        <ToggleRow
-                          key={param.key}
-                          label={param.label}
-                          checked={modulePolicy?.boolParams?.[param.key] ?? false}
-                          onChange={(checked) => updateActivityBoolParam(module.id, param.key, checked)}
-                        />
-                      ))}
-                      {module.intParams?.map((param) => (
-                        <NumberRow
-                          key={param.key}
-                          label={param.label}
-                          value={safeBigIntToNumber(modulePolicy?.intParams?.[param.key], param.defaultValue)}
-                          min={param.min}
-                          max={param.max}
-                          onChange={(value) => updateActivityIntParam(module.id, param.key, value, param.defaultValue)}
-                        />
-                      ))}
-                    </div>
-                  </PolicyGroup>
-                );
-              })}
-            </div>
+          <div className="grid gap-3">
+            <PolicyGroup title="花笺集芳" icon={<Play />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="启用" checked={activity?.cyclicNote?.enabled ?? false} onChange={(enabled) => updateCyclicNote({ enabled })} status={settingStatusForCapability(capabilities, "activity.cyclicNote")} />
+                <ToggleRow label="自动领取任务奖励" checked={activity?.cyclicNote?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateCyclicNote({ autoClaimTaskRewards })} />
+                <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicNote?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicNote({ autoClaimProgressBoxes })} />
+                <ToggleRow label="驱动已启用模块完成任务" checked={activity?.cyclicNote?.satisfyTasks ?? false} onChange={(satisfyTasks) => updateCyclicNote({ satisfyTasks })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="莳花纪闻" icon={<Play />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="启用" checked={activity?.cyclicStory?.enabled ?? false} onChange={(enabled) => updateCyclicStory({ enabled })} status={settingStatusForCapability(capabilities, "activity.actCyclicStory")} />
+                <ToggleRow label="自动领取订单奖励" checked={activity?.cyclicStory?.autoClaimOrderRewards ?? false} onChange={(autoClaimOrderRewards) => updateCyclicStory({ autoClaimOrderRewards })} />
+                <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicStory?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicStory({ autoClaimProgressBoxes })} />
+                <NumberRow label="分数上限（0=不限制）" value={safeBigIntToNumber(activity?.cyclicStory?.maxScore, 0)} min={0} onChange={(value) => updateCyclicStory({ maxScore: safeNumberToBigInt(value, 0) })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="香卉甜糕" icon={<Play />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="启用" checked={activity?.dessert?.enabled ?? false} onChange={(enabled) => updateDessert({ enabled })} status={settingStatusForCapability(capabilities, "activity.actDessert")} />
+                <ToggleRow label="自动领取任务奖励" checked={activity?.dessert?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateDessert({ autoClaimTaskRewards })} />
+                <ToggleRow label="自动免费点赞" checked={activity?.dessert?.autoLikeCelebrity ?? false} onChange={(autoLikeCelebrity) => updateDessert({ autoLikeCelebrity })} />
+                <ToggleRow label="自动开启奖励箱（每次1个）" checked={activity?.dessert?.autoOpenRewardBoxes ?? false} onChange={(autoOpenRewardBoxes) => updateDessert({ autoOpenRewardBoxes })} />
+                <ToggleRow label="启用影子诊断（不执行）" checked={activity?.dessert?.autoPlay ?? false} onChange={(autoPlay) => updateDessert({ autoPlay })} />
+                <ToggleRow label="请求接管评估（当前硬锁）" checked={activity?.dessert?.resumeExistingRound ?? false} onChange={(resumeExistingRound) => updateDessert({ resumeExistingRound })} />
+                <NumberRow label="影子模式（仅 1 可用）" value={activity?.dessert?.mode || 1} min={1} max={1} onChange={(mode) => updateDessert({ mode })} />
+                <NumberRow label="会话体力预算（0=禁用；当前仅诊断）" value={activity?.dessert?.maxEnergyPerSession ?? 0} min={0} max={100} onChange={(maxEnergyPerSession) => updateDessert({ maxEnergyPerSession })} />
+                <NumberRow label="最低体力保留" value={activity?.dessert?.minEnergyReserve ?? 0} min={0} onChange={(minEnergyReserve) => updateDessert({ minEnergyReserve })} />
+              </div>
+            </PolicyGroup>
           </div>
         )}
       </CardContent>

@@ -35,6 +35,9 @@ const (
 const (
 	// QueryServiceGetStatusProcedure is the fully-qualified name of the QueryService's GetStatus RPC.
 	QueryServiceGetStatusProcedure = "/mygardenworld.v1.QueryService/GetStatus"
+	// QueryServiceGetFeatureCapabilitiesProcedure is the fully-qualified name of the QueryService's
+	// GetFeatureCapabilities RPC.
+	QueryServiceGetFeatureCapabilitiesProcedure = "/mygardenworld.v1.QueryService/GetFeatureCapabilities"
 	// QueryServiceGetOverviewProcedure is the fully-qualified name of the QueryService's GetOverview
 	// RPC.
 	QueryServiceGetOverviewProcedure = "/mygardenworld.v1.QueryService/GetOverview"
@@ -58,15 +61,16 @@ const (
 type QueryServiceClient interface {
 	// Lightweight summary: connected accounts and inventory totals. For dashboard polling.
 	GetStatus(context.Context, *connect.Request[v1.GetStatusRequest]) (*connect.Response[v1.GetStatusResponse], error)
-	GetOverview(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error)
-	GetGarden(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error)
-	GetOrders(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error)
-	GetUnion(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error)
-	GetActivities(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error)
-	GetAssets(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error)
+	GetFeatureCapabilities(context.Context, *connect.Request[v1.GetFeatureCapabilitiesRequest]) (*connect.Response[v1.GetFeatureCapabilitiesResponse], error)
+	GetOverview(context.Context, *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error)
+	GetGarden(context.Context, *connect.Request[v1.GetGardenRequest]) (*connect.Response[v1.GetGardenResponse], error)
+	GetOrders(context.Context, *connect.Request[v1.GetOrdersRequest]) (*connect.Response[v1.GetOrdersResponse], error)
+	GetUnion(context.Context, *connect.Request[v1.GetUnionRequest]) (*connect.Response[v1.GetUnionResponse], error)
+	GetActivities(context.Context, *connect.Request[v1.GetActivitiesRequest]) (*connect.Response[v1.GetActivitiesResponse], error)
+	GetAssets(context.Context, *connect.Request[v1.GetAssetsRequest]) (*connect.Response[v1.GetAssetsResponse], error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
-	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.Event], error)
+	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.StreamEventsResponse], error)
 }
 
 // NewQueryServiceClient constructs a client for the mygardenworld.v1.QueryService service. By
@@ -86,43 +90,49 @@ func NewQueryServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(queryServiceMethods.ByName("GetStatus")),
 			connect.WithClientOptions(opts...),
 		),
-		getOverview: connect.NewClient[v1.GetAccountViewRequest, v1.OverviewView](
+		getFeatureCapabilities: connect.NewClient[v1.GetFeatureCapabilitiesRequest, v1.GetFeatureCapabilitiesResponse](
+			httpClient,
+			baseURL+QueryServiceGetFeatureCapabilitiesProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetFeatureCapabilities")),
+			connect.WithClientOptions(opts...),
+		),
+		getOverview: connect.NewClient[v1.GetOverviewRequest, v1.GetOverviewResponse](
 			httpClient,
 			baseURL+QueryServiceGetOverviewProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("GetOverview")),
 			connect.WithClientOptions(opts...),
 		),
-		getGarden: connect.NewClient[v1.GetAccountViewRequest, v1.GardenView](
+		getGarden: connect.NewClient[v1.GetGardenRequest, v1.GetGardenResponse](
 			httpClient,
 			baseURL+QueryServiceGetGardenProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("GetGarden")),
 			connect.WithClientOptions(opts...),
 		),
-		getOrders: connect.NewClient[v1.GetAccountViewRequest, v1.OrdersView](
+		getOrders: connect.NewClient[v1.GetOrdersRequest, v1.GetOrdersResponse](
 			httpClient,
 			baseURL+QueryServiceGetOrdersProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("GetOrders")),
 			connect.WithClientOptions(opts...),
 		),
-		getUnion: connect.NewClient[v1.GetAccountViewRequest, v1.UnionView](
+		getUnion: connect.NewClient[v1.GetUnionRequest, v1.GetUnionResponse](
 			httpClient,
 			baseURL+QueryServiceGetUnionProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("GetUnion")),
 			connect.WithClientOptions(opts...),
 		),
-		getActivities: connect.NewClient[v1.GetAccountViewRequest, v1.ActivitiesView](
+		getActivities: connect.NewClient[v1.GetActivitiesRequest, v1.GetActivitiesResponse](
 			httpClient,
 			baseURL+QueryServiceGetActivitiesProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("GetActivities")),
 			connect.WithClientOptions(opts...),
 		),
-		getAssets: connect.NewClient[v1.GetAccountViewRequest, v1.AssetsView](
+		getAssets: connect.NewClient[v1.GetAssetsRequest, v1.GetAssetsResponse](
 			httpClient,
 			baseURL+QueryServiceGetAssetsProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("GetAssets")),
 			connect.WithClientOptions(opts...),
 		),
-		streamEvents: connect.NewClient[v1.StreamEventsRequest, v1.Event](
+		streamEvents: connect.NewClient[v1.StreamEventsRequest, v1.StreamEventsResponse](
 			httpClient,
 			baseURL+QueryServiceStreamEventsProcedure,
 			connect.WithSchema(queryServiceMethods.ByName("StreamEvents")),
@@ -133,14 +143,15 @@ func NewQueryServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // queryServiceClient implements QueryServiceClient.
 type queryServiceClient struct {
-	getStatus     *connect.Client[v1.GetStatusRequest, v1.GetStatusResponse]
-	getOverview   *connect.Client[v1.GetAccountViewRequest, v1.OverviewView]
-	getGarden     *connect.Client[v1.GetAccountViewRequest, v1.GardenView]
-	getOrders     *connect.Client[v1.GetAccountViewRequest, v1.OrdersView]
-	getUnion      *connect.Client[v1.GetAccountViewRequest, v1.UnionView]
-	getActivities *connect.Client[v1.GetAccountViewRequest, v1.ActivitiesView]
-	getAssets     *connect.Client[v1.GetAccountViewRequest, v1.AssetsView]
-	streamEvents  *connect.Client[v1.StreamEventsRequest, v1.Event]
+	getStatus              *connect.Client[v1.GetStatusRequest, v1.GetStatusResponse]
+	getFeatureCapabilities *connect.Client[v1.GetFeatureCapabilitiesRequest, v1.GetFeatureCapabilitiesResponse]
+	getOverview            *connect.Client[v1.GetOverviewRequest, v1.GetOverviewResponse]
+	getGarden              *connect.Client[v1.GetGardenRequest, v1.GetGardenResponse]
+	getOrders              *connect.Client[v1.GetOrdersRequest, v1.GetOrdersResponse]
+	getUnion               *connect.Client[v1.GetUnionRequest, v1.GetUnionResponse]
+	getActivities          *connect.Client[v1.GetActivitiesRequest, v1.GetActivitiesResponse]
+	getAssets              *connect.Client[v1.GetAssetsRequest, v1.GetAssetsResponse]
+	streamEvents           *connect.Client[v1.StreamEventsRequest, v1.StreamEventsResponse]
 }
 
 // GetStatus calls mygardenworld.v1.QueryService.GetStatus.
@@ -148,38 +159,43 @@ func (c *queryServiceClient) GetStatus(ctx context.Context, req *connect.Request
 	return c.getStatus.CallUnary(ctx, req)
 }
 
+// GetFeatureCapabilities calls mygardenworld.v1.QueryService.GetFeatureCapabilities.
+func (c *queryServiceClient) GetFeatureCapabilities(ctx context.Context, req *connect.Request[v1.GetFeatureCapabilitiesRequest]) (*connect.Response[v1.GetFeatureCapabilitiesResponse], error) {
+	return c.getFeatureCapabilities.CallUnary(ctx, req)
+}
+
 // GetOverview calls mygardenworld.v1.QueryService.GetOverview.
-func (c *queryServiceClient) GetOverview(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error) {
+func (c *queryServiceClient) GetOverview(ctx context.Context, req *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error) {
 	return c.getOverview.CallUnary(ctx, req)
 }
 
 // GetGarden calls mygardenworld.v1.QueryService.GetGarden.
-func (c *queryServiceClient) GetGarden(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error) {
+func (c *queryServiceClient) GetGarden(ctx context.Context, req *connect.Request[v1.GetGardenRequest]) (*connect.Response[v1.GetGardenResponse], error) {
 	return c.getGarden.CallUnary(ctx, req)
 }
 
 // GetOrders calls mygardenworld.v1.QueryService.GetOrders.
-func (c *queryServiceClient) GetOrders(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error) {
+func (c *queryServiceClient) GetOrders(ctx context.Context, req *connect.Request[v1.GetOrdersRequest]) (*connect.Response[v1.GetOrdersResponse], error) {
 	return c.getOrders.CallUnary(ctx, req)
 }
 
 // GetUnion calls mygardenworld.v1.QueryService.GetUnion.
-func (c *queryServiceClient) GetUnion(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error) {
+func (c *queryServiceClient) GetUnion(ctx context.Context, req *connect.Request[v1.GetUnionRequest]) (*connect.Response[v1.GetUnionResponse], error) {
 	return c.getUnion.CallUnary(ctx, req)
 }
 
 // GetActivities calls mygardenworld.v1.QueryService.GetActivities.
-func (c *queryServiceClient) GetActivities(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error) {
+func (c *queryServiceClient) GetActivities(ctx context.Context, req *connect.Request[v1.GetActivitiesRequest]) (*connect.Response[v1.GetActivitiesResponse], error) {
 	return c.getActivities.CallUnary(ctx, req)
 }
 
 // GetAssets calls mygardenworld.v1.QueryService.GetAssets.
-func (c *queryServiceClient) GetAssets(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error) {
+func (c *queryServiceClient) GetAssets(ctx context.Context, req *connect.Request[v1.GetAssetsRequest]) (*connect.Response[v1.GetAssetsResponse], error) {
 	return c.getAssets.CallUnary(ctx, req)
 }
 
 // StreamEvents calls mygardenworld.v1.QueryService.StreamEvents.
-func (c *queryServiceClient) StreamEvents(ctx context.Context, req *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.Event], error) {
+func (c *queryServiceClient) StreamEvents(ctx context.Context, req *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.StreamEventsResponse], error) {
 	return c.streamEvents.CallServerStream(ctx, req)
 }
 
@@ -187,15 +203,16 @@ func (c *queryServiceClient) StreamEvents(ctx context.Context, req *connect.Requ
 type QueryServiceHandler interface {
 	// Lightweight summary: connected accounts and inventory totals. For dashboard polling.
 	GetStatus(context.Context, *connect.Request[v1.GetStatusRequest]) (*connect.Response[v1.GetStatusResponse], error)
-	GetOverview(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error)
-	GetGarden(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error)
-	GetOrders(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error)
-	GetUnion(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error)
-	GetActivities(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error)
-	GetAssets(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error)
+	GetFeatureCapabilities(context.Context, *connect.Request[v1.GetFeatureCapabilitiesRequest]) (*connect.Response[v1.GetFeatureCapabilitiesResponse], error)
+	GetOverview(context.Context, *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error)
+	GetGarden(context.Context, *connect.Request[v1.GetGardenRequest]) (*connect.Response[v1.GetGardenResponse], error)
+	GetOrders(context.Context, *connect.Request[v1.GetOrdersRequest]) (*connect.Response[v1.GetOrdersResponse], error)
+	GetUnion(context.Context, *connect.Request[v1.GetUnionRequest]) (*connect.Response[v1.GetUnionResponse], error)
+	GetActivities(context.Context, *connect.Request[v1.GetActivitiesRequest]) (*connect.Response[v1.GetActivitiesResponse], error)
+	GetAssets(context.Context, *connect.Request[v1.GetAssetsRequest]) (*connect.Response[v1.GetAssetsResponse], error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
-	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.Event]) error
+	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.StreamEventsResponse]) error
 }
 
 // NewQueryServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -209,6 +226,12 @@ func NewQueryServiceHandler(svc QueryServiceHandler, opts ...connect.HandlerOpti
 		QueryServiceGetStatusProcedure,
 		svc.GetStatus,
 		connect.WithSchema(queryServiceMethods.ByName("GetStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	queryServiceGetFeatureCapabilitiesHandler := connect.NewUnaryHandler(
+		QueryServiceGetFeatureCapabilitiesProcedure,
+		svc.GetFeatureCapabilities,
+		connect.WithSchema(queryServiceMethods.ByName("GetFeatureCapabilities")),
 		connect.WithHandlerOptions(opts...),
 	)
 	queryServiceGetOverviewHandler := connect.NewUnaryHandler(
@@ -257,6 +280,8 @@ func NewQueryServiceHandler(svc QueryServiceHandler, opts ...connect.HandlerOpti
 		switch r.URL.Path {
 		case QueryServiceGetStatusProcedure:
 			queryServiceGetStatusHandler.ServeHTTP(w, r)
+		case QueryServiceGetFeatureCapabilitiesProcedure:
+			queryServiceGetFeatureCapabilitiesHandler.ServeHTTP(w, r)
 		case QueryServiceGetOverviewProcedure:
 			queryServiceGetOverviewHandler.ServeHTTP(w, r)
 		case QueryServiceGetGardenProcedure:
@@ -284,30 +309,34 @@ func (UnimplementedQueryServiceHandler) GetStatus(context.Context, *connect.Requ
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetStatus is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetOverview(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error) {
+func (UnimplementedQueryServiceHandler) GetFeatureCapabilities(context.Context, *connect.Request[v1.GetFeatureCapabilitiesRequest]) (*connect.Response[v1.GetFeatureCapabilitiesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetFeatureCapabilities is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetOverview(context.Context, *connect.Request[v1.GetOverviewRequest]) (*connect.Response[v1.GetOverviewResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetOverview is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetGarden(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error) {
+func (UnimplementedQueryServiceHandler) GetGarden(context.Context, *connect.Request[v1.GetGardenRequest]) (*connect.Response[v1.GetGardenResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetGarden is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetOrders(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error) {
+func (UnimplementedQueryServiceHandler) GetOrders(context.Context, *connect.Request[v1.GetOrdersRequest]) (*connect.Response[v1.GetOrdersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetOrders is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetUnion(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error) {
+func (UnimplementedQueryServiceHandler) GetUnion(context.Context, *connect.Request[v1.GetUnionRequest]) (*connect.Response[v1.GetUnionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetUnion is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetActivities(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error) {
+func (UnimplementedQueryServiceHandler) GetActivities(context.Context, *connect.Request[v1.GetActivitiesRequest]) (*connect.Response[v1.GetActivitiesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetActivities is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetAssets(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error) {
+func (UnimplementedQueryServiceHandler) GetAssets(context.Context, *connect.Request[v1.GetAssetsRequest]) (*connect.Response[v1.GetAssetsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetAssets is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.Event]) error {
+func (UnimplementedQueryServiceHandler) StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.StreamEventsResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.StreamEvents is not implemented"))
 }

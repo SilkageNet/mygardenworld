@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func TestGetStatusIncludesCapabilitiesOnlyWhenRequested(t *testing.T) {
+func TestFeatureCapabilitiesUseDedicatedStaticEndpoint(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
 	if err != nil {
@@ -27,21 +27,19 @@ func TestGetStatusIncludesCapabilitiesOnlyWhenRequested(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	svc := &Services{DB: db}
 
-	withCapabilities, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{
-		IncludeFeatureCapabilities: true,
-	}))
+	capabilities, err := svc.GetFeatureCapabilities(ctx, connect.NewRequest(&pb.GetFeatureCapabilitiesRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(withCapabilities.Msg.GetFeatureCapabilities()) == 0 {
-		t.Fatal("requested feature capabilities are missing")
+	if len(capabilities.Msg.GetFeatureCapabilities()) == 0 {
+		t.Fatal("feature capabilities are missing")
 	}
-	withoutCapabilities, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{}))
+	status, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(withoutCapabilities.Msg.GetFeatureCapabilities()) != 0 {
-		t.Fatal("polling response unexpectedly contains feature capabilities")
+	if len(status.Msg.GetAccounts()) != 0 {
+		t.Fatal("empty database unexpectedly returned account statuses")
 	}
 }
 
@@ -691,8 +689,8 @@ func TestBusinessStatisticsProtoExposesDailyHistory(t *testing.T) {
 		t.Fatalf("business history=%+v", got.GetDays())
 	}
 	field := (&pb.OrdersView{}).ProtoReflect().Descriptor().Fields().ByName("business_statistics")
-	if field == nil || field.Number() != 10 {
-		t.Fatalf("OrdersView business_statistics field=%v, want field 10", field)
+	if field == nil || field.Number() != 9 {
+		t.Fatalf("OrdersView business_statistics field=%v, want field 9", field)
 	}
 }
 
@@ -1090,13 +1088,13 @@ func TestDomainStatusesExposeCooldownSummary(t *testing.T) {
 
 func TestApplyStoppedRunnerDiagnosticsKeepsPhoneKickAbnormal(t *testing.T) {
 	policy := automation.DefaultPolicy()
-	out := &pb.AccountStatus{AccountId: "1", AccountName: "main"}
+	out := &pb.AccountStatus{AccountId: 1, AccountName: "main"}
 	reason := "账号已在其他设备登录，当前会话被替换"
 	applyStoppedRunnerDiagnostics(out, policy, runner.Diagnostics{
 		SessionInvalidatedReason: reason,
 		BlockedReasons:           []string{"会话已失效"},
 	})
-	if out.GetHealth() != "session_expired" {
+	if out.GetHealth() != pb.AccountHealth_ACCOUNT_HEALTH_SESSION_EXPIRED {
 		t.Fatalf("health=%q, want session_expired", out.GetHealth())
 	}
 	if out.GetLastError() != reason {
@@ -1109,9 +1107,9 @@ func TestApplyStoppedRunnerDiagnosticsKeepsPhoneKickAbnormal(t *testing.T) {
 
 func TestApplyStoppedRunnerDiagnosticsPlainOfflineWithoutCache(t *testing.T) {
 	policy := automation.DefaultPolicy()
-	out := &pb.AccountStatus{AccountId: "1", AccountName: "main"}
+	out := &pb.AccountStatus{AccountId: 1, AccountName: "main"}
 	applyStoppedRunnerDiagnostics(out, policy, runner.Diagnostics{})
-	if out.GetHealth() != "offline" {
+	if out.GetHealth() != pb.AccountHealth_ACCOUNT_HEALTH_OFFLINE {
 		t.Fatalf("health=%q, want offline", out.GetHealth())
 	}
 	if out.GetLastError() != "" {

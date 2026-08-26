@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/policy.proto.
  */
 export const file_mygardenworld_v1_policy: GenFile = /*@__PURE__*/
-  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLLAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIsCgViYXNpYxgCIAEoCzIdLm15Z2FyZGVud29ybGQudjEuQmFzaWNQb2xpY3kSLAoFcGxhbnQYAyABKAsyHS5teWdhcmRlbndvcmxkLnYxLlBsYW50UG9saWN5EiwKBW9yZGVyGAQgASgLMh0ubXlnYXJkZW53b3JsZC52MS5PcmRlclBvbGljeRIsCgV1bmlvbhgFIAEoCzIdLm15Z2FyZGVud29ybGQudjEuVW5pb25Qb2xpY3kSMgoIYWN0aXZpdHkYBiABKAsyIC5teWdhcmRlbndvcmxkLnYxLkFjdGl2aXR5UG9saWN5EiEKGWRlY2lzaW9uX2ludGVydmFsX3NlY29uZHMYCiABKAESFgoOc2NoZW1hX3ZlcnNpb24YCyABKA0i/wQKC0Jhc2ljUG9saWN5EjYKCnJlcHV0YXRpb24YASABKAsyIi5teWdhcmRlbndvcmxkLnYxLlJlcHV0YXRpb25Qb2xpY3kSIgoacmVjb25uZWN0X2ludGVydmFsX3NlY29uZHMYAiABKAESGAoQaXRlbV9sb2dfZW5hYmxlZBgDIAEoCBIvCgR0YXNrGAQgASgLMiEubXlnYXJkZW53b3JsZC52MS5CYXNpY1Rhc2tQb2xpY3kSGQoRbWFwX2V2ZW50X2VuYWJsZWQYBSABKAgSFAoMbWFpbF9lbmFibGVkGAYgASgIEjAKB2JlbmVmaXQYByABKAsyHy5teWdhcmRlbndvcmxkLnYxLkJlbmVmaXRQb2xpY3kSKgoEc2lnbhgIIAEoCzIcLm15Z2FyZGVud29ybGQudjEuU2lnblBvbGljeRIsCgVwZWFybBgJIAEoCzIdLm15Z2FyZGVud29ybGQudjEuUGVhcmxQb2xpY3kSKgoEc2hvcBgKIAEoCzIcLm15Z2FyZGVud29ybGQudjEuU2hvcFBvbGljeRIoCgN6b28YCyABKAsyGy5teWdhcmRlbndvcmxkLnYxLlpvb1BvbGljeRIaChJ3YXRlcndoZWVsX2VuYWJsZWQYDCABKAgSGgoSZnJlZV93YXRlcl9lbmFibGVkGA0gASgIEh0KFXdhdGVyX2NsYWltX3RocmVzaG9sZBgOIAEoBRIgChhyb2FkX2dyb3dfcmV3YXJkX2VuYWJsZWQYDyABKAgSKQohZGlzcGxhY2VkX3Nlc3Npb25fcmVsb2dpbl9lbmFibGVkGBAgASgISgQIERASUgxmcmllbmRfdG91Y2giNgoQUmVwdXRhdGlvblBvbGljeRIPCgdlbmFibGVkGAEgASgIEhEKCXRocmVzaG9sZBgCIAEoBSKKAQoPQmFzaWNUYXNrUG9saWN5EhQKDG1haW5fZW5hYmxlZBgBIAEoCBIVCg1kYWlseV9lbmFibGVkGAIgASgIEhYKDndlZWtseV9lbmFibGVkGAMgASgIEhUKDXN0b3J5X2VuYWJsZWQYBCABKAgSGwoTYWNoaWV2ZW1lbnRfZW5hYmxlZBgFIAEoCCJ+Cg1CZW5lZml0UG9saWN5EhsKE2RvdWJsZV9jb2luX2VuYWJsZWQYASABKAgSEwoLYm94X2VuYWJsZWQYAiABKAgSHAoUc2hhcmVfcmV3YXJkX2VuYWJsZWQYAyABKAgSHQoVYW50aV9zY2FtX2JveF9lbmFibGVkGAQgASgIIjoKClNpZ25Qb2xpY3kSFQoNZGFpbHlfZW5hYmxlZBgBIAEoCBIVCg1wYXRjaF9lbmFibGVkGAIgASgIIt0BCgtQZWFybFBvbGljeRIUCgxmcmVlX2VuYWJsZWQYASABKAgSGQoRYXV0b19oaXJlX2VuYWJsZWQYAiABKAgSFgoObWF4X2hpcmVfbGV2ZWwYAyABKAUSHQoVbWF4X2hpcmVfdGlja2V0X3VzYWdlGAQgASgFEhQKDGRyYXdfZW5hYmxlZBgFIAEoCBIXCg9wcm90ZWN0X2VuYWJsZWQYBiABKAgSHAoUYXV0b19idXlfaGlyZV90aWNrZXQYByABKAgSGQoRbWF4X3NwZW5kX2RpYW1vbmQYCCABKAMimQEKClNob3BQb2xpY3kSHwoXdmlkZW9fZnJlZV9naWZ0X2VuYWJsZWQYASABKAgSNwoOY3VsdGl2YXRlX3Nob3AYAiABKAsyHy5teWdhcmRlbndvcmxkLnYxLlNob3BCdXlQb2xpY3kSMQoIdmlwX3Nob3AYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLlZpcFNob3BQb2xpY3kiZgoNU2hvcEJ1eVBvbGljeRIQCghhdXRvX2J1eRgBIAEoCBIWCg5tYXhfc3BlbmRfZ29sZBgCIAEoAxIZChFtYXhfc3BlbmRfZGlhbW9uZBgDIAEoAxIQCghpdGVtX2lkcxgEIAMoBSJtCg1WaXBTaG9wUG9saWN5EhAKCGF1dG9fYnV5GAEgASgIEhkKEW1heF9zcGVuZF9kaWFtb25kGAIgASgDEh0KFW1heF9zcGVuZF9mbG9yYWxfY29pbhgDIAEoAxIQCghpdGVtX2lkcxgEIAMoBSKqAQoJWm9vUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSGgoSYXV0b19ldmVudF9lbmFibGVkGAIgASgIEhUKDWF1dG9fYnV5X2Zvb2QYAyABKAgSEQoJYXV0b19mZWVkGAQgASgIEhMKC2F1dG9fc3Ryb2tlGAUgASgIEhYKDm1heF9zcGVuZF9nb2xkGAYgASgDEhkKEW1heF9zcGVuZF9kaWFtb25kGAcgASgDIpwCCgtQbGFudFBvbGljeRI0CgljdWx0aXZhdGUYASABKAsyIS5teWdhcmRlbndvcmxkLnYxLkN1bHRpdmF0ZVBvbGljeRIyCghwbGFudGluZxgCIAEoCzIgLm15Z2FyZGVud29ybGQudjEuUGxhbnRpbmdQb2xpY3kSOQoMZnJpZW5kX3N0ZWFsGAMgASgLMiMubXlnYXJkZW53b3JsZC52MS5GcmllbmRTdGVhbFBvbGljeRIyCgVlbHZlcxgEIAEoCzIjLm15Z2FyZGVud29ybGQudjEuRmxvd2VyRWx2ZXNQb2xpY3kSNAoGbWFya2V0GAUgASgLMiQubXlnYXJkZW53b3JsZC52MS5GbG93ZXJNYXJrZXRQb2xpY3kicQoPQ3VsdGl2YXRlUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSHgoWdmlkZW9fc3BlZWRfdXBfZW5hYmxlZBgCIAEoCBIXCg91cGdyYWRlX2VuYWJsZWQYAyABKAgSFAoMdGFyZ2V0X2xldmVsGAQgASgFIt0ECg5QbGFudGluZ1BvbGljeRIUCgxhdXRvX2VuYWJsZWQYASABKAgSGAoQYXV0b191bmxvY2tfbGFuZBgCIAEoCBIcChRhdXRvX2hhcnZlc3RfZW5hYmxlZBgDIAEoCBIXCg9taW5fd2F0ZXJfZHJvcHMYBiABKAUSHgoWdmlkZW9fc3BlZWRfdXBfZW5hYmxlZBgJIAEoCBIbChN1c2Vfc3BlZWRfdXBfdGlja2V0GAogASgIEhsKE3NwZWVkX3VwX3RpY2tldF9tYXgYCyABKAUSTQoPZGVtYW5kX3ByaW9yaXR5GA4gAygLMjQubXlnYXJkZW53b3JsZC52MS5QbGFudGluZ1BvbGljeS5EZW1hbmRQcmlvcml0eUVudHJ5Eh8KF2RlbWFuZF9wcmlvcml0eV9lbmFibGVkGBIgASgIEjoKEWF1dG9fcmVwbGFudF9tb2RlGA8gASgOMh8ubXlnYXJkZW53b3JsZC52MS5TZWxlY3Rpb25Nb2RlEh8KF2F1dG9fcmVwbGFudF9mbG93ZXJfaWRzGBAgAygFEicKH2F1dG9fcmVwbGFudF9leGNsdWRlX2Zsb3dlcl9pZHMYESADKAUSHgoWYXV0b19yZXBsYW50X3F1YWxpdGllcxgTIAMoBRIeChZhdXRvX3JlcGxhbnRfbWluX2xldmVsGBQgASgFEh0KFWhhcnZlc3RfZGVsYXlfc2Vjb25kcxgVIAEoBRo1ChNEZW1hbmRQcmlvcml0eUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoBToCOAEi2AMKEUZyaWVuZFN0ZWFsUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSEwoLc3RlYWxfZWx2ZXMYAiABKAgSLQoEbW9kZRgDIAEoDjIfLm15Z2FyZGVud29ybGQudjEuU2VsZWN0aW9uTW9kZRIRCglxdWFsaXRpZXMYBCADKAUSEgoKZmxvd2VyX2lkcxgFIAMoBRIaChJleGNsdWRlX2Zsb3dlcl9pZHMYBiADKAUSFgoOYXV0b19idXlfdGltZXMYByABKAgSNAoLZnJpZW5kX21vZGUYCiABKA4yHy5teWdhcmRlbndvcmxkLnYxLlNlbGVjdGlvbk1vZGUSTAoNZnJpZW5kX2NvdW50cxgLIAMoCzI1Lm15Z2FyZGVud29ybGQudjEuRnJpZW5kU3RlYWxQb2xpY3kuRnJpZW5kQ291bnRzRW50cnkSFAoMZXhjbHVkZV91aWRzGAwgAygDEhoKEm1heF9idXlfcGVyX2ZyaWVuZBgNIAEoBRozChFGcmllbmRDb3VudHNFbnRyeRILCgNrZXkYASABKAMSDQoFdmFsdWUYAiABKAU6AjgBSgQICBAJSgQICRAKUglidXlfY291bnRSEW1heF9zcGVuZF9kaWFtb25kIpEDChFGbG93ZXJFbHZlc1BvbGljeRIPCgdlbmFibGVkGAEgASgIEhQKDHNlbGVjdGVkX2lkcxgCIAMoBRITCgtyZXF1ZXN0X2FpZBgDIAEoCBITCgtyZWNlaXZlX2FpZBgEIAEoCBITCgtoZWxwX2ZyaWVuZBgFIAEoCBIQCghkaXNwYXRjaBgGIAEoCBIhChlkaXNwYXRjaF9vbmx5X2RvdWJsZV9idWZmGAcgASgIEhkKEXNwZWVkX3VwX2Rpc3BhdGNoGAggASgIEh8KF3JlY2VpdmVfZGlzcGF0Y2hfcmV3YXJkGAkgASgIEhsKE3Bhc3NfcmV3YXJkX2VuYWJsZWQYCiABKAgSIAoYcGFzc190YXNrX3Jld2FyZF9lbmFibGVkGAsgASgIEiIKGmZsb3dlcl9wYXNzX3Jld2FyZF9lbmFibGVkGAwgASgIEicKH2Zsb3dlcl9wYXNzX3Rhc2tfcmV3YXJkX2VuYWJsZWQYDSABKAgSGQoRbWF4X3NwZW5kX2RpYW1vbmQYDiABKAMisgMKEkZsb3dlck1hcmtldFBvbGljeRIZChFhdXRvX3VubG9ja19zaGVsZhgBIAEoCBITCgtwdXRfZW5hYmxlZBgCIAEoCBIxCghwdXRfbW9kZRgDIAEoDjIfLm15Z2FyZGVud29ybGQudjEuTWFya2V0UHV0TW9kZRIbChNzcGVjaWZpY19mbG93ZXJfaWRzGAQgAygFEhMKC3ByaWNlX2luZGV4GAUgASgFEhAKCG1heF9zZWxsGAYgASgFEhsKE3B1dF9mbG93ZXJfcGFzc3dvcmQYByABKAkSHAoUYXV0b19idXlfZnJvbV9mcmllbmQYCCABKAgSMQoIYnV5X21vZGUYCSABKA4yHy5teWdhcmRlbndvcmxkLnYxLk1hcmtldEJ1eU1vZGUSHwoXYnV5X3NwZWNpZmljX2Zsb3dlcl9pZHMYCiADKAUSFQoNYnV5X3F1YWxpdGllcxgLIAMoBRIcChRtaW5fcHV0X3RpbWVfc2Vjb25kcxgMIAEoBRIZChFtYXhfc3BlbmRfZGlhbW9uZBgNIAEoAxIWCg5tYXhfc3BlbmRfZ29sZBgOIAEoAyKcAgoLT3JkZXJQb2xpY3kSNwoIY3VzdG9tZXIYASABKAsyJS5teWdhcmRlbndvcmxkLnYxLkN1c3RvbWVyT3JkZXJQb2xpY3kSNwoIcmVzaWRlbnQYAiABKAsyJS5teWdhcmRlbndvcmxkLnYxLlJlc2lkZW50T3JkZXJQb2xpY3kSMwoGcGFsYWNlGAMgASgLMiMubXlnYXJkZW53b3JsZC52MS5QYWxhY2VPcmRlclBvbGljeRIvCgR0ZWFtGAQgASgLMiEubXlnYXJkZW53b3JsZC52MS5UZWFtT3JkZXJQb2xpY3kSNQoKZmxvd2VyX2FydBgFIAEoCzIhLm15Z2FyZGVud29ybGQudjEuRmxvd2VyQXJ0UG9saWN5In0KE0N1c3RvbWVyT3JkZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIiChpyZWplY3RfdW5hdmFpbGFibGVfZW5hYmxlZBgCIAEoCBITCgtkYWlseV9saW1pdBgDIAEoBRIcChRtaW5fZmxvd2VyX2FydF9jb3VudBgEIAEoBSLeAQoTUmVzaWRlbnRPcmRlclBvbGljeRIWCg5ub3JtYWxfZW5hYmxlZBgBIAEoCBIaChJub3JtYWxfZGFpbHlfbGltaXQYAiABKAUSGAoQZGVjb3JhdGVfZW5hYmxlZBgDIAEoCBIcChRkZWNvcmF0ZV9kYWlseV9saW1pdBgEIAEoBRIVCg1zYXRpbl9lbmFibGVkGAUgASgIEhkKEXNhdGluX2RhaWx5X2xpbWl0GAYgASgFEhEKCXF1YWxpdGllcxgHIAMoBRIWCg5yZXdhcmRfZW5hYmxlZBgIIAEoCCI3ChFQYWxhY2VPcmRlclBvbGljeRIPCgdlbmFibGVkGAEgASgIEhEKCXF1YWxpdGllcxgCIAMoBSKKAQoPVGVhbU9yZGVyUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSGAoQb25lX21vcmVfZW5hYmxlZBgCIAEoCBIeChZzdWJtaXRfb25seV9jdWx0aXZhdGVkGAMgASgIEhEKCXF1YWxpdGllcxgEIAMoBRIZChFtYXhfc3BlbmRfZGlhbW9uZBgFIAEoAyLuAQoPRmxvd2VyQXJ0UG9saWN5EhkKEWF1dG9fdW5sb2NrX3N0YW5kGAEgASgIEhQKDHNlbGxfZW5hYmxlZBgCIAEoCBIVCg1jcmFmdF9lbmFibGVkGAMgASgIEhwKFGVhcmx5X2NhbmNlbF9lbmFibGVkGAQgASgIEh0KFWNyZWF0ZV9yZXdhcmRfZW5hYmxlZBgHIAEoCBIeChZjb2xsZWN0X3Jld2FyZF9lbmFibGVkGAggASgIEiAKGHNlbGxfbmlnaHRfcGF1c2VfZW5hYmxlZBgJIAEoCBIUCgxzZWxsX2FydF9pZHMYCiADKAUiiwIKC1VuaW9uUG9saWN5EjEKBWJ1aWxkGAEgASgLMiIubXlnYXJkZW53b3JsZC52MS5VbmlvbkJ1aWxkUG9saWN5EjMKBmZsb3dlchgCIAEoCzIjLm15Z2FyZGVud29ybGQudjEuVW5pb25GbG93ZXJQb2xpY3kSLwoEcmFjZRgDIAEoCzIhLm15Z2FyZGVud29ybGQudjEuVW5pb25SYWNlUG9saWN5Ei8KBGxhbmQYBCABKAsyIS5teWdhcmRlbndvcmxkLnYxLlVuaW9uTGFuZFBvbGljeRIaChJyZWRfcGFja2V0X2VuYWJsZWQYBSABKAgSFgoOZm9yZXN0X2VuYWJsZWQYBiABKAgiigEKEFVuaW9uQnVpbGRQb2xpY3kSFAoMZnJlZV9lbmFibGVkGAEgASgIEhQKDGdvbGRfZW5hYmxlZBgCIAEoCBIXCg9kaWFtb25kX2VuYWJsZWQYAyABKAgSFgoObWF4X3NwZW5kX2dvbGQYBCABKAMSGQoRbWF4X3NwZW5kX2RpYW1vbmQYBSABKAMijQIKEVVuaW9uRmxvd2VyUG9saWN5EhUKDXNoYXJlX2VuYWJsZWQYASABKAgSMwoKc2hhcmVfbW9kZRgCIAEoDjIfLm15Z2FyZGVud29ybGQudjEuU2VsZWN0aW9uTW9kZRIXCg9zaGFyZV9xdWFsaXRpZXMYAyADKAUSGAoQc2hhcmVfZmxvd2VyX2lkcxgEIAMoBRIUCgx0YWtlX2VuYWJsZWQYBSABKAgSMgoJdGFrZV9tb2RlGAYgASgOMh8ubXlnYXJkZW53b3JsZC52MS5TZWxlY3Rpb25Nb2RlEhYKDnRha2VfcXVhbGl0aWVzGAcgAygFEhcKD3Rha2VfZmxvd2VyX2lkcxgIIAMoBSKZBAoPVW5pb25SYWNlUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSGwoTYXV0b19lbmFibGVfbW9kdWxlcxgCIAEoCBIiChp1c2Vfc3BlZWR1cF90aWNrZXRfaW5fdGFzaxgDIAEoCBIWCg5taW5fdGFza19zY29yZRgEIAEoBRIZChFvbmx5X3VwZ3JhZGVfdGFzaxgFIAEoCBIjChtleGNsdWRlX290aGVyc191cGdyYWRlX3Rhc2sYBiABKAgSUwoSdGFza190eXBlX3ByaW9yaXR5GAcgAygLMjcubXlnYXJkZW53b3JsZC52MS5VbmlvblJhY2VQb2xpY3kuVGFza1R5cGVQcmlvcml0eUVudHJ5EhQKDHVwZ3JhZGVfdGFzaxgIIAEoCBIdChVkZWxldGVfbG93X3Njb3JlX3Rhc2sYCSABKAgSHQoVZGVsZXRlX3Rhc2tfbWF4X3Njb3JlGAogASgFEhkKEW1heF9zcGVuZF9kaWFtb25kGAsgASgDEh8KF2F1dG9fc3RvcF9vbl9xdW90YV9kb25lGAwgASgIEiAKGHNob3dfcGVyc29uYWxfc2NvcmVfcmFuaxgOIAEoCBo3ChVUYXNrVHlwZVByaW9yaXR5RW50cnkSCwoDa2V5GAEgASgFEg0KBXZhbHVlGAIgASgFOgI4AUoECA0QDlIWdXJnZW50X3NwZWVkdXBfZW5hYmxlZCLCAQoPVW5pb25MYW5kUG9saWN5EhcKD2hhcnZlc3RfZW5hYmxlZBgBIAEoCBIaChJhdXRvX3BsYW50X2VuYWJsZWQYAiABKAgSEQoJcXVhbGl0aWVzGAQgAygFEhIKCmZsb3dlcl9pZHMYBSADKAUSGAoQbWF4X2Zsb3dlcl9sZXZlbBgGIAEoBRIcChRtaW5fbWF0dXJpdHlfbWludXRlcxgHIAEoBRIbChNtaW5fcmVwbGFudF9taW51dGVzGAggASgFIrcBCg5BY3Rpdml0eVBvbGljeRI+Cgdtb2R1bGVzGAIgAygLMi0ubXlnYXJkZW53b3JsZC52MS5BY3Rpdml0eVBvbGljeS5Nb2R1bGVzRW50cnkaVgoMTW9kdWxlc0VudHJ5EgsKA2tleRgBIAEoCRI1CgV2YWx1ZRgCIAEoCzImLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdHlNb2R1bGVQb2xpY3k6AjgBSgQIARACUgdlbmFibGVkIs8EChRBY3Rpdml0eU1vZHVsZVBvbGljeRIPCgdlbmFibGVkGAEgASgIEkkKCmludF9wYXJhbXMYAiADKAsyNS5teWdhcmRlbndvcmxkLnYxLkFjdGl2aXR5TW9kdWxlUG9saWN5LkludFBhcmFtc0VudHJ5EksKC2Jvb2xfcGFyYW1zGAMgAygLMjYubXlnYXJkZW53b3JsZC52MS5BY3Rpdml0eU1vZHVsZVBvbGljeS5Cb29sUGFyYW1zRW50cnkSTwoNc3RyaW5nX3BhcmFtcxgEIAMoCzI4Lm15Z2FyZGVud29ybGQudjEuQWN0aXZpdHlNb2R1bGVQb2xpY3kuU3RyaW5nUGFyYW1zRW50cnkSUgoPaW50X2xpc3RfcGFyYW1zGAUgAygLMjkubXlnYXJkZW53b3JsZC52MS5BY3Rpdml0eU1vZHVsZVBvbGljeS5JbnRMaXN0UGFyYW1zRW50cnkaMAoOSW50UGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgDOgI4ARoxCg9Cb29sUGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgIOgI4ARozChFTdHJpbmdQYXJhbXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGk8KEkludExpc3RQYXJhbXNFbnRyeRILCgNrZXkYASABKAkSKAoFdmFsdWUYAiABKAsyGS5teWdhcmRlbndvcmxkLnYxLkludExpc3Q6AjgBIhkKB0ludExpc3QSDgoGdmFsdWVzGAEgAygFKpwBCg1TZWxlY3Rpb25Nb2RlEh4KGlNFTEVDVElPTl9NT0RFX1VOU1BFQ0lGSUVEEAASFgoSU0VMRUNUSU9OX01PREVfQUxMEAESGgoWU0VMRUNUSU9OX01PREVfUVVBTElUWRACEhsKF1NFTEVDVElPTl9NT0RFX1NQRUNJRklDEAMSGgoWU0VMRUNUSU9OX01PREVfRVhDTFVERRAEKm0KDU1hcmtldFB1dE1vZGUSHwobTUFSS0VUX1BVVF9NT0RFX1VOU1BFQ0lGSUVEEAASHQoZTUFSS0VUX1BVVF9NT0RFX0lOVkVOVE9SWRABEhwKGE1BUktFVF9QVVRfTU9ERV9TUEVDSUZJQxACKoQBCg1NYXJrZXRCdXlNb2RlEh8KG01BUktFVF9CVVlfTU9ERV9VTlNQRUNJRklFRBAAEhcKE01BUktFVF9CVVlfTU9ERV9BTEwQARIcChhNQVJLRVRfQlVZX01PREVfU1BFQ0lGSUMQAhIbChdNQVJLRVRfQlVZX01PREVfUVVBTElUWRADQoQBChRjb20ubXlnYXJkZW53b3JsZC52MUILUG9saWN5UHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM");
+  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3BvbGljeS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLLAgoGUG9saWN5EhoKEmF1dG9tYXRpb25fZW5hYmxlZBgBIAEoCBIsCgViYXNpYxgCIAEoCzIdLm15Z2FyZGVud29ybGQudjEuQmFzaWNQb2xpY3kSLAoFcGxhbnQYAyABKAsyHS5teWdhcmRlbndvcmxkLnYxLlBsYW50UG9saWN5EiwKBW9yZGVyGAQgASgLMh0ubXlnYXJkZW53b3JsZC52MS5PcmRlclBvbGljeRIsCgV1bmlvbhgFIAEoCzIdLm15Z2FyZGVud29ybGQudjEuVW5pb25Qb2xpY3kSMgoIYWN0aXZpdHkYBiABKAsyIC5teWdhcmRlbndvcmxkLnYxLkFjdGl2aXR5UG9saWN5EiEKGWRlY2lzaW9uX2ludGVydmFsX3NlY29uZHMYByABKAESFgoOc2NoZW1hX3ZlcnNpb24YCCABKA0i6wQKC0Jhc2ljUG9saWN5EjYKCnJlcHV0YXRpb24YASABKAsyIi5teWdhcmRlbndvcmxkLnYxLlJlcHV0YXRpb25Qb2xpY3kSIgoacmVjb25uZWN0X2ludGVydmFsX3NlY29uZHMYAiABKAESGAoQaXRlbV9sb2dfZW5hYmxlZBgDIAEoCBIvCgR0YXNrGAQgASgLMiEubXlnYXJkZW53b3JsZC52MS5CYXNpY1Rhc2tQb2xpY3kSGQoRbWFwX2V2ZW50X2VuYWJsZWQYBSABKAgSFAoMbWFpbF9lbmFibGVkGAYgASgIEjAKB2JlbmVmaXQYByABKAsyHy5teWdhcmRlbndvcmxkLnYxLkJlbmVmaXRQb2xpY3kSKgoEc2lnbhgIIAEoCzIcLm15Z2FyZGVud29ybGQudjEuU2lnblBvbGljeRIsCgVwZWFybBgJIAEoCzIdLm15Z2FyZGVud29ybGQudjEuUGVhcmxQb2xpY3kSKgoEc2hvcBgKIAEoCzIcLm15Z2FyZGVud29ybGQudjEuU2hvcFBvbGljeRIoCgN6b28YCyABKAsyGy5teWdhcmRlbndvcmxkLnYxLlpvb1BvbGljeRIaChJ3YXRlcndoZWVsX2VuYWJsZWQYDCABKAgSGgoSZnJlZV93YXRlcl9lbmFibGVkGA0gASgIEh0KFXdhdGVyX2NsYWltX3RocmVzaG9sZBgOIAEoBRIgChhyb2FkX2dyb3dfcmV3YXJkX2VuYWJsZWQYDyABKAgSKQohZGlzcGxhY2VkX3Nlc3Npb25fcmVsb2dpbl9lbmFibGVkGBAgASgIIjYKEFJlcHV0YXRpb25Qb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCgl0aHJlc2hvbGQYAiABKAUiigEKD0Jhc2ljVGFza1BvbGljeRIUCgxtYWluX2VuYWJsZWQYASABKAgSFQoNZGFpbHlfZW5hYmxlZBgCIAEoCBIWCg53ZWVrbHlfZW5hYmxlZBgDIAEoCBIVCg1zdG9yeV9lbmFibGVkGAQgASgIEhsKE2FjaGlldmVtZW50X2VuYWJsZWQYBSABKAgifgoNQmVuZWZpdFBvbGljeRIbChNkb3VibGVfY29pbl9lbmFibGVkGAEgASgIEhMKC2JveF9lbmFibGVkGAIgASgIEhwKFHNoYXJlX3Jld2FyZF9lbmFibGVkGAMgASgIEh0KFWFudGlfc2NhbV9ib3hfZW5hYmxlZBgEIAEoCCI6CgpTaWduUG9saWN5EhUKDWRhaWx5X2VuYWJsZWQYASABKAgSFQoNcGF0Y2hfZW5hYmxlZBgCIAEoCCLdAQoLUGVhcmxQb2xpY3kSFAoMZnJlZV9lbmFibGVkGAEgASgIEhkKEWF1dG9faGlyZV9lbmFibGVkGAIgASgIEhYKDm1heF9oaXJlX2xldmVsGAMgASgFEh0KFW1heF9oaXJlX3RpY2tldF91c2FnZRgEIAEoBRIUCgxkcmF3X2VuYWJsZWQYBSABKAgSFwoPcHJvdGVjdF9lbmFibGVkGAYgASgIEhwKFGF1dG9fYnV5X2hpcmVfdGlja2V0GAcgASgIEhkKEW1heF9zcGVuZF9kaWFtb25kGAggASgDIpkBCgpTaG9wUG9saWN5Eh8KF3ZpZGVvX2ZyZWVfZ2lmdF9lbmFibGVkGAEgASgIEjcKDmN1bHRpdmF0ZV9zaG9wGAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5TaG9wQnV5UG9saWN5EjEKCHZpcF9zaG9wGAMgASgLMh8ubXlnYXJkZW53b3JsZC52MS5WaXBTaG9wUG9saWN5ImYKDVNob3BCdXlQb2xpY3kSEAoIYXV0b19idXkYASABKAgSFgoObWF4X3NwZW5kX2dvbGQYAiABKAMSGQoRbWF4X3NwZW5kX2RpYW1vbmQYAyABKAMSEAoIaXRlbV9pZHMYBCADKAUibQoNVmlwU2hvcFBvbGljeRIQCghhdXRvX2J1eRgBIAEoCBIZChFtYXhfc3BlbmRfZGlhbW9uZBgCIAEoAxIdChVtYXhfc3BlbmRfZmxvcmFsX2NvaW4YAyABKAMSEAoIaXRlbV9pZHMYBCADKAUiqgEKCVpvb1BvbGljeRIPCgdlbmFibGVkGAEgASgIEhoKEmF1dG9fZXZlbnRfZW5hYmxlZBgCIAEoCBIVCg1hdXRvX2J1eV9mb29kGAMgASgIEhEKCWF1dG9fZmVlZBgEIAEoCBITCgthdXRvX3N0cm9rZRgFIAEoCBIWCg5tYXhfc3BlbmRfZ29sZBgGIAEoAxIZChFtYXhfc3BlbmRfZGlhbW9uZBgHIAEoAyKcAgoLUGxhbnRQb2xpY3kSNAoJY3VsdGl2YXRlGAEgASgLMiEubXlnYXJkZW53b3JsZC52MS5DdWx0aXZhdGVQb2xpY3kSMgoIcGxhbnRpbmcYAiABKAsyIC5teWdhcmRlbndvcmxkLnYxLlBsYW50aW5nUG9saWN5EjkKDGZyaWVuZF9zdGVhbBgDIAEoCzIjLm15Z2FyZGVud29ybGQudjEuRnJpZW5kU3RlYWxQb2xpY3kSMgoFZWx2ZXMYBCABKAsyIy5teWdhcmRlbndvcmxkLnYxLkZsb3dlckVsdmVzUG9saWN5EjQKBm1hcmtldBgFIAEoCzIkLm15Z2FyZGVud29ybGQudjEuRmxvd2VyTWFya2V0UG9saWN5InEKD0N1bHRpdmF0ZVBvbGljeRIPCgdlbmFibGVkGAEgASgIEh4KFnZpZGVvX3NwZWVkX3VwX2VuYWJsZWQYAiABKAgSFwoPdXBncmFkZV9lbmFibGVkGAMgASgIEhQKDHRhcmdldF9sZXZlbBgEIAEoBSLdBAoOUGxhbnRpbmdQb2xpY3kSFAoMYXV0b19lbmFibGVkGAEgASgIEhgKEGF1dG9fdW5sb2NrX2xhbmQYAiABKAgSHAoUYXV0b19oYXJ2ZXN0X2VuYWJsZWQYAyABKAgSFwoPbWluX3dhdGVyX2Ryb3BzGAQgASgFEh4KFnZpZGVvX3NwZWVkX3VwX2VuYWJsZWQYBSABKAgSGwoTdXNlX3NwZWVkX3VwX3RpY2tldBgGIAEoCBIbChNzcGVlZF91cF90aWNrZXRfbWF4GAcgASgFEk0KD2RlbWFuZF9wcmlvcml0eRgIIAMoCzI0Lm15Z2FyZGVud29ybGQudjEuUGxhbnRpbmdQb2xpY3kuRGVtYW5kUHJpb3JpdHlFbnRyeRIfChdkZW1hbmRfcHJpb3JpdHlfZW5hYmxlZBgJIAEoCBI6ChFhdXRvX3JlcGxhbnRfbW9kZRgKIAEoDjIfLm15Z2FyZGVud29ybGQudjEuU2VsZWN0aW9uTW9kZRIfChdhdXRvX3JlcGxhbnRfZmxvd2VyX2lkcxgLIAMoBRInCh9hdXRvX3JlcGxhbnRfZXhjbHVkZV9mbG93ZXJfaWRzGAwgAygFEh4KFmF1dG9fcmVwbGFudF9xdWFsaXRpZXMYDSADKAUSHgoWYXV0b19yZXBsYW50X21pbl9sZXZlbBgOIAEoBRIdChVoYXJ2ZXN0X2RlbGF5X3NlY29uZHMYDyABKAUaNQoTRGVtYW5kUHJpb3JpdHlFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAU6AjgBIq4DChFGcmllbmRTdGVhbFBvbGljeRIPCgdlbmFibGVkGAEgASgIEhMKC3N0ZWFsX2VsdmVzGAIgASgIEi0KBG1vZGUYAyABKA4yHy5teWdhcmRlbndvcmxkLnYxLlNlbGVjdGlvbk1vZGUSEQoJcXVhbGl0aWVzGAQgAygFEhIKCmZsb3dlcl9pZHMYBSADKAUSGgoSZXhjbHVkZV9mbG93ZXJfaWRzGAYgAygFEhYKDmF1dG9fYnV5X3RpbWVzGAcgASgIEjQKC2ZyaWVuZF9tb2RlGAggASgOMh8ubXlnYXJkZW53b3JsZC52MS5TZWxlY3Rpb25Nb2RlEkwKDWZyaWVuZF9jb3VudHMYCSADKAsyNS5teWdhcmRlbndvcmxkLnYxLkZyaWVuZFN0ZWFsUG9saWN5LkZyaWVuZENvdW50c0VudHJ5EhQKDGV4Y2x1ZGVfdWlkcxgKIAMoAxIaChJtYXhfYnV5X3Blcl9mcmllbmQYCyABKAUaMwoRRnJpZW5kQ291bnRzRW50cnkSCwoDa2V5GAEgASgDEg0KBXZhbHVlGAIgASgFOgI4ASKRAwoRRmxvd2VyRWx2ZXNQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIUCgxzZWxlY3RlZF9pZHMYAiADKAUSEwoLcmVxdWVzdF9haWQYAyABKAgSEwoLcmVjZWl2ZV9haWQYBCABKAgSEwoLaGVscF9mcmllbmQYBSABKAgSEAoIZGlzcGF0Y2gYBiABKAgSIQoZZGlzcGF0Y2hfb25seV9kb3VibGVfYnVmZhgHIAEoCBIZChFzcGVlZF91cF9kaXNwYXRjaBgIIAEoCBIfChdyZWNlaXZlX2Rpc3BhdGNoX3Jld2FyZBgJIAEoCBIbChNwYXNzX3Jld2FyZF9lbmFibGVkGAogASgIEiAKGHBhc3NfdGFza19yZXdhcmRfZW5hYmxlZBgLIAEoCBIiChpmbG93ZXJfcGFzc19yZXdhcmRfZW5hYmxlZBgMIAEoCBInCh9mbG93ZXJfcGFzc190YXNrX3Jld2FyZF9lbmFibGVkGA0gASgIEhkKEW1heF9zcGVuZF9kaWFtb25kGA4gASgDIrIDChJGbG93ZXJNYXJrZXRQb2xpY3kSGQoRYXV0b191bmxvY2tfc2hlbGYYASABKAgSEwoLcHV0X2VuYWJsZWQYAiABKAgSMQoIcHV0X21vZGUYAyABKA4yHy5teWdhcmRlbndvcmxkLnYxLk1hcmtldFB1dE1vZGUSGwoTc3BlY2lmaWNfZmxvd2VyX2lkcxgEIAMoBRITCgtwcmljZV9pbmRleBgFIAEoBRIQCghtYXhfc2VsbBgGIAEoBRIbChNwdXRfZmxvd2VyX3Bhc3N3b3JkGAcgASgJEhwKFGF1dG9fYnV5X2Zyb21fZnJpZW5kGAggASgIEjEKCGJ1eV9tb2RlGAkgASgOMh8ubXlnYXJkZW53b3JsZC52MS5NYXJrZXRCdXlNb2RlEh8KF2J1eV9zcGVjaWZpY19mbG93ZXJfaWRzGAogAygFEhUKDWJ1eV9xdWFsaXRpZXMYCyADKAUSHAoUbWluX3B1dF90aW1lX3NlY29uZHMYDCABKAUSGQoRbWF4X3NwZW5kX2RpYW1vbmQYDSABKAMSFgoObWF4X3NwZW5kX2dvbGQYDiABKAMinAIKC09yZGVyUG9saWN5EjcKCGN1c3RvbWVyGAEgASgLMiUubXlnYXJkZW53b3JsZC52MS5DdXN0b21lck9yZGVyUG9saWN5EjcKCHJlc2lkZW50GAIgASgLMiUubXlnYXJkZW53b3JsZC52MS5SZXNpZGVudE9yZGVyUG9saWN5EjMKBnBhbGFjZRgDIAEoCzIjLm15Z2FyZGVud29ybGQudjEuUGFsYWNlT3JkZXJQb2xpY3kSLwoEdGVhbRgEIAEoCzIhLm15Z2FyZGVud29ybGQudjEuVGVhbU9yZGVyUG9saWN5EjUKCmZsb3dlcl9hcnQYBSABKAsyIS5teWdhcmRlbndvcmxkLnYxLkZsb3dlckFydFBvbGljeSJ9ChNDdXN0b21lck9yZGVyUG9saWN5Eg8KB2VuYWJsZWQYASABKAgSIgoacmVqZWN0X3VuYXZhaWxhYmxlX2VuYWJsZWQYAiABKAgSEwoLZGFpbHlfbGltaXQYAyABKAUSHAoUbWluX2Zsb3dlcl9hcnRfY291bnQYBCABKAUi3gEKE1Jlc2lkZW50T3JkZXJQb2xpY3kSFgoObm9ybWFsX2VuYWJsZWQYASABKAgSGgoSbm9ybWFsX2RhaWx5X2xpbWl0GAIgASgFEhgKEGRlY29yYXRlX2VuYWJsZWQYAyABKAgSHAoUZGVjb3JhdGVfZGFpbHlfbGltaXQYBCABKAUSFQoNc2F0aW5fZW5hYmxlZBgFIAEoCBIZChFzYXRpbl9kYWlseV9saW1pdBgGIAEoBRIRCglxdWFsaXRpZXMYByADKAUSFgoOcmV3YXJkX2VuYWJsZWQYCCABKAgiNwoRUGFsYWNlT3JkZXJQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIRCglxdWFsaXRpZXMYAiADKAUiigEKD1RlYW1PcmRlclBvbGljeRIPCgdlbmFibGVkGAEgASgIEhgKEG9uZV9tb3JlX2VuYWJsZWQYAiABKAgSHgoWc3VibWl0X29ubHlfY3VsdGl2YXRlZBgDIAEoCBIRCglxdWFsaXRpZXMYBCADKAUSGQoRbWF4X3NwZW5kX2RpYW1vbmQYBSABKAMi7gEKD0Zsb3dlckFydFBvbGljeRIZChFhdXRvX3VubG9ja19zdGFuZBgBIAEoCBIUCgxzZWxsX2VuYWJsZWQYAiABKAgSFQoNY3JhZnRfZW5hYmxlZBgDIAEoCBIcChRlYXJseV9jYW5jZWxfZW5hYmxlZBgEIAEoCBIdChVjcmVhdGVfcmV3YXJkX2VuYWJsZWQYBSABKAgSHgoWY29sbGVjdF9yZXdhcmRfZW5hYmxlZBgGIAEoCBIgChhzZWxsX25pZ2h0X3BhdXNlX2VuYWJsZWQYByABKAgSFAoMc2VsbF9hcnRfaWRzGAggAygFIosCCgtVbmlvblBvbGljeRIxCgVidWlsZBgBIAEoCzIiLm15Z2FyZGVud29ybGQudjEuVW5pb25CdWlsZFBvbGljeRIzCgZmbG93ZXIYAiABKAsyIy5teWdhcmRlbndvcmxkLnYxLlVuaW9uRmxvd2VyUG9saWN5Ei8KBHJhY2UYAyABKAsyIS5teWdhcmRlbndvcmxkLnYxLlVuaW9uUmFjZVBvbGljeRIvCgRsYW5kGAQgASgLMiEubXlnYXJkZW53b3JsZC52MS5VbmlvbkxhbmRQb2xpY3kSGgoScmVkX3BhY2tldF9lbmFibGVkGAUgASgIEhYKDmZvcmVzdF9lbmFibGVkGAYgASgIIooBChBVbmlvbkJ1aWxkUG9saWN5EhQKDGZyZWVfZW5hYmxlZBgBIAEoCBIUCgxnb2xkX2VuYWJsZWQYAiABKAgSFwoPZGlhbW9uZF9lbmFibGVkGAMgASgIEhYKDm1heF9zcGVuZF9nb2xkGAQgASgDEhkKEW1heF9zcGVuZF9kaWFtb25kGAUgASgDIo0CChFVbmlvbkZsb3dlclBvbGljeRIVCg1zaGFyZV9lbmFibGVkGAEgASgIEjMKCnNoYXJlX21vZGUYAiABKA4yHy5teWdhcmRlbndvcmxkLnYxLlNlbGVjdGlvbk1vZGUSFwoPc2hhcmVfcXVhbGl0aWVzGAMgAygFEhgKEHNoYXJlX2Zsb3dlcl9pZHMYBCADKAUSFAoMdGFrZV9lbmFibGVkGAUgASgIEjIKCXRha2VfbW9kZRgGIAEoDjIfLm15Z2FyZGVud29ybGQudjEuU2VsZWN0aW9uTW9kZRIWCg50YWtlX3F1YWxpdGllcxgHIAMoBRIXCg90YWtlX2Zsb3dlcl9pZHMYCCADKAUi+wMKD1VuaW9uUmFjZVBvbGljeRIPCgdlbmFibGVkGAEgASgIEhsKE2F1dG9fZW5hYmxlX21vZHVsZXMYAiABKAgSIgoadXNlX3NwZWVkdXBfdGlja2V0X2luX3Rhc2sYAyABKAgSFgoObWluX3Rhc2tfc2NvcmUYBCABKAUSGQoRb25seV91cGdyYWRlX3Rhc2sYBSABKAgSIwobZXhjbHVkZV9vdGhlcnNfdXBncmFkZV90YXNrGAYgASgIElMKEnRhc2tfdHlwZV9wcmlvcml0eRgHIAMoCzI3Lm15Z2FyZGVud29ybGQudjEuVW5pb25SYWNlUG9saWN5LlRhc2tUeXBlUHJpb3JpdHlFbnRyeRIUCgx1cGdyYWRlX3Rhc2sYCCABKAgSHQoVZGVsZXRlX2xvd19zY29yZV90YXNrGAkgASgIEh0KFWRlbGV0ZV90YXNrX21heF9zY29yZRgKIAEoBRIZChFtYXhfc3BlbmRfZGlhbW9uZBgLIAEoAxIfChdhdXRvX3N0b3Bfb25fcXVvdGFfZG9uZRgMIAEoCBIgChhzaG93X3BlcnNvbmFsX3Njb3JlX3JhbmsYDSABKAgaNwoVVGFza1R5cGVQcmlvcml0eUVudHJ5EgsKA2tleRgBIAEoBRINCgV2YWx1ZRgCIAEoBToCOAEiwgEKD1VuaW9uTGFuZFBvbGljeRIXCg9oYXJ2ZXN0X2VuYWJsZWQYASABKAgSGgoSYXV0b19wbGFudF9lbmFibGVkGAIgASgIEhEKCXF1YWxpdGllcxgDIAMoBRISCgpmbG93ZXJfaWRzGAQgAygFEhgKEG1heF9mbG93ZXJfbGV2ZWwYBSABKAUSHAoUbWluX21hdHVyaXR5X21pbnV0ZXMYBiABKAUSGwoTbWluX3JlcGxhbnRfbWludXRlcxgHIAEoBSK2AQoOQWN0aXZpdHlQb2xpY3kSNwoLY3ljbGljX25vdGUYASABKAsyIi5teWdhcmRlbndvcmxkLnYxLkN5Y2xpY05vdGVQb2xpY3kSOQoMY3ljbGljX3N0b3J5GAIgASgLMiMubXlnYXJkZW53b3JsZC52MS5DeWNsaWNTdG9yeVBvbGljeRIwCgdkZXNzZXJ0GAMgASgLMh8ubXlnYXJkZW53b3JsZC52MS5EZXNzZXJ0UG9saWN5In4KEEN5Y2xpY05vdGVQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIfChdhdXRvX2NsYWltX3Rhc2tfcmV3YXJkcxgCIAEoCBIhChlhdXRvX2NsYWltX3Byb2dyZXNzX2JveGVzGAMgASgIEhUKDXNhdGlzZnlfdGFza3MYBCABKAgifAoRQ3ljbGljU3RvcnlQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIgChhhdXRvX2NsYWltX29yZGVyX3Jld2FyZHMYAiABKAgSIQoZYXV0b19jbGFpbV9wcm9ncmVzc19ib3hlcxgDIAEoCBIRCgltYXhfc2NvcmUYBCABKAMinQIKDURlc3NlcnRQb2xpY3kSDwoHZW5hYmxlZBgBIAEoCBIfChdhdXRvX2NsYWltX3Rhc2tfcmV3YXJkcxgCIAEoCBIbChNhdXRvX2xpa2VfY2VsZWJyaXR5GAMgASgIEiEKGWF1dG9fY2xhaW1fcHJvZ3Jlc3NfYm94ZXMYBCABKAgSHgoWYXV0b19vcGVuX3Jld2FyZF9ib3hlcxgFIAEoCBIRCglhdXRvX3BsYXkYBiABKAgSHQoVcmVzdW1lX2V4aXN0aW5nX3JvdW5kGAcgASgIEgwKBG1vZGUYCCABKAUSHgoWbWF4X2VuZXJneV9wZXJfc2Vzc2lvbhgJIAEoBRIaChJtaW5fZW5lcmd5X3Jlc2VydmUYCiABKAUqnAEKDVNlbGVjdGlvbk1vZGUSHgoaU0VMRUNUSU9OX01PREVfVU5TUEVDSUZJRUQQABIWChJTRUxFQ1RJT05fTU9ERV9BTEwQARIaChZTRUxFQ1RJT05fTU9ERV9RVUFMSVRZEAISGwoXU0VMRUNUSU9OX01PREVfU1BFQ0lGSUMQAxIaChZTRUxFQ1RJT05fTU9ERV9FWENMVURFEAQqbQoNTWFya2V0UHV0TW9kZRIfChtNQVJLRVRfUFVUX01PREVfVU5TUEVDSUZJRUQQABIdChlNQVJLRVRfUFVUX01PREVfSU5WRU5UT1JZEAESHAoYTUFSS0VUX1BVVF9NT0RFX1NQRUNJRklDEAIqhAEKDU1hcmtldEJ1eU1vZGUSHwobTUFSS0VUX0JVWV9NT0RFX1VOU1BFQ0lGSUVEEAASFwoTTUFSS0VUX0JVWV9NT0RFX0FMTBABEhwKGE1BUktFVF9CVVlfTU9ERV9TUEVDSUZJQxACEhsKF01BUktFVF9CVVlfTU9ERV9RVUFMSVRZEANChAEKFGNvbS5teWdhcmRlbndvcmxkLnYxQgtQb2xpY3lQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw");
 
 /**
  * Policy is the full automation configuration for one game account. It is
@@ -53,7 +53,7 @@ export type Policy = Message<"mygardenworld.v1.Policy"> & {
   /**
    * Seconds between decision ticks. Default 4.
    *
-   * @generated from field: double decision_interval_seconds = 10;
+   * @generated from field: double decision_interval_seconds = 7;
    */
   decisionIntervalSeconds: number;
 
@@ -61,7 +61,7 @@ export type Policy = Message<"mygardenworld.v1.Policy"> & {
    * Exact policy document schema. Clients must send the current version;
    * persisted documents are upgraded only by explicit database migrations.
    *
-   * @generated from field: uint32 schema_version = 11;
+   * @generated from field: uint32 schema_version = 8;
    */
   schemaVersion: number;
 };
@@ -564,27 +564,27 @@ export type PlantingPolicy = Message<"mygardenworld.v1.PlantingPolicy"> & {
   autoHarvestEnabled: boolean;
 
   /**
-   * @generated from field: int32 min_water_drops = 6;
+   * @generated from field: int32 min_water_drops = 4;
    */
   minWaterDrops: number;
 
   /**
-   * @generated from field: bool video_speed_up_enabled = 9;
+   * @generated from field: bool video_speed_up_enabled = 5;
    */
   videoSpeedUpEnabled: boolean;
 
   /**
-   * @generated from field: bool use_speed_up_ticket = 10;
+   * @generated from field: bool use_speed_up_ticket = 6;
    */
   useSpeedUpTicket: boolean;
 
   /**
-   * @generated from field: int32 speed_up_ticket_max = 11;
+   * @generated from field: int32 speed_up_ticket_max = 7;
    */
   speedUpTicketMax: number;
 
   /**
-   * @generated from field: map<string, int32> demand_priority = 14;
+   * @generated from field: map<string, int32> demand_priority = 8;
    */
   demandPriority: { [key: string]: number };
 
@@ -593,7 +593,7 @@ export type PlantingPolicy = Message<"mygardenworld.v1.PlantingPolicy"> & {
    * When true, missing flowers for enabled tasks/orders claim empty land first,
    * ordered by demand_priority, then autonomous replant fills any remainder.
    *
-   * @generated from field: bool demand_priority_enabled = 18;
+   * @generated from field: bool demand_priority_enabled = 9;
    */
   demandPriorityEnabled: boolean;
 
@@ -601,17 +601,17 @@ export type PlantingPolicy = Message<"mygardenworld.v1.PlantingPolicy"> & {
    * These fields only limit autonomous empty-land replanting. Demand-driven
    * planting for enabled tasks/orders always uses the required flower.
    *
-   * @generated from field: mygardenworld.v1.SelectionMode auto_replant_mode = 15;
+   * @generated from field: mygardenworld.v1.SelectionMode auto_replant_mode = 10;
    */
   autoReplantMode: SelectionMode;
 
   /**
-   * @generated from field: repeated int32 auto_replant_flower_ids = 16;
+   * @generated from field: repeated int32 auto_replant_flower_ids = 11;
    */
   autoReplantFlowerIds: number[];
 
   /**
-   * @generated from field: repeated int32 auto_replant_exclude_flower_ids = 17;
+   * @generated from field: repeated int32 auto_replant_exclude_flower_ids = 12;
    */
   autoReplantExcludeFlowerIds: number[];
 
@@ -619,7 +619,7 @@ export type PlantingPolicy = Message<"mygardenworld.v1.PlantingPolicy"> & {
    * When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
    * Otherwise only the selected qualities are eligible for autonomous replanting.
    *
-   * @generated from field: repeated int32 auto_replant_qualities = 19;
+   * @generated from field: repeated int32 auto_replant_qualities = 13;
    */
   autoReplantQualities: number[];
 
@@ -629,7 +629,7 @@ export type PlantingPolicy = Message<"mygardenworld.v1.PlantingPolicy"> & {
    * planted (through FlowerMaxLevel, typically 20). Does not restrict
    * demand-driven planting for tasks/orders.
    *
-   * @generated from field: int32 auto_replant_min_level = 20;
+   * @generated from field: int32 auto_replant_min_level = 14;
    */
   autoReplantMinLevel: number;
 
@@ -640,7 +640,7 @@ export type PlantingPolicy = Message<"mygardenworld.v1.PlantingPolicy"> & {
    * Guild-race plant-harvest flowers always ignore this delay (harvest ASAP)
    * while an unfinished race task is held, even when auto_harvest_enabled is off.
    *
-   * @generated from field: int32 harvest_delay_seconds = 21;
+   * @generated from field: int32 harvest_delay_seconds = 15;
    */
   harvestDelaySeconds: number;
 };
@@ -695,24 +695,24 @@ export type FriendStealPolicy = Message<"mygardenworld.v1.FriendStealPolicy"> & 
    * Friend selection is separate from mode, which selects flower types.
    * Only ALL and SPECIFIC are accepted here.
    *
-   * @generated from field: mygardenworld.v1.SelectionMode friend_mode = 10;
+   * @generated from field: mygardenworld.v1.SelectionMode friend_mode = 8;
    */
   friendMode: SelectionMode;
 
   /**
-   * @generated from field: map<int64, int32> friend_counts = 11;
+   * @generated from field: map<int64, int32> friend_counts = 9;
    */
   friendCounts: { [key: string]: number };
 
   /**
-   * @generated from field: repeated int64 exclude_uids = 12;
+   * @generated from field: repeated int64 exclude_uids = 10;
    */
   excludeUids: bigint[];
 
   /**
    * Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
    *
-   * @generated from field: int32 max_buy_per_friend = 13;
+   * @generated from field: int32 max_buy_per_friend = 11;
    */
   maxBuyPerFriend: number;
 };
@@ -1098,12 +1098,12 @@ export type FlowerArtPolicy = Message<"mygardenworld.v1.FlowerArtPolicy"> & {
   earlyCancelEnabled: boolean;
 
   /**
-   * @generated from field: bool create_reward_enabled = 7;
+   * @generated from field: bool create_reward_enabled = 5;
    */
   createRewardEnabled: boolean;
 
   /**
-   * @generated from field: bool collect_reward_enabled = 8;
+   * @generated from field: bool collect_reward_enabled = 6;
    */
   collectRewardEnabled: boolean;
 
@@ -1111,7 +1111,7 @@ export type FlowerArtPolicy = Message<"mygardenworld.v1.FlowerArtPolicy"> & {
    * When true together with sell_enabled, skip auto listing (and rack craft for
    * listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
    *
-   * @generated from field: bool sell_night_pause_enabled = 9;
+   * @generated from field: bool sell_night_pause_enabled = 7;
    */
   sellNightPauseEnabled: boolean;
 
@@ -1120,7 +1120,7 @@ export type FlowerArtPolicy = Message<"mygardenworld.v1.FlowerArtPolicy"> & {
    * is unlocked are considered. Empty means list the finished art with the
    * highest inventory count among unlocked-vase recipes.
    *
-   * @generated from field: repeated int32 sell_art_ids = 10;
+   * @generated from field: repeated int32 sell_art_ids = 8;
    */
   sellArtIds: number[];
 };
@@ -1342,7 +1342,7 @@ export type UnionRacePolicy = Message<"mygardenworld.v1.UnionRacePolicy"> & {
    * When true, the race monitor shows personal cumulative score and guild-member
    * rank for the current batch. Default off.
    *
-   * @generated from field: bool show_personal_score_rank = 14;
+   * @generated from field: bool show_personal_score_rank = 13;
    */
   showPersonalScoreRank: boolean;
 };
@@ -1369,17 +1369,17 @@ export type UnionLandPolicy = Message<"mygardenworld.v1.UnionLandPolicy"> & {
   autoPlantEnabled: boolean;
 
   /**
-   * @generated from field: repeated int32 qualities = 4;
+   * @generated from field: repeated int32 qualities = 3;
    */
   qualities: number[];
 
   /**
-   * @generated from field: repeated int32 flower_ids = 5;
+   * @generated from field: repeated int32 flower_ids = 4;
    */
   flowerIds: number[];
 
   /**
-   * @generated from field: int32 max_flower_level = 6;
+   * @generated from field: int32 max_flower_level = 5;
    */
   maxFlowerLevel: number;
 
@@ -1390,7 +1390,7 @@ export type UnionLandPolicy = Message<"mygardenworld.v1.UnionLandPolicy"> & {
    * low-level flowers (except when the current crop matures within 2 minutes).
    * 0 means default 20.
    *
-   * @generated from field: int32 min_maturity_minutes = 7;
+   * @generated from field: int32 min_maturity_minutes = 6;
    */
   minMaturityMinutes: number;
 
@@ -1400,7 +1400,7 @@ export type UnionLandPolicy = Message<"mygardenworld.v1.UnionLandPolicy"> & {
    * planted for at least this many minutes. Empty slots are always filled.
    * Multiple flower types may coexist across guild lands. 0 means default 60.
    *
-   * @generated from field: int32 min_replant_minutes = 8;
+   * @generated from field: int32 min_replant_minutes = 7;
    */
   minReplantMinutes: number;
 };
@@ -1417,9 +1417,19 @@ export const UnionLandPolicySchema: GenMessage<UnionLandPolicy> = /*@__PURE__*/
  */
 export type ActivityPolicy = Message<"mygardenworld.v1.ActivityPolicy"> & {
   /**
-   * @generated from field: map<string, mygardenworld.v1.ActivityModulePolicy> modules = 2;
+   * @generated from field: mygardenworld.v1.CyclicNotePolicy cyclic_note = 1;
    */
-  modules: { [key: string]: ActivityModulePolicy };
+  cyclicNote?: CyclicNotePolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.CyclicStoryPolicy cyclic_story = 2;
+   */
+  cyclicStory?: CyclicStoryPolicy | undefined;
+
+  /**
+   * @generated from field: mygardenworld.v1.DessertPolicy dessert = 3;
+   */
+  dessert?: DessertPolicy | undefined;
 };
 
 /**
@@ -1430,58 +1440,130 @@ export const ActivityPolicySchema: GenMessage<ActivityPolicy> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_policy, 28);
 
 /**
- * @generated from message mygardenworld.v1.ActivityModulePolicy
+ * @generated from message mygardenworld.v1.CyclicNotePolicy
  */
-export type ActivityModulePolicy = Message<"mygardenworld.v1.ActivityModulePolicy"> & {
+export type CyclicNotePolicy = Message<"mygardenworld.v1.CyclicNotePolicy"> & {
   /**
    * @generated from field: bool enabled = 1;
    */
   enabled: boolean;
 
   /**
-   * @generated from field: map<string, int64> int_params = 2;
+   * @generated from field: bool auto_claim_task_rewards = 2;
    */
-  intParams: { [key: string]: bigint };
+  autoClaimTaskRewards: boolean;
 
   /**
-   * @generated from field: map<string, bool> bool_params = 3;
+   * @generated from field: bool auto_claim_progress_boxes = 3;
    */
-  boolParams: { [key: string]: boolean };
+  autoClaimProgressBoxes: boolean;
 
   /**
-   * @generated from field: map<string, string> string_params = 4;
+   * @generated from field: bool satisfy_tasks = 4;
    */
-  stringParams: { [key: string]: string };
-
-  /**
-   * @generated from field: map<string, mygardenworld.v1.IntList> int_list_params = 5;
-   */
-  intListParams: { [key: string]: IntList };
+  satisfyTasks: boolean;
 };
 
 /**
- * Describes the message mygardenworld.v1.ActivityModulePolicy.
- * Use `create(ActivityModulePolicySchema)` to create a new message.
+ * Describes the message mygardenworld.v1.CyclicNotePolicy.
+ * Use `create(CyclicNotePolicySchema)` to create a new message.
  */
-export const ActivityModulePolicySchema: GenMessage<ActivityModulePolicy> = /*@__PURE__*/
+export const CyclicNotePolicySchema: GenMessage<CyclicNotePolicy> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_policy, 29);
 
 /**
- * @generated from message mygardenworld.v1.IntList
+ * @generated from message mygardenworld.v1.CyclicStoryPolicy
  */
-export type IntList = Message<"mygardenworld.v1.IntList"> & {
+export type CyclicStoryPolicy = Message<"mygardenworld.v1.CyclicStoryPolicy"> & {
   /**
-   * @generated from field: repeated int32 values = 1;
+   * @generated from field: bool enabled = 1;
    */
-  values: number[];
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool auto_claim_order_rewards = 2;
+   */
+  autoClaimOrderRewards: boolean;
+
+  /**
+   * @generated from field: bool auto_claim_progress_boxes = 3;
+   */
+  autoClaimProgressBoxes: boolean;
+
+  /**
+   * @generated from field: int64 max_score = 4;
+   */
+  maxScore: bigint;
 };
 
 /**
- * Describes the message mygardenworld.v1.IntList.
- * Use `create(IntListSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.CyclicStoryPolicy.
+ * Use `create(CyclicStoryPolicySchema)` to create a new message.
  */
-export const IntListSchema: GenMessage<IntList> = /*@__PURE__*/
+export const CyclicStoryPolicySchema: GenMessage<CyclicStoryPolicy> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_policy, 30);
+
+/**
+ * @generated from message mygardenworld.v1.DessertPolicy
+ */
+export type DessertPolicy = Message<"mygardenworld.v1.DessertPolicy"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool auto_claim_task_rewards = 2;
+   */
+  autoClaimTaskRewards: boolean;
+
+  /**
+   * @generated from field: bool auto_like_celebrity = 3;
+   */
+  autoLikeCelebrity: boolean;
+
+  /**
+   * @generated from field: bool auto_claim_progress_boxes = 4;
+   */
+  autoClaimProgressBoxes: boolean;
+
+  /**
+   * @generated from field: bool auto_open_reward_boxes = 5;
+   */
+  autoOpenRewardBoxes: boolean;
+
+  /**
+   * @generated from field: bool auto_play = 6;
+   */
+  autoPlay: boolean;
+
+  /**
+   * @generated from field: bool resume_existing_round = 7;
+   */
+  resumeExistingRound: boolean;
+
+  /**
+   * @generated from field: int32 mode = 8;
+   */
+  mode: number;
+
+  /**
+   * @generated from field: int32 max_energy_per_session = 9;
+   */
+  maxEnergyPerSession: number;
+
+  /**
+   * @generated from field: int32 min_energy_reserve = 10;
+   */
+  minEnergyReserve: number;
+};
+
+/**
+ * Describes the message mygardenworld.v1.DessertPolicy.
+ * Use `create(DessertPolicySchema)` to create a new message.
+ */
+export const DessertPolicySchema: GenMessage<DessertPolicy> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_policy, 31);
 
 /**
  * @generated from enum mygardenworld.v1.SelectionMode

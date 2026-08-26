@@ -189,10 +189,10 @@ type Policy struct {
 	Union             *UnionPolicy           `protobuf:"bytes,5,opt,name=union,proto3" json:"union,omitempty"`
 	Activity          *ActivityPolicy        `protobuf:"bytes,6,opt,name=activity,proto3" json:"activity,omitempty"`
 	// Seconds between decision ticks. Default 4.
-	DecisionIntervalSeconds float64 `protobuf:"fixed64,10,opt,name=decision_interval_seconds,json=decisionIntervalSeconds,proto3" json:"decision_interval_seconds,omitempty"`
+	DecisionIntervalSeconds float64 `protobuf:"fixed64,7,opt,name=decision_interval_seconds,json=decisionIntervalSeconds,proto3" json:"decision_interval_seconds,omitempty"`
 	// Exact policy document schema. Clients must send the current version;
 	// persisted documents are upgraded only by explicit database migrations.
-	SchemaVersion uint32 `protobuf:"varint,11,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	SchemaVersion uint32 `protobuf:"varint,8,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1237,34 +1237,34 @@ type PlantingPolicy struct {
 	AutoEnabled         bool                   `protobuf:"varint,1,opt,name=auto_enabled,json=autoEnabled,proto3" json:"auto_enabled,omitempty"`
 	AutoUnlockLand      bool                   `protobuf:"varint,2,opt,name=auto_unlock_land,json=autoUnlockLand,proto3" json:"auto_unlock_land,omitempty"`
 	AutoHarvestEnabled  bool                   `protobuf:"varint,3,opt,name=auto_harvest_enabled,json=autoHarvestEnabled,proto3" json:"auto_harvest_enabled,omitempty"`
-	MinWaterDrops       int32                  `protobuf:"varint,6,opt,name=min_water_drops,json=minWaterDrops,proto3" json:"min_water_drops,omitempty"`
-	VideoSpeedUpEnabled bool                   `protobuf:"varint,9,opt,name=video_speed_up_enabled,json=videoSpeedUpEnabled,proto3" json:"video_speed_up_enabled,omitempty"`
-	UseSpeedUpTicket    bool                   `protobuf:"varint,10,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
-	SpeedUpTicketMax    int32                  `protobuf:"varint,11,opt,name=speed_up_ticket_max,json=speedUpTicketMax,proto3" json:"speed_up_ticket_max,omitempty"`
-	DemandPriority      map[string]int32       `protobuf:"bytes,14,rep,name=demand_priority,json=demandPriority,proto3" json:"demand_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	MinWaterDrops       int32                  `protobuf:"varint,4,opt,name=min_water_drops,json=minWaterDrops,proto3" json:"min_water_drops,omitempty"`
+	VideoSpeedUpEnabled bool                   `protobuf:"varint,5,opt,name=video_speed_up_enabled,json=videoSpeedUpEnabled,proto3" json:"video_speed_up_enabled,omitempty"`
+	UseSpeedUpTicket    bool                   `protobuf:"varint,6,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
+	SpeedUpTicketMax    int32                  `protobuf:"varint,7,opt,name=speed_up_ticket_max,json=speedUpTicketMax,proto3" json:"speed_up_ticket_max,omitempty"`
+	DemandPriority      map[string]int32       `protobuf:"bytes,8,rep,name=demand_priority,json=demandPriority,proto3" json:"demand_priority,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	// When false (default), empty-land planting uses autonomous replant only.
 	// When true, missing flowers for enabled tasks/orders claim empty land first,
 	// ordered by demand_priority, then autonomous replant fills any remainder.
-	DemandPriorityEnabled bool `protobuf:"varint,18,opt,name=demand_priority_enabled,json=demandPriorityEnabled,proto3" json:"demand_priority_enabled,omitempty"`
+	DemandPriorityEnabled bool `protobuf:"varint,9,opt,name=demand_priority_enabled,json=demandPriorityEnabled,proto3" json:"demand_priority_enabled,omitempty"`
 	// These fields only limit autonomous empty-land replanting. Demand-driven
 	// planting for enabled tasks/orders always uses the required flower.
-	AutoReplantMode             SelectionMode `protobuf:"varint,15,opt,name=auto_replant_mode,json=autoReplantMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"auto_replant_mode,omitempty"`
-	AutoReplantFlowerIds        []int32       `protobuf:"varint,16,rep,packed,name=auto_replant_flower_ids,json=autoReplantFlowerIds,proto3" json:"auto_replant_flower_ids,omitempty"`
-	AutoReplantExcludeFlowerIds []int32       `protobuf:"varint,17,rep,packed,name=auto_replant_exclude_flower_ids,json=autoReplantExcludeFlowerIds,proto3" json:"auto_replant_exclude_flower_ids,omitempty"`
+	AutoReplantMode             SelectionMode `protobuf:"varint,10,opt,name=auto_replant_mode,json=autoReplantMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"auto_replant_mode,omitempty"`
+	AutoReplantFlowerIds        []int32       `protobuf:"varint,11,rep,packed,name=auto_replant_flower_ids,json=autoReplantFlowerIds,proto3" json:"auto_replant_flower_ids,omitempty"`
+	AutoReplantExcludeFlowerIds []int32       `protobuf:"varint,12,rep,packed,name=auto_replant_exclude_flower_ids,json=autoReplantExcludeFlowerIds,proto3" json:"auto_replant_exclude_flower_ids,omitempty"`
 	// When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
 	// Otherwise only the selected qualities are eligible for autonomous replanting.
-	AutoReplantQualities []int32 `protobuf:"varint,19,rep,packed,name=auto_replant_qualities,json=autoReplantQualities,proto3" json:"auto_replant_qualities,omitempty"`
+	AutoReplantQualities []int32 `protobuf:"varint,13,rep,packed,name=auto_replant_qualities,json=autoReplantQualities,proto3" json:"auto_replant_qualities,omitempty"`
 	// Minimum cultivate level for autonomous empty-land replanting. 0 means no
 	// level filter. When set (e.g. 11), only flowers at that level or above are
 	// planted (through FlowerMaxLevel, typically 20). Does not restrict
 	// demand-driven planting for tasks/orders.
-	AutoReplantMinLevel int32 `protobuf:"varint,20,opt,name=auto_replant_min_level,json=autoReplantMinLevel,proto3" json:"auto_replant_min_level,omitempty"`
+	AutoReplantMinLevel int32 `protobuf:"varint,14,opt,name=auto_replant_min_level,json=autoReplantMinLevel,proto3" json:"auto_replant_min_level,omitempty"`
 	// Seconds to wait after a plant becomes harvestable before auto-harvest.
 	// 0 means harvest as soon as ready (state=3 immediately; state=2 still uses
 	// the short protocol ready grace). Does not affect manual harvest.
 	// Guild-race plant-harvest flowers always ignore this delay (harvest ASAP)
 	// while an unfinished race task is held, even when auto_harvest_enabled is off.
-	HarvestDelaySeconds int32 `protobuf:"varint,21,opt,name=harvest_delay_seconds,json=harvestDelaySeconds,proto3" json:"harvest_delay_seconds,omitempty"`
+	HarvestDelaySeconds int32 `protobuf:"varint,15,opt,name=harvest_delay_seconds,json=harvestDelaySeconds,proto3" json:"harvest_delay_seconds,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1415,11 +1415,11 @@ type FriendStealPolicy struct {
 	AutoBuyTimes     bool                   `protobuf:"varint,7,opt,name=auto_buy_times,json=autoBuyTimes,proto3" json:"auto_buy_times,omitempty"`
 	// Friend selection is separate from mode, which selects flower types.
 	// Only ALL and SPECIFIC are accepted here.
-	FriendMode   SelectionMode   `protobuf:"varint,10,opt,name=friend_mode,json=friendMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"friend_mode,omitempty"`
-	FriendCounts map[int64]int32 `protobuf:"bytes,11,rep,name=friend_counts,json=friendCounts,proto3" json:"friend_counts,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	ExcludeUids  []int64         `protobuf:"varint,12,rep,packed,name=exclude_uids,json=excludeUids,proto3" json:"exclude_uids,omitempty"`
+	FriendMode   SelectionMode   `protobuf:"varint,8,opt,name=friend_mode,json=friendMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"friend_mode,omitempty"`
+	FriendCounts map[int64]int32 `protobuf:"bytes,9,rep,name=friend_counts,json=friendCounts,proto3" json:"friend_counts,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	ExcludeUids  []int64         `protobuf:"varint,10,rep,packed,name=exclude_uids,json=excludeUids,proto3" json:"exclude_uids,omitempty"`
 	// Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
-	MaxBuyPerFriend int32 `protobuf:"varint,13,opt,name=max_buy_per_friend,json=maxBuyPerFriend,proto3" json:"max_buy_per_friend,omitempty"`
+	MaxBuyPerFriend int32 `protobuf:"varint,11,opt,name=max_buy_per_friend,json=maxBuyPerFriend,proto3" json:"max_buy_per_friend,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -2208,15 +2208,15 @@ type FlowerArtPolicy struct {
 	SellEnabled          bool                   `protobuf:"varint,2,opt,name=sell_enabled,json=sellEnabled,proto3" json:"sell_enabled,omitempty"`
 	CraftEnabled         bool                   `protobuf:"varint,3,opt,name=craft_enabled,json=craftEnabled,proto3" json:"craft_enabled,omitempty"`
 	EarlyCancelEnabled   bool                   `protobuf:"varint,4,opt,name=early_cancel_enabled,json=earlyCancelEnabled,proto3" json:"early_cancel_enabled,omitempty"`
-	CreateRewardEnabled  bool                   `protobuf:"varint,7,opt,name=create_reward_enabled,json=createRewardEnabled,proto3" json:"create_reward_enabled,omitempty"`
-	CollectRewardEnabled bool                   `protobuf:"varint,8,opt,name=collect_reward_enabled,json=collectRewardEnabled,proto3" json:"collect_reward_enabled,omitempty"`
+	CreateRewardEnabled  bool                   `protobuf:"varint,5,opt,name=create_reward_enabled,json=createRewardEnabled,proto3" json:"create_reward_enabled,omitempty"`
+	CollectRewardEnabled bool                   `protobuf:"varint,6,opt,name=collect_reward_enabled,json=collectRewardEnabled,proto3" json:"collect_reward_enabled,omitempty"`
 	// When true together with sell_enabled, skip auto listing (and rack craft for
 	// listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
-	SellNightPauseEnabled bool `protobuf:"varint,9,opt,name=sell_night_pause_enabled,json=sellNightPauseEnabled,proto3" json:"sell_night_pause_enabled,omitempty"`
+	SellNightPauseEnabled bool `protobuf:"varint,7,opt,name=sell_night_pause_enabled,json=sellNightPauseEnabled,proto3" json:"sell_night_pause_enabled,omitempty"`
 	// Preferred finished flower-art ids to list on the rack. Only arts whose vase
 	// is unlocked are considered. Empty means list the finished art with the
 	// highest inventory count among unlocked-vase recipes.
-	SellArtIds    []int32 `protobuf:"varint,10,rep,packed,name=sell_art_ids,json=sellArtIds,proto3" json:"sell_art_ids,omitempty"`
+	SellArtIds    []int32 `protobuf:"varint,8,rep,packed,name=sell_art_ids,json=sellArtIds,proto3" json:"sell_art_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2591,7 +2591,7 @@ type UnionRacePolicy struct {
 	AutoStopOnQuotaDone bool `protobuf:"varint,12,opt,name=auto_stop_on_quota_done,json=autoStopOnQuotaDone,proto3" json:"auto_stop_on_quota_done,omitempty"`
 	// When true, the race monitor shows personal cumulative score and guild-member
 	// rank for the current batch. Default off.
-	ShowPersonalScoreRank bool `protobuf:"varint,14,opt,name=show_personal_score_rank,json=showPersonalScoreRank,proto3" json:"show_personal_score_rank,omitempty"`
+	ShowPersonalScoreRank bool `protobuf:"varint,13,opt,name=show_personal_score_rank,json=showPersonalScoreRank,proto3" json:"show_personal_score_rank,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -2721,20 +2721,20 @@ type UnionLandPolicy struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	HarvestEnabled   bool                   `protobuf:"varint,1,opt,name=harvest_enabled,json=harvestEnabled,proto3" json:"harvest_enabled,omitempty"`
 	AutoPlantEnabled bool                   `protobuf:"varint,2,opt,name=auto_plant_enabled,json=autoPlantEnabled,proto3" json:"auto_plant_enabled,omitempty"`
-	Qualities        []int32                `protobuf:"varint,4,rep,packed,name=qualities,proto3" json:"qualities,omitempty"`
-	FlowerIds        []int32                `protobuf:"varint,5,rep,packed,name=flower_ids,json=flowerIds,proto3" json:"flower_ids,omitempty"`
-	MaxFlowerLevel   int32                  `protobuf:"varint,6,opt,name=max_flower_level,json=maxFlowerLevel,proto3" json:"max_flower_level,omitempty"`
+	Qualities        []int32                `protobuf:"varint,3,rep,packed,name=qualities,proto3" json:"qualities,omitempty"`
+	FlowerIds        []int32                `protobuf:"varint,4,rep,packed,name=flower_ids,json=flowerIds,proto3" json:"flower_ids,omitempty"`
+	MaxFlowerLevel   int32                  `protobuf:"varint,5,opt,name=max_flower_level,json=maxFlowerLevel,proto3" json:"max_flower_level,omitempty"`
 	// When auto-planting and every filtered plantable flower is at/above level 11,
 	// only consider flowers whose catalog grow CD is at least this many minutes.
 	// Below level 11, maturity is ignored and lands are force-replaced onto
 	// low-level flowers (except when the current crop matures within 2 minutes).
 	// 0 means default 20.
-	MinMaturityMinutes int32 `protobuf:"varint,7,opt,name=min_maturity_minutes,json=minMaturityMinutes,proto3" json:"min_maturity_minutes,omitempty"`
+	MinMaturityMinutes int32 `protobuf:"varint,6,opt,name=min_maturity_minutes,json=minMaturityMinutes,proto3" json:"min_maturity_minutes,omitempty"`
 	// After every filtered plantable flower is at/above level 11, occupied lands
 	// with a different flower are only replaced once the current crop has been
 	// planted for at least this many minutes. Empty slots are always filled.
 	// Multiple flower types may coexist across guild lands. 0 means default 60.
-	MinReplantMinutes int32 `protobuf:"varint,8,opt,name=min_replant_minutes,json=minReplantMinutes,proto3" json:"min_replant_minutes,omitempty"`
+	MinReplantMinutes int32 `protobuf:"varint,7,opt,name=min_replant_minutes,json=minReplantMinutes,proto3" json:"min_replant_minutes,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -2819,8 +2819,10 @@ func (x *UnionLandPolicy) GetMinReplantMinutes() int32 {
 }
 
 type ActivityPolicy struct {
-	state         protoimpl.MessageState           `protogen:"open.v1"`
-	Modules       map[string]*ActivityModulePolicy `protobuf:"bytes,2,rep,name=modules,proto3" json:"modules,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CyclicNote    *CyclicNotePolicy      `protobuf:"bytes,1,opt,name=cyclic_note,json=cyclicNote,proto3" json:"cyclic_note,omitempty"`
+	CyclicStory   *CyclicStoryPolicy     `protobuf:"bytes,2,opt,name=cyclic_story,json=cyclicStory,proto3" json:"cyclic_story,omitempty"`
+	Dessert       *DessertPolicy         `protobuf:"bytes,3,opt,name=dessert,proto3" json:"dessert,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2855,38 +2857,51 @@ func (*ActivityPolicy) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{28}
 }
 
-func (x *ActivityPolicy) GetModules() map[string]*ActivityModulePolicy {
+func (x *ActivityPolicy) GetCyclicNote() *CyclicNotePolicy {
 	if x != nil {
-		return x.Modules
+		return x.CyclicNote
 	}
 	return nil
 }
 
-type ActivityModulePolicy struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	IntParams     map[string]int64       `protobuf:"bytes,2,rep,name=int_params,json=intParams,proto3" json:"int_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	BoolParams    map[string]bool        `protobuf:"bytes,3,rep,name=bool_params,json=boolParams,proto3" json:"bool_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	StringParams  map[string]string      `protobuf:"bytes,4,rep,name=string_params,json=stringParams,proto3" json:"string_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	IntListParams map[string]*IntList    `protobuf:"bytes,5,rep,name=int_list_params,json=intListParams,proto3" json:"int_list_params,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x *ActivityPolicy) GetCyclicStory() *CyclicStoryPolicy {
+	if x != nil {
+		return x.CyclicStory
+	}
+	return nil
 }
 
-func (x *ActivityModulePolicy) Reset() {
-	*x = ActivityModulePolicy{}
+func (x *ActivityPolicy) GetDessert() *DessertPolicy {
+	if x != nil {
+		return x.Dessert
+	}
+	return nil
+}
+
+type CyclicNotePolicy struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Enabled                bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	AutoClaimTaskRewards   bool                   `protobuf:"varint,2,opt,name=auto_claim_task_rewards,json=autoClaimTaskRewards,proto3" json:"auto_claim_task_rewards,omitempty"`
+	AutoClaimProgressBoxes bool                   `protobuf:"varint,3,opt,name=auto_claim_progress_boxes,json=autoClaimProgressBoxes,proto3" json:"auto_claim_progress_boxes,omitempty"`
+	SatisfyTasks           bool                   `protobuf:"varint,4,opt,name=satisfy_tasks,json=satisfyTasks,proto3" json:"satisfy_tasks,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *CyclicNotePolicy) Reset() {
+	*x = CyclicNotePolicy{}
 	mi := &file_mygardenworld_v1_policy_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ActivityModulePolicy) String() string {
+func (x *CyclicNotePolicy) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ActivityModulePolicy) ProtoMessage() {}
+func (*CyclicNotePolicy) ProtoMessage() {}
 
-func (x *ActivityModulePolicy) ProtoReflect() protoreflect.Message {
+func (x *CyclicNotePolicy) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_policy_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2898,67 +2913,63 @@ func (x *ActivityModulePolicy) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ActivityModulePolicy.ProtoReflect.Descriptor instead.
-func (*ActivityModulePolicy) Descriptor() ([]byte, []int) {
+// Deprecated: Use CyclicNotePolicy.ProtoReflect.Descriptor instead.
+func (*CyclicNotePolicy) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{29}
 }
 
-func (x *ActivityModulePolicy) GetEnabled() bool {
+func (x *CyclicNotePolicy) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
 	}
 	return false
 }
 
-func (x *ActivityModulePolicy) GetIntParams() map[string]int64 {
+func (x *CyclicNotePolicy) GetAutoClaimTaskRewards() bool {
 	if x != nil {
-		return x.IntParams
+		return x.AutoClaimTaskRewards
 	}
-	return nil
+	return false
 }
 
-func (x *ActivityModulePolicy) GetBoolParams() map[string]bool {
+func (x *CyclicNotePolicy) GetAutoClaimProgressBoxes() bool {
 	if x != nil {
-		return x.BoolParams
+		return x.AutoClaimProgressBoxes
 	}
-	return nil
+	return false
 }
 
-func (x *ActivityModulePolicy) GetStringParams() map[string]string {
+func (x *CyclicNotePolicy) GetSatisfyTasks() bool {
 	if x != nil {
-		return x.StringParams
+		return x.SatisfyTasks
 	}
-	return nil
+	return false
 }
 
-func (x *ActivityModulePolicy) GetIntListParams() map[string]*IntList {
-	if x != nil {
-		return x.IntListParams
-	}
-	return nil
+type CyclicStoryPolicy struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Enabled                bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	AutoClaimOrderRewards  bool                   `protobuf:"varint,2,opt,name=auto_claim_order_rewards,json=autoClaimOrderRewards,proto3" json:"auto_claim_order_rewards,omitempty"`
+	AutoClaimProgressBoxes bool                   `protobuf:"varint,3,opt,name=auto_claim_progress_boxes,json=autoClaimProgressBoxes,proto3" json:"auto_claim_progress_boxes,omitempty"`
+	MaxScore               int64                  `protobuf:"varint,4,opt,name=max_score,json=maxScore,proto3" json:"max_score,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
-type IntList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Values        []int32                `protobuf:"varint,1,rep,packed,name=values,proto3" json:"values,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *IntList) Reset() {
-	*x = IntList{}
+func (x *CyclicStoryPolicy) Reset() {
+	*x = CyclicStoryPolicy{}
 	mi := &file_mygardenworld_v1_policy_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *IntList) String() string {
+func (x *CyclicStoryPolicy) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*IntList) ProtoMessage() {}
+func (*CyclicStoryPolicy) ProtoMessage() {}
 
-func (x *IntList) ProtoReflect() protoreflect.Message {
+func (x *CyclicStoryPolicy) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_policy_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2970,16 +2981,153 @@ func (x *IntList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IntList.ProtoReflect.Descriptor instead.
-func (*IntList) Descriptor() ([]byte, []int) {
+// Deprecated: Use CyclicStoryPolicy.ProtoReflect.Descriptor instead.
+func (*CyclicStoryPolicy) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{30}
 }
 
-func (x *IntList) GetValues() []int32 {
+func (x *CyclicStoryPolicy) GetEnabled() bool {
 	if x != nil {
-		return x.Values
+		return x.Enabled
 	}
-	return nil
+	return false
+}
+
+func (x *CyclicStoryPolicy) GetAutoClaimOrderRewards() bool {
+	if x != nil {
+		return x.AutoClaimOrderRewards
+	}
+	return false
+}
+
+func (x *CyclicStoryPolicy) GetAutoClaimProgressBoxes() bool {
+	if x != nil {
+		return x.AutoClaimProgressBoxes
+	}
+	return false
+}
+
+func (x *CyclicStoryPolicy) GetMaxScore() int64 {
+	if x != nil {
+		return x.MaxScore
+	}
+	return 0
+}
+
+type DessertPolicy struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Enabled                bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	AutoClaimTaskRewards   bool                   `protobuf:"varint,2,opt,name=auto_claim_task_rewards,json=autoClaimTaskRewards,proto3" json:"auto_claim_task_rewards,omitempty"`
+	AutoLikeCelebrity      bool                   `protobuf:"varint,3,opt,name=auto_like_celebrity,json=autoLikeCelebrity,proto3" json:"auto_like_celebrity,omitempty"`
+	AutoClaimProgressBoxes bool                   `protobuf:"varint,4,opt,name=auto_claim_progress_boxes,json=autoClaimProgressBoxes,proto3" json:"auto_claim_progress_boxes,omitempty"`
+	AutoOpenRewardBoxes    bool                   `protobuf:"varint,5,opt,name=auto_open_reward_boxes,json=autoOpenRewardBoxes,proto3" json:"auto_open_reward_boxes,omitempty"`
+	AutoPlay               bool                   `protobuf:"varint,6,opt,name=auto_play,json=autoPlay,proto3" json:"auto_play,omitempty"`
+	ResumeExistingRound    bool                   `protobuf:"varint,7,opt,name=resume_existing_round,json=resumeExistingRound,proto3" json:"resume_existing_round,omitempty"`
+	Mode                   int32                  `protobuf:"varint,8,opt,name=mode,proto3" json:"mode,omitempty"`
+	MaxEnergyPerSession    int32                  `protobuf:"varint,9,opt,name=max_energy_per_session,json=maxEnergyPerSession,proto3" json:"max_energy_per_session,omitempty"`
+	MinEnergyReserve       int32                  `protobuf:"varint,10,opt,name=min_energy_reserve,json=minEnergyReserve,proto3" json:"min_energy_reserve,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *DessertPolicy) Reset() {
+	*x = DessertPolicy{}
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DessertPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DessertPolicy) ProtoMessage() {}
+
+func (x *DessertPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DessertPolicy.ProtoReflect.Descriptor instead.
+func (*DessertPolicy) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *DessertPolicy) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetAutoClaimTaskRewards() bool {
+	if x != nil {
+		return x.AutoClaimTaskRewards
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetAutoLikeCelebrity() bool {
+	if x != nil {
+		return x.AutoLikeCelebrity
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetAutoClaimProgressBoxes() bool {
+	if x != nil {
+		return x.AutoClaimProgressBoxes
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetAutoOpenRewardBoxes() bool {
+	if x != nil {
+		return x.AutoOpenRewardBoxes
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetAutoPlay() bool {
+	if x != nil {
+		return x.AutoPlay
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetResumeExistingRound() bool {
+	if x != nil {
+		return x.ResumeExistingRound
+	}
+	return false
+}
+
+func (x *DessertPolicy) GetMode() int32 {
+	if x != nil {
+		return x.Mode
+	}
+	return 0
+}
+
+func (x *DessertPolicy) GetMaxEnergyPerSession() int32 {
+	if x != nil {
+		return x.MaxEnergyPerSession
+	}
+	return 0
+}
+
+func (x *DessertPolicy) GetMinEnergyReserve() int32 {
+	if x != nil {
+		return x.MinEnergyReserve
+	}
+	return 0
 }
 
 var File_mygardenworld_v1_policy_proto protoreflect.FileDescriptor
@@ -2994,9 +3142,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x05order\x18\x04 \x01(\v2\x1d.mygardenworld.v1.OrderPolicyR\x05order\x123\n" +
 	"\x05union\x18\x05 \x01(\v2\x1d.mygardenworld.v1.UnionPolicyR\x05union\x12<\n" +
 	"\bactivity\x18\x06 \x01(\v2 .mygardenworld.v1.ActivityPolicyR\bactivity\x12:\n" +
-	"\x19decision_interval_seconds\x18\n" +
-	" \x01(\x01R\x17decisionIntervalSeconds\x12%\n" +
-	"\x0eschema_version\x18\v \x01(\rR\rschemaVersion\"\xeb\x06\n" +
+	"\x19decision_interval_seconds\x18\a \x01(\x01R\x17decisionIntervalSeconds\x12%\n" +
+	"\x0eschema_version\x18\b \x01(\rR\rschemaVersion\"\xd7\x06\n" +
 	"\vBasicPolicy\x12B\n" +
 	"\n" +
 	"reputation\x18\x01 \x01(\v2\".mygardenworld.v1.ReputationPolicyR\n" +
@@ -3016,7 +3163,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x12free_water_enabled\x18\r \x01(\bR\x10freeWaterEnabled\x122\n" +
 	"\x15water_claim_threshold\x18\x0e \x01(\x05R\x13waterClaimThreshold\x127\n" +
 	"\x18road_grow_reward_enabled\x18\x0f \x01(\bR\x15roadGrowRewardEnabled\x12I\n" +
-	"!displaced_session_relogin_enabled\x18\x10 \x01(\bR\x1edisplacedSessionReloginEnabledJ\x04\b\x11\x10\x12R\ffriend_touch\"J\n" +
+	"!displaced_session_relogin_enabled\x18\x10 \x01(\bR\x1edisplacedSessionReloginEnabled\"J\n" +
 	"\x10ReputationPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\x05R\tthreshold\"\xd6\x01\n" +
@@ -3084,22 +3231,22 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\fauto_enabled\x18\x01 \x01(\bR\vautoEnabled\x12(\n" +
 	"\x10auto_unlock_land\x18\x02 \x01(\bR\x0eautoUnlockLand\x120\n" +
 	"\x14auto_harvest_enabled\x18\x03 \x01(\bR\x12autoHarvestEnabled\x12&\n" +
-	"\x0fmin_water_drops\x18\x06 \x01(\x05R\rminWaterDrops\x123\n" +
-	"\x16video_speed_up_enabled\x18\t \x01(\bR\x13videoSpeedUpEnabled\x12-\n" +
-	"\x13use_speed_up_ticket\x18\n" +
-	" \x01(\bR\x10useSpeedUpTicket\x12-\n" +
-	"\x13speed_up_ticket_max\x18\v \x01(\x05R\x10speedUpTicketMax\x12]\n" +
-	"\x0fdemand_priority\x18\x0e \x03(\v24.mygardenworld.v1.PlantingPolicy.DemandPriorityEntryR\x0edemandPriority\x126\n" +
-	"\x17demand_priority_enabled\x18\x12 \x01(\bR\x15demandPriorityEnabled\x12K\n" +
-	"\x11auto_replant_mode\x18\x0f \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\x0fautoReplantMode\x125\n" +
-	"\x17auto_replant_flower_ids\x18\x10 \x03(\x05R\x14autoReplantFlowerIds\x12D\n" +
-	"\x1fauto_replant_exclude_flower_ids\x18\x11 \x03(\x05R\x1bautoReplantExcludeFlowerIds\x124\n" +
-	"\x16auto_replant_qualities\x18\x13 \x03(\x05R\x14autoReplantQualities\x123\n" +
-	"\x16auto_replant_min_level\x18\x14 \x01(\x05R\x13autoReplantMinLevel\x122\n" +
-	"\x15harvest_delay_seconds\x18\x15 \x01(\x05R\x13harvestDelaySeconds\x1aA\n" +
+	"\x0fmin_water_drops\x18\x04 \x01(\x05R\rminWaterDrops\x123\n" +
+	"\x16video_speed_up_enabled\x18\x05 \x01(\bR\x13videoSpeedUpEnabled\x12-\n" +
+	"\x13use_speed_up_ticket\x18\x06 \x01(\bR\x10useSpeedUpTicket\x12-\n" +
+	"\x13speed_up_ticket_max\x18\a \x01(\x05R\x10speedUpTicketMax\x12]\n" +
+	"\x0fdemand_priority\x18\b \x03(\v24.mygardenworld.v1.PlantingPolicy.DemandPriorityEntryR\x0edemandPriority\x126\n" +
+	"\x17demand_priority_enabled\x18\t \x01(\bR\x15demandPriorityEnabled\x12K\n" +
+	"\x11auto_replant_mode\x18\n" +
+	" \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\x0fautoReplantMode\x125\n" +
+	"\x17auto_replant_flower_ids\x18\v \x03(\x05R\x14autoReplantFlowerIds\x12D\n" +
+	"\x1fauto_replant_exclude_flower_ids\x18\f \x03(\x05R\x1bautoReplantExcludeFlowerIds\x124\n" +
+	"\x16auto_replant_qualities\x18\r \x03(\x05R\x14autoReplantQualities\x123\n" +
+	"\x16auto_replant_min_level\x18\x0e \x01(\x05R\x13autoReplantMinLevel\x122\n" +
+	"\x15harvest_delay_seconds\x18\x0f \x01(\x05R\x13harvestDelaySeconds\x1aA\n" +
 	"\x13DemandPriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xed\x04\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xc3\x04\n" +
 	"\x11FriendStealPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1f\n" +
 	"\vsteal_elves\x18\x02 \x01(\bR\n" +
@@ -3110,16 +3257,15 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"flower_ids\x18\x05 \x03(\x05R\tflowerIds\x12,\n" +
 	"\x12exclude_flower_ids\x18\x06 \x03(\x05R\x10excludeFlowerIds\x12$\n" +
 	"\x0eauto_buy_times\x18\a \x01(\bR\fautoBuyTimes\x12@\n" +
-	"\vfriend_mode\x18\n" +
-	" \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\n" +
+	"\vfriend_mode\x18\b \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\n" +
 	"friendMode\x12Z\n" +
-	"\rfriend_counts\x18\v \x03(\v25.mygardenworld.v1.FriendStealPolicy.FriendCountsEntryR\ffriendCounts\x12!\n" +
-	"\fexclude_uids\x18\f \x03(\x03R\vexcludeUids\x12+\n" +
-	"\x12max_buy_per_friend\x18\r \x01(\x05R\x0fmaxBuyPerFriend\x1a?\n" +
+	"\rfriend_counts\x18\t \x03(\v25.mygardenworld.v1.FriendStealPolicy.FriendCountsEntryR\ffriendCounts\x12!\n" +
+	"\fexclude_uids\x18\n" +
+	" \x03(\x03R\vexcludeUids\x12+\n" +
+	"\x12max_buy_per_friend\x18\v \x01(\x05R\x0fmaxBuyPerFriend\x1a?\n" +
 	"\x11FriendCountsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x03R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01J\x04\b\b\x10\tJ\x04\b\t\x10\n" +
-	"R\tbuy_countR\x11max_spend_diamond\"\x86\x05\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\x86\x05\n" +
 	"\x11FlowerElvesPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12!\n" +
 	"\fselected_ids\x18\x02 \x03(\x05R\vselectedIds\x12\x1f\n" +
@@ -3193,11 +3339,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\fsell_enabled\x18\x02 \x01(\bR\vsellEnabled\x12#\n" +
 	"\rcraft_enabled\x18\x03 \x01(\bR\fcraftEnabled\x120\n" +
 	"\x14early_cancel_enabled\x18\x04 \x01(\bR\x12earlyCancelEnabled\x122\n" +
-	"\x15create_reward_enabled\x18\a \x01(\bR\x13createRewardEnabled\x124\n" +
-	"\x16collect_reward_enabled\x18\b \x01(\bR\x14collectRewardEnabled\x127\n" +
-	"\x18sell_night_pause_enabled\x18\t \x01(\bR\x15sellNightPauseEnabled\x12 \n" +
-	"\fsell_art_ids\x18\n" +
-	" \x03(\x05R\n" +
+	"\x15create_reward_enabled\x18\x05 \x01(\bR\x13createRewardEnabled\x124\n" +
+	"\x16collect_reward_enabled\x18\x06 \x01(\bR\x14collectRewardEnabled\x127\n" +
+	"\x18sell_night_pause_enabled\x18\a \x01(\bR\x15sellNightPauseEnabled\x12 \n" +
+	"\fsell_art_ids\x18\b \x03(\x05R\n" +
 	"sellArtIds\"\xc7\x02\n" +
 	"\vUnionPolicy\x128\n" +
 	"\x05build\x18\x01 \x01(\v2\".mygardenworld.v1.UnionBuildPolicyR\x05build\x12;\n" +
@@ -3221,7 +3366,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\ftake_enabled\x18\x05 \x01(\bR\vtakeEnabled\x12<\n" +
 	"\ttake_mode\x18\x06 \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\btakeMode\x12%\n" +
 	"\x0etake_qualities\x18\a \x03(\x05R\rtakeQualities\x12&\n" +
-	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\x96\x06\n" +
+	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xf8\x05\n" +
 	"\x0fUnionRacePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
@@ -3236,46 +3381,46 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	" \x01(\x05R\x12deleteTaskMaxScore\x12*\n" +
 	"\x11max_spend_diamond\x18\v \x01(\x03R\x0fmaxSpendDiamond\x124\n" +
 	"\x17auto_stop_on_quota_done\x18\f \x01(\bR\x13autoStopOnQuotaDone\x127\n" +
-	"\x18show_personal_score_rank\x18\x0e \x01(\bR\x15showPersonalScoreRank\x1aC\n" +
+	"\x18show_personal_score_rank\x18\r \x01(\bR\x15showPersonalScoreRank\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01J\x04\b\r\x10\x0eR\x16urgent_speedup_enabled\"\xb1\x02\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xb1\x02\n" +
 	"\x0fUnionLandPolicy\x12'\n" +
 	"\x0fharvest_enabled\x18\x01 \x01(\bR\x0eharvestEnabled\x12,\n" +
 	"\x12auto_plant_enabled\x18\x02 \x01(\bR\x10autoPlantEnabled\x12\x1c\n" +
-	"\tqualities\x18\x04 \x03(\x05R\tqualities\x12\x1d\n" +
+	"\tqualities\x18\x03 \x03(\x05R\tqualities\x12\x1d\n" +
 	"\n" +
-	"flower_ids\x18\x05 \x03(\x05R\tflowerIds\x12(\n" +
-	"\x10max_flower_level\x18\x06 \x01(\x05R\x0emaxFlowerLevel\x120\n" +
-	"\x14min_maturity_minutes\x18\a \x01(\x05R\x12minMaturityMinutes\x12.\n" +
-	"\x13min_replant_minutes\x18\b \x01(\x05R\x11minReplantMinutes\"\xcc\x01\n" +
-	"\x0eActivityPolicy\x12G\n" +
-	"\amodules\x18\x02 \x03(\v2-.mygardenworld.v1.ActivityPolicy.ModulesEntryR\amodules\x1ab\n" +
-	"\fModulesEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.mygardenworld.v1.ActivityModulePolicyR\x05value:\x028\x01J\x04\b\x01\x10\x02R\aenabled\"\xbc\x05\n" +
-	"\x14ActivityModulePolicy\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12T\n" +
-	"\n" +
-	"int_params\x18\x02 \x03(\v25.mygardenworld.v1.ActivityModulePolicy.IntParamsEntryR\tintParams\x12W\n" +
-	"\vbool_params\x18\x03 \x03(\v26.mygardenworld.v1.ActivityModulePolicy.BoolParamsEntryR\n" +
-	"boolParams\x12]\n" +
-	"\rstring_params\x18\x04 \x03(\v28.mygardenworld.v1.ActivityModulePolicy.StringParamsEntryR\fstringParams\x12a\n" +
-	"\x0fint_list_params\x18\x05 \x03(\v29.mygardenworld.v1.ActivityModulePolicy.IntListParamsEntryR\rintListParams\x1a<\n" +
-	"\x0eIntParamsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\x1a=\n" +
-	"\x0fBoolParamsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\bR\x05value:\x028\x01\x1a?\n" +
-	"\x11StringParamsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a[\n" +
-	"\x12IntListParamsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12/\n" +
-	"\x05value\x18\x02 \x01(\v2\x19.mygardenworld.v1.IntListR\x05value:\x028\x01\"!\n" +
-	"\aIntList\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\x05R\x06values*\x9c\x01\n" +
+	"flower_ids\x18\x04 \x03(\x05R\tflowerIds\x12(\n" +
+	"\x10max_flower_level\x18\x05 \x01(\x05R\x0emaxFlowerLevel\x120\n" +
+	"\x14min_maturity_minutes\x18\x06 \x01(\x05R\x12minMaturityMinutes\x12.\n" +
+	"\x13min_replant_minutes\x18\a \x01(\x05R\x11minReplantMinutes\"\xd8\x01\n" +
+	"\x0eActivityPolicy\x12C\n" +
+	"\vcyclic_note\x18\x01 \x01(\v2\".mygardenworld.v1.CyclicNotePolicyR\n" +
+	"cyclicNote\x12F\n" +
+	"\fcyclic_story\x18\x02 \x01(\v2#.mygardenworld.v1.CyclicStoryPolicyR\vcyclicStory\x129\n" +
+	"\adessert\x18\x03 \x01(\v2\x1f.mygardenworld.v1.DessertPolicyR\adessert\"\xc3\x01\n" +
+	"\x10CyclicNotePolicy\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x125\n" +
+	"\x17auto_claim_task_rewards\x18\x02 \x01(\bR\x14autoClaimTaskRewards\x129\n" +
+	"\x19auto_claim_progress_boxes\x18\x03 \x01(\bR\x16autoClaimProgressBoxes\x12#\n" +
+	"\rsatisfy_tasks\x18\x04 \x01(\bR\fsatisfyTasks\"\xbe\x01\n" +
+	"\x11CyclicStoryPolicy\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x127\n" +
+	"\x18auto_claim_order_rewards\x18\x02 \x01(\bR\x15autoClaimOrderRewards\x129\n" +
+	"\x19auto_claim_progress_boxes\x18\x03 \x01(\bR\x16autoClaimProgressBoxes\x12\x1b\n" +
+	"\tmax_score\x18\x04 \x01(\x03R\bmaxScore\"\xc8\x03\n" +
+	"\rDessertPolicy\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x125\n" +
+	"\x17auto_claim_task_rewards\x18\x02 \x01(\bR\x14autoClaimTaskRewards\x12.\n" +
+	"\x13auto_like_celebrity\x18\x03 \x01(\bR\x11autoLikeCelebrity\x129\n" +
+	"\x19auto_claim_progress_boxes\x18\x04 \x01(\bR\x16autoClaimProgressBoxes\x123\n" +
+	"\x16auto_open_reward_boxes\x18\x05 \x01(\bR\x13autoOpenRewardBoxes\x12\x1b\n" +
+	"\tauto_play\x18\x06 \x01(\bR\bautoPlay\x122\n" +
+	"\x15resume_existing_round\x18\a \x01(\bR\x13resumeExistingRound\x12\x12\n" +
+	"\x04mode\x18\b \x01(\x05R\x04mode\x123\n" +
+	"\x16max_energy_per_session\x18\t \x01(\x05R\x13maxEnergyPerSession\x12,\n" +
+	"\x12min_energy_reserve\x18\n" +
+	" \x01(\x05R\x10minEnergyReserve*\x9c\x01\n" +
 	"\rSelectionMode\x12\x1e\n" +
 	"\x1aSELECTION_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12SELECTION_MODE_ALL\x10\x01\x12\x1a\n" +
@@ -3306,50 +3451,46 @@ func file_mygardenworld_v1_policy_proto_rawDescGZIP() []byte {
 }
 
 var file_mygardenworld_v1_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_mygardenworld_v1_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 39)
+var file_mygardenworld_v1_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_mygardenworld_v1_policy_proto_goTypes = []any{
-	(SelectionMode)(0),           // 0: mygardenworld.v1.SelectionMode
-	(MarketPutMode)(0),           // 1: mygardenworld.v1.MarketPutMode
-	(MarketBuyMode)(0),           // 2: mygardenworld.v1.MarketBuyMode
-	(*Policy)(nil),               // 3: mygardenworld.v1.Policy
-	(*BasicPolicy)(nil),          // 4: mygardenworld.v1.BasicPolicy
-	(*ReputationPolicy)(nil),     // 5: mygardenworld.v1.ReputationPolicy
-	(*BasicTaskPolicy)(nil),      // 6: mygardenworld.v1.BasicTaskPolicy
-	(*BenefitPolicy)(nil),        // 7: mygardenworld.v1.BenefitPolicy
-	(*SignPolicy)(nil),           // 8: mygardenworld.v1.SignPolicy
-	(*PearlPolicy)(nil),          // 9: mygardenworld.v1.PearlPolicy
-	(*ShopPolicy)(nil),           // 10: mygardenworld.v1.ShopPolicy
-	(*ShopBuyPolicy)(nil),        // 11: mygardenworld.v1.ShopBuyPolicy
-	(*VipShopPolicy)(nil),        // 12: mygardenworld.v1.VipShopPolicy
-	(*ZooPolicy)(nil),            // 13: mygardenworld.v1.ZooPolicy
-	(*PlantPolicy)(nil),          // 14: mygardenworld.v1.PlantPolicy
-	(*CultivatePolicy)(nil),      // 15: mygardenworld.v1.CultivatePolicy
-	(*PlantingPolicy)(nil),       // 16: mygardenworld.v1.PlantingPolicy
-	(*FriendStealPolicy)(nil),    // 17: mygardenworld.v1.FriendStealPolicy
-	(*FlowerElvesPolicy)(nil),    // 18: mygardenworld.v1.FlowerElvesPolicy
-	(*FlowerMarketPolicy)(nil),   // 19: mygardenworld.v1.FlowerMarketPolicy
-	(*OrderPolicy)(nil),          // 20: mygardenworld.v1.OrderPolicy
-	(*CustomerOrderPolicy)(nil),  // 21: mygardenworld.v1.CustomerOrderPolicy
-	(*ResidentOrderPolicy)(nil),  // 22: mygardenworld.v1.ResidentOrderPolicy
-	(*PalaceOrderPolicy)(nil),    // 23: mygardenworld.v1.PalaceOrderPolicy
-	(*TeamOrderPolicy)(nil),      // 24: mygardenworld.v1.TeamOrderPolicy
-	(*FlowerArtPolicy)(nil),      // 25: mygardenworld.v1.FlowerArtPolicy
-	(*UnionPolicy)(nil),          // 26: mygardenworld.v1.UnionPolicy
-	(*UnionBuildPolicy)(nil),     // 27: mygardenworld.v1.UnionBuildPolicy
-	(*UnionFlowerPolicy)(nil),    // 28: mygardenworld.v1.UnionFlowerPolicy
-	(*UnionRacePolicy)(nil),      // 29: mygardenworld.v1.UnionRacePolicy
-	(*UnionLandPolicy)(nil),      // 30: mygardenworld.v1.UnionLandPolicy
-	(*ActivityPolicy)(nil),       // 31: mygardenworld.v1.ActivityPolicy
-	(*ActivityModulePolicy)(nil), // 32: mygardenworld.v1.ActivityModulePolicy
-	(*IntList)(nil),              // 33: mygardenworld.v1.IntList
-	nil,                          // 34: mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
-	nil,                          // 35: mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
-	nil,                          // 36: mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
-	nil,                          // 37: mygardenworld.v1.ActivityPolicy.ModulesEntry
-	nil,                          // 38: mygardenworld.v1.ActivityModulePolicy.IntParamsEntry
-	nil,                          // 39: mygardenworld.v1.ActivityModulePolicy.BoolParamsEntry
-	nil,                          // 40: mygardenworld.v1.ActivityModulePolicy.StringParamsEntry
-	nil,                          // 41: mygardenworld.v1.ActivityModulePolicy.IntListParamsEntry
+	(SelectionMode)(0),          // 0: mygardenworld.v1.SelectionMode
+	(MarketPutMode)(0),          // 1: mygardenworld.v1.MarketPutMode
+	(MarketBuyMode)(0),          // 2: mygardenworld.v1.MarketBuyMode
+	(*Policy)(nil),              // 3: mygardenworld.v1.Policy
+	(*BasicPolicy)(nil),         // 4: mygardenworld.v1.BasicPolicy
+	(*ReputationPolicy)(nil),    // 5: mygardenworld.v1.ReputationPolicy
+	(*BasicTaskPolicy)(nil),     // 6: mygardenworld.v1.BasicTaskPolicy
+	(*BenefitPolicy)(nil),       // 7: mygardenworld.v1.BenefitPolicy
+	(*SignPolicy)(nil),          // 8: mygardenworld.v1.SignPolicy
+	(*PearlPolicy)(nil),         // 9: mygardenworld.v1.PearlPolicy
+	(*ShopPolicy)(nil),          // 10: mygardenworld.v1.ShopPolicy
+	(*ShopBuyPolicy)(nil),       // 11: mygardenworld.v1.ShopBuyPolicy
+	(*VipShopPolicy)(nil),       // 12: mygardenworld.v1.VipShopPolicy
+	(*ZooPolicy)(nil),           // 13: mygardenworld.v1.ZooPolicy
+	(*PlantPolicy)(nil),         // 14: mygardenworld.v1.PlantPolicy
+	(*CultivatePolicy)(nil),     // 15: mygardenworld.v1.CultivatePolicy
+	(*PlantingPolicy)(nil),      // 16: mygardenworld.v1.PlantingPolicy
+	(*FriendStealPolicy)(nil),   // 17: mygardenworld.v1.FriendStealPolicy
+	(*FlowerElvesPolicy)(nil),   // 18: mygardenworld.v1.FlowerElvesPolicy
+	(*FlowerMarketPolicy)(nil),  // 19: mygardenworld.v1.FlowerMarketPolicy
+	(*OrderPolicy)(nil),         // 20: mygardenworld.v1.OrderPolicy
+	(*CustomerOrderPolicy)(nil), // 21: mygardenworld.v1.CustomerOrderPolicy
+	(*ResidentOrderPolicy)(nil), // 22: mygardenworld.v1.ResidentOrderPolicy
+	(*PalaceOrderPolicy)(nil),   // 23: mygardenworld.v1.PalaceOrderPolicy
+	(*TeamOrderPolicy)(nil),     // 24: mygardenworld.v1.TeamOrderPolicy
+	(*FlowerArtPolicy)(nil),     // 25: mygardenworld.v1.FlowerArtPolicy
+	(*UnionPolicy)(nil),         // 26: mygardenworld.v1.UnionPolicy
+	(*UnionBuildPolicy)(nil),    // 27: mygardenworld.v1.UnionBuildPolicy
+	(*UnionFlowerPolicy)(nil),   // 28: mygardenworld.v1.UnionFlowerPolicy
+	(*UnionRacePolicy)(nil),     // 29: mygardenworld.v1.UnionRacePolicy
+	(*UnionLandPolicy)(nil),     // 30: mygardenworld.v1.UnionLandPolicy
+	(*ActivityPolicy)(nil),      // 31: mygardenworld.v1.ActivityPolicy
+	(*CyclicNotePolicy)(nil),    // 32: mygardenworld.v1.CyclicNotePolicy
+	(*CyclicStoryPolicy)(nil),   // 33: mygardenworld.v1.CyclicStoryPolicy
+	(*DessertPolicy)(nil),       // 34: mygardenworld.v1.DessertPolicy
+	nil,                         // 35: mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
+	nil,                         // 36: mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
+	nil,                         // 37: mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
 }
 var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	4,  // 0: mygardenworld.v1.Policy.basic:type_name -> mygardenworld.v1.BasicPolicy
@@ -3371,11 +3512,11 @@ var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	17, // 16: mygardenworld.v1.PlantPolicy.friend_steal:type_name -> mygardenworld.v1.FriendStealPolicy
 	18, // 17: mygardenworld.v1.PlantPolicy.elves:type_name -> mygardenworld.v1.FlowerElvesPolicy
 	19, // 18: mygardenworld.v1.PlantPolicy.market:type_name -> mygardenworld.v1.FlowerMarketPolicy
-	34, // 19: mygardenworld.v1.PlantingPolicy.demand_priority:type_name -> mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
+	35, // 19: mygardenworld.v1.PlantingPolicy.demand_priority:type_name -> mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
 	0,  // 20: mygardenworld.v1.PlantingPolicy.auto_replant_mode:type_name -> mygardenworld.v1.SelectionMode
 	0,  // 21: mygardenworld.v1.FriendStealPolicy.mode:type_name -> mygardenworld.v1.SelectionMode
 	0,  // 22: mygardenworld.v1.FriendStealPolicy.friend_mode:type_name -> mygardenworld.v1.SelectionMode
-	35, // 23: mygardenworld.v1.FriendStealPolicy.friend_counts:type_name -> mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
+	36, // 23: mygardenworld.v1.FriendStealPolicy.friend_counts:type_name -> mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
 	1,  // 24: mygardenworld.v1.FlowerMarketPolicy.put_mode:type_name -> mygardenworld.v1.MarketPutMode
 	2,  // 25: mygardenworld.v1.FlowerMarketPolicy.buy_mode:type_name -> mygardenworld.v1.MarketBuyMode
 	21, // 26: mygardenworld.v1.OrderPolicy.customer:type_name -> mygardenworld.v1.CustomerOrderPolicy
@@ -3389,19 +3530,15 @@ var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	30, // 34: mygardenworld.v1.UnionPolicy.land:type_name -> mygardenworld.v1.UnionLandPolicy
 	0,  // 35: mygardenworld.v1.UnionFlowerPolicy.share_mode:type_name -> mygardenworld.v1.SelectionMode
 	0,  // 36: mygardenworld.v1.UnionFlowerPolicy.take_mode:type_name -> mygardenworld.v1.SelectionMode
-	36, // 37: mygardenworld.v1.UnionRacePolicy.task_type_priority:type_name -> mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
-	37, // 38: mygardenworld.v1.ActivityPolicy.modules:type_name -> mygardenworld.v1.ActivityPolicy.ModulesEntry
-	38, // 39: mygardenworld.v1.ActivityModulePolicy.int_params:type_name -> mygardenworld.v1.ActivityModulePolicy.IntParamsEntry
-	39, // 40: mygardenworld.v1.ActivityModulePolicy.bool_params:type_name -> mygardenworld.v1.ActivityModulePolicy.BoolParamsEntry
-	40, // 41: mygardenworld.v1.ActivityModulePolicy.string_params:type_name -> mygardenworld.v1.ActivityModulePolicy.StringParamsEntry
-	41, // 42: mygardenworld.v1.ActivityModulePolicy.int_list_params:type_name -> mygardenworld.v1.ActivityModulePolicy.IntListParamsEntry
-	32, // 43: mygardenworld.v1.ActivityPolicy.ModulesEntry.value:type_name -> mygardenworld.v1.ActivityModulePolicy
-	33, // 44: mygardenworld.v1.ActivityModulePolicy.IntListParamsEntry.value:type_name -> mygardenworld.v1.IntList
-	45, // [45:45] is the sub-list for method output_type
-	45, // [45:45] is the sub-list for method input_type
-	45, // [45:45] is the sub-list for extension type_name
-	45, // [45:45] is the sub-list for extension extendee
-	0,  // [0:45] is the sub-list for field type_name
+	37, // 37: mygardenworld.v1.UnionRacePolicy.task_type_priority:type_name -> mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
+	32, // 38: mygardenworld.v1.ActivityPolicy.cyclic_note:type_name -> mygardenworld.v1.CyclicNotePolicy
+	33, // 39: mygardenworld.v1.ActivityPolicy.cyclic_story:type_name -> mygardenworld.v1.CyclicStoryPolicy
+	34, // 40: mygardenworld.v1.ActivityPolicy.dessert:type_name -> mygardenworld.v1.DessertPolicy
+	41, // [41:41] is the sub-list for method output_type
+	41, // [41:41] is the sub-list for method input_type
+	41, // [41:41] is the sub-list for extension type_name
+	41, // [41:41] is the sub-list for extension extendee
+	0,  // [0:41] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_policy_proto_init() }
@@ -3415,7 +3552,7 @@ func file_mygardenworld_v1_policy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_policy_proto_rawDesc), len(file_mygardenworld_v1_policy_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   39,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

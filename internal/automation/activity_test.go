@@ -9,6 +9,18 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
+const (
+	cyclicNoteAutoClaimTaskRewardsKey    = "auto_claim_task_rewards"
+	cyclicNoteAutoClaimProgressBoxesKey  = "auto_claim_progress_boxes"
+	cyclicNoteSatisfyTasksKey            = "satisfy_tasks"
+	cyclicStoryAutoClaimOrderRewardsKey  = "auto_claim_order_rewards"
+	cyclicStoryAutoClaimProgressBoxesKey = "auto_claim_progress_boxes"
+	dessertAutoClaimTaskRewardsKey       = "auto_claim_task_rewards"
+	dessertAutoLikeCelebrityKey          = "auto_like_celebrity"
+	dessertAutoClaimProgressBoxesKey     = "auto_claim_progress_boxes"
+	dessertAutoOpenRewardBoxesKey        = "auto_open_reward_boxes"
+)
+
 func TestCyclicNotePolicyDefaultsFailClosedAndRequiresModuleEnable(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := cyclicNotePlannerState(t, now, 2, []any{4003, 2001, nil}, map[string]any{"4003": 80}, map[string]any{}, 120, []any{})
@@ -153,8 +165,11 @@ func TestCyclicNotePrioritySitsBetweenMajorGoalsAndOrdinaryFlowerRack(t *testing
 func cyclicNotePlannerPolicy(moduleEnabled bool, bools map[string]bool) *pb.Policy {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
-		cyclicNoteModuleKey: {Enabled: moduleEnabled, BoolParams: bools},
+	policy.Activity.CyclicNote = &pb.CyclicNotePolicy{
+		Enabled:                moduleEnabled,
+		AutoClaimTaskRewards:   bools[cyclicNoteAutoClaimTaskRewardsKey],
+		AutoClaimProgressBoxes: bools[cyclicNoteAutoClaimProgressBoxesKey],
+		SatisfyTasks:           bools[cyclicNoteSatisfyTasksKey],
 	}
 	return policy
 }

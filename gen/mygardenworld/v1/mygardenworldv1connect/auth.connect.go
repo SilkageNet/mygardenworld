@@ -45,8 +45,8 @@ const (
 
 // AuthServiceClient is a client for the mygardenworld.v1.AuthService service.
 type AuthServiceClient interface {
-	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.AuthResponse], error)
-	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.AuthResponse], error)
+	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
+	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error)
 }
@@ -62,13 +62,13 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 	baseURL = strings.TrimRight(baseURL, "/")
 	authServiceMethods := v1.File_mygardenworld_v1_auth_proto.Services().ByName("AuthService").Methods()
 	return &authServiceClient{
-		login: connect.NewClient[v1.LoginRequest, v1.AuthResponse](
+		login: connect.NewClient[v1.LoginRequest, v1.LoginResponse](
 			httpClient,
 			baseURL+AuthServiceLoginProcedure,
 			connect.WithSchema(authServiceMethods.ByName("Login")),
 			connect.WithClientOptions(opts...),
 		),
-		refresh: connect.NewClient[v1.RefreshRequest, v1.AuthResponse](
+		refresh: connect.NewClient[v1.RefreshRequest, v1.RefreshResponse](
 			httpClient,
 			baseURL+AuthServiceRefreshProcedure,
 			connect.WithSchema(authServiceMethods.ByName("Refresh")),
@@ -91,19 +91,19 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // authServiceClient implements AuthServiceClient.
 type authServiceClient struct {
-	login   *connect.Client[v1.LoginRequest, v1.AuthResponse]
-	refresh *connect.Client[v1.RefreshRequest, v1.AuthResponse]
+	login   *connect.Client[v1.LoginRequest, v1.LoginResponse]
+	refresh *connect.Client[v1.RefreshRequest, v1.RefreshResponse]
 	logout  *connect.Client[v1.LogoutRequest, v1.LogoutResponse]
 	getMe   *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
 }
 
 // Login calls mygardenworld.v1.AuthService.Login.
-func (c *authServiceClient) Login(ctx context.Context, req *connect.Request[v1.LoginRequest]) (*connect.Response[v1.AuthResponse], error) {
+func (c *authServiceClient) Login(ctx context.Context, req *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
 	return c.login.CallUnary(ctx, req)
 }
 
 // Refresh calls mygardenworld.v1.AuthService.Refresh.
-func (c *authServiceClient) Refresh(ctx context.Context, req *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.AuthResponse], error) {
+func (c *authServiceClient) Refresh(ctx context.Context, req *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error) {
 	return c.refresh.CallUnary(ctx, req)
 }
 
@@ -119,8 +119,8 @@ func (c *authServiceClient) GetMe(ctx context.Context, req *connect.Request[v1.G
 
 // AuthServiceHandler is an implementation of the mygardenworld.v1.AuthService service.
 type AuthServiceHandler interface {
-	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.AuthResponse], error)
-	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.AuthResponse], error)
+	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
+	Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error)
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 	GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error)
 }
@@ -175,11 +175,11 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 // UnimplementedAuthServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedAuthServiceHandler struct{}
 
-func (UnimplementedAuthServiceHandler) Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.AuthResponse], error) {
+func (UnimplementedAuthServiceHandler) Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AuthService.Login is not implemented"))
 }
 
-func (UnimplementedAuthServiceHandler) Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.AuthResponse], error) {
+func (UnimplementedAuthServiceHandler) Refresh(context.Context, *connect.Request[v1.RefreshRequest]) (*connect.Response[v1.RefreshResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AuthService.Refresh is not implemented"))
 }
 

@@ -6,17 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-)
-
-const (
-	cyclicStoryModuleID                    = "actCyclicStory"
-	cyclicStoryAutoClaimOrderRewardsPolicy = "auto_claim_order_rewards"
-	cyclicStoryAutoClaimProgressPolicy     = "auto_claim_progress_boxes"
-	cyclicStoryMaxScorePolicy              = "max_score"
 )
 
 type cyclicStoryEnterExecution struct {
@@ -269,42 +263,39 @@ func executeCyclicStoryMilestoneClaim(ctx context.Context, req clientproto.ActCy
 	return raw, nil
 }
 
-func (r *Runner) cyclicStoryAnyPolicyFlag(keys ...string) bool {
+func (r *Runner) cyclicStoryPolicy() *pb.CyclicStoryPolicy {
 	policy := r.Policy()
 	if !policy.GetAutomationEnabled() {
-		return false
+		return nil
 	}
-	module := policy.GetActivity().GetModules()[cyclicStoryModuleID]
+	module := policy.GetActivity().GetCyclicStory()
 	if module == nil || !module.GetEnabled() {
-		return false
+		return nil
 	}
-	for _, key := range keys {
-		if module.GetBoolParams()[key] {
-			return true
-		}
-	}
-	return false
+	return module
 }
 
 func (r *Runner) cyclicStoryEnterAutomationEnabled() bool {
-	return r.cyclicStoryAnyPolicyFlag(cyclicStoryAutoClaimOrderRewardsPolicy, cyclicStoryAutoClaimProgressPolicy)
+	module := r.cyclicStoryPolicy()
+	return module != nil && (module.GetAutoClaimOrderRewards() || module.GetAutoClaimProgressBoxes())
 }
 
 func (r *Runner) cyclicStoryOrderClaimAutomationEnabled() bool {
-	return r.cyclicStoryAnyPolicyFlag(cyclicStoryAutoClaimOrderRewardsPolicy)
+	module := r.cyclicStoryPolicy()
+	return module != nil && module.GetAutoClaimOrderRewards()
 }
 
 func (r *Runner) cyclicStoryMilestoneClaimAutomationEnabled() bool {
-	return r.cyclicStoryAnyPolicyFlag(cyclicStoryAutoClaimProgressPolicy)
+	module := r.cyclicStoryPolicy()
+	return module != nil && module.GetAutoClaimProgressBoxes()
 }
 
 func (r *Runner) cyclicStoryUnderScoreCap(now time.Time) bool {
-	policy := r.Policy()
-	module := policy.GetActivity().GetModules()[cyclicStoryModuleID]
+	module := r.cyclicStoryPolicy()
 	if module == nil {
 		return true
 	}
-	maxScore := module.GetIntParams()[cyclicStoryMaxScorePolicy]
+	maxScore := module.GetMaxScore()
 	if maxScore <= 0 {
 		return true
 	}

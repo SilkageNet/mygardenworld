@@ -1,6 +1,6 @@
 import { Cloud, Loader2, Pause, Play, Plus, RefreshCw, Square, Ticket } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountStatus } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountStatus } from "@/lib/api/query-models";
 import {
   accountConnected,
   accountIdentity,
@@ -102,16 +102,17 @@ export default function AccountListPanel({
         ) : (
           <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-0.5 sm:pr-1">
             {accounts.map((account) => {
-              const status = statuses.get(account.id);
-              const selected = account.id === selectedAccountId;
+              const accountId = account.id.toString();
+              const status = statuses.get(accountId);
+              const selected = accountId === selectedAccountId;
               const identity = accountIdentity(account, status);
               const online = accountConnected(account, status);
               const abnormal = accountIsAbnormal(status);
-              const automationBusy = bulkBusy || busyAutomationAccountId === account.id;
-              const automationSpinning = busyAutomationAccountId === account.id;
+              const automationBusy = bulkBusy || busyAutomationAccountId === accountId;
+              const automationSpinning = busyAutomationAccountId === accountId;
               return (
                 <div
-                  key={account.id}
+                  key={accountId}
                   role="button"
                   tabIndex={0}
                   className={cn(
@@ -120,11 +121,11 @@ export default function AccountListPanel({
                       ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
                       : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
-                  onClick={() => onSelect(account.id)}
+                  onClick={() => onSelect(accountId)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      onSelect(account.id);
+                      onSelect(accountId);
                     }
                   }}
                 >
@@ -141,7 +142,7 @@ export default function AccountListPanel({
                         className="h-7 px-2"
                         aria-label={online ? "暂停并离线" : "启动并上线"}
                         disabled={automationBusy}
-                        onClick={(event) => { event.stopPropagation(); onAutomationToggle(account.id); }}
+                        onClick={(event) => { event.stopPropagation(); onAutomationToggle(accountId); }}
                       >
                         {automationSpinning ? <Loader2 className="size-3.5 animate-spin" /> : online ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                         {online ? "暂停" : "启动"}
@@ -154,7 +155,7 @@ export default function AccountListPanel({
                           className="h-7 px-2"
                           aria-label="停止并离线"
                           disabled={automationBusy}
-                          onClick={(event) => { event.stopPropagation(); onAutomationStop(account.id); }}
+                          onClick={(event) => { event.stopPropagation(); onAutomationStop(accountId); }}
                         >
                           {automationSpinning ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
                           停止

@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { User } from "./auth_pb";
+import type { User, UserRole, UserStatus } from "./auth_pb";
 import { file_mygardenworld_v1_auth } from "./auth_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/admin.proto.
  */
 export const file_mygardenworld_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChxteWdhcmRlbndvcmxkL3YxL2FkbWluLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIq4BChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRINCgVlbWFpbBgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIRCgRyb2xlGAQgASgJSACIAQESGQoMbWF4X2FjY291bnRzGAUgASgFSAGIAQESEwoGc3RhdHVzGAYgASgJSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKEkNyZWF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIjMKEExpc3RVc2Vyc1JlcXVlc3QSDAoEcGFnZRgBIAEoBRIRCglwYWdlX3NpemUYAiABKAUiSQoRTGlzdFVzZXJzUmVzcG9uc2USJQoFdXNlcnMYASADKAsyFi5teWdhcmRlbndvcmxkLnYxLlVzZXISDQoFdG90YWwYAiABKAUijAEKEVVwZGF0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSEQoEcm9sZRgCIAEoCUgAiAEBEhkKDG1heF9hY2NvdW50cxgDIAEoBUgBiAEBEhMKBnN0YXR1cxgEIAEoCUgCiAEBQgcKBV9yb2xlQg8KDV9tYXhfYWNjb3VudHNCCQoHX3N0YXR1cyI6ChJVcGRhdGVVc2VyUmVzcG9uc2USJAoEdXNlchgBIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciIXChVHZXRTeXN0ZW1TdGF0c1JlcXVlc3QifQoWR2V0U3lzdGVtU3RhdHNSZXNwb25zZRITCgt0b3RhbF91c2VycxgBIAEoBRIbChN0b3RhbF9nYW1lX2FjY291bnRzGAIgASgFEhYKDmFjdGl2ZV9ydW5uZXJzGAMgASgFEhkKEWNvbm5lY3RlZF9ydW5uZXJzGAQgASgFMvsCCgxBZG1pblNlcnZpY2USVwoKQ3JlYXRlVXNlchIjLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlVXNlclJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZVVzZXJSZXNwb25zZRJUCglMaXN0VXNlcnMSIi5teWdhcmRlbndvcmxkLnYxLkxpc3RVc2Vyc1JlcXVlc3QaIy5teWdhcmRlbndvcmxkLnYxLkxpc3RVc2Vyc1Jlc3BvbnNlElcKClVwZGF0ZVVzZXISIy5teWdhcmRlbndvcmxkLnYxLlVwZGF0ZVVzZXJSZXF1ZXN0GiQubXlnYXJkZW53b3JsZC52MS5VcGRhdGVVc2VyUmVzcG9uc2USYwoOR2V0U3lzdGVtU3RhdHMSJy5teWdhcmRlbndvcmxkLnYxLkdldFN5c3RlbVN0YXRzUmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuR2V0U3lzdGVtU3RhdHNSZXNwb25zZUKDAQoUY29tLm15Z2FyZGVud29ybGQudjFCCkFkbWluUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_mygardenworld_v1_auth]);
+  fileDesc("ChxteWdhcmRlbndvcmxkL3YxL2FkbWluLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIugBChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRINCgVlbWFpbBgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRItCgRyb2xlGAQgASgOMhoubXlnYXJkZW53b3JsZC52MS5Vc2VyUm9sZUgAiAEBEhkKDG1heF9hY2NvdW50cxgFIAEoBUgBiAEBEjEKBnN0YXR1cxgGIAEoDjIcLm15Z2FyZGVud29ybGQudjEuVXNlclN0YXR1c0gCiAEBQgcKBV9yb2xlQg8KDV9tYXhfYWNjb3VudHNCCQoHX3N0YXR1cyI6ChJDcmVhdGVVc2VyUmVzcG9uc2USJAoEdXNlchgBIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciIzChBMaXN0VXNlcnNSZXF1ZXN0EgwKBHBhZ2UYASABKAUSEQoJcGFnZV9zaXplGAIgASgFIkkKEUxpc3RVc2Vyc1Jlc3BvbnNlEiUKBXVzZXJzGAEgAygLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyEg0KBXRvdGFsGAIgASgFIsYBChFVcGRhdGVVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEi0KBHJvbGUYAiABKA4yGi5teWdhcmRlbndvcmxkLnYxLlVzZXJSb2xlSACIAQESGQoMbWF4X2FjY291bnRzGAMgASgFSAGIAQESMQoGc3RhdHVzGAQgASgOMhwubXlnYXJkZW53b3JsZC52MS5Vc2VyU3RhdHVzSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKElVwZGF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIhcKFUdldFN5c3RlbVN0YXRzUmVxdWVzdCJ9ChZHZXRTeXN0ZW1TdGF0c1Jlc3BvbnNlEhMKC3RvdGFsX3VzZXJzGAEgASgFEhsKE3RvdGFsX2dhbWVfYWNjb3VudHMYAiABKAUSFgoOYWN0aXZlX3J1bm5lcnMYAyABKAUSGQoRY29ubmVjdGVkX3J1bm5lcnMYBCABKAUy+wIKDEFkbWluU2VydmljZRJXCgpDcmVhdGVVc2VyEiMubXlnYXJkZW53b3JsZC52MS5DcmVhdGVVc2VyUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlVXNlclJlc3BvbnNlElQKCUxpc3RVc2VycxIiLm15Z2FyZGVud29ybGQudjEuTGlzdFVzZXJzUmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuTGlzdFVzZXJzUmVzcG9uc2USVwoKVXBkYXRlVXNlchIjLm15Z2FyZGVud29ybGQudjEuVXBkYXRlVXNlclJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLlVwZGF0ZVVzZXJSZXNwb25zZRJjCg5HZXRTeXN0ZW1TdGF0cxInLm15Z2FyZGVud29ybGQudjEuR2V0U3lzdGVtU3RhdHNSZXF1ZXN0GigubXlnYXJkZW53b3JsZC52MS5HZXRTeXN0ZW1TdGF0c1Jlc3BvbnNlQoMBChRjb20ubXlnYXJkZW53b3JsZC52MUIKQWRtaW5Qcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_mygardenworld_v1_auth]);
 
 /**
  * @generated from message mygardenworld.v1.CreateUserRequest
@@ -34,9 +34,9 @@ export type CreateUserRequest = Message<"mygardenworld.v1.CreateUserRequest"> & 
   password: string;
 
   /**
-   * @generated from field: optional string role = 4;
+   * @generated from field: optional mygardenworld.v1.UserRole role = 4;
    */
-  role?: string | undefined;
+  role?: UserRole | undefined;
 
   /**
    * @generated from field: optional int32 max_accounts = 5;
@@ -44,9 +44,9 @@ export type CreateUserRequest = Message<"mygardenworld.v1.CreateUserRequest"> & 
   maxAccounts?: number | undefined;
 
   /**
-   * @generated from field: optional string status = 6;
+   * @generated from field: optional mygardenworld.v1.UserStatus status = 6;
    */
-  status?: string | undefined;
+  status?: UserStatus | undefined;
 };
 
 /**
@@ -127,9 +127,9 @@ export type UpdateUserRequest = Message<"mygardenworld.v1.UpdateUserRequest"> & 
   userId: bigint;
 
   /**
-   * @generated from field: optional string role = 2;
+   * @generated from field: optional mygardenworld.v1.UserRole role = 2;
    */
-  role?: string | undefined;
+  role?: UserRole | undefined;
 
   /**
    * @generated from field: optional int32 max_accounts = 3;
@@ -137,9 +137,9 @@ export type UpdateUserRequest = Message<"mygardenworld.v1.UpdateUserRequest"> & 
   maxAccounts?: number | undefined;
 
   /**
-   * @generated from field: optional string status = 4;
+   * @generated from field: optional mygardenworld.v1.UserStatus status = 4;
    */
-  status?: string | undefined;
+  status?: UserStatus | undefined;
 };
 
 /**

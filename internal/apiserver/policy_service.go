@@ -21,7 +21,7 @@ type policyRuntime interface {
 }
 
 func (svc *Services) GetPolicy(ctx context.Context, req *connect.Request[pb.GetPolicyRequest]) (*connect.Response[pb.GetPolicyResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -33,7 +33,7 @@ func (svc *Services) GetPolicy(ctx context.Context, req *connect.Request[pb.GetP
 }
 
 func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetPolicyRequest]) (*connect.Response[pb.SetPolicyResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, mapErr(err)
 	}

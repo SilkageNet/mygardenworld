@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-const migratedPolicySchemaVersion = 1
+const migratedPolicySchemaVersion = 2
 
 type policyV2Update struct {
 	accountID int64
@@ -112,6 +112,7 @@ func migratePolicyDocumentV2(raw string) (string, error) {
 
 	if activity := childObject(root, "activity"); activity != nil {
 		delete(activity, "enabled")
+		migrateActivityModules(activity)
 	}
 	root["schema_version"] = migratedPolicySchemaVersion
 
@@ -127,6 +128,57 @@ func migratePolicyDocumentV2(raw string) (string, error) {
 		return "", fmt.Errorf("validate migrated policy: schema version %d", policy.GetSchemaVersion())
 	}
 	return string(data), nil
+}
+
+func migrateActivityModules(activity map[string]any) {
+	modules := childObject(activity, "modules")
+	if modules == nil {
+		return
+	}
+	if module := childObject(modules, "cyclicNote"); module != nil {
+		typed := ensureChildObject(activity, "cyclic_note")
+		copyPolicyValue(typed, "enabled", module, "enabled")
+		bools := childObject(module, "bool_params")
+		copyPolicyValue(typed, "auto_claim_task_rewards", bools, "auto_claim_task_rewards")
+		copyPolicyValue(typed, "auto_claim_progress_boxes", bools, "auto_claim_progress_boxes")
+		copyPolicyValue(typed, "satisfy_tasks", bools, "satisfy_tasks")
+	}
+	if module := childObject(modules, "actCyclicStory"); module != nil {
+		typed := ensureChildObject(activity, "cyclic_story")
+		copyPolicyValue(typed, "enabled", module, "enabled")
+		bools := childObject(module, "bool_params")
+		copyPolicyValue(typed, "auto_claim_order_rewards", bools, "auto_claim_order_rewards")
+		copyPolicyValue(typed, "auto_claim_progress_boxes", bools, "auto_claim_progress_boxes")
+		copyPolicyValue(typed, "max_score", childObject(module, "int_params"), "max_score")
+	}
+	if module := childObject(modules, "actDessert"); module != nil {
+		typed := ensureChildObject(activity, "dessert")
+		copyPolicyValue(typed, "enabled", module, "enabled")
+		bools := childObject(module, "bool_params")
+		copyPolicyValue(typed, "auto_claim_task_rewards", bools, "auto_claim_task_rewards")
+		copyPolicyValue(typed, "auto_like_celebrity", bools, "auto_like_celebrity")
+		copyPolicyValue(typed, "auto_claim_progress_boxes", bools, "auto_claim_progress_boxes")
+		copyPolicyValue(typed, "auto_open_reward_boxes", bools, "auto_open_reward_boxes")
+		copyPolicyValue(typed, "auto_play", bools, "auto_play")
+		copyPolicyValue(typed, "resume_existing_round", bools, "resume_existing_round")
+		ints := childObject(module, "int_params")
+		copyPolicyValue(typed, "mode", ints, "mode")
+		copyPolicyValue(typed, "max_energy_per_session", ints, "max_energy_per_session")
+		copyPolicyValue(typed, "min_energy_reserve", ints, "min_energy_reserve")
+	}
+	delete(activity, "modules")
+}
+
+func copyPolicyValue(dst map[string]any, dstKey string, src map[string]any, srcKey string) {
+	if dst == nil || src == nil {
+		return
+	}
+	if _, exists := dst[dstKey]; exists {
+		return
+	}
+	if value, exists := src[srcKey]; exists {
+		dst[dstKey] = value
+	}
 }
 
 func childObject(parent map[string]any, key string) map[string]any {

@@ -22,7 +22,7 @@ const refreshCookieName = "mgw_refresh_token"
 
 var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
 
-func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginRequest]) (*connect.Response[pb.AuthResponse], error) {
+func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginRequest]) (*connect.Response[pb.LoginResponse], error) {
 	in := req.Msg
 	username := strings.TrimSpace(in.GetUsername())
 	password := in.GetPassword()
@@ -60,7 +60,7 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 	if err := svc.DB.SaveRefreshToken(ctx, user.ID, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	resp := connect.NewResponse(&pb.AuthResponse{
+	resp := connect.NewResponse(&pb.LoginResponse{
 		AccessToken: pair.AccessToken,
 		User:        userToProto(user, count),
 	})
@@ -70,7 +70,7 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 	return resp, nil
 }
 
-func (svc *Services) rejectInvalidLogin(username, remote string, userID int64) (*connect.Response[pb.AuthResponse], error) {
+func (svc *Services) rejectInvalidLogin(username, remote string, userID int64) (*connect.Response[pb.LoginResponse], error) {
 	if dec, limited := svc.LoginLimiter.RecordFailure(username, remote); limited {
 		svc.logAuth("warn", "auth_login_limited", username, remote, userID, slog.String("scope", dec.Scope), slog.Time("locked_until", dec.Until))
 		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("登录尝试过多，请稍后再试"))
@@ -102,8 +102,8 @@ func (svc *Services) logAuth(level, event, username, remote string, userID int64
 	}
 }
 
-func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.RefreshRequest]) (*connect.Response[pb.AuthResponse], error) {
-	token := refreshTokenFromRequest(req.Header(), req.Msg.GetRefreshToken())
+func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.RefreshRequest]) (*connect.Response[pb.RefreshResponse], error) {
+	token := refreshTokenFromRequest(req.Header())
 	if token == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("登录已过期，请重新登录"))
 	}
@@ -129,7 +129,7 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 	if err := svc.DB.RotateRefreshToken(ctx, token, pair.RefreshToken, time.Now().Add(auth.RefreshTokenDuration)); err != nil {
 		return nil, mapErr(err)
 	}
-	resp := connect.NewResponse(&pb.AuthResponse{
+	resp := connect.NewResponse(&pb.RefreshResponse{
 		AccessToken: pair.AccessToken,
 		User:        userToProto(user, count),
 	})
@@ -138,7 +138,7 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 }
 
 func (svc *Services) Logout(ctx context.Context, req *connect.Request[pb.LogoutRequest]) (*connect.Response[pb.LogoutResponse], error) {
-	if token := refreshTokenFromRequest(req.Header(), req.Msg.GetRefreshToken()); token != "" {
+	if token := refreshTokenFromRequest(req.Header()); token != "" {
 		if err := svc.DB.RevokeRefreshToken(ctx, token); err != nil && svc.Log != nil {
 			svc.Log.Warn("revoke refresh token during logout failed", "err", err)
 		}
@@ -172,19 +172,30 @@ func userToProto(u *store.User, accountCount int) *pb.User {
 		Id:              u.ID,
 		Username:        u.Username,
 		Email:           u.Email,
-		Role:            u.Role,
+		Role:            userRoleProto(u.Role),
 		MaxAccounts:     int32(u.MaxAccounts),
 		CurrentAccounts: int32(accountCount),
-		Status:          u.Status,
+		Status:          userStatusProto(u.Status),
 		CreatedAt:       timestamppb.New(u.CreatedAt),
 		UpdatedAt:       timestamppb.New(u.UpdatedAt),
 	}
 }
 
-func refreshTokenFromRequest(headers http.Header, explicit string) string {
-	if explicit != "" {
-		return explicit
+func userRoleProto(role string) pb.UserRole {
+	if role == "admin" {
+		return pb.UserRole_USER_ROLE_ADMIN
 	}
+	return pb.UserRole_USER_ROLE_USER
+}
+
+func userStatusProto(status string) pb.UserStatus {
+	if status == "disabled" {
+		return pb.UserStatus_USER_STATUS_DISABLED
+	}
+	return pb.UserStatus_USER_STATUS_ACTIVE
+}
+
+func refreshTokenFromRequest(headers http.Header) string {
 	req := http.Request{Header: headers}
 	cookie, err := req.Cookie(refreshCookieName)
 	if err != nil {

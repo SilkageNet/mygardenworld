@@ -209,25 +209,23 @@ func TestDessertPolicyRequiresGlobalModuleAndActionGates(t *testing.T) {
 	}
 
 	policy.AutomationEnabled = true
-	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
-		dessertModuleID: {Enabled: true, BoolParams: map[string]bool{}},
-	}
+	policy.Activity.Dessert = &pb.DessertPolicy{Enabled: true}
 	if r.dessertEnterAutomationEnabled() {
 		t.Fatal("missing action bool enabled dessert enter")
 	}
-	policy.Activity.Modules[dessertModuleID].BoolParams[dessertAutoClaimTaskRewardsPolicy] = true
+	policy.Activity.Dessert.AutoClaimTaskRewards = true
 	if !r.dessertEnterAutomationEnabled() || !r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() {
 		t.Fatal("task flag did not gate exact dessert actions")
 	}
-	policy.Activity.Modules[dessertModuleID].BoolParams[dessertAutoLikeCelebrityPolicy] = true
+	policy.Activity.Dessert.AutoLikeCelebrity = true
 	if !r.dessertCelebrityLikeAutomationEnabled() {
 		t.Fatal("like flag did not enable controlled sync/like chain")
 	}
-	policy.Activity.Modules[dessertModuleID].BoolParams[dessertAutoOpenRewardBoxesPolicy] = true
+	policy.Activity.Dessert.AutoOpenRewardBoxes = true
 	if !r.dessertRewardBoxOpenAutomationEnabled() {
 		t.Fatal("reviewed single-box flag did not enable the exact open action")
 	}
-	policy.Activity.Modules[dessertModuleID].Enabled = false
+	policy.Activity.Dessert.Enabled = false
 	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() || r.dessertRewardBoxOpenAutomationEnabled() {
 		t.Fatal("disabled dessert module still allowed actions")
 	}

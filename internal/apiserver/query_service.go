@@ -3,7 +3,6 @@ package apiserver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -19,11 +18,8 @@ import (
 
 func (svc *Services) GetStatus(ctx context.Context, req *connect.Request[pb.GetStatusRequest]) (*connect.Response[pb.GetStatusResponse], error) {
 	resp := &pb.GetStatusResponse{}
-	if req.Msg.GetIncludeFeatureCapabilities() {
-		resp.FeatureCapabilities = featureCapabilitiesProto()
-	}
-	if req.Msg.GetAccountId() != "" || req.Msg.GetAccountName() != "" {
-		acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+	if req.Msg.GetAccountId() != 0 {
+		acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 		if err != nil {
 			return nil, mapErr(err)
 		}
@@ -52,9 +48,13 @@ func (svc *Services) GetStatus(ctx context.Context, req *connect.Request[pb.GetS
 	return connect.NewResponse(resp), nil
 }
 
+func (svc *Services) GetFeatureCapabilities(_ context.Context, _ *connect.Request[pb.GetFeatureCapabilitiesRequest]) (*connect.Response[pb.GetFeatureCapabilitiesResponse], error) {
+	return connect.NewResponse(&pb.GetFeatureCapabilitiesResponse{FeatureCapabilities: featureCapabilitiesProto()}), nil
+}
+
 func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.AccountStatus, error) {
 	out := &pb.AccountStatus{
-		AccountId:   fmt.Sprintf("%d", acc.ID),
+		AccountId:   acc.ID,
 		AccountName: acc.Name,
 		GsIdx:       acc.GsIdx,
 	}
@@ -125,8 +125,8 @@ type accountReadModel struct {
 	diag    runner.Diagnostics
 }
 
-func (svc *Services) accountReadModel(ctx context.Context, req *pb.GetAccountViewRequest) (*accountReadModel, error) {
-	acc, err := svc.resolveAccount(ctx, req.GetAccountId(), req.GetAccountName())
+func (svc *Services) accountReadModel(ctx context.Context, accountID int64) (*accountReadModel, error) {
+	acc, err := svc.resolveAccount(ctx, accountID)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -150,8 +150,8 @@ func (svc *Services) accountReadModel(ctx context.Context, req *pb.GetAccountVie
 	}, nil
 }
 
-func (svc *Services) GetOverview(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.OverviewView], error) {
-	model, err := svc.accountReadModel(ctx, req.Msg)
+func (svc *Services) GetOverview(ctx context.Context, req *connect.Request[pb.GetOverviewRequest]) (*connect.Response[pb.GetOverviewResponse], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (svc *Services) GetOverview(ctx context.Context, req *connect.Request[pb.Ge
 	plan := automation.BuildPlan(st, model.policy, now)
 	domainStatuses := buildDomainStatuses(model.policy, model.diag, model.runner.Connected())
 	resp := &pb.OverviewView{
-		AccountId:             fmt.Sprintf("%d", model.account.ID),
+		AccountId:             model.account.ID,
 		AccountName:           model.account.Name,
 		RoleId:                st.RoleID(),
 		CapturedAt:            timestamppb.New(now),
@@ -197,17 +197,17 @@ func (svc *Services) GetOverview(ctx context.Context, req *connect.Request[pb.Ge
 		resp.ReputationLastSyncTimeMs = rep.LastSyncTimeMs
 		resp.ReputationLastViewTimeMs = rep.LastViewTimeMs
 	}
-	return connect.NewResponse(resp), nil
+	return connect.NewResponse(&pb.GetOverviewResponse{Overview: resp}), nil
 }
 
-func (svc *Services) GetGarden(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.GardenView], error) {
-	model, err := svc.accountReadModel(ctx, req.Msg)
+func (svc *Services) GetGarden(ctx context.Context, req *connect.Request[pb.GetGardenRequest]) (*connect.Response[pb.GetGardenResponse], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
 	st, now := model.state, model.now
 	resp := &pb.GardenView{
-		AccountId:                  fmt.Sprintf("%d", model.account.ID),
+		AccountId:                  model.account.ID,
 		AccountName:                model.account.Name,
 		CapturedAt:                 timestamppb.New(now),
 		PlantableFlowers:           plantableFlowersProto(st.PlantableFlowers(nil, nil)),
@@ -215,18 +215,18 @@ func (svc *Services) GetGarden(ctx context.Context, req *connect.Request[pb.GetA
 		FriendTouchFriendsObserved: st.FriendTouch(now).FriendsObserved,
 	}
 	resp.Lands = buildLandViews(st.Lands(), st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(model.policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
-	return connect.NewResponse(resp), nil
+	return connect.NewResponse(&pb.GetGardenResponse{Garden: resp}), nil
 }
 
-func (svc *Services) GetOrders(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.OrdersView], error) {
-	model, err := svc.accountReadModel(ctx, req.Msg)
+func (svc *Services) GetOrders(ctx context.Context, req *connect.Request[pb.GetOrdersRequest]) (*connect.Response[pb.GetOrdersResponse], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
 	st, now := model.state, model.now
 	plan := automation.BuildPlan(st, model.policy, now)
 	resp := &pb.OrdersView{
-		AccountId:             fmt.Sprintf("%d", model.account.ID),
+		AccountId:             model.account.ID,
 		AccountName:           model.account.Name,
 		CapturedAt:            timestamppb.New(now),
 		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy.GetBasic().GetMapEventEnabled()),
@@ -237,18 +237,18 @@ func (svc *Services) GetOrders(ctx context.Context, req *connect.Request[pb.GetA
 		BusinessStatistics:    businessStatisticsProto(st),
 		SellableFlowerArts:    sellableFlowerArtsProto(st),
 	}
-	return connect.NewResponse(resp), nil
+	return connect.NewResponse(&pb.GetOrdersResponse{Orders: resp}), nil
 }
 
-func (svc *Services) GetUnion(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.UnionView], error) {
-	model, err := svc.accountReadModel(ctx, req.Msg)
+func (svc *Services) GetUnion(ctx context.Context, req *connect.Request[pb.GetUnionRequest]) (*connect.Response[pb.GetUnionResponse], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
 	st, now := model.state, model.now
 	membership := st.FmlBuild()
 	resp := &pb.UnionView{
-		AccountId:          fmt.Sprintf("%d", model.account.ID),
+		AccountId:          model.account.ID,
 		AccountName:        model.account.Name,
 		CapturedAt:         timestamppb.New(now),
 		MembershipObserved: membership.MembershipObserved,
@@ -265,11 +265,11 @@ func (svc *Services) GetUnion(ctx context.Context, req *connect.Request[pb.GetAc
 			},
 		),
 	}
-	return connect.NewResponse(resp), nil
+	return connect.NewResponse(&pb.GetUnionResponse{Union: resp}), nil
 }
 
-func (svc *Services) GetActivities(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.ActivitiesView], error) {
-	model, err := svc.accountReadModel(ctx, req.Msg)
+func (svc *Services) GetActivities(ctx context.Context, req *connect.Request[pb.GetActivitiesRequest]) (*connect.Response[pb.GetActivitiesResponse], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +277,7 @@ func (svc *Services) GetActivities(ctx context.Context, req *connect.Request[pb.
 	cyclicStory, _ := model.state.CyclicStoryView(model.now)
 	dessert, _ := model.state.DessertView(model.now)
 	resp := &pb.ActivitiesView{
-		AccountId:   fmt.Sprintf("%d", model.account.ID),
+		AccountId:   model.account.ID,
 		AccountName: model.account.Name,
 		CapturedAt:  timestamppb.New(model.now),
 		CyclicNote:  cyclicNoteProto(cyclicNote),
@@ -285,22 +285,23 @@ func (svc *Services) GetActivities(ctx context.Context, req *connect.Request[pb.
 		Dessert:     dessertProto(dessert),
 	}
 	resp.Dessert.Runtime = dessertRuntimeProto(model.runner.DessertRuntimeSnapshot())
-	return connect.NewResponse(resp), nil
+	return connect.NewResponse(&pb.GetActivitiesResponse{Activities: resp}), nil
 }
 
-func (svc *Services) GetAssets(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.AssetsView], error) {
-	model, err := svc.accountReadModel(ctx, req.Msg)
+func (svc *Services) GetAssets(ctx context.Context, req *connect.Request[pb.GetAssetsRequest]) (*connect.Response[pb.GetAssetsResponse], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
 	plan := automation.BuildPlan(model.state, model.policy, model.now)
-	return connect.NewResponse(&pb.AssetsView{
-		AccountId:       fmt.Sprintf("%d", model.account.ID),
+	view := &pb.AssetsView{
+		AccountId:       model.account.ID,
 		AccountName:     model.account.Name,
 		CapturedAt:      timestamppb.New(model.now),
 		Inventory:       model.state.Inventory(),
 		InventoryLedger: inventoryLedgerProto(model.state.Inventory(), plan.Ledger),
-	}), nil
+	}
+	return connect.NewResponse(&pb.GetAssetsResponse{Assets: view}), nil
 }
 
 func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {

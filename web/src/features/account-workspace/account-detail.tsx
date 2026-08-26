@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AccountStatus, Event, FeatureCapability } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/query-models";
 import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
 import { EventPanel } from "@/components/dashboard/monitor-panels";
 import { Button } from "@/components/ui/button";

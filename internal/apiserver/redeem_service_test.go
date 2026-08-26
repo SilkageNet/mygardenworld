@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -48,10 +47,10 @@ func TestResolveRedeemAccountsRequiresExplicitSingleChannelTargets(t *testing.T)
 	svc := &Services{DB: db}
 	userCtx := auth.ContextWithIdentity(ctx, &auth.Identity{UserID: owner.ID, Role: "user"})
 
-	for name, ids := range map[string][]string{
+	for name, ids := range map[string][]int64{
 		"missing": nil,
-		"blank":   {"  "},
-		"mixed":   {fmt.Sprint(iosOne.ID), fmt.Sprint(alipay.ID)},
+		"blank":   {0},
+		"mixed":   {iosOne.ID, alipay.ID},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, resolveErr := svc.resolveRedeemAccounts(userCtx, ids)
@@ -61,10 +60,10 @@ func TestResolveRedeemAccountsRequiresExplicitSingleChannelTargets(t *testing.T)
 		})
 	}
 
-	accounts, err := svc.resolveRedeemAccounts(userCtx, []string{
-		fmt.Sprint(iosOne.ID),
-		fmt.Sprint(iosOne.ID),
-		fmt.Sprint(iosTwo.ID),
+	accounts, err := svc.resolveRedeemAccounts(userCtx, []int64{
+		iosOne.ID,
+		iosOne.ID,
+		iosTwo.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +72,7 @@ func TestResolveRedeemAccountsRequiresExplicitSingleChannelTargets(t *testing.T)
 		t.Fatalf("resolveRedeemAccounts() = %+v, want both unique iOS accounts", accounts)
 	}
 
-	_, err = svc.resolveRedeemAccounts(userCtx, []string{fmt.Sprint(foreign.ID)})
+	_, err = svc.resolveRedeemAccounts(userCtx, []int64{foreign.ID})
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("foreign account error = %v, want permission_denied", err)
 	}

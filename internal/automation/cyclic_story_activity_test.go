@@ -146,12 +146,11 @@ func cyclicStoryPlannerPolicy(moduleEnabled bool, bools map[string]bool, maxScor
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Activity = &pb.ActivityPolicy{
-		Modules: map[string]*pb.ActivityModulePolicy{
-			cyclicStoryModuleKey: {
-				Enabled:    moduleEnabled,
-				BoolParams: bools,
-				IntParams:  map[string]int64{cyclicStoryMaxScoreKey: maxScore},
-			},
+		CyclicStory: &pb.CyclicStoryPolicy{
+			Enabled:                moduleEnabled,
+			AutoClaimOrderRewards:  bools[cyclicStoryAutoClaimOrderRewardsKey],
+			AutoClaimProgressBoxes: bools[cyclicStoryAutoClaimProgressBoxesKey],
+			MaxScore:               maxScore,
 		},
 	}
 	return p

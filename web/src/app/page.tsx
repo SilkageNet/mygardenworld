@@ -10,7 +10,8 @@ import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
 import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
-import type { AccountStatus, Event, FeatureCapability } from "@/gen/mygardenworld/v1/query_service_pb";
+import { AccountHealth } from "@/lib/api/query-models";
+import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/query-models";
 import AppShell from "@/components/app-shell";
 import { formatAPIError, transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
@@ -30,6 +31,7 @@ const EVENT_LIMIT = 500;
 const EVENT_RECONNECT_INITIAL_MS = 1000;
 const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
+const accountKey = (id: bigint) => id.toString();
 const VIEW_REFRESH_EVENT_KINDS = new Set([
   "operation_ack",
   "union_flower_take",
@@ -91,7 +93,7 @@ function DashboardContent() {
   const policyOwnerAccountIdRef = useRef("");
 
   const selectedAccount = useMemo(
-    () => accounts.find((account) => account.id === selectedAccountId) ?? null,
+    () => accounts.find((account) => accountKey(account.id) === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
   );
   const selectedStatus = selectedAccountId ? statuses.get(selectedAccountId) : undefined;
@@ -124,16 +126,19 @@ function DashboardContent() {
   }, []);
 
   const refreshStatuses = useCallback(async () => {
-    const includeFeatureCapabilities = !capabilitiesLoadedRef.current;
-    const statusRes = await queryClient.getStatus({ includeFeatureCapabilities });
+    const needsCapabilities = !capabilitiesLoadedRef.current;
+    const [statusRes, capabilitiesRes] = await Promise.all([
+      queryClient.getStatus({}),
+      needsCapabilities ? queryClient.getFeatureCapabilities({}) : Promise.resolve(null),
+    ]);
     const nextStatuses = new Map<string, AccountStatus>();
     for (const status of statusRes.accounts) {
-      nextStatuses.set(status.accountId, status);
+      nextStatuses.set(accountKey(status.accountId), status);
     }
     setStatuses(nextStatuses);
-    if (includeFeatureCapabilities) {
-      setFeatureCapabilities(statusRes.featureCapabilities);
-      capabilitiesLoadedRef.current = statusRes.featureCapabilities.length > 0;
+    if (capabilitiesRes) {
+      setFeatureCapabilities(capabilitiesRes.featureCapabilities);
+      capabilitiesLoadedRef.current = capabilitiesRes.featureCapabilities.length > 0;
     }
     setError((current) => (isTransientConnectionMessage(current) ? "" : current));
   }, []);
@@ -151,12 +156,12 @@ function DashboardContent() {
   }, [refreshAccountCollection, refreshStatuses]);
 
   const canReadViews = useCallback((accountId: string) => {
-    const account = accountsRef.current.find((item) => item.id === accountId);
+    const account = accountsRef.current.find((item) => accountKey(item.id) === accountId);
     if (!account) return false;
     return accountConnected(account, statusesRef.current.get(accountId));
   }, []);
 
-  const refreshViews = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean }) => {
+  const refreshViews = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean; }) => {
     const fetchGen = ++viewFetchGenRef.current;
     if (!accountId) {
       setViews(EMPTY_ACCOUNT_VIEWS);
@@ -173,15 +178,22 @@ function DashboardContent() {
     }
     try {
       const [overview, garden, orders, union, activities, assets] = await Promise.all([
-        queryClient.getOverview({ accountId }),
-        queryClient.getGarden({ accountId }),
-        queryClient.getOrders({ accountId }),
-        queryClient.getUnion({ accountId }),
-        queryClient.getActivities({ accountId }),
-        queryClient.getAssets({ accountId }),
+        queryClient.getOverview({ accountId: BigInt(accountId) }),
+        queryClient.getGarden({ accountId: BigInt(accountId) }),
+        queryClient.getOrders({ accountId: BigInt(accountId) }),
+        queryClient.getUnion({ accountId: BigInt(accountId) }),
+        queryClient.getActivities({ accountId: BigInt(accountId) }),
+        queryClient.getAssets({ accountId: BigInt(accountId) }),
       ]);
       if (fetchGen !== viewFetchGenRef.current) return;
-      setViews({ overview, garden, orders, union, activities, assets });
+      setViews({
+        overview: overview.overview ?? null,
+        garden: garden.garden ?? null,
+        orders: orders.orders ?? null,
+        union: union.union ?? null,
+        activities: activities.activities ?? null,
+        assets: assets.assets ?? null,
+      });
     } catch (err) {
       if (fetchGen !== viewFetchGenRef.current) return;
       setViews(EMPTY_ACCOUNT_VIEWS);
@@ -207,7 +219,7 @@ function DashboardContent() {
     }
     setPolicyLoading(true);
     try {
-      const res = await policyClient.getPolicy({ accountId });
+      const res = await policyClient.getPolicy({ accountId: BigInt(accountId) });
       if (fetchGen !== policyFetchGenRef.current) return;
       policyOwnerAccountIdRef.current = accountId;
       setPolicy(res.policy ?? create(PolicySchema));
@@ -258,7 +270,7 @@ function DashboardContent() {
         const response = await accountClient.pollAlipayLogin({ loginId: alipayQR.loginId });
         if (!active) return;
         if (response.status === AlipayLoginStatus.COMPLETE && response.account) {
-          setSelectedAccountId(response.account.id);
+          setSelectedAccountId(accountKey(response.account.id));
           setAddOpen(false);
           setAddForm(EMPTY_ADD_FORM);
           setAlipayQR(null);
@@ -293,13 +305,13 @@ function DashboardContent() {
       didAutoSelectAccount.current = false;
       return;
     }
-    if (selectedAccountId && !accounts.some((account) => account.id === selectedAccountId)) {
-      setSelectedAccountId(accounts[0].id);
+    if (selectedAccountId && !accounts.some((account) => accountKey(account.id) === selectedAccountId)) {
+      setSelectedAccountId(accountKey(accounts[0].id));
       didAutoSelectAccount.current = true;
       return;
     }
     if (!selectedAccountId && !didAutoSelectAccount.current) {
-      setSelectedAccountId(accounts[0].id);
+      setSelectedAccountId(accountKey(accounts[0].id));
       didAutoSelectAccount.current = true;
     }
   }, [accounts, selectedAccountId]);
@@ -366,11 +378,13 @@ function DashboardContent() {
       while (active && !controller.signal.aborted) {
         let receivedEvent = false;
         try {
-          for await (const event of queryClient.streamEvents(
-            { accountId: selectedAccountId, replayLimit: EVENT_LIMIT, afterEventId: lastEventId },
+          for await (const response of queryClient.streamEvents(
+            { accountId: BigInt(selectedAccountId), replayLimit: EVENT_LIMIT, afterEventId: lastEventId },
             { signal: controller.signal },
           )) {
             if (!active || controller.signal.aborted) return;
+            const event = response.event;
+            if (!event) continue;
             if (event.id > BigInt(0)) {
               if (event.id <= lastEventId) continue;
               lastEventId = event.id;
@@ -416,12 +430,12 @@ function DashboardContent() {
     setError("");
     try {
       const response = action === "login"
-        ? await accountClient.loginAccount({ id: selectedAccount.id })
-        : await accountClient.logoutAccount({ id: selectedAccount.id });
+        ? await accountClient.connectAccount({ id: selectedAccount.id })
+        : await accountClient.disconnectAccount({ id: selectedAccount.id });
       updateCachedAccount(response.account);
       await refreshStatuses();
-      await refreshViews(selectedAccount.id, action === "login", { force: action === "login" });
-      await refreshPolicy(selectedAccount.id);
+      await refreshViews(accountKey(selectedAccount.id), action === "login", { force: action === "login" });
+      await refreshPolicy(accountKey(selectedAccount.id));
     } catch (err) {
       setError(formatAPIError(err, "操作失败"));
     } finally {
@@ -431,15 +445,15 @@ function DashboardContent() {
 
   async function runAutomationToggle(accountId: string) {
     if (busyBulkAutomation) return;
-    const account = accountsRef.current.find((item) => item.id === accountId);
+    const account = accountsRef.current.find((item) => accountKey(item.id) === accountId);
     const status = statusesRef.current.get(accountId);
     const online = account ? accountConnected(account, status) : Boolean(status?.connected);
     setBusyAutomationAccountId(accountId);
     setError("");
     try {
       const response = online
-        ? await accountClient.logoutAccount({ id: accountId })
-        : await accountClient.loginAccount({ id: accountId });
+        ? await accountClient.disconnectAccount({ id: BigInt(accountId) })
+        : await accountClient.connectAccount({ id: BigInt(accountId) });
       // Optimistic flip so the list button/badge update before the next poll.
       setStatuses((prev) => {
         const next = new Map(prev);
@@ -449,14 +463,14 @@ function DashboardContent() {
             ...current,
             connected: !online,
             automationEnabled: !online,
-            health: online ? "offline" : "online",
+            health: online ? AccountHealth.OFFLINE : AccountHealth.ONLINE,
           });
         }
         return next;
       });
       setAccounts((prev) =>
         prev.map((item) => (
-          item.id === accountId ? (response.account ?? { ...item, connected: !online }) : item
+          accountKey(item.id) === accountId ? (response.account ?? { ...item, connected: !online }) : item
         )),
       );
       await refreshStatuses();
@@ -477,7 +491,7 @@ function DashboardContent() {
     setBusyAutomationAccountId(accountId);
     setError("");
     try {
-      const response = await accountClient.logoutAccount({ id: accountId });
+      const response = await accountClient.disconnectAccount({ id: BigInt(accountId) });
       setStatuses((prev) => {
         const next = new Map(prev);
         const current = next.get(accountId);
@@ -486,7 +500,7 @@ function DashboardContent() {
             ...current,
             connected: false,
             automationEnabled: false,
-            health: "offline",
+            health: AccountHealth.OFFLINE,
             lastError: "",
           });
         }
@@ -494,7 +508,7 @@ function DashboardContent() {
       });
       setAccounts((prev) =>
         prev.map((item) => (
-          item.id === accountId ? (response.account ?? { ...item, connected: false }) : item
+          accountKey(item.id) === accountId ? (response.account ?? { ...item, connected: false }) : item
         )),
       );
       await refreshStatuses();
@@ -514,7 +528,7 @@ function DashboardContent() {
     if (busyBulkAutomation || busyAutomationAccountId) return;
     const wantOnline = action === "start";
     const targets = accountsRef.current.filter((account) => {
-      const online = accountConnected(account, statusesRef.current.get(account.id));
+      const online = accountConnected(account, statusesRef.current.get(accountKey(account.id)));
       return online !== wantOnline;
     });
     if (targets.length === 0) return;
@@ -526,20 +540,21 @@ function DashboardContent() {
 
     try {
       for (const account of targets) {
-        setBusyAutomationAccountId(account.id);
+        setBusyAutomationAccountId(accountKey(account.id));
         try {
           const response = wantOnline
-            ? await accountClient.loginAccount({ id: account.id })
-            : await accountClient.logoutAccount({ id: account.id });
+            ? await accountClient.connectAccount({ id: account.id })
+            : await accountClient.disconnectAccount({ id: account.id });
           setStatuses((prev) => {
             const next = new Map(prev);
-            const current = next.get(account.id);
+            const key = accountKey(account.id);
+            const current = next.get(key);
             if (current) {
-              next.set(account.id, {
+              next.set(key, {
                 ...current,
                 connected: wantOnline,
                 automationEnabled: wantOnline,
-                health: wantOnline ? "online" : "offline",
+                health: wantOnline ? AccountHealth.ONLINE : AccountHealth.OFFLINE,
                 ...(wantOnline ? {} : { lastError: "" }),
               });
             }
@@ -550,7 +565,7 @@ function DashboardContent() {
               item.id === account.id ? (response.account ?? { ...item, connected: wantOnline }) : item
             )),
           );
-          if (account.id === selectedAccountId) selectedTouched = true;
+          if (accountKey(account.id) === selectedAccountId) selectedTouched = true;
         } catch (err) {
           failures.push(
             `${accountNickname(account)}: ${formatAPIError(err, wantOnline ? "启动失败" : "暂停失败")}`,
@@ -593,17 +608,15 @@ function DashboardContent() {
     setError("");
     try {
       const res = await accountClient.createAccount({
-        name: "",
         username: addForm.username.trim(),
         password: addForm.password,
         channel: addForm.channel,
-        loginNow: true,
       });
       setAddOpen(false);
       setAddForm(EMPTY_ADD_FORM);
       await refreshAccountCollection();
       if (res.account?.id) {
-        setSelectedAccountId(res.account.id);
+        setSelectedAccountId(accountKey(res.account.id));
       }
       if (res.loginError) {
         setError(res.loginError);
@@ -645,7 +658,7 @@ function DashboardContent() {
       policyFetchGenRef.current += 1;
       policyOwnerAccountIdRef.current = "";
       const nextAccounts = accounts.filter((account) => account.id !== selectedAccount.id);
-      setSelectedAccountId(nextAccounts[0]?.id ?? "");
+      setSelectedAccountId(nextAccounts[0] ? accountKey(nextAccounts[0].id) : "");
       viewFetchGenRef.current += 1;
       setViews(EMPTY_ACCOUNT_VIEWS);
       setPolicy(null);
@@ -659,7 +672,7 @@ function DashboardContent() {
 
   async function savePolicy() {
     if (!selectedAccount || !policy) return;
-    const accountId = selectedAccount.id;
+    const accountId = accountKey(selectedAccount.id);
     if (policyOwnerAccountIdRef.current !== accountId) {
       setPolicyMessage("策略尚未与当前账号对齐，请等待加载完成后再保存");
       return;
@@ -667,7 +680,7 @@ function DashboardContent() {
     setSavingPolicy(true);
     setPolicyMessage("");
     try {
-      const res = await policyClient.setPolicy({ accountId, policy });
+      const res = await policyClient.setPolicy({ accountId: selectedAccount.id, policy });
       if (policyOwnerAccountIdRef.current !== accountId) return;
       setPolicy(res.policy ?? policy);
       setPolicyMessage("");
@@ -741,7 +754,7 @@ function DashboardContent() {
                 policyMessage={policyMessage}
                 onBack={() => setSelectedAccountId("")}
                 onTabChange={setDashboardTab}
-                onRefresh={() => void refreshViews(selectedAccount.id, true)}
+                onRefresh={() => void refreshViews(accountKey(selectedAccount.id), true)}
                 onAction={runAccountAction}
                 onDelete={() => void deleteSelectedAccount()}
                 onPolicyChange={setPolicy}

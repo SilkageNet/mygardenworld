@@ -40,8 +40,8 @@ func cyclicNoteTaskActionDemands(s *state.State, policy *pb.Policy, now time.Tim
 	if activity == nil {
 		return nil
 	}
-	module := activity.GetModules()[cyclicNoteModuleKey]
-	if module == nil || !module.GetEnabled() || !module.GetBoolParams()[cyclicNoteSatisfyTasksKey] {
+	module := activity.GetCyclicNote()
+	if module == nil || !module.GetEnabled() || !module.GetSatisfyTasks() {
 		return nil
 	}
 	view, ok := s.CyclicNoteView(now)

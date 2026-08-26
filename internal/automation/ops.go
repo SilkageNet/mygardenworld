@@ -242,7 +242,11 @@ func DefaultPolicy() *pb.Policy {
 			},
 			Land: &pb.UnionLandPolicy{},
 		},
-		Activity:                &pb.ActivityPolicy{},
+		Activity: &pb.ActivityPolicy{
+			CyclicNote:  &pb.CyclicNotePolicy{},
+			CyclicStory: &pb.CyclicStoryPolicy{},
+			Dessert:     &pb.DessertPolicy{Mode: 1},
+		},
 		DecisionIntervalSeconds: 4,
 	}
 }

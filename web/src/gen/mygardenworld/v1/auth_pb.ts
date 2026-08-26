@@ -2,8 +2,8 @@
 // @generated from file mygardenworld/v1/auth.proto (package mygardenworld.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,11 +12,9 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/auth.proto.
  */
 export const file_mygardenworld_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChtteWdhcmRlbndvcmxkL3YxL2F1dGgucHJvdG8SEG15Z2FyZGVud29ybGQudjEi4QEKBFVzZXISCgoCaWQYASABKAMSEAoIdXNlcm5hbWUYAiABKAkSDQoFZW1haWwYAyABKAkSDAoEcm9sZRgEIAEoCRIUCgxtYXhfYWNjb3VudHMYBSABKAUSGAoQY3VycmVudF9hY2NvdW50cxgGIAEoBRIOCgZzdGF0dXMYByABKAkSLgoKY3JlYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMgoMTG9naW5SZXF1ZXN0EhAKCHVzZXJuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJImEKDEF1dGhSZXNwb25zZRIUCgxhY2Nlc3NfdG9rZW4YASABKAkSFQoNcmVmcmVzaF90b2tlbhgCIAEoCRIkCgR1c2VyGAMgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIicKDlJlZnJlc2hSZXF1ZXN0EhUKDXJlZnJlc2hfdG9rZW4YASABKAkiJgoNTG9nb3V0UmVxdWVzdBIVCg1yZWZyZXNoX3Rva2VuGAEgASgJIhAKDkxvZ291dFJlc3BvbnNlIg4KDEdldE1lUmVxdWVzdCI1Cg1HZXRNZVJlc3BvbnNlEiQKBHVzZXIYASABKAsyFi5teWdhcmRlbndvcmxkLnYxLlVzZXIyugIKC0F1dGhTZXJ2aWNlEkcKBUxvZ2luEh4ubXlnYXJkZW53b3JsZC52MS5Mb2dpblJlcXVlc3QaHi5teWdhcmRlbndvcmxkLnYxLkF1dGhSZXNwb25zZRJLCgdSZWZyZXNoEiAubXlnYXJkZW53b3JsZC52MS5SZWZyZXNoUmVxdWVzdBoeLm15Z2FyZGVud29ybGQudjEuQXV0aFJlc3BvbnNlEksKBkxvZ291dBIfLm15Z2FyZGVud29ybGQudjEuTG9nb3V0UmVxdWVzdBogLm15Z2FyZGVud29ybGQudjEuTG9nb3V0UmVzcG9uc2USSAoFR2V0TWUSHi5teWdhcmRlbndvcmxkLnYxLkdldE1lUmVxdWVzdBofLm15Z2FyZGVud29ybGQudjEuR2V0TWVSZXNwb25zZUKCAQoUY29tLm15Z2FyZGVud29ybGQudjFCCUF1dGhQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
+  fileDesc("ChtteWdhcmRlbndvcmxkL3YxL2F1dGgucHJvdG8SEG15Z2FyZGVud29ybGQudjEimwIKBFVzZXISCgoCaWQYASABKAMSEAoIdXNlcm5hbWUYAiABKAkSDQoFZW1haWwYAyABKAkSKAoEcm9sZRgEIAEoDjIaLm15Z2FyZGVud29ybGQudjEuVXNlclJvbGUSFAoMbWF4X2FjY291bnRzGAUgASgFEhgKEGN1cnJlbnRfYWNjb3VudHMYBiABKAUSLAoGc3RhdHVzGAcgASgOMhwubXlnYXJkZW53b3JsZC52MS5Vc2VyU3RhdHVzEi4KCmNyZWF0ZWRfYXQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIjIKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSJLCg1Mb2dpblJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRIkCgR1c2VyGAIgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIhAKDlJlZnJlc2hSZXF1ZXN0Ik0KD1JlZnJlc2hSZXNwb25zZRIUCgxhY2Nlc3NfdG9rZW4YASABKAkSJAoEdXNlchgCIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciIPCg1Mb2dvdXRSZXF1ZXN0IhAKDkxvZ291dFJlc3BvbnNlIg4KDEdldE1lUmVxdWVzdCI1Cg1HZXRNZVJlc3BvbnNlEiQKBHVzZXIYASABKAsyFi5teWdhcmRlbndvcmxkLnYxLlVzZXIqTgoIVXNlclJvbGUSGQoVVVNFUl9ST0xFX1VOU1BFQ0lGSUVEEAASEgoOVVNFUl9ST0xFX1VTRVIQARITCg9VU0VSX1JPTEVfQURNSU4QAipbCgpVc2VyU3RhdHVzEhsKF1VTRVJfU1RBVFVTX1VOU1BFQ0lGSUVEEAASFgoSVVNFUl9TVEFUVVNfQUNUSVZFEAESGAoUVVNFUl9TVEFUVVNfRElTQUJMRUQQAjK+AgoLQXV0aFNlcnZpY2USSAoFTG9naW4SHi5teWdhcmRlbndvcmxkLnYxLkxvZ2luUmVxdWVzdBofLm15Z2FyZGVud29ybGQudjEuTG9naW5SZXNwb25zZRJOCgdSZWZyZXNoEiAubXlnYXJkZW53b3JsZC52MS5SZWZyZXNoUmVxdWVzdBohLm15Z2FyZGVud29ybGQudjEuUmVmcmVzaFJlc3BvbnNlEksKBkxvZ291dBIfLm15Z2FyZGVud29ybGQudjEuTG9nb3V0UmVxdWVzdBogLm15Z2FyZGVud29ybGQudjEuTG9nb3V0UmVzcG9uc2USSAoFR2V0TWUSHi5teWdhcmRlbndvcmxkLnYxLkdldE1lUmVxdWVzdBofLm15Z2FyZGVud29ybGQudjEuR2V0TWVSZXNwb25zZUKCAQoUY29tLm15Z2FyZGVud29ybGQudjFCCUF1dGhQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
- * User is a platform user (not a game account).
- *
  * @generated from message mygardenworld.v1.User
  */
 export type User = Message<"mygardenworld.v1.User"> & {
@@ -36,9 +34,9 @@ export type User = Message<"mygardenworld.v1.User"> & {
   email: string;
 
   /**
-   * @generated from field: string role = 4;
+   * @generated from field: mygardenworld.v1.UserRole role = 4;
    */
-  role: string;
+  role: UserRole;
 
   /**
    * @generated from field: int32 max_accounts = 5;
@@ -51,9 +49,9 @@ export type User = Message<"mygardenworld.v1.User"> & {
   currentAccounts: number;
 
   /**
-   * @generated from field: string status = 7;
+   * @generated from field: mygardenworld.v1.UserStatus status = 7;
    */
-  status: string;
+  status: UserStatus;
 
   /**
    * @generated from field: google.protobuf.Timestamp created_at = 8;
@@ -96,40 +94,31 @@ export const LoginRequestSchema: GenMessage<LoginRequest> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_auth, 1);
 
 /**
- * @generated from message mygardenworld.v1.AuthResponse
+ * @generated from message mygardenworld.v1.LoginResponse
  */
-export type AuthResponse = Message<"mygardenworld.v1.AuthResponse"> & {
+export type LoginResponse = Message<"mygardenworld.v1.LoginResponse"> & {
   /**
    * @generated from field: string access_token = 1;
    */
   accessToken: string;
 
   /**
-   * @generated from field: string refresh_token = 2;
-   */
-  refreshToken: string;
-
-  /**
-   * @generated from field: mygardenworld.v1.User user = 3;
+   * @generated from field: mygardenworld.v1.User user = 2;
    */
   user?: User | undefined;
 };
 
 /**
- * Describes the message mygardenworld.v1.AuthResponse.
- * Use `create(AuthResponseSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.LoginResponse.
+ * Use `create(LoginResponseSchema)` to create a new message.
  */
-export const AuthResponseSchema: GenMessage<AuthResponse> = /*@__PURE__*/
+export const LoginResponseSchema: GenMessage<LoginResponse> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_auth, 2);
 
 /**
  * @generated from message mygardenworld.v1.RefreshRequest
  */
 export type RefreshRequest = Message<"mygardenworld.v1.RefreshRequest"> & {
-  /**
-   * @generated from field: string refresh_token = 1;
-   */
-  refreshToken: string;
 };
 
 /**
@@ -140,13 +129,31 @@ export const RefreshRequestSchema: GenMessage<RefreshRequest> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_auth, 3);
 
 /**
+ * @generated from message mygardenworld.v1.RefreshResponse
+ */
+export type RefreshResponse = Message<"mygardenworld.v1.RefreshResponse"> & {
+  /**
+   * @generated from field: string access_token = 1;
+   */
+  accessToken: string;
+
+  /**
+   * @generated from field: mygardenworld.v1.User user = 2;
+   */
+  user?: User | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.RefreshResponse.
+ * Use `create(RefreshResponseSchema)` to create a new message.
+ */
+export const RefreshResponseSchema: GenMessage<RefreshResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_auth, 4);
+
+/**
  * @generated from message mygardenworld.v1.LogoutRequest
  */
 export type LogoutRequest = Message<"mygardenworld.v1.LogoutRequest"> & {
-  /**
-   * @generated from field: string refresh_token = 1;
-   */
-  refreshToken: string;
 };
 
 /**
@@ -154,7 +161,7 @@ export type LogoutRequest = Message<"mygardenworld.v1.LogoutRequest"> & {
  * Use `create(LogoutRequestSchema)` to create a new message.
  */
 export const LogoutRequestSchema: GenMessage<LogoutRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_auth, 4);
+  messageDesc(file_mygardenworld_v1_auth, 5);
 
 /**
  * @generated from message mygardenworld.v1.LogoutResponse
@@ -167,7 +174,7 @@ export type LogoutResponse = Message<"mygardenworld.v1.LogoutResponse"> & {
  * Use `create(LogoutResponseSchema)` to create a new message.
  */
 export const LogoutResponseSchema: GenMessage<LogoutResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_auth, 5);
+  messageDesc(file_mygardenworld_v1_auth, 6);
 
 /**
  * @generated from message mygardenworld.v1.GetMeRequest
@@ -180,7 +187,7 @@ export type GetMeRequest = Message<"mygardenworld.v1.GetMeRequest"> & {
  * Use `create(GetMeRequestSchema)` to create a new message.
  */
 export const GetMeRequestSchema: GenMessage<GetMeRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_auth, 6);
+  messageDesc(file_mygardenworld_v1_auth, 7);
 
 /**
  * @generated from message mygardenworld.v1.GetMeResponse
@@ -197,7 +204,61 @@ export type GetMeResponse = Message<"mygardenworld.v1.GetMeResponse"> & {
  * Use `create(GetMeResponseSchema)` to create a new message.
  */
 export const GetMeResponseSchema: GenMessage<GetMeResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_auth, 7);
+  messageDesc(file_mygardenworld_v1_auth, 8);
+
+/**
+ * User is a platform user (not a game account).
+ *
+ * @generated from enum mygardenworld.v1.UserRole
+ */
+export enum UserRole {
+  /**
+   * @generated from enum value: USER_ROLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: USER_ROLE_USER = 1;
+   */
+  USER = 1,
+
+  /**
+   * @generated from enum value: USER_ROLE_ADMIN = 2;
+   */
+  ADMIN = 2,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.UserRole.
+ */
+export const UserRoleSchema: GenEnum<UserRole> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_auth, 0);
+
+/**
+ * @generated from enum mygardenworld.v1.UserStatus
+ */
+export enum UserStatus {
+  /**
+   * @generated from enum value: USER_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: USER_STATUS_ACTIVE = 1;
+   */
+  ACTIVE = 1,
+
+  /**
+   * @generated from enum value: USER_STATUS_DISABLED = 2;
+   */
+  DISABLED = 2,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.UserStatus.
+ */
+export const UserStatusSchema: GenEnum<UserStatus> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_auth, 1);
 
 /**
  * @generated from service mygardenworld.v1.AuthService
@@ -209,7 +270,7 @@ export const AuthService: GenService<{
   login: {
     methodKind: "unary";
     input: typeof LoginRequestSchema;
-    output: typeof AuthResponseSchema;
+    output: typeof LoginResponseSchema;
   },
   /**
    * @generated from rpc mygardenworld.v1.AuthService.Refresh
@@ -217,7 +278,7 @@ export const AuthService: GenService<{
   refresh: {
     methodKind: "unary";
     input: typeof RefreshRequestSchema;
-    output: typeof AuthResponseSchema;
+    output: typeof RefreshResponseSchema;
   },
   /**
    * @generated from rpc mygardenworld.v1.AuthService.Logout

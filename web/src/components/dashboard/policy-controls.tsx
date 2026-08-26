@@ -3,7 +3,7 @@
 import { useMemo, useState, type PointerEvent, type ReactNode } from "react";
 import { GripVertical, Minus, Plus, Sparkles } from "lucide-react";
 import { SelectionMode } from "@/gen/mygardenworld/v1/policy_pb";
-import type { FriendTouchFriendView } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { FriendTouchFriendView } from "@/lib/api/query-models";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +26,7 @@ const GOAL_OPTIONS = [
 export const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
 export const QUALITY_LABELS: Record<number, string> = { 1: "凡", 2: "普", 3: "珍", 4: "华", 5: "仙" };
 
-export function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+export function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode; }) {
   return (
     <section className="space-y-3 rounded-md border border-border/55 bg-white/34 p-3 dark:bg-white/5">
       <SectionTitle icon={icon}>{title}</SectionTitle>
@@ -35,7 +35,7 @@ export function PolicyGroup({ title, icon, children }: { title: string; icon: Re
   );
 }
 
-export function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" | "warn" }) {
+export function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" | "warn"; }) {
   return (
     <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <Label className="min-w-0 text-sm">{label}</Label>
@@ -44,7 +44,7 @@ export function StatusRow({ label, value, tone }: { label: string; value: string
   );
 }
 
-export function TextRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+export function TextRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void; }) {
   return (
     <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
       <Label className="min-w-0 text-sm">{label}</Label>
@@ -240,7 +240,7 @@ export function SegmentedRow<T extends number>({
 }: {
   label: string;
   value: T;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; }[];
   onChange: (value: T) => void;
 }) {
   return (
@@ -390,7 +390,7 @@ export function ToggleRow({
   );
 }
 
-export function SettingStatusBadge({ status }: { status: SettingStatus }) {
+export function SettingStatusBadge({ status }: { status: SettingStatus; }) {
   const variant = status.kind === "sync_only" ? "outline" : "destructive";
   return (
     <Badge variant={variant} title={status.detail} className="shrink-0">
@@ -425,7 +425,7 @@ export function FriendTouchFriendList({
     return (
       <EmptyState
         title="尚未同步好友列表"
-		detail="请先开启自动摸花并保存；下一轮会同步好友列表，随后即可配置指定目标。"
+        detail="请先开启自动摸花并保存；下一轮会同步好友列表，随后即可配置指定目标。"
       />
     );
   }
@@ -448,11 +448,11 @@ export function FriendTouchFriendList({
           const target = counts[key] ?? 0;
           const isExcluded = excluded.has(key);
           const displayName = friend.name.trim() || (friend.profileObserved ? `UID ${key}` : `好友 ${key}`);
-		  const progress =
-			friend.quotaObserved
+          const progress =
+            friend.quotaObserved
               ? `今日 ${friend.stolenCount}/${friend.stealMax}`
-			  : "次数未同步";
-		  const targetMax = friend.baseStealMax + (autoBuy ? maxBuyPerFriend : friend.boughtCount);
+              : "次数未同步";
+          const targetMax = friend.baseStealMax + (autoBuy ? maxBuyPerFriend : friend.boughtCount);
           return (
             <div
               key={key}
@@ -467,18 +467,18 @@ export function FriendTouchFriendList({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>UID {key}</span>
                     <span>{progress}</span>
-					{friend.availabilityObserved && friend.canSteal ? (
+                    {friend.availabilityObserved && friend.canSteal ? (
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                         可摘
                       </Badge>
-					) : friend.availabilityObserved ? (
+                    ) : friend.availabilityObserved ? (
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
                         暂不可摘
                       </Badge>
-					) : (
-					  <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
-						状态待同步
-					  </Badge>
+                    ) : (
+                      <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+                        状态待同步
+                      </Badge>
                     )}
                   </div>
                 </div>
@@ -494,7 +494,7 @@ export function FriendTouchFriendList({
                     label={`${displayName} 目标次数`}
                     value={target.toString()}
                     min={0}
-					max={targetMax > 0 ? targetMax : undefined}
+                    max={targetMax > 0 ? targetMax : undefined}
                     decrementDisabled={target <= 0}
                     onDecrement={() => onCountChange(friend.uid, target - 1)}
                     onIncrement={() => onCountChange(friend.uid, target + 1)}
@@ -557,7 +557,7 @@ export function NumberRow({
   );
 }
 
-export function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+export function SectionTitle({ icon, children }: { icon: ReactNode; children: ReactNode; }) {
   return (
     <div className="flex items-center gap-2 text-sm font-semibold">
       <span className="flex size-7 items-center justify-center rounded-md bg-secondary text-sky-600 dark:bg-white/8 dark:text-sky-300 [&_svg]:size-4">{icon}</span>
@@ -566,7 +566,7 @@ export function SectionTitle({ icon, children }: { icon: ReactNode; children: Re
   );
 }
 
-export function EmptyState({ title, detail }: { title: string; detail?: string }) {
+export function EmptyState({ title, detail }: { title: string; detail?: string; }) {
   return (
     <div className="rounded-md border border-dashed border-border/70 bg-white/32 px-3 py-4 text-center dark:bg-white/5">
       <Sparkles className="mx-auto mb-2 size-4 text-amber-400" />

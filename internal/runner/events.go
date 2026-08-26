@@ -18,7 +18,7 @@ func (r *Runner) emit(e Event) {
 	r.mu.Lock()
 	r.lastEventAt = e.TS
 	r.mu.Unlock()
-	e.AccountID = fmt.Sprintf("%d", r.account.ID)
+	e.AccountID = r.account.ID
 	e.AccountName = r.account.Name
 	if e.PayloadJSON == "" {
 		e.PayloadJSON = "{}"
