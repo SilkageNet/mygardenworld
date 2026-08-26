@@ -28,11 +28,11 @@ const (
 	dessertPriority                  int32 = 50 * 100
 	dessertCooldownKey                     = "activity.actDessert:reward"
 
-	cyclicStoryModuleKey                 = "actCyclicStory"
-	cyclicStoryAutoClaimOrderRewardsKey  = "auto_claim_order_rewards"
-	cyclicStoryAutoClaimProgressBoxesKey = "auto_claim_progress_boxes"
-	cyclicStoryMaxScoreKey               = "max_score"
-	cyclicStoryPriority            int32 = 50 * 100
+	cyclicStoryModuleKey                       = "actCyclicStory"
+	cyclicStoryAutoClaimOrderRewardsKey        = "auto_claim_order_rewards"
+	cyclicStoryAutoClaimProgressBoxesKey       = "auto_claim_progress_boxes"
+	cyclicStoryMaxScoreKey                     = "max_score"
+	cyclicStoryPriority                  int32 = 50 * 100
 )
 
 // activityOperations combines independently gated activity modules. Each

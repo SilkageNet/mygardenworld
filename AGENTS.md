@@ -7,9 +7,11 @@ Personal local automation prototype. Daemon + embedded Web UI architecture.
 ```sh
 make build        # → bin/gardend
 make test         # go test ./...
-make lint         # golangci-lint (install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+make lint         # golangci-lint v2.13.0, built by system Go 1.27
 make proto-gen    # buf generate (requires buf CLI)
 ```
+
+All Go build, test, lint, generation, and release commands use system Go 1.27.0.
 
 ## Architecture
 

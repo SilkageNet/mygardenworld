@@ -1,0 +1,63 @@
+minimum_pre_commit_version: "3.6.0"
+
+default_stages:
+  - pre-commit
+
+repos:
+  - repo: local
+    hooks:
+      - id: gitleaks-staged
+        name: gitleaks git --staged
+        entry: gitleaks git --staged --redact --no-banner
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: go-mod-tidy
+        name: go mod tidy
+        entry: go mod tidy
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: golangci-lint-fmt
+        name: golangci-lint fmt --diff
+        entry: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0 fmt --diff
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: golangci-lint-run
+        name: golangci-lint run
+        entry: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0 run
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: go-test-race
+        name: go test -race ./...
+        entry: go test -race ./...
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: go-build
+        name: go build ./...
+        entry: go build ./...
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: web-test
+        name: pnpm --dir web test
+        entry: pnpm --dir web test
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: web-lint
+        name: pnpm --dir web lint
+        entry: pnpm --dir web lint
+        language: system
+        pass_filenames: false
+        always_run: true

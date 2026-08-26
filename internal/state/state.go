@@ -10,11 +10,13 @@ package state
 import (
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 )
 
 // State is the per-account in-memory tracker.
 type State struct {
-	mu sync.RWMutex
+	mu       sync.RWMutex
+	revision atomic.Uint64
 
 	lands              map[int32]LandView
 	landRosterObserved bool
@@ -212,6 +214,19 @@ type State struct {
 
 	// onInventoryChange (optional) is invoked when the tracked inventory map changes.
 	onInventoryChange func(InventorySnapshot)
+}
+
+// Revision returns the monotonic state generation. Callers can compare values
+// around a read-only computation and retry when a concurrent mutation lands.
+func (s *State) Revision() uint64 {
+	if s == nil {
+		return 0
+	}
+	return s.revision.Load()
+}
+
+func (s *State) bumpRevisionLocked() {
+	s.revision.Add(1)
 }
 
 // LandChange is the diff produced by apply.

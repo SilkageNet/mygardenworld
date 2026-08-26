@@ -1,0 +1,4 @@
+title = "仓库 Gitleaks 配置"
+
+[extend]
+useDefault = true

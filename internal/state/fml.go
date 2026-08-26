@@ -485,28 +485,46 @@ func (s *State) FmlBuildObserved() bool {
 	return s.fmlBuild.Observed
 }
 
+// BeginFmlMembershipSnapshot starts a new connection epoch. Guild and race
+// snapshots may remain available for diagnostics, but their previous guild ID
+// must not count as current membership until login + lazySync provide evidence
+// for this epoch.
+func (s *State) BeginFmlMembershipSnapshot() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlBuild.FmlID = 0
+	s.fmlBuild.MembershipObserved = false
+	s.fmlBuild.MemberFmlID = 0
+	s.bumpRevisionLocked()
+}
+
 // MarkNoFmlMembership records an authoritative server response that the
 // account is not currently a guild member. It lets every guild planner stop
 // immediately even if stale IFml/race records remain in the login snapshot.
 func (s *State) MarkNoFmlMembership() {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.fmlBuild.MembershipObserved = true
 	s.fmlBuild.MemberFmlID = 0
-	s.mu.Unlock()
+	s.bumpRevisionLocked()
 }
 
 // FinalizeFmlMembershipSnapshot closes the startup index.login + lazySync
-// baseline. A joined account receives IFmlTot.mb (25.1) in that baseline; if
-// it was absent from both responses, the account is authoritatively not in a
+// baseline. Some channel fronts omit IFmlTot.mb (25.1) for joined accounts but
+// still return IFmlTot.fml (25.0). In that shape the guild ID is positive
+// membership evidence; only a baseline with neither record is treated as no
 // guild. This must only be called after the full startup sync, not for sparse
 // operation deltas.
 func (s *State) FinalizeFmlMembershipSnapshot() {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if !s.fmlBuild.MembershipObserved {
 		s.fmlBuild.MembershipObserved = true
-		s.fmlBuild.MemberFmlID = 0
+		if s.fmlBuild.FmlID > 0 {
+			s.fmlBuild.MemberFmlID = s.fmlBuild.FmlID
+		}
+		s.bumpRevisionLocked()
 	}
-	s.mu.Unlock()
 }
 
 // FmlLandObserved reports whether namespace 25.102 has been observed.

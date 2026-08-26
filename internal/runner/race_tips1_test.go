@@ -236,7 +236,7 @@ func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn1s(t *testing.T) {
 	if r.state.FmlRace().Observed {
 		t.Fatal("code 221 must MarkFmlRaceSessionStale (Observed=false)")
 	}
-	cd, cooling := r.operationCoolingDown(op, now.Add(500 * time.Millisecond))
+	cd, cooling := r.operationCoolingDown(op, now.Add(500*time.Millisecond))
 	if !cooling {
 		t.Fatal("expected 1s sync cooldown")
 	}

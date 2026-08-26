@@ -1,10 +1,13 @@
 package automation
 
 import (
+	"time"
+
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"time"
 )
+
+const stablePlanAttempts = 3
 
 func Plan(s *state.State, policy *pb.Policy, now time.Time) *PlannedOp {
 	result := BuildPlan(s, policy, now)
@@ -28,6 +31,19 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
 		return PlanResult{}
 	}
+	for attempt := 0; attempt < stablePlanAttempts; attempt++ {
+		revision := s.Revision()
+		result := buildPlanAtRevision(s, policy, now)
+		if revision == s.Revision() {
+			return result
+		}
+	}
+	// A continuously changing state must not produce a queue assembled from
+	// multiple server generations. The next runner tick/query will retry.
+	return PlanResult{}
+}
+
+func buildPlanAtRevision(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	policy = DefaultPolicyIfNil(policy)
 	goals := enabledGoals(policy)
 	ledger := NewInventoryLedger(s.Inventory())

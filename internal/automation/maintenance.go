@@ -1,11 +1,12 @@
 package automation
 
 import (
+	"sort"
+	"time"
+
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"sort"
-	"time"
 )
 
 func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryLedger, now time.Time) []PlannedOp {

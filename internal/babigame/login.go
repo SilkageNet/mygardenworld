@@ -4,8 +4,28 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
+
+const persistedSessionVersion = 1
+
+type persistedSession struct {
+	Version    int             `json:"version"`
+	DeviceID   string          `json:"device_id"`
+	UUID       string          `json:"uuid"`
+	Session0   string          `json:"session0"`
+	Native     NativeLogin     `json:"native"`
+	GameLogin  GameLoginResult `json:"game_login"`
+	AID        int64           `json:"aid"`
+	GsIdx      int             `json:"gs_idx"`
+	RouteToken string          `json:"route_token"`
+	AccountRaw map[string]any  `json:"account_raw,omitempty"`
+	GsHost     string          `json:"gs_host,omitempty"`
+	GsPort     int             `json:"gs_port,omitempty"`
+	GsPortSSL  int             `json:"gs_port_ssl,omitempty"`
+	SavedAt    int64           `json:"saved_at"`
+}
 
 // PerformLoginWithPassword runs the captured 14-step login chain and returns
 // a Session ready for Client.Connect. Mirrors the Python helper of the same
@@ -131,21 +151,11 @@ func readInt64(m map[string]any, key string) int64 {
 // MarshalSessionJSON converts a Session to a JSON byte slice for sqlite
 // storage. Restoring goes through UnmarshalSessionJSON.
 func MarshalSessionJSON(s *Session) ([]byte, error) {
-	return json.Marshal(struct {
-		DeviceID   string          `json:"device_id"`
-		UUID       string          `json:"uuid"`
-		Session0   string          `json:"session0"`
-		Native     NativeLogin     `json:"native"`
-		GameLogin  GameLoginResult `json:"game_login"`
-		AID        int64           `json:"aid"`
-		GsIdx      int             `json:"gs_idx"`
-		RouteToken string          `json:"route_token"`
-		AccountRaw map[string]any  `json:"account_raw,omitempty"`
-		GsHost     string          `json:"gs_host,omitempty"`
-		GsPort     int             `json:"gs_port,omitempty"`
-		GsPortSSL  int             `json:"gs_port_ssl,omitempty"`
-		SavedAt    int64           `json:"saved_at"`
-	}{
+	if err := validatePersistableSession(s); err != nil {
+		return nil, err
+	}
+	return json.Marshal(persistedSession{
+		Version:    persistedSessionVersion,
 		DeviceID:   s.DeviceID,
 		UUID:       s.UUID,
 		Session0:   s.Session0,
@@ -164,24 +174,14 @@ func MarshalSessionJSON(s *Session) ([]byte, error) {
 
 // UnmarshalSessionJSON inflates a session blob written by MarshalSessionJSON.
 func UnmarshalSessionJSON(data []byte, cfg Config) (*Session, error) {
-	var raw struct {
-		DeviceID   string          `json:"device_id"`
-		UUID       string          `json:"uuid"`
-		Session0   string          `json:"session0"`
-		Native     NativeLogin     `json:"native"`
-		GameLogin  GameLoginResult `json:"game_login"`
-		AID        int64           `json:"aid"`
-		GsIdx      int             `json:"gs_idx"`
-		RouteToken string          `json:"route_token"`
-		AccountRaw map[string]any  `json:"account_raw,omitempty"`
-		GsHost     string          `json:"gs_host,omitempty"`
-		GsPort     int             `json:"gs_port,omitempty"`
-		GsPortSSL  int             `json:"gs_port_ssl,omitempty"`
-	}
+	var raw persistedSession
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
-	return &Session{
+	if raw.Version != persistedSessionVersion {
+		return nil, fmt.Errorf("unsupported session payload version %d", raw.Version)
+	}
+	session := &Session{
 		Cfg:        cfg,
 		DeviceID:   raw.DeviceID,
 		UUID:       raw.UUID,
@@ -195,5 +195,33 @@ func UnmarshalSessionJSON(data []byte, cfg Config) (*Session, error) {
 		GsHost:     raw.GsHost,
 		GsPort:     raw.GsPort,
 		GsPortSSL:  raw.GsPortSSL,
-	}, nil
+	}
+	if err := validatePersistableSession(session); err != nil {
+		return nil, fmt.Errorf("invalid stored session: %w", err)
+	}
+	return session, nil
+}
+
+func validatePersistableSession(s *Session) error {
+	if s == nil {
+		return fmt.Errorf("nil session")
+	}
+	switch {
+	case strings.TrimSpace(s.DeviceID) == "":
+		return fmt.Errorf("device id is empty")
+	case strings.TrimSpace(s.UUID) == "":
+		return fmt.Errorf("uuid is empty")
+	case strings.TrimSpace(s.Session0) == "":
+		return fmt.Errorf("session0 is empty")
+	case strings.TrimSpace(s.GameLogin.Token) == "":
+		return fmt.Errorf("game token is empty")
+	case s.AID <= 0:
+		return fmt.Errorf("aid is invalid")
+	case s.GsIdx <= 0:
+		return fmt.Errorf("game server index is invalid")
+	case strings.TrimSpace(s.RouteToken) == "":
+		return fmt.Errorf("route token is empty")
+	default:
+		return nil
+	}
 }

@@ -222,3 +222,22 @@ func TestRemoveDataDirDeletesDirectory(t *testing.T) {
 		t.Fatalf("dataDir still exists or stat failed unexpectedly: %v", err)
 	}
 }
+
+func TestUpgradeLegacySessionPayloadAddsVersionAndValidates(t *testing.T) {
+	legacy := []byte(`{"device_id":"device","uuid":"uuid","session0":"session-zero","game_login":{"token":"game-token"},"aid":42,"gs_idx":3,"route_token":"route-token"}`)
+	upgraded, err := upgradeLegacySessionPayload(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(upgraded) == 0 || !strings.Contains(string(upgraded), `"version":1`) {
+		t.Fatalf("upgraded session=%s", upgraded)
+	}
+
+	invalid, err := upgradeLegacySessionPayload([]byte(`{"aid":42}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if invalid != nil {
+		t.Fatalf("invalid legacy session was retained: %s", invalid)
+	}
+}

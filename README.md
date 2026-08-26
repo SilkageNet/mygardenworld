@@ -35,6 +35,15 @@ JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="Use-A-Long-Local-Admin-Pass
 
 本地数据默认由 `gardend serve --data-dir` 决定；不传时使用系统用户配置目录下的 `mygardenworld/data`，SQLite 文件为 `garden.db`。一键安装只安装 `gardend` 二进制，不会额外切换数据目录。
 
+当前数据库以 schema v1 作为全新版本化基线，正常启动不包含旧 schema 的兼容分支。旧库不会被静默修改；启动会明确拒绝。升级前先停止 `gardend`，再使用与服务相同的 `--data-dir` 运行一次 `gardend migrate-data-v1 --yes`：工具会先生成 SQLite 一致性备份及配套 `.key` 备份，再保留账号、策略和日志，升级并加密可验证的 Session。迁移完成后，后续结构变化会按 SQLite `user_version` 顺序、事务化迁移。确认不需要旧数据时也可以改用 `gardend reset-data --yes` 全量重建。
+
+可以先不带 `--yes` 做只读预检；输出确认账号与 Session 数量后，再停服务执行迁移：
+
+```sh
+gardend migrate-data-v1 --data-dir ./data
+gardend migrate-data-v1 --data-dir ./data --yes
+```
+
 需要排查协议回包时，请用源码目录里的 debug 启动目标，而不是普通 `backend`：
 
 ```sh
@@ -68,6 +77,8 @@ Web 控制台适合日常可视化管理账号、查看田地/库存/任务、�
 本项目不支持需要客户端广告 SDK 回调或 token 的自动化，也不会编造广告完成参数。只有协议明确支持直接领取或跳过广告、且不依赖 SDK 回调的流程才会执行；例如水车广告桶使用已确认的 `skip→recv` 路径。旧策略中的视频加速、双倍金币、视频礼包和公会视频建设开关会自动关闭，新请求尝试开启时会被明确拒绝。
 
 服务内置了基础防护：登录失败按用户名和 TCP 远端 IP 内存限速，默认同一用户名 10 分钟内 5 次失败锁定 15 分钟，同一 IP 10 分钟内 30 次失败锁定 15 分钟；请求消息默认限制为 1 MiB；Web/API 响应会带点击劫持和内容嗅探等安全头。
+
+游戏账号凭据和可恢复 Session 都使用本地 `garden.db.key` 加密后再写入 SQLite。Runner 会优先恢复有效 Session，失败才回退到渠道登录；删除 Session 或检测到服务端失效时不会继续使用旧缓存。备份或移动数据时必须把 `garden.db` 与 `garden.db.key` 一起保护，任一文件单独存在都不是可恢复备份。
 
 相关参数：
 
@@ -121,15 +132,16 @@ gardend serve --help
 
 ## 从源码构建
 
-需要 Go 1.26.6 或更高版本；前端发布环境使用 Node.js 22 和 pnpm 10。
+所有 Go 构建、测试、生成和发布工具链统一使用系统 Go 1.27.0；前端发布环境使用 Node.js 22 和 pnpm 10。
 
 ```sh
 make build
 make test
+make frontend:test
 make frontend
 ```
 
-`make frontend`、`make frontend:build`、`make frontend:lint` 会先执行 `pnpm --dir web install --frozen-lockfile`。
+`make frontend`、`make frontend:build`、`make frontend:lint`、`make frontend:test` 会先执行 `pnpm --dir web install --frozen-lockfile`。提交前可运行 `make check`；本地 pre-commit 还会执行 Secret 扫描、Go 格式/lint、race test、build 以及前端单测/lint。
 
 开发模式下前端和后端可以分开启动；Release 二进制会内嵌已构建的 Web 控制台。
 

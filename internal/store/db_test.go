@@ -1,13 +1,147 @@
 package store
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestOpenCreatesVersionedBaseline(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "garden.db")
+	db, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+
+	version, err := databaseVersion(ctx, db.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != currentSchemaVersion {
+		t.Fatalf("schema version=%d, want %d", version, currentSchemaVersion)
+	}
+	var sessionColumn string
+	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('sessions') WHERE name = 'payload_enc'`).Scan(&sessionColumn); err != nil {
+		t.Fatalf("encrypted session column: %v", err)
+	}
+}
+
+func TestOpenRejectsUnversionedDatabase(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "garden.db")
+	legacy, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := legacy.ExecContext(ctx, `CREATE TABLE accounts (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Open(ctx, path)
+	if !errors.Is(err, ErrUnversionedDatabase) {
+		t.Fatalf("Open() error=%v, want ErrUnversionedDatabase", err)
+	}
+	if _, statErr := os.Stat(path + ".key"); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("rejected database unexpectedly created a key: %v", statErr)
+	}
+}
+
+func TestOpenRejectsNewerDatabase(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "garden.db")
+	newer, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newer.ExecContext(ctx, `PRAGMA user_version = 999`); err != nil {
+		t.Fatal(err)
+	}
+	if err := newer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = Open(ctx, path)
+	if !errors.Is(err, ErrNewerDatabase) {
+		t.Fatalf("Open() error=%v, want ErrNewerDatabase", err)
+	}
+}
+
+func TestSessionIsEncryptedAndExpires(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account, err := db.CreateAccount(ctx, user.ID, "main", "ios", "game", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payload := []byte(`{"token":"session-secret"}`)
+	expiresAt := time.Now().Add(time.Hour)
+	if err := db.SaveSession(ctx, account.ID, payload, &expiresAt); err != nil {
+		t.Fatal(err)
+	}
+	var stored string
+	if err := db.QueryRowContext(ctx, `SELECT payload_enc FROM sessions WHERE account_id = ?`, account.ID).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stored, "session-secret") || !strings.HasPrefix(stored, sessionVersionV1) {
+		t.Fatalf("session was not encrypted: %q", stored)
+	}
+	loaded, err := db.LoadSession(ctx, account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(loaded, payload) {
+		t.Fatalf("loaded session=%s, want %s", loaded, payload)
+	}
+	other, err := db.CreateAccount(ctx, user.ID, "other", "ios", "game-other", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO sessions(account_id, payload_enc, expires_at) VALUES (?, ?, ?)`, other.ID, stored, expiresAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.LoadSession(ctx, other.ID); err == nil {
+		t.Fatal("session ciphertext copied to another account decrypted successfully")
+	}
+
+	expired := time.Now().Add(-time.Second)
+	if err := db.SaveSession(ctx, account.ID, payload, &expired); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = db.LoadSession(ctx, account.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded != nil {
+		t.Fatalf("expired session=%s, want nil", loaded)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE account_id = ?`, account.ID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("expired session row count=%d, want 0", count)
+	}
+}
 
 func TestAccountNamesAreScopedByUser(t *testing.T) {
 	ctx := context.Background()

@@ -69,8 +69,8 @@ func TestDessertBoundedControllerEvidenceGateIsOpaqueAndOutermost(t *testing.T) 
 	cases := map[string]dessertBoundedControllerInput{
 		"otherwise ready":               validDessertBoundedControllerInput(),
 		"zero value":                    {},
-		"locked with private detail":    dessertBoundedControllerInput{failureLocked: true, failureReason: "private-board-detail"},
-		"forged ownership and revision": dessertBoundedControllerInput{boardOwned: true, runtimeAuthorityRevision: ^uint64(0)},
+		"locked with private detail":    {failureLocked: true, failureReason: "private-board-detail"},
+		"forged ownership and revision": {boardOwned: true, runtimeAuthorityRevision: ^uint64(0)},
 	}
 	for name, input := range cases {
 		t.Run(name, func(t *testing.T) {

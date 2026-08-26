@@ -2,13 +2,14 @@ package automation
 
 import (
 	"fmt"
-	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
-	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
-	"github.com/SilkageNet/mygardenworld/internal/state"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func FlowerArtAvailability(s *state.State, artID, count int32, ledger *InventoryLedger) ArtAvailability {
