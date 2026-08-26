@@ -39,8 +39,6 @@ JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="Use-A-Long-Local-Admin-Pass
 
 ```sh
 make backend:debug
-# 或
-task backend:debug
 ```
 
 `backend:debug` 会自动传入 `--debug-dir`，默认写到 `./debug/<账号名>_debug.jsonl`。如果直接运行 `gardend serve` 或 `make backend`，除非手动加 `--debug-dir`，否则不会生成 WS/HTTP debug JSONL。
@@ -115,6 +113,8 @@ gardend serve --help
 | `proto` | 对外 API 和策略配置 schema |
 | `web` | 本地 Web 控制台源码 |
 
+每个 `cmd/<name>` 目录只对应一个可执行程序；命令参数、服务启动、安全中间件等辅助实现与 `main.go` 放在同目录。`internal` 下按稳定责任划分 package，package 内再按农场、公会、竞赛、活动等业务域分文件，避免单文件承担多个流程。
+
 协议和策略字段以 `proto/`、`internal/babigame/doc.go`、代码测试和 `AGENTS.md` 为准。设计说明应随代码、测试和 schema 更新，避免与当前实现脱节。
 
 公会竞赛的状态同步、任务选择和错误恢复约束见 [`docs/guild-race.md`](docs/guild-race.md)。
@@ -129,7 +129,7 @@ make test
 make frontend
 ```
 
-`make frontend`、`make frontend:build`、`make frontend:lint` 会先执行 `pnpm --dir web install --frozen-lockfile`。使用 Taskfile 时，对应的 `task frontend`、`task frontend:build`、`task frontend:lint` 也会先跑 `frontend:deps`。
+`make frontend`、`make frontend:build`、`make frontend:lint` 会先执行 `pnpm --dir web install --frozen-lockfile`。
 
 开发模式下前端和后端可以分开启动；Release 二进制会内嵌已构建的 Web 控制台。
 

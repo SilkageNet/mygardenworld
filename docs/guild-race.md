@@ -4,9 +4,9 @@
 
 协议行为以 `internal/babigame/doc.go` 和实际观测为准；实现与测试以以下位置为准：
 
-- `internal/state/fml.go`：namespace 25 状态解析、已接任务补全与任务池新鲜度
-- `internal/automation/shop_union.go`：同步、接取、完成、放弃、升级和删除的规划逻辑
-- `internal/runner/operation_events.go`：服务端拒绝后的软恢复
+- `internal/state/fml_race.go`：namespace 25 竞赛状态解析、已接任务补全与任务池新鲜度
+- `internal/automation/union_race.go`：同步、接取、完成、放弃、升级和删除的规划逻辑
+- `internal/runner/operation_events.go`、`internal/runner/operation_errors.go`：服务端拒绝的分类与软恢复
 - `internal/automation/shop_union_race_test.go`、`internal/state/fml_race_test.go`、`internal/runner/race_tips1_test.go`：行为回归测试
 
 ## 状态与同步
