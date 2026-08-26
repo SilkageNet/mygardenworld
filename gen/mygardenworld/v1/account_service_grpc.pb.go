@@ -51,9 +51,8 @@ type AccountServiceClient interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(ctx context.Context, in *LogoutAccountRequest, opts ...grpc.CallOption) (*LogoutAccountResponse, error)
-	// Redeem one gift code across accounts. Empty account_ids means every
-	// account owned by the caller (admin: all accounts). Offline accounts are
-	// started first so the game RPC can run.
+	// Redeem one gift code across an explicit set of accounts from one channel.
+	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(ctx context.Context, in *RedeemCodeRequest, opts ...grpc.CallOption) (*RedeemCodeResponse, error)
 }
 
@@ -167,9 +166,8 @@ type AccountServiceServer interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *LogoutAccountRequest) (*LogoutAccountResponse, error)
-	// Redeem one gift code across accounts. Empty account_ids means every
-	// account owned by the caller (admin: all accounts). Offline accounts are
-	// started first so the game RPC can run.
+	// Redeem one gift code across an explicit set of accounts from one channel.
+	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error)
 }
 

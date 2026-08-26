@@ -239,9 +239,6 @@ func (svc *Services) RedeemCode(ctx context.Context, req *connect.Request[pb.Red
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	if len(accounts) == 0 {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("no accounts to redeem"))
-	}
 
 	resp := &pb.RedeemCodeResponse{Results: make([]*pb.RedeemCodeResult, 0, len(accounts))}
 	for _, acc := range accounts {
@@ -301,14 +298,11 @@ func redeemResultMessage(result runner.RedeemResult) string {
 
 func (svc *Services) resolveRedeemAccounts(ctx context.Context, accountIDs []string) ([]*store.Account, error) {
 	if len(accountIDs) == 0 {
-		var userID int64
-		if !auth.IsAdmin(ctx) {
-			userID = auth.UserIDFromContext(ctx)
-		}
-		return svc.DB.ListAccounts(ctx, userID)
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem account ids required"))
 	}
 	out := make([]*store.Account, 0, len(accountIDs))
 	seen := make(map[int64]struct{}, len(accountIDs))
+	channel := ""
 	for _, raw := range accountIDs {
 		id := strings.TrimSpace(raw)
 		if id == "" {
@@ -321,8 +315,16 @@ func (svc *Services) resolveRedeemAccounts(ctx context.Context, accountIDs []str
 		if _, ok := seen[acc.ID]; ok {
 			continue
 		}
+		if len(out) == 0 {
+			channel = acc.Channel
+		} else if acc.Channel != channel {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem accounts must belong to one channel"))
+		}
 		seen[acc.ID] = struct{}{}
 		out = append(out, acc)
+	}
+	if len(out) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem account ids required"))
 	}
 	return out, nil
 }

@@ -809,7 +809,7 @@ type RedeemCodeRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Gift / redeem code from the game.
 	Code string `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
-	// Optional subset of account ids. Empty = all accounts visible to the caller.
+	// Required target account ids. Every account must belong to the same channel.
 	AccountIds    []string `protobuf:"bytes,2,rep,name=account_ids,json=accountIds,proto3" json:"account_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
