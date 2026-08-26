@@ -79,9 +79,8 @@ type AccountServiceClient interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
-	// Redeem one gift code across accounts. Empty account_ids means every
-	// account owned by the caller (admin: all accounts). Offline accounts are
-	// started first so the game RPC can run.
+	// Redeem one gift code across an explicit set of accounts from one channel.
+	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error)
 }
 
@@ -219,9 +218,8 @@ type AccountServiceHandler interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	LogoutAccount(context.Context, *connect.Request[v1.LogoutAccountRequest]) (*connect.Response[v1.LogoutAccountResponse], error)
-	// Redeem one gift code across accounts. Empty account_ids means every
-	// account owned by the caller (admin: all accounts). Offline accounts are
-	// started first so the game RPC can run.
+	// Redeem one gift code across an explicit set of accounts from one channel.
+	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error)
 }
 

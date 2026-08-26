@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { StatusOverviewPanel, RuntimeStatisticsPanel, TaskOrderMonitorPanel, LandMonitorPanel, FmlLandMonitorPanel, WarehouseMonitorPanel, BusinessStatisticsPanel, OperationPanel, EventPanel, Field } from "@/components/dashboard/monitor-panels";
 import { CyclicNoteMonitorPanel, FmlRaceMonitorPanel, CyclicStoryMonitorPanel, DessertMonitorPanel } from "@/components/dashboard/activity-monitor-panels";
 import { accountIdentity, accountNickname, alipayLoginStatusLabel, accountConnected, isRunnerNotStartedError, isTransientConnectionMessage, waitForAbortableDelay, accountIsAbnormal, HealthBadge, accountStatusIssues } from "@/components/dashboard/dashboard-utils";
+import RedeemCodeDialog from "@/components/dashboard/redeem-code-dialog";
 
 const accountClient = createClient(AccountService, transport);
 const policyClient = createClient(PolicyService, transport);
@@ -115,10 +116,6 @@ function DashboardContent() {
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
   const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [redeemCode, setRedeemCode] = useState("");
-  const [redeemBusy, setRedeemBusy] = useState(false);
-  const [redeemSummary, setRedeemSummary] = useState("");
-  const [redeemResults, setRedeemResults] = useState<Array<{ accountName: string; ok: boolean; message: string }>>([]);
   const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("monitor");
   const didAutoSelectAccount = useRef(false);
   const accountsRef = useRef<Account[]>([]);
@@ -602,35 +599,6 @@ function DashboardContent() {
     }
   }
 
-  async function submitRedeemCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const code = redeemCode.trim();
-    if (!code || accounts.length === 0 || redeemBusy) return;
-    setRedeemBusy(true);
-    setRedeemSummary("");
-    setRedeemResults([]);
-    setError("");
-    try {
-      const res = await accountClient.redeemCode({
-        code,
-        accountIds: accounts.map((account) => account.id),
-      });
-      setRedeemResults(
-        res.results.map((item) => ({
-          accountName: item.accountName || item.accountId,
-          ok: item.ok,
-          message: item.message || (item.ok ? "ok" : "失败"),
-        })),
-      );
-      setRedeemSummary(`成功 ${res.successCount} / 失败 ${res.failureCount}（共 ${res.results.length} 个账号）`);
-      await refreshStatuses().catch(() => undefined);
-    } catch (err) {
-      setRedeemSummary(formatAPIError(err, "兑换失败"));
-    } finally {
-      setRedeemBusy(false);
-    }
-  }
-
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (addForm.channel === Channel.ALIPAY) {
@@ -763,12 +731,7 @@ function DashboardContent() {
             busyBulkAutomation={busyBulkAutomation}
             onRefresh={() => void refreshDashboardStatus()}
             onAdd={() => setAddOpen(true)}
-            onRedeem={() => {
-              setRedeemCode("");
-              setRedeemSummary("");
-              setRedeemResults([]);
-              setRedeemOpen(true);
-            }}
+            onRedeem={() => setRedeemOpen(true)}
             onSelect={setSelectedAccountId}
             onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
             onAutomationStop={(accountId) => void runAutomationStop(accountId)}
@@ -936,57 +899,23 @@ function DashboardContent() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={redeemOpen}
-        onOpenChange={(open) => {
-          if (redeemBusy) return;
-          setRedeemOpen(open);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>兑换码</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={(event) => void submitRedeemCode(event)}>
-            <p className="text-sm text-muted-foreground">
-              输入一次兑换码，将对当前账号列表中的全部 {accounts.length} 个账号依次兑换。离线账号会先尝试登录。
-            </p>
-            <Field label="兑换码">
-              <Input
-                value={redeemCode}
-                onChange={(event) => setRedeemCode(event.target.value)}
-                placeholder="粘贴兑换码"
-                autoComplete="off"
-                disabled={redeemBusy}
-              />
-            </Field>
-            {redeemSummary && (
-              <div className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-sm">{redeemSummary}</div>
-            )}
-            {redeemResults.length > 0 && (
-              <div className="dark-scrollbar max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-border/50 p-2 text-sm">
-                {redeemResults.map((item) => (
-                  <div key={`${item.accountName}-${item.message}`} className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 truncate font-medium">{item.accountName}</span>
-                    <span className={cn("min-w-0 text-right", item.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
-                      {item.ok ? (item.message && item.message !== "ok" ? item.message : "成功") : item.message}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRedeemOpen(false)} disabled={redeemBusy}>
-                关闭
-              </Button>
-              <Button type="submit" disabled={redeemBusy || !redeemCode.trim() || accounts.length === 0}>
-                {redeemBusy ? <Loader2 className="size-4 animate-spin" /> : <Ticket className="size-4" />}
-                {redeemBusy ? "兑换中" : "全部兑换"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {redeemOpen && (
+        <RedeemCodeDialog
+          accounts={accounts}
+          preferredChannel={selectedAccount?.channel}
+          onOpenChange={setRedeemOpen}
+          onRedeem={async (code, accountIds) => {
+            setError("");
+            const response = await accountClient.redeemCode({ code, accountIds });
+            await refreshStatuses().catch(() => undefined);
+            return {
+              results: response.results,
+              successCount: response.successCount,
+              failureCount: response.failureCount,
+            };
+          }}
+        />
+      )}
     </div>
   );
 }

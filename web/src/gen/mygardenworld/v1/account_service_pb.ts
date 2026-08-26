@@ -345,7 +345,7 @@ export type RedeemCodeRequest = Message<"mygardenworld.v1.RedeemCodeRequest"> & 
   code: string;
 
   /**
-   * Optional subset of account ids. Empty = all accounts visible to the caller.
+   * Required target account ids. Every account must belong to the same channel.
    *
    * @generated from field: repeated string account_ids = 2;
    */
@@ -537,9 +537,8 @@ export const AccountService: GenService<{
     output: typeof LogoutAccountResponseSchema;
   },
   /**
-   * Redeem one gift code across accounts. Empty account_ids means every
-   * account owned by the caller (admin: all accounts). Offline accounts are
-   * started first so the game RPC can run.
+   * Redeem one gift code across an explicit set of accounts from one channel.
+   * Offline accounts are started first so the game RPC can run.
    *
    * @generated from rpc mygardenworld.v1.AccountService.RedeemCode
    */

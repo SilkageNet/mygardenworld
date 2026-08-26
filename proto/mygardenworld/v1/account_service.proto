@@ -32,9 +32,8 @@ service AccountService {
   // Credentials stay stored; the account can be logged in again later.
   rpc LogoutAccount(LogoutAccountRequest) returns (LogoutAccountResponse);
 
-  // Redeem one gift code across accounts. Empty account_ids means every
-  // account owned by the caller (admin: all accounts). Offline accounts are
-  // started first so the game RPC can run.
+  // Redeem one gift code across an explicit set of accounts from one channel.
+  // Offline accounts are started first so the game RPC can run.
   rpc RedeemCode(RedeemCodeRequest) returns (RedeemCodeResponse);
 }
 
@@ -122,7 +121,7 @@ message LogoutAccountResponse {
 message RedeemCodeRequest {
   // Gift / redeem code from the game.
   string code = 1;
-  // Optional subset of account ids. Empty = all accounts visible to the caller.
+  // Required target account ids. Every account must belong to the same channel.
   repeated string account_ids = 2;
 }
 
