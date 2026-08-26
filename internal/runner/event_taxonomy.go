@@ -1,0 +1,468 @@
+package runner
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
+)
+
+func opKindDesc(kind string) string {
+	switch kind {
+	case "usrLand.plant":
+		return "播种"
+	case "usrLand.plantBatch":
+		return "批量播种"
+	case "usrLand.water":
+		return "浇水"
+	case "usrLand.waterBatch":
+		return "批量浇水"
+	case "usrLand.harvest":
+		return "收获"
+	case "usrLand.clear":
+		return "铲除"
+	case "usrLand.speedUp":
+		return "加速"
+	case "usrLand.speedUpFree":
+		return "免费加速"
+	case "usrLand.unlockLand":
+		return "解锁田地"
+	case clientproto.RPCZooEnterZoo.String():
+		return "进入宠物模块"
+	case clientproto.RPCZooRefreshPetStatus.String():
+		return "刷新宠物状态"
+	case clientproto.RPCZooAddFoodstuff.String():
+		return "补充宠物食盆"
+	case clientproto.RPCZooFeedPets.String():
+		return "宠物喂食"
+	case clientproto.RPCZooStrokePet.String():
+		return "宠物互动"
+	case clientproto.RPCZooFindPet.String():
+		return "宠物寻回"
+	case clientproto.RPCZooHandleEvent.String():
+		return "宠物事件"
+	case clientproto.RPCZooReadLog.String():
+		return "确认宠物日志已读"
+	case clientproto.RPCZooRecvSouvenirRwd.String():
+		return "领取宠物纪念品奖励"
+	case clientproto.RPCZooReadSouvenir.String():
+		return "确认宠物纪念品已读"
+	case clientproto.RPCPearlPlaceRecvOneKey.String():
+		return "一键领取珍珠产出"
+	case clientproto.RPCPearlPlaceRecv.String():
+		return "领取单个珍珠槽位产出"
+	case clientproto.RPCRandomEventEnter.String():
+		return "同步地图随机事件"
+	case clientproto.RPCRandomEventDoAffair.String():
+		return "处理地图随机事件"
+	case clientproto.RPCStoryMainEnter.String():
+		return "同步主线剧情"
+	case clientproto.RPCStoryMainUnlock.String():
+		return "解锁主线剧情"
+	case clientproto.RPCTaskMainRecv.String():
+		return "领取主线任务"
+	case clientproto.RPCActCyclicNoteEnter.String():
+		return "同步花笺集芳任务"
+	case clientproto.RPCActCyclicNoteRecvTaskRwd.String():
+		return "领取花笺集芳任务奖励"
+	case clientproto.RPCActCyclicNoteRecv.String():
+		return "领取花笺集芳里程碑奖励"
+	case clientproto.RPCActCyclicStoryEnter.String():
+		return "同步莳花纪闻订单"
+	case clientproto.RPCActCyclicStoryRecvOrderRwd.String():
+		return "领取莳花纪闻订单奖励"
+	case clientproto.RPCActCyclicStoryRecv.String():
+		return "领取莳花纪闻里程碑奖励"
+	case clientproto.RPCTaskAchRecv.String():
+		return "领取成就任务"
+	case clientproto.RPCUsrExtraUpdateAntiFraudQAStatus.String():
+		return "防骗问答"
+	case clientproto.RPCUsrExtraRecvAntiFraudQARwd.String():
+		return "领取防骗宝箱"
+	case clientproto.RPCBenefitBoxDraw.String():
+		return "开启福利宝箱"
+	case clientproto.RPCShopCultivateEnter.String():
+		return "同步材料商店"
+	case clientproto.RPCShopCultivateRefresh.String():
+		return "刷新材料商店"
+	case clientproto.RPCShopCultivateBuy.String():
+		return "材料商店购买"
+	case clientproto.RPCFmlRaceEnter.String():
+		return "进入公会竞赛"
+	case clientproto.RPCFmlRaceGetTaskList.String():
+		return "同步竞赛任务"
+	case clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
+		return "同步竞赛已做次数"
+	case clientproto.RPCFmlRaceTakeTask.String():
+		return "接取竞赛任务"
+	case clientproto.RPCFmlRaceFinishTask.String():
+		return "完成竞赛任务"
+	case clientproto.RPCFmlRaceUpgradeTask.String():
+		return "升级竞赛任务"
+	case clientproto.RPCFmlRaceDelTask.String():
+		return "删除竞赛任务"
+	case clientproto.RPCFmlRaceGiveUpTask.String():
+		return "放弃竞赛任务"
+	case clientproto.RPCFmlEnter.String():
+		return "进入公会"
+	case clientproto.RPCFmlBld.String():
+		return "公会建设"
+	case clientproto.RPCFmlLandHarvest.String():
+		return "公会土地收获"
+	case clientproto.RPCFmlLandHarvestAll.String():
+		return "公会土地一键收获"
+	case clientproto.RPCFmlLandPlant.String():
+		return "公会土地种植"
+	case clientproto.RPCFmlFlowerShareRefresh.String():
+		return "刷新公会分享"
+	case clientproto.RPCFmlFlowerShareGetFmlOtherShareList.String():
+		return "同步公会摸花列表"
+	case clientproto.RPCFmlFlowerShareRecvRwd.String():
+		return "领取公会分享奖励"
+	case clientproto.RPCFmlFlowerShareTake.String():
+		return "公会摸花"
+	case clientproto.RPCFlowerRackSell.String():
+		return "花艺上架"
+	case clientproto.RPCFlowerRackCancelSell.String():
+		return "花艺下架"
+	case clientproto.RPCFlowerRackRecvSellMoney.String():
+		return "花艺售出领取"
+	case clientproto.RPCWaterwheelRecv.String():
+		return "水车水滴"
+	case clientproto.RPCFreeWaterRecv.String():
+		return "限时水滴"
+	case clientproto.RPCOrderFlowerFinishOrder.String():
+		return "普通居民订单"
+	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
+		return "绸缎居民订单"
+	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
+		return "建材居民订单"
+	case clientproto.RPCOrderFlowerRecvOrderRwd.String():
+		return "居民订单领奖"
+	case clientproto.RPCCultivateRecv.String():
+		return "培育领取"
+	case clientproto.RPCCultivateCultivate.String():
+		return "培育"
+	case clientproto.RPCCultivateUpgrade.String():
+		return "鲜花升级"
+	case clientproto.RPCFrdEnter.String():
+		return "同步好友列表"
+	case clientproto.RPCFrdExtGetFrdOtherInfoByUids.String():
+		return "同步好友摘花状态"
+	case clientproto.RPCFrdExtBuyStealCnt.String():
+		return "兑换摘花次数"
+	case clientproto.RPCFrdStealEnterFrdSteal.String():
+		return "同步摸花校验"
+	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
+		return "同步好友花园"
+	case clientproto.RPCFrdStealSteal.String():
+		return "好友摸花"
+	default:
+		return kind
+	}
+}
+
+func inventoryChangeMessage(snap state.InventorySnapshot) string {
+	if len(snap.Changes) == 0 {
+		return "库存更新"
+	}
+	limit := len(snap.Changes)
+	if limit > 4 {
+		limit = 4
+	}
+	parts := make([]string, 0, limit+1)
+	for _, change := range snap.Changes[:limit] {
+		name := state.ItemName(change.ItemID)
+		if name == "" {
+			name = fmt.Sprintf("#%d", change.ItemID)
+		}
+		parts = append(parts, fmt.Sprintf("%s %d→%d", name, change.Before, change.After))
+	}
+	if extra := len(snap.Changes) - limit; extra > 0 {
+		parts = append(parts, fmt.Sprintf("另%d项", extra))
+	}
+	return "库存更新: " + strings.Join(parts, "，")
+}
+
+func eventCategory(kind string) string {
+	switch kind {
+	case "session", "session_expired", "session_relogin", "ws_disconnected":
+		return "account"
+	case "redeem_code":
+		return "system"
+	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
+		return "plant"
+	case "policy_changed":
+		return "system"
+	case "land_changed", "land_unlock":
+		return "plant"
+	case "resource_changed", "inventory_changed":
+		return "basic"
+	case "waterwheel", "free_water":
+		return "water"
+	case "benefit_box", "mail_claim", "sign_claim", "random_event":
+		return "basic"
+	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
+		return "basic"
+	case "order_finish", "order_satin_finish", "order_decorate_finish", "order_customer", "order_customer_info", "order_reward", "order_ad", "flower_art":
+		return "order"
+	case "flower_rack", "flower_rack_sell", "flower_rack_claim":
+		return "order"
+	case "union_build", "union_flower_take":
+		return "union"
+	case "race_enter", "race_task_sync", "race_task_taken", "race_task_finished", "race_task_upgraded", "race_task_deleted", "race_task_given_up":
+		return "race"
+	case "activity_cyclic_story_order", "activity_cyclic_story_enter", "activity_cyclic_story_progress":
+		return "activity"
+	case "cultivate_recv", "cultivate_new", "flower_upgrade":
+		return "plant"
+	default:
+		return "system"
+	}
+}
+
+func normalizeEventCategory(category, kind string) string {
+	switch category {
+	case "account", "basic", "plant", "order", "water", "union", "race", "activity", "system":
+		return category
+	case "flower_art":
+		return "order"
+	case "redeem":
+		return "system"
+	case "session":
+		return "account"
+	case "operation", "land", "cultivation":
+		return "plant"
+	case "resource", "reward", "task":
+		return "basic"
+	default:
+		return eventCategory(kind)
+	}
+}
+
+func eventDomain(kind string) string {
+	switch kind {
+	case "session", "session_expired", "session_relogin", "ws_disconnected":
+		return "account.session"
+	case "redeem_code":
+		return "redeem.code"
+	case "resource_changed":
+		return "basic.resource"
+	case "inventory_changed":
+		return "basic.inventory"
+	case "land_changed":
+		return "farm.land"
+	case "land_unlock":
+		return "farm.land"
+	case "operation_planned", "operation_ack", "operation_failed", "operation_deferred":
+		return "farm.operation"
+	case "waterwheel":
+		return "water.waterwheel"
+	case "free_water":
+		return "water.free_water"
+	case "benefit_box":
+		return "basic.benefit"
+	case "mail_claim":
+		return "basic.mail"
+	case "sign_claim":
+		return "basic.sign"
+	case "task_recv":
+		return "basic.task.main"
+	case "task_daily":
+		return "basic.task.daily"
+	case "task_weekly":
+		return "basic.task.weekly"
+	case "road_grow":
+		return "basic.road_grow"
+	case "random_event":
+		return "basic.map_event"
+	case "story_unlock":
+		return "basic.story"
+	case "order_finish", "order_satin_finish", "order_decorate_finish", "order_reward", "order_ad":
+		return "order.resident"
+	case "order_customer", "order_customer_info":
+		return "order.customer"
+	case "flower_art":
+		return "order.flower_art"
+	case "flower_rack", "flower_rack_sell", "flower_rack_claim":
+		return "order.flower_art"
+	case "union_build":
+		return "union.build"
+	case "union_flower_take":
+		return "union.flower.take"
+	case "race_enter":
+		return "union.race.enter"
+	case "race_task_sync":
+		return "union.race.sync"
+	case "race_task_taken":
+		return "union.race.take"
+	case "race_task_finished":
+		return "union.race.finish"
+	case "race_task_upgraded":
+		return "union.race.upgrade"
+	case "race_task_deleted":
+		return "union.race.delete"
+	case "race_task_given_up":
+		return "union.race.giveUp"
+	case "cultivate_recv", "cultivate_new":
+		return "farm.cultivate"
+	case "flower_upgrade":
+		return "farm.upgrade"
+	case "policy_changed":
+		return "policy"
+	default:
+		return "system"
+	}
+}
+
+func eventAction(kind string) string {
+	switch {
+	case kind == "redeem_code":
+		return "use"
+	case kind == "operation_deferred":
+		return "blocked"
+	case strings.HasSuffix(kind, "_failed"):
+		return "failed"
+	case strings.Contains(kind, "changed"):
+		return "changed"
+	case strings.Contains(kind, "unlock"):
+		return "unlock"
+	case strings.HasPrefix(kind, "task_") || strings.Contains(kind, "claim") || strings.Contains(kind, "recv") || strings.Contains(kind, "reward") ||
+		strings.Contains(kind, "waterwheel") || strings.Contains(kind, "free_water") || strings.Contains(kind, "benefit_box"):
+		return "claim"
+	case strings.Contains(kind, "order"):
+		return "order"
+	case strings.Contains(kind, "race"):
+		return "race"
+	case strings.Contains(kind, "build"):
+		return "build"
+	case strings.Contains(kind, "flower_take") || kind == "union_flower_take":
+		return "take"
+	case kind == "flower_rack_sell" || strings.Contains(kind, "flower_rack_sell"):
+		return "sell"
+	case kind == "flower_rack_claim" || strings.Contains(kind, "flower_rack_claim"):
+		return "claim"
+	case strings.Contains(kind, "upgrade"):
+		return "upgrade"
+	case strings.Contains(kind, "cultivate"):
+		return "cultivate"
+	default:
+		return kind
+	}
+}
+
+func eventLabel(kind string) string {
+	switch kind {
+	case "session":
+		return "连接"
+	case "session_expired":
+		return "过期"
+	case "session_relogin":
+		return "重登"
+	case "ws_disconnected":
+		return "断开"
+	case "redeem_code":
+		return "兑换码"
+	case "resource_changed":
+		return "资源"
+	case "inventory_changed":
+		return "库存"
+	case "land_changed":
+		return "田地"
+	case "land_unlock":
+		return "开垦"
+	case "operation_planned":
+		return "计划"
+	case "operation_ack":
+		return "完成"
+	case "operation_failed":
+		return "失败"
+	case "operation_deferred":
+		return "暂缓"
+	case "policy_changed":
+		return "策略"
+	case "waterwheel":
+		return "水车水滴"
+	case "free_water":
+		return "限时水滴"
+	case "benefit_box":
+		return "福利箱"
+	case "mail_claim":
+		return "邮件"
+	case "sign_claim":
+		return "签到"
+	case "task_recv":
+		return "主线任务"
+	case "task_daily":
+		return "日常任务"
+	case "task_weekly":
+		return "每周任务"
+	case "road_grow":
+		return "成长之路"
+	case "random_event":
+		return "地图随机事件"
+	case "story_unlock":
+		return "剧情"
+	case "order_finish":
+		return "普通居民订单"
+	case "order_satin_finish":
+		return "绸缎订单"
+	case "order_decorate_finish":
+		return "建材订单"
+	case "order_customer", "order_customer_info":
+		return "顾客订单"
+	case "order_reward":
+		return "居民订单领奖"
+	case "order_ad":
+		return "居民订单"
+	case "flower_art":
+		return "花艺"
+	case "flower_rack":
+		return "花架"
+	case "flower_rack_sell":
+		return "花艺上架"
+	case "flower_rack_claim":
+		return "花艺售出"
+	case "union_build":
+		return "公会建设"
+	case "union_flower_take":
+		return "公会摸花"
+	case "race_enter":
+		return "进入公会竞赛"
+	case "race_task_sync":
+		return "同步竞赛任务"
+	case "race_task_taken":
+		return "接取竞赛任务"
+	case "race_task_finished":
+		return "完成竞赛任务"
+	case "race_task_upgraded":
+		return "升级竞赛任务"
+	case "race_task_deleted":
+		return "删除竞赛任务"
+	case "race_task_given_up":
+		return "放弃竞赛任务"
+	case "cultivate_recv":
+		return "培育领取"
+	case "cultivate_new":
+		return "培育"
+	case "flower_upgrade":
+		return "鲜花升级"
+	default:
+		return kind
+	}
+}
+
+func eventLevel(kind, message string) string {
+	if strings.Contains(kind, "failed") || strings.Contains(message, "失败") {
+		return "error"
+	}
+	if kind == "operation_deferred" ||
+		kind == "session_expired" ||
+		strings.Contains(message, "跳过") ||
+		strings.Contains(message, "缺少") ||
+		strings.Contains(message, "需要") {
+		return "warn"
+	}
+	return "info"
+}

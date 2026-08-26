@@ -14,7 +14,10 @@ make proto-gen    # buf generate (requires buf CLI)
 ## Architecture
 
 ```
-cmd/gardend      — Long-running daemon (gRPC server on 127.0.0.1:50051)
+cmd/
+  gardend        — Long-running daemon (gRPC server on 127.0.0.1:50051)
+  gardencap      — Protocol capture and inspection utility
+  gardencatalog  — Catalog generation utility
 internal/
   babigame/      — Protocol layer: HTTP login, WS client, envelope crypto
   state/         — In-memory land + inventory + water drops + cultivation tracker
