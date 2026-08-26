@@ -233,6 +233,7 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	}
 
 	cb := s.onChange
+	s.bumpRevisionLocked()
 	s.mu.Unlock()
 
 	if cb != nil && len(changes) > 0 {

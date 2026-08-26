@@ -47,7 +47,7 @@ connection:
 				}
 				return
 			}
-			next, err := r.connectFresh(ctx, username, password)
+			next, err := r.connectStoredOrFresh(ctx, username, password)
 			if err == nil {
 				current = next
 				break

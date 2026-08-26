@@ -2,11 +2,12 @@ package automation
 
 import (
 	"fmt"
-	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
-	"github.com/SilkageNet/mygardenworld/internal/state"
 	"sort"
 	"strconv"
 	"strings"
+
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func landOp(kind, domain, action, reason string, priority int32, landIDs []int32, flowerID int32, goalID, demandID string) PlannedOp {

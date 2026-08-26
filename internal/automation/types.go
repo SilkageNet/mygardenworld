@@ -244,19 +244,19 @@ type PlannedOp struct {
 	OperationID string
 	// CooldownKey optionally groups multiple concrete targets into one
 	// runner-local retry scope. It is intentionally not exposed in protobuf.
-	CooldownKey    string
-	GoalID         string
-	DemandID       string
-	Kind           string
-	Lane           string
-	FeatureID      string
-	Category       string
-	Label          string
-	Domain         string
-	Action         string
-	Status         string
-	Executable     bool
-	SyncOnly       bool
+	CooldownKey string
+	GoalID      string
+	DemandID    string
+	Kind        string
+	Lane        string
+	FeatureID   string
+	Category    string
+	Label       string
+	Domain      string
+	Action      string
+	Status      string
+	Executable  bool
+	SyncOnly    bool
 	// PreemptFarm ranks this op above the farm lane (login race sync/take,
 	// finish, giveUp). Side-lane locking is unchanged.
 	PreemptFarm    bool

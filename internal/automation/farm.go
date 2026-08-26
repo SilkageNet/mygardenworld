@@ -2,11 +2,12 @@ package automation
 
 import (
 	"fmt"
+	"sort"
+	"time"
+
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"sort"
-	"time"
 )
 
 func Recommend(land state.LandView, now time.Time, harvestDelay time.Duration) (kind, reason string) {

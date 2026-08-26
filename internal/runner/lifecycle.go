@@ -46,7 +46,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 
 	r.installStateHandlers()
-	client, err := r.connectFresh(ctx, username, password)
+	client, err := r.connectStoredOrFresh(ctx, username, password)
 	if err != nil {
 		if r.autoReloginPending() {
 			go r.decisionLoop(rctx)
@@ -61,8 +61,60 @@ func (r *Runner) Start(ctx context.Context) error {
 	return nil
 }
 
+// connectStoredOrFresh first tries the encrypted session captured during
+// account creation or the previous successful login. A rejected/corrupt cache
+// is deleted and the channel-specific fresh login becomes the fallback.
+func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
+	blob, err := r.db.LoadSession(ctx, r.account.ID)
+	if err != nil {
+		r.log.Warn("load cached session failed; using fresh login", "err", err)
+		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
+			r.log.Warn("delete unreadable cached session failed", "err", deleteErr)
+		}
+	} else if len(blob) > 0 {
+		session, decodeErr := babigame.UnmarshalSessionJSON(blob, r.cfg)
+		if decodeErr == nil {
+			httpc := r.prepareHTTPClient(ctx, session.DeviceID, session.UUID, session.Session0)
+			session.Cfg = httpc.Cfg
+			client, resumeErr := r.connectSession(ctx, httpc, session, true)
+			if resumeErr == nil {
+				return client, nil
+			}
+			decodeErr = resumeErr
+		}
+		r.log.Info("cached session rejected; using fresh login", "err", decodeErr)
+		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
+			r.log.Warn("delete rejected cached session failed", "err", deleteErr)
+		}
+	}
+	return r.connectFresh(ctx, username, password)
+}
+
 func (r *Runner) connectFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
-	httpc := babigame.NewHTTPClient(r.cfg, "", "", "")
+	httpc := r.prepareHTTPClient(ctx, "", "", "")
+	var (
+		session *babigame.Session
+		err     error
+	)
+	switch babigame.Channel(r.account.Channel) {
+	case babigame.ChannelIOS:
+		session, err = babigame.PerformLoginWithPassword(ctx, httpc, username, password, r.cfg.IsSimulator)
+	case babigame.ChannelAlipay:
+		session, err = babigame.NewAlipayClient(r.cfg).LoginWithWebGrant(ctx, httpc, babigame.AlipayWebGrant{
+			Token:  password,
+			UserID: username,
+		})
+	default:
+		err = fmt.Errorf("unsupported channel %q", r.account.Channel)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("login: %w", err)
+	}
+	return r.connectSession(ctx, httpc, session, false)
+}
+
+func (r *Runner) prepareHTTPClient(ctx context.Context, deviceID, uuid, session0 string) *babigame.HTTPClient {
+	httpc := babigame.NewHTTPClient(r.cfg, deviceID, uuid, session0)
 	if pkg, err := httpc.QueryPackageConfig(ctx); err == nil {
 		if pkg.GameVersion != "" {
 			httpc.Cfg.GameVersion = pkg.GameVersion
@@ -86,42 +138,42 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	} else {
 		r.log.Warn("query package config failed", "err", err)
 	}
-	var (
-		session *babigame.Session
-		err     error
-	)
-	switch babigame.Channel(r.account.Channel) {
-	case babigame.ChannelIOS:
-		session, err = babigame.PerformLoginWithPassword(ctx, httpc, username, password, r.cfg.IsSimulator)
-	case babigame.ChannelAlipay:
-		session, err = babigame.NewAlipayClient(r.cfg).LoginWithWebGrant(ctx, httpc, babigame.AlipayWebGrant{
-			Token:  password,
-			UserID: username,
-		})
-	default:
-		err = fmt.Errorf("unsupported channel %q", r.account.Channel)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("login: %w", err)
-	}
+	return httpc
+}
 
-	if blob, err := babigame.MarshalSessionJSON(session); err != nil {
-		r.log.Warn("marshal login session failed", "err", err)
-	} else if err := r.db.SaveSession(ctx, r.account.ID, blob, nil); err != nil {
-		r.log.Warn("persist login session failed", "err", err)
-	}
-	now := time.Now().UTC()
-	if err := r.db.UpdateLogin(ctx, r.account.ID, session.AID, int32(session.GsIdx), session.WSURL(), now); err != nil {
-		r.log.Warn("persist login metadata failed", "err", err)
-	}
-
-	client := r.newClient(session)
+func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient, session *babigame.Session, resume bool) (*babigame.Client, error) {
+	client := babigame.NewClient(session)
+	client.DebugWriter = r.debugWriter
 	if err := client.Connect(ctx); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("ws connect: %w", err)
 	}
-	r.resetFreshSessionAutomationState()
 
+	// A cached route token resumes with index.reLogin; a freshly issued route
+	// token uses index.login, matching the official client lifecycle.
+	r.state.BeginFmlMembershipSnapshot()
+	var (
+		v   json.RawMessage
+		err error
+	)
+	if resume {
+		v, err = client.ReLogin(ctx, r.cfg.IsSimulator)
+	} else {
+		v, err = client.Login(ctx, r.cfg.IsSimulator)
+	}
+	if err == nil {
+		r.state.ApplyV(v)
+		r.syncAccountDisplayName(ctx, v, session)
+	} else {
+		_ = client.Close()
+		return nil, fmt.Errorf("启动%s失败: %w", map[bool]string{true: "恢复登录", false: "登录"}[resume], err)
+	}
+
+	// Do not install invalidation callbacks until a cached session has proved
+	// usable. Otherwise an expired cache could stop the runner before its fresh
+	// login fallback gets a chance to run.
+	r.attachClientHandlers(client)
+	r.resetFreshSessionAutomationState()
 	r.mu.Lock()
 	r.session = session
 	r.httpc = httpc
@@ -129,17 +181,6 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	r.rqst = rqstState{}
 	r.mu.Unlock()
 
-	// The official client sends index.login as the first WS initialization
-	// call after the HTTP login and route-token bootstrap.
-	if v, err := client.Login(ctx, r.cfg.IsSimulator); err == nil {
-		r.state.ApplyV(v)
-		r.syncAccountDisplayName(ctx, v, session)
-	} else {
-		r.log.Warn("ws index.login failed", "err", err)
-		_ = client.Close()
-		r.clearDisconnectedClient(client)
-		return nil, fmt.Errorf("启动登录失败: %w", err)
-	}
 	if r.isSessionInvalidated() {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -150,9 +191,9 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	} else {
 		r.log.Warn("ws lazy sync failed", "err", err)
 	}
-	// index.login + lazySync form the authoritative startup baseline. If neither
-	// supplied IFmlTot.mb (25.1), this account has no current guild membership;
-	// stale IFml/race records must not wake any guild planner.
+	// index.login + lazySync form the startup membership baseline. Some channel
+	// fronts omit IFmlTot.mb (25.1) for joined accounts, so finalization also
+	// accepts the guild ID in IFmlTot.fml (25.0) as positive membership evidence.
 	r.state.FinalizeFmlMembershipSnapshot()
 	// Only now may the shadow controller observe activity state. During a
 	// reconnecting fresh login the State still contains the previous epoch's
@@ -182,7 +223,19 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		r.log.Debug("home verification failed", "err", err)
 	}
 
-	r.emit(Event{Kind: "session", Message: fmt.Sprintf("已连接 (服务器=%s 区=%d)", session.GsHost, session.GsIdx)})
+	if blob, err := babigame.MarshalSessionJSON(session); err != nil {
+		r.log.Warn("marshal login session failed", "err", err)
+	} else if err := r.db.SaveSession(ctx, r.account.ID, blob, nil); err != nil {
+		r.log.Warn("persist login session failed", "err", err)
+	}
+	if err := r.db.UpdateLogin(ctx, r.account.ID, session.AID, int32(session.GsIdx), session.WSURL(), time.Now().UTC()); err != nil {
+		r.log.Warn("persist login metadata failed", "err", err)
+	}
+	message := "已连接"
+	if resume {
+		message = "已恢复缓存会话"
+	}
+	r.emit(Event{Kind: "session", Message: fmt.Sprintf("%s (服务器=%s 区=%d)", message, session.GsHost, session.GsIdx)})
 	return client, nil
 }
 
@@ -241,9 +294,7 @@ func (r *Runner) syncAccountDisplayName(ctx context.Context, rawV json.RawMessag
 	r.log.Info("synced account display name", "name", name)
 }
 
-func (r *Runner) newClient(session *babigame.Session) *babigame.Client {
-	client := babigame.NewClient(session)
-	client.DebugWriter = r.debugWriter
+func (r *Runner) attachClientHandlers(client *babigame.Client) {
 	client.OnSessionExpired(func(d babigame.WSResponseD) {
 		r.handleSessionInvalidated(d.ErrorMsg(), d.IsSessionDisplaced())
 	})
@@ -259,7 +310,6 @@ func (r *Runner) newClient(session *babigame.Session) *babigame.Client {
 			r.state.ApplyV(fragment)
 		})
 	}
-	return client
 }
 
 func observedCaptureNamespaces() []string {

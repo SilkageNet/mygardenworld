@@ -143,6 +143,7 @@ func (s *State) SetFarmLands(lands []FarmLandInfo) {
 		s.farmLands[land.ID] = cloneFarmLandInfo(land)
 	}
 	s.farmLandObserved = len(s.farmLands) > 0
+	s.bumpRevisionLocked()
 }
 
 // FarmLandConfigObserved reports whether the current client-side land table has

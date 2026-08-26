@@ -104,7 +104,10 @@ func TestUnionRaceDisabledProducesNoOps(t *testing.T) {
 
 func TestUnionRaceEnterIsExecutable(t *testing.T) {
 	s := state.New()
+	// Real startup baselines may include the guild object (25.0) while omitting
+	// the current-member object (25.1). Finalization must preserve membership.
 	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88}}}`))
+	s.FinalizeFmlMembershipSnapshot()
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 {

@@ -2,11 +2,12 @@ package automation
 
 import (
 	"fmt"
-	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
-	"github.com/SilkageNet/mygardenworld/internal/state"
 	"sort"
 	"strconv"
 	"time"
+
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func enabledGoals(policy *pb.Policy) []Goal {

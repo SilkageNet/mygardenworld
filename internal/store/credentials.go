@@ -15,6 +15,8 @@ import (
 const (
 	credentialKeyBytes = 32
 	passwordVersionV1  = "v1:"
+	sessionVersionV1   = "v1:"
+	sessionAAD         = "mygardenworld/session/v1/account/"
 )
 
 func loadOrCreateCredentialKey(dbPath string) ([]byte, error) {
@@ -115,6 +117,52 @@ func (d *DB) decodePassword(stored string) (string, error) {
 		return "", fmt.Errorf("decrypt stored password: %w", err)
 	}
 	return string(plain), nil
+}
+
+func (d *DB) encodeSession(accountID int64, plain []byte) (string, error) {
+	if accountID <= 0 {
+		return "", fmt.Errorf("invalid session account id")
+	}
+	aead, err := d.credentialAEAD()
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	ciphertext := aead.Seal(nonce, nonce, plain, sessionAdditionalData(accountID))
+	return sessionVersionV1 + base64.RawStdEncoding.EncodeToString(ciphertext), nil
+}
+
+func (d *DB) decodeSession(accountID int64, stored string) ([]byte, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("invalid session account id")
+	}
+	if !strings.HasPrefix(stored, sessionVersionV1) {
+		return nil, fmt.Errorf("unsupported stored session format")
+	}
+	aead, err := d.credentialAEAD()
+	if err != nil {
+		return nil, err
+	}
+	raw, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(stored, sessionVersionV1))
+	if err != nil {
+		return nil, fmt.Errorf("decode stored session: %w", err)
+	}
+	if len(raw) < aead.NonceSize() {
+		return nil, fmt.Errorf("decode stored session: ciphertext too short")
+	}
+	nonce, ciphertext := raw[:aead.NonceSize()], raw[aead.NonceSize():]
+	plain, err := aead.Open(nil, nonce, ciphertext, sessionAdditionalData(accountID))
+	if err != nil {
+		return nil, fmt.Errorf("decrypt stored session: %w", err)
+	}
+	return plain, nil
+}
+
+func sessionAdditionalData(accountID int64) []byte {
+	return []byte(fmt.Sprintf("%s%d", sessionAAD, accountID))
 }
 
 func (d *DB) credentialAEAD() (cipher.AEAD, error) {

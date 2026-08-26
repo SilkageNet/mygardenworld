@@ -17,98 +17,15 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 )
 
-// Schema is applied at Open time.
-const schema = `
-CREATE TABLE IF NOT EXISTS users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    username      TEXT    NOT NULL UNIQUE,
-    email         TEXT    NOT NULL UNIQUE,
-    password_hash TEXT    NOT NULL,
-    role          TEXT    NOT NULL DEFAULT 'user',
-    max_accounts  INTEGER NOT NULL DEFAULT 5,
-    status        TEXT    NOT NULL DEFAULT 'active',
-    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash TEXT    NOT NULL UNIQUE,
-    expires_at DATETIME NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
-
-CREATE TABLE IF NOT EXISTS accounts (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name            TEXT    NOT NULL,
-    channel         TEXT    NOT NULL DEFAULT 'ios',
-    username        TEXT    NOT NULL,
-    password_enc    TEXT    NOT NULL,
-    aid             INTEGER DEFAULT 0,
-    gs_idx          INTEGER DEFAULT 0,
-    ws_url          TEXT    DEFAULT '',
-    last_login_at   DATETIME,
-    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, name)
-);
-CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
-
-CREATE TABLE IF NOT EXISTS sessions (
-    account_id  INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
-    payload_json TEXT NOT NULL,
-    expires_at   DATETIME,
-    updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS account_policies (
-    account_id  INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
-    policy_json TEXT    NOT NULL,
-    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS operation_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    ts          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    kind        TEXT    NOT NULL,
-    args_json   TEXT    NOT NULL DEFAULT '{}',
-    result_json TEXT    NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS idx_oplog_account_ts ON operation_log(account_id, ts);
-CREATE INDEX IF NOT EXISTS idx_oplog_ts ON operation_log(ts);
-
-CREATE TABLE IF NOT EXISTS event_log (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    account_name TEXT    NOT NULL DEFAULT '',
-    ts           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    kind         TEXT    NOT NULL,
-    message      TEXT    NOT NULL DEFAULT '',
-    payload_json TEXT    NOT NULL DEFAULT '{}',
-    category     TEXT    NOT NULL DEFAULT '',
-    domain       TEXT    NOT NULL DEFAULT '',
-    action       TEXT    NOT NULL DEFAULT '',
-    label        TEXT    NOT NULL DEFAULT '',
-    level        TEXT    NOT NULL DEFAULT 'info'
-);
-CREATE INDEX IF NOT EXISTS idx_event_log_account_id ON event_log(account_id, id);
-CREATE INDEX IF NOT EXISTS idx_event_log_kind_id ON event_log(kind, id);
-CREATE INDEX IF NOT EXISTS idx_event_log_ts ON event_log(ts);
-`
-
 // DB is the typed handle returned by Open.
 type DB struct {
 	*sql.DB
 	credentialKey []byte
 }
 
-// Open initialises the database file (creating it if needed) and applies the
-// schema. WAL is enabled so the daemon's API handlers and background runners
-// don't block each other.
+// Open initialises the database file and applies all pending versioned
+// migrations. Unversioned databases are deliberately rejected: v1 is a clean
+// baseline and this release does not carry historical compatibility code.
 func Open(ctx context.Context, path string) (*DB, error) {
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
 	sqldb, err := sql.Open("sqlite", dsn)
@@ -119,9 +36,9 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("ping: %w", err)
 	}
-	if _, err := sqldb.ExecContext(ctx, schema); err != nil {
+	if err := applyMigrations(ctx, sqldb); err != nil {
 		_ = sqldb.Close()
-		return nil, fmt.Errorf("schema: %w", err)
+		return nil, fmt.Errorf("schema migrations: %w", err)
 	}
 	credentialKey, err := loadOrCreateCredentialKey(path)
 	if err != nil {
@@ -409,15 +326,19 @@ func (d *DB) UpdateLogin(ctx context.Context, id int64, aid int64, gsIdx int32, 
 	return err
 }
 
-// SaveSession upserts the per-account session blob.
+// SaveSession encrypts and upserts the per-account session blob.
 func (d *DB) SaveSession(ctx context.Context, accountID int64, payload []byte, expiresAt *time.Time) error {
-	_, err := d.ExecContext(ctx,
-		`INSERT INTO sessions(account_id, payload_json, expires_at, updated_at)
+	payloadEnc, err := d.encodeSession(accountID, payload)
+	if err != nil {
+		return fmt.Errorf("encrypt session: %w", err)
+	}
+	_, err = d.ExecContext(ctx,
+		`INSERT INTO sessions(account_id, payload_enc, expires_at, updated_at)
          VALUES (?, ?, ?, ?)
-         ON CONFLICT(account_id) DO UPDATE SET payload_json = excluded.payload_json,
+		 ON CONFLICT(account_id) DO UPDATE SET payload_enc = excluded.payload_enc,
                                                  expires_at = excluded.expires_at,
                                                  updated_at = excluded.updated_at`,
-		accountID, string(payload), expiresAt, time.Now().UTC(),
+		accountID, payloadEnc, expiresAt, time.Now().UTC(),
 	)
 	return err
 }
@@ -425,16 +346,27 @@ func (d *DB) SaveSession(ctx context.Context, accountID int64, payload []byte, e
 // LoadSession returns the session blob for the account, or (nil, nil) when
 // no session has been stored.
 func (d *DB) LoadSession(ctx context.Context, accountID int64) ([]byte, error) {
-	var payload string
+	var payloadEnc string
+	var expiresAt sql.NullTime
 	err := d.QueryRowContext(ctx,
-		`SELECT payload_json FROM sessions WHERE account_id = ?`, accountID).Scan(&payload)
+		`SELECT payload_enc, expires_at FROM sessions WHERE account_id = ?`, accountID).Scan(&payloadEnc, &expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return []byte(payload), nil
+	if expiresAt.Valid && !time.Now().UTC().Before(expiresAt.Time.UTC()) {
+		if err := d.DeleteSession(ctx, accountID); err != nil {
+			return nil, fmt.Errorf("delete expired session: %w", err)
+		}
+		return nil, nil
+	}
+	payload, err := d.decodeSession(accountID, payloadEnc)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt session: %w", err)
+	}
+	return payload, nil
 }
 
 // DeleteSession removes the cached server login/session blob for an account.
