@@ -23,7 +23,7 @@ func TestCyclicNotePolicyDefaultsFailClosedAndRequiresModuleEnable(t *testing.T)
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			policy := cyclicNotePlannerPolicy(false, tc.moduleEnabled, tc.bools)
+			policy := cyclicNotePlannerPolicy(tc.moduleEnabled, tc.bools)
 			if got := cyclicNotePlanOperations(BuildPlan(s, policy, now).Operations); len(got) != 0 {
 				t.Fatalf("cyclic-note operations=%+v, want none", got)
 			}
@@ -46,7 +46,7 @@ func TestCyclicNotePlannerEntersOnlyForTaskConsumersInClaimablePhases(t *testing
 		t.Run("phase "+itoa32(phase), func(t *testing.T) {
 			now := time.UnixMilli(1_500_000)
 			s := cyclicNotePlannerState(t, now, phase, nil, nil, nil, 120, []any{})
-			policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+			policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 			ops := cyclicNotePlanOperations(BuildPlan(s, policy, now).Operations)
 			if len(ops) != 1 || ops[0].Kind != clientproto.RPCActCyclicNoteEnter.String() ||
 				ops[0].BatchID != 9001 || ops[0].Priority != cyclicNotePriority || ops[0].Lane != LaneSide ||
@@ -61,7 +61,7 @@ func TestCyclicNotePlannerEntersOnlyForTaskConsumersInClaimablePhases(t *testing
 
 	now := time.UnixMilli(1_500_000)
 	phaseOne := cyclicNotePlannerState(t, now, 1, nil, nil, nil, 120, []any{})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true})
 	if ops := cyclicNotePlanOperations(BuildPlan(phaseOne, policy, now).Operations); len(ops) != 0 {
 		t.Fatalf("phase-1 enter operations=%+v", ops)
 	}
@@ -69,7 +69,7 @@ func TestCyclicNotePlannerEntersOnlyForTaskConsumersInClaimablePhases(t *testing
 	// Progress-box claims do not need task initialization and therefore must
 	// not probe enter when task-related switches remain false.
 	phaseTwo := cyclicNotePlannerState(t, now, 2, nil, nil, nil, 120, []any{})
-	policy = cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteAutoClaimProgressBoxesKey: true})
+	policy = cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteAutoClaimProgressBoxesKey: true})
 	ops := cyclicNotePlanOperations(BuildPlan(phaseTwo, policy, now).Operations)
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCActCyclicNoteRecv.String() {
 		t.Fatalf("progress-only operations=%+v", ops)
@@ -82,7 +82,7 @@ func TestCyclicNotePlannerClaimsOneTaskBeforeMilestoneInSlotOrder(t *testing.T) 
 		"2001": 134,
 		"4003": 81,
 	}, map[string]any{}, 120, []any{})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{
 		cyclicNoteAutoClaimTaskRewardsKey:   true,
 		cyclicNoteAutoClaimProgressBoxesKey: true,
 	})
@@ -106,12 +106,12 @@ func TestCyclicNotePlannerClaimsOneTaskBeforeMilestoneInSlotOrder(t *testing.T) 
 func TestCyclicNotePlannerRejectsDuplicateTaskAndClaimsMilestoneByIndex(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := cyclicNotePlannerState(t, now, 2, []any{4003, 4003, nil}, map[string]any{"4003": 80}, map[string]any{}, 120, []any{})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteAutoClaimTaskRewardsKey: true})
 	if ops := cyclicNotePlanOperations(BuildPlan(s, policy, now).Operations); len(ops) != 0 {
 		t.Fatalf("ambiguous duplicate task planned=%+v", ops)
 	}
 
-	policy = cyclicNotePlannerPolicy(true, true, map[string]bool{
+	policy = cyclicNotePlannerPolicy(true, map[string]bool{
 		cyclicNoteAutoClaimTaskRewardsKey:   true,
 		cyclicNoteAutoClaimProgressBoxesKey: true,
 	})
@@ -126,7 +126,7 @@ func TestCyclicNotePlannerRejectsDuplicateTaskAndClaimsMilestoneByIndex(t *testi
 func TestCyclicNotePlannerPhaseThreeClaimsOnlyMilestones(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := cyclicNotePlannerState(t, now, 3, []any{4003, 2001, nil}, map[string]any{"4003": 80}, map[string]any{}, 120, []any{})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{
 		cyclicNoteAutoClaimTaskRewardsKey:   true,
 		cyclicNoteAutoClaimProgressBoxesKey: true,
 	})
@@ -150,11 +150,9 @@ func TestCyclicNotePrioritySitsBetweenMajorGoalsAndOrdinaryFlowerRack(t *testing
 	}
 }
 
-func cyclicNotePlannerPolicy(activityEnabled, moduleEnabled bool, bools map[string]bool) *pb.Policy {
+func cyclicNotePlannerPolicy(moduleEnabled bool, bools map[string]bool) *pb.Policy {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	//nolint:staticcheck // The test intentionally verifies that the deprecated parent flag is ignored.
-	policy.Activity.Enabled = activityEnabled
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		cyclicNoteModuleKey: {Enabled: moduleEnabled, BoolParams: bools},
 	}

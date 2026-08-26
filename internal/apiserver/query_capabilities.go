@@ -181,7 +181,7 @@ func activityEnabled(p *pb.ActivityPolicy) bool {
 	if p == nil {
 		return false
 	}
-	// Parent ActivityPolicy.enabled is legacy/no-op; modules are independent.
+	// Activity modules are independently gated.
 	for _, module := range p.GetModules() {
 		if module != nil && module.GetEnabled() {
 			return true

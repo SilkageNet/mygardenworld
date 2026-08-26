@@ -15,7 +15,6 @@ import (
 	connect "connectrpc.com/connect"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
-	"github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1connect"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
@@ -23,8 +22,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Services is the consolidated handler. One instance is mounted across all
-// service path prefixes.
+// Services owns the shared application dependencies and service operations.
+// Transport registration exposes it through the domain-specific handler
+// wrappers returned by NewHandlers instead of mounting this core directly.
 type Services struct {
 	DB           *store.DB
 	Manager      *runner.Manager
@@ -33,16 +33,6 @@ type Services struct {
 	LoginLimiter *LoginLimiter
 	AlipayLogins *AlipayLoginCoordinator
 }
-
-// Compile-time assertions: every service interface is implemented.
-var (
-	_ mygardenworldv1connect.AccountServiceHandler    = (*Services)(nil)
-	_ mygardenworldv1connect.AutomationServiceHandler = (*Services)(nil)
-	_ mygardenworldv1connect.PolicyServiceHandler     = (*Services)(nil)
-	_ mygardenworldv1connect.QueryServiceHandler      = (*Services)(nil)
-	_ mygardenworldv1connect.AuthServiceHandler       = (*Services)(nil)
-	_ mygardenworldv1connect.AdminServiceHandler      = (*Services)(nil)
-)
 
 // resolveAccount picks the account by id (preferred) or name. Enforces
 // ownership: non-admin users can only access their own accounts.

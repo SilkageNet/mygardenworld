@@ -14,6 +14,15 @@ import (
 
 func applyMap(t *testing.T, s *state.State, top map[string]any) {
 	t.Helper()
+	// Domain tests that provide guild namespace 25 exercise an account that is
+	// already a member unless they explicitly provide the authoritative 25.1
+	// membership record. No-guild/unknown-membership gates have dedicated
+	// fixtures and must not be inferred from unrelated guild fragments.
+	if guild, ok := top["25"].(map[string]any); ok {
+		if _, explicit := guild["1"]; !explicit {
+			guild["1"] = map[string]any{"0": int64(999), "1": 88}
+		}
+	}
 	s.ApplyVMap(top)
 }
 
@@ -3177,6 +3186,7 @@ func TestBuildPlan_UnionLandHarvestComputesStaleMatureCount(t *testing.T) {
 
 func TestBuildPlan_UnionLandHarvestRequiresObservedState(t *testing.T) {
 	s := state.New()
+	applyMap(t, s, map[string]any{"25": map[string]any{}})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Union.Land.HarvestEnabled = true
@@ -3733,27 +3743,24 @@ func TestBuildPlan_UnionLandAutoPlantRequiresEnabled(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_UnionLandSyncWhenUnobservedEvenIfActionsDisabled(t *testing.T) {
+func TestBuildPlan_UnionDomainWaitsForObservedMembership(t *testing.T) {
 	s := state.New()
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Union.Land.HarvestEnabled = false
-	p.Union.Land.AutoPlantEnabled = false
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Flower.TakeEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
-		if op.Domain == "union.land" && op.Action == "sync" {
-			if op.Kind != clientproto.RPCFmlEnter.String() || !op.Executable || op.SyncOnly {
-				t.Fatalf("unobserved union land should sync even when actions off: %+v", op)
-			}
-			return
+		if op.Category == CategoryUnion || op.Category == CategoryRace {
+			t.Fatalf("unobserved membership must gate every guild operation: %+v", op)
 		}
 	}
-	t.Fatalf("missing union land sync op: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionLandAutoPlantSyncWithoutHarvest(t *testing.T) {
 	s := state.New()
+	applyMap(t, s, map[string]any{"25": map[string]any{}})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Union.Land.AutoPlantEnabled = true
@@ -4162,6 +4169,7 @@ func TestBuildPlan_UnionFlowerTakeHourlyResync(t *testing.T) {
 
 func TestBuildPlan_UnionForestSyncWhenUnobserved(t *testing.T) {
 	s := state.New()
+	applyMap(t, s, map[string]any{"25": map[string]any{}})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Union.ForestEnabled = true

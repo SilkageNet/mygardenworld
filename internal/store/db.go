@@ -24,8 +24,8 @@ type DB struct {
 }
 
 // Open initialises the database file and applies all pending versioned
-// migrations. Unversioned databases are deliberately rejected: v1 is a clean
-// baseline and this release does not carry historical compatibility code.
+// migrations. Unversioned databases are deliberately rejected; this release
+// carries no historical compatibility code.
 func Open(ctx context.Context, path string) (*DB, error) {
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
 	sqldb, err := sql.Open("sqlite", dsn)

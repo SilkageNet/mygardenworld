@@ -201,7 +201,7 @@ func TestDessertExecutorsApplyExactlyOnceAndEnforcePostconditions(t *testing.T) 
 	}
 }
 
-func TestDessertPolicyRequiresEveryEnableLayer(t *testing.T) {
+func TestDessertPolicyRequiresGlobalModuleAndActionGates(t *testing.T) {
 	policy := automation.DefaultPolicy()
 	r := &Runner{policy: policy}
 	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() || r.dessertRewardBoxOpenAutomationEnabled() {
@@ -209,8 +209,6 @@ func TestDessertPolicyRequiresEveryEnableLayer(t *testing.T) {
 	}
 
 	policy.AutomationEnabled = true
-	//nolint:staticcheck // Exercise compatibility with the deprecated parent flag.
-	policy.Activity.Enabled = true
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		dessertModuleID: {Enabled: true, BoolParams: map[string]bool{}},
 	}
@@ -228,12 +226,6 @@ func TestDessertPolicyRequiresEveryEnableLayer(t *testing.T) {
 	policy.Activity.Modules[dessertModuleID].BoolParams[dessertAutoOpenRewardBoxesPolicy] = true
 	if !r.dessertRewardBoxOpenAutomationEnabled() {
 		t.Fatal("reviewed single-box flag did not enable the exact open action")
-	}
-	// Parent ActivityPolicy.enabled is legacy/no-op; modules stay independent.
-	//nolint:staticcheck // The assertion intentionally toggles the deprecated field.
-	policy.Activity.Enabled = false
-	if !r.dessertEnterAutomationEnabled() || !r.dessertTaskClaimAutomationEnabled() || !r.dessertCelebrityLikeAutomationEnabled() || !r.dessertRewardBoxOpenAutomationEnabled() {
-		t.Fatal("legacy Activity parent flag unexpectedly disabled module actions")
 	}
 	policy.Activity.Modules[dessertModuleID].Enabled = false
 	if r.dessertEnterAutomationEnabled() || r.dessertTaskClaimAutomationEnabled() || r.dessertCelebrityLikeAutomationEnabled() || r.dessertRewardBoxOpenAutomationEnabled() {

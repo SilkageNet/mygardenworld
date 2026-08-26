@@ -533,7 +533,7 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	}
 	view := s.FmlRace()
 	build := s.FmlBuild()
-	if build.MembershipObserved && build.MemberFmlID <= 0 {
+	if !build.MembershipObserved || build.MemberFmlID <= 0 {
 		return false
 	}
 	if !view.Observed && build.FmlID <= 0 {

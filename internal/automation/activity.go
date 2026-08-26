@@ -36,9 +36,7 @@ const (
 )
 
 // activityOperations combines independently gated activity modules. Each
-// module contributes at most one operation per planning cycle. The parent
-// ActivityPolicy.enabled field is ignored; only each module's own enabled
-// flag gates execution.
+// module contributes at most one operation per planning cycle.
 func activityOperations(s *state.State, policy *pb.ActivityPolicy, now time.Time) []PlannedOp {
 	if s == nil || policy == nil {
 		return nil

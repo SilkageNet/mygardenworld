@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, CalendarDays, Check, ChevronDown, Coins, Flower2, Gem, HandCoins, ListChecks, Package, Search, ShieldCheck, ShoppingBag, Sparkles, Ticket, TrendingUp, Trophy, Waves } from "lucide-react";
 import { ExecutionLane, PlanStatus } from "@/gen/mygardenworld/v1/query_service_pb";
-import type { AccountStatus, BusinessStatisticsView, Event, FmlLandView, GetSnapshotResponse, InventoryLedgerItem, InventoryLedgerView, LandView, OrderStatisticsView, PendingTaskView, PlantableFlowerView, PlannedOperation, RequirementView, RuntimeActionTotal, RuntimeStatisticsView } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountStatus, AssetsView, BusinessStatisticsView, Event, FmlLandView, InventoryLedgerItem, InventoryLedgerView, LandView, OrderStatisticsView, OverviewView, PendingTaskView, PlantableFlowerView, PlannedOperation, RequirementView, RuntimeActionTotal, RuntimeStatisticsView } from "@/gen/mygardenworld/v1/query_service_pb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,9 +61,9 @@ export function CollapsibleCard({
   );
 }
 
-export function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotResponse | null; status?: AccountStatus }) {
-  const floralCoins = snapshot?.inventory[FLORAL_COIN_ITEM_ID] ?? 0;
-  const speedUpTickets = snapshot?.inventory[SPEED_UP_TICKET_ITEM_ID] ?? 0;
+export function StatusOverviewPanel({ overview: snapshot, assets, status }: { overview: OverviewView | null; assets: AssetsView | null; status?: AccountStatus }) {
+  const floralCoins = assets?.inventory[FLORAL_COIN_ITEM_ID] ?? 0;
+  const speedUpTickets = assets?.inventory[SPEED_UP_TICKET_ITEM_ID] ?? 0;
   const reputationObserved = snapshot?.reputationObserved ?? status?.reputationObserved ?? false;
   const reputationScore = snapshot?.reputationScore ?? status?.reputationScore ?? 0;
   const reputationTime = firstPositiveUnixTime(

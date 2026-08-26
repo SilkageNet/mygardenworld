@@ -28,8 +28,8 @@ func TestDessertPolicyDefaultsAndUnverifiedSwitchesFailClosed(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			// Parent ActivityPolicy.enabled is ignored; pass false intentionally.
-			policy := dessertPlannerPolicy(false, tc.module, tc.bools)
+			// Modules are independently gated.
+			policy := dessertPlannerPolicy(tc.module, tc.bools)
 			if got := dessertPlanOperations(BuildPlan(s, policy, now).Operations); len(got) != 0 {
 				t.Fatalf("dessert operations=%+v, want none", got)
 			}
@@ -40,7 +40,7 @@ func TestDessertPolicyDefaultsAndUnverifiedSwitchesFailClosed(t *testing.T) {
 func TestDessertPlannerOpensExactlyOneActivityRewardBox(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
-	policy := dessertPlannerPolicy(true, true, map[string]bool{dessertAutoOpenRewardBoxesKey: true})
+	policy := dessertPlannerPolicy(true, map[string]bool{dessertAutoOpenRewardBoxesKey: true})
 	ops := dessertPlanOperations(BuildPlan(s, policy, now).Operations)
 	if len(ops) != 1 {
 		t.Fatalf("dessert operations=%+v, want one", ops)
@@ -60,7 +60,7 @@ func TestDessertPlannerOpensExactlyOneActivityRewardBox(t *testing.T) {
 func TestDessertAutoplayCannotProduceLiveGameOperations(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
-	policy := dessertPlannerPolicy(true, true, map[string]bool{"auto_play": true, "resume_existing_round": true})
+	policy := dessertPlannerPolicy(true, map[string]bool{"auto_play": true, "resume_existing_round": true})
 	policy.Activity.Modules[dessertModuleKey].IntParams = map[string]int64{
 		"mode": 1, "max_energy_per_session": 100, "min_energy_reserve": 0,
 	}
@@ -79,7 +79,7 @@ func TestDessertAutoplayCannotProduceLiveGameOperations(t *testing.T) {
 func TestDessertPlannerStrictOrderAndSharedCooldown(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, false)
-	policy := dessertPlannerPolicy(true, true, map[string]bool{
+	policy := dessertPlannerPolicy(true, map[string]bool{
 		dessertAutoClaimTaskRewardsKey: true,
 		dessertAutoLikeCelebrityKey:    true,
 		dessertAutoOpenRewardBoxesKey:  true,
@@ -95,7 +95,7 @@ func TestDessertPlannerStrictOrderAndSharedCooldown(t *testing.T) {
 		t.Fatalf("first dessert task claim=%+v", claim)
 	}
 
-	likeOnly := dessertPlannerPolicy(true, true, map[string]bool{dessertAutoLikeCelebrityKey: true})
+	likeOnly := dessertPlannerPolicy(true, map[string]bool{dessertAutoLikeCelebrityKey: true})
 	syncOps := dessertPlanOperations(BuildPlan(s, likeOnly, now).Operations)
 	if len(syncOps) != 1 || syncOps[0].Kind != clientproto.RPCCelebrityGetAllTypesInfo.String() ||
 		syncOps[0].Action != "sync_celebrity" || syncOps[0].CooldownKey != dessertCooldownKey {
@@ -112,7 +112,7 @@ func TestDessertPlannerStrictOrderAndSharedCooldown(t *testing.T) {
 func TestDessertPlannerEnterDependsOnlyOnMissingBagOrExtension(t *testing.T) {
 	now := time.UnixMilli(dessertPlannerNowMs)
 	s := dessertPlannerState(t, true)
-	policy := dessertPlannerPolicy(true, true, map[string]bool{dessertAutoClaimTaskRewardsKey: true})
+	policy := dessertPlannerPolicy(true, map[string]bool{dessertAutoClaimTaskRewardsKey: true})
 	ops := dessertPlanOperations(BuildPlan(s, policy, now).Operations)
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCActDessertEnter.String() || ops[0].BatchID != 9101 ||
 		ops[0].Action != "enter" || ops[0].CooldownKey != dessertCooldownKey {
@@ -147,11 +147,9 @@ func TestDessertFeatureCatalogUsesActionLevelSafety(t *testing.T) {
 	}
 }
 
-func dessertPlannerPolicy(activityEnabled, moduleEnabled bool, bools map[string]bool) *pb.Policy {
+func dessertPlannerPolicy(moduleEnabled bool, bools map[string]bool) *pb.Policy {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	//nolint:staticcheck // The test intentionally verifies that the deprecated parent flag is ignored.
-	policy.Activity.Enabled = activityEnabled
 	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
 		dessertModuleKey: {Enabled: moduleEnabled, BoolParams: bools},
 	}

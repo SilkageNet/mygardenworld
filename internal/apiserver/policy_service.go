@@ -43,6 +43,9 @@ func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetP
 			strings.Join(features, "、"),
 		))
 	}
+	if err := policycfg.ValidateVersion(req.Msg.GetPolicy()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	// Preserve the live start/pause intent. Settings edits must not flip
 	// automation back on after the operator paused via AutomationService.Stop.
 	current, err := svc.policyFor(ctx, acc.ID)

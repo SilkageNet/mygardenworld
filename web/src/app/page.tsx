@@ -1,10 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
-import { QRCodeSVG } from "qrcode.react";
-import { AlertTriangle, ArrowLeft, BadgeCheck, BarChart3, CalendarDays, Cloud, Loader2, LogOut, Package, Pause, Play, Plus, RefreshCw, Send, ShieldCheck, Square, Sprout, Ticket, Trash2, Trophy } from "lucide-react";
 import { AccountService, AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
@@ -12,22 +10,17 @@ import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
 import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
-import type { AccountStatus, Event, FeatureCapability, GetSnapshotResponse } from "@/gen/mygardenworld/v1/query_service_pb";
+import type { AccountStatus, Event, FeatureCapability } from "@/gen/mygardenworld/v1/query_service_pb";
 import AppShell from "@/components/app-shell";
-import PolicyPanel from "@/components/dashboard/policy-panel";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatAPIError, transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
-import { StatusOverviewPanel, RuntimeStatisticsPanel, TaskOrderMonitorPanel, LandMonitorPanel, FmlLandMonitorPanel, WarehouseMonitorPanel, BusinessStatisticsPanel, OperationPanel, EventPanel, Field } from "@/components/dashboard/monitor-panels";
-import { CyclicNoteMonitorPanel, FmlRaceMonitorPanel, CyclicStoryMonitorPanel, DessertMonitorPanel } from "@/components/dashboard/activity-monitor-panels";
-import { accountIdentity, accountNickname, alipayLoginStatusLabel, accountConnected, isRunnerNotStartedError, isTransientConnectionMessage, waitForAbortableDelay, accountIsAbnormal, HealthBadge, accountStatusIssues } from "@/components/dashboard/dashboard-utils";
+import { accountNickname, accountConnected, isRunnerNotStartedError, isTransientConnectionMessage, waitForAbortableDelay } from "@/components/dashboard/dashboard-utils";
 import RedeemCodeDialog from "@/components/dashboard/redeem-code-dialog";
+import { EMPTY_ACCOUNT_VIEWS, type AccountViews } from "@/features/account-workspace/model";
+import { AccountDetailView, SelectAccountPlaceholder, type DashboardTabId } from "@/features/account-workspace/account-detail";
+import AccountListPanel, { type AccountQuota } from "@/features/account-workspace/account-list-panel";
+import AddAccountDialog, { EMPTY_ADD_FORM, type AddAccountForm, type AlipayQRState } from "@/features/account-workspace/add-account-dialog";
 
 const accountClient = createClient(AccountService, transport);
 const policyClient = createClient(PolicyService, transport);
@@ -37,7 +30,7 @@ const EVENT_LIMIT = 500;
 const EVENT_RECONNECT_INITIAL_MS = 1000;
 const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
-const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
+const VIEW_REFRESH_EVENT_KINDS = new Set([
   "operation_ack",
   "union_flower_take",
   "resource_changed",
@@ -55,38 +48,6 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "benefit_box",
 ]);
 
-type DashboardTabId = "monitor" | "settings" | "logs" | "race" | "land" | "warehouse" | "business";
-type AccountQuota = {
-  current: number;
-  max: number;
-  reached: boolean;
-};
-const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
-  { id: "monitor", label: "监控", icon: <BadgeCheck /> },
-  { id: "settings", label: "设置", icon: <ShieldCheck /> },
-  { id: "logs", label: "日志", icon: <CalendarDays /> },
-  { id: "race", label: "公会竞赛", icon: <Trophy /> },
-  { id: "land", label: "土地", icon: <Sprout /> },
-  { id: "warehouse", label: "仓库", icon: <Package /> },
-  { id: "business", label: "营业统计", icon: <BarChart3 /> },
-];
-
-
-const EMPTY_ADD_FORM = {
-  channel: Channel.IOS,
-  name: "",
-  username: "",
-  password: "",
-};
-
-type AddAccountForm = typeof EMPTY_ADD_FORM;
-type AlipayQRState = {
-  loginId: string;
-  content: string;
-  status: AlipayLoginStatus;
-  error: string;
-};
-
 export default function HomePage() {
   return (
     <AppShell>
@@ -100,11 +61,11 @@ function DashboardContent() {
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
   const [featureCapabilities, setFeatureCapabilities] = useState<FeatureCapability[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
-  const [snapshot, setSnapshot] = useState<GetSnapshotResponse | null>(null);
+  const [views, setViews] = useState<AccountViews>(EMPTY_ACCOUNT_VIEWS);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
-  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [viewsLoading, setViewsLoading] = useState(false);
   const [policyLoading, setPolicyLoading] = useState(false);
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [busyAction, setBusyAction] = useState("");
@@ -116,12 +77,13 @@ function DashboardContent() {
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
   const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("monitor");
+  const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("overview");
   const didAutoSelectAccount = useRef(false);
   const accountsRef = useRef<Account[]>([]);
   const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
   const accountsLoadedRef = useRef(false);
   const capabilitiesLoadedRef = useRef(false);
+  const viewFetchGenRef = useRef(0);
   // Bumped on each getPolicy so a slow response from account A cannot overwrite
   // the panel after the user has switched to account B (and then save A's policy
   // onto B).
@@ -188,39 +150,52 @@ function DashboardContent() {
     await refreshStatuses();
   }, [refreshAccountCollection, refreshStatuses]);
 
-  const canReadSnapshot = useCallback((accountId: string) => {
+  const canReadViews = useCallback((accountId: string) => {
     const account = accountsRef.current.find((item) => item.id === accountId);
     if (!account) return false;
     return accountConnected(account, statusesRef.current.get(accountId));
   }, []);
 
-  const refreshSnapshot = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean }) => {
+  const refreshViews = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean }) => {
+    const fetchGen = ++viewFetchGenRef.current;
     if (!accountId) {
-      setSnapshot(null);
+      setViews(EMPTY_ACCOUNT_VIEWS);
       return;
     }
-    if (!options?.force && !canReadSnapshot(accountId)) {
-      setSnapshot(null);
-      setSnapshotLoading(false);
+    if (!options?.force && !canReadViews(accountId)) {
+      setViews(EMPTY_ACCOUNT_VIEWS);
+      setViewsLoading(false);
       setError((current) => (isRunnerNotStartedError(current) ? "" : current));
       return;
     }
     if (showLoading) {
-      setSnapshotLoading(true);
+      setViewsLoading(true);
     }
     try {
-      setSnapshot(await queryClient.getSnapshot({ accountId }));
+      const [overview, garden, orders, union, activities, assets] = await Promise.all([
+        queryClient.getOverview({ accountId }),
+        queryClient.getGarden({ accountId }),
+        queryClient.getOrders({ accountId }),
+        queryClient.getUnion({ accountId }),
+        queryClient.getActivities({ accountId }),
+        queryClient.getAssets({ accountId }),
+      ]);
+      if (fetchGen !== viewFetchGenRef.current) return;
+      setViews({ overview, garden, orders, union, activities, assets });
     } catch (err) {
-      setSnapshot(null);
+      if (fetchGen !== viewFetchGenRef.current) return;
+      setViews(EMPTY_ACCOUNT_VIEWS);
       if (!isRunnerNotStartedError(err)) {
-        setError(formatAPIError(err, "读取快照失败"));
+        setError(formatAPIError(err, "读取账号视图失败"));
       } else {
         setError((current) => (isRunnerNotStartedError(current) ? "" : current));
       }
     } finally {
-      setSnapshotLoading(false);
+      if (fetchGen === viewFetchGenRef.current) {
+        setViewsLoading(false);
+      }
     }
-  }, [canReadSnapshot]);
+  }, [canReadViews]);
 
   const refreshPolicy = useCallback(async (accountId: string) => {
     const fetchGen = ++policyFetchGenRef.current;
@@ -330,27 +305,29 @@ function DashboardContent() {
   }, [accounts, selectedAccountId]);
 
   useEffect(() => {
-    setDashboardTab("monitor");
+    setDashboardTab("overview");
   }, [selectedAccountId]);
 
   useEffect(() => {
     if (!selectedAccountId) {
       policyFetchGenRef.current += 1;
       policyOwnerAccountIdRef.current = "";
-      setSnapshot(null);
+      viewFetchGenRef.current += 1;
+      setViews(EMPTY_ACCOUNT_VIEWS);
       setPolicy(null);
       setPolicyLoading(false);
       setEvents([]);
       return;
     }
     if (selectedConnected) {
-      void refreshSnapshot(selectedAccountId, true);
+      void refreshViews(selectedAccountId, true);
     } else {
-      setSnapshot(null);
-      setSnapshotLoading(false);
+      viewFetchGenRef.current += 1;
+      setViews(EMPTY_ACCOUNT_VIEWS);
+      setViewsLoading(false);
       setError((current) => (isRunnerNotStartedError(current) ? "" : current));
     }
-  }, [refreshSnapshot, selectedAccountId, selectedConnected]);
+  }, [refreshViews, selectedAccountId, selectedConnected]);
 
   useEffect(() => {
     if (!selectedAccountId) {
@@ -368,11 +345,11 @@ function DashboardContent() {
     const timer = window.setInterval(() => {
       void refreshStatuses().catch(() => undefined);
       if (selectedAccountId) {
-        void refreshSnapshot(selectedAccountId).catch(() => undefined);
+        void refreshViews(selectedAccountId).catch(() => undefined);
       }
     }, STATUS_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [refreshSnapshot, refreshStatuses, selectedAccountId]);
+  }, [refreshViews, refreshStatuses, selectedAccountId]);
 
   useEffect(() => {
     if (!selectedAccountId) {
@@ -402,8 +379,8 @@ function DashboardContent() {
             retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
             setError((current) => (isTransientConnectionMessage(current) ? "" : current));
             setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
-            if (SNAPSHOT_REFRESH_EVENT_KINDS.has(event.kind)) {
-              void refreshSnapshot(selectedAccountId).catch(() => undefined);
+            if (VIEW_REFRESH_EVENT_KINDS.has(event.kind)) {
+              void refreshViews(selectedAccountId).catch(() => undefined);
             }
           }
         } catch (err) {
@@ -426,7 +403,7 @@ function DashboardContent() {
       active = false;
       controller.abort();
     };
-  }, [refreshSnapshot, selectedAccountId]);
+  }, [refreshViews, selectedAccountId]);
 
   function updateCachedAccount(account?: Account) {
     if (!account) return;
@@ -443,7 +420,7 @@ function DashboardContent() {
         : await accountClient.logoutAccount({ id: selectedAccount.id });
       updateCachedAccount(response.account);
       await refreshStatuses();
-      await refreshSnapshot(selectedAccount.id, action === "login", { force: action === "login" });
+      await refreshViews(selectedAccount.id, action === "login", { force: action === "login" });
       await refreshPolicy(selectedAccount.id);
     } catch (err) {
       setError(formatAPIError(err, "操作失败"));
@@ -485,7 +462,7 @@ function DashboardContent() {
       await refreshStatuses();
       if (accountId === selectedAccountId) {
         await refreshPolicy(accountId);
-        await refreshSnapshot(accountId, !online, { force: !online });
+        await refreshViews(accountId, !online, { force: !online });
       }
     } catch (err) {
       setError(formatAPIError(err, online ? "暂停失败" : "启动失败"));
@@ -523,7 +500,7 @@ function DashboardContent() {
       await refreshStatuses();
       if (accountId === selectedAccountId) {
         await refreshPolicy(accountId);
-        await refreshSnapshot(accountId, false);
+        await refreshViews(accountId, false);
       }
     } catch (err) {
       setError(formatAPIError(err, "停止失败"));
@@ -584,7 +561,7 @@ function DashboardContent() {
       await refreshStatuses();
       if (selectedTouched && selectedAccountId) {
         await refreshPolicy(selectedAccountId);
-        await refreshSnapshot(selectedAccountId, wantOnline, { force: wantOnline });
+        await refreshViews(selectedAccountId, wantOnline, { force: wantOnline });
       }
       if (failures.length > 0) {
         setError(
@@ -616,7 +593,7 @@ function DashboardContent() {
     setError("");
     try {
       const res = await accountClient.createAccount({
-        name: addForm.name.trim(),
+        name: "",
         username: addForm.username.trim(),
         password: addForm.password,
         channel: addForm.channel,
@@ -669,7 +646,8 @@ function DashboardContent() {
       policyOwnerAccountIdRef.current = "";
       const nextAccounts = accounts.filter((account) => account.id !== selectedAccount.id);
       setSelectedAccountId(nextAccounts[0]?.id ?? "");
-      setSnapshot(null);
+      viewFetchGenRef.current += 1;
+      setViews(EMPTY_ACCOUNT_VIEWS);
       setPolicy(null);
       await refreshAccountCollection();
     } catch (err) {
@@ -695,7 +673,7 @@ function DashboardContent() {
       setPolicyMessage("");
       await refreshStatuses();
       if (policyOwnerAccountIdRef.current === accountId) {
-        await refreshSnapshot(accountId);
+        await refreshViews(accountId);
       }
     } catch (err) {
       if (policyOwnerAccountIdRef.current === accountId) {
@@ -752,8 +730,8 @@ function DashboardContent() {
                 account={selectedAccount}
                 status={selectedStatus}
                 featureCapabilities={featureCapabilities}
-                snapshot={snapshot}
-                snapshotLoading={snapshotLoading}
+                views={views}
+                viewsLoading={viewsLoading}
                 busyAction={busyAction}
                 activeTab={dashboardTab}
                 events={events}
@@ -763,7 +741,7 @@ function DashboardContent() {
                 policyMessage={policyMessage}
                 onBack={() => setSelectedAccountId("")}
                 onTabChange={setDashboardTab}
-                onRefresh={() => void refreshSnapshot(selectedAccount.id, true)}
+                onRefresh={() => void refreshViews(selectedAccount.id, true)}
                 onAction={runAccountAction}
                 onDelete={() => void deleteSelectedAccount()}
                 onPolicyChange={setPolicy}
@@ -776,8 +754,12 @@ function DashboardContent() {
         )}
       </div>
 
-      <Dialog
+      <AddAccountDialog
         open={addOpen}
+        form={addForm}
+        qr={alipayQR}
+        quota={accountQuota}
+        creating={creatingAccount}
         onOpenChange={(open) => {
           setAddOpen(open);
           if (!open) {
@@ -785,119 +767,11 @@ function DashboardContent() {
             setAlipayQR(null);
           }
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>新增账号</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={createAccount}>
-            <Field label="渠道">
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="渠道">
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={addForm.channel === Channel.IOS}
-                  className={cn(
-                    "h-10 rounded-md border px-3 text-sm font-medium transition-colors",
-                    addForm.channel === Channel.IOS
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border/70 text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => {
-                    setAddForm((prev) => ({ ...prev, channel: Channel.IOS }));
-                    setAlipayQR(null);
-                  }}
-                  disabled={creatingAccount}
-                >
-                  iOS
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={addForm.channel === Channel.ALIPAY}
-                  className={cn(
-                    "h-10 rounded-md border px-3 text-sm font-medium transition-colors",
-                    addForm.channel === Channel.ALIPAY
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border/70 text-muted-foreground hover:text-foreground",
-                  )}
-                  onClick={() => {
-                    setAddForm((prev) => ({ ...prev, channel: Channel.ALIPAY }));
-                    setAlipayQR(null);
-                  }}
-                  disabled={creatingAccount}
-                >
-                  支付宝
-                </button>
-              </div>
-            </Field>
-            {addForm.channel === Channel.ALIPAY ? (
-              <>
-                <div className="rounded-md border border-border/60 bg-white/52 p-4 text-center dark:bg-white/5">
-                  {alipayQR?.content ? (
-                    <div className="space-y-3">
-                      <div className="mx-auto w-fit rounded-md bg-white p-3 shadow-sm">
-                        <QRCodeSVG value={alipayQR.content} size={208} level="M" />
-                      </div>
-                      <div className="text-sm font-medium">{alipayLoginStatusLabel(alipayQR.status)}</div>
-                      {alipayQR.error && <div className="text-xs text-destructive">{alipayQR.error}</div>}
-                      {(alipayQR.status === AlipayLoginStatus.EXPIRED || alipayQR.status === AlipayLoginStatus.FAILED) && (
-                        <Button type="button" variant="outline" size="sm" onClick={() => void startAlipayLogin()} disabled={creatingAccount}>
-                          <RefreshCw className="size-4" />
-                          重新获取
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="py-6 text-sm text-muted-foreground">点击下方按钮生成二维码，再使用支付宝扫码确认。</div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
-                <Field label="账号">
-                  <Input
-                    value={addForm.username}
-                    onChange={(event) => setAddForm((prev) => ({ ...prev, username: event.target.value }))}
-                    autoComplete="username"
-                    disabled={creatingAccount}
-                  />
-                </Field>
-                <Field label="密码">
-                  <Input
-                    type="password"
-                    value={addForm.password}
-                    onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
-                    autoComplete="current-password"
-                    disabled={creatingAccount}
-                  />
-                </Field>
-              </>
-            )}
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setAddOpen(false);
-                  setAddForm(EMPTY_ADD_FORM);
-                  setAlipayQR(null);
-                }}
-                disabled={creatingAccount}
-              >
-                取消
-              </Button>
-              <Button
-                type="submit"
-                disabled={creatingAccount || (addForm.channel !== Channel.ALIPAY && accountQuota?.reached) || (addForm.channel === Channel.ALIPAY && Boolean(alipayQR) && alipayQR?.status !== AlipayLoginStatus.EXPIRED && alipayQR?.status !== AlipayLoginStatus.FAILED)}
-              >
-                {creatingAccount ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                {creatingAccount ? "处理中" : addForm.channel === Channel.ALIPAY ? "获取二维码" : "新增"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+        onFormChange={setAddForm}
+        onClearQR={() => setAlipayQR(null)}
+        onSubmit={createAccount}
+        onStartAlipay={() => void startAlipayLogin()}
+      />
 
       {redeemOpen && (
         <RedeemCodeDialog
@@ -917,550 +791,5 @@ function DashboardContent() {
         />
       )}
     </div>
-  );
-}
-
-function AccountListPanel({
-  accounts,
-  statuses,
-  selectedAccountId,
-  loading,
-  quota,
-  busyAutomationAccountId,
-  busyBulkAutomation,
-  onRefresh,
-  onAdd,
-  onRedeem,
-  onSelect,
-  onAutomationToggle,
-  onAutomationStop,
-  onBulkStart,
-  onBulkPause,
-}: {
-  accounts: Account[];
-  statuses: Map<string, AccountStatus>;
-  selectedAccountId: string;
-  loading: boolean;
-  quota: AccountQuota | null;
-  busyAutomationAccountId: string;
-  busyBulkAutomation: "" | "start" | "pause";
-  onRefresh: () => void;
-  onAdd: () => void;
-  onRedeem: () => void;
-  onSelect: (accountId: string) => void;
-  onAutomationToggle: (accountId: string) => void;
-  onAutomationStop: (accountId: string) => void;
-  onBulkStart: () => void;
-  onBulkPause: () => void;
-}) {
-  const hasAccounts = accounts.length > 0;
-  const quotaReached = quota?.reached ?? false;
-  const bulkBusy = busyBulkAutomation !== "";
-  const automationLocked = bulkBusy || busyAutomationAccountId !== "";
-  return (
-    <Card className={cn("cloud-surface min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
-      <CardHeader className="border-b border-border/45 pb-2.5 sm:pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-md bg-white/72 text-sky-500 shadow-sm dark:bg-white/8 dark:text-sky-300">
-              <Cloud className="size-4" />
-            </span>
-            <CardTitle>账号</CardTitle>
-            {quota ? (
-              <Badge variant={quotaReached ? "destructive" : "secondary"}>{quota.current}/{quota.max}</Badge>
-            ) : (
-              hasAccounts && <Badge variant="secondary">{accounts.length}</Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="刷新" disabled={loading || bulkBusy}>
-              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-            </Button>
-            {hasAccounts && (
-              <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码" disabled={bulkBusy}>
-                <Ticket className="size-4" />
-              </Button>
-            )}
-            {hasAccounts && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                onClick={onAdd}
-                aria-label="新增账号"
-                disabled={quotaReached || bulkBusy}
-              >
-                <Plus className="size-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        {hasAccounts && (
-          <div className="mt-2.5 flex items-center gap-2">
-            <Button
-              type="button"
-              size="sm"
-              className="h-7 flex-1 px-2"
-              aria-label="一键启动全部账号"
-              disabled={automationLocked}
-              onClick={onBulkStart}
-            >
-              {busyBulkAutomation === "start" ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Play className="size-3.5" />
-              )}
-              一键启动
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="h-7 flex-1 px-2"
-              aria-label="一键暂停全部账号"
-              disabled={automationLocked}
-              onClick={onBulkPause}
-            >
-              {busyBulkAutomation === "pause" ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Pause className="size-3.5" />
-              )}
-              一键暂停
-            </Button>
-          </div>
-        )}
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-        {!hasAccounts ? (
-          <div className="flex min-h-[220px] flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-            <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-white/78 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300">
-              <Cloud className="size-6" />
-            </div>
-            <div className="text-base font-semibold">还没有账号</div>
-            <div className="mt-1 text-sm text-muted-foreground">添加后开始监控。</div>
-            <Button type="button" className="mt-5 w-full max-w-xs" onClick={onAdd} disabled={quotaReached}>
-              <Plus className="size-4" />
-              添加账号
-            </Button>
-          </div>
-        ) : (
-          <div className="dark-scrollbar flex-1 space-y-2 overflow-y-auto pr-0.5 sm:pr-1">
-            {accounts.map((account) => {
-              const status = statuses.get(account.id);
-              const selected = account.id === selectedAccountId;
-              const identity = accountIdentity(account, status);
-              const online = accountConnected(account, status);
-              const abnormal = accountIsAbnormal(status);
-              const automationBusy = bulkBusy || busyAutomationAccountId === account.id;
-              const automationSpinning = busyAutomationAccountId === account.id;
-              return (
-                <div
-                  key={account.id}
-                  role="button"
-                  tabIndex={0}
-                  className={cn(
-                    "w-full cursor-pointer rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
-                    selected
-                      ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
-                      : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
-                  )}
-                  onClick={() => onSelect(account.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(account.id);
-                    }
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{identity.nickname}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        <span>{identity.area}</span>
-                        <span>{identity.channel}</span>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Button
-                        type="button"
-                        variant={online ? "secondary" : "default"}
-                        size="sm"
-                        className="h-7 px-2"
-                        aria-label={online ? "暂停并离线" : "启动并上线"}
-                        disabled={automationBusy}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onAutomationToggle(account.id);
-                        }}
-                      >
-                        {automationSpinning ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : online ? (
-                          <Pause className="size-3.5" />
-                        ) : (
-                          <Play className="size-3.5" />
-                        )}
-                        {online ? "暂停" : "启动"}
-                      </Button>
-                      {abnormal && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-2"
-                          aria-label="停止并离线"
-                          disabled={automationBusy}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onAutomationStop(account.id);
-                          }}
-                        >
-                          {automationSpinning ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Square className="size-3.5" />
-                          )}
-                          停止
-                        </Button>
-                      )}
-                      <HealthBadge status={status} account={account} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function SelectAccountPlaceholder() {
-  return (
-    <Card className="cloud-surface flex h-full min-h-[480px] items-center justify-center">
-      <CardContent className="max-w-md text-center">
-        <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-white/76 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300">
-          <Send className="size-5" />
-        </div>
-        <div className="text-base font-semibold">选择账号</div>
-        <div className="mt-1 text-sm text-muted-foreground">从左侧进入监控。</div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AccountDetailView({
-  account,
-  status,
-  featureCapabilities,
-  snapshot,
-  snapshotLoading,
-  busyAction,
-  activeTab,
-  events,
-  policy,
-  policyLoading,
-  savingPolicy,
-  policyMessage,
-  onBack,
-  onTabChange,
-  onRefresh,
-  onAction,
-  onDelete,
-  onPolicyChange,
-  onPolicySave,
-}: {
-  account: Account;
-  status?: AccountStatus;
-  featureCapabilities: FeatureCapability[];
-  snapshot: GetSnapshotResponse | null;
-  snapshotLoading: boolean;
-  busyAction: string;
-  activeTab: DashboardTabId;
-  events: Event[];
-  policy: Policy | null;
-  policyLoading: boolean;
-  savingPolicy: boolean;
-  policyMessage: string;
-  onBack: () => void;
-  onTabChange: (tab: DashboardTabId) => void;
-  onRefresh: () => void;
-  onAction: (action: "login" | "logout") => Promise<void>;
-  onDelete: () => void;
-  onPolicyChange: (policy: Policy | null) => void;
-  onPolicySave: () => void;
-}) {
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0 });
-    window.scrollTo({ top: 0 });
-  }, [account.id]);
-
-  return (
-    <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 sm:gap-4 xl:h-full xl:overflow-hidden">
-      <div className="shrink-0">
-        <HeaderPanel
-          account={account}
-          status={status}
-          snapshotLoading={snapshotLoading}
-          busyAction={busyAction}
-          onBack={onBack}
-          onRefresh={onRefresh}
-          onAction={onAction}
-          onDelete={onDelete}
-        />
-      </div>
-      <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
-      <div
-        ref={contentRef}
-        className={cn(
-          "min-h-0",
-          activeTab === "logs"
-            ? "flex flex-1 xl:min-h-0 xl:overflow-hidden"
-            : "dark-scrollbar xl:flex-1 xl:overflow-y-auto xl:pr-0.5",
-        )}
-      >
-        {activeTab === "monitor" && <MonitorTab snapshot={snapshot} status={status} />}
-        {activeTab === "logs" && <EventPanel events={events} />}
-        {activeTab === "settings" && (
-          <PolicyPanel
-            policy={policy}
-            snapshot={snapshot}
-            capabilities={featureCapabilities}
-            loading={policyLoading}
-            saving={savingPolicy}
-            message={policyMessage}
-            onPolicyChange={onPolicyChange}
-            onSave={onPolicySave}
-          />
-        )}
-        {activeTab === "race" && <RaceTab snapshot={snapshot} policy={policy} />}
-        {activeTab === "land" && <LandTab snapshot={snapshot} policy={policy} />}
-        {activeTab === "warehouse" && <WarehouseTab snapshot={snapshot} />}
-        {activeTab === "business" && <BusinessTab snapshot={snapshot} />}
-      </div>
-    </div>
-  );
-}
-
-function DashboardTabBar({
-  activeTab,
-  onChange,
-}: {
-  activeTab: DashboardTabId;
-  onChange: (tab: DashboardTabId) => void;
-}) {
-  return (
-    <div className="dark-scrollbar sticky top-[3.25rem] z-20 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-white/58 bg-white/62 p-1 shadow-sm shadow-sky-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-card/72 sm:top-14 xl:static">
-      {DASHBOARD_TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          className={cn(
-            "flex h-9 min-w-[6.25rem] shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition-all active:scale-[0.99] sm:min-w-20",
-            activeTab === tab.id
-              ? "bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(255,111,97,0.24)]"
-              : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
-          )}
-          onClick={() => onChange(tab.id)}
-        >
-          <span className="[&_svg]:size-4">{tab.icon}</span>
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function MonitorTab({
-  snapshot,
-  status,
-}: {
-  snapshot: GetSnapshotResponse | null;
-  status?: AccountStatus;
-}) {
-  const runtimeStatistics = snapshot?.runtimeStatistics ?? status?.runtimeStatistics;
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      <StatusOverviewPanel snapshot={snapshot} status={status} />
-      <RuntimeStatisticsPanel runtimeStatistics={runtimeStatistics} />
-      <OperationPanel operations={snapshot?.plannedOperations ?? []} />
-      <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
-      <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
-      <CyclicStoryMonitorPanel activity={snapshot?.cyclicStory} />
-      <DessertMonitorPanel activity={snapshot?.dessert} />
-    </div>
-  );
-}
-
-function RaceTab({
-  snapshot,
-  policy,
-}: {
-  snapshot: GetSnapshotResponse | null;
-  policy: Policy | null;
-}) {
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      <FmlRaceMonitorPanel
-        race={snapshot?.fmlRace}
-        showTakenTask={policy?.union?.race?.enabled ?? true}
-        showPersonalScoreRank={policy?.union?.race?.showPersonalScoreRank ?? false}
-      />
-    </div>
-  );
-}
-
-function LandTab({
-  snapshot,
-  policy,
-}: {
-  snapshot: GetSnapshotResponse | null;
-  policy: Policy | null;
-}) {
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      <LandMonitorPanel
-        lands={snapshot?.lands ?? []}
-        waterDrops={snapshot?.waterDrops ?? 0}
-        waterDropsTotal={snapshot?.waterDropsTotal ?? 0}
-        minWaterDrops={policy?.plant?.planting?.minWaterDrops ?? 0}
-      />
-      <FmlLandMonitorPanel
-        lands={snapshot?.fmlLands ?? []}
-        plantableFlowers={snapshot?.plantableFlowers ?? []}
-        observed={snapshot?.fmlLandsObserved ?? false}
-        automationEnabled={policy?.automationEnabled ?? false}
-      />
-    </div>
-  );
-}
-
-function WarehouseTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      <WarehouseMonitorPanel ledger={snapshot?.inventoryLedger} />
-    </div>
-  );
-}
-
-function BusinessTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
-  return (
-    <div className="space-y-3 sm:space-y-4">
-      <BusinessStatisticsPanel statistics={snapshot?.businessStatistics} />
-    </div>
-  );
-}
-
-function HeaderPanel({
-  account,
-  status,
-  snapshotLoading,
-  busyAction,
-  onBack,
-  onRefresh,
-  onAction,
-  onDelete,
-}: {
-  account: Account;
-  status?: AccountStatus;
-  snapshotLoading: boolean;
-  busyAction: string;
-  onBack: () => void;
-  onRefresh: () => void;
-  onAction: (action: "login" | "logout") => Promise<void>;
-  onDelete: () => void;
-}) {
-  const connected = accountConnected(account, status);
-  const sessionAction = connected ? "logout" : "login";
-  const identity = accountIdentity(account, status);
-  const statusIssues = accountStatusIssues(status);
-  return (
-    <Card className="cloud-surface bg-card/88">
-      <CardContent className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:items-center">
-            <Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
-              <ArrowLeft className="size-4" />
-            </Button>
-            <div className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-white/72 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300 sm:flex">
-              <Cloud className="size-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <h1 className="min-w-0 max-w-full truncate text-xl font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
-                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
-                  <span>{identity.area}</span>
-                  <span>·</span>
-                  <span>{identity.channel}</span>
-                </div>
-                <HealthBadge account={account} status={status} />
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center justify-end gap-1">
-            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={snapshotLoading || !connected}>
-              <RefreshCw className={cn("size-4", snapshotLoading && "animate-spin")} />
-            </IconButtonWithTooltip>
-            <IconButtonWithTooltip
-              label={connected ? "退出登录" : "登录"}
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              onClick={() => void onAction(sessionAction)}
-              disabled={busyAction === sessionAction}
-            >
-              {busyAction === sessionAction ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : connected ? (
-                <LogOut className="size-4" />
-              ) : (
-                <Play className="size-4" />
-              )}
-            </IconButtonWithTooltip>
-            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
-              <Trash2 className="size-4" />
-            </IconButtonWithTooltip>
-          </div>
-        </div>
-        {statusIssues.length > 0 && (
-          <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive shadow-sm">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <div className="min-w-0 space-y-1">
-                <div className="font-medium">异常信息</div>
-                {statusIssues.map((issue) => (
-                  <div key={issue} className="break-words text-destructive/90">
-                    {issue}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function IconButtonWithTooltip({
-  label,
-  children,
-  ...props
-}: ComponentProps<typeof Button> & { label: string }) {
-  return (
-    <Tooltip disabled={props.disabled}>
-      <TooltipTrigger
-        render={
-          <Button {...props} aria-label={props["aria-label"] ?? label}>
-            {children}
-          </Button>
-        }
-      />
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
   );
 }

@@ -4,7 +4,6 @@
 // Subcommands:
 //
 //	gardend serve   --data-dir <dir> --listen <addr> --jwt-secret <secret>
-//	gardend migrate-data-v1 --data-dir <dir> --yes
 //	gardend reset-data --data-dir <dir> --yes
 //	gardend version
 package main
@@ -24,7 +23,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	rootCmd.AddCommand(newServeCmd(), newMigrateDataCmd(), newResetDataCmd(), newVersionCmd(), updatecmd.New("gardend"))
+	rootCmd.AddCommand(newServeCmd(), newResetDataCmd(), newVersionCmd(), updatecmd.New("gardend"))
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

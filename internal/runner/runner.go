@@ -5,7 +5,6 @@
 package runner
 
 import (
-	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -67,75 +66,40 @@ type Runner struct {
 	log     *slog.Logger
 
 	mu          sync.RWMutex
-	operationMu sync.Mutex // serializes state-changing RPCs and their before/after snapshots
-	client      *babigame.Client
-	httpc       *babigame.HTTPClient
-	session     *babigame.Session
 	state       *state.State
 	policy      *pb.Policy
 	stats       *RuntimeStats
+	lastEventAt time.Time
+	bus         *Bus
 
-	lastWaterSyncTick         time.Time // 节流水资源状态刷新
-	lastReputationSyncTick    time.Time // 节流礼仪分/健康分刷新
-	lastResidentOrderSyncTick time.Time // 绸缎/建材订单状态刷新（广告暂停/启动同步）
-	lastEventAt               time.Time // latest event emitted by this runner
-	nextDecisionAt            time.Time // next scheduled decision-loop tick
-
-	currentOperation          string
-	currentOperationStartedAt time.Time
-	lastOperation             string
-	lastOperationAt           time.Time
-	lastOperationError        string
-	lastOperationErrorAt      time.Time
-
-	harvestBlockedUntil          map[int32]time.Time // 服务端提示未成熟后，按田地短期冷却
-	operationCooldowns           map[string]operationCooldown
-	sideLaneFirstWait            map[string]time.Time // runnable Side scope first observed behind Farm work
-	sideLaneFarmTurn             bool                 // a forced Side must yield once when Farm work is available
-	rqst                         rqstState            // 反作弊验证状态
-	unknownRPCCounts             map[string]int32     // runtime RPC names missing from the catalog
-	lastCustomerOrderInfo        map[int32]string     // 顾客订单需求摘要去重
-	lastResidentOrderLimitReason string               // 普通居民订单上限日志去重
-	lastCustomerOrderLimitReason string               // 顾客订单上限日志去重
-	dessertSessionEpoch          uint64               // increments only after a fresh HTTP/WS login
-	dessertRound                 dessertRoundRuntime  // shadow/autoplay state; never persisted
-
-	debugWriter *babigame.DebugFrameWriter
-
-	cancel   context.CancelFunc
-	done     chan struct{}
-	stopOnce sync.Once
-
-	sessionInvalidated       bool
-	sessionInvalidatedReason string
-	sessionAutoRelogin       bool
-
-	bus *Bus
+	sessionRuntimeState
+	schedulerState
+	executionState
+	activityRuntimeState
 }
 
 // New constructs a runner. cfg must already be resolved from the account's
 // channel via babigame.ConfigForChannel; the daemon does that in
 // Manager.Start.
 func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, log *slog.Logger) *Runner {
-	return &Runner{
-		cfg:                   cfg,
-		db:                    db,
-		account:               account,
-		log:                   log.With("account", account.Name, "channel", account.Channel),
-		state:                 state.New(),
-		policy:                automation.DefaultPolicy(),
-		stats:                 newRuntimeStats(time.Now()),
-		harvestBlockedUntil:   make(map[int32]time.Time),
-		operationCooldowns:    make(map[string]operationCooldown),
-		sideLaneFirstWait:     make(map[string]time.Time),
-		unknownRPCCounts:      make(map[string]int32),
-		lastCustomerOrderInfo: make(map[int32]string),
-		dessertRound: dessertRoundRuntime{DessertRuntimeSnapshot: DessertRuntimeSnapshot{
-			ShadowOnly: true,
-		}},
-		done: make(chan struct{}),
-		bus:  bus,
+	r := &Runner{
+		cfg:     cfg,
+		db:      db,
+		account: account,
+		log:     log.With("account", account.Name, "channel", account.Channel),
+		state:   state.New(),
+		policy:  automation.DefaultPolicy(),
+		stats:   newRuntimeStats(time.Now()),
+		bus:     bus,
 	}
+	r.harvestBlockedUntil = make(map[int32]time.Time)
+	r.operationCooldowns = make(map[string]operationCooldown)
+	r.sideLaneFirstWait = make(map[string]time.Time)
+	r.unknownRPCCounts = make(map[string]int32)
+	r.lastCustomerOrderInfo = make(map[int32]string)
+	r.dessertRound = dessertRoundRuntime{DessertRuntimeSnapshot: DessertRuntimeSnapshot{ShadowOnly: true}}
+	r.done = make(chan struct{})
+	return r
 }
 
 // State returns the current per-account state tracker.

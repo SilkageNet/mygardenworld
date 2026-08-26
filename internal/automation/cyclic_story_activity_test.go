@@ -14,8 +14,8 @@ import (
 func TestCyclicStoryOperationsOrderClaim(t *testing.T) {
 	now := time.UnixMilli(1783696000000)
 	s := applyCyclicStoryPlannerFixture(t)
-	// Parent ActivityPolicy.enabled is ignored; module enabled alone is enough.
-	policy := cyclicStoryPlannerPolicy(false, true, map[string]bool{
+	// The module's own enabled flag is authoritative.
+	policy := cyclicStoryPlannerPolicy(true, map[string]bool{
 		cyclicStoryAutoClaimOrderRewardsKey:  true,
 		cyclicStoryAutoClaimProgressBoxesKey: true,
 	}, 0)
@@ -56,7 +56,7 @@ func TestCyclicStoryScoreCapBlocksOrderClaim(t *testing.T) {
 	s := applyCyclicStoryPlannerFixture(t)
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"23001":80}}}}`))
 
-	capped := cyclicStoryPlannerPolicy(false, true, map[string]bool{
+	capped := cyclicStoryPlannerPolicy(true, map[string]bool{
 		cyclicStoryAutoClaimOrderRewardsKey:  true,
 		cyclicStoryAutoClaimProgressBoxesKey: true,
 	}, 45)
@@ -66,14 +66,14 @@ func TestCyclicStoryScoreCapBlocksOrderClaim(t *testing.T) {
 		}
 	}
 
-	open := cyclicStoryPlannerPolicy(false, true, map[string]bool{cyclicStoryAutoClaimOrderRewardsKey: true}, 46)
+	open := cyclicStoryPlannerPolicy(true, map[string]bool{cyclicStoryAutoClaimOrderRewardsKey: true}, 46)
 	ops := cyclicStoryPlanOperations(BuildPlan(s, open, now).Operations)
 	if len(ops) != 1 || ops[0].Action != "claim_order" {
 		t.Fatalf("expected order claim under cap, got %+v", ops)
 	}
 
 	s.ApplyV(json.RawMessage(`{"23":{"0":{"9101":{"11":80}}}}`))
-	milestonePolicy := cyclicStoryPlannerPolicy(false, true, map[string]bool{
+	milestonePolicy := cyclicStoryPlannerPolicy(true, map[string]bool{
 		cyclicStoryAutoClaimProgressBoxesKey: true,
 	}, 45)
 	ops = cyclicStoryPlanOperations(BuildPlan(s, milestonePolicy, now).Operations)
@@ -101,7 +101,7 @@ func TestCyclicStoryEnterWhenOrdersMissing(t *testing.T) {
 	s := state.New()
 	s.ApplyV(stripped)
 
-	policy := cyclicStoryPlannerPolicy(false, true, map[string]bool{cyclicStoryAutoClaimProgressBoxesKey: true}, 0)
+	policy := cyclicStoryPlannerPolicy(true, map[string]bool{cyclicStoryAutoClaimProgressBoxesKey: true}, 0)
 	ops := cyclicStoryPlanOperations(BuildPlan(s, policy, now).Operations)
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCActCyclicStoryEnter.String() || ops[0].BatchID != 9101 {
 		view, _ := s.CyclicStoryView(now)
@@ -135,19 +135,17 @@ func TestCyclicStoryEnterWithoutScoreBag(t *testing.T) {
 	if !ok || view.Valid || !view.EnterReady || view.OrdersObserved {
 		t.Fatalf("expected enter-ready invalid view, got ok=%t view=%+v", ok, view)
 	}
-	policy := cyclicStoryPlannerPolicy(false, true, map[string]bool{cyclicStoryAutoClaimOrderRewardsKey: true}, 0)
+	policy := cyclicStoryPlannerPolicy(true, map[string]bool{cyclicStoryAutoClaimOrderRewardsKey: true}, 0)
 	ops := cyclicStoryPlanOperations(BuildPlan(s, policy, now).Operations)
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCActCyclicStoryEnter.String() || ops[0].BatchID != 9101 {
 		t.Fatalf("expected enter without score/bag, got %+v", ops)
 	}
 }
 
-func cyclicStoryPlannerPolicy(activityEnabled, moduleEnabled bool, bools map[string]bool, maxScore int64) *pb.Policy {
+func cyclicStoryPlannerPolicy(moduleEnabled bool, bools map[string]bool, maxScore int64) *pb.Policy {
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Activity = &pb.ActivityPolicy{
-		//nolint:staticcheck // Verify that the deprecated parent flag is ignored in favor of module gates.
-		Enabled: activityEnabled,
 		Modules: map[string]*pb.ActivityModulePolicy{
 			cyclicStoryModuleKey: {
 				Enabled:    moduleEnabled,

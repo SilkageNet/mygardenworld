@@ -116,36 +116,57 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	return out, nil
 }
 
-func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.GetSnapshotRequest]) (*connect.Response[pb.GetSnapshotResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+type accountReadModel struct {
+	account *store.Account
+	runner  *runner.Runner
+	state   *state.State
+	policy  *pb.Policy
+	now     time.Time
+	diag    runner.Diagnostics
+}
+
+func (svc *Services) accountReadModel(ctx context.Context, req *pb.GetAccountViewRequest) (*accountReadModel, error) {
+	acc, err := svc.resolveAccount(ctx, req.GetAccountId(), req.GetAccountName())
 	if err != nil {
 		return nil, mapErr(err)
+	}
+	if svc.Manager == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner not started"))
 	}
 	r := svc.Manager.Get(acc.ID)
 	if r == nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("runner not started"))
 	}
-	st := r.State()
 	now := time.Now()
+	st := r.State()
 	st.RefreshWaterDrops(now)
-	lands := st.Lands()
+	return &accountReadModel{
+		account: acc,
+		runner:  r,
+		state:   st,
+		policy:  r.Policy(),
+		now:     now,
+		diag:    r.Diagnostics(now),
+	}, nil
+}
+
+func (svc *Services) GetOverview(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.OverviewView], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	st, now := model.state, model.now
 	waterDrops, waterDropsTotal, waterDropsNextMs := st.WaterDrops()
 	diamondsFree, diamondsPaid := st.Diamonds()
 	vip, vipExp := st.Vip()
 	expToNext, nextLevelExp, levelMaxed := st.ExperienceToNextLevel()
-	diag := r.Diagnostics(now)
-	cyclicNote, _ := st.CyclicNoteView(now)
-	cyclicStory, _ := st.CyclicStoryView(now)
-	fmlRace := st.FmlRace()
-	dessert, _ := st.DessertView(now)
-	dessertRuntime := r.DessertRuntimeSnapshot()
-	policy := r.Policy()
-	resp := &pb.GetSnapshotResponse{
-		AccountId:             fmt.Sprintf("%d", acc.ID),
-		AccountName:           acc.Name,
-		Inventory:             st.Inventory(),
+	plan := automation.BuildPlan(st, model.policy, now)
+	domainStatuses := buildDomainStatuses(model.policy, model.diag, model.runner.Connected())
+	resp := &pb.OverviewView{
+		AccountId:             fmt.Sprintf("%d", model.account.ID),
+		AccountName:           model.account.Name,
 		RoleId:                st.RoleID(),
-		CapturedAt:            timestamppb.Now(),
+		CapturedAt:            timestamppb.New(now),
 		Gold:                  st.Gold(),
 		WaterDrops:            waterDrops,
 		WaterDropsTotal:       waterDropsTotal,
@@ -157,52 +178,129 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		LevelMaxed:            levelMaxed,
 		DiamondsFree:          diamondsFree,
 		DiamondsPaid:          diamondsPaid,
-		PendingTasks:          buildPendingTasksAtPolicy(st, now, policy.GetBasic().GetMapEventEnabled()),
 		Vip:                   vip,
 		VipExp:                vipExp,
 		NobleEligible:         st.NobleEligible(),
-		ObservedNamespaces:    diag.ObservedNamespaces,
-		UnknownRpcCount:       diag.UnknownRPCCount,
-		UnknownNamespaceCount: diag.UnknownNamespaceCount,
-		Diagnostics:           runnerDiagnosticsProto(diag),
-		RuntimeStatistics:     runtimeStatisticsProto(r.RuntimeStats()),
-		CyclicNote:            cyclicNoteProto(cyclicNote),
-		CyclicStory:           cyclicStoryProto(cyclicStory),
-		FmlRace: fmlRaceProto(
-			fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now,
-			automation.RaceModuleGates{
-				Customer:  policy.GetOrder().GetCustomer().GetEnabled(),
-				Pearl:     policy.GetBasic().GetPearl().GetAutoHireEnabled(),
-				Cultivate: policy.GetPlant().GetCultivate().GetEnabled(),
-			},
-		),
-		Dessert: dessertProto(dessert),
+		ObservedNamespaces:    append([]string(nil), model.diag.ObservedNamespaces...),
+		UnknownRpcCount:       model.diag.UnknownRPCCount,
+		UnknownNamespaceCount: model.diag.UnknownNamespaceCount,
+		Diagnostics:           runnerDiagnosticsProto(model.diag),
+		DomainStatuses:        domainStatuses,
+		PlannedOperations:     plannedOperationsProto(plan.Operations, model.diag),
+		BlockingSummary:       blockingSummaryProto(domainStatuses, plan),
+		RuntimeStatistics:     runtimeStatisticsProto(model.runner.RuntimeStats()),
+		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy.GetBasic().GetMapEventEnabled()),
 	}
-	resp.Dessert.Runtime = dessertRuntimeProto(dessertRuntime)
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
 		resp.ReputationScore = rep.Score
 		resp.ReputationLastSyncTimeMs = rep.LastSyncTimeMs
 		resp.ReputationLastViewTimeMs = rep.LastViewTimeMs
 	}
-	resp.PlantableFlowers = plantableFlowersProto(st.PlantableFlowers(nil, nil))
-	resp.SellableFlowerArts = sellableFlowerArtsProto(st)
-	resp.FriendTouchFriends = friendTouchFriendsProto(st.FriendTouchFriends(now))
-	resp.FriendTouchFriendsObserved = st.FriendTouch(now).FriendsObserved
-	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
-	resp.FmlLandsObserved = st.FmlLandObserved()
-	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
-	plan := automation.BuildPlan(st, policy, now)
-	resp.DomainStatuses = buildDomainStatuses(policy, diag, r.Connected())
-	resp.PlannedOperations = plannedOperationsProto(plan.Operations, diag)
-	resp.Demands = demandsProto(plan.Demands)
-	resp.Vases = vasesProto(st.Vases())
-	resp.FlowerArtAvailability = flowerArtAvailabilityProto(st, plan)
-	resp.OrderStatistics = orderStatisticsProto(st, now)
-	resp.BusinessStatistics = businessStatisticsProto(st)
-	resp.InventoryLedger = inventoryLedgerProto(st.Inventory(), plan.Ledger)
-	resp.BlockingSummary = blockingSummaryProto(resp.DomainStatuses, plan)
 	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) GetGarden(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.GardenView], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	st, now := model.state, model.now
+	resp := &pb.GardenView{
+		AccountId:                  fmt.Sprintf("%d", model.account.ID),
+		AccountName:                model.account.Name,
+		CapturedAt:                 timestamppb.New(now),
+		PlantableFlowers:           plantableFlowersProto(st.PlantableFlowers(nil, nil)),
+		FriendTouchFriends:         friendTouchFriendsProto(st.FriendTouchFriends(now)),
+		FriendTouchFriendsObserved: st.FriendTouch(now).FriendsObserved,
+	}
+	resp.Lands = buildLandViews(st.Lands(), st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(model.policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) GetOrders(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.OrdersView], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	st, now := model.state, model.now
+	plan := automation.BuildPlan(st, model.policy, now)
+	resp := &pb.OrdersView{
+		AccountId:             fmt.Sprintf("%d", model.account.ID),
+		AccountName:           model.account.Name,
+		CapturedAt:            timestamppb.New(now),
+		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy.GetBasic().GetMapEventEnabled()),
+		Demands:               demandsProto(plan.Demands),
+		Vases:                 vasesProto(st.Vases()),
+		FlowerArtAvailability: flowerArtAvailabilityProto(st, plan),
+		OrderStatistics:       orderStatisticsProto(st, now),
+		BusinessStatistics:    businessStatisticsProto(st),
+		SellableFlowerArts:    sellableFlowerArtsProto(st),
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) GetUnion(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.UnionView], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	st, now := model.state, model.now
+	membership := st.FmlBuild()
+	resp := &pb.UnionView{
+		AccountId:          fmt.Sprintf("%d", model.account.ID),
+		AccountName:        model.account.Name,
+		CapturedAt:         timestamppb.New(now),
+		MembershipObserved: membership.MembershipObserved,
+		InUnion:            membership.MembershipObserved && membership.MemberFmlID > 0,
+		UnionId:            membership.MemberFmlID,
+		LandsObserved:      st.FmlLandObserved(),
+		Lands:              buildFmlLandViews(st.FmlLands(), st.Cultivations(), now),
+		Race: fmlRaceProto(
+			st.FmlRace(), st, model.policy.GetUnion().GetRace(), st.RoleID(), now,
+			automation.RaceModuleGates{
+				Customer:  model.policy.GetOrder().GetCustomer().GetEnabled(),
+				Pearl:     model.policy.GetBasic().GetPearl().GetAutoHireEnabled(),
+				Cultivate: model.policy.GetPlant().GetCultivate().GetEnabled(),
+			},
+		),
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) GetActivities(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.ActivitiesView], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	cyclicNote, _ := model.state.CyclicNoteView(model.now)
+	cyclicStory, _ := model.state.CyclicStoryView(model.now)
+	dessert, _ := model.state.DessertView(model.now)
+	resp := &pb.ActivitiesView{
+		AccountId:   fmt.Sprintf("%d", model.account.ID),
+		AccountName: model.account.Name,
+		CapturedAt:  timestamppb.New(model.now),
+		CyclicNote:  cyclicNoteProto(cyclicNote),
+		CyclicStory: cyclicStoryProto(cyclicStory),
+		Dessert:     dessertProto(dessert),
+	}
+	resp.Dessert.Runtime = dessertRuntimeProto(model.runner.DessertRuntimeSnapshot())
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) GetAssets(ctx context.Context, req *connect.Request[pb.GetAccountViewRequest]) (*connect.Response[pb.AssetsView], error) {
+	model, err := svc.accountReadModel(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	plan := automation.BuildPlan(model.state, model.policy, model.now)
+	return connect.NewResponse(&pb.AssetsView{
+		AccountId:       fmt.Sprintf("%d", model.account.ID),
+		AccountName:     model.account.Name,
+		CapturedAt:      timestamppb.New(model.now),
+		Inventory:       model.state.Inventory(),
+		InventoryLedger: inventoryLedgerProto(model.state.Inventory(), plan.Ledger),
+	}), nil
 }
 
 func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {

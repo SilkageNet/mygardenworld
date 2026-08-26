@@ -1,4 +1,4 @@
-.PHONY: default help install build migrate-data-v1 reset-data catalog-gen require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test test-race vet lint proto-gen proto-gen-web proto-check frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint frontend\:test web-test dev dev\:debug check clean
+.PHONY: default help install build reset-data catalog-gen require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test test-race vet lint proto-gen proto-gen-web proto-check frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint frontend\:test web-test dev dev\:debug check clean
 
 BIN_DIR ?= bin
 DATA_DIR ?= data
@@ -42,7 +42,6 @@ help:
 	@echo "  build                Build gardend to $(BIN_DIR)/"
 	@echo "  gardencap            Capture proxy source is available under cmd/gardencap"
 	@echo "  catalog-gen          Refresh client-derived protocol and catalog artifacts from MINI_DIR"
-	@echo "  migrate-data-v1      Back up and migrate legacy DATA_DIR to schema v1"
 	@echo "  reset-data           Delete local DATA_DIR via gardend reset-data"
 	@echo "  backend | server     Start gardend API server"
 	@echo "  backend:debug        Start gardend with debug logs and JSONL output"
@@ -72,9 +71,6 @@ build:
 
 catalog-gen:
 	go run ./cmd/gardencatalog --mini "$(MINI_DIR)" --cdn "$(CATALOG_CDN)" --state "internal/state/catalog_data.json" --web "web/src/lib/game/catalog.json" --protocol-package "internal/babigame/clientproto" --rpc-facade "internal/babigame/clientrpc/rpc_facade.go"
-
-migrate-data-v1:
-	go run ./cmd/gardend migrate-data-v1 --data-dir "$(DATA_DIR)" --yes
 
 reset-data:
 	go run ./cmd/gardend reset-data --data-dir "$(DATA_DIR)" --yes

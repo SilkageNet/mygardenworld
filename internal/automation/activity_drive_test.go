@@ -16,7 +16,7 @@ func TestCyclicNoteActionDemandUsesMaxRemainingAndServerProgressOnly(t *testing.
 		"1003": 79,
 		"2003": 20,
 	}, map[string]any{}, 0, []any{})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 
 	first := BuildPlan(s, policy, now)
 	demand := requireCyclicNoteActionDemand(t, first, cyclicNoteTaskTypePlantAny)
@@ -90,7 +90,7 @@ func TestCyclicNoteActionDemandRequiresCorrespondingEnabledModule(t *testing.T) 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			s := cyclicNotePlannerState(t, now, 2, []any{tc.taskID, nil, nil}, map[string]any{itoa32(tc.taskID): 0}, map[string]any{}, 0, []any{})
-			policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+			policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 			tc.enable(policy)
 			if _, ok := findCyclicNoteActionDemand(BuildPlan(s, policy, now), tc.taskType); !ok {
 				t.Fatal("enabled business module did not expose action demand")
@@ -122,7 +122,7 @@ func TestCyclicNoteActionDemandRequiresAllActivityGates(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+			policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 			tc.mutate(policy)
 			if got := cyclicNoteActionDemands(BuildPlan(s, policy, now)); len(got) != 0 {
 				t.Fatalf("disabled %s gate produced action demand: %+v", tc.name, got)
@@ -133,7 +133,7 @@ func TestCyclicNoteActionDemandRequiresAllActivityGates(t *testing.T) {
 
 func TestCyclicNoteActionDemandFailsClosedOnPhaseAndTaskState(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 
 	tests := []struct {
 		name     string
@@ -168,7 +168,7 @@ func TestCyclicNoteAnyPlantCapsAndRebuildsAutoReplant(t *testing.T) {
 		"100": map[string]any{"1": emptyLands(3)},
 		"101": map[string]any{"0": cultivate(23001)},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 
 	first := BuildPlan(s, policy, now)
 	op := requireSingleCyclicNoteBusinessOp(t, first.Operations, cyclicNoteTaskTypePlantAny)
@@ -197,7 +197,7 @@ func TestCyclicNoteSpecificFlowerDemandPreventsPureActivityReplant(t *testing.T)
 			"7": map[string]any{"0": [][]int32{{23005, 1}}, "1": 7},
 		}}},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Plant.Planting.DemandPriorityEnabled = true
 	policy.Order.Customer.Enabled = true
 
@@ -230,7 +230,7 @@ func TestCyclicNoteActivityPlantRanksBelowReadyCustomerOrder(t *testing.T) {
 			"7": map[string]any{"0": [][]int32{{23005, 1}}, "1": 7},
 		}}},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.Customer.Enabled = true
 	policy.Union.Race.Enabled = false
 
@@ -250,7 +250,7 @@ func TestCyclicNoteFlowerRackUsesOnlyUnreservedInventoryAndExactCost(t *testing.
 			"7": map[string]any{"0": 2, "1": 300208, "2": 4, "3": 1},
 		}}},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.Customer.Enabled = true
 	policy.Order.FlowerArt.SellEnabled = true
 
@@ -271,7 +271,7 @@ func TestCyclicNoteFlowerRackCapsToActivityRemaining(t *testing.T) {
 		"7":   map[string]any{"0": map[string]any{"32": map[string]any{"300208": 20}}},
 		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.FlowerArt.SellEnabled = true
 
 	result := BuildPlan(s, policy, now)
@@ -292,7 +292,7 @@ func TestCyclicNoteFlowerRackNeverPromotesCraft(t *testing.T) {
 		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
 		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.FlowerArt.SellEnabled = true
 	policy.Order.FlowerArt.CraftEnabled = true
 
@@ -325,7 +325,7 @@ func TestCyclicNoteOrdersLinkOneDeterministicSafeFinish(t *testing.T) {
 			"10": map[string]any{"0": 10, "2": [][]int32{{23005, 1}}},
 		}}},
 	})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.Customer.Enabled = true
 	policy.Order.Resident.NormalEnabled = true
 
@@ -353,7 +353,7 @@ func TestCyclicNoteCustomerTaskDoesNotPromoteGenerateOrReject(t *testing.T) {
 	applyMap(t, s, map[string]any{"109": map[string]any{"0": map[string]any{
 		"1": map[string]any{}, "2": now.Add(-time.Second).UnixMilli(),
 	}}})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Order.Customer.Enabled = true
 
 	result := BuildPlan(s, policy, now)
@@ -384,7 +384,7 @@ func TestCyclicNotePearlHireReusesSafePlannerWithExactTicketCost(t *testing.T) {
 		"28": map[string]any{"5": []any{map[string]any{"0": int64(2001), "1": "safe", "4": 12}}},
 	})
 	applyMap(t, s, map[string]any{"115": map[string]any{"5": map[string]any{"2001": int64(0)}}})
-	policy := cyclicNotePlannerPolicy(true, true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+	policy := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
 	policy.Basic.Pearl.AutoHireEnabled = true
 	policy.Basic.Pearl.MaxHireTicketUsage = 2
 

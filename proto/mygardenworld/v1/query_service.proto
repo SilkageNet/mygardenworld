@@ -40,9 +40,12 @@ service QueryService {
   // Lightweight summary: connected accounts and inventory totals. For dashboard polling.
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
 
-  // Full per-account snapshot: all known lands with state + recommendation,
-  // inventory map for the seed range, role identity.
-  rpc GetSnapshot(GetSnapshotRequest) returns (GetSnapshotResponse);
+  rpc GetOverview(GetAccountViewRequest) returns (OverviewView);
+  rpc GetGarden(GetAccountViewRequest) returns (GardenView);
+  rpc GetOrders(GetAccountViewRequest) returns (OrdersView);
+  rpc GetUnion(GetAccountViewRequest) returns (UnionView);
+  rpc GetActivities(GetAccountViewRequest) returns (ActivitiesView);
+  rpc GetAssets(GetAccountViewRequest) returns (AssetsView);
 
   // Stream of every event the runner emits (analogous to the Python bot's
   // JSONL log). Supports filter + per-account scoping.
@@ -116,72 +119,97 @@ message RunnerDiagnostics {
   repeated string observed_namespaces = 14;
 }
 
-message GetSnapshotRequest {
+message GetAccountViewRequest {
   string account_id = 1;
   string account_name = 2;
 }
 
-message GetSnapshotResponse {
+message OverviewView {
   string account_id = 1;
   string account_name = 2;
-  repeated LandView lands = 3;
-  // 7.0.32 sub-map: inventory itemId -> count.
-  map<int32, int32> inventory = 4;
-  int64 role_id = 5;
-  string role_name = 6;
-  google.protobuf.Timestamp captured_at = 7;
-
-  // Player resources (top-level fields from namespace 7.0).
-  int32 gold = 8;
-  int32 water_drops = 9;
-  int32 water_drops_total = 10;
-  int64 water_drops_next_ms = 11;
-  int32 level = 12;
-  int32 experience = 13;
+  int64 role_id = 3;
+  google.protobuf.Timestamp captured_at = 4;
+  int32 gold = 5;
+  int32 water_drops = 6;
+  int32 water_drops_total = 7;
+  int64 water_drops_next_ms = 8;
+  int32 level = 9;
+  int32 experience = 10;
+  int32 experience_to_next_level = 11;
+  int32 next_level_experience = 12;
+  bool level_maxed = 13;
   int32 diamonds_free = 14;
   int32 diamonds_paid = 15;
-  repeated PendingTaskView pending_tasks = 16;
-  int32 vip = 17;
-  int32 vip_exp = 18;
-  bool noble_eligible = 19;
-  repeated string observed_namespaces = 20;
-  int32 unknown_rpc_count = 21;
-  int32 unknown_namespace_count = 22;
-  RunnerDiagnostics diagnostics = 23;
-  repeated DomainStatus domain_statuses = 24;
-  repeated PlannedOperation planned_operations = 25;
-  repeated DemandView demands = 26;
-  repeated VaseView vases = 28;
-  repeated FlowerArtAvailabilityView flower_art_availability = 29;
-  OrderStatisticsView order_statistics = 30;
-  InventoryLedgerView inventory_ledger = 31;
-  BlockingSummary blocking_summary = 32;
-  bool reputation_observed = 33;
-  int32 reputation_score = 34;
-  int64 reputation_last_sync_time_ms = 35;
-  int64 reputation_last_view_time_ms = 36;
-  repeated PlantableFlowerView plantable_flowers = 37;
-  RuntimeStatisticsView runtime_statistics = 38;
-  CyclicNoteView cyclic_note = 39;
-  FmlRaceView fml_race = 40;
-  DessertView dessert = 41;
-  CyclicStoryView cyclic_story = 42;
-  // Remaining within-level XP to advance; 0 when maxed or unknown.
-  int32 experience_to_next_level = 43;
-  // c_lvl[level].exp requirement for the current level; 0 when maxed.
-  int32 next_level_experience = 44;
-  bool level_maxed = 45;
-  // Guild land planting state from namespace 25.102 (fmlLand.landMap).
-  repeated FmlLandView fml_lands = 46;
-  // True after 25.102 has been observed for this account session.
-  bool fml_lands_observed = 47;
-  // Daily business summary from namespace 124 (statisticsTot).
-  BusinessStatisticsView business_statistics = 48;
-  // Finished flower arts that can be listed when their vase is unlocked.
-  repeated SellableFlowerArtView sellable_flower_arts = 49;
-  // Friend list for plant.friend_steal policy (names + observed daily quota).
-  repeated FriendTouchFriendView friend_touch_friends = 50;
-  bool friend_touch_friends_observed = 51;
+  int32 vip = 16;
+  int32 vip_exp = 17;
+  bool noble_eligible = 18;
+  repeated string observed_namespaces = 19;
+  int32 unknown_rpc_count = 20;
+  int32 unknown_namespace_count = 21;
+  RunnerDiagnostics diagnostics = 22;
+  repeated DomainStatus domain_statuses = 23;
+  repeated PlannedOperation planned_operations = 24;
+  BlockingSummary blocking_summary = 25;
+  bool reputation_observed = 26;
+  int32 reputation_score = 27;
+  int64 reputation_last_sync_time_ms = 28;
+  int64 reputation_last_view_time_ms = 29;
+  RuntimeStatisticsView runtime_statistics = 30;
+  repeated PendingTaskView pending_tasks = 31;
+}
+
+message GardenView {
+  string account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  repeated LandView lands = 4;
+  repeated PlantableFlowerView plantable_flowers = 5;
+  repeated FriendTouchFriendView friend_touch_friends = 6;
+  bool friend_touch_friends_observed = 7;
+}
+
+message OrdersView {
+  string account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  repeated PendingTaskView pending_tasks = 4;
+  repeated DemandView demands = 5;
+  repeated VaseView vases = 6;
+  repeated FlowerArtAvailabilityView flower_art_availability = 7;
+  OrderStatisticsView order_statistics = 8;
+  reserved 9;
+  reserved "inventory_ledger";
+  BusinessStatisticsView business_statistics = 10;
+  repeated SellableFlowerArtView sellable_flower_arts = 11;
+}
+
+message UnionView {
+  string account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  bool membership_observed = 4;
+  bool in_union = 5;
+  int32 union_id = 6;
+  FmlRaceView race = 7;
+  repeated FmlLandView lands = 8;
+  bool lands_observed = 9;
+}
+
+message ActivitiesView {
+  string account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  CyclicNoteView cyclic_note = 4;
+  CyclicStoryView cyclic_story = 5;
+  DessertView dessert = 6;
+}
+
+message AssetsView {
+  string account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  map<int32, int32> inventory = 4;
+  InventoryLedgerView inventory_ledger = 5;
 }
 
 message FriendTouchFriendView {

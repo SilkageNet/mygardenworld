@@ -35,9 +35,20 @@ const (
 const (
 	// QueryServiceGetStatusProcedure is the fully-qualified name of the QueryService's GetStatus RPC.
 	QueryServiceGetStatusProcedure = "/mygardenworld.v1.QueryService/GetStatus"
-	// QueryServiceGetSnapshotProcedure is the fully-qualified name of the QueryService's GetSnapshot
+	// QueryServiceGetOverviewProcedure is the fully-qualified name of the QueryService's GetOverview
 	// RPC.
-	QueryServiceGetSnapshotProcedure = "/mygardenworld.v1.QueryService/GetSnapshot"
+	QueryServiceGetOverviewProcedure = "/mygardenworld.v1.QueryService/GetOverview"
+	// QueryServiceGetGardenProcedure is the fully-qualified name of the QueryService's GetGarden RPC.
+	QueryServiceGetGardenProcedure = "/mygardenworld.v1.QueryService/GetGarden"
+	// QueryServiceGetOrdersProcedure is the fully-qualified name of the QueryService's GetOrders RPC.
+	QueryServiceGetOrdersProcedure = "/mygardenworld.v1.QueryService/GetOrders"
+	// QueryServiceGetUnionProcedure is the fully-qualified name of the QueryService's GetUnion RPC.
+	QueryServiceGetUnionProcedure = "/mygardenworld.v1.QueryService/GetUnion"
+	// QueryServiceGetActivitiesProcedure is the fully-qualified name of the QueryService's
+	// GetActivities RPC.
+	QueryServiceGetActivitiesProcedure = "/mygardenworld.v1.QueryService/GetActivities"
+	// QueryServiceGetAssetsProcedure is the fully-qualified name of the QueryService's GetAssets RPC.
+	QueryServiceGetAssetsProcedure = "/mygardenworld.v1.QueryService/GetAssets"
 	// QueryServiceStreamEventsProcedure is the fully-qualified name of the QueryService's StreamEvents
 	// RPC.
 	QueryServiceStreamEventsProcedure = "/mygardenworld.v1.QueryService/StreamEvents"
@@ -47,9 +58,12 @@ const (
 type QueryServiceClient interface {
 	// Lightweight summary: connected accounts and inventory totals. For dashboard polling.
 	GetStatus(context.Context, *connect.Request[v1.GetStatusRequest]) (*connect.Response[v1.GetStatusResponse], error)
-	// Full per-account snapshot: all known lands with state + recommendation,
-	// inventory map for the seed range, role identity.
-	GetSnapshot(context.Context, *connect.Request[v1.GetSnapshotRequest]) (*connect.Response[v1.GetSnapshotResponse], error)
+	GetOverview(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error)
+	GetGarden(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error)
+	GetOrders(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error)
+	GetUnion(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error)
+	GetActivities(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error)
+	GetAssets(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
 	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest]) (*connect.ServerStreamForClient[v1.Event], error)
@@ -72,10 +86,40 @@ func NewQueryServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(queryServiceMethods.ByName("GetStatus")),
 			connect.WithClientOptions(opts...),
 		),
-		getSnapshot: connect.NewClient[v1.GetSnapshotRequest, v1.GetSnapshotResponse](
+		getOverview: connect.NewClient[v1.GetAccountViewRequest, v1.OverviewView](
 			httpClient,
-			baseURL+QueryServiceGetSnapshotProcedure,
-			connect.WithSchema(queryServiceMethods.ByName("GetSnapshot")),
+			baseURL+QueryServiceGetOverviewProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetOverview")),
+			connect.WithClientOptions(opts...),
+		),
+		getGarden: connect.NewClient[v1.GetAccountViewRequest, v1.GardenView](
+			httpClient,
+			baseURL+QueryServiceGetGardenProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetGarden")),
+			connect.WithClientOptions(opts...),
+		),
+		getOrders: connect.NewClient[v1.GetAccountViewRequest, v1.OrdersView](
+			httpClient,
+			baseURL+QueryServiceGetOrdersProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetOrders")),
+			connect.WithClientOptions(opts...),
+		),
+		getUnion: connect.NewClient[v1.GetAccountViewRequest, v1.UnionView](
+			httpClient,
+			baseURL+QueryServiceGetUnionProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetUnion")),
+			connect.WithClientOptions(opts...),
+		),
+		getActivities: connect.NewClient[v1.GetAccountViewRequest, v1.ActivitiesView](
+			httpClient,
+			baseURL+QueryServiceGetActivitiesProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetActivities")),
+			connect.WithClientOptions(opts...),
+		),
+		getAssets: connect.NewClient[v1.GetAccountViewRequest, v1.AssetsView](
+			httpClient,
+			baseURL+QueryServiceGetAssetsProcedure,
+			connect.WithSchema(queryServiceMethods.ByName("GetAssets")),
 			connect.WithClientOptions(opts...),
 		),
 		streamEvents: connect.NewClient[v1.StreamEventsRequest, v1.Event](
@@ -89,9 +133,14 @@ func NewQueryServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // queryServiceClient implements QueryServiceClient.
 type queryServiceClient struct {
-	getStatus    *connect.Client[v1.GetStatusRequest, v1.GetStatusResponse]
-	getSnapshot  *connect.Client[v1.GetSnapshotRequest, v1.GetSnapshotResponse]
-	streamEvents *connect.Client[v1.StreamEventsRequest, v1.Event]
+	getStatus     *connect.Client[v1.GetStatusRequest, v1.GetStatusResponse]
+	getOverview   *connect.Client[v1.GetAccountViewRequest, v1.OverviewView]
+	getGarden     *connect.Client[v1.GetAccountViewRequest, v1.GardenView]
+	getOrders     *connect.Client[v1.GetAccountViewRequest, v1.OrdersView]
+	getUnion      *connect.Client[v1.GetAccountViewRequest, v1.UnionView]
+	getActivities *connect.Client[v1.GetAccountViewRequest, v1.ActivitiesView]
+	getAssets     *connect.Client[v1.GetAccountViewRequest, v1.AssetsView]
+	streamEvents  *connect.Client[v1.StreamEventsRequest, v1.Event]
 }
 
 // GetStatus calls mygardenworld.v1.QueryService.GetStatus.
@@ -99,9 +148,34 @@ func (c *queryServiceClient) GetStatus(ctx context.Context, req *connect.Request
 	return c.getStatus.CallUnary(ctx, req)
 }
 
-// GetSnapshot calls mygardenworld.v1.QueryService.GetSnapshot.
-func (c *queryServiceClient) GetSnapshot(ctx context.Context, req *connect.Request[v1.GetSnapshotRequest]) (*connect.Response[v1.GetSnapshotResponse], error) {
-	return c.getSnapshot.CallUnary(ctx, req)
+// GetOverview calls mygardenworld.v1.QueryService.GetOverview.
+func (c *queryServiceClient) GetOverview(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error) {
+	return c.getOverview.CallUnary(ctx, req)
+}
+
+// GetGarden calls mygardenworld.v1.QueryService.GetGarden.
+func (c *queryServiceClient) GetGarden(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error) {
+	return c.getGarden.CallUnary(ctx, req)
+}
+
+// GetOrders calls mygardenworld.v1.QueryService.GetOrders.
+func (c *queryServiceClient) GetOrders(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error) {
+	return c.getOrders.CallUnary(ctx, req)
+}
+
+// GetUnion calls mygardenworld.v1.QueryService.GetUnion.
+func (c *queryServiceClient) GetUnion(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error) {
+	return c.getUnion.CallUnary(ctx, req)
+}
+
+// GetActivities calls mygardenworld.v1.QueryService.GetActivities.
+func (c *queryServiceClient) GetActivities(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error) {
+	return c.getActivities.CallUnary(ctx, req)
+}
+
+// GetAssets calls mygardenworld.v1.QueryService.GetAssets.
+func (c *queryServiceClient) GetAssets(ctx context.Context, req *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error) {
+	return c.getAssets.CallUnary(ctx, req)
 }
 
 // StreamEvents calls mygardenworld.v1.QueryService.StreamEvents.
@@ -113,9 +187,12 @@ func (c *queryServiceClient) StreamEvents(ctx context.Context, req *connect.Requ
 type QueryServiceHandler interface {
 	// Lightweight summary: connected accounts and inventory totals. For dashboard polling.
 	GetStatus(context.Context, *connect.Request[v1.GetStatusRequest]) (*connect.Response[v1.GetStatusResponse], error)
-	// Full per-account snapshot: all known lands with state + recommendation,
-	// inventory map for the seed range, role identity.
-	GetSnapshot(context.Context, *connect.Request[v1.GetSnapshotRequest]) (*connect.Response[v1.GetSnapshotResponse], error)
+	GetOverview(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error)
+	GetGarden(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error)
+	GetOrders(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error)
+	GetUnion(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error)
+	GetActivities(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error)
+	GetAssets(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
 	StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.Event]) error
@@ -134,10 +211,40 @@ func NewQueryServiceHandler(svc QueryServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(queryServiceMethods.ByName("GetStatus")),
 		connect.WithHandlerOptions(opts...),
 	)
-	queryServiceGetSnapshotHandler := connect.NewUnaryHandler(
-		QueryServiceGetSnapshotProcedure,
-		svc.GetSnapshot,
-		connect.WithSchema(queryServiceMethods.ByName("GetSnapshot")),
+	queryServiceGetOverviewHandler := connect.NewUnaryHandler(
+		QueryServiceGetOverviewProcedure,
+		svc.GetOverview,
+		connect.WithSchema(queryServiceMethods.ByName("GetOverview")),
+		connect.WithHandlerOptions(opts...),
+	)
+	queryServiceGetGardenHandler := connect.NewUnaryHandler(
+		QueryServiceGetGardenProcedure,
+		svc.GetGarden,
+		connect.WithSchema(queryServiceMethods.ByName("GetGarden")),
+		connect.WithHandlerOptions(opts...),
+	)
+	queryServiceGetOrdersHandler := connect.NewUnaryHandler(
+		QueryServiceGetOrdersProcedure,
+		svc.GetOrders,
+		connect.WithSchema(queryServiceMethods.ByName("GetOrders")),
+		connect.WithHandlerOptions(opts...),
+	)
+	queryServiceGetUnionHandler := connect.NewUnaryHandler(
+		QueryServiceGetUnionProcedure,
+		svc.GetUnion,
+		connect.WithSchema(queryServiceMethods.ByName("GetUnion")),
+		connect.WithHandlerOptions(opts...),
+	)
+	queryServiceGetActivitiesHandler := connect.NewUnaryHandler(
+		QueryServiceGetActivitiesProcedure,
+		svc.GetActivities,
+		connect.WithSchema(queryServiceMethods.ByName("GetActivities")),
+		connect.WithHandlerOptions(opts...),
+	)
+	queryServiceGetAssetsHandler := connect.NewUnaryHandler(
+		QueryServiceGetAssetsProcedure,
+		svc.GetAssets,
+		connect.WithSchema(queryServiceMethods.ByName("GetAssets")),
 		connect.WithHandlerOptions(opts...),
 	)
 	queryServiceStreamEventsHandler := connect.NewServerStreamHandler(
@@ -150,8 +257,18 @@ func NewQueryServiceHandler(svc QueryServiceHandler, opts ...connect.HandlerOpti
 		switch r.URL.Path {
 		case QueryServiceGetStatusProcedure:
 			queryServiceGetStatusHandler.ServeHTTP(w, r)
-		case QueryServiceGetSnapshotProcedure:
-			queryServiceGetSnapshotHandler.ServeHTTP(w, r)
+		case QueryServiceGetOverviewProcedure:
+			queryServiceGetOverviewHandler.ServeHTTP(w, r)
+		case QueryServiceGetGardenProcedure:
+			queryServiceGetGardenHandler.ServeHTTP(w, r)
+		case QueryServiceGetOrdersProcedure:
+			queryServiceGetOrdersHandler.ServeHTTP(w, r)
+		case QueryServiceGetUnionProcedure:
+			queryServiceGetUnionHandler.ServeHTTP(w, r)
+		case QueryServiceGetActivitiesProcedure:
+			queryServiceGetActivitiesHandler.ServeHTTP(w, r)
+		case QueryServiceGetAssetsProcedure:
+			queryServiceGetAssetsHandler.ServeHTTP(w, r)
 		case QueryServiceStreamEventsProcedure:
 			queryServiceStreamEventsHandler.ServeHTTP(w, r)
 		default:
@@ -167,8 +284,28 @@ func (UnimplementedQueryServiceHandler) GetStatus(context.Context, *connect.Requ
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetStatus is not implemented"))
 }
 
-func (UnimplementedQueryServiceHandler) GetSnapshot(context.Context, *connect.Request[v1.GetSnapshotRequest]) (*connect.Response[v1.GetSnapshotResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetSnapshot is not implemented"))
+func (UnimplementedQueryServiceHandler) GetOverview(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OverviewView], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetOverview is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetGarden(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.GardenView], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetGarden is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetOrders(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.OrdersView], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetOrders is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetUnion(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.UnionView], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetUnion is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetActivities(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.ActivitiesView], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetActivities is not implemented"))
+}
+
+func (UnimplementedQueryServiceHandler) GetAssets(context.Context, *connect.Request[v1.GetAccountViewRequest]) (*connect.Response[v1.AssetsView], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.QueryService.GetAssets is not implemented"))
 }
 
 func (UnimplementedQueryServiceHandler) StreamEvents(context.Context, *connect.Request[v1.StreamEventsRequest], *connect.ServerStream[v1.Event]) error {
