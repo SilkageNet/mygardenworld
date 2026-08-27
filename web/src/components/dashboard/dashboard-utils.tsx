@@ -483,6 +483,10 @@ export function operationActionLabel(action: string) {
       return "购买";
     case "unlock":
       return "解锁";
+    case "cultivate":
+      return "培育";
+    case "recv":
+      return "领取";
     case "feed":
       return "喂食";
     case "stroke":

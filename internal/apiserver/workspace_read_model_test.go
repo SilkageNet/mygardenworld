@@ -331,6 +331,71 @@ func TestBuildPendingTasksMainTaskReadinessUsesServerProgress(t *testing.T) {
 	}
 }
 
+func TestBuildPendingTasksCultivateMainTaskUsesMaterialRequirements(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"1401": 3, "1410": 3, "1422": 2, "1437": 1,
+		}}},
+		"22": map[string]any{"0": map[string]any{"1": 40001, "2": 0, "4": map[string]any{}}},
+	})
+	var main *pb.PendingTaskView
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "主线任务" {
+			main = task
+			break
+		}
+	}
+	if main == nil || main.GetId() != "40001" || !main.GetRequiresCultivation() || len(main.GetRequirements()) != 4 {
+		t.Fatalf("cultivate main task=%+v", main)
+	}
+	for _, requirement := range main.GetRequirements() {
+		if requirement.GetItemId() == 23003 || requirement.GetPlantingRelevant() {
+			t.Fatalf("cultivation task leaked flower inventory demand: %+v", requirement)
+		}
+	}
+}
+
+func TestBuildPendingTasksCultivateMainTaskShowsActiveCultivation(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"22": map[string]any{"0": map[string]any{"1": 40001, "2": 0, "4": map[string]any{}}},
+		"101": map[string]any{"0": map[string]any{"23003": map[string]any{
+			"2": 0, "3": int64(1787814000000), "4": 1,
+		}}},
+	})
+	var main *pb.PendingTaskView
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "主线任务" {
+			main = task
+			break
+		}
+	}
+	if main == nil || main.GetCooldownUntilMs() != 1787814000000 || main.GetCooldownReason() != "铃兰培育中" || len(main.GetRequirements()) != 0 {
+		t.Fatalf("active cultivate main task=%+v", main)
+	}
+}
+
+func TestBuildPendingTasksCultivateMainTaskShowsCompletedCultivationWaitingForSync(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"22": map[string]any{"0": map[string]any{"1": 40001, "2": 0, "4": map[string]any{}}},
+		"101": map[string]any{"0": map[string]any{"23003": map[string]any{
+			"2": 1, "4": 2,
+		}}},
+	})
+	var main *pb.PendingTaskView
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "主线任务" {
+			main = task
+			break
+		}
+	}
+	if main == nil || main.GetCooldownReason() != "铃兰已培育，等待主线任务进度同步" || len(main.GetRequirements()) != 0 {
+		t.Fatalf("completed cultivate main task=%+v", main)
+	}
+}
+
 func TestBuildPendingTasksMarksResidentOrderCooling(t *testing.T) {
 	st := state.New()
 	now := time.Date(2026, 7, 5, 16, 0, 0, 0, time.UTC)

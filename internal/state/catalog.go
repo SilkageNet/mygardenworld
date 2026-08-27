@@ -1044,8 +1044,15 @@ func loadMainTaskCatalogDefinitions() (map[int32]MainTaskDefinition, int32, bool
 	return nil, 0, false
 }
 
+const (
+	mainTaskTypeHarvestFlower   int32 = 3004
+	mainTaskTypeCultivateFlower int32 = 3005
+)
+
 // MainTaskFlowerRequirement returns the flower id and missing count for a
-// current main task when the static task row points at a flower item.
+// current main task when the static task row is an explicit flower-harvest
+// task. A cultivation task also carries a flower param, but it is not an
+// inventory deficit and must never drive planting.
 func MainTaskFlowerRequirement(taskID, finished int32) (flowerID, missing int32, ok bool) {
 	flowerID, target, ok := MainTaskFlowerTarget(taskID)
 	if !ok || target <= finished {
@@ -1057,6 +1064,16 @@ func MainTaskFlowerRequirement(taskID, finished int32) (flowerID, missing int32,
 // MainTaskFlowerTarget returns the flower item and target count for a main
 // task row when the task is an explicit flower collection requirement.
 func MainTaskFlowerTarget(taskID int32) (flowerID, target int32, ok bool) {
+	return mainTaskFlowerTargetByType(taskID, mainTaskTypeHarvestFlower)
+}
+
+// MainTaskCultivateTarget returns the flower and target count for a main task
+// whose observed client definition requires successful cultivation.
+func MainTaskCultivateTarget(taskID int32) (flowerID, target int32, ok bool) {
+	return mainTaskFlowerTargetByType(taskID, mainTaskTypeCultivateFlower)
+}
+
+func mainTaskFlowerTargetByType(taskID, taskType int32) (flowerID, target int32, ok bool) {
 	definition, valid, complete := ResolveMainTaskDefinition(taskID)
 	if !valid || complete {
 		return 0, 0, false
@@ -1069,8 +1086,9 @@ func MainTaskFlowerTarget(taskID int32) (flowerID, target int32, ok bool) {
 	if json.Unmarshal(raw, &row) != nil {
 		return 0, 0, false
 	}
+	rowType, validType := readStoryMainInt32(row["type"])
 	param, validParam := readStoryMainInt32(row["param"])
-	if !validParam || !isFlowerItemID(param) {
+	if !validType || rowType != taskType || !validParam || !isFlowerItemID(param) {
 		return 0, 0, false
 	}
 	return param, definition.Target, true

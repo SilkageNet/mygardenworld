@@ -223,6 +223,20 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 		}
 		if flowerID, target, ok := state.MainTaskFlowerTarget(task.TaskID); ok {
 			view.Requirements = []*pb.RequirementView{requirementView(flowerID, target, inventory[flowerID])}
+		} else if flowerID, _, ok := state.MainTaskCultivateTarget(task.TaskID); ok {
+			view.RequiresCultivation = true
+			cv, observed := st.Cultivations()[flowerID]
+			switch {
+			case observed && cv.Status == 1:
+				view.CooldownUntilMs = cv.CulTimeMs
+				view.CooldownReason = state.ItemName(flowerID) + "培育中"
+			case observed && cv.Lvl > 0:
+				view.CooldownReason = state.ItemName(flowerID) + "已培育，等待主线任务进度同步"
+			default:
+				if costs, known := state.CultivateCost(flowerID); known {
+					view.Requirements = itemRequirements(costs, inventory)
+				}
+			}
 		}
 		out = append(out, view)
 	}

@@ -724,8 +724,10 @@ type PendingTaskView struct {
 	Requirements    []*RequirementView `protobuf:"bytes,7,rep,name=requirements,proto3" json:"requirements,omitempty"`
 	CooldownUntilMs int64              `protobuf:"varint,8,opt,name=cooldown_until_ms,json=cooldownUntilMs,proto3" json:"cooldown_until_ms,omitempty"`
 	CooldownReason  string             `protobuf:"bytes,9,opt,name=cooldown_reason,json=cooldownReason,proto3" json:"cooldown_reason,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The task cannot be executed unless automatic cultivation is enabled.
+	RequiresCultivation bool `protobuf:"varint,10,opt,name=requires_cultivation,json=requiresCultivation,proto3" json:"requires_cultivation,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *PendingTaskView) Reset() {
@@ -819,6 +821,13 @@ func (x *PendingTaskView) GetCooldownReason() string {
 		return x.CooldownReason
 	}
 	return ""
+}
+
+func (x *PendingTaskView) GetRequiresCultivation() bool {
+	if x != nil {
+		return x.RequiresCultivation
+	}
+	return false
 }
 
 type PlannedOperation struct {
@@ -2345,7 +2354,7 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x11unknown_rpc_count\x18\n" +
 	" \x01(\x05R\x0funknownRpcCount\x126\n" +
 	"\x17unknown_namespace_count\x18\v \x01(\x05R\x15unknownNamespaceCount\x12/\n" +
-	"\x13observed_namespaces\x18\f \x03(\tR\x12observedNamespaces\"\xd9\x02\n" +
+	"\x13observed_namespaces\x18\f \x03(\tR\x12observedNamespaces\"\x8c\x03\n" +
 	"\x0fPendingTaskView\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
@@ -2355,7 +2364,9 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12E\n" +
 	"\frequirements\x18\a \x03(\v2!.mygardenworld.v1.RequirementViewR\frequirements\x12*\n" +
 	"\x11cooldown_until_ms\x18\b \x01(\x03R\x0fcooldownUntilMs\x12'\n" +
-	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\"\xf8\t\n" +
+	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\x121\n" +
+	"\x14requires_cultivation\x18\n" +
+	" \x01(\bR\x13requiresCultivation\"\xf8\t\n" +
 	"\x10PlannedOperation\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x16\n" +

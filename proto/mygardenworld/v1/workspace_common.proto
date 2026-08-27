@@ -120,6 +120,8 @@ message PendingTaskView {
   repeated RequirementView requirements = 7;
   int64 cooldown_until_ms = 8;
   string cooldown_reason = 9;
+  // The task cannot be executed unless automatic cultivation is enabled.
+  bool requires_cultivation = 10;
 }
 
 message PlannedOperation {
