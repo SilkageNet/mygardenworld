@@ -362,11 +362,11 @@ func TestApplyV_FmlMembershipUsesCurrentMemberRecord(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"25": map[string]any{
 			"0": map[string]any{"0": 88},
-			"1": map[string]any{"0": 77900091102482, "1": 88},
+			"1": map[string]any{"0": 77900091102482, "1": 88, "2": 2},
 		},
 	})
 	got := s.FmlBuild()
-	if !got.MembershipObserved || got.MemberFmlID != 88 {
+	if !got.MembershipObserved || got.MemberFmlID != 88 || !got.MemberPositionObserved || got.MemberPosition != 2 {
 		t.Fatalf("joined membership=%+v, want observed fid 88", got)
 	}
 
@@ -379,7 +379,7 @@ func TestApplyV_FmlMembershipUsesCurrentMemberRecord(t *testing.T) {
 		},
 	})
 	got = s.FmlBuild()
-	if !got.MembershipObserved || got.MemberFmlID != 0 {
+	if !got.MembershipObserved || got.MemberFmlID != 0 || got.MemberPositionObserved || got.MemberPosition != 0 {
 		t.Fatalf("left membership=%+v, want observed no guild", got)
 	}
 }
@@ -413,13 +413,13 @@ func TestFinalizeFmlMembershipSnapshotUsesGuildRecordWhenMemberRecordMissing(t *
 
 func TestFmlMembershipSnapshotDoesNotReusePreviousConnectionGuild(t *testing.T) {
 	s := New()
-	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88},"1":{"0":77900091102482,"1":88},"111":{"0":1787658000000,"1":1}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88},"1":{"0":77900091102482,"1":88,"2":1},"111":{"0":1787658000000,"1":1}}}`))
 	if got := s.FmlBuild(); !got.MembershipObserved || got.MemberFmlID != 88 {
 		t.Fatalf("initial membership=%+v", got)
 	}
 
 	s.BeginFmlMembershipSnapshot()
-	if got := s.FmlBuild(); got.MembershipObserved || got.FmlID != 0 || got.MemberFmlID != 0 {
+	if got := s.FmlBuild(); got.MembershipObserved || got.FmlID != 0 || got.MemberFmlID != 0 || got.MemberPositionObserved || got.MemberPosition != 0 {
 		t.Fatalf("new connection retained old membership evidence: %+v", got)
 	}
 	// A no-guild baseline can still omit 25.1; finalization must not revive the

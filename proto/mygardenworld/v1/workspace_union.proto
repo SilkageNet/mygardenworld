@@ -14,6 +14,12 @@ message UnionView {
   FmlRaceView race = 7;
   repeated FmlLandView lands = 8;
   bool lands_observed = 9;
+  // Current user's IFmlMb.pos from authoritative namespace 25.1.
+  bool member_position_observed = 10;
+  int32 member_position = 11;
+  string member_position_label = 12;
+  // Derived from c_fmlPos.p_raceDelete; false when position is unknown.
+  bool race_delete_allowed = 13;
 }
 
 message FmlRaceView {

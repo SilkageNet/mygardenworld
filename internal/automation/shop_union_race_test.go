@@ -58,6 +58,13 @@ func applyRaceState(s *state.State, tasks [][5]int32) {
 	)))
 }
 
+func applyRaceDeletePosition(s *state.State, position int32) {
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"1":{"0":999,"1":42,"2":%d}}}`,
+		position,
+	)))
+}
+
 // testRacePolicy returns a policy with the common defaults for race tests:
 // enabled, autoEnableModules on, no score filtering.
 func testRacePolicy() *pb.UnionRacePolicy {
@@ -741,6 +748,7 @@ func TestUnionRaceDeleteLowScoreOpEmission(t *testing.T) {
 		{1, 3036, 5, 0, 0},  // low score, should be deleted
 		{2, 3036, 20, 0, 0}, // higher score, taken instead
 	})
+	applyRaceDeletePosition(s, 2)
 	policy := testRacePolicy()
 	policy.DeleteLowScoreTask = true
 	policy.DeleteTaskMaxScore = 10
@@ -762,6 +770,7 @@ func TestUnionRaceDeleteLowScoreOpEmission(t *testing.T) {
 func TestUnionRaceDeleteSkipsOccupiedTask(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":5,"12":88,"14":0,"15":0}]}}`))
+	applyRaceDeletePosition(s, 1)
 	policy := testRacePolicy()
 	policy.DeleteLowScoreTask = true
 	policy.DeleteTaskMaxScore = 10
@@ -770,6 +779,124 @@ func TestUnionRaceDeleteSkipsOccupiedTask(t *testing.T) {
 		if op.Kind == clientproto.RPCFmlRaceDelTask.String() {
 			t.Fatalf("must not delete an occupied race task: %+v", op)
 		}
+	}
+}
+
+func TestUnionRaceDeleteRunsWhenAutoModulesOff(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 25, 0, 0}})
+	applyRaceDeletePosition(s, 2)
+	policy := &pb.UnionRacePolicy{
+		Enabled:                  true,
+		AutoEnableModules:        false,
+		DeleteLowScoreTask:       true,
+		DeleteTaskMaxScore:       25,
+		TaskTypePriority:         map[int32]int32{3036: 0},
+		AutoStopOnQuotaDone:      true,
+		ExcludeOthersUpgradeTask: true,
+	}
+
+	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesNoCultivate())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceDelTask.String() || ops[0].TaskMsID != 1 {
+		t.Fatalf("delete must be independent of auto-complete, got %+v", ops)
+	}
+	if !ops[0].Executable || ops[0].Status == PlanStatusBlocked {
+		t.Fatalf("authorized delete must be executable: %+v", ops[0])
+	}
+}
+
+func TestUnionRaceDeleteRequiresObservedPermission(t *testing.T) {
+	tests := []struct {
+		name       string
+		position   int32
+		observed   bool
+		executable bool
+	}{
+		{name: "president", position: 1, observed: true, executable: true},
+		{name: "vice president", position: 2, observed: true, executable: true},
+		{name: "director", position: 5, observed: true, executable: false},
+		{name: "elite", position: 3, observed: true, executable: false},
+		{name: "member", position: 4, observed: true, executable: false},
+		{name: "unknown", observed: false, executable: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := state.New()
+			applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
+			if tc.observed {
+				applyRaceDeletePosition(s, tc.position)
+			}
+			policy := &pb.UnionRacePolicy{
+				Enabled:            true,
+				DeleteLowScoreTask: true,
+				DeleteTaskMaxScore: 10,
+			}
+			ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
+			if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceDelTask.String() {
+				t.Fatalf("delete plan=%+v", ops)
+			}
+			if ops[0].Executable != tc.executable {
+				t.Fatalf("executable=%t want %t: %+v", ops[0].Executable, tc.executable, ops[0])
+			}
+			if !tc.executable && (ops[0].Status != PlanStatusBlocked || len(ops[0].BlockedReasons) == 0) {
+				t.Fatalf("unauthorized delete must explain its block: %+v", ops[0])
+			}
+		})
+	}
+}
+
+func TestUnionRaceDeleteOrdersEligibleTasksDeterministically(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{
+		{2, 3036, 10, 0, 0},
+		{3, 3036, 5, 0, 0},
+		{1, 3036, 5, 0, 0},
+		{4, 3036, 0, 0, 0}, // Missing/unknown score must fail closed.
+		{5, 3036, 11, 0, 0},
+	})
+	applyRaceDeletePosition(s, 1)
+	policy := &pb.UnionRacePolicy{
+		Enabled:            true,
+		DeleteLowScoreTask: true,
+		DeleteTaskMaxScore: 10,
+	}
+
+	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
+	sortOperations(ops)
+	if len(ops) != 3 {
+		t.Fatalf("delete ops=%+v, want three eligible rows", ops)
+	}
+	want := []int64{1, 3, 2}
+	seenScopes := make(map[string]struct{}, len(ops))
+	for i, op := range ops {
+		if op.TaskMsID != want[i] || op.Kind != clientproto.RPCFmlRaceDelTask.String() {
+			t.Fatalf("ops[%d]=%+v want taskMsId=%d", i, op, want[i])
+		}
+		if op.CooldownKey == "" {
+			t.Fatalf("ops[%d] missing per-task cooldown scope", i)
+		}
+		seenScopes[op.CooldownKey] = struct{}{}
+	}
+	if len(seenScopes) != len(ops) {
+		t.Fatalf("delete cooldown scopes are not task-specific: %+v", ops)
+	}
+}
+
+func TestUnionRaceDeleteRefreshesStalePoolBeforeMutation(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
+	applyRaceDeletePosition(s, 2)
+	policy := &pb.UnionRacePolicy{
+		Enabled:            true,
+		DeleteLowScoreTask: true,
+		DeleteTaskMaxScore: 10,
+	}
+	view := s.FmlRace()
+	now := time.UnixMilli(view.TasksSyncedAtMs).Add(raceTaskPoolRefreshInterval)
+
+	ops := unionRaceOperations(s, policy, s.RoleID(), now, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("stale pool must sync before delete, got %+v", ops)
 	}
 }
 

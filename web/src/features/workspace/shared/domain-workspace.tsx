@@ -70,6 +70,7 @@ export default function DomainWorkspace({ section, props, statusContent }: {
           basicView={props.views.basic}
           garden={props.views.garden}
           orders={props.views.orders}
+          unionView={props.views.union}
           warehouse={props.views.warehouse}
           capabilities={props.capabilities}
           loading={props.policyLoading}

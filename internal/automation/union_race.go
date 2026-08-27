@@ -43,14 +43,16 @@ const fmlFlowerTakeListRefreshInterval = time.Hour
 // unionRaceOperations emits PlannedOps for the guild race task pool.
 // Lifecycle:
 //  1. enter + getTaskList (sync) — runs when Enabled, even if AutoEnableModules is off
-//  2. takeTask (接取) — requires AutoEnableModules; supports 种植收获、顾客订单、
+//  2. delTask (删除低分任务) — independently enabled; requires current guild
+//     position permission and never acts on occupied or unscored rows
+//  3. takeTask (接取) — requires AutoEnableModules; supports 种植收获、顾客订单、
 //     珍珠采集雇佣、花艺制作/售卖、花种培育
-//  3. progress — raceTaskProgressDemands drives plant/harvest for 种植收获;
+//  4. progress — raceTaskProgressDemands drives plant/harvest for 种植收获;
 //     顾客订单 / 珍珠雇佣 / 花艺 reuse ordinary (or race-owned flower-art) ops.
 //     花种培育 is take/finish only: no progress demand; FinishCnt advances
 //     outside race automation (manual / ordinary cultivate) and is synced via
 //     getTaskList before finishTask
-//  4. finishTask when TargetCnt > 0 && FinishCnt >= TargetCnt (完成并领取积分;
+//  5. finishTask when TargetCnt > 0 && FinishCnt >= TargetCnt (完成并领取积分;
 //     TargetCnt<=0 means unknown progress and must not auto-finish)
 //
 // useSpeedupTicketInTask is honored by maintenanceOperations via
@@ -190,14 +192,13 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		return []PlannedOp{op}
 	}
 
-	// autoEnableModules gates take/finish/upgrade/delete. When off, the race
+	// autoEnableModules gates take/finish/upgrade. Low-score deletion is an
+	// independent pool-maintenance policy. When auto-complete is off, the race
 	// module still syncs (enter/getTaskList + TTL refresh) so the task pool
-	// remains visible, but does not auto-execute tasks.
+	// remains visible and may delete eligible low-score rows, but does not
+	// auto-execute task completion flows.
 	if !policy.GetAutoEnableModules() {
-		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
-			return []PlannedOp{op}
-		}
-		if raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
+		if raceTaskPoolTTLStale(view, now) {
 			op := domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 				"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
@@ -205,7 +206,11 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			op.PreemptFarm = true
 			return []PlannedOp{op}
 		}
-		return nil
+		ops := raceLowScoreDeleteOperations(s, view, policy, goal)
+		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
+			ops = append(ops, op)
+		}
+		return ops
 	}
 	var ops []PlannedOp
 
@@ -342,24 +347,11 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 
-	// 4. Optional: delete low-score tasks.
-	if policy.GetDeleteLowScoreTask() {
-		maxDel := policy.GetDeleteTaskMaxScore()
-		if maxDel > 0 {
-			for _, task := range view.Tasks {
-				if task.UID == 0 && task.Score <= maxDel {
-					op := domainOp(clientproto.RPCFmlRaceDelTask.String(), goal, "union.race.delete", "delete", "公会竞赛低分任务清理", 4360, 0, 0, 0)
-					op.TaskMsID = task.MsId
-					op.TaskID = task.TaskType
-					if op.TaskID == 0 {
-						op.TaskID = task.TaskId
-					}
-					op.FlowerID = task.ParamID
-					ops = append(ops, op)
-					break // one delete per cycle
-				}
-			}
-		}
+	// 4. Optional: delete low-score tasks. A stale pool is never mutated; when
+	// a primary take is concurrently due, the take wins and deletion waits for
+	// the resulting fresh task delta / next pool sync.
+	if !raceTaskPoolTTLStale(view, now) {
+		ops = append(ops, raceLowScoreDeleteOperations(s, view, policy, goal)...)
 	}
 
 	// Idle: sync personal score/rank without preempting take/finish/giveUp.
@@ -370,6 +362,66 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 
+	return ops
+}
+
+func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy, goal Goal) []PlannedOp {
+	if s == nil || policy == nil || !policy.GetDeleteLowScoreTask() || policy.GetDeleteTaskMaxScore() <= 0 || !view.TasksObserved {
+		return nil
+	}
+	maxScore := policy.GetDeleteTaskMaxScore()
+	candidates := make([]state.FmlRaceTaskView, 0, len(view.Tasks))
+	for _, task := range view.Tasks {
+		// Score zero is indistinguishable from an omitted field in the observed
+		// client shape. Destructive maintenance must not treat missing data as a
+		// real zero-point task.
+		if task.MsId <= 0 || task.UID != 0 || task.Score <= 0 || task.Score > maxScore {
+			continue
+		}
+		candidates = append(candidates, task)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Score != candidates[j].Score {
+			return candidates[i].Score < candidates[j].Score
+		}
+		return candidates[i].MsId < candidates[j].MsId
+	})
+
+	build := s.FmlBuild()
+	blockedReason := ""
+	switch {
+	case !build.MemberPositionObserved:
+		blockedReason = "公会职位尚未同步，无法确认竞赛任务删除权限"
+	case !state.FmlPositionAllowsRaceDelete(build.MemberPosition):
+		blockedReason = "当前公会职位没有删除竞赛任务的权限"
+	}
+
+	ops := make([]PlannedOp, 0, len(candidates))
+	for _, task := range candidates {
+		op := domainOp(clientproto.RPCFmlRaceDelTask.String(), goal, "union.race.delete", "delete", "公会竞赛低分任务清理", 4360, 0, 0, 0)
+		op.TaskMsID = task.MsId
+		op.TaskID = task.TaskType
+		if op.TaskID == 0 {
+			op.TaskID = task.TaskId
+		}
+		op.FlowerID = task.ParamID
+		// Global operation ordering uses OperationID as its final stable key.
+		// Preserve score-first deletion after the complete plan is sorted while
+		// keeping retry cooldowns scoped to the mutable task instance.
+		op.OperationID = fmt.Sprintf("%s|score=%010d|task=%020d", op.OperationID, task.Score, task.MsId)
+		op.CooldownKey = fmt.Sprintf("union.race.delete:%d", task.MsId)
+		if blockedReason != "" {
+			op.Status = PlanStatusBlocked
+			op.Executable = false
+			op.BlockingStage = "permission"
+			op.BlockedReasons = []string{blockedReason}
+			return []PlannedOp{op}
+		}
+		ops = append(ops, op)
+	}
 	return ops
 }
 

@@ -251,16 +251,18 @@ type CollectRewardView struct {
 // FmlBuildView is the tracked subset of namespace 25 (fmlTot) needed for
 // guild build automation.
 type FmlBuildView struct {
-	Observed            bool            `json:"observed,omitempty"`
-	FmlID               int32           `json:"fml_id,omitempty"`
-	MembershipObserved  bool            `json:"membership_observed,omitempty"`
-	MemberFmlID         int32           `json:"member_fml_id,omitempty"`
-	TodayBuildNum       int32           `json:"today_build_num,omitempty"`
-	LastBuildTimeMs     int64           `json:"last_build_time_ms,omitempty"`
-	FlowerTakeCnt       int32           `json:"flower_take_cnt,omitempty"` // 25.0.102 公会摸花次数上限
-	RaceLvl             int32           `json:"race_lvl,omitempty"`        // 25.0.103 公会竞赛段位
-	BuildCountsObserved bool            `json:"build_counts_observed,omitempty"`
-	BuildCounts         map[int32]int32 `json:"build_counts,omitempty"`
+	Observed               bool            `json:"observed,omitempty"`
+	FmlID                  int32           `json:"fml_id,omitempty"`
+	MembershipObserved     bool            `json:"membership_observed,omitempty"`
+	MemberFmlID            int32           `json:"member_fml_id,omitempty"`
+	MemberPositionObserved bool            `json:"member_position_observed,omitempty"`
+	MemberPosition         int32           `json:"member_position,omitempty"`
+	TodayBuildNum          int32           `json:"today_build_num,omitempty"`
+	LastBuildTimeMs        int64           `json:"last_build_time_ms,omitempty"`
+	FlowerTakeCnt          int32           `json:"flower_take_cnt,omitempty"` // 25.0.102 公会摸花次数上限
+	RaceLvl                int32           `json:"race_lvl,omitempty"`        // 25.0.103 公会竞赛段位
+	BuildCountsObserved    bool            `json:"build_counts_observed,omitempty"`
+	BuildCounts            map[int32]int32 `json:"build_counts,omitempty"`
 }
 
 // FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
