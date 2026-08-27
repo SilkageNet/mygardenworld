@@ -474,7 +474,7 @@ export function FlowerPickerFilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-7 min-w-7 items-center justify-center rounded border px-1.5 text-xs font-medium",
+        "flex h-8 min-w-8 items-center justify-center rounded border px-1.5 text-xs font-medium sm:h-7 sm:min-w-7",
         selected
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",

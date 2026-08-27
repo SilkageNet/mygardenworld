@@ -78,9 +78,9 @@ export function TaskOrderMonitorPanel({ tasks, statistics, policy }: {
       )}
 
       {statistics?.observed && (
-        <div className="dark-scrollbar flex gap-2 overflow-x-auto rounded-md border border-border/70 bg-muted/20 p-2">
+        <div className="grid grid-cols-3 gap-2 rounded-md border border-border/70 bg-muted/20 p-2 sm:grid-cols-6">
           {orderStats.map((item) => (
-            <div key={item.label} className="flex min-w-[5.5rem] shrink-0 items-center justify-between gap-3 rounded bg-background/70 px-3 py-2 text-sm sm:min-w-24">
+            <div key={item.label} className="flex min-w-0 items-center justify-between gap-2 rounded bg-background/70 px-2 py-2 text-sm sm:px-3">
               <span className="text-muted-foreground">{item.label}</span>
               <span className="font-semibold tabular-nums">{formatCount(item.value)}</span>
             </div>

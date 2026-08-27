@@ -60,7 +60,7 @@ export function FmlLandMonitorPanel({ lands, plantableFlowers, observed, automat
               return count > 0 ? <Badge key={key} variant="outline">{recommendationLabel(key)} {count}</Badge> : null;
             })}
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {lands.map((land) => (
               <FmlLandTile
                 key={land.landId}

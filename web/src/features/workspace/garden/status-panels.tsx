@@ -13,6 +13,12 @@ import { CollapsibleCard, EmptyState } from "@/features/workspace/shared/workspa
 import { itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 
+// The game map has two 4×8 plots: #1-32 on the left and #33-64 on the right.
+const LAND_SECTIONS = [
+  Array.from({ length: 32 }, (_, index) => index + 1),
+  Array.from({ length: 32 }, (_, index) => index + 33),
+];
+
 export function LandMonitorPanel({ lands, waterDrops, waterDropsTotal, minWaterDrops }: {
   lands: LandView[];
   waterDrops: number;
@@ -24,15 +30,6 @@ export function LandMonitorPanel({ lands, waterDrops, waterDropsTotal, minWaterD
     for (const land of lands) map.set(landDisplayNumber(land.landId), land);
     return map;
   }, [lands]);
-  const mapSlots = useMemo(() => {
-    // 8×8 map order: left 1-32 by rows of 4, right 33-64 by rows of 4.
-    const slots: number[] = [];
-    for (let row = 0; row < 8; row++) {
-      for (let index = 0; index < 4; index++) slots.push(row * 4 + 1 + index);
-      for (let index = 0; index < 4; index++) slots.push(33 + row * 4 + index);
-    }
-    return slots;
-  }, []);
   const recommendationCounts = useMemo(() => {
     const stats = new Map<string, number>();
     for (const land of lands) {
@@ -75,17 +72,25 @@ export function LandMonitorPanel({ lands, waterDrops, waterDropsTotal, minWaterD
             {minWaterDrops > 0 && <Badge variant="outline">可用水滴数 {formatCount(availableWaterDrops)}</Badge>}
           </div>
           <div className="dark-scrollbar max-h-[440px] overflow-y-auto pr-0.5 sm:h-[560px] sm:max-h-none sm:pr-1">
-            <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr)) 0.75rem repeat(4, minmax(0, 1fr))" }}>
-              {mapSlots.flatMap((display, index) => {
-                const land = landsByDisplay.get(display);
-                const tile = land ? (
-                  <LandTile key={land.landId} land={land} />
-                ) : (
-                  <div key={`slot-${display}`} className="flex min-h-[78px] items-center justify-center rounded-md border border-dashed border-border/45 text-xs text-muted-foreground">#{display}</div>
-                );
-                if (index % 8 !== 4) return [tile];
-                return [<div key={`aisle-${index}`} className="min-h-[78px]" aria-hidden />, tile];
-              })}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {LAND_SECTIONS.map((section) => (
+                <section key={section[0]} aria-label={`地块 ${section[0]} 至 ${section[section.length - 1]}`} className="space-y-2">
+                  <div className="flex items-center gap-2 px-0.5 text-xs font-medium text-muted-foreground sm:hidden">
+                    <span>地块 {section[0]}–{section[section.length - 1]}</span>
+                    <span className="h-px flex-1 bg-border/60" />
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {section.map((display) => {
+                      const land = landsByDisplay.get(display);
+                      return land ? (
+                        <LandTile key={land.landId} land={land} />
+                      ) : (
+                        <div key={`slot-${display}`} className="flex min-h-[78px] items-center justify-center rounded-md border border-dashed border-border/45 text-xs text-muted-foreground">#{display}</div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         </div>

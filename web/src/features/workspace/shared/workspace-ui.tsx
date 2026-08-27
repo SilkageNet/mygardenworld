@@ -29,7 +29,7 @@ export function CollapsibleCard({
         <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <button
             type="button"
-            className="flex min-w-0 items-center gap-2 text-left text-foreground transition-colors hover:text-primary active:scale-[0.99]"
+            className="flex min-h-9 min-w-0 items-center gap-2 text-left text-foreground transition-colors hover:text-primary active:scale-[0.99]"
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >

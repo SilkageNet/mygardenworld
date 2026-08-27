@@ -58,19 +58,19 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
           <CardTitle>日志</CardTitle>
           <span className="text-xs text-muted-foreground">内存窗口 {events.length} 条</span>
         </div>
-        <div className="dark-scrollbar flex gap-1 overflow-x-auto rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5">
+        <div className="dark-scrollbar grid grid-cols-3 gap-1 rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5 sm:flex sm:overflow-x-auto">
           <CategoryButton active={activeCategory === "all"} label="全部" count={displayEvents.length} onClick={() => setActiveCategory("all")} />
           {CATEGORY_TABS.map((category) => (
             <CategoryButton key={category.value} active={activeCategory === category.value} label={category.label} count={categoryCounts.get(category.value) ?? 0} onClick={() => setActiveCategory(category.value)} />
           ))}
         </div>
-        <div className="dark-scrollbar flex gap-1 overflow-x-auto">
+        <div className="dark-scrollbar grid grid-cols-2 gap-1 sm:flex sm:overflow-x-auto">
           {VIEW_TABS.map((view) => (
             <button
               key={view.value}
               type="button"
               className={cn(
-                "h-8 shrink-0 rounded-md border px-3 text-xs font-medium transition-colors",
+                "h-8 min-w-0 rounded-md border px-2 text-xs font-medium transition-colors sm:shrink-0 sm:px-3",
                 activeView === view.value
                   ? "border-primary/45 bg-primary/10 text-primary"
                   : "border-border/55 bg-white/30 text-muted-foreground hover:text-foreground dark:bg-white/5",
@@ -105,7 +105,7 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
         )}
         {hasMore && (
           <div className="flex shrink-0 justify-center">
-            <Button type="button" variant="outline" size="sm" onClick={onLoadMore} disabled={loading}>
+            <Button type="button" variant="outline" onClick={onLoadMore} disabled={loading}>
               {loading && <Loader2 className="size-4 animate-spin" />}
               {loading ? "加载中" : "加载更早日志"}
             </Button>
@@ -121,7 +121,7 @@ function CategoryButton({ active, label, count, onClick }: { active: boolean; la
     <button
       type="button"
       className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded px-3 text-xs font-medium transition-colors",
+        "flex h-8 min-w-0 items-center justify-center gap-1.5 rounded px-1.5 text-xs font-medium transition-colors sm:shrink-0 sm:px-3",
         active ? "bg-white text-foreground shadow-sm dark:bg-muted" : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
         count === 0 && !active && "opacity-45",
       )}

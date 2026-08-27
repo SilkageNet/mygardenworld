@@ -146,7 +146,7 @@ export default function PolicyPanel({
 
         <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-y border-border/55 bg-card/92 px-4 py-3 backdrop-blur-xl">
           <span className="text-xs text-muted-foreground">设置仅在保存后生效</span>
-          <Button type="button" size="sm" className="shrink-0" onClick={onSave} disabled={saving}>
+          <Button type="button" className="shrink-0" onClick={onSave} disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             {saving ? "保存中" : "保存"}
           </Button>

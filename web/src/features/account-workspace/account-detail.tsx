@@ -185,7 +185,7 @@ function HeaderPanel({
       <CardContent className="space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3 sm:items-center">
-            <Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
+            <Button type="button" variant="ghost" size="icon-lg" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
               <ArrowLeft className="size-4" />
             </Button>
             <div className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-white/72 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300 sm:flex">
@@ -202,20 +202,20 @@ function HeaderPanel({
             </div>
           </div>
           <div className="flex shrink-0 items-center justify-end gap-1">
-            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={viewsLoading || !connected}>
+            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-lg" onClick={onRefresh} disabled={viewsLoading || !connected}>
               <RefreshCw className={cn("size-4", viewsLoading && "animate-spin")} />
             </IconButtonWithTooltip>
             <IconButtonWithTooltip
               label={connected ? "退出登录" : "登录"}
               type="button"
               variant="outline"
-              size="icon-sm"
+              size="icon-lg"
               onClick={() => void onAction(sessionAction)}
               disabled={busyAction === sessionAction}
             >
               {busyAction === sessionAction ? <Loader2 className="size-4 animate-spin" /> : connected ? <LogOut className="size-4" /> : <Play className="size-4" />}
             </IconButtonWithTooltip>
-            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
+            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-lg" onClick={onDelete} disabled={busyAction === "delete"}>
               <Trash2 className="size-4" />
             </IconButtonWithTooltip>
           </div>
