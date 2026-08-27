@@ -7,31 +7,32 @@ import { CollapsibleCard, EmptyState, OverviewStat } from "@/features/workspace/
 import { itemName } from "@/lib/game/catalog";
 import ActivityItemChip from "./activity-item-chip";
 import { ActivityMilestoneCard, ActivityStatusBadge } from "./status-panels";
+import { activityIsVisible, CYCLIC_STORY_PROFILE, InactiveActivityOverview } from "./activity-overview";
 
 export default function CyclicStoryMonitorPanel({ activity }: { activity?: CyclicStoryView }) {
   const phase = activity?.phase ?? 0;
-  if (!activity?.found || (phase !== 1 && phase !== 2 && phase !== 3)) return null;
+  const visible = activityIsVisible(activity);
 
-  const activeOrders = activity.orders.filter((order) => order.orderId > 0 && !order.onCooldown);
-  const readyOrders = activity.valid ? activeOrders.filter((order) => order.status === PlanStatus.READY).length : 0;
-  const readyMilestones = activity.valid ? activity.milestones.filter((milestone) => milestone.ready && !milestone.received).length : 0;
+  const activeOrders = visible ? activity.orders.filter((order) => order.orderId > 0 && !order.onCooldown) : [];
+  const readyOrders = visible && activity.valid ? activeOrders.filter((order) => order.status === PlanStatus.READY).length : 0;
+  const readyMilestones = visible && activity.valid ? activity.milestones.filter((milestone) => milestone.ready && !milestone.received).length : 0;
 
   return (
     <CollapsibleCard
-      title={activity.name || "莳花纪闻"}
+      title={activity?.name || CYCLIC_STORY_PROFILE.name}
       contentClassName="space-y-3"
       actions={(
         <>
-          <Badge variant={phase === 2 ? "secondary" : "outline"}>{cyclicNotePhaseLabel(phase)}</Badge>
-          <Badge variant="outline">批次 {activity.batchId}</Badge>
-          {!activity.valid && <Badge variant="destructive">配置异常</Badge>}
-          {activity.valid && !activity.milestoneReceiptsObserved && <Badge variant="outline">里程碑待同步</Badge>}
+          <Badge variant={visible && phase === 2 ? "secondary" : "outline"}>{visible ? cyclicNotePhaseLabel(phase) : activity?.observed ? "未开放" : "待同步"}</Badge>
+          {visible && <Badge variant="outline">批次 {activity.batchId}</Badge>}
+          {visible && !activity.valid && <Badge variant="destructive">配置异常</Badge>}
+          {visible && activity.valid && !activity.milestoneReceiptsObserved && <Badge variant="outline">里程碑待同步</Badge>}
           {readyOrders + readyMilestones > 0 && <Badge variant="secondary">可领取 {readyOrders + readyMilestones}</Badge>}
         </>
       )}
     >
-      {!activity.observed ? (
-        <EmptyState title="莳花纪闻状态尚未同步" detail="连接游戏后，监控会从活动状态中自动发现当前批次。" />
+      {!visible ? (
+        <InactiveActivityOverview activity={activity} profile={CYCLIC_STORY_PROFILE} currencyItemId={activity?.currencyItemId} />
       ) : !activity.valid ? (
         <EmptyState title="莳花纪闻配置或状态异常" detail="已阻塞自动化；等待完整模板与时间状态同步后再显示订单详情。" />
       ) : (

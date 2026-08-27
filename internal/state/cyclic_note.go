@@ -339,6 +339,12 @@ func (s *State) CyclicNoteView(now time.Time) (CyclicNoteView, bool) {
 	defer s.mu.RUnlock()
 
 	out := CyclicNoteView{Observed: s.activityObserved}
+	config, catalogOK := CyclicNoteCatalogConfig()
+	if catalogOK {
+		out.TmpType = config.TmpType
+		out.CurrencyItemID = config.CurrencyItemID
+		out.Name = config.Name
+	}
 	batch, phase, visibleStart, graceEnd, phaseEnd := s.preferredCyclicNoteBatchLocked(now.UnixMilli())
 	if batch == nil {
 		return out, false
@@ -363,7 +369,6 @@ func (s *State) CyclicNoteView(now time.Time) (CyclicNoteView, bool) {
 	out.MilestoneReceiptsObserved = batch.BoxesObserved && batch.BoxesValid
 	out.ClaimedMilestoneIndexes = append([]int32(nil), batch.ClaimedBoxes...)
 
-	config, catalogOK := CyclicNoteCatalogConfig()
 	if catalogOK {
 		out.CurrencyItemID = config.CurrencyItemID
 		out.CurrencyBalance = out.Bag[config.CurrencyItemID]
