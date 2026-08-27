@@ -25,21 +25,13 @@ func TestDessertRuntimePolicyIsFourLayeredAndBounded(t *testing.T) {
 	}
 
 	policy.AutomationEnabled = true
-	//nolint:staticcheck // Exercise compatibility with persisted legacy policy JSON.
-	policy.Activity.Enabled = true
-	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
-		dessertModuleID: {
-			Enabled: true,
-			BoolParams: map[string]bool{
-				dessertAutoPlayPolicy:            true,
-				dessertResumeExistingRoundPolicy: true,
-			},
-			IntParams: map[string]int64{
-				dessertModePolicy:             1,
-				dessertMaxEnergyPolicy:        5,
-				dessertMinEnergyReservePolicy: 10,
-			},
-		},
+	policy.Activity.Dessert = &pb.DessertPolicy{
+		Enabled:             true,
+		AutoPlay:            true,
+		ResumeExistingRound: true,
+		Mode:                1,
+		MaxEnergyPerSession: 5,
+		MinEnergyReserve:    10,
 	}
 	got := dessertPolicyConfig(policy)
 	if !got.enabled || !got.resumeExisting || got.mode != 1 || got.maxSessionEnergy != 5 ||
@@ -47,12 +39,12 @@ func TestDessertRuntimePolicyIsFourLayeredAndBounded(t *testing.T) {
 		t.Fatalf("enabled dessert autoplay policy=%+v", got)
 	}
 
-	policy.Activity.Modules[dessertModuleID].IntParams[dessertModePolicy] = 5
+	policy.Activity.Dessert.Mode = 5
 	if got := dessertPolicyConfig(policy); !got.enabled || got.configurationError == "" {
 		t.Fatalf("unsupported mode did not fail closed: %+v", got)
 	}
-	policy.Activity.Modules[dessertModuleID].IntParams[dessertModePolicy] = 1
-	policy.Activity.Modules[dessertModuleID].IntParams[dessertMaxEnergyPolicy] = 101
+	policy.Activity.Dessert.Mode = 1
+	policy.Activity.Dessert.MaxEnergyPerSession = 101
 	if got := dessertPolicyConfig(policy); got.configurationError == "" {
 		t.Fatalf("oversized energy budget did not fail closed: %+v", got)
 	}
@@ -482,18 +474,11 @@ func newDessertRuntimeTestRunner(t *testing.T, running bool, curID, step int32) 
 func dessertRuntimePolicy(autoPlay bool) *pb.Policy {
 	policy := automation.DefaultPolicy()
 	policy.AutomationEnabled = true
-	//nolint:staticcheck // Exercise compatibility with persisted legacy policy JSON.
-	policy.Activity.Enabled = true
-	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
-		dessertModuleID: {
-			Enabled:    true,
-			BoolParams: map[string]bool{dessertAutoPlayPolicy: autoPlay},
-			IntParams: map[string]int64{
-				dessertModePolicy:             1,
-				dessertMaxEnergyPolicy:        5,
-				dessertMinEnergyReservePolicy: 0,
-			},
-		},
+	policy.Activity.Dessert = &pb.DessertPolicy{
+		Enabled:             true,
+		AutoPlay:            autoPlay,
+		Mode:                1,
+		MaxEnergyPerSession: 5,
 	}
 	return policy
 }

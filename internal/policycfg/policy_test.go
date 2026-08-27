@@ -69,8 +69,9 @@ func TestNormalizeClearsUnsupportedSDKAdAutomation(t *testing.T) {
 	}
 }
 
-func TestFromJSONClearsLegacySDKAdAutomation(t *testing.T) {
+func TestFromJSONClearsUnsupportedSDKAdAutomation(t *testing.T) {
 	p, err := FromJSON(`{
+		"schema_version":2,
 		"plant":{"planting":{"video_speed_up_enabled":true},"cultivate":{"video_speed_up_enabled":true}},
 		"basic":{"benefit":{"double_coin_enabled":true},"shop":{"video_free_gift_enabled":true}},
 		"union":{"build":{"free_enabled":true}}
@@ -79,20 +80,20 @@ func TestFromJSONClearsLegacySDKAdAutomation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := UnsupportedSDKAdFeatures(p); len(got) != 0 {
-		t.Fatalf("legacy SDK ad switches survived load: %v", got)
+		t.Fatalf("unsupported SDK ad switches survived load: %v", got)
 	}
 }
 
-func TestFromJSONDisplacedSessionReloginIsBackwardCompatible(t *testing.T) {
-	oldPolicy, err := FromJSON(`{"basic":{"reconnect_interval_seconds":45}}`)
+func TestFromJSONDisplacedSessionReloginIsExplicit(t *testing.T) {
+	disabledPolicy, err := FromJSON(`{"schema_version":2,"basic":{"reconnect_interval_seconds":45}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if oldPolicy.GetBasic().GetDisplacedSessionReloginEnabled() {
-		t.Fatal("old policy without displaced-session switch enabled relogin")
+	if disabledPolicy.GetBasic().GetDisplacedSessionReloginEnabled() {
+		t.Fatal("policy without displaced-session switch enabled relogin")
 	}
 
-	enabledPolicy, err := FromJSON(`{"basic":{"displaced_session_relogin_enabled":true}}`)
+	enabledPolicy, err := FromJSON(`{"schema_version":2,"basic":{"displaced_session_relogin_enabled":true}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,82 +175,40 @@ func TestFlowerArtSellNightPauseRoundTrip(t *testing.T) {
 		t.Fatal("sell_night_pause_enabled did not survive policy JSON round trip")
 	}
 
-	legacy, err := FromJSON(`{"order":{"flower_art":{"sell_enabled":true}}}`)
-	if err != nil {
-		t.Fatal(err)
+}
+
+func TestFromJSONRequiresExactSchema(t *testing.T) {
+	tests := []string{
+		`{"union":{"race":{"min_task_score":17}}}`,
+		`{"schema_version":3}`,
+		`{"schema_version":2,"union":{"race":{"urgent_speedup_enabled":true}}}`,
+		`{"schema_version":2,"union":{"race":{"max_task_score":19}}}`,
 	}
-	if legacy.GetOrder().GetFlowerArt().GetSellNightPauseEnabled() {
-		t.Fatal("old policy without night pause should default off")
+	for _, raw := range tests {
+		if _, err := FromJSON(raw); err == nil {
+			t.Fatalf("FromJSON(%s) unexpectedly accepted an obsolete document", raw)
+		}
 	}
 }
 
-func TestFromJSONRaceScoreFieldCompatibility(t *testing.T) {
-	tests := []struct {
-		name string
-		raw  string
-		want int32
-	}{
-		{name: "stable snake case", raw: `{"union":{"race":{"min_task_score":17}}}`, want: 17},
-		{name: "short lived KK snake case", raw: `{"union":{"race":{"max_task_score":19}}}`, want: 19},
-		{name: "short lived KK camel case", raw: `{"union":{"race":{"maxTaskScore":21}}}`, want: 21},
-		{name: "stable field wins", raw: `{"union":{"race":{"min_task_score":17,"max_task_score":19}}}`, want: 17},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			policy, err := FromJSON(tt.raw)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := policy.GetUnion().GetRace().GetMinTaskScore(); got != tt.want {
-				t.Fatalf("min task score=%d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFromJSONRaceAutoStopOnQuotaDoneBackfill(t *testing.T) {
-	legacy, err := FromJSON(`{"union":{"race":{"enabled":true,"min_task_score":28}}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !legacy.GetUnion().GetRace().GetAutoStopOnQuotaDone() {
-		t.Fatal("legacy race policy missing auto_stop_on_quota_done should default on")
-	}
-
-	explicitOff, err := FromJSON(`{"union":{"race":{"auto_stop_on_quota_done":false}}}`)
+func TestFromJSONPreservesCurrentRacePolicy(t *testing.T) {
+	explicitOff, err := FromJSON(`{"schema_version":2,"union":{"race":{"auto_stop_on_quota_done":false,"min_task_score":17}}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if explicitOff.GetUnion().GetRace().GetAutoStopOnQuotaDone() {
 		t.Fatal("explicit auto_stop_on_quota_done=false must be preserved")
 	}
+	if explicitOff.GetUnion().GetRace().GetMinTaskScore() != 17 {
+		t.Fatal("current min_task_score did not survive load")
+	}
 
-	explicitOn, err := FromJSON(`{"union":{"race":{"autoStopOnQuotaDone":true}}}`)
+	explicitOn, err := FromJSON(`{"schema_version":2,"union":{"race":{"auto_stop_on_quota_done":true}}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !explicitOn.GetUnion().GetRace().GetAutoStopOnQuotaDone() {
-		t.Fatal("explicit autoStopOnQuotaDone=true must survive load")
-	}
-}
-
-func TestRaceUrgentSpeedupFieldStillRoundTrips(t *testing.T) {
-	// Field is deprecated (runtime always forces last-10-minute speedup) but
-	// stored JSON must keep loading without error for older policies.
-	legacy, err := FromJSON(`{"union":{"race":{"enabled":true}}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if legacy.GetUnion().GetRace().GetUrgentSpeedupEnabled() {
-		t.Fatal("omitted urgent_speedup_enabled must stay false on load")
-	}
-
-	enabled, err := FromJSON(`{"union":{"race":{"urgent_speedup_enabled":true}}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !enabled.GetUnion().GetRace().GetUrgentSpeedupEnabled() {
-		t.Fatal("explicit urgent_speedup_enabled=true must survive load")
+		t.Fatal("explicit auto_stop_on_quota_done=true must survive load")
 	}
 }
 
@@ -283,6 +242,7 @@ func TestNormalizePreservesExplicitAutoHarvestDisabled(t *testing.T) {
 
 func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	raw := `{
+	  "schema_version": 2,
 	  "automation_enabled": true,
 		"plant": {
 	    "planting": {
@@ -303,25 +263,9 @@ func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	}
 }
 
-func TestFromJSONBackfillsAutoHarvestForOldPlantingPolicy(t *testing.T) {
-	raw := `{
-	  "plant": {
-	    "planting": {
-	      "auto_enabled": true
-	    }
-	  }
-	}`
-	p, err := FromJSON(raw)
-	if err != nil {
-		t.Fatalf("FromJSON returned error: %v", err)
-	}
-	if !p.GetPlant().GetPlanting().GetAutoHarvestEnabled() {
-		t.Fatal("old auto_enabled=true policies should keep harvesting enabled")
-	}
-}
-
 func TestFromJSONPreservesExplicitAutoHarvestDisabled(t *testing.T) {
 	raw := `{
+	  "schema_version": 2,
 	  "plant": {
 	    "planting": {
 	      "auto_enabled": true,
@@ -338,8 +282,9 @@ func TestFromJSONPreservesExplicitAutoHarvestDisabled(t *testing.T) {
 	}
 }
 
-func TestFromJSONIgnoresRemovedPlantFlowerFieldAndOldPriorityName(t *testing.T) {
+func TestFromJSONRejectsRemovedPlantFlowerFieldAndOldPriorityName(t *testing.T) {
 	raw := `{
+	  "schema_version": 2,
 	  "plant": {
 	    "planting": {
 	      "auto_enabled": true,
@@ -351,14 +296,7 @@ func TestFromJSONIgnoresRemovedPlantFlowerFieldAndOldPriorityName(t *testing.T) 
 	    }
 	  }
 	}`
-	p, err := FromJSON(raw)
-	if err != nil {
-		t.Fatalf("FromJSON returned error: %v", err)
-	}
-	if !p.GetPlant().GetPlanting().GetAutoEnabled() {
-		t.Fatalf("removed plant.flower field should not override planting defaults")
-	}
-	if got := p.GetPlant().GetPlanting().GetDemandPriority()[automation.GoalCustomerOrder]; got == 99 {
-		t.Fatalf("old goal priority should be ignored")
+	if _, err := FromJSON(raw); err == nil {
+		t.Fatal("removed fields unexpectedly survived strict policy decoding")
 	}
 }

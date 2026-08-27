@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@connectrpc/connect";
 import { AdminService } from "@/gen/mygardenworld/v1/admin_pb";
+import { UserRole, UserStatus } from "@/gen/mygardenworld/v1/auth_pb";
 import type { User } from "@/gen/mygardenworld/v1/auth_pb";
 import type { GetSystemStatsResponse } from "@/gen/mygardenworld/v1/admin_pb";
 import { formatAPIError, transport } from "@/lib/api/client";
@@ -74,13 +75,13 @@ export function UserManagementPanel() {
     }
   }
 
-  async function toggleStatus(userId: bigint, currentStatus: string) {
+  async function toggleStatus(userId: bigint, currentStatus: UserStatus) {
     const target = users.find((user) => user.id === userId);
-    if (target?.role === "admin") {
+    if (target?.role === UserRole.ADMIN) {
       setError("管理员账号不能被禁用");
       return;
     }
-    const newStatus = currentStatus === "active" ? "disabled" : "active";
+    const newStatus = currentStatus === UserStatus.ACTIVE ? UserStatus.DISABLED : UserStatus.ACTIVE;
     setBusyUserId(userId.toString());
     try {
       await adminClient.updateUser({ userId, status: newStatus });
@@ -214,14 +215,14 @@ export function UserManagementPanel() {
                   const quotaValue = Number(quotaDraft);
                   const quotaChanged = quotaDraft !== user.maxAccounts.toString();
                   const quotaInvalid = !Number.isInteger(quotaValue) || quotaValue < user.currentAccounts;
-                  const isAdminUser = user.role === "admin";
+                  const isAdminUser = user.role === UserRole.ADMIN;
                   return (
                     <TableRow key={userId}>
                       <TableCell className="font-medium">{user.username}</TableCell>
                       <TableCell className="text-muted-foreground">{user.email}</TableCell>
                       <TableCell>
-                        <Badge variant={user.role === "admin" ? "default" : "secondary"} className={user.role === "admin" ? "bg-primary/10 text-primary" : ""}>
-                          {user.role === "admin" ? "管理员" : "用户"}
+                        <Badge variant={user.role === UserRole.ADMIN ? "default" : "secondary"} className={user.role === UserRole.ADMIN ? "bg-primary/10 text-primary" : ""}>
+                          {user.role === UserRole.ADMIN ? "管理员" : "用户"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -260,19 +261,19 @@ export function UserManagementPanel() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={user.status === "active" ? "default" : "destructive"} className={user.status === "active" ? "bg-primary/10 text-primary" : ""}>
-                          {user.status === "active" ? "正常" : "禁用"}
+                        <Badge variant={user.status === UserStatus.ACTIVE ? "default" : "destructive"} className={user.status === UserStatus.ACTIVE ? "bg-primary/10 text-primary" : ""}>
+                          {user.status === UserStatus.ACTIVE ? "正常" : "禁用"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          variant={user.status === "active" ? "outline" : "default"}
+                          variant={user.status === UserStatus.ACTIVE ? "outline" : "default"}
                           size="sm"
                           disabled={busy || isAdminUser}
                           onClick={() => toggleStatus(user.id, user.status)}
                           title={isAdminUser ? "管理员账号不能被禁用" : undefined}
                         >
-                          {isAdminUser ? "管理员" : busy ? "处理中" : user.status === "active" ? "禁用" : "启用"}
+                          {isAdminUser ? "管理员" : busy ? "处理中" : user.status === UserStatus.ACTIVE ? "禁用" : "启用"}
                         </Button>
                       </TableCell>
                     </TableRow>

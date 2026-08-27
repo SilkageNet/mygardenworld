@@ -177,6 +177,7 @@ func int32Set(ids []int32) map[int32]bool {
 
 func DefaultPolicy() *pb.Policy {
 	return &pb.Policy{
+		SchemaVersion:     1,
 		AutomationEnabled: false,
 		Basic: &pb.BasicPolicy{
 			Reputation:                     &pb.ReputationPolicy{Enabled: true, Threshold: 80},
@@ -241,7 +242,11 @@ func DefaultPolicy() *pb.Policy {
 			},
 			Land: &pb.UnionLandPolicy{},
 		},
-		Activity:                &pb.ActivityPolicy{},
+		Activity: &pb.ActivityPolicy{
+			CyclicNote:  &pb.CyclicNotePolicy{},
+			CyclicStory: &pb.CyclicStoryPolicy{},
+			Dessert:     &pb.DessertPolicy{Mode: 1},
+		},
 		DecisionIntervalSeconds: 4,
 	}
 }

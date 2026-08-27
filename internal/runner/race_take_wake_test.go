@@ -89,7 +89,7 @@ func TestRaceTakeRetrySleep(t *testing.T) {
 
 func TestNextTickIntervalWakesImmediatelyForRaceBootstrap(t *testing.T) {
 	st := state.New()
-	st.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
+	st.ApplyV(json.RawMessage(`{"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4}}}`))
 	st.MarkFmlRaceTasksUnobserved()
 	p := automation.DefaultPolicy()
 	p.AutomationEnabled = true
@@ -104,7 +104,7 @@ func TestNextTickIntervalWakesImmediatelyForRaceBootstrap(t *testing.T) {
 func TestNextTickIntervalWaitsForCoolingRaceBootstrap(t *testing.T) {
 	now := time.UnixMilli(1_000_000)
 	st := state.New()
-	st.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
+	st.ApplyV(json.RawMessage(`{"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4}}}`))
 	st.MarkFmlRaceTasksUnobserved()
 	p := automation.DefaultPolicy()
 	p.AutomationEnabled = true

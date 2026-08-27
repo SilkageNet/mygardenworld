@@ -123,7 +123,7 @@ func TestCreateUserValidatesOptionsBeforeInsert(t *testing.T) {
 		Username: " partial ",
 		Email:    "partial@example.test",
 		Password: "ValidPass123!",
-		Role:     stringPtr("owner"),
+		Role:     userRolePtr(pb.UserRole(99)),
 	}))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("CreateUser code=%s err=%v, want InvalidArgument", connect.CodeOf(err), err)
@@ -155,7 +155,7 @@ func TestDisableUserStopsRestoreAndRevokesRefreshTokens(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	status := "disabled"
+	status := pb.UserStatus_USER_STATUS_DISABLED
 	if _, err := svc.UpdateUser(adminCtx, connect.NewRequest(&pb.UpdateUserRequest{UserId: user.ID, Status: &status})); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestDisableUserStopsRestoreAndRevokesRefreshTokens(t *testing.T) {
 	}
 }
 
-func stringPtr(value string) *string { return &value }
+func userRolePtr(value pb.UserRole) *pb.UserRole { return &value }
 
 func newAuthTestService(t *testing.T, limiterCfg LoginLimiterConfig) *Services {
 	t.Helper()

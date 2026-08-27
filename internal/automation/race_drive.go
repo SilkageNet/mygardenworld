@@ -890,8 +890,8 @@ func FormatRaceTaskOpDesc(taskType, paramID int32) string {
 // Normal path: UseSpeedupTicketInTask for the whole held task. Forced
 // completion guarantee: within raceExpireSpeedupLead of ExpireTime, spend
 // tickets on the race flower even when that toggle (and ordinary planting
-// speedup) are off — UrgentSpeedupEnabled is ignored so the last-10-minute
-// completion guarantee cannot be accidentally left disabled.
+// speedup) are off, so the last-10-minute completion guarantee cannot be
+// accidentally left disabled.
 func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Time) bool {
 	if s == nil || race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false

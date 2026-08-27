@@ -21,7 +21,7 @@ type policyRuntime interface {
 }
 
 func (svc *Services) GetPolicy(ctx context.Context, req *connect.Request[pb.GetPolicyRequest]) (*connect.Response[pb.GetPolicyResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -33,7 +33,7 @@ func (svc *Services) GetPolicy(ctx context.Context, req *connect.Request[pb.GetP
 }
 
 func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetPolicyRequest]) (*connect.Response[pb.SetPolicyResponse], error) {
-	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId(), req.Msg.GetAccountName())
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -42,6 +42,9 @@ func (svc *Services) SetPolicy(ctx context.Context, req *connect.Request[pb.SetP
 			"不支持需要客户端 SDK 广告回调的自动化，也不会编造回调参数或 token: %s",
 			strings.Join(features, "、"),
 		))
+	}
+	if err := policycfg.ValidateVersion(req.Msg.GetPolicy()); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	// Preserve the live start/pause intent. Settings edits must not flip
 	// automation back on after the operator paused via AutomationService.Stop.

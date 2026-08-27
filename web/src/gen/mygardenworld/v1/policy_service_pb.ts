@@ -12,21 +12,16 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/policy_service.proto.
  */
 export const file_mygardenworld_v1_policy_service: GenFile = /*@__PURE__*/
-  fileDesc("CiVteWdhcmRlbndvcmxkL3YxL3BvbGljeV9zZXJ2aWNlLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIjwKEEdldFBvbGljeVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkiPQoRR2V0UG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kiZgoQU2V0UG9saWN5UmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCRIoCgZwb2xpY3kYAyABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeSI9ChFTZXRQb2xpY3lSZXNwb25zZRIoCgZwb2xpY3kYASABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeTK7AQoNUG9saWN5U2VydmljZRJUCglHZXRQb2xpY3kSIi5teWdhcmRlbndvcmxkLnYxLkdldFBvbGljeVJlcXVlc3QaIy5teWdhcmRlbndvcmxkLnYxLkdldFBvbGljeVJlc3BvbnNlElQKCVNldFBvbGljeRIiLm15Z2FyZGVud29ybGQudjEuU2V0UG9saWN5UmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuU2V0UG9saWN5UmVzcG9uc2VCiwEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhJQb2xpY3lTZXJ2aWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_mygardenworld_v1_policy]);
+  fileDesc("CiVteWdhcmRlbndvcmxkL3YxL3BvbGljeV9zZXJ2aWNlLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIiYKEEdldFBvbGljeVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoAyI9ChFHZXRQb2xpY3lSZXNwb25zZRIoCgZwb2xpY3kYASABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeSJQChBTZXRQb2xpY3lSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAMSKAoGcG9saWN5GAIgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kiPQoRU2V0UG9saWN5UmVzcG9uc2USKAoGcG9saWN5GAEgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kyuwEKDVBvbGljeVNlcnZpY2USVAoJR2V0UG9saWN5EiIubXlnYXJkZW53b3JsZC52MS5HZXRQb2xpY3lSZXF1ZXN0GiMubXlnYXJkZW53b3JsZC52MS5HZXRQb2xpY3lSZXNwb25zZRJUCglTZXRQb2xpY3kSIi5teWdhcmRlbndvcmxkLnYxLlNldFBvbGljeVJlcXVlc3QaIy5teWdhcmRlbndvcmxkLnYxLlNldFBvbGljeVJlc3BvbnNlQosBChRjb20ubXlnYXJkZW53b3JsZC52MUISUG9saWN5U2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_mygardenworld_v1_policy]);
 
 /**
  * @generated from message mygardenworld.v1.GetPolicyRequest
  */
 export type GetPolicyRequest = Message<"mygardenworld.v1.GetPolicyRequest"> & {
   /**
-   * @generated from field: string account_id = 1;
+   * @generated from field: int64 account_id = 1;
    */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
+  accountId: bigint;
 };
 
 /**
@@ -58,17 +53,12 @@ export const GetPolicyResponseSchema: GenMessage<GetPolicyResponse> = /*@__PURE_
  */
 export type SetPolicyRequest = Message<"mygardenworld.v1.SetPolicyRequest"> & {
   /**
-   * @generated from field: string account_id = 1;
+   * @generated from field: int64 account_id = 1;
    */
-  accountId: string;
+  accountId: bigint;
 
   /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
-
-  /**
-   * @generated from field: mygardenworld.v1.Policy policy = 3;
+   * @generated from field: mygardenworld.v1.Policy policy = 2;
    */
   policy?: Policy | undefined;
 };

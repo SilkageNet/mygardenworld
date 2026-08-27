@@ -1,7 +1,8 @@
 package policycfg
 
 import (
-	"encoding/json"
+	"errors"
+	"fmt"
 	"math"
 	"sort"
 
@@ -14,37 +15,18 @@ import (
 
 const maxReconnectIntervalSeconds = 24 * 60 * 60
 
-func migrateLegacyFriendTouch(dst *pb.FriendStealPolicy, legacy *pb.FriendTouchPolicy) {
-	if dst == nil || legacy == nil {
-		return
+const CurrentSchemaVersion uint32 = 2
+
+var ErrSchemaVersion = errors.New("unsupported policy schema version")
+
+func ValidateVersion(p *pb.Policy) error {
+	if p == nil {
+		return fmt.Errorf("%w: missing policy", ErrSchemaVersion)
 	}
-	if legacy.GetEnabled() {
-		dst.Enabled = true
+	if p.GetSchemaVersion() != CurrentSchemaVersion {
+		return fmt.Errorf("%w: got %d, want %d", ErrSchemaVersion, p.GetSchemaVersion(), CurrentSchemaVersion)
 	}
-	if legacy.GetStealElves() {
-		dst.StealElves = true
-	}
-	if legacy.GetAutoBuyTimes() {
-		dst.AutoBuyTimes = true
-	}
-	if dst.GetFriendMode() == pb.SelectionMode_SELECTION_MODE_UNSPECIFIED {
-		dst.FriendMode = legacy.GetMode()
-	}
-	if len(dst.GetFriendCounts()) == 0 && len(legacy.GetFriendCounts()) > 0 {
-		dst.FriendCounts = make(map[int64]int32, len(legacy.GetFriendCounts()))
-		for uid, count := range legacy.GetFriendCounts() {
-			dst.FriendCounts[uid] = count
-		}
-		// Copying the legacy targets means its friend-selection mode is the
-		// authoritative companion value, even when DefaultPolicy supplied ALL.
-		dst.FriendMode = legacy.GetMode()
-	}
-	if len(dst.GetExcludeUids()) == 0 {
-		dst.ExcludeUids = append([]int64(nil), legacy.GetExcludeUids()...)
-	}
-	if dst.GetMaxBuyPerFriend() == 0 {
-		dst.MaxBuyPerFriend = legacy.GetMaxBuyPerFriend()
-	}
+	return nil
 }
 
 func normalizeFriendSteal(policy, def *pb.FriendStealPolicy) {
@@ -105,11 +87,6 @@ func normalizeFriendSteal(policy, def *pb.FriendStealPolicy) {
 	}
 	sort.Slice(clean, func(i, j int) bool { return clean[i] < clean[j] })
 	policy.ExcludeUids = clean
-	// These fields came from an unverified earlier model. The observed client
-	// catalog charges item 1305 instead of diamonds, so they must not survive as
-	// apparent safety limits.
-	policy.BuyCount = 0
-	policy.MaxSpendDiamond = 0
 }
 
 var jsonMarshal = protojson.MarshalOptions{
@@ -119,7 +96,7 @@ var jsonMarshal = protojson.MarshalOptions{
 }
 
 var jsonUnmarshal = protojson.UnmarshalOptions{
-	DiscardUnknown: true,
+	DiscardUnknown: false,
 }
 
 func Normalize(p *pb.Policy) *pb.Policy {
@@ -128,7 +105,7 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	}
 	cp := proto.Clone(p).(*pb.Policy)
 	def := automation.DefaultPolicy()
-	var legacyFriendTouch *pb.FriendTouchPolicy
+	cp.SchemaVersion = CurrentSchemaVersion
 	if cp.Basic == nil {
 		cp.Basic = proto.Clone(def.Basic).(*pb.BasicPolicy)
 	}
@@ -170,10 +147,6 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Zoo == nil {
 		cp.Basic.Zoo = proto.Clone(def.Basic.Zoo).(*pb.ZooPolicy)
 	}
-	if cp.Basic.FriendTouch != nil {
-		legacyFriendTouch = proto.Clone(cp.Basic.FriendTouch).(*pb.FriendTouchPolicy)
-		cp.Basic.FriendTouch = nil
-	}
 	if cp.Plant == nil {
 		cp.Plant = proto.Clone(def.Plant).(*pb.PlantPolicy)
 	}
@@ -212,7 +185,6 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.FriendSteal == nil {
 		cp.Plant.FriendSteal = proto.Clone(def.Plant.FriendSteal).(*pb.FriendStealPolicy)
 	}
-	migrateLegacyFriendTouch(cp.Plant.FriendSteal, legacyFriendTouch)
 	normalizeFriendSteal(cp.Plant.FriendSteal, def.Plant.FriendSteal)
 	if cp.Plant.Elves == nil {
 		cp.Plant.Elves = proto.Clone(def.Plant.Elves).(*pb.FlowerElvesPolicy)
@@ -285,8 +257,17 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Activity == nil {
 		cp.Activity = proto.Clone(def.Activity).(*pb.ActivityPolicy)
 	}
-	if cp.Activity.Modules == nil {
-		cp.Activity.Modules = map[string]*pb.ActivityModulePolicy{}
+	if cp.Activity.CyclicNote == nil {
+		cp.Activity.CyclicNote = proto.Clone(def.Activity.CyclicNote).(*pb.CyclicNotePolicy)
+	}
+	if cp.Activity.CyclicStory == nil {
+		cp.Activity.CyclicStory = proto.Clone(def.Activity.CyclicStory).(*pb.CyclicStoryPolicy)
+	}
+	if cp.Activity.Dessert == nil {
+		cp.Activity.Dessert = proto.Clone(def.Activity.Dessert).(*pb.DessertPolicy)
+	}
+	if cp.Activity.Dessert.Mode == 0 {
+		cp.Activity.Dessert.Mode = def.Activity.Dessert.Mode
 	}
 	if cp.DecisionIntervalSeconds <= 0 {
 		cp.DecisionIntervalSeconds = def.DecisionIntervalSeconds
@@ -295,8 +276,8 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	return cp
 }
 
-// UnsupportedSDKAdFeatures reports legacy policy switches that require a
-// client advertising SDK callback or token. Callers should inspect the raw
+// UnsupportedSDKAdFeatures reports policy switches that require a client
+// advertising SDK callback or token. Callers should inspect the raw
 // request before Normalize clears these fields for persisted-policy safety.
 func UnsupportedSDKAdFeatures(p *pb.Policy) []string {
 	if p == nil {
@@ -355,133 +336,15 @@ func ToJSON(p *pb.Policy) (string, error) {
 }
 
 func FromJSON(raw string) (*pb.Policy, error) {
-	p := automation.DefaultPolicy()
 	if raw == "" {
-		return p, nil
+		return automation.DefaultPolicy(), nil
 	}
-	compatAutoHarvest := shouldBackfillAutoHarvest(raw)
-	compatRaceAutoStop := shouldBackfillRaceAutoStopOnQuotaDone(raw)
-	raw = rewriteLegacyRaceScoreField(raw)
+	p := &pb.Policy{}
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
 	}
-	if compatAutoHarvest {
-		if p.Plant == nil {
-			p.Plant = &pb.PlantPolicy{}
-		}
-		if p.Plant.Planting == nil {
-			p.Plant.Planting = &pb.PlantingPolicy{}
-		}
-		p.Plant.Planting.AutoHarvestEnabled = true
-	}
-	if compatRaceAutoStop {
-		if p.Union == nil {
-			p.Union = &pb.UnionPolicy{}
-		}
-		if p.Union.Race == nil {
-			p.Union.Race = &pb.UnionRacePolicy{}
-		}
-		p.Union.Race.AutoStopOnQuotaDone = true
+	if err := ValidateVersion(p); err != nil {
+		return nil, err
 	}
 	return Normalize(p), nil
-}
-
-// rewriteLegacyRaceScoreField accepts the short-lived max_task_score spelling
-// used by the KK branch. The field is a lower-bound threshold and historically
-// shipped as min_task_score, so keeping that stable name also preserves stored
-// policies from main.
-func rewriteLegacyRaceScoreField(raw string) string {
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		return raw
-	}
-	union, ok := objectField(doc, "union")
-	if !ok {
-		return raw
-	}
-	race, ok := objectField(union, "race")
-	if !ok || hasAnyField(race, "min_task_score", "minTaskScore") {
-		return raw
-	}
-	var value any
-	for _, key := range []string{"max_task_score", "maxTaskScore"} {
-		if candidate, exists := race[key]; exists {
-			value = candidate
-			break
-		}
-	}
-	if value == nil {
-		return raw
-	}
-	race["min_task_score"] = value
-	data, err := json.Marshal(doc)
-	if err != nil {
-		return raw
-	}
-	return string(data)
-}
-
-func shouldBackfillAutoHarvest(raw string) bool {
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		return false
-	}
-	plant, ok := objectField(doc, "plant")
-	if !ok {
-		return false
-	}
-	planting, ok := objectField(plant, "planting")
-	if !ok {
-		return false
-	}
-	if hasAnyField(planting, "auto_harvest_enabled", "autoHarvestEnabled") {
-		return false
-	}
-	return boolField(planting, "auto_enabled", "autoEnabled")
-}
-
-// shouldBackfillRaceAutoStopOnQuotaDone defaults the new race auto-stop switch
-// on for stored policies that never saw the field, matching DefaultPolicy.
-func shouldBackfillRaceAutoStopOnQuotaDone(raw string) bool {
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
-		return false
-	}
-	union, ok := objectField(doc, "union")
-	if !ok {
-		return true
-	}
-	race, ok := objectField(union, "race")
-	if !ok {
-		return true
-	}
-	return !hasAnyField(race, "auto_stop_on_quota_done", "autoStopOnQuotaDone")
-}
-
-func objectField(obj map[string]any, key string) (map[string]any, bool) {
-	v, ok := obj[key]
-	if !ok {
-		return nil, false
-	}
-	child, ok := v.(map[string]any)
-	return child, ok
-}
-
-func hasAnyField(obj map[string]any, keys ...string) bool {
-	for _, key := range keys {
-		if _, ok := obj[key]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-func boolField(obj map[string]any, keys ...string) bool {
-	for _, key := range keys {
-		if v, ok := obj[key]; ok {
-			b, ok := v.(bool)
-			return ok && b
-		}
-	}
-	return false
 }

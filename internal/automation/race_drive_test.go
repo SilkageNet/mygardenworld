@@ -431,8 +431,7 @@ func TestRaceSpeedupOnlyTargetsRaceFlower(t *testing.T) {
 
 // TestRaceExpireUrgentSpeedupForcedFallback ensures that within 10 minutes of
 // ExpireTime, unfinished plant-harvest tasks always use speedup tickets even
-// when both the regular race toggle and the legacy urgent_speedup_enabled
-// field are off.
+// when the regular race speedup toggle is off.
 func TestRaceExpireUrgentSpeedupForcedFallback(t *testing.T) {
 	now := time.UnixMilli(1_700_000_000_000)
 	expire := now.Add(5 * time.Minute).UnixMilli()

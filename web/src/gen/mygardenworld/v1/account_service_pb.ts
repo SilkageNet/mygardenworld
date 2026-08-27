@@ -16,40 +16,28 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account_service.proto.
  */
 export const file_mygardenworld_v1_account_service: GenFile = /*@__PURE__*/
-  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKHAQoUQ3JlYXRlQWNjb3VudFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCgh1c2VybmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRIqCgdjaGFubmVsGAUgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhEKCWxvZ2luX25vdxgEIAEoCCJYChVDcmVhdGVBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudBITCgtsb2dpbl9lcnJvchgCIAEoCSIwChREZWxldGVBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50Ii8KE0xvZ2luQWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJ0ChRMb2dpbkFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EjAKDGxvZ2dlZF9pbl9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiJwoXU3RhcnRBbGlwYXlMb2dpblJlcXVlc3QSDAoEbmFtZRgBIAEoCSKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyIqChZQb2xsQWxpcGF5TG9naW5SZXF1ZXN0EhAKCGxvZ2luX2lkGAEgASgJIr8BChdQb2xsQWxpcGF5TG9naW5SZXNwb25zZRIzCgZzdGF0dXMYASABKA4yIy5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luU3RhdHVzEioKB2FjY291bnQYAiABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSEwoLbG9naW5fZXJyb3IYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiMAoUTG9nb3V0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSJDChVMb2dvdXRBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudCI2ChFSZWRlZW1Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJEhMKC2FjY291bnRfaWRzGAIgAygJIncKElJlZGVlbUNvZGVSZXNwb25zZRIzCgdyZXN1bHRzGAEgAygLMiIubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVzdWx0EhUKDXN1Y2Nlc3NfY291bnQYAiABKAUSFQoNZmFpbHVyZV9jb3VudBgDIAEoBSJZChBSZWRlZW1Db2RlUmVzdWx0EhIKCmFjY291bnRfaWQYASABKAkSFAoMYWNjb3VudF9uYW1lGAIgASgJEgoKAm9rGAMgASgIEg8KB21lc3NhZ2UYBCABKAkq6QEKEUFsaXBheUxvZ2luU3RhdHVzEiMKH0FMSVBBWV9MT0dJTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIoCiRBTElQQVlfTE9HSU5fU1RBVFVTX1dBSVRJTkdfRk9SX1NDQU4QARIiCh5BTElQQVlfTE9HSU5fU1RBVFVTX1BST0NFU1NJTkcQAhIgChxBTElQQVlfTE9HSU5fU1RBVFVTX0NPTVBMRVRFEAMSHwobQUxJUEFZX0xPR0lOX1NUQVRVU19FWFBJUkVEEAQSHgoaQUxJUEFZX0xPR0lOX1NUQVRVU19GQUlMRUQQBTKgBgoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USXQoMTG9naW5BY2NvdW50EiUubXlnYXJkZW53b3JsZC52MS5Mb2dpbkFjY291bnRSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5Mb2dpbkFjY291bnRSZXNwb25zZRJpChBTdGFydEFsaXBheUxvZ2luEikubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEmYKD1BvbGxBbGlwYXlMb2dpbhIoLm15Z2FyZGVud29ybGQudjEuUG9sbEFsaXBheUxvZ2luUmVxdWVzdBopLm15Z2FyZGVud29ybGQudjEuUG9sbEFsaXBheUxvZ2luUmVzcG9uc2USYAoNTG9nb3V0QWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuTG9nb3V0QWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkxvZ291dEFjY291bnRSZXNwb25zZRJXCgpSZWRlZW1Db2RlEiMubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlc3BvbnNlQowBChRjb20ubXlnYXJkZW53b3JsZC52MUITQWNjb3VudFNlcnZpY2VQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
+  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSJmChRDcmVhdGVBY2NvdW50UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIqCgdjaGFubmVsGAMgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsIlgKFUNyZWF0ZUFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EhMKC2xvZ2luX2Vycm9yGAIgASgJIiIKFERlbGV0ZUFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IiMKFUNvbm5lY3RBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoAyJ2ChZDb25uZWN0QWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSMAoMbG9nZ2VkX2luX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIZChdTdGFydEFsaXBheUxvZ2luUmVxdWVzdCKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyIqChZQb2xsQWxpcGF5TG9naW5SZXF1ZXN0EhAKCGxvZ2luX2lkGAEgASgJIr8BChdQb2xsQWxpcGF5TG9naW5SZXNwb25zZRIzCgZzdGF0dXMYASABKA4yIy5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luU3RhdHVzEioKB2FjY291bnQYAiABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSEwoLbG9naW5fZXJyb3IYAyABKAkSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiJgoYRGlzY29ubmVjdEFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgDIkcKGURpc2Nvbm5lY3RBY2NvdW50UmVzcG9uc2USKgoHYWNjb3VudBgBIAEoCzIZLm15Z2FyZGVud29ybGQudjEuQWNjb3VudCI2ChFSZWRlZW1Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJEhMKC2FjY291bnRfaWRzGAIgAygDIncKElJlZGVlbUNvZGVSZXNwb25zZRIzCgdyZXN1bHRzGAEgAygLMiIubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVzdWx0EhUKDXN1Y2Nlc3NfY291bnQYAiABKAUSFQoNZmFpbHVyZV9jb3VudBgDIAEoBSJZChBSZWRlZW1Db2RlUmVzdWx0EhIKCmFjY291bnRfaWQYASABKAMSFAoMYWNjb3VudF9uYW1lGAIgASgJEgoKAm9rGAMgASgIEg8KB21lc3NhZ2UYBCABKAkq6QEKEUFsaXBheUxvZ2luU3RhdHVzEiMKH0FMSVBBWV9MT0dJTl9TVEFUVVNfVU5TUEVDSUZJRUQQABIoCiRBTElQQVlfTE9HSU5fU1RBVFVTX1dBSVRJTkdfRk9SX1NDQU4QARIiCh5BTElQQVlfTE9HSU5fU1RBVFVTX1BST0NFU1NJTkcQAhIgChxBTElQQVlfTE9HSU5fU1RBVFVTX0NPTVBMRVRFEAMSHwobQUxJUEFZX0xPR0lOX1NUQVRVU19FWFBJUkVEEAQSHgoaQUxJUEFZX0xPR0lOX1NUQVRVU19GQUlMRUQQBTKyBgoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USYwoOQ29ubmVjdEFjY291bnQSJy5teWdhcmRlbndvcmxkLnYxLkNvbm5lY3RBY2NvdW50UmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuQ29ubmVjdEFjY291bnRSZXNwb25zZRJpChBTdGFydEFsaXBheUxvZ2luEikubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEmYKD1BvbGxBbGlwYXlMb2dpbhIoLm15Z2FyZGVud29ybGQudjEuUG9sbEFsaXBheUxvZ2luUmVxdWVzdBopLm15Z2FyZGVud29ybGQudjEuUG9sbEFsaXBheUxvZ2luUmVzcG9uc2USbAoRRGlzY29ubmVjdEFjY291bnQSKi5teWdhcmRlbndvcmxkLnYxLkRpc2Nvbm5lY3RBY2NvdW50UmVxdWVzdBorLm15Z2FyZGVud29ybGQudjEuRGlzY29ubmVjdEFjY291bnRSZXNwb25zZRJXCgpSZWRlZW1Db2RlEiMubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Db2RlUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlc3BvbnNlQowBChRjb20ubXlnYXJkZW53b3JsZC52MUITQWNjb3VudFNlcnZpY2VQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.CreateAccountRequest
  */
 export type CreateAccountRequest = Message<"mygardenworld.v1.CreateAccountRequest"> & {
   /**
-   * @generated from field: string name = 1;
-   */
-  name: string;
-
-  /**
-   * @generated from field: string username = 2;
+   * @generated from field: string username = 1;
    */
   username: string;
 
   /**
-   * @generated from field: string password = 3;
+   * @generated from field: string password = 2;
    */
   password: string;
 
   /**
    * Required: distribution channel we should impersonate. CHANNEL_IOS today.
    *
-   * @generated from field: mygardenworld.v1.Channel channel = 5;
+   * @generated from field: mygardenworld.v1.Channel channel = 3;
    */
   channel: Channel;
-
-  /**
-   * If true, the daemon will attempt a login right after insertion.
-   *
-   * @generated from field: bool login_now = 4;
-   */
-  loginNow: boolean;
 };
 
 /**
@@ -69,7 +57,8 @@ export type CreateAccountResponse = Message<"mygardenworld.v1.CreateAccountRespo
   account?: Account | undefined;
 
   /**
-   * Populated when login_now=true and the login succeeded; empty otherwise.
+   * Populated only when the account was persisted but its runner could not be
+   * started or automation could not be enabled.
    *
    * @generated from field: string login_error = 2;
    */
@@ -88,16 +77,9 @@ export const CreateAccountResponseSchema: GenMessage<CreateAccountResponse> = /*
  */
 export type DeleteAccountRequest = Message<"mygardenworld.v1.DeleteAccountRequest"> & {
   /**
-   * Either id or name; whichever is set wins.
-   *
-   * @generated from field: string id = 1;
+   * @generated from field: int64 id = 1;
    */
-  id: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
+  id: bigint;
 };
 
 /**
@@ -151,31 +133,26 @@ export const ListAccountsResponseSchema: GenMessage<ListAccountsResponse> = /*@_
   messageDesc(file_mygardenworld_v1_account_service, 5);
 
 /**
- * @generated from message mygardenworld.v1.LoginAccountRequest
+ * @generated from message mygardenworld.v1.ConnectAccountRequest
  */
-export type LoginAccountRequest = Message<"mygardenworld.v1.LoginAccountRequest"> & {
+export type ConnectAccountRequest = Message<"mygardenworld.v1.ConnectAccountRequest"> & {
   /**
-   * @generated from field: string id = 1;
+   * @generated from field: int64 id = 1;
    */
-  id: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
+  id: bigint;
 };
 
 /**
- * Describes the message mygardenworld.v1.LoginAccountRequest.
- * Use `create(LoginAccountRequestSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.ConnectAccountRequest.
+ * Use `create(ConnectAccountRequestSchema)` to create a new message.
  */
-export const LoginAccountRequestSchema: GenMessage<LoginAccountRequest> = /*@__PURE__*/
+export const ConnectAccountRequestSchema: GenMessage<ConnectAccountRequest> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_account_service, 6);
 
 /**
- * @generated from message mygardenworld.v1.LoginAccountResponse
+ * @generated from message mygardenworld.v1.ConnectAccountResponse
  */
-export type LoginAccountResponse = Message<"mygardenworld.v1.LoginAccountResponse"> & {
+export type ConnectAccountResponse = Message<"mygardenworld.v1.ConnectAccountResponse"> & {
   /**
    * @generated from field: mygardenworld.v1.Account account = 1;
    */
@@ -188,22 +165,16 @@ export type LoginAccountResponse = Message<"mygardenworld.v1.LoginAccountRespons
 };
 
 /**
- * Describes the message mygardenworld.v1.LoginAccountResponse.
- * Use `create(LoginAccountResponseSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.ConnectAccountResponse.
+ * Use `create(ConnectAccountResponseSchema)` to create a new message.
  */
-export const LoginAccountResponseSchema: GenMessage<LoginAccountResponse> = /*@__PURE__*/
+export const ConnectAccountResponseSchema: GenMessage<ConnectAccountResponse> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_account_service, 7);
 
 /**
  * @generated from message mygardenworld.v1.StartAlipayLoginRequest
  */
 export type StartAlipayLoginRequest = Message<"mygardenworld.v1.StartAlipayLoginRequest"> & {
-  /**
-   * Optional local display name. Empty derives a unique name from game state.
-   *
-   * @generated from field: string name = 1;
-   */
-  name: string;
 };
 
 /**
@@ -295,31 +266,26 @@ export const PollAlipayLoginResponseSchema: GenMessage<PollAlipayLoginResponse> 
   messageDesc(file_mygardenworld_v1_account_service, 11);
 
 /**
- * @generated from message mygardenworld.v1.LogoutAccountRequest
+ * @generated from message mygardenworld.v1.DisconnectAccountRequest
  */
-export type LogoutAccountRequest = Message<"mygardenworld.v1.LogoutAccountRequest"> & {
+export type DisconnectAccountRequest = Message<"mygardenworld.v1.DisconnectAccountRequest"> & {
   /**
-   * @generated from field: string id = 1;
+   * @generated from field: int64 id = 1;
    */
-  id: string;
-
-  /**
-   * @generated from field: string name = 2;
-   */
-  name: string;
+  id: bigint;
 };
 
 /**
- * Describes the message mygardenworld.v1.LogoutAccountRequest.
- * Use `create(LogoutAccountRequestSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.DisconnectAccountRequest.
+ * Use `create(DisconnectAccountRequestSchema)` to create a new message.
  */
-export const LogoutAccountRequestSchema: GenMessage<LogoutAccountRequest> = /*@__PURE__*/
+export const DisconnectAccountRequestSchema: GenMessage<DisconnectAccountRequest> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_account_service, 12);
 
 /**
- * @generated from message mygardenworld.v1.LogoutAccountResponse
+ * @generated from message mygardenworld.v1.DisconnectAccountResponse
  */
-export type LogoutAccountResponse = Message<"mygardenworld.v1.LogoutAccountResponse"> & {
+export type DisconnectAccountResponse = Message<"mygardenworld.v1.DisconnectAccountResponse"> & {
   /**
    * @generated from field: mygardenworld.v1.Account account = 1;
    */
@@ -327,10 +293,10 @@ export type LogoutAccountResponse = Message<"mygardenworld.v1.LogoutAccountRespo
 };
 
 /**
- * Describes the message mygardenworld.v1.LogoutAccountResponse.
- * Use `create(LogoutAccountResponseSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.DisconnectAccountResponse.
+ * Use `create(DisconnectAccountResponseSchema)` to create a new message.
  */
-export const LogoutAccountResponseSchema: GenMessage<LogoutAccountResponse> = /*@__PURE__*/
+export const DisconnectAccountResponseSchema: GenMessage<DisconnectAccountResponse> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_account_service, 13);
 
 /**
@@ -347,9 +313,9 @@ export type RedeemCodeRequest = Message<"mygardenworld.v1.RedeemCodeRequest"> & 
   /**
    * Required target account ids. Every account must belong to the same channel.
    *
-   * @generated from field: repeated string account_ids = 2;
+   * @generated from field: repeated int64 account_ids = 2;
    */
-  accountIds: string[];
+  accountIds: bigint[];
 };
 
 /**
@@ -391,9 +357,9 @@ export const RedeemCodeResponseSchema: GenMessage<RedeemCodeResponse> = /*@__PUR
  */
 export type RedeemCodeResult = Message<"mygardenworld.v1.RedeemCodeResult"> & {
   /**
-   * @generated from field: string account_id = 1;
+   * @generated from field: int64 account_id = 1;
    */
-  accountId: string;
+  accountId: bigint;
 
   /**
    * @generated from field: string account_name = 2;
@@ -464,8 +430,8 @@ export const AlipayLoginStatusSchema: GenEnum<AlipayLoginStatus> = /*@__PURE__*/
  */
 export const AccountService: GenService<{
   /**
-   * Add a new game account. Stores the credentials and (optionally) attempts
-   * an initial login synchronously to surface bad creds immediately.
+   * Add an iOS game account. Verifies credentials, derives the display name,
+   * persists the account, and starts its runner and automation.
    *
    * @generated from rpc mygardenworld.v1.AccountService.CreateAccount
    */
@@ -496,12 +462,12 @@ export const AccountService: GenService<{
    * Force a fresh username+password login for the account. Refreshes
    * session token, routeToken, gsHost. Daemon will rebuild the WS.
    *
-   * @generated from rpc mygardenworld.v1.AccountService.LoginAccount
+   * @generated from rpc mygardenworld.v1.AccountService.ConnectAccount
    */
-  loginAccount: {
+  connectAccount: {
     methodKind: "unary";
-    input: typeof LoginAccountRequestSchema;
-    output: typeof LoginAccountResponseSchema;
+    input: typeof ConnectAccountRequestSchema;
+    output: typeof ConnectAccountResponseSchema;
   },
   /**
    * Starts a short-lived Alipay PC game-center QR authorization. The returned
@@ -529,12 +495,12 @@ export const AccountService: GenService<{
    * Stops the live runner/WS for the account and disables auto-resume.
    * Credentials stay stored; the account can be logged in again later.
    *
-   * @generated from rpc mygardenworld.v1.AccountService.LogoutAccount
+   * @generated from rpc mygardenworld.v1.AccountService.DisconnectAccount
    */
-  logoutAccount: {
+  disconnectAccount: {
     methodKind: "unary";
-    input: typeof LogoutAccountRequestSchema;
-    output: typeof LogoutAccountResponseSchema;
+    input: typeof DisconnectAccountRequestSchema;
+    output: typeof DisconnectAccountResponseSchema;
   },
   /**
    * Redeem one gift code across an explicit set of accounts from one channel.

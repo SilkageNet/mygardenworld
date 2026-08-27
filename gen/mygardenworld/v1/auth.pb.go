@@ -23,15 +23,113 @@ const (
 )
 
 // User is a platform user (not a game account).
+type UserRole int32
+
+const (
+	UserRole_USER_ROLE_UNSPECIFIED UserRole = 0
+	UserRole_USER_ROLE_USER        UserRole = 1
+	UserRole_USER_ROLE_ADMIN       UserRole = 2
+)
+
+// Enum value maps for UserRole.
+var (
+	UserRole_name = map[int32]string{
+		0: "USER_ROLE_UNSPECIFIED",
+		1: "USER_ROLE_USER",
+		2: "USER_ROLE_ADMIN",
+	}
+	UserRole_value = map[string]int32{
+		"USER_ROLE_UNSPECIFIED": 0,
+		"USER_ROLE_USER":        1,
+		"USER_ROLE_ADMIN":       2,
+	}
+)
+
+func (x UserRole) Enum() *UserRole {
+	p := new(UserRole)
+	*p = x
+	return p
+}
+
+func (x UserRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UserRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_auth_proto_enumTypes[0].Descriptor()
+}
+
+func (UserRole) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_auth_proto_enumTypes[0]
+}
+
+func (x UserRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UserRole.Descriptor instead.
+func (UserRole) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{0}
+}
+
+type UserStatus int32
+
+const (
+	UserStatus_USER_STATUS_UNSPECIFIED UserStatus = 0
+	UserStatus_USER_STATUS_ACTIVE      UserStatus = 1
+	UserStatus_USER_STATUS_DISABLED    UserStatus = 2
+)
+
+// Enum value maps for UserStatus.
+var (
+	UserStatus_name = map[int32]string{
+		0: "USER_STATUS_UNSPECIFIED",
+		1: "USER_STATUS_ACTIVE",
+		2: "USER_STATUS_DISABLED",
+	}
+	UserStatus_value = map[string]int32{
+		"USER_STATUS_UNSPECIFIED": 0,
+		"USER_STATUS_ACTIVE":      1,
+		"USER_STATUS_DISABLED":    2,
+	}
+)
+
+func (x UserStatus) Enum() *UserStatus {
+	p := new(UserStatus)
+	*p = x
+	return p
+}
+
+func (x UserStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UserStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_auth_proto_enumTypes[1].Descriptor()
+}
+
+func (UserStatus) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_auth_proto_enumTypes[1]
+}
+
+func (x UserStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UserStatus.Descriptor instead.
+func (UserStatus) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{1}
+}
+
 type User struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	Username        string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
 	Email           string                 `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
-	Role            string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	Role            UserRole               `protobuf:"varint,4,opt,name=role,proto3,enum=mygardenworld.v1.UserRole" json:"role,omitempty"`
 	MaxAccounts     int32                  `protobuf:"varint,5,opt,name=max_accounts,json=maxAccounts,proto3" json:"max_accounts,omitempty"`
 	CurrentAccounts int32                  `protobuf:"varint,6,opt,name=current_accounts,json=currentAccounts,proto3" json:"current_accounts,omitempty"`
-	Status          string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	Status          UserStatus             `protobuf:"varint,7,opt,name=status,proto3,enum=mygardenworld.v1.UserStatus" json:"status,omitempty"`
 	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -89,11 +187,11 @@ func (x *User) GetEmail() string {
 	return ""
 }
 
-func (x *User) GetRole() string {
+func (x *User) GetRole() UserRole {
 	if x != nil {
 		return x.Role
 	}
-	return ""
+	return UserRole_USER_ROLE_UNSPECIFIED
 }
 
 func (x *User) GetMaxAccounts() int32 {
@@ -110,11 +208,11 @@ func (x *User) GetCurrentAccounts() int32 {
 	return 0
 }
 
-func (x *User) GetStatus() string {
+func (x *User) GetStatus() UserStatus {
 	if x != nil {
 		return x.Status
 	}
-	return ""
+	return UserStatus_USER_STATUS_UNSPECIFIED
 }
 
 func (x *User) GetCreatedAt() *timestamppb.Timestamp {
@@ -183,29 +281,28 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
-type AuthResponse struct {
+type LoginResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
-	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	User          *User                  `protobuf:"bytes,3,opt,name=user,proto3" json:"user,omitempty"`
+	User          *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *AuthResponse) Reset() {
-	*x = AuthResponse{}
+func (x *LoginResponse) Reset() {
+	*x = LoginResponse{}
 	mi := &file_mygardenworld_v1_auth_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *AuthResponse) String() string {
+func (x *LoginResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*AuthResponse) ProtoMessage() {}
+func (*LoginResponse) ProtoMessage() {}
 
-func (x *AuthResponse) ProtoReflect() protoreflect.Message {
+func (x *LoginResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_auth_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -217,26 +314,19 @@ func (x *AuthResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthResponse.ProtoReflect.Descriptor instead.
-func (*AuthResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
+func (*LoginResponse) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *AuthResponse) GetAccessToken() string {
+func (x *LoginResponse) GetAccessToken() string {
 	if x != nil {
 		return x.AccessToken
 	}
 	return ""
 }
 
-func (x *AuthResponse) GetRefreshToken() string {
-	if x != nil {
-		return x.RefreshToken
-	}
-	return ""
-}
-
-func (x *AuthResponse) GetUser() *User {
+func (x *LoginResponse) GetUser() *User {
 	if x != nil {
 		return x.User
 	}
@@ -245,7 +335,6 @@ func (x *AuthResponse) GetUser() *User {
 
 type RefreshRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -280,23 +369,67 @@ func (*RefreshRequest) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *RefreshRequest) GetRefreshToken() string {
+type RefreshResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	User          *User                  `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshResponse) Reset() {
+	*x = RefreshResponse{}
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshResponse) ProtoMessage() {}
+
+func (x *RefreshResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[4]
 	if x != nil {
-		return x.RefreshToken
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshResponse.ProtoReflect.Descriptor instead.
+func (*RefreshResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *RefreshResponse) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
 	}
 	return ""
 }
 
+func (x *RefreshResponse) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
 type LogoutRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LogoutRequest) Reset() {
 	*x = LogoutRequest{}
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[4]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -308,7 +441,7 @@ func (x *LogoutRequest) String() string {
 func (*LogoutRequest) ProtoMessage() {}
 
 func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[4]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -321,14 +454,7 @@ func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutRequest.ProtoReflect.Descriptor instead.
 func (*LogoutRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *LogoutRequest) GetRefreshToken() string {
-	if x != nil {
-		return x.RefreshToken
-	}
-	return ""
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{5}
 }
 
 type LogoutResponse struct {
@@ -339,7 +465,7 @@ type LogoutResponse struct {
 
 func (x *LogoutResponse) Reset() {
 	*x = LogoutResponse{}
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[5]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -351,7 +477,7 @@ func (x *LogoutResponse) String() string {
 func (*LogoutResponse) ProtoMessage() {}
 
 func (x *LogoutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[5]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -364,7 +490,7 @@ func (x *LogoutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogoutResponse.ProtoReflect.Descriptor instead.
 func (*LogoutResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{5}
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{6}
 }
 
 type GetMeRequest struct {
@@ -375,7 +501,7 @@ type GetMeRequest struct {
 
 func (x *GetMeRequest) Reset() {
 	*x = GetMeRequest{}
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -387,7 +513,7 @@ func (x *GetMeRequest) String() string {
 func (*GetMeRequest) ProtoMessage() {}
 
 func (x *GetMeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -400,7 +526,7 @@ func (x *GetMeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMeRequest.ProtoReflect.Descriptor instead.
 func (*GetMeRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{6}
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{7}
 }
 
 type GetMeResponse struct {
@@ -412,7 +538,7 @@ type GetMeResponse struct {
 
 func (x *GetMeResponse) Reset() {
 	*x = GetMeResponse{}
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -424,7 +550,7 @@ func (x *GetMeResponse) String() string {
 func (*GetMeResponse) ProtoMessage() {}
 
 func (x *GetMeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_auth_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_auth_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -437,7 +563,7 @@ func (x *GetMeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMeResponse.ProtoReflect.Descriptor instead.
 func (*GetMeResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{7}
+	return file_mygardenworld_v1_auth_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetMeResponse) GetUser() *User {
@@ -451,37 +577,46 @@ var File_mygardenworld_v1_auth_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x1bmygardenworld/v1/auth.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb8\x02\n" +
+	"\x1bmygardenworld/v1/auth.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf2\x02\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x14\n" +
-	"\x05email\x18\x03 \x01(\tR\x05email\x12\x12\n" +
-	"\x04role\x18\x04 \x01(\tR\x04role\x12!\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12.\n" +
+	"\x04role\x18\x04 \x01(\x0e2\x1a.mygardenworld.v1.UserRoleR\x04role\x12!\n" +
 	"\fmax_accounts\x18\x05 \x01(\x05R\vmaxAccounts\x12)\n" +
-	"\x10current_accounts\x18\x06 \x01(\x05R\x0fcurrentAccounts\x12\x16\n" +
-	"\x06status\x18\a \x01(\tR\x06status\x129\n" +
+	"\x10current_accounts\x18\x06 \x01(\x05R\x0fcurrentAccounts\x124\n" +
+	"\x06status\x18\a \x01(\x0e2\x1c.mygardenworld.v1.UserStatusR\x06status\x129\n" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"F\n" +
 	"\fLoginRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x82\x01\n" +
-	"\fAuthResponse\x12!\n" +
-	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
-	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12*\n" +
-	"\x04user\x18\x03 \x01(\v2\x16.mygardenworld.v1.UserR\x04user\"5\n" +
-	"\x0eRefreshRequest\x12#\n" +
-	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"4\n" +
-	"\rLogoutRequest\x12#\n" +
-	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\"\x10\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"^\n" +
+	"\rLoginResponse\x12!\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12*\n" +
+	"\x04user\x18\x02 \x01(\v2\x16.mygardenworld.v1.UserR\x04user\"\x10\n" +
+	"\x0eRefreshRequest\"`\n" +
+	"\x0fRefreshResponse\x12!\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12*\n" +
+	"\x04user\x18\x02 \x01(\v2\x16.mygardenworld.v1.UserR\x04user\"\x0f\n" +
+	"\rLogoutRequest\"\x10\n" +
 	"\x0eLogoutResponse\"\x0e\n" +
 	"\fGetMeRequest\";\n" +
 	"\rGetMeResponse\x12*\n" +
-	"\x04user\x18\x01 \x01(\v2\x16.mygardenworld.v1.UserR\x04user2\xba\x02\n" +
-	"\vAuthService\x12G\n" +
-	"\x05Login\x12\x1e.mygardenworld.v1.LoginRequest\x1a\x1e.mygardenworld.v1.AuthResponse\x12K\n" +
-	"\aRefresh\x12 .mygardenworld.v1.RefreshRequest\x1a\x1e.mygardenworld.v1.AuthResponse\x12K\n" +
+	"\x04user\x18\x01 \x01(\v2\x16.mygardenworld.v1.UserR\x04user*N\n" +
+	"\bUserRole\x12\x19\n" +
+	"\x15USER_ROLE_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eUSER_ROLE_USER\x10\x01\x12\x13\n" +
+	"\x0fUSER_ROLE_ADMIN\x10\x02*[\n" +
+	"\n" +
+	"UserStatus\x12\x1b\n" +
+	"\x17USER_STATUS_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12USER_STATUS_ACTIVE\x10\x01\x12\x18\n" +
+	"\x14USER_STATUS_DISABLED\x10\x022\xbe\x02\n" +
+	"\vAuthService\x12H\n" +
+	"\x05Login\x12\x1e.mygardenworld.v1.LoginRequest\x1a\x1f.mygardenworld.v1.LoginResponse\x12N\n" +
+	"\aRefresh\x12 .mygardenworld.v1.RefreshRequest\x1a!.mygardenworld.v1.RefreshResponse\x12K\n" +
 	"\x06Logout\x12\x1f.mygardenworld.v1.LogoutRequest\x1a .mygardenworld.v1.LogoutResponse\x12H\n" +
 	"\x05GetMe\x12\x1e.mygardenworld.v1.GetMeRequest\x1a\x1f.mygardenworld.v1.GetMeResponseB\xcc\x01\n" +
 	"\x14com.mygardenworld.v1B\tAuthProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
@@ -498,36 +633,43 @@ func file_mygardenworld_v1_auth_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_auth_proto_rawDescData
 }
 
-var file_mygardenworld_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_mygardenworld_v1_auth_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_mygardenworld_v1_auth_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_mygardenworld_v1_auth_proto_goTypes = []any{
-	(*User)(nil),                  // 0: mygardenworld.v1.User
-	(*LoginRequest)(nil),          // 1: mygardenworld.v1.LoginRequest
-	(*AuthResponse)(nil),          // 2: mygardenworld.v1.AuthResponse
-	(*RefreshRequest)(nil),        // 3: mygardenworld.v1.RefreshRequest
-	(*LogoutRequest)(nil),         // 4: mygardenworld.v1.LogoutRequest
-	(*LogoutResponse)(nil),        // 5: mygardenworld.v1.LogoutResponse
-	(*GetMeRequest)(nil),          // 6: mygardenworld.v1.GetMeRequest
-	(*GetMeResponse)(nil),         // 7: mygardenworld.v1.GetMeResponse
-	(*timestamppb.Timestamp)(nil), // 8: google.protobuf.Timestamp
+	(UserRole)(0),                 // 0: mygardenworld.v1.UserRole
+	(UserStatus)(0),               // 1: mygardenworld.v1.UserStatus
+	(*User)(nil),                  // 2: mygardenworld.v1.User
+	(*LoginRequest)(nil),          // 3: mygardenworld.v1.LoginRequest
+	(*LoginResponse)(nil),         // 4: mygardenworld.v1.LoginResponse
+	(*RefreshRequest)(nil),        // 5: mygardenworld.v1.RefreshRequest
+	(*RefreshResponse)(nil),       // 6: mygardenworld.v1.RefreshResponse
+	(*LogoutRequest)(nil),         // 7: mygardenworld.v1.LogoutRequest
+	(*LogoutResponse)(nil),        // 8: mygardenworld.v1.LogoutResponse
+	(*GetMeRequest)(nil),          // 9: mygardenworld.v1.GetMeRequest
+	(*GetMeResponse)(nil),         // 10: mygardenworld.v1.GetMeResponse
+	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_auth_proto_depIdxs = []int32{
-	8, // 0: mygardenworld.v1.User.created_at:type_name -> google.protobuf.Timestamp
-	8, // 1: mygardenworld.v1.User.updated_at:type_name -> google.protobuf.Timestamp
-	0, // 2: mygardenworld.v1.AuthResponse.user:type_name -> mygardenworld.v1.User
-	0, // 3: mygardenworld.v1.GetMeResponse.user:type_name -> mygardenworld.v1.User
-	1, // 4: mygardenworld.v1.AuthService.Login:input_type -> mygardenworld.v1.LoginRequest
-	3, // 5: mygardenworld.v1.AuthService.Refresh:input_type -> mygardenworld.v1.RefreshRequest
-	4, // 6: mygardenworld.v1.AuthService.Logout:input_type -> mygardenworld.v1.LogoutRequest
-	6, // 7: mygardenworld.v1.AuthService.GetMe:input_type -> mygardenworld.v1.GetMeRequest
-	2, // 8: mygardenworld.v1.AuthService.Login:output_type -> mygardenworld.v1.AuthResponse
-	2, // 9: mygardenworld.v1.AuthService.Refresh:output_type -> mygardenworld.v1.AuthResponse
-	5, // 10: mygardenworld.v1.AuthService.Logout:output_type -> mygardenworld.v1.LogoutResponse
-	7, // 11: mygardenworld.v1.AuthService.GetMe:output_type -> mygardenworld.v1.GetMeResponse
-	8, // [8:12] is the sub-list for method output_type
-	4, // [4:8] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: mygardenworld.v1.User.role:type_name -> mygardenworld.v1.UserRole
+	1,  // 1: mygardenworld.v1.User.status:type_name -> mygardenworld.v1.UserStatus
+	11, // 2: mygardenworld.v1.User.created_at:type_name -> google.protobuf.Timestamp
+	11, // 3: mygardenworld.v1.User.updated_at:type_name -> google.protobuf.Timestamp
+	2,  // 4: mygardenworld.v1.LoginResponse.user:type_name -> mygardenworld.v1.User
+	2,  // 5: mygardenworld.v1.RefreshResponse.user:type_name -> mygardenworld.v1.User
+	2,  // 6: mygardenworld.v1.GetMeResponse.user:type_name -> mygardenworld.v1.User
+	3,  // 7: mygardenworld.v1.AuthService.Login:input_type -> mygardenworld.v1.LoginRequest
+	5,  // 8: mygardenworld.v1.AuthService.Refresh:input_type -> mygardenworld.v1.RefreshRequest
+	7,  // 9: mygardenworld.v1.AuthService.Logout:input_type -> mygardenworld.v1.LogoutRequest
+	9,  // 10: mygardenworld.v1.AuthService.GetMe:input_type -> mygardenworld.v1.GetMeRequest
+	4,  // 11: mygardenworld.v1.AuthService.Login:output_type -> mygardenworld.v1.LoginResponse
+	6,  // 12: mygardenworld.v1.AuthService.Refresh:output_type -> mygardenworld.v1.RefreshResponse
+	8,  // 13: mygardenworld.v1.AuthService.Logout:output_type -> mygardenworld.v1.LogoutResponse
+	10, // 14: mygardenworld.v1.AuthService.GetMe:output_type -> mygardenworld.v1.GetMeResponse
+	11, // [11:15] is the sub-list for method output_type
+	7,  // [7:11] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_auth_proto_init() }
@@ -540,13 +682,14 @@ func file_mygardenworld_v1_auth_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_auth_proto_rawDesc), len(file_mygardenworld_v1_auth_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   8,
+			NumEnums:      2,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_mygardenworld_v1_auth_proto_goTypes,
 		DependencyIndexes: file_mygardenworld_v1_auth_proto_depIdxs,
+		EnumInfos:         file_mygardenworld_v1_auth_proto_enumTypes,
 		MessageInfos:      file_mygardenworld_v1_auth_proto_msgTypes,
 	}.Build()
 	File_mygardenworld_v1_auth_proto = out.File

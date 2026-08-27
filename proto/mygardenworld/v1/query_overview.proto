@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/query_common.proto";
+
+message OverviewView {
+  int64 account_id = 1;
+  string account_name = 2;
+  int64 role_id = 3;
+  google.protobuf.Timestamp captured_at = 4;
+  int32 gold = 5;
+  int32 water_drops = 6;
+  int32 water_drops_total = 7;
+  int64 water_drops_next_ms = 8;
+  int32 level = 9;
+  int32 experience = 10;
+  int32 experience_to_next_level = 11;
+  int32 next_level_experience = 12;
+  bool level_maxed = 13;
+  int32 diamonds_free = 14;
+  int32 diamonds_paid = 15;
+  int32 vip = 16;
+  int32 vip_exp = 17;
+  bool noble_eligible = 18;
+  repeated string observed_namespaces = 19;
+  int32 unknown_rpc_count = 20;
+  int32 unknown_namespace_count = 21;
+  RunnerDiagnostics diagnostics = 22;
+  repeated DomainStatus domain_statuses = 23;
+  repeated PlannedOperation planned_operations = 24;
+  BlockingSummary blocking_summary = 25;
+  bool reputation_observed = 26;
+  int32 reputation_score = 27;
+  int64 reputation_last_sync_time_ms = 28;
+  int64 reputation_last_view_time_ms = 29;
+  RuntimeStatisticsView runtime_statistics = 30;
+  repeated PendingTaskView pending_tasks = 31;
+}

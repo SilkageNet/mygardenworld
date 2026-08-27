@@ -5,21 +5,33 @@ package mygardenworld.v1;
 import "google/protobuf/timestamp.proto";
 
 // User is a platform user (not a game account).
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_USER = 1;
+  USER_ROLE_ADMIN = 2;
+}
+
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ACTIVE = 1;
+  USER_STATUS_DISABLED = 2;
+}
+
 message User {
   int64 id = 1;
   string username = 2;
   string email = 3;
-  string role = 4;
+  UserRole role = 4;
   int32 max_accounts = 5;
   int32 current_accounts = 6;
-  string status = 7;
+  UserStatus status = 7;
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
 }
 
 service AuthService {
-  rpc Login(LoginRequest) returns (AuthResponse);
-  rpc Refresh(RefreshRequest) returns (AuthResponse);
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Refresh(RefreshRequest) returns (RefreshResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
 }
@@ -29,19 +41,19 @@ message LoginRequest {
   string password = 2;
 }
 
-message AuthResponse {
+message LoginResponse {
   string access_token = 1;
-  string refresh_token = 2;
-  User user = 3;
+  User user = 2;
 }
 
-message RefreshRequest {
-  string refresh_token = 1;
+message RefreshRequest {}
+
+message RefreshResponse {
+  string access_token = 1;
+  User user = 2;
 }
 
-message LogoutRequest {
-  string refresh_token = 1;
-}
+message LogoutRequest {}
 
 message LogoutResponse {}
 

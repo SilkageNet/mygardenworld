@@ -46,12 +46,10 @@ export function getAccessToken(): string | null {
 
 export function setAccessToken(token: string) {
   accessToken = token || null;
-  clearLegacyStoredTokens();
 }
 
 export function clearClientAuthState() {
   accessToken = null;
-  clearLegacyStoredTokens();
 }
 
 export async function refreshAccessToken(): Promise<boolean> {
@@ -66,12 +64,7 @@ export async function refreshAccessToken(): Promise<boolean> {
 
 async function doRefreshAccessToken(): Promise<boolean> {
   try {
-    const legacyRefreshToken = getLegacyStoredToken("refresh_token");
-    if (await requestAccessTokenRefresh(legacyRefreshToken)) {
-      return true;
-    }
-    await wait(150);
-    if (await requestAccessTokenRefresh(null)) {
+    if (await requestAccessTokenRefresh()) {
       return true;
     }
     clearClientAuthState();
@@ -82,11 +75,11 @@ async function doRefreshAccessToken(): Promise<boolean> {
   }
 }
 
-async function requestAccessTokenRefresh(legacyRefreshToken: string | null): Promise<boolean> {
+async function requestAccessTokenRefresh(): Promise<boolean> {
   const res = await fetchWithCredentials(`${apiBaseUrl()}/mygardenworld.v1.AuthService/Refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(legacyRefreshToken ? { refreshToken: legacyRefreshToken } : {}),
+    body: JSON.stringify({}),
   });
   if (!res.ok) {
     return false;
@@ -97,10 +90,6 @@ async function requestAccessTokenRefresh(legacyRefreshToken: string | null): Pro
   }
   setAccessToken(data.accessToken);
   return true;
-}
-
-async function wait(ms: number): Promise<void> {
-  await new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 const fetchWithCredentials: typeof fetch = (input, init) => {
@@ -216,24 +205,5 @@ function translateKnownBackendMessage(message: string): string {
       return "账号尚未登录或运行器未启动。";
     default:
       return message;
-  }
-}
-
-function getLegacyStoredToken(key: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function clearLegacyStoredTokens() {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-  } catch {
-    // ignore
   }
 }

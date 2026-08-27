@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account.proto.
  */
 export const file_mygardenworld_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2FjY291bnQucHJvdG8SEG15Z2FyZGVud29ybGQudjEitAIKB0FjY291bnQSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIqCgdjaGFubmVsGAsgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhAKCHVzZXJuYW1lGAMgASgJEgsKA2FpZBgEIAEoAxIOCgZnc19pZHgYBSABKAUSDgoGd3NfdXJsGAYgASgJEjEKDWxhc3RfbG9naW5fYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCWNvbm5lY3RlZBgIIAEoCBIuCgpjcmVhdGVkX2F0GAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgp1cGRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEKFAQoUY29tLm15Z2FyZGVud29ybGQudjFCDEFjY291bnRQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
+  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2FjY291bnQucHJvdG8SEG15Z2FyZGVud29ybGQudjEitAIKB0FjY291bnQSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIQCgh1c2VybmFtZRgDIAEoCRILCgNhaWQYBCABKAMSDgoGZ3NfaWR4GAUgASgFEg4KBndzX3VybBgGIAEoCRIxCg1sYXN0X2xvZ2luX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCgljb25uZWN0ZWQYCCABKAgSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoHY2hhbm5lbBgLIAEoDjIZLm15Z2FyZGVud29ybGQudjEuQ2hhbm5lbEKFAQoUY29tLm15Z2FyZGVud29ybGQudjFCDEFjY291bnRQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
 
 /**
  * Account is the per-player credential record stored in SQLite.
@@ -24,11 +24,11 @@ export const file_mygardenworld_v1_account: GenFile = /*@__PURE__*/
  */
 export type Account = Message<"mygardenworld.v1.Account"> & {
   /**
-   * Stable id (rowid as string) used everywhere else.
+   * Stable SQLite row id used everywhere else.
    *
-   * @generated from field: string id = 1;
+   * @generated from field: int64 id = 1;
    */
-  id: string;
+  id: bigint;
 
   /**
    * Human-friendly nickname; unique per platform user.
@@ -36,17 +36,6 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
    * @generated from field: string name = 2;
    */
   name: string;
-
-  /**
-   * Distribution channel the daemon should speak with for this account.
-   * The protocol layer picks host fronts, version pinning, and device
-   * fingerprint based on this value. Required at creation time.
-   * CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
-   * encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
-   *
-   * @generated from field: mygardenworld.v1.Channel channel = 11;
-   */
-  channel: Channel;
 
   /**
    * gfsdk login username. Logged-in operations key off this.
@@ -57,7 +46,7 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
 
   /**
    * Player platform id (`acc.id`) once the daemon has logged in at least once.
-   * Empty until the first successful login.
+   * Zero until the first successful login.
    *
    * @generated from field: int64 aid = 4;
    */
@@ -101,6 +90,17 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
    * @generated from field: google.protobuf.Timestamp updated_at = 10;
    */
   updatedAt?: Timestamp | undefined;
+
+  /**
+   * Distribution channel the daemon should speak with for this account.
+   * The protocol layer picks host fronts, version pinning, and device
+   * fingerprint based on this value. Required at creation time.
+   * CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
+   * encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
+   *
+   * @generated from field: mygardenworld.v1.Channel channel = 11;
+   */
+  channel: Channel;
 };
 
 /**

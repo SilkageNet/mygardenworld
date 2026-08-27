@@ -19,29 +19,29 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountService_CreateAccount_FullMethodName    = "/mygardenworld.v1.AccountService/CreateAccount"
-	AccountService_DeleteAccount_FullMethodName    = "/mygardenworld.v1.AccountService/DeleteAccount"
-	AccountService_ListAccounts_FullMethodName     = "/mygardenworld.v1.AccountService/ListAccounts"
-	AccountService_LoginAccount_FullMethodName     = "/mygardenworld.v1.AccountService/LoginAccount"
-	AccountService_StartAlipayLogin_FullMethodName = "/mygardenworld.v1.AccountService/StartAlipayLogin"
-	AccountService_PollAlipayLogin_FullMethodName  = "/mygardenworld.v1.AccountService/PollAlipayLogin"
-	AccountService_LogoutAccount_FullMethodName    = "/mygardenworld.v1.AccountService/LogoutAccount"
-	AccountService_RedeemCode_FullMethodName       = "/mygardenworld.v1.AccountService/RedeemCode"
+	AccountService_CreateAccount_FullMethodName     = "/mygardenworld.v1.AccountService/CreateAccount"
+	AccountService_DeleteAccount_FullMethodName     = "/mygardenworld.v1.AccountService/DeleteAccount"
+	AccountService_ListAccounts_FullMethodName      = "/mygardenworld.v1.AccountService/ListAccounts"
+	AccountService_ConnectAccount_FullMethodName    = "/mygardenworld.v1.AccountService/ConnectAccount"
+	AccountService_StartAlipayLogin_FullMethodName  = "/mygardenworld.v1.AccountService/StartAlipayLogin"
+	AccountService_PollAlipayLogin_FullMethodName   = "/mygardenworld.v1.AccountService/PollAlipayLogin"
+	AccountService_DisconnectAccount_FullMethodName = "/mygardenworld.v1.AccountService/DisconnectAccount"
+	AccountService_RedeemCode_FullMethodName        = "/mygardenworld.v1.AccountService/RedeemCode"
 )
 
 // AccountServiceClient is the client API for AccountService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AccountServiceClient interface {
-	// Add a new game account. Stores the credentials and (optionally) attempts
-	// an initial login synchronously to surface bad creds immediately.
+	// Add an iOS game account. Verifies credentials, derives the display name,
+	// persists the account, and starts its runner and automation.
 	CreateAccount(ctx context.Context, in *CreateAccountRequest, opts ...grpc.CallOption) (*CreateAccountResponse, error)
 	// Soft-delete: stops the runner and removes the row + sessions/policies.
 	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error)
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
-	LoginAccount(ctx context.Context, in *LoginAccountRequest, opts ...grpc.CallOption) (*LoginAccountResponse, error)
+	ConnectAccount(ctx context.Context, in *ConnectAccountRequest, opts ...grpc.CallOption) (*ConnectAccountResponse, error)
 	// Starts a short-lived Alipay PC game-center QR authorization. The returned
 	// qr_content must be rendered locally as a QR code and is never persisted.
 	StartAlipayLogin(ctx context.Context, in *StartAlipayLoginRequest, opts ...grpc.CallOption) (*StartAlipayLoginResponse, error)
@@ -50,7 +50,7 @@ type AccountServiceClient interface {
 	PollAlipayLogin(ctx context.Context, in *PollAlipayLoginRequest, opts ...grpc.CallOption) (*PollAlipayLoginResponse, error)
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
-	LogoutAccount(ctx context.Context, in *LogoutAccountRequest, opts ...grpc.CallOption) (*LogoutAccountResponse, error)
+	DisconnectAccount(ctx context.Context, in *DisconnectAccountRequest, opts ...grpc.CallOption) (*DisconnectAccountResponse, error)
 	// Redeem one gift code across an explicit set of accounts from one channel.
 	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(ctx context.Context, in *RedeemCodeRequest, opts ...grpc.CallOption) (*RedeemCodeResponse, error)
@@ -94,10 +94,10 @@ func (c *accountServiceClient) ListAccounts(ctx context.Context, in *ListAccount
 	return out, nil
 }
 
-func (c *accountServiceClient) LoginAccount(ctx context.Context, in *LoginAccountRequest, opts ...grpc.CallOption) (*LoginAccountResponse, error) {
+func (c *accountServiceClient) ConnectAccount(ctx context.Context, in *ConnectAccountRequest, opts ...grpc.CallOption) (*ConnectAccountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LoginAccountResponse)
-	err := c.cc.Invoke(ctx, AccountService_LoginAccount_FullMethodName, in, out, cOpts...)
+	out := new(ConnectAccountResponse)
+	err := c.cc.Invoke(ctx, AccountService_ConnectAccount_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -124,10 +124,10 @@ func (c *accountServiceClient) PollAlipayLogin(ctx context.Context, in *PollAlip
 	return out, nil
 }
 
-func (c *accountServiceClient) LogoutAccount(ctx context.Context, in *LogoutAccountRequest, opts ...grpc.CallOption) (*LogoutAccountResponse, error) {
+func (c *accountServiceClient) DisconnectAccount(ctx context.Context, in *DisconnectAccountRequest, opts ...grpc.CallOption) (*DisconnectAccountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(LogoutAccountResponse)
-	err := c.cc.Invoke(ctx, AccountService_LogoutAccount_FullMethodName, in, out, cOpts...)
+	out := new(DisconnectAccountResponse)
+	err := c.cc.Invoke(ctx, AccountService_DisconnectAccount_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -148,15 +148,15 @@ func (c *accountServiceClient) RedeemCode(ctx context.Context, in *RedeemCodeReq
 // All implementations should embed UnimplementedAccountServiceServer
 // for forward compatibility.
 type AccountServiceServer interface {
-	// Add a new game account. Stores the credentials and (optionally) attempts
-	// an initial login synchronously to surface bad creds immediately.
+	// Add an iOS game account. Verifies credentials, derives the display name,
+	// persists the account, and starts its runner and automation.
 	CreateAccount(context.Context, *CreateAccountRequest) (*CreateAccountResponse, error)
 	// Soft-delete: stops the runner and removes the row + sessions/policies.
 	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
 	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error)
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
-	LoginAccount(context.Context, *LoginAccountRequest) (*LoginAccountResponse, error)
+	ConnectAccount(context.Context, *ConnectAccountRequest) (*ConnectAccountResponse, error)
 	// Starts a short-lived Alipay PC game-center QR authorization. The returned
 	// qr_content must be rendered locally as a QR code and is never persisted.
 	StartAlipayLogin(context.Context, *StartAlipayLoginRequest) (*StartAlipayLoginResponse, error)
@@ -165,7 +165,7 @@ type AccountServiceServer interface {
 	PollAlipayLogin(context.Context, *PollAlipayLoginRequest) (*PollAlipayLoginResponse, error)
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
-	LogoutAccount(context.Context, *LogoutAccountRequest) (*LogoutAccountResponse, error)
+	DisconnectAccount(context.Context, *DisconnectAccountRequest) (*DisconnectAccountResponse, error)
 	// Redeem one gift code across an explicit set of accounts from one channel.
 	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error)
@@ -187,8 +187,8 @@ func (UnimplementedAccountServiceServer) DeleteAccount(context.Context, *DeleteA
 func (UnimplementedAccountServiceServer) ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListAccounts not implemented")
 }
-func (UnimplementedAccountServiceServer) LoginAccount(context.Context, *LoginAccountRequest) (*LoginAccountResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method LoginAccount not implemented")
+func (UnimplementedAccountServiceServer) ConnectAccount(context.Context, *ConnectAccountRequest) (*ConnectAccountResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConnectAccount not implemented")
 }
 func (UnimplementedAccountServiceServer) StartAlipayLogin(context.Context, *StartAlipayLoginRequest) (*StartAlipayLoginResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartAlipayLogin not implemented")
@@ -196,8 +196,8 @@ func (UnimplementedAccountServiceServer) StartAlipayLogin(context.Context, *Star
 func (UnimplementedAccountServiceServer) PollAlipayLogin(context.Context, *PollAlipayLoginRequest) (*PollAlipayLoginResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PollAlipayLogin not implemented")
 }
-func (UnimplementedAccountServiceServer) LogoutAccount(context.Context, *LogoutAccountRequest) (*LogoutAccountResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method LogoutAccount not implemented")
+func (UnimplementedAccountServiceServer) DisconnectAccount(context.Context, *DisconnectAccountRequest) (*DisconnectAccountResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DisconnectAccount not implemented")
 }
 func (UnimplementedAccountServiceServer) RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RedeemCode not implemented")
@@ -276,20 +276,20 @@ func _AccountService_ListAccounts_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_LoginAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LoginAccountRequest)
+func _AccountService_ConnectAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConnectAccountRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).LoginAccount(ctx, in)
+		return srv.(AccountServiceServer).ConnectAccount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountService_LoginAccount_FullMethodName,
+		FullMethod: AccountService_ConnectAccount_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).LoginAccount(ctx, req.(*LoginAccountRequest))
+		return srv.(AccountServiceServer).ConnectAccount(ctx, req.(*ConnectAccountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -330,20 +330,20 @@ func _AccountService_PollAlipayLogin_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_LogoutAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(LogoutAccountRequest)
+func _AccountService_DisconnectAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisconnectAccountRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AccountServiceServer).LogoutAccount(ctx, in)
+		return srv.(AccountServiceServer).DisconnectAccount(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: AccountService_LogoutAccount_FullMethodName,
+		FullMethod: AccountService_DisconnectAccount_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).LogoutAccount(ctx, req.(*LogoutAccountRequest))
+		return srv.(AccountServiceServer).DisconnectAccount(ctx, req.(*DisconnectAccountRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -386,8 +386,8 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccountService_ListAccounts_Handler,
 		},
 		{
-			MethodName: "LoginAccount",
-			Handler:    _AccountService_LoginAccount_Handler,
+			MethodName: "ConnectAccount",
+			Handler:    _AccountService_ConnectAccount_Handler,
 		},
 		{
 			MethodName: "StartAlipayLogin",
@@ -398,8 +398,8 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccountService_PollAlipayLogin_Handler,
 		},
 		{
-			MethodName: "LogoutAccount",
-			Handler:    _AccountService_LogoutAccount_Handler,
+			MethodName: "DisconnectAccount",
+			Handler:    _AccountService_DisconnectAccount_Handler,
 		},
 		{
 			MethodName: "RedeemCode",

@@ -16,6 +16,7 @@ import {
 import { LogOut, Shield, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserManagementPanel } from "@/components/user-management-panel";
+import { UserRole } from "@/gen/mygardenworld/v1/auth_pb";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
@@ -44,7 +45,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     router.push("/login");
   }
 
-  const isAdmin = user.role === "admin";
+  const isAdmin = user.role === UserRole.ADMIN;
 
   return (
     <div className="relative isolate flex min-h-dvh flex-col overflow-x-hidden bg-transparent text-foreground xl:h-screen xl:overflow-hidden">

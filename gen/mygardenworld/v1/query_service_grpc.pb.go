@@ -19,9 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	QueryService_GetStatus_FullMethodName    = "/mygardenworld.v1.QueryService/GetStatus"
-	QueryService_GetSnapshot_FullMethodName  = "/mygardenworld.v1.QueryService/GetSnapshot"
-	QueryService_StreamEvents_FullMethodName = "/mygardenworld.v1.QueryService/StreamEvents"
+	QueryService_GetStatus_FullMethodName              = "/mygardenworld.v1.QueryService/GetStatus"
+	QueryService_GetFeatureCapabilities_FullMethodName = "/mygardenworld.v1.QueryService/GetFeatureCapabilities"
+	QueryService_GetOverview_FullMethodName            = "/mygardenworld.v1.QueryService/GetOverview"
+	QueryService_GetGarden_FullMethodName              = "/mygardenworld.v1.QueryService/GetGarden"
+	QueryService_GetOrders_FullMethodName              = "/mygardenworld.v1.QueryService/GetOrders"
+	QueryService_GetUnion_FullMethodName               = "/mygardenworld.v1.QueryService/GetUnion"
+	QueryService_GetActivities_FullMethodName          = "/mygardenworld.v1.QueryService/GetActivities"
+	QueryService_GetAssets_FullMethodName              = "/mygardenworld.v1.QueryService/GetAssets"
+	QueryService_StreamEvents_FullMethodName           = "/mygardenworld.v1.QueryService/StreamEvents"
 )
 
 // QueryServiceClient is the client API for QueryService service.
@@ -30,12 +36,16 @@ const (
 type QueryServiceClient interface {
 	// Lightweight summary: connected accounts and inventory totals. For dashboard polling.
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
-	// Full per-account snapshot: all known lands with state + recommendation,
-	// inventory map for the seed range, role identity.
-	GetSnapshot(ctx context.Context, in *GetSnapshotRequest, opts ...grpc.CallOption) (*GetSnapshotResponse, error)
+	GetFeatureCapabilities(ctx context.Context, in *GetFeatureCapabilitiesRequest, opts ...grpc.CallOption) (*GetFeatureCapabilitiesResponse, error)
+	GetOverview(ctx context.Context, in *GetOverviewRequest, opts ...grpc.CallOption) (*GetOverviewResponse, error)
+	GetGarden(ctx context.Context, in *GetGardenRequest, opts ...grpc.CallOption) (*GetGardenResponse, error)
+	GetOrders(ctx context.Context, in *GetOrdersRequest, opts ...grpc.CallOption) (*GetOrdersResponse, error)
+	GetUnion(ctx context.Context, in *GetUnionRequest, opts ...grpc.CallOption) (*GetUnionResponse, error)
+	GetActivities(ctx context.Context, in *GetActivitiesRequest, opts ...grpc.CallOption) (*GetActivitiesResponse, error)
+	GetAssets(ctx context.Context, in *GetAssetsRequest, opts ...grpc.CallOption) (*GetAssetsResponse, error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
-	StreamEvents(ctx context.Context, in *StreamEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Event], error)
+	StreamEvents(ctx context.Context, in *StreamEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamEventsResponse], error)
 }
 
 type queryServiceClient struct {
@@ -56,23 +66,83 @@ func (c *queryServiceClient) GetStatus(ctx context.Context, in *GetStatusRequest
 	return out, nil
 }
 
-func (c *queryServiceClient) GetSnapshot(ctx context.Context, in *GetSnapshotRequest, opts ...grpc.CallOption) (*GetSnapshotResponse, error) {
+func (c *queryServiceClient) GetFeatureCapabilities(ctx context.Context, in *GetFeatureCapabilitiesRequest, opts ...grpc.CallOption) (*GetFeatureCapabilitiesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetSnapshotResponse)
-	err := c.cc.Invoke(ctx, QueryService_GetSnapshot_FullMethodName, in, out, cOpts...)
+	out := new(GetFeatureCapabilitiesResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetFeatureCapabilities_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *queryServiceClient) StreamEvents(ctx context.Context, in *StreamEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Event], error) {
+func (c *queryServiceClient) GetOverview(ctx context.Context, in *GetOverviewRequest, opts ...grpc.CallOption) (*GetOverviewResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOverviewResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetOverview_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetGarden(ctx context.Context, in *GetGardenRequest, opts ...grpc.CallOption) (*GetGardenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGardenResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetGarden_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetOrders(ctx context.Context, in *GetOrdersRequest, opts ...grpc.CallOption) (*GetOrdersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOrdersResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetOrders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetUnion(ctx context.Context, in *GetUnionRequest, opts ...grpc.CallOption) (*GetUnionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetUnionResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetUnion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetActivities(ctx context.Context, in *GetActivitiesRequest, opts ...grpc.CallOption) (*GetActivitiesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetActivitiesResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetActivities_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetAssets(ctx context.Context, in *GetAssetsRequest, opts ...grpc.CallOption) (*GetAssetsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAssetsResponse)
+	err := c.cc.Invoke(ctx, QueryService_GetAssets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) StreamEvents(ctx context.Context, in *StreamEventsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[StreamEventsResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &QueryService_ServiceDesc.Streams[0], QueryService_StreamEvents_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[StreamEventsRequest, Event]{ClientStream: stream}
+	x := &grpc.GenericClientStream[StreamEventsRequest, StreamEventsResponse]{ClientStream: stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -83,7 +153,7 @@ func (c *queryServiceClient) StreamEvents(ctx context.Context, in *StreamEventsR
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type QueryService_StreamEventsClient = grpc.ServerStreamingClient[Event]
+type QueryService_StreamEventsClient = grpc.ServerStreamingClient[StreamEventsResponse]
 
 // QueryServiceServer is the server API for QueryService service.
 // All implementations should embed UnimplementedQueryServiceServer
@@ -91,12 +161,16 @@ type QueryService_StreamEventsClient = grpc.ServerStreamingClient[Event]
 type QueryServiceServer interface {
 	// Lightweight summary: connected accounts and inventory totals. For dashboard polling.
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
-	// Full per-account snapshot: all known lands with state + recommendation,
-	// inventory map for the seed range, role identity.
-	GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error)
+	GetFeatureCapabilities(context.Context, *GetFeatureCapabilitiesRequest) (*GetFeatureCapabilitiesResponse, error)
+	GetOverview(context.Context, *GetOverviewRequest) (*GetOverviewResponse, error)
+	GetGarden(context.Context, *GetGardenRequest) (*GetGardenResponse, error)
+	GetOrders(context.Context, *GetOrdersRequest) (*GetOrdersResponse, error)
+	GetUnion(context.Context, *GetUnionRequest) (*GetUnionResponse, error)
+	GetActivities(context.Context, *GetActivitiesRequest) (*GetActivitiesResponse, error)
+	GetAssets(context.Context, *GetAssetsRequest) (*GetAssetsResponse, error)
 	// Stream of every event the runner emits (analogous to the Python bot's
 	// JSONL log). Supports filter + per-account scoping.
-	StreamEvents(*StreamEventsRequest, grpc.ServerStreamingServer[Event]) error
+	StreamEvents(*StreamEventsRequest, grpc.ServerStreamingServer[StreamEventsResponse]) error
 }
 
 // UnimplementedQueryServiceServer should be embedded to have
@@ -109,10 +183,28 @@ type UnimplementedQueryServiceServer struct{}
 func (UnimplementedQueryServiceServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStatus not implemented")
 }
-func (UnimplementedQueryServiceServer) GetSnapshot(context.Context, *GetSnapshotRequest) (*GetSnapshotResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetSnapshot not implemented")
+func (UnimplementedQueryServiceServer) GetFeatureCapabilities(context.Context, *GetFeatureCapabilitiesRequest) (*GetFeatureCapabilitiesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetFeatureCapabilities not implemented")
 }
-func (UnimplementedQueryServiceServer) StreamEvents(*StreamEventsRequest, grpc.ServerStreamingServer[Event]) error {
+func (UnimplementedQueryServiceServer) GetOverview(context.Context, *GetOverviewRequest) (*GetOverviewResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOverview not implemented")
+}
+func (UnimplementedQueryServiceServer) GetGarden(context.Context, *GetGardenRequest) (*GetGardenResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGarden not implemented")
+}
+func (UnimplementedQueryServiceServer) GetOrders(context.Context, *GetOrdersRequest) (*GetOrdersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrders not implemented")
+}
+func (UnimplementedQueryServiceServer) GetUnion(context.Context, *GetUnionRequest) (*GetUnionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetUnion not implemented")
+}
+func (UnimplementedQueryServiceServer) GetActivities(context.Context, *GetActivitiesRequest) (*GetActivitiesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetActivities not implemented")
+}
+func (UnimplementedQueryServiceServer) GetAssets(context.Context, *GetAssetsRequest) (*GetAssetsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAssets not implemented")
+}
+func (UnimplementedQueryServiceServer) StreamEvents(*StreamEventsRequest, grpc.ServerStreamingServer[StreamEventsResponse]) error {
 	return status.Error(codes.Unimplemented, "method StreamEvents not implemented")
 }
 func (UnimplementedQueryServiceServer) testEmbeddedByValue() {}
@@ -153,20 +245,128 @@ func _QueryService_GetStatus_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _QueryService_GetSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSnapshotRequest)
+func _QueryService_GetFeatureCapabilities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFeatureCapabilitiesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(QueryServiceServer).GetSnapshot(ctx, in)
+		return srv.(QueryServiceServer).GetFeatureCapabilities(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: QueryService_GetSnapshot_FullMethodName,
+		FullMethod: QueryService_GetFeatureCapabilities_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QueryServiceServer).GetSnapshot(ctx, req.(*GetSnapshotRequest))
+		return srv.(QueryServiceServer).GetFeatureCapabilities(ctx, req.(*GetFeatureCapabilitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetOverview_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOverviewRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetOverview(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetOverview_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetOverview(ctx, req.(*GetOverviewRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetGarden_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGardenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetGarden(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetGarden_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetGarden(ctx, req.(*GetGardenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOrdersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetOrders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetOrders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetOrders(ctx, req.(*GetOrdersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetUnion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUnionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetUnion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetUnion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetUnion(ctx, req.(*GetUnionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetActivities_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetActivitiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetActivities(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetActivities_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetActivities(ctx, req.(*GetActivitiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetAssets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAssetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetAssets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QueryService_GetAssets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetAssets(ctx, req.(*GetAssetsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -176,11 +376,11 @@ func _QueryService_StreamEvents_Handler(srv interface{}, stream grpc.ServerStrea
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(QueryServiceServer).StreamEvents(m, &grpc.GenericServerStream[StreamEventsRequest, Event]{ServerStream: stream})
+	return srv.(QueryServiceServer).StreamEvents(m, &grpc.GenericServerStream[StreamEventsRequest, StreamEventsResponse]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type QueryService_StreamEventsServer = grpc.ServerStreamingServer[Event]
+type QueryService_StreamEventsServer = grpc.ServerStreamingServer[StreamEventsResponse]
 
 // QueryService_ServiceDesc is the grpc.ServiceDesc for QueryService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -194,8 +394,32 @@ var QueryService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _QueryService_GetStatus_Handler,
 		},
 		{
-			MethodName: "GetSnapshot",
-			Handler:    _QueryService_GetSnapshot_Handler,
+			MethodName: "GetFeatureCapabilities",
+			Handler:    _QueryService_GetFeatureCapabilities_Handler,
+		},
+		{
+			MethodName: "GetOverview",
+			Handler:    _QueryService_GetOverview_Handler,
+		},
+		{
+			MethodName: "GetGarden",
+			Handler:    _QueryService_GetGarden_Handler,
+		},
+		{
+			MethodName: "GetOrders",
+			Handler:    _QueryService_GetOrders_Handler,
+		},
+		{
+			MethodName: "GetUnion",
+			Handler:    _QueryService_GetUnion_Handler,
+		},
+		{
+			MethodName: "GetActivities",
+			Handler:    _QueryService_GetActivities_Handler,
+		},
+		{
+			MethodName: "GetAssets",
+			Handler:    _QueryService_GetAssets_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

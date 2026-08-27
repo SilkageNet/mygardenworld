@@ -196,6 +196,7 @@ func runServe(ctx context.Context, opts serveOpts) error {
 			Lockout:      opts.AuthLockout,
 		}),
 	}
+	handlers := apiserver.NewHandlers(svc)
 
 	authInterceptor := auth.NewInterceptor(jwtSvc, func(ctx context.Context, userID int64) (*auth.Identity, error) {
 		user, err := db.GetUserByID(ctx, userID)
@@ -219,25 +220,25 @@ func runServe(ctx context.Context, opts serveOpts) error {
 
 	// AuthService uses the same interceptor: login/refresh/logout are
 	// explicitly public, while get-me still receives identity context.
-	path, handler := mygardenworldv1connect.NewAuthServiceHandler(svc, protectedOpts...)
+	path, handler := mygardenworldv1connect.NewAuthServiceHandler(handlers.Auth, protectedOpts...)
 	mux.Handle(path, handler)
 
 	// All other services: protected
 	for _, mounter := range []func() (string, http.Handler){
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewAccountServiceHandler(svc, protectedOpts...)
+			return mygardenworldv1connect.NewAccountServiceHandler(handlers.Account, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewAutomationServiceHandler(svc, protectedOpts...)
+			return mygardenworldv1connect.NewAutomationServiceHandler(handlers.Automation, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewPolicyServiceHandler(svc, protectedOpts...)
+			return mygardenworldv1connect.NewPolicyServiceHandler(handlers.Policy, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewQueryServiceHandler(svc, protectedOpts...)
+			return mygardenworldv1connect.NewQueryServiceHandler(handlers.Query, protectedOpts...)
 		},
 		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewAdminServiceHandler(svc, protectedOpts...)
+			return mygardenworldv1connect.NewAdminServiceHandler(handlers.Admin, protectedOpts...)
 		},
 	} {
 		p, h := mounter()

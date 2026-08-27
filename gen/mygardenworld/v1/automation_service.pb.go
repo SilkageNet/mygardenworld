@@ -21,28 +21,27 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type StartRequest struct {
+type EnableAutomationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *StartRequest) Reset() {
-	*x = StartRequest{}
+func (x *EnableAutomationRequest) Reset() {
+	*x = EnableAutomationRequest{}
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StartRequest) String() string {
+func (x *EnableAutomationRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StartRequest) ProtoMessage() {}
+func (*EnableAutomationRequest) ProtoMessage() {}
 
-func (x *StartRequest) ProtoReflect() protoreflect.Message {
+func (x *EnableAutomationRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -54,45 +53,38 @@ func (x *StartRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StartRequest.ProtoReflect.Descriptor instead.
-func (*StartRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use EnableAutomationRequest.ProtoReflect.Descriptor instead.
+func (*EnableAutomationRequest) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *StartRequest) GetAccountId() string {
+func (x *EnableAutomationRequest) GetAccountId() int64 {
 	if x != nil {
 		return x.AccountId
 	}
-	return ""
+	return 0
 }
 
-func (x *StartRequest) GetAccountName() string {
-	if x != nil {
-		return x.AccountName
-	}
-	return ""
-}
-
-type StartResponse struct {
+type EnableAutomationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *StartResponse) Reset() {
-	*x = StartResponse{}
+func (x *EnableAutomationResponse) Reset() {
+	*x = EnableAutomationResponse{}
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StartResponse) String() string {
+func (x *EnableAutomationResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StartResponse) ProtoMessage() {}
+func (*EnableAutomationResponse) ProtoMessage() {}
 
-func (x *StartResponse) ProtoReflect() protoreflect.Message {
+func (x *EnableAutomationResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -104,33 +96,32 @@ func (x *StartResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StartResponse.ProtoReflect.Descriptor instead.
-func (*StartResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use EnableAutomationResponse.ProtoReflect.Descriptor instead.
+func (*EnableAutomationResponse) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{1}
 }
 
-type StopRequest struct {
+type DisableAutomationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *StopRequest) Reset() {
-	*x = StopRequest{}
+func (x *DisableAutomationRequest) Reset() {
+	*x = DisableAutomationRequest{}
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StopRequest) String() string {
+func (x *DisableAutomationRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StopRequest) ProtoMessage() {}
+func (*DisableAutomationRequest) ProtoMessage() {}
 
-func (x *StopRequest) ProtoReflect() protoreflect.Message {
+func (x *DisableAutomationRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -142,45 +133,38 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
-func (*StopRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use DisableAutomationRequest.ProtoReflect.Descriptor instead.
+func (*DisableAutomationRequest) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *StopRequest) GetAccountId() string {
+func (x *DisableAutomationRequest) GetAccountId() int64 {
 	if x != nil {
 		return x.AccountId
 	}
-	return ""
+	return 0
 }
 
-func (x *StopRequest) GetAccountName() string {
-	if x != nil {
-		return x.AccountName
-	}
-	return ""
-}
-
-type StopResponse struct {
+type DisableAutomationResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *StopResponse) Reset() {
-	*x = StopResponse{}
+func (x *DisableAutomationResponse) Reset() {
+	*x = DisableAutomationResponse{}
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *StopResponse) String() string {
+func (x *DisableAutomationResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*StopResponse) ProtoMessage() {}
+func (*DisableAutomationResponse) ProtoMessage() {}
 
-func (x *StopResponse) ProtoReflect() protoreflect.Message {
+func (x *DisableAutomationResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -192,123 +176,27 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
-func (*StopResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use DisableAutomationResponse.ProtoReflect.Descriptor instead.
+func (*DisableAutomationResponse) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{3}
-}
-
-type ReloadRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReloadRequest) Reset() {
-	*x = ReloadRequest{}
-	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReloadRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReloadRequest) ProtoMessage() {}
-
-func (x *ReloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReloadRequest.ProtoReflect.Descriptor instead.
-func (*ReloadRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *ReloadRequest) GetAccountId() string {
-	if x != nil {
-		return x.AccountId
-	}
-	return ""
-}
-
-func (x *ReloadRequest) GetAccountName() string {
-	if x != nil {
-		return x.AccountName
-	}
-	return ""
-}
-
-type ReloadResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ReloadResponse) Reset() {
-	*x = ReloadResponse{}
-	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ReloadResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ReloadResponse) ProtoMessage() {}
-
-func (x *ReloadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReloadResponse.ProtoReflect.Descriptor instead.
-func (*ReloadResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{5}
 }
 
 var File_mygardenworld_v1_automation_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_automation_service_proto_rawDesc = "" +
 	"\n" +
-	")mygardenworld/v1/automation_service.proto\x12\x10mygardenworld.v1\"P\n" +
-	"\fStartRequest\x12\x1d\n" +
+	")mygardenworld/v1/automation_service.proto\x12\x10mygardenworld.v1\"8\n" +
+	"\x17EnableAutomationRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\x0f\n" +
-	"\rStartResponse\"O\n" +
-	"\vStopRequest\x12\x1d\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"\x1a\n" +
+	"\x18EnableAutomationResponse\"9\n" +
+	"\x18DisableAutomationRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\x0e\n" +
-	"\fStopResponse\"Q\n" +
-	"\rReloadRequest\x12\x1d\n" +
-	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\x12!\n" +
-	"\faccount_name\x18\x02 \x01(\tR\vaccountName\"\x10\n" +
-	"\x0eReloadResponse2\xf1\x01\n" +
-	"\x11AutomationService\x12H\n" +
-	"\x05Start\x12\x1e.mygardenworld.v1.StartRequest\x1a\x1f.mygardenworld.v1.StartResponse\x12E\n" +
-	"\x04Stop\x12\x1d.mygardenworld.v1.StopRequest\x1a\x1e.mygardenworld.v1.StopResponse\x12K\n" +
-	"\x06Reload\x12\x1f.mygardenworld.v1.ReloadRequest\x1a .mygardenworld.v1.ReloadResponseB\xd9\x01\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"\x1b\n" +
+	"\x19DisableAutomationResponse2\xec\x01\n" +
+	"\x11AutomationService\x12i\n" +
+	"\x10EnableAutomation\x12).mygardenworld.v1.EnableAutomationRequest\x1a*.mygardenworld.v1.EnableAutomationResponse\x12l\n" +
+	"\x11DisableAutomation\x12*.mygardenworld.v1.DisableAutomationRequest\x1a+.mygardenworld.v1.DisableAutomationResponseB\xd9\x01\n" +
 	"\x14com.mygardenworld.v1B\x16AutomationServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -323,24 +211,20 @@ func file_mygardenworld_v1_automation_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_automation_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_automation_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_mygardenworld_v1_automation_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_mygardenworld_v1_automation_service_proto_goTypes = []any{
-	(*StartRequest)(nil),   // 0: mygardenworld.v1.StartRequest
-	(*StartResponse)(nil),  // 1: mygardenworld.v1.StartResponse
-	(*StopRequest)(nil),    // 2: mygardenworld.v1.StopRequest
-	(*StopResponse)(nil),   // 3: mygardenworld.v1.StopResponse
-	(*ReloadRequest)(nil),  // 4: mygardenworld.v1.ReloadRequest
-	(*ReloadResponse)(nil), // 5: mygardenworld.v1.ReloadResponse
+	(*EnableAutomationRequest)(nil),   // 0: mygardenworld.v1.EnableAutomationRequest
+	(*EnableAutomationResponse)(nil),  // 1: mygardenworld.v1.EnableAutomationResponse
+	(*DisableAutomationRequest)(nil),  // 2: mygardenworld.v1.DisableAutomationRequest
+	(*DisableAutomationResponse)(nil), // 3: mygardenworld.v1.DisableAutomationResponse
 }
 var file_mygardenworld_v1_automation_service_proto_depIdxs = []int32{
-	0, // 0: mygardenworld.v1.AutomationService.Start:input_type -> mygardenworld.v1.StartRequest
-	2, // 1: mygardenworld.v1.AutomationService.Stop:input_type -> mygardenworld.v1.StopRequest
-	4, // 2: mygardenworld.v1.AutomationService.Reload:input_type -> mygardenworld.v1.ReloadRequest
-	1, // 3: mygardenworld.v1.AutomationService.Start:output_type -> mygardenworld.v1.StartResponse
-	3, // 4: mygardenworld.v1.AutomationService.Stop:output_type -> mygardenworld.v1.StopResponse
-	5, // 5: mygardenworld.v1.AutomationService.Reload:output_type -> mygardenworld.v1.ReloadResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	0, // 0: mygardenworld.v1.AutomationService.EnableAutomation:input_type -> mygardenworld.v1.EnableAutomationRequest
+	2, // 1: mygardenworld.v1.AutomationService.DisableAutomation:input_type -> mygardenworld.v1.DisableAutomationRequest
+	1, // 2: mygardenworld.v1.AutomationService.EnableAutomation:output_type -> mygardenworld.v1.EnableAutomationResponse
+	3, // 3: mygardenworld.v1.AutomationService.DisableAutomation:output_type -> mygardenworld.v1.DisableAutomationResponse
+	2, // [2:4] is the sub-list for method output_type
+	0, // [0:2] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -357,7 +241,7 @@ func file_mygardenworld_v1_automation_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_automation_service_proto_rawDesc), len(file_mygardenworld_v1_automation_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

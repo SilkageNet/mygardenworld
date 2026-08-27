@@ -21,7 +21,6 @@ const alipayQRLoginTTL = 2 * time.Minute
 
 type alipayLoginFlow struct {
 	OwnerID   int64
-	Name      string
 	QRToken   string
 	ExpiresAt time.Time
 	Status    pb.AlipayLoginStatus
@@ -55,7 +54,7 @@ func NewAlipayLoginCoordinator(provider babigame.AlipayAuthProvider) *AlipayLogi
 	}
 }
 
-func (c *AlipayLoginCoordinator) start(ctx context.Context, ownerID int64, name string) (string, string, time.Time, error) {
+func (c *AlipayLoginCoordinator) start(ctx context.Context, ownerID int64) (string, string, time.Time, error) {
 	if c == nil || c.provider == nil {
 		return "", "", time.Time{}, errors.New("alipay QR login is unavailable")
 	}
@@ -67,7 +66,6 @@ func (c *AlipayLoginCoordinator) start(ctx context.Context, ownerID int64, name 
 	loginID := babigame.RandomUUID()
 	flow := &alipayLoginFlow{
 		OwnerID:   ownerID,
-		Name:      strings.TrimSpace(name),
 		QRToken:   challenge.Token,
 		ExpiresAt: now.Add(alipayQRLoginTTL),
 		Status:    pb.AlipayLoginStatus_ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN,
@@ -80,7 +78,7 @@ func (c *AlipayLoginCoordinator) start(ctx context.Context, ownerID int64, name 
 	return loginID, challenge.URL, flow.ExpiresAt, nil
 }
 
-func (c *AlipayLoginCoordinator) poll(ctx context.Context, ownerID int64, loginID string, createAccount func(context.Context, string, babigame.AlipayWebGrant) (*store.Account, error)) alipayLoginSnapshot {
+func (c *AlipayLoginCoordinator) poll(ctx context.Context, ownerID int64, loginID string, createAccount func(context.Context, babigame.AlipayWebGrant) (*store.Account, error)) alipayLoginSnapshot {
 	now := c.now().UTC()
 	c.mu.Lock()
 	flow := c.flows[loginID]
@@ -101,7 +99,6 @@ func (c *AlipayLoginCoordinator) poll(ctx context.Context, ownerID int64, loginI
 	flow.Status = pb.AlipayLoginStatus_ALIPAY_LOGIN_STATUS_PROCESSING
 	flow.UpdatedAt = now
 	qrToken := flow.QRToken
-	name := flow.Name
 	c.mu.Unlock()
 
 	grant, authorized, err := c.provider.PollQR(ctx, qrToken)
@@ -114,7 +111,7 @@ func (c *AlipayLoginCoordinator) poll(ctx context.Context, ownerID int64, loginI
 	if !authorized {
 		return c.finish(loginID, pb.AlipayLoginStatus_ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN, nil, "")
 	}
-	account, err := createAccount(ctx, name, grant)
+	account, err := createAccount(ctx, grant)
 	if err != nil {
 		return c.finish(loginID, pb.AlipayLoginStatus_ALIPAY_LOGIN_STATUS_FAILED, nil, formatLoginErr(err))
 	}
@@ -158,7 +155,7 @@ func (svc *Services) StartAlipayLogin(ctx context.Context, req *connect.Request[
 	if userID <= 0 {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("not authenticated"))
 	}
-	loginID, qrContent, expiresAt, err := svc.AlipayLogins.start(ctx, userID, req.Msg.GetName())
+	loginID, qrContent, expiresAt, err := svc.AlipayLogins.start(ctx, userID)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -179,8 +176,8 @@ func (svc *Services) PollAlipayLogin(ctx context.Context, req *connect.Request[p
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("login_id required"))
 	}
 	userID := auth.UserIDFromContext(ctx)
-	snapshot := svc.AlipayLogins.poll(ctx, userID, loginID, func(ctx context.Context, name string, grant babigame.AlipayWebGrant) (*store.Account, error) {
-		return svc.createAlipayAccount(ctx, userID, name, grant)
+	snapshot := svc.AlipayLogins.poll(ctx, userID, loginID, func(ctx context.Context, grant babigame.AlipayWebGrant) (*store.Account, error) {
+		return svc.createAlipayAccount(ctx, userID, grant)
 	})
 	return connect.NewResponse(&pb.PollAlipayLoginResponse{
 		Status:     snapshot.Status,
@@ -190,7 +187,7 @@ func (svc *Services) PollAlipayLogin(ctx context.Context, req *connect.Request[p
 	}), nil
 }
 
-func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, requestedName string, grant babigame.AlipayWebGrant) (*store.Account, error) {
+func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, grant babigame.AlipayWebGrant) (*store.Account, error) {
 	if grant.UserID == "" || grant.Token == "" {
 		return nil, errors.New("alipay grant missing user identity")
 	}
@@ -230,12 +227,9 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, requ
 		}
 		return r.Account(), nil
 	}
-	name := strings.TrimSpace(requestedName)
-	if name == "" {
-		name, err = svc.DB.UniqueAccountName(ctx, userID, 0, babigame.DisplayNameFromSession(session, "支付宝账号"))
-		if err != nil {
-			return nil, err
-		}
+	name, err := svc.DB.UniqueAccountName(ctx, userID, 0, babigame.DisplayNameFromSession(session, "支付宝账号"))
+	if err != nil {
+		return nil, err
 	}
 	account, err := svc.DB.CreateAccount(ctx, userID, name, string(babigame.ChannelAlipay), grant.UserID, grant.Token)
 	if err != nil {

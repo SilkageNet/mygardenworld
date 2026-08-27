@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { CalendarDays, Coins, Flower2, ListChecks, Package, Play, Sparkles, Trophy } from "lucide-react";
-import { PlanStatus } from "@/gen/mygardenworld/v1/query_service_pb";
-import type { ActivityItem, CyclicNoteMilestone, CyclicNoteTaskSlot, CyclicNoteView, CyclicStoryOrder, CyclicStoryView, DessertCelebrityLikeView, DessertMilestoneView, DessertModeView, DessertRuntimeView, DessertTaskView, DessertView, FmlRaceTask, FmlRaceTaken, FmlRaceView } from "@/gen/mygardenworld/v1/query_service_pb";
+import { PlanStatus } from "@/lib/api/query-models";
+import type { ActivityItem, CyclicNoteMilestone, CyclicNoteTaskSlot, CyclicNoteView, CyclicStoryOrder, CyclicStoryView, DessertCelebrityLikeView, DessertMilestoneView, DessertModeView, DessertRuntimeView, DessertTaskView, DessertView, FmlRaceTask, FmlRaceTaken, FmlRaceView } from "@/lib/api/query-models";
 import { Badge } from "@/components/ui/badge";
 import { itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 import { cyclicNotePhaseLabel, cyclicNotePhaseDetail, cyclicStoryPhaseDetail, dessertPhaseDetail, planStatusLabel, formatCount, truncateMiddle } from "@/components/dashboard/dashboard-utils";
 import { CollapsibleCard, EmptyState, OverviewStat } from "@/components/dashboard/monitor-panels";
 
-export function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
+export function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView; }) {
   const phase = activity?.phase ?? 0;
   if (!activity?.found || (phase !== 1 && phase !== 2 && phase !== 3)) {
     return null;
@@ -269,7 +269,7 @@ export function FmlRaceMonitorPanel({
   );
 }
 
-export function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
+export function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken; }) {
   const [nowMs, setNowMs] = useState<number | null>(null);
 
   useEffect(() => {
@@ -289,12 +289,12 @@ export function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   const expireLabel =
     expireMs > 0
       ? new Date(expireMs).toLocaleString("zh-CN", {
-          month: "numeric",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        })
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
       : "";
   const remainLabel = (() => {
     if (expireMs <= 0 || nowMs === null) return "";
@@ -332,18 +332,18 @@ export function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   );
 }
 
-export function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
-	const skipReason = (task.takeSkipReason ?? "").trim();
-	// Empty = ready now. "冷却中…后可接" = passes filters, waiting on AppearTime.
-	// Both are tasks automation would take; other skip reasons are hard rejects.
-	const takeable = skipReason === "" || skipReason.startsWith("冷却中");
-	// The server computes CD using the same lead window as task selection. Using
-	// that snapshot keeps rendering pure and the label consistent with automation.
-	const onCd = skipReason.startsWith("冷却中") || skipReason.endsWith("后刷新");
-	const baseTitle = task.targetLabel
-		? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
-		: task.taskLabel || `任务 #${task.taskId}`;
-	const title = onCd ? `CD ${baseTitle}` : baseTitle;
+export function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask; }) {
+  const skipReason = (task.takeSkipReason ?? "").trim();
+  // Empty = ready now. "冷却中…后可接" = passes filters, waiting on AppearTime.
+  // Both are tasks automation would take; other skip reasons are hard rejects.
+  const takeable = skipReason === "" || skipReason.startsWith("冷却中");
+  // The server computes CD using the same lead window as task selection. Using
+  // that snapshot keeps rendering pure and the label consistent with automation.
+  const onCd = skipReason.startsWith("冷却中") || skipReason.endsWith("后刷新");
+  const baseTitle = task.targetLabel
+    ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
+    : task.taskLabel || `任务 #${task.taskId}`;
+  const title = onCd ? `CD ${baseTitle}` : baseTitle;
   return (
     <div
       className={cn(
@@ -373,7 +373,7 @@ export function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceT
   );
 }
 
-export function CyclicNoteTaskCard({ task }: { task: CyclicNoteTaskSlot }) {
+export function CyclicNoteTaskCard({ task }: { task: CyclicNoteTaskSlot; }) {
   if (!task.unlocked) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-muted/15 p-3 text-sm text-muted-foreground">
@@ -415,7 +415,7 @@ export function CyclicNoteTaskCard({ task }: { task: CyclicNoteTaskSlot }) {
   );
 }
 
-export function CyclicNoteMilestoneCard({ milestone }: { milestone: CyclicNoteMilestone }) {
+export function CyclicNoteMilestoneCard({ milestone }: { milestone: CyclicNoteMilestone; }) {
   const progress = Math.max(0, Math.min(milestone.progress, milestone.target > 0 ? milestone.target : milestone.progress));
   const percent = milestone.target > 0 ? Math.max(0, Math.min(100, Math.round((progress / milestone.target) * 100))) : 0;
   return (
@@ -439,7 +439,7 @@ export function CyclicNoteMilestoneCard({ milestone }: { milestone: CyclicNoteMi
   );
 }
 
-export function CyclicNoteStatusBadge({ status, received, unknown = false }: { status: PlanStatus; received: boolean; unknown?: boolean }) {
+export function CyclicNoteStatusBadge({ status, received, unknown = false }: { status: PlanStatus; received: boolean; unknown?: boolean; }) {
   if (unknown) return <Badge variant="destructive">未识别</Badge>;
   if (received) return <Badge variant="outline">已领取</Badge>;
   if (status === PlanStatus.READY) return <Badge variant="secondary">可领取</Badge>;
@@ -448,7 +448,7 @@ export function CyclicNoteStatusBadge({ status, received, unknown = false }: { s
   return <Badge variant="outline">{planStatusLabel(status)}</Badge>;
 }
 
-export function CyclicStoryMonitorPanel({ activity }: { activity?: CyclicStoryView }) {
+export function CyclicStoryMonitorPanel({ activity }: { activity?: CyclicStoryView; }) {
   const phase = activity?.phase ?? 0;
   if (!activity?.found || (phase !== 1 && phase !== 2 && phase !== 3)) {
     return null;
@@ -549,7 +549,7 @@ export function CyclicStoryMonitorPanel({ activity }: { activity?: CyclicStoryVi
   );
 }
 
-export function CyclicStoryOrderCard({ order }: { order: CyclicStoryOrder }) {
+export function CyclicStoryOrderCard({ order }: { order: CyclicStoryOrder; }) {
   if (order.onCooldown || order.orderId <= 0) {
     return (
       <div className="rounded-md border border-dashed border-border/70 bg-muted/15 p-3 text-sm text-muted-foreground">
@@ -580,7 +580,7 @@ export function CyclicStoryOrderCard({ order }: { order: CyclicStoryOrder }) {
   );
 }
 
-export function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
+export function DessertMonitorPanel({ activity }: { activity?: DessertView; }) {
   const phase = activity?.phase ?? 0;
   const readyTasks = activity?.valid ? activity.tasks.filter((task) => task.status === PlanStatus.READY && !task.received).length : 0;
   const celebrityReady = activity?.valid && activity.celebrity?.status === PlanStatus.READY && !activity.celebrity.likedThisBatch;
@@ -725,7 +725,7 @@ export function DessertMonitorPanel({ activity }: { activity?: DessertView }) {
   );
 }
 
-export function DessertRuntimePanel({ runtime }: { runtime?: DessertRuntimeView }) {
+export function DessertRuntimePanel({ runtime }: { runtime?: DessertRuntimeView; }) {
   const observed = runtime?.observed ?? false;
   const shortHash = runtime?.boardHash ? truncateMiddle(runtime.boardHash, 8, 6) : "-";
   const waitingValue = runtime?.waiting
@@ -830,7 +830,7 @@ export function DessertRuntimeMetric({
   );
 }
 
-export function DessertObservationStatus({ activity }: { activity: DessertView }) {
+export function DessertObservationStatus({ activity }: { activity: DessertView; }) {
   const observations = [
     { label: "活动背包", ok: activity.bagObserved },
     { label: "扩展状态", ok: activity.extensionObserved && activity.extensionValid },
@@ -848,7 +848,7 @@ export function DessertObservationStatus({ activity }: { activity: DessertView }
   );
 }
 
-export function DessertModeCard({ mode }: { mode: DessertModeView }) {
+export function DessertModeCard({ mode }: { mode: DessertModeView; }) {
   const modeLabel = mode.mode === 1 ? "普通模式" : `${formatCount(mode.multiplier)} 倍模式`;
   const levelSummary = mode.levelCounts
     .filter((level) => level.count > 0)
@@ -882,7 +882,7 @@ export function DessertModeCard({ mode }: { mode: DessertModeView }) {
   );
 }
 
-export function DessertTaskCard({ task }: { task: DessertTaskView }) {
+export function DessertTaskCard({ task }: { task: DessertTaskView; }) {
   const progress = Math.max(0, task.progress);
   const percent = task.target > 0 ? Math.max(0, Math.min(100, Math.round((progress / task.target) * 100))) : 0;
   return (
@@ -913,7 +913,7 @@ export function DessertTaskCard({ task }: { task: DessertTaskView }) {
   );
 }
 
-export function DessertTaskStatusBadge({ task }: { task: DessertTaskView }) {
+export function DessertTaskStatusBadge({ task }: { task: DessertTaskView; }) {
   if (!task.catalogKnown) return <Badge variant="destructive">未识别</Badge>;
   if (task.received) return <Badge variant="outline">已领取</Badge>;
   if (task.status === PlanStatus.READY) return <Badge variant="secondary">可领取</Badge>;
@@ -922,7 +922,7 @@ export function DessertTaskStatusBadge({ task }: { task: DessertTaskView }) {
   return <Badge variant="outline">{planStatusLabel(task.status)}</Badge>;
 }
 
-export function DessertMilestoneCard({ milestone }: { milestone: DessertMilestoneView }) {
+export function DessertMilestoneCard({ milestone }: { milestone: DessertMilestoneView; }) {
   const progress = Math.max(0, milestone.progress);
   const percent = milestone.target > 0 ? Math.max(0, Math.min(100, Math.round((progress / milestone.target) * 100))) : 0;
   return (
@@ -946,7 +946,7 @@ export function DessertMilestoneCard({ milestone }: { milestone: DessertMileston
   );
 }
 
-export function DessertCelebrityCard({ celebrity }: { celebrity?: DessertCelebrityLikeView }) {
+export function DessertCelebrityCard({ celebrity }: { celebrity?: DessertCelebrityLikeView; }) {
   const label = !celebrity?.observed
     ? "待同步"
     : celebrity.likedThisBatch
@@ -976,7 +976,7 @@ export function DessertCelebrityCard({ celebrity }: { celebrity?: DessertCelebri
   );
 }
 
-export function ActivityItemChip({ item, compact = false }: { item: ActivityItem; compact?: boolean }) {
+export function ActivityItemChip({ item, compact = false }: { item: ActivityItem; compact?: boolean; }) {
   const label = item.itemName || itemName(item.itemId);
   return (
     <span className={cn("inline-flex max-w-full items-center gap-1 rounded border border-border/58 bg-white/52 dark:bg-white/5", compact ? "px-1.5 py-0.5" : "px-2 py-1 text-xs")}>

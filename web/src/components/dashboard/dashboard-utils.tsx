@@ -2,8 +2,8 @@ import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
-import { PlanStatus } from "@/gen/mygardenworld/v1/query_service_pb";
-import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, DessertView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/gen/mygardenworld/v1/query_service_pb";
+import { AccountHealth, PlanStatus } from "@/lib/api/query-models";
+import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, DessertView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/query-models";
 import { Badge } from "@/components/ui/badge";
 import { itemName } from "@/lib/game/catalog";
 
@@ -97,10 +97,10 @@ export function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Pro
 
 export function accountIsAbnormal(status?: AccountStatus) {
   if (accountStatusIssues(status).length > 0) return true;
-  return status?.health === "blocked" || status?.health === "session_expired" || Boolean(status?.lastError);
+  return status?.health === AccountHealth.BLOCKED || status?.health === AccountHealth.SESSION_EXPIRED || Boolean(status?.lastError);
 }
 
-export function HealthBadge({ account, status }: { account: Account; status?: AccountStatus }) {
+export function HealthBadge({ account, status }: { account: Account; status?: AccountStatus; }) {
   const connected = accountConnected(account, status);
   if (accountIsAbnormal(status)) return <Badge variant="destructive">异常</Badge>;
   if (!connected) return <Badge variant="outline">离线</Badge>;
@@ -118,14 +118,14 @@ export function accountStatusIssues(status?: AccountStatus) {
     .map((issue) => issue?.trim())
     .filter((issue): issue is string => Boolean(issue));
 
-  if (status?.health === "blocked" && issues.length === 0) {
+  if (status?.health === AccountHealth.BLOCKED && issues.length === 0) {
     issues.push("账号处于异常状态，但后端未返回具体原因。");
   }
 
   return [...new Set(issues)];
 }
 
-export function OperationStatusBadge({ operation }: { operation: PlannedOperation }) {
+export function OperationStatusBadge({ operation }: { operation: PlannedOperation; }) {
   if (isOperationCooling(operation)) return <Badge variant="secondary">冷却</Badge>;
   if (operation.status === PlanStatus.BLOCKED || operation.blockedReasons.length > 0) return <Badge variant="destructive">阻塞</Badge>;
   if (operation.syncOnly) return <Badge variant="outline">同步</Badge>;
@@ -203,7 +203,7 @@ export function taskMonitorDetail(tasks: PendingTaskView[]) {
 }
 
 export function requirementShortageSummary(tasks: PendingTaskView[]) {
-  const totals = new Map<number, { name: string; missing: number }>();
+  const totals = new Map<number, { name: string; missing: number; }>();
   for (const task of tasks) {
     for (const req of task.requirements) {
       if (req.missing <= 0) continue;

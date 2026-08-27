@@ -78,11 +78,6 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 	// Race and guild land plant/harvest are fully managed; do not mark them unknown.
 	add(unionFlower.GetShareEnabled() ||
 		union.GetRedPacketEnabled(), CategoryUnion, "union.unknown", "公会扩展功能")
-	for name, module := range policy.GetActivity().GetModules() {
-		if name != "cyclicNote" && name != "actDessert" && name != "actCyclicStory" && module != nil && module.GetEnabled() {
-			add(true, CategoryActivity, "activity."+name, "活动 "+name)
-		}
-	}
 	return ops
 }
 

@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message GardenView {
+  int64 account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  repeated LandView lands = 4;
+  repeated PlantableFlowerView plantable_flowers = 5;
+  repeated FriendTouchFriendView friend_touch_friends = 6;
+  bool friend_touch_friends_observed = 7;
+}
+
+message FriendTouchFriendView {
+  int64 uid = 1;
+  string name = 2;
+  int32 stolen_count = 3;
+  int32 steal_max = 4;
+  int32 steal_left = 5;
+  bool can_steal = 6;
+  bool profile_observed = 7;
+  int32 base_steal_max = 8;
+  int32 bought_count = 9;
+  bool quota_observed = 10;
+  bool availability_observed = 11;
+}
+
+message LandView {
+  int32 land_id = 1;
+  int32 flower_id = 2;
+  int32 state = 3;
+  int32 lvl = 4;
+  int32 harvest_cnt = 5;
+  // ms since epoch; 0 = unset (server hasn't scheduled the next event).
+  int64 next_time_ms = 6;
+  int64 plant_time_ms = 7;
+  // Local recommendation: harvest|plant|water|wait|unknown.
+  string recommendation = 8;
+  string reason = 9;
+  // Server-resolved display state: opened|unopened|locked.
+  string land_status = 10;
+  // True when this land came from the live namespace 100 state. False means it
+  // was filled from static client config so the UI can still render the full map.
+  bool observed = 11;
+  // Static c_farmLand metadata resolved by the daemon.
+  int32 open_level = 12;
+  repeated int32 unlock_cost = 13;
+  repeated int32 wasteland = 14;
+}
+
+message PlantableFlowerView {
+  int32 flower_id = 1;
+  string flower_name = 2;
+  int32 stock = 3;
+  int32 gold = 4;
+  int32 experience = 5;
+  // Cultivation level from namespace 101 (0 if unknown / not yet synced).
+  int32 lvl = 6;
+  // Catalog grow CD in seconds at current lvl (c_flowerLvl / c_flowerLvlCfg); 0 if unknown.
+  int32 cd_seconds = 7;
+}

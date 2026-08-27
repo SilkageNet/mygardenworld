@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -18,7 +17,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
-func TestLogoutAccountDisablesAutomationPreference(t *testing.T) {
+func TestDisconnectAccountDisablesAutomationPreference(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
 	if err != nil {
@@ -51,7 +50,7 @@ func TestLogoutAccountDisablesAutomationPreference(t *testing.T) {
 		Log:     log,
 	}
 	userCtx := auth.ContextWithIdentity(ctx, &auth.Identity{UserID: user.ID, Role: "user"})
-	_, err = svc.LogoutAccount(userCtx, connect.NewRequest(&pb.LogoutAccountRequest{Id: fmt.Sprintf("%d", acc.ID)}))
+	_, err = svc.DisconnectAccount(userCtx, connect.NewRequest(&pb.DisconnectAccountRequest{Id: acc.ID}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,6 +64,6 @@ func TestLogoutAccountDisablesAutomationPreference(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.GetAutomationEnabled() {
-		t.Fatal("automation_enabled=true after LogoutAccount, want false")
+		t.Fatal("automation_enabled=true after DisconnectAccount, want false")
 	}
 }

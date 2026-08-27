@@ -15,7 +15,11 @@ message Policy {
   ActivityPolicy activity = 6;
 
   // Seconds between decision ticks. Default 4.
-  double decision_interval_seconds = 10;
+  double decision_interval_seconds = 7;
+
+  // Exact policy document schema. Clients must send the current version;
+  // persisted documents are upgraded only by explicit database migrations.
+  uint32 schema_version = 8;
 }
 
 message BasicPolicy {
@@ -42,27 +46,6 @@ message BasicPolicy {
   // perform a fresh login after reconnect_interval_seconds. Disabled by
   // default; ordinary session expiry never uses this recovery path.
   bool displaced_session_relogin_enabled = 16;
-
-  // Deprecated compatibility field from the initial KK implementation.
-  // Normalize migrates it to plant.friend_steal; new clients must not write it.
-  FriendTouchPolicy friend_touch = 17;
-}
-
-// Friend flower pick (摘花/摸花) via frdSteal.*.
-// mode ALL: pick every stealable friend up to daily quota.
-// mode SPECIFIC: pick only friend_counts targets.
-// exclude_uids skips friends in both modes.
-message FriendTouchPolicy {
-  bool enabled = 1;
-  bool steal_elves = 2;
-  map<int64, int32> friend_counts = 3;
-  // Exchange friendship coins (item 1305) for extra per-friend pick quota.
-  bool auto_buy_times = 4;
-  int32 max_buy_per_friend = 5;
-  // SELECTION_MODE_ALL or SELECTION_MODE_SPECIFIC. Unspecified falls back to
-  // SPECIFIC when friend_counts is non-empty, otherwise ALL.
-  SelectionMode mode = 6;
-  repeated int64 exclude_uids = 7;
 }
 
 message ReputationPolicy {
@@ -150,38 +133,38 @@ message PlantingPolicy {
   bool auto_enabled = 1;
   bool auto_unlock_land = 2;
   bool auto_harvest_enabled = 3;
-  int32 min_water_drops = 6;
+  int32 min_water_drops = 4;
 
-  bool video_speed_up_enabled = 9;
-  bool use_speed_up_ticket = 10;
-  int32 speed_up_ticket_max = 11;
+  bool video_speed_up_enabled = 5;
+  bool use_speed_up_ticket = 6;
+  int32 speed_up_ticket_max = 7;
 
-  map<string, int32> demand_priority = 14;
+  map<string, int32> demand_priority = 8;
   // When false (default), empty-land planting uses autonomous replant only.
   // When true, missing flowers for enabled tasks/orders claim empty land first,
   // ordered by demand_priority, then autonomous replant fills any remainder.
-  bool demand_priority_enabled = 18;
+  bool demand_priority_enabled = 9;
 
   // These fields only limit autonomous empty-land replanting. Demand-driven
   // planting for enabled tasks/orders always uses the required flower.
-  SelectionMode auto_replant_mode = 15;
-  repeated int32 auto_replant_flower_ids = 16;
-  repeated int32 auto_replant_exclude_flower_ids = 17;
+  SelectionMode auto_replant_mode = 10;
+  repeated int32 auto_replant_flower_ids = 11;
+  repeated int32 auto_replant_exclude_flower_ids = 12;
   // When auto_replant_mode is ALL, empty list means every quality (凡普珍华仙).
   // Otherwise only the selected qualities are eligible for autonomous replanting.
-  repeated int32 auto_replant_qualities = 19;
+  repeated int32 auto_replant_qualities = 13;
   // Minimum cultivate level for autonomous empty-land replanting. 0 means no
   // level filter. When set (e.g. 11), only flowers at that level or above are
   // planted (through FlowerMaxLevel, typically 20). Does not restrict
   // demand-driven planting for tasks/orders.
-  int32 auto_replant_min_level = 20;
+  int32 auto_replant_min_level = 14;
 
   // Seconds to wait after a plant becomes harvestable before auto-harvest.
   // 0 means harvest as soon as ready (state=3 immediately; state=2 still uses
   // the short protocol ready grace). Does not affect manual harvest.
   // Guild-race plant-harvest flowers always ignore this delay (harvest ASAP)
   // while an unfinished race task is held, even when auto_harvest_enabled is off.
-  int32 harvest_delay_seconds = 21;
+  int32 harvest_delay_seconds = 15;
 }
 
 message FriendStealPolicy {
@@ -192,18 +175,14 @@ message FriendStealPolicy {
   repeated int32 flower_ids = 5;
   repeated int32 exclude_flower_ids = 6;
   bool auto_buy_times = 7;
-  // Deprecated speculative settings. Extra attempts cost friendship coins,
-  // not diamonds; these values are ignored after normalization.
-  int32 buy_count = 8;
-  int64 max_spend_diamond = 9;
 
   // Friend selection is separate from mode, which selects flower types.
   // Only ALL and SPECIFIC are accepted here.
-  SelectionMode friend_mode = 10;
-  map<int64, int32> friend_counts = 11;
-  repeated int64 exclude_uids = 12;
+  SelectionMode friend_mode = 8;
+  map<int64, int32> friend_counts = 9;
+  repeated int64 exclude_uids = 10;
   // Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
-  int32 max_buy_per_friend = 13;
+  int32 max_buy_per_friend = 11;
 }
 
 message FlowerElvesPolicy {
@@ -308,15 +287,15 @@ message FlowerArtPolicy {
   bool sell_enabled = 2;
   bool craft_enabled = 3;
   bool early_cancel_enabled = 4;
-  bool create_reward_enabled = 7;
-  bool collect_reward_enabled = 8;
+  bool create_reward_enabled = 5;
+  bool collect_reward_enabled = 6;
   // When true together with sell_enabled, skip auto listing (and rack craft for
   // listing) during 00:00-08:00 Asia/Shanghai. Claiming rack proceeds still runs.
-  bool sell_night_pause_enabled = 9;
+  bool sell_night_pause_enabled = 7;
   // Preferred finished flower-art ids to list on the rack. Only arts whose vase
   // is unlocked are considered. Empty means list the finished art with the
   // highest inventory count among unlocked-vase recipes.
-  repeated int32 sell_art_ids = 10;
+  repeated int32 sell_art_ids = 8;
 }
 
 message UnionPolicy {
@@ -368,48 +347,59 @@ message UnionRacePolicy {
   // Sync / finish / giveUp of an already-held task still run. Default on in
   // DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
   bool auto_stop_on_quota_done = 12;
-  // Deprecated: ignored. Last-10-minute race plant speedup is always forced
-  // when auto_enable_modules is on, even if use_speedup_ticket_in_task is false.
-  // Kept for wire/API compatibility with stored policy JSON.
-  bool urgent_speedup_enabled = 13;
   // When true, the race monitor shows personal cumulative score and guild-member
   // rank for the current batch. Default off.
-  bool show_personal_score_rank = 14;
+  bool show_personal_score_rank = 13;
 }
 
 message UnionLandPolicy {
   bool harvest_enabled = 1;
   bool auto_plant_enabled = 2;
-  repeated int32 qualities = 4;
-  repeated int32 flower_ids = 5;
-  int32 max_flower_level = 6;
+  repeated int32 qualities = 3;
+  repeated int32 flower_ids = 4;
+  int32 max_flower_level = 5;
   // When auto-planting and every filtered plantable flower is at/above level 11,
   // only consider flowers whose catalog grow CD is at least this many minutes.
   // Below level 11, maturity is ignored and lands are force-replaced onto
   // low-level flowers (except when the current crop matures within 2 minutes).
   // 0 means default 20.
-  int32 min_maturity_minutes = 7;
+  int32 min_maturity_minutes = 6;
   // After every filtered plantable flower is at/above level 11, occupied lands
   // with a different flower are only replaced once the current crop has been
   // planted for at least this many minutes. Empty slots are always filled.
   // Multiple flower types may coexist across guild lands. 0 means default 60.
-  int32 min_replant_minutes = 8;
+  int32 min_replant_minutes = 7;
 }
 
 message ActivityPolicy {
-  // Deprecated: ignored. Each ActivityModulePolicy.enabled gates its own module.
-  bool enabled = 1 [deprecated = true];
-  map<string, ActivityModulePolicy> modules = 2;
+  CyclicNotePolicy cyclic_note = 1;
+  CyclicStoryPolicy cyclic_story = 2;
+  DessertPolicy dessert = 3;
 }
 
-message ActivityModulePolicy {
+message CyclicNotePolicy {
   bool enabled = 1;
-  map<string, int64> int_params = 2;
-  map<string, bool> bool_params = 3;
-  map<string, string> string_params = 4;
-  map<string, IntList> int_list_params = 5;
+  bool auto_claim_task_rewards = 2;
+  bool auto_claim_progress_boxes = 3;
+  bool satisfy_tasks = 4;
 }
 
-message IntList {
-  repeated int32 values = 1;
+message CyclicStoryPolicy {
+  bool enabled = 1;
+  bool auto_claim_order_rewards = 2;
+  bool auto_claim_progress_boxes = 3;
+  int64 max_score = 4;
+}
+
+message DessertPolicy {
+  bool enabled = 1;
+  bool auto_claim_task_rewards = 2;
+  bool auto_like_celebrity = 3;
+  bool auto_claim_progress_boxes = 4;
+  bool auto_open_reward_boxes = 5;
+  bool auto_play = 6;
+  bool resume_existing_round = 7;
+  int32 mode = 8;
+  int32 max_energy_per_session = 9;
+  int32 min_energy_reserve = 10;
 }

@@ -10,112 +10,67 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/automation_service.proto.
  */
 export const file_mygardenworld_v1_automation_service: GenFile = /*@__PURE__*/
-  fileDesc("CilteWdhcmRlbndvcmxkL3YxL2F1dG9tYXRpb25fc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSI4CgxTdGFydFJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxhY2NvdW50X25hbWUYAiABKAkiDwoNU3RhcnRSZXNwb25zZSI3CgtTdG9wUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSIOCgxTdG9wUmVzcG9uc2UiOQoNUmVsb2FkUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhQKDGFjY291bnRfbmFtZRgCIAEoCSIQCg5SZWxvYWRSZXNwb25zZTLxAQoRQXV0b21hdGlvblNlcnZpY2USSAoFU3RhcnQSHi5teWdhcmRlbndvcmxkLnYxLlN0YXJ0UmVxdWVzdBofLm15Z2FyZGVud29ybGQudjEuU3RhcnRSZXNwb25zZRJFCgRTdG9wEh0ubXlnYXJkZW53b3JsZC52MS5TdG9wUmVxdWVzdBoeLm15Z2FyZGVud29ybGQudjEuU3RvcFJlc3BvbnNlEksKBlJlbG9hZBIfLm15Z2FyZGVud29ybGQudjEuUmVsb2FkUmVxdWVzdBogLm15Z2FyZGVud29ybGQudjEuUmVsb2FkUmVzcG9uc2VCjwEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhZBdXRvbWF0aW9uU2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
+  fileDesc("CilteWdhcmRlbndvcmxkL3YxL2F1dG9tYXRpb25fc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSItChdFbmFibGVBdXRvbWF0aW9uUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgDIhoKGEVuYWJsZUF1dG9tYXRpb25SZXNwb25zZSIuChhEaXNhYmxlQXV0b21hdGlvblJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoAyIbChlEaXNhYmxlQXV0b21hdGlvblJlc3BvbnNlMuwBChFBdXRvbWF0aW9uU2VydmljZRJpChBFbmFibGVBdXRvbWF0aW9uEikubXlnYXJkZW53b3JsZC52MS5FbmFibGVBdXRvbWF0aW9uUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuRW5hYmxlQXV0b21hdGlvblJlc3BvbnNlEmwKEURpc2FibGVBdXRvbWF0aW9uEioubXlnYXJkZW53b3JsZC52MS5EaXNhYmxlQXV0b21hdGlvblJlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLkRpc2FibGVBdXRvbWF0aW9uUmVzcG9uc2VCjwEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhZBdXRvbWF0aW9uU2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
 
 /**
- * @generated from message mygardenworld.v1.StartRequest
+ * @generated from message mygardenworld.v1.EnableAutomationRequest
  */
-export type StartRequest = Message<"mygardenworld.v1.StartRequest"> & {
+export type EnableAutomationRequest = Message<"mygardenworld.v1.EnableAutomationRequest"> & {
   /**
-   * @generated from field: string account_id = 1;
+   * @generated from field: int64 account_id = 1;
    */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
+  accountId: bigint;
 };
 
 /**
- * Describes the message mygardenworld.v1.StartRequest.
- * Use `create(StartRequestSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.EnableAutomationRequest.
+ * Use `create(EnableAutomationRequestSchema)` to create a new message.
  */
-export const StartRequestSchema: GenMessage<StartRequest> = /*@__PURE__*/
+export const EnableAutomationRequestSchema: GenMessage<EnableAutomationRequest> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_automation_service, 0);
 
 /**
- * @generated from message mygardenworld.v1.StartResponse
+ * @generated from message mygardenworld.v1.EnableAutomationResponse
  */
-export type StartResponse = Message<"mygardenworld.v1.StartResponse"> & {
+export type EnableAutomationResponse = Message<"mygardenworld.v1.EnableAutomationResponse"> & {
 };
 
 /**
- * Describes the message mygardenworld.v1.StartResponse.
- * Use `create(StartResponseSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.EnableAutomationResponse.
+ * Use `create(EnableAutomationResponseSchema)` to create a new message.
  */
-export const StartResponseSchema: GenMessage<StartResponse> = /*@__PURE__*/
+export const EnableAutomationResponseSchema: GenMessage<EnableAutomationResponse> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_automation_service, 1);
 
 /**
- * @generated from message mygardenworld.v1.StopRequest
+ * @generated from message mygardenworld.v1.DisableAutomationRequest
  */
-export type StopRequest = Message<"mygardenworld.v1.StopRequest"> & {
+export type DisableAutomationRequest = Message<"mygardenworld.v1.DisableAutomationRequest"> & {
   /**
-   * @generated from field: string account_id = 1;
+   * @generated from field: int64 account_id = 1;
    */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
+  accountId: bigint;
 };
 
 /**
- * Describes the message mygardenworld.v1.StopRequest.
- * Use `create(StopRequestSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.DisableAutomationRequest.
+ * Use `create(DisableAutomationRequestSchema)` to create a new message.
  */
-export const StopRequestSchema: GenMessage<StopRequest> = /*@__PURE__*/
+export const DisableAutomationRequestSchema: GenMessage<DisableAutomationRequest> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_automation_service, 2);
 
 /**
- * @generated from message mygardenworld.v1.StopResponse
+ * @generated from message mygardenworld.v1.DisableAutomationResponse
  */
-export type StopResponse = Message<"mygardenworld.v1.StopResponse"> & {
+export type DisableAutomationResponse = Message<"mygardenworld.v1.DisableAutomationResponse"> & {
 };
 
 /**
- * Describes the message mygardenworld.v1.StopResponse.
- * Use `create(StopResponseSchema)` to create a new message.
+ * Describes the message mygardenworld.v1.DisableAutomationResponse.
+ * Use `create(DisableAutomationResponseSchema)` to create a new message.
  */
-export const StopResponseSchema: GenMessage<StopResponse> = /*@__PURE__*/
+export const DisableAutomationResponseSchema: GenMessage<DisableAutomationResponse> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_automation_service, 3);
-
-/**
- * @generated from message mygardenworld.v1.ReloadRequest
- */
-export type ReloadRequest = Message<"mygardenworld.v1.ReloadRequest"> & {
-  /**
-   * @generated from field: string account_id = 1;
-   */
-  accountId: string;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
-};
-
-/**
- * Describes the message mygardenworld.v1.ReloadRequest.
- * Use `create(ReloadRequestSchema)` to create a new message.
- */
-export const ReloadRequestSchema: GenMessage<ReloadRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_automation_service, 4);
-
-/**
- * @generated from message mygardenworld.v1.ReloadResponse
- */
-export type ReloadResponse = Message<"mygardenworld.v1.ReloadResponse"> & {
-};
-
-/**
- * Describes the message mygardenworld.v1.ReloadResponse.
- * Use `create(ReloadResponseSchema)` to create a new message.
- */
-export const ReloadResponseSchema: GenMessage<ReloadResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_automation_service, 5);
 
 /**
  * @generated from service mygardenworld.v1.AutomationService
@@ -125,34 +80,23 @@ export const AutomationService: GenService<{
    * Enables the automation loop on the account. Equivalent to setting
    * policy.automation_enabled = true and waking the runner.
    *
-   * @generated from rpc mygardenworld.v1.AutomationService.Start
+   * @generated from rpc mygardenworld.v1.AutomationService.EnableAutomation
    */
-  start: {
+  enableAutomation: {
     methodKind: "unary";
-    input: typeof StartRequestSchema;
-    output: typeof StartResponseSchema;
+    input: typeof EnableAutomationRequestSchema;
+    output: typeof EnableAutomationResponseSchema;
   },
   /**
    * Disables the automation loop. WS connection stays up and state tracking
    * continues; only mutating RPCs are suppressed.
    *
-   * @generated from rpc mygardenworld.v1.AutomationService.Stop
+   * @generated from rpc mygardenworld.v1.AutomationService.DisableAutomation
    */
-  stop: {
+  disableAutomation: {
     methodKind: "unary";
-    input: typeof StopRequestSchema;
-    output: typeof StopResponseSchema;
-  },
-  /**
-   * Force-rebuild the runner: tear down and reopen the WS, refresh session.
-   * Useful when seeing protocol drift; not needed in normal operation.
-   *
-   * @generated from rpc mygardenworld.v1.AutomationService.Reload
-   */
-  reload: {
-    methodKind: "unary";
-    input: typeof ReloadRequestSchema;
-    output: typeof ReloadResponseSchema;
+    input: typeof DisableAutomationRequestSchema;
+    output: typeof DisableAutomationResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_mygardenworld_v1_automation_service, 0);

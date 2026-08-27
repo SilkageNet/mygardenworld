@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 1
+const currentSchemaVersion = 2
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -18,6 +18,7 @@ type migration struct {
 	version int
 	name    string
 	sql     string
+	apply   func(context.Context, *sql.Tx) error
 }
 
 var migrations = []migration{
@@ -108,6 +109,11 @@ CREATE INDEX idx_event_log_kind_id ON event_log(kind, id);
 CREATE INDEX idx_event_log_ts ON event_log(ts);
 `,
 	},
+	{
+		version: 2,
+		name:    "strict versioned policies",
+		apply:   migratePoliciesV2,
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
@@ -121,7 +127,7 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 			return err
 		}
 		if !empty {
-			return fmt.Errorf("%w; stop the daemon and run `gardend migrate-data-v1 --yes`, or use `gardend reset-data --yes` to discard legacy data and create the v%d baseline", ErrUnversionedDatabase, currentSchemaVersion)
+			return fmt.Errorf("%w; this breaking release only accepts versioned databases; use `gardend reset-data --yes` to create the v%d baseline", ErrUnversionedDatabase, currentSchemaVersion)
 		}
 	}
 	if version > currentSchemaVersion {
@@ -139,9 +145,17 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 		if err != nil {
 			return fmt.Errorf("begin migration v%d (%s): %w", item.version, item.name, err)
 		}
-		if _, err := tx.ExecContext(ctx, item.sql); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("apply migration v%d (%s): %w", item.version, item.name, err)
+		if item.sql != "" {
+			if _, err := tx.ExecContext(ctx, item.sql); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("apply migration v%d (%s): %w", item.version, item.name, err)
+			}
+		}
+		if item.apply != nil {
+			if err := item.apply(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("apply migration v%d (%s): %w", item.version, item.name, err)
+			}
 		}
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", item.version)); err != nil {
 			_ = tx.Rollback()

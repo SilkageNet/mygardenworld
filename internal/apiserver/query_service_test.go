@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func TestGetStatusIncludesCapabilitiesOnlyWhenRequested(t *testing.T) {
+func TestFeatureCapabilitiesUseDedicatedStaticEndpoint(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
 	if err != nil {
@@ -27,21 +27,49 @@ func TestGetStatusIncludesCapabilitiesOnlyWhenRequested(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	svc := &Services{DB: db}
 
-	withCapabilities, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{
-		IncludeFeatureCapabilities: true,
-	}))
+	capabilities, err := svc.GetFeatureCapabilities(ctx, connect.NewRequest(&pb.GetFeatureCapabilitiesRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(withCapabilities.Msg.GetFeatureCapabilities()) == 0 {
-		t.Fatal("requested feature capabilities are missing")
+	if len(capabilities.Msg.GetFeatureCapabilities()) == 0 {
+		t.Fatal("feature capabilities are missing")
 	}
-	withoutCapabilities, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{}))
+	status, err := svc.GetStatus(ctx, connect.NewRequest(&pb.GetStatusRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(withoutCapabilities.Msg.GetFeatureCapabilities()) != 0 {
-		t.Fatal("polling response unexpectedly contains feature capabilities")
+	if len(status.Msg.GetAccounts()) != 0 {
+		t.Fatal("empty database unexpectedly returned account statuses")
+	}
+}
+
+func TestQueryContractUsesBusinessDomainReadModels(t *testing.T) {
+	service := pb.File_mygardenworld_v1_query_service_proto.Services().ByName("QueryService")
+	if service == nil {
+		t.Fatal("QueryService descriptor is missing")
+	}
+	if service.Methods().ByName("GetSnapshot") != nil {
+		t.Fatal("breaking query contract still exposes the monolithic GetSnapshot RPC")
+	}
+	for _, name := range []protoreflect.Name{"GetOverview", "GetGarden", "GetOrders", "GetUnion", "GetActivities", "GetAssets"} {
+		if service.Methods().ByName(name) == nil {
+			t.Fatalf("QueryService method %s is missing", name)
+		}
+	}
+
+	orderFields := (&pb.OrdersView{}).ProtoReflect().Descriptor().Fields()
+	if orderFields.ByName("inventory_ledger") != nil {
+		t.Fatal("OrdersView still owns the asset inventory ledger")
+	}
+	assetLedger := (&pb.AssetsView{}).ProtoReflect().Descriptor().Fields().ByName("inventory_ledger")
+	if assetLedger == nil || assetLedger.Number() != 5 {
+		t.Fatalf("AssetsView inventory_ledger=%v, want field 5", assetLedger)
+	}
+	unionFields := (&pb.UnionView{}).ProtoReflect().Descriptor().Fields()
+	for _, name := range []protoreflect.Name{"membership_observed", "in_union", "union_id", "race", "lands"} {
+		if unionFields.ByName(name) == nil {
+			t.Fatalf("UnionView membership-gated field %s is missing", name)
+		}
 	}
 }
 
@@ -631,9 +659,9 @@ func TestDessertProtoProjectsSanitizedDeterministicMonitoringView(t *testing.T) 
 	if celebrity.ProtoReflect().Descriptor().Fields().ByName("uid") != nil {
 		t.Fatal("public dessert celebrity descriptor leaked leaderboard UID")
 	}
-	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("dessert")
-	if field == nil || field.Number() != 41 {
-		t.Fatalf("GetSnapshotResponse dessert field=%v, want field 41", field)
+	field := (&pb.ActivitiesView{}).ProtoReflect().Descriptor().Fields().ByName("dessert")
+	if field == nil || field.Number() != 6 {
+		t.Fatalf("ActivitiesView dessert field=%v, want field 6", field)
 	}
 	runtimeField := got.ProtoReflect().Descriptor().Fields().ByName("runtime")
 	if runtimeField == nil || runtimeField.Number() != 41 {
@@ -660,9 +688,9 @@ func TestBusinessStatisticsProtoExposesDailyHistory(t *testing.T) {
 	if len(got.GetDays()) != 2 || got.GetDays()[1].GetDayId() != 20260817 || got.GetDays()[1].GetGold() != 100 {
 		t.Fatalf("business history=%+v", got.GetDays())
 	}
-	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("business_statistics")
-	if field == nil || field.Number() != 48 {
-		t.Fatalf("GetSnapshotResponse business_statistics field=%v, want field 48", field)
+	field := (&pb.OrdersView{}).ProtoReflect().Descriptor().Fields().ByName("business_statistics")
+	if field == nil || field.Number() != 9 {
+		t.Fatalf("OrdersView business_statistics field=%v, want field 9", field)
 	}
 }
 
@@ -1060,13 +1088,13 @@ func TestDomainStatusesExposeCooldownSummary(t *testing.T) {
 
 func TestApplyStoppedRunnerDiagnosticsKeepsPhoneKickAbnormal(t *testing.T) {
 	policy := automation.DefaultPolicy()
-	out := &pb.AccountStatus{AccountId: "1", AccountName: "main"}
+	out := &pb.AccountStatus{AccountId: 1, AccountName: "main"}
 	reason := "账号已在其他设备登录，当前会话被替换"
 	applyStoppedRunnerDiagnostics(out, policy, runner.Diagnostics{
 		SessionInvalidatedReason: reason,
 		BlockedReasons:           []string{"会话已失效"},
 	})
-	if out.GetHealth() != "session_expired" {
+	if out.GetHealth() != pb.AccountHealth_ACCOUNT_HEALTH_SESSION_EXPIRED {
 		t.Fatalf("health=%q, want session_expired", out.GetHealth())
 	}
 	if out.GetLastError() != reason {
@@ -1079,9 +1107,9 @@ func TestApplyStoppedRunnerDiagnosticsKeepsPhoneKickAbnormal(t *testing.T) {
 
 func TestApplyStoppedRunnerDiagnosticsPlainOfflineWithoutCache(t *testing.T) {
 	policy := automation.DefaultPolicy()
-	out := &pb.AccountStatus{AccountId: "1", AccountName: "main"}
+	out := &pb.AccountStatus{AccountId: 1, AccountName: "main"}
 	applyStoppedRunnerDiagnostics(out, policy, runner.Diagnostics{})
-	if out.GetHealth() != "offline" {
+	if out.GetHealth() != pb.AccountHealth_ACCOUNT_HEALTH_OFFLINE {
 		t.Fatalf("health=%q, want offline", out.GetHealth())
 	}
 	if out.GetLastError() != "" {

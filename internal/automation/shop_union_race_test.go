@@ -915,7 +915,7 @@ func TestRaceTakeWakeAt(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		`{"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
 		now.Add(5*time.Second).UnixMilli(),
 	)))
 	policy := testEnabledRaceFullPolicy()
@@ -996,7 +996,7 @@ func TestRaceBootstrapDueAfterLoginUnobserved(t *testing.T) {
 	s := state.New()
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
-		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
+		`{"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`,
 		now.UnixMilli(),
 	)))
 	policy := testEnabledRaceFullPolicy()
@@ -1017,7 +1017,7 @@ func TestRaceBootstrapDueAfterLoginUnobserved(t *testing.T) {
 func TestBuildPlan_RaceSyncPreemptsHarvestAfterLogin(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23001":10}}},"100":{"1":{"1001":{"0":23001,"1":3,"2":1,"7":1}}},"25":{"111":{"1":1},"117":{"5":4}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23001":10}}},"100":{"1":{"1001":{"0":23001,"1":3,"2":1,"7":1}}},"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4}}}`))
 	s.MarkFmlRaceTasksUnobserved()
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
@@ -1913,7 +1913,7 @@ func TestUnionRaceFinishProgressSyncRespectsCooldown(t *testing.T) {
 func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23005":10}}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]},"109":{"0":{"1":{"10":{"0":[[23005,1]],"1":10}},"2":` + fmt.Sprintf("%d", now.Add(time.Hour).UnixMilli()) + `}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23005":10}}},"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]},"109":{"0":{"1":{"10":{"0":[[23005,1]],"1":10}},"2":` + fmt.Sprintf("%d", now.Add(time.Hour).UnixMilli()) + `}}}`))
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.Customer.Enabled = true
@@ -1942,7 +1942,7 @@ func TestBuildPlan_RaceCustomerOrderLinksFinish(t *testing.T) {
 func TestBuildPlan_RaceGiveUpPreemptsCustomerFinish(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23005":10}}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]},"109":{"0":{"1":{"10":{"0":[[23005,1]],"1":10}},"2":` + fmt.Sprintf("%d", now.Add(time.Hour).UnixMilli()) + `}}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23005":10}}},"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]},"109":{"0":{"1":{"10":{"0":[[23005,1]],"1":10}},"2":` + fmt.Sprintf("%d", now.Add(time.Hour).UnixMilli()) + `}}}`))
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Order.Customer.Enabled = true

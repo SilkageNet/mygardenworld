@@ -38,8 +38,9 @@ func (svc *Services) CreateUser(ctx context.Context, req *connect.Request[pb.Cre
 	maxAccounts := 5
 	status := "active"
 	if in.Role != nil {
-		role = strings.TrimSpace(in.GetRole())
-		if err := validateRole(role); err != nil {
+		var err error
+		role, err = userRoleStore(in.GetRole())
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -50,8 +51,9 @@ func (svc *Services) CreateUser(ctx context.Context, req *connect.Request[pb.Cre
 		}
 	}
 	if in.Status != nil {
-		status = strings.TrimSpace(in.GetStatus())
-		if err := validateStatus(status); err != nil {
+		var err error
+		status, err = userStatusStore(in.GetStatus())
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -116,8 +118,8 @@ func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.Upd
 	var maxAccounts *int
 	var status *string
 	if in.Role != nil {
-		r := strings.TrimSpace(*in.Role)
-		if err := validateRole(r); err != nil {
+		r, err := userRoleStore(*in.Role)
+		if err != nil {
 			return nil, err
 		}
 		role = &r
@@ -130,8 +132,8 @@ func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.Upd
 		maxAccounts = &m
 	}
 	if in.Status != nil {
-		s := strings.TrimSpace(*in.Status)
-		if err := validateStatus(s); err != nil {
+		s, err := userStatusStore(*in.Status)
+		if err != nil {
 			return nil, err
 		}
 		status = &s
@@ -168,6 +170,28 @@ func (svc *Services) UpdateUser(ctx context.Context, req *connect.Request[pb.Upd
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(&pb.UpdateUserResponse{User: userToProto(user, count)}), nil
+}
+
+func userRoleStore(role pb.UserRole) (string, error) {
+	switch role {
+	case pb.UserRole_USER_ROLE_USER:
+		return "user", nil
+	case pb.UserRole_USER_ROLE_ADMIN:
+		return "admin", nil
+	default:
+		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("valid role required"))
+	}
+}
+
+func userStatusStore(status pb.UserStatus) (string, error) {
+	switch status {
+	case pb.UserStatus_USER_STATUS_ACTIVE:
+		return "active", nil
+	case pb.UserStatus_USER_STATUS_DISABLED:
+		return "disabled", nil
+	default:
+		return "", connect.NewError(connect.CodeInvalidArgument, errors.New("valid status required"))
+	}
 }
 
 func (svc *Services) disableUserAccess(ctx context.Context, userID int64) error {
@@ -222,24 +246,6 @@ func (svc *Services) GetSystemStats(ctx context.Context, _ *connect.Request[pb.G
 		ActiveRunners:     active,
 		ConnectedRunners:  connected,
 	}), nil
-}
-
-func validateRole(role string) error {
-	switch role {
-	case "admin", "user":
-		return nil
-	default:
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("role must be admin or user"))
-	}
-}
-
-func validateStatus(status string) error {
-	switch status {
-	case "active", "disabled":
-		return nil
-	default:
-		return connect.NewError(connect.CodeInvalidArgument, errors.New("status must be active or disabled"))
-	}
 }
 
 func validateMaxAccounts(maxAccounts int) error {

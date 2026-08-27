@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
 	connect "connectrpc.com/connect"
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -18,14 +17,14 @@ type streamEventFilter struct {
 	kinds      map[string]struct{}
 	kindList   []string
 	accountIDs []int64
-	allowedIDs map[string]struct{}
+	allowedIDs map[int64]struct{}
 }
 
 // StreamEvents is a server-streaming RPC. It first replays persisted event_log
 // rows, then forwards live events from the in-process bus. The subscription is
 // opened before replay so events emitted during DB replay are either included
 // in the replay result or delivered live.
-func (svc *Services) StreamEvents(ctx context.Context, req *connect.Request[pb.StreamEventsRequest], stream *connect.ServerStream[pb.Event]) error {
+func (svc *Services) StreamEvents(ctx context.Context, req *connect.Request[pb.StreamEventsRequest], stream *connect.ServerStream[pb.StreamEventsResponse]) error {
 	ch, cancel := svc.Manager.Bus().SubscribeLive(256)
 	defer cancel()
 
@@ -49,7 +48,7 @@ func (svc *Services) StreamEvents(ctx context.Context, req *connect.Request[pb.S
 			if event.ID > highWater {
 				highWater = event.ID
 			}
-			if err := stream.Send(eventLogToProto(event)); err != nil {
+			if err := stream.Send(&pb.StreamEventsResponse{Event: eventLogToProto(event)}); err != nil {
 				return err
 			}
 		}
@@ -69,7 +68,7 @@ func (svc *Services) StreamEvents(ctx context.Context, req *connect.Request[pb.S
 			if !filter.matches(e) {
 				continue
 			}
-			if err := stream.Send(e.ToProto()); err != nil {
+			if err := stream.Send(&pb.StreamEventsResponse{Event: e.ToProto()}); err != nil {
 				return err
 			}
 			if e.ID > highWater {
@@ -95,14 +94,13 @@ func (svc *Services) streamEventFilter(ctx context.Context, req *pb.StreamEvents
 		filter.kindList = append(filter.kindList, kind)
 	}
 
-	if req.GetAccountId() != "" || req.GetAccountName() != "" {
-		acc, err := svc.resolveAccount(ctx, req.GetAccountId(), req.GetAccountName())
+	if req.GetAccountId() != 0 {
+		acc, err := svc.resolveAccount(ctx, req.GetAccountId())
 		if err != nil {
 			return filter, mapErr(err)
 		}
-		idStr := fmt.Sprintf("%d", acc.ID)
 		filter.accountIDs = []int64{acc.ID}
-		filter.allowedIDs = map[string]struct{}{idStr: {}}
+		filter.allowedIDs = map[int64]struct{}{acc.ID: {}}
 		return filter, nil
 	}
 
@@ -113,10 +111,10 @@ func (svc *Services) streamEventFilter(ctx context.Context, req *pb.StreamEvents
 			return filter, mapErr(err)
 		}
 		filter.accountIDs = make([]int64, 0, len(accounts))
-		filter.allowedIDs = make(map[string]struct{}, len(accounts))
+		filter.allowedIDs = make(map[int64]struct{}, len(accounts))
 		for _, acc := range accounts {
 			filter.accountIDs = append(filter.accountIDs, acc.ID)
-			filter.allowedIDs[fmt.Sprintf("%d", acc.ID)] = struct{}{}
+			filter.allowedIDs[acc.ID] = struct{}{}
 		}
 	}
 
@@ -151,7 +149,7 @@ func eventLogToProto(e store.EventLog) *pb.Event {
 	return &pb.Event{
 		Id:          e.ID,
 		Ts:          timestamppb.New(e.TS),
-		AccountId:   fmt.Sprintf("%d", e.AccountID),
+		AccountId:   e.AccountID,
 		AccountName: e.AccountName,
 		Kind:        e.Kind,
 		Message:     e.Message,

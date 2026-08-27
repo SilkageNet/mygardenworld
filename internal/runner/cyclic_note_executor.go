@@ -6,17 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-)
-
-const (
-	cyclicNoteModuleID                   = "cyclicNote"
-	cyclicNoteAutoClaimTaskRewardsPolicy = "auto_claim_task_rewards"
-	cyclicNoteAutoClaimProgressPolicy    = "auto_claim_progress_boxes"
-	cyclicNoteSatisfyTasksPolicy         = "satisfy_tasks"
 )
 
 type cyclicNoteEnterExecution struct {
@@ -273,31 +267,29 @@ func executeCyclicNoteMilestoneClaim(ctx context.Context, req clientproto.ActCyc
 	return raw, nil
 }
 
-func (r *Runner) cyclicNoteAnyPolicyFlag(keys ...string) bool {
+func (r *Runner) cyclicNotePolicy() *pb.CyclicNotePolicy {
 	policy := r.Policy()
 	if !policy.GetAutomationEnabled() {
-		return false
+		return nil
 	}
-	module := policy.GetActivity().GetModules()[cyclicNoteModuleID]
+	module := policy.GetActivity().GetCyclicNote()
 	if module == nil || !module.GetEnabled() {
-		return false
+		return nil
 	}
-	for _, key := range keys {
-		if module.GetBoolParams()[key] {
-			return true
-		}
-	}
-	return false
+	return module
 }
 
 func (r *Runner) cyclicNoteEnterAutomationEnabled() bool {
-	return r.cyclicNoteAnyPolicyFlag(cyclicNoteAutoClaimTaskRewardsPolicy, cyclicNoteSatisfyTasksPolicy)
+	module := r.cyclicNotePolicy()
+	return module != nil && (module.GetAutoClaimTaskRewards() || module.GetSatisfyTasks())
 }
 
 func (r *Runner) cyclicNoteTaskClaimAutomationEnabled() bool {
-	return r.cyclicNoteAnyPolicyFlag(cyclicNoteAutoClaimTaskRewardsPolicy)
+	module := r.cyclicNotePolicy()
+	return module != nil && module.GetAutoClaimTaskRewards()
 }
 
 func (r *Runner) cyclicNoteMilestoneClaimAutomationEnabled() bool {
-	return r.cyclicNoteAnyPolicyFlag(cyclicNoteAutoClaimProgressPolicy)
+	module := r.cyclicNotePolicy()
+	return module != nil && module.GetAutoClaimProgressBoxes()
 }

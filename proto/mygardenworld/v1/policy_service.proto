@@ -14,8 +14,7 @@ service PolicyService {
 }
 
 message GetPolicyRequest {
-  string account_id = 1;
-  string account_name = 2;
+  int64 account_id = 1;
 }
 
 message GetPolicyResponse {
@@ -23,9 +22,8 @@ message GetPolicyResponse {
 }
 
 message SetPolicyRequest {
-  string account_id = 1;
-  string account_name = 2;
-  Policy policy = 3;
+  int64 account_id = 1;
+  Policy policy = 2;
 }
 
 message SetPolicyResponse {

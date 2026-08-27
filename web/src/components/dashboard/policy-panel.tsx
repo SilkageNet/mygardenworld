@@ -1,29 +1,29 @@
 "use client";
 
 import { create } from "@bufbuild/protobuf";
-import { useEffect, useState, type ReactNode } from "react";
-import { BadgeCheck, Building2, CalendarDays, Coins, Flower2, Gem, HandCoins, ListChecks, Loader2, Package, Play, Save, ShieldCheck, ShoppingBag, Sparkles, Sprout, Trophy, Users } from "lucide-react";
-import { ActivityModulePolicySchema, ActivityPolicySchema, BasicPolicySchema, BasicTaskPolicySchema, BenefitPolicySchema, CultivatePolicySchema, CustomerOrderPolicySchema, FlowerElvesPolicySchema, FlowerMarketPolicySchema, FlowerArtPolicySchema, FriendStealPolicySchema, MarketBuyMode, MarketPutMode, OrderPolicySchema, PalaceOrderPolicySchema, PearlPolicySchema, PlantPolicySchema, PlantingPolicySchema, ReputationPolicySchema, ResidentOrderPolicySchema, SelectionMode, SignPolicySchema, ShopBuyPolicySchema, ShopPolicySchema, TeamOrderPolicySchema, UnionBuildPolicySchema, UnionFlowerPolicySchema, UnionLandPolicySchema, UnionPolicySchema, UnionRacePolicySchema, VipShopPolicySchema, ZooPolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
-import type { ActivityModulePolicy, ActivityPolicy, BasicPolicy, BasicTaskPolicy, BenefitPolicy, CultivatePolicy, CustomerOrderPolicy, FlowerElvesPolicy, FlowerMarketPolicy, FlowerArtPolicy, FriendStealPolicy, OrderPolicy, PalaceOrderPolicy, PearlPolicy, PlantPolicy, PlantingPolicy, Policy, ReputationPolicy, ResidentOrderPolicy, ShopBuyPolicy, ShopPolicy, SignPolicy, TeamOrderPolicy, UnionBuildPolicy, UnionFlowerPolicy, UnionLandPolicy, UnionPolicy, UnionRacePolicy, VipShopPolicy, ZooPolicy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { FeatureCapability, GetSnapshotResponse } from "@/gen/mygardenworld/v1/query_service_pb";
+import { BadgeCheck, Building2, Coins, Flower2, Gem, HandCoins, ListChecks, Loader2, Package, Play, Save, ShieldCheck, ShoppingBag, Sparkles, Sprout, Trophy } from "lucide-react";
+import { ActivityPolicySchema, BasicPolicySchema, BasicTaskPolicySchema, BenefitPolicySchema, CultivatePolicySchema, CustomerOrderPolicySchema, CyclicNotePolicySchema, CyclicStoryPolicySchema, DessertPolicySchema, FlowerElvesPolicySchema, FlowerMarketPolicySchema, FlowerArtPolicySchema, FriendStealPolicySchema, MarketBuyMode, MarketPutMode, OrderPolicySchema, PalaceOrderPolicySchema, PearlPolicySchema, PlantPolicySchema, PlantingPolicySchema, ReputationPolicySchema, ResidentOrderPolicySchema, SelectionMode, SignPolicySchema, ShopBuyPolicySchema, ShopPolicySchema, TeamOrderPolicySchema, UnionBuildPolicySchema, UnionFlowerPolicySchema, UnionLandPolicySchema, UnionPolicySchema, UnionRacePolicySchema, VipShopPolicySchema, ZooPolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
+import type { ActivityPolicy, BasicPolicy, BasicTaskPolicy, BenefitPolicy, CultivatePolicy, CustomerOrderPolicy, CyclicNotePolicy, CyclicStoryPolicy, DessertPolicy, FlowerElvesPolicy, FlowerMarketPolicy, FlowerArtPolicy, FriendStealPolicy, OrderPolicy, PalaceOrderPolicy, PearlPolicy, PlantPolicy, PlantingPolicy, Policy, ReputationPolicy, ResidentOrderPolicy, ShopBuyPolicy, ShopPolicy, SignPolicy, TeamOrderPolicy, UnionBuildPolicy, UnionFlowerPolicy, UnionLandPolicy, UnionPolicy, UnionRacePolicy, VipShopPolicy, ZooPolicy } from "@/gen/mygardenworld/v1/policy_pb";
+import type { AssetsView, FeatureCapability, GardenView, OrdersView, OverviewView } from "@/lib/api/query-models";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { settingStatusForCapability } from "@/lib/feature-capabilities";
-import { cn } from "@/lib/utils";
-import { PolicyGroup, StatusRow, TextRow, BigIntNumberRow, IntListRow, QualityRow, SegmentedRow, DemandPriorityEditor, ToggleRow, FriendTouchFriendList, NumberRow, SectionTitle, EmptyState, safeBigIntToNumber, safeNumberToBigInt, QUALITY_LABELS } from "@/components/dashboard/policy-controls";
+import { PolicyGroup, StatusRow, TextRow, BigIntNumberRow, IntListRow, QualityRow, SegmentedRow, DemandPriorityEditor, ToggleRow, NumberRow, SectionTitle, EmptyState, safeBigIntToNumber, safeNumberToBigInt, QUALITY_LABELS } from "@/components/dashboard/policy-controls";
 import { FlowerArtMultiSelectRow, CatalogFlowerMultiSelectRow, FlowerMultiSelectRow } from "@/components/dashboard/flower-picker-controls";
+import FriendStealPolicyGroup from "@/features/account-workspace/friend-steal-policy-group";
 
 const SHOW_UNSUPPORTED_SETTINGS = false;
 
-type PolicyTabId = "basic" | "order" | "union" | "other" | "activity";
+export type PolicySection = "garden" | "routine" | "orders" | "union" | "assets" | "activities";
 
-const POLICY_TABS: { id: PolicyTabId; label: string; icon: ReactNode }[] = [
-  { id: "basic", label: "基础", icon: <Sprout /> },
-  { id: "order", label: "订单", icon: <ListChecks /> },
-  { id: "union", label: "公会", icon: <Users /> },
-  { id: "other", label: "其他", icon: <ShoppingBag /> },
-  { id: "activity", label: "活动", icon: <CalendarDays /> },
-];
+const POLICY_SECTION_TITLES: Record<PolicySection, string> = {
+  garden: "花园策略",
+  routine: "账号与日常策略",
+  orders: "订单经营策略",
+  union: "公会策略",
+  assets: "资产策略",
+  activities: "活动策略",
+};
 
 const SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
@@ -36,11 +36,6 @@ const AUTO_REPLANT_SELECTION_MODE_OPTIONS = [
   { value: SelectionMode.ALL, label: "全部" },
   { value: SelectionMode.SPECIFIC, label: "指定" },
   { value: SelectionMode.EXCLUDE, label: "排除" },
-];
-
-const FRIEND_TOUCH_MODE_OPTIONS = [
-  { value: SelectionMode.ALL, label: "全部可摘" },
-  { value: SelectionMode.SPECIFIC, label: "指定次数" },
 ];
 
 const MARKET_PUT_MODE_OPTIONS = [
@@ -87,55 +82,13 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
   { id: 3052, label: "动物互动", defaultPriority: 0 },
 ];
 
-type ActivityModuleMeta = {
-  id: string;
-  label: string;
-  boolParams?: { key: string; label: string }[];
-  intParams?: { key: string; label: string; defaultValue: number; min: number; max?: number }[];
-};
-
-const ACTIVITY_MODULES: ActivityModuleMeta[] = [
-  {
-    id: "cyclicNote",
-    label: "花笺集芳",
-    boolParams: [
-      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
-      { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
-      { key: "satisfy_tasks", label: "驱动已启用模块完成任务" },
-    ],
-  },
-  {
-    id: "actCyclicStory",
-    label: "莳花纪闻",
-    boolParams: [
-      { key: "auto_claim_order_rewards", label: "自动领取订单奖励" },
-      { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
-    ],
-    intParams: [
-      { key: "max_score", label: "分数上限（0=不限制）", defaultValue: 0, min: 0 },
-    ],
-  },
-  {
-    id: "actDessert",
-    label: "香卉甜糕",
-    boolParams: [
-      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
-      { key: "auto_like_celebrity", label: "自动免费点赞" },
-      { key: "auto_open_reward_boxes", label: "自动开启奖励箱（每次1个）" },
-      { key: "auto_play", label: "启用影子诊断（不执行）" },
-      { key: "resume_existing_round", label: "请求接管评估（当前硬锁）" },
-    ],
-    intParams: [
-      { key: "mode", label: "影子模式（仅 1 可用）", defaultValue: 1, min: 1, max: 1 },
-      { key: "max_energy_per_session", label: "会话体力预算（0=禁用；当前仅诊断）", defaultValue: 0, min: 0, max: 100 },
-      { key: "min_energy_reserve", label: "最低体力保留", defaultValue: 0, min: 0 },
-    ],
-  },
-];
-
 export default function PolicyPanel({
   policy,
-  snapshot,
+  section,
+  overview,
+  garden,
+  orders,
+  assets,
   capabilities,
   loading,
   saving,
@@ -144,7 +97,11 @@ export default function PolicyPanel({
   onSave,
 }: {
   policy: Policy | null;
-  snapshot: GetSnapshotResponse | null;
+  section: PolicySection;
+  overview: OverviewView | null;
+  garden: GardenView | null;
+  orders: OrdersView | null;
+  assets: AssetsView | null;
   capabilities: FeatureCapability[];
   loading: boolean;
   saving: boolean;
@@ -152,12 +109,6 @@ export default function PolicyPanel({
   onPolicyChange: (policy: Policy | null) => void;
   onSave: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<PolicyTabId>("basic");
-  useEffect(() => {
-    if (!POLICY_TABS.some((tab) => tab.id === activeTab)) {
-      setActiveTab("basic");
-    }
-  }, [activeTab]);
   const plant = policy?.plant;
   const planting = plant?.planting;
   const cultivate = plant?.cultivate;
@@ -186,13 +137,13 @@ export default function PolicyPanel({
   const unionRace = union?.race;
   const unionLand = union?.land;
   const activity = policy?.activity;
-  const customerOrdersObserved = snapshot?.observedNamespaces.includes("109") ?? false;
-  const customerFinishedToday = snapshot?.orderStatistics?.customerFinished ?? 0;
-  const customerStatsObserved = snapshot?.orderStatistics?.observed ?? false;
+  const customerOrdersObserved = overview?.observedNamespaces.includes("109") ?? false;
+  const customerFinishedToday = orders?.orderStatistics?.customerFinished ?? 0;
+  const customerStatsObserved = orders?.orderStatistics?.observed ?? false;
   const customerDailyLimit = customer?.dailyLimit ?? 0;
   const customerLimitReached = customerDailyLimit > 0 && customerFinishedToday >= customerDailyLimit;
-  const customerPendingCount = snapshot?.pendingTasks.filter((taskItem) => taskItem.category === "顾客订单").length ?? 0;
-  const customerOrderStatusLabel = !snapshot
+  const customerPendingCount = orders?.pendingTasks.filter((taskItem) => taskItem.category === "顾客订单").length ?? 0;
+  const customerOrderStatusLabel = !orders
     ? "状态未加载"
     : !customerStatsObserved
       ? customerOrdersObserved
@@ -201,7 +152,7 @@ export default function PolicyPanel({
       : customerDailyLimit > 0
         ? `今日已完成 ${customerFinishedToday}/${customerDailyLimit}`
         : `今日已完成 ${customerFinishedToday}`;
-  const customerOrderStatusTone = !snapshot || !customerStatsObserved ? "muted" : customerLimitReached ? "warn" : "ready";
+  const customerOrderStatusTone = !orders || !customerStatsObserved ? "muted" : customerLimitReached ? "warn" : "ready";
 
   const updatePolicy = (patch: Partial<Policy>) => {
     if (!policy) return;
@@ -389,24 +340,17 @@ export default function PolicyPanel({
     const current = policy.activity ?? create(ActivityPolicySchema);
     onPolicyChange({ ...policy, activity: { ...current, ...patch } });
   };
-  const updateActivityModule = (moduleID: string, patch: Partial<ActivityModulePolicy>) => {
-    if (!policy) return;
-    const currentActivity = policy.activity ?? create(ActivityPolicySchema);
-    const current = currentActivity.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivity({
-      modules: {
-        ...currentActivity.modules,
-        [moduleID]: { ...current, ...patch },
-      },
-    });
+  const updateCyclicNote = (patch: Partial<CyclicNotePolicy>) => {
+    const current = activity?.cyclicNote ?? create(CyclicNotePolicySchema);
+    updateActivity({ cyclicNote: create(CyclicNotePolicySchema, { ...current, ...patch }) });
   };
-  const updateActivityBoolParam = (moduleID: string, key: string, value: boolean) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, { boolParams: { ...current.boolParams, [key]: value } });
+  const updateCyclicStory = (patch: Partial<CyclicStoryPolicy>) => {
+    const current = activity?.cyclicStory ?? create(CyclicStoryPolicySchema);
+    updateActivity({ cyclicStory: create(CyclicStoryPolicySchema, { ...current, ...patch }) });
   };
-  const updateActivityIntParam = (moduleID: string, key: string, value: number, fallback: number) => {
-    const current = activity?.modules[moduleID] ?? create(ActivityModulePolicySchema);
-    updateActivityModule(moduleID, { intParams: { ...current.intParams, [key]: safeNumberToBigInt(value, fallback) } });
+  const updateDessert = (patch: Partial<DessertPolicy>) => {
+    const current = activity?.dessert ?? create(DessertPolicySchema);
+    updateActivity({ dessert: create(DessertPolicySchema, { ...current, ...patch }) });
   };
   if (loading) {
     return (
@@ -437,42 +381,26 @@ export default function PolicyPanel({
   return (
     <Card className="overflow-visible">
       <CardHeader>
-        <CardTitle>策略</CardTitle>
+        <CardTitle>{POLICY_SECTION_TITLES[section]}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
         {message && <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm">{message}</div>}
 
-        <section className="space-y-3">
+        {section === "routine" && <section className="space-y-3">
           <SectionTitle icon={<ShieldCheck />}>运行参数</SectionTitle>
           <div className="grid gap-2 sm:grid-cols-2">
             <NumberRow label="决策间隔" value={policy.decisionIntervalSeconds || 4} min={1} onChange={(value) => updatePolicy({ decisionIntervalSeconds: value })} />
           </div>
-        </section>
+        </section>}
 
-        <div className="flex flex-col gap-2 xl:sticky xl:top-0 xl:z-10 xl:-mx-4 xl:border-b xl:border-border/55 xl:bg-card/92 xl:px-4 xl:py-3 xl:backdrop-blur-xl sm:flex-row sm:items-center">
-          <div className="grid min-w-0 flex-1 grid-cols-5 gap-1 rounded-md border border-border/70 bg-muted/20 p-1">
-            {POLICY_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded px-1 text-xs font-medium transition-colors sm:min-h-9 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm [&_svg]:size-4",
-                  activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex justify-end xl:sticky xl:top-0 xl:z-10 xl:-mx-4 xl:border-b xl:border-border/55 xl:bg-card/92 xl:px-4 xl:py-3 xl:backdrop-blur-xl">
           <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={onSave} disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             {saving ? "保存中" : "保存"}
           </Button>
         </div>
 
-        {activeTab === "basic" && (
+        {section === "garden" && (
           <div className="space-y-4">
             <PolicyGroup title="土地与种植" icon={<Sprout />}>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -518,8 +446,8 @@ export default function PolicyPanel({
                   <FlowerMultiSelectRow
                     label={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? "排除补种" : "指定补种"}
                     value={(planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE ? planting?.autoReplantExcludeFlowerIds ?? [] : planting?.autoReplantFlowerIds ?? []}
-                    plantableFlowers={snapshot?.plantableFlowers ?? []}
-                    synced={Boolean(snapshot)}
+                    plantableFlowers={garden?.plantableFlowers ?? []}
+                    synced={Boolean(garden)}
                     onChange={(value) =>
                       (planting?.autoReplantMode || SelectionMode.ALL) === SelectionMode.EXCLUDE
                         ? updatePlanting({ autoReplantExcludeFlowerIds: value })
@@ -555,6 +483,20 @@ export default function PolicyPanel({
               </div>
             </PolicyGroup>
 
+            <FriendStealPolicyGroup
+              policy={friendSteal}
+              garden={garden}
+              assets={assets}
+              capabilities={capabilities}
+              onChange={updateFriendSteal}
+              onCountChange={updateFriendTouchCount}
+              onExcludedChange={updateFriendTouchExcluded}
+            />
+          </div>
+        )}
+
+        {section === "routine" && (
+          <div className="space-y-4">
             <PolicyGroup title="基础配置" icon={<ShieldCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="礼仪分监控" checked={reputation?.enabled ?? false} onChange={(checked) => updateReputation({ enabled: checked })} />
@@ -594,7 +536,7 @@ export default function PolicyPanel({
           </div>
         )}
 
-        {activeTab === "other" && (
+        {section === "assets" && (
           <div className="space-y-4">
             <PolicyGroup title="邮件、福利、签到" icon={<BadgeCheck />}>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -626,83 +568,6 @@ export default function PolicyPanel({
                   </>
                 )}
               </div>
-            </PolicyGroup>
-
-            <PolicyGroup title="好友摸花" icon={<Users />}>
-			  <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
-				仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
-				<code>stealElves=1</code>。
-			  </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <ToggleRow
-                  label="自动摸花"
-				  checked={friendSteal?.enabled ?? false}
-				  onChange={(checked) => updateFriendSteal({ enabled: checked })}
-				  status={settingStatusForCapability(capabilities, "plant.friend_steal")}
-                />
-                <SegmentedRow
-				  label="好友范围"
-				  value={friendSteal?.friendMode || SelectionMode.ALL}
-                  options={FRIEND_TOUCH_MODE_OPTIONS}
-				  onChange={(value) => updateFriendSteal({ friendMode: value })}
-                />
-				<SegmentedRow
-				  label="鲜花范围"
-				  value={friendSteal?.mode || SelectionMode.ALL}
-				  options={SELECTION_MODE_OPTIONS}
-				  onChange={(value) => updateFriendSteal({ mode: value })}
-				/>
-				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.QUALITY && (
-				  <QualityRow
-					label="指定品质"
-					value={friendSteal?.qualities ?? []}
-					onChange={(value) => updateFriendSteal({ qualities: value })}
-				  />
-				)}
-				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.SPECIFIC && (
-				  <CatalogFlowerMultiSelectRow
-					label="指定鲜花"
-					value={friendSteal?.flowerIds ?? []}
-					inventory={snapshot?.inventory ?? {}}
-					synced={Boolean(snapshot)}
-					onChange={(value) => updateFriendSteal({ flowerIds: value })}
-				  />
-				)}
-				{(friendSteal?.mode || SelectionMode.ALL) === SelectionMode.EXCLUDE && (
-				  <CatalogFlowerMultiSelectRow
-					label="排除鲜花"
-					value={friendSteal?.excludeFlowerIds ?? []}
-					inventory={snapshot?.inventory ?? {}}
-					synced={Boolean(snapshot)}
-					onChange={(value) => updateFriendSteal({ excludeFlowerIds: value })}
-				  />
-				)}
-                <ToggleRow
-                  label="友情币兑换次数"
-				  checked={friendSteal?.autoBuyTimes ?? false}
-				  onChange={(checked) => updateFriendSteal({ autoBuyTimes: checked })}
-				  status={settingStatusForCapability(capabilities, "plant.friend_steal_buy")}
-                />
-                <NumberRow
-                  label="每好友兑换上限"
-				  value={friendSteal?.maxBuyPerFriend || 0}
-                  min={0}
-				  max={10}
-				  onChange={(value) => updateFriendSteal({ maxBuyPerFriend: value })}
-				  description="每次消耗 1 友情币；0 使用静态目录 $pickMax（当前为 10）"
-                />
-              </div>
-              <FriendTouchFriendList
-                friends={snapshot?.friendTouchFriends ?? []}
-                observed={snapshot?.friendTouchFriendsObserved ?? false}
-				mode={friendSteal?.friendMode || SelectionMode.ALL}
-				counts={friendSteal?.friendCounts ?? {}}
-				excluded={new Set((friendSteal?.excludeUids ?? []).map((uid) => uid.toString()))}
-				autoBuy={friendSteal?.autoBuyTimes ?? false}
-				maxBuyPerFriend={friendSteal?.maxBuyPerFriend || 10}
-                onCountChange={updateFriendTouchCount}
-                onExcludedChange={updateFriendTouchExcluded}
-              />
             </PolicyGroup>
 
             <PolicyGroup title="商城" icon={<ShoppingBag />}>
@@ -784,7 +649,7 @@ export default function PolicyPanel({
           </div>
         )}
 
-        {activeTab === "order" && (
+        {section === "orders" && (
           <div className="space-y-4">
             <PolicyGroup title="居民订单" icon={<ListChecks />}>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -804,7 +669,7 @@ export default function PolicyPanel({
                   onChange={(checked) =>
                     updateResident({
                       satinEnabled: checked,
-					  ...(checked && !((resident?.satinDailyLimit ?? 0) > 0) ? { satinDailyLimit: 120 } : {}),
+                      ...(checked && !((resident?.satinDailyLimit ?? 0) > 0) ? { satinDailyLimit: 120 } : {}),
                     })
                   }
                 />
@@ -823,7 +688,7 @@ export default function PolicyPanel({
                   onChange={(checked) =>
                     updateResident({
                       decorateEnabled: checked,
-					  ...(checked && !((resident?.decorateDailyLimit ?? 0) > 0) ? { decorateDailyLimit: 120 } : {}),
+                      ...(checked && !((resident?.decorateDailyLimit ?? 0) > 0) ? { decorateDailyLimit: 120 } : {}),
                     })
                   }
                 />
@@ -888,8 +753,8 @@ export default function PolicyPanel({
                 <FlowerArtMultiSelectRow
                   label="上架花艺"
                   value={flowerArt?.sellArtIds ?? []}
-                  sellableArts={snapshot?.sellableFlowerArts ?? []}
-                  synced={Boolean(snapshot)}
+                  sellableArts={orders?.sellableFlowerArts ?? []}
+                  synced={Boolean(orders)}
                   onChange={(value) => updateFlowerArt({ sellArtIds: value })}
                 />
                 <ToggleRow label="自动制作" checked={flowerArt?.craftEnabled ?? false} onChange={(checked) => updateFlowerArt({ craftEnabled: checked })} />
@@ -908,7 +773,7 @@ export default function PolicyPanel({
           </div>
         )}
 
-        {activeTab === "union" && (
+        {section === "union" && (
           <div className="space-y-4">
             <PolicyGroup title="公会土地" icon={<Building2 />}>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -931,8 +796,8 @@ export default function PolicyPanel({
                 <FlowerMultiSelectRow
                   label="指定花朵"
                   value={unionLand?.flowerIds ?? []}
-                  plantableFlowers={snapshot?.plantableFlowers ?? []}
-                  synced={Boolean(snapshot)}
+                  plantableFlowers={garden?.plantableFlowers ?? []}
+                  synced={Boolean(garden)}
                   onChange={(value) => updateUnionLand({ flowerIds: value })}
                 />
                 <QualityRow label="指定品质" value={unionLand?.qualities ?? []} onChange={(value) => updateUnionLand({ qualities: value })} />
@@ -971,8 +836,8 @@ export default function PolicyPanel({
                 <CatalogFlowerMultiSelectRow
                   label="摸花花朵"
                   value={unionFlower?.takeFlowerIds ?? []}
-                  inventory={snapshot?.inventory ?? {}}
-                  synced={Boolean(snapshot)}
+                  inventory={assets?.inventory ?? {}}
+                  synced={Boolean(assets)}
                   onChange={(value) => updateUnionFlower({ takeFlowerIds: value })}
                   className="sm:col-span-2"
                 />
@@ -1020,38 +885,39 @@ export default function PolicyPanel({
           </div>
         )}
 
-        {activeTab === "activity" && (
-          <div className="space-y-4">
-            <div className="grid gap-3">
-              {ACTIVITY_MODULES.map((module) => {
-                const modulePolicy = activity?.modules[module.id];
-                return (
-                  <PolicyGroup key={module.id} title={module.label} icon={<Play />}>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <ToggleRow label="启用" checked={modulePolicy?.enabled ?? false} onChange={(checked) => updateActivityModule(module.id, { enabled: checked })} status={settingStatusForCapability(capabilities, `activity.${module.id}`)} />
-                      {module.boolParams?.map((param) => (
-                        <ToggleRow
-                          key={param.key}
-                          label={param.label}
-                          checked={modulePolicy?.boolParams?.[param.key] ?? false}
-                          onChange={(checked) => updateActivityBoolParam(module.id, param.key, checked)}
-                        />
-                      ))}
-                      {module.intParams?.map((param) => (
-                        <NumberRow
-                          key={param.key}
-                          label={param.label}
-                          value={safeBigIntToNumber(modulePolicy?.intParams?.[param.key], param.defaultValue)}
-                          min={param.min}
-                          max={param.max}
-                          onChange={(value) => updateActivityIntParam(module.id, param.key, value, param.defaultValue)}
-                        />
-                      ))}
-                    </div>
-                  </PolicyGroup>
-                );
-              })}
-            </div>
+        {section === "activities" && (
+          <div className="grid gap-3">
+            <PolicyGroup title="花笺集芳" icon={<Play />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="启用" checked={activity?.cyclicNote?.enabled ?? false} onChange={(enabled) => updateCyclicNote({ enabled })} status={settingStatusForCapability(capabilities, "activity.cyclicNote")} />
+                <ToggleRow label="自动领取任务奖励" checked={activity?.cyclicNote?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateCyclicNote({ autoClaimTaskRewards })} />
+                <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicNote?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicNote({ autoClaimProgressBoxes })} />
+                <ToggleRow label="驱动已启用模块完成任务" checked={activity?.cyclicNote?.satisfyTasks ?? false} onChange={(satisfyTasks) => updateCyclicNote({ satisfyTasks })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="莳花纪闻" icon={<Play />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="启用" checked={activity?.cyclicStory?.enabled ?? false} onChange={(enabled) => updateCyclicStory({ enabled })} status={settingStatusForCapability(capabilities, "activity.actCyclicStory")} />
+                <ToggleRow label="自动领取订单奖励" checked={activity?.cyclicStory?.autoClaimOrderRewards ?? false} onChange={(autoClaimOrderRewards) => updateCyclicStory({ autoClaimOrderRewards })} />
+                <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicStory?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicStory({ autoClaimProgressBoxes })} />
+                <NumberRow label="分数上限（0=不限制）" value={safeBigIntToNumber(activity?.cyclicStory?.maxScore, 0)} min={0} onChange={(value) => updateCyclicStory({ maxScore: safeNumberToBigInt(value, 0) })} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="香卉甜糕" icon={<Play />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow label="启用" checked={activity?.dessert?.enabled ?? false} onChange={(enabled) => updateDessert({ enabled })} status={settingStatusForCapability(capabilities, "activity.actDessert")} />
+                <ToggleRow label="自动领取任务奖励" checked={activity?.dessert?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateDessert({ autoClaimTaskRewards })} />
+                <ToggleRow label="自动免费点赞" checked={activity?.dessert?.autoLikeCelebrity ?? false} onChange={(autoLikeCelebrity) => updateDessert({ autoLikeCelebrity })} />
+                <ToggleRow label="自动开启奖励箱（每次1个）" checked={activity?.dessert?.autoOpenRewardBoxes ?? false} onChange={(autoOpenRewardBoxes) => updateDessert({ autoOpenRewardBoxes })} />
+                <ToggleRow label="启用影子诊断（不执行）" checked={activity?.dessert?.autoPlay ?? false} onChange={(autoPlay) => updateDessert({ autoPlay })} />
+                <ToggleRow label="请求接管评估（当前硬锁）" checked={activity?.dessert?.resumeExistingRound ?? false} onChange={(resumeExistingRound) => updateDessert({ resumeExistingRound })} />
+                <NumberRow label="影子模式（仅 1 可用）" value={activity?.dessert?.mode || 1} min={1} max={1} onChange={(mode) => updateDessert({ mode })} />
+                <NumberRow label="会话体力预算（0=禁用；当前仅诊断）" value={activity?.dessert?.maxEnergyPerSession ?? 0} min={0} max={100} onChange={(maxEnergyPerSession) => updateDessert({ maxEnergyPerSession })} />
+                <NumberRow label="最低体力保留" value={activity?.dessert?.minEnergyReserve ?? 0} min={0} onChange={(minEnergyReserve) => updateDessert({ minEnergyReserve })} />
+              </div>
+            </PolicyGroup>
           </div>
         )}
       </CardContent>

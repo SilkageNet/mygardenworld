@@ -12,14 +12,9 @@ import (
 )
 
 const (
-	dessertAutoPlayPolicy            = "auto_play"
-	dessertResumeExistingRoundPolicy = "resume_existing_round"
-	dessertModePolicy                = "mode"
-	dessertMaxEnergyPolicy           = "max_energy_per_session"
-	dessertMinEnergyReservePolicy    = "min_energy_reserve"
-	dessertWaitingDuration           = 800 * time.Millisecond
-	dessertStaticVelocityThreshold   = 1.0
-	dessertEvidenceBlockedReason     = "抓包已证明游戏生命周期，但因果轨迹与物理回放尚未验证，有界控制器与实时执行保持阻塞"
+	dessertWaitingDuration         = 800 * time.Millisecond
+	dessertStaticVelocityThreshold = 1.0
+	dessertEvidenceBlockedReason   = "抓包已证明游戏生命周期，但因果轨迹与物理回放尚未验证，有界控制器与实时执行保持阻塞"
 	// dessertLiveControllerCompiled is a compile-time fuse. Capture evidence
 	// and a successful bounded preflight are necessary but never sufficient
 	// while this fuse remains false.
@@ -129,33 +124,15 @@ func dessertPolicyConfig(policy *pb.Policy) dessertAutoplayPolicy {
 	if policy == nil || !policy.GetAutomationEnabled() {
 		return config
 	}
-	module := policy.GetActivity().GetModules()[dessertModuleID]
-	if module == nil || !module.GetEnabled() || !module.GetBoolParams()[dessertAutoPlayPolicy] {
+	module := policy.GetActivity().GetDessert()
+	if module == nil || !module.GetEnabled() || !module.GetAutoPlay() {
 		return config
 	}
 	config.enabled = true
-	config.resumeExisting = module.GetBoolParams()[dessertResumeExistingRoundPolicy]
-	if value, present := module.GetIntParams()[dessertModePolicy]; present {
-		if value < math.MinInt32 || value > math.MaxInt32 {
-			config.configurationError = "甜糕模式参数超出范围"
-			return config
-		}
-		config.mode = int32(value)
-	}
-	if value, present := module.GetIntParams()[dessertMaxEnergyPolicy]; present {
-		if value < math.MinInt32 || value > math.MaxInt32 {
-			config.configurationError = "甜糕会话体力预算超出范围"
-			return config
-		}
-		config.maxSessionEnergy = int32(value)
-	}
-	if value, present := module.GetIntParams()[dessertMinEnergyReservePolicy]; present {
-		if value < math.MinInt32 || value > math.MaxInt32 {
-			config.configurationError = "甜糕最低体力保留值超出范围"
-			return config
-		}
-		config.minEnergyReserve = int32(value)
-	}
+	config.resumeExisting = module.GetResumeExistingRound()
+	config.mode = module.GetMode()
+	config.maxSessionEnergy = module.GetMaxEnergyPerSession()
+	config.minEnergyReserve = module.GetMinEnergyReserve()
 	switch {
 	case config.mode != 1:
 		config.configurationError = "当前只支持普通模式（mode=1）的影子诊断"

@@ -19,11 +19,13 @@ func unionOperations(s *state.State, policy *pb.Policy, now time.Time) []Planned
 	if union == nil {
 		return nil
 	}
-	// IFmlTot.mb (25.1) is the authoritative current-user membership record.
-	// When it explicitly says the account has no guild, do not run any guild
-	// sync or mutation, even if stale IFml/race snapshots are still present.
+	// MembershipObserved is finalized per connection epoch. IFmlTot.mb (25.1)
+	// is authoritative when present; after the complete startup sync, a positive
+	// IFmlTot.fml (25.0) is accepted for channel fronts that omit 25.1. Until
+	// either proof exists—or when 25.1 explicitly reports no membership—guild
+	// automation stays closed. Sparse stale guild/race fragments never reopen it.
 	build := s.FmlBuild()
-	if build.MembershipObserved && build.MemberFmlID <= 0 {
+	if !build.MembershipObserved || build.MemberFmlID <= 0 {
 		return nil
 	}
 	uid := s.RoleID()

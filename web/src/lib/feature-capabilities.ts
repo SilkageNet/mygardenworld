@@ -1,4 +1,4 @@
-import { PlanStatus, type FeatureCapability } from "@/gen/mygardenworld/v1/query_service_pb";
+import { PlanStatus, type FeatureCapability } from "@/lib/api/query-models";
 
 export type SettingStatusKind = "sync_only" | "adapter_missing" | "blocked";
 

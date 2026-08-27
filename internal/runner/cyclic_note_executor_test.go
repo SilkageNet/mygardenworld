@@ -425,25 +425,21 @@ func TestCyclicNotePolicyFlagsAreExplicitAndIndependent(t *testing.T) {
 	}
 
 	policy.AutomationEnabled = true
-	//nolint:staticcheck // Keep coverage for compatibility with persisted legacy policy JSON.
-	policy.Activity.Enabled = true
-	policy.Activity.Modules = map[string]*pb.ActivityModulePolicy{
-		cyclicNoteModuleID: {Enabled: true, BoolParams: map[string]bool{}},
-	}
+	policy.Activity.CyclicNote = &pb.CyclicNotePolicy{Enabled: true}
 	if r.cyclicNoteEnterAutomationEnabled() || r.cyclicNoteTaskClaimAutomationEnabled() || r.cyclicNoteMilestoneClaimAutomationEnabled() {
 		t.Fatal("missing bool keys did not default to false")
 	}
 
-	module := policy.Activity.Modules[cyclicNoteModuleID]
-	module.BoolParams[cyclicNoteSatisfyTasksPolicy] = true
+	module := policy.Activity.CyclicNote
+	module.SatisfyTasks = true
 	if !r.cyclicNoteEnterAutomationEnabled() || r.cyclicNoteTaskClaimAutomationEnabled() || r.cyclicNoteMilestoneClaimAutomationEnabled() {
 		t.Fatal("satisfy_tasks must permit only initialization")
 	}
-	module.BoolParams[cyclicNoteAutoClaimTaskRewardsPolicy] = true
+	module.AutoClaimTaskRewards = true
 	if !r.cyclicNoteEnterAutomationEnabled() || !r.cyclicNoteTaskClaimAutomationEnabled() || r.cyclicNoteMilestoneClaimAutomationEnabled() {
 		t.Fatal("task reward flag leaked into milestone claims")
 	}
-	module.BoolParams[cyclicNoteAutoClaimProgressPolicy] = true
+	module.AutoClaimProgressBoxes = true
 	if !r.cyclicNoteMilestoneClaimAutomationEnabled() {
 		t.Fatal("milestone flag did not enable milestone claim")
 	}
