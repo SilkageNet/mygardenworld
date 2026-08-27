@@ -18,7 +18,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserManagementPanel } from "@/components/user-management-panel";
 import { UserRole } from "@/gen/mygardenworld/v1/auth_pb";
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default function AppLayout({ children, version }: { children: ReactNode; version?: string }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [userManagementOpen, setUserManagementOpen] = useState(false);
@@ -72,6 +72,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <span className="flex items-center gap-1 text-[13px] font-semibold leading-none text-foreground sm:gap-1.5 sm:text-sm">
                 <span className="truncate">小云朵</span>
                 <Sparkles className="size-3.5 text-amber-400" />
+                {version && (
+                  <span
+                    className="rounded-full border border-sky-300/55 bg-white/55 px-1.5 py-0.5 text-[9px] font-medium leading-none tracking-wide text-muted-foreground shadow-sm dark:border-sky-300/20 dark:bg-white/8 sm:text-[10px]"
+                    title={`当前服务版本 ${version}`}
+                  >
+                    {version}
+                  </span>
+                )}
               </span>
             </span>
           </Link>

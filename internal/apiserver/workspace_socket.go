@@ -9,6 +9,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"github.com/coder/websocket"
@@ -174,6 +175,7 @@ func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) err
 		Accounts:            statuses,
 		FeatureCapabilities: featureCapabilitiesProto(),
 		HeartbeatSeconds:    int32(workspaceHeartbeat.Seconds()),
+		ServerVersion:       buildinfo.GetVersion(),
 	}}); err != nil {
 		return err
 	}

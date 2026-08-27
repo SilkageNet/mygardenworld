@@ -56,14 +56,16 @@ const EMPTY_LOG_FEED: LogFeed = {
 };
 
 export default function HomePage() {
+  const [serverVersion, setServerVersion] = useState("");
+
   return (
-    <AppShell>
-      <DashboardContent />
+    <AppShell version={serverVersion}>
+      <DashboardContent onServerVersion={setServerVersion} />
     </AppShell>
   );
 }
 
-function DashboardContent() {
+function DashboardContent({ onServerVersion }: { onServerVersion: (version: string) => void }) {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
@@ -193,6 +195,7 @@ function DashboardContent() {
       onReady: (ready) => {
         applyStatuses(ready.accounts);
         setFeatureCapabilities(ready.featureCapabilities);
+        onServerVersion(ready.serverVersion || "dev");
       },
       onStatuses: (batch) => applyStatuses(batch.accounts),
       onSnapshot: (snapshot) => {
@@ -250,7 +253,7 @@ function DashboardContent() {
       workspaceClientRef.current = null;
       client.stop();
     };
-  }, [applyLogPage, applyStatuses, refreshAccounts]);
+  }, [applyLogPage, applyStatuses, onServerVersion, refreshAccounts]);
 
   useEffect(() => {
     if (accounts.length === 0) {
