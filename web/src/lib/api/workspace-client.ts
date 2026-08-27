@@ -3,7 +3,7 @@ import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import {
   WorkspaceClientFrameSchema,
   WorkspaceServerFrameSchema,
-  LoadWorkspaceHistorySchema,
+  LoadWorkspaceLogsSchema,
   OpenWorkspaceSchema,
   ResyncWorkspaceSchema,
   SelectWorkspaceAccountSchema,
@@ -12,8 +12,7 @@ import {
   type AlipayLoginProgress,
   type WorkspaceClientFrame,
   type WorkspaceError,
-  type WorkspaceHistoryPage,
-  type WorkspaceLogBatch,
+  type WorkspaceLogPage,
   type WorkspacePatch,
   type WorkspaceReady,
   type WorkspaceSnapshot,
@@ -38,8 +37,7 @@ export type WorkspaceClientHandlers = {
   onStatuses?: (batch: AccountStatusBatch) => void;
   onSnapshot?: (snapshot: WorkspaceSnapshot) => void;
   onPatch?: (patch: WorkspacePatch) => void;
-  onLogs?: (batch: WorkspaceLogBatch) => void;
-  onHistory?: (page: WorkspaceHistoryPage) => void;
+  onLogs?: (page: WorkspaceLogPage) => void;
   onAlipayLogin?: (progress: AlipayLoginProgress) => void;
   onError?: (error: WorkspaceError) => void;
 };
@@ -101,11 +99,11 @@ export class WorkspaceClient {
     });
   }
 
-  loadHistory(accountId: string, beforeId = BigInt(0), limit = 50) {
+  loadLogs(accountId: string, beforeId = BigInt(0), limit = 200) {
     if (!accountId) return false;
     return this.send({
-      case: "loadHistory",
-      value: create(LoadWorkspaceHistorySchema, { accountId: BigInt(accountId), beforeId, limit }),
+      case: "loadLogs",
+      value: create(LoadWorkspaceLogsSchema, { accountId: BigInt(accountId), beforeId, limit }),
     });
   }
 
@@ -213,7 +211,7 @@ export class WorkspaceClient {
         this.handlers.onStatuses?.(payload.value);
         break;
       case "snapshot":
-        this.noteLogs(payload.value.logs);
+        this.noteLogs(payload.value.logs?.events ?? []);
         this.handlers.onSnapshot?.(payload.value);
         break;
       case "patch":
@@ -222,9 +220,6 @@ export class WorkspaceClient {
       case "logs":
         this.noteLogs(payload.value.events);
         this.handlers.onLogs?.(payload.value);
-        break;
-      case "history":
-        this.handlers.onHistory?.(payload.value);
         break;
       case "alipayLogin":
         if (

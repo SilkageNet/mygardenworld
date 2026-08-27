@@ -1,5 +1,5 @@
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import { WorkspaceDomain, type WorkspaceHistoryItem, type WorkspaceHistorySummary, type WorkspacePatch, type WorkspaceState } from "@/gen/mygardenworld/v1/workspace_pb";
+import { WorkspaceDomain, type WorkspacePatch, type WorkspaceState, type WorkspaceStatistics } from "@/gen/mygardenworld/v1/workspace_pb";
 import type {
   AccountStatus,
   ActivitiesView,
@@ -11,7 +11,7 @@ import type {
   WarehouseView,
 } from "@/lib/api/workspace-models";
 
-const EVENT_LIMIT = 500;
+export const EVENT_LIMIT = 1000;
 
 export type AccountViews = {
   basic: BasicView | null;
@@ -20,7 +20,7 @@ export type AccountViews = {
   union: UnionView | null;
   activities: ActivitiesView | null;
   warehouse: WarehouseView | null;
-  history: WorkspaceHistorySummary | null;
+  statistics: WorkspaceStatistics | null;
 };
 
 export const EMPTY_ACCOUNT_VIEWS: AccountViews = {
@@ -30,7 +30,7 @@ export const EMPTY_ACCOUNT_VIEWS: AccountViews = {
   union: null,
   activities: null,
   warehouse: null,
-  history: null,
+  statistics: null,
 };
 
 export function workspaceStateToViews(state: WorkspaceState): AccountViews {
@@ -41,7 +41,7 @@ export function workspaceStateToViews(state: WorkspaceState): AccountViews {
     union: state.union ?? null,
     activities: state.activities ?? null,
     warehouse: state.warehouse ?? null,
-    history: state.history ?? null,
+    statistics: state.statistics ?? null,
   };
 }
 
@@ -54,7 +54,7 @@ export function applyWorkspacePatch(current: AccountViews, patch: WorkspacePatch
     union: cleared.has(WorkspaceDomain.UNION) ? null : (patch.union ?? current.union),
     activities: cleared.has(WorkspaceDomain.ACTIVITIES) ? null : (patch.activities ?? current.activities),
     warehouse: cleared.has(WorkspaceDomain.WAREHOUSE) ? null : (patch.warehouse ?? current.warehouse),
-    history: cleared.has(WorkspaceDomain.HISTORY) ? null : (patch.history ?? current.history),
+    statistics: cleared.has(WorkspaceDomain.STATISTICS) ? null : (patch.statistics ?? current.statistics),
   };
 }
 
@@ -67,7 +67,7 @@ export function withAccountStatus(current: Map<string, AccountStatus>, status: A
 export function mergeEvents(current: Event[], incoming: Event[]) {
   const seen = new Set<string>();
   const merged: Event[] = [];
-  for (const event of [...incoming].reverse().concat(current)) {
+  for (const event of incoming.concat(current).sort((left, right) => left.id === right.id ? 0 : left.id > right.id ? -1 : 1)) {
     const key = event.id > BigInt(0)
       ? `id:${event.id}`
       : `volatile:${event.accountId}:${event.ts?.seconds ?? 0}:${event.kind}:${event.message}`;
@@ -77,17 +77,6 @@ export function mergeEvents(current: Event[], incoming: Event[]) {
     if (merged.length >= EVENT_LIMIT) break;
   }
   return merged;
-}
-
-export function mergeHistoryItems(current: WorkspaceHistoryItem[], incoming: WorkspaceHistoryItem[]) {
-  const seen = new Set<bigint>();
-  const merged: WorkspaceHistoryItem[] = [];
-  for (const item of [...incoming, ...current]) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
-    merged.push(item);
-  }
-  return merged.sort((left, right) => left.id === right.id ? 0 : left.id > right.id ? -1 : 1);
 }
 
 export function upsertAccount(current: Account[], incoming: Account) {

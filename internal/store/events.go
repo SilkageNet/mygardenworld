@@ -32,6 +32,7 @@ type ListEventLogsOptions struct {
 	AccountIDs []int64
 	Kinds      []string
 	AfterID    int64
+	BeforeID   int64
 	Limit      int
 }
 
@@ -58,8 +59,9 @@ func (d *DB) LogEvent(ctx context.Context, e EventLog) (int64, error) {
 	return id, nil
 }
 
-// ListEventLogs returns chronological events after applying filters. It queries
-// the newest rows first for efficiency, then reverses them for replay.
+// ListEventLogs returns events after applying filters. Recent and before pages
+// are newest-first. After pages are oldest-first so a bounded reconnect replay
+// can advance its cursor without skipping intermediate rows.
 func (d *DB) ListEventLogs(ctx context.Context, opts ListEventLogsOptions) ([]EventLog, error) {
 	limit := normalizeEventLogLimit(opts.Limit)
 	where := make([]string, 0, 3)
@@ -68,6 +70,10 @@ func (d *DB) ListEventLogs(ctx context.Context, opts ListEventLogsOptions) ([]Ev
 	if opts.AfterID > 0 {
 		where = append(where, "id > ?")
 		args = append(args, opts.AfterID)
+	}
+	if opts.BeforeID > 0 {
+		where = append(where, "id < ?")
+		args = append(args, opts.BeforeID)
 	}
 	if opts.AccountIDs != nil {
 		if len(opts.AccountIDs) == 0 {
@@ -89,7 +95,11 @@ func (d *DB) ListEventLogs(ctx context.Context, opts ListEventLogsOptions) ([]Ev
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
-	query += " ORDER BY id DESC LIMIT ?"
+	if opts.AfterID > 0 {
+		query += " ORDER BY id ASC LIMIT ?"
+	} else {
+		query += " ORDER BY id DESC LIMIT ?"
+	}
 	args = append(args, limit)
 
 	rows, err := d.QueryContext(ctx, query, args...)
@@ -122,10 +132,17 @@ func (d *DB) ListEventLogs(ctx context.Context, opts ListEventLogsOptions) ([]Ev
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
-		out[i], out[j] = out[j], out[i]
-	}
 	return out, nil
+}
+
+// EventLogBounds returns the oldest and newest retained ids for one account.
+func (d *DB) EventLogBounds(ctx context.Context, accountID int64) (int64, int64, error) {
+	var oldest, newest int64
+	err := d.QueryRowContext(ctx,
+		`SELECT COALESCE(MIN(id), 0), COALESCE(MAX(id), 0) FROM event_log WHERE account_id = ?`,
+		accountID,
+	).Scan(&oldest, &newest)
+	return oldest, newest, err
 }
 
 func normalizeEventLogLimit(limit int) int {

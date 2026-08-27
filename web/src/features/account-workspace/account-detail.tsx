@@ -5,9 +5,9 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  BarChart3,
   Building2,
   Cloud,
-  History as HistoryIcon,
   LayoutDashboard,
   ListTodo,
   Loader2,
@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { WorkspaceHistoryItem } from "@/gen/mygardenworld/v1/workspace_pb";
 import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
 import { Button } from "@/components/ui/button";
@@ -34,14 +33,14 @@ import {
   ActivitiesWorkspace,
   BasicWorkspace,
   GardenWorkspace,
-  HistoryWorkspace,
+  StatisticsWorkspace,
   LogsWorkspace,
   OrdersWorkspace,
   UnionWorkspace,
   WarehouseWorkspace,
 } from "@/features/workspace";
 
-export type DashboardTabId = "basic" | "garden" | "orders" | "union" | "activities" | "warehouse" | "history" | "logs";
+export type DashboardTabId = "basic" | "garden" | "orders" | "union" | "activities" | "warehouse" | "statistics" | "logs";
 
 const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
   { id: "basic", label: "基础", icon: <LayoutDashboard /> },
@@ -50,7 +49,7 @@ const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] =
   { id: "union", label: "公会", icon: <Building2 /> },
   { id: "activities", label: "活动", icon: <Activity /> },
   { id: "warehouse", label: "仓库", icon: <Package /> },
-  { id: "history", label: "历史", icon: <HistoryIcon /> },
+  { id: "statistics", label: "统计", icon: <BarChart3 /> },
   { id: "logs", label: "日志", icon: <ScrollText /> },
 ];
 
@@ -77,9 +76,8 @@ export function AccountDetailView({
   busyAction,
   activeTab,
   events,
-  historyItems,
-  historyHasMore,
-  historyLoading,
+  logsHasMore,
+  logsLoading,
   policy,
   policyLoading,
   savingPolicy,
@@ -91,7 +89,7 @@ export function AccountDetailView({
   onDelete,
   onPolicyChange,
   onPolicySave,
-  onLoadMoreHistory,
+  onLoadMoreLogs,
 }: {
   account: Account;
   status?: AccountStatus;
@@ -101,9 +99,8 @@ export function AccountDetailView({
   busyAction: string;
   activeTab: DashboardTabId;
   events: Event[];
-  historyItems: WorkspaceHistoryItem[];
-  historyHasMore: boolean;
-  historyLoading: boolean;
+  logsHasMore: boolean;
+  logsLoading: boolean;
   policy: Policy | null;
   policyLoading: boolean;
   savingPolicy: boolean;
@@ -115,7 +112,7 @@ export function AccountDetailView({
   onDelete: () => void;
   onPolicyChange: (policy: Policy | null) => void;
   onPolicySave: () => void;
-  onLoadMoreHistory: () => void;
+  onLoadMoreLogs: () => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const workspaceProps = {
@@ -165,17 +162,8 @@ export function AccountDetailView({
         {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}
         {activeTab === "activities" && <ActivitiesWorkspace {...workspaceProps} />}
         {activeTab === "warehouse" && <WarehouseWorkspace {...workspaceProps} />}
-        {activeTab === "history" && (
-          <HistoryWorkspace
-            views={views}
-            status={status}
-            items={historyItems}
-            hasMore={historyHasMore}
-            loading={historyLoading}
-            onLoadMore={onLoadMoreHistory}
-          />
-        )}
-        {activeTab === "logs" && <LogsWorkspace events={events} />}
+        {activeTab === "statistics" && <StatisticsWorkspace views={views} status={status} />}
+        {activeTab === "logs" && <LogsWorkspace events={events} hasMore={logsHasMore} loading={logsLoading} onLoadMore={onLoadMoreLogs} />}
       </div>
     </div>
   );

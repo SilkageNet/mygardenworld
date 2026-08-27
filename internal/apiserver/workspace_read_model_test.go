@@ -43,7 +43,7 @@ func TestWorkspaceContractUsesBusinessDomainReadModels(t *testing.T) {
 		t.Fatalf("workspace protobuf unexpectedly declares %d RPC services", services.Len())
 	}
 	stateFields := (&pb.WorkspaceState{}).ProtoReflect().Descriptor().Fields()
-	for _, name := range []protoreflect.Name{"basic", "garden", "orders", "union", "activities", "warehouse", "history"} {
+	for _, name := range []protoreflect.Name{"basic", "garden", "orders", "union", "activities", "warehouse", "statistics"} {
 		if stateFields.ByName(name) == nil {
 			t.Fatalf("WorkspaceState domain field %s is missing", name)
 		}

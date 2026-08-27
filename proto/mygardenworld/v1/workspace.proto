@@ -22,7 +22,15 @@ enum WorkspaceDomain {
   WORKSPACE_DOMAIN_UNION = 4;
   WORKSPACE_DOMAIN_ACTIVITIES = 5;
   WORKSPACE_DOMAIN_WAREHOUSE = 6;
-  WORKSPACE_DOMAIN_HISTORY = 7;
+  WORKSPACE_DOMAIN_STATISTICS = 7;
+}
+
+enum WorkspaceLogPageKind {
+  WORKSPACE_LOG_PAGE_KIND_UNSPECIFIED = 0;
+  WORKSPACE_LOG_PAGE_KIND_RECENT = 1;
+  WORKSPACE_LOG_PAGE_KIND_BEFORE = 2;
+  WORKSPACE_LOG_PAGE_KIND_AFTER = 3;
+  WORKSPACE_LOG_PAGE_KIND_LIVE = 4;
 }
 
 message WorkspaceClientFrame {
@@ -32,7 +40,7 @@ message WorkspaceClientFrame {
     OpenWorkspace open = 2;
     SelectWorkspaceAccount select_account = 3;
     ResyncWorkspace resync = 4;
-    LoadWorkspaceHistory load_history = 5;
+    LoadWorkspaceLogs load_logs = 5;
     WatchAlipayLogin watch_alipay_login = 6;
   }
 }
@@ -53,7 +61,7 @@ message ResyncWorkspace {
   int64 after_log_id = 1;
 }
 
-message LoadWorkspaceHistory {
+message LoadWorkspaceLogs {
   int64 account_id = 1;
   int64 before_id = 2;
   int32 limit = 3;
@@ -72,10 +80,9 @@ message WorkspaceServerFrame {
     AccountStatusBatch account_statuses = 4;
     WorkspaceSnapshot snapshot = 5;
     WorkspacePatch patch = 6;
-    WorkspaceLogBatch logs = 7;
-    WorkspaceHistoryPage history = 8;
-    AlipayLoginProgress alipay_login = 9;
-    WorkspaceError error = 10;
+    WorkspaceLogPage logs = 7;
+    AlipayLoginProgress alipay_login = 8;
+    WorkspaceError error = 9;
   }
 }
 
@@ -102,12 +109,12 @@ message WorkspaceState {
   UnionView union = 8;
   ActivitiesView activities = 9;
   WarehouseView warehouse = 10;
-  WorkspaceHistorySummary history = 11;
+  WorkspaceStatistics statistics = 11;
 }
 
 message WorkspaceSnapshot {
   WorkspaceState state = 1;
-  repeated Event logs = 2;
+  WorkspaceLogPage logs = 2;
 }
 
 // Message presence means that domain changed. An absent field is unchanged.
@@ -122,39 +129,27 @@ message WorkspacePatch {
   UnionView union = 8;
   ActivitiesView activities = 9;
   WarehouseView warehouse = 10;
-  WorkspaceHistorySummary history = 11;
+  WorkspaceStatistics statistics = 11;
   repeated WorkspaceDomain cleared_domains = 12;
 }
 
-message WorkspaceHistorySummary {
+message WorkspaceStatistics {
   RuntimeStatisticsView runtime_statistics = 1;
   BusinessStatisticsView business_statistics = 2;
-  repeated WorkspaceHistoryItem recent_operations = 3;
+}
+
+// WorkspaceLogPage is the only log transport shape. Events are always ordered
+// newest first. AFTER pages are selected oldest-first in storage before being
+// reversed for transport, so reconnect catch-up can never skip an intermediate
+// page even when more_after is true.
+message WorkspaceLogPage {
+  int64 account_id = 1;
+  WorkspaceLogPageKind kind = 2;
+  repeated Event events = 3;
   int64 next_before_id = 4;
-  bool has_more = 5;
-}
-
-message WorkspaceHistoryItem {
-  int64 id = 1;
-  google.protobuf.Timestamp ts = 2;
-  string category = 3;
-  string domain = 4;
-  string action = 5;
-  string label = 6;
-  string outcome = 7;
-  string message = 8;
-}
-
-message WorkspaceHistoryPage {
-  int64 account_id = 1;
-  repeated WorkspaceHistoryItem items = 2;
-  int64 next_before_id = 3;
-  bool has_more = 4;
-}
-
-message WorkspaceLogBatch {
-  int64 account_id = 1;
-  repeated Event events = 2;
+  bool has_more_before = 5;
+  bool has_more_after = 6;
+  bool gap_detected = 7;
 }
 
 message AlipayLoginProgress {

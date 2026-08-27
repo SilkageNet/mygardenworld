@@ -44,6 +44,21 @@ enum AccountHealth {
   ACCOUNT_HEALTH_SESSION_EXPIRED = 4;
 }
 
+// WorkspaceLogCategory is the stable product-level grouping used by the log
+// workspace. Internal runner categories and domains remain available on Event
+// for diagnostics, but never determine which tabs exist in the Web UI.
+enum WorkspaceLogCategory {
+  WORKSPACE_LOG_CATEGORY_UNSPECIFIED = 0;
+  WORKSPACE_LOG_CATEGORY_ACCOUNT = 1;
+  WORKSPACE_LOG_CATEGORY_BASIC = 2;
+  WORKSPACE_LOG_CATEGORY_GARDEN = 3;
+  WORKSPACE_LOG_CATEGORY_ORDERS = 4;
+  WORKSPACE_LOG_CATEGORY_UNION = 5;
+  WORKSPACE_LOG_CATEGORY_ACTIVITIES = 6;
+  WORKSPACE_LOG_CATEGORY_WAREHOUSE = 7;
+  WORKSPACE_LOG_CATEGORY_SYSTEM = 8;
+}
+
 message AccountStatus {
   int64 account_id = 1;
   string account_name = 2;
@@ -275,9 +290,7 @@ message Event {
   // Structured payload as JSON (so the daemon doesn't need a wire schema for
   // every internal event type). Contents stable per kind.
   string payload_json = 7;
-  // Coarse log grouping for UI filters:
-  // account|basic|plant|order|union|activity|system.
-  string category = 8;
+  WorkspaceLogCategory category = 8;
   // Short human-readable type label, e.g. "田地" or "操作失败".
   string label = 9;
   // info|warn|error. Derived by the daemon when callers do not set it.

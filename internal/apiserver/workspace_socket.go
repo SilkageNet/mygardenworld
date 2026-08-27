@@ -130,17 +130,19 @@ type workspaceSession struct {
 	identity  *auth.Identity
 	expiresAt time.Time
 
-	sequence       uint64
-	selectedID     int64
-	logHighWater   int64
-	lastState      *pb.WorkspaceState
-	lastStatuses   []*pb.AccountStatus
-	allowedAccount map[int64]struct{}
-	pendingLogs    []*pb.Event
-	dirtyState     bool
-	dirtyStatuses  bool
-	alipayLoginID  string
-	alipayPolling  bool
+	sequence        uint64
+	selectedID      int64
+	selectedAccount *store.Account
+	logHighWater    int64
+	catchingUp      bool
+	lastState       *pb.WorkspaceState
+	lastStatuses    []*pb.AccountStatus
+	allowedAccount  map[int64]struct{}
+	pendingLogs     []*pb.Event
+	dirtyState      bool
+	dirtyStatuses   bool
+	alipayLoginID   string
+	alipayPolling   bool
 }
 
 type alipayPollResult struct {
@@ -175,6 +177,12 @@ func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) err
 	}}); err != nil {
 		return err
 	}
+	var liveEvents <-chan runner.Event
+	cancelEvents := func() {}
+	if s.svc.Manager != nil {
+		liveEvents, cancelEvents = s.svc.Manager.Bus().SubscribeLive(512)
+	}
+	defer cancelEvents()
 	if open.GetSelectedAccountId() > 0 {
 		if err := s.selectAccount(openRequestID, open.GetSelectedAccountId(), open.GetAfterLogId()); err != nil {
 			if sendErr := s.sendError(openRequestID, "select_account_failed", err.Error(), false); sendErr != nil {
@@ -186,13 +194,6 @@ func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) err
 	clientFrames := make(chan *pb.WorkspaceClientFrame, 16)
 	readErrors := make(chan error, 1)
 	go readWorkspaceFrames(s.ctx, s.conn, clientFrames, readErrors)
-
-	var liveEvents <-chan runner.Event
-	cancelEvents := func() {}
-	if s.svc.Manager != nil {
-		liveEvents, cancelEvents = s.svc.Manager.Bus().SubscribeLive(512)
-	}
-	defer cancelEvents()
 
 	patchTicker := time.NewTicker(workspacePatchInterval)
 	safetyTicker := time.NewTicker(workspaceSafetyInterval)
@@ -228,6 +229,11 @@ func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) err
 		case <-patchTicker.C:
 			if err := s.flushChanges(); err != nil {
 				return err
+			}
+			if s.catchingUp {
+				if err := s.replayMissedLogs(); err != nil {
+					return err
+				}
 			}
 		case <-safetyTicker.C:
 			if err := s.validateIdentity(); err != nil {
@@ -274,12 +280,12 @@ func (s *workspaceSession) handleClientFrame(frame *pb.WorkspaceClientFrame) err
 			return errors.New("no account selected")
 		}
 		return s.selectAccount(frame.GetRequestId(), s.selectedID, payload.Resync.GetAfterLogId())
-	case *pb.WorkspaceClientFrame_LoadHistory:
-		page, err := s.svc.workspaceHistoryPage(s.ctx, payload.LoadHistory.GetAccountId(), payload.LoadHistory.GetBeforeId(), payload.LoadHistory.GetLimit())
+	case *pb.WorkspaceClientFrame_LoadLogs:
+		page, err := s.svc.workspaceLogPage(s.ctx, payload.LoadLogs.GetAccountId(), payload.LoadLogs.GetBeforeId(), payload.LoadLogs.GetLimit())
 		if err != nil {
 			return err
 		}
-		return s.send(frame.GetRequestId(), &pb.WorkspaceServerFrame_History{History: page})
+		return s.send(frame.GetRequestId(), &pb.WorkspaceServerFrame_Logs{Logs: page})
 	case *pb.WorkspaceClientFrame_WatchAlipayLogin:
 		if payload.WatchAlipayLogin.GetLoginId() == "" {
 			return errors.New("login_id required")
@@ -297,16 +303,22 @@ func (s *workspaceSession) selectAccount(requestID uint64, accountID, afterLogID
 	if accountID <= 0 {
 		return errors.New("valid account id required")
 	}
-	state, err := s.svc.workspaceState(s.ctx, accountID)
+	acc, err := s.svc.resolveAccount(s.ctx, accountID)
 	if err != nil {
 		return err
 	}
-	logs, highWater, err := s.svc.workspaceLogs(s.ctx, accountID, afterLogID)
+	state, err := s.svc.workspaceStateForAccount(s.ctx, acc)
+	if err != nil {
+		return err
+	}
+	logs, highWater, err := s.svc.workspaceRecentLogsForAccount(s.ctx, acc, afterLogID)
 	if err != nil {
 		return err
 	}
 	s.selectedID = accountID
+	s.selectedAccount = acc
 	s.logHighWater = highWater
+	s.catchingUp = logs.GetHasMoreAfter()
 	s.lastState = state
 	s.pendingLogs = nil
 	s.dirtyState = false
@@ -320,11 +332,13 @@ func (s *workspaceSession) acceptEvent(event runner.Event) {
 	if _, ok := s.allowedAccount[event.AccountID]; !ok {
 		return
 	}
-	s.dirtyStatuses = true
 	if event.AccountID != s.selectedID {
 		return
 	}
 	s.dirtyState = true
+	if s.catchingUp {
+		return
+	}
 	if event.ID > 0 && event.ID <= s.logHighWater {
 		return
 	}
@@ -338,8 +352,12 @@ func (s *workspaceSession) flushChanges() error {
 	if len(s.pendingLogs) > 0 {
 		logs := s.pendingLogs
 		s.pendingLogs = nil
-		if err := s.send(0, &pb.WorkspaceServerFrame_Logs{Logs: &pb.WorkspaceLogBatch{
+		for left, right := 0, len(logs)-1; left < right; left, right = left+1, right-1 {
+			logs[left], logs[right] = logs[right], logs[left]
+		}
+		if err := s.send(0, &pb.WorkspaceServerFrame_Logs{Logs: &pb.WorkspaceLogPage{
 			AccountId: s.selectedID,
+			Kind:      pb.WorkspaceLogPageKind_WORKSPACE_LOG_PAGE_KIND_LIVE,
 			Events:    logs,
 		}}); err != nil {
 			return err
@@ -360,7 +378,7 @@ func (s *workspaceSession) flushChanges() error {
 	}
 	if s.dirtyState && s.selectedID > 0 {
 		s.dirtyState = false
-		next, err := s.svc.workspaceState(s.ctx, s.selectedID)
+		next, err := s.svc.workspaceStateForAccount(s.ctx, s.selectedAccount)
 		if err != nil {
 			return err
 		}
@@ -374,19 +392,20 @@ func (s *workspaceSession) flushChanges() error {
 }
 
 func (s *workspaceSession) replayMissedLogs() error {
-	if s.selectedID == 0 {
+	if s.selectedID == 0 || s.selectedAccount == nil {
 		return nil
 	}
-	logs, highWater, err := s.svc.workspaceLogs(s.ctx, s.selectedID, s.logHighWater)
+	logs, highWater, err := s.svc.workspaceRecentLogsForAccount(s.ctx, s.selectedAccount, s.logHighWater)
 	if err != nil {
 		return err
 	}
-	if len(logs) == 0 {
+	if len(logs.GetEvents()) == 0 {
+		s.catchingUp = false
 		return nil
 	}
 	s.logHighWater = highWater
-	s.pendingLogs = append(s.pendingLogs, logs...)
-	return nil
+	s.catchingUp = logs.GetHasMoreAfter()
+	return s.send(0, &pb.WorkspaceServerFrame_Logs{Logs: logs})
 }
 
 func (s *workspaceSession) setStatuses(statuses []*pb.AccountStatus) {
@@ -467,8 +486,6 @@ func (s *workspaceSession) send(requestID uint64, payload any) error {
 	case *pb.WorkspaceServerFrame_Patch:
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_Logs:
-		frame.Payload = value
-	case *pb.WorkspaceServerFrame_History:
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_AlipayLogin:
 		frame.Payload = value

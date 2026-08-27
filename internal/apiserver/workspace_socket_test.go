@@ -122,7 +122,7 @@ func TestWorkspaceSocketClosesWhenOwnerContextEnds(t *testing.T) {
 	}
 }
 
-func TestWorkspaceSocketScopesAccountsSnapshotsAndHistoryToIdentity(t *testing.T) {
+func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
 	if err != nil {
@@ -184,7 +184,7 @@ func TestWorkspaceSocketScopesAccountsSnapshotsAndHistoryToIdentity(t *testing.T
 
 	writeClientWorkspaceFrame(t, ctx, conn, &pb.WorkspaceClientFrame{
 		RequestId: 3,
-		Payload: &pb.WorkspaceClientFrame_LoadHistory{LoadHistory: &pb.LoadWorkspaceHistory{
+		Payload: &pb.WorkspaceClientFrame_LoadLogs{LoadLogs: &pb.LoadWorkspaceLogs{
 			AccountId: otherAccount.ID,
 		}},
 	})

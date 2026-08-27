@@ -5,14 +5,12 @@ import { GardenViewSchema } from "@/gen/mygardenworld/v1/workspace_garden_pb";
 import { BasicViewSchema } from "@/gen/mygardenworld/v1/workspace_basic_pb";
 import {
   WorkspaceDomain,
-  WorkspaceHistoryItemSchema,
   WorkspacePatchSchema,
   WorkspaceStateSchema,
 } from "@/gen/mygardenworld/v1/workspace_pb";
 import {
   applyWorkspacePatch,
   EMPTY_ACCOUNT_VIEWS,
-  mergeHistoryItems,
   mergeEvents,
   workspaceStateToViews,
 } from "./model";
@@ -51,12 +49,5 @@ describe("workspace model", () => {
     const fresh = create(EventSchema, { id: BigInt(2), accountId: BigInt(7), kind: "fresh" });
     const merged = mergeEvents([old], [old, fresh]);
     expect(merged.map((event) => event.id)).toEqual([BigInt(2), BigInt(1)]);
-  });
-
-  it("merges paged history without duplicates and keeps newest first", () => {
-    const first = create(WorkspaceHistoryItemSchema, { id: BigInt(3), label: "new" });
-    const second = create(WorkspaceHistoryItemSchema, { id: BigInt(2), label: "old" });
-    const merged = mergeHistoryItems([first], [first, second]);
-    expect(merged.map((item) => item.id)).toEqual([BigInt(3), BigInt(2)]);
   });
 });

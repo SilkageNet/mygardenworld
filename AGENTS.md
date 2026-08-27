@@ -30,7 +30,7 @@ internal/
 proto/           — Protobuf definitions (5 command services + workspace frames)
 gen/             — Generated code (do not edit)
 web/src/features/workspace/
-                — Basic/garden/orders/union/activities/warehouse/history/logs UI modules
+                — Basic/garden/orders/union/activities/warehouse/statistics/logs UI modules
 ```
 
 ## Key conventions

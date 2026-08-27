@@ -225,7 +225,7 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 		}
 		return r.Account(), nil
 	}
-	name, err := svc.DB.UniqueAccountName(ctx, userID, 0, babigame.DisplayNameFromSession(session, "支付宝账号"))
+	name, err := svc.DB.UniqueAccountName(ctx, userID, 0, babigame.DisplayNameFromSession(session, "Alipay 账号"))
 	if err != nil {
 		return nil, err
 	}

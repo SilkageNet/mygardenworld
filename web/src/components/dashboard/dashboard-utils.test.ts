@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
+import { WorkspaceLogCategory } from "@/gen/mygardenworld/v1/workspace_common_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { AccountStatus, Event } from "@/lib/api/workspace-models";
 import {
@@ -36,7 +37,7 @@ function event(overrides: Partial<Event>): Event {
     kind: "operation_ack",
     message: "",
     payloadJson: "",
-    category: "race",
+    category: WorkspaceLogCategory.UNION,
     domain: "union.race.sync",
     action: "sync",
     label: "同步竞赛任务",
@@ -51,7 +52,7 @@ describe("dashboard account labels", () => {
     expect(accountNickname(value)).toBe("海棠");
     expect(accountAreaLabel(value)).toBe("第3区");
     expect(channelLabel(value.channel)).toBe("iOS");
-    expect(channelLabel(Channel.ALIPAY)).toBe("支付宝");
+    expect(channelLabel(Channel.ALIPAY)).toBe("Alipay");
   });
 
   it("prefers the observed game-server index", () => {

@@ -41,7 +41,7 @@ export function channelLabel(channel: Channel) {
     case Channel.IOS:
       return "iOS";
     case Channel.ALIPAY:
-      return "支付宝";
+      return "Alipay";
     default:
       return "未知渠道";
   }
@@ -50,7 +50,7 @@ export function channelLabel(channel: Channel) {
 export function alipayLoginStatusLabel(status: AlipayLoginStatus) {
   switch (status) {
     case AlipayLoginStatus.WAITING_FOR_SCAN:
-      return "等待支付宝扫码确认";
+      return "等待 Alipay 扫码确认";
     case AlipayLoginStatus.PROCESSING:
       return "正在验证游戏登录…";
     case AlipayLoginStatus.COMPLETE:
@@ -515,18 +515,6 @@ export function operationReasonLabel(reason: string) {
   if (reason.includes("not actionable")) return "等待";
   if (reason.includes("no observed")) return "未同步";
   return reason;
-}
-
-export function eventCategory(event: Event) {
-  if (event.category === "flower_art") return "order";
-  if (event.category === "redeem") return "system";
-  if (event.category) return event.category;
-  if (event.domain) {
-    const category = event.domain.split(".")[0];
-    if (category === "redeem") return "system";
-    return category || "system";
-  }
-  return "system";
 }
 
 /** Race getTaskList completions are frequent; keep only the newest one (events are newest-first). */

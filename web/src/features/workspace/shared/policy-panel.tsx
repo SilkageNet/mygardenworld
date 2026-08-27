@@ -1,9 +1,7 @@
 "use client";
 
-import { create } from "@bufbuild/protobuf";
 import { BadgeCheck, Building2, Coins, Flower2, Gem, HandCoins, ListChecks, Loader2, Package, Play, Save, ShieldCheck, ShoppingBag, Sparkles, Sprout, Trophy } from "lucide-react";
-import { ActivityPolicySchema, BasicPolicySchema, BasicTaskPolicySchema, BenefitPolicySchema, CultivatePolicySchema, CustomerOrderPolicySchema, CyclicNotePolicySchema, CyclicStoryPolicySchema, DessertPolicySchema, FlowerElvesPolicySchema, FlowerMarketPolicySchema, FlowerArtPolicySchema, FriendStealPolicySchema, MarketBuyMode, MarketPutMode, OrderPolicySchema, PalaceOrderPolicySchema, PearlPolicySchema, PlantPolicySchema, PlantingPolicySchema, ReputationPolicySchema, ResidentOrderPolicySchema, SelectionMode, SignPolicySchema, ShopBuyPolicySchema, ShopPolicySchema, TeamOrderPolicySchema, UnionBuildPolicySchema, UnionFlowerPolicySchema, UnionLandPolicySchema, UnionPolicySchema, UnionRacePolicySchema, VipShopPolicySchema, ZooPolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
-import type { ActivityPolicy, BasicPolicy, BasicTaskPolicy, BenefitPolicy, CultivatePolicy, CustomerOrderPolicy, CyclicNotePolicy, CyclicStoryPolicy, DessertPolicy, FlowerElvesPolicy, FlowerMarketPolicy, FlowerArtPolicy, FriendStealPolicy, OrderPolicy, PalaceOrderPolicy, PearlPolicy, PlantPolicy, PlantingPolicy, Policy, ReputationPolicy, ResidentOrderPolicy, ShopBuyPolicy, ShopPolicy, SignPolicy, TeamOrderPolicy, UnionBuildPolicy, UnionFlowerPolicy, UnionLandPolicy, UnionPolicy, UnionRacePolicy, VipShopPolicy, ZooPolicy } from "@/gen/mygardenworld/v1/policy_pb";
+import { MarketBuyMode, MarketPutMode, SelectionMode, type Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import type { BasicView, FeatureCapability, GardenView, OrdersView, WarehouseView } from "@/lib/api/workspace-models";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +9,8 @@ import { settingStatusForCapability } from "@/lib/feature-capabilities";
 import { PolicyGroup, StatusRow, TextRow, BigIntNumberRow, IntListRow, QualityRow, SegmentedRow, DemandPriorityEditor, ToggleRow, NumberRow, SectionTitle, EmptyState, safeBigIntToNumber, safeNumberToBigInt, QUALITY_LABELS } from "@/components/dashboard/policy-controls";
 import { FlowerArtMultiSelectRow, CatalogFlowerMultiSelectRow, FlowerMultiSelectRow } from "@/components/dashboard/flower-picker-controls";
 import FriendStealPolicyGroup from "@/features/account-workspace/friend-steal-policy-group";
+import { createPolicyEditor } from "./policy-editor";
+import { AUTO_REPLANT_SELECTION_MODE_OPTIONS, MARKET_BUY_MODE_OPTIONS, MARKET_PUT_MODE_OPTIONS, RACE_TASK_TYPES, SELECTION_MODE_OPTIONS } from "./policy-options";
 
 const SHOW_UNSUPPORTED_SETTINGS = false;
 
@@ -24,63 +24,6 @@ const POLICY_SECTION_TITLES: Record<PolicySection, string> = {
   activities: "活动策略",
   warehouse: "仓库与资源策略",
 };
-
-const SELECTION_MODE_OPTIONS = [
-  { value: SelectionMode.ALL, label: "全部" },
-  { value: SelectionMode.QUALITY, label: "品质" },
-  { value: SelectionMode.SPECIFIC, label: "指定" },
-  { value: SelectionMode.EXCLUDE, label: "排除" },
-];
-
-const AUTO_REPLANT_SELECTION_MODE_OPTIONS = [
-  { value: SelectionMode.ALL, label: "全部" },
-  { value: SelectionMode.SPECIFIC, label: "指定" },
-  { value: SelectionMode.EXCLUDE, label: "排除" },
-];
-
-const MARKET_PUT_MODE_OPTIONS = [
-  { value: MarketPutMode.INVENTORY, label: "库存最多" },
-  { value: MarketPutMode.SPECIFIC, label: "指定花朵" },
-];
-
-const MARKET_BUY_MODE_OPTIONS = [
-  { value: MarketBuyMode.ALL, label: "全部" },
-  { value: MarketBuyMode.SPECIFIC, label: "指定花朵" },
-  { value: MarketBuyMode.QUALITY, label: "指定品质" },
-];
-
-type RaceTaskType = {
-  id: number;
-  label: string;
-  defaultPriority: number;
-  note?: string;
-};
-
-const RACE_TASK_TYPES: RaceTaskType[] = [
-  { id: 2004, label: "VIP商店购买", defaultPriority: 0 },
-  { id: 3006, label: "居民订单", defaultPriority: 0 },
-  { id: 3016, label: "顾客订单", defaultPriority: 0 },
-  { id: 3017, label: "材料商店购买", defaultPriority: 0 },
-  { id: 3018, label: "宫廷订单", defaultPriority: 0 },
-  { id: 3023, label: "珍珠采集雇佣", defaultPriority: 0 },
-  { id: 3024, label: "好友偷花", defaultPriority: 0 },
-  { id: 3030, label: "花艺售卖", defaultPriority: 0, note: "不要求「自动上架」；上架满5分钟会全部下架再挂；缺成品先按制作规则做最高价有种子花艺；上架时选库存数量最多的可售花艺" },
-  {
-    id: 3034,
-    label: "花艺制作",
-    defaultPriority: 0,
-    note: "不要求「自动制作」；只做配方花都有种子且售价最高的花艺",
-  },
-  { id: 3035, label: "鲜花升级", defaultPriority: 0 },
-  { id: 3036, label: "种植收获", defaultPriority: 5 },
-  {
-    id: 3044,
-    label: "花种培育",
-    defaultPriority: 0,
-    note: "只接正好 36 分且进度为 0；不要求开启鲜花培育。竞赛不主动培育，只接取并在进度达标后提交。已接的 36 分任务一律不放弃（含手动接取、优先级为 0）",
-  },
-  { id: 3052, label: "动物互动", defaultPriority: 0 },
-];
 
 export default function PolicyPanel({
   policy,
@@ -154,204 +97,13 @@ export default function PolicyPanel({
         : `今日已完成 ${customerFinishedToday}`;
   const customerOrderStatusTone = !orders || !customerStatsObserved ? "muted" : customerLimitReached ? "warn" : "ready";
 
-  const updatePolicy = (patch: Partial<Policy>) => {
-    if (!policy) return;
-    onPolicyChange({ ...policy, ...patch });
-  };
-  const updatePlant = (patch: Partial<PlantPolicy>) => {
-    if (!policy) return;
-    const current = policy.plant ?? create(PlantPolicySchema);
-    onPolicyChange({ ...policy, plant: create(PlantPolicySchema, { ...current, ...patch }) });
-  };
-  const updateBasic = (patch: Partial<BasicPolicy>) => {
-    if (!policy) return;
-    const current = policy.basic ?? create(BasicPolicySchema);
-    onPolicyChange({ ...policy, basic: create(BasicPolicySchema, { ...current, ...patch }) });
-  };
-  const updateReputation = (patch: Partial<ReputationPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.reputation ?? create(ReputationPolicySchema);
-    updateBasic({ reputation: { ...current, ...patch } });
-  };
-  const updateBasicTask = (patch: Partial<BasicTaskPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.task ?? create(BasicTaskPolicySchema);
-    updateBasic({ task: { ...current, ...patch } });
-  };
-  const updateBenefit = (patch: Partial<BenefitPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.benefit ?? create(BenefitPolicySchema);
-    updateBasic({ benefit: { ...current, ...patch } });
-  };
-  const updateSign = (patch: Partial<SignPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.sign ?? create(SignPolicySchema);
-    updateBasic({ sign: { ...current, ...patch } });
-  };
-  const updatePearl = (patch: Partial<PearlPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.pearl ?? create(PearlPolicySchema);
-    updateBasic({ pearl: { ...current, ...patch } });
-  };
-  const updateFriendTouchCount = (uid: bigint, count: number) => {
-    const key = uid.toString();
-    const next = { ...(friendSteal?.friendCounts ?? {}) };
-    if (count <= 0) {
-      delete next[key];
-    } else {
-      next[key] = count;
-    }
-    updateFriendSteal({ friendCounts: next });
-  };
-  const updateFriendTouchExcluded = (uid: bigint, excluded: boolean) => {
-    const current = friendSteal?.excludeUids ?? [];
-    const next = excluded
-      ? current.includes(uid)
-        ? current
-        : [...current, uid]
-      : current.filter((value) => value !== uid);
-    updateFriendSteal({ excludeUids: next });
-  };
-  const updateShop = (patch: Partial<ShopPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.shop ?? create(ShopPolicySchema);
-    updateBasic({ shop: { ...current, ...patch } });
-  };
-  const updateCultivateShop = (patch: Partial<ShopBuyPolicy>) => {
-    if (!policy) return;
-    const currentShop = (policy.basic ?? create(BasicPolicySchema)).shop ?? create(ShopPolicySchema);
-    const current = currentShop.cultivateShop ?? create(ShopBuyPolicySchema);
-    updateShop({ cultivateShop: { ...current, ...patch } });
-  };
-  const updateVipShop = (patch: Partial<VipShopPolicy>) => {
-    if (!policy) return;
-    const currentShop = (policy.basic ?? create(BasicPolicySchema)).shop ?? create(ShopPolicySchema);
-    const current = currentShop.vipShop ?? create(VipShopPolicySchema);
-    updateShop({ vipShop: { ...current, ...patch } });
-  };
-  const updateZoo = (patch: Partial<ZooPolicy>) => {
-    if (!policy) return;
-    const currentBasic = policy.basic ?? create(BasicPolicySchema);
-    const current = currentBasic.zoo ?? create(ZooPolicySchema);
-    updateBasic({ zoo: { ...current, ...patch } });
-  };
-  const updatePlanting = (patch: Partial<PlantingPolicy>) => {
-    if (!policy) return;
-    const currentPlant = policy.plant ?? create(PlantPolicySchema);
-    const current = currentPlant.planting ?? create(PlantingPolicySchema);
-    updatePlant({ planting: create(PlantingPolicySchema, { ...current, ...patch }) });
-  };
-  const updateCultivate = (patch: Partial<CultivatePolicy>) => {
-    if (!policy) return;
-    const currentPlant = policy.plant ?? create(PlantPolicySchema);
-    const current = currentPlant.cultivate ?? create(CultivatePolicySchema);
-    updatePlant({ cultivate: { ...current, ...patch } });
-  };
-  const updateFriendSteal = (patch: Partial<FriendStealPolicy>) => {
-    if (!policy) return;
-    const currentPlant = policy.plant ?? create(PlantPolicySchema);
-    const current = currentPlant.friendSteal ?? create(FriendStealPolicySchema);
-    updatePlant({ friendSteal: { ...current, ...patch } });
-  };
-  const updateElves = (patch: Partial<FlowerElvesPolicy>) => {
-    if (!policy) return;
-    const currentPlant = policy.plant ?? create(PlantPolicySchema);
-    const current = currentPlant.elves ?? create(FlowerElvesPolicySchema);
-    updatePlant({ elves: { ...current, ...patch } });
-  };
-  const updateMarket = (patch: Partial<FlowerMarketPolicy>) => {
-    if (!policy) return;
-    const currentPlant = policy.plant ?? create(PlantPolicySchema);
-    const current = currentPlant.market ?? create(FlowerMarketPolicySchema);
-    updatePlant({ market: { ...current, ...patch } });
-  };
-  const updateOrder = (patch: Partial<OrderPolicy>) => {
-    if (!policy) return;
-    const current = policy.order ?? create(OrderPolicySchema);
-    onPolicyChange({ ...policy, order: { ...current, ...patch } });
-  };
-  const updateCustomer = (patch: Partial<CustomerOrderPolicy>) => {
-    if (!policy) return;
-    const currentOrder = policy.order ?? create(OrderPolicySchema);
-    const current = currentOrder.customer ?? create(CustomerOrderPolicySchema);
-    updateOrder({ customer: { ...current, ...patch } });
-  };
-  const updateResident = (patch: Partial<ResidentOrderPolicy>) => {
-    if (!policy) return;
-    const currentOrder = policy.order ?? create(OrderPolicySchema);
-    const current = currentOrder.resident ?? create(ResidentOrderPolicySchema);
-    updateOrder({ resident: { ...current, ...patch } });
-  };
-  const updatePalace = (patch: Partial<PalaceOrderPolicy>) => {
-    if (!policy) return;
-    const currentOrder = policy.order ?? create(OrderPolicySchema);
-    const current = currentOrder.palace ?? create(PalaceOrderPolicySchema);
-    updateOrder({ palace: { ...current, ...patch } });
-  };
-  const updateTeam = (patch: Partial<TeamOrderPolicy>) => {
-    if (!policy) return;
-    const currentOrder = policy.order ?? create(OrderPolicySchema);
-    const current = currentOrder.team ?? create(TeamOrderPolicySchema);
-    updateOrder({ team: { ...current, ...patch } });
-  };
-  const updateFlowerArt = (patch: Partial<FlowerArtPolicy>) => {
-    if (!policy) return;
-    const currentOrder = policy.order ?? create(OrderPolicySchema);
-    const current = currentOrder.flowerArt ?? create(FlowerArtPolicySchema);
-    updateOrder({ flowerArt: create(FlowerArtPolicySchema, { ...current, ...patch }) });
-  };
-  const updateUnion = (patch: Partial<UnionPolicy>) => {
-    if (!policy) return;
-    const current = policy.union ?? create(UnionPolicySchema);
-    onPolicyChange({ ...policy, union: { ...current, ...patch } });
-  };
-  const updateUnionBuild = (patch: Partial<UnionBuildPolicy>) => {
-    if (!policy) return;
-    const currentUnion = policy.union ?? create(UnionPolicySchema);
-    const current = currentUnion.build ?? create(UnionBuildPolicySchema);
-    updateUnion({ build: { ...current, ...patch } });
-  };
-  const updateUnionFlower = (patch: Partial<UnionFlowerPolicy>) => {
-    if (!policy) return;
-    const currentUnion = policy.union ?? create(UnionPolicySchema);
-    const current = currentUnion.flower ?? create(UnionFlowerPolicySchema);
-    updateUnion({ flower: { ...current, ...patch } });
-  };
-  const updateUnionRace = (patch: Partial<UnionRacePolicy>) => {
-    if (!policy) return;
-    const currentUnion = policy.union ?? create(UnionPolicySchema);
-    const current = currentUnion.race ?? create(UnionRacePolicySchema);
-    updateUnion({ race: { ...current, ...patch } });
-  };
-  const updateUnionLand = (patch: Partial<UnionLandPolicy>) => {
-    if (!policy) return;
-    const currentUnion = policy.union ?? create(UnionPolicySchema);
-    const current = currentUnion.land ?? create(UnionLandPolicySchema);
-    updateUnion({ land: { ...current, ...patch } });
-  };
-  const updateActivity = (patch: Partial<ActivityPolicy>) => {
-    if (!policy) return;
-    const current = policy.activity ?? create(ActivityPolicySchema);
-    onPolicyChange({ ...policy, activity: { ...current, ...patch } });
-  };
-  const updateCyclicNote = (patch: Partial<CyclicNotePolicy>) => {
-    const current = activity?.cyclicNote ?? create(CyclicNotePolicySchema);
-    updateActivity({ cyclicNote: create(CyclicNotePolicySchema, { ...current, ...patch }) });
-  };
-  const updateCyclicStory = (patch: Partial<CyclicStoryPolicy>) => {
-    const current = activity?.cyclicStory ?? create(CyclicStoryPolicySchema);
-    updateActivity({ cyclicStory: create(CyclicStoryPolicySchema, { ...current, ...patch }) });
-  };
-  const updateDessert = (patch: Partial<DessertPolicy>) => {
-    const current = activity?.dessert ?? create(DessertPolicySchema);
-    updateActivity({ dessert: create(DessertPolicySchema, { ...current, ...patch }) });
-  };
+  const {
+    updatePolicy, updateBasic, updateReputation, updateBasicTask, updateBenefit, updateSign, updatePearl,
+    updateCultivateShop, updateVipShop, updateZoo, updatePlanting, updateCultivate, updateFriendSteal,
+    updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateMarket, updateCustomer,
+    updateResident, updatePalace, updateTeam, updateFlowerArt, updateUnion, updateUnionBuild,
+    updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory, updateDessert,
+  } = createPolicyEditor(policy, onPolicyChange);
   if (loading) {
     return (
       <Card>
@@ -393,8 +145,9 @@ export default function PolicyPanel({
           </div>
         </section>}
 
-        <div className="flex justify-end xl:sticky xl:top-0 xl:z-10 xl:-mx-4 xl:border-b xl:border-border/55 xl:bg-card/92 xl:px-4 xl:py-3 xl:backdrop-blur-xl">
-          <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={onSave} disabled={saving}>
+        <div className="sticky top-0 z-10 -mx-4 flex items-center justify-between gap-3 border-y border-border/55 bg-card/92 px-4 py-3 backdrop-blur-xl">
+          <span className="text-xs text-muted-foreground">设置仅在保存后生效</span>
+          <Button type="button" size="sm" className="shrink-0" onClick={onSave} disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             {saving ? "保存中" : "保存"}
           </Button>

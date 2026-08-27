@@ -3,6 +3,7 @@ package apiserver
 import (
 	"context"
 	"sort"
+	"sync"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -11,6 +12,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 	"github.com/SilkageNet/mygardenworld/internal/store"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -134,14 +136,21 @@ func newAccountReadModel(acc *store.Account, r *runner.Runner) *accountReadModel
 
 const workspaceReadModelAttempts = 4
 
-// workspaceState builds every product-domain read model from one state revision
-// and one planner result. Offline accounts still return status, policy, and
-// history while live-only domains remain absent.
-func (svc *Services) workspaceState(ctx context.Context, accountID int64) (*pb.WorkspaceState, error) {
-	acc, err := svc.resolveAccount(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
+type workspaceProjectionCache struct {
+	mu          sync.Mutex
+	runner      *runner.Runner
+	revision    uint64
+	lastEventAt time.Time
+	accountName string
+	gsIdx       int32
+	policy      *pb.Policy
+	state       *pb.WorkspaceState
+}
+
+// workspaceStateForAccount is the hot push path. A workspace session retains
+// its already-authorized account, so live updates never re-read account rows or
+// statistics from SQLite.
+func (svc *Services) workspaceStateForAccount(ctx context.Context, acc *store.Account) (*pb.WorkspaceState, error) {
 	var r *runner.Runner
 	if svc.Manager != nil {
 		r = svc.Manager.Get(acc.ID)
@@ -155,10 +164,52 @@ func (svc *Services) workspaceState(ctx context.Context, accountID int64) (*pb.W
 		if policyErr != nil {
 			return nil, policyErr
 		}
-		out := &pb.WorkspaceState{AccountId: acc.ID, AccountStatus: status, Policy: policy}
-		out.History, err = svc.workspaceHistorySummary(ctx, acc.ID, status.GetRuntimeStatistics(), nil)
-		return out, err
+		return &pb.WorkspaceState{
+			AccountId:     acc.ID,
+			AccountStatus: status,
+			Policy:        policy,
+			Statistics:    &pb.WorkspaceStatistics{RuntimeStatistics: status.GetRuntimeStatistics()},
+		}, nil
 	}
+	return svc.cachedLiveWorkspaceState(ctx, acc, r)
+}
+
+func (svc *Services) cachedLiveWorkspaceState(ctx context.Context, acc *store.Account, r *runner.Runner) (*pb.WorkspaceState, error) {
+	svc.workspaceProjectionMu.Lock()
+	if svc.workspaceProjections == nil {
+		svc.workspaceProjections = make(map[int64]*workspaceProjectionCache)
+	}
+	cache := svc.workspaceProjections[acc.ID]
+	if cache == nil {
+		cache = new(workspaceProjectionCache)
+		svc.workspaceProjections[acc.ID] = cache
+	}
+	svc.workspaceProjectionMu.Unlock()
+
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	revision := r.State().Revision()
+	lastEventAt := r.LastEventAt()
+	policy := r.Policy()
+	if cache.state != nil && cache.runner == r && cache.revision == revision && cache.lastEventAt.Equal(lastEventAt) &&
+		cache.accountName == acc.Name && cache.gsIdx == acc.GsIdx && proto.Equal(cache.policy, policy) {
+		return cache.state, nil
+	}
+	state, err := svc.buildLiveWorkspaceState(ctx, acc, r)
+	if err != nil {
+		return nil, err
+	}
+	cache.runner = r
+	cache.revision = revision
+	cache.lastEventAt = lastEventAt
+	cache.accountName = acc.Name
+	cache.gsIdx = acc.GsIdx
+	cache.policy = proto.Clone(policy).(*pb.Policy)
+	cache.state = state
+	return state, nil
+}
+
+func (svc *Services) buildLiveWorkspaceState(ctx context.Context, acc *store.Account, r *runner.Runner) (*pb.WorkspaceState, error) {
 
 	// State getters are individually synchronized. Retrying around the whole
 	// projection prevents one pushed frame from mixing two runner revisions
@@ -188,9 +239,9 @@ func (svc *Services) workspaceState(ctx context.Context, accountID int64) (*pb.W
 			break
 		}
 	}
-	out.History, err = svc.workspaceHistorySummary(ctx, acc.ID, out.Basic.GetRuntimeStatistics(), out.Orders.GetBusinessStatistics())
-	if err != nil {
-		return nil, err
+	out.Statistics = &pb.WorkspaceStatistics{
+		RuntimeStatistics:  out.Basic.GetRuntimeStatistics(),
+		BusinessStatistics: out.Orders.GetBusinessStatistics(),
 	}
 	return out, nil
 }

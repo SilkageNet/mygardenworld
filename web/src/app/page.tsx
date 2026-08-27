@@ -10,7 +10,7 @@ import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
-import type { WorkspaceHistoryItem, WorkspaceHistorySummary } from "@/gen/mygardenworld/v1/workspace_pb";
+import { WorkspaceLogPageKind, type WorkspaceLogPage } from "@/gen/mygardenworld/v1/workspace_pb";
 import { AccountHealth } from "@/lib/api/workspace-models";
 import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import AppShell from "@/components/app-shell";
@@ -23,8 +23,8 @@ import RedeemCodeDialog from "@/components/dashboard/redeem-code-dialog";
 import {
   applyWorkspacePatch,
   EMPTY_ACCOUNT_VIEWS,
+  EVENT_LIMIT,
   mergeEvents,
-  mergeHistoryItems,
   upsertAccount,
   withAccountStatus,
   workspaceStateToViews,
@@ -39,34 +39,21 @@ const policyClient = createClient(PolicyService, transport);
 
 const accountKey = (id: bigint) => id.toString();
 
-type HistoryFeed = {
+type LogFeed = {
   accountId: string;
-  items: WorkspaceHistoryItem[];
+  events: Event[];
   nextBeforeId: bigint;
   hasMore: boolean;
   loading: boolean;
-  paged: boolean;
 };
 
-const EMPTY_HISTORY_FEED: HistoryFeed = {
+const EMPTY_LOG_FEED: LogFeed = {
   accountId: "",
-  items: [],
+  events: [],
   nextBeforeId: BigInt(0),
   hasMore: false,
   loading: false,
-  paged: false,
 };
-
-function historyFeedFromSummary(accountId: string, summary?: WorkspaceHistorySummary): HistoryFeed {
-  return {
-    accountId,
-    items: summary?.recentOperations ?? [],
-    nextBeforeId: summary?.nextBeforeId ?? BigInt(0),
-    hasMore: summary?.hasMore ?? false,
-    loading: false,
-    paged: false,
-  };
-}
 
 export default function HomePage() {
   return (
@@ -84,8 +71,7 @@ function DashboardContent() {
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [views, setViews] = useState<AccountViews>(EMPTY_ACCOUNT_VIEWS);
   const [policy, setPolicy] = useState<Policy | null>(null);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [historyFeed, setHistoryFeed] = useState<HistoryFeed>(EMPTY_HISTORY_FEED);
+  const [logFeed, setLogFeed] = useState<LogFeed>(EMPTY_LOG_FEED);
   const [workspaceConnection, setWorkspaceConnection] = useState<WorkspaceConnectionState>("connecting");
   const [loading, setLoading] = useState(true);
   const [viewsLoading, setViewsLoading] = useState(false);
@@ -108,6 +94,7 @@ function DashboardContent() {
   const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
   const accountsLoadedRef = useRef(false);
   const policyOwnerAccountIdRef = useRef("");
+  const logFeedsRef = useRef<Map<string, LogFeed>>(new Map());
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => accountKey(account.id) === selectedAccountId) ?? null,
@@ -154,6 +141,27 @@ function DashboardContent() {
     setError((current) => (isTransientConnectionMessage(current) ? "" : current));
   }, []);
 
+  const applyLogPage = useCallback((page?: WorkspaceLogPage) => {
+    if (!page) return;
+    const accountId = accountKey(page.accountId);
+    const previous = logFeedsRef.current.get(accountId) ?? { ...EMPTY_LOG_FEED, accountId };
+    const replace = page.gapDetected || page.kind === WorkspaceLogPageKind.RECENT;
+    const events = mergeEvents(replace ? [] : previous.events, page.events);
+    const paged = page.kind === WorkspaceLogPageKind.RECENT || page.kind === WorkspaceLogPageKind.BEFORE;
+    const next: LogFeed = {
+      accountId,
+      events,
+      nextBeforeId: paged && page.nextBeforeId > BigInt(0) ? page.nextBeforeId : previous.nextBeforeId,
+      hasMore: paged ? page.hasMoreBefore && events.length < EVENT_LIMIT : previous.hasMore,
+      loading: false,
+    };
+    logFeedsRef.current.set(accountId, next);
+    if (accountId === selectedAccountIdRef.current) setLogFeed(next);
+    if (page.gapDetected && accountId === selectedAccountIdRef.current) {
+      setError("部分旧日志已超过服务端保留期，已重新加载当前可用窗口");
+    }
+  }, []);
+
   const refreshAccountCollection = useCallback(async () => {
     await refreshAccounts();
     workspaceClientRef.current?.resync();
@@ -192,14 +200,13 @@ function DashboardContent() {
         if (!state || accountKey(state.accountId) !== selectedAccountIdRef.current) return;
         setViews(workspaceStateToViews(state));
         setPolicy(state.policy ?? create(PolicySchema));
-        setHistoryFeed(historyFeedFromSummary(accountKey(state.accountId), state.history));
         policyOwnerAccountIdRef.current = accountKey(state.accountId);
         setPolicyLoading(false);
         setPolicyMessage("");
         if (state.accountStatus) {
           setStatuses((current) => withAccountStatus(current, state.accountStatus!));
         }
-        setEvents((current) => mergeEvents(current, snapshot.logs));
+        applyLogPage(snapshot.logs);
         setViewsLoading(false);
       },
       onPatch: (patch) => {
@@ -212,33 +219,8 @@ function DashboardContent() {
         if (patch.accountStatus) {
           setStatuses((current) => withAccountStatus(current, patch.accountStatus!));
         }
-        if (patch.history) {
-          setHistoryFeed((current) => {
-            if (current.accountId !== accountKey(patch.accountId) || !current.paged) {
-              return historyFeedFromSummary(accountKey(patch.accountId), patch.history);
-            }
-            return {
-              ...current,
-              items: mergeHistoryItems(current.items, patch.history!.recentOperations),
-            };
-          });
-        }
       },
-      onLogs: (batch) => {
-        if (accountKey(batch.accountId) !== selectedAccountIdRef.current) return;
-        setEvents((current) => mergeEvents(current, batch.events));
-      },
-      onHistory: (page) => {
-        if (accountKey(page.accountId) !== selectedAccountIdRef.current) return;
-        setHistoryFeed((current) => ({
-          accountId: accountKey(page.accountId),
-          items: mergeHistoryItems(current.accountId === accountKey(page.accountId) ? current.items : [], page.items),
-          nextBeforeId: page.nextBeforeId,
-          hasMore: page.hasMore,
-          loading: false,
-          paged: true,
-        }));
-      },
+      onLogs: applyLogPage,
       onAlipayLogin: (progress) => {
         setAlipayQR((current) => current && current.loginId === progress.loginId
           ? { ...current, status: progress.status, error: progress.loginError }
@@ -253,7 +235,7 @@ function DashboardContent() {
         }
       },
       onError: (workspaceError) => {
-        setHistoryFeed((current) => current.loading ? { ...current, loading: false } : current);
+        setLogFeed((current) => current.loading ? { ...current, loading: false } : current);
         if (workspaceError.message) setError(workspaceError.message);
       },
     });
@@ -263,7 +245,7 @@ function DashboardContent() {
       workspaceClientRef.current = null;
       client.stop();
     };
-  }, [applyStatuses, refreshAccounts]);
+  }, [applyLogPage, applyStatuses, refreshAccounts]);
 
   useEffect(() => {
     if (accounts.length === 0) {
@@ -291,8 +273,9 @@ function DashboardContent() {
     setViews(EMPTY_ACCOUNT_VIEWS);
     setPolicy(null);
     setPolicyMessage("");
-    setEvents([]);
-    setHistoryFeed(EMPTY_HISTORY_FEED);
+    setLogFeed(selectedAccountId
+      ? (logFeedsRef.current.get(selectedAccountId) ?? { ...EMPTY_LOG_FEED, accountId: selectedAccountId })
+      : EMPTY_LOG_FEED);
     if (!selectedAccountId) {
       setPolicyLoading(false);
       setViewsLoading(false);
@@ -509,7 +492,7 @@ function DashboardContent() {
       });
       workspaceClientRef.current?.watchAlipayLogin(response.loginId);
     } catch (err) {
-      setError(formatAPIError(err, "获取支付宝二维码失败"));
+      setError(formatAPIError(err, "获取 Alipay 二维码失败"));
     } finally {
       setBusyAction("");
     }
@@ -565,13 +548,17 @@ function DashboardContent() {
     }
   }
 
-  function loadMoreHistory() {
-    if (!selectedAccountId || historyFeed.loading || !historyFeed.hasMore) return;
-    const sent = workspaceClientRef.current?.loadHistory(selectedAccountId, historyFeed.nextBeforeId, 50) ?? false;
+  function loadMoreLogs() {
+    if (!selectedAccountId || logFeed.loading || !logFeed.hasMore) return;
+    const sent = workspaceClientRef.current?.loadLogs(selectedAccountId, logFeed.nextBeforeId, 200) ?? false;
     if (sent) {
-      setHistoryFeed((current) => ({ ...current, loading: true }));
+      setLogFeed((current) => {
+        const next = { ...current, loading: true };
+        logFeedsRef.current.set(current.accountId, next);
+        return next;
+      });
     } else {
-      setError("状态通道尚未连接，暂时无法加载更多历史");
+      setError("状态通道尚未连接，暂时无法加载更早日志");
     }
   }
 
@@ -630,10 +617,9 @@ function DashboardContent() {
                 viewsLoading={viewsLoading}
                 busyAction={busyAction}
                 activeTab={dashboardTab}
-                events={events}
-                historyItems={historyFeed.items}
-                historyHasMore={historyFeed.hasMore}
-                historyLoading={historyFeed.loading}
+                events={logFeed.events}
+                logsHasMore={logFeed.hasMore}
+                logsLoading={logFeed.loading}
                 policy={policy}
                 policyLoading={policyLoading}
                 savingPolicy={savingPolicy}
@@ -648,7 +634,7 @@ function DashboardContent() {
                 onDelete={() => void deleteSelectedAccount()}
                 onPolicyChange={setPolicy}
                 onPolicySave={() => void savePolicy()}
-                onLoadMoreHistory={loadMoreHistory}
+                onLoadMoreLogs={loadMoreLogs}
               />
             ) : (
               <SelectAccountPlaceholder />
@@ -673,7 +659,6 @@ function DashboardContent() {
         onFormChange={setAddForm}
         onClearQR={() => setAlipayQR(null)}
         onSubmit={createAccount}
-        onStartAlipay={() => void startAlipayLogin()}
       />
 
       {redeemOpen && (

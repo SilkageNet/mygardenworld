@@ -30,7 +30,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/workspace.proto.
  */
 export const file_mygardenworld_v1_workspace: GenFile = /*@__PURE__*/
-  fileDesc("CiBteWdhcmRlbndvcmxkL3YxL3dvcmtzcGFjZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLhAgoUV29ya3NwYWNlQ2xpZW50RnJhbWUSEgoKcmVxdWVzdF9pZBgBIAEoBBIvCgRvcGVuGAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5PcGVuV29ya3NwYWNlSAASQgoOc2VsZWN0X2FjY291bnQYAyABKAsyKC5teWdhcmRlbndvcmxkLnYxLlNlbGVjdFdvcmtzcGFjZUFjY291bnRIABIzCgZyZXN5bmMYBCABKAsyIS5teWdhcmRlbndvcmxkLnYxLlJlc3luY1dvcmtzcGFjZUgAEj4KDGxvYWRfaGlzdG9yeRgFIAEoCzImLm15Z2FyZGVud29ybGQudjEuTG9hZFdvcmtzcGFjZUhpc3RvcnlIABJAChJ3YXRjaF9hbGlwYXlfbG9naW4YBiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldhdGNoQWxpcGF5TG9naW5IAEIJCgdwYXlsb2FkInIKDU9wZW5Xb3Jrc3BhY2USGAoQcHJvdG9jb2xfdmVyc2lvbhgBIAEoDRIUCgxhY2Nlc3NfdG9rZW4YAiABKAkSGwoTc2VsZWN0ZWRfYWNjb3VudF9pZBgDIAEoAxIUCgxhZnRlcl9sb2dfaWQYBCABKAMiQgoWU2VsZWN0V29ya3NwYWNlQWNjb3VudBISCgphY2NvdW50X2lkGAEgASgDEhQKDGFmdGVyX2xvZ19pZBgCIAEoAyInCg9SZXN5bmNXb3Jrc3BhY2USFAoMYWZ0ZXJfbG9nX2lkGAEgASgDIkwKFExvYWRXb3Jrc3BhY2VIaXN0b3J5EhIKCmFjY291bnRfaWQYASABKAMSEQoJYmVmb3JlX2lkGAIgASgDEg0KBWxpbWl0GAMgASgFIiQKEFdhdGNoQWxpcGF5TG9naW4SEAoIbG9naW5faWQYASABKAkiigQKFFdvcmtzcGFjZVNlcnZlckZyYW1lEhAKCHNlcXVlbmNlGAEgASgEEhIKCnJlcXVlc3RfaWQYAiABKAQSMQoFcmVhZHkYAyABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVJlYWR5SAASQAoQYWNjb3VudF9zdGF0dXNlcxgEIAEoCzIkLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1c0JhdGNoSAASNwoIc25hcHNob3QYBSABKAsyIy5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVNuYXBzaG90SAASMQoFcGF0Y2gYBiABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVBhdGNoSAASMwoEbG9ncxgHIAEoCzIjLm15Z2FyZGVud29ybGQudjEuV29ya3NwYWNlTG9nQmF0Y2hIABI5CgdoaXN0b3J5GAggASgLMiYubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VIaXN0b3J5UGFnZUgAEj0KDGFsaXBheV9sb2dpbhgJIAEoCzIlLm15Z2FyZGVud29ybGQudjEuQWxpcGF5TG9naW5Qcm9ncmVzc0gAEjEKBWVycm9yGAogASgLMiAubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VFcnJvckgAQgkKB3BheWxvYWQi7AEKDldvcmtzcGFjZVJlYWR5EhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SLwoLc2VydmVyX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKCGFjY291bnRzGAMgAygLMh8ubXlnYXJkZW53b3JsZC52MS5BY2NvdW50U3RhdHVzEkEKFGZlYXR1cmVfY2FwYWJpbGl0aWVzGAQgAygLMiMubXlnYXJkZW53b3JsZC52MS5GZWF0dXJlQ2FwYWJpbGl0eRIZChFoZWFydGJlYXRfc2Vjb25kcxgFIAEoBSJHChJBY2NvdW50U3RhdHVzQmF0Y2gSMQoIYWNjb3VudHMYASADKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMi8wMKDldvcmtzcGFjZVN0YXRlEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjoKB2hpc3RvcnkYCyABKAsyKS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUhpc3RvcnlTdW1tYXJ5ImsKEVdvcmtzcGFjZVNuYXBzaG90Ei8KBXN0YXRlGAEgASgLMiAubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VTdGF0ZRIlCgRsb2dzGAIgAygLMhcubXlnYXJkZW53b3JsZC52MS5FdmVudCKvBAoOV29ya3NwYWNlUGF0Y2gSEAoIcmV2aXNpb24YASABKAQSEgoKYWNjb3VudF9pZBgCIAEoAxI3Cg5hY2NvdW50X3N0YXR1cxgDIAEoCzIfLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1cxIoCgZwb2xpY3kYBCABKAsyGC5teWdhcmRlbndvcmxkLnYxLlBvbGljeRIqCgViYXNpYxgFIAEoCzIbLm15Z2FyZGVud29ybGQudjEuQmFzaWNWaWV3EiwKBmdhcmRlbhgGIAEoCzIcLm15Z2FyZGVud29ybGQudjEuR2FyZGVuVmlldxIsCgZvcmRlcnMYByABKAsyHC5teWdhcmRlbndvcmxkLnYxLk9yZGVyc1ZpZXcSKgoFdW5pb24YCCABKAsyGy5teWdhcmRlbndvcmxkLnYxLlVuaW9uVmlldxI0CgphY3Rpdml0aWVzGAkgASgLMiAubXlnYXJkZW53b3JsZC52MS5BY3Rpdml0aWVzVmlldxIyCgl3YXJlaG91c2UYCiABKAsyHy5teWdhcmRlbndvcmxkLnYxLldhcmVob3VzZVZpZXcSOgoHaGlzdG9yeRgLIAEoCzIpLm15Z2FyZGVud29ybGQudjEuV29ya3NwYWNlSGlzdG9yeVN1bW1hcnkSOgoPY2xlYXJlZF9kb21haW5zGAwgAygOMiEubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VEb21haW4ikgIKF1dvcmtzcGFjZUhpc3RvcnlTdW1tYXJ5EkMKEnJ1bnRpbWVfc3RhdGlzdGljcxgBIAEoCzInLm15Z2FyZGVud29ybGQudjEuUnVudGltZVN0YXRpc3RpY3NWaWV3EkUKE2J1c2luZXNzX3N0YXRpc3RpY3MYAiABKAsyKC5teWdhcmRlbndvcmxkLnYxLkJ1c2luZXNzU3RhdGlzdGljc1ZpZXcSQQoRcmVjZW50X29wZXJhdGlvbnMYAyADKAsyJi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUhpc3RvcnlJdGVtEhYKDm5leHRfYmVmb3JlX2lkGAQgASgDEhAKCGhhc19tb3JlGAUgASgIIq0BChRXb3Jrc3BhY2VIaXN0b3J5SXRlbRIKCgJpZBgBIAEoAxImCgJ0cxgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIY2F0ZWdvcnkYAyABKAkSDgoGZG9tYWluGAQgASgJEg4KBmFjdGlvbhgFIAEoCRINCgVsYWJlbBgGIAEoCRIPCgdvdXRjb21lGAcgASgJEg8KB21lc3NhZ2UYCCABKAkiiwEKFFdvcmtzcGFjZUhpc3RvcnlQYWdlEhIKCmFjY291bnRfaWQYASABKAMSNQoFaXRlbXMYAiADKAsyJi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUhpc3RvcnlJdGVtEhYKDm5leHRfYmVmb3JlX2lkGAMgASgDEhAKCGhhc19tb3JlGAQgASgIIlAKEVdvcmtzcGFjZUxvZ0JhdGNoEhIKCmFjY291bnRfaWQYASABKAMSJwoGZXZlbnRzGAIgAygLMhcubXlnYXJkZW53b3JsZC52MS5FdmVudCLNAQoTQWxpcGF5TG9naW5Qcm9ncmVzcxIQCghsb2dpbl9pZBgBIAEoCRIzCgZzdGF0dXMYAiABKA4yIy5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luU3RhdHVzEioKB2FjY291bnQYAyABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSEwoLbG9naW5fZXJyb3IYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiQgoOV29ya3NwYWNlRXJyb3ISDAoEY29kZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJEhEKCXJldHJ5YWJsZRgDIAEoCCqEAgoPV29ya3NwYWNlRG9tYWluEiAKHFdPUktTUEFDRV9ET01BSU5fVU5TUEVDSUZJRUQQABIaChZXT1JLU1BBQ0VfRE9NQUlOX0JBU0lDEAESGwoXV09SS1NQQUNFX0RPTUFJTl9HQVJERU4QAhIbChdXT1JLU1BBQ0VfRE9NQUlOX09SREVSUxADEhoKFldPUktTUEFDRV9ET01BSU5fVU5JT04QBBIfChtXT1JLU1BBQ0VfRE9NQUlOX0FDVElWSVRJRVMQBRIeChpXT1JLU1BBQ0VfRE9NQUlOX1dBUkVIT1VTRRAGEhwKGFdPUktTUEFDRV9ET01BSU5fSElTVE9SWRAHQocBChRjb20ubXlnYXJkZW53b3JsZC52MUIOV29ya3NwYWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_policy, file_mygardenworld_v1_workspace_activity, file_mygardenworld_v1_workspace_basic, file_mygardenworld_v1_workspace_common, file_mygardenworld_v1_workspace_garden, file_mygardenworld_v1_workspace_orders, file_mygardenworld_v1_workspace_union, file_mygardenworld_v1_workspace_warehouse]);
+  fileDesc("CiBteWdhcmRlbndvcmxkL3YxL3dvcmtzcGFjZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLbAgoUV29ya3NwYWNlQ2xpZW50RnJhbWUSEgoKcmVxdWVzdF9pZBgBIAEoBBIvCgRvcGVuGAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5PcGVuV29ya3NwYWNlSAASQgoOc2VsZWN0X2FjY291bnQYAyABKAsyKC5teWdhcmRlbndvcmxkLnYxLlNlbGVjdFdvcmtzcGFjZUFjY291bnRIABIzCgZyZXN5bmMYBCABKAsyIS5teWdhcmRlbndvcmxkLnYxLlJlc3luY1dvcmtzcGFjZUgAEjgKCWxvYWRfbG9ncxgFIAEoCzIjLm15Z2FyZGVud29ybGQudjEuTG9hZFdvcmtzcGFjZUxvZ3NIABJAChJ3YXRjaF9hbGlwYXlfbG9naW4YBiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldhdGNoQWxpcGF5TG9naW5IAEIJCgdwYXlsb2FkInIKDU9wZW5Xb3Jrc3BhY2USGAoQcHJvdG9jb2xfdmVyc2lvbhgBIAEoDRIUCgxhY2Nlc3NfdG9rZW4YAiABKAkSGwoTc2VsZWN0ZWRfYWNjb3VudF9pZBgDIAEoAxIUCgxhZnRlcl9sb2dfaWQYBCABKAMiQgoWU2VsZWN0V29ya3NwYWNlQWNjb3VudBISCgphY2NvdW50X2lkGAEgASgDEhQKDGFmdGVyX2xvZ19pZBgCIAEoAyInCg9SZXN5bmNXb3Jrc3BhY2USFAoMYWZ0ZXJfbG9nX2lkGAEgASgDIkkKEUxvYWRXb3Jrc3BhY2VMb2dzEhIKCmFjY291bnRfaWQYASABKAMSEQoJYmVmb3JlX2lkGAIgASgDEg0KBWxpbWl0GAMgASgFIiQKEFdhdGNoQWxpcGF5TG9naW4SEAoIbG9naW5faWQYASABKAkizgMKFFdvcmtzcGFjZVNlcnZlckZyYW1lEhAKCHNlcXVlbmNlGAEgASgEEhIKCnJlcXVlc3RfaWQYAiABKAQSMQoFcmVhZHkYAyABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVJlYWR5SAASQAoQYWNjb3VudF9zdGF0dXNlcxgEIAEoCzIkLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1c0JhdGNoSAASNwoIc25hcHNob3QYBSABKAsyIy5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVNuYXBzaG90SAASMQoFcGF0Y2gYBiABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVBhdGNoSAASMgoEbG9ncxgHIAEoCzIiLm15Z2FyZGVud29ybGQudjEuV29ya3NwYWNlTG9nUGFnZUgAEj0KDGFsaXBheV9sb2dpbhgIIAEoCzIlLm15Z2FyZGVud29ybGQudjEuQWxpcGF5TG9naW5Qcm9ncmVzc0gAEjEKBWVycm9yGAkgASgLMiAubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VFcnJvckgAQgkKB3BheWxvYWQi7AEKDldvcmtzcGFjZVJlYWR5EhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SLwoLc2VydmVyX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKCGFjY291bnRzGAMgAygLMh8ubXlnYXJkZW53b3JsZC52MS5BY2NvdW50U3RhdHVzEkEKFGZlYXR1cmVfY2FwYWJpbGl0aWVzGAQgAygLMiMubXlnYXJkZW53b3JsZC52MS5GZWF0dXJlQ2FwYWJpbGl0eRIZChFoZWFydGJlYXRfc2Vjb25kcxgFIAEoBSJHChJBY2NvdW50U3RhdHVzQmF0Y2gSMQoIYWNjb3VudHMYASADKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMi8gMKDldvcmtzcGFjZVN0YXRlEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjkKCnN0YXRpc3RpY3MYCyABKAsyJS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRpc3RpY3MidgoRV29ya3NwYWNlU25hcHNob3QSLwoFc3RhdGUYASABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRlEjAKBGxvZ3MYAiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2UirgQKDldvcmtzcGFjZVBhdGNoEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjkKCnN0YXRpc3RpY3MYCyABKAsyJS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRpc3RpY3MSOgoPY2xlYXJlZF9kb21haW5zGAwgAygOMiEubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VEb21haW4ioQEKE1dvcmtzcGFjZVN0YXRpc3RpY3MSQwoScnVudGltZV9zdGF0aXN0aWNzGAEgASgLMicubXlnYXJkZW53b3JsZC52MS5SdW50aW1lU3RhdGlzdGljc1ZpZXcSRQoTYnVzaW5lc3Nfc3RhdGlzdGljcxgCIAEoCzIoLm15Z2FyZGVud29ybGQudjEuQnVzaW5lc3NTdGF0aXN0aWNzVmlldyLkAQoQV29ya3NwYWNlTG9nUGFnZRISCgphY2NvdW50X2lkGAEgASgDEjQKBGtpbmQYAiABKA4yJi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2VLaW5kEicKBmV2ZW50cxgDIAMoCzIXLm15Z2FyZGVud29ybGQudjEuRXZlbnQSFgoObmV4dF9iZWZvcmVfaWQYBCABKAMSFwoPaGFzX21vcmVfYmVmb3JlGAUgASgIEhYKDmhhc19tb3JlX2FmdGVyGAYgASgIEhQKDGdhcF9kZXRlY3RlZBgHIAEoCCLNAQoTQWxpcGF5TG9naW5Qcm9ncmVzcxIQCghsb2dpbl9pZBgBIAEoCRIzCgZzdGF0dXMYAiABKA4yIy5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luU3RhdHVzEioKB2FjY291bnQYAyABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSEwoLbG9naW5fZXJyb3IYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiQgoOV29ya3NwYWNlRXJyb3ISDAoEY29kZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJEhEKCXJldHJ5YWJsZRgDIAEoCCqHAgoPV29ya3NwYWNlRG9tYWluEiAKHFdPUktTUEFDRV9ET01BSU5fVU5TUEVDSUZJRUQQABIaChZXT1JLU1BBQ0VfRE9NQUlOX0JBU0lDEAESGwoXV09SS1NQQUNFX0RPTUFJTl9HQVJERU4QAhIbChdXT1JLU1BBQ0VfRE9NQUlOX09SREVSUxADEhoKFldPUktTUEFDRV9ET01BSU5fVU5JT04QBBIfChtXT1JLU1BBQ0VfRE9NQUlOX0FDVElWSVRJRVMQBRIeChpXT1JLU1BBQ0VfRE9NQUlOX1dBUkVIT1VTRRAGEh8KG1dPUktTUEFDRV9ET01BSU5fU1RBVElTVElDUxAHKswBChRXb3Jrc3BhY2VMb2dQYWdlS2luZBInCiNXT1JLU1BBQ0VfTE9HX1BBR0VfS0lORF9VTlNQRUNJRklFRBAAEiIKHldPUktTUEFDRV9MT0dfUEFHRV9LSU5EX1JFQ0VOVBABEiIKHldPUktTUEFDRV9MT0dfUEFHRV9LSU5EX0JFRk9SRRACEiEKHVdPUktTUEFDRV9MT0dfUEFHRV9LSU5EX0FGVEVSEAMSIAocV09SS1NQQUNFX0xPR19QQUdFX0tJTkRfTElWRRAEQocBChRjb20ubXlnYXJkZW53b3JsZC52MUIOV29ya3NwYWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_policy, file_mygardenworld_v1_workspace_activity, file_mygardenworld_v1_workspace_basic, file_mygardenworld_v1_workspace_common, file_mygardenworld_v1_workspace_garden, file_mygardenworld_v1_workspace_orders, file_mygardenworld_v1_workspace_union, file_mygardenworld_v1_workspace_warehouse]);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceClientFrame
@@ -64,10 +64,10 @@ export type WorkspaceClientFrame = Message<"mygardenworld.v1.WorkspaceClientFram
     case: "resync";
   } | {
     /**
-     * @generated from field: mygardenworld.v1.LoadWorkspaceHistory load_history = 5;
+     * @generated from field: mygardenworld.v1.LoadWorkspaceLogs load_logs = 5;
      */
-    value: LoadWorkspaceHistory;
-    case: "loadHistory";
+    value: LoadWorkspaceLogs;
+    case: "loadLogs";
   } | {
     /**
      * @generated from field: mygardenworld.v1.WatchAlipayLogin watch_alipay_login = 6;
@@ -156,9 +156,9 @@ export const ResyncWorkspaceSchema: GenMessage<ResyncWorkspace> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_workspace, 3);
 
 /**
- * @generated from message mygardenworld.v1.LoadWorkspaceHistory
+ * @generated from message mygardenworld.v1.LoadWorkspaceLogs
  */
-export type LoadWorkspaceHistory = Message<"mygardenworld.v1.LoadWorkspaceHistory"> & {
+export type LoadWorkspaceLogs = Message<"mygardenworld.v1.LoadWorkspaceLogs"> & {
   /**
    * @generated from field: int64 account_id = 1;
    */
@@ -176,10 +176,10 @@ export type LoadWorkspaceHistory = Message<"mygardenworld.v1.LoadWorkspaceHistor
 };
 
 /**
- * Describes the message mygardenworld.v1.LoadWorkspaceHistory.
- * Use `create(LoadWorkspaceHistorySchema)` to create a new message.
+ * Describes the message mygardenworld.v1.LoadWorkspaceLogs.
+ * Use `create(LoadWorkspaceLogsSchema)` to create a new message.
  */
-export const LoadWorkspaceHistorySchema: GenMessage<LoadWorkspaceHistory> = /*@__PURE__*/
+export const LoadWorkspaceLogsSchema: GenMessage<LoadWorkspaceLogs> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_workspace, 4);
 
 /**
@@ -242,25 +242,19 @@ export type WorkspaceServerFrame = Message<"mygardenworld.v1.WorkspaceServerFram
     case: "patch";
   } | {
     /**
-     * @generated from field: mygardenworld.v1.WorkspaceLogBatch logs = 7;
+     * @generated from field: mygardenworld.v1.WorkspaceLogPage logs = 7;
      */
-    value: WorkspaceLogBatch;
+    value: WorkspaceLogPage;
     case: "logs";
   } | {
     /**
-     * @generated from field: mygardenworld.v1.WorkspaceHistoryPage history = 8;
-     */
-    value: WorkspaceHistoryPage;
-    case: "history";
-  } | {
-    /**
-     * @generated from field: mygardenworld.v1.AlipayLoginProgress alipay_login = 9;
+     * @generated from field: mygardenworld.v1.AlipayLoginProgress alipay_login = 8;
      */
     value: AlipayLoginProgress;
     case: "alipayLogin";
   } | {
     /**
-     * @generated from field: mygardenworld.v1.WorkspaceError error = 10;
+     * @generated from field: mygardenworld.v1.WorkspaceError error = 9;
      */
     value: WorkspaceError;
     case: "error";
@@ -383,9 +377,9 @@ export type WorkspaceState = Message<"mygardenworld.v1.WorkspaceState"> & {
   warehouse?: WarehouseView | undefined;
 
   /**
-   * @generated from field: mygardenworld.v1.WorkspaceHistorySummary history = 11;
+   * @generated from field: mygardenworld.v1.WorkspaceStatistics statistics = 11;
    */
-  history?: WorkspaceHistorySummary | undefined;
+  statistics?: WorkspaceStatistics | undefined;
 };
 
 /**
@@ -405,9 +399,9 @@ export type WorkspaceSnapshot = Message<"mygardenworld.v1.WorkspaceSnapshot"> & 
   state?: WorkspaceState | undefined;
 
   /**
-   * @generated from field: repeated mygardenworld.v1.Event logs = 2;
+   * @generated from field: mygardenworld.v1.WorkspaceLogPage logs = 2;
    */
-  logs: Event[];
+  logs?: WorkspaceLogPage | undefined;
 };
 
 /**
@@ -474,9 +468,9 @@ export type WorkspacePatch = Message<"mygardenworld.v1.WorkspacePatch"> & {
   warehouse?: WarehouseView | undefined;
 
   /**
-   * @generated from field: mygardenworld.v1.WorkspaceHistorySummary history = 11;
+   * @generated from field: mygardenworld.v1.WorkspaceStatistics statistics = 11;
    */
-  history?: WorkspaceHistorySummary | undefined;
+  statistics?: WorkspaceStatistics | undefined;
 
   /**
    * @generated from field: repeated mygardenworld.v1.WorkspaceDomain cleared_domains = 12;
@@ -492,9 +486,9 @@ export const WorkspacePatchSchema: GenMessage<WorkspacePatch> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_workspace, 11);
 
 /**
- * @generated from message mygardenworld.v1.WorkspaceHistorySummary
+ * @generated from message mygardenworld.v1.WorkspaceStatistics
  */
-export type WorkspaceHistorySummary = Message<"mygardenworld.v1.WorkspaceHistorySummary"> & {
+export type WorkspaceStatistics = Message<"mygardenworld.v1.WorkspaceStatistics"> & {
   /**
    * @generated from field: mygardenworld.v1.RuntimeStatisticsView runtime_statistics = 1;
    */
@@ -504,11 +498,38 @@ export type WorkspaceHistorySummary = Message<"mygardenworld.v1.WorkspaceHistory
    * @generated from field: mygardenworld.v1.BusinessStatisticsView business_statistics = 2;
    */
   businessStatistics?: BusinessStatisticsView | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.WorkspaceStatistics.
+ * Use `create(WorkspaceStatisticsSchema)` to create a new message.
+ */
+export const WorkspaceStatisticsSchema: GenMessage<WorkspaceStatistics> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace, 12);
+
+/**
+ * WorkspaceLogPage is the only log transport shape. Events are always ordered
+ * newest first. AFTER pages are selected oldest-first in storage before being
+ * reversed for transport, so reconnect catch-up can never skip an intermediate
+ * page even when more_after is true.
+ *
+ * @generated from message mygardenworld.v1.WorkspaceLogPage
+ */
+export type WorkspaceLogPage = Message<"mygardenworld.v1.WorkspaceLogPage"> & {
+  /**
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
 
   /**
-   * @generated from field: repeated mygardenworld.v1.WorkspaceHistoryItem recent_operations = 3;
+   * @generated from field: mygardenworld.v1.WorkspaceLogPageKind kind = 2;
    */
-  recentOperations: WorkspaceHistoryItem[];
+  kind: WorkspaceLogPageKind;
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.Event events = 3;
+   */
+  events: Event[];
 
   /**
    * @generated from field: int64 next_before_id = 4;
@@ -516,123 +537,27 @@ export type WorkspaceHistorySummary = Message<"mygardenworld.v1.WorkspaceHistory
   nextBeforeId: bigint;
 
   /**
-   * @generated from field: bool has_more = 5;
+   * @generated from field: bool has_more_before = 5;
    */
-  hasMore: boolean;
+  hasMoreBefore: boolean;
+
+  /**
+   * @generated from field: bool has_more_after = 6;
+   */
+  hasMoreAfter: boolean;
+
+  /**
+   * @generated from field: bool gap_detected = 7;
+   */
+  gapDetected: boolean;
 };
 
 /**
- * Describes the message mygardenworld.v1.WorkspaceHistorySummary.
- * Use `create(WorkspaceHistorySummarySchema)` to create a new message.
+ * Describes the message mygardenworld.v1.WorkspaceLogPage.
+ * Use `create(WorkspaceLogPageSchema)` to create a new message.
  */
-export const WorkspaceHistorySummarySchema: GenMessage<WorkspaceHistorySummary> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 12);
-
-/**
- * @generated from message mygardenworld.v1.WorkspaceHistoryItem
- */
-export type WorkspaceHistoryItem = Message<"mygardenworld.v1.WorkspaceHistoryItem"> & {
-  /**
-   * @generated from field: int64 id = 1;
-   */
-  id: bigint;
-
-  /**
-   * @generated from field: google.protobuf.Timestamp ts = 2;
-   */
-  ts?: Timestamp | undefined;
-
-  /**
-   * @generated from field: string category = 3;
-   */
-  category: string;
-
-  /**
-   * @generated from field: string domain = 4;
-   */
-  domain: string;
-
-  /**
-   * @generated from field: string action = 5;
-   */
-  action: string;
-
-  /**
-   * @generated from field: string label = 6;
-   */
-  label: string;
-
-  /**
-   * @generated from field: string outcome = 7;
-   */
-  outcome: string;
-
-  /**
-   * @generated from field: string message = 8;
-   */
-  message: string;
-};
-
-/**
- * Describes the message mygardenworld.v1.WorkspaceHistoryItem.
- * Use `create(WorkspaceHistoryItemSchema)` to create a new message.
- */
-export const WorkspaceHistoryItemSchema: GenMessage<WorkspaceHistoryItem> = /*@__PURE__*/
+export const WorkspaceLogPageSchema: GenMessage<WorkspaceLogPage> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_workspace, 13);
-
-/**
- * @generated from message mygardenworld.v1.WorkspaceHistoryPage
- */
-export type WorkspaceHistoryPage = Message<"mygardenworld.v1.WorkspaceHistoryPage"> & {
-  /**
-   * @generated from field: int64 account_id = 1;
-   */
-  accountId: bigint;
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.WorkspaceHistoryItem items = 2;
-   */
-  items: WorkspaceHistoryItem[];
-
-  /**
-   * @generated from field: int64 next_before_id = 3;
-   */
-  nextBeforeId: bigint;
-
-  /**
-   * @generated from field: bool has_more = 4;
-   */
-  hasMore: boolean;
-};
-
-/**
- * Describes the message mygardenworld.v1.WorkspaceHistoryPage.
- * Use `create(WorkspaceHistoryPageSchema)` to create a new message.
- */
-export const WorkspaceHistoryPageSchema: GenMessage<WorkspaceHistoryPage> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 14);
-
-/**
- * @generated from message mygardenworld.v1.WorkspaceLogBatch
- */
-export type WorkspaceLogBatch = Message<"mygardenworld.v1.WorkspaceLogBatch"> & {
-  /**
-   * @generated from field: int64 account_id = 1;
-   */
-  accountId: bigint;
-
-  /**
-   * @generated from field: repeated mygardenworld.v1.Event events = 2;
-   */
-  events: Event[];
-};
-
-/**
- * Describes the message mygardenworld.v1.WorkspaceLogBatch.
- * Use `create(WorkspaceLogBatchSchema)` to create a new message.
- */
-export const WorkspaceLogBatchSchema: GenMessage<WorkspaceLogBatch> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 15);
 
 /**
  * @generated from message mygardenworld.v1.AlipayLoginProgress
@@ -669,7 +594,7 @@ export type AlipayLoginProgress = Message<"mygardenworld.v1.AlipayLoginProgress"
  * Use `create(AlipayLoginProgressSchema)` to create a new message.
  */
 export const AlipayLoginProgressSchema: GenMessage<AlipayLoginProgress> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 16);
+  messageDesc(file_mygardenworld_v1_workspace, 14);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceError
@@ -696,7 +621,7 @@ export type WorkspaceError = Message<"mygardenworld.v1.WorkspaceError"> & {
  * Use `create(WorkspaceErrorSchema)` to create a new message.
  */
 export const WorkspaceErrorSchema: GenMessage<WorkspaceError> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 17);
+  messageDesc(file_mygardenworld_v1_workspace, 15);
 
 /**
  * WorkspaceDomain is the product boundary used by state patches and the Web UI.
@@ -740,9 +665,9 @@ export enum WorkspaceDomain {
   WAREHOUSE = 6,
 
   /**
-   * @generated from enum value: WORKSPACE_DOMAIN_HISTORY = 7;
+   * @generated from enum value: WORKSPACE_DOMAIN_STATISTICS = 7;
    */
-  HISTORY = 7,
+  STATISTICS = 7,
 }
 
 /**
@@ -750,4 +675,40 @@ export enum WorkspaceDomain {
  */
 export const WorkspaceDomainSchema: GenEnum<WorkspaceDomain> = /*@__PURE__*/
   enumDesc(file_mygardenworld_v1_workspace, 0);
+
+/**
+ * @generated from enum mygardenworld.v1.WorkspaceLogPageKind
+ */
+export enum WorkspaceLogPageKind {
+  /**
+   * @generated from enum value: WORKSPACE_LOG_PAGE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: WORKSPACE_LOG_PAGE_KIND_RECENT = 1;
+   */
+  RECENT = 1,
+
+  /**
+   * @generated from enum value: WORKSPACE_LOG_PAGE_KIND_BEFORE = 2;
+   */
+  BEFORE = 2,
+
+  /**
+   * @generated from enum value: WORKSPACE_LOG_PAGE_KIND_AFTER = 3;
+   */
+  AFTER = 3,
+
+  /**
+   * @generated from enum value: WORKSPACE_LOG_PAGE_KIND_LIVE = 4;
+   */
+  LIVE = 4,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.WorkspaceLogPageKind.
+ */
+export const WorkspaceLogPageKindSchema: GenEnum<WorkspaceLogPageKind> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_workspace, 1);
 

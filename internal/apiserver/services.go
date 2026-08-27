@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	connect "connectrpc.com/connect"
 
@@ -31,6 +32,9 @@ type Services struct {
 	Log          *slog.Logger
 	LoginLimiter *LoginLimiter
 	AlipayLogins *AlipayLoginCoordinator
+
+	workspaceProjectionMu sync.Mutex
+	workspaceProjections  map[int64]*workspaceProjectionCache
 }
 
 // resolveAccount resolves the only public account identity: its stable id.

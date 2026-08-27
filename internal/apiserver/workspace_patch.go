@@ -19,7 +19,7 @@ func buildWorkspacePatch(previous, next *pb.WorkspaceState) *pb.WorkspacePatch {
 		patch.Union = next.GetUnion()
 		patch.Activities = next.GetActivities()
 		patch.Warehouse = next.GetWarehouse()
-		patch.History = next.GetHistory()
+		patch.Statistics = next.GetStatistics()
 		return patch
 	}
 
@@ -62,10 +62,10 @@ func buildWorkspacePatch(previous, next *pb.WorkspaceState) *pb.WorkspacePatch {
 		changed = true
 		appendClearedDomain(patch, pb.WorkspaceDomain_WORKSPACE_DOMAIN_WAREHOUSE, previous.GetWarehouse() != nil, next.GetWarehouse() != nil)
 	}
-	if !proto.Equal(previous.GetHistory(), next.GetHistory()) {
-		patch.History = next.GetHistory()
+	if !proto.Equal(previous.GetStatistics(), next.GetStatistics()) {
+		patch.Statistics = next.GetStatistics()
 		changed = true
-		appendClearedDomain(patch, pb.WorkspaceDomain_WORKSPACE_DOMAIN_HISTORY, previous.GetHistory() != nil, next.GetHistory() != nil)
+		appendClearedDomain(patch, pb.WorkspaceDomain_WORKSPACE_DOMAIN_STATISTICS, previous.GetStatistics() != nil, next.GetStatistics() != nil)
 	}
 	if !changed {
 		return nil
