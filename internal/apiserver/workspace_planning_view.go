@@ -257,8 +257,6 @@ func gateResourceKindProto(kind string) pb.GateResourceKind {
 		return pb.GateResourceKind_GATE_RESOURCE_KIND_DIAMOND
 	case automation.GateResourceItem:
 		return pb.GateResourceKind_GATE_RESOURCE_KIND_ITEM
-	case automation.GateResourceActivityItem:
-		return pb.GateResourceKind_GATE_RESOURCE_KIND_ACTIVITY_ITEM
 	case automation.GateResourceWaterDrop:
 		return pb.GateResourceKind_GATE_RESOURCE_KIND_WATER_DROP
 	case automation.GateResourceLevel:

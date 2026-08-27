@@ -349,17 +349,13 @@ func buildUnionView(model *accountReadModel) *pb.UnionView {
 func buildActivitiesView(model *accountReadModel) *pb.ActivitiesView {
 	cyclicNote, _ := model.state.CyclicNoteView(model.now)
 	cyclicStory, _ := model.state.CyclicStoryView(model.now)
-	dessert, _ := model.state.DessertView(model.now)
-	resp := &pb.ActivitiesView{
+	return &pb.ActivitiesView{
 		AccountId:   model.account.ID,
 		AccountName: model.account.Name,
 		CapturedAt:  timestamppb.New(model.now),
 		CyclicNote:  cyclicNoteProto(cyclicNote),
 		CyclicStory: cyclicStoryProto(cyclicStory),
-		Dessert:     dessertProto(dessert),
 	}
-	resp.Dessert.Runtime = dessertRuntimeProto(model.runner.DessertRuntimeSnapshot())
-	return resp
 }
 
 func buildWarehouseView(model *accountReadModel) *pb.WarehouseView {

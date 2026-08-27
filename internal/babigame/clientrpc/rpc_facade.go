@@ -84,7 +84,7 @@ func (r ActRPC) GiftBuy(ctx context.Context, req clientproto.ActGiftBuyRequest, 
 // ActRecvResponse is the namespace-delta response for gs.act.recv.
 type ActRecvResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// Recv calls gs.act.recv. Request fields inferred from game.js: batchId, taskIdx, taskId.
+// Recv calls gs.act.recv. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
 func (r ActRPC) Recv(ctx context.Context, req clientproto.ActRecvRequest, opts ...babigame.RequestOption) (ActRecvResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActRecv, req, opts...)
 }
@@ -606,59 +606,6 @@ type ActCyclicVaseResetGiftCdResponse = babigame.RPCResponse[clientproto.StateDe
 // ResetGiftCd calls gs.actCyclicVase.resetGiftCd. Request fields inferred from game.js: batchId, giftId.
 func (r ActCyclicVaseRPC) ResetGiftCd(ctx context.Context, req clientproto.ActCyclicVaseResetGiftCdRequest, opts ...babigame.RequestOption) (ActCyclicVaseResetGiftCdResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActCyclicVaseResetGiftCd, req, opts...)
-}
-
-// ActDessert returns typed RPC helpers for the ActDessert namespace.
-func (c *Client) ActDessert() ActDessertRPC { return ActDessertRPC{c: c.c} }
-
-type ActDessertRPC struct{ c *babigame.RPCClient }
-
-// ActDessertEnterResponse is the namespace-delta response for gs.actDessert.enter.
-type ActDessertEnterResponse = babigame.RPCResponse[clientproto.StateDelta]
-
-// Enter calls gs.actDessert.enter. Request fields inferred from game.js: batchId.
-func (r ActDessertRPC) Enter(ctx context.Context, req clientproto.ActDessertEnterRequest, opts ...babigame.RequestOption) (ActDessertEnterResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActDessertEnter, req, opts...)
-}
-
-// ActDessertGameOverResponse is the namespace-delta response for gs.actDessert.gameOver.
-type ActDessertGameOverResponse = babigame.RPCResponse[clientproto.StateDelta]
-
-// GameOver calls gs.actDessert.gameOver. Request fields inferred from game.js: batchId, gameType.
-func (r ActDessertRPC) GameOver(ctx context.Context, req clientproto.ActDessertGameOverRequest, opts ...babigame.RequestOption) (ActDessertGameOverResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActDessertGameOver, req, opts...)
-}
-
-// ActDessertGameStartResponse is the namespace-delta response for gs.actDessert.gameStart.
-type ActDessertGameStartResponse = babigame.RPCResponse[clientproto.StateDelta]
-
-// GameStart calls gs.actDessert.gameStart. Request fields inferred from game.js: batchId.
-func (r ActDessertRPC) GameStart(ctx context.Context, req clientproto.ActDessertGameStartRequest, opts ...babigame.RequestOption) (ActDessertGameStartResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActDessertGameStart, req, opts...)
-}
-
-// ActDessertGameSyncResponse is the namespace-delta response for gs.actDessert.gameSync.
-type ActDessertGameSyncResponse = babigame.RPCResponse[clientproto.StateDelta]
-
-// GameSync calls gs.actDessert.gameSync. Request fields inferred from game.js: batchId, gameType, args.
-func (r ActDessertRPC) GameSync(ctx context.Context, req clientproto.ActDessertGameSyncRequest, opts ...babigame.RequestOption) (ActDessertGameSyncResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActDessertGameSync, req, opts...)
-}
-
-// ActDessertGiftBuyResponse is the namespace-delta response for gs.actDessert.giftBuy.
-type ActDessertGiftBuyResponse = babigame.RPCResponse[clientproto.StateDelta]
-
-// GiftBuy calls gs.actDessert.giftBuy. Request fields inferred from game.js: batchId, giftId, count.
-func (r ActDessertRPC) GiftBuy(ctx context.Context, req clientproto.ActDessertGiftBuyRequest, opts ...babigame.RequestOption) (ActDessertGiftBuyResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActDessertGiftBuy, req, opts...)
-}
-
-// ActDessertOpenBoxResponse is the namespace-delta response for gs.actDessert.openBox.
-type ActDessertOpenBoxResponse = babigame.RPCResponse[clientproto.StateDelta]
-
-// OpenBox calls gs.actDessert.openBox. Request fields inferred from game.js: batchId, num.
-func (r ActDessertRPC) OpenBox(ctx context.Context, req clientproto.ActDessertOpenBoxRequest, opts ...babigame.RequestOption) (ActDessertOpenBoxResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActDessertOpenBox, req, opts...)
 }
 
 // ActDraw returns typed RPC helpers for the ActDraw namespace.
@@ -1929,6 +1876,19 @@ func (r ActRealFlowerRPC) GetBigLogList(ctx context.Context, req clientproto.Act
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActRealFlowerGetBigLogList, req, opts...)
 }
 
+// ActRealFruit returns typed RPC helpers for the ActRealFruit namespace.
+func (c *Client) ActRealFruit() ActRealFruitRPC { return ActRealFruitRPC{c: c.c} }
+
+type ActRealFruitRPC struct{ c *babigame.RPCClient }
+
+// ActRealFruitGetBigLogListResponse is the namespace-delta response for gs.actRealFruit.getBigLogList.
+type ActRealFruitGetBigLogListResponse = babigame.RPCResponse[clientproto.StateDelta]
+
+// GetBigLogList calls gs.actRealFruit.getBigLogList. Request fields inferred from game.js: batchId.
+func (r ActRealFruitRPC) GetBigLogList(ctx context.Context, req clientproto.ActRealFruitGetBigLogListRequest, opts ...babigame.RequestOption) (ActRealFruitGetBigLogListResponse, error) {
+	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActRealFruitGetBigLogList, req, opts...)
+}
+
 // ActRealMilkTea returns typed RPC helpers for the ActRealMilkTea namespace.
 func (c *Client) ActRealMilkTea() ActRealMilkTeaRPC { return ActRealMilkTeaRPC{c: c.c} }
 
@@ -1940,6 +1900,14 @@ type ActRealMilkTeaGetBigLogListResponse = babigame.RPCResponse[clientproto.Stat
 // GetBigLogList calls gs.actRealMilkTea.getBigLogList. Request fields inferred from game.js: batchId.
 func (r ActRealMilkTeaRPC) GetBigLogList(ctx context.Context, req clientproto.ActRealMilkTeaGetBigLogListRequest, opts ...babigame.RequestOption) (ActRealMilkTeaGetBigLogListResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActRealMilkTeaGetBigLogList, req, opts...)
+}
+
+// ActRealMilkTeaTestGainGiftResponse is the namespace-delta response for gs.actRealMilkTea.testGainGift.
+type ActRealMilkTeaTestGainGiftResponse = babigame.RPCResponse[clientproto.StateDelta]
+
+// TestGainGift calls gs.actRealMilkTea.testGainGift. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
+func (r ActRealMilkTeaRPC) TestGainGift(ctx context.Context, req clientproto.ActRealMilkTeaTestGainGiftRequest, opts ...babigame.RequestOption) (ActRealMilkTeaTestGainGiftResponse, error) {
+	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActRealMilkTeaTestGainGift, req, opts...)
 }
 
 // ActRedpacket returns typed RPC helpers for the ActRedpacket namespace.
@@ -1984,12 +1952,12 @@ func (r ActSpaceRPC) Enter(ctx context.Context, req clientproto.ActSpaceEnterReq
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActSpaceEnter, req, opts...)
 }
 
-// ActSpaceRecvBoxResponse is the namespace-delta response for gs.actSpace.recvBox.
-type ActSpaceRecvBoxResponse = babigame.RPCResponse[clientproto.StateDelta]
+// ActSpaceRecvResponse is the namespace-delta response for gs.actSpace.recv.
+type ActSpaceRecvResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// RecvBox calls gs.actSpace.recvBox. Request fields inferred from game.js: batchId, day, boxId.
-func (r ActSpaceRPC) RecvBox(ctx context.Context, req clientproto.ActSpaceRecvBoxRequest, opts ...babigame.RequestOption) (ActSpaceRecvBoxResponse, error) {
-	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActSpaceRecvBox, req, opts...)
+// Recv calls gs.actSpace.recv. Request fields inferred from game.js: batchId, idx.
+func (r ActSpaceRPC) Recv(ctx context.Context, req clientproto.ActSpaceRecvRequest, opts ...babigame.RequestOption) (ActSpaceRecvResponse, error) {
+	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActSpaceRecv, req, opts...)
 }
 
 // ActSpool returns typed RPC helpers for the ActSpool namespace.
@@ -2156,6 +2124,27 @@ type ActVipTimeShopGiftBuyResponse = babigame.RPCResponse[clientproto.StateDelta
 // GiftBuy calls gs.actVipTimeShop.giftBuy. Request fields inferred from game.js: batchId, giftId, count.
 func (r ActVipTimeShopRPC) GiftBuy(ctx context.Context, req clientproto.ActVipTimeShopGiftBuyRequest, opts ...babigame.RequestOption) (ActVipTimeShopGiftBuyResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActVipTimeShopGiftBuy, req, opts...)
+}
+
+// ActZFBBbFarm returns typed RPC helpers for the ActZFBBbFarm namespace.
+func (c *Client) ActZFBBbFarm() ActZFBBbFarmRPC { return ActZFBBbFarmRPC{c: c.c} }
+
+type ActZFBBbFarmRPC struct{ c *babigame.RPCClient }
+
+// ActZFBBbFarmBrowseWebResponse is the namespace-delta response for gs.actZFBBbFarm.browseWeb.
+type ActZFBBbFarmBrowseWebResponse = babigame.RPCResponse[clientproto.StateDelta]
+
+// BrowseWeb calls gs.actZFBBbFarm.browseWeb. Request fields inferred from game.js: batchId.
+func (r ActZFBBbFarmRPC) BrowseWeb(ctx context.Context, req clientproto.ActZFBBbFarmBrowseWebRequest, opts ...babigame.RequestOption) (ActZFBBbFarmBrowseWebResponse, error) {
+	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActZFBBbFarmBrowseWeb, req, opts...)
+}
+
+// ActZFBBbFarmEnterResponse is the namespace-delta response for gs.actZFBBbFarm.enter.
+type ActZFBBbFarmEnterResponse = babigame.RPCResponse[clientproto.StateDelta]
+
+// Enter calls gs.actZFBBbFarm.enter. Request fields inferred from game.js: batchId.
+func (r ActZFBBbFarmRPC) Enter(ctx context.Context, req clientproto.ActZFBBbFarmEnterRequest, opts ...babigame.RequestOption) (ActZFBBbFarmEnterResponse, error) {
+	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCActZFBBbFarmEnter, req, opts...)
 }
 
 // ActZFBForest returns typed RPC helpers for the ActZFBForest namespace.
@@ -2512,7 +2501,7 @@ func (r CelebrityRPC) GetAllTypes(ctx context.Context, req clientproto.Celebrity
 // CelebrityGetAllTypesInfoResponse is the namespace-delta response for gs.celebrity.getAllTypesInfo.
 type CelebrityGetAllTypesInfoResponse = babigame.RPCResponse[clientproto.StateDelta]
 
-// GetAllTypesInfo calls gs.celebrity.getAllTypesInfo. game.js sends an empty request object.
+// GetAllTypesInfo calls gs.celebrity.getAllTypesInfo. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
 func (r CelebrityRPC) GetAllTypesInfo(ctx context.Context, req clientproto.CelebrityGetAllTypesInfoRequest, opts ...babigame.RequestOption) (CelebrityGetAllTypesInfoResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCCelebrityGetAllTypesInfo, req, opts...)
 }
@@ -6417,6 +6406,19 @@ type ThirdpartyApplyTokenResponse = babigame.RPCResponse[clientproto.StateDelta]
 // ApplyToken calls gs.thirdparty.applyToken. The request shape is dynamic in game.js, so pass JSON-compatible fields in the request map.
 func (r ThirdpartyRPC) ApplyToken(ctx context.Context, req clientproto.ThirdpartyApplyTokenRequest, opts ...babigame.RequestOption) (ThirdpartyApplyTokenResponse, error) {
 	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCThirdpartyApplyToken, req, opts...)
+}
+
+// TimeItem returns typed RPC helpers for the TimeItem namespace.
+func (c *Client) TimeItem() TimeItemRPC { return TimeItemRPC{c: c.c} }
+
+type TimeItemRPC struct{ c *babigame.RPCClient }
+
+// TimeItemChooseItemResponse is the namespace-delta response for gs.timeItem.chooseItem.
+type TimeItemChooseItemResponse = babigame.RPCResponse[clientproto.StateDelta]
+
+// ChooseItem calls gs.timeItem.chooseItem. Request fields inferred from game.js: msId, itemId.
+func (r TimeItemRPC) ChooseItem(ctx context.Context, req clientproto.TimeItemChooseItemRequest, opts ...babigame.RequestOption) (TimeItemChooseItemResponse, error) {
+	return babigame.CallRPC[clientproto.StateDelta](ctx, r.c, clientproto.RPCTimeItemChooseItem, req, opts...)
 }
 
 // Title returns typed RPC helpers for the Title namespace.

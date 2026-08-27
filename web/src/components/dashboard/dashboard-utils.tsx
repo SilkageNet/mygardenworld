@@ -3,7 +3,7 @@ import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { AccountHealth, PlanStatus } from "@/lib/api/workspace-models";
-import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, DessertView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/workspace-models";
+import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { itemName } from "@/lib/game/catalog";
 
@@ -325,16 +325,6 @@ export function cyclicNotePhaseDetail(activity: CyclicNoteView) {
 }
 
 export function cyclicStoryPhaseDetail(activity: CyclicStoryView) {
-  if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
-  const endMs = Number(activity.phaseEndMs);
-  if (!Number.isFinite(endMs) || endMs <= 0) return "阶段时间尚未同步";
-  const remaining = endMs - Date.now();
-  if (remaining <= 0) return "等待服务端阶段更新";
-  const prefix = activity.phase === 1 ? "距开始" : activity.phase === 3 ? "领奖剩余" : "剩余";
-  return `${prefix} ${formatRemainingMilliseconds(remaining)}`;
-}
-
-export function dessertPhaseDetail(activity: DessertView) {
   if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
   const endMs = Number(activity.phaseEndMs);
   if (!Number.isFinite(endMs) || endMs <= 0) return "阶段时间尚未同步";

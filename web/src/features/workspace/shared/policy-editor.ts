@@ -8,7 +8,6 @@ import {
   CustomerOrderPolicySchema,
   CyclicNotePolicySchema,
   CyclicStoryPolicySchema,
-  DessertPolicySchema,
   FlowerArtPolicySchema,
   FlowerElvesPolicySchema,
   FlowerMarketPolicySchema,
@@ -39,7 +38,6 @@ import {
   type CustomerOrderPolicy,
   type CyclicNotePolicy,
   type CyclicStoryPolicy,
-  type DessertPolicy,
   type FlowerArtPolicy,
   type FlowerElvesPolicy,
   type FlowerMarketPolicy,
@@ -208,16 +206,11 @@ export function createPolicyEditor(policy: Policy | null, onPolicyChange: (polic
     const current = policy?.activity?.cyclicStory ?? create(CyclicStoryPolicySchema);
     updateActivity({ cyclicStory: create(CyclicStoryPolicySchema, { ...current, ...patch }) });
   };
-  const updateDessert = (patch: Partial<DessertPolicy>) => {
-    const current = policy?.activity?.dessert ?? create(DessertPolicySchema);
-    updateActivity({ dessert: create(DessertPolicySchema, { ...current, ...patch }) });
-  };
-
   return {
     updatePolicy, updateBasic, updateReputation, updateBasicTask, updateBenefit, updateSign, updatePearl,
     updateCultivateShop, updateVipShop, updateZoo, updatePlanting, updateCultivate, updateFriendSteal,
     updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateMarket, updateCustomer,
     updateResident, updatePalace, updateTeam, updateFlowerArt, updateUnion, updateUnionBuild,
-    updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory, updateDessert,
+    updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory,
   };
 }

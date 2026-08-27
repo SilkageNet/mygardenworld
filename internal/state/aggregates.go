@@ -97,12 +97,10 @@ type unionState struct {
 }
 
 type activityState struct {
-	activityObserved            bool
-	activityBatches             map[int32]*activityBatchState
-	activityTemplates           map[int32]*activityTemplateState
-	activityTaskRecords         map[string]*activityTaskRecordState
-	celebrity                   celebrityState
-	dessertCelebritySyncedBatch int32
+	activityObserved    bool
+	activityBatches     map[int32]*activityBatchState
+	activityTemplates   map[int32]*activityTemplateState
+	activityTaskRecords map[string]*activityTaskRecordState
 }
 
 type taskState struct {

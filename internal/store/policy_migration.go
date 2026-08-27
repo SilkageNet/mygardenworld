@@ -7,12 +7,13 @@ import (
 	"fmt"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-const migratedPolicySchemaVersion = 2
+const migratedPolicySchemaVersionV2 = 2
 
-type policyV2Update struct {
+type policyUpdate struct {
 	accountID int64
 	json      string
 }
@@ -21,11 +22,19 @@ type policyV2Update struct {
 // strict policy schema. Runtime decoding deliberately contains no legacy
 // aliases or missing-field backfills after this migration succeeds.
 func migratePoliciesV2(ctx context.Context, tx *sql.Tx) error {
+	return migratePolicyRows(ctx, tx, migratePolicyDocumentV2)
+}
+
+func migratePoliciesV3(ctx context.Context, tx *sql.Tx) error {
+	return migratePolicyRows(ctx, tx, migratePolicyDocumentV3)
+}
+
+func migratePolicyRows(ctx context.Context, tx *sql.Tx, migrate func(string) (string, error)) error {
 	rows, err := tx.QueryContext(ctx, `SELECT account_id, policy_json FROM account_policies ORDER BY account_id`)
 	if err != nil {
 		return fmt.Errorf("read policies: %w", err)
 	}
-	var updates []policyV2Update
+	var updates []policyUpdate
 	for rows.Next() {
 		var (
 			accountID int64
@@ -35,12 +44,12 @@ func migratePoliciesV2(ctx context.Context, tx *sql.Tx) error {
 			_ = rows.Close()
 			return fmt.Errorf("scan policy: %w", err)
 		}
-		migrated, err := migratePolicyDocumentV2(raw)
+		migrated, err := migrate(raw)
 		if err != nil {
 			_ = rows.Close()
 			return fmt.Errorf("account %d: %w", accountID, err)
 		}
-		updates = append(updates, policyV2Update{accountID: accountID, json: migrated})
+		updates = append(updates, policyUpdate{accountID: accountID, json: migrated})
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
@@ -114,7 +123,7 @@ func migratePolicyDocumentV2(raw string) (string, error) {
 		delete(activity, "enabled")
 		migrateActivityModules(activity)
 	}
-	root["schema_version"] = migratedPolicySchemaVersion
+	root["schema_version"] = migratedPolicySchemaVersionV2
 
 	data, err := json.Marshal(root)
 	if err != nil {
@@ -124,7 +133,34 @@ func migratePolicyDocumentV2(raw string) (string, error) {
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, &policy); err != nil {
 		return "", fmt.Errorf("validate migrated policy: %w", err)
 	}
-	if policy.GetSchemaVersion() != migratedPolicySchemaVersion {
+	if policy.GetSchemaVersion() != migratedPolicySchemaVersionV2 {
+		return "", fmt.Errorf("validate migrated policy: schema version %d", policy.GetSchemaVersion())
+	}
+	return string(data), nil
+}
+
+// migratePolicyDocumentV3 destructively removes the retired activity policy.
+// Strict runtime decoding remains unaware of the removed field; this database
+// migration is the only place that accepts and deletes it.
+func migratePolicyDocumentV3(raw string) (string, error) {
+	var root map[string]any
+	if err := json.Unmarshal([]byte(raw), &root); err != nil {
+		return "", fmt.Errorf("decode policy JSON: %w", err)
+	}
+	if activity := childObject(root, "activity"); activity != nil {
+		delete(activity, "dessert")
+	}
+	root["schema_version"] = policycfg.CurrentSchemaVersion
+
+	data, err := json.Marshal(root)
+	if err != nil {
+		return "", fmt.Errorf("encode policy JSON: %w", err)
+	}
+	var policy pb.Policy
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, &policy); err != nil {
+		return "", fmt.Errorf("validate migrated policy: %w", err)
+	}
+	if policy.GetSchemaVersion() != policycfg.CurrentSchemaVersion {
 		return "", fmt.Errorf("validate migrated policy: schema version %d", policy.GetSchemaVersion())
 	}
 	return string(data), nil
@@ -150,21 +186,6 @@ func migrateActivityModules(activity map[string]any) {
 		copyPolicyValue(typed, "auto_claim_order_rewards", bools, "auto_claim_order_rewards")
 		copyPolicyValue(typed, "auto_claim_progress_boxes", bools, "auto_claim_progress_boxes")
 		copyPolicyValue(typed, "max_score", childObject(module, "int_params"), "max_score")
-	}
-	if module := childObject(modules, "actDessert"); module != nil {
-		typed := ensureChildObject(activity, "dessert")
-		copyPolicyValue(typed, "enabled", module, "enabled")
-		bools := childObject(module, "bool_params")
-		copyPolicyValue(typed, "auto_claim_task_rewards", bools, "auto_claim_task_rewards")
-		copyPolicyValue(typed, "auto_like_celebrity", bools, "auto_like_celebrity")
-		copyPolicyValue(typed, "auto_claim_progress_boxes", bools, "auto_claim_progress_boxes")
-		copyPolicyValue(typed, "auto_open_reward_boxes", bools, "auto_open_reward_boxes")
-		copyPolicyValue(typed, "auto_play", bools, "auto_play")
-		copyPolicyValue(typed, "resume_existing_round", bools, "resume_existing_round")
-		ints := childObject(module, "int_params")
-		copyPolicyValue(typed, "mode", ints, "mode")
-		copyPolicyValue(typed, "max_energy_per_session", ints, "max_energy_per_session")
-		copyPolicyValue(typed, "min_energy_reserve", ints, "min_energy_reserve")
 	}
 	delete(activity, "modules")
 }

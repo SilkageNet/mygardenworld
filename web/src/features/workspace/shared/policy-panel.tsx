@@ -102,7 +102,7 @@ export default function PolicyPanel({
     updateCultivateShop, updateVipShop, updateZoo, updatePlanting, updateCultivate, updateFriendSteal,
     updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateMarket, updateCustomer,
     updateResident, updatePalace, updateTeam, updateFlowerArt, updateUnion, updateUnionBuild,
-    updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory, updateDessert,
+    updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory,
   } = createPolicyEditor(policy, onPolicyChange);
   if (loading) {
     return (
@@ -657,19 +657,6 @@ export default function PolicyPanel({
               </div>
             </PolicyGroup>
 
-            <PolicyGroup title="香卉甜糕" icon={<Play />}>
-              <div className="grid gap-2">
-                <ToggleRow label="启用" checked={activity?.dessert?.enabled ?? false} onChange={(enabled) => updateDessert({ enabled })} status={settingStatusForCapability(capabilities, "activity.actDessert")} />
-                <ToggleRow label="自动领取任务奖励" checked={activity?.dessert?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateDessert({ autoClaimTaskRewards })} />
-                <ToggleRow label="自动免费点赞" checked={activity?.dessert?.autoLikeCelebrity ?? false} onChange={(autoLikeCelebrity) => updateDessert({ autoLikeCelebrity })} />
-                <ToggleRow label="自动开启奖励箱（每次1个）" checked={activity?.dessert?.autoOpenRewardBoxes ?? false} onChange={(autoOpenRewardBoxes) => updateDessert({ autoOpenRewardBoxes })} />
-                <ToggleRow label="启用影子诊断（不执行）" checked={activity?.dessert?.autoPlay ?? false} onChange={(autoPlay) => updateDessert({ autoPlay })} />
-                <ToggleRow label="请求接管评估（当前硬锁）" checked={activity?.dessert?.resumeExistingRound ?? false} onChange={(resumeExistingRound) => updateDessert({ resumeExistingRound })} />
-                <NumberRow label="影子模式（仅 1 可用）" value={activity?.dessert?.mode || 1} min={1} max={1} onChange={(mode) => updateDessert({ mode })} />
-                <NumberRow label="会话体力预算（0=禁用；当前仅诊断）" value={activity?.dessert?.maxEnergyPerSession ?? 0} min={0} max={100} onChange={(maxEnergyPerSession) => updateDessert({ maxEnergyPerSession })} />
-                <NumberRow label="最低体力保留" value={activity?.dessert?.minEnergyReserve ?? 0} min={0} onChange={(minEnergyReserve) => updateDessert({ minEnergyReserve })} />
-              </div>
-            </PolicyGroup>
           </div>
         )}
       </CardContent>

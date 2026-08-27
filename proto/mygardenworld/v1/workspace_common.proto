@@ -25,9 +25,6 @@ enum GateResourceKind {
   GATE_RESOURCE_KIND_POLICY = 7;
   GATE_RESOURCE_KIND_STATE = 8;
   GATE_RESOURCE_KIND_ADAPTER = 9;
-  // Activity-local namespace-23 inventory. This must never fall back to the
-  // normal namespace-7 item inventory.
-  GATE_RESOURCE_KIND_ACTIVITY_ITEM = 10;
 }
 
 enum ExecutionLane {

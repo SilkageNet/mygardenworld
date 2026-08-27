@@ -6,7 +6,7 @@ import { cyclicNotePhaseLabel, cyclicStoryPhaseDetail, formatCount } from "@/com
 import { CollapsibleCard, EmptyState, OverviewStat } from "@/features/workspace/shared/workspace-ui";
 import { itemName } from "@/lib/game/catalog";
 import ActivityItemChip from "./activity-item-chip";
-import { CyclicNoteMilestoneCard, CyclicNoteStatusBadge } from "./status-panels";
+import { ActivityMilestoneCard, ActivityStatusBadge } from "./status-panels";
 
 export default function CyclicStoryMonitorPanel({ activity }: { activity?: CyclicStoryView }) {
   const phase = activity?.phase ?? 0;
@@ -62,7 +62,7 @@ export default function CyclicStoryMonitorPanel({ activity }: { activity?: Cycli
               <div className="p-3"><EmptyState title="当前没有里程碑" /></div>
             ) : (
               <div className="grid gap-2 p-2 lg:grid-cols-3">
-                {activity.milestones.map((milestone) => <CyclicNoteMilestoneCard key={milestone.index} milestone={milestone} />)}
+                {activity.milestones.map((milestone) => <ActivityMilestoneCard key={milestone.index} milestone={milestone} />)}
               </div>
             )}
           </section>
@@ -90,7 +90,7 @@ function CyclicStoryOrderCard({ order }: { order: CyclicStoryOrder }) {
           <div className="text-xs text-muted-foreground">订单槽 {order.orderIdx} · #{order.orderId}</div>
           <div className="mt-1 line-clamp-2 font-medium">{order.flowerId > 0 ? `${itemName(order.flowerId)} x${formatCount(order.cost)}` : `订单 #${order.orderId}`}</div>
         </div>
-        <CyclicNoteStatusBadge status={order.status} received={false} unknown={!order.catalogKnown} />
+        <ActivityStatusBadge status={order.status} received={false} unknown={!order.catalogKnown} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         <span>奖励</span>

@@ -149,6 +149,7 @@ func Generate(ctx context.Context, opts Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	removeDessertCatalogData(tables)
 	items, flowers, farmLands, viewRemoved, err := buildViews(tables)
 	if err != nil {
 		return Result{}, err
@@ -223,6 +224,34 @@ func Generate(ctx context.Context, opts Options) (Result, error) {
 		NamespaceSchemas:   len(protocol.NamespaceSchemas),
 		RPCs:               len(protocol.RPCs),
 	}, nil
+}
+
+func removeDessertCatalogData(tables map[string]StaticTable) {
+	for tableName, table := range tables {
+		if containsDessertIdentity(tableName) {
+			delete(tables, tableName)
+			continue
+		}
+		for rowID, row := range table.Rows {
+			if containsDessertIdentity(rowID + " " + string(row)) {
+				delete(table.Rows, rowID)
+			}
+		}
+		tables[tableName] = table
+	}
+	if table, ok := tables["c_item"]; ok {
+		for itemID := int32(1342); itemID <= 1347; itemID++ {
+			delete(table.Rows, strconv.FormatInt(int64(itemID), 10))
+		}
+		tables["c_item"] = table
+	}
+}
+
+func containsDessertIdentity(value string) bool {
+	value = strings.ToLower(value)
+	return strings.Contains(value, "dessert") ||
+		strings.Contains(value, "香卉甜糕") ||
+		strings.Contains(value, "香喷甜糕")
 }
 
 // DecodeTables expands the obfuscated Cocos client tables into named rows.

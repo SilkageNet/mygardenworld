@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 2
+const currentSchemaVersion = 3
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -113,6 +113,11 @@ CREATE INDEX idx_event_log_ts ON event_log(ts);
 		version: 2,
 		name:    "strict versioned policies",
 		apply:   migratePoliciesV2,
+	},
+	{
+		version: 3,
+		name:    "remove retired dessert policy",
+		apply:   migratePoliciesV3,
 	},
 }
 

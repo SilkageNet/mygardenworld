@@ -35,7 +35,7 @@ JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="Use-A-Long-Local-Admin-Pass
 
 本地数据默认由 `gardend serve --data-dir` 决定；不传时使用系统用户配置目录下的 `mygardenworld/data`，SQLite 文件为 `garden.db`。一键安装只安装 `gardend` 二进制，不会额外切换数据目录。
 
-数据库使用 SQLite `user_version` 做严格、顺序且事务化的版本迁移。本次破坏性版本仅接受已经版本化的数据库；不再携带无版本旧库、旧策略字段或旧鉴权令牌的运行时兼容代码。schema v1 会在启动时一次性升级至 v2，并把策略转换为当前严格格式；迁移完成后运行时只读取新格式。无版本旧库会被明确拒绝，需要使用 `gardend reset-data --yes` 重建。
+数据库使用 SQLite `user_version` 做严格、顺序且事务化的版本迁移。本次破坏性版本仅接受已经版本化的数据库；不再携带无版本旧库、旧策略字段或旧鉴权令牌的运行时兼容代码。schema v1 会先把策略转换为严格格式，schema v2 再一次性删除退役活动策略并升级至 v3；迁移完成后运行时只读取当前格式。无版本旧库会被明确拒绝，需要使用 `gardend reset-data --yes` 重建。
 
 需要排查协议回包时，请用源码目录里的 debug 启动目标，而不是普通 `backend`：
 

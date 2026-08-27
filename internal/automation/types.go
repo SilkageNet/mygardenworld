@@ -43,16 +43,15 @@ const (
 )
 
 const (
-	GateResourceGold         = "gold"
-	GateResourceDiamond      = "diamond"
-	GateResourceItem         = "item"
-	GateResourceActivityItem = "activity_item"
-	GateResourceWaterDrop    = "water_drop"
-	GateResourceLevel        = "level"
-	GateResourceVase         = "vase"
-	GateResourcePolicy       = "policy"
-	GateResourceState        = "state"
-	GateResourceAdapter      = "adapter"
+	GateResourceGold      = "gold"
+	GateResourceDiamond   = "diamond"
+	GateResourceItem      = "item"
+	GateResourceWaterDrop = "water_drop"
+	GateResourceLevel     = "level"
+	GateResourceVase      = "vase"
+	GateResourcePolicy    = "policy"
+	GateResourceState     = "state"
+	GateResourceAdapter   = "adapter"
 )
 
 const (

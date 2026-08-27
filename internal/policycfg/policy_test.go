@@ -71,7 +71,7 @@ func TestNormalizeClearsUnsupportedSDKAdAutomation(t *testing.T) {
 
 func TestFromJSONClearsUnsupportedSDKAdAutomation(t *testing.T) {
 	p, err := FromJSON(`{
-		"schema_version":2,
+		"schema_version":3,
 		"plant":{"planting":{"video_speed_up_enabled":true},"cultivate":{"video_speed_up_enabled":true}},
 		"basic":{"benefit":{"double_coin_enabled":true},"shop":{"video_free_gift_enabled":true}},
 		"union":{"build":{"free_enabled":true}}
@@ -85,7 +85,7 @@ func TestFromJSONClearsUnsupportedSDKAdAutomation(t *testing.T) {
 }
 
 func TestFromJSONDisplacedSessionReloginIsExplicit(t *testing.T) {
-	disabledPolicy, err := FromJSON(`{"schema_version":2,"basic":{"reconnect_interval_seconds":45}}`)
+	disabledPolicy, err := FromJSON(`{"schema_version":3,"basic":{"reconnect_interval_seconds":45}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestFromJSONDisplacedSessionReloginIsExplicit(t *testing.T) {
 		t.Fatal("policy without displaced-session switch enabled relogin")
 	}
 
-	enabledPolicy, err := FromJSON(`{"schema_version":2,"basic":{"displaced_session_relogin_enabled":true}}`)
+	enabledPolicy, err := FromJSON(`{"schema_version":3,"basic":{"displaced_session_relogin_enabled":true}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestFlowerArtSellNightPauseRoundTrip(t *testing.T) {
 func TestFromJSONRequiresExactSchema(t *testing.T) {
 	tests := []string{
 		`{"union":{"race":{"min_task_score":17}}}`,
-		`{"schema_version":3}`,
+		`{"schema_version":4}`,
 		`{"schema_version":2,"union":{"race":{"urgent_speedup_enabled":true}}}`,
 		`{"schema_version":2,"union":{"race":{"max_task_score":19}}}`,
 	}
@@ -192,7 +192,7 @@ func TestFromJSONRequiresExactSchema(t *testing.T) {
 }
 
 func TestFromJSONPreservesCurrentRacePolicy(t *testing.T) {
-	explicitOff, err := FromJSON(`{"schema_version":2,"union":{"race":{"auto_stop_on_quota_done":false,"min_task_score":17}}}`)
+	explicitOff, err := FromJSON(`{"schema_version":3,"union":{"race":{"auto_stop_on_quota_done":false,"min_task_score":17}}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestFromJSONPreservesCurrentRacePolicy(t *testing.T) {
 		t.Fatal("current min_task_score did not survive load")
 	}
 
-	explicitOn, err := FromJSON(`{"schema_version":2,"union":{"race":{"auto_stop_on_quota_done":true}}}`)
+	explicitOn, err := FromJSON(`{"schema_version":3,"union":{"race":{"auto_stop_on_quota_done":true}}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestNormalizePreservesExplicitAutoHarvestDisabled(t *testing.T) {
 
 func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 	raw := `{
-	  "schema_version": 2,
+	  "schema_version": 3,
 	  "automation_enabled": true,
 		"plant": {
 	    "planting": {
@@ -265,7 +265,7 @@ func TestPolicyJSONRoundTripUsesFullParityTree(t *testing.T) {
 
 func TestFromJSONPreservesExplicitAutoHarvestDisabled(t *testing.T) {
 	raw := `{
-	  "schema_version": 2,
+	  "schema_version": 3,
 	  "plant": {
 	    "planting": {
 	      "auto_enabled": true,
@@ -284,7 +284,7 @@ func TestFromJSONPreservesExplicitAutoHarvestDisabled(t *testing.T) {
 
 func TestFromJSONRejectsRemovedPlantFlowerFieldAndOldPriorityName(t *testing.T) {
 	raw := `{
-	  "schema_version": 2,
+	  "schema_version": 3,
 	  "plant": {
 	    "planting": {
 	      "auto_enabled": true,

@@ -15,10 +15,6 @@ const (
 	cyclicNoteSatisfyTasksKey            = "satisfy_tasks"
 	cyclicStoryAutoClaimOrderRewardsKey  = "auto_claim_order_rewards"
 	cyclicStoryAutoClaimProgressBoxesKey = "auto_claim_progress_boxes"
-	dessertAutoClaimTaskRewardsKey       = "auto_claim_task_rewards"
-	dessertAutoLikeCelebrityKey          = "auto_like_celebrity"
-	dessertAutoClaimProgressBoxesKey     = "auto_claim_progress_boxes"
-	dessertAutoOpenRewardBoxesKey        = "auto_open_reward_boxes"
 )
 
 func TestCyclicNotePolicyDefaultsFailClosedAndRequiresModuleEnable(t *testing.T) {

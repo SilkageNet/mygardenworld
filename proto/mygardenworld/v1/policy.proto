@@ -374,7 +374,6 @@ message UnionLandPolicy {
 message ActivityPolicy {
   CyclicNotePolicy cyclic_note = 1;
   CyclicStoryPolicy cyclic_story = 2;
-  DessertPolicy dessert = 3;
 }
 
 message CyclicNotePolicy {
@@ -389,17 +388,4 @@ message CyclicStoryPolicy {
   bool auto_claim_order_rewards = 2;
   bool auto_claim_progress_boxes = 3;
   int64 max_score = 4;
-}
-
-message DessertPolicy {
-  bool enabled = 1;
-  bool auto_claim_task_rewards = 2;
-  bool auto_like_celebrity = 3;
-  bool auto_claim_progress_boxes = 4;
-  bool auto_open_reward_boxes = 5;
-  bool auto_play = 6;
-  bool resume_existing_round = 7;
-  int32 mode = 8;
-  int32 max_energy_per_session = 9;
-  int32 min_energy_reserve = 10;
 }

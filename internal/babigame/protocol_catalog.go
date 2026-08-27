@@ -9,13 +9,6 @@ type NamespaceSpec struct {
 	Modeled bool
 }
 
-const (
-	// CelebrityNamespaceLegacy is retained for older clients and responses.
-	CelebrityNamespaceLegacy = "165"
-	// CelebrityNamespace is authoritative in current server captures.
-	CelebrityNamespace = "166"
-)
-
 var namespaceCatalog = []NamespaceSpec{
 	{Key: "2"}, {Key: "3"}, {Key: "6"}, {Key: "7", Modeled: true},
 	{Key: "16"}, {Key: "19"}, {Key: "20"}, {Key: "21"},
@@ -35,7 +28,7 @@ var namespaceCatalog = []NamespaceSpec{
 	{Key: "131"}, {Key: "132"}, {Key: "134"}, {Key: "136"},
 	{Key: "139"}, {Key: "140", Modeled: true}, {Key: "143"}, {Key: "144"},
 	{Key: "148"}, {Key: "154"}, {Key: "155"}, {Key: "161"},
-	{Key: "162"}, {Key: CelebrityNamespaceLegacy, Modeled: true}, {Key: CelebrityNamespace, Modeled: true},
+	{Key: "162"}, {Key: "165"}, {Key: "166"},
 }
 
 var namespaceCatalogByKey = func() map[string]NamespaceSpec {

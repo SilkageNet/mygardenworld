@@ -66,7 +66,7 @@ func WorkspaceLogCategory(category, domain string) pb.WorkspaceLogCategory {
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_SYSTEM
 	case category == "union", category == "race", strings.HasPrefix(domain, "fml"), strings.Contains(domain, "union"), strings.Contains(domain, "race"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_UNION
-	case category == "activity", strings.HasPrefix(domain, "act"), strings.Contains(domain, "cyclic"), strings.Contains(domain, "dessert"):
+	case category == "activity", strings.HasPrefix(domain, "act"), strings.Contains(domain, "cyclic"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ACTIVITIES
 	case category == "order", category == "flower_art", strings.Contains(domain, "order"), strings.Contains(domain, "vase"), strings.Contains(domain, "flowerart"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ORDERS
@@ -101,7 +101,6 @@ type Runner struct {
 	sessionRuntimeState
 	schedulerState
 	executionState
-	activityRuntimeState
 }
 
 // New constructs a runner. cfg must already be resolved from the account's
@@ -123,7 +122,6 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 	r.sideLaneFirstWait = make(map[string]time.Time)
 	r.unknownRPCCounts = make(map[string]int32)
 	r.lastCustomerOrderInfo = make(map[int32]string)
-	r.dessertRound = dessertRoundRuntime{DessertRuntimeSnapshot: DessertRuntimeSnapshot{ShadowOnly: true}}
 	r.done = make(chan struct{})
 	return r
 }
@@ -183,12 +181,7 @@ func (r *Runner) Policy() *pb.Policy {
 func (r *Runner) SetPolicy(p *pb.Policy) {
 	normalized := policycfg.Normalize(p)
 	r.mu.Lock()
-	oldDessertEnabled := dessertPolicyEnabled(r.policy)
-	newDessertEnabled := dessertPolicyEnabled(normalized)
 	r.policy = normalized
-	if oldDessertEnabled != newDessertEnabled {
-		r.resetDessertRoundForPolicyLocked(newDessertEnabled)
-	}
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
 	}

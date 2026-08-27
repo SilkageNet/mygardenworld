@@ -23,7 +23,6 @@ type sessionRuntimeState struct {
 	sessionInvalidated       bool
 	sessionInvalidatedReason string
 	sessionAutoRelogin       bool
-	dessertSessionEpoch      uint64
 }
 
 type schedulerState struct {
@@ -50,8 +49,4 @@ type executionState struct {
 	lastCustomerOrderInfo        map[int32]string
 	lastResidentOrderLimitReason string
 	lastCustomerOrderLimitReason string
-}
-
-type activityRuntimeState struct {
-	dessertRound dessertRoundRuntime
 }

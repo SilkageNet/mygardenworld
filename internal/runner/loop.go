@@ -131,7 +131,6 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 		return
 	}
-	r.refreshDessertShadowRuntime(now)
 	if snapshot.policy == nil || !snapshot.policy.AutomationEnabled {
 		r.resetSideLaneFairness()
 		return

@@ -3,7 +3,6 @@ package apiserver
 import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
-	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 )
 
@@ -181,11 +180,11 @@ func activityEnabled(p *pb.ActivityPolicy) bool {
 	if p == nil {
 		return false
 	}
-	return p.GetCyclicNote().GetEnabled() || p.GetCyclicStory().GetEnabled() || p.GetDessert().GetEnabled()
+	return p.GetCyclicNote().GetEnabled() || p.GetCyclicStory().GetEnabled()
 }
 
 func observedActivity(observed map[string]struct{}) bool {
-	return observedAny(observed, "138", "139", "140", "152", "155", "160", "161", "162", babigame.CelebrityNamespaceLegacy, babigame.CelebrityNamespace)
+	return observedAny(observed, "138", "139", "140", "152", "155", "160", "161", "162")
 }
 
 func setOfStrings(xs []string) map[string]struct{} {

@@ -195,10 +195,6 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// fronts omit IFmlTot.mb (25.1) for joined accounts, so finalization also
 	// accepts the guild ID in IFmlTot.fml (25.0) as positive membership evidence.
 	r.state.FinalizeFmlMembershipSnapshot()
-	// Only now may the shadow controller observe activity state. During a
-	// reconnecting fresh login the State still contains the previous epoch's
-	// board until index.login/lazySync have supplied this epoch's baseline.
-	r.markDessertSessionStateReady()
 	if r.isSessionInvalidated() {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -260,10 +256,8 @@ func (r *Runner) resetPearlHireSession() {
 func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
 	r.resetPearlHireSession()
-	r.resetDessertRoundSession()
 	r.resetResidentOrderSession()
 	if r.state != nil {
-		r.state.ResetDessertSession()
 		// Contest window: every login/reconnect must re-fetch the task pool
 		// before farm/order work so takeable rows are claimed immediately.
 		r.state.MarkFmlRaceTasksUnobserved()
