@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SoftSpotlight } from "@/components/effects/soft-spotlight";
 import { cn } from "@/lib/utils";
 
 export type AccountQuota = {
@@ -111,7 +112,7 @@ export default function AccountListPanel({
               const automationBusy = bulkBusy || busyAutomationAccountId === accountId;
               const automationSpinning = busyAutomationAccountId === accountId;
               return (
-                <div
+                <SoftSpotlight
                   key={accountId}
                   role="button"
                   tabIndex={0}
@@ -164,7 +165,7 @@ export default function AccountListPanel({
                       <HealthBadge status={status} account={account} />
                     </div>
                   </div>
-                </div>
+                </SoftSpotlight>
               );
             })}
           </div>

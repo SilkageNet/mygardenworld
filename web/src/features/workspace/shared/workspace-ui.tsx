@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SoftSpotlight } from "@/components/effects/soft-spotlight";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +39,7 @@ export function CollapsibleCard({
           {actions && <div className="flex min-w-0 flex-wrap justify-end gap-1.5">{actions}</div>}
         </div>
       </CardHeader>
-      {open && <CardContent className={cn("px-3 sm:px-4", contentClassName)}>{children}</CardContent>}
+      {open && <CardContent className={cn("content-reveal px-3 sm:px-4", contentClassName)}>{children}</CardContent>}
     </Card>
   );
 }
@@ -59,24 +60,26 @@ export function OverviewStat({
   compact?: boolean;
 }) {
   return (
-    <div className="flex min-h-[72px] min-w-0 items-center gap-2 rounded-md border border-border/55 bg-white/52 px-2.5 py-2 shadow-sm transition-colors hover:bg-white/68 dark:bg-white/6 dark:hover:bg-white/9 sm:min-h-[76px] sm:gap-3 sm:px-3">
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-sky-600 shadow-sm dark:bg-white/8 dark:text-sky-300 sm:size-9 [&_svg]:size-4">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div
-          className={cn(
-            "font-semibold tabular-nums",
-            compact ? "text-sm sm:text-base" : "text-base sm:text-lg",
-            wrap ? "whitespace-normal break-all" : "truncate",
+    <SoftSpotlight className="min-h-[72px] min-w-0 rounded-md border border-border/55 bg-white/52 px-2.5 py-2 shadow-sm transition-[background-color,border-color,box-shadow,transform] hover:border-ring/35 hover:bg-white/68 hover:shadow-md dark:bg-white/6 dark:hover:bg-white/9 sm:min-h-[76px] sm:px-3">
+      <div className="flex min-h-[54px] min-w-0 items-center gap-2 sm:min-h-[58px] sm:gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-sky-600 shadow-sm dark:bg-white/8 dark:text-sky-300 sm:size-9 [&_svg]:size-4">{icon}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs text-muted-foreground">{label}</div>
+          <div
+            className={cn(
+              "font-semibold tabular-nums",
+              compact ? "text-sm sm:text-base" : "text-base sm:text-lg",
+              wrap ? "whitespace-normal break-all" : "truncate",
+            )}
+          >
+            {value}
+          </div>
+          {detail && (
+            <div className={cn("text-xs text-muted-foreground", wrap ? "whitespace-normal break-all" : "truncate")}>{detail}</div>
           )}
-        >
-          {value}
         </div>
-        {detail && (
-          <div className={cn("text-xs text-muted-foreground", wrap ? "whitespace-normal break-all" : "truncate")}>{detail}</div>
-        )}
       </div>
-    </div>
+    </SoftSpotlight>
   );
 }
 

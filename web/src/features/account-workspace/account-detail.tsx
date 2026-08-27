@@ -26,6 +26,7 @@ import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspac
 import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ContentReveal } from "@/components/effects/content-reveal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AccountViews } from "@/features/workspace/model";
@@ -156,14 +157,19 @@ export function AccountDetailView({
             : "dark-scrollbar xl:flex-1 xl:overflow-y-auto xl:pr-0.5",
         )}
       >
-        {activeTab === "basic" && <BasicWorkspace {...workspaceProps} />}
-        {activeTab === "garden" && <GardenWorkspace {...workspaceProps} />}
-        {activeTab === "orders" && <OrdersWorkspace {...workspaceProps} />}
-        {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}
-        {activeTab === "activities" && <ActivitiesWorkspace {...workspaceProps} />}
-        {activeTab === "warehouse" && <WarehouseWorkspace {...workspaceProps} />}
-        {activeTab === "statistics" && <StatisticsWorkspace views={views} status={status} />}
-        {activeTab === "logs" && <LogsWorkspace events={events} hasMore={logsHasMore} loading={logsLoading} onLoadMore={onLoadMoreLogs} />}
+        {activeTab === "logs" ? (
+          <LogsWorkspace events={events} hasMore={logsHasMore} loading={logsLoading} onLoadMore={onLoadMoreLogs} />
+        ) : (
+          <ContentReveal key={`${account.id.toString()}-${activeTab}`}>
+            {activeTab === "basic" && <BasicWorkspace {...workspaceProps} />}
+            {activeTab === "garden" && <GardenWorkspace {...workspaceProps} />}
+            {activeTab === "orders" && <OrdersWorkspace {...workspaceProps} />}
+            {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}
+            {activeTab === "activities" && <ActivitiesWorkspace {...workspaceProps} />}
+            {activeTab === "warehouse" && <WarehouseWorkspace {...workspaceProps} />}
+            {activeTab === "statistics" && <StatisticsWorkspace views={views} status={status} />}
+          </ContentReveal>
+        )}
       </div>
     </div>
   );
