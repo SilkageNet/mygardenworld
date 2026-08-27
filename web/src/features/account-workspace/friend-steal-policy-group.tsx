@@ -50,7 +50,7 @@ export default function FriendStealPolicyGroup({
         仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
         <code>stealElves=1</code>。
       </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <ToggleRow
           label="自动摸花"
           checked={policy?.enabled ?? false}

@@ -33,16 +33,23 @@ export default function DomainWorkspace({ section, props, statusContent }: {
   statusContent: ReactNode;
 }) {
   const [mode, setMode] = useState<WorkspaceMode>("status");
+  const settingsAvailable =
+    section !== "union" || props.views.union?.inUnion === true;
+  const activeMode: WorkspaceMode = settingsAvailable ? mode : "status";
+  const availableModes = settingsAvailable
+    ? WORKSPACE_MODES
+    : WORKSPACE_MODES.filter((entry) => entry.id === "status");
+
   return (
     <div className="space-y-3 sm:space-y-4">
       <div className="dark-scrollbar flex gap-1 overflow-x-auto rounded-md border border-border/60 bg-white/45 p-1 dark:bg-white/5">
-        {WORKSPACE_MODES.map((entry) => (
+        {availableModes.map((entry) => (
           <button
             key={entry.id}
             type="button"
             className={cn(
               "flex h-9 min-w-24 shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition-colors",
-              mode === entry.id
+              activeMode === entry.id
                 ? "bg-white text-foreground shadow-sm dark:bg-muted"
                 : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
             )}
@@ -53,8 +60,8 @@ export default function DomainWorkspace({ section, props, statusContent }: {
           </button>
         ))}
       </div>
-      {mode === "status" && statusContent}
-      {mode === "settings" && (
+      {activeMode === "status" && statusContent}
+      {activeMode === "settings" && (
         <PolicyPanel
           policy={props.policy}
           section={section}

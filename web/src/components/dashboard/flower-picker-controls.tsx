@@ -91,7 +91,7 @@ export function FlowerArtMultiSelectRow({
   const toggleArt = (artID: number) => onChange(toggleNumber(value, artID));
 
   return (
-    <div className="min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:col-span-2">
+    <div className="min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:gap-3">
         <Label className="text-sm">{label}</Label>
         <div className="flex gap-1">

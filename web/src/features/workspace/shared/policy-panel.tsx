@@ -267,7 +267,7 @@ export default function PolicyPanel({
                   disabled={!basic?.displacedSessionReloginEnabled}
                   onChange={(value) => updateBasic({ reconnectIntervalSeconds: value })}
                 />
-                <p className="px-1 text-xs leading-5 text-muted-foreground sm:col-span-2">
+                <p className="px-1 text-xs leading-5 text-muted-foreground">
                   {basic?.displacedSessionReloginEnabled
                     ? "已启用：明确检测到异地登录或被挤下线后，将等待上述时间再自动登录。主动退出和普通业务失败不会触发。"
                     : "默认关闭。开启后仅在明确检测到异地登录或被挤下线时自动重登；关闭时不会自动登录。"}
@@ -592,7 +592,6 @@ export default function PolicyPanel({
                   inventory={warehouse?.inventory ?? {}}
                   synced={Boolean(warehouse)}
                   onChange={(value) => updateUnionFlower({ takeFlowerIds: value })}
-                  className="sm:col-span-2"
                 />
               </div>
             </PolicyGroup>
