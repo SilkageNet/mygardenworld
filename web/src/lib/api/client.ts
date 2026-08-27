@@ -106,18 +106,22 @@ export function formatAPIError(err: unknown, fallback = "操作失败"): string 
   if (err instanceof ConnectError) {
     const raw = stripConnectCodePrefix(err.rawMessage.trim());
     if (isNetworkFetchError(err, raw)) {
-      return `无法连接到后端服务（${apiBaseUrl()}）。请确认 gardend 已启动。`;
+      return backendConnectionError();
     }
     return translateConnectError(err.code, raw || fallback);
   }
   if (err instanceof TypeError && isFetchFailureMessage(err.message)) {
-    return `无法连接到后端服务（${apiBaseUrl()}）。请确认 gardend 已启动。`;
+    return backendConnectionError();
   }
   if (err instanceof Error) {
     return translatePlainError(err.message, fallback);
   }
   const message = String(err ?? "").trim();
   return message ? translatePlainError(message, fallback) : fallback;
+}
+
+function backendConnectionError(): string {
+  return `暂时无法访问后端服务（${apiBaseUrl()}）。请检查网络连接并稍后重试。`;
 }
 
 function apiBaseUrl(): string {

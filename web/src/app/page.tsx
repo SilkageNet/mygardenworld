@@ -32,23 +32,6 @@ const EVENT_RECONNECT_INITIAL_MS = 1000;
 const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
 const accountKey = (id: bigint) => id.toString();
-const VIEW_REFRESH_EVENT_KINDS = new Set([
-  "operation_ack",
-  "union_flower_take",
-  "resource_changed",
-  "inventory_changed",
-  "land_changed",
-  "order_finish",
-  "order_satin_finish",
-  "order_decorate_finish",
-  "order_customer",
-  "flower_art",
-  "flower_rack",
-  "task_recv",
-  "waterwheel",
-  "free_water",
-  "benefit_box",
-]);
 
 export default function HomePage() {
   return (
@@ -86,6 +69,7 @@ function DashboardContent() {
   const accountsLoadedRef = useRef(false);
   const capabilitiesLoadedRef = useRef(false);
   const viewFetchGenRef = useRef(0);
+  const viewFetchAbortRef = useRef<AbortController | null>(null);
   // Bumped on each getPolicy so a slow response from account A cannot overwrite
   // the panel after the user has switched to account B (and then save A's policy
   // onto B).
@@ -118,6 +102,10 @@ function DashboardContent() {
   useEffect(() => {
     statusesRef.current = statuses;
   }, [statuses]);
+
+  useEffect(() => () => {
+    viewFetchAbortRef.current?.abort();
+  }, []);
 
   const refreshAccounts = useCallback(async () => {
     const accountRes = await accountClient.listAccounts({});
@@ -163,6 +151,8 @@ function DashboardContent() {
 
   const refreshViews = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean; }) => {
     const fetchGen = ++viewFetchGenRef.current;
+    viewFetchAbortRef.current?.abort();
+    viewFetchAbortRef.current = null;
     if (!accountId) {
       setViews(EMPTY_ACCOUNT_VIEWS);
       return;
@@ -176,14 +166,16 @@ function DashboardContent() {
     if (showLoading) {
       setViewsLoading(true);
     }
+    const controller = new AbortController();
+    viewFetchAbortRef.current = controller;
     try {
       const [overview, garden, orders, union, activities, assets] = await Promise.all([
-        queryClient.getOverview({ accountId: BigInt(accountId) }),
-        queryClient.getGarden({ accountId: BigInt(accountId) }),
-        queryClient.getOrders({ accountId: BigInt(accountId) }),
-        queryClient.getUnion({ accountId: BigInt(accountId) }),
-        queryClient.getActivities({ accountId: BigInt(accountId) }),
-        queryClient.getAssets({ accountId: BigInt(accountId) }),
+        queryClient.getOverview({ accountId: BigInt(accountId) }, { signal: controller.signal }),
+        queryClient.getGarden({ accountId: BigInt(accountId) }, { signal: controller.signal }),
+        queryClient.getOrders({ accountId: BigInt(accountId) }, { signal: controller.signal }),
+        queryClient.getUnion({ accountId: BigInt(accountId) }, { signal: controller.signal }),
+        queryClient.getActivities({ accountId: BigInt(accountId) }, { signal: controller.signal }),
+        queryClient.getAssets({ accountId: BigInt(accountId) }, { signal: controller.signal }),
       ]);
       if (fetchGen !== viewFetchGenRef.current) return;
       setViews({
@@ -195,6 +187,7 @@ function DashboardContent() {
         assets: assets.assets ?? null,
       });
     } catch (err) {
+      if (controller.signal.aborted) return;
       if (fetchGen !== viewFetchGenRef.current) return;
       setViews(EMPTY_ACCOUNT_VIEWS);
       if (!isRunnerNotStartedError(err)) {
@@ -203,6 +196,9 @@ function DashboardContent() {
         setError((current) => (isRunnerNotStartedError(current) ? "" : current));
       }
     } finally {
+      if (viewFetchAbortRef.current === controller) {
+        viewFetchAbortRef.current = null;
+      }
       if (fetchGen === viewFetchGenRef.current) {
         setViewsLoading(false);
       }
@@ -322,6 +318,8 @@ function DashboardContent() {
 
   useEffect(() => {
     if (!selectedAccountId) {
+      viewFetchAbortRef.current?.abort();
+      viewFetchAbortRef.current = null;
       policyFetchGenRef.current += 1;
       policyOwnerAccountIdRef.current = "";
       viewFetchGenRef.current += 1;
@@ -334,6 +332,8 @@ function DashboardContent() {
     if (selectedConnected) {
       void refreshViews(selectedAccountId, true);
     } else {
+      viewFetchAbortRef.current?.abort();
+      viewFetchAbortRef.current = null;
       viewFetchGenRef.current += 1;
       setViews(EMPTY_ACCOUNT_VIEWS);
       setViewsLoading(false);
@@ -392,15 +392,17 @@ function DashboardContent() {
             receivedEvent = true;
             retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
             setError((current) => (isTransientConnectionMessage(current) ? "" : current));
+            // Stream replay and batch operations can emit hundreds of events.
+            // The bounded poll below refreshes views without multiplying each
+            // event into six concurrent domain requests.
             setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
-            if (VIEW_REFRESH_EVENT_KINDS.has(event.kind)) {
-              void refreshViews(selectedAccountId).catch(() => undefined);
-            }
           }
         } catch (err) {
           if (!active || controller.signal.aborted) return;
           const streamError = formatAPIError(err, "事件流中断");
-          setError((current) => (current && !isTransientConnectionMessage(current) ? current : streamError));
+          if (!isTransientConnectionMessage(streamError)) {
+            setError((current) => (current && !isTransientConnectionMessage(current) ? current : streamError));
+          }
         }
 
         if (!active || controller.signal.aborted) return;
@@ -417,7 +419,7 @@ function DashboardContent() {
       active = false;
       controller.abort();
     };
-  }, [refreshViews, selectedAccountId]);
+  }, [selectedAccountId]);
 
   function updateCachedAccount(account?: Account) {
     if (!account) return;

@@ -74,7 +74,7 @@ export function isRunnerNotStartedError(err: unknown) {
 }
 
 export function isTransientConnectionMessage(message: string) {
-  return /network\s*error|networkerror|failed to fetch|load failed|无法连接到后端服务|事件流中断|后端服务暂时不可用|请求超时/i.test(message);
+  return /network\s*error|networkerror|failed to fetch|load failed|(?:无法连接到|暂时无法访问)后端服务|事件流中断|后端服务暂时不可用|请求超时/i.test(message);
 }
 
 export function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Promise<boolean> {
