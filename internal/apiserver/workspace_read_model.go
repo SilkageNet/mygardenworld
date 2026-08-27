@@ -280,7 +280,7 @@ func buildBasicView(model *accountReadModel) *pb.BasicView {
 		PlannedOperations:     plannedOperationsProto(model.plan.Operations, model.diag),
 		BlockingSummary:       blockingSummaryProto(domainStatuses, model.plan),
 		RuntimeStatistics:     runtimeStatisticsProto(model.runner.RuntimeStats()),
-		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy.GetBasic().GetMapEventEnabled()),
+		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -311,7 +311,7 @@ func buildOrdersView(model *accountReadModel) *pb.OrdersView {
 		AccountId:             model.account.ID,
 		AccountName:           model.account.Name,
 		CapturedAt:            timestamppb.New(now),
-		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy.GetBasic().GetMapEventEnabled()),
+		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy),
 		Demands:               demandsProto(model.plan.Demands),
 		Vases:                 vasesProto(st.Vases()),
 		FlowerArtAvailability: flowerArtAvailabilityProto(st, model.plan),

@@ -346,7 +346,9 @@ func TestBuildPendingTasksCultivateMainTaskUsesMaterialRequirements(t *testing.T
 			break
 		}
 	}
-	if main == nil || main.GetId() != "40001" || !main.GetRequiresCultivation() || len(main.GetRequirements()) != 4 {
+	if main == nil || main.GetId() != "40001" ||
+		main.GetExecutionFeature() != pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CULTIVATION ||
+		!main.GetAutoCompletionSupported() || len(main.GetRequirements()) != 4 {
 		t.Fatalf("cultivate main task=%+v", main)
 	}
 	for _, requirement := range main.GetRequirements() {
@@ -393,6 +395,30 @@ func TestBuildPendingTasksCultivateMainTaskShowsCompletedCultivationWaitingForSy
 	}
 	if main == nil || main.GetCooldownReason() != "铃兰已培育，等待主线任务进度同步" || len(main.GetRequirements()) != 0 {
 		t.Fatalf("completed cultivate main task=%+v", main)
+	}
+}
+
+func TestBuildPendingTasksExposesDailyExecutionCapability(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{"22": map[string]any{"1": map[string]any{
+		"1": map[string]any{"3014": 1, "3025": 0},
+		"3": map[string]any{},
+		"100": map[string]any{
+			"30140001": map[string]any{"0": 30140001, "1": 2, "2": 1},
+			"30250001": map[string]any{"0": 30250001, "1": 4, "2": 0},
+		},
+	}}})
+	byID := map[string]*pb.PendingTaskView{}
+	for _, task := range buildPendingTasks(st) {
+		byID[task.GetId()] = task
+	}
+	water := byID["30140001"]
+	if water == nil || water.GetExecutionFeature() != pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_PLANTING || !water.GetAutoCompletionSupported() {
+		t.Fatalf("water daily task=%+v", water)
+	}
+	video := byID["30250001"]
+	if video == nil || video.GetExecutionFeature() != pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_VIDEO || video.GetAutoCompletionSupported() || video.GetCooldownReason() == "" {
+		t.Fatalf("video daily task=%+v", video)
 	}
 }
 

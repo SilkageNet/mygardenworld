@@ -33,10 +33,14 @@ connection:
 			current = next
 			continue
 		}
-		if r.isSessionInvalidated() || current == nil {
+		if r.isSessionInvalidated() {
 			return
 		}
-		r.emit(Event{Kind: "ws_disconnected", Message: "网络连接断开，准备重连", Level: "warn"})
+		message := "网络连接断开，准备重连"
+		if current == nil {
+			message = "WebSocket 首次连接失败，准备自动重连"
+		}
+		r.emit(Event{Kind: "ws_disconnected", Message: message, Level: "warn"})
 
 		wait := reconnectInitialWait
 		for {

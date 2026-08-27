@@ -141,10 +141,14 @@ func buildPendingTasks(st *state.State) []*pb.PendingTaskView {
 }
 
 func buildPendingTasksAt(st *state.State, now time.Time) []*pb.PendingTaskView {
-	return buildPendingTasksAtPolicy(st, now, true)
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.MapEventEnabled = true
+	return buildPendingTasksAtPolicy(st, now, policy)
 }
 
-func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled bool) []*pb.PendingTaskView {
+func buildPendingTasksAtPolicy(st *state.State, now time.Time, policy *pb.Policy) []*pb.PendingTaskView {
+	policy = automation.DefaultPolicyIfNil(policy)
 	inventory := st.Inventory()
 	var out []*pb.PendingTaskView
 
@@ -169,13 +173,15 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			cooldownReason = "居民订单冷却中"
 		}
 		out = append(out, &pb.PendingTaskView{
-			Category:        "居民订单",
-			Id:              strconv.FormatInt(int64(boxID), 10),
-			Title:           fmt.Sprintf("居民订单 #%d", boxID),
-			Status:          status,
-			Requirements:    reqs,
-			CooldownUntilMs: cooldownUntil,
-			CooldownReason:  cooldownReason,
+			Category:                "居民订单",
+			Id:                      strconv.FormatInt(int64(boxID), 10),
+			Title:                   fmt.Sprintf("居民订单 #%d", boxID),
+			Status:                  status,
+			Requirements:            reqs,
+			CooldownUntilMs:         cooldownUntil,
+			CooldownReason:          cooldownReason,
+			ExecutionFeature:        pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_RESIDENT_ORDER,
+			AutoCompletionSupported: true,
 		})
 	}
 
@@ -195,11 +201,13 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			continue
 		}
 		out = append(out, &pb.PendingTaskView{
-			Category:     "顾客订单",
-			Id:           strconv.FormatInt(int64(npcID), 10),
-			Title:        fmt.Sprintf("顾客订单 NPC=%d", npcID),
-			Status:       requirementsStatus(reqs),
-			Requirements: reqs,
+			Category:                "顾客订单",
+			Id:                      strconv.FormatInt(int64(npcID), 10),
+			Title:                   fmt.Sprintf("顾客订单 NPC=%d", npcID),
+			Status:                  requirementsStatus(reqs),
+			Requirements:            reqs,
+			ExecutionFeature:        pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CUSTOMER_ORDER,
+			AutoCompletionSupported: true,
 		})
 	}
 
@@ -222,9 +230,12 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			view.Status = pb.PlanStatus_PLAN_STATUS_READY
 		}
 		if flowerID, target, ok := state.MainTaskFlowerTarget(task.TaskID); ok {
+			view.ExecutionFeature = pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_PLANTING
+			view.AutoCompletionSupported = true
 			view.Requirements = []*pb.RequirementView{requirementView(flowerID, target, inventory[flowerID])}
 		} else if flowerID, _, ok := state.MainTaskCultivateTarget(task.TaskID); ok {
-			view.RequiresCultivation = true
+			view.ExecutionFeature = pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CULTIVATION
+			view.AutoCompletionSupported = true
 			cv, observed := st.Cultivations()[flowerID]
 			switch {
 			case observed && cv.Status == 1:
@@ -252,11 +263,13 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			title = fmt.Sprintf("剧情小节 #%d", story.SectionID)
 		}
 		out = append(out, &pb.PendingTaskView{
-			Category:     "主线剧情",
-			Id:           strconv.FormatInt(int64(story.SectionID), 10),
-			Title:        title,
-			Status:       status,
-			Requirements: reqs,
+			Category:                "主线剧情",
+			Id:                      strconv.FormatInt(int64(story.SectionID), 10),
+			Title:                   title,
+			Status:                  status,
+			Requirements:            reqs,
+			ExecutionFeature:        pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_STORY,
+			AutoCompletionSupported: true,
 		})
 	}
 
@@ -279,14 +292,21 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 		if title == "" {
 			title = fmt.Sprintf("日常任务 #%d", task.TaskID)
 		}
-		out = append(out, &pb.PendingTaskView{
-			Category: "日常任务",
-			Id:       strconv.FormatInt(int64(id), 10),
-			Title:    title,
-			Finished: task.Finished,
-			Target:   task.Target,
-			Status:   status,
-		})
+		feature, supported := state.DailyTaskExecutionFeature(task.ProgressType)
+		view := &pb.PendingTaskView{
+			Category:                "日常任务",
+			Id:                      strconv.FormatInt(int64(id), 10),
+			Title:                   title,
+			Finished:                task.Finished,
+			Target:                  task.Target,
+			Status:                  status,
+			ExecutionFeature:        taskExecutionFeatureProto(feature),
+			AutoCompletionSupported: supported,
+		}
+		if status != pb.PlanStatus_PLAN_STATUS_READY && !supported {
+			view.CooldownReason = "暂无安全自动执行协议，保持待处理"
+		}
+		out = append(out, view)
 	}
 
 	weeklyTasks := st.WeeklyTasks()
@@ -309,12 +329,14 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			title = fmt.Sprintf("周常任务 #%d", task.TaskID)
 		}
 		out = append(out, &pb.PendingTaskView{
-			Category: "周常任务",
-			Id:       strconv.FormatInt(int64(id), 10),
-			Title:    title,
-			Finished: task.Finished,
-			Target:   task.Target,
-			Status:   status,
+			Category:                "周常任务",
+			Id:                      strconv.FormatInt(int64(id), 10),
+			Title:                   title,
+			Finished:                task.Finished,
+			Target:                  task.Target,
+			Status:                  status,
+			ExecutionFeature:        pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CLAIM_ONLY,
+			AutoCompletionSupported: true,
 		})
 	}
 
@@ -338,23 +360,25 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			title = fmt.Sprintf("成就任务 #%d", task.TaskID)
 		}
 		out = append(out, &pb.PendingTaskView{
-			Category: "成就任务",
-			Id:       strconv.FormatInt(int64(id), 10),
-			Title:    title,
-			Finished: task.Finished,
-			Target:   task.Target,
-			Status:   status,
+			Category:                "成就任务",
+			Id:                      strconv.FormatInt(int64(id), 10),
+			Title:                   title,
+			Finished:                task.Finished,
+			Target:                  task.Target,
+			Status:                  status,
+			ExecutionFeature:        pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CLAIM_ONLY,
+			AutoCompletionSupported: true,
 		})
 	}
 
 	observed, mapValid, mapError := st.RandomEventMapStatus()
 	disabledSuffix := ""
-	if !mapEventEnabled {
+	if !policy.GetBasic().GetMapEventEnabled() {
 		disabledSuffix = "（地图随机事件自动处理已关闭）"
 	}
 	if !observed {
 		status := pb.PlanStatus_PLAN_STATUS_SYNC_ONLY
-		if !mapEventEnabled {
+		if !policy.GetBasic().GetMapEventEnabled() {
 			status = pb.PlanStatus_PLAN_STATUS_MANAGED
 		}
 		out = append(out, &pb.PendingTaskView{
@@ -389,7 +413,7 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 			if !event.Valid {
 				status = pb.PlanStatus_PLAN_STATUS_BLOCKED
 				title += "：" + event.BlockedReason
-			} else if !mapEventEnabled {
+			} else if !policy.GetBasic().GetMapEventEnabled() {
 				status = pb.PlanStatus_PLAN_STATUS_MANAGED
 			}
 			title += disabledSuffix
@@ -470,6 +494,39 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, mapEventEnabled b
 	out = append(out, cyclicStoryPendingTasks(st, now)...)
 
 	return out
+}
+
+func taskExecutionFeatureProto(feature state.TaskExecutionFeature) pb.TaskExecutionFeature {
+	switch feature {
+	case state.TaskExecutionFeatureClaimOnly:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CLAIM_ONLY
+	case state.TaskExecutionFeatureStory:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_STORY
+	case state.TaskExecutionFeaturePlanting:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_PLANTING
+	case state.TaskExecutionFeatureResident:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_RESIDENT_ORDER
+	case state.TaskExecutionFeatureFlowerRack:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_FLOWER_RACK
+	case state.TaskExecutionFeatureCustomer:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CUSTOMER_ORDER
+	case state.TaskExecutionFeatureCultivateShop:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CULTIVATE_SHOP
+	case state.TaskExecutionFeaturePalace:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_PALACE_ORDER
+	case state.TaskExecutionFeaturePearlHire:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_PEARL_HIRE
+	case state.TaskExecutionFeatureFriendTouch:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_FRIEND_TOUCH
+	case state.TaskExecutionFeatureVideo:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_VIDEO
+	case state.TaskExecutionFeatureZooStroke:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_ZOO_STROKE
+	case state.TaskExecutionFeatureCultivation:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CULTIVATION
+	default:
+		return pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_UNSPECIFIED
+	}
 }
 
 func cyclicNotePendingTasks(st *state.State, now time.Time) []*pb.PendingTaskView {

@@ -327,6 +327,88 @@ func (WorkspaceLogCategory) EnumDescriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{4}
 }
 
+type TaskExecutionFeature int32
+
+const (
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_UNSPECIFIED    TaskExecutionFeature = 0
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_CLAIM_ONLY     TaskExecutionFeature = 1
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_STORY          TaskExecutionFeature = 2
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_PLANTING       TaskExecutionFeature = 3
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_RESIDENT_ORDER TaskExecutionFeature = 4
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_FLOWER_RACK    TaskExecutionFeature = 5
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_CUSTOMER_ORDER TaskExecutionFeature = 6
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_CULTIVATE_SHOP TaskExecutionFeature = 7
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_PALACE_ORDER   TaskExecutionFeature = 8
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_PEARL_HIRE     TaskExecutionFeature = 9
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_FRIEND_TOUCH   TaskExecutionFeature = 10
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_VIDEO          TaskExecutionFeature = 11
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_ZOO_STROKE     TaskExecutionFeature = 12
+	TaskExecutionFeature_TASK_EXECUTION_FEATURE_CULTIVATION    TaskExecutionFeature = 13
+)
+
+// Enum value maps for TaskExecutionFeature.
+var (
+	TaskExecutionFeature_name = map[int32]string{
+		0:  "TASK_EXECUTION_FEATURE_UNSPECIFIED",
+		1:  "TASK_EXECUTION_FEATURE_CLAIM_ONLY",
+		2:  "TASK_EXECUTION_FEATURE_STORY",
+		3:  "TASK_EXECUTION_FEATURE_PLANTING",
+		4:  "TASK_EXECUTION_FEATURE_RESIDENT_ORDER",
+		5:  "TASK_EXECUTION_FEATURE_FLOWER_RACK",
+		6:  "TASK_EXECUTION_FEATURE_CUSTOMER_ORDER",
+		7:  "TASK_EXECUTION_FEATURE_CULTIVATE_SHOP",
+		8:  "TASK_EXECUTION_FEATURE_PALACE_ORDER",
+		9:  "TASK_EXECUTION_FEATURE_PEARL_HIRE",
+		10: "TASK_EXECUTION_FEATURE_FRIEND_TOUCH",
+		11: "TASK_EXECUTION_FEATURE_VIDEO",
+		12: "TASK_EXECUTION_FEATURE_ZOO_STROKE",
+		13: "TASK_EXECUTION_FEATURE_CULTIVATION",
+	}
+	TaskExecutionFeature_value = map[string]int32{
+		"TASK_EXECUTION_FEATURE_UNSPECIFIED":    0,
+		"TASK_EXECUTION_FEATURE_CLAIM_ONLY":     1,
+		"TASK_EXECUTION_FEATURE_STORY":          2,
+		"TASK_EXECUTION_FEATURE_PLANTING":       3,
+		"TASK_EXECUTION_FEATURE_RESIDENT_ORDER": 4,
+		"TASK_EXECUTION_FEATURE_FLOWER_RACK":    5,
+		"TASK_EXECUTION_FEATURE_CUSTOMER_ORDER": 6,
+		"TASK_EXECUTION_FEATURE_CULTIVATE_SHOP": 7,
+		"TASK_EXECUTION_FEATURE_PALACE_ORDER":   8,
+		"TASK_EXECUTION_FEATURE_PEARL_HIRE":     9,
+		"TASK_EXECUTION_FEATURE_FRIEND_TOUCH":   10,
+		"TASK_EXECUTION_FEATURE_VIDEO":          11,
+		"TASK_EXECUTION_FEATURE_ZOO_STROKE":     12,
+		"TASK_EXECUTION_FEATURE_CULTIVATION":    13,
+	}
+)
+
+func (x TaskExecutionFeature) Enum() *TaskExecutionFeature {
+	p := new(TaskExecutionFeature)
+	*p = x
+	return p
+}
+
+func (x TaskExecutionFeature) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TaskExecutionFeature) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_workspace_common_proto_enumTypes[5].Descriptor()
+}
+
+func (TaskExecutionFeature) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_workspace_common_proto_enumTypes[5]
+}
+
+func (x TaskExecutionFeature) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TaskExecutionFeature.Descriptor instead.
+func (TaskExecutionFeature) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{5}
+}
+
 type AccountStatus struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	AccountId   int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -724,10 +806,13 @@ type PendingTaskView struct {
 	Requirements    []*RequirementView `protobuf:"bytes,7,rep,name=requirements,proto3" json:"requirements,omitempty"`
 	CooldownUntilMs int64              `protobuf:"varint,8,opt,name=cooldown_until_ms,json=cooldownUntilMs,proto3" json:"cooldown_until_ms,omitempty"`
 	CooldownReason  string             `protobuf:"bytes,9,opt,name=cooldown_reason,json=cooldownReason,proto3" json:"cooldown_reason,omitempty"`
-	// The task cannot be executed unless automatic cultivation is enabled.
-	RequiresCultivation bool `protobuf:"varint,10,opt,name=requires_cultivation,json=requiresCultivation,proto3" json:"requires_cultivation,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Business module that can advance an incomplete task. Completed tasks only
+	// need their category's claim switch, regardless of this feature.
+	ExecutionFeature TaskExecutionFeature `protobuf:"varint,10,opt,name=execution_feature,json=executionFeature,proto3,enum=mygardenworld.v1.TaskExecutionFeature" json:"execution_feature,omitempty"`
+	// False means the task stays pending because no safe protocol path exists.
+	AutoCompletionSupported bool `protobuf:"varint,11,opt,name=auto_completion_supported,json=autoCompletionSupported,proto3" json:"auto_completion_supported,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *PendingTaskView) Reset() {
@@ -823,9 +908,16 @@ func (x *PendingTaskView) GetCooldownReason() string {
 	return ""
 }
 
-func (x *PendingTaskView) GetRequiresCultivation() bool {
+func (x *PendingTaskView) GetExecutionFeature() TaskExecutionFeature {
 	if x != nil {
-		return x.RequiresCultivation
+		return x.ExecutionFeature
+	}
+	return TaskExecutionFeature_TASK_EXECUTION_FEATURE_UNSPECIFIED
+}
+
+func (x *PendingTaskView) GetAutoCompletionSupported() bool {
+	if x != nil {
+		return x.AutoCompletionSupported
 	}
 	return false
 }
@@ -2354,7 +2446,7 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x11unknown_rpc_count\x18\n" +
 	" \x01(\x05R\x0funknownRpcCount\x126\n" +
 	"\x17unknown_namespace_count\x18\v \x01(\x05R\x15unknownNamespaceCount\x12/\n" +
-	"\x13observed_namespaces\x18\f \x03(\tR\x12observedNamespaces\"\x8c\x03\n" +
+	"\x13observed_namespaces\x18\f \x03(\tR\x12observedNamespaces\"\xea\x03\n" +
 	"\x0fPendingTaskView\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +
@@ -2364,9 +2456,10 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x06status\x18\x06 \x01(\x0e2\x1c.mygardenworld.v1.PlanStatusR\x06status\x12E\n" +
 	"\frequirements\x18\a \x03(\v2!.mygardenworld.v1.RequirementViewR\frequirements\x12*\n" +
 	"\x11cooldown_until_ms\x18\b \x01(\x03R\x0fcooldownUntilMs\x12'\n" +
-	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\x121\n" +
-	"\x14requires_cultivation\x18\n" +
-	" \x01(\bR\x13requiresCultivation\"\xf8\t\n" +
+	"\x0fcooldown_reason\x18\t \x01(\tR\x0ecooldownReason\x12S\n" +
+	"\x11execution_feature\x18\n" +
+	" \x01(\x0e2&.mygardenworld.v1.TaskExecutionFeatureR\x10executionFeature\x12:\n" +
+	"\x19auto_completion_supported\x18\v \x01(\bR\x17autoCompletionSupported\"\xf8\t\n" +
 	"\x10PlannedOperation\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x12\x16\n" +
@@ -2569,7 +2662,23 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x1cWORKSPACE_LOG_CATEGORY_UNION\x10\x05\x12%\n" +
 	"!WORKSPACE_LOG_CATEGORY_ACTIVITIES\x10\x06\x12$\n" +
 	" WORKSPACE_LOG_CATEGORY_WAREHOUSE\x10\a\x12!\n" +
-	"\x1dWORKSPACE_LOG_CATEGORY_SYSTEM\x10\bB\xd7\x01\n" +
+	"\x1dWORKSPACE_LOG_CATEGORY_SYSTEM\x10\b*\xbf\x04\n" +
+	"\x14TaskExecutionFeature\x12&\n" +
+	"\"TASK_EXECUTION_FEATURE_UNSPECIFIED\x10\x00\x12%\n" +
+	"!TASK_EXECUTION_FEATURE_CLAIM_ONLY\x10\x01\x12 \n" +
+	"\x1cTASK_EXECUTION_FEATURE_STORY\x10\x02\x12#\n" +
+	"\x1fTASK_EXECUTION_FEATURE_PLANTING\x10\x03\x12)\n" +
+	"%TASK_EXECUTION_FEATURE_RESIDENT_ORDER\x10\x04\x12&\n" +
+	"\"TASK_EXECUTION_FEATURE_FLOWER_RACK\x10\x05\x12)\n" +
+	"%TASK_EXECUTION_FEATURE_CUSTOMER_ORDER\x10\x06\x12)\n" +
+	"%TASK_EXECUTION_FEATURE_CULTIVATE_SHOP\x10\a\x12'\n" +
+	"#TASK_EXECUTION_FEATURE_PALACE_ORDER\x10\b\x12%\n" +
+	"!TASK_EXECUTION_FEATURE_PEARL_HIRE\x10\t\x12'\n" +
+	"#TASK_EXECUTION_FEATURE_FRIEND_TOUCH\x10\n" +
+	"\x12 \n" +
+	"\x1cTASK_EXECUTION_FEATURE_VIDEO\x10\v\x12%\n" +
+	"!TASK_EXECUTION_FEATURE_ZOO_STROKE\x10\f\x12&\n" +
+	"\"TASK_EXECUTION_FEATURE_CULTIVATION\x10\rB\xd7\x01\n" +
 	"\x14com.mygardenworld.v1B\x14WorkspaceCommonProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -2584,7 +2693,7 @@ func file_mygardenworld_v1_workspace_common_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_workspace_common_proto_rawDescData
 }
 
-var file_mygardenworld_v1_workspace_common_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_mygardenworld_v1_workspace_common_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
 var file_mygardenworld_v1_workspace_common_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_mygardenworld_v1_workspace_common_proto_goTypes = []any{
 	(PlanStatus)(0),               // 0: mygardenworld.v1.PlanStatus
@@ -2592,65 +2701,67 @@ var file_mygardenworld_v1_workspace_common_proto_goTypes = []any{
 	(ExecutionLane)(0),            // 2: mygardenworld.v1.ExecutionLane
 	(AccountHealth)(0),            // 3: mygardenworld.v1.AccountHealth
 	(WorkspaceLogCategory)(0),     // 4: mygardenworld.v1.WorkspaceLogCategory
-	(*AccountStatus)(nil),         // 5: mygardenworld.v1.AccountStatus
-	(*RunnerDiagnostics)(nil),     // 6: mygardenworld.v1.RunnerDiagnostics
-	(*PendingTaskView)(nil),       // 7: mygardenworld.v1.PendingTaskView
-	(*PlannedOperation)(nil),      // 8: mygardenworld.v1.PlannedOperation
-	(*DomainStatus)(nil),          // 9: mygardenworld.v1.DomainStatus
-	(*FeatureCapability)(nil),     // 10: mygardenworld.v1.FeatureCapability
-	(*RequirementView)(nil),       // 11: mygardenworld.v1.RequirementView
-	(*DemandView)(nil),            // 12: mygardenworld.v1.DemandView
-	(*CostGate)(nil),              // 13: mygardenworld.v1.CostGate
-	(*BlockingSummary)(nil),       // 14: mygardenworld.v1.BlockingSummary
-	(*BlockingGroup)(nil),         // 15: mygardenworld.v1.BlockingGroup
-	(*RuntimeStatisticsView)(nil), // 16: mygardenworld.v1.RuntimeStatisticsView
-	(*RuntimeResourceTotal)(nil),  // 17: mygardenworld.v1.RuntimeResourceTotal
-	(*RuntimeActionTotal)(nil),    // 18: mygardenworld.v1.RuntimeActionTotal
-	(*Event)(nil),                 // 19: mygardenworld.v1.Event
-	nil,                           // 20: mygardenworld.v1.AccountStatus.ByKindEntry
-	nil,                           // 21: mygardenworld.v1.PlannedOperation.ItemCostEntry
-	(*timestamppb.Timestamp)(nil), // 22: google.protobuf.Timestamp
+	(TaskExecutionFeature)(0),     // 5: mygardenworld.v1.TaskExecutionFeature
+	(*AccountStatus)(nil),         // 6: mygardenworld.v1.AccountStatus
+	(*RunnerDiagnostics)(nil),     // 7: mygardenworld.v1.RunnerDiagnostics
+	(*PendingTaskView)(nil),       // 8: mygardenworld.v1.PendingTaskView
+	(*PlannedOperation)(nil),      // 9: mygardenworld.v1.PlannedOperation
+	(*DomainStatus)(nil),          // 10: mygardenworld.v1.DomainStatus
+	(*FeatureCapability)(nil),     // 11: mygardenworld.v1.FeatureCapability
+	(*RequirementView)(nil),       // 12: mygardenworld.v1.RequirementView
+	(*DemandView)(nil),            // 13: mygardenworld.v1.DemandView
+	(*CostGate)(nil),              // 14: mygardenworld.v1.CostGate
+	(*BlockingSummary)(nil),       // 15: mygardenworld.v1.BlockingSummary
+	(*BlockingGroup)(nil),         // 16: mygardenworld.v1.BlockingGroup
+	(*RuntimeStatisticsView)(nil), // 17: mygardenworld.v1.RuntimeStatisticsView
+	(*RuntimeResourceTotal)(nil),  // 18: mygardenworld.v1.RuntimeResourceTotal
+	(*RuntimeActionTotal)(nil),    // 19: mygardenworld.v1.RuntimeActionTotal
+	(*Event)(nil),                 // 20: mygardenworld.v1.Event
+	nil,                           // 21: mygardenworld.v1.AccountStatus.ByKindEntry
+	nil,                           // 22: mygardenworld.v1.PlannedOperation.ItemCostEntry
+	(*timestamppb.Timestamp)(nil), // 23: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_workspace_common_proto_depIdxs = []int32{
-	22, // 0: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
-	20, // 1: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
-	6,  // 2: mygardenworld.v1.AccountStatus.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
-	9,  // 3: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
+	23, // 0: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
+	21, // 1: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
+	7,  // 2: mygardenworld.v1.AccountStatus.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
+	10, // 3: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
 	3,  // 4: mygardenworld.v1.AccountStatus.health:type_name -> mygardenworld.v1.AccountHealth
-	16, // 5: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	22, // 6: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
-	22, // 7: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
-	22, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
-	22, // 9: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
+	17, // 5: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	23, // 6: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
+	23, // 7: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
+	23, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
+	23, // 9: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
 	0,  // 10: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
-	11, // 11: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
-	21, // 12: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
-	0,  // 13: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
-	13, // 14: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
-	2,  // 15: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 16: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
-	2,  // 17: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 18: mygardenworld.v1.FeatureCapability.status:type_name -> mygardenworld.v1.PlanStatus
-	0,  // 19: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
-	13, // 20: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
-	1,  // 21: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
-	0,  // 22: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
-	15, // 23: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
-	0,  // 24: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
-	22, // 25: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
-	22, // 26: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
-	22, // 27: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
-	17, // 28: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
-	18, // 29: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	18, // 30: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	18, // 31: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	22, // 32: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
-	4,  // 33: mygardenworld.v1.Event.category:type_name -> mygardenworld.v1.WorkspaceLogCategory
-	34, // [34:34] is the sub-list for method output_type
-	34, // [34:34] is the sub-list for method input_type
-	34, // [34:34] is the sub-list for extension type_name
-	34, // [34:34] is the sub-list for extension extendee
-	0,  // [0:34] is the sub-list for field type_name
+	12, // 11: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
+	5,  // 12: mygardenworld.v1.PendingTaskView.execution_feature:type_name -> mygardenworld.v1.TaskExecutionFeature
+	22, // 13: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
+	0,  // 14: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
+	14, // 15: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
+	2,  // 16: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 17: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
+	2,  // 18: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 19: mygardenworld.v1.FeatureCapability.status:type_name -> mygardenworld.v1.PlanStatus
+	0,  // 20: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
+	14, // 21: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
+	1,  // 22: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
+	0,  // 23: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
+	16, // 24: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
+	0,  // 25: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
+	23, // 26: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
+	23, // 27: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
+	23, // 28: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
+	18, // 29: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
+	19, // 30: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	19, // 31: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	19, // 32: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	23, // 33: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
+	4,  // 34: mygardenworld.v1.Event.category:type_name -> mygardenworld.v1.WorkspaceLogCategory
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_common_proto_init() }
@@ -2663,7 +2774,7 @@ func file_mygardenworld_v1_workspace_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_workspace_common_proto_rawDesc), len(file_mygardenworld_v1_workspace_common_proto_rawDesc)),
-			NumEnums:      5,
+			NumEnums:      6,
 			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,

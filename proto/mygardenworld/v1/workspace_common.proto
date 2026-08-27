@@ -120,8 +120,28 @@ message PendingTaskView {
   repeated RequirementView requirements = 7;
   int64 cooldown_until_ms = 8;
   string cooldown_reason = 9;
-  // The task cannot be executed unless automatic cultivation is enabled.
-  bool requires_cultivation = 10;
+  // Business module that can advance an incomplete task. Completed tasks only
+  // need their category's claim switch, regardless of this feature.
+  TaskExecutionFeature execution_feature = 10;
+  // False means the task stays pending because no safe protocol path exists.
+  bool auto_completion_supported = 11;
+}
+
+enum TaskExecutionFeature {
+  TASK_EXECUTION_FEATURE_UNSPECIFIED = 0;
+  TASK_EXECUTION_FEATURE_CLAIM_ONLY = 1;
+  TASK_EXECUTION_FEATURE_STORY = 2;
+  TASK_EXECUTION_FEATURE_PLANTING = 3;
+  TASK_EXECUTION_FEATURE_RESIDENT_ORDER = 4;
+  TASK_EXECUTION_FEATURE_FLOWER_RACK = 5;
+  TASK_EXECUTION_FEATURE_CUSTOMER_ORDER = 6;
+  TASK_EXECUTION_FEATURE_CULTIVATE_SHOP = 7;
+  TASK_EXECUTION_FEATURE_PALACE_ORDER = 8;
+  TASK_EXECUTION_FEATURE_PEARL_HIRE = 9;
+  TASK_EXECUTION_FEATURE_FRIEND_TOUCH = 10;
+  TASK_EXECUTION_FEATURE_VIDEO = 11;
+  TASK_EXECUTION_FEATURE_ZOO_STROKE = 12;
+  TASK_EXECUTION_FEATURE_CULTIVATION = 13;
 }
 
 message PlannedOperation {

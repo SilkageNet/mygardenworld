@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { AlertTriangle, Check, ListChecks, Package } from "lucide-react";
-import { PlanStatus } from "@/lib/api/workspace-models";
+import { PlanStatus, TaskExecutionFeature } from "@/lib/api/workspace-models";
 import type { OrderStatisticsView, PendingTaskView, RequirementView } from "@/lib/api/workspace-models";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { Badge } from "@/components/ui/badge";
@@ -32,8 +32,9 @@ export function TaskOrderMonitorPanel({ tasks, statistics, policy }: {
   const monitoredTasks = useMemo(() => [...tasks].sort(comparePendingTasks), [tasks]);
   const orderTasks = useMemo(() => monitoredTasks.filter(isOrderPendingTask), [monitoredTasks]);
   const taskItems = useMemo(() => monitoredTasks.filter((task) => !isOrderPendingTask(task)), [monitoredTasks]);
-  const enabledTasks = monitoredTasks.filter((task) => pendingTaskAutomationEnabled(task, policy) !== false);
-  const disabledCount = monitoredTasks.filter((task) => pendingTaskAutomationEnabled(task, policy) === false).length;
+  const enabledTasks = monitoredTasks.filter((task) => pendingTaskAutomationState(task, policy).kind === "enabled");
+  const disabledCount = monitoredTasks.filter((task) => pendingTaskAutomationState(task, policy).kind === "disabled").length;
+  const waitingCount = monitoredTasks.filter((task) => pendingTaskAutomationState(task, policy).kind === "waiting").length;
   const readyCount = enabledTasks.filter((task) => task.status === PlanStatus.READY && !pendingTaskCooling(task)).length;
   const coolingCount = monitoredTasks.filter(pendingTaskCooling).length;
   const shortageCount = enabledTasks.filter(pendingTaskHasShortage).length;
@@ -54,6 +55,7 @@ export function TaskOrderMonitorPanel({ tasks, statistics, policy }: {
           {shortageCount > 0 && <Badge variant="outline">缺口 {shortageCount}</Badge>}
           {blockedCount > 0 && <Badge variant="destructive">阻塞 {blockedCount}</Badge>}
           {disabledCount > 0 && <Badge variant="outline">未启用 {disabledCount}</Badge>}
+          {waitingCount > 0 && <Badge variant="outline">待处理 {waitingCount}</Badge>}
         </>
       )}
     >
@@ -69,9 +71,9 @@ export function TaskOrderMonitorPanel({ tasks, statistics, policy }: {
         />
       </div>
 
-      {disabledCount > 0 && (
+      {(disabledCount > 0 || waitingCount > 0) && (
         <div className="rounded-md border border-border/60 bg-secondary/35 px-3 py-2 text-xs leading-5 text-muted-foreground">
-          未启用项仅展示状态，不会进入执行队列；请在本模块设置中开启对应任务或订单。培育型主线还需同时开启花园中的自动培育。
+          未启用项仅展示状态；任务开关开启后，系统会调用已开启的业务模块尝试推进。条件不足或协议暂不支持时会继续等待，不会反复试探。
         </div>
       )}
 
@@ -152,67 +154,130 @@ function PendingTaskStatusBadge({ task, policy }: { task: PendingTaskView; polic
   return <Badge variant="outline">{planStatusLabel(task.status)}</Badge>;
 }
 
-function pendingTaskAutomationEnabled(task: PendingTaskView, policy: Policy | null): boolean | undefined {
-  if (!policy) return undefined;
+type PendingTaskAutomationState = { kind: "enabled" | "disabled" | "waiting" | "unknown"; label: string };
+
+function pendingTaskAutomationState(task: PendingTaskView, policy: Policy | null): PendingTaskAutomationState {
+  if (!policy) return { kind: "unknown", label: "" };
+  if (!policy.automationEnabled) return { kind: "disabled", label: "自动化关闭" };
+  const categoryEnabled = pendingTaskCategoryEnabled(task, policy);
+  if (categoryEnabled === false) return { kind: "disabled", label: "未启用" };
+  if (categoryEnabled === undefined) return { kind: "enabled", label: "" };
+  if (task.status === PlanStatus.READY) {
+    return { kind: "enabled", label: "" };
+  }
+  if (!pendingTaskUsesExecutionFeature(task.category)) {
+    return { kind: "enabled", label: "" };
+  }
+  if (task.executionFeature === TaskExecutionFeature.CLAIM_ONLY) {
+    return { kind: "waiting", label: "等待自然进度" };
+  }
+  if (!task.autoCompletionSupported) return { kind: "waiting", label: "暂不支持" };
+  if (!pendingTaskExecutionFeatureEnabled(task.executionFeature, policy)) {
+    return { kind: "waiting", label: `需开启${taskExecutionFeatureLabel(task.executionFeature)}` };
+  }
+  return { kind: "enabled", label: "" };
+}
+
+function pendingTaskUsesExecutionFeature(category: string) {
+  return category === "居民订单"
+    || category === "顾客订单"
+    || category === "主线任务"
+    || category === "主线剧情"
+    || category === "日常任务"
+    || category === "周常任务"
+    || category === "成就任务";
+}
+
+function pendingTaskCategoryEnabled(task: PendingTaskView, policy: Policy): boolean | undefined {
   const taskPolicy = policy.basic?.task;
-  let enabled: boolean | undefined;
   switch (task.category) {
     case "居民订单":
-      enabled = policy.order?.resident?.normalEnabled;
-      break;
+      return policy.order?.resident?.normalEnabled;
     case "顾客订单":
-      enabled = policy.order?.customer?.enabled;
-      break;
+      return policy.order?.customer?.enabled;
     case "主线任务":
-      enabled = taskPolicy?.mainEnabled && (!mainTaskNeedsCultivation(task) || policy.plant?.cultivate?.enabled === true);
-      break;
+      return taskPolicy?.mainEnabled;
     case "主线剧情":
-      enabled = taskPolicy?.storyEnabled;
-      break;
+      return taskPolicy?.storyEnabled;
     case "日常任务":
-      enabled = taskPolicy?.dailyEnabled;
-      break;
+      return taskPolicy?.dailyEnabled;
     case "周常任务":
-      enabled = taskPolicy?.weeklyEnabled;
-      break;
+      return taskPolicy?.weeklyEnabled;
     case "成就任务":
-      enabled = taskPolicy?.achievementEnabled;
-      break;
+      return taskPolicy?.achievementEnabled;
     case "地图随机事件":
-      enabled = policy.basic?.mapEventEnabled;
-      break;
+      return policy.basic?.mapEventEnabled;
     case "宠物事件":
     case "宠物纪念品":
-      enabled = policy.basic?.zoo?.enabled && policy.basic.zoo.autoEventEnabled;
-      break;
+      return policy.basic?.zoo?.enabled && policy.basic.zoo.autoEventEnabled;
     case "activity":
-      enabled = task.id.startsWith("story:") || task.id.startsWith("story-box:")
+      return task.id.startsWith("story:") || task.id.startsWith("story-box:")
         ? policy.activity?.cyclicStory?.enabled
         : policy.activity?.cyclicNote?.enabled;
-      break;
     default:
       return undefined;
   }
-  return policy.automationEnabled && enabled === true;
 }
 
 function pendingTaskAutomationDisabledLabel(task: PendingTaskView, policy: Policy | null) {
-  if (pendingTaskAutomationEnabled(task, policy) !== false) return "";
-  if (policy?.automationEnabled && task.category === "主线任务" && policy.basic?.task?.mainEnabled && mainTaskNeedsCultivation(task) && !policy.plant?.cultivate?.enabled) {
-    return "需开启培育";
-  }
-  return policy?.automationEnabled === false ? "自动化关闭" : "未启用";
+  return pendingTaskAutomationState(task, policy).label;
 }
 
-function mainTaskNeedsCultivation(task: PendingTaskView) {
-  return task.category === "主线任务" && task.requiresCultivation;
+function pendingTaskExecutionFeatureEnabled(feature: TaskExecutionFeature, policy: Policy) {
+  switch (feature) {
+    case TaskExecutionFeature.CLAIM_ONLY:
+      return true;
+    case TaskExecutionFeature.STORY:
+      return policy.basic?.task?.storyEnabled === true;
+    case TaskExecutionFeature.PLANTING:
+      return policy.plant?.planting?.autoEnabled === true;
+    case TaskExecutionFeature.RESIDENT_ORDER:
+      return policy.order?.resident?.normalEnabled === true;
+    case TaskExecutionFeature.FLOWER_RACK:
+      return policy.order?.flowerArt?.sellEnabled === true;
+    case TaskExecutionFeature.CUSTOMER_ORDER:
+      return policy.order?.customer?.enabled === true;
+    case TaskExecutionFeature.CULTIVATE_SHOP:
+      return policy.basic?.shop?.cultivateShop?.autoBuy === true;
+    case TaskExecutionFeature.PALACE_ORDER:
+      return policy.order?.palace?.enabled === true;
+    case TaskExecutionFeature.PEARL_HIRE:
+      return policy.basic?.pearl?.autoHireEnabled === true;
+    case TaskExecutionFeature.FRIEND_TOUCH:
+      return policy.plant?.friendSteal?.enabled === true;
+    case TaskExecutionFeature.ZOO_STROKE:
+      return policy.basic?.zoo?.enabled === true && policy.basic.zoo.autoStroke === true;
+    case TaskExecutionFeature.CULTIVATION:
+      return policy.plant?.cultivate?.enabled === true;
+    default:
+      return false;
+  }
+}
+
+function taskExecutionFeatureLabel(feature: TaskExecutionFeature) {
+  switch (feature) {
+    case TaskExecutionFeature.STORY: return "剧情自动解锁";
+    case TaskExecutionFeature.PLANTING: return "自动种植";
+    case TaskExecutionFeature.RESIDENT_ORDER: return "居民订单";
+    case TaskExecutionFeature.FLOWER_RACK: return "花架出售";
+    case TaskExecutionFeature.CUSTOMER_ORDER: return "顾客订单";
+    case TaskExecutionFeature.CULTIVATE_SHOP: return "材料商店购买";
+    case TaskExecutionFeature.PALACE_ORDER: return "宫廷订单";
+    case TaskExecutionFeature.PEARL_HIRE: return "珍珠雇佣";
+    case TaskExecutionFeature.FRIEND_TOUCH: return "好友摸花";
+    case TaskExecutionFeature.VIDEO: return "视频能力";
+    case TaskExecutionFeature.ZOO_STROKE: return "宠物互动";
+    case TaskExecutionFeature.CULTIVATION: return "自动培育";
+    default: return "相关模块";
+  }
 }
 
 function taskMonitorDetailWithPolicy(tasks: PendingTaskView[], policy: Policy | null) {
-  const enabled = tasks.filter((task) => pendingTaskAutomationEnabled(task, policy) !== false);
-  const disabled = tasks.length - enabled.length;
+  const enabled = tasks.filter((task) => pendingTaskAutomationState(task, policy).kind === "enabled");
+  const disabled = tasks.filter((task) => pendingTaskAutomationState(task, policy).kind === "disabled").length;
+  const waiting = tasks.filter((task) => pendingTaskAutomationState(task, policy).kind === "waiting").length;
   const detail = enabled.length > 0 ? taskMonitorDetail(enabled) : "";
-  return [detail, disabled > 0 ? `未启用 ${disabled}` : ""].filter(Boolean).join(" / ") || "暂无";
+  return [detail, disabled > 0 ? `未启用 ${disabled}` : "", waiting > 0 ? `待处理 ${waiting}` : ""].filter(Boolean).join(" / ") || "暂无";
 }
 
 function RequirementChips({ requirements }: { requirements: RequirementView[] }) {

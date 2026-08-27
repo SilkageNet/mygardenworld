@@ -21,6 +21,8 @@ const (
 	waterDropsItemID     = int32(7)
 )
 
+var errWebSocketSessionStart = errors.New("websocket session start failed")
+
 // Start kicks off the runner. Blocks until login completes (or fails); the
 // WebSocket loop and decision loop run in background goroutines.
 func (r *Runner) Start(ctx context.Context) error {
@@ -53,6 +55,14 @@ func (r *Runner) Start(ctx context.Context) error {
 			go r.connectionLoop(rctx, username, password, nil)
 			return nil
 		}
+		if errors.Is(err, errWebSocketSessionStart) {
+			// Credentials and the HTTP login path were good enough to reach the
+			// game WebSocket. Keep the runner alive so transient DNS, gateway, or
+			// handshake failures recover with the normal reconnect backoff.
+			go r.decisionLoop(rctx)
+			go r.connectionLoop(rctx, username, password, nil)
+			return nil
+		}
 		return fail(err)
 	}
 
@@ -79,6 +89,12 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 			client, resumeErr := r.connectSession(ctx, httpc, session, true)
 			if resumeErr == nil {
 				return client, nil
+			}
+			// A transport outage does not prove that the cached route token is
+			// invalid. Preserve it for the reconnect loop instead of replacing a
+			// reusable session with repeated fresh HTTP logins.
+			if errors.Is(resumeErr, errWebSocketSessionStart) {
+				return nil, resumeErr
 			}
 			decodeErr = resumeErr
 		}
@@ -146,7 +162,7 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	client.DebugWriter = r.debugWriter
 	if err := client.Connect(ctx); err != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("ws connect: %w", err)
+		return nil, fmt.Errorf("%w: ws connect: %w", errWebSocketSessionStart, err)
 	}
 
 	// A cached route token resumes with index.reLogin; a freshly issued route
