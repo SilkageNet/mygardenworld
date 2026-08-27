@@ -16,8 +16,7 @@ func TestMigratePolicyDocumentV2ProducesStrictCurrentPolicy(t *testing.T) {
 		"union":{"race":{"max_task_score":19,"urgent_speedup_enabled":true}},
 		"activity":{"enabled":true,"modules":{
 			"cyclicNote":{"enabled":true,"bool_params":{"satisfy_tasks":true}},
-			"actCyclicStory":{"enabled":true,"int_params":{"max_score":"88"}},
-			"actDessert":{"enabled":true,"bool_params":{"auto_play":true},"int_params":{"mode":"1"}}
+			"actCyclicStory":{"enabled":true,"int_params":{"max_score":"88"}}
 		}}
 	}`
 	migrated, err := migratePolicyDocumentV2(raw)
@@ -28,10 +27,14 @@ func TestMigratePolicyDocumentV2ProducesStrictCurrentPolicy(t *testing.T) {
 	if err := json.Unmarshal([]byte(migrated), &document); err != nil {
 		t.Fatal(err)
 	}
-	if got := uint32(document["schema_version"].(float64)); got != policycfg.CurrentSchemaVersion {
-		t.Fatalf("schema_version=%d want %d", got, policycfg.CurrentSchemaVersion)
+	if got := uint32(document["schema_version"].(float64)); got != migratedPolicySchemaVersionV2 {
+		t.Fatalf("schema_version=%d want %d", got, migratedPolicySchemaVersionV2)
 	}
-	policy, err := policycfg.FromJSON(migrated)
+	current, err := migratePolicyDocumentV3(migrated)
+	if err != nil {
+		t.Fatalf("v3 migration rejected v2 document: %v", err)
+	}
+	policy, err := policycfg.FromJSON(current)
 	if err != nil {
 		t.Fatalf("strict decoder rejected migrated document: %v\n%s", err, migrated)
 	}
@@ -46,9 +49,40 @@ func TestMigratePolicyDocumentV2ProducesStrictCurrentPolicy(t *testing.T) {
 		t.Fatalf("race policy not migrated: %+v", race)
 	}
 	if !policy.GetActivity().GetCyclicNote().GetSatisfyTasks() ||
-		policy.GetActivity().GetCyclicStory().GetMaxScore() != 88 ||
-		!policy.GetActivity().GetDessert().GetAutoPlay() || policy.GetActivity().GetDessert().GetMode() != 1 {
+		policy.GetActivity().GetCyclicStory().GetMaxScore() != 88 {
 		t.Fatalf("typed activity policy not migrated: %+v", policy.GetActivity())
+	}
+}
+
+func TestMigratePolicyDocumentV3RemovesOnlyRetiredDessertPolicy(t *testing.T) {
+	raw := `{
+		"schema_version":2,
+		"automation_enabled":true,
+		"activity":{
+			"cyclic_note":{"enabled":true,"satisfy_tasks":true},
+			"dessert":{"enabled":true,"max_session_energy":20}
+		}
+	}`
+	migrated, err := migratePolicyDocumentV3(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(strings.ToLower(migrated), "dessert") {
+		t.Fatalf("retired policy survived migration: %s", migrated)
+	}
+	policy, err := policycfg.FromJSON(migrated)
+	if err != nil {
+		t.Fatalf("strict decoder rejected migrated document: %v\n%s", err, migrated)
+	}
+	if !policy.GetAutomationEnabled() || !policy.GetActivity().GetCyclicNote().GetEnabled() || !policy.GetActivity().GetCyclicNote().GetSatisfyTasks() {
+		t.Fatalf("unrelated policy values changed: %+v", policy)
+	}
+}
+
+func TestMigratePolicyDocumentV3RejectsOtherUnknownFields(t *testing.T) {
+	_, err := migratePolicyDocumentV3(`{"schema_version":2,"removed_product_switch":true,"activity":{"dessert":{}}}`)
+	if err == nil || !strings.Contains(err.Error(), "removed_product_switch") {
+		t.Fatalf("migration error=%v, want strict unknown-field rejection", err)
 	}
 }
 

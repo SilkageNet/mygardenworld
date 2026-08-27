@@ -1,4 +1,4 @@
-import { PlanStatus, type FeatureCapability } from "@/lib/api/query-models";
+import { PlanStatus, type FeatureCapability } from "@/lib/api/workspace-models";
 
 export type SettingStatusKind = "sync_only" | "adapter_missing" | "blocked";
 

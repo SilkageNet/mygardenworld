@@ -6,6 +6,7 @@ package runner
 
 import (
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 )
 
 // Event mirrors the proto Event for in-process broadcast. Stored shape is
-// stable; gRPC subscribers receive it directly via QueryService.StreamEvents.
+// stable; workspace subscribers receive it through the protobuf WebSocket.
 type Event struct {
 	ID          int64
 	TS          time.Time
@@ -45,11 +46,36 @@ func (e Event) ToProto() *pb.Event {
 		Kind:        e.Kind,
 		Message:     e.Message,
 		PayloadJson: e.PayloadJSON,
-		Category:    e.Category,
+		Category:    WorkspaceLogCategory(e.Category, e.Domain),
 		Label:       e.Label,
 		Level:       e.Level,
 		Domain:      e.Domain,
 		Action:      e.Action,
+	}
+}
+
+// WorkspaceLogCategory maps the runner's detailed implementation taxonomy to
+// the stable product taxonomy exposed by the workspace protocol.
+func WorkspaceLogCategory(category, domain string) pb.WorkspaceLogCategory {
+	category = strings.ToLower(category)
+	domain = strings.ToLower(domain)
+	switch {
+	case category == "account", strings.HasPrefix(domain, "account"), strings.HasPrefix(domain, "session"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ACCOUNT
+	case category == "system", strings.HasPrefix(domain, "system"), strings.HasPrefix(domain, "policy"), strings.HasPrefix(domain, "redeem"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_SYSTEM
+	case category == "union", category == "race", strings.HasPrefix(domain, "fml"), strings.Contains(domain, "union"), strings.Contains(domain, "race"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_UNION
+	case category == "activity", strings.HasPrefix(domain, "act"), strings.Contains(domain, "cyclic"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ACTIVITIES
+	case category == "order", category == "flower_art", strings.Contains(domain, "order"), strings.Contains(domain, "vase"), strings.Contains(domain, "flowerart"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ORDERS
+	case category == "plant", category == "water", strings.HasPrefix(domain, "farm"), strings.Contains(domain, "land"), strings.Contains(domain, "cultivat"), strings.Contains(domain, "friend"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_GARDEN
+	case strings.Contains(domain, "inventory"), strings.Contains(domain, "resource"), strings.Contains(domain, "warehouse"), strings.Contains(domain, "market"), strings.Contains(domain, "shop"), strings.Contains(domain, "pearl"), strings.Contains(domain, "zoo"), strings.Contains(domain, "mail"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_WAREHOUSE
+	default:
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_BASIC
 	}
 }
 
@@ -75,7 +101,6 @@ type Runner struct {
 	sessionRuntimeState
 	schedulerState
 	executionState
-	activityRuntimeState
 }
 
 // New constructs a runner. cfg must already be resolved from the account's
@@ -97,7 +122,6 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 	r.sideLaneFirstWait = make(map[string]time.Time)
 	r.unknownRPCCounts = make(map[string]int32)
 	r.lastCustomerOrderInfo = make(map[int32]string)
-	r.dessertRound = dessertRoundRuntime{DessertRuntimeSnapshot: DessertRuntimeSnapshot{ShadowOnly: true}}
 	r.done = make(chan struct{})
 	return r
 }
@@ -157,12 +181,7 @@ func (r *Runner) Policy() *pb.Policy {
 func (r *Runner) SetPolicy(p *pb.Policy) {
 	normalized := policycfg.Normalize(p)
 	r.mu.Lock()
-	oldDessertEnabled := dessertPolicyEnabled(r.policy)
-	newDessertEnabled := dessertPolicyEnabled(normalized)
 	r.policy = normalized
-	if oldDessertEnabled != newDessertEnabled {
-		r.resetDessertRoundForPolicyLocked(newDessertEnabled)
-	}
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
 	}

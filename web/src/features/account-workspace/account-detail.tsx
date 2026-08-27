@@ -1,54 +1,40 @@
 "use client";
 
-import { useEffect, useRef, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import {
-  Activity,
   AlertTriangle,
   ArrowLeft,
-  Building2,
   Cloud,
-  LayoutDashboard,
-  ListTodo,
   Loader2,
   LogOut,
-  Package,
   Play,
   RefreshCw,
-  ScrollText,
   Send,
-  Sprout,
   Trash2,
 } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/query-models";
+import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
-import { EventPanel } from "@/components/dashboard/monitor-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ContentReveal } from "@/components/effects/content-reveal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { AccountViews } from "./model";
+import type { AccountViews } from "@/features/workspace/model";
+import { DashboardTabBar, type DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 import {
   ActivitiesWorkspace,
-  AssetsWorkspace,
+  BasicWorkspace,
   GardenWorkspace,
+  StatisticsWorkspace,
+  LogsWorkspace,
   OrdersWorkspace,
-  OverviewWorkspace,
   UnionWorkspace,
-} from "./workspaces";
+  WarehouseWorkspace,
+} from "@/features/workspace";
 
-export type DashboardTabId = "overview" | "garden" | "orders" | "union" | "activities" | "assets" | "logs";
-
-const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
-  { id: "overview", label: "概览", icon: <LayoutDashboard /> },
-  { id: "garden", label: "花园", icon: <Sprout /> },
-  { id: "orders", label: "订单经营", icon: <ListTodo /> },
-  { id: "union", label: "公会", icon: <Building2 /> },
-  { id: "activities", label: "活动", icon: <Activity /> },
-  { id: "assets", label: "资产", icon: <Package /> },
-  { id: "logs", label: "全部日志", icon: <ScrollText /> },
-];
+export type { DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 
 export function SelectAccountPlaceholder() {
   return (
@@ -73,6 +59,8 @@ export function AccountDetailView({
   busyAction,
   activeTab,
   events,
+  logsHasMore,
+  logsLoading,
   policy,
   policyLoading,
   savingPolicy,
@@ -84,6 +72,7 @@ export function AccountDetailView({
   onDelete,
   onPolicyChange,
   onPolicySave,
+  onLoadMoreLogs,
 }: {
   account: Account;
   status?: AccountStatus;
@@ -93,6 +82,8 @@ export function AccountDetailView({
   busyAction: string;
   activeTab: DashboardTabId;
   events: Event[];
+  logsHasMore: boolean;
+  logsLoading: boolean;
   policy: Policy | null;
   policyLoading: boolean;
   savingPolicy: boolean;
@@ -104,12 +95,12 @@ export function AccountDetailView({
   onDelete: () => void;
   onPolicyChange: (policy: Policy | null) => void;
   onPolicySave: () => void;
+  onLoadMoreLogs: () => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const workspaceProps = {
     views,
     status,
-    events,
     policy,
     capabilities: featureCapabilities,
     policyLoading,
@@ -148,37 +139,20 @@ export function AccountDetailView({
             : "dark-scrollbar xl:flex-1 xl:overflow-y-auto xl:pr-0.5",
         )}
       >
-        {activeTab === "overview" && <OverviewWorkspace {...workspaceProps} />}
-        {activeTab === "garden" && <GardenWorkspace {...workspaceProps} />}
-        {activeTab === "orders" && <OrdersWorkspace {...workspaceProps} />}
-        {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}
-        {activeTab === "activities" && <ActivitiesWorkspace {...workspaceProps} />}
-        {activeTab === "assets" && <AssetsWorkspace {...workspaceProps} />}
-        {activeTab === "logs" && <EventPanel events={events} />}
+        {activeTab === "logs" ? (
+          <LogsWorkspace events={events} hasMore={logsHasMore} loading={logsLoading} onLoadMore={onLoadMoreLogs} />
+        ) : (
+          <ContentReveal key={`${account.id.toString()}-${activeTab}`}>
+            {activeTab === "basic" && <BasicWorkspace {...workspaceProps} />}
+            {activeTab === "garden" && <GardenWorkspace {...workspaceProps} />}
+            {activeTab === "orders" && <OrdersWorkspace {...workspaceProps} />}
+            {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}
+            {activeTab === "activities" && <ActivitiesWorkspace {...workspaceProps} />}
+            {activeTab === "warehouse" && <WarehouseWorkspace {...workspaceProps} />}
+            {activeTab === "statistics" && <StatisticsWorkspace views={views} status={status} />}
+          </ContentReveal>
+        )}
       </div>
-    </div>
-  );
-}
-
-function DashboardTabBar({ activeTab, onChange }: { activeTab: DashboardTabId; onChange: (tab: DashboardTabId) => void }) {
-  return (
-    <div className="dark-scrollbar sticky top-[3.25rem] z-20 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-white/58 bg-white/62 p-1 shadow-sm shadow-sky-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-card/72 sm:top-14 xl:static">
-      {DASHBOARD_TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          className={cn(
-            "flex h-9 min-w-[6.25rem] shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition-all active:scale-[0.99] sm:min-w-20",
-            activeTab === tab.id
-              ? "bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(255,111,97,0.24)]"
-              : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
-          )}
-          onClick={() => onChange(tab.id)}
-        >
-          <span className="[&_svg]:size-4">{tab.icon}</span>
-          {tab.label}
-        </button>
-      ))}
     </div>
   );
 }
@@ -207,41 +181,42 @@ function HeaderPanel({
   const identity = accountIdentity(account, status);
   const statusIssues = accountStatusIssues(status);
   return (
-    <Card className="cloud-surface bg-card/88">
-      <CardContent className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:items-center">
-            <Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
+    <Card className="cloud-surface bg-card/88 py-3 sm:py-4">
+      <CardContent className="space-y-2 px-3 sm:space-y-3 sm:px-4">
+        <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <Button type="button" variant="ghost" size="icon" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
               <ArrowLeft className="size-4" />
             </Button>
             <div className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-white/72 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300 sm:flex">
               <Cloud className="size-6" />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <h1 className="min-w-0 max-w-full truncate text-xl font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
-                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
-                  <span>{identity.area}</span><span>·</span><span>{identity.channel}</span>
-                </div>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                <h1 className="min-w-0 truncate text-lg font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
                 <HealthBadge account={account} status={status} />
+              </div>
+              <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground sm:text-sm">
+                <span className="truncate">{identity.area}</span><span>·</span><span className="truncate">{identity.channel}</span>
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-1">
-            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-sm" onClick={onRefresh} disabled={viewsLoading || !connected}>
+          <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-1.5">
+            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-lg" className="size-8 sm:size-9" onClick={onRefresh} disabled={viewsLoading || !connected}>
               <RefreshCw className={cn("size-4", viewsLoading && "animate-spin")} />
             </IconButtonWithTooltip>
             <IconButtonWithTooltip
               label={connected ? "退出登录" : "登录"}
               type="button"
               variant="outline"
-              size="icon-sm"
+              size="icon-lg"
+              className="size-8 sm:size-9"
               onClick={() => void onAction(sessionAction)}
               disabled={busyAction === sessionAction}
             >
               {busyAction === sessionAction ? <Loader2 className="size-4 animate-spin" /> : connected ? <LogOut className="size-4" /> : <Play className="size-4" />}
             </IconButtonWithTooltip>
-            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-sm" onClick={onDelete} disabled={busyAction === "delete"}>
+            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-lg" className="size-8 sm:size-9" onClick={onDelete} disabled={busyAction === "delete"}>
               <Trash2 className="size-4" />
             </IconButtonWithTooltip>
           </div>

@@ -17,13 +17,13 @@ const raceTakeLeadWindow = 300 * time.Millisecond
 
 // raceTaskPoolRefreshInterval is how often automation re-fetches the task pool
 // when idle of giveUp/finish/take.
-const raceTaskPoolRefreshInterval = 10 * time.Minute
+const raceTaskPoolRefreshInterval = 30 * time.Second
 
 // raceNearCDSyncSuppressWindow is how close a filter-passing CD task must be
 // before periodic getTaskList is deferred. Keeping this much shorter than
 // raceTaskPoolRefreshInterval lets long CD waits still refresh upgrade/claim
 // state; only the final approach skips sync to favor take timing.
-const raceNearCDSyncSuppressWindow = 45 * time.Second
+const raceNearCDSyncSuppressWindow = 10 * time.Second
 
 // raceFinishProgressSyncInterval caps getTaskList retries when LocalFinishCnt
 // already meets the target but server FinishCnt still lags. A successful
@@ -198,10 +198,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			return []PlannedOp{op}
 		}
 		if raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
-			return []PlannedOp{domainOp(
+			op := domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 				"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
-			)}
+			)
+			op.PreemptFarm = true
+			return []PlannedOp{op}
 		}
 		return nil
 	}
@@ -296,10 +298,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	if !hasPrimary && raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
-		return []PlannedOp{domainOp(
+		op := domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 			"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
-		)}
+		)
+		op.PreemptFarm = true
+		return []PlannedOp{op}
 	}
 
 	// 3. Optional: upgrade the currently held task. The observed client sends
@@ -417,7 +421,7 @@ func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
 
 // raceNeedsFinishProgressSync reports that plant-harvest LocalFinishCnt already
 // meets TargetCnt while authoritative FinishCnt has not, so the planner must
-// refresh the task pool instead of idling until the 10m TTL.
+// refresh the task pool instead of idling until the regular pool refresh.
 // Recent successful getTaskList (within raceFinishProgressSyncInterval) is
 // respected so a lagging server FinishCnt cannot re-plan sync every decision tick.
 func raceNeedsFinishProgressSync(view state.FmlRaceView, now time.Time) bool {
@@ -563,8 +567,8 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	return RaceTakeDue(s, policy, now)
 }
 
-// IsUrgentRaceOp reports ops that must preempt farm/order lanes (login sync,
-// take/giveUp/finish). Routine TTL refresh and bare off-week enter stay normal.
+// IsUrgentRaceOp reports ops that must preempt farm/order lanes (login/pool
+// sync, take/giveUp/finish). Bare off-week enter remains normal.
 func IsUrgentRaceOp(op PlannedOp) bool {
 	return op.PreemptFarm
 }
@@ -668,7 +672,7 @@ func raceFinishOperation(goal Goal, taken state.FmlRaceTakenView) PlannedOp {
 
 // RaceTakeSkipReason returns the primary reason automation will not take this
 // pool task, or "" if it is takeable (including preemptive CD within raceTakeLeadWindow).
-// Priority and CD copy branching are documented in docs/guild-race.md.
+// Keep priority and CD copy branching aligned with the table-driven tests.
 func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, now time.Time, gates RaceModuleGates) string {
 	if t.UID != 0 {
 		return "已被接取"
@@ -682,6 +686,55 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 		return "冷却中，" + hhmmss + " 后可接"
 	}
 	return raceTakeNonCDSkipReason(s, t, policy, uid, gates)
+}
+
+// ManualRaceTakeOperation validates a user-selected task against the same
+// observed state, quota, cooldown, module, and policy gates as automatic
+// selection. AutoEnableModules is intentionally not required: the race module
+// switch controls visibility/availability, while the explicit click supplies
+// the execution intent.
+func ManualRaceTakeOperation(s *state.State, policy *pb.Policy, taskMsID int64, now time.Time) (PlannedOp, error) {
+	if s == nil || policy == nil {
+		return PlannedOp{}, fmt.Errorf("公会竞赛状态不可用")
+	}
+	if taskMsID <= 0 {
+		return PlannedOp{}, fmt.Errorf("竞赛任务标识无效")
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() {
+		return PlannedOp{}, fmt.Errorf("请先开启公会竞赛")
+	}
+	view := s.FmlRace()
+	view.BatchActive = view.ActiveAt(now)
+	if !view.Observed || !view.BatchActive {
+		return PlannedOp{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
+	}
+	if !view.TasksObserved {
+		return PlannedOp{}, fmt.Errorf("竞赛任务池尚未同步")
+	}
+	if view.Taken.HasTask {
+		return PlannedOp{}, fmt.Errorf("已有竞赛任务，请先完成或放弃当前任务")
+	}
+	if view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		return PlannedOp{}, fmt.Errorf("竞赛任务接取次数已用完")
+	}
+	task, ok := raceTaskByMsID(view.Tasks, taskMsID)
+	if !ok {
+		return PlannedOp{}, fmt.Errorf("任务已不在当前任务池，请等待列表刷新")
+	}
+	if reason := RaceTakeSkipReason(s, task, race, s.RoleID(), now, raceModuleGatesFromPolicy(policy)); reason != "" {
+		return PlannedOp{}, fmt.Errorf("当前不可接取：%s", reason)
+	}
+	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
+	op := domainOp(clientproto.RPCFmlRaceTakeTask.String(), goal, "union.race.take", "take", "手动接取公会竞赛任务", 4380, 0, 0, 0)
+	op.TaskMsID = task.MsId
+	op.TaskID = task.TaskType
+	if op.TaskID == 0 {
+		op.TaskID = task.TaskId
+	}
+	op.FlowerID = task.ParamID
+	op.PreemptFarm = true
+	return op, nil
 }
 
 // raceTakeNonCDSkipReason evaluates take filters other than far-CD AppearTime.

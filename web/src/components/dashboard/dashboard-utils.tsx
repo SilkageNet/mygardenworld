@@ -1,9 +1,9 @@
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
+import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
-import { AccountHealth, PlanStatus } from "@/lib/api/query-models";
-import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, DessertView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/query-models";
+import { AccountHealth, PlanStatus } from "@/lib/api/workspace-models";
+import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { itemName } from "@/lib/game/catalog";
 
@@ -41,7 +41,7 @@ export function channelLabel(channel: Channel) {
     case Channel.IOS:
       return "iOS";
     case Channel.ALIPAY:
-      return "支付宝";
+      return "Alipay";
     default:
       return "未知渠道";
   }
@@ -50,7 +50,7 @@ export function channelLabel(channel: Channel) {
 export function alipayLoginStatusLabel(status: AlipayLoginStatus) {
   switch (status) {
     case AlipayLoginStatus.WAITING_FOR_SCAN:
-      return "等待支付宝扫码确认";
+      return "等待 Alipay 扫码确认";
     case AlipayLoginStatus.PROCESSING:
       return "正在验证游戏登录…";
     case AlipayLoginStatus.COMPLETE:
@@ -74,7 +74,7 @@ export function isRunnerNotStartedError(err: unknown) {
 }
 
 export function isTransientConnectionMessage(message: string) {
-  return /network\s*error|networkerror|failed to fetch|load failed|(?:无法连接到|暂时无法访问)后端服务|事件流中断|后端服务暂时不可用|请求超时/i.test(message);
+  return /network\s*error|networkerror|failed to fetch|load failed|(?:无法连接到|暂时无法访问)后端服务|事件流中断|后端服务暂时不可用|请求超时|访问令牌已过期|正在重新连接/i.test(message);
 }
 
 export function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Promise<boolean> {
@@ -334,16 +334,6 @@ export function cyclicStoryPhaseDetail(activity: CyclicStoryView) {
   return `${prefix} ${formatRemainingMilliseconds(remaining)}`;
 }
 
-export function dessertPhaseDetail(activity: DessertView) {
-  if (activity.phase === 4) return activity.endMs > BigInt(0) ? `结束于 ${formatUnixTime(activity.endMs)}` : "活动已结束";
-  const endMs = Number(activity.phaseEndMs);
-  if (!Number.isFinite(endMs) || endMs <= 0) return "阶段时间尚未同步";
-  const remaining = endMs - Date.now();
-  if (remaining <= 0) return "等待服务端阶段更新";
-  const prefix = activity.phase === 1 ? "距开始" : activity.phase === 3 ? "领奖剩余" : "剩余";
-  return `${prefix} ${formatRemainingMilliseconds(remaining)}`;
-}
-
 export function formatRemainingMilliseconds(milliseconds: number) {
   const totalMinutes = Math.max(1, Math.ceil(milliseconds / 60_000));
   const days = Math.floor(totalMinutes / (24 * 60));
@@ -493,6 +483,10 @@ export function operationActionLabel(action: string) {
       return "购买";
     case "unlock":
       return "解锁";
+    case "cultivate":
+      return "培育";
+    case "recv":
+      return "领取";
     case "feed":
       return "喂食";
     case "stroke":
@@ -515,18 +509,6 @@ export function operationReasonLabel(reason: string) {
   if (reason.includes("not actionable")) return "等待";
   if (reason.includes("no observed")) return "未同步";
   return reason;
-}
-
-export function eventCategory(event: Event) {
-  if (event.category === "flower_art") return "order";
-  if (event.category === "redeem") return "system";
-  if (event.category) return event.category;
-  if (event.domain) {
-    const category = event.domain.split(".")[0];
-    if (category === "redeem") return "system";
-    return category || "system";
-  }
-  return "system";
 }
 
 /** Race getTaskList completions are frequent; keep only the newest one (events are newest-first). */

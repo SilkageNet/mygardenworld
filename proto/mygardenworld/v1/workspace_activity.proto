@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/workspace_common.proto";
+
+message ActivitiesView {
+  int64 account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  CyclicNoteView cyclic_note = 4;
+  CyclicStoryView cyclic_story = 5;
+}
+
+message CyclicNoteView {
+  bool observed = 1;
+  bool found = 2;
+  int32 batch_id = 3;
+  int32 template_id = 4;
+  int32 template_type = 5;
+  int32 status = 6;
+  // Client-compatible activity phase: 0 before preview/unknown, 1 preview, 2 active,
+  // 3 reward grace period, 4 ended.
+  int32 phase = 7;
+  int64 phase_end_ms = 8;
+  int64 begin_ms = 9;
+  int64 visible_start_ms = 10;
+  int64 end_ms = 11;
+  int64 grace_end_ms = 12;
+  string name = 13;
+  string description = 14;
+  int32 score = 15;
+  repeated ActivityItem items = 16;
+  int32 currency_item_id = 17;
+  int32 currency_balance = 18;
+  int32 finish_count = 19;
+  int64 last_refresh_ms = 20;
+  repeated CyclicNoteTaskSlot tasks = 21;
+  repeated CyclicNoteMilestone milestones = 22;
+  // Distinguishes an initialized empty value from an activity that still
+  // needs its enter response. These must not be inferred from valid/tasks.
+  bool task_list_observed = 23;
+  bool task_record_observed = 24;
+  // Found identifies a matching batch; valid confirms its required template
+  // and timing fields were decoded well enough for safe decisions.
+  bool valid = 25;
+  // True only after IActInfo.boxes was observed, including an observed empty
+  // list. Milestone readiness must never infer "unclaimed" from absence.
+  bool milestone_receipts_observed = 26;
+}
+
+message CyclicNoteTaskSlot {
+  int32 slot_id = 1;
+  bool unlocked = 2;
+  int32 task_id = 3;
+  int32 task_type = 4;
+  int32 param = 5;
+  string title = 6;
+  int32 target = 7;
+  // Progress is clamped for display. raw_progress remains the server value
+  // used for completion checks.
+  int32 progress = 8;
+  int32 raw_progress = 9;
+  bool progress_observed = 10;
+  bool received = 11;
+  bool receipt_observed = 12;
+  bool catalog_known = 13;
+  repeated ActivityItem reward = 14;
+  repeated ActivityItem finish_cost = 15;
+  PlanStatus status = 16;
+}
+
+message CyclicNoteMilestone {
+  int32 index = 1;
+  int32 target = 2;
+  bool received = 3;
+  repeated ActivityItem reward = 4;
+  PlanStatus status = 5;
+  int32 progress = 6;
+  int32 raw_progress = 7;
+  bool ready = 8;
+}
+
+message CyclicStoryView {
+  bool observed = 1;
+  bool found = 2;
+  bool valid = 3;
+  int32 batch_id = 4;
+  int32 template_id = 5;
+  int32 template_type = 6;
+  int32 status = 7;
+  // Client-compatible activity phase: 0 before preview/unknown, 1 preview, 2 active,
+  // 3 reward grace period, 4 ended.
+  int32 phase = 8;
+  int64 phase_end_ms = 9;
+  int64 begin_ms = 10;
+  int64 visible_start_ms = 11;
+  int64 end_ms = 12;
+  int64 grace_end_ms = 13;
+  string name = 14;
+  string description = 15;
+  int32 score = 16;
+  repeated ActivityItem items = 17;
+  int32 currency_item_id = 18;
+  int32 currency_balance = 19;
+  int32 finish_count = 20;
+  int32 exp_order_num = 21;
+  int64 last_refresh_ms = 22;
+  repeated CyclicStoryOrder orders = 23;
+  repeated CyclicNoteMilestone milestones = 24;
+  bool orders_observed = 25;
+  bool milestone_receipts_observed = 26;
+}
+
+message CyclicStoryOrder {
+  int32 order_idx = 1;
+  int32 order_id = 2;
+  int32 flower_id = 3;
+  // Server may send unix seconds or milliseconds; keep int64 for both.
+  int64 order_time = 4;
+  int64 valid_time = 5;
+  int32 cost = 6;
+  bool catalog_known = 7;
+  bool on_cooldown = 8;
+  repeated ActivityItem reward = 9;
+  PlanStatus status = 10;
+}
+
+message ActivityItem {
+  int32 item_id = 1;
+  string item_name = 2;
+  int32 count = 3;
+}

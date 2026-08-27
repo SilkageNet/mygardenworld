@@ -21,6 +21,16 @@ func TestCyclicStoryCatalogConfig(t *testing.T) {
 	}
 }
 
+func TestCyclicStoryViewWithoutVisibleBatchRetainsCatalogMetadata(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"23":{}}`))
+
+	view, ok := s.CyclicStoryView(time.UnixMilli(cyclicStoryFixtureNowMs))
+	if ok || !view.Observed || view.Found || view.TmpType != 4003 || view.Name != "莳花纪闻" || view.CurrencyItemID != 1108 {
+		t.Fatalf("CyclicStoryView without batch=(%+v,%t)", view, ok)
+	}
+}
+
 func TestCyclicStoryOrderInfoByID(t *testing.T) {
 	info := CyclicStoryOrderInfoByID(1)
 	if !info.CatalogKnown || info.OrderID != 1 || info.Group != 1 || info.Cost != 80 ||

@@ -53,7 +53,7 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 		}
 	}
 	if cultivate.GetEnabled() || cultivate.GetUpgradeEnabled() {
-		if cultivate, ok := cultivateOperation(s, plant, ledger, now); ok {
+		if cultivate, ok := cultivateOperation(s, plant, policy.GetBasic().GetTask().GetMainEnabled(), ledger, now); ok {
 			ops = append(ops, cultivate)
 		}
 	}
@@ -122,7 +122,7 @@ func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int
 	return ids[:want], want
 }
 
-func cultivateOperation(s *state.State, policy *pb.PlantPolicy, ledger *InventoryLedger, now time.Time) (PlannedOp, bool) {
+func cultivateOperation(s *state.State, policy *pb.PlantPolicy, mainTaskEnabled bool, ledger *InventoryLedger, now time.Time) (PlannedOp, bool) {
 	goal := Goal{ID: "farm.cultivate", Category: CategoryPlant, Domain: "farm.cultivate", Label: "培育", Priority: 55}
 	cultivatePolicy := policy.GetCultivate()
 	cultivations := s.Cultivations()
@@ -133,12 +133,32 @@ func cultivateOperation(s *state.State, policy *pb.PlantPolicy, ledger *Inventor
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	if cultivatePolicy.GetEnabled() {
 		nowMs := now.UnixMilli()
+		active := false
 		for _, id := range ids {
 			cv := cultivations[id]
-			if cv.Status == 1 && cv.CulTimeMs > 0 && cv.CulTimeMs <= nowMs {
-				op := op(clientproto.RPCCultivateRecv.String(), goal, "recv", "培育完成可领取", 7200, 0, 0, 0)
-				op.FlowerID = id
-				return op, true
+			if cv.Status == 1 {
+				active = true
+				if cv.CulTimeMs > 0 && cv.CulTimeMs <= nowMs {
+					op := op(clientproto.RPCCultivateRecv.String(), goal, "recv", "培育完成可领取", 7200, 0, 0, 0)
+					op.FlowerID = id
+					return op, true
+				}
+			}
+		}
+		// The observed client exposes one active cultivation slot. Do not start
+		// or upgrade another flower while that slot is still occupied.
+		if active {
+			return PlannedOp{}, false
+		}
+		if mainTaskEnabled {
+			if task, taskOK := s.MainTask(); taskOK && task.Valid && !task.Complete && task.ProgressObserved && task.Finished < task.Target {
+				if flowerID, _, targetOK := state.MainTaskCultivateTarget(task.TaskID); targetOK {
+					cv, observed := cultivations[flowerID]
+					if !observed || (cv.Lvl <= 0 && cv.Status != 1) {
+						taskGoal := Goal{ID: GoalMainTask, Category: CategoryBasic, Domain: "farm.cultivate", Label: "主线任务", Priority: 70}
+						return cultivateStartOperation(flowerID, taskGoal, "主线任务需要培育 "+itemLabel(flowerID), 7150, ledger)
+					}
+				}
 			}
 		}
 	}
@@ -167,35 +187,56 @@ func cultivateOperation(s *state.State, policy *pb.PlantPolicy, ledger *Inventor
 		}
 	}
 	if cultivatePolicy.GetEnabled() {
-		for _, flower := range s.PlantableFlowers(nil, nil) {
-			if _, exists := cultivations[flower.FlowerID]; exists {
+		for _, flowerID := range ids {
+			cv := cultivations[flowerID]
+			if cv.Status == 1 || cv.Lvl > 0 {
 				continue
 			}
-			costs, ok := state.CultivateCost(flower.FlowerID)
-			if !ok {
-				blocked := op(clientproto.RPCCultivateCultivate.String(), goal, "cultivate", "培育材料配置未确认", 7050, 0, 0, 0)
-				blocked.FlowerID = flower.FlowerID
-				blocked.Status = PlanStatusAdapterMissing
-				blocked.Executable = false
-				blocked.BlockedReasons = []string{"缺少培育材料静态配置，已阻塞等待确认"}
-				return blocked, true
-			}
-			itemCost := map[int32]int32{}
-			for _, cost := range costs {
-				if cost.ItemID > 0 && cost.Count > 0 {
-					itemCost[cost.ItemID] += cost.Count
+			planned, candidate := cultivateStartOperation(flowerID, goal, "有未培育花朵", 7050, ledger)
+			if !candidate || planned.Status == PlanStatusBlocked {
+				if candidate && planned.Status == PlanStatusAdapterMissing {
+					return planned, true
 				}
-			}
-			if !ledger.CanSpendItems(itemCost) {
 				continue
 			}
-			op := op(clientproto.RPCCultivateCultivate.String(), goal, "cultivate", "有未培育花朵", 7050, 0, 0, 0)
-			op.FlowerID = flower.FlowerID
-			op.ItemCost = itemCost
-			return op, true
+			return planned, true
 		}
 	}
 	return PlannedOp{}, false
+}
+
+func cultivateStartOperation(flowerID int32, goal Goal, reason string, priority int32, ledger *InventoryLedger) (PlannedOp, bool) {
+	costs, ok := state.CultivateCost(flowerID)
+	if !ok {
+		blocked := domainOp(clientproto.RPCCultivateCultivate.String(), goal, "farm.cultivate", "cultivate", "培育材料配置未确认", priority, 0, 0, 0)
+		blocked.FlowerID = flowerID
+		blocked.Status = PlanStatusAdapterMissing
+		blocked.Executable = false
+		blocked.BlockedReasons = []string{"缺少培育材料静态配置，已阻塞等待确认"}
+		return blocked, true
+	}
+	itemCost := map[int32]int32{}
+	for _, cost := range costs {
+		if cost.ItemID > 0 && cost.Count > 0 {
+			itemCost[cost.ItemID] += cost.Count
+		}
+	}
+	planned := domainOp(clientproto.RPCCultivateCultivate.String(), goal, "farm.cultivate", "cultivate", reason, priority, 0, 0, 0)
+	planned.FlowerID = flowerID
+	planned.ItemCost = itemCost
+	if ledger.CanSpendItems(itemCost) {
+		return planned, true
+	}
+	planned.Status = PlanStatusBlocked
+	planned.Executable = false
+	planned.BlockedReasons = planned.BlockedReasons[:0]
+	for itemID, count := range itemCost {
+		if available := ledger.Available(itemID); available < count {
+			planned.BlockedReasons = append(planned.BlockedReasons, itemLabel(itemID)+"不足")
+		}
+	}
+	sort.Strings(planned.BlockedReasons)
+	return planned, true
 }
 
 func nextLandUnlockCandidate(st *state.State) (int32, int32, bool) {

@@ -2,3 +2,7 @@ title = "仓库 Gitleaks 配置"
 
 [extend]
 useDefault = true
+
+[[allowlists]]
+description = "客户端公开 CDN 生成的静态目录；key 字段是游戏配置标识，不是凭据"
+paths = ['''^internal/state/catalog_data\.json$''']

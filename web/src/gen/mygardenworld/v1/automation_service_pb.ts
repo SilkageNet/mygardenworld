@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/automation_service.proto.
  */
 export const file_mygardenworld_v1_automation_service: GenFile = /*@__PURE__*/
-  fileDesc("CilteWdhcmRlbndvcmxkL3YxL2F1dG9tYXRpb25fc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSItChdFbmFibGVBdXRvbWF0aW9uUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgDIhoKGEVuYWJsZUF1dG9tYXRpb25SZXNwb25zZSIuChhEaXNhYmxlQXV0b21hdGlvblJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoAyIbChlEaXNhYmxlQXV0b21hdGlvblJlc3BvbnNlMuwBChFBdXRvbWF0aW9uU2VydmljZRJpChBFbmFibGVBdXRvbWF0aW9uEikubXlnYXJkZW53b3JsZC52MS5FbmFibGVBdXRvbWF0aW9uUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuRW5hYmxlQXV0b21hdGlvblJlc3BvbnNlEmwKEURpc2FibGVBdXRvbWF0aW9uEioubXlnYXJkZW53b3JsZC52MS5EaXNhYmxlQXV0b21hdGlvblJlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLkRpc2FibGVBdXRvbWF0aW9uUmVzcG9uc2VCjwEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhZBdXRvbWF0aW9uU2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
+  fileDesc("CilteWdhcmRlbndvcmxkL3YxL2F1dG9tYXRpb25fc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSItChdFbmFibGVBdXRvbWF0aW9uUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgDIhoKGEVuYWJsZUF1dG9tYXRpb25SZXNwb25zZSIuChhEaXNhYmxlQXV0b21hdGlvblJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoAyIbChlEaXNhYmxlQXV0b21hdGlvblJlc3BvbnNlIkIKGFRha2VVbmlvblJhY2VUYXNrUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgDEhIKCnRhc2tfbXNfaWQYAiABKAMiGwoZVGFrZVVuaW9uUmFjZVRhc2tSZXNwb25zZTLaAgoRQXV0b21hdGlvblNlcnZpY2USaQoQRW5hYmxlQXV0b21hdGlvbhIpLm15Z2FyZGVud29ybGQudjEuRW5hYmxlQXV0b21hdGlvblJlcXVlc3QaKi5teWdhcmRlbndvcmxkLnYxLkVuYWJsZUF1dG9tYXRpb25SZXNwb25zZRJsChFEaXNhYmxlQXV0b21hdGlvbhIqLm15Z2FyZGVud29ybGQudjEuRGlzYWJsZUF1dG9tYXRpb25SZXF1ZXN0GisubXlnYXJkZW53b3JsZC52MS5EaXNhYmxlQXV0b21hdGlvblJlc3BvbnNlEmwKEVRha2VVbmlvblJhY2VUYXNrEioubXlnYXJkZW53b3JsZC52MS5UYWtlVW5pb25SYWNlVGFza1JlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLlRha2VVbmlvblJhY2VUYXNrUmVzcG9uc2VCjwEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhZBdXRvbWF0aW9uU2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
 
 /**
  * @generated from message mygardenworld.v1.EnableAutomationRequest
@@ -73,6 +73,41 @@ export const DisableAutomationResponseSchema: GenMessage<DisableAutomationRespon
   messageDesc(file_mygardenworld_v1_automation_service, 3);
 
 /**
+ * @generated from message mygardenworld.v1.TakeUnionRaceTaskRequest
+ */
+export type TakeUnionRaceTaskRequest = Message<"mygardenworld.v1.TakeUnionRaceTaskRequest"> & {
+  /**
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
+
+  /**
+   * @generated from field: int64 task_ms_id = 2;
+   */
+  taskMsId: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.TakeUnionRaceTaskRequest.
+ * Use `create(TakeUnionRaceTaskRequestSchema)` to create a new message.
+ */
+export const TakeUnionRaceTaskRequestSchema: GenMessage<TakeUnionRaceTaskRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_automation_service, 4);
+
+/**
+ * @generated from message mygardenworld.v1.TakeUnionRaceTaskResponse
+ */
+export type TakeUnionRaceTaskResponse = Message<"mygardenworld.v1.TakeUnionRaceTaskResponse"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.TakeUnionRaceTaskResponse.
+ * Use `create(TakeUnionRaceTaskResponseSchema)` to create a new message.
+ */
+export const TakeUnionRaceTaskResponseSchema: GenMessage<TakeUnionRaceTaskResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_automation_service, 5);
+
+/**
  * @generated from service mygardenworld.v1.AutomationService
  */
 export const AutomationService: GenService<{
@@ -97,6 +132,18 @@ export const AutomationService: GenService<{
     methodKind: "unary";
     input: typeof DisableAutomationRequestSchema;
     output: typeof DisableAutomationResponseSchema;
+  },
+  /**
+   * Takes one currently eligible guild-race task immediately. The runner
+   * applies the same observed-state and policy gates as automatic selection;
+   * this never bypasses the server's appear-time cooldown.
+   *
+   * @generated from rpc mygardenworld.v1.AutomationService.TakeUnionRaceTask
+   */
+  takeUnionRaceTask: {
+    methodKind: "unary";
+    input: typeof TakeUnionRaceTaskRequestSchema;
+    output: typeof TakeUnionRaceTaskResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_mygardenworld_v1_automation_service, 0);

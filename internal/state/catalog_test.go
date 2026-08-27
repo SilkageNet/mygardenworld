@@ -292,6 +292,21 @@ func TestTaskTitles(t *testing.T) {
 	}
 }
 
+func TestMainTaskFlowerTargetsDistinguishHarvestAndCultivate(t *testing.T) {
+	if flowerID, target, ok := MainTaskFlowerTarget(10001); !ok || flowerID != 23001 || target != 4 {
+		t.Fatalf("MainTaskFlowerTarget(10001)=(%d,%d,%t)", flowerID, target, ok)
+	}
+	if _, _, ok := MainTaskCultivateTarget(10001); ok {
+		t.Fatal("harvest task must not be treated as cultivation")
+	}
+	if flowerID, target, ok := MainTaskCultivateTarget(40001); !ok || flowerID != 23003 || target != 1 {
+		t.Fatalf("MainTaskCultivateTarget(40001)=(%d,%d,%t)", flowerID, target, ok)
+	}
+	if _, _, ok := MainTaskFlowerTarget(40001); ok {
+		t.Fatal("cultivation task must not be treated as flower inventory demand")
+	}
+}
+
 func TestFlowerMaxLevel(t *testing.T) {
 	if got := FlowerMaxLevel(); got < 6 {
 		t.Fatalf("FlowerMaxLevel()=%d want at least 6", got)

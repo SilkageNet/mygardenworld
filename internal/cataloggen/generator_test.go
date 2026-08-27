@@ -174,84 +174,59 @@ this.request2("gs.zoo.recvSouvenirRwd", {idxList:t}, cb);
 	}
 }
 
-func TestProtocolGeneratorAppliesDessertCaptureOverrides(t *testing.T) {
+func TestProtocolGeneratorExcludesRemovedDessertSurface(t *testing.T) {
 	fixture := `
-mo.DS.setSingle("G.ISyncData", {celebrityInfo:"165:ICelebrityInfo"});
-mo.DS.setSingle("G.ICelebrityInfo", {celebrityTypes:0, celebrityMap:1, celebrityLikeMap:2});
-mo.DS.setSingle("G.IActDessertData", {totalScore:0, mapData:"1:{[magnification: number]: IActDessertMap}"});
-mo.DS.setSingle("G.IActDessertMap", {step:0, itemUse:"1:{[itemId: number]: number}", map:2, gameStatus:3, firstMerge:4, isRunning:5, totalGain:6, curId:7, score:8, lvMap:9});
-this.request2("gs.act.recv", args, cb);
-this.request2("gs.celebrity.getAllTypesInfo", {}, cb);
+mo.DS.setSingle("G.IActDessertData", {totalScore:0});
+mo.DS.setSingle("G.IKeep", {id:0, dessertData:"1:IActDessertData", name:2});
+this.request2("gs.actDessert.enter", {batchId:t}, cb);
+this.request2("gs.keep.enter", {id:t}, cb);
 `
 	protocol, err := ExtractClientProtocolFromText(fixture)
 	if err != nil {
-		t.Fatalf("ExtractClientProtocolFromText: %v", err)
+		t.Fatal(err)
+	}
+	if findProtocolSchema(protocol.Schemas, "G.IActDessertData") != nil || findProtocolRPC(protocol.RPCs, "actDessert.enter") != nil {
+		t.Fatalf("removed dessert surface leaked into generated protocol: %+v", protocol)
+	}
+	keep := findProtocolSchema(protocol.Schemas, "G.IKeep")
+	if keep == nil || findProtocolField(keep.Fields, "dessertData") != nil || findProtocolRPC(protocol.RPCs, "keep.enter") == nil {
+		t.Fatalf("non-dessert protocol surface was removed: %+v", protocol)
+	}
+}
+
+func TestRemoveDessertCatalogDataRemovesTablesRowsAndItems(t *testing.T) {
+	tables := map[string]StaticTable{
+		"c_actDessert": {Rows: map[string]json.RawMessage{"1": json.RawMessage(`{"id":1}`)}},
+		"c_misc": {
+			Rows: map[string]json.RawMessage{
+				"keep": json.RawMessage(`{"name":"保留"}`),
+				"drop": json.RawMessage(`{"key":"jump_actDessert","name":"香卉甜糕"}`),
+			},
+		},
+		"c_item": {
+			Rows: map[string]json.RawMessage{
+				"1342": json.RawMessage(`{"name":"体力"}`),
+				"2000": json.RawMessage(`{"name":"保留"}`),
+			},
+		},
 	}
 
-	recv := findProtocolRPC(protocol.RPCs, "act.recv")
-	if recv == nil || recv.RequestShape != protocolRequestFields || len(recv.RequestFields) != 3 {
-		t.Fatalf("act.recv override = %+v", recv)
-	}
-	for i, want := range []string{"batchId", "taskIdx", "taskId"} {
-		if recv.RequestFields[i].Name != want {
-			t.Fatalf("act.recv field[%d]=%+v, want %q", i, recv.RequestFields[i], want)
-		}
-	}
-	celebrity := findProtocolRPC(protocol.RPCs, "celebrity.getAllTypesInfo")
-	if celebrity == nil || celebrity.RequestShape != protocolRequestEmpty || len(celebrity.RequestFields) != 0 {
-		t.Fatalf("celebrity.getAllTypesInfo override = %+v", celebrity)
-	}
+	removeDessertCatalogData(tables)
 
-	legacy := findNamespaceSchema(protocol.NamespaceSchemas, "165")
-	canonical := findNamespaceSchema(protocol.NamespaceSchemas, "166")
-	if legacy == nil || legacy.FieldName != "celebrityInfoLegacy" || legacy.Schema != "G.ICelebrityInfo" {
-		t.Fatalf("legacy celebrity namespace = %+v", legacy)
+	if _, ok := tables["c_actDessert"]; ok {
+		t.Fatal("dessert table was retained")
 	}
-	if canonical == nil || canonical.FieldName != "celebrityInfo" || canonical.Schema != "G.ICelebrityInfo" {
-		t.Fatalf("canonical celebrity namespace = %+v", canonical)
+	if _, ok := tables["c_misc"].Rows["drop"]; ok {
+		t.Fatal("dessert row was retained")
 	}
-
-	dessertMap := findProtocolSchema(protocol.Schemas, "G.IActDessertMap")
-	for fieldName, wantType := range map[string]string{
-		"itemUse":    "{[itemId: number]: number}",
-		"firstMerge": "{[level: number]: number}",
-		"isRunning":  "boolean",
-		"totalGain":  "{[itemId: number]: number}",
-		"lvMap":      "{[level: number]: number}",
-	} {
-		field := findProtocolField(dessertMap.Fields, fieldName)
-		if field == nil || field.Type != wantType {
-			t.Fatalf("IActDessertMap.%s=%+v, want type %q", fieldName, field, wantType)
-		}
+	if _, ok := tables["c_misc"].Rows["keep"]; !ok {
+		t.Fatal("unrelated row was removed")
 	}
-
-	clientTypesGo, err := GenerateClientProtocolTypesGo(protocol)
-	if err != nil {
-		t.Fatalf("GenerateClientProtocolTypesGo: %v", err)
+	if _, ok := tables["c_item"].Rows["1342"]; ok {
+		t.Fatal("dessert item was retained")
 	}
-	generated := string(clientTypesGo)
-	for _, want := range []string{
-		"type ActRecvRequest struct",
-		"TaskIdx RPCInt `json:\"taskIdx\"`",
-		"type CelebrityGetAllTypesInfoRequest struct{}",
-	} {
-		if !strings.Contains(generated, want) {
-			t.Fatalf("client protocol output missing %q\n%s", want, generated)
-		}
-	}
-	for _, want := range []string{
-		`MapData\s+map\[int32\]IActDessertMap\s+` + "`json:\"1,omitempty\"`",
-		`ItemUse\s+map\[int32\]int32\s+` + "`json:\"1,omitempty\"`",
-		`FirstMerge\s+map\[int32\]int32\s+` + "`json:\"4,omitempty\"`",
-		`IsRunning\s+bool\s+` + "`json:\"5,omitempty\"`",
-		`TotalGain\s+map\[int32\]int32\s+` + "`json:\"6,omitempty\"`",
-		`LvMap\s+map\[int32\]int32\s+` + "`json:\"9,omitempty\"`",
-		`CelebrityInfoLegacy\s+ICelebrityInfo\s+` + "`json:\"165,omitempty\"`",
-		`CelebrityInfo\s+ICelebrityInfo\s+` + "`json:\"166,omitempty\"`",
-	} {
-		if !regexp.MustCompile(want).MatchString(generated) {
-			t.Fatalf("client protocol output missing pattern %q\n%s", want, generated)
-		}
+	if _, ok := tables["c_item"].Rows["2000"]; !ok {
+		t.Fatal("unrelated item was removed")
 	}
 }
 

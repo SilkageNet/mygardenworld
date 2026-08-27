@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Check, Flower2, Search, Sparkles } from "lucide-react";
-import type { PlantableFlowerView, SellableFlowerArtView } from "@/lib/api/query-models";
+import type { PlantableFlowerView, SellableFlowerArtView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -91,7 +91,7 @@ export function FlowerArtMultiSelectRow({
   const toggleArt = (artID: number) => onChange(toggleNumber(value, artID));
 
   return (
-    <div className="min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:col-span-2">
+    <div className="min-w-0 space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:gap-3">
         <Label className="text-sm">{label}</Label>
         <div className="flex gap-1">
@@ -474,7 +474,7 @@ export function FlowerPickerFilterChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex h-7 min-w-7 items-center justify-center rounded border px-1.5 text-xs font-medium",
+        "flex h-8 min-w-8 items-center justify-center rounded border px-1.5 text-xs font-medium sm:h-7 sm:min-w-7",
         selected
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",

@@ -128,7 +128,7 @@ func TestCyclicNoteTopEntryNullDeletesState(t *testing.T) {
 		t.Fatal("null task-record entry did not delete state")
 	}
 	view, ok := s.CyclicNoteView(time.UnixMilli(cyclicNoteFixtureNowMs))
-	if ok || !view.Observed || view.Found {
+	if ok || !view.Observed || view.Found || view.TmpType != 4002 || view.Name != "花笺集芳" || view.CurrencyItemID != 1107 {
 		t.Fatalf("CyclicNoteView after deletes=(%+v,%t)", view, ok)
 	}
 }

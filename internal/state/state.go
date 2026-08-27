@@ -117,10 +117,6 @@ func New() *State {
 	s.activityBatches = make(map[int32]*activityBatchState)
 	s.activityTemplates = make(map[int32]*activityTemplateState)
 	s.activityTaskRecords = make(map[string]*activityTaskRecordState)
-	s.celebrity = celebrityState{
-		Rankings: make(map[int32][]celebrityEntryState),
-		Likes:    make(map[int32]celebrityLikeState),
-	}
 	s.roadGrowReceived = make(map[int32]bool)
 	s.randomEvents = make(map[int32]*RandomEventView)
 	s.signTypes = make(map[int32]*SignTypeView)

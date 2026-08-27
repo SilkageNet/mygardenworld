@@ -124,7 +124,7 @@ function backendConnectionError(): string {
   return `暂时无法访问后端服务（${apiBaseUrl()}）。请检查网络连接并稍后重试。`;
 }
 
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (configured) return configured;
   if (typeof window !== "undefined") {
@@ -138,6 +138,12 @@ function apiBaseUrl(): string {
     return window.location.origin;
   }
   return "http://127.0.0.1:50051";
+}
+
+export function workspaceWebSocketUrl(): string {
+  const url = new URL("/api/workspace", apiBaseUrl());
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
 }
 
 function isPublicAuthRequest(url: string): boolean {

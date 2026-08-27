@@ -4,7 +4,6 @@ go 1.27.0
 
 require (
 	connectrpc.com/connect v1.20.0
-	github.com/ByteArena/box2d v1.0.3-0.20200713122713-acbde413692f
 	github.com/andybalholm/brotli v1.2.2
 	github.com/coder/websocket v1.8.15
 	github.com/elazarl/goproxy v1.8.4

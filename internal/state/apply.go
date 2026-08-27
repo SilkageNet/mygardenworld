@@ -167,15 +167,6 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	if rawNS23, ok := top["23"]; ok {
 		s.applyActivitiesLocked(rawNS23)
 	}
-	// Namespace 166 is authoritative in current captures. Retain legacy 165
-	// support, but always apply it first when both occur in one delta so the
-	// canonical namespace wins every overlapping field.
-	if rawNS165, ok := top[babigame.CelebrityNamespaceLegacy]; ok {
-		s.applyCelebrityLocked(rawNS165, babigame.CelebrityNamespaceLegacy)
-	}
-	if rawNS166, ok := top[babigame.CelebrityNamespace]; ok {
-		s.applyCelebrityLocked(rawNS166, babigame.CelebrityNamespace)
-	}
 	if rawNS117, ok := top["117"]; ok {
 		s.applyFreeWaterLocked(rawNS117)
 	}

@@ -7,13 +7,16 @@ import (
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestPendingRandomEventsRemainVisibleWhenAutomationIsDisabled(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"129":{"0":{"1":{"6004":{"0":6004,"1":2,"2":60040901}}}}}`))
-	tasks := buildPendingTasksAtPolicy(s, time.Now(), false)
+	policy := automation.DefaultPolicy()
+	policy.Basic.MapEventEnabled = false
+	tasks := buildPendingTasksAtPolicy(s, time.Now(), policy)
 	var found *pb.PendingTaskView
 	for _, task := range tasks {
 		if task.GetCategory() == "地图随机事件" && task.GetId() == "6004" {
@@ -28,11 +31,13 @@ func TestPendingRandomEventsRemainVisibleWhenAutomationIsDisabled(t *testing.T) 
 }
 
 func TestPendingRandomEventsExposeMalformedAndUnsafeDiagnostics(t *testing.T) {
+	policy := automation.DefaultPolicy()
+	policy.Basic.MapEventEnabled = true
 	t.Run("malformed map", func(t *testing.T) {
 		s := state.New()
 		s.ApplyV(json.RawMessage(`{"129":{"0":{"1":[]}}}`))
 		var found *pb.PendingTaskView
-		for _, task := range buildPendingTasksAtPolicy(s, time.Now(), true) {
+		for _, task := range buildPendingTasksAtPolicy(s, time.Now(), policy) {
 			if task.GetCategory() == "地图随机事件" {
 				found = task
 				break
@@ -47,7 +52,7 @@ func TestPendingRandomEventsExposeMalformedAndUnsafeDiagnostics(t *testing.T) {
 		s := state.New()
 		s.ApplyV(json.RawMessage(`{"129":{"0":{"1":{"6008":{"0":6008,"1":1,"2":60080101}}}}}`))
 		var found *pb.PendingTaskView
-		for _, task := range buildPendingTasksAtPolicy(s, time.Now(), true) {
+		for _, task := range buildPendingTasksAtPolicy(s, time.Now(), policy) {
 			if task.GetCategory() == "地图随机事件" {
 				found = task
 				break

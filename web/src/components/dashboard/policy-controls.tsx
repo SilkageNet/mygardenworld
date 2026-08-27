@@ -3,15 +3,17 @@
 import { useMemo, useState, type PointerEvent, type ReactNode } from "react";
 import { GripVertical, Minus, Plus, Sparkles } from "lucide-react";
 import { SelectionMode } from "@/gen/mygardenworld/v1/policy_pb";
-import type { FriendTouchFriendView } from "@/lib/api/query-models";
+import type { FriendTouchFriendView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { type SettingStatus } from "@/lib/feature-capabilities";
 import { cn } from "@/lib/utils";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
+
+const SETTING_ROW_CLASS =
+  "grid min-h-16 gap-x-6 gap-y-2 rounded-lg border border-border/55 bg-white/40 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,18rem)] sm:items-center dark:bg-white/5";
 
 const GOAL_OPTIONS = [
   { id: "order.customer", label: "顾客订单", defaultPriority: 90 },
@@ -26,10 +28,13 @@ const GOAL_OPTIONS = [
 export const QUALITY_OPTIONS = [1, 2, 3, 4, 5];
 export const QUALITY_LABELS: Record<number, string> = { 1: "凡", 2: "普", 3: "珍", 4: "华", 5: "仙" };
 
-export function PolicyGroup({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode; }) {
+export function PolicyGroup({ title, icon, description, children }: { title: string; icon: ReactNode; description?: string; children: ReactNode; }) {
   return (
-    <section className="space-y-3 rounded-md border border-border/55 bg-white/34 p-3 dark:bg-white/5">
-      <SectionTitle icon={icon}>{title}</SectionTitle>
+    <section className="space-y-3 rounded-xl border border-border/60 bg-white/30 p-3 sm:p-4 dark:bg-white/5">
+      <div>
+        <SectionTitle icon={icon}>{title}</SectionTitle>
+        {description && <p className="mt-1 pl-9 text-xs leading-5 text-muted-foreground">{description}</p>}
+      </div>
       {children}
     </section>
   );
@@ -37,18 +42,18 @@ export function PolicyGroup({ title, icon, children }: { title: string; icon: Re
 
 export function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" | "warn"; }) {
   return (
-    <div className="flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
-      <Label className="min-w-0 text-sm">{label}</Label>
-      <Badge variant={tone === "ready" ? "secondary" : tone === "warn" ? "destructive" : "outline"}>{value}</Badge>
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} />
+      <Badge className="justify-self-end" variant={tone === "ready" ? "secondary" : tone === "warn" ? "destructive" : "outline"}>{value}</Badge>
     </div>
   );
 }
 
-export function TextRow({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void; }) {
+export function TextRow({ label, value, description, onChange }: { label: string; value: string; description?: string; onChange: (value: string) => void; }) {
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <Label className="min-w-0 text-sm">{label}</Label>
-      <Input className="h-8 w-full text-right text-sm sm:w-36" value={value} onChange={(event) => onChange(event.target.value)} />
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} description={description} />
+      <Input className="h-9 w-full text-sm sm:justify-self-end sm:text-right" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -57,19 +62,21 @@ export function BigIntNumberRow({
   label,
   value,
   min,
+  description,
   onChange,
 }: {
   label: string;
   value: bigint;
   min: number;
+  description?: string;
   onChange: (value: bigint) => void;
 }) {
   const floor = BigInt(min);
   const normalizedValue = value < floor ? floor : value;
 
   return (
-    <div className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
-      <Label className="min-w-0 leading-5">{label}</Label>
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} description={description} />
       <NumericStepper
         label={label}
         value={normalizedValue.toString()}
@@ -115,7 +122,7 @@ export function NumericStepper({
   return (
     <div
       className={cn(
-        "grid h-9 shrink-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] overflow-hidden rounded-lg border border-input/85 bg-white/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] transition-[border-color,box-shadow,background-color] focus-within:border-ring focus-within:bg-white/88 focus-within:ring-3 focus-within:ring-ring/24 dark:bg-input/42 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:focus-within:bg-input/58",
+        "grid h-9 shrink-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] justify-self-end overflow-hidden rounded-lg border border-input/85 bg-white/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] transition-[border-color,box-shadow,background-color] focus-within:border-ring focus-within:bg-white/88 focus-within:ring-3 focus-within:ring-ring/24 dark:bg-input/42 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:focus-within:bg-input/58",
         wide ? "w-40" : "w-36",
         disabled && "opacity-55",
       )}
@@ -166,15 +173,14 @@ export function IntListRow({
   description?: string;
 }) {
   return (
-    <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
-      <Label className="text-sm">{label}</Label>
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} description={description} />
       <Input
-        className="h-8 text-sm"
+        className="h-9 text-sm sm:justify-self-end"
         value={formatIntList(value)}
         onChange={(event) => onChange(parseIntList(event.target.value))}
         placeholder="用逗号分隔 ID"
       />
-      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
     </div>
   );
 }
@@ -208,9 +214,9 @@ export function QualityRow({
   };
 
   return (
-    <div className="flex min-h-9 flex-col gap-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-      <Label className="min-w-0 text-sm">{label}</Label>
-      <div className="flex gap-1">
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} />
+      <div className="flex flex-wrap gap-1 sm:justify-self-end">
         {QUALITY_OPTIONS.map((quality) => {
           const selected = selectedSet.has(quality);
           return (
@@ -219,7 +225,7 @@ export function QualityRow({
               type="button"
               onClick={() => toggleQuality(quality)}
               className={cn(
-                "flex h-7 min-w-7 items-center justify-center rounded border px-1.5 text-xs font-medium",
+                "flex h-8 min-w-8 items-center justify-center rounded border px-1.5 text-xs font-medium sm:h-7 sm:min-w-7",
                 selected ? "border-primary bg-primary text-primary-foreground" : "border-border/58 bg-white/42 text-muted-foreground hover:bg-white/68 hover:text-foreground dark:bg-white/5",
               )}
             >
@@ -236,17 +242,19 @@ export function SegmentedRow<T extends number>({
   label,
   value,
   options,
+  description,
   onChange,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string; }[];
+  description?: string;
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="space-y-2 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5">
-      <Label className="text-sm">{label}</Label>
-      <div className="flex flex-wrap gap-1">
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} description={description} />
+      <div className="flex flex-wrap gap-1 sm:justify-self-end sm:justify-end">
         {options.map((option) => (
           <button
             key={option.value}
@@ -374,18 +382,15 @@ export function ToggleRow({
   return (
     <div
       className={cn(
-        "flex min-h-9 items-center justify-between gap-3 rounded-md border border-border/55 bg-white/36 px-3 py-2 dark:bg-white/5",
+        SETTING_ROW_CLASS,
         disabled && "opacity-55",
       )}
     >
-      <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-        <span className="flex flex-col">
-          <span>{label}</span>
-          {description && <span className="text-xs text-muted-foreground">{description}</span>}
-        </span>
+      <div className="flex min-w-0 items-start gap-2">
+        <SettingLabel label={label} description={description} />
         {status && <SettingStatusBadge status={status} />}
-      </span>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
+      </div>
+      <Switch className="justify-self-end" checked={checked} disabled={disabled} onCheckedChange={onChange} />
     </div>
   );
 }
@@ -533,14 +538,12 @@ export function NumberRow({
   return (
     <div
       className={cn(
-        "flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2 transition-opacity dark:bg-white/5",
+        SETTING_ROW_CLASS,
+        "transition-opacity",
         disabled && "opacity-55",
       )}
     >
-      <Label className="flex min-w-0 flex-col leading-5">
-        <span>{label}</span>
-        {description && <span className="text-xs font-normal text-muted-foreground">{description}</span>}
-      </Label>
+      <SettingLabel label={label} description={description} />
       <NumericStepper
         label={label}
         value={normalizedValue.toString()}
@@ -553,6 +556,15 @@ export function NumberRow({
         onIncrement={() => updateValue(normalizedValue + 1)}
         onValueChange={(nextValue) => updateValue(parseNumber(nextValue, min))}
       />
+    </div>
+  );
+}
+
+function SettingLabel({ label, description }: { label: string; description?: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left leading-5">
+      <span className="text-sm font-medium text-foreground">{label}</span>
+      {description && <span className="max-w-3xl text-xs font-normal leading-5 text-muted-foreground">{description}</span>}
     </div>
   );
 }

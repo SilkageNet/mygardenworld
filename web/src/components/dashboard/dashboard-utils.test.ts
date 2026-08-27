@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
+import { WorkspaceLogCategory } from "@/gen/mygardenworld/v1/workspace_common_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountStatus, Event } from "@/lib/api/query-models";
+import type { AccountStatus, Event } from "@/lib/api/workspace-models";
 import {
   accountAreaLabel,
   accountNickname,
@@ -36,7 +37,7 @@ function event(overrides: Partial<Event>): Event {
     kind: "operation_ack",
     message: "",
     payloadJson: "",
-    category: "race",
+    category: WorkspaceLogCategory.UNION,
     domain: "union.race.sync",
     action: "sync",
     label: "同步竞赛任务",
@@ -51,7 +52,7 @@ describe("dashboard account labels", () => {
     expect(accountNickname(value)).toBe("海棠");
     expect(accountAreaLabel(value)).toBe("第3区");
     expect(channelLabel(value.channel)).toBe("iOS");
-    expect(channelLabel(Channel.ALIPAY)).toBe("支付宝");
+    expect(channelLabel(Channel.ALIPAY)).toBe("Alipay");
   });
 
   it("prefers the observed game-server index", () => {
@@ -72,6 +73,7 @@ describe("dashboard event and status helpers", () => {
     expect(isTransientConnectionMessage("failed to fetch")).toBe(true);
     expect(isTransientConnectionMessage("后端服务暂时不可用")).toBe(true);
     expect(isTransientConnectionMessage("暂时无法访问后端服务（https://gardend.example）。请检查网络连接并稍后重试。")).toBe(true);
+    expect(isTransientConnectionMessage("访问令牌已过期，正在重新连接")).toBe(true);
     expect(isTransientConnectionMessage("invalid password")).toBe(false);
   });
 

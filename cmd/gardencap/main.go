@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -33,38 +32,8 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.AddCommand(newServeCmd(), newAnalyzeCmd(), newDessertFixtureCmd(), newVersionCmd())
+	root.AddCommand(newServeCmd(), newAnalyzeCmd(), newVersionCmd())
 	return root
-}
-
-func newDessertFixtureCmd() *cobra.Command {
-	var channel, outputPath string
-	cmd := &cobra.Command{
-		Use:   "dessert-fixture <session-dir>",
-		Short: "Extract a sanitized ordinary-mode dessert round fixture",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(outputPath) == "" {
-				return fmt.Errorf("--out is required")
-			}
-			ch, err := babigame.ParseChannel(channel)
-			if err != nil {
-				return err
-			}
-			if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-				return fmt.Errorf("create output directory: %w", err)
-			}
-			fixture, err := captureanalysis.WriteDessertRoundFixture(args[0], outputPath, ch)
-			if err != nil {
-				return err
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "dessert fixture: %d checkpoints (%d drops, %d merges)\n", len(fixture.Checkpoints), fixture.Final.Drops, fixture.Final.Merges)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&channel, "channel", string(babigame.ChannelIOS), "protocol channel used to decode captured frames")
-	cmd.Flags().StringVar(&outputPath, "out", "", "output JSON fixture path (required)")
-	return cmd
 }
 
 func newServeCmd() *cobra.Command {

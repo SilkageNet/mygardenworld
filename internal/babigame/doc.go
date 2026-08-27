@@ -169,29 +169,6 @@
 // Slot unlock, paid reroll/direct-complete, gifts, and the activity shop are
 // deliberately outside the safe automatic surface.
 //
-// # Dessert Activity (Namespace 23 ext121)
-//
-// 香卉甜糕 uses tmpType 5601. The dynamically selected batch stores activity
-// energy/currency/reward boxes in its bag (items 1342/1343/1347), total drops
-// in field 11, claimed milestones in field 13, and game state in
-// 23.0.<batchId>.14.121. Field 121.1 is an authoritative five-mode map; every
-// mode contains numeric schema fields 0..9, while actDessert.gameSync requests
-// must send the corresponding named saveData keys (step, itemUse, map,
-// gameStatus, firstMerge, isRunning, totalGain, curId, score, lvMap).
-//
-// The official client permits game input only in phase 2. A live phase-3
-// observation on 2026-07-12 confirmed that actDessert.gameStart completes
-// without starting mode 1, while actDessert.gameOver on an idle mode performs
-// end-of-event settlement: all remaining item 1342 energy was converted to
-// item 1343 currency at 1:2. Therefore gameOver is not a generic cleanup RPC.
-// Cleanup may call it only after an enter refresh proves that the exact mode
-// was running and was created/owned by the current test or automation session.
-//
-// The mutating live test TestDessertModeOneLifecycleE2E is additionally gated
-// by E2E_DESSERT_LIVE=1. During phase 2 it uses a three-energy deterministic
-// prefix (first-drop levels 1,1,2) to cover start, drop, merge, checkpoint,
-// and active settlement without replaying account-specific captured boards.
-//
 // # Guild Land State (Namespace 25.102)
 //
 // Guild/union planting lives under namespace 25 field 102 (IFmlLand):

@@ -146,6 +146,12 @@ func (s *State) CyclicStoryView(now time.Time) (CyclicStoryView, bool) {
 	defer s.mu.RUnlock()
 
 	out := CyclicStoryView{Observed: s.activityObserved}
+	config, catalogOK := CyclicStoryCatalogConfig()
+	if catalogOK {
+		out.TmpType = config.TmpType
+		out.CurrencyItemID = config.CurrencyItemID
+		out.Name = config.Name
+	}
 	batch, phase, visibleStart, graceEnd, phaseEnd := s.preferredCyclicStoryBatchLocked(now.UnixMilli())
 	if batch == nil {
 		return out, false
@@ -173,7 +179,6 @@ func (s *State) CyclicStoryView(now time.Time) (CyclicStoryView, bool) {
 	out.MilestoneReceiptsObserved = batch.BoxesObserved && batch.BoxesValid
 	out.ClaimedMilestoneIndexes = append([]int32(nil), batch.ClaimedBoxes...)
 
-	config, catalogOK := CyclicStoryCatalogConfig()
 	if catalogOK {
 		out.CurrencyItemID = config.CurrencyItemID
 		out.CurrencyBalance = out.Bag[config.CurrencyItemID]

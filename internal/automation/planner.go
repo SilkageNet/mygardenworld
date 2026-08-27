@@ -56,12 +56,16 @@ func buildPlanAtRevision(s *state.State, policy *pb.Policy, now time.Time) PlanR
 	for _, action := range activityActions {
 		demands = append(demands, action.Demand)
 	}
+	dailyActions := dailyTaskActionDemands(s, policy)
+	for _, action := range dailyActions {
+		demands = append(demands, action.Demand)
+	}
 	// Race progress demands use FinishCnt as Have so they must skip the
 	// inventory ledger (inventory stock does not satisfy harvest counts).
 	demands = append(demands, raceTaskProgressDemands(s, policy, now)...)
 	annotateDemandStatuses(demands)
 	sortDemands(demands)
-	ops := buildOperations(s, policy, goals, demands, activityActions, ledger, now)
+	ops := buildOperations(s, policy, goals, demands, activityActions, dailyActions, ledger, now)
 	annotateOperationGates(s, ops, now)
 	sortOperations(ops)
 	annotateSequentialResourceBudget(s, ops, now)
@@ -73,7 +77,7 @@ func buildPlanAtRevision(s *state.State, policy *pb.Policy, now time.Time) PlanR
 	}
 }
 
-func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
+func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, dailyActions []dailyTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	var ops []PlannedOp
 	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy, now))...)
 	ops = append(ops, friendTouchOperations(s, policy.GetPlant().GetFriendSteal(), now)...)
@@ -87,6 +91,7 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = driveRacePearlHireOperations(policy, demands, ops)
 	ops = driveRaceFlowerArtSellOperations(s, policy, demands, ops, ledger, now)
 	ops = driveRaceFlowerArtCraftOperations(s, policy, demands, ops, ledger)
+	ops = driveDailyTaskOperations(dailyActions, ops)
 	ops = append(ops, activityOperations(s, policy.GetActivity(), now)...)
 	ops = append(ops, blockedUnknownOperations(policy)...)
 	return ops

@@ -269,6 +269,16 @@ func mainTaskOperations(s *state.State) []PlannedOp {
 		return []PlannedOp{blocked}
 	}
 	if task.Finished < task.Target {
+		if flowerID, _, cultivateTask := state.MainTaskCultivateTarget(task.TaskID); cultivateTask {
+			if cultivate, observed := s.Cultivations()[flowerID]; observed && cultivate.Lvl > 0 {
+				blocked := markerOp(CategoryBasic, "basic.task.main", "sync", "主线培育目标已完成，但任务进度尚未同步", 6300)
+				blocked.Status = PlanStatusBlocked
+				blocked.Executable = false
+				blocked.TargetID = task.TaskID
+				blocked.BlockedReasons = []string{"拒绝重复培育 " + state.ItemName(flowerID) + "；等待服务端刷新主线任务计数"}
+				return []PlannedOp{blocked}
+			}
+		}
 		return nil
 	}
 	snapshot, ready := s.MainTaskClaimSnapshot()

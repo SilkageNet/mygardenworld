@@ -10,6 +10,11 @@ service AutomationService {
   // Disables the automation loop. WS connection stays up and state tracking
   // continues; only mutating RPCs are suppressed.
   rpc DisableAutomation(DisableAutomationRequest) returns (DisableAutomationResponse);
+
+  // Takes one currently eligible guild-race task immediately. The runner
+  // applies the same observed-state and policy gates as automatic selection;
+  // this never bypasses the server's appear-time cooldown.
+  rpc TakeUnionRaceTask(TakeUnionRaceTaskRequest) returns (TakeUnionRaceTaskResponse);
 }
 
 message EnableAutomationRequest {
@@ -23,3 +28,10 @@ message DisableAutomationRequest {
 }
 
 message DisableAutomationResponse {}
+
+message TakeUnionRaceTaskRequest {
+  int64 account_id = 1;
+  int64 task_ms_id = 2;
+}
+
+message TakeUnionRaceTaskResponse {}

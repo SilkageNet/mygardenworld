@@ -907,6 +907,40 @@ func TestEnforceReputationGuardAllowsSafeScore(t *testing.T) {
 	}
 }
 
+func TestEnforceReputationGuardDoesNotTreatUnobservedScoreAsZero(t *testing.T) {
+	now := time.Now()
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{
+			"17": map[string]any{"0": map[string]any{"0": 77900091102482}},
+		},
+	})
+	policy := automation.DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Basic.Reputation.Enabled = true
+	policy.Basic.Reputation.Threshold = 80
+	r := &Runner{
+		account:                &store.Account{ID: 1, Name: "test"},
+		log:                    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		state:                  st,
+		policy:                 policy,
+		lastReputationSyncTick: now,
+		harvestBlockedUntil:    map[int32]time.Time{},
+		unknownRPCCounts:       map[string]int32{},
+	}
+
+	err := r.enforceReputationGuard(context.Background(), nil, nil, "startup", now)
+	if err == nil {
+		t.Fatal("enforceReputationGuard() error=nil, want unobserved-score error")
+	}
+	if isReputationGuardError(err) {
+		t.Fatalf("enforceReputationGuard() error=%v, must not classify unobserved score as low reputation", err)
+	}
+	if !r.Policy().GetAutomationEnabled() {
+		t.Fatal("automation enabled = false, want unchanged while reputation is unobserved")
+	}
+}
+
 func TestApplyHarvestBlocksIgnoresExpiredBlock(t *testing.T) {
 	now := time.Now()
 	r := &Runner{harvestBlockedUntil: map[int32]time.Time{1002: now.Add(-time.Second)}}

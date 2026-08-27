@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	AutomationService_EnableAutomation_FullMethodName  = "/mygardenworld.v1.AutomationService/EnableAutomation"
 	AutomationService_DisableAutomation_FullMethodName = "/mygardenworld.v1.AutomationService/DisableAutomation"
+	AutomationService_TakeUnionRaceTask_FullMethodName = "/mygardenworld.v1.AutomationService/TakeUnionRaceTask"
 )
 
 // AutomationServiceClient is the client API for AutomationService service.
@@ -33,6 +34,10 @@ type AutomationServiceClient interface {
 	// Disables the automation loop. WS connection stays up and state tracking
 	// continues; only mutating RPCs are suppressed.
 	DisableAutomation(ctx context.Context, in *DisableAutomationRequest, opts ...grpc.CallOption) (*DisableAutomationResponse, error)
+	// Takes one currently eligible guild-race task immediately. The runner
+	// applies the same observed-state and policy gates as automatic selection;
+	// this never bypasses the server's appear-time cooldown.
+	TakeUnionRaceTask(ctx context.Context, in *TakeUnionRaceTaskRequest, opts ...grpc.CallOption) (*TakeUnionRaceTaskResponse, error)
 }
 
 type automationServiceClient struct {
@@ -63,6 +68,16 @@ func (c *automationServiceClient) DisableAutomation(ctx context.Context, in *Dis
 	return out, nil
 }
 
+func (c *automationServiceClient) TakeUnionRaceTask(ctx context.Context, in *TakeUnionRaceTaskRequest, opts ...grpc.CallOption) (*TakeUnionRaceTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TakeUnionRaceTaskResponse)
+	err := c.cc.Invoke(ctx, AutomationService_TakeUnionRaceTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AutomationServiceServer is the server API for AutomationService service.
 // All implementations should embed UnimplementedAutomationServiceServer
 // for forward compatibility.
@@ -73,6 +88,10 @@ type AutomationServiceServer interface {
 	// Disables the automation loop. WS connection stays up and state tracking
 	// continues; only mutating RPCs are suppressed.
 	DisableAutomation(context.Context, *DisableAutomationRequest) (*DisableAutomationResponse, error)
+	// Takes one currently eligible guild-race task immediately. The runner
+	// applies the same observed-state and policy gates as automatic selection;
+	// this never bypasses the server's appear-time cooldown.
+	TakeUnionRaceTask(context.Context, *TakeUnionRaceTaskRequest) (*TakeUnionRaceTaskResponse, error)
 }
 
 // UnimplementedAutomationServiceServer should be embedded to have
@@ -87,6 +106,9 @@ func (UnimplementedAutomationServiceServer) EnableAutomation(context.Context, *E
 }
 func (UnimplementedAutomationServiceServer) DisableAutomation(context.Context, *DisableAutomationRequest) (*DisableAutomationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DisableAutomation not implemented")
+}
+func (UnimplementedAutomationServiceServer) TakeUnionRaceTask(context.Context, *TakeUnionRaceTaskRequest) (*TakeUnionRaceTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TakeUnionRaceTask not implemented")
 }
 func (UnimplementedAutomationServiceServer) testEmbeddedByValue() {}
 
@@ -144,6 +166,24 @@ func _AutomationService_DisableAutomation_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AutomationService_TakeUnionRaceTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TakeUnionRaceTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).TakeUnionRaceTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_TakeUnionRaceTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).TakeUnionRaceTask(ctx, req.(*TakeUnionRaceTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AutomationService_ServiceDesc is the grpc.ServiceDesc for AutomationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -158,6 +198,10 @@ var AutomationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DisableAutomation",
 			Handler:    _AutomationService_DisableAutomation_Handler,
+		},
+		{
+			MethodName: "TakeUnionRaceTask",
+			Handler:    _AutomationService_TakeUnionRaceTask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

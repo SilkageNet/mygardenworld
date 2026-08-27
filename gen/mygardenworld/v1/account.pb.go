@@ -22,6 +22,64 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type AlipayLoginStatus int32
+
+const (
+	AlipayLoginStatus_ALIPAY_LOGIN_STATUS_UNSPECIFIED      AlipayLoginStatus = 0
+	AlipayLoginStatus_ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN AlipayLoginStatus = 1
+	AlipayLoginStatus_ALIPAY_LOGIN_STATUS_PROCESSING       AlipayLoginStatus = 2
+	AlipayLoginStatus_ALIPAY_LOGIN_STATUS_COMPLETE         AlipayLoginStatus = 3
+	AlipayLoginStatus_ALIPAY_LOGIN_STATUS_EXPIRED          AlipayLoginStatus = 4
+	AlipayLoginStatus_ALIPAY_LOGIN_STATUS_FAILED           AlipayLoginStatus = 5
+)
+
+// Enum value maps for AlipayLoginStatus.
+var (
+	AlipayLoginStatus_name = map[int32]string{
+		0: "ALIPAY_LOGIN_STATUS_UNSPECIFIED",
+		1: "ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN",
+		2: "ALIPAY_LOGIN_STATUS_PROCESSING",
+		3: "ALIPAY_LOGIN_STATUS_COMPLETE",
+		4: "ALIPAY_LOGIN_STATUS_EXPIRED",
+		5: "ALIPAY_LOGIN_STATUS_FAILED",
+	}
+	AlipayLoginStatus_value = map[string]int32{
+		"ALIPAY_LOGIN_STATUS_UNSPECIFIED":      0,
+		"ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN": 1,
+		"ALIPAY_LOGIN_STATUS_PROCESSING":       2,
+		"ALIPAY_LOGIN_STATUS_COMPLETE":         3,
+		"ALIPAY_LOGIN_STATUS_EXPIRED":          4,
+		"ALIPAY_LOGIN_STATUS_FAILED":           5,
+	}
+)
+
+func (x AlipayLoginStatus) Enum() *AlipayLoginStatus {
+	p := new(AlipayLoginStatus)
+	*p = x
+	return p
+}
+
+func (x AlipayLoginStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AlipayLoginStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_account_proto_enumTypes[0].Descriptor()
+}
+
+func (AlipayLoginStatus) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_account_proto_enumTypes[0]
+}
+
+func (x AlipayLoginStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AlipayLoginStatus.Descriptor instead.
+func (AlipayLoginStatus) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_proto_rawDescGZIP(), []int{0}
+}
+
 // Account is the per-player credential record stored in SQLite.
 // `password` is never returned in responses; only used at create/login time.
 type Account struct {
@@ -182,7 +240,14 @@ const file_mygardenworld_v1_account_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x123\n" +
-	"\achannel\x18\v \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannelB\xcf\x01\n" +
+	"\achannel\x18\v \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel*\xe9\x01\n" +
+	"\x11AlipayLoginStatus\x12#\n" +
+	"\x1fALIPAY_LOGIN_STATUS_UNSPECIFIED\x10\x00\x12(\n" +
+	"$ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN\x10\x01\x12\"\n" +
+	"\x1eALIPAY_LOGIN_STATUS_PROCESSING\x10\x02\x12 \n" +
+	"\x1cALIPAY_LOGIN_STATUS_COMPLETE\x10\x03\x12\x1f\n" +
+	"\x1bALIPAY_LOGIN_STATUS_EXPIRED\x10\x04\x12\x1e\n" +
+	"\x1aALIPAY_LOGIN_STATUS_FAILED\x10\x05B\xcf\x01\n" +
 	"\x14com.mygardenworld.v1B\fAccountProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -197,17 +262,19 @@ func file_mygardenworld_v1_account_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_account_proto_rawDescData
 }
 
+var file_mygardenworld_v1_account_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_mygardenworld_v1_account_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_mygardenworld_v1_account_proto_goTypes = []any{
-	(*Account)(nil),               // 0: mygardenworld.v1.Account
-	(*timestamppb.Timestamp)(nil), // 1: google.protobuf.Timestamp
-	(Channel)(0),                  // 2: mygardenworld.v1.Channel
+	(AlipayLoginStatus)(0),        // 0: mygardenworld.v1.AlipayLoginStatus
+	(*Account)(nil),               // 1: mygardenworld.v1.Account
+	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
+	(Channel)(0),                  // 3: mygardenworld.v1.Channel
 }
 var file_mygardenworld_v1_account_proto_depIdxs = []int32{
-	1, // 0: mygardenworld.v1.Account.last_login_at:type_name -> google.protobuf.Timestamp
-	1, // 1: mygardenworld.v1.Account.created_at:type_name -> google.protobuf.Timestamp
-	1, // 2: mygardenworld.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
-	2, // 3: mygardenworld.v1.Account.channel:type_name -> mygardenworld.v1.Channel
+	2, // 0: mygardenworld.v1.Account.last_login_at:type_name -> google.protobuf.Timestamp
+	2, // 1: mygardenworld.v1.Account.created_at:type_name -> google.protobuf.Timestamp
+	2, // 2: mygardenworld.v1.Account.updated_at:type_name -> google.protobuf.Timestamp
+	3, // 3: mygardenworld.v1.Account.channel:type_name -> mygardenworld.v1.Channel
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
@@ -226,13 +293,14 @@ func file_mygardenworld_v1_account_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_account_proto_rawDesc), len(file_mygardenworld_v1_account_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_mygardenworld_v1_account_proto_goTypes,
 		DependencyIndexes: file_mygardenworld_v1_account_proto_depIdxs,
+		EnumInfos:         file_mygardenworld_v1_account_proto_enumTypes,
 		MessageInfos:      file_mygardenworld_v1_account_proto_msgTypes,
 	}.Build()
 	File_mygardenworld_v1_account_proto = out.File

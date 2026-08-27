@@ -1,6 +1,6 @@
 import { Users } from "lucide-react";
 import { SelectionMode, type FriendStealPolicy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AssetsView, FeatureCapability, GardenView } from "@/lib/api/query-models";
+import type { WarehouseView, FeatureCapability, GardenView } from "@/lib/api/workspace-models";
 import { CatalogFlowerMultiSelectRow } from "@/components/dashboard/flower-picker-controls";
 import {
   FriendTouchFriendList,
@@ -27,7 +27,7 @@ const FLOWER_MODE_OPTIONS = [
 export default function FriendStealPolicyGroup({
   policy,
   garden,
-  assets,
+  warehouse,
   capabilities,
   onChange,
   onCountChange,
@@ -35,7 +35,7 @@ export default function FriendStealPolicyGroup({
 }: {
   policy?: FriendStealPolicy;
   garden: GardenView | null;
-  assets: AssetsView | null;
+  warehouse: WarehouseView | null;
   capabilities: FeatureCapability[];
   onChange: (patch: Partial<FriendStealPolicy>) => void;
   onCountChange: (uid: bigint, count: number) => void;
@@ -50,7 +50,7 @@ export default function FriendStealPolicyGroup({
         仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
         <code>stealElves=1</code>。
       </p>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         <ToggleRow
           label="自动摸花"
           checked={policy?.enabled ?? false}
@@ -80,8 +80,8 @@ export default function FriendStealPolicyGroup({
           <CatalogFlowerMultiSelectRow
             label="指定鲜花"
             value={policy?.flowerIds ?? []}
-            inventory={assets?.inventory ?? {}}
-            synced={Boolean(assets)}
+            inventory={warehouse?.inventory ?? {}}
+            synced={Boolean(warehouse)}
             onChange={(flowerIds) => onChange({ flowerIds })}
           />
         )}
@@ -89,8 +89,8 @@ export default function FriendStealPolicyGroup({
           <CatalogFlowerMultiSelectRow
             label="排除鲜花"
             value={policy?.excludeFlowerIds ?? []}
-            inventory={assets?.inventory ?? {}}
-            synced={Boolean(assets)}
+            inventory={warehouse?.inventory ?? {}}
+            synced={Boolean(warehouse)}
             onChange={(excludeFlowerIds) => onChange({ excludeFlowerIds })}
           />
         )}

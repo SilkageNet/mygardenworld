@@ -1,4 +1,4 @@
-.PHONY: default help install build reset-data catalog-gen require-secrets backend server api backend\:debug server\:debug api\:debug backend\:debug-logs server\:debug-logs api\:debug-logs test test-race vet lint proto-gen proto-gen-web proto-check frontend\:deps web-deps frontend web web-dev frontend\:build web-build frontend\:lint web-lint frontend\:test web-test dev dev\:debug check clean
+.PHONY: default help install build reset-data catalog-gen require-secrets backend server api test test-race vet lint proto-gen proto-gen-web proto-check web-deps frontend web web-dev web-build web-lint web-test dev check clean
 
 BIN_DIR ?= bin
 DATA_DIR ?= data
@@ -87,8 +87,11 @@ server api: backend
 backend\:debug: require-secrets
 	go run ./cmd/gardend serve --data-dir "$(DATA_DIR)" --listen "$(LISTEN)" --jwt-secret "$(JWT_SECRET)" --admin-username "$(ADMIN_USERNAME)" --admin-password "$(ADMIN_PASSWORD)" --admin-email "$(ADMIN_EMAIL)" --cors-origins "$(CORS_ORIGINS)" --log-level debug --log-format "$(SERVER_LOG_FORMAT)" --debug-dir "$(DEBUG_DIR)"
 
-server\:debug api\:debug: backend\:debug
-backend\:debug-logs server\:debug-logs api\:debug-logs: backend\:debug
+server\:debug api\:debug:
+	$(MAKE) backend:debug
+
+backend\:debug-logs server\:debug-logs api\:debug-logs:
+	$(MAKE) backend:debug
 
 test:
 	go test -count=1 ./...
@@ -114,27 +117,31 @@ proto-check: proto-gen proto-gen-web
 frontend\:deps:
 	pnpm --dir web install --frozen-lockfile
 
-web-deps: frontend\:deps
+web-deps:
+	$(MAKE) frontend:deps
 
-frontend: frontend\:deps
+frontend: web-deps
 	$(FRONTEND_DEV)
 
 web web-dev: frontend
 
-frontend\:build: frontend\:deps
+frontend\:build: web-deps
 	$(FRONTEND_BUILD)
 
-web-build: frontend\:build
+web-build:
+	$(MAKE) frontend:build
 
-frontend\:lint: frontend\:deps
+frontend\:lint: web-deps
 	pnpm --dir web lint
 
-web-lint: frontend\:lint
+web-lint:
+	$(MAKE) frontend:lint
 
-frontend\:test: frontend\:deps
+frontend\:test: web-deps
 	pnpm --dir web test
 
-web-test: frontend\:test
+web-test:
+	$(MAKE) frontend:test
 
 dev:
 	$(MAKE) -j2 backend frontend
@@ -142,7 +149,7 @@ dev:
 dev\:debug:
 	$(MAKE) -j2 backend:debug frontend
 
-check: test vet lint frontend\:test frontend\:lint frontend\:build
+check: test vet lint web-test web-lint web-build
 
 clean:
 	$(RM_BIN)
