@@ -1,23 +1,15 @@
 "use client";
 
-import { useEffect, useRef, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import {
-  Activity,
   AlertTriangle,
   ArrowLeft,
-  BarChart3,
-  Building2,
   Cloud,
-  LayoutDashboard,
-  ListTodo,
   Loader2,
   LogOut,
-  Package,
   Play,
   RefreshCw,
-  ScrollText,
   Send,
-  Sprout,
   Trash2,
 } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
@@ -30,6 +22,7 @@ import { ContentReveal } from "@/components/effects/content-reveal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AccountViews } from "@/features/workspace/model";
+import { DashboardTabBar, type DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 import {
   ActivitiesWorkspace,
   BasicWorkspace,
@@ -41,18 +34,7 @@ import {
   WarehouseWorkspace,
 } from "@/features/workspace";
 
-export type DashboardTabId = "basic" | "garden" | "orders" | "union" | "activities" | "warehouse" | "statistics" | "logs";
-
-const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
-  { id: "basic", label: "基础", icon: <LayoutDashboard /> },
-  { id: "garden", label: "花园", icon: <Sprout /> },
-  { id: "orders", label: "订单", icon: <ListTodo /> },
-  { id: "union", label: "公会", icon: <Building2 /> },
-  { id: "activities", label: "活动", icon: <Activity /> },
-  { id: "warehouse", label: "仓库", icon: <Package /> },
-  { id: "statistics", label: "统计", icon: <BarChart3 /> },
-  { id: "logs", label: "日志", icon: <ScrollText /> },
-];
+export type { DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 
 export function SelectAccountPlaceholder() {
   return (
@@ -171,29 +153,6 @@ export function AccountDetailView({
           </ContentReveal>
         )}
       </div>
-    </div>
-  );
-}
-
-function DashboardTabBar({ activeTab, onChange }: { activeTab: DashboardTabId; onChange: (tab: DashboardTabId) => void }) {
-  return (
-    <div className="dark-scrollbar sticky top-[3.25rem] z-20 flex shrink-0 gap-1 overflow-x-auto rounded-md border border-white/58 bg-white/62 p-1 shadow-sm shadow-sky-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-card/72 sm:top-14 xl:static">
-      {DASHBOARD_TABS.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          className={cn(
-            "flex h-9 min-w-[6.25rem] shrink-0 items-center justify-center gap-2 rounded px-3 text-sm font-semibold transition-all active:scale-[0.99] sm:min-w-20",
-            activeTab === tab.id
-              ? "bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(255,111,97,0.24)]"
-              : "text-muted-foreground hover:bg-white/62 hover:text-foreground dark:hover:bg-white/8",
-          )}
-          onClick={() => onChange(tab.id)}
-        >
-          <span className="[&_svg]:size-4">{tab.icon}</span>
-          {tab.label}
-        </button>
-      ))}
     </div>
   );
 }

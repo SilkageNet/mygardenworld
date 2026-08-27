@@ -194,6 +194,20 @@ body {
     background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
     background-clip: content-box;
   }
+
+  .mobile-tab-scroller {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (max-width: 639px) {
+    .mobile-tab-scroller {
+      scrollbar-width: none;
+    }
+
+    .mobile-tab-scroller::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 @layer components {

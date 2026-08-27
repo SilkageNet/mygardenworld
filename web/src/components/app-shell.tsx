@@ -68,9 +68,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 className="object-contain drop-shadow-[0_4px_10px_rgba(46,137,199,0.24)] transition-transform group-hover:-translate-y-0.5"
               />
             </span>
-            <span className="hidden min-w-0 sm:block">
-              <span className="flex items-center gap-1.5 text-sm font-semibold leading-none text-foreground">
-                小云朵
+            <span className="min-w-0">
+              <span className="flex items-center gap-1 text-[13px] font-semibold leading-none text-foreground sm:gap-1.5 sm:text-sm">
+                <span className="truncate">小云朵</span>
                 <Sparkles className="size-3.5 text-amber-400" />
               </span>
             </span>
