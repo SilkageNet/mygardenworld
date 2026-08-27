@@ -167,24 +167,22 @@ func (svc *Services) StartAlipayLogin(ctx context.Context, req *connect.Request[
 	}), nil
 }
 
-func (svc *Services) PollAlipayLogin(ctx context.Context, req *connect.Request[pb.PollAlipayLoginRequest]) (*connect.Response[pb.PollAlipayLoginResponse], error) {
+func (svc *Services) pollAlipayLogin(ctx context.Context, loginID string) (alipayLoginSnapshot, error) {
 	if svc.AlipayLogins == nil {
-		return nil, connect.NewError(connect.CodeUnavailable, errors.New("alipay QR login is unavailable"))
+		return alipayLoginSnapshot{}, errors.New("alipay QR login is unavailable")
 	}
-	loginID := strings.TrimSpace(req.Msg.GetLoginId())
+	loginID = strings.TrimSpace(loginID)
 	if loginID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("login_id required"))
+		return alipayLoginSnapshot{}, errors.New("login_id required")
 	}
 	userID := auth.UserIDFromContext(ctx)
+	if userID <= 0 {
+		return alipayLoginSnapshot{}, errors.New("not authenticated")
+	}
 	snapshot := svc.AlipayLogins.poll(ctx, userID, loginID, func(ctx context.Context, grant babigame.AlipayWebGrant) (*store.Account, error) {
 		return svc.createAlipayAccount(ctx, userID, grant)
 	})
-	return connect.NewResponse(&pb.PollAlipayLoginResponse{
-		Status:     snapshot.Status,
-		Account:    store.AccountToProto(snapshot.Account),
-		LoginError: snapshot.Error,
-		ExpiresAt:  alipayTimestampOrNil(snapshot.ExpiresAt),
-	}), nil
+	return snapshot, nil
 }
 
 func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, grant babigame.AlipayWebGrant) (*store.Account, error) {

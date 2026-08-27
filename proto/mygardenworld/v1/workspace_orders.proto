@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/workspace_common.proto";
+
+message OrdersView {
+  int64 account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  repeated PendingTaskView pending_tasks = 4;
+  repeated DemandView demands = 5;
+  repeated VaseView vases = 6;
+  repeated FlowerArtAvailabilityView flower_art_availability = 7;
+  OrderStatisticsView order_statistics = 8;
+  BusinessStatisticsView business_statistics = 9;
+  repeated SellableFlowerArtView sellable_flower_arts = 10;
+}
+
+message SellableFlowerArtView {
+  int32 art_id = 1;
+  string art_name = 2;
+  int32 vase_id = 3;
+  string vase_name = 4;
+  int32 stock = 5;
+  int32 sale_value = 6;
+}
+
+message VaseView {
+  int32 vase_id = 1;
+  int64 u_time_ms = 2;
+  int64 c_time_ms = 3;
+}
+
+message FlowerArtAvailabilityView {
+  int32 art_id = 1;
+  string art_name = 2;
+  int32 vase_id = 3;
+  int32 level = 4;
+  int32 sale_value = 5;
+  bool level_ok = 6;
+  bool vase_unlocked = 7;
+  bool craftable = 8;
+  repeated RequirementView requirements = 9;
+  repeated string blocked_reasons = 10;
+}
+
+message OrderStatisticsView {
+  bool observed = 1;
+  int32 day_id = 2;
+  int32 resident_normal_finished = 3;
+  int32 palace_finished = 4;
+  int32 customer_finished = 5;
+  int32 resident_satin_finished = 6;
+  int32 resident_decorate_finished = 7;
+  int32 flower_art_sold = 8;
+  int64 updated_at_ms = 9;
+  int64 created_at_ms = 10;
+  repeated string blocked_reasons = 11;
+}
+
+message DailyBusinessStatisticsView {
+  int32 day_id = 1;
+  int32 gold = 2;
+  int32 experience = 3;
+  int32 diamonds = 4;
+  int32 speed_up_card = 5;
+  int32 flower_shop_coin = 6;
+  int32 flower_harvest_num = 7;
+  int32 flower_art_sold = 8;
+  int32 resident_normal_finished = 9;
+  int32 palace_finished = 10;
+  int32 customer_finished = 11;
+  int32 resident_satin_finished = 12;
+  int32 satin = 13;
+  int32 resident_decorate_finished = 14;
+  int32 wood = 15;
+  int64 updated_at_ms = 16;
+  int64 created_at_ms = 17;
+}
+
+message BusinessStatisticsView {
+  bool observed = 1;
+  DailyBusinessStatisticsView today = 2;
+  repeated DailyBusinessStatisticsView days = 3;
+}

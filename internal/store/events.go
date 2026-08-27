@@ -11,7 +11,7 @@ const (
 	maxEventLogLimit     = 2000
 )
 
-// EventLog is the persisted shape behind QueryService.StreamEvents.
+// EventLog is the persisted shape replayed by the workspace WebSocket.
 type EventLog struct {
 	ID          int64
 	AccountID   int64

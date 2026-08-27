@@ -2,8 +2,8 @@
 // @generated from file mygardenworld/v1/account.proto (package mygardenworld.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Channel } from "./channel_pb";
@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account.proto.
  */
 export const file_mygardenworld_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2FjY291bnQucHJvdG8SEG15Z2FyZGVud29ybGQudjEitAIKB0FjY291bnQSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIQCgh1c2VybmFtZRgDIAEoCRILCgNhaWQYBCABKAMSDgoGZ3NfaWR4GAUgASgFEg4KBndzX3VybBgGIAEoCRIxCg1sYXN0X2xvZ2luX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCgljb25uZWN0ZWQYCCABKAgSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoHY2hhbm5lbBgLIAEoDjIZLm15Z2FyZGVud29ybGQudjEuQ2hhbm5lbEKFAQoUY29tLm15Z2FyZGVud29ybGQudjFCDEFjY291bnRQcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
+  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2FjY291bnQucHJvdG8SEG15Z2FyZGVud29ybGQudjEitAIKB0FjY291bnQSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIQCgh1c2VybmFtZRgDIAEoCRILCgNhaWQYBCABKAMSDgoGZ3NfaWR4GAUgASgFEg4KBndzX3VybBgGIAEoCRIxCg1sYXN0X2xvZ2luX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCgljb25uZWN0ZWQYCCABKAgSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoHY2hhbm5lbBgLIAEoDjIZLm15Z2FyZGVud29ybGQudjEuQ2hhbm5lbCrpAQoRQWxpcGF5TG9naW5TdGF0dXMSIwofQUxJUEFZX0xPR0lOX1NUQVRVU19VTlNQRUNJRklFRBAAEigKJEFMSVBBWV9MT0dJTl9TVEFUVVNfV0FJVElOR19GT1JfU0NBThABEiIKHkFMSVBBWV9MT0dJTl9TVEFUVVNfUFJPQ0VTU0lORxACEiAKHEFMSVBBWV9MT0dJTl9TVEFUVVNfQ09NUExFVEUQAxIfChtBTElQQVlfTE9HSU5fU1RBVFVTX0VYUElSRUQQBBIeChpBTElQQVlfTE9HSU5fU1RBVFVTX0ZBSUxFRBAFQoUBChRjb20ubXlnYXJkZW53b3JsZC52MUIMQWNjb3VudFByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
 
 /**
  * Account is the per-player credential record stored in SQLite.
@@ -109,4 +109,45 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
  */
 export const AccountSchema: GenMessage<Account> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_account, 0);
+
+/**
+ * @generated from enum mygardenworld.v1.AlipayLoginStatus
+ */
+export enum AlipayLoginStatus {
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN = 1;
+   */
+  WAITING_FOR_SCAN = 1,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_PROCESSING = 2;
+   */
+  PROCESSING = 2,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_COMPLETE = 3;
+   */
+  COMPLETE = 3,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_EXPIRED = 4;
+   */
+  EXPIRED = 4,
+
+  /**
+   * @generated from enum value: ALIPAY_LOGIN_STATUS_FAILED = 5;
+   */
+  FAILED = 5,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.AlipayLoginStatus.
+ */
+export const AlipayLoginStatusSchema: GenEnum<AlipayLoginStatus> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_account, 0);
 

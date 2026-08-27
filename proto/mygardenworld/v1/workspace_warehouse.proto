@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message WarehouseView {
+  int64 account_id = 1;
+  string account_name = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  map<int32, int32> inventory = 4;
+  InventoryLedgerView inventory_ledger = 5;
+}
+
+message InventoryLedgerView {
+  repeated InventoryLedgerItem items = 1;
+}
+
+message InventoryLedgerItem {
+  int32 item_id = 1;
+  string item_name = 2;
+  int32 owned = 3;
+  int32 allocated = 4;
+  int32 available = 5;
+}

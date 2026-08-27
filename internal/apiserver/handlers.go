@@ -10,7 +10,6 @@ type Handlers struct {
 	Account    *AccountHandler
 	Automation *AutomationHandler
 	Policy     *PolicyHandler
-	Query      *QueryHandler
 	Admin      *AdminHandler
 }
 
@@ -18,7 +17,6 @@ type AuthHandler struct{ *Services }
 type AccountHandler struct{ *Services }
 type AutomationHandler struct{ *Services }
 type PolicyHandler struct{ *Services }
-type QueryHandler struct{ *Services }
 type AdminHandler struct{ *Services }
 
 func NewHandlers(services *Services) Handlers {
@@ -27,7 +25,6 @@ func NewHandlers(services *Services) Handlers {
 		Account:    &AccountHandler{Services: services},
 		Automation: &AutomationHandler{Services: services},
 		Policy:     &PolicyHandler{Services: services},
-		Query:      &QueryHandler{Services: services},
 		Admin:      &AdminHandler{Services: services},
 	}
 }
@@ -37,6 +34,5 @@ var (
 	_ mygardenworldv1connect.AccountServiceHandler    = (*AccountHandler)(nil)
 	_ mygardenworldv1connect.AutomationServiceHandler = (*AutomationHandler)(nil)
 	_ mygardenworldv1connect.PolicyServiceHandler     = (*PolicyHandler)(nil)
-	_ mygardenworldv1connect.QueryServiceHandler      = (*QueryHandler)(nil)
 	_ mygardenworldv1connect.AdminServiceHandler      = (*AdminHandler)(nil)
 )

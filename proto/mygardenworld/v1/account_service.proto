@@ -24,10 +24,6 @@ service AccountService {
   // qr_content must be rendered locally as a QR code and is never persisted.
   rpc StartAlipayLogin(StartAlipayLoginRequest) returns (StartAlipayLoginResponse);
 
-  // Polls the QR authorization and, once authorized, verifies the common game
-  // login chain, creates or refreshes the local account, and starts automation.
-  rpc PollAlipayLogin(PollAlipayLoginRequest) returns (PollAlipayLoginResponse);
-
   // Stops the live runner/WS for the account and disables auto-resume.
   // Credentials stay stored; the account can be logged in again later.
   rpc DisconnectAccount(DisconnectAccountRequest) returns (DisconnectAccountResponse);
@@ -72,15 +68,6 @@ message ConnectAccountResponse {
   google.protobuf.Timestamp logged_in_at = 2;
 }
 
-enum AlipayLoginStatus {
-  ALIPAY_LOGIN_STATUS_UNSPECIFIED = 0;
-  ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN = 1;
-  ALIPAY_LOGIN_STATUS_PROCESSING = 2;
-  ALIPAY_LOGIN_STATUS_COMPLETE = 3;
-  ALIPAY_LOGIN_STATUS_EXPIRED = 4;
-  ALIPAY_LOGIN_STATUS_FAILED = 5;
-}
-
 message StartAlipayLoginRequest {}
 
 message StartAlipayLoginResponse {
@@ -88,17 +75,6 @@ message StartAlipayLoginResponse {
   string qr_content = 2;
   google.protobuf.Timestamp expires_at = 3;
   AlipayLoginStatus status = 4;
-}
-
-message PollAlipayLoginRequest {
-  string login_id = 1;
-}
-
-message PollAlipayLoginResponse {
-  AlipayLoginStatus status = 1;
-  Account account = 2;
-  string login_error = 3;
-  google.protobuf.Timestamp expires_at = 4;
 }
 
 message DisconnectAccountRequest {

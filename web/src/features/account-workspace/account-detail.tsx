@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Building2,
   Cloud,
+  History as HistoryIcon,
   LayoutDashboard,
   ListTodo,
   Loader2,
@@ -21,33 +22,36 @@ import {
 } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/query-models";
+import type { WorkspaceHistoryItem } from "@/gen/mygardenworld/v1/workspace_pb";
+import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
-import { EventPanel } from "@/components/dashboard/monitor-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import type { AccountViews } from "./model";
+import type { AccountViews } from "@/features/workspace/model";
 import {
   ActivitiesWorkspace,
-  AssetsWorkspace,
+  BasicWorkspace,
   GardenWorkspace,
+  HistoryWorkspace,
+  LogsWorkspace,
   OrdersWorkspace,
-  OverviewWorkspace,
   UnionWorkspace,
-} from "./workspaces";
+  WarehouseWorkspace,
+} from "@/features/workspace";
 
-export type DashboardTabId = "overview" | "garden" | "orders" | "union" | "activities" | "assets" | "logs";
+export type DashboardTabId = "basic" | "garden" | "orders" | "union" | "activities" | "warehouse" | "history" | "logs";
 
 const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] = [
-  { id: "overview", label: "概览", icon: <LayoutDashboard /> },
+  { id: "basic", label: "基础", icon: <LayoutDashboard /> },
   { id: "garden", label: "花园", icon: <Sprout /> },
-  { id: "orders", label: "订单经营", icon: <ListTodo /> },
+  { id: "orders", label: "订单", icon: <ListTodo /> },
   { id: "union", label: "公会", icon: <Building2 /> },
   { id: "activities", label: "活动", icon: <Activity /> },
-  { id: "assets", label: "资产", icon: <Package /> },
-  { id: "logs", label: "全部日志", icon: <ScrollText /> },
+  { id: "warehouse", label: "仓库", icon: <Package /> },
+  { id: "history", label: "历史", icon: <HistoryIcon /> },
+  { id: "logs", label: "日志", icon: <ScrollText /> },
 ];
 
 export function SelectAccountPlaceholder() {
@@ -73,6 +77,9 @@ export function AccountDetailView({
   busyAction,
   activeTab,
   events,
+  historyItems,
+  historyHasMore,
+  historyLoading,
   policy,
   policyLoading,
   savingPolicy,
@@ -84,6 +91,7 @@ export function AccountDetailView({
   onDelete,
   onPolicyChange,
   onPolicySave,
+  onLoadMoreHistory,
 }: {
   account: Account;
   status?: AccountStatus;
@@ -93,6 +101,9 @@ export function AccountDetailView({
   busyAction: string;
   activeTab: DashboardTabId;
   events: Event[];
+  historyItems: WorkspaceHistoryItem[];
+  historyHasMore: boolean;
+  historyLoading: boolean;
   policy: Policy | null;
   policyLoading: boolean;
   savingPolicy: boolean;
@@ -104,12 +115,12 @@ export function AccountDetailView({
   onDelete: () => void;
   onPolicyChange: (policy: Policy | null) => void;
   onPolicySave: () => void;
+  onLoadMoreHistory: () => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const workspaceProps = {
     views,
     status,
-    events,
     policy,
     capabilities: featureCapabilities,
     policyLoading,
@@ -148,13 +159,23 @@ export function AccountDetailView({
             : "dark-scrollbar xl:flex-1 xl:overflow-y-auto xl:pr-0.5",
         )}
       >
-        {activeTab === "overview" && <OverviewWorkspace {...workspaceProps} />}
+        {activeTab === "basic" && <BasicWorkspace {...workspaceProps} />}
         {activeTab === "garden" && <GardenWorkspace {...workspaceProps} />}
         {activeTab === "orders" && <OrdersWorkspace {...workspaceProps} />}
         {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}
         {activeTab === "activities" && <ActivitiesWorkspace {...workspaceProps} />}
-        {activeTab === "assets" && <AssetsWorkspace {...workspaceProps} />}
-        {activeTab === "logs" && <EventPanel events={events} />}
+        {activeTab === "warehouse" && <WarehouseWorkspace {...workspaceProps} />}
+        {activeTab === "history" && (
+          <HistoryWorkspace
+            views={views}
+            status={status}
+            items={historyItems}
+            hasMore={historyHasMore}
+            loading={historyLoading}
+            onLoadMore={onLoadMoreHistory}
+          />
+        )}
+        {activeTab === "logs" && <LogsWorkspace events={events} />}
       </div>
     </div>
   );

@@ -1,10 +1,10 @@
 import type { FormEvent } from "react";
 import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
+import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { alipayLoginStatusLabel } from "@/components/dashboard/dashboard-utils";
-import { Field } from "@/components/dashboard/monitor-panels";
+import { Field } from "@/features/workspace/shared/workspace-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

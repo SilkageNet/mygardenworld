@@ -3,35 +3,70 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
-import { AccountService, AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
+import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
+import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
-import { QueryService } from "@/gen/mygardenworld/v1/query_service_pb";
-import { AccountHealth } from "@/lib/api/query-models";
-import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/query-models";
+import type { WorkspaceHistoryItem, WorkspaceHistorySummary } from "@/gen/mygardenworld/v1/workspace_pb";
+import { AccountHealth } from "@/lib/api/workspace-models";
+import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import AppShell from "@/components/app-shell";
 import { formatAPIError, transport } from "@/lib/api/client";
+import { WorkspaceClient, type WorkspaceConnectionState } from "@/lib/api/workspace-client";
 import { useAuth } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
-import { accountNickname, accountConnected, isRunnerNotStartedError, isTransientConnectionMessage, waitForAbortableDelay } from "@/components/dashboard/dashboard-utils";
+import { accountNickname, accountConnected, isTransientConnectionMessage } from "@/components/dashboard/dashboard-utils";
 import RedeemCodeDialog from "@/components/dashboard/redeem-code-dialog";
-import { EMPTY_ACCOUNT_VIEWS, type AccountViews } from "@/features/account-workspace/model";
+import {
+  applyWorkspacePatch,
+  EMPTY_ACCOUNT_VIEWS,
+  mergeEvents,
+  mergeHistoryItems,
+  upsertAccount,
+  withAccountStatus,
+  workspaceStateToViews,
+  type AccountViews,
+} from "@/features/workspace/model";
 import { AccountDetailView, SelectAccountPlaceholder, type DashboardTabId } from "@/features/account-workspace/account-detail";
 import AccountListPanel, { type AccountQuota } from "@/features/account-workspace/account-list-panel";
 import AddAccountDialog, { EMPTY_ADD_FORM, type AddAccountForm, type AlipayQRState } from "@/features/account-workspace/add-account-dialog";
 
 const accountClient = createClient(AccountService, transport);
 const policyClient = createClient(PolicyService, transport);
-const queryClient = createClient(QueryService, transport);
 
-const EVENT_LIMIT = 500;
-const EVENT_RECONNECT_INITIAL_MS = 1000;
-const EVENT_RECONNECT_MAX_MS = 15000;
-const STATUS_POLL_MS = 5000;
 const accountKey = (id: bigint) => id.toString();
+
+type HistoryFeed = {
+  accountId: string;
+  items: WorkspaceHistoryItem[];
+  nextBeforeId: bigint;
+  hasMore: boolean;
+  loading: boolean;
+  paged: boolean;
+};
+
+const EMPTY_HISTORY_FEED: HistoryFeed = {
+  accountId: "",
+  items: [],
+  nextBeforeId: BigInt(0),
+  hasMore: false,
+  loading: false,
+  paged: false,
+};
+
+function historyFeedFromSummary(accountId: string, summary?: WorkspaceHistorySummary): HistoryFeed {
+  return {
+    accountId,
+    items: summary?.recentOperations ?? [],
+    nextBeforeId: summary?.nextBeforeId ?? BigInt(0),
+    hasMore: summary?.hasMore ?? false,
+    loading: false,
+    paged: false,
+  };
+}
 
 export default function HomePage() {
   return (
@@ -40,6 +75,7 @@ export default function HomePage() {
     </AppShell>
   );
 }
+
 function DashboardContent() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -49,6 +85,8 @@ function DashboardContent() {
   const [views, setViews] = useState<AccountViews>(EMPTY_ACCOUNT_VIEWS);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
+  const [historyFeed, setHistoryFeed] = useState<HistoryFeed>(EMPTY_HISTORY_FEED);
+  const [workspaceConnection, setWorkspaceConnection] = useState<WorkspaceConnectionState>("connecting");
   const [loading, setLoading] = useState(true);
   const [viewsLoading, setViewsLoading] = useState(false);
   const [policyLoading, setPolicyLoading] = useState(false);
@@ -62,18 +100,13 @@ function DashboardContent() {
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
   const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
-  const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("overview");
+  const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("basic");
   const didAutoSelectAccount = useRef(false);
+  const workspaceClientRef = useRef<WorkspaceClient | null>(null);
+  const selectedAccountIdRef = useRef("");
   const accountsRef = useRef<Account[]>([]);
   const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
   const accountsLoadedRef = useRef(false);
-  const capabilitiesLoadedRef = useRef(false);
-  const viewFetchGenRef = useRef(0);
-  const viewFetchAbortRef = useRef<AbortController | null>(null);
-  // Bumped on each getPolicy so a slow response from account A cannot overwrite
-  // the panel after the user has switched to account B (and then save A's policy
-  // onto B).
-  const policyFetchGenRef = useRef(0);
   const policyOwnerAccountIdRef = useRef("");
 
   const selectedAccount = useMemo(
@@ -81,7 +114,6 @@ function DashboardContent() {
     [accounts, selectedAccountId],
   );
   const selectedStatus = selectedAccountId ? statuses.get(selectedAccountId) : undefined;
-  const selectedConnected = selectedAccount ? accountConnected(selectedAccount, selectedStatus) : false;
   const hasAccounts = accounts.length > 0;
   const creatingAccount = busyAction === "create";
   const accountQuota = useMemo<AccountQuota | null>(() => {
@@ -103,9 +135,9 @@ function DashboardContent() {
     statusesRef.current = statuses;
   }, [statuses]);
 
-  useEffect(() => () => {
-    viewFetchAbortRef.current?.abort();
-  }, []);
+  useEffect(() => {
+    selectedAccountIdRef.current = selectedAccountId;
+  }, [selectedAccountId]);
 
   const refreshAccounts = useCallback(async () => {
     const accountRes = await accountClient.listAccounts({});
@@ -113,187 +145,125 @@ function DashboardContent() {
     accountsLoadedRef.current = true;
   }, []);
 
-  const refreshStatuses = useCallback(async () => {
-    const needsCapabilities = !capabilitiesLoadedRef.current;
-    const [statusRes, capabilitiesRes] = await Promise.all([
-      queryClient.getStatus({}),
-      needsCapabilities ? queryClient.getFeatureCapabilities({}) : Promise.resolve(null),
-    ]);
+  const applyStatuses = useCallback((incoming: AccountStatus[]) => {
     const nextStatuses = new Map<string, AccountStatus>();
-    for (const status of statusRes.accounts) {
+    for (const status of incoming) {
       nextStatuses.set(accountKey(status.accountId), status);
     }
     setStatuses(nextStatuses);
-    if (capabilitiesRes) {
-      setFeatureCapabilities(capabilitiesRes.featureCapabilities);
-      capabilitiesLoadedRef.current = capabilitiesRes.featureCapabilities.length > 0;
-    }
     setError((current) => (isTransientConnectionMessage(current) ? "" : current));
   }, []);
 
   const refreshAccountCollection = useCallback(async () => {
-    await Promise.all([refreshAccounts(), refreshStatuses()]);
-  }, [refreshAccounts, refreshStatuses]);
+    await refreshAccounts();
+    workspaceClientRef.current?.resync();
+  }, [refreshAccounts]);
 
   const refreshDashboardStatus = useCallback(async () => {
-    if (!accountsLoadedRef.current) {
-      await refreshAccountCollection();
-      return;
-    }
-    await refreshStatuses();
-  }, [refreshAccountCollection, refreshStatuses]);
-
-  const canReadViews = useCallback((accountId: string) => {
-    const account = accountsRef.current.find((item) => accountKey(item.id) === accountId);
-    if (!account) return false;
-    return accountConnected(account, statusesRef.current.get(accountId));
-  }, []);
-
-  const refreshViews = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean; }) => {
-    const fetchGen = ++viewFetchGenRef.current;
-    viewFetchAbortRef.current?.abort();
-    viewFetchAbortRef.current = null;
-    if (!accountId) {
-      setViews(EMPTY_ACCOUNT_VIEWS);
-      return;
-    }
-    if (!options?.force && !canReadViews(accountId)) {
-      setViews(EMPTY_ACCOUNT_VIEWS);
-      setViewsLoading(false);
-      setError((current) => (isRunnerNotStartedError(current) ? "" : current));
-      return;
-    }
-    if (showLoading) {
-      setViewsLoading(true);
-    }
-    const controller = new AbortController();
-    viewFetchAbortRef.current = controller;
-    try {
-      const [overview, garden, orders, union, activities, assets] = await Promise.all([
-        queryClient.getOverview({ accountId: BigInt(accountId) }, { signal: controller.signal }),
-        queryClient.getGarden({ accountId: BigInt(accountId) }, { signal: controller.signal }),
-        queryClient.getOrders({ accountId: BigInt(accountId) }, { signal: controller.signal }),
-        queryClient.getUnion({ accountId: BigInt(accountId) }, { signal: controller.signal }),
-        queryClient.getActivities({ accountId: BigInt(accountId) }, { signal: controller.signal }),
-        queryClient.getAssets({ accountId: BigInt(accountId) }, { signal: controller.signal }),
-      ]);
-      if (fetchGen !== viewFetchGenRef.current) return;
-      setViews({
-        overview: overview.overview ?? null,
-        garden: garden.garden ?? null,
-        orders: orders.orders ?? null,
-        union: union.union ?? null,
-        activities: activities.activities ?? null,
-        assets: assets.assets ?? null,
-      });
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      if (fetchGen !== viewFetchGenRef.current) return;
-      setViews(EMPTY_ACCOUNT_VIEWS);
-      if (!isRunnerNotStartedError(err)) {
-        setError(formatAPIError(err, "读取账号视图失败"));
-      } else {
-        setError((current) => (isRunnerNotStartedError(current) ? "" : current));
-      }
-    } finally {
-      if (viewFetchAbortRef.current === controller) {
-        viewFetchAbortRef.current = null;
-      }
-      if (fetchGen === viewFetchGenRef.current) {
-        setViewsLoading(false);
-      }
-    }
-  }, [canReadViews]);
-
-  const refreshPolicy = useCallback(async (accountId: string) => {
-    const fetchGen = ++policyFetchGenRef.current;
-    if (!accountId) {
-      policyOwnerAccountIdRef.current = "";
-      setPolicy(null);
-      setPolicyLoading(false);
-      return;
-    }
-    setPolicyLoading(true);
-    try {
-      const res = await policyClient.getPolicy({ accountId: BigInt(accountId) });
-      if (fetchGen !== policyFetchGenRef.current) return;
-      policyOwnerAccountIdRef.current = accountId;
-      setPolicy(res.policy ?? create(PolicySchema));
-      setPolicyMessage("");
-    } catch (err) {
-      if (fetchGen !== policyFetchGenRef.current) return;
-      policyOwnerAccountIdRef.current = "";
-      setPolicy(null);
-      setPolicyMessage(formatAPIError(err, "读取策略失败"));
-    } finally {
-      if (fetchGen === policyFetchGenRef.current) {
-        setPolicyLoading(false);
-      }
-    }
-  }, []);
+    if (!accountsLoadedRef.current) await refreshAccounts();
+    workspaceClientRef.current?.resync();
+  }, [refreshAccounts]);
 
   const initializeWorkspace = useCallback(async () => {
     setError("");
     try {
-      await refreshAccountCollection();
+      await refreshAccounts();
     } catch (err) {
       setError(formatAPIError(err, "刷新失败"));
     } finally {
       setLoading(false);
     }
-  }, [refreshAccountCollection]);
+  }, [refreshAccounts]);
 
   useEffect(() => {
     void initializeWorkspace();
   }, [initializeWorkspace]);
 
   useEffect(() => {
-    if (
-      !addOpen ||
-      addForm.channel !== Channel.ALIPAY ||
-      !alipayQR?.loginId ||
-      (alipayQR.status !== AlipayLoginStatus.WAITING_FOR_SCAN && alipayQR.status !== AlipayLoginStatus.PROCESSING)
-    ) {
-      return;
-    }
-    let active = true;
-    let polling = false;
-
-    const poll = async () => {
-      if (polling) return;
-      polling = true;
-      try {
-        const response = await accountClient.pollAlipayLogin({ loginId: alipayQR.loginId });
-        if (!active) return;
-        if (response.status === AlipayLoginStatus.COMPLETE && response.account) {
-          setSelectedAccountId(accountKey(response.account.id));
+    const client = new WorkspaceClient({
+      onConnectionState: setWorkspaceConnection,
+      onReady: (ready) => {
+        applyStatuses(ready.accounts);
+        setFeatureCapabilities(ready.featureCapabilities);
+      },
+      onStatuses: (batch) => applyStatuses(batch.accounts),
+      onSnapshot: (snapshot) => {
+        const state = snapshot.state;
+        if (!state || accountKey(state.accountId) !== selectedAccountIdRef.current) return;
+        setViews(workspaceStateToViews(state));
+        setPolicy(state.policy ?? create(PolicySchema));
+        setHistoryFeed(historyFeedFromSummary(accountKey(state.accountId), state.history));
+        policyOwnerAccountIdRef.current = accountKey(state.accountId);
+        setPolicyLoading(false);
+        setPolicyMessage("");
+        if (state.accountStatus) {
+          setStatuses((current) => withAccountStatus(current, state.accountStatus!));
+        }
+        setEvents((current) => mergeEvents(current, snapshot.logs));
+        setViewsLoading(false);
+      },
+      onPatch: (patch) => {
+        if (accountKey(patch.accountId) !== selectedAccountIdRef.current) return;
+        setViews((current) => applyWorkspacePatch(current, patch));
+        if (patch.policy) {
+          setPolicy(patch.policy);
+          policyOwnerAccountIdRef.current = accountKey(patch.accountId);
+        }
+        if (patch.accountStatus) {
+          setStatuses((current) => withAccountStatus(current, patch.accountStatus!));
+        }
+        if (patch.history) {
+          setHistoryFeed((current) => {
+            if (current.accountId !== accountKey(patch.accountId) || !current.paged) {
+              return historyFeedFromSummary(accountKey(patch.accountId), patch.history);
+            }
+            return {
+              ...current,
+              items: mergeHistoryItems(current.items, patch.history!.recentOperations),
+            };
+          });
+        }
+      },
+      onLogs: (batch) => {
+        if (accountKey(batch.accountId) !== selectedAccountIdRef.current) return;
+        setEvents((current) => mergeEvents(current, batch.events));
+      },
+      onHistory: (page) => {
+        if (accountKey(page.accountId) !== selectedAccountIdRef.current) return;
+        setHistoryFeed((current) => ({
+          accountId: accountKey(page.accountId),
+          items: mergeHistoryItems(current.accountId === accountKey(page.accountId) ? current.items : [], page.items),
+          nextBeforeId: page.nextBeforeId,
+          hasMore: page.hasMore,
+          loading: false,
+          paged: true,
+        }));
+      },
+      onAlipayLogin: (progress) => {
+        setAlipayQR((current) => current && current.loginId === progress.loginId
+          ? { ...current, status: progress.status, error: progress.loginError }
+          : current);
+        if (progress.status === AlipayLoginStatus.COMPLETE && progress.account) {
+          setAccounts((current) => upsertAccount(current, progress.account!));
+          setSelectedAccountId(accountKey(progress.account.id));
           setAddOpen(false);
           setAddForm(EMPTY_ADD_FORM);
           setAlipayQR(null);
-          await refreshAccountCollection();
-          return;
+          void refreshAccounts();
         }
-        setAlipayQR((current) => current && current.loginId === alipayQR.loginId
-          ? { ...current, status: response.status, error: response.loginError }
-          : current);
-      } catch (err) {
-        if (active) {
-          setAlipayQR((current) => current && current.loginId === alipayQR.loginId
-            ? { ...current, status: AlipayLoginStatus.FAILED, error: formatAPIError(err, "扫码登录失败") }
-            : current);
-        }
-      } finally {
-        polling = false;
-      }
-    };
-
-    void poll();
-    const timer = window.setInterval(() => void poll(), 1000);
+      },
+      onError: (workspaceError) => {
+        setHistoryFeed((current) => current.loading ? { ...current, loading: false } : current);
+        if (workspaceError.message) setError(workspaceError.message);
+      },
+    });
+    workspaceClientRef.current = client;
+    client.start(selectedAccountIdRef.current);
     return () => {
-      active = false;
-      window.clearInterval(timer);
+      workspaceClientRef.current = null;
+      client.stop();
     };
-  }, [addForm.channel, addOpen, alipayQR?.loginId, alipayQR?.status, refreshAccountCollection]);
+  }, [applyStatuses, refreshAccounts]);
 
   useEffect(() => {
     if (accounts.length === 0) {
@@ -313,112 +283,24 @@ function DashboardContent() {
   }, [accounts, selectedAccountId]);
 
   useEffect(() => {
-    setDashboardTab("overview");
+    setDashboardTab("basic");
   }, [selectedAccountId]);
 
   useEffect(() => {
-    if (!selectedAccountId) {
-      viewFetchAbortRef.current?.abort();
-      viewFetchAbortRef.current = null;
-      policyFetchGenRef.current += 1;
-      policyOwnerAccountIdRef.current = "";
-      viewFetchGenRef.current += 1;
-      setViews(EMPTY_ACCOUNT_VIEWS);
-      setPolicy(null);
-      setPolicyLoading(false);
-      setEvents([]);
-      return;
-    }
-    if (selectedConnected) {
-      void refreshViews(selectedAccountId, true);
-    } else {
-      viewFetchAbortRef.current?.abort();
-      viewFetchAbortRef.current = null;
-      viewFetchGenRef.current += 1;
-      setViews(EMPTY_ACCOUNT_VIEWS);
-      setViewsLoading(false);
-      setError((current) => (isRunnerNotStartedError(current) ? "" : current));
-    }
-  }, [refreshViews, selectedAccountId, selectedConnected]);
-
-  useEffect(() => {
-    if (!selectedAccountId) {
-      return;
-    }
-    // Drop the previous account's editable policy immediately so a late getPolicy
-    // cannot leave the wrong blob on screen (or get saved onto this account).
     policyOwnerAccountIdRef.current = "";
+    setViews(EMPTY_ACCOUNT_VIEWS);
     setPolicy(null);
     setPolicyMessage("");
-    void refreshPolicy(selectedAccountId);
-  }, [refreshPolicy, selectedAccountId]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      void refreshStatuses().catch(() => undefined);
-      if (selectedAccountId) {
-        void refreshViews(selectedAccountId).catch(() => undefined);
-      }
-    }, STATUS_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [refreshViews, refreshStatuses, selectedAccountId]);
-
-  useEffect(() => {
+    setEvents([]);
+    setHistoryFeed(EMPTY_HISTORY_FEED);
     if (!selectedAccountId) {
-      setEvents([]);
+      setPolicyLoading(false);
+      setViewsLoading(false);
       return;
     }
-    const controller = new AbortController();
-    let active = true;
-    setEvents([]);
-
-    async function readEvents() {
-      let retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
-      let lastEventId = BigInt(0);
-      while (active && !controller.signal.aborted) {
-        let receivedEvent = false;
-        try {
-          for await (const response of queryClient.streamEvents(
-            { accountId: BigInt(selectedAccountId), replayLimit: EVENT_LIMIT, afterEventId: lastEventId },
-            { signal: controller.signal },
-          )) {
-            if (!active || controller.signal.aborted) return;
-            const event = response.event;
-            if (!event) continue;
-            if (event.id > BigInt(0)) {
-              if (event.id <= lastEventId) continue;
-              lastEventId = event.id;
-            }
-            receivedEvent = true;
-            retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
-            setError((current) => (isTransientConnectionMessage(current) ? "" : current));
-            // Stream replay and batch operations can emit hundreds of events.
-            // The bounded poll below refreshes views without multiplying each
-            // event into six concurrent domain requests.
-            setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
-          }
-        } catch (err) {
-          if (!active || controller.signal.aborted) return;
-          const streamError = formatAPIError(err, "事件流中断");
-          if (!isTransientConnectionMessage(streamError)) {
-            setError((current) => (current && !isTransientConnectionMessage(current) ? current : streamError));
-          }
-        }
-
-        if (!active || controller.signal.aborted) return;
-        const retry = await waitForAbortableDelay(retryDelayMs, controller.signal);
-        if (!retry) return;
-        retryDelayMs = receivedEvent
-          ? EVENT_RECONNECT_INITIAL_MS
-          : Math.min(retryDelayMs * 2, EVENT_RECONNECT_MAX_MS);
-      }
-    }
-
-    void readEvents();
-    return () => {
-      active = false;
-      controller.abort();
-    };
+    setPolicyLoading(true);
+    setViewsLoading(true);
+    workspaceClientRef.current?.selectAccount(selectedAccountId);
   }, [selectedAccountId]);
 
   function updateCachedAccount(account?: Account) {
@@ -435,9 +317,7 @@ function DashboardContent() {
         ? await accountClient.connectAccount({ id: selectedAccount.id })
         : await accountClient.disconnectAccount({ id: selectedAccount.id });
       updateCachedAccount(response.account);
-      await refreshStatuses();
-      await refreshViews(accountKey(selectedAccount.id), action === "login", { force: action === "login" });
-      await refreshPolicy(accountKey(selectedAccount.id));
+      workspaceClientRef.current?.resync();
     } catch (err) {
       setError(formatAPIError(err, "操作失败"));
     } finally {
@@ -456,7 +336,7 @@ function DashboardContent() {
       const response = online
         ? await accountClient.disconnectAccount({ id: BigInt(accountId) })
         : await accountClient.connectAccount({ id: BigInt(accountId) });
-      // Optimistic flip so the list button/badge update before the next poll.
+      // Optimistic flip so the list button/badge update before the pushed patch.
       setStatuses((prev) => {
         const next = new Map(prev);
         const current = next.get(accountId);
@@ -475,14 +355,10 @@ function DashboardContent() {
           accountKey(item.id) === accountId ? (response.account ?? { ...item, connected: !online }) : item
         )),
       );
-      await refreshStatuses();
-      if (accountId === selectedAccountId) {
-        await refreshPolicy(accountId);
-        await refreshViews(accountId, !online, { force: !online });
-      }
+      if (accountId === selectedAccountId) workspaceClientRef.current?.resync();
     } catch (err) {
       setError(formatAPIError(err, online ? "暂停失败" : "启动失败"));
-      await refreshStatuses().catch(() => undefined);
+      workspaceClientRef.current?.resync();
     } finally {
       setBusyAutomationAccountId("");
     }
@@ -513,14 +389,10 @@ function DashboardContent() {
           accountKey(item.id) === accountId ? (response.account ?? { ...item, connected: false }) : item
         )),
       );
-      await refreshStatuses();
-      if (accountId === selectedAccountId) {
-        await refreshPolicy(accountId);
-        await refreshViews(accountId, false);
-      }
+      if (accountId === selectedAccountId) workspaceClientRef.current?.resync();
     } catch (err) {
       setError(formatAPIError(err, "停止失败"));
-      await refreshStatuses().catch(() => undefined);
+      workspaceClientRef.current?.resync();
     } finally {
       setBusyAutomationAccountId("");
     }
@@ -538,8 +410,6 @@ function DashboardContent() {
     setBusyBulkAutomation(action);
     setError("");
     const failures: string[] = [];
-    let selectedTouched = false;
-
     try {
       for (const account of targets) {
         setBusyAutomationAccountId(accountKey(account.id));
@@ -567,7 +437,6 @@ function DashboardContent() {
               item.id === account.id ? (response.account ?? { ...item, connected: wantOnline }) : item
             )),
           );
-          if (accountKey(account.id) === selectedAccountId) selectedTouched = true;
         } catch (err) {
           failures.push(
             `${accountNickname(account)}: ${formatAPIError(err, wantOnline ? "启动失败" : "暂停失败")}`,
@@ -575,11 +444,7 @@ function DashboardContent() {
         }
       }
 
-      await refreshStatuses();
-      if (selectedTouched && selectedAccountId) {
-        await refreshPolicy(selectedAccountId);
-        await refreshViews(selectedAccountId, wantOnline, { force: wantOnline });
-      }
+      workspaceClientRef.current?.resync();
       if (failures.length > 0) {
         setError(
           failures.length === 1
@@ -642,6 +507,7 @@ function DashboardContent() {
         status: response.status,
         error: "",
       });
+      workspaceClientRef.current?.watchAlipayLogin(response.loginId);
     } catch (err) {
       setError(formatAPIError(err, "获取支付宝二维码失败"));
     } finally {
@@ -657,13 +523,16 @@ function DashboardContent() {
     setError("");
     try {
       await accountClient.deleteAccount({ id: selectedAccount.id });
-      policyFetchGenRef.current += 1;
       policyOwnerAccountIdRef.current = "";
       const nextAccounts = accounts.filter((account) => account.id !== selectedAccount.id);
       setSelectedAccountId(nextAccounts[0] ? accountKey(nextAccounts[0].id) : "");
-      viewFetchGenRef.current += 1;
       setViews(EMPTY_ACCOUNT_VIEWS);
       setPolicy(null);
+      setStatuses((current) => {
+        const next = new Map(current);
+        next.delete(accountKey(selectedAccount.id));
+        return next;
+      });
       await refreshAccountCollection();
     } catch (err) {
       setError(formatAPIError(err, "删除账号失败"));
@@ -686,10 +555,7 @@ function DashboardContent() {
       if (policyOwnerAccountIdRef.current !== accountId) return;
       setPolicy(res.policy ?? policy);
       setPolicyMessage("");
-      await refreshStatuses();
-      if (policyOwnerAccountIdRef.current === accountId) {
-        await refreshViews(accountId);
-      }
+      workspaceClientRef.current?.resync();
     } catch (err) {
       if (policyOwnerAccountIdRef.current === accountId) {
         setPolicyMessage(formatAPIError(err, "保存失败"));
@@ -699,11 +565,26 @@ function DashboardContent() {
     }
   }
 
+  function loadMoreHistory() {
+    if (!selectedAccountId || historyFeed.loading || !historyFeed.hasMore) return;
+    const sent = workspaceClientRef.current?.loadHistory(selectedAccountId, historyFeed.nextBeforeId, 50) ?? false;
+    if (sent) {
+      setHistoryFeed((current) => ({ ...current, loading: true }));
+    } else {
+      setError("状态通道尚未连接，暂时无法加载更多历史");
+    }
+  }
+
   return (
     <div className="relative z-10 min-h-0 xl:h-full">
       {error && (
         <div className="mb-4 rounded-md border border-destructive/25 bg-white/72 px-3 py-2 text-sm text-destructive shadow-sm backdrop-blur-xl dark:bg-destructive/12">
           {error}
+        </div>
+      )}
+      {!error && workspaceConnection !== "open" && (
+        <div className="mb-4 rounded-md border border-amber-400/30 bg-amber-50/75 px-3 py-2 text-sm text-amber-800 shadow-sm backdrop-blur-xl dark:bg-amber-400/10 dark:text-amber-200">
+          状态通道正在{workspaceConnection === "connecting" ? "连接" : "重连"}，写操作仍可继续使用。
         </div>
       )}
 
@@ -750,17 +631,24 @@ function DashboardContent() {
                 busyAction={busyAction}
                 activeTab={dashboardTab}
                 events={events}
+                historyItems={historyFeed.items}
+                historyHasMore={historyFeed.hasMore}
+                historyLoading={historyFeed.loading}
                 policy={policy}
                 policyLoading={policyLoading}
                 savingPolicy={savingPolicy}
                 policyMessage={policyMessage}
                 onBack={() => setSelectedAccountId("")}
                 onTabChange={setDashboardTab}
-                onRefresh={() => void refreshViews(accountKey(selectedAccount.id), true)}
+                onRefresh={() => {
+                  setViewsLoading(true);
+                  workspaceClientRef.current?.resync();
+                }}
                 onAction={runAccountAction}
                 onDelete={() => void deleteSelectedAccount()}
                 onPolicyChange={setPolicy}
                 onPolicySave={() => void savePolicy()}
+                onLoadMoreHistory={loadMoreHistory}
               />
             ) : (
               <SelectAccountPlaceholder />
@@ -796,7 +684,7 @@ function DashboardContent() {
           onRedeem={async (code, accountIds) => {
             setError("");
             const response = await accountClient.redeemCode({ code, accountIds });
-            await refreshStatuses().catch(() => undefined);
+            workspaceClientRef.current?.resync();
             return {
               results: response.results,
               successCount: response.successCount,

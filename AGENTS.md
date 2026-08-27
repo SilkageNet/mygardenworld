@@ -17,7 +17,7 @@ All Go build, test, lint, generation, and release commands use system Go 1.27.0.
 
 ```
 cmd/
-  gardend        — Long-running daemon (gRPC server on 127.0.0.1:50051)
+  gardend        — Long-running daemon (Connect + workspace WS on 127.0.0.1:50051)
   gardencap      — Protocol capture and inspection utility
   gardencatalog  — Catalog generation utility
 internal/
@@ -26,9 +26,11 @@ internal/
   automation/    — Pure decision engine (Plan → PlannedOp)
   runner/        — Per-account lifecycle: login → WS → state → automation loop
   store/         — SQLite persistence (accounts, sessions, policies, op log)
-  apiserver/     — gRPC/Connect service implementations
-proto/           — Protobuf definitions (6 services + Channel enum)
+  apiserver/     — Connect commands + Protobuf workspace WebSocket/read models
+proto/           — Protobuf definitions (5 command services + workspace frames)
 gen/             — Generated code (do not edit)
+web/src/features/workspace/
+                — Basic/garden/orders/union/activities/warehouse/history/logs UI modules
 ```
 
 ## Key conventions
@@ -38,6 +40,7 @@ gen/             — Generated code (do not edit)
 - State is fed namespace fragments from WS responses. Known typed state is domain-oriented and keeps raw snapshots for protocol gaps.
 - Policy, planner, runner events, and Web filters share one category set: `basic`, `plant`, `order`, `water`, `union`, `race`, `activity`, plus operational `account` and `system`.
 - Policy is stored as one protojson blob in `account_policies.policy_json`; public policy APIs replace/import/export/copy the whole policy.
+- Read-side UI state uses one authenticated binary Protobuf WebSocket at `/api/workspace`; Connect is reserved for explicit commands. Workspace frames are versioned exactly, snapshots and domain patches are sequenced, and no compatibility reservations are retained.
 - Automation runs every 4s (configurable). Priority: hard state/resource gates > harvest > plant/order deficits > water > orders/flower art > cultivate/upgrade > basic rewards > union > market/pearl/shop/zoo > activity.
 - Every mutating action with gold, diamond, item, or count cost must pass observed-state resource gates. Diamond-cost operations are blocked by default unless explicitly implemented. Each land watering costs 1 drop.
 

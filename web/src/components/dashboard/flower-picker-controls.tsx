@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { Check, Flower2, Search, Sparkles } from "lucide-react";
-import type { PlantableFlowerView, SellableFlowerArtView } from "@/lib/api/query-models";
+import type { PlantableFlowerView, SellableFlowerArtView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";

@@ -3,7 +3,7 @@
 import { useMemo, useState, type PointerEvent, type ReactNode } from "react";
 import { GripVertical, Minus, Plus, Sparkles } from "lucide-react";
 import { SelectionMode } from "@/gen/mygardenworld/v1/policy_pb";
-import type { FriendTouchFriendView } from "@/lib/api/query-models";
+import type { FriendTouchFriendView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

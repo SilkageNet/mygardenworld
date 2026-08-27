@@ -19,7 +19,7 @@ import (
 )
 
 // Event mirrors the proto Event for in-process broadcast. Stored shape is
-// stable; gRPC subscribers receive it directly via QueryService.StreamEvents.
+// stable; workspace subscribers receive it through the protobuf WebSocket.
 type Event struct {
 	ID          int64
 	TS          time.Time

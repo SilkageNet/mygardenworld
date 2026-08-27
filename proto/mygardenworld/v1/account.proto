@@ -5,6 +5,15 @@ package mygardenworld.v1;
 import "google/protobuf/timestamp.proto";
 import "mygardenworld/v1/channel.proto";
 
+enum AlipayLoginStatus {
+  ALIPAY_LOGIN_STATUS_UNSPECIFIED = 0;
+  ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN = 1;
+  ALIPAY_LOGIN_STATUS_PROCESSING = 2;
+  ALIPAY_LOGIN_STATUS_COMPLETE = 3;
+  ALIPAY_LOGIN_STATUS_EXPIRED = 4;
+  ALIPAY_LOGIN_STATUS_FAILED = 5;
+}
+
 // Account is the per-player credential record stored in SQLite.
 // `password` is never returned in responses; only used at create/login time.
 message Account {

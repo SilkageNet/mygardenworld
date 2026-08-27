@@ -3,7 +3,7 @@ package runner
 import "sync"
 
 // Bus is the in-process pub/sub used to broadcast events from runners to
-// any number of gRPC StreamEvents subscribers. Subscribers register a
+// any number of workspace subscribers. Subscribers register a
 // buffered channel; if a subscriber is too slow, events are dropped on the
 // floor for that subscriber (we never block a runner on a stuck client).
 type Bus struct {
@@ -27,8 +27,8 @@ func (b *Bus) Subscribe(buffer int) (<-chan Event, func()) {
 	return b.subscribe(buffer, true)
 }
 
-// SubscribeLive returns only newly published events. QueryService.StreamEvents
-// uses this variant because persisted event_log replay is the source of truth
+// SubscribeLive returns only newly published events. Workspace sessions use
+// this variant because persisted event_log replay is the source of truth
 // for history.
 func (b *Bus) SubscribeLive(buffer int) (<-chan Event, func()) {
 	return b.subscribe(buffer, false)

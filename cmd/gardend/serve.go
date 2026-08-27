@@ -217,6 +217,15 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	}
 
 	mux := http.NewServeMux()
+	workspaceOrigins := make([]string, 0, len(originPolicy.allowedOrigins))
+	for origin := range originPolicy.allowedOrigins {
+		workspaceOrigins = append(workspaceOrigins, origin)
+	}
+	mux.Handle("/api/workspace", svc.WorkspaceHandler(apiserver.WorkspaceHandlerOptions{
+		Context:                ctx,
+		OriginPatterns:         workspaceOrigins,
+		InsecureAllowAnyOrigin: originPolicy.allowAnyOrigin,
+	}))
 
 	// AuthService uses the same interceptor: login/refresh/logout are
 	// explicitly public, while get-me still receives identity context.
@@ -233,9 +242,6 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		},
 		func() (string, http.Handler) {
 			return mygardenworldv1connect.NewPolicyServiceHandler(handlers.Policy, protectedOpts...)
-		},
-		func() (string, http.Handler) {
-			return mygardenworldv1connect.NewQueryServiceHandler(handlers.Query, protectedOpts...)
 		},
 		func() (string, http.Handler) {
 			return mygardenworldv1connect.NewAdminServiceHandler(handlers.Admin, protectedOpts...)

@@ -24,7 +24,6 @@ const (
 	AccountService_ListAccounts_FullMethodName      = "/mygardenworld.v1.AccountService/ListAccounts"
 	AccountService_ConnectAccount_FullMethodName    = "/mygardenworld.v1.AccountService/ConnectAccount"
 	AccountService_StartAlipayLogin_FullMethodName  = "/mygardenworld.v1.AccountService/StartAlipayLogin"
-	AccountService_PollAlipayLogin_FullMethodName   = "/mygardenworld.v1.AccountService/PollAlipayLogin"
 	AccountService_DisconnectAccount_FullMethodName = "/mygardenworld.v1.AccountService/DisconnectAccount"
 	AccountService_RedeemCode_FullMethodName        = "/mygardenworld.v1.AccountService/RedeemCode"
 )
@@ -45,9 +44,6 @@ type AccountServiceClient interface {
 	// Starts a short-lived Alipay PC game-center QR authorization. The returned
 	// qr_content must be rendered locally as a QR code and is never persisted.
 	StartAlipayLogin(ctx context.Context, in *StartAlipayLoginRequest, opts ...grpc.CallOption) (*StartAlipayLoginResponse, error)
-	// Polls the QR authorization and, once authorized, verifies the common game
-	// login chain, creates or refreshes the local account, and starts automation.
-	PollAlipayLogin(ctx context.Context, in *PollAlipayLoginRequest, opts ...grpc.CallOption) (*PollAlipayLoginResponse, error)
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	DisconnectAccount(ctx context.Context, in *DisconnectAccountRequest, opts ...grpc.CallOption) (*DisconnectAccountResponse, error)
@@ -114,16 +110,6 @@ func (c *accountServiceClient) StartAlipayLogin(ctx context.Context, in *StartAl
 	return out, nil
 }
 
-func (c *accountServiceClient) PollAlipayLogin(ctx context.Context, in *PollAlipayLoginRequest, opts ...grpc.CallOption) (*PollAlipayLoginResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PollAlipayLoginResponse)
-	err := c.cc.Invoke(ctx, AccountService_PollAlipayLogin_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *accountServiceClient) DisconnectAccount(ctx context.Context, in *DisconnectAccountRequest, opts ...grpc.CallOption) (*DisconnectAccountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DisconnectAccountResponse)
@@ -160,9 +146,6 @@ type AccountServiceServer interface {
 	// Starts a short-lived Alipay PC game-center QR authorization. The returned
 	// qr_content must be rendered locally as a QR code and is never persisted.
 	StartAlipayLogin(context.Context, *StartAlipayLoginRequest) (*StartAlipayLoginResponse, error)
-	// Polls the QR authorization and, once authorized, verifies the common game
-	// login chain, creates or refreshes the local account, and starts automation.
-	PollAlipayLogin(context.Context, *PollAlipayLoginRequest) (*PollAlipayLoginResponse, error)
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	DisconnectAccount(context.Context, *DisconnectAccountRequest) (*DisconnectAccountResponse, error)
@@ -192,9 +175,6 @@ func (UnimplementedAccountServiceServer) ConnectAccount(context.Context, *Connec
 }
 func (UnimplementedAccountServiceServer) StartAlipayLogin(context.Context, *StartAlipayLoginRequest) (*StartAlipayLoginResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method StartAlipayLogin not implemented")
-}
-func (UnimplementedAccountServiceServer) PollAlipayLogin(context.Context, *PollAlipayLoginRequest) (*PollAlipayLoginResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method PollAlipayLogin not implemented")
 }
 func (UnimplementedAccountServiceServer) DisconnectAccount(context.Context, *DisconnectAccountRequest) (*DisconnectAccountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DisconnectAccount not implemented")
@@ -312,24 +292,6 @@ func _AccountService_StartAlipayLogin_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_PollAlipayLogin_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PollAlipayLoginRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountServiceServer).PollAlipayLogin(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountService_PollAlipayLogin_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).PollAlipayLogin(ctx, req.(*PollAlipayLoginRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _AccountService_DisconnectAccount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DisconnectAccountRequest)
 	if err := dec(in); err != nil {
@@ -392,10 +354,6 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "StartAlipayLogin",
 			Handler:    _AccountService_StartAlipayLogin_Handler,
-		},
-		{
-			MethodName: "PollAlipayLogin",
-			Handler:    _AccountService_PollAlipayLogin_Handler,
 		},
 		{
 			MethodName: "DisconnectAccount",

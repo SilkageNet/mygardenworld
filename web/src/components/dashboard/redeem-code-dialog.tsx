@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { formatAPIError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import { Field } from "@/components/dashboard/monitor-panels";
+import { Field } from "@/features/workspace/shared/workspace-ui";
 
 const REDEEM_CHANNELS = [Channel.IOS, Channel.ALIPAY] as const;
 

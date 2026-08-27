@@ -1,6 +1,6 @@
 import { Users } from "lucide-react";
 import { SelectionMode, type FriendStealPolicy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { AssetsView, FeatureCapability, GardenView } from "@/lib/api/query-models";
+import type { WarehouseView, FeatureCapability, GardenView } from "@/lib/api/workspace-models";
 import { CatalogFlowerMultiSelectRow } from "@/components/dashboard/flower-picker-controls";
 import {
   FriendTouchFriendList,
@@ -27,7 +27,7 @@ const FLOWER_MODE_OPTIONS = [
 export default function FriendStealPolicyGroup({
   policy,
   garden,
-  assets,
+  warehouse,
   capabilities,
   onChange,
   onCountChange,
@@ -35,7 +35,7 @@ export default function FriendStealPolicyGroup({
 }: {
   policy?: FriendStealPolicy;
   garden: GardenView | null;
-  assets: AssetsView | null;
+  warehouse: WarehouseView | null;
   capabilities: FeatureCapability[];
   onChange: (patch: Partial<FriendStealPolicy>) => void;
   onCountChange: (uid: bigint, count: number) => void;
@@ -80,8 +80,8 @@ export default function FriendStealPolicyGroup({
           <CatalogFlowerMultiSelectRow
             label="指定鲜花"
             value={policy?.flowerIds ?? []}
-            inventory={assets?.inventory ?? {}}
-            synced={Boolean(assets)}
+            inventory={warehouse?.inventory ?? {}}
+            synced={Boolean(warehouse)}
             onChange={(flowerIds) => onChange({ flowerIds })}
           />
         )}
@@ -89,8 +89,8 @@ export default function FriendStealPolicyGroup({
           <CatalogFlowerMultiSelectRow
             label="排除鲜花"
             value={policy?.excludeFlowerIds ?? []}
-            inventory={assets?.inventory ?? {}}
-            synced={Boolean(assets)}
+            inventory={warehouse?.inventory ?? {}}
+            synced={Boolean(warehouse)}
             onChange={(excludeFlowerIds) => onChange({ excludeFlowerIds })}
           />
         )}

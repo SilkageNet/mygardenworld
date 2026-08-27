@@ -1,9 +1,9 @@
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
-import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_service_pb";
+import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
-import { AccountHealth, PlanStatus } from "@/lib/api/query-models";
-import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, DessertView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/query-models";
+import { AccountHealth, PlanStatus } from "@/lib/api/workspace-models";
+import type { AccountStatus, DailyBusinessStatisticsView, CyclicNoteView, CyclicStoryView, DessertView, Event, FmlLandView, LandView, OrderStatisticsView, PendingTaskView, PlannedOperation, RuntimeActionTotal, RuntimeResourceTotal, RuntimeStatisticsView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { itemName } from "@/lib/game/catalog";
 

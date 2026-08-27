@@ -1,6 +1,6 @@
 import { Cloud, Loader2, Pause, Play, Plus, RefreshCw, Square, Ticket } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountStatus } from "@/lib/api/query-models";
+import type { AccountStatus } from "@/lib/api/workspace-models";
 import {
   accountConnected,
   accountIdentity,

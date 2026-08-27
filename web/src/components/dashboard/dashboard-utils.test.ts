@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
-import type { AccountStatus, Event } from "@/lib/api/query-models";
+import type { AccountStatus, Event } from "@/lib/api/workspace-models";
 import {
   accountAreaLabel,
   accountNickname,

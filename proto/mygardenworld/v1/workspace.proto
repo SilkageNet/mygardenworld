@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/account.proto";
+import "mygardenworld/v1/policy.proto";
+import "mygardenworld/v1/workspace_activity.proto";
+import "mygardenworld/v1/workspace_basic.proto";
+import "mygardenworld/v1/workspace_common.proto";
+import "mygardenworld/v1/workspace_garden.proto";
+import "mygardenworld/v1/workspace_orders.proto";
+import "mygardenworld/v1/workspace_union.proto";
+import "mygardenworld/v1/workspace_warehouse.proto";
+
+// WorkspaceDomain is the product boundary used by state patches and the Web UI.
+enum WorkspaceDomain {
+  WORKSPACE_DOMAIN_UNSPECIFIED = 0;
+  WORKSPACE_DOMAIN_BASIC = 1;
+  WORKSPACE_DOMAIN_GARDEN = 2;
+  WORKSPACE_DOMAIN_ORDERS = 3;
+  WORKSPACE_DOMAIN_UNION = 4;
+  WORKSPACE_DOMAIN_ACTIVITIES = 5;
+  WORKSPACE_DOMAIN_WAREHOUSE = 6;
+  WORKSPACE_DOMAIN_HISTORY = 7;
+}
+
+message WorkspaceClientFrame {
+  uint64 request_id = 1;
+
+  oneof payload {
+    OpenWorkspace open = 2;
+    SelectWorkspaceAccount select_account = 3;
+    ResyncWorkspace resync = 4;
+    LoadWorkspaceHistory load_history = 5;
+    WatchAlipayLogin watch_alipay_login = 6;
+  }
+}
+
+message OpenWorkspace {
+  uint32 protocol_version = 1;
+  string access_token = 2;
+  int64 selected_account_id = 3;
+  int64 after_log_id = 4;
+}
+
+message SelectWorkspaceAccount {
+  int64 account_id = 1;
+  int64 after_log_id = 2;
+}
+
+message ResyncWorkspace {
+  int64 after_log_id = 1;
+}
+
+message LoadWorkspaceHistory {
+  int64 account_id = 1;
+  int64 before_id = 2;
+  int32 limit = 3;
+}
+
+message WatchAlipayLogin {
+  string login_id = 1;
+}
+
+message WorkspaceServerFrame {
+  uint64 sequence = 1;
+  uint64 request_id = 2;
+
+  oneof payload {
+    WorkspaceReady ready = 3;
+    AccountStatusBatch account_statuses = 4;
+    WorkspaceSnapshot snapshot = 5;
+    WorkspacePatch patch = 6;
+    WorkspaceLogBatch logs = 7;
+    WorkspaceHistoryPage history = 8;
+    AlipayLoginProgress alipay_login = 9;
+    WorkspaceError error = 10;
+  }
+}
+
+message WorkspaceReady {
+  uint32 protocol_version = 1;
+  google.protobuf.Timestamp server_time = 2;
+  repeated AccountStatus accounts = 3;
+  repeated FeatureCapability feature_capabilities = 4;
+  int32 heartbeat_seconds = 5;
+}
+
+message AccountStatusBatch {
+  repeated AccountStatus accounts = 1;
+}
+
+message WorkspaceState {
+  uint64 revision = 1;
+  int64 account_id = 2;
+  AccountStatus account_status = 3;
+  Policy policy = 4;
+  BasicView basic = 5;
+  GardenView garden = 6;
+  OrdersView orders = 7;
+  UnionView union = 8;
+  ActivitiesView activities = 9;
+  WarehouseView warehouse = 10;
+  WorkspaceHistorySummary history = 11;
+}
+
+message WorkspaceSnapshot {
+  WorkspaceState state = 1;
+  repeated Event logs = 2;
+}
+
+// Message presence means that domain changed. An absent field is unchanged.
+message WorkspacePatch {
+  uint64 revision = 1;
+  int64 account_id = 2;
+  AccountStatus account_status = 3;
+  Policy policy = 4;
+  BasicView basic = 5;
+  GardenView garden = 6;
+  OrdersView orders = 7;
+  UnionView union = 8;
+  ActivitiesView activities = 9;
+  WarehouseView warehouse = 10;
+  WorkspaceHistorySummary history = 11;
+  repeated WorkspaceDomain cleared_domains = 12;
+}
+
+message WorkspaceHistorySummary {
+  RuntimeStatisticsView runtime_statistics = 1;
+  BusinessStatisticsView business_statistics = 2;
+  repeated WorkspaceHistoryItem recent_operations = 3;
+  int64 next_before_id = 4;
+  bool has_more = 5;
+}
+
+message WorkspaceHistoryItem {
+  int64 id = 1;
+  google.protobuf.Timestamp ts = 2;
+  string category = 3;
+  string domain = 4;
+  string action = 5;
+  string label = 6;
+  string outcome = 7;
+  string message = 8;
+}
+
+message WorkspaceHistoryPage {
+  int64 account_id = 1;
+  repeated WorkspaceHistoryItem items = 2;
+  int64 next_before_id = 3;
+  bool has_more = 4;
+}
+
+message WorkspaceLogBatch {
+  int64 account_id = 1;
+  repeated Event events = 2;
+}
+
+message AlipayLoginProgress {
+  string login_id = 1;
+  AlipayLoginStatus status = 2;
+  Account account = 3;
+  string login_error = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message WorkspaceError {
+  string code = 1;
+  string message = 2;
+  bool retryable = 3;
+}
