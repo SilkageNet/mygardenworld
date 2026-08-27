@@ -10,6 +10,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
@@ -53,6 +54,9 @@ func TestWorkspaceSocketAuthenticatesAndNegotiatesProtocol(t *testing.T) {
 	}
 	if len(ready.GetReady().GetFeatureCapabilities()) == 0 {
 		t.Fatal("ready frame is missing feature capabilities")
+	}
+	if got, want := ready.GetReady().GetServerVersion(), buildinfo.GetVersion(); got != want {
+		t.Fatalf("ready server version=%q, want %q", got, want)
 	}
 }
 

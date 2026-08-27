@@ -733,6 +733,7 @@ type WorkspaceReady struct {
 	Accounts            []*AccountStatus       `protobuf:"bytes,3,rep,name=accounts,proto3" json:"accounts,omitempty"`
 	FeatureCapabilities []*FeatureCapability   `protobuf:"bytes,4,rep,name=feature_capabilities,json=featureCapabilities,proto3" json:"feature_capabilities,omitempty"`
 	HeartbeatSeconds    int32                  `protobuf:"varint,5,opt,name=heartbeat_seconds,json=heartbeatSeconds,proto3" json:"heartbeat_seconds,omitempty"`
+	ServerVersion       string                 `protobuf:"bytes,6,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -800,6 +801,13 @@ func (x *WorkspaceReady) GetHeartbeatSeconds() int32 {
 		return x.HeartbeatSeconds
 	}
 	return 0
+}
+
+func (x *WorkspaceReady) GetServerVersion() string {
+	if x != nil {
+		return x.ServerVersion
+	}
+	return ""
 }
 
 type AccountStatusBatch struct {
@@ -1485,14 +1493,15 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"\x04logs\x18\a \x01(\v2\".mygardenworld.v1.WorkspaceLogPageH\x00R\x04logs\x12J\n" +
 	"\falipay_login\x18\b \x01(\v2%.mygardenworld.v1.AlipayLoginProgressH\x00R\valipayLogin\x128\n" +
 	"\x05error\x18\t \x01(\v2 .mygardenworld.v1.WorkspaceErrorH\x00R\x05errorB\t\n" +
-	"\apayload\"\xba\x02\n" +
+	"\apayload\"\xe1\x02\n" +
 	"\x0eWorkspaceReady\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12;\n" +
 	"\vserver_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"serverTime\x12;\n" +
 	"\baccounts\x18\x03 \x03(\v2\x1f.mygardenworld.v1.AccountStatusR\baccounts\x12V\n" +
 	"\x14feature_capabilities\x18\x04 \x03(\v2#.mygardenworld.v1.FeatureCapabilityR\x13featureCapabilities\x12+\n" +
-	"\x11heartbeat_seconds\x18\x05 \x01(\x05R\x10heartbeatSeconds\"Q\n" +
+	"\x11heartbeat_seconds\x18\x05 \x01(\x05R\x10heartbeatSeconds\x12%\n" +
+	"\x0eserver_version\x18\x06 \x01(\tR\rserverVersion\"Q\n" +
 	"\x12AccountStatusBatch\x12;\n" +
 	"\baccounts\x18\x01 \x03(\v2\x1f.mygardenworld.v1.AccountStatusR\baccounts\"\xdf\x04\n" +
 	"\x0eWorkspaceState\x12\x1a\n" +

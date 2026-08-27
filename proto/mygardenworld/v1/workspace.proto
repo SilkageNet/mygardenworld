@@ -92,6 +92,7 @@ message WorkspaceReady {
   repeated AccountStatus accounts = 3;
   repeated FeatureCapability feature_capabilities = 4;
   int32 heartbeat_seconds = 5;
+  string server_version = 6;
 }
 
 message AccountStatusBatch {
