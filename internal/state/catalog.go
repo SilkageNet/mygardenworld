@@ -367,6 +367,43 @@ func StaticRow(tableName string, id int32) (json.RawMessage, bool) {
 	return cloneRaw(row), true
 }
 
+type fmlPositionCatalogRow struct {
+	ID         int32  `json:"id"`
+	Name       string `json:"name"`
+	RaceDelete int32  `json:"p_raceDelete"`
+}
+
+func fmlPositionRow(position int32) (fmlPositionCatalogRow, bool) {
+	if position <= 0 {
+		return fmlPositionCatalogRow{}, false
+	}
+	raw, ok := StaticRow("c_fmlPos", position)
+	if !ok {
+		return fmlPositionCatalogRow{}, false
+	}
+	var row fmlPositionCatalogRow
+	if json.Unmarshal(raw, &row) != nil || row.ID != position {
+		return fmlPositionCatalogRow{}, false
+	}
+	return row, true
+}
+
+// FmlPositionLabel returns the client-visible guild position name.
+func FmlPositionLabel(position int32) string {
+	row, ok := fmlPositionRow(position)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(row.Name)
+}
+
+// FmlPositionAllowsRaceDelete reports the client-configured p_raceDelete
+// capability for one c_fmlPos row. Unknown or malformed positions fail closed.
+func FmlPositionAllowsRaceDelete(position int32) bool {
+	row, ok := fmlPositionRow(position)
+	return ok && row.RaceDelete == 1
+}
+
 // RandomEventDefinition returns a catalog row when its identity, positions,
 // and dialogs are complete. CostFree remains false when a future row carries
 // an explicit cost; random-event rewards do not count as costs.

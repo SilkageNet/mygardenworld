@@ -171,6 +171,8 @@ func (s *State) applyFmlObjectLocked(raw json.RawMessage) {
 func (s *State) applyFmlMemberObjectLocked(raw json.RawMessage) {
 	s.fmlBuild.MembershipObserved = true
 	s.fmlBuild.MemberFmlID = 0
+	s.fmlBuild.MemberPositionObserved = false
+	s.fmlBuild.MemberPosition = 0
 	if len(raw) == 0 || string(raw) == "null" {
 		return
 	}
@@ -183,6 +185,10 @@ func (s *State) applyFmlMemberObjectLocked(raw json.RawMessage) {
 		if s.fmlBuild.FmlID <= 0 {
 			s.fmlBuild.FmlID = id
 		}
+	}
+	if position, ok := readInt32JSONField(fields, "2"); ok {
+		s.fmlBuild.MemberPositionObserved = true
+		s.fmlBuild.MemberPosition = position
 	}
 }
 
@@ -495,6 +501,8 @@ func (s *State) BeginFmlMembershipSnapshot() {
 	s.fmlBuild.FmlID = 0
 	s.fmlBuild.MembershipObserved = false
 	s.fmlBuild.MemberFmlID = 0
+	s.fmlBuild.MemberPositionObserved = false
+	s.fmlBuild.MemberPosition = 0
 	s.bumpRevisionLocked()
 }
 
@@ -506,6 +514,8 @@ func (s *State) MarkNoFmlMembership() {
 	defer s.mu.Unlock()
 	s.fmlBuild.MembershipObserved = true
 	s.fmlBuild.MemberFmlID = 0
+	s.fmlBuild.MemberPositionObserved = false
+	s.fmlBuild.MemberPosition = 0
 	s.bumpRevisionLocked()
 }
 

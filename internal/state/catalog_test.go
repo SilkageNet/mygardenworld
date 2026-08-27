@@ -94,6 +94,25 @@ func TestStaticTableAndRow(t *testing.T) {
 	}
 }
 
+func TestFmlPositionAllowsRaceDelete(t *testing.T) {
+	if label := FmlPositionLabel(2); label != "副会长" {
+		t.Fatalf("FmlPositionLabel(2)=%q want 副会长", label)
+	}
+	if label := FmlPositionLabel(999); label != "" {
+		t.Fatalf("FmlPositionLabel(999)=%q want empty", label)
+	}
+	for _, position := range []int32{1, 2} {
+		if !FmlPositionAllowsRaceDelete(position) {
+			t.Fatalf("position %d should allow race task deletion", position)
+		}
+	}
+	for _, position := range []int32{0, 3, 4, 5, 999} {
+		if FmlPositionAllowsRaceDelete(position) {
+			t.Fatalf("position %d must not allow race task deletion", position)
+		}
+	}
+}
+
 func TestFmlBuildOptionByID(t *testing.T) {
 	video, ok := FmlBuildOptionByID(1)
 	if !ok || video.Cost != 0 || video.ItemID != 0 || video.ShareID != 14 {

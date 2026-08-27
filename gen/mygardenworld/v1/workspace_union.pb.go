@@ -33,8 +33,14 @@ type UnionView struct {
 	Race               *FmlRaceView           `protobuf:"bytes,7,opt,name=race,proto3" json:"race,omitempty"`
 	Lands              []*FmlLandView         `protobuf:"bytes,8,rep,name=lands,proto3" json:"lands,omitempty"`
 	LandsObserved      bool                   `protobuf:"varint,9,opt,name=lands_observed,json=landsObserved,proto3" json:"lands_observed,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Current user's IFmlMb.pos from authoritative namespace 25.1.
+	MemberPositionObserved bool   `protobuf:"varint,10,opt,name=member_position_observed,json=memberPositionObserved,proto3" json:"member_position_observed,omitempty"`
+	MemberPosition         int32  `protobuf:"varint,11,opt,name=member_position,json=memberPosition,proto3" json:"member_position,omitempty"`
+	MemberPositionLabel    string `protobuf:"bytes,12,opt,name=member_position_label,json=memberPositionLabel,proto3" json:"member_position_label,omitempty"`
+	// Derived from c_fmlPos.p_raceDelete; false when position is unknown.
+	RaceDeleteAllowed bool `protobuf:"varint,13,opt,name=race_delete_allowed,json=raceDeleteAllowed,proto3" json:"race_delete_allowed,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *UnionView) Reset() {
@@ -126,6 +132,34 @@ func (x *UnionView) GetLands() []*FmlLandView {
 func (x *UnionView) GetLandsObserved() bool {
 	if x != nil {
 		return x.LandsObserved
+	}
+	return false
+}
+
+func (x *UnionView) GetMemberPositionObserved() bool {
+	if x != nil {
+		return x.MemberPositionObserved
+	}
+	return false
+}
+
+func (x *UnionView) GetMemberPosition() int32 {
+	if x != nil {
+		return x.MemberPosition
+	}
+	return 0
+}
+
+func (x *UnionView) GetMemberPositionLabel() string {
+	if x != nil {
+		return x.MemberPositionLabel
+	}
+	return ""
+}
+
+func (x *UnionView) GetRaceDeleteAllowed() bool {
+	if x != nil {
+		return x.RaceDeleteAllowed
 	}
 	return false
 }
@@ -701,7 +735,7 @@ var File_mygardenworld_v1_workspace_union_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\n" +
-	"&mygardenworld/v1/workspace_union.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x80\x03\n" +
+	"&mygardenworld/v1/workspace_union.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc7\x04\n" +
 	"\tUnionView\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
@@ -713,7 +747,12 @@ const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\bunion_id\x18\x06 \x01(\x05R\aunionId\x121\n" +
 	"\x04race\x18\a \x01(\v2\x1d.mygardenworld.v1.FmlRaceViewR\x04race\x123\n" +
 	"\x05lands\x18\b \x03(\v2\x1d.mygardenworld.v1.FmlLandViewR\x05lands\x12%\n" +
-	"\x0elands_observed\x18\t \x01(\bR\rlandsObserved\"\xe2\x04\n" +
+	"\x0elands_observed\x18\t \x01(\bR\rlandsObserved\x128\n" +
+	"\x18member_position_observed\x18\n" +
+	" \x01(\bR\x16memberPositionObserved\x12'\n" +
+	"\x0fmember_position\x18\v \x01(\x05R\x0ememberPosition\x122\n" +
+	"\x15member_position_label\x18\f \x01(\tR\x13memberPositionLabel\x12.\n" +
+	"\x13race_delete_allowed\x18\r \x01(\bR\x11raceDeleteAllowed\"\xe2\x04\n" +
 	"\vFmlRaceView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12!\n" +
 	"\fbatch_active\x18\x02 \x01(\bR\vbatchActive\x124\n" +

@@ -231,8 +231,9 @@ func DefaultPolicy() *pb.Policy {
 			Race: &pb.UnionRacePolicy{
 				// Enabled keeps enter/getTaskList (and TTL refresh) so the
 				// competition task pool is visible by default. Auto-complete
-				// of take/finish/upgrade/delete stays off until the operator
-				// turns on AutoEnableModules.
+				// of take/finish/upgrade stays off until the operator turns on
+				// AutoEnableModules. Low-score deletion has its own switch and
+				// requires an observed guild position with delete permission.
 				Enabled:                  true,
 				AutoEnableModules:        false,
 				AutoStopOnQuotaDone:      true,

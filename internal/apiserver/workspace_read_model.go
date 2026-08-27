@@ -326,14 +326,18 @@ func buildUnionView(model *accountReadModel) *pb.UnionView {
 	st, now := model.state, model.now
 	membership := st.FmlBuild()
 	resp := &pb.UnionView{
-		AccountId:          model.account.ID,
-		AccountName:        model.account.Name,
-		CapturedAt:         timestamppb.New(now),
-		MembershipObserved: membership.MembershipObserved,
-		InUnion:            membership.MembershipObserved && membership.MemberFmlID > 0,
-		UnionId:            membership.MemberFmlID,
-		LandsObserved:      st.FmlLandObserved(),
-		Lands:              buildFmlLandViews(st.FmlLands(), st.Cultivations(), now),
+		AccountId:              model.account.ID,
+		AccountName:            model.account.Name,
+		CapturedAt:             timestamppb.New(now),
+		MembershipObserved:     membership.MembershipObserved,
+		InUnion:                membership.MembershipObserved && membership.MemberFmlID > 0,
+		UnionId:                membership.MemberFmlID,
+		MemberPositionObserved: membership.MemberPositionObserved,
+		MemberPosition:         membership.MemberPosition,
+		MemberPositionLabel:    state.FmlPositionLabel(membership.MemberPosition),
+		RaceDeleteAllowed:      membership.MemberPositionObserved && state.FmlPositionAllowsRaceDelete(membership.MemberPosition),
+		LandsObserved:          st.FmlLandObserved(),
+		Lands:                  buildFmlLandViews(st.FmlLands(), st.Cultivations(), now),
 		Race: fmlRaceProto(
 			st.FmlRace(), st, model.policy.GetUnion().GetRace(), st.RoleID(), now,
 			automation.RaceModuleGates{

@@ -56,7 +56,7 @@ func TestWorkspaceContractUsesBusinessDomainReadModels(t *testing.T) {
 		t.Fatalf("WarehouseView inventory_ledger=%v, want field 5", assetLedger)
 	}
 	unionFields := (&pb.UnionView{}).ProtoReflect().Descriptor().Fields()
-	for _, name := range []protoreflect.Name{"membership_observed", "in_union", "union_id", "race", "lands"} {
+	for _, name := range []protoreflect.Name{"membership_observed", "in_union", "union_id", "member_position_observed", "member_position", "member_position_label", "race_delete_allowed", "race", "lands"} {
 		if unionFields.ByName(name) == nil {
 			t.Fatalf("UnionView membership-gated field %s is missing", name)
 		}

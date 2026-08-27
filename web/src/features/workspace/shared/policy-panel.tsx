@@ -2,7 +2,7 @@
 
 import { BadgeCheck, Building2, Coins, Droplets, Flower2, Gem, HandCoins, ListChecks, Loader2, Package, Play, Save, ShieldCheck, ShoppingBag, Sparkles, Sprout, Trophy } from "lucide-react";
 import { MarketBuyMode, MarketPutMode, SelectionMode, type Policy } from "@/gen/mygardenworld/v1/policy_pb";
-import type { BasicView, FeatureCapability, GardenView, OrdersView, WarehouseView } from "@/lib/api/workspace-models";
+import type { BasicView, FeatureCapability, GardenView, OrdersView, UnionView, WarehouseView } from "@/lib/api/workspace-models";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { settingStatusForCapability } from "@/lib/feature-capabilities";
@@ -30,6 +30,7 @@ export default function PolicyPanel({
   basicView,
   garden,
   orders,
+  unionView,
   warehouse,
   capabilities,
   loading,
@@ -43,6 +44,7 @@ export default function PolicyPanel({
   basicView: BasicView | null;
   garden: GardenView | null;
   orders: OrdersView | null;
+  unionView: UnionView | null;
   warehouse: WarehouseView | null;
   capabilities: FeatureCapability[];
   loading: boolean;
@@ -78,6 +80,11 @@ export default function PolicyPanel({
   const unionFlower = union?.flower;
   const unionRace = union?.race;
   const unionLand = union?.land;
+  const raceDeleteStatus = !unionView?.memberPositionObserved
+    ? { kind: "blocked" as const, label: "待同步", detail: "公会职位尚未同步，服务端不会发送删除请求。" }
+    : !unionView.raceDeleteAllowed
+      ? { kind: "blocked" as const, label: "无权限", detail: `当前职位${unionView.memberPositionLabel ? `“${unionView.memberPositionLabel}”` : ""}没有删除竞赛任务的权限。` }
+      : undefined;
   const activity = policy?.activity;
   const customerOrdersObserved = basicView?.observedNamespaces.includes("109") ?? false;
   const customerFinishedToday = orders?.orderStatistics?.customerFinished ?? 0;
@@ -607,8 +614,8 @@ export default function PolicyPanel({
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />
-                <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
-                <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
+                <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} description="独立于自动完成；定期删除无人接取且分数不高于上限的任务，仅会长和副会长可用" status={raceDeleteStatus} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
+                <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} description="只处理已同步、无人接取且分数明确大于 0 的任务；0 表示不删除" onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
                 <BigIntNumberRow label="元宝上限" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
               <div className="mt-3 space-y-2">
