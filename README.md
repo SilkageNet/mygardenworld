@@ -1,156 +1,65 @@
 # 小云朵
 
-个人自用的本地自动化工具原型。代码主要来自 vibe coding / AI 辅助学习与实验，不保证功能完整性、正确性或长期可用性。
+个人自用的本地游戏自动化原型，由 `gardend` 守护进程和内嵌 Web 控制台组成。
 
-## 免责声明
-
-本项目仅供个人学习和本地自用，我从未通过本工具做任何盈利。请仅在你本人拥有或被明确授权管理的账号上使用，并自行确认符合相关服务条款、平台规则和当地法律法规。如果本仓库存在任何违规或不适宜公开的内容，请通过 GitHub 联系我，我会立刻删除本仓库或相关内容。
+> 本项目仅供学习和本人授权账号的本地使用，不保证功能完整性、正确性或长期可用性。使用者应自行遵守相关服务条款、平台规则和当地法律法规。
 
 ## 安装
 
-Linux/macOS:
+Linux / macOS：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/SilkageNet/mygardenworld/main/scripts/install.sh | sh
 ```
 
-Windows PowerShell:
+Windows PowerShell：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/SilkageNet/mygardenworld/main/scripts/install.ps1 -UseB | iex"
 ```
 
-或者从 Release 下载对应系统的压缩包，解压后运行其中的 `install.sh` 或 `install.ps1`。
+也可以从 GitHub Release 下载对应平台的压缩包并运行其中的安装脚本。
 
-## 使用
-
-`gardend` 是必须启动的本地服务进程，并内嵌 Web 控制台。日常管理都通过浏览器完成。
-
-启动本地服务：
+## 启动
 
 ```sh
-JWT_SECRET="$(openssl rand -hex 32)" ADMIN_PASSWORD="Use-A-Long-Local-Admin-Password-123!" \
-  gardend serve --data-dir ./data --listen 127.0.0.1:50051
+JWT_SECRET="$(openssl rand -hex 32)" \
+ADMIN_PASSWORD="Use-A-Long-Local-Admin-Password-123!" \
+gardend serve --listen 127.0.0.1:50051
 ```
 
-本地数据默认由 `gardend serve --data-dir` 决定；不传时使用系统用户配置目录下的 `mygardenworld/data`，SQLite 文件为 `garden.db`。一键安装只安装 `gardend` 二进制，不会额外切换数据目录。
+打开 <http://127.0.0.1:50051>，使用管理员账号登录后添加游戏账号。默认管理员用户名为 `admin`。
 
-数据库使用 SQLite `user_version` 做严格、顺序且事务化的版本迁移。本次破坏性版本仅接受已经版本化的数据库；不再携带无版本旧库、旧策略字段或旧鉴权令牌的运行时兼容代码。schema v1 会先把策略转换为严格格式，schema v2 再一次性删除退役活动策略并升级至 v3；迁移完成后运行时只读取当前格式。无版本旧库会被明确拒绝，需要使用 `gardend reset-data --yes` 重建。
+目前仅支持 **iOS** 和 **Alipay**：iOS 使用游戏账号密码，Alipay 通过二维码自动完成授权。控制台按基础、花园、订单、公会、活动、仓库、统计和日志组织；读取状态通过一条 Protobuf WebSocket 推送，明确的账号与策略命令使用 Connect API。
 
-需要排查协议回包时，请用源码目录里的 debug 启动目标，而不是普通 `backend`：
+数据默认保存在系统用户配置目录下的 `mygardenworld/data`。如需重建本地数据：
 
 ```sh
-make backend:debug
+gardend reset-data --yes
 ```
 
-`backend:debug` 会自动传入 `--debug-dir`，默认写到 `./debug/<账号名>_debug.jsonl`。如果直接运行 `gardend serve` 或 `make backend`，除非手动加 `--debug-dir`，否则不会生成 WS/HTTP debug JSONL。
+服务默认只监听回环地址。账号凭据和可恢复 Session 会在写入 SQLite 前使用本地密钥加密；备份时应同时保护 `garden.db` 和 `garden.db.key`。
 
-重置本地数据：
+## 从源码开发
 
-```sh
-gardend reset-data --data-dir ./data --yes
-```
-
-打开 Web 控制台：
-
-```text
-http://127.0.0.1:50051
-```
-
-Web 控制台适合日常可视化管理账号、查看田地/库存/任务、启停自动化和调整策略。首次启动后使用启动参数里的 `--admin-username` 和 `--admin-password` 登录，然后在页面里添加游戏账号。
-
-游戏账号只提供已验证的 **iOS** 与 **Alipay** 两种渠道。iOS 账号通过游戏账号密码登录；Alipay 账号在 Web 控制台中扫码授权，账号标识和授权凭据由流程自动获取，不需要手工填写游戏用户名。
-
-Web 控制台按 **基础、花园、订单、公会、活动、仓库、统计、日志** 八个工作区组织。六个业务工作区各自只包含本域状态与设置；运行统计和营业统计归入统计，结构化执行记录与运行明细统一归入日志。好友摸花归入花园，公会工作区只有在权威成员记录确认账号已入会后才开放土地、建设和竞赛内容。
-
-账号状态、业务读模型、增量变更、日志分页和 Alipay 扫码进度共用一条 Protobuf 二进制 WebSocket；前端不再为每个视图分别轮询。账号增删、启停和策略保存等明确的命令仍使用 Connect API。WebSocket 只复用 runner 已维护的登录 Session 与内存状态，不会建立第二条游戏连接。
-
-后端策略、执行计划、运行状态和日志仍共享稳定的业务分类：`basic`、`plant`、`order`、`water`、`union`、`race`、`activity`，账号会话与内部错误分别使用 `account` 和 `system`。前端工作区只是产品聚合层，不会复制规划器判定逻辑。
-
-## 安全默认
-
-`gardend` 仍然优先按本地工具设计，推荐保持默认 `--listen 127.0.0.1:50051`，不要把服务裸露到公网。首次管理员密码必须是 12-128 个字符，并至少包含小写、大写、数字、符号中的 3 类；例如 `Use-A-Long-Local-Admin-Password-123!`。
-
-本项目不支持需要客户端广告 SDK 回调或 token 的自动化，也不会编造广告完成参数。只有协议明确支持直接领取或跳过广告、且不依赖 SDK 回调的流程才会执行；例如水车广告桶使用已确认的 `skip→recv` 路径。当前策略协议不提供视频加速、双倍金币、视频礼包和公会视频建设开关；请求包含未知或已移除字段时会被明确拒绝。
-
-服务内置了基础防护：登录失败按用户名和 TCP 远端 IP 内存限速，默认同一用户名 10 分钟内 5 次失败锁定 15 分钟，同一 IP 10 分钟内 30 次失败锁定 15 分钟；请求消息默认限制为 1 MiB；Web/API 响应会带点击劫持和内容嗅探等安全头。
-
-游戏账号凭据和可恢复 Session 都使用本地 `garden.db.key` 加密后再写入 SQLite。Runner 会优先恢复有效 Session，失败才回退到渠道登录；删除 Session 或检测到服务端失效时不会继续使用旧缓存。备份或移动数据时必须把 `garden.db` 与 `garden.db.key` 一起保护，任一文件单独存在都不是可恢复备份。
-
-相关参数：
-
-```sh
-gardend serve \
-  --auth-login-window 10m \
-  --auth-user-failures 5 \
-  --auth-ip-failures 30 \
-  --auth-lockout 15m \
-  --max-request-bytes 1048576
-```
-
-`--cors-origins "*"` 默认会被拒绝，只有显式加 `--allow-insecure-cors` 才允许。非 loopback 监听地址配合 `--debug-dir` 也会被拒绝，只有显式加 `--allow-insecure-debug` 才允许；debug JSONL 可能包含协议会话和业务状态，排查后请及时关闭。
-
-更新本地程序：
-
-```sh
-gardend update
-```
-
-从仓库直接运行的安装脚本和内置更新器都会下载 Release 的 `checksums.txt` 并强制校验 SHA-256；手动下载 Release 归档时也应使用同页的校验文件核对摘要。校验文件缺失或摘要不一致时，自动安装和更新都会拒绝继续。
-
-更多用法请查看命令帮助：
-
-```sh
-gardend --help
-gardend serve --help
-```
-
-## 项目结构
-
-| 路径 | 说明 |
-| --- | --- |
-| `cmd/gardend` | 本地守护进程与内嵌 Web 控制台入口 |
-| `cmd/gardencap` | 本地抓包辅助工具 |
-| `cmd/gardencatalog` | 从小程序资源生成协议和静态目录数据 |
-| `internal/babigame` | 登录、HTTP/WS、RPC、协议封装 |
-| `internal/state` | 运行态事实、库存、土地、订单、花艺等读模型 |
-| `internal/automation` | 需求、库存账本、计划操作和调度决策 |
-| `internal/runner` | 账号生命周期、状态同步和计划执行 |
-| `internal/store` | SQLite 本地持久化 |
-| `internal/apiserver` | Connect 命令 API、Protobuf WebSocket 工作区与读模型 |
-| `proto` | 命令 API、工作区推送协议和策略配置 schema |
-| `web` | 本地 Web 控制台源码 |
-
-每个 `cmd/<name>` 目录只对应一个可执行程序；命令参数、服务启动、安全中间件等辅助实现与 `main.go` 放在同目录。`internal` 下按稳定责任划分 package，package 内再按农场、公会、竞赛、活动等业务域分文件，避免单文件承担多个流程。
-
-协议和策略字段以 `proto/`、`internal/babigame/doc.go`、代码测试和 `AGENTS.md` 为准。设计说明应随代码、测试和 schema 更新，避免与当前实现脱节。
-
-公会竞赛的状态同步、任务选择和错误恢复约束见 [`docs/guild-race.md`](docs/guild-race.md)。
-
-## 从源码构建
-
-所有 Go 构建、测试、生成和发布工具链统一使用系统 Go 1.27.0；前端发布环境使用 Node.js 22 和 pnpm 10。
+需要系统 Go 1.27.0、Node.js 22、pnpm 10；重新生成协议还需要 Buf CLI。
 
 ```sh
 make build
 make test
+make lint
 make frontend:test
-make frontend
+make frontend:lint
+make frontend:build
 ```
 
-`make frontend`、`make frontend:build`、`make frontend:lint`、`make frontend:test` 会先执行 `pnpm --dir web install --frozen-lockfile`。提交前可运行 `make check`；本地 pre-commit 还会执行 Secret 扫描、Go 格式/lint、race test、build 以及前端单测/lint。
+`make check` 会执行完整质量门禁。调试游戏协议回包时使用 `make backend:debug`，普通启动不会写入 debug JSONL。
 
-开发模式下前端和后端可以分开启动；Release 二进制会内嵌已构建的 Web 控制台。
+主要目录：
 
-## 发版
+- `cmd/`：守护进程和协议辅助工具
+- `internal/`：协议、状态、自动化、Runner、存储和 API
+- `proto/`、`gen/`：Protobuf 源文件与生成代码
+- `web/`：Next.js Web 控制台
 
-合并并确认 `main` 的 CI 通过后，推送 `vMAJOR.MINOR.PATCH` tag 会触发 GitHub Actions。工作流会确认 tag 位于 `main`、重新测试和构建前端、执行 Go 测试与 vet、生成六个平台压缩包，并在上传前复核 SHA-256：
-
-```sh
-git switch main
-git pull --ff-only
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
-
-请把示例中的 `vX.Y.Z` 替换为实际版本号；Release 说明由 GitHub 根据上一个版本自动生成。
+协议行为以实际观测、`internal/babigame/doc.go`、Protobuf、代码和测试为准。开发约束见 [`AGENTS.md`](AGENTS.md)，第三方组件声明见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
