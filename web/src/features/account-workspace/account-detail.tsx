@@ -181,28 +181,28 @@ function HeaderPanel({
   const identity = accountIdentity(account, status);
   const statusIssues = accountStatusIssues(status);
   return (
-    <Card className="cloud-surface bg-card/88">
-      <CardContent className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-3 sm:items-center">
-            <Button type="button" variant="ghost" size="icon-lg" className="mt-0.5 shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
+    <Card className="cloud-surface bg-card/88 py-3 sm:py-4">
+      <CardContent className="space-y-2 px-3 sm:space-y-3 sm:px-4">
+        <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <Button type="button" variant="ghost" size="icon" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
               <ArrowLeft className="size-4" />
             </Button>
             <div className="hidden size-12 shrink-0 items-center justify-center rounded-full bg-white/72 text-sky-500 shadow-[0_12px_28px_rgba(46,137,199,0.16)] dark:bg-white/8 dark:text-sky-300 sm:flex">
               <Cloud className="size-6" />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <h1 className="min-w-0 max-w-full truncate text-xl font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
-                <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
-                  <span>{identity.area}</span><span>·</span><span>{identity.channel}</span>
-                </div>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                <h1 className="min-w-0 truncate text-lg font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
                 <HealthBadge account={account} status={status} />
+              </div>
+              <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground sm:text-sm">
+                <span className="truncate">{identity.area}</span><span>·</span><span className="truncate">{identity.channel}</span>
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-1">
-            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-lg" onClick={onRefresh} disabled={viewsLoading || !connected}>
+          <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-1.5">
+            <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-lg" className="size-8 sm:size-9" onClick={onRefresh} disabled={viewsLoading || !connected}>
               <RefreshCw className={cn("size-4", viewsLoading && "animate-spin")} />
             </IconButtonWithTooltip>
             <IconButtonWithTooltip
@@ -210,12 +210,13 @@ function HeaderPanel({
               type="button"
               variant="outline"
               size="icon-lg"
+              className="size-8 sm:size-9"
               onClick={() => void onAction(sessionAction)}
               disabled={busyAction === sessionAction}
             >
               {busyAction === sessionAction ? <Loader2 className="size-4 animate-spin" /> : connected ? <LogOut className="size-4" /> : <Play className="size-4" />}
             </IconButtonWithTooltip>
-            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-lg" onClick={onDelete} disabled={busyAction === "delete"}>
+            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-lg" className="size-8 sm:size-9" onClick={onDelete} disabled={busyAction === "delete"}>
               <Trash2 className="size-4" />
             </IconButtonWithTooltip>
           </div>
