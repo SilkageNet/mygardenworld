@@ -73,6 +73,7 @@ describe("dashboard event and status helpers", () => {
     expect(isTransientConnectionMessage("failed to fetch")).toBe(true);
     expect(isTransientConnectionMessage("后端服务暂时不可用")).toBe(true);
     expect(isTransientConnectionMessage("暂时无法访问后端服务（https://gardend.example）。请检查网络连接并稍后重试。")).toBe(true);
+    expect(isTransientConnectionMessage("访问令牌已过期，正在重新连接")).toBe(true);
     expect(isTransientConnectionMessage("invalid password")).toBe(false);
   });
 

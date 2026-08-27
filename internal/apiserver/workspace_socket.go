@@ -554,6 +554,9 @@ func tokenExpiryDelay(expiresAt time.Time) time.Duration {
 }
 
 func workspaceNormalClose(err error) bool {
+	if errors.Is(err, auth.ErrTokenExpired) {
+		return true
+	}
 	status := websocket.CloseStatus(err)
 	return status == websocket.StatusNormalClosure || status == websocket.StatusGoingAway
 }

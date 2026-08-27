@@ -170,6 +170,14 @@ func (r *Runner) readTickSnapshot() tickSnapshot {
 }
 
 func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) {
+	_ = r.executeOperation(ctx, client, session, op, now)
+}
+
+// executeOperation runs one operation through the same serialization,
+// resource gates, state reconciliation, logging, and diagnostics used by the
+// scheduler. It returns the original request error to explicit callers while
+// keeping handled/transient errors out of runtime failure diagnostics.
+func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) error {
 	r.operationMu.Lock()
 	defer r.operationMu.Unlock()
 
@@ -180,19 +188,19 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	if err := r.checkOperationResources(op, now); err != nil {
 		opErr = err
 		r.handleResourceGateFailure(ctx, op, err)
-		return
+		return err
 	}
 
 	if err := r.ensurePlannedOperationRqst(ctx, op); err != nil {
 		opErr = fmt.Errorf("rqst: %w", err)
 		r.handleRqstFailure(ctx, op, err, opErr)
-		return
+		return opErr
 	}
 
 	releaseWaterLock, err := r.lockOperationWaterDrops(op, now)
 	if err != nil {
 		opErr = err
-		return
+		return err
 	}
 	defer releaseWaterLock()
 
@@ -200,7 +208,7 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	if err != nil {
 		opErr = err
 		r.handleOperationArgsFailure(ctx, op, err)
-		return
+		return err
 	}
 
 	attempt := operationAttempt{op: op, args: args, startedAt: time.Now()}
@@ -240,7 +248,7 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 			PayloadJSON: operationPayload(op, args, nil, nil),
 			Level:       "warn",
 		})
-		return
+		return fmt.Errorf("竞赛任务池尚未同步")
 	}
 	r.emitOperationPlanned(attempt)
 
@@ -256,9 +264,25 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 	}
 	if result.err != nil {
 		opErr = r.handleOperationError(ctx, result)
-		return
+		return result.err
 	}
 	r.handleOperationSuccess(ctx, result)
+	return nil
+}
+
+// TakeUnionRaceTask validates and immediately executes a user-selected race
+// task. It intentionally reuses the scheduler's operation pipeline, so a
+// manual click cannot race another mutation or bypass resource/state handling.
+func (r *Runner) TakeUnionRaceTask(ctx context.Context, taskMsID int64) error {
+	snapshot := r.readTickSnapshot()
+	if snapshot.sessionInvalidated || snapshot.client == nil || snapshot.session == nil {
+		return fmt.Errorf("账号当前未连接游戏服务")
+	}
+	op, err := automation.ManualRaceTakeOperation(r.state, snapshot.policy, taskMsID, time.Now())
+	if err != nil {
+		return err
+	}
+	return r.executeOperation(ctx, snapshot.client, snapshot.session, &op, time.Now())
 }
 
 const (

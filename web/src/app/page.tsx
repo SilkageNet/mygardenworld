@@ -236,6 +236,11 @@ function DashboardContent() {
       },
       onError: (workspaceError) => {
         setLogFeed((current) => current.loading ? { ...current, loading: false } : current);
+        // Access-token rotation is an expected short reconnect: the socket
+        // closes with 4401, refreshes through the HttpOnly cookie, then opens
+        // again with the new access token. Connection state already presents
+        // that transition, so do not leave a persistent red global error.
+        if (workspaceError.code === "authentication_expired" && workspaceError.retryable) return;
         if (workspaceError.message) setError(workspaceError.message);
       },
     });

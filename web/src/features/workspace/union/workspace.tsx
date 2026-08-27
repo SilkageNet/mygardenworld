@@ -36,6 +36,7 @@ export default function UnionWorkspace(props: WorkspaceProps) {
           automationEnabled={props.policy?.automationEnabled ?? false}
         />
         <FmlRaceMonitorPanel
+          accountId={union.accountId}
           race={union.race}
           showTakenTask={props.policy?.union?.race?.enabled ?? true}
           showPersonalScoreRank={props.policy?.union?.race?.showPersonalScoreRank ?? false}

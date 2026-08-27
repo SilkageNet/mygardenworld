@@ -60,14 +60,16 @@ export function FmlLandMonitorPanel({ lands, plantableFlowers, observed, automat
               return count > 0 ? <Badge key={key} variant="outline">{recommendationLabel(key)} {count}</Badge> : null;
             })}
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {lands.map((land) => (
-              <FmlLandTile
-                key={land.landId}
-                land={land}
-                flowerLvl={land.flowerLvl > 0 ? land.flowerLvl : flowerLvlById.get(land.flowerId) ?? 0}
-              />
-            ))}
+          <div className="dark-scrollbar max-h-[440px] overflow-y-auto pr-0.5 sm:max-h-[560px] sm:pr-1">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              {lands.map((land) => (
+                <FmlLandTile
+                  key={land.landId}
+                  land={land}
+                  flowerLvl={land.flowerLvl > 0 ? land.flowerLvl : flowerLvlById.get(land.flowerId) ?? 0}
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -78,8 +80,8 @@ export function FmlLandMonitorPanel({ lands, plantableFlowers, observed, automat
 function FmlLandTile({ land, flowerLvl }: { land: FmlLandView; flowerLvl: number }) {
   const planted = land.flowerId > 0;
   const stockLabel = planted && land.stockCap > 0
-    ? `${land.pendingHarvest}/${land.stockCap}`
-    : planted ? `收${land.harvestedCount || 0}` : "";
+    ? `成熟 ${land.pendingHarvest}/${land.stockCap}`
+    : planted ? `已收 ${land.harvestedCount || 0}` : "";
   const flowerLabel = planted
     ? flowerLvl > 0 ? `${itemName(land.flowerId)} lv${flowerLvl}` : itemName(land.flowerId)
     : "空地";
@@ -99,7 +101,7 @@ function FmlLandTile({ land, flowerLvl }: { land: FmlLandView; flowerLvl: number
       </div>
       <div className="mt-1 truncate text-xs sm:text-sm">{flowerLabel}</div>
       <div className="mt-1 text-[10px] text-muted-foreground sm:text-xs">
-        <div className="truncate">{`地${land.level}级`}{stockLabel ? ` · ${stockLabel}` : ""}{land.pendingHarvest > 0 ? ` · 待收${land.pendingHarvest}` : ""}</div>
+        <div className="truncate">{land.level > 0 ? `土地 ${land.level}级` : ""}{land.level > 0 && stockLabel ? " · " : ""}{stockLabel}{land.pendingHarvest > 0 ? ` · 待收 ${land.pendingHarvest}` : ""}</div>
         <div className="text-left">{fmlLandTimingLabel(land)}</div>
       </div>
     </div>

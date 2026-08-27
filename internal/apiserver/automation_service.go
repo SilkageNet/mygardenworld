@@ -3,6 +3,7 @@ package apiserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	connect "connectrpc.com/connect"
 
@@ -34,6 +35,24 @@ func (svc *Services) DisableAutomation(ctx context.Context, req *connect.Request
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(&pb.DisableAutomationResponse{}), nil
+}
+
+func (svc *Services) TakeUnionRaceTask(ctx context.Context, req *connect.Request[pb.TakeUnionRaceTaskRequest]) (*connect.Response[pb.TakeUnionRaceTaskResponse], error) {
+	if req.Msg.GetTaskMsId() <= 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("竞赛任务标识无效"))
+	}
+	acc, err := svc.resolveAccount(ctx, req.Msg.GetAccountId())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	r, err := svc.Manager.Start(ctx, acc.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	if err := r.TakeUnionRaceTask(ctx, req.Msg.GetTaskMsId()); err != nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	return connect.NewResponse(&pb.TakeUnionRaceTaskResponse{}), nil
 }
 
 func policyEvent(enabled bool) runner.Event {

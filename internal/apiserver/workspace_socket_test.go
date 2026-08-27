@@ -122,6 +122,12 @@ func TestWorkspaceSocketClosesWhenOwnerContextEnds(t *testing.T) {
 	}
 }
 
+func TestWorkspaceTokenExpiryIsAnExpectedReconnect(t *testing.T) {
+	if !workspaceNormalClose(auth.ErrTokenExpired) {
+		t.Fatal("access-token expiry should be treated as an expected reconnect")
+	}
+}
+
 func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))

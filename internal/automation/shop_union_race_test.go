@@ -102,6 +102,57 @@ func TestUnionRaceDisabledProducesNoOps(t *testing.T) {
 	}
 }
 
+func TestManualRaceTakeOperationUsesObservedPolicyGates(t *testing.T) {
+	now := time.Now()
+	newState := func() *state.State {
+		s := state.New()
+		applyRaceState(s, [][5]int32{{1, 3036, 36, 0, 0}})
+		return s
+	}
+
+	t.Run("ready task", func(t *testing.T) {
+		s := newState()
+		policy := testEnabledRaceFullPolicy()
+		// An explicit click is permitted while automatic completion is off.
+		policy.Union.Race.AutoEnableModules = false
+		op, err := ManualRaceTakeOperation(s, policy, 1, now)
+		if err != nil {
+			t.Fatalf("ManualRaceTakeOperation: %v", err)
+		}
+		if op.Kind != clientproto.RPCFmlRaceTakeTask.String() || op.TaskMsID != 1 || !op.PreemptFarm {
+			t.Fatalf("unexpected manual take op: %+v", op)
+		}
+	})
+
+	t.Run("future cooldown", func(t *testing.T) {
+		s := newState()
+		s.ApplyV(json.RawMessage(fmt.Sprintf(
+			`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":36}]}}`,
+			now.Add(time.Minute).UnixMilli(),
+		)))
+		if _, err := ManualRaceTakeOperation(s, testEnabledRaceFullPolicy(), 1, now); err == nil || !strings.Contains(err.Error(), "冷却中") {
+			t.Fatalf("expected cooldown error, got %v", err)
+		}
+	})
+
+	t.Run("score filter", func(t *testing.T) {
+		s := newState()
+		policy := testEnabledRaceFullPolicy()
+		policy.Union.Race.MinTaskScore = 36
+		if _, err := ManualRaceTakeOperation(s, policy, 1, now); err == nil || !strings.Contains(err.Error(), "分数不足") {
+			t.Fatalf("expected score filter error, got %v", err)
+		}
+	})
+
+	t.Run("already holding", func(t *testing.T) {
+		s := newState()
+		s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"7":{"0":1,"1":3036,"2":10,"3":0,"4":[23001]}}}}}`))
+		if _, err := ManualRaceTakeOperation(s, testEnabledRaceFullPolicy(), 1, now); err == nil || !strings.Contains(err.Error(), "已有竞赛任务") {
+			t.Fatalf("expected held-task error, got %v", err)
+		}
+	})
+}
+
 func TestUnionRaceEnterIsExecutable(t *testing.T) {
 	s := state.New()
 	// Real startup baselines may include the guild object (25.0) while omitting
@@ -1357,6 +1408,9 @@ func TestUnionRacePeriodicGetTaskListAfterTTL(t *testing.T) {
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected periodic getTaskList, got %+v", ops)
 	}
+	if !ops[0].PreemptFarm {
+		t.Fatal("periodic task-pool refresh must not wait behind a busy farm lane")
+	}
 }
 
 func TestUnionRaceNoPeriodicGetTaskListWithinTTL(t *testing.T) {
@@ -1419,8 +1473,8 @@ func TestUnionRacePeriodicRunsDespiteNearTakenCD(t *testing.T) {
 }
 
 func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
-	// Only the final approach window suppresses TTL sync; 20s is inside it.
-	s, now := raceStateAtTTL(t, 20*time.Second, 23001, 0)
+	// Only the final approach window suppresses TTL sync; 5s is inside it.
+	s, now := raceStateAtTTL(t, 5*time.Second, 23001, 0)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
@@ -1433,8 +1487,8 @@ func TestUnionRacePeriodicDeferredForNearTakeableCD(t *testing.T) {
 }
 
 func TestUnionRacePeriodicRunsDespiteMidTakeableCD(t *testing.T) {
-	// 5m remaining used to suppress sync (tied to 10m TTL); keep refreshing so
-	// mid-wait upgrades/claims are observed before AppearTime.
+	// Keep refreshing during a longer wait so upgrades/claims are observed
+	// before AppearTime.
 	s, now := raceStateAtTTL(t, 5*time.Minute, 23001, 0)
 	ops := unionRaceOperations(s, testRacePolicy(), 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
