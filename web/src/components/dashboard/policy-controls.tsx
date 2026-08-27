@@ -6,12 +6,14 @@ import { SelectionMode } from "@/gen/mygardenworld/v1/policy_pb";
 import type { FriendTouchFriendView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { type SettingStatus } from "@/lib/feature-capabilities";
 import { cn } from "@/lib/utils";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
+
+const SETTING_ROW_CLASS =
+  "grid min-h-16 gap-x-6 gap-y-2 rounded-lg border border-border/55 bg-white/40 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,18rem)] sm:items-center dark:bg-white/5";
 
 const GOAL_OPTIONS = [
   { id: "order.customer", label: "顾客订单", defaultPriority: 90 },
@@ -28,7 +30,7 @@ export const QUALITY_LABELS: Record<number, string> = { 1: "凡", 2: "普", 3: "
 
 export function PolicyGroup({ title, icon, description, children }: { title: string; icon: ReactNode; description?: string; children: ReactNode; }) {
   return (
-    <section className="space-y-3 rounded-xl border border-border/55 bg-white/34 p-3 sm:p-4 dark:bg-white/5">
+    <section className="space-y-3 rounded-xl border border-border/60 bg-white/30 p-3 sm:p-4 dark:bg-white/5">
       <div>
         <SectionTitle icon={icon}>{title}</SectionTitle>
         {description && <p className="mt-1 pl-9 text-xs leading-5 text-muted-foreground">{description}</p>}
@@ -40,18 +42,18 @@ export function PolicyGroup({ title, icon, description, children }: { title: str
 
 export function StatusRow({ label, value, tone }: { label: string; value: string; tone: "ready" | "muted" | "warn"; }) {
   return (
-    <div className="grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5">
-      <Label className="min-w-0 text-sm">{label}</Label>
-      <Badge variant={tone === "ready" ? "secondary" : tone === "warn" ? "destructive" : "outline"}>{value}</Badge>
+    <div className={SETTING_ROW_CLASS}>
+      <SettingLabel label={label} />
+      <Badge className="justify-self-end" variant={tone === "ready" ? "secondary" : tone === "warn" ? "destructive" : "outline"}>{value}</Badge>
     </div>
   );
 }
 
 export function TextRow({ label, value, description, onChange }: { label: string; value: string; description?: string; onChange: (value: string) => void; }) {
   return (
-    <div className="grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5">
+    <div className={SETTING_ROW_CLASS}>
       <SettingLabel label={label} description={description} />
-      <Input className="h-9 w-full text-sm sm:w-48 sm:text-right" value={value} onChange={(event) => onChange(event.target.value)} />
+      <Input className="h-9 w-full text-sm sm:justify-self-end sm:text-right" value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -73,7 +75,7 @@ export function BigIntNumberRow({
   const normalizedValue = value < floor ? floor : value;
 
   return (
-    <div className="grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5">
+    <div className={SETTING_ROW_CLASS}>
       <SettingLabel label={label} description={description} />
       <NumericStepper
         label={label}
@@ -120,7 +122,7 @@ export function NumericStepper({
   return (
     <div
       className={cn(
-        "grid h-9 shrink-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] overflow-hidden rounded-lg border border-input/85 bg-white/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] transition-[border-color,box-shadow,background-color] focus-within:border-ring focus-within:bg-white/88 focus-within:ring-3 focus-within:ring-ring/24 dark:bg-input/42 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:focus-within:bg-input/58",
+        "grid h-9 shrink-0 grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] justify-self-end overflow-hidden rounded-lg border border-input/85 bg-white/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.78)] transition-[border-color,box-shadow,background-color] focus-within:border-ring focus-within:bg-white/88 focus-within:ring-3 focus-within:ring-ring/24 dark:bg-input/42 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:focus-within:bg-input/58",
         wide ? "w-40" : "w-36",
         disabled && "opacity-55",
       )}
@@ -171,10 +173,10 @@ export function IntListRow({
   description?: string;
 }) {
   return (
-    <div className="grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,18rem)] sm:items-center dark:bg-white/5">
+    <div className={SETTING_ROW_CLASS}>
       <SettingLabel label={label} description={description} />
       <Input
-        className="h-9 text-sm"
+        className="h-9 text-sm sm:justify-self-end"
         value={formatIntList(value)}
         onChange={(event) => onChange(parseIntList(event.target.value))}
         placeholder="用逗号分隔 ID"
@@ -212,9 +214,9 @@ export function QualityRow({
   };
 
   return (
-    <div className="grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5">
+    <div className={SETTING_ROW_CLASS}>
       <SettingLabel label={label} />
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1 sm:justify-self-end">
         {QUALITY_OPTIONS.map((quality) => {
           const selected = selectedSet.has(quality);
           return (
@@ -250,9 +252,9 @@ export function SegmentedRow<T extends number>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5">
+    <div className={SETTING_ROW_CLASS}>
       <SettingLabel label={label} description={description} />
-      <div className="flex flex-wrap gap-1 sm:justify-end">
+      <div className="flex flex-wrap gap-1 sm:justify-self-end sm:justify-end">
         {options.map((option) => (
           <button
             key={option.value}
@@ -380,15 +382,15 @@ export function ToggleRow({
   return (
     <div
       className={cn(
-        "grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5",
+        SETTING_ROW_CLASS,
         disabled && "opacity-55",
       )}
     >
-      <span className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-start gap-2">
         <SettingLabel label={label} description={description} />
         {status && <SettingStatusBadge status={status} />}
-      </span>
-      <Switch checked={checked} disabled={disabled} onCheckedChange={onChange} />
+      </div>
+      <Switch className="justify-self-end" checked={checked} disabled={disabled} onCheckedChange={onChange} />
     </div>
   );
 }
@@ -536,7 +538,8 @@ export function NumberRow({
   return (
     <div
       className={cn(
-        "grid min-h-14 gap-3 rounded-lg border border-border/55 bg-white/36 px-3 py-2.5 transition-opacity sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center dark:bg-white/5",
+        SETTING_ROW_CLASS,
+        "transition-opacity",
         disabled && "opacity-55",
       )}
     >
@@ -559,10 +562,10 @@ export function NumberRow({
 
 function SettingLabel({ label, description }: { label: string; description?: string }) {
   return (
-    <Label className="flex min-w-0 flex-col gap-0.5 leading-5">
+    <div className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left leading-5">
       <span className="text-sm font-medium text-foreground">{label}</span>
-      {description && <span className="text-xs font-normal leading-5 text-muted-foreground">{description}</span>}
-    </Label>
+      {description && <span className="max-w-3xl text-xs font-normal leading-5 text-muted-foreground">{description}</span>}
+    </div>
   );
 }
 

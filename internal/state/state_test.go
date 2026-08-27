@@ -137,6 +137,21 @@ func TestApplyV_ReputationTracksOwnScore(t *testing.T) {
 	}
 }
 
+func TestApplyV_ReputationRequiresObservedScore(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{
+			"17": map[string]any{
+				"0": map[string]any{"0": 77900091102482},
+			},
+		},
+	})
+
+	if rep, ok := s.Reputation(); ok || rep.Observed {
+		t.Fatalf("Reputation()=(%+v,%t), want unobserved without score field", rep, ok)
+	}
+}
+
 func TestApplyV_VideoDoubleState(t *testing.T) {
 	s := New()
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)

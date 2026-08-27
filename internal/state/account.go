@@ -54,12 +54,12 @@ func (s *State) applyReputationLocked(ns7 map[string]json.RawMessage) {
 	if err := json.Unmarshal(rawData, &data); err != nil {
 		return
 	}
-	s.reputation.Observed = true
 	if n, ok := readInt64JSONField(data, "0"); ok {
 		s.reputation.UID = n
 	}
 	if n, ok := readInt32JSONField(data, "1"); ok {
 		s.reputation.Score = n
+		s.reputation.Observed = true
 	}
 	if n, ok := readInt64JSONField(data, "3"); ok {
 		s.reputation.LastSyncTimeMs = n

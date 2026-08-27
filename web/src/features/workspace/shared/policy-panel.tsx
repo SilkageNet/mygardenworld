@@ -140,7 +140,7 @@ export default function PolicyPanel({
 
         {section === "basic" && <section className="space-y-3">
           <SectionTitle icon={<ShieldCheck />}>运行参数</SectionTitle>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2">
             <NumberRow label="决策间隔" value={policy.decisionIntervalSeconds || 4} min={1} onChange={(value) => updatePolicy({ decisionIntervalSeconds: value })} />
           </div>
         </section>}
@@ -156,7 +156,7 @@ export default function PolicyPanel({
         {section === "garden" && (
           <div className="space-y-4">
             <PolicyGroup title="土地与种植" icon={<Sprout />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="自动种植" checked={planting?.autoEnabled ?? false} onChange={(checked) => updatePlanting({ autoEnabled: checked })} />
                 <ToggleRow label="自动收获" checked={planting?.autoHarvestEnabled ?? false} description="关闭后普通农田不自动收；公会竞赛种植任务仍会强制收获竞赛花" onChange={(checked) => updatePlanting({ autoHarvestEnabled: checked })} />
                 <NumberRow
@@ -180,7 +180,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="自主补种" icon={<Package />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <SegmentedRow
                   label="补种范围"
                   value={planting?.autoReplantMode || SelectionMode.ALL}
@@ -229,7 +229,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="培育配置" icon={<Flower2 />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="自动培育" checked={cultivate?.enabled ?? false} onChange={(checked) => updateCultivate({ enabled: checked })} />
                 <ToggleRow label="鲜花升级" checked={cultivate?.upgradeEnabled ?? false} onChange={(checked) => updateCultivate({ upgradeEnabled: checked })} />
                 <NumberRow label="目标等级" value={cultivate?.targetLevel || 20} min={1} onChange={(value) => updateCultivate({ targetLevel: value })} />
@@ -251,7 +251,7 @@ export default function PolicyPanel({
         {section === "basic" && (
           <div className="space-y-4">
             <PolicyGroup title="基础配置" icon={<ShieldCheck />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="礼仪分监控" checked={reputation?.enabled ?? false} onChange={(checked) => updateReputation({ enabled: checked })} />
                 <NumberRow label="礼仪分阈值" value={reputation?.threshold || 80} min={0} onChange={(value) => updateReputation({ threshold: value })} />
                 <ToggleRow
@@ -276,7 +276,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="任务与剧情" icon={<ListChecks />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="主线任务" checked={task?.mainEnabled ?? false} onChange={(checked) => updateBasicTask({ mainEnabled: checked })} />
                 <ToggleRow label="每日任务" checked={task?.dailyEnabled ?? false} onChange={(checked) => updateBasicTask({ dailyEnabled: checked })} />
                 <ToggleRow label="每周任务" checked={task?.weeklyEnabled ?? false} onChange={(checked) => updateBasicTask({ weeklyEnabled: checked })} />
@@ -292,7 +292,7 @@ export default function PolicyPanel({
         {section === "warehouse" && (
           <div className="space-y-4">
             <PolicyGroup title="邮件、福利、签到" icon={<BadgeCheck />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="邮件" checked={basic?.mailEnabled ?? false} onChange={(checked) => updateBasic({ mailEnabled: checked })} />
                 <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} description="广告桶仅使用服务端明确支持的 skip→recv 路径，不触发或伪造广告 SDK 回调；每次约3–7滴，普通桶约30滴" />
                 <ToggleRow label="限时水滴" checked={basic?.freeWaterEnabled ?? false} onChange={(checked) => updateBasic({ freeWaterEnabled: checked })} />
@@ -307,7 +307,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="珍珠" icon={<Gem />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="免费珍珠" checked={pearl?.freeEnabled ?? false} onChange={(checked) => updatePearl({ freeEnabled: checked })} />
                 <ToggleRow label="安全雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} />
                 <NumberRow label="雇佣等级上限（0=不限）" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />
@@ -327,7 +327,7 @@ export default function PolicyPanel({
               <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
                 激励视频和广告礼包不提供自动化：系统不会伪造广告 SDK 回调或 token。仅支持协议明确允许直接领取或跳过广告的流程。
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="材料商店" checked={cultivateShop?.autoBuy ?? false} onChange={(checked) => updateCultivateShop({ autoBuy: checked })} />
                 <BigIntNumberRow label="材料金币上限" value={cultivateShop?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateCultivateShop({ maxSpendGold: value })} />
                 <IntListRow label="材料商品 ID" value={cultivateShop?.itemIds ?? []} onChange={(value) => updateCultivateShop({ itemIds: value })} />
@@ -343,7 +343,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="宠物" icon={<Sparkles />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="宠物模块" checked={zoo?.enabled ?? false} onChange={(checked) => updateZoo({ enabled: checked })} />
                 <ToggleRow label="宠物外出/事件处理" checked={zoo?.autoEventEnabled ?? false} onChange={(checked) => updateZoo({ autoEventEnabled: checked })} />
                 <ToggleRow label="自动补充食盆" checked={zoo?.autoFeed ?? false} onChange={(checked) => updateZoo({ autoFeed: checked })} />
@@ -361,7 +361,7 @@ export default function PolicyPanel({
             {SHOW_UNSUPPORTED_SETTINGS && (
               <>
                 <PolicyGroup title="花灵与密令" icon={<Sparkles />}>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2">
                     <ToggleRow label="自动种花灵" checked={elves?.enabled ?? false} onChange={(checked) => updateElves({ enabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves")} />
                     <IntListRow label="指定花灵" value={elves?.selectedIds ?? []} onChange={(value) => updateElves({ selectedIds: value })} />
                     <ToggleRow label="申请协助" checked={elves?.requestAid ?? false} onChange={(checked) => updateElves({ requestAid: checked })} />
@@ -380,7 +380,7 @@ export default function PolicyPanel({
                 </PolicyGroup>
 
                 <PolicyGroup title="鲜花摊位" icon={<ShoppingBag />}>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2">
                     <ToggleRow label="解锁货架" checked={market?.autoUnlockShelf ?? false} onChange={(checked) => updateMarket({ autoUnlockShelf: checked })} status={settingStatusForCapability(capabilities, "plant.market_unlock")} />
                     <ToggleRow label="自动上架鲜花" checked={market?.putEnabled ?? false} onChange={(checked) => updateMarket({ putEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.market")} />
                     <SegmentedRow label="上架策略" value={market?.putMode || MarketPutMode.INVENTORY} options={MARKET_PUT_MODE_OPTIONS} onChange={(value) => updateMarket({ putMode: value })} />
@@ -405,7 +405,7 @@ export default function PolicyPanel({
         {section === "orders" && (
           <div className="space-y-4">
             <PolicyGroup title="居民订单" icon={<ListChecks />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="普通居民订单" checked={resident?.normalEnabled ?? false} onChange={(checked) => updateResident({ normalEnabled: checked })} />
                 <NumberRow
                   label="普通订单上限"
@@ -460,7 +460,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="顾客订单" icon={<Package />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="顾客订单" checked={customer?.enabled ?? false} onChange={(checked) => updateCustomer({ enabled: checked })} />
                 <NumberRow
                   label="每日上限"
@@ -487,7 +487,7 @@ export default function PolicyPanel({
 
             {SHOW_UNSUPPORTED_SETTINGS && (
               <PolicyGroup title="宫廷、组团" icon={<Package />}>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
                   <ToggleRow label="宫廷订单" checked={palace?.enabled ?? false} onChange={(checked) => updatePalace({ enabled: checked })} status={settingStatusForCapability(capabilities, "order.palace")} />
                   <QualityRow label="宫廷品质" value={palace?.qualities ?? []} onChange={(value) => updatePalace({ qualities: value })} />
                   <ToggleRow label="组团订单" checked={team?.enabled ?? false} onChange={(checked) => updateTeam({ enabled: checked })} status={settingStatusForCapability(capabilities, "order.team")} />
@@ -500,7 +500,7 @@ export default function PolicyPanel({
             )}
 
             <PolicyGroup title="花架售卖" icon={<Flower2 />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="解锁花架" checked={flowerArt?.autoUnlockStand ?? false} onChange={(checked) => updateFlowerArt({ autoUnlockStand: checked })} status={settingStatusForCapability(capabilities, "order.flower_art_stand")} />}
                 <ToggleRow label="自动上架花艺" checked={flowerArt?.sellEnabled ?? false} onChange={(checked) => updateFlowerArt({ sellEnabled: checked })} />
                 <FlowerArtMultiSelectRow
@@ -529,7 +529,7 @@ export default function PolicyPanel({
         {section === "union" && (
           <div className="space-y-4">
             <PolicyGroup title="公会土地" icon={<Building2 />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="自动收获" checked={unionLand?.harvestEnabled ?? false} onChange={(checked) => updateUnionLand({ harvestEnabled: checked })} />
                 <ToggleRow label="自动种植" checked={unionLand?.autoPlantEnabled ?? false} onChange={(checked) => updateUnionLand({ autoPlantEnabled: checked })} />
                 <NumberRow
@@ -565,7 +565,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="公会建设" icon={<Coins />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="金币建设" checked={unionBuild?.goldEnabled ?? false} onChange={(checked) => updateUnionBuild({ goldEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="元宝建设" checked={unionBuild?.diamondEnabled ?? false} onChange={(checked) => updateUnionBuild({ diamondEnabled: checked })} status={settingStatusForCapability(capabilities, "union.build_diamond")} />}
                 <BigIntNumberRow label="金币上限" value={unionBuild?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateUnionBuild({ maxSpendGold: value })} />
@@ -574,7 +574,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="公会分享与摸花" icon={<HandCoins />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
                     <ToggleRow label="自动分享" checked={unionFlower?.shareEnabled ?? false} onChange={(checked) => updateUnionFlower({ shareEnabled: checked })} status={settingStatusForCapability(capabilities, "union.flower_share")} />
@@ -598,7 +598,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="公会竞赛" icon={<Trophy />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步任务池与当前已接任务（只读展示）；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
                 <ToggleRow label="显示个人得分排名" checked={unionRace?.showPersonalScoreRank ?? false} description="开启后在竞赛页展示当期个人累计得分与公会内排名；默认关闭" onChange={(checked) => updateUnionRace({ showPersonalScoreRank: checked })} />
                 <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进种植/提交与放弃竞赛任务；默认关闭。未开启时仍会同步并显示已接任务，但不会自动执行" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
@@ -614,7 +614,7 @@ export default function PolicyPanel({
               </div>
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前支持自动推进：种植收获、顾客订单、珍珠雇佣、花艺制作/售卖；花种培育仅接取与提交。</p>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
                   {RACE_TASK_TYPES.map((task) => (
                     <NumberRow
                       key={task.id}
@@ -630,7 +630,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="公会其他" icon={<Sparkles />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="公会红包" checked={union?.redPacketEnabled ?? false} onChange={(checked) => updateUnion({ redPacketEnabled: checked })} status={settingStatusForCapability(capabilities, "union.red_packet")} />}
                 <ToggleRow label="能量森林" checked={union?.forestEnabled ?? false} onChange={(checked) => updateUnion({ forestEnabled: checked })} />
               </div>
@@ -641,7 +641,7 @@ export default function PolicyPanel({
         {section === "activities" && (
           <div className="grid gap-3">
             <PolicyGroup title="花笺集芳" icon={<Play />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="启用" checked={activity?.cyclicNote?.enabled ?? false} onChange={(enabled) => updateCyclicNote({ enabled })} status={settingStatusForCapability(capabilities, "activity.cyclicNote")} />
                 <ToggleRow label="自动领取任务奖励" checked={activity?.cyclicNote?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateCyclicNote({ autoClaimTaskRewards })} />
                 <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicNote?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicNote({ autoClaimProgressBoxes })} />
@@ -650,7 +650,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="莳花纪闻" icon={<Play />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="启用" checked={activity?.cyclicStory?.enabled ?? false} onChange={(enabled) => updateCyclicStory({ enabled })} status={settingStatusForCapability(capabilities, "activity.actCyclicStory")} />
                 <ToggleRow label="自动领取订单奖励" checked={activity?.cyclicStory?.autoClaimOrderRewards ?? false} onChange={(autoClaimOrderRewards) => updateCyclicStory({ autoClaimOrderRewards })} />
                 <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicStory?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicStory({ autoClaimProgressBoxes })} />
@@ -659,7 +659,7 @@ export default function PolicyPanel({
             </PolicyGroup>
 
             <PolicyGroup title="香卉甜糕" icon={<Play />}>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 <ToggleRow label="启用" checked={activity?.dessert?.enabled ?? false} onChange={(enabled) => updateDessert({ enabled })} status={settingStatusForCapability(capabilities, "activity.actDessert")} />
                 <ToggleRow label="自动领取任务奖励" checked={activity?.dessert?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateDessert({ autoClaimTaskRewards })} />
                 <ToggleRow label="自动免费点赞" checked={activity?.dessert?.autoLikeCelebrity ?? false} onChange={(autoLikeCelebrity) => updateDessert({ autoLikeCelebrity })} />
