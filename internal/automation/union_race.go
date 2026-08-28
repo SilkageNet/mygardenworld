@@ -830,6 +830,12 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 	if policy.GetMinTaskScore() > 0 && t.Score <= policy.GetMinTaskScore() {
 		return fmt.Sprintf("分数不足（≤%d）", policy.GetMinTaskScore())
 	}
+	if policy.GetAvoidProgressedTasks() && t.FinishCnt > 0 {
+		if t.TargetCnt > 0 {
+			return fmt.Sprintf("已有进度（%d/%d）", t.FinishCnt, t.TargetCnt)
+		}
+		return fmt.Sprintf("已有进度（%d）", t.FinishCnt)
+	}
 	if policy.GetOnlyUpgradeTask() && t.IsUpgrade == 0 {
 		return "仅接已升级任务"
 	}
@@ -866,9 +872,6 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 		// ops — only take / sync FinishCnt / finishTask.
 		if t.Score != raceFlowerCultivateRequiredScore {
 			return fmt.Sprintf("仅接%d分花种培育", raceFlowerCultivateRequiredScore)
-		}
-		if t.FinishCnt > 0 {
-			return "仅接进度为0的花种培育"
 		}
 	}
 	return ""
@@ -921,9 +924,12 @@ func raceTaskTypePriority(policy *pb.UnionRacePolicy, taskType int32) int32 {
 // flowerRack.sell / makeFlowerArt itself; order.flower_art toggles are not
 // required for take or progress.
 //
-// Flower-cultivate (3044): only Score==36 and FinishCnt==0; plant.cultivate is
-// not required. Race does not drive cultivate ops — only take, progress sync,
-// and finishTask once FinishCnt catches up.
+// avoid_progressed_tasks applies to every type before type-specific gates and
+// only affects future takes; an already-held task is still completed normally.
+//
+// Flower-cultivate (3044): only Score==36; plant.cultivate is not required.
+// Race does not drive cultivate ops — only take, progress sync, and finishTask
+// once FinishCnt catches up.
 //
 // AppearTime gating: ready tasks (appearTime already due) are preferred. CD tasks
 // within raceTakeLeadWindow may be selected preemptively when no ready candidate

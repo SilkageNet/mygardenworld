@@ -352,8 +352,12 @@ type FmlRaceTask struct {
 	AppearTimeMs int64 `protobuf:"varint,9,opt,name=appear_time_ms,json=appearTimeMs,proto3" json:"appear_time_ms,omitempty"`
 	// Empty = automation would consider takeable; otherwise primary skip reason.
 	TakeSkipReason string `protobuf:"bytes,10,opt,name=take_skip_reason,json=takeSkipReason,proto3" json:"take_skip_reason,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Observed target/progress from IFmlRaceTask fields 7 and 8.
+	// Positive finish_cnt unambiguously means this pool task was advanced.
+	TargetCnt     int32 `protobuf:"varint,11,opt,name=target_cnt,json=targetCnt,proto3" json:"target_cnt,omitempty"`
+	FinishCnt     int32 `protobuf:"varint,12,opt,name=finish_cnt,json=finishCnt,proto3" json:"finish_cnt,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *FmlRaceTask) Reset() {
@@ -454,6 +458,20 @@ func (x *FmlRaceTask) GetTakeSkipReason() string {
 		return x.TakeSkipReason
 	}
 	return ""
+}
+
+func (x *FmlRaceTask) GetTargetCnt() int32 {
+	if x != nil {
+		return x.TargetCnt
+	}
+	return 0
+}
+
+func (x *FmlRaceTask) GetFinishCnt() int32 {
+	if x != nil {
+		return x.FinishCnt
+	}
+	return 0
 }
 
 type FmlRaceTaken struct {
@@ -771,7 +789,7 @@ const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\x05score\x18\r \x01(\x05R\x05score\x12%\n" +
 	"\x0escore_observed\x18\x0e \x01(\bR\rscoreObserved\x12\x12\n" +
 	"\x04rank\x18\x0f \x01(\x05R\x04rank\x12#\n" +
-	"\rrank_observed\x18\x10 \x01(\bR\frankObserved\"\xc0\x02\n" +
+	"\rrank_observed\x18\x10 \x01(\bR\frankObserved\"\xfe\x02\n" +
 	"\vFmlRaceTask\x12\x13\n" +
 	"\x05ms_id\x18\x01 \x01(\x03R\x04msId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x05R\x06taskId\x12\x1d\n" +
@@ -786,7 +804,11 @@ const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\ftarget_label\x18\b \x01(\tR\vtargetLabel\x12$\n" +
 	"\x0eappear_time_ms\x18\t \x01(\x03R\fappearTimeMs\x12(\n" +
 	"\x10take_skip_reason\x18\n" +
-	" \x01(\tR\x0etakeSkipReason\"\xb9\x02\n" +
+	" \x01(\tR\x0etakeSkipReason\x12\x1d\n" +
+	"\n" +
+	"target_cnt\x18\v \x01(\x05R\ttargetCnt\x12\x1d\n" +
+	"\n" +
+	"finish_cnt\x18\f \x01(\x05R\tfinishCnt\"\xb9\x02\n" +
 	"\fFmlRaceTaken\x12\x19\n" +
 	"\bhas_task\x18\x01 \x01(\bR\ahasTask\x12\x1c\n" +
 	"\n" +

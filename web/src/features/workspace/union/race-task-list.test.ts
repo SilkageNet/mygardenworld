@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { create } from "@bufbuild/protobuf";
 import { FmlRaceTaskSchema } from "@/gen/mygardenworld/v1/workspace_union_pb";
-import { raceTaskAvailability, raceTaskReady, selectRaceTaskList } from "./race-task-list";
+import { raceTaskAvailability, raceTaskProgressLabel, raceTaskReady, selectRaceTaskList } from "./race-task-list";
 
 const task = (msId: number, score: number, reason = "", appearTimeMs = 0) => create(FmlRaceTaskSchema, {
   msId: BigInt(msId),
@@ -30,5 +30,11 @@ describe("guild race task list", () => {
       BigInt(4),
       BigInt(1),
     ]);
+  });
+
+  it("formats observed pool progress without inventing an unknown target", () => {
+    expect(raceTaskProgressLabel(create(FmlRaceTaskSchema, { targetCnt: 10, finishCnt: 3 }))).toBe("进度 3/10");
+    expect(raceTaskProgressLabel(create(FmlRaceTaskSchema, { finishCnt: 3 }))).toBe("已有进度 3");
+    expect(raceTaskProgressLabel(create(FmlRaceTaskSchema))).toBeNull();
   });
 });

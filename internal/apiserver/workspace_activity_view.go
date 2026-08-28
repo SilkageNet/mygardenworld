@@ -98,6 +98,8 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			TargetLabel:    t.TargetLabel,
 			AppearTimeMs:   t.AppearTime,
 			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, gates),
+			TargetCnt:      t.TargetCnt,
+			FinishCnt:      t.FinishCnt,
 		})
 	}
 	return out

@@ -10,6 +10,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/proto"
 )
 
 // raceStateJSON builds a namespace-25 JSON blob with the given race task pool.
@@ -148,6 +149,20 @@ func TestManualRaceTakeOperationUsesObservedPolicyGates(t *testing.T) {
 		policy.Union.Race.MinTaskScore = 36
 		if _, err := ManualRaceTakeOperation(s, policy, 1, now); err == nil || !strings.Contains(err.Error(), "分数不足") {
 			t.Fatalf("expected score filter error, got %v", err)
+		}
+	})
+
+	t.Run("progressed task follows policy", func(t *testing.T) {
+		s := newState()
+		s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"7":10,"8":3,"10":36}]}}`))
+		policy := testEnabledRaceFullPolicy()
+		policy.Union.Race.AvoidProgressedTasks = proto.Bool(true)
+		if _, err := ManualRaceTakeOperation(s, policy, 1, now); err == nil || !strings.Contains(err.Error(), "已有进度（3/10）") {
+			t.Fatalf("expected progressed-task policy error, got %v", err)
+		}
+		policy.Union.Race.AvoidProgressedTasks = proto.Bool(false)
+		if _, err := ManualRaceTakeOperation(s, policy, 1, now); err != nil {
+			t.Fatalf("explicitly allowed progressed task: %v", err)
 		}
 	})
 
@@ -1336,6 +1351,29 @@ func TestUnionRaceDoesNotTakeUnsupportedFallback(t *testing.T) {
 	}
 }
 
+func TestUnionRaceAvoidsProgressedTaskDuringAutomaticSelection(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3030, 40, 0, 0}, {2, 3030, 24, 0, 0}})
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[
+		{"0":1,"4":3030,"7":10,"8":3,"10":40,"12":0},
+		{"0":2,"4":3030,"7":10,"8":0,"10":24,"12":0}
+	]}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3030: 4}
+	policy.AvoidProgressedTasks = proto.Bool(true)
+
+	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() || ops[0].TaskMsID != 2 {
+		t.Fatalf("avoid-progress plan=%+v, want fresh task 2", ops)
+	}
+
+	policy.AvoidProgressedTasks = proto.Bool(false)
+	ops = unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() || ops[0].TaskMsID != 1 {
+		t.Fatalf("allow-progress plan=%+v, want higher-score task 1", ops)
+	}
+}
+
 func TestFormatRaceTaskOpDesc(t *testing.T) {
 	got := FormatRaceTaskOpDesc(3036, 23001)
 	if !strings.Contains(got, "种植收获") || !strings.Contains(got, "白百合") {
@@ -1440,6 +1478,24 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			task:   state.FmlRaceTaskView{MsId: 4, TaskId: 3030, TaskType: 3030, Score: 10},
 			policy: &pb.UnionRacePolicy{MinTaskScore: 15},
 			want:   "分数不足（≤15）",
+		},
+		{
+			name:   "progressed task skipped",
+			task:   state.FmlRaceTaskView{MsId: 33, TaskId: 3030, TaskType: 3030, Score: 24, FinishCnt: 3, TargetCnt: 10},
+			policy: &pb.UnionRacePolicy{AvoidProgressedTasks: proto.Bool(true), TaskTypePriority: map[int32]int32{3030: 4}},
+			want:   "已有进度（3/10）",
+		},
+		{
+			name:   "progressed task allowed when policy disabled",
+			task:   state.FmlRaceTaskView{MsId: 34, TaskId: 3030, TaskType: 3030, Score: 24, FinishCnt: 3, TargetCnt: 10},
+			policy: &pb.UnionRacePolicy{AvoidProgressedTasks: proto.Bool(false), TaskTypePriority: map[int32]int32{3030: 4}},
+			want:   "",
+		},
+		{
+			name:   "progressed task without target skipped",
+			task:   state.FmlRaceTaskView{MsId: 35, TaskId: 3030, TaskType: 3030, Score: 24, FinishCnt: 3},
+			policy: &pb.UnionRacePolicy{AvoidProgressedTasks: proto.Bool(true), TaskTypePriority: map[int32]int32{3030: 4}},
+			want:   "已有进度（3）",
 		},
 		{
 			name:   "only upgrade",
@@ -1560,8 +1616,8 @@ func TestRaceTakeSkipReason(t *testing.T) {
 		{
 			name:   "flower cultivate progress skipped",
 			task:   state.FmlRaceTaskView{MsId: 32, TaskId: 3044, TaskType: 3044, Score: 36, FinishCnt: 1, TargetCnt: 4},
-			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
-			want:   "仅接进度为0的花种培育",
+			policy: &pb.UnionRacePolicy{AvoidProgressedTasks: proto.Bool(true), TaskTypePriority: map[int32]int32{3044: 4}},
+			want:   "已有进度（1/4）",
 		},
 		{
 			name:   "default zero type skipped when map empty",
@@ -1823,11 +1879,16 @@ func TestUnionRaceTakesFlowerCultivateWhenModuleOff(t *testing.T) {
 func TestUnionRaceSkipsFlowerCultivateWithProgress(t *testing.T) {
 	s := state.New()
 	policy := testRacePolicy()
+	policy.AvoidProgressedTasks = proto.Bool(true)
 	policy.TaskTypePriority = map[int32]int32{3044: 4}
 	task := state.FmlRaceTaskView{MsId: 1, TaskId: 3044, TaskType: 3044, Score: 36, FinishCnt: 2, TargetCnt: 4}
 	got := RaceTakeSkipReason(s, task, policy, 0, time.Now(), raceGatesNoCultivate())
-	if got != "仅接进度为0的花种培育" {
-		t.Fatalf("RaceTakeSkipReason = %q, want 仅接进度为0的花种培育", got)
+	if got != "已有进度（2/4）" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 已有进度（2/4）", got)
+	}
+	policy.AvoidProgressedTasks = proto.Bool(false)
+	if got := RaceTakeSkipReason(s, task, policy, 0, time.Now(), raceGatesNoCultivate()); got != "" {
+		t.Fatalf("explicitly allowed progressed cultivate task: %q", got)
 	}
 }
 

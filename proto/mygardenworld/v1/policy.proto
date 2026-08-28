@@ -350,6 +350,9 @@ message UnionRacePolicy {
   // When true, the race monitor shows personal cumulative score and guild-member
   // rank for the current batch. Default off.
   bool show_personal_score_rank = 13;
+  // Skip unclaimed pool tasks whose observed finish_cnt is greater than zero.
+  // Presence distinguishes the default-on policy from an explicit false.
+  optional bool avoid_progressed_tasks = 14;
 }
 
 message UnionLandPolicy {

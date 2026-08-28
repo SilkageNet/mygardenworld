@@ -64,6 +64,10 @@ message FmlRaceTask {
   int64 appear_time_ms = 9;
   // Empty = automation would consider takeable; otherwise primary skip reason.
   string take_skip_reason = 10;
+  // Observed target/progress from IFmlRaceTask fields 7 and 8.
+  // Positive finish_cnt unambiguously means this pool task was advanced.
+  int32 target_cnt = 11;
+  int32 finish_cnt = 12;
 }
 
 message FmlRaceTaken {

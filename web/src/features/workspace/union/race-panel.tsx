@@ -13,6 +13,7 @@ import { formatAPIError, transport } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
   raceTaskAvailability,
+  raceTaskProgressLabel,
   raceTaskReady,
   selectRaceTaskList,
   type RaceTaskFilter,
@@ -250,6 +251,7 @@ function FmlRaceTaskCard({ index, task, nowMs, canTake, busy, onTake }: {
   const takeable = raceTaskReady(task, nowMs);
   const onCooldown = !takeable && skipReason.startsWith("冷却中");
   const availability = takeable && !canTake ? "需先完成当前任务" : raceTaskAvailability(task, nowMs);
+  const progressLabel = raceTaskProgressLabel(task);
   const baseTitle = task.targetLabel ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}` : task.taskLabel || `任务 #${task.taskId}`;
   return (
     <div className={cn(
@@ -260,7 +262,11 @@ function FmlRaceTaskCard({ index, task, nowMs, canTake, busy, onTake }: {
         <span className="min-w-0 text-sm font-medium"><span className="mr-1.5 tabular-nums text-muted-foreground">{index}.</span>{baseTitle}</span>
         <Badge variant={task.isUpgrade ? "secondary" : "outline"}>{task.isUpgrade ? "已升级" : "普通"}</Badge>
       </div>
-      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground"><span className="font-medium text-foreground">{task.score} 分</span>{task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{task.score} 分</span>
+        {progressLabel && <span className={cn("rounded-full px-1.5 py-0.5", task.finishCnt > 0 ? "bg-amber-100 text-amber-800 dark:bg-amber-400/12 dark:text-amber-300" : "bg-muted/70")}>{progressLabel}</span>}
+        {task.upgradeUid > 0 && <span className="ml-auto">升级人 #{task.upgradeUid}</span>}
+      </div>
       <div className="mt-2 flex min-h-7 items-center justify-between gap-2">
         <span className={cn("text-xs", takeable && canTake ? "font-medium text-primary" : onCooldown ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{availability}</span>
         {takeable && canTake && (
