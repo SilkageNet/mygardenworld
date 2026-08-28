@@ -37,4 +37,21 @@ message BasicView {
   int64 reputation_last_view_time_ms = 29;
   RuntimeStatisticsView runtime_statistics = 30;
   repeated PendingTaskView pending_tasks = 31;
+  PearlHireStatusView pearl_hire = 32;
+}
+
+// PearlHireStatusView exposes labor-slot occupancy for the basic workspace.
+message PearlHireStatusView {
+  int32 ticket_count = 1;
+  int32 ticket_used_today = 2;
+  int32 daily_ticket_limit = 3;
+  repeated PearlLaborSlotView slots = 4;
+}
+
+message PearlLaborSlotView {
+  int32 place_id = 1;
+  int64 labor_uid = 2;
+  string labor_name = 3;
+  int64 labor_end_time_ms = 4;
+  bool active = 5;
 }

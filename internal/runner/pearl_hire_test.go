@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
@@ -95,12 +96,18 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 		success    bool
 		failCount  int32
 		known      bool
+		spent      bool
 		wantErr    string
 		wantFailed bool
 		wantLocked bool
+		wantNoted  bool
 	}{
-		{name: "success explicit zero", raw: `{"3":{"0":0},"115":{}}`, success: true, known: true},
-		{name: "contested", raw: `{"115":{}}`, failCount: 2, known: true, wantErr: "contested", wantFailed: true},
+		{name: "success explicit zero", raw: `{"3":{"0":0},"115":{}}`, success: true, known: true, spent: true, wantNoted: true},
+		{name: "contested", raw: `{"115":{}}`, failCount: 2, known: true, spent: true, wantErr: "contested", wantFailed: true, wantNoted: true},
+		{name: "tips4 contested", hireErr: &babigame.RPCServerError{
+			Name:     clientproto.RPCPearlPlaceHire,
+			Envelope: babigame.WSResponseD{M: json.RawMessage(`{"code":"pearl_tips4","msg":"对方已被其他人雇佣","param":[4]}`)},
+		}, wantErr: "contested", wantFailed: true},
 		{name: "gold fallback", raw: `{"3":{"0":1}}`, wantErr: "金币回退", wantFailed: true, wantLocked: true},
 		{name: "malformed fallback", raw: `{"3":{"0":null}}`, wantErr: "格式异常", wantFailed: true, wantLocked: true},
 		{name: "postcondition unknown", raw: `{"115":{}}`, wantErr: "postcondition", wantFailed: true, wantLocked: true},
@@ -108,7 +115,7 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			failed, locked, applied := false, false, false
+			failed, locked, applied, noted := false, false, false, false
 			exec := pearlHireExecution{
 				preflight: func(time.Time) (state.PearlHireAttemptSnapshot, error) { return snapshot, nil },
 				hire: func(context.Context, clientproto.PearlPlaceHireRequest) (json.RawMessage, error) {
@@ -118,7 +125,9 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 				outcome: func(state.PearlHireAttemptSnapshot) (bool, int32, bool) {
 					return tc.success, tc.failCount, tc.known
 				},
+				ticketSpent: func(state.PearlHireAttemptSnapshot) bool { return tc.spent },
 				markFailed:  func(uid int64, _ time.Time) { failed = uid == 2001 },
+				noteUsed:    func(time.Time) { noted = true },
 				lockSession: func(string) { locked = true },
 				now:         func() time.Time { return base },
 			}
@@ -129,8 +138,8 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 			if tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
 				t.Fatalf("err=%v, want substring %q", err, tc.wantErr)
 			}
-			if failed != tc.wantFailed || locked != tc.wantLocked {
-				t.Fatalf("failed=%t locked=%t", failed, locked)
+			if failed != tc.wantFailed || locked != tc.wantLocked || noted != tc.wantNoted {
+				t.Fatalf("failed=%t locked=%t noted=%t", failed, locked, noted)
 			}
 			if tc.raw != "" && tc.hireErr == nil && !applied {
 				t.Fatal("authoritative payload was not applied")

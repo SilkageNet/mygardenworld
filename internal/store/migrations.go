@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 3
+const currentSchemaVersion = 4
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -118,6 +118,19 @@ CREATE INDEX idx_event_log_ts ON event_log(ts);
 		version: 3,
 		name:    "remove retired dessert policy",
 		apply:   migratePoliciesV3,
+	},
+	{
+		version: 4,
+		name:    "pearl hire daily ticket usage",
+		sql: `
+CREATE TABLE account_pearl_hire_daily (
+    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    day_id      INTEGER NOT NULL,
+    used_count  INTEGER NOT NULL DEFAULT 0 CHECK(used_count >= 0),
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(account_id, day_id)
+);
+`,
 	},
 }
 

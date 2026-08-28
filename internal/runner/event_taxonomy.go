@@ -52,6 +52,14 @@ func opKindDesc(kind string) string {
 		return "一键领取珍珠产出"
 	case clientproto.RPCPearlPlaceRecv.String():
 		return "领取单个珍珠槽位产出"
+	case clientproto.RPCPearlPlaceHire.String():
+		return "雇佣劳工"
+	case clientproto.RPCOpptGetDetailOppts.String():
+		return "同步候选人详情"
+	case clientproto.RPCPearlGetRecommendList.String():
+		return "同步推荐候选人"
+	case clientproto.RPCPearlGetHireStateByUids.String():
+		return "同步候选人雇佣状态"
 	case clientproto.RPCRandomEventEnter.String():
 		return "同步地图随机事件"
 	case clientproto.RPCRandomEventDoAffair.String():
@@ -201,6 +209,8 @@ func eventCategory(kind string) string {
 		return "basic"
 	case "waterwheel", "free_water":
 		return "water"
+	case "pearl_hire", "pearl_claim", "pearl_hire_sync":
+		return "basic"
 	case "benefit_box", "mail_claim", "sign_claim", "random_event":
 		return "basic"
 	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
@@ -261,6 +271,12 @@ func eventDomain(kind string) string {
 		return "water.waterwheel"
 	case "free_water":
 		return "water.free_water"
+	case "pearl_hire":
+		return "basic.pearl.hire"
+	case "pearl_hire_sync":
+		return "basic.pearl.hire"
+	case "pearl_claim":
+		return "basic.pearl.place"
 	case "benefit_box":
 		return "basic.benefit"
 	case "mail_claim":
@@ -386,6 +402,12 @@ func eventLabel(kind string) string {
 		return "水车水滴"
 	case "free_water":
 		return "限时水滴"
+	case "pearl_hire":
+		return "雇佣劳工"
+	case "pearl_hire_sync":
+		return "雇佣同步"
+	case "pearl_claim":
+		return "珍珠领取"
 	case "benefit_box":
 		return "福利箱"
 	case "mail_claim":

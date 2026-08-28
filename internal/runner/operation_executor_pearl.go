@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
@@ -131,7 +133,9 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 		},
 		apply:       rt.runner.state.ApplyV,
 		outcome:     rt.runner.state.PearlHireAttemptApplied,
+		ticketSpent: rt.runner.state.PearlHireTicketDecreased,
 		markFailed:  rt.runner.state.MarkPearlHireFailed,
+		noteUsed:    rt.runner.notePearlHireTicketUsed,
 		lockSession: rt.runner.state.LockPearlHireSession,
 		now:         time.Now,
 	}
@@ -153,6 +157,12 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 	}
 	raw, err := exec.hire(ctx, req)
 	if err != nil {
+		if isPearlHireContestedError(err) {
+			// pearl_tips4 means the candidate was taken by someone else. Ticket
+			// was not spent; exclude only this UID and keep hiring.
+			exec.markFailed(snapshot.TargetUID, clock())
+			return nil, fmt.Errorf("pearlPlace.hire candidate was contested: %w", err)
+		}
 		exec.lockSession("珍珠雇佣请求结果不明确，当前会话已锁定以避免重复扣券")
 		exec.markFailed(snapshot.TargetUID, clock())
 		return nil, fmt.Errorf("pearlPlace.hire: %w", err)
@@ -174,16 +184,44 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 		return nil, fmt.Errorf("%s", reason)
 	}
 	success, failCount, known := exec.outcome(snapshot)
+	ticketSpent := false
+	if exec.ticketSpent != nil {
+		ticketSpent = exec.ticketSpent(snapshot)
+	}
+	noteTicket := func() {
+		if ticketSpent && exec.noteUsed != nil {
+			exec.noteUsed(clock())
+		}
+	}
 	if known && failCount > 0 {
 		exec.markFailed(snapshot.TargetUID, clock())
+		noteTicket()
 		return nil, fmt.Errorf("pearlPlace.hire candidate was contested (hireFailCnt=%d)", failCount)
 	}
 	if !success {
 		exec.lockSession("珍珠雇佣响应未满足票券与槽位后置条件，当前会话已锁定")
 		exec.markFailed(snapshot.TargetUID, clock())
+		noteTicket()
 		return nil, fmt.Errorf("pearlPlace.hire postcondition failed: slot, UID, end time, failure count, or ticket decrement did not match")
 	}
+	noteTicket()
 	return raw, nil
+}
+
+// isPearlHireContestedError reports whether hire failed because the candidate
+// was already taken. That outcome is ticket-safe and must not lock the session.
+func isPearlHireContestedError(err error) bool {
+	var rpcErr *babigame.RPCServerError
+	if !errors.As(err, &rpcErr) || rpcErr == nil {
+		return false
+	}
+	if rpcErr.Envelope.ErrorCodeOfLangJS() == "pearl_tips4" {
+		return true
+	}
+	// Observed pearl_tips4 payloads use "param":[4], which fails the strict
+	// envelope Param object decode; fall back to the tip code in raw M.
+	raw := string(rpcErr.Envelope.M)
+	return strings.Contains(raw, `"code":"pearl_tips4"`) || strings.Contains(raw, `"codeOfLangJs":"pearl_tips4"`)
 }
 
 // pearlHireGoldFallback inspects only namespace 3 field 0, the wire field

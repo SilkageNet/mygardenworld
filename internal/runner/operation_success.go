@@ -150,6 +150,26 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		// Successful pick responses often omit ns19.isPick; mark locally so the
 		// planner does not retry and hit「邮件附件已领取」.
 		r.state.MarkMailPicked(op.TargetID, op.ItemID)
+	case clientproto.RPCPearlPlaceHire.String():
+		kind = "pearl_hire"
+		label = "雇佣劳工"
+		message = pearlHireSuccessMessage(op, r.state)
+	case clientproto.RPCOpptGetDetailOppts.String(),
+		clientproto.RPCPearlGetRecommendList.String(),
+		clientproto.RPCPearlGetHireStateByUids.String():
+		kind = "pearl_hire_sync"
+		label = operationEventLabel(op)
+		message = "完成"
+	case clientproto.RPCFrdEnter.String():
+		if op.Domain == "basic.pearl.hire" {
+			kind = "pearl_hire_sync"
+			label = operationEventLabel(op)
+			message = "完成"
+		}
+	case clientproto.RPCPearlPlaceRecvOneKey.String():
+		kind = "pearl_claim"
+		label = "珍珠领取"
+		message = pearlClaimSuccessMessage(result.pearlBefore, result.pearlBeforeSet, r.state)
 	}
 	r.emit(Event{
 		Kind:        kind,
@@ -591,6 +611,77 @@ func freeWaterClaimSuccessMessage(op *automation.PlannedOp, waterBefore int32, s
 		parts = append(parts, fmt.Sprintf("当前 %d", after))
 	}
 	return strings.Join(parts, " ")
+}
+
+// pearlInventoryItemID is the observed inventory item for pearls.
+const pearlInventoryItemID int32 = 1006
+
+func pearlHireSuccessMessage(op *automation.PlannedOp, st *state.State) string {
+	parts := []string{"雇佣劳工成功"}
+	if op != nil && op.TargetID > 0 {
+		parts = append(parts, fmt.Sprintf("槽位=%d", op.TargetID))
+	}
+	if op != nil && op.TargetUID > 0 {
+		parts = append(parts, fmt.Sprintf("劳工=%s", pearlHireWorkerLabel(op.TargetUID, st)))
+	}
+	if st != nil && op != nil && op.TargetID > 0 {
+		if place, ok := st.PearlPlaces()[op.TargetID]; ok && place.EveryMakeNumObserved && place.EveryMakeNum > 0 {
+			parts = append(parts, fmt.Sprintf("产出=%d/次", place.EveryMakeNum))
+			if total, ok := pearlHireExpectedPearls(place.EveryMakeNum); ok {
+				parts = append(parts, fmt.Sprintf("预计获取珍珠=%d", total))
+			}
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func pearlClaimSuccessMessage(pearlBefore int32, pearlBeforeSet bool, st *state.State) string {
+	parts := []string{"一键领取珍珠产出成功"}
+	if st == nil || !pearlBeforeSet {
+		return strings.Join(parts, " ")
+	}
+	after := st.Inventory()[pearlInventoryItemID]
+	if gain := after - pearlBefore; gain > 0 {
+		parts = append(parts, fmt.Sprintf("获取珍珠=+%d", gain))
+	} else {
+		parts = append(parts, "获取珍珠=0")
+	}
+	parts = append(parts, fmt.Sprintf("当前=%d", after))
+	return strings.Join(parts, " ")
+}
+
+func pearlHireWorkerLabel(uid int64, st *state.State) string {
+	if uid <= 0 {
+		return ""
+	}
+	if st != nil {
+		if profile, ok := st.PearlHire().Profiles[uid]; ok {
+			name := strings.TrimSpace(profile.Name)
+			if name == "" {
+				name = fmt.Sprintf("%d", uid)
+			}
+			if profile.LevelObserved && profile.Level > 0 {
+				return fmt.Sprintf("%s(Lv.%d)", name, profile.Level)
+			}
+			return name
+		}
+	}
+	return fmt.Sprintf("%d", uid)
+}
+
+func pearlHireExpectedPearls(everyMakeNum int32) (int64, bool) {
+	if everyMakeNum <= 0 {
+		return 0, false
+	}
+	timing, ok := state.PearlProductionTimingFromCatalog()
+	if !ok || timing.HireTimeSeconds <= 0 || timing.GatherCDSeconds <= 0 {
+		return 0, false
+	}
+	cycles := timing.HireTimeSeconds / timing.GatherCDSeconds
+	if cycles <= 0 {
+		return 0, false
+	}
+	return cycles * int64(everyMakeNum), true
 }
 
 // flowerUpgradeSuccessMessage formats "花名 lvN-lvM" for cultivate.upgrade logs.

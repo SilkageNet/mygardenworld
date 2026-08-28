@@ -19,6 +19,9 @@ func TestWorkspaceLogCategoryUsesStableProductBoundaries(t *testing.T) {
 		{"race", "union.race", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_UNION},
 		{"activity", "activity.cyclic_note", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ACTIVITIES},
 		{"basic", "basic.inventory", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_WAREHOUSE},
+		{"basic", "basic.pearl.hire", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_HIRE},
+		{"basic", "basic.pearl.place", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_HIRE},
+		{"basic", "basic.pearl.free", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_WAREHOUSE},
 		{"system", "policy", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_SYSTEM},
 	}
 	for _, test := range tests {

@@ -44,11 +44,14 @@ func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	if policy.GetMaxHireLevel() < 0 {
 		return blockedPearlHire(intent, "雇佣等级上限不能为负数"), true
 	}
+	if policy.GetDailyHireTicketLimit() < 0 {
+		return blockedPearlHire(intent, "每日雇佣券上限不能为负数"), true
+	}
 	config, ok := state.PearlHireConfigFromCatalog()
 	if !ok || config.TicketItemID != 1003 {
 		return blockedPearlHire(intent, "珍珠雇佣目录常量缺失或雇佣券不是已实测的 item 1003"), true
 	}
-	view := s.PearlHire()
+	view := s.PearlHireAt(now)
 	if view.RoleID <= 0 {
 		return blockedPearlHire(intent, "自己的 UID 尚未可靠同步，无法排除 self 候选"), true
 	}
@@ -62,6 +65,9 @@ func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	if view.TicketCount < 1 {
 		return blockedPearlHire(intent, "雇佣券 item 1003 不足，不会购买或使用金币回退"), true
 	}
+	if limit := policy.GetDailyHireTicketLimit(); limit > 0 && view.TicketUsedToday >= limit {
+		return blockedPearlHire(intent, fmt.Sprintf("今日已使用雇佣券 %d 张，已达到每日上限 %d", view.TicketUsedToday, limit)), true
+	}
 
 	activeWorkers, activeUIDs, workersKnown := pearlActiveWorkers(view.Places, now)
 	if !workersKnown {
@@ -70,9 +76,16 @@ func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	if activeWorkers >= policy.GetMaxHireTicketUsage() {
 		return blockedPearlHire(intent, fmt.Sprintf("当前在岗 %d 人，已达到策略上限 %d", activeWorkers, policy.GetMaxHireTicketUsage())), true
 	}
-	placeID, ok := firstSafePearlHireSlot(view, config)
+	placeID, ok := firstSafePearlHireSlot(view, config, now)
 	if !ok {
 		return blockedPearlHire(intent, "没有已解锁且空闲的珍珠槽位；不会自动解锁槽位"), true
+	}
+	if view.WorldEmptyUntilMs > now.UnixMilli() {
+		wait := time.UnixMilli(view.WorldEmptyUntilMs).Sub(now).Round(time.Second)
+		if wait < time.Second {
+			wait = time.Second
+		}
+		return blockedPearlHire(intent, fmt.Sprintf("世界暂无符合条件的玩家，%s 后重新拉取候选", wait)), true
 	}
 
 	seen := make(map[int64]struct{})
@@ -100,7 +113,8 @@ func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	if op, done := planPearlCandidateSource(view, config, policy, now, intent, "enemy", "仇人", enemyUIDs, placeID); done {
 		return op, true
 	}
-	return blockedPearlHire(intent, "好友、推荐和三日内仇人中暂无满足等级、保护期与失败冷却门槛的候选"), true
+	s.MarkPearlHireWorldEmpty(now)
+	return blockedPearlHire(intent, "好友、推荐和三日内仇人中暂无符合条件的候选，1 分钟后重新拉取"), true
 }
 
 // ValidateSafePearlHire reruns the same planner gates immediately before an
@@ -251,12 +265,13 @@ func pearlActiveWorkers(places map[int32]state.PearlPlaceView, now time.Time) (i
 	return active, activeUIDs, true
 }
 
-func firstSafePearlHireSlot(view state.PearlHireView, config state.PearlHireConfig) (int32, bool) {
+func firstSafePearlHireSlot(view state.PearlHireView, config state.PearlHireConfig, now time.Time) (int32, bool) {
 	ids := make([]int32, 0, len(config.Slots))
 	for id := range config.Slots {
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	nowMs := now.UnixMilli()
 	for _, id := range ids {
 		slotConfig := config.Slots[id]
 		place, observed := view.Places[id]
@@ -266,12 +281,19 @@ func firstSafePearlHireSlot(view state.PearlHireView, config state.PearlHireConf
 		if !observed || !place.LaborUIDObserved || !place.LaborEndTimeObserved || slotConfig.MonthlyCardUnlock {
 			continue
 		}
-		if place.LaborUID != 0 || place.LaborEndTime != 0 {
-			continue
+		if pearlPlaceHireSlotFree(place, nowMs) {
+			return id, true
 		}
-		return id, true
 	}
 	return 0, false
+}
+
+func pearlPlaceHireSlotFree(place state.PearlPlaceView, nowMs int64) bool {
+	if place.LaborUID == 0 && place.LaborEndTime == 0 {
+		return true
+	}
+	// Shift ended: the slot can be hired again even if labor fields linger.
+	return place.LaborUID > 0 && place.LaborEndTime > 0 && place.LaborEndTime <= nowMs
 }
 
 func filterPearlCandidateUIDs(input []int64, view state.PearlHireView, activeUIDs map[int64]struct{}, seen map[int64]struct{}, now time.Time) []int64 {

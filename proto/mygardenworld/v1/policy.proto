@@ -77,11 +77,15 @@ message PearlPolicy {
   bool free_enabled = 1;
   bool auto_hire_enabled = 2;
   int32 max_hire_level = 3;
+  // Max concurrent in-shift laborers. 0 disables automatic hiring.
   int32 max_hire_ticket_usage = 4;
   bool draw_enabled = 5;
   bool protect_enabled = 6;
   bool auto_buy_hire_ticket = 7;
   int64 max_spend_diamond = 8;
+  // Max hire tickets (item 1003) spent since 00:00 Asia/Shanghai. 0 means unlimited.
+  // Counts continuous consumption for the calendar day; restarts must not reset it.
+  int32 daily_hire_ticket_limit = 9;
 }
 
 message ShopPolicy {

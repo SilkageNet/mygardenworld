@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/workspace_basic.proto.
  */
 export const file_mygardenworld_v1_workspace_basic: GenFile = /*@__PURE__*/
-  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL3dvcmtzcGFjZV9iYXNpYy5wcm90bxIQbXlnYXJkZW53b3JsZC52MSL6BwoJQmFzaWNWaWV3EhIKCmFjY291bnRfaWQYASABKAMSFAoMYWNjb3VudF9uYW1lGAIgASgJEg8KB3JvbGVfaWQYAyABKAMSLwoLY2FwdHVyZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBGdvbGQYBSABKAUSEwoLd2F0ZXJfZHJvcHMYBiABKAUSGQoRd2F0ZXJfZHJvcHNfdG90YWwYByABKAUSGwoTd2F0ZXJfZHJvcHNfbmV4dF9tcxgIIAEoAxINCgVsZXZlbBgJIAEoBRISCgpleHBlcmllbmNlGAogASgFEiAKGGV4cGVyaWVuY2VfdG9fbmV4dF9sZXZlbBgLIAEoBRIdChVuZXh0X2xldmVsX2V4cGVyaWVuY2UYDCABKAUSEwoLbGV2ZWxfbWF4ZWQYDSABKAgSFQoNZGlhbW9uZHNfZnJlZRgOIAEoBRIVCg1kaWFtb25kc19wYWlkGA8gASgFEgsKA3ZpcBgQIAEoBRIPCgd2aXBfZXhwGBEgASgFEhYKDm5vYmxlX2VsaWdpYmxlGBIgASgIEhsKE29ic2VydmVkX25hbWVzcGFjZXMYEyADKAkSGQoRdW5rbm93bl9ycGNfY291bnQYFCABKAUSHwoXdW5rbm93bl9uYW1lc3BhY2VfY291bnQYFSABKAUSOAoLZGlhZ25vc3RpY3MYFiABKAsyIy5teWdhcmRlbndvcmxkLnYxLlJ1bm5lckRpYWdub3N0aWNzEjcKD2RvbWFpbl9zdGF0dXNlcxgXIAMoCzIeLm15Z2FyZGVud29ybGQudjEuRG9tYWluU3RhdHVzEj4KEnBsYW5uZWRfb3BlcmF0aW9ucxgYIAMoCzIiLm15Z2FyZGVud29ybGQudjEuUGxhbm5lZE9wZXJhdGlvbhI7ChBibG9ja2luZ19zdW1tYXJ5GBkgASgLMiEubXlnYXJkZW53b3JsZC52MS5CbG9ja2luZ1N1bW1hcnkSGwoTcmVwdXRhdGlvbl9vYnNlcnZlZBgaIAEoCBIYChByZXB1dGF0aW9uX3Njb3JlGBsgASgFEiQKHHJlcHV0YXRpb25fbGFzdF9zeW5jX3RpbWVfbXMYHCABKAMSJAoccmVwdXRhdGlvbl9sYXN0X3ZpZXdfdGltZV9tcxgdIAEoAxJDChJydW50aW1lX3N0YXRpc3RpY3MYHiABKAsyJy5teWdhcmRlbndvcmxkLnYxLlJ1bnRpbWVTdGF0aXN0aWNzVmlldxI4Cg1wZW5kaW5nX3Rhc2tzGB8gAygLMiEubXlnYXJkZW53b3JsZC52MS5QZW5kaW5nVGFza1ZpZXdCjAEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhNXb3Jrc3BhY2VCYXNpY1Byb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp, file_mygardenworld_v1_workspace_common]);
+  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL3dvcmtzcGFjZV9iYXNpYy5wcm90bxIQbXlnYXJkZW53b3JsZC52MSK1CAoJQmFzaWNWaWV3EhIKCmFjY291bnRfaWQYASABKAMSFAoMYWNjb3VudF9uYW1lGAIgASgJEg8KB3JvbGVfaWQYAyABKAMSLwoLY2FwdHVyZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBGdvbGQYBSABKAUSEwoLd2F0ZXJfZHJvcHMYBiABKAUSGQoRd2F0ZXJfZHJvcHNfdG90YWwYByABKAUSGwoTd2F0ZXJfZHJvcHNfbmV4dF9tcxgIIAEoAxINCgVsZXZlbBgJIAEoBRISCgpleHBlcmllbmNlGAogASgFEiAKGGV4cGVyaWVuY2VfdG9fbmV4dF9sZXZlbBgLIAEoBRIdChVuZXh0X2xldmVsX2V4cGVyaWVuY2UYDCABKAUSEwoLbGV2ZWxfbWF4ZWQYDSABKAgSFQoNZGlhbW9uZHNfZnJlZRgOIAEoBRIVCg1kaWFtb25kc19wYWlkGA8gASgFEgsKA3ZpcBgQIAEoBRIPCgd2aXBfZXhwGBEgASgFEhYKDm5vYmxlX2VsaWdpYmxlGBIgASgIEhsKE29ic2VydmVkX25hbWVzcGFjZXMYEyADKAkSGQoRdW5rbm93bl9ycGNfY291bnQYFCABKAUSHwoXdW5rbm93bl9uYW1lc3BhY2VfY291bnQYFSABKAUSOAoLZGlhZ25vc3RpY3MYFiABKAsyIy5teWdhcmRlbndvcmxkLnYxLlJ1bm5lckRpYWdub3N0aWNzEjcKD2RvbWFpbl9zdGF0dXNlcxgXIAMoCzIeLm15Z2FyZGVud29ybGQudjEuRG9tYWluU3RhdHVzEj4KEnBsYW5uZWRfb3BlcmF0aW9ucxgYIAMoCzIiLm15Z2FyZGVud29ybGQudjEuUGxhbm5lZE9wZXJhdGlvbhI7ChBibG9ja2luZ19zdW1tYXJ5GBkgASgLMiEubXlnYXJkZW53b3JsZC52MS5CbG9ja2luZ1N1bW1hcnkSGwoTcmVwdXRhdGlvbl9vYnNlcnZlZBgaIAEoCBIYChByZXB1dGF0aW9uX3Njb3JlGBsgASgFEiQKHHJlcHV0YXRpb25fbGFzdF9zeW5jX3RpbWVfbXMYHCABKAMSJAoccmVwdXRhdGlvbl9sYXN0X3ZpZXdfdGltZV9tcxgdIAEoAxJDChJydW50aW1lX3N0YXRpc3RpY3MYHiABKAsyJy5teWdhcmRlbndvcmxkLnYxLlJ1bnRpbWVTdGF0aXN0aWNzVmlldxI4Cg1wZW5kaW5nX3Rhc2tzGB8gAygLMiEubXlnYXJkZW53b3JsZC52MS5QZW5kaW5nVGFza1ZpZXcSOQoKcGVhcmxfaGlyZRggIAEoCzIlLm15Z2FyZGVud29ybGQudjEuUGVhcmxIaXJlU3RhdHVzVmlldyKXAQoTUGVhcmxIaXJlU3RhdHVzVmlldxIUCgx0aWNrZXRfY291bnQYASABKAUSGQoRdGlja2V0X3VzZWRfdG9kYXkYAiABKAUSGgoSZGFpbHlfdGlja2V0X2xpbWl0GAMgASgFEjMKBXNsb3RzGAQgAygLMiQubXlnYXJkZW53b3JsZC52MS5QZWFybExhYm9yU2xvdFZpZXcieAoSUGVhcmxMYWJvclNsb3RWaWV3EhAKCHBsYWNlX2lkGAEgASgFEhEKCWxhYm9yX3VpZBgCIAEoAxISCgpsYWJvcl9uYW1lGAMgASgJEhkKEWxhYm9yX2VuZF90aW1lX21zGAQgASgDEg4KBmFjdGl2ZRgFIAEoCEKMAQoUY29tLm15Z2FyZGVud29ybGQudjFCE1dvcmtzcGFjZUJhc2ljUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_workspace_common]);
 
 /**
  * @generated from message mygardenworld.v1.BasicView
@@ -174,6 +174,11 @@ export type BasicView = Message<"mygardenworld.v1.BasicView"> & {
    * @generated from field: repeated mygardenworld.v1.PendingTaskView pending_tasks = 31;
    */
   pendingTasks: PendingTaskView[];
+
+  /**
+   * @generated from field: mygardenworld.v1.PearlHireStatusView pearl_hire = 32;
+   */
+  pearlHire?: PearlHireStatusView | undefined;
 };
 
 /**
@@ -182,4 +187,75 @@ export type BasicView = Message<"mygardenworld.v1.BasicView"> & {
  */
 export const BasicViewSchema: GenMessage<BasicView> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_workspace_basic, 0);
+
+/**
+ * PearlHireStatusView exposes labor-slot occupancy for the basic workspace.
+ *
+ * @generated from message mygardenworld.v1.PearlHireStatusView
+ */
+export type PearlHireStatusView = Message<"mygardenworld.v1.PearlHireStatusView"> & {
+  /**
+   * @generated from field: int32 ticket_count = 1;
+   */
+  ticketCount: number;
+
+  /**
+   * @generated from field: int32 ticket_used_today = 2;
+   */
+  ticketUsedToday: number;
+
+  /**
+   * @generated from field: int32 daily_ticket_limit = 3;
+   */
+  dailyTicketLimit: number;
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.PearlLaborSlotView slots = 4;
+   */
+  slots: PearlLaborSlotView[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.PearlHireStatusView.
+ * Use `create(PearlHireStatusViewSchema)` to create a new message.
+ */
+export const PearlHireStatusViewSchema: GenMessage<PearlHireStatusView> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace_basic, 1);
+
+/**
+ * @generated from message mygardenworld.v1.PearlLaborSlotView
+ */
+export type PearlLaborSlotView = Message<"mygardenworld.v1.PearlLaborSlotView"> & {
+  /**
+   * @generated from field: int32 place_id = 1;
+   */
+  placeId: number;
+
+  /**
+   * @generated from field: int64 labor_uid = 2;
+   */
+  laborUid: bigint;
+
+  /**
+   * @generated from field: string labor_name = 3;
+   */
+  laborName: string;
+
+  /**
+   * @generated from field: int64 labor_end_time_ms = 4;
+   */
+  laborEndTimeMs: bigint;
+
+  /**
+   * @generated from field: bool active = 5;
+   */
+  active: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.PearlLaborSlotView.
+ * Use `create(PearlLaborSlotViewSchema)` to create a new message.
+ */
+export const PearlLaborSlotViewSchema: GenMessage<PearlLaborSlotView> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace_basic, 2);
 

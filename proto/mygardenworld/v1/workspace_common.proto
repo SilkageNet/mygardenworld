@@ -54,6 +54,8 @@ enum WorkspaceLogCategory {
   WORKSPACE_LOG_CATEGORY_ACTIVITIES = 6;
   WORKSPACE_LOG_CATEGORY_WAREHOUSE = 7;
   WORKSPACE_LOG_CATEGORY_SYSTEM = 8;
+  // Pearl labor hire and its production claim events.
+  WORKSPACE_LOG_CATEGORY_HIRE = 9;
 }
 
 message AccountStatus {

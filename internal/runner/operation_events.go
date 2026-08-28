@@ -20,6 +20,8 @@ type operationAttempt struct {
 	goldBefore                 int32
 	levelBefore                int32
 	waterDropsBefore           int32
+	pearlBefore                int32
+	pearlBeforeSet             bool
 	scoreBefore                int32
 	scoreBeforeSet             bool
 	friendStealUsedBefore      int32
@@ -573,7 +575,8 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "failed",
-			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s%s 失败: %v", opDesc(op), r.opSuffix(op), err),
 			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error()})

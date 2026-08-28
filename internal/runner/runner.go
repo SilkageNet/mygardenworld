@@ -72,6 +72,8 @@ func WorkspaceLogCategory(category, domain string) pb.WorkspaceLogCategory {
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ORDERS
 	case category == "plant", category == "water", strings.HasPrefix(domain, "farm"), strings.Contains(domain, "land"), strings.Contains(domain, "cultivat"), strings.Contains(domain, "friend"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_GARDEN
+	case strings.Contains(domain, "pearl.hire"), strings.Contains(domain, "pearl.place"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_HIRE
 	case strings.Contains(domain, "inventory"), strings.Contains(domain, "resource"), strings.Contains(domain, "warehouse"), strings.Contains(domain, "market"), strings.Contains(domain, "shop"), strings.Contains(domain, "pearl"), strings.Contains(domain, "zoo"), strings.Contains(domain, "mail"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_WAREHOUSE
 	default:

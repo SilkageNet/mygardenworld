@@ -568,6 +568,8 @@ export function categoryLabel(category: string) {
       return "种植";
     case "order":
       return "订单";
+    case "hire":
+      return "雇佣";
     case "union":
       return "公会";
     case "race":

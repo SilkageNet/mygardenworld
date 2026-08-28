@@ -288,7 +288,47 @@ func buildBasicView(model *accountReadModel) *pb.BasicView {
 		resp.ReputationLastSyncTimeMs = rep.LastSyncTimeMs
 		resp.ReputationLastViewTimeMs = rep.LastViewTimeMs
 	}
+	resp.PearlHire = buildPearlHireStatusView(st, model.policy.GetBasic().GetPearl(), now)
 	return resp
+}
+
+func buildPearlHireStatusView(st *state.State, policy *pb.PearlPolicy, now time.Time) *pb.PearlHireStatusView {
+	if st == nil {
+		return nil
+	}
+	hire := st.PearlHireAt(now)
+	out := &pb.PearlHireStatusView{
+		TicketCount:      hire.TicketCount,
+		TicketUsedToday:  hire.TicketUsedToday,
+		DailyTicketLimit: policy.GetDailyHireTicketLimit(),
+	}
+	ids := make([]int32, 0, len(hire.Places))
+	for id := range hire.Places {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	nowMs := now.UnixMilli()
+	for _, id := range ids {
+		place := hire.Places[id]
+		if !place.LaborUIDObserved || !place.LaborEndTimeObserved {
+			continue
+		}
+		if place.LaborUID <= 0 && place.LaborEndTime <= 0 {
+			out.Slots = append(out.Slots, &pb.PearlLaborSlotView{PlaceId: id})
+			continue
+		}
+		slot := &pb.PearlLaborSlotView{
+			PlaceId:         id,
+			LaborUid:        place.LaborUID,
+			LaborEndTimeMs:  place.LaborEndTime,
+			Active:          place.LaborUID > 0 && place.LaborEndTime > nowMs,
+		}
+		if profile, ok := hire.Profiles[place.LaborUID]; ok {
+			slot.LaborName = profile.Name
+		}
+		out.Slots = append(out.Slots, slot)
+	}
+	return out
 }
 
 func buildGardenView(model *accountReadModel) *pb.GardenView {

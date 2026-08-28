@@ -31,6 +31,20 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "水车水滴"
 	case op.Kind == clientproto.RPCFreeWaterRecv.String() || op.Domain == "basic.free_water":
 		return "限时水滴"
+	case op.Kind == clientproto.RPCPearlPlaceHire.String():
+		return "雇佣劳工"
+	case op.Kind == clientproto.RPCOpptGetDetailOppts.String():
+		return "同步候选人"
+	case op.Kind == clientproto.RPCPearlGetRecommendList.String():
+		return "同步推荐"
+	case op.Kind == clientproto.RPCPearlGetHireStateByUids.String():
+		return "同步雇佣状态"
+	case op.Kind == clientproto.RPCFrdEnter.String() && op.Domain == "basic.pearl.hire":
+		return "同步好友候选人"
+	case op.Domain == "basic.pearl.hire":
+		return "雇佣劳工"
+	case op.Kind == clientproto.RPCPearlPlaceRecvOneKey.String() || op.Domain == "basic.pearl.place":
+		return "珍珠领取"
 	case op.Kind == clientproto.RPCActCyclicStoryEnter.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecv.String(),
@@ -95,6 +109,17 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		}
 		if op.TargetID > 0 {
 			parts = append(parts, fmt.Sprintf("槽位=%d", op.TargetID))
+		}
+		if len(parts) > 0 {
+			return " (" + strings.Join(parts, " ") + ")"
+		}
+	case clientproto.RPCPearlPlaceHire.String():
+		parts := make([]string, 0, 2)
+		if op.TargetID > 0 {
+			parts = append(parts, fmt.Sprintf("槽位=%d", op.TargetID))
+		}
+		if op.TargetUID > 0 {
+			parts = append(parts, fmt.Sprintf("劳工=%d", op.TargetUID))
 		}
 		if len(parts) > 0 {
 			return " (" + strings.Join(parts, " ") + ")"

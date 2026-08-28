@@ -121,10 +121,14 @@
 //	115.6[]      recommendation UID list (whole-list replacement)
 //
 // Candidate summaries and hire states are trusted for 30 seconds. A contested
-// UID is cooled for 60 seconds. `pearlPlace.hire` must carry the exact observed
-// item 1003 x1 cost gate. Only this RPC inspects namespace `3.0` as the
-// client-side `$ext.iv`: exact zero is safe; nonzero or malformed-present data
-// locks automatic hiring for the rest of the session.
+// or failed UID is excluded for the rest of the login session. When no eligible
+// world candidate remains, automation waits one minute, invalidates candidate
+// caches, and re-pulls until free slots are filled or the daily ticket limit is
+// reached. Expired labor shifts free their slot for the next hire.
+// `pearlPlace.hire` must carry the exact observed item 1003 x1 cost gate. Only
+// this RPC inspects namespace `3.0` as the client-side `$ext.iv`: exact zero is
+// safe; nonzero or malformed-present data locks automatic hiring for the rest
+// of the session.
 //
 // # Friend Flower Pick State (Namespaces 24, 110, 111)
 //

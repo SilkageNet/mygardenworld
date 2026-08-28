@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -234,15 +235,22 @@ func (s *State) applyPearlEnemiesLocked(rawPearl json.RawMessage) {
 	s.pearlEnemiesObserved = true
 }
 
-// PearlHire returns a defensive view of all candidate state. Local failure
-// entries that have expired are retained in State but omitted from the view;
-// exact boundary handling therefore remains deterministic for callers.
+// PearlHire returns a defensive view of all candidate state. Failed UIDs are
+// retained for the whole login session and always appear in FailedUntilMs.
+// TicketUsedToday is evaluated with time.Now; prefer PearlHireAt when the
+// caller already has a planning clock.
 func (s *State) PearlHire() PearlHireView {
+	return s.PearlHireAt(time.Now())
+}
+
+// PearlHireAt returns PearlHire with ticket-used-today evaluated at now.
+func (s *State) PearlHireAt(now time.Time) PearlHireView {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	view := PearlHireView{
 		RoleID:                s.roleID,
 		TicketCount:           s.inventory[pearlHireTicketItemID],
+		TicketUsedToday:       s.pearlHireTicketUsedTodayLocked(now),
 		NobleEligible:         s.nobleEligibleLocked(),
 		Places:                make(map[int32]PearlPlaceView, len(s.pearlPlaces)),
 		FriendUIDs:            s.pearlFriendUIDsLocked(),
@@ -254,6 +262,7 @@ func (s *State) PearlHire() PearlHireView {
 		RecommendObservedAtMs: s.pearlRecommendAtMs,
 		EnemiesObserved:       s.pearlEnemiesObserved,
 		FailedUntilMs:         make(map[int64]int64, len(s.pearlHireFailedUntil)),
+		WorldEmptyUntilMs:     s.pearlHireWorldEmptyUntil,
 		SessionLocked:         s.pearlHireSessionLocked,
 		SessionLockReason:     s.pearlHireLockReason,
 	}
@@ -361,9 +370,9 @@ func (s *State) pearlFriendUIDsLocked() []int64 {
 	return out
 }
 
-// MarkPearlHireFailed protects a contested UID from being retried for the
-// observed client cooldown window. Calls at the exact expiry instant are
-// eligible again because planners compare with time.Time.After.
+// MarkPearlHireFailed excludes a contested or failed UID from automatic hiring
+// for the rest of the login session. Profile and hire-state caches for that UID
+// are cleared so a later world re-pull must re-observe them if the session resets.
 func (s *State) MarkPearlHireFailed(uid int64, at time.Time) {
 	if uid <= 0 || at.IsZero() {
 		return
@@ -372,10 +381,105 @@ func (s *State) MarkPearlHireFailed(uid int64, at time.Time) {
 	if s.pearlHireFailedUntil == nil {
 		s.pearlHireFailedUntil = make(map[int64]int64)
 	}
-	s.pearlHireFailedUntil[uid] = at.Add(time.Minute).UnixMilli()
+	s.pearlHireFailedUntil[uid] = math.MaxInt64
 	delete(s.pearlHireStates, uid)
 	delete(s.pearlProfiles, uid)
 	s.mu.Unlock()
+}
+
+// NotePearlHireTicketUsed records one successful ticket spend for the calendar
+// day (00:00 Asia/Shanghai) and clears any empty-world retry wait so hiring
+// can continue into free slots.
+func (s *State) NotePearlHireTicketUsed(at time.Time) {
+	if at.IsZero() {
+		return
+	}
+	s.mu.Lock()
+	day := PearlHireTicketDayID(at)
+	if s.pearlHireTicketUsedDayID != day {
+		s.pearlHireTicketUsedDayID = day
+		s.pearlHireTicketUsedToday = 0
+	}
+	s.pearlHireTicketUsedToday++
+	s.pearlHireWorldEmptyUntil = 0
+	s.mu.Unlock()
+}
+
+// SetPearlHireTicketUsed replaces the in-memory calendar-day ticket spend
+// counter. Callers hydrate this from durable storage on runner start so the
+// daily limit survives process restarts.
+func (s *State) SetPearlHireTicketUsed(dayID, used int32) {
+	if dayID <= 0 || used < 0 {
+		return
+	}
+	s.mu.Lock()
+	s.pearlHireTicketUsedDayID = dayID
+	s.pearlHireTicketUsedToday = used
+	s.mu.Unlock()
+}
+
+// ClearPearlHireWorldEmptyWait drops the empty-world retry gate after a ticket
+// was actually spent so hiring can continue into remaining free slots.
+func (s *State) ClearPearlHireWorldEmptyWait() {
+	s.mu.Lock()
+	s.pearlHireWorldEmptyUntil = 0
+	s.mu.Unlock()
+}
+
+// PearlHireTicketDecreased reports whether inventory item 1003 dropped by
+// exactly one relative to the pre-hire snapshot.
+func (s *State) PearlHireTicketDecreased(snapshot PearlHireAttemptSnapshot) bool {
+	if snapshot.TicketCount <= 0 {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.inventory[pearlHireTicketItemID] == snapshot.TicketCount-1
+}
+
+// MarkPearlHireWorldEmpty invalidates candidate source caches and schedules the
+// next world re-pull one minute later.
+func (s *State) MarkPearlHireWorldEmpty(at time.Time) {
+	if at.IsZero() {
+		return
+	}
+	s.mu.Lock()
+	s.pearlHireWorldEmptyUntil = at.Add(time.Minute).UnixMilli()
+	s.pearlFriendsObserved = false
+	s.pearlFriendRelations = make(map[string]pearlFriendRelation)
+	s.pearlFriendOrder = nil
+	s.pearlProfiles = make(map[int64]*PearlCandidateProfile)
+	s.pearlHireStates = make(map[int64]*PearlCandidateHireState)
+	s.pearlRecommendUIDs = nil
+	s.pearlRecommendAtMs = 0
+	s.pearlRecommendObserved = false
+	s.pearlEnemies = make(map[int64]int64)
+	s.pearlEnemiesObserved = false
+	s.mu.Unlock()
+}
+
+func (s *State) pearlHireTicketUsedTodayLocked(now time.Time) int32 {
+	if now.IsZero() || s.pearlHireTicketUsedDayID == 0 {
+		return 0
+	}
+	if s.pearlHireTicketUsedDayID != PearlHireTicketDayID(now) {
+		return 0
+	}
+	return s.pearlHireTicketUsedToday
+}
+
+// PearlHireTicketDayID is the Asia/Shanghai calendar day (yyyyMMdd) used by the
+// daily hire-ticket limit. The counter resets at 00:00, not on runner restart.
+func PearlHireTicketDayID(now time.Time) int32 {
+	return calendarDayID(now)
+}
+
+// PearlHireTicketDayStart is 00:00 Asia/Shanghai for the calendar day that
+// contains now.
+func PearlHireTicketDayStart(now time.Time) time.Time {
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, local.Location())
 }
 
 // LockPearlHireSession disables every later automatic hire in this login
@@ -391,7 +495,9 @@ func (s *State) LockPearlHireSession(reason string) {
 }
 
 // ResetPearlHireSession drops all short-lived candidate state, failure
-// cooldowns, and the gold-fallback lock when a genuinely new session starts.
+// exclusions, empty-world waits, and the gold-fallback lock when a genuinely
+// new session starts. Daily ticket usage is retained across reconnects and
+// process restarts via durable storage.
 func (s *State) ResetPearlHireSession() {
 	s.mu.Lock()
 	s.pearlFriendRelations = make(map[string]pearlFriendRelation)
@@ -405,6 +511,7 @@ func (s *State) ResetPearlHireSession() {
 	s.pearlEnemies = make(map[int64]int64)
 	s.pearlEnemiesObserved = false
 	s.pearlHireFailedUntil = make(map[int64]int64)
+	s.pearlHireWorldEmptyUntil = 0
 	s.pearlHireSessionLocked = false
 	s.pearlHireLockReason = ""
 	s.mu.Unlock()

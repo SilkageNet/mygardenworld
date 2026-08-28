@@ -163,6 +163,9 @@ type assetState struct {
 	pearlEnemies             map[int64]int64
 	pearlEnemiesObserved     bool
 	pearlHireFailedUntil     map[int64]int64
+	pearlHireWorldEmptyUntil int64
+	pearlHireTicketUsedToday int32
+	pearlHireTicketUsedDayID int32
 	pearlHireSessionLocked   bool
 	pearlHireLockReason      string
 	roadGrowReceived         map[int32]bool

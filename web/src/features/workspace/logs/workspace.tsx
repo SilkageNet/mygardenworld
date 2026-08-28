@@ -17,6 +17,7 @@ const CATEGORY_TABS: Array<{ value: WorkspaceLogCategory; label: string }> = [
   { value: WorkspaceLogCategory.BASIC, label: "基础" },
   { value: WorkspaceLogCategory.GARDEN, label: "花园" },
   { value: WorkspaceLogCategory.ORDERS, label: "订单" },
+  { value: WorkspaceLogCategory.HIRE, label: "雇佣" },
   { value: WorkspaceLogCategory.UNION, label: "公会" },
   { value: WorkspaceLogCategory.ACTIVITIES, label: "活动" },
   { value: WorkspaceLogCategory.WAREHOUSE, label: "仓库" },

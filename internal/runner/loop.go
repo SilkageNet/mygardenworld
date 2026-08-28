@@ -231,6 +231,10 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 		waterDrops, _, _ := r.state.WaterDrops()
 		attempt.waterDropsBefore = waterDrops
 	}
+	if op.Kind == clientproto.RPCPearlPlaceRecvOneKey.String() {
+		attempt.pearlBefore = r.state.Inventory()[pearlInventoryItemID]
+		attempt.pearlBeforeSet = true
+	}
 	if op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String() {
 		if view, ok := r.state.CyclicStoryView(attempt.startedAt); ok && view.Valid {
 			attempt.scoreBefore = view.Score
