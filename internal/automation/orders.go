@@ -218,7 +218,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			if flowerArtAutoListActive(order.GetFlowerArt(), now) {
 				for _, rackID := range s.EmptyFlowerRackSlotIDs() {
 					if artID, count, ok := bestRackArt(s, order.GetFlowerArt(), ledger); ok {
-						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
+						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", flowerRackSellPriority(goal), rackID, artID, count)
 						sell.Category = CategoryOrder
 						ops = append(ops, sell)
 						break
@@ -294,6 +294,22 @@ func flowerRackClaimPriority(goal Goal) int32 {
 	return 10500 + goal.Priority
 }
 
+// flowerRackSellPriorityBase is chosen above customer-order craft (11000+90+150)
+// but below customer finish (11000+90+200) so racks fill when orders are not
+// ready to deliver. Goal.Priority only breaks ties within flower-art work.
+const (
+	flowerRackSellPriorityBase  int32 = 11280
+	flowerRackCraftPriorityBase int32 = 11260
+)
+
+func flowerRackSellPriority(goal Goal) int32 {
+	return flowerRackSellPriorityBase + goal.Priority
+}
+
+func flowerRackCraftPriority(goal Goal) int32 {
+	return flowerRackCraftPriorityBase + goal.Priority
+}
+
 func craftOperationForFlowerRack(s *state.State, policy *pb.FlowerArtPolicy, goal Goal, ledger *InventoryLedger) (PlannedOp, bool) {
 	artID, count, ok := rackCraftTarget(s, policy, ledger)
 	if !ok {
@@ -303,7 +319,7 @@ func craftOperationForFlowerRack(s *state.State, policy *pb.FlowerArtPolicy, goa
 	if !availability.Craftable {
 		return PlannedOp{}, false
 	}
-	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "花架缺少花艺成品，材料已满足", goal.Priority*100+450, 0, artID, count)
+	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "花架缺少花艺成品，材料已满足", flowerRackCraftPriority(goal), 0, artID, count)
 	craft.VaseID = availability.Recipe.VaseID
 	craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
 	craft.ItemCost = flowerArtCraftItemCost(craft.FlowerIDs, craft.Count)

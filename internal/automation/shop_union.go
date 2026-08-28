@@ -471,6 +471,10 @@ const (
 	unionLandPreferBelowLevel   int32 = 11
 	unionLandDefaultMaturityMin int32 = 20
 	unionLandDefaultReplantMin  int32 = 60
+	// Below-11 leveling deprioritizes a quality-first pick when its inventory
+	// already dwarfs other sub-11 candidates (or is very high as the sole one).
+	unionLandLevelingStockMin     int32 = 100
+	unionLandLevelingSoleStockMin int32 = 500
 	// When leveling flowers below 11, skip force-replace if the current crop
 	// matures within this grace window so harvest can finish first.
 	unionLandNearMatureGrace = 2 * time.Minute
@@ -483,7 +487,7 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 		return PlannedOp{}, false
 	}
 	leveling := unionLandHasBelowLevel(candidates)
-	landIDs := unionLandPlantableIDs(s, flowerID, now, leveling, policy)
+	landIDs := unionLandPlantableIDs(s, flowerID, now, leveling, policy, candidates)
 	if len(landIDs) == 0 {
 		return PlannedOp{}, false
 	}
@@ -519,15 +523,12 @@ func selectUnionLandPlantFlowerFrom(candidates []state.PlantableFlower, policy *
 	}
 	minCD := minMinutes * 60
 	preferBelow := unionLandPreferBelowLevel
-	lowLevel := make([]state.PlantableFlower, 0, len(candidates))
-	for _, candidate := range candidates {
-		if candidate.Lvl > 0 && candidate.Lvl < preferBelow {
-			lowLevel = append(lowLevel, candidate)
-		}
-	}
+	lowLevel := unionLandBelowLevelCandidates(candidates)
 	if len(lowLevel) > 0 {
 		best := pickHighestQualityThenLevelStock(lowLevel)
-		return best.FlowerID, fmt.Sprintf("优先未满%d级（品阶高，其次等级低、库存少），确保全部升到%d", preferBelow, preferBelow)
+		if !unionLandLevelingStockSaturated(best, lowLevel) {
+			return best.FlowerID, fmt.Sprintf("优先未满%d级（品阶高，其次等级低、库存少），确保全部升到%d", preferBelow, preferBelow)
+		}
 	}
 	if longMature := filterPlantableByMinCD(candidates, minCD); len(longMature) > 0 {
 		best := pickLowestStockPlantable(longMature)
@@ -538,12 +539,56 @@ func selectUnionLandPlantFlowerFrom(candidates []state.PlantableFlower, policy *
 }
 
 func unionLandHasBelowLevel(candidates []state.PlantableFlower) bool {
+	lowLevel := unionLandBelowLevelCandidates(candidates)
+	if len(lowLevel) == 0 {
+		return false
+	}
+	best := pickHighestQualityThenLevelStock(lowLevel)
+	return !unionLandLevelingStockSaturated(best, lowLevel)
+}
+
+func unionLandBelowLevelCandidates(candidates []state.PlantableFlower) []state.PlantableFlower {
+	preferBelow := unionLandPreferBelowLevel
+	out := make([]state.PlantableFlower, 0, len(candidates))
 	for _, candidate := range candidates {
-		if candidate.Lvl > 0 && candidate.Lvl < unionLandPreferBelowLevel {
-			return true
+		if candidate.Lvl > 0 && candidate.Lvl < preferBelow {
+			out = append(out, candidate)
 		}
 	}
-	return false
+	return out
+}
+
+// unionLandLevelingStockSaturated reports that the quality-first below-11 pick
+// already has enough harvested stock and other sub-11 flowers (or post-11
+// rotation) should take priority instead of force-replacing guild lands.
+func unionLandLevelingStockSaturated(best state.PlantableFlower, lowLevel []state.PlantableFlower) bool {
+	return unionLandExcessStock(best.FlowerID, best.Stock, lowLevel)
+}
+
+// unionLandExcessStock reports inventory so high that guild land should not
+// keep harvesting/planting that flower ahead of scarcer peers. Requires an
+// absolute floor (100+) and either sole-flower excess (500+) or 3× the next
+// lowest peer stock — not merely "higher than the current minimum".
+func unionLandExcessStock(flowerID, stock int32, peers []state.PlantableFlower) bool {
+	if stock < unionLandLevelingStockMin {
+		return false
+	}
+	minOther := int32(-1)
+	for _, peer := range peers {
+		if peer.FlowerID == flowerID {
+			continue
+		}
+		if minOther < 0 || peer.Stock < minOther {
+			minOther = peer.Stock
+		}
+	}
+	if minOther < 0 {
+		return stock >= unionLandLevelingSoleStockMin
+	}
+	if stock >= unionLandLevelingSoleStockMin {
+		return true
+	}
+	return stock > minOther*3
 }
 
 // unionLandNearMature reports whether the next flower matures within the grace
@@ -654,12 +699,15 @@ func unionLandReplantCooldownElapsed(land state.FmlLandView, now time.Time, minM
 
 // unionLandPlantableIDs returns empty slots and replace targets.
 // While any filtered flower is below level 11, occupied lands with a different
-// flower are force-replaced unless harvest is pending or the next mature is
-// within 2 minutes (wait for harvest, then switch). After every flower reaches
-// 11, empty slots are always filled; occupied lands with a different flower
-// are replaced only after min_replant_minutes (default 60), so multiple flower
-// types can coexist across guild lands.
-func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveling bool, policy *pb.UnionLandPolicy) []int32 {
+// flower are force-replaced unless the next mature is within 2 minutes (wait
+// for harvest, then switch). Lands bearing a flower outside flower_ids may be
+// replaced even while mature flowers are pending. During post-level-11 rotation,
+// high-inventory crops may also be replaced while pending so stock-heavy flowers
+// do not block switching to scarcer ones. After every flower reaches 11, empty
+// slots are always filled; other occupied lands are replaced after
+// min_replant_minutes (default 60), or immediately when inventory is excess.
+func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveling bool, policy *pb.UnionLandPolicy, candidates []state.PlantableFlower) []int32 {
+	inventory := s.Inventory()
 	lands := s.FmlLands()
 	ids := make([]int32, 0, len(lands))
 	for id := range lands {
@@ -669,14 +717,15 @@ func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveli
 	out := make([]int32, 0, len(ids))
 	for _, id := range ids {
 		land := lands[id]
-		if state.FmlLandPendingHarvest(land, now) > 0 {
-			continue
-		}
 		if land.FlowerID <= 0 {
 			out = append(out, id)
 			continue
 		}
 		if land.FlowerID == flowerID {
+			continue
+		}
+		pending := state.FmlLandPendingHarvest(land, now) > 0
+		if pending && unionLandDeferReplaceForPending(land.FlowerID, flowerID, leveling, policy, inventory, candidates) {
 			continue
 		}
 		if leveling {
@@ -687,11 +736,48 @@ func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveli
 			out = append(out, id)
 			continue
 		}
-		if unionLandReplantCooldownElapsed(land, now, unionLandMinReplantMinutes(policy)) {
+		saturated := unionLandExcessStock(land.FlowerID, inventory[land.FlowerID], candidates)
+		if !unionLandFlowerAllowed(land.FlowerID, policy) ||
+			saturated ||
+			unionLandReplantCooldownElapsed(land, now, unionLandMinReplantMinutes(policy)) {
 			out = append(out, id)
 		}
 	}
 	return out
+}
+
+// unionLandDeferReplaceForPending reports whether a occupied land with pending
+// harvest should wait instead of being replanted.
+func unionLandDeferReplaceForPending(landFlower, selectedFlower int32, leveling bool, policy *pb.UnionLandPolicy, inventory map[int32]int32, candidates []state.PlantableFlower) bool {
+	if !unionLandFlowerAllowed(landFlower, policy) {
+		return false
+	}
+	if leveling {
+		return true
+	}
+	if landFlower == selectedFlower {
+		return true
+	}
+	return !unionLandExcessStock(landFlower, inventory[landFlower], candidates)
+}
+
+// unionLandFlowerAllowed reports whether an occupied crop may stay under policy.
+// When flower_ids is empty every planted flower is allowed; otherwise only
+// listed IDs are kept (others are replace targets even with pending harvest).
+func unionLandFlowerAllowed(flowerID int32, policy *pb.UnionLandPolicy) bool {
+	if policy == nil {
+		return true
+	}
+	allowlist := policy.GetFlowerIds()
+	if len(allowlist) == 0 {
+		return true
+	}
+	for _, id := range allowlist {
+		if id == flowerID {
+			return true
+		}
+	}
+	return false
 }
 
 func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
@@ -1362,6 +1448,18 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 		if !gates.Pearl {
 			return "珍珠雇佣模块未开启"
 		}
+	case raceTaskTypeFlowerArtCraft:
+		// Craft tasks require a specific vase (ParamID). Taking without it
+		// burns flower stock crafting unrelated unlocked vases.
+		if t.ParamID <= 0 {
+			return "目标花瓶未知"
+		}
+		if s == nil || !s.VaseObserved() {
+			return "未观察到花瓶状态"
+		}
+		if !s.HasVase(t.ParamID) {
+			return "目标花瓶未解锁"
+		}
 	case raceTaskTypeFlowerCultivate:
 		// Take does not require plant.cultivate. Race does not drive cultivate
 		// ops — only take / sync FinishCnt / finishTask.
@@ -1385,10 +1483,10 @@ func raceTaskByMsID(tasks []state.FmlRaceTaskView, msID int64) (state.FmlRaceTas
 }
 
 // raceTaskPoolNeedsParamRefresh reports whether getTaskList should run again
-// because at least one plant-harvest pool task has no flower ParamID and this
-// incomplete pool identity has not yet been refresh-attempted.
+// because at least one plant-harvest or flower-art-craft pool task has no
+// ParamID and this incomplete pool identity has not yet been refresh-attempted.
 func raceTaskPoolNeedsParamRefresh(view state.FmlRaceView) bool {
-	if !state.FmlRacePlantHarvestMissingParam(view.Tasks) {
+	if !state.FmlRacePoolMissingParam(view.Tasks) {
 		return false
 	}
 	return state.FmlRaceTaskPoolMsFingerprint(view.Tasks) != view.MissingParamRefreshFP
@@ -1508,6 +1606,8 @@ func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view sta
 			return "公会竞赛放弃无法完成的顾客订单任务"
 		case raceTaskTypePearlHire:
 			return "公会竞赛放弃无法完成的珍珠雇佣任务"
+		case raceTaskTypeFlowerArtCraft:
+			return "公会竞赛放弃无法完成的花艺制作任务"
 		default:
 			return "公会竞赛放弃无法完成的种植收获任务"
 		}
@@ -1557,10 +1657,11 @@ func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view st
 }
 
 // raceTakenUncompletable reports whether a held unfinished task can never be
-// progressed by automation — plant-harvest with a missing/unplantable target, or
-// customer/pearl while the ordinary module is off. Flower-art sell/craft are
-// race-driven. Flower-cultivate is take/finish only and is never treated as
-// uncompletable for a missing plant.cultivate toggle.
+// progressed by automation — plant-harvest with a missing/unplantable target,
+// flower-art craft without the required vase, or customer/pearl while the
+// ordinary module is off. Flower-art sell is race-driven without a vase param.
+// Flower-cultivate is take/finish only and is never treated as uncompletable
+// for a missing plant.cultivate toggle.
 func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates RaceModuleGates) bool {
 	taskType := taken.TaskType
 	if taskType == 0 {
@@ -1569,6 +1670,8 @@ func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates 
 	switch taskType {
 	case raceTaskTypePlantHarvest:
 		return taken.ParamID <= 0 || !flowerCultivated(s, taken.ParamID)
+	case raceTaskTypeFlowerArtCraft:
+		return raceFlowerArtCraftVaseUnavailable(s, taken.ParamID)
 	case raceTaskTypeCustomerOrder:
 		return !gates.Customer
 	case raceTaskTypePearlHire:
@@ -1576,6 +1679,18 @@ func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates 
 	default:
 		return false
 	}
+}
+
+// raceFlowerArtCraftVaseUnavailable reports that a craft-task vase target cannot
+// be used: missing ParamID, vase namespace never observed, or vase locked.
+func raceFlowerArtCraftVaseUnavailable(s *state.State, vaseID int32) bool {
+	if vaseID <= 0 {
+		return true
+	}
+	if s == nil || !s.VaseObserved() {
+		return true
+	}
+	return !s.HasVase(vaseID)
 }
 
 // raceTakenPriorityZero reports whether a held task's type is configured at

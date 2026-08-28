@@ -257,7 +257,7 @@ func TestCyclicNoteFlowerRackUsesOnlyUnreservedInventoryAndExactCost(t *testing.
 	result := BuildPlan(s, policy, now)
 	op := requireSingleCyclicNoteBusinessOp(t, result.Operations, cyclicNoteTaskTypeFlowerRack)
 	if op.Kind != clientproto.RPCFlowerRackSell.String() || op.ItemID != 300208 || op.Count != 1 ||
-		op.Priority != cyclicNoteRackOpFloor || len(op.ItemCost) != 1 || op.ItemCost[300208] != 1 ||
+		op.Priority < cyclicNoteRackOpFloor || len(op.ItemCost) != 1 || op.ItemCost[300208] != 1 ||
 		result.Ledger.Available(300208) != 1 {
 		t.Fatalf("activity rack op=%+v ledger available=%d", op, result.Ledger.Available(300208))
 	}
@@ -301,7 +301,7 @@ func TestCyclicNoteFlowerRackNeverPromotesCraft(t *testing.T) {
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
 			foundCraft = true
-			if strings.HasPrefix(op.DemandID, cyclicNoteActionGoal+":") || op.Priority >= cyclicNoteRackOpFloor {
+			if strings.HasPrefix(op.DemandID, cyclicNoteActionGoal+":") {
 				t.Fatalf("activity task promoted flower-art craft: %+v", op)
 			}
 		}
