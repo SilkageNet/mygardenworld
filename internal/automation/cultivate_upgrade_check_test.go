@@ -57,6 +57,9 @@ func TestBuildPlan_FlowerUpgradeExecutable(t *testing.T) {
 	if upgrade.FlowerID != 23006 || upgrade.GoldCost != cost.Gold || upgrade.ItemCost[cost.ItemID] != cost.Count {
 		t.Fatalf("upgrade cost/target mismatch: %+v want gold=%d item=%d x%d", upgrade, cost.Gold, cost.ItemID, cost.Count)
 	}
+	if upgrade.OperationID != clientproto.RPCCultivateUpgrade.String()+"|flower=23006" {
+		t.Fatalf("upgrade OperationID=%q, want flower-scoped identity", upgrade.OperationID)
+	}
 	if upgrade.Count != 4 {
 		t.Fatalf("upgrade Count(from-level)=%d, want 4", upgrade.Count)
 	}
@@ -64,6 +67,49 @@ func TestBuildPlan_FlowerUpgradeExecutable(t *testing.T) {
 	planned := Plan(s, p, time.Now())
 	if planned == nil || planned.Kind != clientproto.RPCCultivateUpgrade.String() {
 		t.Fatalf("Plan() should pick upgrade, got %+v", planned)
+	}
+}
+
+func TestBuildPlan_FlowerUpgradeUsesScaledGoldCost(t *testing.T) {
+	cost, ok := state.FlowerUpgradeCostForLevel(23526, 12)
+	if !ok || cost.Gold != 486000 || cost.ItemID != 22526 || cost.Count != 500 {
+		t.Fatalf("red coleus upgrade cost=%+v ok=%t", cost, ok)
+	}
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"22526": 741},
+			"44": 51873,
+		}},
+		"101": map[string]any{"0": map[string]any{
+			"23526": map[string]any{"1": 23526, "2": 12, "4": 2},
+		}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union = nil
+	p.Plant.Cultivate.Enabled = false
+	p.Plant.Cultivate.UpgradeEnabled = true
+	p.Plant.Cultivate.TargetLevel = 20
+
+	for _, op := range BuildPlan(s, p, time.Now()).Operations {
+		if op.Kind == clientproto.RPCCultivateUpgrade.String() && op.FlowerID == 23526 {
+			t.Fatalf("upgrade should be blocked at 51873/486000 gold, got %+v", op)
+		}
+	}
+
+	applyMap(t, s, map[string]any{"7": map[string]any{"0": map[string]any{"44": 486000}}})
+	var upgrade *PlannedOp
+	result := BuildPlan(s, p, time.Now())
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCCultivateUpgrade.String() && op.FlowerID == 23526 {
+			upgrade = op
+			break
+		}
+	}
+	if upgrade == nil || upgrade.GoldCost != 486000 || upgrade.ItemCost[22526] != 500 {
+		t.Fatalf("expected executable scaled-cost upgrade, got %+v", upgrade)
 	}
 }
 

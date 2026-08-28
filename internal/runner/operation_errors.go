@@ -78,6 +78,10 @@ func isWaterDropResourceRejectedError(kind string, err error) bool {
 	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
 }
 
+func isCultivateUpgradeResourceRejectedError(kind string, err error) bool {
+	return kind == clientproto.RPCCultivateUpgrade.String() && resourceRejectedItemID(err) > 0
+}
+
 func isFmlBuildDailyLimitError(kind string, err error) bool {
 	if kind != clientproto.RPCFmlBld.String() || err == nil {
 		return false
@@ -96,13 +100,17 @@ func isFmlBuildDailyLimitError(kind string, err error) bool {
 // is not that case. Covers flower-art craft and customer-order finish, where
 // stale local stock can otherwise loop the same rejected finish.
 func inventoryMaterialRejectedItemID(kind string, err error) int32 {
-	if err == nil {
-		return 0
-	}
 	switch kind {
 	case clientproto.RPCFlowerArtMakeFlowerArt.String(),
 		clientproto.RPCOrderCustomerFinishOrder.String():
 	default:
+		return 0
+	}
+	return resourceRejectedItemID(err)
+}
+
+func resourceRejectedItemID(err error) int32 {
+	if err == nil {
 		return 0
 	}
 	var rpcErr *babigame.RPCServerError
@@ -122,6 +130,7 @@ func inventoryMaterialRejectedItemID(kind string, err error) int32 {
 		return 0
 	}
 	rest := msg[idx+len(marker):]
+	rest = strings.TrimLeft(rest, " \t\r\n")
 	var n int32
 	for i := 0; i < len(rest); i++ {
 		c := rest[i]

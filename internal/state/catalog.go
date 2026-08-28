@@ -1976,9 +1976,12 @@ func parseFlowerLvlCD(raw json.RawMessage) (int32, bool) {
 }
 
 // FlowerUpgradeCostForLevel returns the cost to upgrade a flower from its
-// current cultivation level. Prefer the per-flower c_flowerLvl row (key
-// flowerId*100+level); when that row is absent (newer flowers like 星垂绮夜 /
-// 梦紫郁金香), fall back to the shared c_flowerLvlCfg row for the same level.
+// current cultivation level. It mirrors client getFlowerLvlCfg:
+//  1. Prefer the per-level c_flowerLvl row (key flowerId*100+level).
+//  2. Otherwise combine the flower's base c_flowerLvl row with the shared
+//     c_flowerLvlCfg ratio. The shared gldCost is a multiplier input, not the
+//     final price: round(base.gldCost * cfg(level).gldCost / cfg(1).gldCost).
+//
 // Essence item id is always flowerId-1000 (for example 23006 -> 22006).
 func FlowerUpgradeCostForLevel(flowerID, level int32) (FlowerUpgradeCost, bool) {
 	if level <= 0 {
@@ -1992,16 +1995,52 @@ func FlowerUpgradeCostForLevel(flowerID, level int32) (FlowerUpgradeCost, bool) 
 		cost.ItemID = itemID
 		return cost, true
 	}
-	if cost, ok := flowerUpgradeCostFromRaw(StaticRow("c_flowerLvlCfg", level)); ok {
+	if cost, ok := flowerUpgradeCostFromBaseRow(flowerID, level); ok {
 		cost.ItemID = itemID
 		return cost, true
 	}
 	return FlowerUpgradeCost{}, false
 }
 
-// flowerUpgradeCostFromRaw parses lvlUpCost/gldCost from either a per-flower
+func flowerUpgradeCostFromBaseRow(flowerID, level int32) (FlowerUpgradeCost, bool) {
+	baseRaw, ok := StaticRow("c_flowerLvl", flowerID)
+	if !ok {
+		return FlowerUpgradeCost{}, false
+	}
+	baseGold, ok := parseFlowerLvlGold(baseRaw)
+	if !ok {
+		return FlowerUpgradeCost{}, false
+	}
+	levelCost, ok := flowerUpgradeCostFromRaw(StaticRow("c_flowerLvlCfg", level))
+	if !ok {
+		return FlowerUpgradeCost{}, false
+	}
+	baseCfgRaw, ok := StaticRow("c_flowerLvlCfg", 1)
+	if !ok {
+		return FlowerUpgradeCost{}, false
+	}
+	baseCfgGold, ok := parseFlowerLvlGold(baseCfgRaw)
+	if !ok || baseCfgGold <= 0 {
+		return FlowerUpgradeCost{}, false
+	}
+	levelCost.Gold = int32(math.Round(float64(baseGold) * float64(levelCost.Gold) / float64(baseCfgGold)))
+	return levelCost, levelCost.Gold > 0
+}
+
+func parseFlowerLvlGold(raw json.RawMessage) (int32, bool) {
+	var row struct {
+		Gold int32 `json:"gldCost"`
+	}
+	if json.Unmarshal(raw, &row) != nil || row.Gold <= 0 {
+		return 0, false
+	}
+	return row.Gold, true
+}
+
+// flowerUpgradeCostFromRaw parses lvlUpCost/gldCost from either a per-level
 // c_flowerLvl row (lvlUpCost is [itemId, count]) or a shared c_flowerLvlCfg
-// row (lvlUpCost is a bare count). ItemID is left zero for the caller to fill.
+// row (lvlUpCost is a bare count). Shared gldCost still needs base-row scaling.
+// ItemID is left zero for the caller to fill.
 func flowerUpgradeCostFromRaw(raw json.RawMessage, ok bool) (FlowerUpgradeCost, bool) {
 	if !ok {
 		return FlowerUpgradeCost{}, false

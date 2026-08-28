@@ -26,6 +26,9 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 			continue
 		}
 		op := candidate
+		if r.cultivateUpgradeResourceRejectedUnchanged(&op) {
+			continue
+		}
 		if _, cooling := r.operationCoolingDown(&op, now); cooling {
 			continue
 		}
