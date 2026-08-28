@@ -180,6 +180,7 @@ func cultivateOperation(s *state.State, policy *pb.PlantPolicy, mainTaskEnabled 
 			// executable; farm.cultivate+upgrade is unregistered and blocked.
 			upgrade := domainOp(clientproto.RPCCultivateUpgrade.String(), goal, "farm.upgrade", "upgrade", "鲜花培育等级可升级", 7100, 0, 0, 0)
 			upgrade.FlowerID = id
+			upgrade.OperationID = operationID(upgrade.Kind, nil, id, 0, 0)
 			upgrade.Count = cv.Lvl // from-level for operator logs (lvN-lvN+1)
 			upgrade.GoldCost = cost.Gold
 			upgrade.ItemCost = map[int32]int32{cost.ItemID: cost.Count}

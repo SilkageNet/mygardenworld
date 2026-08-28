@@ -273,6 +273,9 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
 	r.resetPearlHireSession()
 	r.resetResidentOrderSession()
+	r.mu.Lock()
+	clear(r.cultivateUpgradeRejects)
+	r.mu.Unlock()
 	if r.state != nil {
 		// Contest window: every login/reconnect must re-fetch the task pool
 		// before farm/order work so takeable rows are claimed immediately.

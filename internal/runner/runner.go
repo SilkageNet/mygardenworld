@@ -119,6 +119,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 	}
 	r.harvestBlockedUntil = make(map[int32]time.Time)
 	r.operationCooldowns = make(map[string]operationCooldown)
+	r.cultivateUpgradeRejects = make(map[int32]cultivateUpgradeResourceObservation)
 	r.sideLaneFirstWait = make(map[string]time.Time)
 	r.unknownRPCCounts = make(map[string]int32)
 	r.lastCustomerOrderInfo = make(map[int32]string)

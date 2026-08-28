@@ -202,16 +202,27 @@ func TestFlowerUpgradeCostForLevel(t *testing.T) {
 	}
 }
 
-func TestFlowerUpgradeCostForLevelFallsBackToCfg(t *testing.T) {
-	// 星垂绮夜 / 梦紫郁金香 have no per-flower c_flowerLvl rows.
-	for _, flowerID := range []int32{23590, 23436} {
-		cost, ok := FlowerUpgradeCostForLevel(flowerID, 9)
+func TestFlowerUpgradeCostForLevelScalesBaseRow(t *testing.T) {
+	// Newer flowers publish a base c_flowerLvl row instead of one row per level.
+	// The client scales that base gold by cfg(level)/cfg(1).
+	tests := []struct {
+		flowerID int32
+		level    int32
+		count    int32
+		gold     int32
+	}{
+		{flowerID: 23590, level: 9, count: 120, gold: 129000},
+		{flowerID: 23436, level: 9, count: 120, gold: 126000},
+		{flowerID: 23526, level: 12, count: 500, gold: 486000},
+	}
+	for _, tt := range tests {
+		cost, ok := FlowerUpgradeCostForLevel(tt.flowerID, tt.level)
 		if !ok {
-			t.Fatalf("FlowerUpgradeCostForLevel(%d, 9) ok=false", flowerID)
+			t.Fatalf("FlowerUpgradeCostForLevel(%d, %d) ok=false", tt.flowerID, tt.level)
 		}
-		wantItem := flowerID - 1000
-		if cost.ItemID != wantItem || cost.Count != 120 || cost.Gold != 6000 {
-			t.Fatalf("FlowerUpgradeCostForLevel(%d,9)=%+v, want item %d count 120 gold 6000", flowerID, cost, wantItem)
+		wantItem := tt.flowerID - 1000
+		if cost.ItemID != wantItem || cost.Count != tt.count || cost.Gold != tt.gold {
+			t.Fatalf("FlowerUpgradeCostForLevel(%d,%d)=%+v, want item %d count %d gold %d", tt.flowerID, tt.level, cost, wantItem, tt.count, tt.gold)
 		}
 	}
 }

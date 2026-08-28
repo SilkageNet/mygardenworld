@@ -162,6 +162,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	})
 	r.logOperation(ctx, op.Kind, args, json.RawMessage(result.raw))
 	r.clearOperationCooldown(op)
+	r.clearCultivateUpgradeResourceRejection(op)
 	r.deferNoopCustomerOrderGeneration(op, result.finishedAt)
 
 	// Some successful water RPC responses omit inventory deltas. When the
