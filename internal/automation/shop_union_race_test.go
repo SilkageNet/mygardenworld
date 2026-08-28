@@ -948,7 +948,7 @@ func TestUnionRaceDeleteOrdersEligibleTasksDeterministically(t *testing.T) {
 	}
 }
 
-func TestUnionRaceDeleteSkipsTasksBeforeAppearTime(t *testing.T) {
+func TestUnionRaceDeleteDoesNotTreatTakeAppearTimeAsDeleteGate(t *testing.T) {
 	now := time.Now()
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 5, 0, 0}, {2, 3036, 10, 0, 0}})
@@ -970,8 +970,8 @@ func TestUnionRaceDeleteSkipsTasksBeforeAppearTime(t *testing.T) {
 			deletes = append(deletes, op)
 		}
 	}
-	if len(deletes) != 1 || deletes[0].TaskMsID != 2 {
-		t.Fatalf("delete ops=%+v, want only ready task 2", deletes)
+	if len(deletes) != 2 || deletes[0].TaskMsID != 1 || deletes[1].TaskMsID != 2 {
+		t.Fatalf("delete ops=%+v, want both low-score tasks regardless of take appearTime", deletes)
 	}
 }
 
