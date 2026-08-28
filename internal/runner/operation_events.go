@@ -47,6 +47,7 @@ const (
 	operationErrorWaterwheelInvalidData     operationErrorKind = "waterwheel_invalid_data"
 	operationErrorWaterwheelDailyLimit      operationErrorKind = "waterwheel_daily_limit"
 	operationErrorWaterDropRejected         operationErrorKind = "water_drop_rejected"
+	operationErrorCultivateUpgradeRejected  operationErrorKind = "cultivate_upgrade_resource_rejected"
 	operationErrorFlowerArtMaterialRejected operationErrorKind = "flower_art_material_rejected"
 	operationErrorTaskGroupFinished         operationErrorKind = "task_group_finished"
 	operationErrorRaceTakeAlreadyTaken      operationErrorKind = "race_take_already_taken"
@@ -75,6 +76,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorWaterwheelDailyLimit
 	case isWaterDropResourceRejectedError(kind, err):
 		return operationErrorWaterDropRejected
+	case isCultivateUpgradeResourceRejectedError(kind, err):
+		return operationErrorCultivateUpgradeRejected
 	case isFlowerArtMaterialRejectedError(kind, err):
 		return operationErrorFlowerArtMaterialRejected
 	case isTaskGroupFinishedError(kind, err):
@@ -313,6 +316,26 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "resource_stale"})
+		return nil
+	case operationErrorCultivateUpgradeRejected:
+		itemID := resourceRejectedItemID(err)
+		r.markCultivateUpgradeResourceRejected(op)
+		r.clearOperationCooldown(op)
+		resource := state.ItemLabel(itemID)
+		if itemID == 11 {
+			resource = "金币"
+		}
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已阻塞: 服务端提示%s不足；等待金币、精华或培育等级更新后重新判断", opDesc(op), resource),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "cultivate_upgrade_resource_rejected", "itemId": itemID})
 		return nil
 	case operationErrorFlowerArtMaterialRejected:
 		itemID := inventoryMaterialRejectedItemID(op.Kind, err)

@@ -32,6 +32,7 @@ type schedulerState struct {
 	nextDecisionAt            time.Time
 	harvestBlockedUntil       map[int32]time.Time
 	operationCooldowns        map[string]operationCooldown
+	cultivateUpgradeRejects   map[int32]cultivateUpgradeResourceObservation
 	sideLaneFirstWait         map[string]time.Time
 	sideLaneFarmTurn          bool
 }
