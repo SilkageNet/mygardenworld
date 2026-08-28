@@ -2592,8 +2592,11 @@ type UnionRacePolicy struct {
 	// When true, the race monitor shows personal cumulative score and guild-member
 	// rank for the current batch. Default off.
 	ShowPersonalScoreRank bool `protobuf:"varint,13,opt,name=show_personal_score_rank,json=showPersonalScoreRank,proto3" json:"show_personal_score_rank,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Skip unclaimed pool tasks whose observed finish_cnt is greater than zero.
+	// Presence distinguishes the default-on policy from an explicit false.
+	AvoidProgressedTasks *bool `protobuf:"varint,14,opt,name=avoid_progressed_tasks,json=avoidProgressedTasks,proto3,oneof" json:"avoid_progressed_tasks,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UnionRacePolicy) Reset() {
@@ -2713,6 +2716,13 @@ func (x *UnionRacePolicy) GetAutoStopOnQuotaDone() bool {
 func (x *UnionRacePolicy) GetShowPersonalScoreRank() bool {
 	if x != nil {
 		return x.ShowPersonalScoreRank
+	}
+	return false
+}
+
+func (x *UnionRacePolicy) GetAvoidProgressedTasks() bool {
+	if x != nil && x.AvoidProgressedTasks != nil {
+		return *x.AvoidProgressedTasks
 	}
 	return false
 }
@@ -3242,7 +3252,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\ftake_enabled\x18\x05 \x01(\bR\vtakeEnabled\x12<\n" +
 	"\ttake_mode\x18\x06 \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\btakeMode\x12%\n" +
 	"\x0etake_qualities\x18\a \x03(\x05R\rtakeQualities\x12&\n" +
-	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xf8\x05\n" +
+	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xce\x06\n" +
 	"\x0fUnionRacePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
@@ -3257,10 +3267,12 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	" \x01(\x05R\x12deleteTaskMaxScore\x12*\n" +
 	"\x11max_spend_diamond\x18\v \x01(\x03R\x0fmaxSpendDiamond\x124\n" +
 	"\x17auto_stop_on_quota_done\x18\f \x01(\bR\x13autoStopOnQuotaDone\x127\n" +
-	"\x18show_personal_score_rank\x18\r \x01(\bR\x15showPersonalScoreRank\x1aC\n" +
+	"\x18show_personal_score_rank\x18\r \x01(\bR\x15showPersonalScoreRank\x129\n" +
+	"\x16avoid_progressed_tasks\x18\x0e \x01(\bH\x00R\x14avoidProgressedTasks\x88\x01\x01\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xb1\x02\n" +
+	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01B\x19\n" +
+	"\x17_avoid_progressed_tasks\"\xb1\x02\n" +
 	"\x0fUnionLandPolicy\x12'\n" +
 	"\x0fharvest_enabled\x18\x01 \x01(\bR\x0eharvestEnabled\x12,\n" +
 	"\x12auto_plant_enabled\x18\x02 \x01(\bR\x10autoPlantEnabled\x12\x1c\n" +
@@ -3407,6 +3419,7 @@ func file_mygardenworld_v1_policy_proto_init() {
 	if File_mygardenworld_v1_policy_proto != nil {
 		return
 	}
+	file_mygardenworld_v1_policy_proto_msgTypes[26].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

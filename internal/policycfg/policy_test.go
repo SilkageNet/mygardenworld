@@ -212,6 +212,24 @@ func TestFromJSONPreservesCurrentRacePolicy(t *testing.T) {
 	}
 }
 
+func TestProgressedRaceTaskPolicyDefaultsOnAndPreservesExplicitOff(t *testing.T) {
+	missing, err := FromJSON(`{"schema_version":3,"union":{"race":{}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !missing.GetUnion().GetRace().GetAvoidProgressedTasks() {
+		t.Fatal("missing avoid_progressed_tasks must use the safe default")
+	}
+
+	explicitOff, err := FromJSON(`{"schema_version":3,"union":{"race":{"avoid_progressed_tasks":false}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicitOff.GetUnion().GetRace().GetAvoidProgressedTasks() {
+		t.Fatal("explicit avoid_progressed_tasks=false must be preserved")
+	}
+}
+
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()

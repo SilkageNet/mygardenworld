@@ -246,6 +246,9 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Union.Race.TaskTypePriority == nil {
 		cp.Union.Race.TaskTypePriority = map[int32]int32{}
 	}
+	if cp.Union.Race.AvoidProgressedTasks == nil {
+		cp.Union.Race.AvoidProgressedTasks = proto.Bool(def.Union.Race.GetAvoidProgressedTasks())
+	}
 	for k, v := range def.Union.Race.TaskTypePriority {
 		if _, ok := cp.Union.Race.TaskTypePriority[k]; !ok {
 			cp.Union.Race.TaskTypePriority[k] = v

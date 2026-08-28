@@ -8,6 +8,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"google.golang.org/protobuf/proto"
 )
 
 func landOp(kind, domain, action, reason string, priority int32, landIDs []int32, flowerID int32, goalID, demandID string) PlannedOp {
@@ -238,6 +239,7 @@ func DefaultPolicy() *pb.Policy {
 				AutoEnableModules:        false,
 				AutoStopOnQuotaDone:      true,
 				ExcludeOthersUpgradeTask: true,
+				AvoidProgressedTasks:     proto.Bool(true),
 				MinTaskScore:             28,
 				TaskTypePriority:         defaultUnionRacePriority(),
 			},

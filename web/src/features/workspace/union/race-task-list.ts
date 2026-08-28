@@ -41,3 +41,9 @@ export function raceTaskAvailability(task: FmlRaceTask, nowMs: number): string {
   }
   return reason ? `不可抢：${reason}` : "状态待刷新";
 }
+
+export function raceTaskProgressLabel(task: FmlRaceTask): string | null {
+  if (task.targetCnt > 0) return `进度 ${task.finishCnt}/${task.targetCnt}`;
+  if (task.finishCnt > 0) return `已有进度 ${task.finishCnt}`;
+  return null;
+}
