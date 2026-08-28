@@ -42,3 +42,29 @@ func TestNormalizeBareGetTaskListSetsTasksObserved(t *testing.T) {
 		t.Fatalf("normalized bare getTaskList must observe pool: %+v", got)
 	}
 }
+
+func TestNormalizeFmlEnterVWrapsBareMemberPosition(t *testing.T) {
+	bare := json.RawMessage(`{"0":{"0":88},"1":{"0":77900091102482,"1":88,"2":2}}`)
+	s := state.New()
+	s.ApplyV(normalizeFmlEnterV(bare))
+	got := s.FmlBuild()
+	if !got.MemberPositionObserved || got.MemberPosition != 2 || got.MemberFmlID != 88 {
+		t.Fatalf("normalized fml.enter member=%+v, want vice-president position", got)
+	}
+
+	already := json.RawMessage(`{"25":{"1":{"0":1,"1":88,"2":1}}}`)
+	if string(normalizeFmlEnterV(already)) != string(already) {
+		t.Fatal("namespaced fml.enter payload must pass through")
+	}
+}
+
+func TestNormalizeFmlEnterVUsesCurrentRoleFromMemberListFallback(t *testing.T) {
+	bare := json.RawMessage(`{"2":[{"0":22,"1":88,"2":4},{"0":11,"1":88,"2":2}]}`)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":11}}}`))
+	s.ApplyV(normalizeFmlEnterV(bare))
+	got := s.FmlBuild()
+	if !got.MemberPositionObserved || got.MemberPosition != 2 || got.MemberFmlID != 88 {
+		t.Fatalf("member-list fallback=%+v, want current role vice-president", got)
+	}
+}
