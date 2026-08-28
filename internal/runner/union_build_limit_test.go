@@ -10,6 +10,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestIsFmlBuildDailyLimitError(t *testing.T) {
@@ -60,7 +61,7 @@ func TestHandleOperationErrorFmlBuildDailyLimitSoftDefersUntilTomorrow(t *testin
 	if !cooling {
 		t.Fatal("expected shared build cooldown")
 	}
-	want := time.Date(2026, 8, 29, 0, 0, 0, 0, time.Local)
+	want := state.NextCalendarDayReset(now)
 	if !cd.Until.Equal(want) {
 		t.Fatalf("cooldown until=%v, want %v", cd.Until, want)
 	}
