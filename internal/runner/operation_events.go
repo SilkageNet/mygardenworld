@@ -53,6 +53,8 @@ const (
 	operationErrorRaceTakeClaimedByOther    operationErrorKind = "race_take_claimed_by_other"
 	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
 	operationErrorRaceTakeOnCooldown        operationErrorKind = "race_take_on_cooldown"
+	operationErrorRaceDeleteOnCooldown      operationErrorKind = "race_delete_on_cooldown"
+	operationErrorFmlBuildDailyLimit        operationErrorKind = "fml_build_daily_limit"
 	operationErrorFmlNotJoined              operationErrorKind = "fml_not_joined"
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
@@ -85,6 +87,10 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorRaceTakeQuotaExceeded
 	case isRaceTakeOnCooldownError(kind, err):
 		return operationErrorRaceTakeOnCooldown
+	case isRaceDeleteOnCooldownError(kind, err):
+		return operationErrorRaceDeleteOnCooldown
+	case isFmlBuildDailyLimitError(kind, err):
+		return operationErrorFmlBuildDailyLimit
 	case isFmlNotJoinedError(kind, err):
 		return operationErrorFmlNotJoined
 	case isFmlFlowerTakeDailyLimitError(kind, err):
@@ -408,6 +414,47 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			"taskMsId":          op.TaskMsID,
 			"retryAfterSeconds": int(cooldown.Seconds()),
 		})
+		return nil
+	case operationErrorRaceDeleteOnCooldown:
+		now := result.finishedAt
+		cooldown := raceTakeOnCooldownWait(r.state, op, now)
+		payloadOp := r.cooldownSideOperation(op, now, err, "竞赛任务仍在刷新冷却中", cooldown)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 暂缓: 任务仍在刷新冷却中，等待可操作后重试", opDesc(op)),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{
+			"error":             err.Error(),
+			"stage":             "race_delete_cooldown",
+			"taskMsId":          op.TaskMsID,
+			"retryAfterSeconds": int(cooldown.Seconds()),
+		})
+		return nil
+	case operationErrorFmlBuildDailyLimit:
+		now := result.finishedAt
+		op.CooldownKey = "union.build"
+		cooldown := state.NextCalendarDayReset(now).Sub(now)
+		if cooldown <= 0 {
+			cooldown = time.Minute
+		}
+		payloadOp := r.cooldownSideOperation(op, now, err, "服务端提示每日建设次数已达上限", cooldown)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 暂停: 今日公会建设次数已达上限，等待次日重置", opDesc(op)),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
 		return nil
 	case operationErrorFmlFlowerTakeDailyLimit:
 		now := result.finishedAt

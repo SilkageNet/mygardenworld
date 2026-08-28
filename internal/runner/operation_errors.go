@@ -78,6 +78,19 @@ func isWaterDropResourceRejectedError(kind string, err error) bool {
 	return strings.Contains(msg, `"code":301`) && strings.Contains(msg, `"iid":7`)
 }
 
+func isFmlBuildDailyLimitError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlBld.String() || err == nil {
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil && rpcErr.Envelope.ErrorCode() == 383 {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "每日建设次数已达上限") ||
+		strings.Contains(msg, `"code":383`) || strings.Contains(msg, `"code": 383`)
+}
+
 // inventoryMaterialRejectedItemID returns param.iid when an inventory-consuming
 // RPC fails with a material-shortage envelope (code 301). Zero means the error
 // is not that case. Covers flower-art craft and customer-order finish, where
@@ -242,6 +255,18 @@ func isRaceTakeOnCooldownError(kind string, err error) bool {
 		}
 	}
 	return false
+}
+
+func isRaceDeleteOnCooldownError(kind string, err error) bool {
+	if kind != clientproto.RPCFmlRaceDelTask.String() || err == nil {
+		return false
+	}
+	const tip = "任务冷却中"
+	if strings.Contains(err.Error(), tip) {
+		return true
+	}
+	var rpcErr *babigame.RPCServerError
+	return errors.As(err, &rpcErr) && rpcErr != nil && strings.Contains(rpcErr.Envelope.ErrorMsg(), tip)
 }
 
 // raceTakeOnCooldownWait returns how long to block take after a server CD tip.
