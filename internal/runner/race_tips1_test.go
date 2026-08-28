@@ -255,6 +255,16 @@ func TestHandleOperationErrorRaceDeleteOnCooldownWaitsAppearTime(t *testing.T) {
 	if want := time.UnixMilli(appear); !cd.Until.Equal(want) {
 		t.Fatalf("cooldown until=%v, want %v", cd.Until, want)
 	}
+	other := &automation.PlannedOp{
+		OperationID: "fmlRace.delTask:815",
+		CooldownKey: "union.race.delete:815",
+		Kind:        clientproto.RPCFmlRaceDelTask.String(),
+		Lane:        automation.LaneSide,
+		TaskMsID:    815,
+	}
+	if _, cooling := r.operationCoolingDown(other, now.Add(time.Second)); cooling {
+		t.Fatal("one task's delete cooldown must not block another task")
+	}
 }
 
 func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn1s(t *testing.T) {

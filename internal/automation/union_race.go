@@ -228,7 +228,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			op.PreemptFarm = true
 			return []PlannedOp{op}
 		}
-		ops := raceLowScoreDeleteOperations(s, view, policy, goal, now)
+		ops := raceLowScoreDeleteOperations(s, view, policy, goal)
 		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
 			ops = append(ops, op)
 		}
@@ -373,7 +373,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// a primary take is concurrently due, the take wins and deletion waits for
 	// the resulting fresh task delta / next pool sync.
 	if !raceTaskPoolTTLStale(view, now) {
-		ops = append(ops, raceLowScoreDeleteOperations(s, view, policy, goal, now)...)
+		ops = append(ops, raceLowScoreDeleteOperations(s, view, policy, goal)...)
 	}
 
 	// Idle: sync personal score/rank without preempting take/finish/giveUp.
@@ -397,19 +397,20 @@ func memberPositionSyncDue(build state.FmlBuildView, now time.Time) bool {
 	return !now.Before(time.UnixMilli(build.MemberPositionSyncAtMs).Add(fmlMemberPositionSyncInterval))
 }
 
-func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy, goal Goal, now time.Time) []PlannedOp {
+func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy, goal Goal) []PlannedOp {
 	if s == nil || policy == nil || !policy.GetDeleteLowScoreTask() || policy.GetDeleteTaskMaxScore() <= 0 || !view.TasksObserved {
 		return nil
 	}
 	maxScore := policy.GetDeleteTaskMaxScore()
-	nowMs := now.UnixMilli()
 	candidates := make([]state.FmlRaceTaskView, 0, len(view.Tasks))
 	for _, task := range view.Tasks {
 		// Score zero is indistinguishable from an omitted field in the observed
 		// client shape. Destructive maintenance must not treat missing data as a
-		// real zero-point task.
-		if task.MsId <= 0 || task.UID != 0 || task.Score <= 0 || task.Score > maxScore ||
-			(task.AppearTime > 0 && task.AppearTime > nowMs) {
+		// real zero-point task. AppearTime controls when a replacement task can
+		// be taken; it is not an observed deletion precondition. If the server
+		// still rejects deletion during refresh, the runner defers this task by
+		// its task-scoped cooldown without blocking other candidates.
+		if task.MsId <= 0 || task.UID != 0 || task.Score <= 0 || task.Score > maxScore {
 			continue
 		}
 		candidates = append(candidates, task)
