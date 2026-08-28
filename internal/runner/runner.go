@@ -165,6 +165,15 @@ func (r *Runner) isSessionInvalidated() bool {
 	return r.sessionInvalidated
 }
 
+// DisplacedReloginPending reports whether the runner is waiting out a displaced-
+// session timer before it auto-reconnects. Callers should not force-reload in
+// that state.
+func (r *Runner) DisplacedReloginPending() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sessionInvalidated && r.sessionAutoRelogin
+}
+
 // Policy returns a deep copy of the current effective policy.
 func (r *Runner) Policy() *pb.Policy {
 	r.mu.RLock()

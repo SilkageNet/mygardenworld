@@ -1470,6 +1470,55 @@ func TestBuildPlan_FlowerRackUsesFixedRackCount(t *testing.T) {
 	t.Fatalf("missing rack sell op: %+v", result.Operations)
 }
 
+func TestBuildPlan_FlowerRackSellBeforeCustomerCraft(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"32": map[string]any{"301612": 20, "23005": 4, "23007": 4, "23008": 4},
+			"34": 12,
+		}},
+		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
+		"102": map[string]any{"0": map[string]any{
+			"3002": map[string]any{"1": 3002},
+			"3016": map[string]any{"1": 3016},
+		}},
+		"104": map[string]any{"0": map[string]any{"1": map[string]any{"1": 1, "2": 0, "3": 0}}},
+		"109": map[string]any{"0": map[string]any{"1": map[string]any{
+			"7": map[string]any{"0": 2, "1": 300208, "2": 1, "3": 1},
+		}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Customer.Enabled = true
+	p.Order.FlowerArt.SellEnabled = true
+	p.Order.FlowerArt.CraftEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	var rackSell, customerCraft *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Kind == clientproto.RPCFlowerRackSell.String() && op.Executable {
+			rackSell = op
+		}
+		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.GoalID == GoalCustomerOrder && op.Executable {
+			customerCraft = op
+		}
+	}
+	if rackSell == nil {
+		t.Fatalf("expected rack sell op, ops=%+v", result.Operations)
+	}
+	if customerCraft == nil {
+		t.Fatalf("expected customer craft op, ops=%+v", result.Operations)
+	}
+	if rackSell.Priority <= customerCraft.Priority {
+		t.Fatalf("rack sell priority %d should beat customer craft %d", rackSell.Priority, customerCraft.Priority)
+	}
+	chosen := Plan(s, p, time.Now())
+	if chosen == nil || chosen.Kind != clientproto.RPCFlowerRackSell.String() {
+		t.Fatalf("Plan() chose %+v, want rack sell", chosen)
+	}
+}
+
 func TestBuildPlan_FlowerRackNightPauseSkipsListing(t *testing.T) {
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
 	s := state.New()
@@ -3317,6 +3366,217 @@ func TestBuildPlan_UnionLandAutoPlantPrefersHigherQualityWhileBelow11(t *testing
 		}
 	}
 	t.Fatalf("missing union land plant op for higher quality: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantSkipsHighStockBelow11(t *testing.T) {
+	// Reproduces 顾依萱: 蜜合月见草 below 11 with 900+ stock should not
+	// force-replace every guild land; rotation should pick a lower-stock ≥11 flower.
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23108": 925,
+			"23039": 45,
+			"23081": 60,
+			"23104": 55,
+		}}},
+		"101": map[string]any{"0": map[string]any{
+			"23108": map[string]any{"1": 23108, "2": 10, "4": 2},
+			"23039": map[string]any{"1": 23039, "2": 11, "4": 2},
+			"23081": map[string]any{"1": 23081, "2": 11, "4": 2},
+			"23104": map[string]any{"1": 23104, "2": 11, "4": 2},
+		}},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23108,
+						"2": now.Add(-2 * time.Hour).UnixMilli(),
+						"3": 6,
+						"4": 6,
+					},
+					"2": map[string]any{"0": 0},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 24
+
+	candidates := filterUnionLandPlantCandidates(s.PlantableFlowers(nil, nil), p.Union.Land)
+	flowerID, reason := selectUnionLandPlantFlowerFrom(candidates, p.Union.Land)
+	if flowerID == 23108 {
+		t.Fatalf("should not select high-stock 蜜合月见草, reason=%q", reason)
+	}
+	if unionLandHasBelowLevel(candidates) {
+		t.Fatalf("high-stock below-11 should not trigger force-replace leveling")
+	}
+	if flowerID != 23039 {
+		t.Fatalf("flowerID=%d reason=%q", flowerID, reason)
+	}
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain != "union.land.plant" {
+			continue
+		}
+		if op.FlowerID == 23108 {
+			t.Fatalf("high-stock below-11 蜜合月见草 should not be replanted: %+v", op)
+		}
+		if op.FlowerID != 23039 {
+			t.Fatalf("should prefer lowest-stock long-maturity 23039, got %+v", op)
+		}
+		if strings.Contains(op.Reason, "未满11级") {
+			t.Fatalf("should not use below-11 leveling reason: %q", op.Reason)
+		}
+		return
+	}
+	t.Fatalf("missing union land plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantReplacesHighStockDespitePending(t *testing.T) {
+	// Live 顾依萱: every guild land is 蜜合月见草 with pending harvest; rotation
+	// must still switch to a lower-stock flower instead of waiting forever.
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23108": 932,
+			"23039": 45,
+			"23081": 60,
+		}}},
+		"101": map[string]any{"0": map[string]any{
+			"23108": map[string]any{"1": 23108, "2": 10, "4": 2},
+			"23039": map[string]any{"1": 23039, "2": 11, "4": 2},
+			"23081": map[string]any{"1": 23081, "2": 11, "4": 2},
+		}},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23108,
+						"2": now.Add(-2 * time.Hour).UnixMilli(),
+						"3": 0,
+						"4": 0,
+					},
+					"2": map[string]any{
+						"0": 0,
+						"1": 23108,
+						"2": now.Add(-2 * time.Hour).UnixMilli(),
+						"3": 1,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 24
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain != "union.land.plant" {
+			continue
+		}
+		if op.FlowerID == 23108 {
+			t.Fatalf("should rotate away from high-stock 蜜合月见草: %+v", op)
+		}
+		if op.FlowerID != 23039 {
+			t.Fatalf("should plant lowest-stock 23039, got %+v", op)
+		}
+		if len(op.LandIDs) == 0 {
+			t.Fatalf("expected replace targets despite pending harvest: %+v", op)
+		}
+		return
+	}
+	t.Fatalf("missing union land plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantReplacesHighStockWithinReplantCooldown(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23108": 932,
+			"23039": 45,
+		}}},
+		"101": map[string]any{"0": map[string]any{
+			"23108": map[string]any{"1": 23108, "2": 10, "4": 2},
+			"23039": map[string]any{"1": 23039, "2": 11, "4": 2},
+		}},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23108,
+						"2": now.Add(-30 * time.Minute).UnixMilli(),
+						"3": 1,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 24
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain != "union.land.plant" {
+			continue
+		}
+		if op.FlowerID != 23039 || len(op.LandIDs) != 1 || op.LandIDs[0] != 1 {
+			t.Fatalf("expected saturated 蜜合月见草 replace within cooldown: %+v", op)
+		}
+		return
+	}
+	t.Fatalf("missing union land plant op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionLandAutoPlantRespectsReplantCooldownWhenNotExcessStock(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23040": 50,
+			"23039": 45,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23040, 23039)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23040,
+						"2": now.Add(-30 * time.Minute).UnixMilli(),
+						"3": 6,
+						"4": 6,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.MinMaturityMinutes = 24
+	p.Union.Land.MinReplantMinutes = 60
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.land.plant" {
+			t.Fatalf("should wait for 60m replant when stock lead is not excess: %+v", op)
+		}
+	}
 }
 
 func TestBuildPlan_UnionLandAutoPlantForceReplacesOccupiedBelow11(t *testing.T) {

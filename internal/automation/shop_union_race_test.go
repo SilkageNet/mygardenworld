@@ -16,21 +16,32 @@ import (
 // tasks is a slice of [msId, taskId, score, isUpgrade, upgradeUid].
 // Plant-harvest rows (type/id 3036) include param [23001] so take-gate tests can
 // distinguish cultivated vs unknown targets.
+// Flower-art craft rows (type 3034) include param [3002] (unlocked vase in
+// applyRaceState) so take-gate tests exercise the vase requirement.
 // Fields are at the TOP LEVEL of ns25 (not nested under "0").
 func raceStateJSON(tasks [][5]int32) string {
 	return raceStateJSONWithParams(tasks, 23001)
 }
 
 func raceStateJSONWithParams(tasks [][5]int32, plantParam int32) string {
+	const craftVaseParam int32 = 3002
 	pool := "[]"
 	if len(tasks) > 0 {
 		parts := make([]string, 0, len(tasks))
 		for _, t := range tasks {
 			taskID := t[1]
-			if state.FmlRaceTaskTypeByID(taskID) == raceTaskTypePlantHarvest && plantParam > 0 {
+			taskType := state.FmlRaceTaskTypeByID(taskID)
+			if taskType == raceTaskTypePlantHarvest && plantParam > 0 {
 				parts = append(parts, fmt.Sprintf(
 					`{"0":%d,"4":%d,"6":[%d],"10":%d,"14":%d,"15":%d}`,
 					t[0], taskID, plantParam, t[2], t[3], t[4],
+				))
+				continue
+			}
+			if taskType == raceTaskTypeFlowerArtCraft {
+				parts = append(parts, fmt.Sprintf(
+					`{"0":%d,"4":%d,"6":[%d],"10":%d,"14":%d,"15":%d}`,
+					t[0], taskID, craftVaseParam, t[2], t[3], t[4],
 				))
 				continue
 			}
@@ -41,9 +52,13 @@ func raceStateJSONWithParams(tasks [][5]int32, plantParam int32) string {
 	return `{"25":{"111":{"0":42,"1":1},"117":{"5":4},"110":{"42":{"3":0,"4":0}},"114":` + pool + `}}`
 }
 
-// applyRaceState seeds cultivated flower 23001 plus an active race task pool.
+// applyRaceState seeds cultivated flower 23001, unlocked vase 3002, plus an
+// active race task pool.
 func applyRaceState(s *state.State, tasks [][5]int32) {
-	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	s.ApplyVMap(map[string]any{
+		"101": map[string]any{"0": cultivate(23001)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+	})
 	s.ApplyV(json.RawMessage(raceStateJSON(tasks)))
 	// Bind rank-list uid to self so ScoreObserved/RankObserved stick and
 	// getFmlRaceUsrRankList does not preempt take/finish in unit tests.
@@ -1324,8 +1339,11 @@ func TestRaceTakeSkipReason(t *testing.T) {
 	leadMs := now.Add(raceTakeLeadWindow).UnixMilli()
 
 	s := state.New()
-	// Cultivate 23001 for plantability cases; leave others uncultivated.
-	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
+	// Cultivate 23001 for plantability cases; unlock vase 3002 for craft take.
+	s.ApplyVMap(map[string]any{
+		"101": map[string]any{"0": cultivate(23001)},
+		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
+	})
 
 	uid := int64(42)
 	policyBase := func() *pb.UnionRacePolicy {
@@ -1508,13 +1526,25 @@ func TestRaceTakeSkipReason(t *testing.T) {
 		},
 		{
 			name:   "flower art craft takeable with priority",
-			task:   state.FmlRaceTaskView{MsId: 24, TaskId: 3034, TaskType: 3034, Score: 24},
+			task:   state.FmlRaceTaskView{MsId: 24, TaskId: 3034, TaskType: 3034, Score: 24, ParamID: 3002},
 			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 4}},
 			want:   "",
 		},
 		{
+			name:   "flower art craft missing vase param",
+			task:   state.FmlRaceTaskView{MsId: 27, TaskId: 3034, TaskType: 3034, Score: 24},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 4}},
+			want:   "目标花瓶未知",
+		},
+		{
+			name:   "flower art craft locked vase",
+			task:   state.FmlRaceTaskView{MsId: 28, TaskId: 3034, TaskType: 3034, Score: 24, ParamID: 3074},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 4}},
+			want:   "目标花瓶未解锁",
+		},
+		{
 			name:   "flower art craft priority zero",
-			task:   state.FmlRaceTaskView{MsId: 25, TaskId: 3034, TaskType: 3034, Score: 24},
+			task:   state.FmlRaceTaskView{MsId: 25, TaskId: 3034, TaskType: 3034, Score: 24, ParamID: 3002},
 			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 0}},
 			want:   "优先级为0",
 		},
@@ -1911,6 +1941,37 @@ func TestUnionRaceTakesFlowerArtCraft(t *testing.T) {
 	}
 }
 
+func TestUnionRaceSkipsFlowerArtCraftWithoutVase(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3034, 24, 0, 0}})
+	// Drop the unlocked vase seed from applyRaceState — craft requires ParamID vase.
+	s.ApplyVMap(map[string]any{"102": map[string]any{"0": map[string]any{}}})
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3034: 4}
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take flower-art craft without target vase: %+v", op)
+		}
+	}
+	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3034, TaskType: 3034, Score: 24, ParamID: 3002}, policy, 0, time.Now(), raceGatesOn())
+	if got != "目标花瓶未解锁" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 目标花瓶未解锁", got)
+	}
+}
+
+func TestUnionRaceGiveUpFlowerArtCraftWithoutVase(t *testing.T) {
+	s := state.New()
+	// Held craft for locked vase 3074 — must give up instead of crafting other vases.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1,"4":[3074]}}},"114":[{"0":71,"4":3034,"6":[3074],"7":5,"8":1,"10":24,"12":999}]},"102":{"0":{"3002":{"1":3002}}}}`))
+	policy := testRacePolicy()
+	policy.TaskTypePriority = map[int32]int32{3034: 4}
+	ops := unionRaceOperations(s, policy, 999, time.Now(), RaceModuleGates{})
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("expected giveUp flower-art craft without target vase, got %+v", ops)
+	}
+}
+
 func TestUnionRaceTakesFlowerArtWithoutCraftModule(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3034, 24, 0, 0}})
@@ -1921,7 +1982,7 @@ func TestUnionRaceTakesFlowerArtWithoutCraftModule(t *testing.T) {
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceTakeTask.String() {
 		t.Fatalf("expected take of flower-art craft without craft module, got %+v", ops)
 	}
-	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3034, TaskType: 3034, Score: 24}, policy, 0, time.Now(), RaceModuleGates{})
+	got := RaceTakeSkipReason(s, state.FmlRaceTaskView{MsId: 1, TaskId: 3034, TaskType: 3034, Score: 24, ParamID: 3002}, policy, 0, time.Now(), RaceModuleGates{})
 	if got != "" {
 		t.Fatalf("RaceTakeSkipReason = %q, want empty", got)
 	}
@@ -1993,7 +2054,7 @@ func TestUnionRaceGiveUpPearlHireWhenModuleOff(t *testing.T) {
 
 func TestUnionRaceKeepsFlowerArtWhenCraftModuleOff(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1}}},"114":[{"0":71,"4":3034,"7":5,"8":1,"10":24,"12":999}]}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1,"4":[3002]}}},"114":[{"0":71,"4":3034,"6":[3002],"7":5,"8":1,"10":24,"12":999}]},"102":{"0":{"3002":{"1":3002}}}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3034: 4}
 	ops := unionRaceOperations(s, policy, 999, time.Now(), RaceModuleGates{})
@@ -2038,7 +2099,7 @@ func TestUnionRacePearlProgressSyncAfterInterval(t *testing.T) {
 
 func TestUnionRaceFlowerArtProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
-	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1}}},"114":[{"0":71,"4":3034,"7":5,"8":1,"10":24,"12":999}]}}`))
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1,"4":[3002]}}},"114":[{"0":71,"4":3034,"6":[3002],"7":5,"8":1,"10":24,"12":999}]},"102":{"0":{"3002":{"1":3002}}}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3034: 4}
@@ -2226,8 +2287,9 @@ func TestBuildPlan_RacePearlHireLinksHire(t *testing.T) {
 func TestBuildPlan_RaceFlowerArtCraftEmitsMake(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()
-	// Held flower-art-craft race (1/5). Craft materials + vase unlocked; craft/
-	// sell toggles off — race must still emit high-priority makeFlowerArt.
+	// Held flower-art-craft race (1/5) targeting vase 3002. Craft materials +
+	// vase unlocked; craft/sell toggles off — race must still emit high-priority
+	// makeFlowerArt for that vase only.
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
 			"0":  999,
@@ -2237,8 +2299,8 @@ func TestBuildPlan_RaceFlowerArtCraftEmitsMake(t *testing.T) {
 		"25": map[string]any{
 			"111": map[string]any{"1": 1},
 			"117": map[string]any{"5": 4},
-			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3034, "2": 5, "3": 1}}},
-			"114": []any{map[string]any{"0": 71, "4": 3034, "7": 5, "8": 1, "10": 24, "12": 999}},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3034, "2": 5, "3": 1, "4": []any{3002}}}},
+			"114": []any{map[string]any{"0": 71, "4": 3034, "6": []any{3002}, "7": 5, "8": 1, "10": 24, "12": 999}},
 		},
 		"101": map[string]any{"0": cultivate(23005, 23007, 23008)},
 		"102": map[string]any{"0": map[string]any{"3002": map[string]any{"1": 3002}}},
@@ -2267,6 +2329,9 @@ func TestBuildPlan_RaceFlowerArtCraftEmitsMake(t *testing.T) {
 	if !strings.Contains(linked.Reason, "公会竞赛花艺制作剩余") {
 		t.Fatalf("reason missing race pressure: %q", linked.Reason)
 	}
+	if linked.VaseID != 3002 {
+		t.Fatalf("craft vase=%d, want task target 3002", linked.VaseID)
+	}
 	if linked.Count <= 0 || linked.Count > 4 {
 		t.Fatalf("craft count=%d, want 1..4 (remaining race progress)", linked.Count)
 	}
@@ -2284,8 +2349,8 @@ func TestBuildPlan_RaceFlowerArtCraftEmitsMake(t *testing.T) {
 func TestBuildPlan_RaceFlowerArtCraftPicksHighestSeededPrice(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()
-	// 300208 sale=170 needs 23005/23007/23008; 301612 sale=320 needs 23070/23075/23003.
-	// Both seeded and craftable → race must pick 301612.
+	// Target vase 3016. 300208 (vase 3002, sale=170) is also craftable but must
+	// be ignored — race craft only uses the task vase.
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{
 			"0": 999,
@@ -2298,8 +2363,8 @@ func TestBuildPlan_RaceFlowerArtCraftPicksHighestSeededPrice(t *testing.T) {
 		"25": map[string]any{
 			"111": map[string]any{"1": 1},
 			"117": map[string]any{"5": 4},
-			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3034, "2": 5, "3": 1}}},
-			"114": []any{map[string]any{"0": 71, "4": 3034, "7": 5, "8": 1, "10": 24, "12": 999}},
+			"110": map[string]any{"999": map[string]any{"7": map[string]any{"0": 71, "1": 3034, "2": 5, "3": 1, "4": []any{3016}}}},
+			"114": []any{map[string]any{"0": 71, "4": 3034, "6": []any{3016}, "7": 5, "8": 1, "10": 24, "12": 999}},
 		},
 		"101": map[string]any{"0": cultivate(23005, 23007, 23008, 23070, 23075, 23003)},
 		"102": map[string]any{"0": map[string]any{
@@ -2326,8 +2391,8 @@ func TestBuildPlan_RaceFlowerArtCraftPicksHighestSeededPrice(t *testing.T) {
 	if craft == nil {
 		t.Fatalf("expected race craft, ops=%+v", result.Operations)
 	}
-	if craft.ItemID != 301612 {
-		t.Fatalf("craft ItemID=%d, want highest-priced seeded 301612; op=%+v", craft.ItemID, craft)
+	if craft.ItemID != 301612 || craft.VaseID != 3016 {
+		t.Fatalf("craft art=%d vase=%d, want 301612/3016; op=%+v", craft.ItemID, craft.VaseID, craft)
 	}
 }
 

@@ -183,19 +183,28 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 	updateFmlRaceMissingParamRefreshFP(view, wasObserved)
 }
 
-// FmlRacePlantHarvestMissingParam reports whether any pool plant-harvest task
-// lacks a resolved ParamID (flower target). Used to trigger getTaskList refresh.
-func FmlRacePlantHarvestMissingParam(tasks []FmlRaceTaskView) bool {
+// FmlRacePoolMissingParam reports whether any pool plant-harvest or flower-art
+// craft task lacks a resolved ParamID (flower / vase target). Used to trigger
+// getTaskList refresh.
+func FmlRacePoolMissingParam(tasks []FmlRaceTaskView) bool {
 	for _, t := range tasks {
 		taskType := t.TaskType
 		if taskType == 0 {
 			taskType = t.TaskId
 		}
-		if taskType == 3036 && t.ParamID <= 0 {
-			return true
+		switch taskType {
+		case 3036, 3034: // plant-harvest flower, flower-art craft vase
+			if t.ParamID <= 0 {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// FmlRacePlantHarvestMissingParam is kept for callers; prefer FmlRacePoolMissingParam.
+func FmlRacePlantHarvestMissingParam(tasks []FmlRaceTaskView) bool {
+	return FmlRacePoolMissingParam(tasks)
 }
 
 // FmlRaceTaskPoolMsFingerprint is a stable key for the current pool identity
@@ -217,7 +226,7 @@ func FmlRaceTaskPoolMsFingerprint(tasks []FmlRaceTaskView) string {
 }
 
 func updateFmlRaceMissingParamRefreshFP(view *FmlRaceView, wasObserved bool) {
-	if !FmlRacePlantHarvestMissingParam(view.Tasks) {
+	if !FmlRacePoolMissingParam(view.Tasks) {
 		view.MissingParamRefreshFP = ""
 		return
 	}
