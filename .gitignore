@@ -5,6 +5,7 @@
 
 # Local data
 /data/
+/data-b/
 /debug/
 *.db
 *.db-journal
@@ -35,12 +36,16 @@ Thumbs.db
 # Frontend
 /.next/
 /web/.next/
+/web/.next-b/
 /web/out/
 /web/node_modules/
 /web/.vercel/
 
 # Local scratch space, reverse-engineering outputs, and private captures
 /tmp/
+/tmp_*.go
+/_tmpdiag/
+/tmpinspect/
 /captures/
 /docs.local/
 *.local.*
@@ -49,9 +54,18 @@ Thumbs.db
 /scripts/desktop_launcher/
 /scripts/autostart.env
 /scripts/autostart.env.example
+/scripts/autostart-b.env
+/scripts/autostart-b.env.example
 /scripts/install-autostart.ps1
 /scripts/uninstall-autostart.ps1
 /scripts/start-gardend.ps1
+/scripts/install-desktop-launcher.ps1
+/scripts/redeem-all.ps1
+
+# Local dual-stack overlays (keep local; do not commit)
+/web/src/lib/api/redeem-all.ts
+/web/.env*.local
+/web/.env.stack-b*
 
 # Generated static web bundle copied into the Go embed package for release builds
 /internal/webui/static/*

@@ -32,6 +32,10 @@ type Services struct {
 	Log          *slog.Logger
 	LoginLimiter *LoginLimiter
 	AlipayLogins *AlipayLoginCoordinator
+	// ListenAddr is the gardend bind address (host:port). Used to scope the
+	// HttpOnly refresh cookie so dual local stacks on the same host (e.g.
+	// :50051 and :50052) do not overwrite each other's browser cookies.
+	ListenAddr string
 
 	workspaceProjectionMu sync.Mutex
 	workspaceProjections  map[int64]*workspaceProjectionCache

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -18,7 +19,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const refreshCookieName = "mgw_refresh_token"
+const (
+	refreshCookieNameLegacy = "mgw_refresh_token"
+	refreshCookiePath       = "/mygardenworld.v1.AuthService"
+)
 
 var dummyPasswordHash = []byte("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy")
 
@@ -64,7 +68,7 @@ func (svc *Services) Login(ctx context.Context, req *connect.Request[pb.LoginReq
 		AccessToken: pair.AccessToken,
 		User:        userToProto(user, count),
 	})
-	setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
+	svc.setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
 	svc.LoginLimiter.RecordSuccess(username)
 	svc.logAuth("info", "auth_login_success", username, remote, user.ID)
 	return resp, nil
@@ -103,7 +107,7 @@ func (svc *Services) logAuth(level, event, username, remote string, userID int64
 }
 
 func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.RefreshRequest]) (*connect.Response[pb.RefreshResponse], error) {
-	token := refreshTokenFromRequest(req.Header())
+	token := svc.refreshTokenFromRequest(req.Header())
 	if token == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("登录已过期，请重新登录"))
 	}
@@ -133,18 +137,18 @@ func (svc *Services) Refresh(ctx context.Context, req *connect.Request[pb.Refres
 		AccessToken: pair.AccessToken,
 		User:        userToProto(user, count),
 	})
-	setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
+	svc.setRefreshCookie(resp.Header(), pair.RefreshToken, req.Header())
 	return resp, nil
 }
 
 func (svc *Services) Logout(ctx context.Context, req *connect.Request[pb.LogoutRequest]) (*connect.Response[pb.LogoutResponse], error) {
-	if token := refreshTokenFromRequest(req.Header()); token != "" {
+	if token := svc.refreshTokenFromRequest(req.Header()); token != "" {
 		if err := svc.DB.RevokeRefreshToken(ctx, token); err != nil && svc.Log != nil {
 			svc.Log.Warn("revoke refresh token during logout failed", "err", err)
 		}
 	}
 	resp := connect.NewResponse(&pb.LogoutResponse{})
-	clearRefreshCookie(resp.Header(), req.Header())
+	svc.clearRefreshCookie(resp.Header(), req.Header())
 	return resp, nil
 }
 
@@ -195,38 +199,83 @@ func userStatusProto(status string) pb.UserStatus {
 	return pb.UserStatus_USER_STATUS_ACTIVE
 }
 
-func refreshTokenFromRequest(headers http.Header) string {
-	req := http.Request{Header: headers}
-	cookie, err := req.Cookie(refreshCookieName)
-	if err != nil {
-		return ""
+func (svc *Services) refreshCookieName() string {
+	port := listenPort(svc.ListenAddr)
+	if port == "" {
+		return refreshCookieNameLegacy
 	}
-	return cookie.Value
+	return refreshCookieNameLegacy + "_" + port
 }
 
-func setRefreshCookie(headers http.Header, token string, reqHeaders http.Header) {
-	http.SetCookie(&headerResponseWriter{headers: headers}, &http.Cookie{
-		Name:     refreshCookieName,
+func listenPort(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return ""
+	}
+	if !strings.Contains(addr, ":") {
+		return addr
+	}
+	if strings.HasPrefix(addr, ":") {
+		addr = "127.0.0.1" + addr
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "" {
+		return ""
+	}
+	return port
+}
+
+func (svc *Services) refreshTokenFromRequest(headers http.Header) string {
+	req := http.Request{Header: headers}
+	for _, name := range []string{svc.refreshCookieName(), refreshCookieNameLegacy} {
+		cookie, err := req.Cookie(name)
+		if err == nil && cookie.Value != "" {
+			return cookie.Value
+		}
+	}
+	return ""
+}
+
+func (svc *Services) setRefreshCookie(headers http.Header, token string, reqHeaders http.Header) {
+	secure := requestLooksHTTPS(reqHeaders)
+	w := &headerResponseWriter{headers: headers}
+	http.SetCookie(w, &http.Cookie{
+		Name:     svc.refreshCookieName(),
 		Value:    token,
-		Path:     "/mygardenworld.v1.AuthService",
+		Path:     refreshCookiePath,
 		Expires:  time.Now().Add(auth.RefreshTokenDuration),
 		MaxAge:   int(auth.RefreshTokenDuration.Seconds()),
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   requestLooksHTTPS(reqHeaders),
+		Secure:   secure,
 	})
+	if svc.refreshCookieName() != refreshCookieNameLegacy {
+		http.SetCookie(w, &http.Cookie{
+			Name:     refreshCookieNameLegacy,
+			Value:    "",
+			Path:     refreshCookiePath,
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Secure:   secure,
+		})
+	}
 }
 
-func clearRefreshCookie(headers http.Header, reqHeaders http.Header) {
-	http.SetCookie(&headerResponseWriter{headers: headers}, &http.Cookie{
-		Name:     refreshCookieName,
-		Value:    "",
-		Path:     "/mygardenworld.v1.AuthService",
-		MaxAge:   -1,
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-		Secure:   requestLooksHTTPS(reqHeaders),
-	})
+func (svc *Services) clearRefreshCookie(headers http.Header, reqHeaders http.Header) {
+	secure := requestLooksHTTPS(reqHeaders)
+	w := &headerResponseWriter{headers: headers}
+	for _, name := range []string{svc.refreshCookieName(), refreshCookieNameLegacy} {
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     refreshCookiePath,
+			MaxAge:   -1,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Secure:   secure,
+		})
+	}
 }
 
 func requestLooksHTTPS(headers http.Header) bool {

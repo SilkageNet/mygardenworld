@@ -89,6 +89,7 @@ func TestDisabledUserOnlyRevealsStatusAfterCorrectPassword(t *testing.T) {
 func TestLoginSetsStrictRefreshCookie(t *testing.T) {
 	ctx := context.Background()
 	svc := newAuthTestService(t, LoginLimiterConfig{UserFailures: 100, IPFailures: 100})
+	svc.ListenAddr = "127.0.0.1:50051"
 	createTestUser(t, ctx, svc.DB, "owner", "owner@example.test", "ValidPass123!", "active")
 
 	resp, err := svc.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "ValidPass123!"}))
@@ -98,6 +99,41 @@ func TestLoginSetsStrictRefreshCookie(t *testing.T) {
 	cookie := resp.Header().Get("Set-Cookie")
 	if !strings.Contains(cookie, "SameSite=Strict") {
 		t.Fatalf("Set-Cookie=%q, want SameSite=Strict", cookie)
+	}
+	if !strings.Contains(cookie, "mgw_refresh_token_50051=") {
+		t.Fatalf("Set-Cookie=%q, want port-scoped cookie name", cookie)
+	}
+}
+
+func TestRefreshCookiesAreScopedByListenPort(t *testing.T) {
+	ctx := context.Background()
+	svcA := newAuthTestService(t, LoginLimiterConfig{UserFailures: 100, IPFailures: 100})
+	svcA.ListenAddr = "127.0.0.1:50051"
+	svcB := newAuthTestService(t, LoginLimiterConfig{UserFailures: 100, IPFailures: 100})
+	svcB.ListenAddr = "127.0.0.1:50052"
+	createTestUser(t, ctx, svcA.DB, "owner", "owner@example.test", "ValidPass123!", "active")
+	createTestUser(t, ctx, svcB.DB, "owner", "owner@example.test", "ValidPass123!", "active")
+
+	respA, err := svcA.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "ValidPass123!"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	respB, err := svcB.Login(ctx, connect.NewRequest(&pb.LoginRequest{Username: "owner", Password: "ValidPass123!"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cookiesA := respA.Header().Values("Set-Cookie")
+	cookiesB := respB.Header().Values("Set-Cookie")
+	joinedA := strings.Join(cookiesA, "\n")
+	joinedB := strings.Join(cookiesB, "\n")
+	if !strings.Contains(joinedA, "mgw_refresh_token_50051=") {
+		t.Fatalf("stack A cookies=%q, want _50051", joinedA)
+	}
+	if !strings.Contains(joinedB, "mgw_refresh_token_50052=") {
+		t.Fatalf("stack B cookies=%q, want _50052", joinedB)
+	}
+	if strings.Contains(joinedA, "mgw_refresh_token_50052=") || strings.Contains(joinedB, "mgw_refresh_token_50051=") {
+		t.Fatalf("cookie names collided across stacks:\nA=%q\nB=%q", joinedA, joinedB)
 	}
 }
 

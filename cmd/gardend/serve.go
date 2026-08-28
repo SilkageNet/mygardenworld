@@ -161,10 +161,6 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		defer close(maintenanceDone)
 		runLogCleanupLoop(maintenanceCtx, db, log)
 	}()
-	defer func() {
-		cancelMaintenance()
-		<-maintenanceDone
-	}()
 
 	if err := seedAdmin(ctx, db, log, opts); err != nil {
 		return fmt.Errorf("seed admin: %w", err)
@@ -182,10 +178,11 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	}
 
 	svc := &apiserver.Services{
-		DB:      db,
-		Manager: mgr,
-		JWT:     jwtSvc,
-		Log:     log,
+		DB:         db,
+		Manager:    mgr,
+		JWT:        jwtSvc,
+		Log:        log,
+		ListenAddr: opts.ListenAddr,
 		AlipayLogins: apiserver.NewAlipayLoginCoordinator(
 			babigame.NewAlipayClient(alipayCfg),
 		),
@@ -196,6 +193,18 @@ func runServe(ctx context.Context, opts serveOpts) error {
 			Lockout:      opts.AuthLockout,
 		}),
 	}
+
+	midnightDone := make(chan struct{})
+	go func() {
+		defer close(midnightDone)
+		runMidnightAccountEnsureLoop(maintenanceCtx, svc, log)
+	}()
+	defer func() {
+		cancelMaintenance()
+		<-maintenanceDone
+		<-midnightDone
+	}()
+
 	handlers := apiserver.NewHandlers(svc)
 
 	authInterceptor := auth.NewInterceptor(jwtSvc, func(ctx context.Context, userID int64) (*auth.Identity, error) {

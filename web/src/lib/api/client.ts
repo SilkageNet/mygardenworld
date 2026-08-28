@@ -132,12 +132,43 @@ export function apiBaseUrl(): string {
     const localDevHost = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
     if (localDevHost && /^30\d\d$/.test(url.port)) {
       url.protocol = "http:";
-      url.port = "50051";
+      // Map Next.js ports to matching gardend stacks: 3000→50051, 3001→50052.
+      url.port = url.port === "3001" ? "50052" : "50051";
       return url.origin;
     }
     return window.location.origin;
   }
   return "http://127.0.0.1:50051";
+}
+
+export function peerApiUrls(): string[] {
+  const raw = process.env.NEXT_PUBLIC_PEER_API_URLS?.trim();
+  if (!raw) return [];
+  return raw.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+export function peerStackLabels(): string[] {
+  const raw = process.env.NEXT_PUBLIC_PEER_STACK_LABELS?.trim();
+  if (!raw) return [];
+  return raw.split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+export function localStackLabel(): string {
+  const configured = process.env.NEXT_PUBLIC_STACK_LABEL?.trim();
+  return configured || "当前实例";
+}
+
+export function stackAdminCredentials(): { username: string; password: string } | null {
+  const username = process.env.NEXT_PUBLIC_STACK_ADMIN_USERNAME?.trim();
+  const password = process.env.NEXT_PUBLIC_STACK_ADMIN_PASSWORD;
+  if (!username || !password) return null;
+  return { username, password };
+}
+
+export function crossStackRedeemEnabled(): boolean {
+  const peers = peerApiUrls();
+  if (peers.length === 0) return false;
+  return stackAdminCredentials() !== null;
 }
 
 export function workspaceWebSocketUrl(): string {
