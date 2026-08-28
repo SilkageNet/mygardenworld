@@ -197,11 +197,15 @@ func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []Planned
 		if option.DailyLimit > 0 && build.BuildCounts[id] >= option.DailyLimit {
 			continue
 		}
+		if option.GroupDailyLimit > 0 && unionBuildGroupUsage(build.BuildCounts, option.Type) >= option.GroupDailyLimit {
+			continue
+		}
 		reason := strings.TrimSpace(option.Name)
 		if reason == "" {
 			reason = fmt.Sprintf("公会建设 #%d", id)
 		}
 		buildOp := domainOp(clientproto.RPCFmlBld.String(), goal, "union.build", "build", reason+"可执行", 4500-id, id, 0, 1)
+		buildOp.CooldownKey = "union.build"
 		if blocked := applyUnionBuildCostGate(&buildOp, option, policy, s, inventory); len(blocked) > 0 {
 			buildOp.Status = PlanStatusAdapterMissing
 			buildOp.Executable = false
@@ -221,6 +225,17 @@ func unionBuildOperations(s *state.State, policy *pb.UnionBuildPolicy) []Planned
 		return []PlannedOp{*firstBlocked}
 	}
 	return nil
+}
+
+func unionBuildGroupUsage(counts map[int32]int32, buildType int32) int32 {
+	var used int32
+	for id, count := range counts {
+		option, ok := state.FmlBuildOptionByID(id)
+		if ok && option.Type == buildType {
+			used += count
+		}
+	}
+	return used
 }
 
 func unionBuildPolicyEnabled(policy *pb.UnionBuildPolicy) bool {

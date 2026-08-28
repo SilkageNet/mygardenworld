@@ -3050,6 +3050,26 @@ func TestBuildPlan_UnionBuildFreeAndGold(t *testing.T) {
 	t.Fatalf("missing union build op: %+v", result.Operations)
 }
 
+func TestBuildPlan_UnionBuildPaidOptionsShareDailyLimit(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 20000}},
+		"25": map[string]any{
+			"133": map[string]any{"1": 88, "5": map[string]any{"2": 0, "3": 5}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Build.GoldEnabled = true
+	p.Union.Build.MaxSpendGold = 12000
+
+	for _, op := range BuildPlan(s, p, time.Now()).Operations {
+		if op.Domain == "union.build" {
+			t.Fatalf("paid build group already used 5/5; unexpected op: %+v", op)
+		}
+	}
+}
+
 func TestBuildPlan_UnionBuildVideoBlocked(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{

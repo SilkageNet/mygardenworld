@@ -115,15 +115,15 @@ func TestFmlPositionAllowsRaceDelete(t *testing.T) {
 
 func TestFmlBuildOptionByID(t *testing.T) {
 	video, ok := FmlBuildOptionByID(1)
-	if !ok || video.Cost != 0 || video.ItemID != 0 || video.ShareID != 14 {
+	if !ok || video.Cost != 0 || video.ItemID != 0 || video.ShareID != 14 || video.Type != 1 || video.GroupDailyLimit != 1 {
 		t.Fatalf("video build option=%+v ok=%t", video, ok)
 	}
 	gold, ok := FmlBuildOptionByID(2)
-	if !ok || gold.ItemID != 11 || gold.Cost <= 0 || gold.ShareID != 0 {
+	if !ok || gold.ItemID != 11 || gold.Cost <= 0 || gold.ShareID != 0 || gold.Type != 2 || gold.GroupDailyLimit != 5 {
 		t.Fatalf("gold build option=%+v ok=%t", gold, ok)
 	}
 	diamond, ok := FmlBuildOptionByID(3)
-	if !ok || diamond.ItemID != 1 || diamond.Cost <= 0 || diamond.ShareID != 0 {
+	if !ok || diamond.ItemID != 1 || diamond.Cost <= 0 || diamond.ShareID != 0 || diamond.Type != 2 || diamond.GroupDailyLimit != 5 {
 		t.Fatalf("diamond build option=%+v ok=%t", diamond, ok)
 	}
 }

@@ -948,6 +948,33 @@ func TestUnionRaceDeleteOrdersEligibleTasksDeterministically(t *testing.T) {
 	}
 }
 
+func TestUnionRaceDeleteSkipsTasksBeforeAppearTime(t *testing.T) {
+	now := time.Now()
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 5, 0, 0}, {2, 3036, 10, 0, 0}})
+	applyRaceDeletePosition(s, 1)
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"114":[{"0":1,"4":3036,"5":%d,"10":5,"14":0,"15":0},{"0":2,"4":3036,"5":%d,"10":10,"14":0,"15":0}]}}`,
+		now.Add(90*time.Second).UnixMilli(), now.Add(-time.Second).UnixMilli(),
+	)))
+	policy := &pb.UnionRacePolicy{
+		Enabled:            true,
+		DeleteLowScoreTask: true,
+		DeleteTaskMaxScore: 10,
+	}
+
+	ops := unionRaceOperations(s, policy, s.RoleID(), now, raceGatesOn())
+	var deletes []PlannedOp
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceDelTask.String() {
+			deletes = append(deletes, op)
+		}
+	}
+	if len(deletes) != 1 || deletes[0].TaskMsID != 2 {
+		t.Fatalf("delete ops=%+v, want only ready task 2", deletes)
+	}
+}
+
 func TestUnionRaceDeleteRefreshesStalePoolBeforeMutation(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})

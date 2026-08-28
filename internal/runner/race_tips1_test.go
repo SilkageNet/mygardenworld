@@ -204,6 +204,59 @@ func TestIsRaceTakeOnCooldownError(t *testing.T) {
 	}
 }
 
+func TestIsRaceDeleteOnCooldownError(t *testing.T) {
+	cd := &babigame.RPCServerError{
+		Name:     clientproto.RPCFmlRaceDelTask,
+		Envelope: babigame.WSResponseD{M: json.RawMessage(`{"msg":"任务冷却中"}`)},
+	}
+	if !isRaceDeleteOnCooldownError(clientproto.RPCFmlRaceDelTask.String(), cd) {
+		t.Fatal("expected delete cooldown match")
+	}
+	if isRaceDeleteOnCooldownError(clientproto.RPCFmlRaceTakeTask.String(), cd) {
+		t.Fatal("must not match takeTask")
+	}
+}
+
+func TestHandleOperationErrorRaceDeleteOnCooldownWaitsAppearTime(t *testing.T) {
+	r := newOperationEventTestRunner()
+	now := time.UnixMilli(1_000_000)
+	appear := now.Add(20 * time.Second).UnixMilli()
+	r.state.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"25":{"111":{"0":42,"1":1},"114":[{"0":814,"4":4007,"5":%d,"10":21,"14":0,"15":0}]}}`,
+		appear,
+	)))
+	cdErr := &babigame.RPCServerError{
+		Name:     clientproto.RPCFmlRaceDelTask,
+		Envelope: babigame.WSResponseD{M: json.RawMessage(`{"msg":"任务冷却中"}`)},
+	}
+	op := &automation.PlannedOp{
+		OperationID: "fmlRace.delTask:814",
+		CooldownKey: "union.race.delete:814",
+		Kind:        clientproto.RPCFmlRaceDelTask.String(),
+		Lane:        automation.LaneSide,
+		Category:    automation.CategoryRace,
+		Domain:      "union.race.delete",
+		Action:      "delete",
+		TaskMsID:    814,
+	}
+
+	got := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              cdErr,
+		finishedAt:       now,
+	})
+	if got != nil {
+		t.Fatalf("delete cooldown must soft-defer, got %v", got)
+	}
+	cd, cooling := r.operationCoolingDown(op, now.Add(time.Second))
+	if !cooling {
+		t.Fatal("expected per-task delete cooldown")
+	}
+	if want := time.UnixMilli(appear); !cd.Until.Equal(want) {
+		t.Fatalf("cooldown until=%v, want %v", cd.Until, want)
+	}
+}
+
 func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn1s(t *testing.T) {
 	r := newOperationEventTestRunner()
 	r.state.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":814,"4":4001,"5":3036,"10":9}]}}`))
