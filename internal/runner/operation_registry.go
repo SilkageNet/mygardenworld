@@ -502,14 +502,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.FmlLand().Plant(ctx, req)
 		},
 	),
-	clientproto.RPCFmlForestRefresh.String(): stateDeltaOperation(
-		func(op *automation.PlannedOp) (clientproto.FmlForestRefreshRequest, error) {
-			return clientproto.FmlForestRefreshRequest{IsAutoCollect: op.TargetID}, nil
+	clientproto.RPCFmlForestRefresh.String(): {
+		args: func(op *automation.PlannedOp) (any, error) {
+			return fmlForestRefreshRequest(op), nil
 		},
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlForestRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.FmlForest().Refresh(ctx, req)
-		},
-	),
+		run: runFmlForestRefresh,
+	},
 	clientproto.RPCFmlFlowerShareRefresh.String(): stateDeltaOperation(
 		staticRequest(clientproto.FmlFlowerShareRefreshRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlFlowerShareRefreshRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {

@@ -634,8 +634,8 @@ func TestFmlForestRefreshOperationArgs(t *testing.T) {
 	if !ok {
 		t.Fatalf("operationArgs(fmlForest.refresh)=%T, want FmlForestRefreshRequest", args)
 	}
-	if refresh.IsAutoCollect != 1 {
-		t.Fatalf("FmlForestRefreshRequest.IsAutoCollect=%d, want 1", refresh.IsAutoCollect)
+	if !refresh.IsAutoCollect {
+		t.Fatal("FmlForestRefreshRequest.IsAutoCollect=false, want true")
 	}
 }
 

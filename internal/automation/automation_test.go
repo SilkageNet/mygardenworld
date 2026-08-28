@@ -4221,6 +4221,22 @@ func TestBuildPlan_UnionForestCollect(t *testing.T) {
 	t.Fatalf("missing union forest collect op: %+v", result.Operations)
 }
 
+func TestUnionForestRefreshBacksOffAfterUnusableAcknowledgement(t *testing.T) {
+	s := state.New()
+	now := time.Date(2026, 8, 28, 10, 0, 0, 0, time.Local)
+	if ops := unionForestOperations(s, true, now); len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlForestRefresh.String() {
+		t.Fatalf("initial forest sync=%+v, want one refresh", ops)
+	}
+
+	s.MarkFmlForestRefreshAttemptAt(now)
+	if ops := unionForestOperations(s, true, now.Add(30*time.Second)); len(ops) != 0 {
+		t.Fatalf("recent empty acknowledgement must back off, got %+v", ops)
+	}
+	if ops := unionForestOperations(s, true, now.Add(fmlForestRefreshRetryInterval)); len(ops) != 1 {
+		t.Fatalf("forest sync must retry after backoff, got %+v", ops)
+	}
+}
+
 func TestBuildPlan_LowStockFallbackBalancesMultipleFlowers(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{

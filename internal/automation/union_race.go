@@ -89,10 +89,13 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if policy.GetDeleteLowScoreTask() && !build.MemberPositionObserved &&
 		memberPositionSyncDue(build, now) {
 		op := domainOp(
-			clientproto.RPCFmlEnter.String(), goal, "union.race.delete", "sync",
-			"公会竞赛删除权限未同步，拉取当前公会职位", 4401, 0, 0, 0,
+			clientproto.RPCFmlEnter.String(), goal, "union.race.sync", "sync",
+			"公会竞赛删除权限未同步，拉取当前公会职位", 4490, 0, 0, 0,
 		)
 		op.CooldownKey = "union.race.delete.member_position"
+		// This is a one-shot permission bootstrap. Letting ordinary guild syncs
+		// rank ahead can leave both the setting and task pool permanently pending.
+		op.PreemptFarm = true
 		return []PlannedOp{op}
 	}
 

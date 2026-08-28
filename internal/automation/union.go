@@ -11,6 +11,11 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
+// fmlForestRefreshRetryInterval bounds successful empty acknowledgements and
+// stale pending-energy snapshots. A valid response clears the need immediately;
+// an unusable response retries later without starving other guild operations.
+const fmlForestRefreshRetryInterval = time.Minute
+
 func unionOperations(s *state.State, policy *pb.Policy, now time.Time) []PlannedOp {
 	if policy == nil {
 		return nil
@@ -35,7 +40,7 @@ func unionOperations(s *state.State, policy *pb.Policy, now time.Time) []Planned
 	ops = append(ops, unionFlowerOperations(s, union.GetFlower(), now)...)
 	ops = append(ops, unionLandOperations(s, union.GetLand(), now)...)
 	ops = append(ops, unionRaceOperations(s, union.GetRace(), uid, now, gates)...)
-	ops = append(ops, unionForestOperations(s, union.GetForestEnabled())...)
+	ops = append(ops, unionForestOperations(s, union.GetForestEnabled(), now)...)
 	return ops
 }
 
@@ -540,8 +545,12 @@ func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveli
 	return out
 }
 
-func unionForestOperations(s *state.State, enabled bool) []PlannedOp {
+func unionForestOperations(s *state.State, enabled bool, now time.Time) []PlannedOp {
 	if !enabled {
+		return nil
+	}
+	if attemptedAt := s.FmlForestRefreshAttemptAtMs(); attemptedAt > 0 &&
+		now.Before(time.UnixMilli(attemptedAt).Add(fmlForestRefreshRetryInterval)) {
 		return nil
 	}
 	goal := Goal{ID: "union.forest", Category: CategoryUnion, Domain: "union.forest", Label: "能量森林", Priority: 43}

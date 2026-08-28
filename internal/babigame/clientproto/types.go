@@ -1801,7 +1801,7 @@ type FmlForestGetWeekCollectRequest struct{}
 type FmlForestGetWeekStatRequest struct{}
 
 type FmlForestRefreshRequest struct {
-	IsAutoCollect RPCInt `json:"isAutoCollect,omitempty"`
+	IsAutoCollect RPCBool `json:"isAutoCollect,omitempty"`
 }
 
 type FmlLandHarvestRequest struct {

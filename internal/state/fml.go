@@ -534,6 +534,7 @@ func (s *State) BeginFmlMembershipSnapshot() {
 	s.fmlBuild.MemberPositionObserved = false
 	s.fmlBuild.MemberPosition = 0
 	s.fmlBuild.MemberPositionSyncAtMs = 0
+	s.fmlForestRefreshAttemptAtMs = 0
 	s.bumpRevisionLocked()
 }
 
@@ -548,6 +549,7 @@ func (s *State) MarkNoFmlMembership() {
 	s.fmlBuild.MemberPositionObserved = false
 	s.fmlBuild.MemberPosition = 0
 	s.fmlBuild.MemberPositionSyncAtMs = 0
+	s.fmlForestRefreshAttemptAtMs = 0
 	s.bumpRevisionLocked()
 }
 
@@ -565,6 +567,29 @@ func (s *State) MarkFmlMemberPositionSyncAttemptAt(at time.Time) {
 	defer s.mu.Unlock()
 	s.fmlBuild.MemberPositionSyncAtMs = at.UnixMilli()
 	s.bumpRevisionLocked()
+}
+
+// MarkFmlForestRefreshAttempt records a successful or failed refresh attempt.
+// Some channel fronts acknowledge fmlForest.refresh without a usable 25.127
+// delta; the planner uses this timestamp to avoid a tight success loop.
+func (s *State) MarkFmlForestRefreshAttempt() {
+	s.MarkFmlForestRefreshAttemptAt(time.Now())
+}
+
+// MarkFmlForestRefreshAttemptAt is the deterministic-time variant used by
+// planner tests.
+func (s *State) MarkFmlForestRefreshAttemptAt(at time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlForestRefreshAttemptAtMs = at.UnixMilli()
+	s.bumpRevisionLocked()
+}
+
+// FmlForestRefreshAttemptAtMs returns the last explicit forest refresh time.
+func (s *State) FmlForestRefreshAttemptAtMs() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fmlForestRefreshAttemptAtMs
 }
 
 // FinalizeFmlMembershipSnapshot closes the startup index.login + lazySync

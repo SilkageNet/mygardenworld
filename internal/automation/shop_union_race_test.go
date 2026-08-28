@@ -816,7 +816,7 @@ func TestUnionRaceDeleteActivelySyncsMissingMemberPosition(t *testing.T) {
 	now := time.Now()
 
 	ops := unionRaceOperations(s, policy, s.RoleID(), now, raceGatesOn())
-	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlEnter.String() || ops[0].Domain != "union.race.delete" {
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlEnter.String() || ops[0].Domain != "union.race.sync" || !ops[0].PreemptFarm {
 		t.Fatalf("missing member position must schedule fml.enter, got %+v", ops)
 	}
 
@@ -830,6 +830,27 @@ func TestUnionRaceDeleteActivelySyncsMissingMemberPosition(t *testing.T) {
 	ops = unionRaceOperations(s, policy, s.RoleID(), now.Add(fmlMemberPositionSyncInterval), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlEnter.String() {
 		t.Fatalf("member sync must retry after backoff, got %+v", ops)
+	}
+}
+
+func TestUnionRacePositionSyncPreemptsUnobservedForest(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"102": map[string]any{},
+			"111": map[string]any{"0": 42, "1": 1},
+			"114": []any{},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.ForestEnabled = true
+	p.Union.Race.DeleteLowScoreTask = true
+	p.Union.Race.DeleteTaskMaxScore = 25
+
+	op := Plan(s, p, time.Now())
+	if op == nil || op.Kind != clientproto.RPCFmlEnter.String() || op.Domain != "union.race.sync" || !op.Executable || op.Status != PlanStatusManaged {
+		t.Fatalf("position bootstrap must run before forest refresh, got %+v", op)
 	}
 }
 
