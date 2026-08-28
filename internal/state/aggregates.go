@@ -84,16 +84,17 @@ type orderState struct {
 }
 
 type unionState struct {
-	fmlBuild                  FmlBuildView
-	fmlLandObserved           bool
-	fmlLands                  map[int32]*FmlLandView
-	fmlForestEnergy           FmlForestEnergyView
-	fmlFlowerShare            FmlFlowerShareView
-	fmlOtherFlowerShares      map[int64]*FmlFlowerShareView
-	fmlOtherShareObserved     bool
-	fmlOtherShareSyncedAtMs   int64
-	fmlFlowerTakeLimitUntilMs int64
-	fmlRace                   FmlRaceView
+	fmlBuild                    FmlBuildView
+	fmlLandObserved             bool
+	fmlLands                    map[int32]*FmlLandView
+	fmlForestEnergy             FmlForestEnergyView
+	fmlForestRefreshAttemptAtMs int64
+	fmlFlowerShare              FmlFlowerShareView
+	fmlOtherFlowerShares        map[int64]*FmlFlowerShareView
+	fmlOtherShareObserved       bool
+	fmlOtherShareSyncedAtMs     int64
+	fmlFlowerTakeLimitUntilMs   int64
+	fmlRace                     FmlRaceView
 }
 
 type activityState struct {

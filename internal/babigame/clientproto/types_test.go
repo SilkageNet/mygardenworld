@@ -35,6 +35,16 @@ func TestCelebrityGetAllTypesInfoRequestIsEmptyObject(t *testing.T) {
 	}
 }
 
+func TestFmlForestRefreshRequestUsesObservedBoolean(t *testing.T) {
+	raw, err := json.Marshal(FmlForestRefreshRequest{IsAutoCollect: true})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if got, want := string(raw), `{"isAutoCollect":true}`; got != want {
+		t.Fatalf("FmlForestRefreshRequest JSON = %s, want %s", got, want)
+	}
+}
+
 func TestZooInheritedRequestFieldsMarshal(t *testing.T) {
 	tests := []struct {
 		name string
