@@ -286,11 +286,13 @@ type SignTypeRewardInfo struct {
 
 // FmlBuildOption describes one c_fmlBld donation/build option.
 type FmlBuildOption struct {
-	ID         int32
-	Name       string
-	ItemID     int32
-	Cost       int32
-	DailyLimit int32
+	ID              int32
+	Name            string
+	ItemID          int32
+	Cost            int32
+	Type            int32
+	DailyLimit      int32
+	GroupDailyLimit int32
 	// ShareID > 0 means rewarded-video / share flow (c_share), not a bare fml.bld.
 	ShareID int32
 }
@@ -1668,6 +1670,7 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 	var row struct {
 		Name       string    `json:"name"`
 		Items      [][]int32 `json:"items"`
+		Type       int32     `json:"type"`
 		DailyCount int32     `json:"dailyCount"`
 		ShareID    int32     `json:"shareId"`
 	}
@@ -1677,8 +1680,17 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 	out := FmlBuildOption{
 		ID:         id,
 		Name:       strings.TrimSpace(row.Name),
+		Type:       row.Type,
 		DailyLimit: row.DailyCount,
 		ShareID:    row.ShareID,
+	}
+	if masterRaw, exists := StaticRow("c_fmlBld", -1); exists {
+		var master struct {
+			DailyCountMap map[string]int32 `json:"$dailyCountMap"`
+		}
+		if json.Unmarshal(masterRaw, &master) == nil {
+			out.GroupDailyLimit = master.DailyCountMap[strconv.FormatInt(int64(row.Type), 10)]
+		}
 	}
 	if len(row.Items) > 0 && len(row.Items[0]) >= 2 {
 		out.ItemID = row.Items[0][0]
