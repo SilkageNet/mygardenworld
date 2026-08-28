@@ -36,6 +36,11 @@ const raceFinishProgressSyncInterval = 30 * time.Second
 // inactive batch once the weekly session (or a published start window) is open.
 const raceInactiveEnterRetryInterval = 30 * time.Second
 
+// fmlMemberPositionSyncInterval backs off fml.enter when a channel front still
+// omits IFmlTot.mb after it was explicitly requested. Guild positions change
+// rarely, while an initial zero timestamp still schedules the sync immediately.
+const fmlMemberPositionSyncInterval = 10 * time.Minute
+
 // fmlFlowerTakeListRefreshInterval is how often automation re-fetches the
 // guild other-share list while take quota remains.
 const fmlFlowerTakeListRefreshInterval = time.Hour
@@ -76,6 +81,20 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
+
+	// Race enter/task-list responses carry the pool but commonly omit the
+	// current IFmlMb record. Low-score deletion needs mb.pos to prove permission,
+	// so explicitly enter the guild with mb=1 instead of leaving the setting in
+	// a permanent "待同步" state. The runner records every attempt for backoff.
+	if policy.GetDeleteLowScoreTask() && !build.MemberPositionObserved &&
+		memberPositionSyncDue(build, now) {
+		op := domainOp(
+			clientproto.RPCFmlEnter.String(), goal, "union.race.delete", "sync",
+			"公会竞赛删除权限未同步，拉取当前公会职位", 4401, 0, 0, 0,
+		)
+		op.CooldownKey = "union.race.delete.member_position"
+		return []PlannedOp{op}
+	}
 
 	// Enter pushes CurFmlRaceBatch (111) and CurFmlRaceRcd (117, raceLvl).
 	// Login may already carry 111 without 117; re-enter once while raceLvl is
@@ -363,6 +382,16 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	return ops
+}
+
+func memberPositionSyncDue(build state.FmlBuildView, now time.Time) bool {
+	if build.MemberPositionObserved {
+		return false
+	}
+	if build.MemberPositionSyncAtMs <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(build.MemberPositionSyncAtMs).Add(fmlMemberPositionSyncInterval))
 }
 
 func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy, goal Goal) []PlannedOp {

@@ -10,6 +10,52 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
+func fmlEnterSyncRequest() clientproto.FmlEnterRequest {
+	return clientproto.FmlEnterRequest{Fml: 1, Mb: 1, MbL: 1}
+}
+
+func runFmlEnter(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fml.enter requires runner state")
+	}
+	v, d, err := rpcResult(rt.rpc.Fml().Enter(
+		ctx,
+		fmlEnterSyncRequest(),
+		babigame.WithPayloadApply(false),
+	))
+	// Mark failures and empty acknowledgements too, otherwise an omitted mb
+	// payload retries every decision tick and can starve ordinary operations.
+	rt.runner.state.MarkFmlMemberPositionSyncAttempt()
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		v = normalizeFmlEnterV(v)
+		rt.runner.state.ApplyV(v)
+	}
+	return v, nil
+}
+
+// normalizeFmlEnterV wraps the IFmlTot-shaped response returned by fml.enter
+// under namespace 25. The RPC commonly returns bare fields such as 0/1/102;
+// feeding those directly to ApplyV would interpret them as top-level namespaces
+// and silently lose IFmlTot.mb.pos.
+func normalizeFmlEnterV(v json.RawMessage) json.RawMessage {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(v, &top); err != nil || len(top) == 0 {
+		return v
+	}
+	if _, ok := top["25"]; ok {
+		return v
+	}
+	wrapped, err := json.Marshal(map[string]json.RawMessage{"25": v})
+	if err != nil {
+		return v
+	}
+	return wrapped
+}
+
 func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
 	if rt.runner == nil || rt.runner.state == nil {
 		return nil, fmt.Errorf("fmlRace.enter requires runner state")

@@ -21,8 +21,16 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	if rawFml, ok := ns25["0"]; ok {
 		s.applyFmlObjectLocked(rawFml)
 	}
-	if rawMember, ok := ns25["1"]; ok {
+	rawMember, memberPresent := ns25["1"]
+	if memberPresent {
 		s.applyFmlMemberObjectLocked(rawMember)
+	}
+	// fml.enter may return the current user only inside mbL (25.2), even when
+	// mb=1 was requested. Use the member list strictly as a fallback matched by
+	// the authenticated role UID; an explicit null 25.1 remains authoritative.
+	if rawMembers, ok := ns25["2"]; ok &&
+		(!memberPresent || (s.fmlBuild.MemberFmlID > 0 && !s.fmlBuild.MemberPositionObserved)) {
+		s.applyFmlMemberListForCurrentRoleLocked(rawMembers)
 	}
 	if rawBuild, ok := ns25["133"]; ok {
 		s.applyFmlBuildObjectLocked(rawBuild)
@@ -189,6 +197,28 @@ func (s *State) applyFmlMemberObjectLocked(raw json.RawMessage) {
 	if position, ok := readInt32JSONField(fields, "2"); ok {
 		s.fmlBuild.MemberPositionObserved = true
 		s.fmlBuild.MemberPosition = position
+	}
+}
+
+func (s *State) applyFmlMemberListForCurrentRoleLocked(raw json.RawMessage) {
+	if s.roleID <= 0 || len(raw) == 0 || string(raw) == "null" {
+		return
+	}
+	var members []json.RawMessage
+	if err := json.Unmarshal(raw, &members); err != nil {
+		return
+	}
+	for _, rawMember := range members {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(rawMember, &fields) != nil {
+			continue
+		}
+		uid, ok := readInt64JSONField(fields, "0")
+		if !ok || uid != s.roleID {
+			continue
+		}
+		s.applyFmlMemberObjectLocked(rawMember)
+		return
 	}
 }
 
@@ -503,6 +533,7 @@ func (s *State) BeginFmlMembershipSnapshot() {
 	s.fmlBuild.MemberFmlID = 0
 	s.fmlBuild.MemberPositionObserved = false
 	s.fmlBuild.MemberPosition = 0
+	s.fmlBuild.MemberPositionSyncAtMs = 0
 	s.bumpRevisionLocked()
 }
 
@@ -516,6 +547,23 @@ func (s *State) MarkNoFmlMembership() {
 	s.fmlBuild.MemberFmlID = 0
 	s.fmlBuild.MemberPositionObserved = false
 	s.fmlBuild.MemberPosition = 0
+	s.fmlBuild.MemberPositionSyncAtMs = 0
+	s.bumpRevisionLocked()
+}
+
+// MarkFmlMemberPositionSyncAttempt records an explicit fml.enter round-trip
+// used to request IFmlTot.mb. Some login/lazySync responses omit field 25.1;
+// the timestamp prevents an empty member response from causing a tight loop.
+func (s *State) MarkFmlMemberPositionSyncAttempt() {
+	s.MarkFmlMemberPositionSyncAttemptAt(time.Now())
+}
+
+// MarkFmlMemberPositionSyncAttemptAt is the deterministic-time variant used by
+// the planner and tests.
+func (s *State) MarkFmlMemberPositionSyncAttemptAt(at time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlBuild.MemberPositionSyncAtMs = at.UnixMilli()
 	s.bumpRevisionLocked()
 }
 

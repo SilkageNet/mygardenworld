@@ -805,6 +805,34 @@ func TestUnionRaceDeleteRunsWhenAutoModulesOff(t *testing.T) {
 	}
 }
 
+func TestUnionRaceDeleteActivelySyncsMissingMemberPosition(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 25, 0, 0}})
+	policy := &pb.UnionRacePolicy{
+		Enabled:            true,
+		DeleteLowScoreTask: true,
+		DeleteTaskMaxScore: 25,
+	}
+	now := time.Now()
+
+	ops := unionRaceOperations(s, policy, s.RoleID(), now, raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlEnter.String() || ops[0].Domain != "union.race.delete" {
+		t.Fatalf("missing member position must schedule fml.enter, got %+v", ops)
+	}
+
+	s.MarkFmlMemberPositionSyncAttemptAt(now)
+	ops = unionRaceOperations(s, policy, s.RoleID(), now.Add(time.Minute), raceGatesOn())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlEnter.String() {
+			t.Fatalf("member sync must back off after an empty attempt: %+v", ops)
+		}
+	}
+	ops = unionRaceOperations(s, policy, s.RoleID(), now.Add(fmlMemberPositionSyncInterval), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlEnter.String() {
+		t.Fatalf("member sync must retry after backoff, got %+v", ops)
+	}
+}
+
 func TestUnionRaceDeleteRequiresObservedPermission(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -825,6 +853,8 @@ func TestUnionRaceDeleteRequiresObservedPermission(t *testing.T) {
 			applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
 			if tc.observed {
 				applyRaceDeletePosition(s, tc.position)
+			} else {
+				s.MarkFmlMemberPositionSyncAttemptAt(time.Now())
 			}
 			policy := &pb.UnionRacePolicy{
 				Enabled:            true,

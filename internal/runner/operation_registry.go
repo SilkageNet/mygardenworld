@@ -477,12 +477,12 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.Fml().Bld(ctx, req)
 		},
 	),
-	clientproto.RPCFmlEnter.String(): stateDeltaOperation(
-		staticRequest(clientproto.FmlEnterRequest{Fml: 1}),
-		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FmlEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
-			return rpc.Fml().Enter(ctx, req)
+	clientproto.RPCFmlEnter.String(): {
+		args: func(_ *automation.PlannedOp) (any, error) {
+			return fmlEnterSyncRequest(), nil
 		},
-	),
+		run: runFmlEnter,
+	},
 	clientproto.RPCFmlLandHarvest.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.FmlLandHarvestRequest, error) {
 			return clientproto.FmlLandHarvestRequest{LandIds: op.LandIDs}, nil

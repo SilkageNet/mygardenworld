@@ -588,8 +588,8 @@ func TestFmlEnterOperationArgs(t *testing.T) {
 	if !ok {
 		t.Fatalf("operationArgs(fml.enter)=%T, want FmlEnterRequest", args)
 	}
-	if enter.Fml != 1 {
-		t.Fatalf("FmlEnterRequest.Fml=%d, want 1", enter.Fml)
+	if enter.Fml != 1 || enter.Mb != 1 || enter.MbL != 1 {
+		t.Fatalf("FmlEnterRequest=%+v, want fml=1 mb=1 mbL=1", enter)
 	}
 }
 
