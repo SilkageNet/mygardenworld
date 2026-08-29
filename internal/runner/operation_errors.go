@@ -70,6 +70,19 @@ func isWaterwheelDailyLimitError(kind string, err error) bool {
 	return kind == clientproto.RPCWaterwheelRecv.String() && err != nil && strings.Contains(err.Error(), "已达到领取上限")
 }
 
+func isShopCultivateOfferExhaustedError(kind string, err error) bool {
+	if kind != clientproto.RPCShopCultivateBuy.String() || err == nil {
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil && rpcErr.Envelope.ErrorCode() == 312 {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, `"code":312`) || strings.Contains(msg, `"code": 312`) ||
+		strings.Contains(msg, "无法再购买当前商品")
+}
+
 func isWaterDropResourceRejectedError(kind string, err error) bool {
 	if !isWaterOp(kind) || err == nil {
 		return false

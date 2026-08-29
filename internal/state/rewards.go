@@ -449,6 +449,30 @@ func (s *State) ShopCultivateObserved() bool {
 	return s.shopCultivateObserved
 }
 
+// MarkShopCultivateOfferExhausted reconciles a material-shop offer after the
+// server authoritatively rejects shopCultivate.buy with code 312 ("cannot buy
+// this item again"). The next enter/refresh snapshot may replace the record;
+// until then, the planner must not keep retrying the same stale offer.
+func (s *State) MarkShopCultivateOfferExhausted(shopID int32) bool {
+	if shopID <= 0 {
+		return false
+	}
+	_, _, buyLimit, _, ok := shopCultivateStatic(shopID)
+	if !ok || buyLimit <= 0 {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.shopCultivateBought == nil {
+		s.shopCultivateBought = make(map[int32]int32)
+	}
+	if s.shopCultivateBought[shopID] >= buyLimit {
+		return false
+	}
+	s.shopCultivateBought[shopID] = buyLimit
+	return true
+}
+
 // ShopCultivateNeedsEnter reports whether material-shop state must be synced
 // via shopCultivate.enter (never observed, incomplete timing fields, or daily
 // reset boundary passed).

@@ -2250,6 +2250,39 @@ func TestApplyV_ShopCultivateOffers(t *testing.T) {
 	}
 }
 
+func TestMarkShopCultivateOfferExhausted(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 8, 29, 10, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	applyMap(t, s, map[string]any{
+		"113": map[string]any{
+			"1": map[string]any{
+				"10001": []int32{11, 3214},
+				"10002": []int32{11, 4215},
+			},
+			"2": now.UnixMilli(),
+			"3": now.UnixMilli(),
+			"6": map[string]any{},
+		},
+	})
+
+	if !s.MarkShopCultivateOfferExhausted(10001) {
+		t.Fatal("MarkShopCultivateOfferExhausted=false, want state correction")
+	}
+	offers := s.ShopCultivateOffers()
+	if len(offers) != 2 || offers[0].ShopID != 10001 || offers[0].Remaining != 0 {
+		t.Fatalf("offers after exhausted correction=%+v, want shop 10001 unavailable", offers)
+	}
+	if offers[1].Remaining != 1 {
+		t.Fatalf("sibling offer remaining=%d, want 1", offers[1].Remaining)
+	}
+	if s.MarkShopCultivateOfferExhausted(10001) {
+		t.Fatal("second MarkShopCultivateOfferExhausted=true, want no change")
+	}
+	if s.MarkShopCultivateOfferExhausted(99999) {
+		t.Fatal("unknown offer correction=true, want false")
+	}
+}
+
 func TestShopCultivateNeedsEnterIncompleteTiming(t *testing.T) {
 	now := time.Date(2026, 7, 6, 18, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 
