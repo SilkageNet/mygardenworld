@@ -31,6 +31,8 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "水车水滴"
 	case op.Kind == clientproto.RPCFreeWaterRecv.String() || op.Domain == "basic.free_water":
 		return "限时水滴"
+	case op.Kind == clientproto.RPCShopEnter.String() || op.Kind == clientproto.RPCShopBuy.String() || op.Domain == "basic.zoo.buy_food":
+		return "宠物饲料"
 	case op.Kind == clientproto.RPCActCyclicStoryEnter.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecv.String(),
@@ -152,6 +154,10 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d 食物=%d×%d)", op.TargetID, op.ItemID, op.Count)
 		}
+	case clientproto.RPCShopEnter.String():
+		return fmt.Sprintf(" (商店=%d)", op.TargetID)
+	case clientproto.RPCShopBuy.String():
+		return fmt.Sprintf(" (商店=%d 商品=%d×%d)", op.TargetID, op.ItemID, op.Count)
 	case clientproto.RPCZooRefreshPetStatus.String(), clientproto.RPCZooStrokePet.String(), clientproto.RPCZooFeedPets.String(), clientproto.RPCZooFindPet.String(), clientproto.RPCZooReadLog.String():
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d)", op.TargetID)

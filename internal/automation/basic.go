@@ -34,21 +34,23 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 			add(true, clientproto.RPCFreeWaterRecv.String(), "basic.free_water", "claim", "限时水滴可领取", 6450, idx, CategoryWater)
 		}
 	}
-	// Only during 04:30–05:00 Asia/Shanghai. Count comes from the same
-	// getBenefitBoxInfo accrual as the mini client; the runner then calls
-	// benefitBox.draw once per unopened box. Daytime opens are left to the player.
-	if benefit.GetBoxEnabled() && benefitBoxClaimOpen(now) {
-		remaining := s.BenefitBoxDrawsRemaining(now)
-		if remaining > 0 || !s.BenefitBoxObserved() {
+	if benefit.GetBoxEnabled() {
+		if !s.BenefitBoxObserved() {
+			reason := "福利宝箱 namespace 116 尚未同步，拒绝用领取请求试探状态"
+			blocked := markerOp(CategoryBasic, "basic.benefit", "claim", reason, 6400)
+			blocked.Status = PlanStatusBlocked
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{reason}
+			ops = append(ops, blocked)
+		} else if remaining := s.BenefitBoxDrawsRemaining(now); remaining > 0 {
 			goal := Goal{ID: "basic.benefit", Category: CategoryBasic, Domain: "basic.benefit", Label: "basic.benefit", Priority: 64}
-			count := remaining
-			reason := fmt.Sprintf("福利宝箱未开 %d 次，凌晨窗口领取", remaining)
-			if !s.BenefitBoxObserved() {
-				count = 1
-				reason = "福利宝箱状态未同步，凌晨窗口通过 draw 同步并领取"
-			}
-			claim := op(clientproto.RPCBenefitBoxDraw.String(), goal, "claim", reason, 6400, 0, 0, count)
-			ops = append(ops, claim)
+			reason := fmt.Sprintf("福利宝箱可开启 %d 次", remaining)
+			ops = append(ops, op(clientproto.RPCBenefitBoxDraw.String(), goal, "claim", reason, 6400, 0, 0, remaining))
+		} else {
+			waiting := markerOp(CategoryBasic, "basic.benefit", "claim", "福利宝箱暂无可领取次数，等待本地冷却累计", 6400)
+			waiting.Status = PlanStatusSkipped
+			waiting.Executable = false
+			ops = append(ops, waiting)
 		}
 	}
 	if benefit.GetDoubleCoinEnabled() && !s.VideoDoubleActive(now) {
@@ -374,7 +376,18 @@ func waterClaimAllowed(s *state.State, basic *pb.BasicPolicy, now time.Time) boo
 }
 
 func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []PlannedOp {
-	if policy == nil || !policy.GetEnabled() {
+	if policy == nil {
+		return nil
+	}
+	if !policy.GetEnabled() {
+		if policy.GetAutoFeed() || policy.GetAutoBuyFood() || policy.GetAutoStroke() || policy.GetAutoEventEnabled() {
+			reason := "宠物子功能已开启，但宠物模块总开关未开启"
+			blocked := markerOp(CategoryBasic, "basic.zoo", "sync", reason, 5690)
+			blocked.Status = PlanStatusBlocked
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{reason}
+			return []PlannedOp{blocked}
+		}
 		return nil
 	}
 	goal := Goal{ID: "basic.zoo", Category: CategoryBasic, Domain: "basic.zoo", Label: "宠物", Priority: 57}
@@ -382,20 +395,65 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 	if !s.ZooObserved() {
 		return []PlannedOp{domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "宠物状态未同步，先进入宠物模块", 5690, 0, 0, 0)}
 	}
-	for _, petID := range s.ReadyZooStatusRefreshPetIDs(now) {
-		return []PlannedOp{domainOp(clientproto.RPCZooRefreshPetStatus.String(), goal, "basic.zoo", "refresh", "宠物状态冷却已到期，先刷新服务端状态", 5685, petID, 0, 0)}
-	}
-	if policy.GetAutoFeed() {
-		if food, ok := s.NextZooFoodstuffPlan(); ok {
-			stock := domainOp(clientproto.RPCZooAddFoodstuff.String(), goal, "basic.zoo.feed", "stock", "使用已有库存自动补充宠物食盆", 5680, food.PetID, food.FoodstuffID, food.Count)
+	need, bowlNeedsStock := s.NextZooFoodBowlNeed()
+	food, foodInInventory := s.NextZooFoodstuffPlan()
+	if policy.GetAutoFeed() && bowlNeedsStock {
+		if foodInInventory {
+			stock := domainOp(clientproto.RPCZooAddFoodstuff.String(), goal, "basic.zoo.feed", "stock", "按客户端食盆容量使用已有库存补充宠物食盆", 5688, food.PetID, food.FoodstuffID, food.Count)
 			stock.ItemCost = map[int32]int32{food.FoodstuffID: food.Count}
 			ops = append(ops, stock)
+		} else if !policy.GetAutoBuyFood() {
+			waiting := markerOp(CategoryBasic, "basic.zoo.feed", "stock", "食盆有空位，但普通/高级猫粮库存均为 0；可开启购买普通猫粮", 5688)
+			waiting.Status = PlanStatusSkipped
+			waiting.Executable = false
+			waiting.TargetID = need.PetID
+			waiting.Count = need.Count
+			ops = append(ops, waiting)
+		}
+	} else if policy.GetAutoFeed() {
+		reason := "所有已观测宠物的食盆均已装满"
+		status := PlanStatusSkipped
+		if !s.ZooFoodBowlsObserved() {
+			reason = "宠物食盆 foodstuffArr 尚未完整同步"
+			status = PlanStatusBlocked
+		}
+		waiting := markerOp(CategoryBasic, "basic.zoo.feed", "stock", reason, 5688)
+		waiting.Status = status
+		waiting.Executable = false
+		if status == PlanStatusBlocked {
+			waiting.BlockedReasons = []string{reason}
+		}
+		ops = append(ops, waiting)
+	}
+	if policy.GetAutoBuyFood() {
+		switch {
+		case !policy.GetAutoFeed():
+			reason := "购买普通猫粮需要同时开启自动补充食盆，避免无需求囤积"
+			blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", reason, 5687)
+			blocked.Status = PlanStatusBlocked
+			blocked.Executable = false
+			blocked.BlockedReasons = []string{reason}
+			ops = append(ops, blocked)
+		case bowlNeedsStock && !foodInInventory:
+			ops = append(ops, zooFoodPurchaseOperation(s, policy, goal, need, now))
 		}
 	}
-	if policy.GetAutoStroke() {
-		for _, petID := range s.ReadyZooStrokePetIDs(now) {
-			ops = append(ops, domainOp(clientproto.RPCZooStrokePet.String(), goal, "basic.zoo.stroke", "stroke", "宠物当前可互动且心情未满", 5670, petID, 0, 0))
-			break
+	refreshPlanned := false
+	for _, petID := range s.ReadyZooStatusRefreshPetIDs(now) {
+		ops = append(ops, domainOp(clientproto.RPCZooRefreshPetStatus.String(), goal, "basic.zoo", "refresh", "宠物状态冷却已到期，刷新服务端状态后再判断互动", 5685, petID, 0, 0))
+		refreshPlanned = true
+		break
+	}
+	if policy.GetAutoStroke() && !refreshPlanned {
+		readyPetIDs := s.ReadyZooStrokePetIDs(now)
+		if len(readyPetIDs) > 0 {
+			ops = append(ops, domainOp(clientproto.RPCZooStrokePet.String(), goal, "basic.zoo.stroke", "stroke", "宠物当前可互动且心情未满", 5670, readyPetIDs[0], 0, 0))
+		} else {
+			reason := s.ZooStrokeWaitReason(now)
+			waiting := markerOp(CategoryBasic, "basic.zoo.stroke", "stroke", reason, 5670)
+			waiting.Status = PlanStatusSkipped
+			waiting.Executable = false
+			ops = append(ops, waiting)
 		}
 	}
 	if policy.GetAutoEventEnabled() {
@@ -472,14 +530,87 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 			}
 		}
 	}
-	if policy.GetAutoBuyFood() {
-		blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", "购买猫粮涉及成本和商品选择，暂不自动执行", 5660)
-		blocked.Status = PlanStatusAdapterMissing
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{"猫粮购买成本和商品选择尚未放开自动执行"}
-		ops = append(ops, blocked)
-	}
 	return ops
+}
+
+func zooFoodPurchaseOperation(s *state.State, policy *pb.ZooPolicy, goal Goal, need state.ZooFoodBowlNeed, now time.Time) PlannedOp {
+	shop := s.ZooFoodShop(now)
+	if shop.NeedsEnter {
+		return domainOp(clientproto.RPCShopEnter.String(), goal, "basic.zoo.buy_food", "sync", "普通猫粮商店状态或今日限购记录未同步，先进入商店 9", 5687, state.ZooFoodShopTempID, 0, 0)
+	}
+	blocked := func(status, reason string) PlannedOp {
+		op := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", reason, 5687)
+		op.Status = status
+		op.Executable = false
+		op.TargetID = shop.ShopTempID
+		op.ItemID = shop.ShopItemID
+		if status == PlanStatusBlocked {
+			op.BlockedReasons = []string{reason}
+		}
+		return op
+	}
+	if shop.ShopTempID != state.ZooFoodShopTempID || shop.ShopItemID != state.ZooNormalFoodShopItemID ||
+		shop.FoodstuffID != 1501 || shop.FoodstuffCount <= 0 || shop.GoldCost <= 0 || shop.DailyLimit <= 0 {
+		return blocked(PlanStatusBlocked, "c_shop_item_9 的普通猫粮商品、金币成本或每日限购配置不完整")
+	}
+	if shop.DailyRemaining <= 0 {
+		return blocked(PlanStatusSkipped, fmt.Sprintf("普通猫粮今日已购买 %d/%d，等待每日重置", shop.DailyBought, shop.DailyLimit))
+	}
+	if policy.GetMaxSpendGold() <= 0 {
+		return blocked(PlanStatusBlocked, "购买普通猫粮前必须设置单次金币上限")
+	}
+	count := need.Count
+	if count > shop.DailyRemaining {
+		count = shop.DailyRemaining
+	}
+	if byBudget := policy.GetMaxSpendGold() / int64(shop.GoldCost); int64(count) > byBudget {
+		count = int32(byBudget)
+	}
+	if byBalance := s.Gold() / shop.GoldCost; count > byBalance {
+		count = byBalance
+	}
+	if count <= 0 {
+		if int64(shop.GoldCost) > policy.GetMaxSpendGold() {
+			return blocked(PlanStatusBlocked, fmt.Sprintf("普通猫粮每份需 %d 金币，超过单次金币上限", shop.GoldCost))
+		}
+		return blocked(PlanStatusBlocked, fmt.Sprintf("金币不足：普通猫粮每份需 %d，当前 %d", shop.GoldCost, s.Gold()))
+	}
+	buy := domainOp(clientproto.RPCShopBuy.String(), goal, "basic.zoo.buy_food", "buy", fmt.Sprintf("食盆缺少 %d 份，购买金币普通猫粮 %d 份", need.Count, count), 5687, shop.ShopTempID, shop.ShopItemID, count)
+	buy.GoldCost = shop.GoldCost * count
+	return buy
+}
+
+// ValidateZooFoodPurchase rechecks the exact client shop, bowl demand, quota,
+// policy and gold cost immediately before runner execution.
+func ValidateZooFoodPurchase(s *state.State, policy *pb.ZooPolicy, op *PlannedOp, now time.Time) error {
+	if s == nil || policy == nil || op == nil {
+		return fmt.Errorf("购买普通猫粮缺少状态、策略或操作")
+	}
+	if !policy.GetEnabled() || !policy.GetAutoFeed() || !policy.GetAutoBuyFood() {
+		return fmt.Errorf("宠物模块、自动补充食盆或购买普通猫粮已关闭")
+	}
+	need, ok := s.NextZooFoodBowlNeed()
+	if !ok {
+		return fmt.Errorf("食盆已满，无需购买猫粮")
+	}
+	if _, ok := s.NextZooFoodstuffPlan(); ok {
+		return fmt.Errorf("已有猫粮库存，应先补充食盆")
+	}
+	shop := s.ZooFoodShop(now)
+	if shop.NeedsEnter || !shop.Observed {
+		return fmt.Errorf("普通猫粮商店今日状态未同步")
+	}
+	if op.TargetID != shop.ShopTempID || op.ItemID != shop.ShopItemID || op.Count <= 0 || op.Count > need.Count || op.Count > shop.DailyRemaining {
+		return fmt.Errorf("普通猫粮购买参数已过期：shop=%d item=%d count=%d need=%d remaining=%d", op.TargetID, op.ItemID, op.Count, need.Count, shop.DailyRemaining)
+	}
+	wantGold := shop.GoldCost * op.Count
+	if shop.GoldCost <= 0 || wantGold <= 0 || op.GoldCost != wantGold || int64(wantGold) > policy.GetMaxSpendGold() {
+		return fmt.Errorf("普通猫粮金币成本未通过策略校验：计划=%d 当前=%d 上限=%d", op.GoldCost, wantGold, policy.GetMaxSpendGold())
+	}
+	if op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+		return fmt.Errorf("普通猫粮自动购买仅允许金币成本")
+	}
+	return nil
 }
 
 func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []PlannedOp {
@@ -539,15 +670,4 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 func pearlPolicyEnabled(policy *pb.PearlPolicy) bool {
 	return policy.GetFreeEnabled() || policy.GetAutoHireEnabled() || policy.GetDrawEnabled() ||
 		policy.GetProtectEnabled() || policy.GetAutoBuyHireTicket()
-}
-
-// benefitBoxClaimOpen is true during 04:30–05:00 Asia/Shanghai. Automation
-// only drains the observed unclaimed drawCnt in this window; daytime boxes
-// are left for the player.
-func benefitBoxClaimOpen(now time.Time) bool {
-	local := now.In(time.FixedZone("Asia/Shanghai", 8*60*60))
-	minute := local.Hour()*60 + local.Minute()
-	const startMin = 4*60 + 30 // 04:30
-	const endMin = 5 * 60      // 05:00 exclusive
-	return minute >= startMin && minute < endMin
 }

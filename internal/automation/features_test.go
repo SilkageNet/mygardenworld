@@ -48,3 +48,16 @@ func TestFeatureCatalogMarksRaceUpgradeExecutable(t *testing.T) {
 	}
 	t.Fatal("race upgrade capability is missing")
 }
+
+func TestFeatureCatalogMarksZooFoodBuyExecutable(t *testing.T) {
+	for _, spec := range FeatureCatalog() {
+		if spec.ID != "basic.zoo_buy_food" {
+			continue
+		}
+		if spec.Status != PlanStatusManaged || !spec.Executable || spec.SyncOnly || len(spec.BlockedReasons) != 0 {
+			t.Fatalf("zoo food buy capability=%+v, want managed executable", spec)
+		}
+		return
+	}
+	t.Fatal("zoo food buy capability is missing")
+}

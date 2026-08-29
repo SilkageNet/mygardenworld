@@ -351,6 +351,32 @@ func TestShopCultivateOperationArgs(t *testing.T) {
 	}
 }
 
+func TestZooFoodShopOperationArgs(t *testing.T) {
+	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopEnter.String(), TargetID: state.ZooFoodShopTempID})
+	if err != nil {
+		t.Fatalf("operationArgs(shop.enter): %v", err)
+	}
+	enter, ok := args.(clientproto.ShopEnterRequest)
+	if !ok || enter.TempId != state.ZooFoodShopTempID {
+		t.Fatalf("operationArgs(shop.enter)=%+v, want tempId=%d", args, state.ZooFoodShopTempID)
+	}
+
+	args, err = operationArgs(&automation.PlannedOp{
+		Kind:     clientproto.RPCShopBuy.String(),
+		TargetID: state.ZooFoodShopTempID,
+		ItemID:   state.ZooNormalFoodShopItemID,
+		Count:    3,
+		GoldCost: 300,
+	})
+	if err != nil {
+		t.Fatalf("operationArgs(shop.buy): %v", err)
+	}
+	buy, ok := args.(clientproto.ShopBuyRequest)
+	if !ok || buy.TempId != state.ZooFoodShopTempID || buy.ItemId != state.ZooNormalFoodShopItemID || buy.Count != 3 {
+		t.Fatalf("operationArgs(shop.buy)=%+v", args)
+	}
+}
+
 func TestShopGiftbagOperationArgs(t *testing.T) {
 	args, err := operationArgs(&automation.PlannedOp{Kind: clientproto.RPCShopGiftbagEnter.String()})
 	if err != nil {
