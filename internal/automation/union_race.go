@@ -867,6 +867,16 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 		if !gates.Pearl {
 			return "珍珠雇佣模块未开启"
 		}
+	case raceTaskTypeFlowerArtCraft:
+		if t.ParamID <= 0 {
+			return "目标花瓶未知"
+		}
+		if s == nil || !s.VaseObserved() {
+			return "未观察到花瓶状态"
+		}
+		if !s.HasVase(t.ParamID) {
+			return "目标花瓶未解锁"
+		}
 	case raceTaskTypeFlowerCultivate:
 		// Take does not require plant.cultivate. Race does not drive cultivate
 		// ops — only take / sync FinishCnt / finishTask.
@@ -887,10 +897,10 @@ func raceTaskByMsID(tasks []state.FmlRaceTaskView, msID int64) (state.FmlRaceTas
 }
 
 // raceTaskPoolNeedsParamRefresh reports whether getTaskList should run again
-// because at least one plant-harvest pool task has no flower ParamID and this
-// incomplete pool identity has not yet been refresh-attempted.
+// because a plant-harvest or flower-art-craft task has no target ParamID and
+// this incomplete pool identity has not yet been refresh-attempted.
 func raceTaskPoolNeedsParamRefresh(view state.FmlRaceView) bool {
-	if !state.FmlRacePlantHarvestMissingParam(view.Tasks) {
+	if !state.FmlRacePoolMissingParam(view.Tasks) {
 		return false
 	}
 	return state.FmlRaceTaskPoolMsFingerprint(view.Tasks) != view.MissingParamRefreshFP
@@ -1013,6 +1023,8 @@ func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view sta
 			return "公会竞赛放弃无法完成的顾客订单任务"
 		case raceTaskTypePearlHire:
 			return "公会竞赛放弃无法完成的珍珠雇佣任务"
+		case raceTaskTypeFlowerArtCraft:
+			return "公会竞赛放弃无法完成的花艺制作任务"
 		default:
 			return "公会竞赛放弃无法完成的种植收获任务"
 		}
@@ -1062,10 +1074,11 @@ func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view st
 }
 
 // raceTakenUncompletable reports whether a held unfinished task can never be
-// progressed by automation — plant-harvest with a missing/unplantable target, or
-// customer/pearl while the ordinary module is off. Flower-art sell/craft are
-// race-driven. Flower-cultivate is take/finish only and is never treated as
-// uncompletable for a missing plant.cultivate toggle.
+// progressed by automation — plant-harvest with a missing/unplantable target,
+// flower-art craft without its required vase, or customer/pearl while the
+// ordinary module is off. Flower-art sell is race-driven without a vase target.
+// Flower-cultivate is take/finish only and is never treated as uncompletable for
+// a missing plant.cultivate toggle.
 func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates RaceModuleGates) bool {
 	taskType := taken.TaskType
 	if taskType == 0 {
@@ -1074,6 +1087,8 @@ func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates 
 	switch taskType {
 	case raceTaskTypePlantHarvest:
 		return taken.ParamID <= 0 || !flowerCultivated(s, taken.ParamID)
+	case raceTaskTypeFlowerArtCraft:
+		return raceFlowerArtCraftVaseUnavailable(s, taken.ParamID)
 	case raceTaskTypeCustomerOrder:
 		return !gates.Customer
 	case raceTaskTypePearlHire:
@@ -1081,6 +1096,13 @@ func raceTakenUncompletable(s *state.State, taken state.FmlRaceTakenView, gates 
 	default:
 		return false
 	}
+}
+
+func raceFlowerArtCraftVaseUnavailable(s *state.State, vaseID int32) bool {
+	if vaseID <= 0 || s == nil || !s.VaseObserved() {
+		return true
+	}
+	return !s.HasVase(vaseID)
 }
 
 // raceTakenPriorityZero reports whether a held task's type is configured at

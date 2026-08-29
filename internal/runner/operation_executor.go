@@ -60,7 +60,9 @@ type pearlHireExecution struct {
 	hire        func(context.Context, clientproto.PearlPlaceHireRequest) (json.RawMessage, error)
 	apply       func(json.RawMessage)
 	outcome     func(state.PearlHireAttemptSnapshot) (bool, int32, bool)
+	ticketSpent func(state.PearlHireAttemptSnapshot) bool
 	markFailed  func(int64, time.Time)
+	noteUsed    func(context.Context, time.Time)
 	lockSession func(string)
 	now         func() time.Time
 }

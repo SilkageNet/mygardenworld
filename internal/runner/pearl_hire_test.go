@@ -89,18 +89,20 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 	base := time.UnixMilli(1_700_000_000_000)
 	snapshot := state.PearlHireAttemptSnapshot{At: base, PlaceID: 1, TargetUID: 2001, TicketCount: 3}
 	tests := []struct {
-		name       string
-		raw        string
-		hireErr    error
-		success    bool
-		failCount  int32
-		known      bool
-		wantErr    string
-		wantFailed bool
-		wantLocked bool
+		name        string
+		raw         string
+		hireErr     error
+		success     bool
+		failCount   int32
+		known       bool
+		ticketSpent bool
+		wantErr     string
+		wantFailed  bool
+		wantLocked  bool
+		wantNoted   bool
 	}{
-		{name: "success explicit zero", raw: `{"3":{"0":0},"115":{}}`, success: true, known: true},
-		{name: "contested", raw: `{"115":{}}`, failCount: 2, known: true, wantErr: "contested", wantFailed: true},
+		{name: "success explicit zero", raw: `{"3":{"0":0},"115":{}}`, success: true, known: true, ticketSpent: true, wantNoted: true},
+		{name: "contested", raw: `{"115":{}}`, failCount: 2, known: true, ticketSpent: true, wantErr: "contested", wantFailed: true, wantNoted: true},
 		{name: "gold fallback", raw: `{"3":{"0":1}}`, wantErr: "金币回退", wantFailed: true, wantLocked: true},
 		{name: "malformed fallback", raw: `{"3":{"0":null}}`, wantErr: "格式异常", wantFailed: true, wantLocked: true},
 		{name: "postcondition unknown", raw: `{"115":{}}`, wantErr: "postcondition", wantFailed: true, wantLocked: true},
@@ -108,7 +110,7 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			failed, locked, applied := false, false, false
+			failed, locked, applied, noted := false, false, false, false
 			exec := pearlHireExecution{
 				preflight: func(time.Time) (state.PearlHireAttemptSnapshot, error) { return snapshot, nil },
 				hire: func(context.Context, clientproto.PearlPlaceHireRequest) (json.RawMessage, error) {
@@ -118,7 +120,9 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 				outcome: func(state.PearlHireAttemptSnapshot) (bool, int32, bool) {
 					return tc.success, tc.failCount, tc.known
 				},
+				ticketSpent: func(state.PearlHireAttemptSnapshot) bool { return tc.ticketSpent },
 				markFailed:  func(uid int64, _ time.Time) { failed = uid == 2001 },
+				noteUsed:    func(context.Context, time.Time) { noted = true },
 				lockSession: func(string) { locked = true },
 				now:         func() time.Time { return base },
 			}
@@ -131,6 +135,9 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 			}
 			if failed != tc.wantFailed || locked != tc.wantLocked {
 				t.Fatalf("failed=%t locked=%t", failed, locked)
+			}
+			if noted != tc.wantNoted {
+				t.Fatalf("noted=%t, want %t", noted, tc.wantNoted)
 			}
 			if tc.raw != "" && tc.hireErr == nil && !applied {
 				t.Fatal("authoritative payload was not applied")
