@@ -836,7 +836,7 @@ func TestBuildPlan_CustomerArtCraftsFromInventoryWithoutCultivation(t *testing.T
 			t.Fatalf("customer order should craft from inventory instead of rejecting: %+v", op)
 		}
 		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.ItemID == recipe.ArtID {
-			if !op.Executable || op.Count != 1 || op.VaseID != recipe.VaseID {
+			if !op.Executable || op.Count != 1 || op.VaseID != recipe.VaseID || op.Priority != orderSchedulePriority(orderStageCustomerCraft) {
 				t.Fatalf("customer craft op mismatch: %+v", op)
 			}
 			return
@@ -1461,7 +1461,7 @@ func TestBuildPlan_FlowerRackUsesFixedRackCount(t *testing.T) {
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCFlowerRackSell.String() {
-			if op.ItemID != 300208 || op.Count != 12 {
+			if op.ItemID != 300208 || op.Count != 12 || op.Priority != orderSchedulePriority(orderStageFlowerRackSell) {
 				t.Fatalf("fixed rack sell mismatch: %+v", op)
 			}
 			return
@@ -1549,7 +1549,7 @@ func TestBuildPlan_FlowerRackCraftsWhenNoStock(t *testing.T) {
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
 		if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() {
-			if op.ItemID != 300208 || op.Count != 4 || op.VaseID != 3002 || !op.Executable {
+			if op.ItemID != 300208 || op.Count != 4 || op.VaseID != 3002 || !op.Executable || op.Priority != orderSchedulePriority(orderStageFlowerRackCraft) {
 				t.Fatalf("rack craft mismatch: %+v", op)
 			}
 			return
@@ -1675,7 +1675,7 @@ func TestBuildPlan_FlowerRackClaimUsesRecvSellMoney(t *testing.T) {
 			t.Fatalf("OneKey operation should not be generated: %+v", op)
 		}
 		if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
-			if !op.Executable || op.TargetID != 2 {
+			if !op.Executable || op.TargetID != 2 || op.Priority != orderSchedulePriority(orderStageFlowerRackClaim) {
 				t.Fatalf("recvSellMoney op mismatch: %+v", op)
 			}
 			return
@@ -3339,7 +3339,7 @@ func TestBuildPlan_UnionLandAutoPlantPrefersHigherQualityWhileBelow11(t *testing
 	t.Fatalf("missing union land plant op for higher quality: %+v", result.Operations)
 }
 
-func TestBuildPlan_UnionLandAutoPlantForceReplacesOccupiedBelow11(t *testing.T) {
+func TestBuildPlan_UnionLandAutoPlantHonorsReplantCooldownBelow11(t *testing.T) {
 	now := time.UnixMilli(1_800_000_000_000)
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -3374,16 +3374,16 @@ func TestBuildPlan_UnionLandAutoPlantForceReplacesOccupiedBelow11(t *testing.T) 
 			if op.FlowerID != 23005 {
 				t.Fatalf("below-11 should force-plant lowest-stock 23005, got %+v", op)
 			}
-			if len(op.LandIDs) != 2 || op.LandIDs[0] != 1 || op.LandIDs[1] != 2 {
-				t.Fatalf("below-11 should force-replace land 1 and fill land 2, got %+v", op.LandIDs)
+			if len(op.LandIDs) != 1 || op.LandIDs[0] != 2 {
+				t.Fatalf("below-11 should preserve cooling land 1 and fill land 2, got %+v", op.LandIDs)
 			}
-			if !strings.Contains(op.Reason, "强制换种") {
-				t.Fatalf("reason should mention force replace: %q", op.Reason)
+			if !strings.Contains(op.Reason, "收获与冷却边界") {
+				t.Fatalf("reason should mention safe replacement boundary: %q", op.Reason)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing force-replace below-11 plant op: %+v", result.Operations)
+	t.Fatalf("missing empty-land below-11 plant op: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionLandAutoPlantUsesLongMaturityWhenAllHighLevel(t *testing.T) {
@@ -3492,6 +3492,40 @@ func TestBuildPlan_UnionLandAutoPlantReplacesAfterHarvestCycle(t *testing.T) {
 	t.Fatalf("missing post-level-11 replace plant op: %+v", result.Operations)
 }
 
+func TestBuildPlan_UnionLandAutoPlantNeverReplacesPendingHarvest(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23117": 1,
+		}}},
+		"101": map[string]any{"0": cultivateAtLevel(11, 23117)},
+		"25": map[string]any{
+			"102": map[string]any{
+				"1": map[string]any{
+					"1": map[string]any{
+						"0": 0,
+						"1": 23307,
+						"2": now.Add(-9 * time.Hour).UnixMilli(),
+						"3": 3,
+						"4": 0,
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Land.AutoPlantEnabled = true
+	p.Union.Land.FlowerIds = []int32{23117}
+
+	for _, op := range BuildPlan(s, p, now).Operations {
+		if op.Domain == "union.land.plant" {
+			t.Fatalf("pending harvest was destructively replaced: %+v", op)
+		}
+	}
+}
+
 func TestBuildPlan_UnionLandAutoPlantReplacesHourly(t *testing.T) {
 	now := time.UnixMilli(1_800_000_000_000)
 	s := state.New()
@@ -3532,7 +3566,7 @@ func TestBuildPlan_UnionLandAutoPlantReplacesHourly(t *testing.T) {
 	t.Fatalf("missing level-11 replace plant op: %+v", result.Operations)
 }
 
-func TestBuildPlan_UnionLandAutoPlantForceReplaceBelowLevel11(t *testing.T) {
+func TestBuildPlan_UnionLandAutoPlantReplacesBelow11AfterSafeBoundary(t *testing.T) {
 	now := time.UnixMilli(1_800_000_000_000)
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -3547,10 +3581,10 @@ func TestBuildPlan_UnionLandAutoPlantForceReplaceBelowLevel11(t *testing.T) {
 					"1": map[string]any{
 						"0": 0,
 						"1": 23001,
-						// Far from next mature (>2m): force replace with 23117.
-						"2": now.Add(-5 * time.Minute).UnixMilli(),
+						// Past the 60m cooldown and 5m from next mature: safe to replace.
+						"2": now.Add(-70 * time.Minute).UnixMilli(),
 						"3": 0,
-						"4": 0,
+						"4": 4,
 					},
 					"2": map[string]any{"0": 0}, // empty
 				},
@@ -3569,15 +3603,15 @@ func TestBuildPlan_UnionLandAutoPlantForceReplaceBelowLevel11(t *testing.T) {
 				t.Fatalf("below-11 plant flower=%d, want 23117", op.FlowerID)
 			}
 			if len(op.LandIDs) != 2 || op.LandIDs[0] != 1 || op.LandIDs[1] != 2 {
-				t.Fatalf("below-11 should force-replace land 1 and fill land 2, got %+v", op.LandIDs)
+				t.Fatalf("below-11 should replace eligible land 1 and fill land 2, got %+v", op.LandIDs)
 			}
-			if !strings.Contains(op.Reason, "强制换种") {
-				t.Fatalf("reason should mention force replace: %q", op.Reason)
+			if !strings.Contains(op.Reason, "收获与冷却边界") {
+				t.Fatalf("reason should mention safe replacement boundary: %q", op.Reason)
 			}
 			return
 		}
 	}
-	t.Fatalf("missing force-replace plant op below level 11: %+v", result.Operations)
+	t.Fatalf("missing safe replacement plant op below level 11: %+v", result.Operations)
 }
 
 func TestBuildPlan_UnionLandAutoPlantWaitsNearMatureBelowLevel11(t *testing.T) {
@@ -3595,10 +3629,10 @@ func TestBuildPlan_UnionLandAutoPlantWaitsNearMatureBelowLevel11(t *testing.T) {
 					"1": map[string]any{
 						"0": 0,
 						"1": 23001,
-						// Level-0 cycle is 900s; 810s elapsed → next mature in 90s (≤2m).
-						"2": now.Add(-810 * time.Second).UnixMilli(),
+						// Past cooldown; level-0 cycle is 900s and next mature is 60s away.
+						"2": now.Add(-74 * time.Minute).UnixMilli(),
 						"3": 0,
-						"4": 0,
+						"4": 4,
 					},
 					"2": map[string]any{"0": 0},
 				},

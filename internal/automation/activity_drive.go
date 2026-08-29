@@ -20,7 +20,6 @@ const (
 
 	cyclicNoteDemandPriority int32 = 50
 	cyclicNotePlantOpFloor   int32 = 5500
-	cyclicNoteRackOpFloor    int32 = 5400
 	cyclicNoteActionGoal           = "activity.cyclicNote"
 )
 
@@ -293,9 +292,6 @@ func driveCyclicNoteFlowerRack(policy *pb.Policy, demand Demand, ledger *Invento
 	op.ItemCost = map[int32]int32{op.ItemID: count}
 	op.DemandID = demand.ID
 	op.Reason = cyclicNoteDriveReason(demand, op.Reason)
-	if op.Priority < cyclicNoteRackOpFloor {
-		op.Priority = cyclicNoteRackOpFloor
-	}
 }
 
 func linkCyclicNoteBusinessOperation(demand Demand, ops []PlannedOp, match func(PlannedOp) bool) {
