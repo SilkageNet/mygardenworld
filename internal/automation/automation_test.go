@@ -2123,7 +2123,7 @@ func TestBuildPlan_AntiScamBoxLifecycle(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_BenefitBoxOnlyInMorningWindow(t *testing.T) {
+func TestBuildPlan_BenefitBoxClaimsWheneverClientCountIsReady(t *testing.T) {
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
 	// drawCnt=0 with resetCntTime overnight ago: local accrual makes boxes ready.
 	resetAt := time.Date(2026, 7, 29, 20, 0, 0, 0, shanghai)
@@ -2141,15 +2141,12 @@ func TestBuildPlan_BenefitBoxOnlyInMorningWindow(t *testing.T) {
 	p.Basic.Benefit = &pb.BenefitPolicy{BoxEnabled: true}
 
 	cases := []struct {
-		name    string
-		now     time.Time
-		wantOps bool
+		name string
+		now  time.Time
 	}{
-		{name: "before window", now: time.Date(2026, 7, 30, 4, 29, 0, 0, shanghai), wantOps: false},
-		{name: "window start", now: time.Date(2026, 7, 30, 4, 30, 0, 0, shanghai), wantOps: true},
-		{name: "mid window", now: time.Date(2026, 7, 30, 4, 45, 0, 0, shanghai), wantOps: true},
-		{name: "window end", now: time.Date(2026, 7, 30, 5, 0, 0, 0, shanghai), wantOps: false},
-		{name: "daytime leftover", now: time.Date(2026, 7, 30, 12, 0, 0, 0, shanghai), wantOps: false},
+		{name: "before former window", now: time.Date(2026, 7, 30, 4, 29, 0, 0, shanghai)},
+		{name: "morning", now: time.Date(2026, 7, 30, 4, 45, 0, 0, shanghai)},
+		{name: "daytime", now: time.Date(2026, 7, 30, 12, 0, 0, 0, shanghai)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2161,20 +2158,31 @@ func TestBuildPlan_BenefitBoxOnlyInMorningWindow(t *testing.T) {
 					break
 				}
 			}
-			if tc.wantOps {
-				if claim == nil {
-					t.Fatalf("missing benefit box claim; ops=%+v", result.Operations)
-				}
-				if claim.Count != 8 {
-					t.Fatalf("benefit box count=%d, want accrued 8; op=%+v", claim.Count, claim)
-				}
-				return
+			if claim == nil {
+				t.Fatalf("missing benefit box claim; ops=%+v", result.Operations)
 			}
-			if claim != nil {
-				t.Fatalf("benefit box claim = true, want false; ops=%+v", result.Operations)
+			if claim.Count != 8 {
+				t.Fatalf("benefit box count=%d, want accrued 8; op=%+v", claim.Count, claim)
 			}
 		})
 	}
+}
+
+func TestBuildPlan_BenefitBoxUnobservedIsVisibleAndFailClosed(t *testing.T) {
+	s := state.New()
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Benefit = &pb.BenefitPolicy{BoxEnabled: true}
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.benefit" {
+			if op.Kind == clientproto.RPCBenefitBoxDraw.String() || op.Executable || op.Status != PlanStatusBlocked || !hasReasonContaining(op.BlockedReasons, "116") {
+				t.Fatalf("unobserved benefit box must be explicit and fail closed: %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing unobserved benefit status: %+v", result.Operations)
 }
 
 func TestBuildPlan_DoubleCoinBlockedUnlessActive(t *testing.T) {
@@ -2281,7 +2289,7 @@ func TestBuildPlan_ZooFeedAndStroke(t *testing.T) {
 	}
 }
 
-func TestBuildPlan_ZooExpiredRefreshPreemptsOtherActions(t *testing.T) {
+func TestBuildPlan_ZooBowlStockDoesNotWaitForStatusRefresh(t *testing.T) {
 	s := state.New()
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.Local)
 	applyMap(t, s, map[string]any{
@@ -2307,8 +2315,8 @@ func TestBuildPlan_ZooExpiredRefreshPreemptsOtherActions(t *testing.T) {
 			zooOps = append(zooOps, op)
 		}
 	}
-	if len(zooOps) != 1 || zooOps[0].Kind != clientproto.RPCZooRefreshPetStatus.String() || zooOps[0].TargetID != 1 || zooOps[0].Action != "refresh" {
-		t.Fatalf("zoo operations=%+v, want one refresh before stock/stroke", zooOps)
+	if len(zooOps) != 2 || zooOps[0].Kind != clientproto.RPCZooAddFoodstuff.String() || zooOps[1].Kind != clientproto.RPCZooRefreshPetStatus.String() {
+		t.Fatalf("zoo operations=%+v, want bowl stock followed by status refresh", zooOps)
 	}
 }
 
@@ -2347,6 +2355,96 @@ func TestBuildPlan_ZooCostAndEventBlocked(t *testing.T) {
 			t.Fatalf("missing blocked %s op: %+v", domain, result.Operations)
 		}
 	}
+}
+
+func TestBuildPlan_ZooFoodBuySyncsThenBuysGoldOffer(t *testing.T) {
+	now := time.Now()
+	baseState := func(includeShop bool) *state.State {
+		s := state.New()
+		payload := map[string]any{
+			"7": map[string]any{"0": map[string]any{"44": 5000, "32": map[string]any{"1501": 0, "1502": 0}}},
+			"33": map[string]any{
+				"0": map[string]any{"0": 1},
+				"1": map[string]any{"1": map[string]any{"1": 1, "4": []int32{}}},
+			},
+		}
+		if includeShop {
+			payload["20"] = map[string]any{"0": map[string]any{
+				"9": map[string]any{"1": 9, "3": now.UnixMilli(), "12": map[string]any{"90001": 0}},
+			}}
+		}
+		applyMap(t, s, payload)
+		return s
+	}
+	policy := func() *pb.Policy {
+		p := DefaultPolicy()
+		p.AutomationEnabled = true
+		p.Basic.Zoo.Enabled = true
+		p.Basic.Zoo.AutoFeed = true
+		p.Basic.Zoo.AutoBuyFood = true
+		p.Basic.Zoo.MaxSpendGold = 3000
+		return p
+	}
+
+	result := BuildPlan(baseState(false), policy(), now)
+	var sync *PlannedOp
+	for i := range result.Operations {
+		if result.Operations[i].Domain == "basic.zoo.buy_food" {
+			sync = &result.Operations[i]
+			break
+		}
+	}
+	if sync == nil || sync.Kind != clientproto.RPCShopEnter.String() || sync.Action != "sync" || sync.TargetID != 9 || !sync.Executable {
+		t.Fatalf("zoo food shop sync=%+v ops=%+v", sync, result.Operations)
+	}
+
+	result = BuildPlan(baseState(true), policy(), now)
+	var buy *PlannedOp
+	for i := range result.Operations {
+		if result.Operations[i].Domain == "basic.zoo.buy_food" {
+			buy = &result.Operations[i]
+			break
+		}
+	}
+	if buy == nil || buy.Kind != clientproto.RPCShopBuy.String() || buy.TargetID != 9 || buy.ItemID != 90001 || buy.Count != 30 || buy.GoldCost != 3000 || !buy.Executable {
+		t.Fatalf("zoo food buy=%+v ops=%+v", buy, result.Operations)
+	}
+	if err := ValidateZooFoodPurchase(baseState(true), policy().GetBasic().GetZoo(), buy, now); err != nil {
+		t.Fatalf("ValidateZooFoodPurchase()=%v", err)
+	}
+}
+
+func TestBuildPlan_ZooFoodBuyHonorsDailyLimitAndBudget(t *testing.T) {
+	now := time.Now()
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"44": 5000, "32": map[string]any{"1501": 0, "1502": 0}}},
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"1": 9, "3": now.UnixMilli(), "12": map[string]any{"90001": 28}},
+		}},
+		"33": map[string]any{
+			"0": map[string]any{"0": 1},
+			"1": map[string]any{"1": map[string]any{"1": 1, "4": []int32{}}},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoFeed = true
+	p.Basic.Zoo.AutoBuyFood = true
+	p.Basic.Zoo.MaxSpendGold = 100
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain != "basic.zoo.buy_food" {
+			continue
+		}
+		if op.Kind != clientproto.RPCShopBuy.String() || op.Count != 1 || op.GoldCost != 100 {
+			t.Fatalf("budgeted zoo food buy=%+v", op)
+		}
+		return
+	}
+	t.Fatalf("missing budgeted zoo food buy: %+v", result.Operations)
 }
 
 func TestZooFindPetFeatureRemainsBlocked(t *testing.T) {
@@ -2878,7 +2976,7 @@ func TestBuildPlan_ShopCultivateBuyDespiteStaleResetMs(t *testing.T) {
 	t.Fatalf("missing shop cultivate buy op: %+v", result.Operations)
 }
 
-func TestBuildPlan_ShopCultivateRefreshWhenAutoCDReady(t *testing.T) {
+func TestBuildPlan_ShopCultivateEntersWhenAutoCDReady(t *testing.T) {
 	s := state.New()
 	now := time.Date(2026, 7, 26, 17, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	lar := now.Add(-9001 * time.Second)
@@ -2901,8 +2999,8 @@ func TestBuildPlan_ShopCultivateRefreshWhenAutoCDReady(t *testing.T) {
 	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
 		if op.Domain == "basic.shop.cultivate" {
-			if op.Kind != clientproto.RPCShopCultivateRefresh.String() || op.Action != "refresh" || !op.Executable {
-				t.Fatalf("shop cultivate refresh op mismatch: %+v", op)
+			if op.Kind != clientproto.RPCShopCultivateEnter.String() || op.Action != "sync" || !op.Executable {
+				t.Fatalf("shop cultivate automatic enter op mismatch: %+v", op)
 			}
 			return
 		}
@@ -2910,7 +3008,7 @@ func TestBuildPlan_ShopCultivateRefreshWhenAutoCDReady(t *testing.T) {
 	t.Fatalf("missing shop cultivate refresh op: %+v", result.Operations)
 }
 
-func TestBuildPlan_ShopCultivateNoPaidRefreshAfterFreeTimes(t *testing.T) {
+func TestBuildPlan_ShopCultivateAutoEnterIgnoresManualRefreshCount(t *testing.T) {
 	s := state.New()
 	now := time.Date(2026, 7, 26, 17, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	lar := now.Add(-9001 * time.Second)
@@ -2933,11 +3031,8 @@ func TestBuildPlan_ShopCultivateNoPaidRefreshAfterFreeTimes(t *testing.T) {
 	result := BuildPlan(s, p, now)
 	for _, op := range result.Operations {
 		if op.Domain == "basic.shop.cultivate" {
-			if op.Kind == clientproto.RPCShopCultivateRefresh.String() {
-				t.Fatalf("must not yuanbao-refresh after free times: %+v", op)
-			}
-			if op.Kind != clientproto.RPCShopCultivateBuy.String() || op.TargetID != 10001 || !op.Executable {
-				t.Fatalf("expected buy from current shelf after free times exhausted: %+v", op)
+			if op.Kind != clientproto.RPCShopCultivateEnter.String() || op.Action != "sync" || !op.Executable {
+				t.Fatalf("automatic rotation must enter regardless of manual refresh count: %+v", op)
 			}
 			return
 		}

@@ -90,6 +90,7 @@ func New() *State {
 	s.customerOrders = make(map[int32]*CustomerOrder)
 	s.flowerRack = make(map[int32]*FlowerRackSlot)
 	s.mails = make(map[string]*MailView)
+	s.shops = make(map[int32]*shopState)
 	s.vases = make(map[int32]*VaseView)
 	s.collectRewards = make(map[int32]*CollectRewardView)
 	s.fmlBuild = FmlBuildView{BuildCounts: make(map[int32]int32)}

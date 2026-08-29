@@ -378,8 +378,8 @@ export default function PolicyPanel({
               </p>
               <div className="grid gap-2">
                 <ToggleRow label="材料商店" checked={cultivateShop?.autoBuy ?? false} onChange={(checked) => updateCultivateShop({ autoBuy: checked })} />
-                <BigIntNumberRow label="材料金币上限" value={cultivateShop?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateCultivateShop({ maxSpendGold: value })} />
-                <IntListRow label="材料商品 ID" value={cultivateShop?.itemIds ?? []} onChange={(value) => updateCultivateShop({ itemIds: value })} />
+                <BigIntNumberRow label="材料单次金币上限" value={cultivateShop?.maxSpendGold ?? BigInt(0)} min={0} description="0=不购买金币商品；每次购买都必须低于该上限" onChange={(value) => updateCultivateShop({ maxSpendGold: value })} />
+                <IntListRow label="材料商品 ID（留空=全部）" value={cultivateShop?.itemIds ?? []} description="可填写货架 shopId 或获得物品 itemId" onChange={(value) => updateCultivateShop({ itemIds: value })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
                     <ToggleRow label="VIP 商店" checked={vipShop?.autoBuy ?? false} onChange={(checked) => updateVipShop({ autoBuy: checked })} status={settingStatusForCapability(capabilities, "basic.shop_vip")} />
@@ -393,14 +393,17 @@ export default function PolicyPanel({
 
             <PolicyGroup title="宠物" icon={<Sparkles />}>
               <div className="grid gap-2">
-                <ToggleRow label="宠物模块" checked={zoo?.enabled ?? false} onChange={(checked) => updateZoo({ enabled: checked })} />
-                <ToggleRow label="宠物外出/事件处理" checked={zoo?.autoEventEnabled ?? false} onChange={(checked) => updateZoo({ autoEventEnabled: checked })} />
-                <ToggleRow label="自动补充食盆" checked={zoo?.autoFeed ?? false} onChange={(checked) => updateZoo({ autoFeed: checked })} />
-                <ToggleRow label="自动互动" checked={zoo?.autoStroke ?? false} onChange={(checked) => updateZoo({ autoStroke: checked })} />
+                <ToggleRow label="宠物模块" checked={zoo?.enabled ?? false} onChange={(checked) => updateZoo(checked ? { enabled: true } : { enabled: false, autoEventEnabled: false, autoFeed: false, autoStroke: false, autoBuyFood: false })} />
+                <ToggleRow label="宠物外出/事件处理" checked={zoo?.autoEventEnabled ?? false} onChange={(checked) => updateZoo({ autoEventEnabled: checked, enabled: checked || (zoo?.enabled ?? false) })} />
+                <ToggleRow label="自动补充食盆" checked={zoo?.autoFeed ?? false} onChange={(checked) => updateZoo({ autoFeed: checked, enabled: checked || (zoo?.enabled ?? false) })} />
+                <ToggleRow label="自动互动" checked={zoo?.autoStroke ?? false} onChange={(checked) => updateZoo({ autoStroke: checked, enabled: checked || (zoo?.enabled ?? false) })} />
+                <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                  食盆补充优先使用库存。开启购买后，仅在食盆有空位且库存无猫粮时购买商店 9 的金币普通猫粮；不会购买元宝猫粮。
+                </p>
+                <ToggleRow label="购买普通猫粮" checked={zoo?.autoBuyFood ?? false} onChange={(checked) => updateZoo({ autoBuyFood: checked, autoFeed: checked || (zoo?.autoFeed ?? false), enabled: checked || (zoo?.enabled ?? false) })} status={settingStatusForCapability(capabilities, "basic.zoo_buy_food")} />
+                <BigIntNumberRow label="猫粮单次金币上限" value={zoo?.maxSpendGold ?? BigInt(0)} min={0} description="普通猫粮每份 100 金币；0=不购买" onChange={(value) => updateZoo({ maxSpendGold: value })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
                   <>
-                    <ToggleRow label="购买饲料" checked={zoo?.autoBuyFood ?? false} onChange={(checked) => updateZoo({ autoBuyFood: checked })} status={settingStatusForCapability(capabilities, "basic.zoo_buy_food")} />
-                    <BigIntNumberRow label="宠物金币上限" value={zoo?.maxSpendGold ?? BigInt(0)} min={0} onChange={(value) => updateZoo({ maxSpendGold: value })} />
                     <BigIntNumberRow label="宠物元宝上限" value={zoo?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateZoo({ maxSpendDiamond: value })} />
                   </>
                 )}

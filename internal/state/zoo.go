@@ -998,24 +998,20 @@ func (s *State) ReadyZooStatusRefreshPetIDs(now time.Time) []int32 {
 	return out
 }
 
-// NextZooFoodstuffPlan returns the first deterministic, inventory-backed bowl
-// stocking action. Food 1501 has priority over 1502 and a request never mixes
-// food types.
-func (s *State) NextZooFoodstuffPlan() (ZooFoodstuffPlan, bool) {
+// NextZooFoodBowlNeed returns the first deterministic observed bowl deficit.
+// Stocking a bowl is independent of whether the pet is currently eating or
+// already satiated, matching ZooFoodPanel in the mini client.
+func (s *State) NextZooFoodBowlNeed() (ZooFoodBowlNeed, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	capacity := ZooFoodBowlCapacity()
-	satietyMax := ZooSatietyMax()
-	if capacity <= 0 || satietyMax <= 0 {
-		return ZooFoodstuffPlan{}, false
+	if capacity <= 0 {
+		return ZooFoodBowlNeed{}, false
 	}
 	petIDs := make([]int32, 0, len(s.zooPets))
 	for petID, pet := range s.zooPets {
-		if pet == nil || pet.PetID <= 0 || !pet.FoodstuffObserved || !pet.StatusObserved || !pet.SatietyObserved {
-			continue
-		}
-		if !zooPetCanEat(pet.Status) || pet.SatietyValue >= satietyMax {
+		if pet == nil || pet.PetID <= 0 || !pet.FoodstuffObserved {
 			continue
 		}
 		petIDs = append(petIDs, petID)
@@ -1025,21 +1021,100 @@ func (s *State) NextZooFoodstuffPlan() (ZooFoodstuffPlan, bool) {
 	for _, petID := range petIDs {
 		pet := s.zooPets[petID]
 		empty := capacity - int32(len(pet.FoodstuffIDs))
-		if empty <= 0 {
-			continue
-		}
-		for _, foodstuffID := range []int32{1501, 1502} {
-			count := s.inventory[foodstuffID]
-			if count <= 0 {
-				continue
-			}
-			if count > empty {
-				count = empty
-			}
-			return ZooFoodstuffPlan{PetID: petID, FoodstuffID: foodstuffID, Count: count}, true
+		if empty > 0 {
+			return ZooFoodBowlNeed{PetID: petID, Count: empty}, true
 		}
 	}
+	return ZooFoodBowlNeed{}, false
+}
+
+// ZooFoodBowlsObserved reports whether every known pet has an authoritative
+// foodstuffArr. It distinguishes "all bowls full" from sparse state.
+func (s *State) ZooFoodBowlsObserved() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	known := false
+	for _, pet := range s.zooPets {
+		if pet == nil || pet.PetID <= 0 {
+			continue
+		}
+		known = true
+		if !pet.FoodstuffObserved {
+			return false
+		}
+	}
+	return known
+}
+
+// NextZooFoodstuffPlan returns the first deterministic, inventory-backed bowl
+// stocking action. Food 1501 has priority over 1502 and a request never mixes
+// food types.
+func (s *State) NextZooFoodstuffPlan() (ZooFoodstuffPlan, bool) {
+	need, ok := s.NextZooFoodBowlNeed()
+	if !ok {
+		return ZooFoodstuffPlan{}, false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, foodstuffID := range []int32{1501, 1502} {
+		count := s.inventory[foodstuffID]
+		if count <= 0 {
+			continue
+		}
+		if count > need.Count {
+			count = need.Count
+		}
+		return ZooFoodstuffPlan{PetID: need.PetID, FoodstuffID: foodstuffID, Count: count}, true
+	}
 	return ZooFoodstuffPlan{}, false
+}
+
+// ZooStrokeWaitReason explains why no pet currently matches the client's
+// touch red-dot gate. It is presentation-safe planner evidence, not a new
+// eligibility rule.
+func (s *State) ZooStrokeWaitReason(now time.Time) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.zooPets) == 0 {
+		return "尚未观测到可互动宠物"
+	}
+	moodMax := ZooMoodMax()
+	nowMs := now.UnixMilli()
+	var missing, notTouchable, moodFull, cooling int
+	for _, pet := range s.zooPets {
+		if pet == nil || pet.PetID <= 0 {
+			continue
+		}
+		if !pet.StatusObserved || !pet.MoodObserved || !pet.StrokeCdTimeObserved || pet.Status <= 0 {
+			missing++
+			continue
+		}
+		if !zooPetTouchable(pet.Status) {
+			notTouchable++
+			continue
+		}
+		if moodMax > 0 && pet.MoodValue >= moodMax {
+			moodFull++
+			continue
+		}
+		if pet.StrokeCdTimeMs > 0 && nowMs < pet.StrokeCdTimeMs {
+			cooling++
+			continue
+		}
+		return ""
+	}
+	switch {
+	case missing > 0:
+		return "宠物互动所需的状态、心情或冷却字段尚未完整同步"
+	case cooling > 0:
+		return "宠物互动仍在冷却中"
+	case moodFull > 0:
+		return "宠物心情已满，无需互动"
+	case notTouchable > 0:
+		return "宠物当前状态不允许互动"
+	default:
+		return "当前没有达到互动条件的宠物"
+	}
 }
 
 // ReadyZooStrokePetIDs returns pets that match the client's touch red-dot gate.
@@ -1452,17 +1527,6 @@ func zooPetTouchable(status int32) bool {
 		return n != 0
 	}
 	return true
-}
-
-func zooPetCanEat(status int32) bool {
-	fields, ok := zooStateRow(status)
-	if !ok {
-		return false
-	}
-	if n, ok := readInt32JSONField(fields, "isEat"); ok {
-		return n != 0
-	}
-	return false
 }
 
 func (s *State) applyZooDecorateMapLocked(raw json.RawMessage) {

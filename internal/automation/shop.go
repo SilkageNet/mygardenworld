@@ -71,8 +71,8 @@ func cultivateShopOperations(s *state.State, shop *pb.ShopPolicy, now time.Time)
 		}
 		return []PlannedOp{domainOp(clientproto.RPCShopCultivateEnter.String(), goal, "basic.shop.cultivate", "sync", reason, 5450, 0, 0, 0)}
 	}
-	if s.ShopCultivateAutoRefreshReady(now) {
-		return []PlannedOp{domainOp(clientproto.RPCShopCultivateRefresh.String(), goal, "basic.shop.cultivate", "refresh", "材料商店免费刷新可用，先刷新货架", 5420, 0, 0, 0)}
+	if s.ShopCultivateAutoRefreshDue(now) {
+		return []PlannedOp{domainOp(clientproto.RPCShopCultivateEnter.String(), goal, "basic.shop.cultivate", "sync", "材料商店自动换货倒计时已结束，重新进入商店获取新货架", 5420, 0, 0, 0)}
 	}
 	allowed := int32Set(cultivateShop.GetItemIds())
 	inventory := s.Inventory()
@@ -104,7 +104,14 @@ func cultivateShopOperations(s *state.State, shop *pb.ShopPolicy, now time.Time)
 	if firstBlocked != nil {
 		return []PlannedOp{*firstBlocked}
 	}
-	return nil
+	reason := "材料商店当前货架已售罄，等待自动换货"
+	if len(allowed) > 0 {
+		reason = "当前货架没有命中材料商品 ID；清空列表可允许所有符合预算的商品"
+	}
+	waiting := markerOp(CategoryBasic, "basic.shop.cultivate", "buy", reason, 5400)
+	waiting.Status = PlanStatusSkipped
+	waiting.Executable = false
+	return []PlannedOp{waiting}
 }
 
 func applyShopCultivateCostGate(op *PlannedOp, offer state.ShopCultivateOfferView, policy *pb.ShopBuyPolicy, s *state.State, inventory map[int32]int32) []string {

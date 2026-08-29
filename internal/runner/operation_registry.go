@@ -9,6 +9,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientrpc"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 type operationSpec struct {
@@ -332,6 +333,28 @@ var plannedOperationSpecs = map[string]operationSpec{
 		staticRequest(clientproto.UsrExtraRecvAntiFraudQARwdRequest{}),
 		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.UsrExtraRecvAntiFraudQARwdRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
 			return rpc.UsrExtra().RecvAntiFraudQARwd(ctx, req)
+		},
+	),
+	clientproto.RPCShopEnter.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ShopEnterRequest, error) {
+			if op == nil || op.TargetID != state.ZooFoodShopTempID || op.ItemID != 0 || op.Count != 0 || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+				return clientproto.ShopEnterRequest{}, fmt.Errorf("shop.enter automation only supports cost-free zoo food shop %d sync", state.ZooFoodShopTempID)
+			}
+			return clientproto.ShopEnterRequest{TempId: op.TargetID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Shop().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCShopBuy.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.ShopBuyRequest, error) {
+			if op == nil || op.TargetID != state.ZooFoodShopTempID || op.ItemID != state.ZooNormalFoodShopItemID || op.Count <= 0 {
+				return clientproto.ShopBuyRequest{}, fmt.Errorf("shop.buy automation only supports positive-count normal zoo food")
+			}
+			return clientproto.ShopBuyRequest{TempId: op.TargetID, ItemId: op.ItemID, Count: op.Count}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.ShopBuyRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.Shop().Buy(ctx, req)
 		},
 	),
 	clientproto.RPCShopCultivateEnter.String(): stateDeltaOperation(

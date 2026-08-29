@@ -287,7 +287,7 @@ func TestZooSafeStockAndStatusRefresh(t *testing.T) {
 	}
 }
 
-func TestZooSafeStockWaitsForSparseFieldsAndFallsBackToFood1502(t *testing.T) {
+func TestZooSafeStockUsesObservedBowlWithoutStatusOrSatiety(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{
 		"7": map[string]any{"0": map[string]any{"32": map[string]any{"1501": 0, "1502": 4}}},
@@ -295,8 +295,9 @@ func TestZooSafeStockWaitsForSparseFieldsAndFallsBackToFood1502(t *testing.T) {
 			"1": map[string]any{"1": 1, "4": []int32{}},
 		}},
 	})
-	if stock, ok := s.NextZooFoodstuffPlan(); ok {
-		t.Fatalf("NextZooFoodstuffPlan()=%+v before status/satiety observed", stock)
+	stock, ok := s.NextZooFoodstuffPlan()
+	if !ok || stock != (ZooFoodstuffPlan{PetID: 1, FoodstuffID: 1502, Count: 4}) {
+		t.Fatalf("NextZooFoodstuffPlan()=%+v ok=%t, want food 1502 x4 without status/satiety gate", stock, ok)
 	}
 	if got := s.ReadyZooStrokePetIDs(time.Now()); len(got) != 0 {
 		t.Fatalf("ReadyZooStrokePetIDs()=%v from sparse zero values", got)
@@ -305,7 +306,7 @@ func TestZooSafeStockWaitsForSparseFieldsAndFallsBackToFood1502(t *testing.T) {
 	applyMap(t, s, map[string]any{"33": map[string]any{"1": map[string]any{
 		"1": map[string]any{"1": 1, "3": 20, "5": 2},
 	}}})
-	stock, ok := s.NextZooFoodstuffPlan()
+	stock, ok = s.NextZooFoodstuffPlan()
 	if !ok || stock != (ZooFoodstuffPlan{PetID: 1, FoodstuffID: 1502, Count: 4}) {
 		t.Fatalf("NextZooFoodstuffPlan()=%+v ok=%t, want food 1502 x4", stock, ok)
 	}
@@ -2378,7 +2379,7 @@ func TestApplyV_ShopCultivateFullSnapshotOmitsResetBumpsMarker(t *testing.T) {
 	}
 }
 
-func TestApplyV_ShopCultivateAutoRefreshReady(t *testing.T) {
+func TestApplyV_ShopCultivateAutoRefreshDueIgnoresManualRefreshQuota(t *testing.T) {
 	s := New()
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
 	lar := time.Date(2026, 7, 26, 12, 0, 0, 0, shanghai)
@@ -2391,21 +2392,75 @@ func TestApplyV_ShopCultivateAutoRefreshReady(t *testing.T) {
 			"6": map[string]any{"10001": 1},
 		},
 	})
-	if s.ShopCultivateAutoRefreshReady(lar.Add(8999 * time.Second)) {
-		t.Fatal("ShopCultivateAutoRefreshReady=true before $autoRefreshCd, want false")
+	if s.ShopCultivateAutoRefreshDue(lar.Add(8999 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshDue=true before $autoRefreshCd, want false")
 	}
-	if !s.ShopCultivateAutoRefreshReady(lar.Add(9000 * time.Second)) {
-		t.Fatal("ShopCultivateAutoRefreshReady=false at $autoRefreshCd, want true")
+	if !s.ShopCultivateAutoRefreshDue(lar.Add(9000 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshDue=false at $autoRefreshCd, want true")
 	}
-	if !s.ShopCultivateAutoRefreshReady(lar.Add(9001 * time.Second)) {
-		t.Fatal("ShopCultivateAutoRefreshReady=false after $autoRefreshCd, want true")
+	if !s.ShopCultivateAutoRefreshDue(lar.Add(9001 * time.Second)) {
+		t.Fatal("ShopCultivateAutoRefreshDue=false after $autoRefreshCd, want true")
 	}
 
 	applyMap(t, s, map[string]any{
 		"113": map[string]any{"4": 3},
 	})
-	if s.ShopCultivateAutoRefreshReady(lar.Add(9001 * time.Second)) {
-		t.Fatal("ShopCultivateAutoRefreshReady=true after free refresh times exhausted, want false")
+	if !s.ShopCultivateAutoRefreshDue(lar.Add(9001 * time.Second)) {
+		t.Fatal("automatic shelf rotation must not depend on manual refresh quota")
+	}
+}
+
+func TestApplyV_ZooFoodShopTracksDailyRecordAndFreshness(t *testing.T) {
+	now := time.Now()
+	s := New()
+	applyMap(t, s, map[string]any{
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"1": 9, "3": now.UnixMilli(), "12": map[string]any{"90001": 4}},
+		}},
+	})
+	view := s.ZooFoodShop(now)
+	if !view.Observed || view.NeedsEnter || view.ShopTempID != 9 || view.ShopItemID != 90001 ||
+		view.FoodstuffID != 1501 || view.FoodstuffCount != 1 || view.GoldCost != 100 ||
+		view.DailyBought != 4 || view.DailyLimit != 30 || view.DailyRemaining != 26 {
+		t.Fatalf("ZooFoodShop()=%+v", view)
+	}
+
+	applyMap(t, s, map[string]any{
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"12": map[string]any{"90001": 5}},
+		}},
+	})
+	view = s.ZooFoodShop(now)
+	if view.DailyBought != 5 || view.DailyRemaining != 25 {
+		t.Fatalf("ZooFoodShop() after sparse dRecord=%+v", view)
+	}
+	if !s.ZooFoodShop(now.Add(25 * time.Hour)).NeedsEnter {
+		t.Fatal("ZooFoodShop should require enter on a later game day")
+	}
+
+	empty := New()
+	applyMap(t, empty, map[string]any{
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"1": 9, "3": now.UnixMilli()},
+		}},
+	})
+	if view := empty.ZooFoodShop(now); view.NeedsEnter || view.DailyBought != 0 || view.DailyRemaining != 30 {
+		t.Fatalf("full shop row with omitted dRecord must mean empty daily record: %+v", view)
+	}
+
+	preserve := New()
+	applyMap(t, preserve, map[string]any{
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"1": 9, "3": now.UnixMilli(), "12": map[string]any{"90001": 4, "90002": 3}},
+		}},
+	})
+	applyMap(t, preserve, map[string]any{
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"12": map[string]any{"90001": 5}, "17": now.Add(time.Minute).UnixMilli()},
+		}},
+	})
+	if got := preserve.shops[9].dailyBought[90002]; got != 3 {
+		t.Fatalf("sparse dRecord update erased another item: got %d, want 3", got)
 	}
 }
 

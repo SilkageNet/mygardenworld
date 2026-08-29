@@ -35,6 +35,10 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 	// operations as executable, do not send a request that depends on fabricated
 	// advertising SDK callbacks or tokens.
 	switch op.Kind {
+	case clientproto.RPCShopBuy.String():
+		if err := automation.ValidateZooFoodPurchase(r.state, r.Policy().GetBasic().GetZoo(), op, now); err != nil {
+			return err
+		}
 	case clientproto.RPCShopGiftbagBuy.String():
 		for _, offer := range r.state.ShopGiftbagOffers() {
 			if offer.ShopID == op.TargetID && offer.ShareID > 0 {

@@ -90,7 +90,7 @@ func TestExecuteBenefitBoxDrawStopsWhenEmpty(t *testing.T) {
 	}
 }
 
-func TestExecuteBenefitBoxDrawBootstrapsWhenUnobserved(t *testing.T) {
+func TestExecuteBenefitBoxDrawRejectsUnobservedState(t *testing.T) {
 	st := state.New()
 	calls := 0
 	exec := benefitBoxDrawExecution{
@@ -106,15 +106,10 @@ func TestExecuteBenefitBoxDrawBootstrapsWhenUnobserved(t *testing.T) {
 		},
 		apply: st.ApplyV,
 	}
-	raw, err := executeBenefitBoxDraw(context.Background(), exec)
-	if err != nil {
-		t.Fatalf("bootstrap draw: %v", err)
+	if _, err := executeBenefitBoxDraw(context.Background(), exec); err == nil {
+		t.Fatal("unobserved namespace must fail closed")
 	}
-	if calls != 1 {
-		t.Fatalf("draw calls=%d, want 1 bootstrap", calls)
-	}
-	var result benefitBoxDrawResult
-	if err := json.Unmarshal(raw, &result); err != nil || result.Opened != 1 {
-		t.Fatalf("result=%+v err=%v", result, err)
+	if calls != 0 {
+		t.Fatalf("draw calls=%d, want 0 blind draws", calls)
 	}
 }

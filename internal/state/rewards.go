@@ -519,17 +519,13 @@ func shopCultivateSyncMarkerMs(resetMs, larMs int64) int64 {
 	}
 }
 
-// ShopCultivateAutoRefreshReady reports whether a free material-shop refresh is
-// available: the $autoRefreshCd since 113.3 larTime has elapsed, and free
-// refresh times ($frTimes vs 113.4 mrCount) remain. Once free times are used
-// up, further refresh costs yuanbao ($nrResults) and must not be automated.
-func (s *State) ShopCultivateAutoRefreshReady(now time.Time) bool {
+// ShopCultivateAutoRefreshDue reports whether the client's automatic shelf
+// rotation countdown has elapsed. The mini client responds by calling enter;
+// shopCultivate.refresh is a distinct user action that consumes refresh quota.
+func (s *State) ShopCultivateAutoRefreshDue(now time.Time) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.shopCultivateObserved || s.shopCultivateLarMs <= 0 {
-		return false
-	}
-	if frTimes := shopCultivateFreeRefreshTimes(); s.shopCultivateMrCount >= frTimes {
 		return false
 	}
 	cd := shopCultivateAutoRefreshCD()
@@ -850,24 +846,6 @@ func shopCultivateAutoRefreshCD() time.Duration {
 		return 9000 * time.Second
 	}
 	return time.Duration(n) * time.Second
-}
-
-// shopCultivateFreeRefreshTimes is c_shop_cultivate[-1].$frTimes.
-// After this many refreshes (113.4 mrCount), refresh costs yuanbao via $nrResults.
-func shopCultivateFreeRefreshTimes() int32 {
-	rawRow, ok := StaticRow("c_shop_cultivate", -1)
-	if !ok {
-		return 3
-	}
-	var row map[string]json.RawMessage
-	if err := json.Unmarshal(rawRow, &row); err != nil {
-		return 3
-	}
-	n, ok := readInt32JSONField(row, "$frTimes")
-	if !ok || n < 0 {
-		return 3
-	}
-	return n
 }
 
 func shopGiftbagStatic(shopID int32, rawRow json.RawMessage) (ShopGiftbagOfferView, bool) {
