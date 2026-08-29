@@ -57,6 +57,37 @@ func TestOpenRejectsUnversionedDatabase(t *testing.T) {
 	}
 }
 
+func TestOpenMigratesVersionThreeToPearlHireUsageSchema(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "garden.db")
+	previous, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := previous.ExecContext(ctx, `CREATE TABLE accounts (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := previous.ExecContext(ctx, `PRAGMA user_version = 3`); err != nil {
+		t.Fatal(err)
+	}
+	if err := previous.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 4 {
+		t.Fatalf("schema version=%d err=%v, want 4", version, err)
+	}
+	var column string
+	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('account_pearl_hire_usage') WHERE name = 'used_count'`).Scan(&column); err != nil {
+		t.Fatalf("pearl hire usage migration: %v", err)
+	}
+}
+
 func TestOpenRejectsNewerDatabase(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "garden.db")

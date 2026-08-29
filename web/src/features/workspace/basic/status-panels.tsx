@@ -1,6 +1,6 @@
 import { Coins, Gem, HandCoins, ShieldCheck, Ticket, TrendingUp, Trophy, Waves } from "lucide-react";
 import { ExecutionLane, PlanStatus } from "@/lib/api/workspace-models";
-import type { AccountStatus, BasicView, PlannedOperation, WarehouseView } from "@/lib/api/workspace-models";
+import type { AccountStatus, BasicView, PearlHireStatusView, PlannedOperation, WarehouseView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import {
   firstPositiveUnixTime,
@@ -15,7 +15,7 @@ import {
   operationTitle,
 } from "@/components/dashboard/dashboard-utils";
 import { experienceToNextLevel } from "@/lib/game/catalog";
-import { CollapsibleCard, OverviewStat } from "@/features/workspace/shared/workspace-ui";
+import { CollapsibleCard, EmptyState, OverviewStat } from "@/features/workspace/shared/workspace-ui";
 
 const SPEED_UP_TICKET_ITEM_ID = 1001;
 const FLORAL_COIN_ITEM_ID = 1002;
@@ -70,6 +70,55 @@ export function StatusOverviewPanel({ basic: snapshot, warehouse, status }: {
         <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
         <OverviewStat icon={<Ticket />} label="加速卡" value={formatCount(speedUpTickets)} />
       </div>
+    </CollapsibleCard>
+  );
+}
+
+export function PearlHirePanel({ pearlHire }: { pearlHire?: PearlHireStatusView }) {
+  const slots = pearlHire?.slots ?? [];
+  const ticketCount = pearlHire?.ticketCount ?? 0;
+  const usedToday = pearlHire?.ticketUsedToday ?? 0;
+  const dailyLimit = pearlHire?.dailyTicketLimit ?? 0;
+  const usageLabel = dailyLimit > 0 ? `${formatCount(usedToday)}/${formatCount(dailyLimit)}` : `${formatCount(usedToday)}（不限）`;
+  return (
+    <CollapsibleCard
+      title="珍珠雇佣"
+      actions={(
+        <>
+          <Badge variant="outline">雇佣券 {formatCount(ticketCount)}</Badge>
+          <Badge variant="secondary">今日 {usageLabel}</Badge>
+        </>
+      )}
+    >
+      {slots.length === 0 ? (
+        <EmptyState title="暂无劳工槽位快照" detail="登录并完成珍珠状态同步后显示" />
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {slots.map((slot) => {
+            const occupied = slot.laborUid > BigInt(0);
+            const name = slot.laborName?.trim() || (occupied ? String(slot.laborUid) : "空闲");
+            const endMs = Number(slot.laborEndTimeMs);
+            const endLabel = endMs > 0
+              ? `${slot.active ? "结束" : "已结束"} ${new Intl.DateTimeFormat("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(new Date(endMs))}`
+              : "待雇佣";
+            return (
+              <div key={slot.placeId} className="rounded-md border border-border/58 bg-white/34 px-3 py-2 dark:bg-white/5">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="font-medium">槽位 {slot.placeId}</span>
+                  <Badge variant={slot.active ? "default" : "outline"}>{slot.active ? "在岗" : occupied ? "到期" : "空闲"}</Badge>
+                </div>
+                <div className="mt-1 truncate text-sm text-muted-foreground">{name}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{endLabel}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </CollapsibleCard>
   );
 }

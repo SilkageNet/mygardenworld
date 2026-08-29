@@ -165,6 +165,8 @@ type assetState struct {
 	pearlHireFailedUntil     map[int64]int64
 	pearlHireSessionLocked   bool
 	pearlHireLockReason      string
+	pearlHireTicketUsedDayID int32
+	pearlHireTicketUsedToday int32
 	roadGrowReceived         map[int32]bool
 	signTypes                map[int32]*SignTypeView
 	signTypeObserved         bool

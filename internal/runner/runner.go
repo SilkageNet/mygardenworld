@@ -70,9 +70,11 @@ func WorkspaceLogCategory(category, domain string) pb.WorkspaceLogCategory {
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ACTIVITIES
 	case category == "order", category == "flower_art", strings.Contains(domain, "order"), strings.Contains(domain, "vase"), strings.Contains(domain, "flowerart"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ORDERS
+	case strings.Contains(domain, "pearl"):
+		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_BASIC
 	case category == "plant", category == "water", strings.HasPrefix(domain, "farm"), strings.Contains(domain, "land"), strings.Contains(domain, "cultivat"), strings.Contains(domain, "friend"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_GARDEN
-	case strings.Contains(domain, "inventory"), strings.Contains(domain, "resource"), strings.Contains(domain, "warehouse"), strings.Contains(domain, "market"), strings.Contains(domain, "shop"), strings.Contains(domain, "pearl"), strings.Contains(domain, "zoo"), strings.Contains(domain, "mail"):
+	case strings.Contains(domain, "inventory"), strings.Contains(domain, "resource"), strings.Contains(domain, "warehouse"), strings.Contains(domain, "market"), strings.Contains(domain, "shop"), strings.Contains(domain, "zoo"), strings.Contains(domain, "mail"):
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_WAREHOUSE
 	default:
 		return pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_BASIC

@@ -234,15 +234,20 @@ func (s *State) applyPearlEnemiesLocked(rawPearl json.RawMessage) {
 	s.pearlEnemiesObserved = true
 }
 
-// PearlHire returns a defensive view of all candidate state. Local failure
-// entries that have expired are retained in State but omitted from the view;
-// exact boundary handling therefore remains deterministic for callers.
+// PearlHire returns a defensive view evaluated at the current clock.
 func (s *State) PearlHire() PearlHireView {
+	return s.PearlHireAt(time.Now())
+}
+
+// PearlHireAt returns a defensive view of all candidate state and evaluates
+// the durable daily ticket counter against the supplied calendar day.
+func (s *State) PearlHireAt(now time.Time) PearlHireView {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	view := PearlHireView{
 		RoleID:                s.roleID,
 		TicketCount:           s.inventory[pearlHireTicketItemID],
+		TicketUsedToday:       s.pearlHireTicketUsedTodayLocked(now),
 		NobleEligible:         s.nobleEligibleLocked(),
 		Places:                make(map[int32]PearlPlaceView, len(s.pearlPlaces)),
 		FriendUIDs:            s.pearlFriendUIDsLocked(),
@@ -285,6 +290,64 @@ func (s *State) PearlHire() PearlHireView {
 		view.FailedUntilMs[uid] = until
 	}
 	return view
+}
+
+// SetPearlHireTicketUsed hydrates the durable counter for one Shanghai
+// calendar day. Invalid values are rejected rather than normalized.
+func (s *State) SetPearlHireTicketUsed(dayID, used int32) {
+	if dayID <= 0 || used < 0 {
+		return
+	}
+	s.mu.Lock()
+	s.pearlHireTicketUsedDayID = dayID
+	s.pearlHireTicketUsedToday = used
+	s.mu.Unlock()
+}
+
+// MergePearlHireTicketUsed applies an atomic persistence result without ever
+// reducing a more conservative in-memory count accumulated after an earlier
+// database failure.
+func (s *State) MergePearlHireTicketUsed(dayID, used int32) {
+	if dayID <= 0 || used < 0 {
+		return
+	}
+	s.mu.Lock()
+	if s.pearlHireTicketUsedDayID != dayID {
+		s.pearlHireTicketUsedDayID = dayID
+		s.pearlHireTicketUsedToday = used
+	} else if used > s.pearlHireTicketUsedToday {
+		s.pearlHireTicketUsedToday = used
+	}
+	s.mu.Unlock()
+}
+
+// NotePearlHireTicketUsed records one observed ticket decrement in memory.
+// The runner normally replaces this value with the atomic database result.
+func (s *State) NotePearlHireTicketUsed(at time.Time) {
+	if at.IsZero() {
+		return
+	}
+	s.mu.Lock()
+	dayID := PearlHireTicketDayID(at)
+	if s.pearlHireTicketUsedDayID != dayID {
+		s.pearlHireTicketUsedDayID = dayID
+		s.pearlHireTicketUsedToday = 0
+	}
+	s.pearlHireTicketUsedToday++
+	s.mu.Unlock()
+}
+
+func (s *State) pearlHireTicketUsedTodayLocked(now time.Time) int32 {
+	if now.IsZero() || s.pearlHireTicketUsedDayID != PearlHireTicketDayID(now) {
+		return 0
+	}
+	return s.pearlHireTicketUsedToday
+}
+
+// PearlHireTicketDayID is the Asia/Shanghai calendar day used by the daily
+// hire-ticket policy. The official limit resets at 00:00, not at 00:05.
+func PearlHireTicketDayID(now time.Time) int32 {
+	return calendarDayID(now)
 }
 
 // PearlHireAttemptSnapshot captures the live ticket balance and slot revision
@@ -330,6 +393,18 @@ func (s *State) PearlHireAttemptApplied(snapshot PearlHireAttemptSnapshot) (succ
 		return false, 0, false
 	}
 	return true, 0, true
+}
+
+// PearlHireTicketDecreased reports only the exact observed one-ticket spend
+// associated with an attempt snapshot. It is independent of slot outcome so
+// contested attempts that consume a ticket still count toward the daily cap.
+func (s *State) PearlHireTicketDecreased(snapshot PearlHireAttemptSnapshot) bool {
+	if snapshot.At.IsZero() || snapshot.TicketCount <= 0 {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.inventory[pearlHireTicketItemID] == snapshot.TicketCount-1
 }
 
 func (s *State) pearlFriendUIDsLocked() []int64 {
