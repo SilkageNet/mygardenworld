@@ -190,6 +190,18 @@
 // Pending harvest prefers max(protocol mature-harvested, startTime+c_fmlLandLvl
 // time/stock). Sync via fml.enter; mutate with fmlLand.harvest / fmlLand.plant.
 //
+// # Guild Race Task Targets (Namespace 25.114 / 25.110)
+//
+// IFmlRaceTask field 6 and IFmlRaceTakeTask field 4 carry the task parameter
+// array. The first value is execution-critical for the targeted task types:
+//
+//	task type 3036  flower id for plant/harvest progress
+//	task type 3034  vase id for flower-art craft progress
+//
+// A 3034 task must only craft recipes belonging to its observed vase. Missing
+// or locked vase targets are unsafe to take; a held task with such a target
+// cannot be completed by automation.
+//
 // # Personal Land Fields (G.ILand, Namespace 100)
 //
 // Per-land fields use numeric-string keys:
