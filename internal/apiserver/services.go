@@ -6,6 +6,7 @@ package apiserver
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -26,12 +28,14 @@ import (
 // Transport registration exposes it through the domain-specific handler
 // wrappers returned by NewHandlers instead of mounting this core directly.
 type Services struct {
-	DB           *store.DB
-	Manager      *runner.Manager
-	JWT          *auth.JWT
-	Log          *slog.Logger
-	LoginLimiter *LoginLimiter
-	AlipayLogins *AlipayLoginCoordinator
+	DB            *store.DB
+	Manager       *runner.Manager
+	JWT           *auth.JWT
+	Log           *slog.Logger
+	LoginLimiter  *LoginLimiter
+	AlipayLogins  *AlipayLoginCoordinator
+	Redeem        *redeemsvc.Service
+	RedeemLimiter *RedeemSubmitLimiter
 
 	workspaceProjectionMu sync.Mutex
 	workspaceProjections  map[int64]*workspaceProjectionCache
@@ -199,106 +203,10 @@ func (svc *Services) DisconnectAccount(ctx context.Context, req *connect.Request
 	return connect.NewResponse(&pb.DisconnectAccountResponse{Account: out}), nil
 }
 
-func (svc *Services) RedeemCode(ctx context.Context, req *connect.Request[pb.RedeemCodeRequest]) (*connect.Response[pb.RedeemCodeResponse], error) {
-	code := strings.TrimSpace(req.Msg.GetCode())
-	if code == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem code required"))
-	}
-	accounts, err := svc.resolveRedeemAccounts(ctx, req.Msg.GetAccountIds())
-	if err != nil {
-		return nil, mapErr(err)
-	}
-
-	resp := &pb.RedeemCodeResponse{Results: make([]*pb.RedeemCodeResult, 0, len(accounts))}
-	for _, acc := range accounts {
-		result := &pb.RedeemCodeResult{
-			AccountId:   acc.ID,
-			AccountName: acc.Name,
-		}
-		r := svc.Manager.Get(acc.ID)
-		if r == nil || !r.Connected() {
-			started, startErr := svc.Manager.Start(ctx, acc.ID)
-			if startErr != nil {
-				result.Message = formatLoginErr(startErr)
-				resp.FailureCount++
-				resp.Results = append(resp.Results, result)
-				continue
-			}
-			r = started
-		}
-		if resultInfo, err := r.RedeemCode(ctx, code); err != nil {
-			result.Message = babigame.SafeUTF8(err.Error())
-			resp.FailureCount++
-			resp.Results = append(resp.Results, result)
-			continue
-		} else {
-			result.Ok = true
-			result.Message = redeemResultMessage(resultInfo)
-			resp.SuccessCount++
-			resp.Results = append(resp.Results, result)
-		}
-	}
-	return connect.NewResponse(resp), nil
-}
-
-func redeemResultMessage(result runner.RedeemResult) string {
-	if result.Code == "" {
-		return "ok"
-	}
-	parts := make([]string, 0, len(result.Items))
-	for _, item := range result.Items {
-		name := item.Name
-		if name == "" {
-			name = fmt.Sprintf("#%d", item.ItemID)
-		}
-		parts = append(parts, fmt.Sprintf("%sx%d", name, item.Count))
-	}
-	switch {
-	case len(parts) > 0 && result.MailNew > 0:
-		return fmt.Sprintf("%s；另有 %d 封奖励邮件", strings.Join(parts, "、"), result.MailNew)
-	case len(parts) > 0:
-		return strings.Join(parts, "、")
-	case result.MailNew > 0:
-		return fmt.Sprintf("奖励已入邮件（%d 封待领取）", result.MailNew)
-	default:
-		return "ok"
-	}
-}
-
-func (svc *Services) resolveRedeemAccounts(ctx context.Context, accountIDs []int64) ([]*store.Account, error) {
-	if len(accountIDs) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem account ids required"))
-	}
-	out := make([]*store.Account, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
-	channel := ""
-	for _, id := range accountIDs {
-		if id <= 0 {
-			continue
-		}
-		acc, err := svc.resolveAccount(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := seen[acc.ID]; ok {
-			continue
-		}
-		if len(out) == 0 {
-			channel = acc.Channel
-		} else if acc.Channel != channel {
-			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem accounts must belong to one channel"))
-		}
-		seen[acc.ID] = struct{}{}
-		out = append(out, acc)
-	}
-	if len(out) == 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem account ids required"))
-	}
-	return out, nil
-}
-
 func mapErr(err error) error {
 	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return connect.NewError(connect.CodeNotFound, errors.New("resource not found"))
 	case errors.Is(err, store.ErrAccountNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, store.ErrAccountExists):

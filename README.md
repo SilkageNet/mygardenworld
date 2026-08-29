@@ -32,6 +32,8 @@ gardend serve --listen 127.0.0.1:50051
 
 目前仅支持 **iOS** 和 **Alipay**：iOS 使用游戏账号密码，Alipay 通过二维码自动完成授权。控制台按基础、花园、订单、公会、活动、仓库、统计和日志组织；读取状态通过一条 Protobuf WebSocket 推送，明确的账号与策略命令使用 Connect API。
 
+公开兑换码中心位于 `/redeem`。管理员可订阅其他 MyGardenWorld 节点或自定义只读来源；节点订阅填写对方站点根地址（如 `https://gardend.example.com`），无需填写接口路径。
+
 数据默认保存在系统用户配置目录下的 `mygardenworld/data`。如需重建本地数据：
 
 ```sh

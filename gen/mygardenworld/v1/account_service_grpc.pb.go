@@ -25,7 +25,6 @@ const (
 	AccountService_ConnectAccount_FullMethodName    = "/mygardenworld.v1.AccountService/ConnectAccount"
 	AccountService_StartAlipayLogin_FullMethodName  = "/mygardenworld.v1.AccountService/StartAlipayLogin"
 	AccountService_DisconnectAccount_FullMethodName = "/mygardenworld.v1.AccountService/DisconnectAccount"
-	AccountService_RedeemCode_FullMethodName        = "/mygardenworld.v1.AccountService/RedeemCode"
 )
 
 // AccountServiceClient is the client API for AccountService service.
@@ -47,9 +46,6 @@ type AccountServiceClient interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	DisconnectAccount(ctx context.Context, in *DisconnectAccountRequest, opts ...grpc.CallOption) (*DisconnectAccountResponse, error)
-	// Redeem one gift code across an explicit set of accounts from one channel.
-	// Offline accounts are started first so the game RPC can run.
-	RedeemCode(ctx context.Context, in *RedeemCodeRequest, opts ...grpc.CallOption) (*RedeemCodeResponse, error)
 }
 
 type accountServiceClient struct {
@@ -120,16 +116,6 @@ func (c *accountServiceClient) DisconnectAccount(ctx context.Context, in *Discon
 	return out, nil
 }
 
-func (c *accountServiceClient) RedeemCode(ctx context.Context, in *RedeemCodeRequest, opts ...grpc.CallOption) (*RedeemCodeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(RedeemCodeResponse)
-	err := c.cc.Invoke(ctx, AccountService_RedeemCode_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // AccountServiceServer is the server API for AccountService service.
 // All implementations should embed UnimplementedAccountServiceServer
 // for forward compatibility.
@@ -149,9 +135,6 @@ type AccountServiceServer interface {
 	// Stops the live runner/WS for the account and disables auto-resume.
 	// Credentials stay stored; the account can be logged in again later.
 	DisconnectAccount(context.Context, *DisconnectAccountRequest) (*DisconnectAccountResponse, error)
-	// Redeem one gift code across an explicit set of accounts from one channel.
-	// Offline accounts are started first so the game RPC can run.
-	RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error)
 }
 
 // UnimplementedAccountServiceServer should be embedded to have
@@ -178,9 +161,6 @@ func (UnimplementedAccountServiceServer) StartAlipayLogin(context.Context, *Star
 }
 func (UnimplementedAccountServiceServer) DisconnectAccount(context.Context, *DisconnectAccountRequest) (*DisconnectAccountResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DisconnectAccount not implemented")
-}
-func (UnimplementedAccountServiceServer) RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RedeemCode not implemented")
 }
 func (UnimplementedAccountServiceServer) testEmbeddedByValue() {}
 
@@ -310,24 +290,6 @@ func _AccountService_DisconnectAccount_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _AccountService_RedeemCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RedeemCodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountServiceServer).RedeemCode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountService_RedeemCode_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).RedeemCode(ctx, req.(*RedeemCodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // AccountService_ServiceDesc is the grpc.ServiceDesc for AccountService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -358,10 +320,6 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DisconnectAccount",
 			Handler:    _AccountService_DisconnectAccount_Handler,
-		},
-		{
-			MethodName: "RedeemCode",
-			Handler:    _AccountService_RedeemCode_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

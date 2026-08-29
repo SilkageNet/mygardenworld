@@ -20,6 +20,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/apiserver"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"github.com/SilkageNet/mygardenworld/internal/webui"
@@ -176,16 +177,32 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	mgr := runner.NewManager(db, bus, log)
 	mgr.DebugDir = opts.DebugDir
 	defer mgr.Shutdown()
+	redeemService, err := redeemsvc.NewService(ctx, db, mgr, log)
+	if err != nil {
+		return fmt.Errorf("initialize redeem exchange: %w", err)
+	}
+	redeemCtx, cancelRedeem := context.WithCancel(ctx)
+	redeemDone := make(chan struct{})
+	go func() {
+		defer close(redeemDone)
+		redeemService.Run(redeemCtx)
+	}()
+	defer func() {
+		cancelRedeem()
+		<-redeemDone
+	}()
 	alipayCfg, err := babigame.ConfigForChannel(babigame.ChannelAlipay)
 	if err != nil {
 		return fmt.Errorf("configure Alipay channel: %w", err)
 	}
 
 	svc := &apiserver.Services{
-		DB:      db,
-		Manager: mgr,
-		JWT:     jwtSvc,
-		Log:     log,
+		DB:            db,
+		Manager:       mgr,
+		JWT:           jwtSvc,
+		Log:           log,
+		Redeem:        redeemService,
+		RedeemLimiter: apiserver.NewRedeemSubmitLimiter(),
 		AlipayLogins: apiserver.NewAlipayLoginCoordinator(
 			babigame.NewAlipayClient(alipayCfg),
 		),
@@ -230,6 +247,14 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	// AuthService uses the same interceptor: login/refresh/logout are
 	// explicitly public, while get-me still receives identity context.
 	path, handler := mygardenworldv1connect.NewAuthServiceHandler(handlers.Auth, protectedOpts...)
+	mux.Handle(path, handler)
+
+	// Redeem exchange is intentionally public: it contains only community
+	// codes and aggregate verification evidence, never account data.
+	path, handler = mygardenworldv1connect.NewRedeemExchangeServiceHandler(
+		handlers.Redeem,
+		connect.WithReadMaxBytes(opts.MaxReqBytes),
+	)
 	mux.Handle(path, handler)
 
 	// All other services: protected

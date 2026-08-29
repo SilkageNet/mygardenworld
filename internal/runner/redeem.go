@@ -18,10 +18,24 @@ import (
 
 // RedeemResult is the sanitized outcome of one redeem.useCode call.
 type RedeemResult struct {
-	Code    string
-	Items   []RedeemItemGain
-	MailNew int
+	Code        string
+	Outcome     RedeemOutcome
+	MessageCode int
+	Message     string
+	Items       []RedeemItemGain
+	MailNew     int
 }
+
+type RedeemOutcome string
+
+const (
+	RedeemOutcomeSuccess         RedeemOutcome = "success"
+	RedeemOutcomeAlreadyRedeemed RedeemOutcome = "already_redeemed"
+	RedeemOutcomeExpired         RedeemOutcome = "expired"
+	RedeemOutcomeInvalid         RedeemOutcome = "invalid"
+	RedeemOutcomeRetryable       RedeemOutcome = "retryable"
+	RedeemOutcomeUnknown         RedeemOutcome = "unknown"
+)
 
 // RedeemItemGain is one observed gain after a successful redeem.
 type RedeemItemGain struct {
@@ -64,20 +78,91 @@ func (r *Runner) RedeemCode(ctx context.Context, code string) (RedeemResult, err
 	rpc := clientrpc.NewClient(rawRPC)
 	resp, err := rpc.Redeem().UseCode(ctx, clientproto.RedeemUseCodeRequest{Code: code})
 	if err != nil {
+		out.MessageCode = redeemServerCode(err, babigame.WSResponseD{})
+		out.Outcome = classifyRedeemOutcome(out.MessageCode, err)
 		msg := formatRedeemServerError(err, babigame.WSResponseD{})
-		r.emitRedeemEvent(false, code, nil, 0, msg)
+		out.Message = msg
+		if out.Outcome == RedeemOutcomeSuccess {
+			r.emitRedeemEvent(true, code, nil, 0, "")
+		} else {
+			r.emitRedeemEvent(false, code, nil, 0, msg)
+		}
+		if out.MessageCode != 0 || isRPCServerError(err) {
+			return out, nil
+		}
 		return out, fmt.Errorf("%s", msg)
 	}
 	if resp.Envelope.IsError() {
+		out.MessageCode = redeemServerCode(nil, resp.Envelope)
+		out.Outcome = classifyRedeemOutcome(out.MessageCode, nil)
 		msg := formatRedeemServerError(nil, resp.Envelope)
+		out.Message = msg
+		if out.Outcome == RedeemOutcomeSuccess {
+			r.emitRedeemEvent(true, code, nil, 0, "")
+			return out, nil
+		}
 		r.emitRedeemEvent(false, code, nil, 0, msg)
-		return out, fmt.Errorf("%s", msg)
+		return out, nil
 	}
 
+	out.Outcome = RedeemOutcomeSuccess
 	out.Items = redeemGains(beforeInv, r.state.Inventory(), beforeGold, r.state.Gold(), beforeDiamonds, r.state.SpendableDiamonds())
 	out.MailNew = countNewRewardMails(beforeMails, r.state.Mails())
+	out.Message = redeemSuccessMessage(code, out.Items, out.MailNew)
 	r.emitRedeemEvent(true, code, out.Items, out.MailNew, "")
 	return out, nil
+}
+
+func classifyRedeemOutcome(code int, err error) RedeemOutcome {
+	switch code {
+	case 330:
+		return RedeemOutcomeSuccess
+	case 331:
+		return RedeemOutcomeInvalid
+	case 333:
+		return RedeemOutcomeExpired
+	case 334, 335:
+		return RedeemOutcomeAlreadyRedeemed
+	case 332, 337:
+		return RedeemOutcomeRetryable
+	}
+	if err != nil && !isRPCServerError(err) {
+		return RedeemOutcomeRetryable
+	}
+	return RedeemOutcomeUnknown
+}
+
+func isRPCServerError(err error) bool {
+	var rpcErr *babigame.RPCServerError
+	return errors.As(err, &rpcErr) && rpcErr != nil
+}
+
+func redeemServerCode(err error, envelope babigame.WSResponseD) int {
+	if code := envelope.ErrorCode(); code != 0 {
+		return code
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil {
+		if code := rpcErr.Envelope.ErrorCode(); code != 0 {
+			return code
+		}
+		if code := redeemMsgCodeFromRaw(rpcErr.Envelope.ErrorMsg()); code != 0 {
+			return code
+		}
+		if code := redeemMsgCodeFromRaw(string(rpcErr.Envelope.M)); code != 0 {
+			return code
+		}
+	}
+	if code := redeemMsgCodeFromRaw(envelope.ErrorMsg()); code != 0 {
+		return code
+	}
+	if code := redeemMsgCodeFromRaw(string(envelope.M)); code != 0 {
+		return code
+	}
+	if err != nil {
+		return redeemMsgCodeFromRaw(err.Error())
+	}
+	return 0
 }
 
 func (r *Runner) emitRedeemEvent(ok bool, code string, items []RedeemItemGain, mailNew int, errMsg string) {
@@ -168,9 +253,13 @@ func redeemMsgCodeText(code int) string {
 }
 
 func redeemMsgCodeTextFromRaw(raw string) string {
+	return redeemMsgCodeText(redeemMsgCodeFromRaw(raw))
+}
+
+func redeemMsgCodeFromRaw(raw string) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return ""
+		return 0
 	}
 	// Prefer an embedded {"code":N,...} payload, including rpc wrapper strings.
 	start := strings.Index(raw, "{")
@@ -180,12 +269,10 @@ func redeemMsgCodeTextFromRaw(raw string) string {
 			Code int `json:"code"`
 		}
 		if json.Unmarshal([]byte(raw[start:end+1]), &payload) == nil {
-			if text := redeemMsgCodeText(payload.Code); text != "" {
-				return text
-			}
+			return payload.Code
 		}
 	}
-	return ""
+	return 0
 }
 
 func redeemSuccessMessage(code string, items []RedeemItemGain, mailNew int) string {
