@@ -433,6 +433,28 @@ type ShopCultivateOfferView struct {
 	Sort       int32 `json:"sort,omitempty"`
 }
 
+// ZooFoodShopView is the authoritative normal-food offer from generic shop 9.
+// The offer metadata comes from c_shop_item_9; purchase progress comes from
+// namespace 20 and is only usable after the current game day was synced.
+type ZooFoodShopView struct {
+	Observed       bool  `json:"observed"`
+	NeedsEnter     bool  `json:"needs_enter"`
+	ShopTempID     int32 `json:"shop_temp_id"`
+	ShopItemID     int32 `json:"shop_item_id"`
+	FoodstuffID    int32 `json:"foodstuff_id"`
+	FoodstuffCount int32 `json:"foodstuff_count"`
+	GoldCost       int32 `json:"gold_cost"`
+	DailyBought    int32 `json:"daily_bought"`
+	DailyLimit     int32 `json:"daily_limit"`
+	DailyRemaining int32 `json:"daily_remaining"`
+}
+
+// ZooFoodBowlNeed is one deterministic, observed bowl-capacity deficit.
+type ZooFoodBowlNeed struct {
+	PetID int32 `json:"pet_id"`
+	Count int32 `json:"count"`
+}
+
 // ShopGiftbagOfferView is one configured gift-bag shop item enriched with
 // namespace 112 purchase records.
 type ShopGiftbagOfferView struct {

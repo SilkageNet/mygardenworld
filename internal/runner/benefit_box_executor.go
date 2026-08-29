@@ -51,11 +51,10 @@ func executeBenefitBoxDraw(ctx context.Context, exec benefitBoxDrawExecution) (j
 	now := exec.now()
 	want := exec.remaining(now)
 	if want <= 0 {
-		if exec.observed() {
-			return nil, fmt.Errorf("benefitBox: getBenefitBoxInfo reports 0 unopened boxes")
+		if !exec.observed() {
+			return nil, fmt.Errorf("benefitBox: namespace 116 not observed")
 		}
-		// Namespace 116 never synced; one draw may return state or a clear error.
-		want = 1
+		return nil, fmt.Errorf("benefitBox: getBenefitBoxInfo reports 0 unopened boxes")
 	}
 	const maxDraws = 8 // c_benefitBox.$boxMax
 	if want > maxDraws {

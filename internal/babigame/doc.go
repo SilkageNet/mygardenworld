@@ -25,7 +25,7 @@
 //	6          | Config versions / split map      | reLogin
 //	7          | Inventory (see below)            | Most RPCs
 //	16         | VIP state                        | reLogin
-//	20         | Shop purchase records            | shop.buy
+//	20         | Generic shop state/records        | shop.enter/buy
 //	22         | Daily/weekly task progress       | plant/water/harvest/cultivate
 //	23         | Activity state / cyclic tasks    | normal actions, actCyclicNote.*
 //	24         | Friend list                      | frd.enter
@@ -248,9 +248,10 @@
 // The client uses drawCnt as the observed free-draw baseline. When below
 // c_benefitBox.$boxMax (8), boxes refill every $boxCd seconds (3600) relative
 // to resetCntTime without a namespace push — see BenefitBoxCtrl.getBenefitBoxInfo.
-// Automation claims only during 04:30–05:00 Asia/Shanghai: it reads that
-// accrued unopened count, then calls benefitBox.draw once per box. Daytime
-// opens are left for the player.
+// Automation follows the same readiness rule at every evaluation: once
+// namespace 116 has been observed and the locally accrued count is positive,
+// it calls benefitBox.draw once per box. benefitBox.enterBox is BI reporting,
+// not a state-sync RPC, so an unobserved namespace must fail closed.
 //
 // # Shop Cultivate / Material Shop (Namespace 113)
 //
@@ -258,11 +259,11 @@
 // "5": lmrTime, "6": bRecord, "7": uTime, "8": cTime}
 //
 // infoMap holds dynamic [costItemId, costCount] per shopId. bRecord tracks buy
-// counts against c_shop_cultivate.bLimit. Free auto-refresh uses
-// c_shop_cultivate.$autoRefreshCd (9000s ≈ 2h30m) relative to larTime and is
-// capped by $frTimes (vs mrCount). When the CD elapses and free times remain,
-// automation calls shopCultivate.refresh before buy; after free times are used
-// it must not refresh (paid refresh costs yuanbao via $nrResults).
+// counts against c_shop_cultivate.bLimit. The client checks
+// c_shop_cultivate.$autoRefreshCd (9000s ≈ 2h30m) relative to larTime and calls
+// shopCultivate.enter when that automatic shelf-rotation countdown elapses.
+// shopCultivate.refresh is a separate user action governed by mrCount/$frTimes
+// and can cost yuanbao; automation never uses it for timed rotation.
 // shopCultivate.buy code 312 means the current offer can no longer be bought.
 // Treat it as authoritative exhaustion for that shopId so stale bRecord state
 // cannot retry one sold-out offer indefinitely or block later shelf items.
@@ -292,8 +293,12 @@
 //
 // The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and
 // strokeCdTime to decide whether strokePet is available. Normal bowl stocking
-// uses zoo.addFoodstuff with inventory food IDs; zoo.feedPets is only an
-// acknowledgement path for another player's feeding notification. Automated
+// uses zoo.addFoodstuff with inventory food IDs and is gated only by observed
+// foodstuffArr capacity and inventory—not pet status or satiety. When enabled
+// and inventory is empty, generic shop 9 item 90001 buys food 1501 for 100 gold
+// per unit, subject to namespace 20 dRecord's daily limit. Diamond food 90002
+// remains blocked. zoo.feedPets is only an acknowledgement path for another
+// player's feeding notification. Automated
 // event handling is sourced from 33.2 logs, never inferred from pet fields.
 // Souvenir collection progress is the number of distinct 33.4 map entries,
 // independent of isRead. Reward readiness requires both that map and 33.0.13
@@ -375,6 +380,8 @@
 //	pearlPlace.recv      {placeId}                 → {7,115}
 //	shopGiftbag.enter    {}                        → {112}
 //	shopGiftbag.buy      {shopId,num}              → {7,112}
+//	shop.enter           {tempId:9}                → {20}
+//	shop.buy             {tempId:9,itemId:90001,count} → {7,20}
 //	shopCultivate.enter  {}                        → {113}
 //	shopCultivate.refresh {}                       → {113}
 //	shopCultivate.buy    {shopId}                  → {7,113}

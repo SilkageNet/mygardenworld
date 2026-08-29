@@ -82,6 +82,10 @@ func opKindDesc(kind string) string {
 		return "领取防骗宝箱"
 	case clientproto.RPCBenefitBoxDraw.String():
 		return "开启福利宝箱"
+	case clientproto.RPCShopEnter.String():
+		return "同步宠物饲料商店"
+	case clientproto.RPCShopBuy.String():
+		return "购买普通猫粮"
 	case clientproto.RPCShopCultivateEnter.String():
 		return "同步材料商店"
 	case clientproto.RPCShopCultivateRefresh.String():

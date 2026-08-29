@@ -134,6 +134,7 @@ func basicEnabled(p *pb.BasicPolicy) bool {
 	task := p.GetTask()
 	benefit := p.GetBenefit()
 	sign := p.GetSign()
+	zoo := p.GetZoo()
 	return p != nil && (task.GetMainEnabled() || task.GetDailyEnabled() || task.GetWeeklyEnabled() ||
 		task.GetStoryEnabled() || task.GetAchievementEnabled() || p.GetMailEnabled() ||
 		sign.GetDailyEnabled() || sign.GetPatchEnabled() || p.GetFreeWaterEnabled() ||
@@ -141,7 +142,7 @@ func basicEnabled(p *pb.BasicPolicy) bool {
 		benefit.GetShareRewardEnabled() || benefit.GetAntiScamBoxEnabled() ||
 		p.GetMapEventEnabled() || p.GetRoadGrowRewardEnabled() ||
 		p.GetPearl().GetFreeEnabled() || p.GetShop().GetVideoFreeGiftEnabled() ||
-		p.GetZoo().GetEnabled())
+		zoo.GetEnabled() || zoo.GetAutoEventEnabled() || zoo.GetAutoFeed() || zoo.GetAutoBuyFood() || zoo.GetAutoStroke())
 }
 
 func plantEnabled(p *pb.PlantPolicy) bool {

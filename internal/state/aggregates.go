@@ -136,6 +136,7 @@ type socialState struct {
 type assetState struct {
 	mailObserved             bool
 	mails                    map[string]*MailView
+	shops                    map[int32]*shopState
 	shopGiftbagDRecord       map[int32]int32
 	shopGiftbagWRecord       map[int32]int32
 	shopGiftbagMRecord       map[int32]int32

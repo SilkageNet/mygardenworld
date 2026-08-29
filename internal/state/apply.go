@@ -104,6 +104,9 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	if rawNS19, ok := top["19"]; ok {
 		s.applyMailLocked(rawNS19)
 	}
+	if rawNS20, ok := top["20"]; ok {
+		s.applyShopsLocked(rawNS20, now)
+	}
 	if rawNS114, ok := top["114"]; ok {
 		s.applyWaterwheelLocked(rawNS114)
 	}
