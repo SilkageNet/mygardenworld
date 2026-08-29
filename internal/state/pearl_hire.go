@@ -321,20 +321,22 @@ func (s *State) MergePearlHireTicketUsed(dayID, used int32) {
 	s.mu.Unlock()
 }
 
-// NotePearlHireTicketUsed records one observed ticket decrement in memory.
-// The runner normally replaces this value with the atomic database result.
-func (s *State) NotePearlHireTicketUsed(at time.Time) {
+// NotePearlHireTicketUsed records one observed ticket decrement in memory and
+// returns the new conservative day total. The runner supplies this high-water
+// mark to persistence so a later successful write repairs earlier failures.
+func (s *State) NotePearlHireTicketUsed(at time.Time) int32 {
 	if at.IsZero() {
-		return
+		return 0
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	dayID := PearlHireTicketDayID(at)
 	if s.pearlHireTicketUsedDayID != dayID {
 		s.pearlHireTicketUsedDayID = dayID
 		s.pearlHireTicketUsedToday = 0
 	}
 	s.pearlHireTicketUsedToday++
-	s.mu.Unlock()
+	return s.pearlHireTicketUsedToday
 }
 
 func (s *State) pearlHireTicketUsedTodayLocked(now time.Time) int32 {

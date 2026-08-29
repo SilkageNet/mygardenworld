@@ -34,8 +34,8 @@ func (r *Runner) notePearlHireTicketUsed(ctx context.Context, at time.Time) {
 		r.state.NotePearlHireTicketUsed(at)
 		return
 	}
-	r.state.NotePearlHireTicketUsed(at)
-	used, err := r.db.IncrementPearlHireTicketUsed(ctx, r.account.ID, dayID)
+	minimumUsed := r.state.NotePearlHireTicketUsed(at)
+	used, err := r.db.AdvancePearlHireTicketUsed(ctx, r.account.ID, dayID, minimumUsed)
 	if err != nil {
 		r.log.Warn("persist pearl hire daily ticket usage failed", "err", err)
 		return

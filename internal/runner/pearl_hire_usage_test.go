@@ -32,8 +32,8 @@ func TestRunnerPearlHireUsageHydratesAndStaysConservativeOnWriteFailure(t *testi
 	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
 	at := time.Date(2026, 8, 29, 12, 0, 0, 0, shanghai)
 	dayID := state.PearlHireTicketDayID(at)
-	for range 2 {
-		if _, err := db.IncrementPearlHireTicketUsed(ctx, account.ID, dayID); err != nil {
+	for want := int32(1); want <= 2; want++ {
+		if _, err := db.AdvancePearlHireTicketUsed(ctx, account.ID, dayID, want); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -60,5 +60,8 @@ func TestRunnerPearlHireUsageHydratesAndStaysConservativeOnWriteFailure(t *testi
 	r.notePearlHireTicketUsed(ctx, at)
 	if got := r.state.PearlHireAt(at).TicketUsedToday; got != 5 {
 		t.Fatalf("usage regressed after later database success=%d, want 5", got)
+	}
+	if used, err := db.PearlHireTicketUsed(ctx, account.ID, dayID); err != nil || used != 5 {
+		t.Fatalf("persisted usage did not repair failed write=(%d,%v), want 5,nil", used, err)
 	}
 }

@@ -27,14 +27,14 @@ func TestPearlHireTicketUsageIsAtomicAndBoundedToOneAccountRow(t *testing.T) {
 		t.Fatalf("missing usage=(%d,%v), want 0,nil", used, err)
 	}
 	for want := int32(1); want <= 3; want++ {
-		used, err := db.IncrementPearlHireTicketUsed(ctx, account.ID, firstDay)
+		used, err := db.AdvancePearlHireTicketUsed(ctx, account.ID, firstDay, want)
 		if err != nil || used != want {
 			t.Fatalf("increment=%d err=%v, want %d", used, err, want)
 		}
 	}
 
 	const nextDay int32 = 20260830
-	used, err := db.IncrementPearlHireTicketUsed(ctx, account.ID, nextDay)
+	used, err := db.AdvancePearlHireTicketUsed(ctx, account.ID, nextDay, 1)
 	if err != nil || used != 1 {
 		t.Fatalf("next-day increment=%d err=%v, want 1", used, err)
 	}
@@ -70,7 +70,10 @@ func TestPearlHireTicketUsageRejectsInvalidKeys(t *testing.T) {
 	if _, err := db.PearlHireTicketUsed(ctx, 0, 20260829); err == nil {
 		t.Fatal("read accepted zero account id")
 	}
-	if _, err := db.IncrementPearlHireTicketUsed(ctx, 1, 0); err == nil {
+	if _, err := db.AdvancePearlHireTicketUsed(ctx, 1, 0, 1); err == nil {
 		t.Fatal("increment accepted zero day id")
+	}
+	if _, err := db.AdvancePearlHireTicketUsed(ctx, 1, 20260829, 0); err == nil {
+		t.Fatal("increment accepted zero minimum usage")
 	}
 }

@@ -35,30 +35,32 @@ func (d *DB) PearlHireTicketUsed(ctx context.Context, accountID int64, dayID int
 	return used, nil
 }
 
-// IncrementPearlHireTicketUsed atomically adds one spend for dayID. Crossing
-// the calendar-day boundary replaces yesterday's count instead of retaining
-// an unbounded row history.
-func (d *DB) IncrementPearlHireTicketUsed(ctx context.Context, accountID int64, dayID int32) (int32, error) {
-	if accountID <= 0 || dayID <= 0 {
-		return 0, fmt.Errorf("IncrementPearlHireTicketUsed: account_id and day_id required")
+// AdvancePearlHireTicketUsed atomically records one spend for dayID and repairs
+// the persisted value up to minimumUsed. The high-water mark matters when an
+// earlier write failed after the in-memory counter had already advanced.
+// Crossing the calendar-day boundary replaces yesterday's count instead of
+// retaining an unbounded row history.
+func (d *DB) AdvancePearlHireTicketUsed(ctx context.Context, accountID int64, dayID, minimumUsed int32) (int32, error) {
+	if accountID <= 0 || dayID <= 0 || minimumUsed <= 0 {
+		return 0, fmt.Errorf("AdvancePearlHireTicketUsed: account_id, day_id, and minimum_used required")
 	}
 	var used int32
 	err := d.QueryRowContext(ctx, `
 		INSERT INTO account_pearl_hire_usage(account_id, day_id, used_count, updated_at)
-		VALUES(?, ?, 1, CURRENT_TIMESTAMP)
+		VALUES(?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(account_id) DO UPDATE SET
 			day_id = excluded.day_id,
 			used_count = CASE
 				WHEN account_pearl_hire_usage.day_id = excluded.day_id
-				THEN account_pearl_hire_usage.used_count + 1
-				ELSE 1
+				THEN MAX(account_pearl_hire_usage.used_count + 1, excluded.used_count)
+				ELSE excluded.used_count
 			END,
 			updated_at = CURRENT_TIMESTAMP
 		RETURNING used_count`,
-		accountID, dayID,
+		accountID, dayID, minimumUsed,
 	).Scan(&used)
 	if err != nil {
-		return 0, fmt.Errorf("IncrementPearlHireTicketUsed: %w", err)
+		return 0, fmt.Errorf("AdvancePearlHireTicketUsed: %w", err)
 	}
 	return used, nil
 }
