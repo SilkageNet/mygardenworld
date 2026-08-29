@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 5
+const currentSchemaVersion = 6
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -157,6 +157,18 @@ CREATE INDEX idx_redeem_history_code ON redeem_history(code);
 		version: 5,
 		name:    "add last_sync_at to auto_redeem_config",
 		sql:     `ALTER TABLE auto_redeem_config ADD COLUMN last_sync_at DATETIME;`,
+	},
+	{
+		version: 6,
+		name:    "pearl hire daily ticket usage",
+		sql: `
+CREATE TABLE account_pearl_hire_usage (
+    account_id  INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    day_id      INTEGER NOT NULL,
+    used_count  INTEGER NOT NULL DEFAULT 0 CHECK(used_count >= 0),
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`,
 	},
 }
 

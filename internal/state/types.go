@@ -523,6 +523,7 @@ type PearlEnemyView struct {
 type PearlHireView struct {
 	RoleID                int64
 	TicketCount           int32
+	TicketUsedToday       int32
 	NobleEligible         bool
 	Places                map[int32]PearlPlaceView
 	FriendUIDs            []int64

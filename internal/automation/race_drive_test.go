@@ -47,9 +47,28 @@ func racePlantPolicy(useRaceSpeedup bool) *pb.Policy {
 	policy.Plant.Planting.UseSpeedUpTicket = false
 	policy.Union.Race.Enabled = true
 	policy.Union.Race.AutoEnableModules = true
+	policy.Union.Race.AutoGiveUpTask = true
 	policy.Union.Race.UseSpeedupTicketInTask = useRaceSpeedup
 	policy.Union.Race.MinTaskScore = 0 // accept any score for drive tests
 	return policy
+}
+
+func TestRaceHeldLowScoreContinuesWhenAutoGiveUpOff(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := raceTakenPlantState(t, 0, 10)
+	policy := racePlantPolicy(false)
+	policy.Union.Race.AutoGiveUpTask = false
+	policy.Union.Race.MinTaskScore = 30
+
+	result := BuildPlan(s, policy, now)
+	if _, ok := demandByID(result.Demands, "union.race:99:race_task:flower:23001"); !ok {
+		t.Fatalf("held task should keep progressing when auto give-up is off, demands=%+v", result.Demands)
+	}
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("held task must not be released without explicit opt-in: %+v", op)
+		}
+	}
 }
 
 func TestRaceTakenPlantHarvestDrivesPlantOp(t *testing.T) {

@@ -63,6 +63,24 @@ func TestWorkspaceContractUsesBusinessDomainReadModels(t *testing.T) {
 	}
 }
 
+func TestBuildPearlHireStatusViewExposesDailyUsageAndSlots(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	st := state.New()
+	st.ApplyV([]byte(`{"7":{"0":{"32":{"1003":4}}},"115":{"0":{"1":{"2":2001,"3":1800000060000,"4":0,"9":1800000000001},"2":{"2":0,"3":null,"4":0,"9":1800000000001}}}}`))
+	st.ApplyV([]byte(`{"28":{"5":[{"0":2001,"1":"劳工甲","4":12}]}}`))
+	st.SetPearlHireTicketUsed(state.PearlHireTicketDayID(now), 2)
+	got := buildPearlHireStatusView(st, &pb.PearlPolicy{DailyHireTicketLimit: 3}, now)
+	if got.GetTicketCount() != 4 || got.GetTicketUsedToday() != 2 || got.GetDailyTicketLimit() != 3 {
+		t.Fatalf("pearl status counts=%+v", got)
+	}
+	if len(got.GetSlots()) != 2 || got.GetSlots()[0].GetPlaceId() != 1 || !got.GetSlots()[0].GetActive() || got.GetSlots()[0].GetLaborName() != "劳工甲" {
+		t.Fatalf("pearl slots=%+v", got.GetSlots())
+	}
+	if got.GetSlots()[1].GetPlaceId() != 2 || got.GetSlots()[1].GetActive() || got.GetSlots()[1].GetLaborUid() != 0 {
+		t.Fatalf("empty pearl slot=%+v", got.GetSlots()[1])
+	}
+}
+
 func TestFeatureCapabilitiesExposeRaceUpgradeAsExecutable(t *testing.T) {
 	capabilities := featureCapabilitiesProto()
 	seen := make(map[string]struct{}, len(capabilities))

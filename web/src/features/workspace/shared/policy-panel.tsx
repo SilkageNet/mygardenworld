@@ -360,6 +360,7 @@ export default function PolicyPanel({
                 <ToggleRow label="安全雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} />
                 <NumberRow label="雇佣等级上限（0=不限）" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />
                 <NumberRow label="同时在岗上限（0=关闭）" value={pearl?.maxHireTicketUsage || 0} min={0} onChange={(value) => updatePearl({ maxHireTicketUsage: value })} />
+                <NumberRow label="每日雇佣券上限（0=不限）" value={pearl?.dailyHireTicketLimit || 0} min={0} onChange={(value) => updatePearl({ dailyHireTicketLimit: value })} />
                 <ToggleRow label="自动开珍珠" checked={pearl?.drawEnabled ?? false} onChange={(checked) => updatePearl({ drawEnabled: checked })} />
                 <ToggleRow label="开启防身" checked={pearl?.protectEnabled ?? false} onChange={(checked) => updatePearl({ protectEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
@@ -544,14 +545,14 @@ export default function PolicyPanel({
                   value={unionLand?.minMaturityMinutes || 20}
                   min={1}
                   onChange={(value) => updateUnionLand({ minMaturityMinutes: value })}
-                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长选种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                  description="未满11级时优先选择低等级花练级；全部达到11级后才按成熟时长选种。指定花朵非空时只种这些 ID（莹白露薇=23117）。"
                 />
                 <NumberRow
                   label="改种冷却(分钟)"
                   value={unionLand?.minReplantMinutes || 60}
                   min={1}
                   onChange={(value) => updateUnionLand({ minReplantMinutes: value })}
-                  description="全部≥11级后：空地随时补种；已种地块需满此时间才允许改种其他花，多种花可并存。未满11级练级换种不受此限制。"
+                  description="空地随时补种；已种地块需无待收获花、距下次成熟超过2分钟且达到此冷却后才能改种。练级与普通轮种遵守同一安全边界。"
                 />
                 <FlowerMultiSelectRow
                   label="指定花朵"
@@ -607,11 +608,12 @@ export default function PolicyPanel({
               <div className="grid gap-2">
                 <ToggleRow label="任务池同步" checked={unionRace?.enabled ?? true} description="竞赛期间同步任务池与当前已接任务（只读展示）；关闭后不再拉取竞赛数据" onChange={(checked) => updateUnionRace({ enabled: checked })} />
                 <ToggleRow label="显示个人得分排名" checked={unionRace?.showPersonalScoreRank ?? false} description="开启后在竞赛页展示当期个人累计得分与公会内排名；默认关闭" onChange={(checked) => updateUnionRace({ showPersonalScoreRank: checked })} />
-                <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进种植/提交与放弃竞赛任务；默认关闭。未开启时仍会同步并显示已接任务，但不会自动执行" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
-                <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
+                <ToggleRow label="自动完成" checked={unionRace?.autoEnableModules ?? false} description="自动接取、推进并提交竞赛任务；默认关闭。未开启时仍会同步并显示任务，但不会自动完成" onChange={(checked) => updateUnionRace({ autoEnableModules: checked })} />
+                <ToggleRow label="自动放弃" checked={unionRace?.autoGiveUpTask ?? false} description="独立于自动完成；放弃不符合当前分数、类型或完成条件的已接任务。也会作用于在游戏客户端手动接取的任务，默认关闭" onChange={(checked) => updateUnionRace({ autoGiveUpTask: checked })} />
+                <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成，开启自动放弃时也可能被放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
                 <ToggleRow label="避免接取已有进度任务" checked={unionRace?.avoidProgressedTasks ?? true} description="跳过其他成员退出后留下进度的任务，同时约束自动与手动接取；已经持有的任务不受影响" onChange={(checked) => updateUnionRace({ avoidProgressedTasks: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} description="已接种植收获任务全程可用加速卡。关闭时仍强制保底：任务最后 10 分钟自动对竞赛花使用加速卡" onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
-                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过；已接且未完成的同样会自动放弃（需开启自动完成）。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
+                <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="自动接取会跳过分数不高于此值的任务；只有另行开启自动放弃后，已接任务才会受此限制。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />

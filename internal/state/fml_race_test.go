@@ -86,6 +86,26 @@ func TestFmlRaceTaskEmptyParamHasNoTargetLabel(t *testing.T) {
 	}
 }
 
+func TestFmlRacePoolMissingParamCoversExecutionTargets(t *testing.T) {
+	tests := []struct {
+		name  string
+		tasks []FmlRaceTaskView
+		want  bool
+	}{
+		{name: "plant target missing", tasks: []FmlRaceTaskView{{TaskType: 3036}}, want: true},
+		{name: "craft vase missing", tasks: []FmlRaceTaskView{{TaskType: 3034}}, want: true},
+		{name: "all targets known", tasks: []FmlRaceTaskView{{TaskType: 3036, ParamID: 23001}, {TaskType: 3034, ParamID: 3002}}},
+		{name: "targetless type", tasks: []FmlRaceTaskView{{TaskType: 3030}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := FmlRacePoolMissingParam(tc.tasks); got != tc.want {
+				t.Fatalf("FmlRacePoolMissingParam()=%v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestFmlRaceUnresolvedFlowerUsesIDLabel(t *testing.T) {
 	s := New()
 	// 23515 exists in catalog with placeholder name "0" / short_name "待定".

@@ -701,17 +701,20 @@ func (x *SignPolicy) GetPatchEnabled() bool {
 }
 
 type PearlPolicy struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	FreeEnabled        bool                   `protobuf:"varint,1,opt,name=free_enabled,json=freeEnabled,proto3" json:"free_enabled,omitempty"`
-	AutoHireEnabled    bool                   `protobuf:"varint,2,opt,name=auto_hire_enabled,json=autoHireEnabled,proto3" json:"auto_hire_enabled,omitempty"`
-	MaxHireLevel       int32                  `protobuf:"varint,3,opt,name=max_hire_level,json=maxHireLevel,proto3" json:"max_hire_level,omitempty"`
-	MaxHireTicketUsage int32                  `protobuf:"varint,4,opt,name=max_hire_ticket_usage,json=maxHireTicketUsage,proto3" json:"max_hire_ticket_usage,omitempty"`
-	DrawEnabled        bool                   `protobuf:"varint,5,opt,name=draw_enabled,json=drawEnabled,proto3" json:"draw_enabled,omitempty"`
-	ProtectEnabled     bool                   `protobuf:"varint,6,opt,name=protect_enabled,json=protectEnabled,proto3" json:"protect_enabled,omitempty"`
-	AutoBuyHireTicket  bool                   `protobuf:"varint,7,opt,name=auto_buy_hire_ticket,json=autoBuyHireTicket,proto3" json:"auto_buy_hire_ticket,omitempty"`
-	MaxSpendDiamond    int64                  `protobuf:"varint,8,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	FreeEnabled     bool                   `protobuf:"varint,1,opt,name=free_enabled,json=freeEnabled,proto3" json:"free_enabled,omitempty"`
+	AutoHireEnabled bool                   `protobuf:"varint,2,opt,name=auto_hire_enabled,json=autoHireEnabled,proto3" json:"auto_hire_enabled,omitempty"`
+	MaxHireLevel    int32                  `protobuf:"varint,3,opt,name=max_hire_level,json=maxHireLevel,proto3" json:"max_hire_level,omitempty"`
+	// Max concurrent in-shift laborers. 0 disables automatic hiring.
+	MaxHireTicketUsage int32 `protobuf:"varint,4,opt,name=max_hire_ticket_usage,json=maxHireTicketUsage,proto3" json:"max_hire_ticket_usage,omitempty"`
+	DrawEnabled        bool  `protobuf:"varint,5,opt,name=draw_enabled,json=drawEnabled,proto3" json:"draw_enabled,omitempty"`
+	ProtectEnabled     bool  `protobuf:"varint,6,opt,name=protect_enabled,json=protectEnabled,proto3" json:"protect_enabled,omitempty"`
+	AutoBuyHireTicket  bool  `protobuf:"varint,7,opt,name=auto_buy_hire_ticket,json=autoBuyHireTicket,proto3" json:"auto_buy_hire_ticket,omitempty"`
+	MaxSpendDiamond    int64 `protobuf:"varint,8,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
+	// Max hire tickets (item 1003) spent since 00:00 Asia/Shanghai. 0 means unlimited.
+	DailyHireTicketLimit int32 `protobuf:"varint,9,opt,name=daily_hire_ticket_limit,json=dailyHireTicketLimit,proto3" json:"daily_hire_ticket_limit,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *PearlPolicy) Reset() {
@@ -796,6 +799,13 @@ func (x *PearlPolicy) GetAutoBuyHireTicket() bool {
 func (x *PearlPolicy) GetMaxSpendDiamond() int64 {
 	if x != nil {
 		return x.MaxSpendDiamond
+	}
+	return 0
+}
+
+func (x *PearlPolicy) GetDailyHireTicketLimit() int32 {
+	if x != nil {
+		return x.DailyHireTicketLimit
 	}
 	return 0
 }
@@ -2595,8 +2605,13 @@ type UnionRacePolicy struct {
 	// Skip unclaimed pool tasks whose observed finish_cnt is greater than zero.
 	// Presence distinguishes the default-on policy from an explicit false.
 	AvoidProgressedTasks *bool `protobuf:"varint,14,opt,name=avoid_progressed_tasks,json=avoidProgressedTasks,proto3,oneof" json:"avoid_progressed_tasks,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Automatically give up an unfinished held task when it violates the current
+	// score/type filters or cannot be progressed. This also applies to tasks
+	// taken outside gardend, so it is an explicit opt-in independent of
+	// auto_enable_modules. Default off.
+	AutoGiveUpTask bool `protobuf:"varint,15,opt,name=auto_give_up_task,json=autoGiveUpTask,proto3" json:"auto_give_up_task,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UnionRacePolicy) Reset() {
@@ -2727,6 +2742,13 @@ func (x *UnionRacePolicy) GetAvoidProgressedTasks() bool {
 	return false
 }
 
+func (x *UnionRacePolicy) GetAutoGiveUpTask() bool {
+	if x != nil {
+		return x.AutoGiveUpTask
+	}
+	return false
+}
+
 type UnionLandPolicy struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	HarvestEnabled   bool                   `protobuf:"varint,1,opt,name=harvest_enabled,json=harvestEnabled,proto3" json:"harvest_enabled,omitempty"`
@@ -2736,14 +2758,12 @@ type UnionLandPolicy struct {
 	MaxFlowerLevel   int32                  `protobuf:"varint,5,opt,name=max_flower_level,json=maxFlowerLevel,proto3" json:"max_flower_level,omitempty"`
 	// When auto-planting and every filtered plantable flower is at/above level 11,
 	// only consider flowers whose catalog grow CD is at least this many minutes.
-	// Below level 11, maturity is ignored and lands are force-replaced onto
-	// low-level flowers (except when the current crop matures within 2 minutes).
+	// Below level 11, maturity is ignored when selecting the training flower.
 	// 0 means default 20.
 	MinMaturityMinutes int32 `protobuf:"varint,6,opt,name=min_maturity_minutes,json=minMaturityMinutes,proto3" json:"min_maturity_minutes,omitempty"`
-	// After every filtered plantable flower is at/above level 11, occupied lands
-	// with a different flower are only replaced once the current crop has been
-	// planted for at least this many minutes. Empty slots are always filled.
-	// Multiple flower types may coexist across guild lands. 0 means default 60.
+	// Occupied lands are replaced only after this many minutes, with no pending
+	// harvest and no maturity within two minutes. This also applies while
+	// training flowers below level 11. Empty slots are always filled. 0 means 60.
 	MinReplantMinutes int32 `protobuf:"varint,7,opt,name=min_replant_minutes,json=minReplantMinutes,proto3" json:"min_replant_minutes,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -3068,7 +3088,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\n" +
 	"SignPolicy\x12#\n" +
 	"\rdaily_enabled\x18\x01 \x01(\bR\fdailyEnabled\x12#\n" +
-	"\rpatch_enabled\x18\x02 \x01(\bR\fpatchEnabled\"\xde\x02\n" +
+	"\rpatch_enabled\x18\x02 \x01(\bR\fpatchEnabled\"\x95\x03\n" +
 	"\vPearlPolicy\x12!\n" +
 	"\ffree_enabled\x18\x01 \x01(\bR\vfreeEnabled\x12*\n" +
 	"\x11auto_hire_enabled\x18\x02 \x01(\bR\x0fautoHireEnabled\x12$\n" +
@@ -3077,7 +3097,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\fdraw_enabled\x18\x05 \x01(\bR\vdrawEnabled\x12'\n" +
 	"\x0fprotect_enabled\x18\x06 \x01(\bR\x0eprotectEnabled\x12/\n" +
 	"\x14auto_buy_hire_ticket\x18\a \x01(\bR\x11autoBuyHireTicket\x12*\n" +
-	"\x11max_spend_diamond\x18\b \x01(\x03R\x0fmaxSpendDiamond\"\xc7\x01\n" +
+	"\x11max_spend_diamond\x18\b \x01(\x03R\x0fmaxSpendDiamond\x125\n" +
+	"\x17daily_hire_ticket_limit\x18\t \x01(\x05R\x14dailyHireTicketLimit\"\xc7\x01\n" +
 	"\n" +
 	"ShopPolicy\x125\n" +
 	"\x17video_free_gift_enabled\x18\x01 \x01(\bR\x14videoFreeGiftEnabled\x12F\n" +
@@ -3252,7 +3273,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\ftake_enabled\x18\x05 \x01(\bR\vtakeEnabled\x12<\n" +
 	"\ttake_mode\x18\x06 \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\btakeMode\x12%\n" +
 	"\x0etake_qualities\x18\a \x03(\x05R\rtakeQualities\x12&\n" +
-	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xce\x06\n" +
+	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xf9\x06\n" +
 	"\x0fUnionRacePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
@@ -3268,7 +3289,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x11max_spend_diamond\x18\v \x01(\x03R\x0fmaxSpendDiamond\x124\n" +
 	"\x17auto_stop_on_quota_done\x18\f \x01(\bR\x13autoStopOnQuotaDone\x127\n" +
 	"\x18show_personal_score_rank\x18\r \x01(\bR\x15showPersonalScoreRank\x129\n" +
-	"\x16avoid_progressed_tasks\x18\x0e \x01(\bH\x00R\x14avoidProgressedTasks\x88\x01\x01\x1aC\n" +
+	"\x16avoid_progressed_tasks\x18\x0e \x01(\bH\x00R\x14avoidProgressedTasks\x88\x01\x01\x12)\n" +
+	"\x11auto_give_up_task\x18\x0f \x01(\bR\x0eautoGiveUpTask\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01B\x19\n" +
