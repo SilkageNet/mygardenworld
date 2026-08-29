@@ -129,10 +129,16 @@ func (s *Service) needsStartupFetch(ctx context.Context) bool {
 
 func (s *Service) pollInterval(now time.Time) time.Duration {
 	h, m := now.Hour(), now.Minute()
-	if (h >= 19 && h <= 21) || (h == 22 && m <= 30) {
+	switch {
+	case (h == 18 && m >= 50) || (h >= 19 && h < 21):
+		// 18:50 - 21:00: every 10 minutes
 		return 10 * time.Minute
+	case h == 21 || (h == 22 && m <= 30):
+		// 21:00 - 22:30: every 5 minutes
+		return 5 * time.Minute
+	default:
+		return 1 * time.Hour
 	}
-	return 1 * time.Hour
 }
 
 // poll fetches codes from the external API, overwrites them in the DB, and
