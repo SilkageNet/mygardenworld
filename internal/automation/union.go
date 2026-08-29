@@ -349,7 +349,7 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 		return PlannedOp{}, false
 	}
 	leveling := unionLandHasBelowLevel(candidates)
-	landIDs := unionLandPlantableIDs(s, flowerID, now, leveling, policy)
+	landIDs := unionLandPlantableIDs(s, flowerID, now, policy)
 	if len(landIDs) == 0 {
 		return PlannedOp{}, false
 	}
@@ -358,7 +358,7 @@ func unionLandPlantOperation(s *state.State, policy *pb.UnionLandPolicy, goal Go
 		name = fmt.Sprintf("花卉#%d", flowerID)
 	}
 	if leveling {
-		reason += "；未满11级强制换种练级"
+		reason += "；未满11级优先练级，改种仍遵守收获与冷却边界"
 	}
 	plantReason := fmt.Sprintf("公会土地自动种植 %s×%d: %s", name, len(landIDs), reason)
 	// Plant above harvest so continuous mature-land harvest cannot starve empty
@@ -413,7 +413,7 @@ func unionLandHasBelowLevel(candidates []state.PlantableFlower) bool {
 }
 
 // unionLandNearMature reports whether the next flower matures within the grace
-// window. Leveling force-replace waits for harvest in that case.
+// window. All replacement waits for that harvest opportunity.
 func unionLandNearMature(land state.FmlLandView, now time.Time) bool {
 	next := state.FmlLandNextMatureMs(land, now)
 	if next <= 0 {
@@ -519,13 +519,11 @@ func unionLandReplantCooldownElapsed(land state.FmlLandView, now time.Time, minM
 }
 
 // unionLandPlantableIDs returns empty slots and replace targets.
-// While any filtered flower is below level 11, occupied lands with a different
-// flower are force-replaced unless harvest is pending or the next mature is
-// within 2 minutes (wait for harvest, then switch). After every flower reaches
-// 11, empty slots are always filled; occupied lands with a different flower
-// are replaced only after min_replant_minutes (default 60), so multiple flower
-// types can coexist across guild lands.
-func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveling bool, policy *pb.UnionLandPolicy) []int32 {
+// Empty slots are always filled. Occupied lands are replaced only when no
+// harvest is pending, the current crop is not about to mature, and the shared
+// min_replant_minutes cooldown has elapsed. The same safety boundary applies
+// during below-level-11 training and normal rotation.
+func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, policy *pb.UnionLandPolicy) []int32 {
 	lands := s.FmlLands()
 	ids := make([]int32, 0, len(lands))
 	for id := range lands {
@@ -545,12 +543,8 @@ func unionLandPlantableIDs(s *state.State, flowerID int32, now time.Time, leveli
 		if land.FlowerID == flowerID {
 			continue
 		}
-		if leveling {
-			if unionLandNearMature(land, now) {
-				// Current crop matures within 2 minutes: harvest first, then switch.
-				continue
-			}
-			out = append(out, id)
+		if unionLandNearMature(land, now) {
+			// Current crop matures within 2 minutes: harvest first, then switch.
 			continue
 		}
 		if unionLandReplantCooldownElapsed(land, now, unionLandMinReplantMinutes(policy)) {

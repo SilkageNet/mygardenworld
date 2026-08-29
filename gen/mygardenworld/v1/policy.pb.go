@@ -2736,14 +2736,12 @@ type UnionLandPolicy struct {
 	MaxFlowerLevel   int32                  `protobuf:"varint,5,opt,name=max_flower_level,json=maxFlowerLevel,proto3" json:"max_flower_level,omitempty"`
 	// When auto-planting and every filtered plantable flower is at/above level 11,
 	// only consider flowers whose catalog grow CD is at least this many minutes.
-	// Below level 11, maturity is ignored and lands are force-replaced onto
-	// low-level flowers (except when the current crop matures within 2 minutes).
+	// Below level 11, maturity is ignored when selecting the training flower.
 	// 0 means default 20.
 	MinMaturityMinutes int32 `protobuf:"varint,6,opt,name=min_maturity_minutes,json=minMaturityMinutes,proto3" json:"min_maturity_minutes,omitempty"`
-	// After every filtered plantable flower is at/above level 11, occupied lands
-	// with a different flower are only replaced once the current crop has been
-	// planted for at least this many minutes. Empty slots are always filled.
-	// Multiple flower types may coexist across guild lands. 0 means default 60.
+	// Occupied lands are replaced only after this many minutes, with no pending
+	// harvest and no maturity within two minutes. This also applies while
+	// training flowers below level 11. Empty slots are always filled. 0 means 60.
 	MinReplantMinutes int32 `protobuf:"varint,7,opt,name=min_replant_minutes,json=minReplantMinutes,proto3" json:"min_replant_minutes,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache

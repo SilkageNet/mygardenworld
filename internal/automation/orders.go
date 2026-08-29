@@ -132,13 +132,13 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 					minArt := customer.GetMinFlowerArtCount()
 					reject := op(clientproto.RPCOrderCustomerRejectOrder.String(), goal, "reject",
 						withOrderReason(fmt.Sprintf("顾客订单花艺件数 %d < 最低要求 %d，执行拒绝", artCount, minArt), reqSummary),
-						customerOperationPriority(goal, 185), npcID, 0, 0)
+						orderSchedulePriority(orderStageCustomerReject), npcID, 0, 0)
 					ops = append(ops, reject)
 					continue
 				}
 				// Priority: inventory finish → craft when materials ready → reject.
 				if canFulfillCustomerOrder(customerOrder, npcID, goal, ledger) {
-					ops = append(ops, op(clientproto.RPCOrderCustomerFinishOrder.String(), goal, "finish", withOrderReason("顾客订单可交付", reqSummary), customerOperationPriority(goal, 200), npcID, 0, 0))
+					ops = append(ops, op(clientproto.RPCOrderCustomerFinishOrder.String(), goal, "finish", withOrderReason("顾客订单可交付", reqSummary), orderSchedulePriority(orderStageCustomerFinish), npcID, 0, 0))
 					continue
 				}
 				if craft, ok := craftOperationForCustomerOrder(s, customerOrder, npcID, goal, demands, ledger); ok && craft.Executable {
@@ -147,7 +147,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 					continue
 				}
 				if customer.GetRejectUnavailableEnabled() {
-					reject := op(clientproto.RPCOrderCustomerRejectOrder.String(), goal, "reject", withOrderReason("顾客订单库存不足且无法制作，执行暂时无货", reqSummary), customerOperationPriority(goal, 180), npcID, 0, 0)
+					reject := op(clientproto.RPCOrderCustomerRejectOrder.String(), goal, "reject", withOrderReason("顾客订单库存不足且无法制作，执行暂时无货", reqSummary), orderSchedulePriority(orderStageCustomerReject), npcID, 0, 0)
 					ops = append(ops, reject)
 					continue
 				}
@@ -158,7 +158,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				ops = append(ops, blocked)
 			}
 			if s.CustomerOrderGenerationReady(now) {
-				ops = append(ops, op(clientproto.RPCOrderCustomerGenOrder.String(), goal, "generate", "顾客订单为空且刷新时间已到，生成顾客订单", customerOperationPriority(goal, 190), 0, 0, 0))
+				ops = append(ops, op(clientproto.RPCOrderCustomerGenOrder.String(), goal, "generate", "顾客订单为空且刷新时间已到，生成顾客订单", orderSchedulePriority(orderStageCustomerGenerate), 0, 0, 0))
 			}
 		}
 	}
@@ -207,7 +207,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			claimable := s.FlowerRackClaimableSlotIDs(now)
 			if len(claimable) > 0 {
 				rackID := claimable[0]
-				claim := op(clientproto.RPCFlowerRackRecvSellMoney.String(), goal, "claim", "花架售卖时间已到，可领取收益", flowerRackClaimPriority(goal), rackID, 0, 0)
+				claim := op(clientproto.RPCFlowerRackRecvSellMoney.String(), goal, "claim", "花架售卖时间已到，可领取收益", orderSchedulePriority(orderStageFlowerRackClaim), rackID, 0, 0)
 				if slot, ok := slots[rackID]; ok {
 					claim.ItemID = slot.ItemID
 					claim.Count = slot.Count
@@ -218,7 +218,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			if flowerArtAutoListActive(order.GetFlowerArt(), now) {
 				for _, rackID := range s.EmptyFlowerRackSlotIDs() {
 					if artID, count, ok := bestRackArt(s, order.GetFlowerArt(), ledger); ok {
-						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", goal.Priority*100+400, rackID, artID, count)
+						sell := op(clientproto.RPCFlowerRackSell.String(), goal, "sell", "花架空位可上架未预留花艺", orderSchedulePriority(orderStageFlowerRackSell), rackID, artID, count)
 						sell.Category = CategoryOrder
 						ops = append(ops, sell)
 						break
@@ -262,7 +262,7 @@ func craftOperationForCustomerOrder(s *state.State, order *state.CustomerOrder, 
 			blocked.BlockedReasons = append([]string(nil), availability.BlockedReasons...)
 			return blocked, true
 		}
-		craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单缺少花艺成品，材料已满足", customerOperationPriority(goal, 150), npcID, req.ItemID, missing)
+		craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "顾客订单缺少花艺成品，材料已满足", orderSchedulePriority(orderStageCustomerCraft), npcID, req.ItemID, missing)
 		craft.VaseID = availability.Recipe.VaseID
 		craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
 		craft.ItemCost = flowerArtCraftItemCost(craft.FlowerIDs, craft.Count)
@@ -286,12 +286,28 @@ func allocatedCraftFlowerCounts(goal Goal, entityID string, artID int32, demands
 	return allocated
 }
 
-func customerOperationPriority(goal Goal, offset int32) int32 {
-	return 11000 + goal.Priority + offset
-}
+// orderScheduleStage models product ordering between customer and flower-rack
+// operations. It replaces cross-goal arithmetic: customer delivery remains
+// first, while a ready rack can make progress before recurring generation,
+// rejection, or craft work. Rack craft consumes only ledger-unreserved stock.
+type orderScheduleStage int32
 
-func flowerRackClaimPriority(goal Goal) int32 {
-	return 10500 + goal.Priority
+const (
+	orderStageCustomerCraft orderScheduleStage = iota + 1
+	orderStageCustomerReject
+	orderStageCustomerGenerate
+	orderStageFlowerRackCraft
+	orderStageFlowerRackSell
+	orderStageFlowerRackClaim
+	orderStageCustomerFinish
+)
+
+func orderSchedulePriority(stage orderScheduleStage) int32 {
+	const (
+		orderSchedulePriorityBase int32 = 11000
+		orderScheduleStageWidth   int32 = 100
+	)
+	return orderSchedulePriorityBase + int32(stage)*orderScheduleStageWidth
 }
 
 func craftOperationForFlowerRack(s *state.State, policy *pb.FlowerArtPolicy, goal Goal, ledger *InventoryLedger) (PlannedOp, bool) {
@@ -303,7 +319,7 @@ func craftOperationForFlowerRack(s *state.State, policy *pb.FlowerArtPolicy, goa
 	if !availability.Craftable {
 		return PlannedOp{}, false
 	}
-	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "花架缺少花艺成品，材料已满足", goal.Priority*100+450, 0, artID, count)
+	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", "花架缺少花艺成品，材料已满足", orderSchedulePriority(orderStageFlowerRackCraft), 0, artID, count)
 	craft.VaseID = availability.Recipe.VaseID
 	craft.FlowerIDs = append([]int32(nil), availability.Recipe.Flowers...)
 	craft.ItemCost = flowerArtCraftItemCost(craft.FlowerIDs, craft.Count)
