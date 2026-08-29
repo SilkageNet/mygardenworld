@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,7 +12,10 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
+	"github.com/SilkageNet/mygardenworld/internal/store"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (svc *Services) requireAdmin(ctx context.Context) error {
@@ -253,4 +257,123 @@ func validateMaxAccounts(maxAccounts int) error {
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("max_accounts must be non-negative"))
 	}
 	return nil
+}
+
+func (svc *Services) ListRedeemSources(ctx context.Context, _ *connect.Request[pb.ListRedeemSourcesRequest]) (*connect.Response[pb.ListRedeemSourcesResponse], error) {
+	if err := svc.requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	sources, err := svc.DB.ListRedeemSources(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	resp := &pb.ListRedeemSourcesResponse{Sources: make([]*pb.RedeemSource, 0, len(sources))}
+	for _, source := range sources {
+		resp.Sources = append(resp.Sources, redeemSourceToProto(source))
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) UpsertRedeemSource(ctx context.Context, req *connect.Request[pb.UpsertRedeemSourceRequest]) (*connect.Response[pb.UpsertRedeemSourceResponse], error) {
+	if err := svc.requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	typeName := redeemSourceTypeStore(req.Msg.GetType())
+	if typeName == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("valid redeem source type required"))
+	}
+	parserJSON := strings.TrimSpace(req.Msg.GetParserConfigJson())
+	if parserJSON == "" {
+		parserJSON = "{}"
+	}
+	if !json.Valid([]byte(parserJSON)) {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("parser_config_json must be valid JSON"))
+	}
+	if err := redeemsvc.ValidateSourceEndpoint(req.Msg.GetBaseUrl(), typeName == store.RedeemSourceMyGardenWorld); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if typeName == store.RedeemSourceCustomHTTP {
+		if err := redeemsvc.ValidateCustomParserConfig(parserJSON); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, err)
+		}
+	}
+	source, err := svc.DB.UpsertRedeemSource(ctx, store.RedeemSourceInput{
+		ID: req.Msg.GetId(), Name: req.Msg.GetName(), Type: typeName,
+		BaseURL: req.Msg.GetBaseUrl(), Channel: redeemsvc.ChannelFromProto(req.Msg.GetChannel()),
+		ParserConfigJSON: parserJSON, Enabled: req.Msg.GetEnabled(), PushEnabled: req.Msg.GetPushEnabled(),
+		PollIntervalSeconds: int(req.Msg.GetPollIntervalSeconds()),
+	})
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return connect.NewResponse(&pb.UpsertRedeemSourceResponse{Source: redeemSourceToProto(source)}), nil
+}
+
+func (svc *Services) DeleteRedeemSource(ctx context.Context, req *connect.Request[pb.DeleteRedeemSourceRequest]) (*connect.Response[pb.DeleteRedeemSourceResponse], error) {
+	if err := svc.requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if req.Msg.GetId() <= 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("valid redeem source id required"))
+	}
+	if err := svc.DB.DeleteRedeemSource(ctx, req.Msg.GetId()); err != nil {
+		return nil, mapErr(err)
+	}
+	return connect.NewResponse(&pb.DeleteRedeemSourceResponse{}), nil
+}
+
+func (svc *Services) SyncRedeemSource(ctx context.Context, req *connect.Request[pb.SyncRedeemSourceRequest]) (*connect.Response[pb.SyncRedeemSourceResponse], error) {
+	if err := svc.requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if svc.Redeem == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("redeem exchange unavailable"))
+	}
+	if err := svc.Redeem.SyncSource(ctx, req.Msg.GetId()); err != nil {
+		return nil, connect.NewError(connect.CodeUnavailable, err)
+	}
+	source, err := svc.DB.GetRedeemSource(ctx, req.Msg.GetId())
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return connect.NewResponse(&pb.SyncRedeemSourceResponse{Source: redeemSourceToProto(source)}), nil
+}
+
+func redeemSourceTypeStore(value pb.RedeemSourceType) string {
+	switch value {
+	case pb.RedeemSourceType_REDEEM_SOURCE_TYPE_MYGARDENWORLD:
+		return store.RedeemSourceMyGardenWorld
+	case pb.RedeemSourceType_REDEEM_SOURCE_TYPE_CUSTOM_HTTP:
+		return store.RedeemSourceCustomHTTP
+	default:
+		return ""
+	}
+}
+
+func redeemSourceTypeProto(value string) pb.RedeemSourceType {
+	if value == store.RedeemSourceMyGardenWorld {
+		return pb.RedeemSourceType_REDEEM_SOURCE_TYPE_MYGARDENWORLD
+	}
+	if value == store.RedeemSourceCustomHTTP {
+		return pb.RedeemSourceType_REDEEM_SOURCE_TYPE_CUSTOM_HTTP
+	}
+	return pb.RedeemSourceType_REDEEM_SOURCE_TYPE_UNSPECIFIED
+}
+
+func redeemSourceToProto(source *store.RedeemSource) *pb.RedeemSource {
+	if source == nil {
+		return nil
+	}
+	out := &pb.RedeemSource{
+		Id: source.ID, Name: source.Name, Type: redeemSourceTypeProto(source.Type),
+		BaseUrl: source.BaseURL, Channel: redeemsvc.ChannelToProto(source.Channel),
+		ParserConfigJson: source.ParserConfigJSON, Enabled: source.Enabled,
+		PushEnabled: source.PushEnabled, PollIntervalSeconds: int32(source.PollIntervalSeconds),
+		RemoteInstanceId: source.RemoteInstanceID, Cursor: source.Cursor, LastError: source.LastError,
+		AcceptedCount: source.AcceptedCount, InvalidCount: source.InvalidCount,
+	}
+	if source.LastSyncAt != nil {
+		out.LastSyncAt = timestamppb.New(*source.LastSyncAt)
+	}
+	return out
 }

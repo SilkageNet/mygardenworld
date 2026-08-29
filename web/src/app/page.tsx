@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
+import { useRouter } from "next/navigation";
 import { AccountService } from "@/gen/mygardenworld/v1/account_service_pb";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
@@ -19,7 +20,6 @@ import { WorkspaceClient, type WorkspaceConnectionState } from "@/lib/api/worksp
 import { useAuth } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
 import { accountNickname, accountConnected, isTransientConnectionMessage } from "@/components/dashboard/dashboard-utils";
-import RedeemCodeDialog from "@/components/dashboard/redeem-code-dialog";
 import {
   applyWorkspacePatch,
   EMPTY_ACCOUNT_VIEWS,
@@ -67,6 +67,7 @@ export default function HomePage() {
 
 function DashboardContent({ onServerVersion }: { onServerVersion: (version: string) => void }) {
   const { user } = useAuth();
+  const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
   const [featureCapabilities, setFeatureCapabilities] = useState<FeatureCapability[]>([]);
@@ -87,7 +88,6 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
   const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
-  const [redeemOpen, setRedeemOpen] = useState(false);
   const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("basic");
   const didAutoSelectAccount = useRef(false);
   const workspaceClientRef = useRef<WorkspaceClient | null>(null);
@@ -600,7 +600,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
             busyBulkAutomation={busyBulkAutomation}
             onRefresh={() => void refreshDashboardStatus()}
             onAdd={() => setAddOpen(true)}
-            onRedeem={() => setRedeemOpen(true)}
+            onRedeem={() => router.push("/redeem")}
             onSelect={setSelectedAccountId}
             onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
             onAutomationStop={(accountId) => void runAutomationStop(accountId)}
@@ -669,23 +669,6 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
         onSubmit={createAccount}
       />
 
-      {redeemOpen && (
-        <RedeemCodeDialog
-          accounts={accounts}
-          preferredChannel={selectedAccount?.channel}
-          onOpenChange={setRedeemOpen}
-          onRedeem={async (code, accountIds) => {
-            setError("");
-            const response = await accountClient.redeemCode({ code, accountIds });
-            workspaceClientRef.current?.resync();
-            return {
-              results: response.results,
-              successCount: response.successCount,
-              failureCount: response.failureCount,
-            };
-          }}
-        />
-      )}
     </div>
   );
 }

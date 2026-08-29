@@ -71,7 +71,7 @@ export default function AccountListPanel({
             <Button type="button" variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="刷新" disabled={loading || bulkBusy}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
-            {hasAccounts && <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码" disabled={bulkBusy}><Ticket className="size-4" /></Button>}
+            <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码中心" disabled={bulkBusy}><Ticket className="size-4" /></Button>
             {hasAccounts && (
               <Button type="button" variant="outline" size="icon-sm" onClick={onAdd} aria-label="新增账号" disabled={quotaReached || bulkBusy}>
                 <Plus className="size-4" />

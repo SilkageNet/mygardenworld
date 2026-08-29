@@ -2,17 +2,21 @@
 // @generated from file mygardenworld/v1/admin.proto (package mygardenworld.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { User, UserRole, UserStatus } from "./auth_pb";
 import { file_mygardenworld_v1_auth } from "./auth_pb";
+import type { Channel } from "./channel_pb";
+import { file_mygardenworld_v1_channel } from "./channel_pb";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file mygardenworld/v1/admin.proto.
  */
 export const file_mygardenworld_v1_admin: GenFile = /*@__PURE__*/
-  fileDesc("ChxteWdhcmRlbndvcmxkL3YxL2FkbWluLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIugBChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRINCgVlbWFpbBgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRItCgRyb2xlGAQgASgOMhoubXlnYXJkZW53b3JsZC52MS5Vc2VyUm9sZUgAiAEBEhkKDG1heF9hY2NvdW50cxgFIAEoBUgBiAEBEjEKBnN0YXR1cxgGIAEoDjIcLm15Z2FyZGVud29ybGQudjEuVXNlclN0YXR1c0gCiAEBQgcKBV9yb2xlQg8KDV9tYXhfYWNjb3VudHNCCQoHX3N0YXR1cyI6ChJDcmVhdGVVc2VyUmVzcG9uc2USJAoEdXNlchgBIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciIzChBMaXN0VXNlcnNSZXF1ZXN0EgwKBHBhZ2UYASABKAUSEQoJcGFnZV9zaXplGAIgASgFIkkKEUxpc3RVc2Vyc1Jlc3BvbnNlEiUKBXVzZXJzGAEgAygLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyEg0KBXRvdGFsGAIgASgFIsYBChFVcGRhdGVVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEi0KBHJvbGUYAiABKA4yGi5teWdhcmRlbndvcmxkLnYxLlVzZXJSb2xlSACIAQESGQoMbWF4X2FjY291bnRzGAMgASgFSAGIAQESMQoGc3RhdHVzGAQgASgOMhwubXlnYXJkZW53b3JsZC52MS5Vc2VyU3RhdHVzSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKElVwZGF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIhcKFUdldFN5c3RlbVN0YXRzUmVxdWVzdCJ9ChZHZXRTeXN0ZW1TdGF0c1Jlc3BvbnNlEhMKC3RvdGFsX3VzZXJzGAEgASgFEhsKE3RvdGFsX2dhbWVfYWNjb3VudHMYAiABKAUSFgoOYWN0aXZlX3J1bm5lcnMYAyABKAUSGQoRY29ubmVjdGVkX3J1bm5lcnMYBCABKAUy+wIKDEFkbWluU2VydmljZRJXCgpDcmVhdGVVc2VyEiMubXlnYXJkZW53b3JsZC52MS5DcmVhdGVVc2VyUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlVXNlclJlc3BvbnNlElQKCUxpc3RVc2VycxIiLm15Z2FyZGVud29ybGQudjEuTGlzdFVzZXJzUmVxdWVzdBojLm15Z2FyZGVud29ybGQudjEuTGlzdFVzZXJzUmVzcG9uc2USVwoKVXBkYXRlVXNlchIjLm15Z2FyZGVud29ybGQudjEuVXBkYXRlVXNlclJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLlVwZGF0ZVVzZXJSZXNwb25zZRJjCg5HZXRTeXN0ZW1TdGF0cxInLm15Z2FyZGVud29ybGQudjEuR2V0U3lzdGVtU3RhdHNSZXF1ZXN0GigubXlnYXJkZW53b3JsZC52MS5HZXRTeXN0ZW1TdGF0c1Jlc3BvbnNlQoMBChRjb20ubXlnYXJkZW53b3JsZC52MUIKQWRtaW5Qcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_mygardenworld_v1_auth]);
+  fileDesc("ChxteWdhcmRlbndvcmxkL3YxL2FkbWluLnByb3RvEhBteWdhcmRlbndvcmxkLnYxIugBChFDcmVhdGVVc2VyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRINCgVlbWFpbBgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRItCgRyb2xlGAQgASgOMhoubXlnYXJkZW53b3JsZC52MS5Vc2VyUm9sZUgAiAEBEhkKDG1heF9hY2NvdW50cxgFIAEoBUgBiAEBEjEKBnN0YXR1cxgGIAEoDjIcLm15Z2FyZGVud29ybGQudjEuVXNlclN0YXR1c0gCiAEBQgcKBV9yb2xlQg8KDV9tYXhfYWNjb3VudHNCCQoHX3N0YXR1cyI6ChJDcmVhdGVVc2VyUmVzcG9uc2USJAoEdXNlchgBIAEoCzIWLm15Z2FyZGVud29ybGQudjEuVXNlciIzChBMaXN0VXNlcnNSZXF1ZXN0EgwKBHBhZ2UYASABKAUSEQoJcGFnZV9zaXplGAIgASgFIkkKEUxpc3RVc2Vyc1Jlc3BvbnNlEiUKBXVzZXJzGAEgAygLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyEg0KBXRvdGFsGAIgASgFIsYBChFVcGRhdGVVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEi0KBHJvbGUYAiABKA4yGi5teWdhcmRlbndvcmxkLnYxLlVzZXJSb2xlSACIAQESGQoMbWF4X2FjY291bnRzGAMgASgFSAGIAQESMQoGc3RhdHVzGAQgASgOMhwubXlnYXJkZW53b3JsZC52MS5Vc2VyU3RhdHVzSAKIAQFCBwoFX3JvbGVCDwoNX21heF9hY2NvdW50c0IJCgdfc3RhdHVzIjoKElVwZGF0ZVVzZXJSZXNwb25zZRIkCgR1c2VyGAEgASgLMhYubXlnYXJkZW53b3JsZC52MS5Vc2VyIhcKFUdldFN5c3RlbVN0YXRzUmVxdWVzdCJ9ChZHZXRTeXN0ZW1TdGF0c1Jlc3BvbnNlEhMKC3RvdGFsX3VzZXJzGAEgASgFEhsKE3RvdGFsX2dhbWVfYWNjb3VudHMYAiABKAUSFgoOYWN0aXZlX3J1bm5lcnMYAyABKAUSGQoRY29ubmVjdGVkX3J1bm5lcnMYBCABKAUimwMKDFJlZGVlbVNvdXJjZRIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEjAKBHR5cGUYAyABKA4yIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbVNvdXJjZVR5cGUSEAoIYmFzZV91cmwYBCABKAkSKgoHY2hhbm5lbBgFIAEoDjIZLm15Z2FyZGVud29ybGQudjEuQ2hhbm5lbBIaChJwYXJzZXJfY29uZmlnX2pzb24YBiABKAkSDwoHZW5hYmxlZBgHIAEoCBIUCgxwdXNoX2VuYWJsZWQYCCABKAgSHQoVcG9sbF9pbnRlcnZhbF9zZWNvbmRzGAkgASgFEhoKEnJlbW90ZV9pbnN0YW5jZV9pZBgKIAEoCRIOCgZjdXJzb3IYCyABKAkSMAoMbGFzdF9zeW5jX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpsYXN0X2Vycm9yGA0gASgJEhYKDmFjY2VwdGVkX2NvdW50GA4gASgDEhUKDWludmFsaWRfY291bnQYDyABKAMiGgoYTGlzdFJlZGVlbVNvdXJjZXNSZXF1ZXN0IkwKGUxpc3RSZWRlZW1Tb3VyY2VzUmVzcG9uc2USLwoHc291cmNlcxgBIAMoCzIeLm15Z2FyZGVud29ybGQudjEuUmVkZWVtU291cmNlIocCChlVcHNlcnRSZWRlZW1Tb3VyY2VSZXF1ZXN0EgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSMAoEdHlwZRgDIAEoDjIiLm15Z2FyZGVud29ybGQudjEuUmVkZWVtU291cmNlVHlwZRIQCghiYXNlX3VybBgEIAEoCRIqCgdjaGFubmVsGAUgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEhoKEnBhcnNlcl9jb25maWdfanNvbhgGIAEoCRIPCgdlbmFibGVkGAcgASgIEhQKDHB1c2hfZW5hYmxlZBgIIAEoCBIdChVwb2xsX2ludGVydmFsX3NlY29uZHMYCSABKAUiTAoaVXBzZXJ0UmVkZWVtU291cmNlUmVzcG9uc2USLgoGc291cmNlGAEgASgLMh4ubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Tb3VyY2UiJwoZRGVsZXRlUmVkZWVtU291cmNlUmVxdWVzdBIKCgJpZBgBIAEoAyIcChpEZWxldGVSZWRlZW1Tb3VyY2VSZXNwb25zZSIlChdTeW5jUmVkZWVtU291cmNlUmVxdWVzdBIKCgJpZBgBIAEoAyJKChhTeW5jUmVkZWVtU291cmNlUmVzcG9uc2USLgoGc291cmNlGAEgASgLMh4ubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Tb3VyY2UqgAEKEFJlZGVlbVNvdXJjZVR5cGUSIgoeUkVERUVNX1NPVVJDRV9UWVBFX1VOU1BFQ0lGSUVEEAASJAogUkVERUVNX1NPVVJDRV9UWVBFX01ZR0FSREVOV09STEQQARIiCh5SRURFRU1fU09VUkNFX1RZUEVfQ1VTVE9NX0hUVFAQAjK2BgoMQWRtaW5TZXJ2aWNlElcKCkNyZWF0ZVVzZXISIy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GiQubXlnYXJkZW53b3JsZC52MS5DcmVhdGVVc2VyUmVzcG9uc2USVAoJTGlzdFVzZXJzEiIubXlnYXJkZW53b3JsZC52MS5MaXN0VXNlcnNSZXF1ZXN0GiMubXlnYXJkZW53b3JsZC52MS5MaXN0VXNlcnNSZXNwb25zZRJXCgpVcGRhdGVVc2VyEiMubXlnYXJkZW53b3JsZC52MS5VcGRhdGVVc2VyUmVxdWVzdBokLm15Z2FyZGVud29ybGQudjEuVXBkYXRlVXNlclJlc3BvbnNlEmMKDkdldFN5c3RlbVN0YXRzEicubXlnYXJkZW53b3JsZC52MS5HZXRTeXN0ZW1TdGF0c1JlcXVlc3QaKC5teWdhcmRlbndvcmxkLnYxLkdldFN5c3RlbVN0YXRzUmVzcG9uc2USbAoRTGlzdFJlZGVlbVNvdXJjZXMSKi5teWdhcmRlbndvcmxkLnYxLkxpc3RSZWRlZW1Tb3VyY2VzUmVxdWVzdBorLm15Z2FyZGVud29ybGQudjEuTGlzdFJlZGVlbVNvdXJjZXNSZXNwb25zZRJvChJVcHNlcnRSZWRlZW1Tb3VyY2USKy5teWdhcmRlbndvcmxkLnYxLlVwc2VydFJlZGVlbVNvdXJjZVJlcXVlc3QaLC5teWdhcmRlbndvcmxkLnYxLlVwc2VydFJlZGVlbVNvdXJjZVJlc3BvbnNlEm8KEkRlbGV0ZVJlZGVlbVNvdXJjZRIrLm15Z2FyZGVud29ybGQudjEuRGVsZXRlUmVkZWVtU291cmNlUmVxdWVzdBosLm15Z2FyZGVud29ybGQudjEuRGVsZXRlUmVkZWVtU291cmNlUmVzcG9uc2USaQoQU3luY1JlZGVlbVNvdXJjZRIpLm15Z2FyZGVud29ybGQudjEuU3luY1JlZGVlbVNvdXJjZVJlcXVlc3QaKi5teWdhcmRlbndvcmxkLnYxLlN5bmNSZWRlZW1Tb3VyY2VSZXNwb25zZUKDAQoUY29tLm15Z2FyZGVud29ybGQudjFCCkFkbWluUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_auth, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.CreateUserRequest
@@ -212,6 +216,287 @@ export const GetSystemStatsResponseSchema: GenMessage<GetSystemStatsResponse> = 
   messageDesc(file_mygardenworld_v1_admin, 7);
 
 /**
+ * @generated from message mygardenworld.v1.RedeemSource
+ */
+export type RedeemSource = Message<"mygardenworld.v1.RedeemSource"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: mygardenworld.v1.RedeemSourceType type = 3;
+   */
+  type: RedeemSourceType;
+
+  /**
+   * @generated from field: string base_url = 4;
+   */
+  baseUrl: string;
+
+  /**
+   * @generated from field: mygardenworld.v1.Channel channel = 5;
+   */
+  channel: Channel;
+
+  /**
+   * @generated from field: string parser_config_json = 6;
+   */
+  parserConfigJson: string;
+
+  /**
+   * @generated from field: bool enabled = 7;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool push_enabled = 8;
+   */
+  pushEnabled: boolean;
+
+  /**
+   * @generated from field: int32 poll_interval_seconds = 9;
+   */
+  pollIntervalSeconds: number;
+
+  /**
+   * @generated from field: string remote_instance_id = 10;
+   */
+  remoteInstanceId: string;
+
+  /**
+   * @generated from field: string cursor = 11;
+   */
+  cursor: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp last_sync_at = 12;
+   */
+  lastSyncAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string last_error = 13;
+   */
+  lastError: string;
+
+  /**
+   * @generated from field: int64 accepted_count = 14;
+   */
+  acceptedCount: bigint;
+
+  /**
+   * @generated from field: int64 invalid_count = 15;
+   */
+  invalidCount: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.RedeemSource.
+ * Use `create(RedeemSourceSchema)` to create a new message.
+ */
+export const RedeemSourceSchema: GenMessage<RedeemSource> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 8);
+
+/**
+ * @generated from message mygardenworld.v1.ListRedeemSourcesRequest
+ */
+export type ListRedeemSourcesRequest = Message<"mygardenworld.v1.ListRedeemSourcesRequest"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.ListRedeemSourcesRequest.
+ * Use `create(ListRedeemSourcesRequestSchema)` to create a new message.
+ */
+export const ListRedeemSourcesRequestSchema: GenMessage<ListRedeemSourcesRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 9);
+
+/**
+ * @generated from message mygardenworld.v1.ListRedeemSourcesResponse
+ */
+export type ListRedeemSourcesResponse = Message<"mygardenworld.v1.ListRedeemSourcesResponse"> & {
+  /**
+   * @generated from field: repeated mygardenworld.v1.RedeemSource sources = 1;
+   */
+  sources: RedeemSource[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.ListRedeemSourcesResponse.
+ * Use `create(ListRedeemSourcesResponseSchema)` to create a new message.
+ */
+export const ListRedeemSourcesResponseSchema: GenMessage<ListRedeemSourcesResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 10);
+
+/**
+ * @generated from message mygardenworld.v1.UpsertRedeemSourceRequest
+ */
+export type UpsertRedeemSourceRequest = Message<"mygardenworld.v1.UpsertRedeemSourceRequest"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * @generated from field: mygardenworld.v1.RedeemSourceType type = 3;
+   */
+  type: RedeemSourceType;
+
+  /**
+   * @generated from field: string base_url = 4;
+   */
+  baseUrl: string;
+
+  /**
+   * @generated from field: mygardenworld.v1.Channel channel = 5;
+   */
+  channel: Channel;
+
+  /**
+   * @generated from field: string parser_config_json = 6;
+   */
+  parserConfigJson: string;
+
+  /**
+   * @generated from field: bool enabled = 7;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: bool push_enabled = 8;
+   */
+  pushEnabled: boolean;
+
+  /**
+   * @generated from field: int32 poll_interval_seconds = 9;
+   */
+  pollIntervalSeconds: number;
+};
+
+/**
+ * Describes the message mygardenworld.v1.UpsertRedeemSourceRequest.
+ * Use `create(UpsertRedeemSourceRequestSchema)` to create a new message.
+ */
+export const UpsertRedeemSourceRequestSchema: GenMessage<UpsertRedeemSourceRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 11);
+
+/**
+ * @generated from message mygardenworld.v1.UpsertRedeemSourceResponse
+ */
+export type UpsertRedeemSourceResponse = Message<"mygardenworld.v1.UpsertRedeemSourceResponse"> & {
+  /**
+   * @generated from field: mygardenworld.v1.RedeemSource source = 1;
+   */
+  source?: RedeemSource | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.UpsertRedeemSourceResponse.
+ * Use `create(UpsertRedeemSourceResponseSchema)` to create a new message.
+ */
+export const UpsertRedeemSourceResponseSchema: GenMessage<UpsertRedeemSourceResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 12);
+
+/**
+ * @generated from message mygardenworld.v1.DeleteRedeemSourceRequest
+ */
+export type DeleteRedeemSourceRequest = Message<"mygardenworld.v1.DeleteRedeemSourceRequest"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.DeleteRedeemSourceRequest.
+ * Use `create(DeleteRedeemSourceRequestSchema)` to create a new message.
+ */
+export const DeleteRedeemSourceRequestSchema: GenMessage<DeleteRedeemSourceRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 13);
+
+/**
+ * @generated from message mygardenworld.v1.DeleteRedeemSourceResponse
+ */
+export type DeleteRedeemSourceResponse = Message<"mygardenworld.v1.DeleteRedeemSourceResponse"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.DeleteRedeemSourceResponse.
+ * Use `create(DeleteRedeemSourceResponseSchema)` to create a new message.
+ */
+export const DeleteRedeemSourceResponseSchema: GenMessage<DeleteRedeemSourceResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 14);
+
+/**
+ * @generated from message mygardenworld.v1.SyncRedeemSourceRequest
+ */
+export type SyncRedeemSourceRequest = Message<"mygardenworld.v1.SyncRedeemSourceRequest"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.SyncRedeemSourceRequest.
+ * Use `create(SyncRedeemSourceRequestSchema)` to create a new message.
+ */
+export const SyncRedeemSourceRequestSchema: GenMessage<SyncRedeemSourceRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 15);
+
+/**
+ * @generated from message mygardenworld.v1.SyncRedeemSourceResponse
+ */
+export type SyncRedeemSourceResponse = Message<"mygardenworld.v1.SyncRedeemSourceResponse"> & {
+  /**
+   * @generated from field: mygardenworld.v1.RedeemSource source = 1;
+   */
+  source?: RedeemSource | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.SyncRedeemSourceResponse.
+ * Use `create(SyncRedeemSourceResponseSchema)` to create a new message.
+ */
+export const SyncRedeemSourceResponseSchema: GenMessage<SyncRedeemSourceResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_admin, 16);
+
+/**
+ * @generated from enum mygardenworld.v1.RedeemSourceType
+ */
+export enum RedeemSourceType {
+  /**
+   * @generated from enum value: REDEEM_SOURCE_TYPE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: REDEEM_SOURCE_TYPE_MYGARDENWORLD = 1;
+   */
+  MYGARDENWORLD = 1,
+
+  /**
+   * @generated from enum value: REDEEM_SOURCE_TYPE_CUSTOM_HTTP = 2;
+   */
+  CUSTOM_HTTP = 2,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.RedeemSourceType.
+ */
+export const RedeemSourceTypeSchema: GenEnum<RedeemSourceType> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_admin, 0);
+
+/**
  * @generated from service mygardenworld.v1.AdminService
  */
 export const AdminService: GenService<{
@@ -246,6 +531,38 @@ export const AdminService: GenService<{
     methodKind: "unary";
     input: typeof GetSystemStatsRequestSchema;
     output: typeof GetSystemStatsResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AdminService.ListRedeemSources
+   */
+  listRedeemSources: {
+    methodKind: "unary";
+    input: typeof ListRedeemSourcesRequestSchema;
+    output: typeof ListRedeemSourcesResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AdminService.UpsertRedeemSource
+   */
+  upsertRedeemSource: {
+    methodKind: "unary";
+    input: typeof UpsertRedeemSourceRequestSchema;
+    output: typeof UpsertRedeemSourceResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AdminService.DeleteRedeemSource
+   */
+  deleteRedeemSource: {
+    methodKind: "unary";
+    input: typeof DeleteRedeemSourceRequestSchema;
+    output: typeof DeleteRedeemSourceResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AdminService.SyncRedeemSource
+   */
+  syncRedeemSource: {
+    methodKind: "unary";
+    input: typeof SyncRedeemSourceRequestSchema;
+    output: typeof SyncRedeemSourceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_mygardenworld_v1_admin, 0);

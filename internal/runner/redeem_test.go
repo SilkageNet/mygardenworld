@@ -133,3 +133,24 @@ func TestFormatRedeemServerErrorUsesMsgCode(t *testing.T) {
 		t.Fatalf("failure message = %q", got)
 	}
 }
+
+func TestClassifyRedeemOutcomeUsesObservedGameCodes(t *testing.T) {
+	tests := []struct {
+		code int
+		want RedeemOutcome
+	}{
+		{330, RedeemOutcomeSuccess},
+		{331, RedeemOutcomeInvalid},
+		{332, RedeemOutcomeRetryable},
+		{333, RedeemOutcomeExpired},
+		{334, RedeemOutcomeAlreadyRedeemed},
+		{335, RedeemOutcomeAlreadyRedeemed},
+		{337, RedeemOutcomeRetryable},
+		{999999, RedeemOutcomeUnknown},
+	}
+	for _, tt := range tests {
+		if got := classifyRedeemOutcome(tt.code, nil); got != tt.want {
+			t.Errorf("classifyRedeemOutcome(%d)=%q want %q", tt.code, got, tt.want)
+		}
+	}
+}

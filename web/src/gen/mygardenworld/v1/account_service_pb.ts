@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account_service.proto.
  */
 export const file_mygardenworld_v1_account_service: GenFile = /*@__PURE__*/
-  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSJmChRDcmVhdGVBY2NvdW50UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIqCgdjaGFubmVsGAMgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsIlgKFUNyZWF0ZUFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EhMKC2xvZ2luX2Vycm9yGAIgASgJIiIKFERlbGV0ZUFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IiMKFUNvbm5lY3RBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoAyJ2ChZDb25uZWN0QWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSMAoMbG9nZ2VkX2luX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIZChdTdGFydEFsaXBheUxvZ2luUmVxdWVzdCKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyImChhEaXNjb25uZWN0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAMiRwoZRGlzY29ubmVjdEFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IjYKEVJlZGVlbUNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkSEwoLYWNjb3VudF9pZHMYAiADKAMidwoSUmVkZWVtQ29kZVJlc3BvbnNlEjMKB3Jlc3VsdHMYASADKAsyIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbUNvZGVSZXN1bHQSFQoNc3VjY2Vzc19jb3VudBgCIAEoBRIVCg1mYWlsdXJlX2NvdW50GAMgASgFIlkKEFJlZGVlbUNvZGVSZXN1bHQSEgoKYWNjb3VudF9pZBgBIAEoAxIUCgxhY2NvdW50X25hbWUYAiABKAkSCgoCb2sYAyABKAgSDwoHbWVzc2FnZRgEIAEoCTLKBQoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USYwoOQ29ubmVjdEFjY291bnQSJy5teWdhcmRlbndvcmxkLnYxLkNvbm5lY3RBY2NvdW50UmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuQ29ubmVjdEFjY291bnRSZXNwb25zZRJpChBTdGFydEFsaXBheUxvZ2luEikubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEmwKEURpc2Nvbm5lY3RBY2NvdW50EioubXlnYXJkZW53b3JsZC52MS5EaXNjb25uZWN0QWNjb3VudFJlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLkRpc2Nvbm5lY3RBY2NvdW50UmVzcG9uc2USVwoKUmVkZWVtQ29kZRIjLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLlJlZGVlbUNvZGVSZXNwb25zZUKMAQoUY29tLm15Z2FyZGVud29ybGQudjFCE0FjY291bnRTZXJ2aWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
+  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSJmChRDcmVhdGVBY2NvdW50UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIqCgdjaGFubmVsGAMgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsIlgKFUNyZWF0ZUFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EhMKC2xvZ2luX2Vycm9yGAIgASgJIiIKFERlbGV0ZUFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IiMKFUNvbm5lY3RBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoAyJ2ChZDb25uZWN0QWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSMAoMbG9nZ2VkX2luX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIZChdTdGFydEFsaXBheUxvZ2luUmVxdWVzdCKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyImChhEaXNjb25uZWN0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAMiRwoZRGlzY29ubmVjdEFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50MvEECg5BY2NvdW50U2VydmljZRJgCg1DcmVhdGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5DcmVhdGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEmAKDURlbGV0ZUFjY291bnQSJi5teWdhcmRlbndvcmxkLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GicubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USXQoMTGlzdEFjY291bnRzEiUubXlnYXJkZW53b3JsZC52MS5MaXN0QWNjb3VudHNSZXF1ZXN0GiYubXlnYXJkZW53b3JsZC52MS5MaXN0QWNjb3VudHNSZXNwb25zZRJjCg5Db25uZWN0QWNjb3VudBInLm15Z2FyZGVud29ybGQudjEuQ29ubmVjdEFjY291bnRSZXF1ZXN0GigubXlnYXJkZW53b3JsZC52MS5Db25uZWN0QWNjb3VudFJlc3BvbnNlEmkKEFN0YXJ0QWxpcGF5TG9naW4SKS5teWdhcmRlbndvcmxkLnYxLlN0YXJ0QWxpcGF5TG9naW5SZXF1ZXN0GioubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVzcG9uc2USbAoRRGlzY29ubmVjdEFjY291bnQSKi5teWdhcmRlbndvcmxkLnYxLkRpc2Nvbm5lY3RBY2NvdW50UmVxdWVzdBorLm15Z2FyZGVud29ybGQudjEuRGlzY29ubmVjdEFjY291bnRSZXNwb25zZUKMAQoUY29tLm15Z2FyZGVud29ybGQudjFCE0FjY291bnRTZXJ2aWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.CreateAccountRequest
@@ -251,91 +251,6 @@ export const DisconnectAccountResponseSchema: GenMessage<DisconnectAccountRespon
   messageDesc(file_mygardenworld_v1_account_service, 11);
 
 /**
- * @generated from message mygardenworld.v1.RedeemCodeRequest
- */
-export type RedeemCodeRequest = Message<"mygardenworld.v1.RedeemCodeRequest"> & {
-  /**
-   * Gift / redeem code from the game.
-   *
-   * @generated from field: string code = 1;
-   */
-  code: string;
-
-  /**
-   * Required target account ids. Every account must belong to the same channel.
-   *
-   * @generated from field: repeated int64 account_ids = 2;
-   */
-  accountIds: bigint[];
-};
-
-/**
- * Describes the message mygardenworld.v1.RedeemCodeRequest.
- * Use `create(RedeemCodeRequestSchema)` to create a new message.
- */
-export const RedeemCodeRequestSchema: GenMessage<RedeemCodeRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 12);
-
-/**
- * @generated from message mygardenworld.v1.RedeemCodeResponse
- */
-export type RedeemCodeResponse = Message<"mygardenworld.v1.RedeemCodeResponse"> & {
-  /**
-   * @generated from field: repeated mygardenworld.v1.RedeemCodeResult results = 1;
-   */
-  results: RedeemCodeResult[];
-
-  /**
-   * @generated from field: int32 success_count = 2;
-   */
-  successCount: number;
-
-  /**
-   * @generated from field: int32 failure_count = 3;
-   */
-  failureCount: number;
-};
-
-/**
- * Describes the message mygardenworld.v1.RedeemCodeResponse.
- * Use `create(RedeemCodeResponseSchema)` to create a new message.
- */
-export const RedeemCodeResponseSchema: GenMessage<RedeemCodeResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 13);
-
-/**
- * @generated from message mygardenworld.v1.RedeemCodeResult
- */
-export type RedeemCodeResult = Message<"mygardenworld.v1.RedeemCodeResult"> & {
-  /**
-   * @generated from field: int64 account_id = 1;
-   */
-  accountId: bigint;
-
-  /**
-   * @generated from field: string account_name = 2;
-   */
-  accountName: string;
-
-  /**
-   * @generated from field: bool ok = 3;
-   */
-  ok: boolean;
-
-  /**
-   * @generated from field: string message = 4;
-   */
-  message: string;
-};
-
-/**
- * Describes the message mygardenworld.v1.RedeemCodeResult.
- * Use `create(RedeemCodeResultSchema)` to create a new message.
- */
-export const RedeemCodeResultSchema: GenMessage<RedeemCodeResult> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_account_service, 14);
-
-/**
  * @generated from service mygardenworld.v1.AccountService
  */
 export const AccountService: GenService<{
@@ -400,17 +315,6 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof DisconnectAccountRequestSchema;
     output: typeof DisconnectAccountResponseSchema;
-  },
-  /**
-   * Redeem one gift code across an explicit set of accounts from one channel.
-   * Offline accounts are started first so the game RPC can run.
-   *
-   * @generated from rpc mygardenworld.v1.AccountService.RedeemCode
-   */
-  redeemCode: {
-    methodKind: "unary";
-    input: typeof RedeemCodeRequestSchema;
-    output: typeof RedeemCodeResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_mygardenworld_v1_account_service, 0);

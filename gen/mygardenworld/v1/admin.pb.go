@@ -9,6 +9,7 @@ package mygardenworldv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -20,6 +21,55 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+type RedeemSourceType int32
+
+const (
+	RedeemSourceType_REDEEM_SOURCE_TYPE_UNSPECIFIED   RedeemSourceType = 0
+	RedeemSourceType_REDEEM_SOURCE_TYPE_MYGARDENWORLD RedeemSourceType = 1
+	RedeemSourceType_REDEEM_SOURCE_TYPE_CUSTOM_HTTP   RedeemSourceType = 2
+)
+
+// Enum value maps for RedeemSourceType.
+var (
+	RedeemSourceType_name = map[int32]string{
+		0: "REDEEM_SOURCE_TYPE_UNSPECIFIED",
+		1: "REDEEM_SOURCE_TYPE_MYGARDENWORLD",
+		2: "REDEEM_SOURCE_TYPE_CUSTOM_HTTP",
+	}
+	RedeemSourceType_value = map[string]int32{
+		"REDEEM_SOURCE_TYPE_UNSPECIFIED":   0,
+		"REDEEM_SOURCE_TYPE_MYGARDENWORLD": 1,
+		"REDEEM_SOURCE_TYPE_CUSTOM_HTTP":   2,
+	}
+)
+
+func (x RedeemSourceType) Enum() *RedeemSourceType {
+	p := new(RedeemSourceType)
+	*p = x
+	return p
+}
+
+func (x RedeemSourceType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RedeemSourceType) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_admin_proto_enumTypes[0].Descriptor()
+}
+
+func (RedeemSourceType) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_admin_proto_enumTypes[0]
+}
+
+func (x RedeemSourceType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RedeemSourceType.Descriptor instead.
+func (RedeemSourceType) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{0}
+}
 
 type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -469,11 +519,567 @@ func (x *GetSystemStatsResponse) GetConnectedRunners() int32 {
 	return 0
 }
 
+type RedeemSource struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Type                RedeemSourceType       `protobuf:"varint,3,opt,name=type,proto3,enum=mygardenworld.v1.RedeemSourceType" json:"type,omitempty"`
+	BaseUrl             string                 `protobuf:"bytes,4,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	Channel             Channel                `protobuf:"varint,5,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
+	ParserConfigJson    string                 `protobuf:"bytes,6,opt,name=parser_config_json,json=parserConfigJson,proto3" json:"parser_config_json,omitempty"`
+	Enabled             bool                   `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	PushEnabled         bool                   `protobuf:"varint,8,opt,name=push_enabled,json=pushEnabled,proto3" json:"push_enabled,omitempty"`
+	PollIntervalSeconds int32                  `protobuf:"varint,9,opt,name=poll_interval_seconds,json=pollIntervalSeconds,proto3" json:"poll_interval_seconds,omitempty"`
+	RemoteInstanceId    string                 `protobuf:"bytes,10,opt,name=remote_instance_id,json=remoteInstanceId,proto3" json:"remote_instance_id,omitempty"`
+	Cursor              string                 `protobuf:"bytes,11,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	LastSyncAt          *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=last_sync_at,json=lastSyncAt,proto3" json:"last_sync_at,omitempty"`
+	LastError           string                 `protobuf:"bytes,13,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	AcceptedCount       int64                  `protobuf:"varint,14,opt,name=accepted_count,json=acceptedCount,proto3" json:"accepted_count,omitempty"`
+	InvalidCount        int64                  `protobuf:"varint,15,opt,name=invalid_count,json=invalidCount,proto3" json:"invalid_count,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *RedeemSource) Reset() {
+	*x = RedeemSource{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemSource) ProtoMessage() {}
+
+func (x *RedeemSource) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemSource.ProtoReflect.Descriptor instead.
+func (*RedeemSource) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RedeemSource) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RedeemSource) GetType() RedeemSourceType {
+	if x != nil {
+		return x.Type
+	}
+	return RedeemSourceType_REDEEM_SOURCE_TYPE_UNSPECIFIED
+}
+
+func (x *RedeemSource) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *RedeemSource) GetChannel() Channel {
+	if x != nil {
+		return x.Channel
+	}
+	return Channel_CHANNEL_UNSPECIFIED
+}
+
+func (x *RedeemSource) GetParserConfigJson() string {
+	if x != nil {
+		return x.ParserConfigJson
+	}
+	return ""
+}
+
+func (x *RedeemSource) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *RedeemSource) GetPushEnabled() bool {
+	if x != nil {
+		return x.PushEnabled
+	}
+	return false
+}
+
+func (x *RedeemSource) GetPollIntervalSeconds() int32 {
+	if x != nil {
+		return x.PollIntervalSeconds
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetRemoteInstanceId() string {
+	if x != nil {
+		return x.RemoteInstanceId
+	}
+	return ""
+}
+
+func (x *RedeemSource) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *RedeemSource) GetLastSyncAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSyncAt
+	}
+	return nil
+}
+
+func (x *RedeemSource) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+func (x *RedeemSource) GetAcceptedCount() int64 {
+	if x != nil {
+		return x.AcceptedCount
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetInvalidCount() int64 {
+	if x != nil {
+		return x.InvalidCount
+	}
+	return 0
+}
+
+type ListRedeemSourcesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRedeemSourcesRequest) Reset() {
+	*x = ListRedeemSourcesRequest{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRedeemSourcesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRedeemSourcesRequest) ProtoMessage() {}
+
+func (x *ListRedeemSourcesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRedeemSourcesRequest.ProtoReflect.Descriptor instead.
+func (*ListRedeemSourcesRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{9}
+}
+
+type ListRedeemSourcesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Sources       []*RedeemSource        `protobuf:"bytes,1,rep,name=sources,proto3" json:"sources,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRedeemSourcesResponse) Reset() {
+	*x = ListRedeemSourcesResponse{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRedeemSourcesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRedeemSourcesResponse) ProtoMessage() {}
+
+func (x *ListRedeemSourcesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRedeemSourcesResponse.ProtoReflect.Descriptor instead.
+func (*ListRedeemSourcesResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListRedeemSourcesResponse) GetSources() []*RedeemSource {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+type UpsertRedeemSourceRequest struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Id                  int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Type                RedeemSourceType       `protobuf:"varint,3,opt,name=type,proto3,enum=mygardenworld.v1.RedeemSourceType" json:"type,omitempty"`
+	BaseUrl             string                 `protobuf:"bytes,4,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	Channel             Channel                `protobuf:"varint,5,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
+	ParserConfigJson    string                 `protobuf:"bytes,6,opt,name=parser_config_json,json=parserConfigJson,proto3" json:"parser_config_json,omitempty"`
+	Enabled             bool                   `protobuf:"varint,7,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	PushEnabled         bool                   `protobuf:"varint,8,opt,name=push_enabled,json=pushEnabled,proto3" json:"push_enabled,omitempty"`
+	PollIntervalSeconds int32                  `protobuf:"varint,9,opt,name=poll_interval_seconds,json=pollIntervalSeconds,proto3" json:"poll_interval_seconds,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *UpsertRedeemSourceRequest) Reset() {
+	*x = UpsertRedeemSourceRequest{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertRedeemSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertRedeemSourceRequest) ProtoMessage() {}
+
+func (x *UpsertRedeemSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertRedeemSourceRequest.ProtoReflect.Descriptor instead.
+func (*UpsertRedeemSourceRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *UpsertRedeemSourceRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UpsertRedeemSourceRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UpsertRedeemSourceRequest) GetType() RedeemSourceType {
+	if x != nil {
+		return x.Type
+	}
+	return RedeemSourceType_REDEEM_SOURCE_TYPE_UNSPECIFIED
+}
+
+func (x *UpsertRedeemSourceRequest) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *UpsertRedeemSourceRequest) GetChannel() Channel {
+	if x != nil {
+		return x.Channel
+	}
+	return Channel_CHANNEL_UNSPECIFIED
+}
+
+func (x *UpsertRedeemSourceRequest) GetParserConfigJson() string {
+	if x != nil {
+		return x.ParserConfigJson
+	}
+	return ""
+}
+
+func (x *UpsertRedeemSourceRequest) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *UpsertRedeemSourceRequest) GetPushEnabled() bool {
+	if x != nil {
+		return x.PushEnabled
+	}
+	return false
+}
+
+func (x *UpsertRedeemSourceRequest) GetPollIntervalSeconds() int32 {
+	if x != nil {
+		return x.PollIntervalSeconds
+	}
+	return 0
+}
+
+type UpsertRedeemSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        *RedeemSource          `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertRedeemSourceResponse) Reset() {
+	*x = UpsertRedeemSourceResponse{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertRedeemSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertRedeemSourceResponse) ProtoMessage() {}
+
+func (x *UpsertRedeemSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertRedeemSourceResponse.ProtoReflect.Descriptor instead.
+func (*UpsertRedeemSourceResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *UpsertRedeemSourceResponse) GetSource() *RedeemSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+type DeleteRedeemSourceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRedeemSourceRequest) Reset() {
+	*x = DeleteRedeemSourceRequest{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRedeemSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRedeemSourceRequest) ProtoMessage() {}
+
+func (x *DeleteRedeemSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRedeemSourceRequest.ProtoReflect.Descriptor instead.
+func (*DeleteRedeemSourceRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *DeleteRedeemSourceRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type DeleteRedeemSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRedeemSourceResponse) Reset() {
+	*x = DeleteRedeemSourceResponse{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRedeemSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRedeemSourceResponse) ProtoMessage() {}
+
+func (x *DeleteRedeemSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteRedeemSourceResponse.ProtoReflect.Descriptor instead.
+func (*DeleteRedeemSourceResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{14}
+}
+
+type SyncRedeemSourceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncRedeemSourceRequest) Reset() {
+	*x = SyncRedeemSourceRequest{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncRedeemSourceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncRedeemSourceRequest) ProtoMessage() {}
+
+func (x *SyncRedeemSourceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncRedeemSourceRequest.ProtoReflect.Descriptor instead.
+func (*SyncRedeemSourceRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SyncRedeemSourceRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type SyncRedeemSourceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Source        *RedeemSource          `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncRedeemSourceResponse) Reset() {
+	*x = SyncRedeemSourceResponse{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncRedeemSourceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncRedeemSourceResponse) ProtoMessage() {}
+
+func (x *SyncRedeemSourceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncRedeemSourceResponse.ProtoReflect.Descriptor instead.
+func (*SyncRedeemSourceResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SyncRedeemSourceResponse) GetSource() *RedeemSource {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
 var File_mygardenworld_v1_admin_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x1cmygardenworld/v1/admin.proto\x12\x10mygardenworld.v1\x1a\x1bmygardenworld/v1/auth.proto\"\x9e\x02\n" +
+	"\x1cmygardenworld/v1/admin.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bmygardenworld/v1/auth.proto\x1a\x1emygardenworld/v1/channel.proto\"\x9e\x02\n" +
 	"\x11CreateUserRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -508,14 +1114,63 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"totalUsers\x12.\n" +
 	"\x13total_game_accounts\x18\x02 \x01(\x05R\x11totalGameAccounts\x12%\n" +
 	"\x0eactive_runners\x18\x03 \x01(\x05R\ractiveRunners\x12+\n" +
-	"\x11connected_runners\x18\x04 \x01(\x05R\x10connectedRunners2\xfb\x02\n" +
+	"\x11connected_runners\x18\x04 \x01(\x05R\x10connectedRunners\"\xc8\x04\n" +
+	"\fRedeemSource\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x126\n" +
+	"\x04type\x18\x03 \x01(\x0e2\".mygardenworld.v1.RedeemSourceTypeR\x04type\x12\x19\n" +
+	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\x123\n" +
+	"\achannel\x18\x05 \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel\x12,\n" +
+	"\x12parser_config_json\x18\x06 \x01(\tR\x10parserConfigJson\x12\x18\n" +
+	"\aenabled\x18\a \x01(\bR\aenabled\x12!\n" +
+	"\fpush_enabled\x18\b \x01(\bR\vpushEnabled\x122\n" +
+	"\x15poll_interval_seconds\x18\t \x01(\x05R\x13pollIntervalSeconds\x12,\n" +
+	"\x12remote_instance_id\x18\n" +
+	" \x01(\tR\x10remoteInstanceId\x12\x16\n" +
+	"\x06cursor\x18\v \x01(\tR\x06cursor\x12<\n" +
+	"\flast_sync_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastSyncAt\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\r \x01(\tR\tlastError\x12%\n" +
+	"\x0eaccepted_count\x18\x0e \x01(\x03R\racceptedCount\x12#\n" +
+	"\rinvalid_count\x18\x0f \x01(\x03R\finvalidCount\"\x1a\n" +
+	"\x18ListRedeemSourcesRequest\"U\n" +
+	"\x19ListRedeemSourcesResponse\x128\n" +
+	"\asources\x18\x01 \x03(\v2\x1e.mygardenworld.v1.RedeemSourceR\asources\"\xe6\x02\n" +
+	"\x19UpsertRedeemSourceRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x126\n" +
+	"\x04type\x18\x03 \x01(\x0e2\".mygardenworld.v1.RedeemSourceTypeR\x04type\x12\x19\n" +
+	"\bbase_url\x18\x04 \x01(\tR\abaseUrl\x123\n" +
+	"\achannel\x18\x05 \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel\x12,\n" +
+	"\x12parser_config_json\x18\x06 \x01(\tR\x10parserConfigJson\x12\x18\n" +
+	"\aenabled\x18\a \x01(\bR\aenabled\x12!\n" +
+	"\fpush_enabled\x18\b \x01(\bR\vpushEnabled\x122\n" +
+	"\x15poll_interval_seconds\x18\t \x01(\x05R\x13pollIntervalSeconds\"T\n" +
+	"\x1aUpsertRedeemSourceResponse\x126\n" +
+	"\x06source\x18\x01 \x01(\v2\x1e.mygardenworld.v1.RedeemSourceR\x06source\"+\n" +
+	"\x19DeleteRedeemSourceRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"\x1c\n" +
+	"\x1aDeleteRedeemSourceResponse\")\n" +
+	"\x17SyncRedeemSourceRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"R\n" +
+	"\x18SyncRedeemSourceResponse\x126\n" +
+	"\x06source\x18\x01 \x01(\v2\x1e.mygardenworld.v1.RedeemSourceR\x06source*\x80\x01\n" +
+	"\x10RedeemSourceType\x12\"\n" +
+	"\x1eREDEEM_SOURCE_TYPE_UNSPECIFIED\x10\x00\x12$\n" +
+	" REDEEM_SOURCE_TYPE_MYGARDENWORLD\x10\x01\x12\"\n" +
+	"\x1eREDEEM_SOURCE_TYPE_CUSTOM_HTTP\x10\x022\xb6\x06\n" +
 	"\fAdminService\x12W\n" +
 	"\n" +
 	"CreateUser\x12#.mygardenworld.v1.CreateUserRequest\x1a$.mygardenworld.v1.CreateUserResponse\x12T\n" +
 	"\tListUsers\x12\".mygardenworld.v1.ListUsersRequest\x1a#.mygardenworld.v1.ListUsersResponse\x12W\n" +
 	"\n" +
 	"UpdateUser\x12#.mygardenworld.v1.UpdateUserRequest\x1a$.mygardenworld.v1.UpdateUserResponse\x12c\n" +
-	"\x0eGetSystemStats\x12'.mygardenworld.v1.GetSystemStatsRequest\x1a(.mygardenworld.v1.GetSystemStatsResponseB\xcd\x01\n" +
+	"\x0eGetSystemStats\x12'.mygardenworld.v1.GetSystemStatsRequest\x1a(.mygardenworld.v1.GetSystemStatsResponse\x12l\n" +
+	"\x11ListRedeemSources\x12*.mygardenworld.v1.ListRedeemSourcesRequest\x1a+.mygardenworld.v1.ListRedeemSourcesResponse\x12o\n" +
+	"\x12UpsertRedeemSource\x12+.mygardenworld.v1.UpsertRedeemSourceRequest\x1a,.mygardenworld.v1.UpsertRedeemSourceResponse\x12o\n" +
+	"\x12DeleteRedeemSource\x12+.mygardenworld.v1.DeleteRedeemSourceRequest\x1a,.mygardenworld.v1.DeleteRedeemSourceResponse\x12i\n" +
+	"\x10SyncRedeemSource\x12).mygardenworld.v1.SyncRedeemSourceRequest\x1a*.mygardenworld.v1.SyncRedeemSourceResponseB\xcd\x01\n" +
 	"\x14com.mygardenworld.v1B\n" +
 	"AdminProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
@@ -531,41 +1186,70 @@ func file_mygardenworld_v1_admin_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_admin_proto_rawDescData
 }
 
-var file_mygardenworld_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_mygardenworld_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_mygardenworld_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_mygardenworld_v1_admin_proto_goTypes = []any{
-	(*CreateUserRequest)(nil),      // 0: mygardenworld.v1.CreateUserRequest
-	(*CreateUserResponse)(nil),     // 1: mygardenworld.v1.CreateUserResponse
-	(*ListUsersRequest)(nil),       // 2: mygardenworld.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),      // 3: mygardenworld.v1.ListUsersResponse
-	(*UpdateUserRequest)(nil),      // 4: mygardenworld.v1.UpdateUserRequest
-	(*UpdateUserResponse)(nil),     // 5: mygardenworld.v1.UpdateUserResponse
-	(*GetSystemStatsRequest)(nil),  // 6: mygardenworld.v1.GetSystemStatsRequest
-	(*GetSystemStatsResponse)(nil), // 7: mygardenworld.v1.GetSystemStatsResponse
-	(UserRole)(0),                  // 8: mygardenworld.v1.UserRole
-	(UserStatus)(0),                // 9: mygardenworld.v1.UserStatus
-	(*User)(nil),                   // 10: mygardenworld.v1.User
+	(RedeemSourceType)(0),              // 0: mygardenworld.v1.RedeemSourceType
+	(*CreateUserRequest)(nil),          // 1: mygardenworld.v1.CreateUserRequest
+	(*CreateUserResponse)(nil),         // 2: mygardenworld.v1.CreateUserResponse
+	(*ListUsersRequest)(nil),           // 3: mygardenworld.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),          // 4: mygardenworld.v1.ListUsersResponse
+	(*UpdateUserRequest)(nil),          // 5: mygardenworld.v1.UpdateUserRequest
+	(*UpdateUserResponse)(nil),         // 6: mygardenworld.v1.UpdateUserResponse
+	(*GetSystemStatsRequest)(nil),      // 7: mygardenworld.v1.GetSystemStatsRequest
+	(*GetSystemStatsResponse)(nil),     // 8: mygardenworld.v1.GetSystemStatsResponse
+	(*RedeemSource)(nil),               // 9: mygardenworld.v1.RedeemSource
+	(*ListRedeemSourcesRequest)(nil),   // 10: mygardenworld.v1.ListRedeemSourcesRequest
+	(*ListRedeemSourcesResponse)(nil),  // 11: mygardenworld.v1.ListRedeemSourcesResponse
+	(*UpsertRedeemSourceRequest)(nil),  // 12: mygardenworld.v1.UpsertRedeemSourceRequest
+	(*UpsertRedeemSourceResponse)(nil), // 13: mygardenworld.v1.UpsertRedeemSourceResponse
+	(*DeleteRedeemSourceRequest)(nil),  // 14: mygardenworld.v1.DeleteRedeemSourceRequest
+	(*DeleteRedeemSourceResponse)(nil), // 15: mygardenworld.v1.DeleteRedeemSourceResponse
+	(*SyncRedeemSourceRequest)(nil),    // 16: mygardenworld.v1.SyncRedeemSourceRequest
+	(*SyncRedeemSourceResponse)(nil),   // 17: mygardenworld.v1.SyncRedeemSourceResponse
+	(UserRole)(0),                      // 18: mygardenworld.v1.UserRole
+	(UserStatus)(0),                    // 19: mygardenworld.v1.UserStatus
+	(*User)(nil),                       // 20: mygardenworld.v1.User
+	(Channel)(0),                       // 21: mygardenworld.v1.Channel
+	(*timestamppb.Timestamp)(nil),      // 22: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_admin_proto_depIdxs = []int32{
-	8,  // 0: mygardenworld.v1.CreateUserRequest.role:type_name -> mygardenworld.v1.UserRole
-	9,  // 1: mygardenworld.v1.CreateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
-	10, // 2: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
-	10, // 3: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
-	8,  // 4: mygardenworld.v1.UpdateUserRequest.role:type_name -> mygardenworld.v1.UserRole
-	9,  // 5: mygardenworld.v1.UpdateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
-	10, // 6: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
-	0,  // 7: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
-	2,  // 8: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
-	4,  // 9: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
-	6,  // 10: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
-	1,  // 11: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
-	3,  // 12: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
-	5,  // 13: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
-	7,  // 14: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
-	11, // [11:15] is the sub-list for method output_type
-	7,  // [7:11] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	18, // 0: mygardenworld.v1.CreateUserRequest.role:type_name -> mygardenworld.v1.UserRole
+	19, // 1: mygardenworld.v1.CreateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
+	20, // 2: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
+	20, // 3: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
+	18, // 4: mygardenworld.v1.UpdateUserRequest.role:type_name -> mygardenworld.v1.UserRole
+	19, // 5: mygardenworld.v1.UpdateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
+	20, // 6: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
+	0,  // 7: mygardenworld.v1.RedeemSource.type:type_name -> mygardenworld.v1.RedeemSourceType
+	21, // 8: mygardenworld.v1.RedeemSource.channel:type_name -> mygardenworld.v1.Channel
+	22, // 9: mygardenworld.v1.RedeemSource.last_sync_at:type_name -> google.protobuf.Timestamp
+	9,  // 10: mygardenworld.v1.ListRedeemSourcesResponse.sources:type_name -> mygardenworld.v1.RedeemSource
+	0,  // 11: mygardenworld.v1.UpsertRedeemSourceRequest.type:type_name -> mygardenworld.v1.RedeemSourceType
+	21, // 12: mygardenworld.v1.UpsertRedeemSourceRequest.channel:type_name -> mygardenworld.v1.Channel
+	9,  // 13: mygardenworld.v1.UpsertRedeemSourceResponse.source:type_name -> mygardenworld.v1.RedeemSource
+	9,  // 14: mygardenworld.v1.SyncRedeemSourceResponse.source:type_name -> mygardenworld.v1.RedeemSource
+	1,  // 15: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
+	3,  // 16: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
+	5,  // 17: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
+	7,  // 18: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
+	10, // 19: mygardenworld.v1.AdminService.ListRedeemSources:input_type -> mygardenworld.v1.ListRedeemSourcesRequest
+	12, // 20: mygardenworld.v1.AdminService.UpsertRedeemSource:input_type -> mygardenworld.v1.UpsertRedeemSourceRequest
+	14, // 21: mygardenworld.v1.AdminService.DeleteRedeemSource:input_type -> mygardenworld.v1.DeleteRedeemSourceRequest
+	16, // 22: mygardenworld.v1.AdminService.SyncRedeemSource:input_type -> mygardenworld.v1.SyncRedeemSourceRequest
+	2,  // 23: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
+	4,  // 24: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
+	6,  // 25: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
+	8,  // 26: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
+	11, // 27: mygardenworld.v1.AdminService.ListRedeemSources:output_type -> mygardenworld.v1.ListRedeemSourcesResponse
+	13, // 28: mygardenworld.v1.AdminService.UpsertRedeemSource:output_type -> mygardenworld.v1.UpsertRedeemSourceResponse
+	15, // 29: mygardenworld.v1.AdminService.DeleteRedeemSource:output_type -> mygardenworld.v1.DeleteRedeemSourceResponse
+	17, // 30: mygardenworld.v1.AdminService.SyncRedeemSource:output_type -> mygardenworld.v1.SyncRedeemSourceResponse
+	23, // [23:31] is the sub-list for method output_type
+	15, // [15:23] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_admin_proto_init() }
@@ -574,6 +1258,7 @@ func file_mygardenworld_v1_admin_proto_init() {
 		return
 	}
 	file_mygardenworld_v1_auth_proto_init()
+	file_mygardenworld_v1_channel_proto_init()
 	file_mygardenworld_v1_admin_proto_msgTypes[0].OneofWrappers = []any{}
 	file_mygardenworld_v1_admin_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
@@ -581,13 +1266,14 @@ func file_mygardenworld_v1_admin_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_admin_proto_rawDesc), len(file_mygardenworld_v1_admin_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   8,
+			NumEnums:      1,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_mygardenworld_v1_admin_proto_goTypes,
 		DependencyIndexes: file_mygardenworld_v1_admin_proto_depIdxs,
+		EnumInfos:         file_mygardenworld_v1_admin_proto_enumTypes,
 		MessageInfos:      file_mygardenworld_v1_admin_proto_msgTypes,
 	}.Build()
 	File_mygardenworld_v1_admin_proto = out.File

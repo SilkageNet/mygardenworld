@@ -27,10 +27,6 @@ service AccountService {
   // Stops the live runner/WS for the account and disables auto-resume.
   // Credentials stay stored; the account can be logged in again later.
   rpc DisconnectAccount(DisconnectAccountRequest) returns (DisconnectAccountResponse);
-
-  // Redeem one gift code across an explicit set of accounts from one channel.
-  // Offline accounts are started first so the game RPC can run.
-  rpc RedeemCode(RedeemCodeRequest) returns (RedeemCodeResponse);
 }
 
 message CreateAccountRequest {
@@ -83,24 +79,4 @@ message DisconnectAccountRequest {
 
 message DisconnectAccountResponse {
   Account account = 1;
-}
-
-message RedeemCodeRequest {
-  // Gift / redeem code from the game.
-  string code = 1;
-  // Required target account ids. Every account must belong to the same channel.
-  repeated int64 account_ids = 2;
-}
-
-message RedeemCodeResponse {
-  repeated RedeemCodeResult results = 1;
-  int32 success_count = 2;
-  int32 failure_count = 3;
-}
-
-message RedeemCodeResult {
-  int64 account_id = 1;
-  string account_name = 2;
-  bool ok = 3;
-  string message = 4;
 }

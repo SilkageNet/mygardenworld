@@ -2,13 +2,19 @@ syntax = "proto3";
 
 package mygardenworld.v1;
 
+import "google/protobuf/timestamp.proto";
 import "mygardenworld/v1/auth.proto";
+import "mygardenworld/v1/channel.proto";
 
 service AdminService {
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
   rpc GetSystemStats(GetSystemStatsRequest) returns (GetSystemStatsResponse);
+  rpc ListRedeemSources(ListRedeemSourcesRequest) returns (ListRedeemSourcesResponse);
+  rpc UpsertRedeemSource(UpsertRedeemSourceRequest) returns (UpsertRedeemSourceResponse);
+  rpc DeleteRedeemSource(DeleteRedeemSourceRequest) returns (DeleteRedeemSourceResponse);
+  rpc SyncRedeemSource(SyncRedeemSourceRequest) returns (SyncRedeemSourceResponse);
 }
 
 message CreateUserRequest {
@@ -52,4 +58,64 @@ message GetSystemStatsResponse {
   int32 total_game_accounts = 2;
   int32 active_runners = 3;
   int32 connected_runners = 4;
+}
+
+enum RedeemSourceType {
+  REDEEM_SOURCE_TYPE_UNSPECIFIED = 0;
+  REDEEM_SOURCE_TYPE_MYGARDENWORLD = 1;
+  REDEEM_SOURCE_TYPE_CUSTOM_HTTP = 2;
+}
+
+message RedeemSource {
+  int64 id = 1;
+  string name = 2;
+  RedeemSourceType type = 3;
+  string base_url = 4;
+  Channel channel = 5;
+  string parser_config_json = 6;
+  bool enabled = 7;
+  bool push_enabled = 8;
+  int32 poll_interval_seconds = 9;
+  string remote_instance_id = 10;
+  string cursor = 11;
+  google.protobuf.Timestamp last_sync_at = 12;
+  string last_error = 13;
+  int64 accepted_count = 14;
+  int64 invalid_count = 15;
+}
+
+message ListRedeemSourcesRequest {}
+
+message ListRedeemSourcesResponse {
+  repeated RedeemSource sources = 1;
+}
+
+message UpsertRedeemSourceRequest {
+  int64 id = 1;
+  string name = 2;
+  RedeemSourceType type = 3;
+  string base_url = 4;
+  Channel channel = 5;
+  string parser_config_json = 6;
+  bool enabled = 7;
+  bool push_enabled = 8;
+  int32 poll_interval_seconds = 9;
+}
+
+message UpsertRedeemSourceResponse {
+  RedeemSource source = 1;
+}
+
+message DeleteRedeemSourceRequest {
+  int64 id = 1;
+}
+
+message DeleteRedeemSourceResponse {}
+
+message SyncRedeemSourceRequest {
+  int64 id = 1;
+}
+
+message SyncRedeemSourceResponse {
+  RedeemSource source = 1;
 }

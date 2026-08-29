@@ -57,7 +57,7 @@ func TestOpenRejectsUnversionedDatabase(t *testing.T) {
 	}
 }
 
-func TestOpenMigratesVersionThreeToPearlHireUsageSchema(t *testing.T) {
+func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "garden.db")
 	previous, err := sql.Open("sqlite", "file:"+path)
@@ -79,12 +79,15 @@ func TestOpenMigratesVersionThreeToPearlHireUsageSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 4 {
-		t.Fatalf("schema version=%d err=%v, want 4", version, err)
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 5 {
+		t.Fatalf("schema version=%d err=%v, want 5", version, err)
 	}
 	var column string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('account_pearl_hire_usage') WHERE name = 'used_count'`).Scan(&column); err != nil {
 		t.Fatalf("pearl hire usage migration: %v", err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('redeem_codes') WHERE name = 'fingerprint'`).Scan(&column); err != nil {
+		t.Fatalf("redeem exchange migration: %v", err)
 	}
 }
 

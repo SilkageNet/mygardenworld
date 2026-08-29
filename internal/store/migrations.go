@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 4
+const currentSchemaVersion = 5
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -129,6 +129,102 @@ CREATE TABLE account_pearl_hire_usage (
     used_count  INTEGER NOT NULL DEFAULT 0 CHECK(used_count >= 0),
     updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+`,
+	},
+	{
+		version: 5,
+		name:    "federated redeem exchange",
+		sql: `
+CREATE TABLE redeem_node_state (
+    id            INTEGER PRIMARY KEY CHECK(id = 1),
+    instance_id   TEXT    NOT NULL UNIQUE,
+    next_revision INTEGER NOT NULL DEFAULT 0 CHECK(next_revision >= 0),
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE redeem_sources (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name                  TEXT    NOT NULL UNIQUE,
+    type                  TEXT    NOT NULL CHECK(type IN ('mygardenworld', 'custom_http')),
+    base_url              TEXT    NOT NULL,
+    channel               TEXT    NOT NULL DEFAULT '' CHECK(channel IN ('', 'ios', 'alipay')),
+    parser_config_json    TEXT    NOT NULL DEFAULT '{}',
+    enabled               INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0, 1)),
+    push_enabled          INTEGER NOT NULL DEFAULT 0 CHECK(push_enabled IN (0, 1)),
+    poll_interval_seconds INTEGER NOT NULL DEFAULT 300 CHECK(poll_interval_seconds >= 60),
+    remote_instance_id    TEXT    NOT NULL DEFAULT '',
+    cursor                TEXT    NOT NULL DEFAULT '',
+    last_sync_at          DATETIME,
+    last_error            TEXT    NOT NULL DEFAULT '',
+    accepted_count        INTEGER NOT NULL DEFAULT 0 CHECK(accepted_count >= 0),
+    invalid_count         INTEGER NOT NULL DEFAULT 0 CHECK(invalid_count >= 0),
+    created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_redeem_sources_due ON redeem_sources(enabled, last_sync_at);
+
+CREATE TABLE redeem_codes (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    fingerprint           TEXT    NOT NULL UNIQUE,
+    code                  TEXT    NOT NULL,
+    normalized_code       TEXT    NOT NULL,
+    channel               TEXT    NOT NULL CHECK(channel IN ('ios', 'alipay')),
+    expires_at            DATETIME,
+    validation            TEXT    NOT NULL DEFAULT 'pending' CHECK(validation IN ('pending', 'success', 'already_redeemed', 'expired', 'invalid', 'retryable', 'unknown')),
+    propagation_state     TEXT    NOT NULL DEFAULT 'waiting_validation' CHECK(propagation_state IN ('waiting_validation', 'eligible', 'sent', 'suppressed_expired', 'suppressed_invalid')),
+    local_verified_at     DATETIME,
+    community_verified_at DATETIME,
+    origin_instance_id    TEXT    NOT NULL DEFAULT '',
+    last_message          TEXT    NOT NULL DEFAULT '',
+    revision              INTEGER NOT NULL CHECK(revision > 0),
+    first_seen_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(normalized_code, channel)
+);
+CREATE INDEX idx_redeem_codes_revision ON redeem_codes(revision);
+CREATE INDEX idx_redeem_codes_active ON redeem_codes(channel, expires_at, validation);
+
+CREATE TABLE redeem_code_observations (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    redeem_code_id     INTEGER NOT NULL REFERENCES redeem_codes(id) ON DELETE CASCADE,
+    source_id          INTEGER REFERENCES redeem_sources(id) ON DELETE SET NULL,
+    source_key         TEXT    NOT NULL,
+    origin_instance_id TEXT    NOT NULL DEFAULT '',
+    expires_at         DATETIME,
+    validation         TEXT    NOT NULL DEFAULT 'pending' CHECK(validation IN ('pending', 'success', 'already_redeemed', 'expired', 'invalid', 'retryable', 'unknown')),
+    observed_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(redeem_code_id, source_key)
+);
+CREATE INDEX idx_redeem_observations_source ON redeem_code_observations(source_id, observed_at);
+
+CREATE TABLE redeem_attempts (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    redeem_code_id INTEGER NOT NULL REFERENCES redeem_codes(id) ON DELETE CASCADE,
+    account_id     INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    status         TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'running', 'success', 'already_redeemed', 'expired', 'invalid', 'retryable', 'unknown')),
+    message        TEXT    NOT NULL DEFAULT '',
+    attempt_count  INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+    attempted_at   DATETIME,
+    retry_at       DATETIME,
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(redeem_code_id, account_id)
+);
+CREATE INDEX idx_redeem_attempts_pending ON redeem_attempts(status, retry_at, id);
+
+CREATE TABLE redeem_exchange_outbox (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id      INTEGER NOT NULL REFERENCES redeem_sources(id) ON DELETE CASCADE,
+    redeem_code_id INTEGER NOT NULL REFERENCES redeem_codes(id) ON DELETE CASCADE,
+    status         TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'sending', 'sent')),
+    attempt_count  INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+    next_attempt_at DATETIME,
+    last_error     TEXT    NOT NULL DEFAULT '',
+    created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_id, redeem_code_id)
+);
+CREATE INDEX idx_redeem_outbox_pending ON redeem_exchange_outbox(status, next_attempt_at, id);
 `,
 	},
 }
