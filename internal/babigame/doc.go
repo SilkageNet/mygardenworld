@@ -251,6 +251,9 @@
 // capped by $frTimes (vs mrCount). When the CD elapses and free times remain,
 // automation calls shopCultivate.refresh before buy; after free times are used
 // it must not refresh (paid refresh costs yuanbao via $nrResults).
+// shopCultivate.buy code 312 means the current offer can no longer be bought.
+// Treat it as authoritative exhaustion for that shopId so stale bRecord state
+// cannot retry one sold-out offer indefinitely or block later shelf items.
 //
 // # Free Water (Namespace 117)
 //

@@ -46,6 +46,7 @@ const (
 	operationErrorResidentOrderDailyLimit   operationErrorKind = "resident_order_daily_limit"
 	operationErrorWaterwheelInvalidData     operationErrorKind = "waterwheel_invalid_data"
 	operationErrorWaterwheelDailyLimit      operationErrorKind = "waterwheel_daily_limit"
+	operationErrorShopCultivateExhausted    operationErrorKind = "shop_cultivate_exhausted"
 	operationErrorWaterDropRejected         operationErrorKind = "water_drop_rejected"
 	operationErrorCultivateUpgradeRejected  operationErrorKind = "cultivate_upgrade_resource_rejected"
 	operationErrorFlowerArtMaterialRejected operationErrorKind = "flower_art_material_rejected"
@@ -74,6 +75,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorWaterwheelInvalidData
 	case isWaterwheelDailyLimitError(kind, err):
 		return operationErrorWaterwheelDailyLimit
+	case isShopCultivateOfferExhaustedError(kind, err):
+		return operationErrorShopCultivateExhausted
 	case isWaterDropResourceRejectedError(kind, err):
 		return operationErrorWaterDropRejected
 	case isCultivateUpgradeResourceRejectedError(kind, err):
@@ -303,6 +306,21 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "daily_limit"})
+		return nil
+	case operationErrorShopCultivateExhausted:
+		r.state.MarkShopCultivateOfferExhausted(op.TargetID)
+		r.clearOperationCooldown(op)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端提示当前商品无法继续购买，已校正本地购买记录并继续检查其他商品", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "offer_exhausted", "shopId": op.TargetID})
 		return nil
 	case operationErrorWaterDropRejected:
 		r.state.MarkWaterDropsExhausted(result.finishedAt)
