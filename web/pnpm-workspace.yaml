@@ -1,3 +1,12 @@
+allowBuilds:
+  unrs-resolver: true
 onlyBuiltDependencies:
   - sharp
   - unrs-resolver
+overrides:
+  "@babel/core@<=7.29.0": "7.29.7"
+  "brace-expansion@<1.1.18": "1.1.18"
+  "brace-expansion@>=3.0.0 <5.0.9": "5.0.9"
+  "js-yaml@>=4.0.0 <4.3.1": "4.3.1"
+  "nanoid@<3.3.18": "3.3.18"
+  "postcss@<8.5.23": "8.5.26"

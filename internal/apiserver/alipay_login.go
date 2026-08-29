@@ -241,6 +241,11 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 	if err := svc.enableAutomation(ctx, account.ID, r); err != nil {
 		return nil, fmt.Errorf("enable Alipay account automation: %w", err)
 	}
+	if svc.AutoRedeem != nil {
+		if enabled, err := svc.DB.GetAutoRedeemEnabled(ctx); err == nil && enabled {
+			go svc.AutoRedeem.RedeemForNewAccount(context.Background(), account.ID)
+		}
+	}
 	return r.Account(), nil
 }
 

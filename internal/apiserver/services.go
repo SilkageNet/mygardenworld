@@ -11,11 +11,13 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	connect "connectrpc.com/connect"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/autoredeem"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -32,6 +34,7 @@ type Services struct {
 	Log          *slog.Logger
 	LoginLimiter *LoginLimiter
 	AlipayLogins *AlipayLoginCoordinator
+	AutoRedeem   *autoredeem.Service
 
 	workspaceProjectionMu sync.Mutex
 	workspaceProjections  map[int64]*workspaceProjectionCache
@@ -111,6 +114,12 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 		out := store.AccountToProto(r.Account())
 		out.Connected = r.Connected()
 		resp.Account = out
+	}
+	// Trigger automatic redeem for newly created account when enabled.
+	if svc.AutoRedeem != nil {
+		if enabled, err := svc.DB.GetAutoRedeemEnabled(ctx); err == nil && enabled {
+			go svc.AutoRedeem.RedeemForNewAccount(context.Background(), acc.ID)
+		}
 	}
 	return connect.NewResponse(resp), nil
 }
@@ -263,6 +272,84 @@ func redeemResultMessage(result runner.RedeemResult) string {
 	default:
 		return "ok"
 	}
+}
+
+func (svc *Services) GetAutoRedeemStatus(ctx context.Context, _ *connect.Request[pb.GetAutoRedeemStatusRequest]) (*connect.Response[pb.GetAutoRedeemStatusResponse], error) {
+	enabled, err := svc.DB.GetAutoRedeemEnabled(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	resp := &pb.GetAutoRedeemStatusResponse{Enabled: enabled}
+	if t, err := svc.DB.GetLastSyncAt(ctx); err == nil && !t.IsZero() {
+		resp.LastSyncAt = timestamppb.New(t)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) SetAutoRedeemEnabled(ctx context.Context, req *connect.Request[pb.SetAutoRedeemEnabledRequest]) (*connect.Response[pb.SetAutoRedeemEnabledResponse], error) {
+	if err := svc.DB.SetAutoRedeemEnabled(ctx, req.Msg.GetEnabled()); err != nil {
+		return nil, mapErr(err)
+	}
+	return connect.NewResponse(&pb.SetAutoRedeemEnabledResponse{}), nil
+}
+
+func (svc *Services) ListRedeemCodes(ctx context.Context, _ *connect.Request[pb.ListRedeemCodesRequest]) (*connect.Response[pb.ListRedeemCodesResponse], error) {
+	codes, err := svc.DB.ListRedeemCodes(ctx, 200, 0)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	resp := &pb.ListRedeemCodesResponse{Codes: make([]*pb.RedeemCodeEntry, 0, len(codes))}
+	for _, c := range codes {
+		e := &pb.RedeemCodeEntry{Code: c.Code}
+		if !c.FetchedAt.IsZero() {
+			e.FetchedAt = timestamppb.New(c.FetchedAt)
+		}
+		if c.SourceTime > 0 {
+			e.SourceTime = timestamppb.New(time.Unix(c.SourceTime, 0))
+		}
+		resp.Codes = append(resp.Codes, e)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) ListRedeemHistory(ctx context.Context, req *connect.Request[pb.ListRedeemHistoryRequest]) (*connect.Response[pb.ListRedeemHistoryResponse], error) {
+	entries, err := svc.DB.ListRedeemHistory(ctx, req.Msg.GetAccountId(), 200, 0)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	resp := &pb.ListRedeemHistoryResponse{Entries: make([]*pb.RedeemHistoryEntry, 0, len(entries))}
+	for _, e := range entries {
+		entry := &pb.RedeemHistoryEntry{
+			AccountId:   e.AccountID,
+			AccountName: e.AccountName,
+			Code:        e.Code,
+			Status:      e.Status,
+			Message:     e.Message,
+		}
+		if !e.CreatedAt.IsZero() {
+			entry.CreatedAt = timestamppb.New(e.CreatedAt)
+		}
+		if !e.UpdatedAt.IsZero() {
+			entry.UpdatedAt = timestamppb.New(e.UpdatedAt)
+		}
+		resp.Entries = append(resp.Entries, entry)
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (svc *Services) ForceSyncRedeem(ctx context.Context, _ *connect.Request[pb.ForceSyncRedeemRequest]) (*connect.Response[pb.ForceSyncRedeemResponse], error) {
+	if svc.AutoRedeem == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("auto-redeem service not configured"))
+	}
+	syncTime, err := svc.AutoRedeem.ForceSync(ctx)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	resp := &pb.ForceSyncRedeemResponse{}
+	if !syncTime.IsZero() {
+		resp.LastSyncAt = timestamppb.New(syncTime)
+	}
+	return connect.NewResponse(resp), nil
 }
 
 func (svc *Services) resolveRedeemAccounts(ctx context.Context, accountIDs []int64) ([]*store.Account, error) {

@@ -767,6 +767,577 @@ func (x *RedeemCodeResult) GetMessage() string {
 	return ""
 }
 
+type GetAutoRedeemStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoRedeemStatusRequest) Reset() {
+	*x = GetAutoRedeemStatusRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoRedeemStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoRedeemStatusRequest) ProtoMessage() {}
+
+func (x *GetAutoRedeemStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoRedeemStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetAutoRedeemStatusRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{15}
+}
+
+type GetAutoRedeemStatusResponse struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Enabled bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// When the codes were last synced from the external API.
+	LastSyncAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=last_sync_at,json=lastSyncAt,proto3" json:"last_sync_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAutoRedeemStatusResponse) Reset() {
+	*x = GetAutoRedeemStatusResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAutoRedeemStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAutoRedeemStatusResponse) ProtoMessage() {}
+
+func (x *GetAutoRedeemStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAutoRedeemStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetAutoRedeemStatusResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetAutoRedeemStatusResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *GetAutoRedeemStatusResponse) GetLastSyncAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSyncAt
+	}
+	return nil
+}
+
+type SetAutoRedeemEnabledRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetAutoRedeemEnabledRequest) Reset() {
+	*x = SetAutoRedeemEnabledRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetAutoRedeemEnabledRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetAutoRedeemEnabledRequest) ProtoMessage() {}
+
+func (x *SetAutoRedeemEnabledRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetAutoRedeemEnabledRequest.ProtoReflect.Descriptor instead.
+func (*SetAutoRedeemEnabledRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *SetAutoRedeemEnabledRequest) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+type SetAutoRedeemEnabledResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetAutoRedeemEnabledResponse) Reset() {
+	*x = SetAutoRedeemEnabledResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetAutoRedeemEnabledResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetAutoRedeemEnabledResponse) ProtoMessage() {}
+
+func (x *SetAutoRedeemEnabledResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetAutoRedeemEnabledResponse.ProtoReflect.Descriptor instead.
+func (*SetAutoRedeemEnabledResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{18}
+}
+
+type ListRedeemCodesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRedeemCodesRequest) Reset() {
+	*x = ListRedeemCodesRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRedeemCodesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRedeemCodesRequest) ProtoMessage() {}
+
+func (x *ListRedeemCodesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRedeemCodesRequest.ProtoReflect.Descriptor instead.
+func (*ListRedeemCodesRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{19}
+}
+
+type ListRedeemCodesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Codes         []*RedeemCodeEntry     `protobuf:"bytes,1,rep,name=codes,proto3" json:"codes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRedeemCodesResponse) Reset() {
+	*x = ListRedeemCodesResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRedeemCodesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRedeemCodesResponse) ProtoMessage() {}
+
+func (x *ListRedeemCodesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRedeemCodesResponse.ProtoReflect.Descriptor instead.
+func (*ListRedeemCodesResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListRedeemCodesResponse) GetCodes() []*RedeemCodeEntry {
+	if x != nil {
+		return x.Codes
+	}
+	return nil
+}
+
+type RedeemCodeEntry struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Code      string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	FetchedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=fetched_at,json=fetchedAt,proto3" json:"fetched_at,omitempty"`
+	// Original timestamp from the external redeem code API (createdTime).
+	SourceTime    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=source_time,json=sourceTime,proto3" json:"source_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedeemCodeEntry) Reset() {
+	*x = RedeemCodeEntry{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemCodeEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemCodeEntry) ProtoMessage() {}
+
+func (x *RedeemCodeEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemCodeEntry.ProtoReflect.Descriptor instead.
+func (*RedeemCodeEntry) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *RedeemCodeEntry) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *RedeemCodeEntry) GetFetchedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FetchedAt
+	}
+	return nil
+}
+
+func (x *RedeemCodeEntry) GetSourceTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SourceTime
+	}
+	return nil
+}
+
+type ListRedeemHistoryRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// filter by account_id; 0 means all accounts
+	AccountId     int64 `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRedeemHistoryRequest) Reset() {
+	*x = ListRedeemHistoryRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRedeemHistoryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRedeemHistoryRequest) ProtoMessage() {}
+
+func (x *ListRedeemHistoryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRedeemHistoryRequest.ProtoReflect.Descriptor instead.
+func (*ListRedeemHistoryRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ListRedeemHistoryRequest) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
+	}
+	return 0
+}
+
+type ListRedeemHistoryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*RedeemHistoryEntry  `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRedeemHistoryResponse) Reset() {
+	*x = ListRedeemHistoryResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRedeemHistoryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRedeemHistoryResponse) ProtoMessage() {}
+
+func (x *ListRedeemHistoryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRedeemHistoryResponse.ProtoReflect.Descriptor instead.
+func (*ListRedeemHistoryResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListRedeemHistoryResponse) GetEntries() []*RedeemHistoryEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+type RedeemHistoryEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AccountName   string                 `protobuf:"bytes,2,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	Code          string                 `protobuf:"bytes,3,opt,name=code,proto3" json:"code,omitempty"`
+	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RedeemHistoryEntry) Reset() {
+	*x = RedeemHistoryEntry{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RedeemHistoryEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RedeemHistoryEntry) ProtoMessage() {}
+
+func (x *RedeemHistoryEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RedeemHistoryEntry.ProtoReflect.Descriptor instead.
+func (*RedeemHistoryEntry) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *RedeemHistoryEntry) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
+	}
+	return 0
+}
+
+func (x *RedeemHistoryEntry) GetAccountName() string {
+	if x != nil {
+		return x.AccountName
+	}
+	return ""
+}
+
+func (x *RedeemHistoryEntry) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *RedeemHistoryEntry) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *RedeemHistoryEntry) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *RedeemHistoryEntry) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *RedeemHistoryEntry) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ForceSyncRedeemRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForceSyncRedeemRequest) Reset() {
+	*x = ForceSyncRedeemRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForceSyncRedeemRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForceSyncRedeemRequest) ProtoMessage() {}
+
+func (x *ForceSyncRedeemRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForceSyncRedeemRequest.ProtoReflect.Descriptor instead.
+func (*ForceSyncRedeemRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{25}
+}
+
+type ForceSyncRedeemResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LastSyncAt    *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=last_sync_at,json=lastSyncAt,proto3" json:"last_sync_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ForceSyncRedeemResponse) Reset() {
+	*x = ForceSyncRedeemResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ForceSyncRedeemResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ForceSyncRedeemResponse) ProtoMessage() {}
+
+func (x *ForceSyncRedeemResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ForceSyncRedeemResponse.ProtoReflect.Descriptor instead.
+func (*ForceSyncRedeemResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ForceSyncRedeemResponse) GetLastSyncAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSyncAt
+	}
+	return nil
+}
+
 var File_mygardenworld_v1_account_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
@@ -817,7 +1388,44 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
 	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12\x0e\n" +
 	"\x02ok\x18\x03 \x01(\bR\x02ok\x12\x18\n" +
-	"\amessage\x18\x04 \x01(\tR\amessage2\xca\x05\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\"\x1c\n" +
+	"\x1aGetAutoRedeemStatusRequest\"u\n" +
+	"\x1bGetAutoRedeemStatusResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12<\n" +
+	"\flast_sync_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastSyncAt\"7\n" +
+	"\x1bSetAutoRedeemEnabledRequest\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\"\x1e\n" +
+	"\x1cSetAutoRedeemEnabledResponse\"\x18\n" +
+	"\x16ListRedeemCodesRequest\"R\n" +
+	"\x17ListRedeemCodesResponse\x127\n" +
+	"\x05codes\x18\x01 \x03(\v2!.mygardenworld.v1.RedeemCodeEntryR\x05codes\"\x9d\x01\n" +
+	"\x0fRedeemCodeEntry\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x129\n" +
+	"\n" +
+	"fetched_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tfetchedAt\x12;\n" +
+	"\vsource_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"sourceTime\"9\n" +
+	"\x18ListRedeemHistoryRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"[\n" +
+	"\x19ListRedeemHistoryResponse\x12>\n" +
+	"\aentries\x18\x01 \x03(\v2$.mygardenworld.v1.RedeemHistoryEntryR\aentries\"\x92\x02\n" +
+	"\x12RedeemHistoryEntry\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
+	"\faccount_name\x18\x02 \x01(\tR\vaccountName\x12\x12\n" +
+	"\x04code\x18\x03 \x01(\tR\x04code\x12\x16\n" +
+	"\x06status\x18\x04 \x01(\tR\x06status\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\x129\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x18\n" +
+	"\x16ForceSyncRedeemRequest\"W\n" +
+	"\x17ForceSyncRedeemResponse\x12<\n" +
+	"\flast_sync_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastSyncAt2\xf3\t\n" +
 	"\x0eAccountService\x12`\n" +
 	"\rCreateAccount\x12&.mygardenworld.v1.CreateAccountRequest\x1a'.mygardenworld.v1.CreateAccountResponse\x12`\n" +
 	"\rDeleteAccount\x12&.mygardenworld.v1.DeleteAccountRequest\x1a'.mygardenworld.v1.DeleteAccountResponse\x12]\n" +
@@ -826,7 +1434,12 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\x10StartAlipayLogin\x12).mygardenworld.v1.StartAlipayLoginRequest\x1a*.mygardenworld.v1.StartAlipayLoginResponse\x12l\n" +
 	"\x11DisconnectAccount\x12*.mygardenworld.v1.DisconnectAccountRequest\x1a+.mygardenworld.v1.DisconnectAccountResponse\x12W\n" +
 	"\n" +
-	"RedeemCode\x12#.mygardenworld.v1.RedeemCodeRequest\x1a$.mygardenworld.v1.RedeemCodeResponseB\xd6\x01\n" +
+	"RedeemCode\x12#.mygardenworld.v1.RedeemCodeRequest\x1a$.mygardenworld.v1.RedeemCodeResponse\x12r\n" +
+	"\x13GetAutoRedeemStatus\x12,.mygardenworld.v1.GetAutoRedeemStatusRequest\x1a-.mygardenworld.v1.GetAutoRedeemStatusResponse\x12u\n" +
+	"\x14SetAutoRedeemEnabled\x12-.mygardenworld.v1.SetAutoRedeemEnabledRequest\x1a..mygardenworld.v1.SetAutoRedeemEnabledResponse\x12f\n" +
+	"\x0fListRedeemCodes\x12(.mygardenworld.v1.ListRedeemCodesRequest\x1a).mygardenworld.v1.ListRedeemCodesResponse\x12l\n" +
+	"\x11ListRedeemHistory\x12*.mygardenworld.v1.ListRedeemHistoryRequest\x1a+.mygardenworld.v1.ListRedeemHistoryResponse\x12f\n" +
+	"\x0fForceSyncRedeem\x12(.mygardenworld.v1.ForceSyncRedeemRequest\x1a).mygardenworld.v1.ForceSyncRedeemResponseB\xd6\x01\n" +
 	"\x14com.mygardenworld.v1B\x13AccountServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -841,57 +1454,87 @@ func file_mygardenworld_v1_account_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_account_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_mygardenworld_v1_account_service_proto_goTypes = []any{
-	(*CreateAccountRequest)(nil),      // 0: mygardenworld.v1.CreateAccountRequest
-	(*CreateAccountResponse)(nil),     // 1: mygardenworld.v1.CreateAccountResponse
-	(*DeleteAccountRequest)(nil),      // 2: mygardenworld.v1.DeleteAccountRequest
-	(*DeleteAccountResponse)(nil),     // 3: mygardenworld.v1.DeleteAccountResponse
-	(*ListAccountsRequest)(nil),       // 4: mygardenworld.v1.ListAccountsRequest
-	(*ListAccountsResponse)(nil),      // 5: mygardenworld.v1.ListAccountsResponse
-	(*ConnectAccountRequest)(nil),     // 6: mygardenworld.v1.ConnectAccountRequest
-	(*ConnectAccountResponse)(nil),    // 7: mygardenworld.v1.ConnectAccountResponse
-	(*StartAlipayLoginRequest)(nil),   // 8: mygardenworld.v1.StartAlipayLoginRequest
-	(*StartAlipayLoginResponse)(nil),  // 9: mygardenworld.v1.StartAlipayLoginResponse
-	(*DisconnectAccountRequest)(nil),  // 10: mygardenworld.v1.DisconnectAccountRequest
-	(*DisconnectAccountResponse)(nil), // 11: mygardenworld.v1.DisconnectAccountResponse
-	(*RedeemCodeRequest)(nil),         // 12: mygardenworld.v1.RedeemCodeRequest
-	(*RedeemCodeResponse)(nil),        // 13: mygardenworld.v1.RedeemCodeResponse
-	(*RedeemCodeResult)(nil),          // 14: mygardenworld.v1.RedeemCodeResult
-	(Channel)(0),                      // 15: mygardenworld.v1.Channel
-	(*Account)(nil),                   // 16: mygardenworld.v1.Account
-	(*timestamppb.Timestamp)(nil),     // 17: google.protobuf.Timestamp
-	(AlipayLoginStatus)(0),            // 18: mygardenworld.v1.AlipayLoginStatus
+	(*CreateAccountRequest)(nil),         // 0: mygardenworld.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),        // 1: mygardenworld.v1.CreateAccountResponse
+	(*DeleteAccountRequest)(nil),         // 2: mygardenworld.v1.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),        // 3: mygardenworld.v1.DeleteAccountResponse
+	(*ListAccountsRequest)(nil),          // 4: mygardenworld.v1.ListAccountsRequest
+	(*ListAccountsResponse)(nil),         // 5: mygardenworld.v1.ListAccountsResponse
+	(*ConnectAccountRequest)(nil),        // 6: mygardenworld.v1.ConnectAccountRequest
+	(*ConnectAccountResponse)(nil),       // 7: mygardenworld.v1.ConnectAccountResponse
+	(*StartAlipayLoginRequest)(nil),      // 8: mygardenworld.v1.StartAlipayLoginRequest
+	(*StartAlipayLoginResponse)(nil),     // 9: mygardenworld.v1.StartAlipayLoginResponse
+	(*DisconnectAccountRequest)(nil),     // 10: mygardenworld.v1.DisconnectAccountRequest
+	(*DisconnectAccountResponse)(nil),    // 11: mygardenworld.v1.DisconnectAccountResponse
+	(*RedeemCodeRequest)(nil),            // 12: mygardenworld.v1.RedeemCodeRequest
+	(*RedeemCodeResponse)(nil),           // 13: mygardenworld.v1.RedeemCodeResponse
+	(*RedeemCodeResult)(nil),             // 14: mygardenworld.v1.RedeemCodeResult
+	(*GetAutoRedeemStatusRequest)(nil),   // 15: mygardenworld.v1.GetAutoRedeemStatusRequest
+	(*GetAutoRedeemStatusResponse)(nil),  // 16: mygardenworld.v1.GetAutoRedeemStatusResponse
+	(*SetAutoRedeemEnabledRequest)(nil),  // 17: mygardenworld.v1.SetAutoRedeemEnabledRequest
+	(*SetAutoRedeemEnabledResponse)(nil), // 18: mygardenworld.v1.SetAutoRedeemEnabledResponse
+	(*ListRedeemCodesRequest)(nil),       // 19: mygardenworld.v1.ListRedeemCodesRequest
+	(*ListRedeemCodesResponse)(nil),      // 20: mygardenworld.v1.ListRedeemCodesResponse
+	(*RedeemCodeEntry)(nil),              // 21: mygardenworld.v1.RedeemCodeEntry
+	(*ListRedeemHistoryRequest)(nil),     // 22: mygardenworld.v1.ListRedeemHistoryRequest
+	(*ListRedeemHistoryResponse)(nil),    // 23: mygardenworld.v1.ListRedeemHistoryResponse
+	(*RedeemHistoryEntry)(nil),           // 24: mygardenworld.v1.RedeemHistoryEntry
+	(*ForceSyncRedeemRequest)(nil),       // 25: mygardenworld.v1.ForceSyncRedeemRequest
+	(*ForceSyncRedeemResponse)(nil),      // 26: mygardenworld.v1.ForceSyncRedeemResponse
+	(Channel)(0),                         // 27: mygardenworld.v1.Channel
+	(*Account)(nil),                      // 28: mygardenworld.v1.Account
+	(*timestamppb.Timestamp)(nil),        // 29: google.protobuf.Timestamp
+	(AlipayLoginStatus)(0),               // 30: mygardenworld.v1.AlipayLoginStatus
 }
 var file_mygardenworld_v1_account_service_proto_depIdxs = []int32{
-	15, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
-	16, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
-	16, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
-	16, // 3: mygardenworld.v1.ConnectAccountResponse.account:type_name -> mygardenworld.v1.Account
-	17, // 4: mygardenworld.v1.ConnectAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
-	17, // 5: mygardenworld.v1.StartAlipayLoginResponse.expires_at:type_name -> google.protobuf.Timestamp
-	18, // 6: mygardenworld.v1.StartAlipayLoginResponse.status:type_name -> mygardenworld.v1.AlipayLoginStatus
-	16, // 7: mygardenworld.v1.DisconnectAccountResponse.account:type_name -> mygardenworld.v1.Account
+	27, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
+	28, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
+	28, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
+	28, // 3: mygardenworld.v1.ConnectAccountResponse.account:type_name -> mygardenworld.v1.Account
+	29, // 4: mygardenworld.v1.ConnectAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
+	29, // 5: mygardenworld.v1.StartAlipayLoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	30, // 6: mygardenworld.v1.StartAlipayLoginResponse.status:type_name -> mygardenworld.v1.AlipayLoginStatus
+	28, // 7: mygardenworld.v1.DisconnectAccountResponse.account:type_name -> mygardenworld.v1.Account
 	14, // 8: mygardenworld.v1.RedeemCodeResponse.results:type_name -> mygardenworld.v1.RedeemCodeResult
-	0,  // 9: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
-	2,  // 10: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
-	4,  // 11: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
-	6,  // 12: mygardenworld.v1.AccountService.ConnectAccount:input_type -> mygardenworld.v1.ConnectAccountRequest
-	8,  // 13: mygardenworld.v1.AccountService.StartAlipayLogin:input_type -> mygardenworld.v1.StartAlipayLoginRequest
-	10, // 14: mygardenworld.v1.AccountService.DisconnectAccount:input_type -> mygardenworld.v1.DisconnectAccountRequest
-	12, // 15: mygardenworld.v1.AccountService.RedeemCode:input_type -> mygardenworld.v1.RedeemCodeRequest
-	1,  // 16: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
-	3,  // 17: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
-	5,  // 18: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
-	7,  // 19: mygardenworld.v1.AccountService.ConnectAccount:output_type -> mygardenworld.v1.ConnectAccountResponse
-	9,  // 20: mygardenworld.v1.AccountService.StartAlipayLogin:output_type -> mygardenworld.v1.StartAlipayLoginResponse
-	11, // 21: mygardenworld.v1.AccountService.DisconnectAccount:output_type -> mygardenworld.v1.DisconnectAccountResponse
-	13, // 22: mygardenworld.v1.AccountService.RedeemCode:output_type -> mygardenworld.v1.RedeemCodeResponse
-	16, // [16:23] is the sub-list for method output_type
-	9,  // [9:16] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	29, // 9: mygardenworld.v1.GetAutoRedeemStatusResponse.last_sync_at:type_name -> google.protobuf.Timestamp
+	21, // 10: mygardenworld.v1.ListRedeemCodesResponse.codes:type_name -> mygardenworld.v1.RedeemCodeEntry
+	29, // 11: mygardenworld.v1.RedeemCodeEntry.fetched_at:type_name -> google.protobuf.Timestamp
+	29, // 12: mygardenworld.v1.RedeemCodeEntry.source_time:type_name -> google.protobuf.Timestamp
+	24, // 13: mygardenworld.v1.ListRedeemHistoryResponse.entries:type_name -> mygardenworld.v1.RedeemHistoryEntry
+	29, // 14: mygardenworld.v1.RedeemHistoryEntry.created_at:type_name -> google.protobuf.Timestamp
+	29, // 15: mygardenworld.v1.RedeemHistoryEntry.updated_at:type_name -> google.protobuf.Timestamp
+	29, // 16: mygardenworld.v1.ForceSyncRedeemResponse.last_sync_at:type_name -> google.protobuf.Timestamp
+	0,  // 17: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
+	2,  // 18: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
+	4,  // 19: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
+	6,  // 20: mygardenworld.v1.AccountService.ConnectAccount:input_type -> mygardenworld.v1.ConnectAccountRequest
+	8,  // 21: mygardenworld.v1.AccountService.StartAlipayLogin:input_type -> mygardenworld.v1.StartAlipayLoginRequest
+	10, // 22: mygardenworld.v1.AccountService.DisconnectAccount:input_type -> mygardenworld.v1.DisconnectAccountRequest
+	12, // 23: mygardenworld.v1.AccountService.RedeemCode:input_type -> mygardenworld.v1.RedeemCodeRequest
+	15, // 24: mygardenworld.v1.AccountService.GetAutoRedeemStatus:input_type -> mygardenworld.v1.GetAutoRedeemStatusRequest
+	17, // 25: mygardenworld.v1.AccountService.SetAutoRedeemEnabled:input_type -> mygardenworld.v1.SetAutoRedeemEnabledRequest
+	19, // 26: mygardenworld.v1.AccountService.ListRedeemCodes:input_type -> mygardenworld.v1.ListRedeemCodesRequest
+	22, // 27: mygardenworld.v1.AccountService.ListRedeemHistory:input_type -> mygardenworld.v1.ListRedeemHistoryRequest
+	25, // 28: mygardenworld.v1.AccountService.ForceSyncRedeem:input_type -> mygardenworld.v1.ForceSyncRedeemRequest
+	1,  // 29: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
+	3,  // 30: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
+	5,  // 31: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
+	7,  // 32: mygardenworld.v1.AccountService.ConnectAccount:output_type -> mygardenworld.v1.ConnectAccountResponse
+	9,  // 33: mygardenworld.v1.AccountService.StartAlipayLogin:output_type -> mygardenworld.v1.StartAlipayLoginResponse
+	11, // 34: mygardenworld.v1.AccountService.DisconnectAccount:output_type -> mygardenworld.v1.DisconnectAccountResponse
+	13, // 35: mygardenworld.v1.AccountService.RedeemCode:output_type -> mygardenworld.v1.RedeemCodeResponse
+	16, // 36: mygardenworld.v1.AccountService.GetAutoRedeemStatus:output_type -> mygardenworld.v1.GetAutoRedeemStatusResponse
+	18, // 37: mygardenworld.v1.AccountService.SetAutoRedeemEnabled:output_type -> mygardenworld.v1.SetAutoRedeemEnabledResponse
+	20, // 38: mygardenworld.v1.AccountService.ListRedeemCodes:output_type -> mygardenworld.v1.ListRedeemCodesResponse
+	23, // 39: mygardenworld.v1.AccountService.ListRedeemHistory:output_type -> mygardenworld.v1.ListRedeemHistoryResponse
+	26, // 40: mygardenworld.v1.AccountService.ForceSyncRedeem:output_type -> mygardenworld.v1.ForceSyncRedeemResponse
+	29, // [29:41] is the sub-list for method output_type
+	17, // [17:29] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_account_service_proto_init() }
@@ -907,7 +1550,7 @@ func file_mygardenworld_v1_account_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_account_service_proto_rawDesc), len(file_mygardenworld_v1_account_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

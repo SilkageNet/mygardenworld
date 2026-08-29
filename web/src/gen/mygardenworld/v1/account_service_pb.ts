@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account_service.proto.
  */
 export const file_mygardenworld_v1_account_service: GenFile = /*@__PURE__*/
-  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSJmChRDcmVhdGVBY2NvdW50UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIqCgdjaGFubmVsGAMgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsIlgKFUNyZWF0ZUFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EhMKC2xvZ2luX2Vycm9yGAIgASgJIiIKFERlbGV0ZUFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IiMKFUNvbm5lY3RBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoAyJ2ChZDb25uZWN0QWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSMAoMbG9nZ2VkX2luX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIZChdTdGFydEFsaXBheUxvZ2luUmVxdWVzdCKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyImChhEaXNjb25uZWN0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAMiRwoZRGlzY29ubmVjdEFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IjYKEVJlZGVlbUNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkSEwoLYWNjb3VudF9pZHMYAiADKAMidwoSUmVkZWVtQ29kZVJlc3BvbnNlEjMKB3Jlc3VsdHMYASADKAsyIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbUNvZGVSZXN1bHQSFQoNc3VjY2Vzc19jb3VudBgCIAEoBRIVCg1mYWlsdXJlX2NvdW50GAMgASgFIlkKEFJlZGVlbUNvZGVSZXN1bHQSEgoKYWNjb3VudF9pZBgBIAEoAxIUCgxhY2NvdW50X25hbWUYAiABKAkSCgoCb2sYAyABKAgSDwoHbWVzc2FnZRgEIAEoCTLKBQoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USYwoOQ29ubmVjdEFjY291bnQSJy5teWdhcmRlbndvcmxkLnYxLkNvbm5lY3RBY2NvdW50UmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuQ29ubmVjdEFjY291bnRSZXNwb25zZRJpChBTdGFydEFsaXBheUxvZ2luEikubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEmwKEURpc2Nvbm5lY3RBY2NvdW50EioubXlnYXJkZW53b3JsZC52MS5EaXNjb25uZWN0QWNjb3VudFJlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLkRpc2Nvbm5lY3RBY2NvdW50UmVzcG9uc2USVwoKUmVkZWVtQ29kZRIjLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLlJlZGVlbUNvZGVSZXNwb25zZUKMAQoUY29tLm15Z2FyZGVud29ybGQudjFCE0FjY291bnRTZXJ2aWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
+  fileDesc("CiZteWdhcmRlbndvcmxkL3YxL2FjY291bnRfc2VydmljZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSJmChRDcmVhdGVBY2NvdW50UmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIqCgdjaGFubmVsGAMgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsIlgKFUNyZWF0ZUFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EhMKC2xvZ2luX2Vycm9yGAIgASgJIiIKFERlbGV0ZUFjY291bnRSZXF1ZXN0EgoKAmlkGAEgASgDIhcKFURlbGV0ZUFjY291bnRSZXNwb25zZSIVChNMaXN0QWNjb3VudHNSZXF1ZXN0IkMKFExpc3RBY2NvdW50c1Jlc3BvbnNlEisKCGFjY291bnRzGAEgAygLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IiMKFUNvbm5lY3RBY2NvdW50UmVxdWVzdBIKCgJpZBgBIAEoAyJ2ChZDb25uZWN0QWNjb3VudFJlc3BvbnNlEioKB2FjY291bnQYASABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSMAoMbG9nZ2VkX2luX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIZChdTdGFydEFsaXBheUxvZ2luUmVxdWVzdCKlAQoYU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEhAKCGxvZ2luX2lkGAEgASgJEhIKCnFyX2NvbnRlbnQYAiABKAkSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoGc3RhdHVzGAQgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cyImChhEaXNjb25uZWN0QWNjb3VudFJlcXVlc3QSCgoCaWQYASABKAMiRwoZRGlzY29ubmVjdEFjY291bnRSZXNwb25zZRIqCgdhY2NvdW50GAEgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50IjYKEVJlZGVlbUNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkSEwoLYWNjb3VudF9pZHMYAiADKAMidwoSUmVkZWVtQ29kZVJlc3BvbnNlEjMKB3Jlc3VsdHMYASADKAsyIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbUNvZGVSZXN1bHQSFQoNc3VjY2Vzc19jb3VudBgCIAEoBRIVCg1mYWlsdXJlX2NvdW50GAMgASgFIlkKEFJlZGVlbUNvZGVSZXN1bHQSEgoKYWNjb3VudF9pZBgBIAEoAxIUCgxhY2NvdW50X25hbWUYAiABKAkSCgoCb2sYAyABKAgSDwoHbWVzc2FnZRgEIAEoCSIcChpHZXRBdXRvUmVkZWVtU3RhdHVzUmVxdWVzdCJgChtHZXRBdXRvUmVkZWVtU3RhdHVzUmVzcG9uc2USDwoHZW5hYmxlZBgBIAEoCBIwCgxsYXN0X3N5bmNfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIi4KG1NldEF1dG9SZWRlZW1FbmFibGVkUmVxdWVzdBIPCgdlbmFibGVkGAEgASgIIh4KHFNldEF1dG9SZWRlZW1FbmFibGVkUmVzcG9uc2UiGAoWTGlzdFJlZGVlbUNvZGVzUmVxdWVzdCJLChdMaXN0UmVkZWVtQ29kZXNSZXNwb25zZRIwCgVjb2RlcxgBIAMoCzIhLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZUVudHJ5IoABCg9SZWRlZW1Db2RlRW50cnkSDAoEY29kZRgBIAEoCRIuCgpmZXRjaGVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtzb3VyY2VfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiLgoYTGlzdFJlZGVlbUhpc3RvcnlSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAMiUgoZTGlzdFJlZGVlbUhpc3RvcnlSZXNwb25zZRI1CgdlbnRyaWVzGAEgAygLMiQubXlnYXJkZW53b3JsZC52MS5SZWRlZW1IaXN0b3J5RW50cnkizQEKElJlZGVlbUhpc3RvcnlFbnRyeRISCgphY2NvdW50X2lkGAEgASgDEhQKDGFjY291bnRfbmFtZRgCIAEoCRIMCgRjb2RlGAMgASgJEg4KBnN0YXR1cxgEIAEoCRIPCgdtZXNzYWdlGAUgASgJEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnVwZGF0ZWRfYXQYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIhgKFkZvcmNlU3luY1JlZGVlbVJlcXVlc3QiSwoXRm9yY2VTeW5jUmVkZWVtUmVzcG9uc2USMAoMbGFzdF9zeW5jX2F0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcDLzCQoOQWNjb3VudFNlcnZpY2USYAoNQ3JlYXRlQWNjb3VudBImLm15Z2FyZGVud29ybGQudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaJy5teWdhcmRlbndvcmxkLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJgCg1EZWxldGVBY2NvdW50EiYubXlnYXJkZW53b3JsZC52MS5EZWxldGVBY2NvdW50UmVxdWVzdBonLm15Z2FyZGVud29ybGQudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEl0KDExpc3RBY2NvdW50cxIlLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVxdWVzdBomLm15Z2FyZGVud29ybGQudjEuTGlzdEFjY291bnRzUmVzcG9uc2USYwoOQ29ubmVjdEFjY291bnQSJy5teWdhcmRlbndvcmxkLnYxLkNvbm5lY3RBY2NvdW50UmVxdWVzdBooLm15Z2FyZGVud29ybGQudjEuQ29ubmVjdEFjY291bnRSZXNwb25zZRJpChBTdGFydEFsaXBheUxvZ2luEikubXlnYXJkZW53b3JsZC52MS5TdGFydEFsaXBheUxvZ2luUmVxdWVzdBoqLm15Z2FyZGVud29ybGQudjEuU3RhcnRBbGlwYXlMb2dpblJlc3BvbnNlEmwKEURpc2Nvbm5lY3RBY2NvdW50EioubXlnYXJkZW53b3JsZC52MS5EaXNjb25uZWN0QWNjb3VudFJlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLkRpc2Nvbm5lY3RBY2NvdW50UmVzcG9uc2USVwoKUmVkZWVtQ29kZRIjLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVJlcXVlc3QaJC5teWdhcmRlbndvcmxkLnYxLlJlZGVlbUNvZGVSZXNwb25zZRJyChNHZXRBdXRvUmVkZWVtU3RhdHVzEiwubXlnYXJkZW53b3JsZC52MS5HZXRBdXRvUmVkZWVtU3RhdHVzUmVxdWVzdBotLm15Z2FyZGVud29ybGQudjEuR2V0QXV0b1JlZGVlbVN0YXR1c1Jlc3BvbnNlEnUKFFNldEF1dG9SZWRlZW1FbmFibGVkEi0ubXlnYXJkZW53b3JsZC52MS5TZXRBdXRvUmVkZWVtRW5hYmxlZFJlcXVlc3QaLi5teWdhcmRlbndvcmxkLnYxLlNldEF1dG9SZWRlZW1FbmFibGVkUmVzcG9uc2USZgoPTGlzdFJlZGVlbUNvZGVzEigubXlnYXJkZW53b3JsZC52MS5MaXN0UmVkZWVtQ29kZXNSZXF1ZXN0GikubXlnYXJkZW53b3JsZC52MS5MaXN0UmVkZWVtQ29kZXNSZXNwb25zZRJsChFMaXN0UmVkZWVtSGlzdG9yeRIqLm15Z2FyZGVud29ybGQudjEuTGlzdFJlZGVlbUhpc3RvcnlSZXF1ZXN0GisubXlnYXJkZW53b3JsZC52MS5MaXN0UmVkZWVtSGlzdG9yeVJlc3BvbnNlEmYKD0ZvcmNlU3luY1JlZGVlbRIoLm15Z2FyZGVud29ybGQudjEuRm9yY2VTeW5jUmVkZWVtUmVxdWVzdBopLm15Z2FyZGVud29ybGQudjEuRm9yY2VTeW5jUmVkZWVtUmVzcG9uc2VCjAEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhNBY2NvdW50U2VydmljZVByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.CreateAccountRequest
@@ -336,6 +336,245 @@ export const RedeemCodeResultSchema: GenMessage<RedeemCodeResult> = /*@__PURE__*
   messageDesc(file_mygardenworld_v1_account_service, 14);
 
 /**
+ * @generated from message mygardenworld.v1.GetAutoRedeemStatusRequest
+ */
+export type GetAutoRedeemStatusRequest = Message<"mygardenworld.v1.GetAutoRedeemStatusRequest"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.GetAutoRedeemStatusRequest.
+ * Use `create(GetAutoRedeemStatusRequestSchema)` to create a new message.
+ */
+export const GetAutoRedeemStatusRequestSchema: GenMessage<GetAutoRedeemStatusRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 15);
+
+/**
+ * @generated from message mygardenworld.v1.GetAutoRedeemStatusResponse
+ */
+export type GetAutoRedeemStatusResponse = Message<"mygardenworld.v1.GetAutoRedeemStatusResponse"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * When the codes were last synced from the external API.
+   *
+   * @generated from field: google.protobuf.Timestamp last_sync_at = 2;
+   */
+  lastSyncAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.GetAutoRedeemStatusResponse.
+ * Use `create(GetAutoRedeemStatusResponseSchema)` to create a new message.
+ */
+export const GetAutoRedeemStatusResponseSchema: GenMessage<GetAutoRedeemStatusResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 16);
+
+/**
+ * @generated from message mygardenworld.v1.SetAutoRedeemEnabledRequest
+ */
+export type SetAutoRedeemEnabledRequest = Message<"mygardenworld.v1.SetAutoRedeemEnabledRequest"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.SetAutoRedeemEnabledRequest.
+ * Use `create(SetAutoRedeemEnabledRequestSchema)` to create a new message.
+ */
+export const SetAutoRedeemEnabledRequestSchema: GenMessage<SetAutoRedeemEnabledRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 17);
+
+/**
+ * @generated from message mygardenworld.v1.SetAutoRedeemEnabledResponse
+ */
+export type SetAutoRedeemEnabledResponse = Message<"mygardenworld.v1.SetAutoRedeemEnabledResponse"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.SetAutoRedeemEnabledResponse.
+ * Use `create(SetAutoRedeemEnabledResponseSchema)` to create a new message.
+ */
+export const SetAutoRedeemEnabledResponseSchema: GenMessage<SetAutoRedeemEnabledResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 18);
+
+/**
+ * @generated from message mygardenworld.v1.ListRedeemCodesRequest
+ */
+export type ListRedeemCodesRequest = Message<"mygardenworld.v1.ListRedeemCodesRequest"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.ListRedeemCodesRequest.
+ * Use `create(ListRedeemCodesRequestSchema)` to create a new message.
+ */
+export const ListRedeemCodesRequestSchema: GenMessage<ListRedeemCodesRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 19);
+
+/**
+ * @generated from message mygardenworld.v1.ListRedeemCodesResponse
+ */
+export type ListRedeemCodesResponse = Message<"mygardenworld.v1.ListRedeemCodesResponse"> & {
+  /**
+   * @generated from field: repeated mygardenworld.v1.RedeemCodeEntry codes = 1;
+   */
+  codes: RedeemCodeEntry[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.ListRedeemCodesResponse.
+ * Use `create(ListRedeemCodesResponseSchema)` to create a new message.
+ */
+export const ListRedeemCodesResponseSchema: GenMessage<ListRedeemCodesResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 20);
+
+/**
+ * @generated from message mygardenworld.v1.RedeemCodeEntry
+ */
+export type RedeemCodeEntry = Message<"mygardenworld.v1.RedeemCodeEntry"> & {
+  /**
+   * @generated from field: string code = 1;
+   */
+  code: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp fetched_at = 2;
+   */
+  fetchedAt?: Timestamp | undefined;
+
+  /**
+   * Original timestamp from the external redeem code API (createdTime).
+   *
+   * @generated from field: google.protobuf.Timestamp source_time = 3;
+   */
+  sourceTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.RedeemCodeEntry.
+ * Use `create(RedeemCodeEntrySchema)` to create a new message.
+ */
+export const RedeemCodeEntrySchema: GenMessage<RedeemCodeEntry> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 21);
+
+/**
+ * @generated from message mygardenworld.v1.ListRedeemHistoryRequest
+ */
+export type ListRedeemHistoryRequest = Message<"mygardenworld.v1.ListRedeemHistoryRequest"> & {
+  /**
+   * filter by account_id; 0 means all accounts
+   *
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ListRedeemHistoryRequest.
+ * Use `create(ListRedeemHistoryRequestSchema)` to create a new message.
+ */
+export const ListRedeemHistoryRequestSchema: GenMessage<ListRedeemHistoryRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 22);
+
+/**
+ * @generated from message mygardenworld.v1.ListRedeemHistoryResponse
+ */
+export type ListRedeemHistoryResponse = Message<"mygardenworld.v1.ListRedeemHistoryResponse"> & {
+  /**
+   * @generated from field: repeated mygardenworld.v1.RedeemHistoryEntry entries = 1;
+   */
+  entries: RedeemHistoryEntry[];
+};
+
+/**
+ * Describes the message mygardenworld.v1.ListRedeemHistoryResponse.
+ * Use `create(ListRedeemHistoryResponseSchema)` to create a new message.
+ */
+export const ListRedeemHistoryResponseSchema: GenMessage<ListRedeemHistoryResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 23);
+
+/**
+ * @generated from message mygardenworld.v1.RedeemHistoryEntry
+ */
+export type RedeemHistoryEntry = Message<"mygardenworld.v1.RedeemHistoryEntry"> & {
+  /**
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
+
+  /**
+   * @generated from field: string account_name = 2;
+   */
+  accountName: string;
+
+  /**
+   * @generated from field: string code = 3;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string status = 4;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string message = 5;
+   */
+  message: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 6;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 7;
+   */
+  updatedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.RedeemHistoryEntry.
+ * Use `create(RedeemHistoryEntrySchema)` to create a new message.
+ */
+export const RedeemHistoryEntrySchema: GenMessage<RedeemHistoryEntry> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 24);
+
+/**
+ * @generated from message mygardenworld.v1.ForceSyncRedeemRequest
+ */
+export type ForceSyncRedeemRequest = Message<"mygardenworld.v1.ForceSyncRedeemRequest"> & {
+};
+
+/**
+ * Describes the message mygardenworld.v1.ForceSyncRedeemRequest.
+ * Use `create(ForceSyncRedeemRequestSchema)` to create a new message.
+ */
+export const ForceSyncRedeemRequestSchema: GenMessage<ForceSyncRedeemRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 25);
+
+/**
+ * @generated from message mygardenworld.v1.ForceSyncRedeemResponse
+ */
+export type ForceSyncRedeemResponse = Message<"mygardenworld.v1.ForceSyncRedeemResponse"> & {
+  /**
+   * @generated from field: google.protobuf.Timestamp last_sync_at = 1;
+   */
+  lastSyncAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.ForceSyncRedeemResponse.
+ * Use `create(ForceSyncRedeemResponseSchema)` to create a new message.
+ */
+export const ForceSyncRedeemResponseSchema: GenMessage<ForceSyncRedeemResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_account_service, 26);
+
+/**
  * @generated from service mygardenworld.v1.AccountService
  */
 export const AccountService: GenService<{
@@ -411,6 +650,49 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof RedeemCodeRequestSchema;
     output: typeof RedeemCodeResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AccountService.GetAutoRedeemStatus
+   */
+  getAutoRedeemStatus: {
+    methodKind: "unary";
+    input: typeof GetAutoRedeemStatusRequestSchema;
+    output: typeof GetAutoRedeemStatusResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AccountService.SetAutoRedeemEnabled
+   */
+  setAutoRedeemEnabled: {
+    methodKind: "unary";
+    input: typeof SetAutoRedeemEnabledRequestSchema;
+    output: typeof SetAutoRedeemEnabledResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AccountService.ListRedeemCodes
+   */
+  listRedeemCodes: {
+    methodKind: "unary";
+    input: typeof ListRedeemCodesRequestSchema;
+    output: typeof ListRedeemCodesResponseSchema;
+  },
+  /**
+   * @generated from rpc mygardenworld.v1.AccountService.ListRedeemHistory
+   */
+  listRedeemHistory: {
+    methodKind: "unary";
+    input: typeof ListRedeemHistoryRequestSchema;
+    output: typeof ListRedeemHistoryResponseSchema;
+  },
+  /**
+   * Force a fetch of redeem codes from the external API, save them, and redeem
+   * for all accounts. Returns the updated sync timestamp.
+   *
+   * @generated from rpc mygardenworld.v1.AccountService.ForceSyncRedeem
+   */
+  forceSyncRedeem: {
+    methodKind: "unary";
+    input: typeof ForceSyncRedeemRequestSchema;
+    output: typeof ForceSyncRedeemResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_mygardenworld_v1_account_service, 0);

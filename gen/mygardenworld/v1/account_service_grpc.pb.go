@@ -19,13 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountService_CreateAccount_FullMethodName     = "/mygardenworld.v1.AccountService/CreateAccount"
-	AccountService_DeleteAccount_FullMethodName     = "/mygardenworld.v1.AccountService/DeleteAccount"
-	AccountService_ListAccounts_FullMethodName      = "/mygardenworld.v1.AccountService/ListAccounts"
-	AccountService_ConnectAccount_FullMethodName    = "/mygardenworld.v1.AccountService/ConnectAccount"
-	AccountService_StartAlipayLogin_FullMethodName  = "/mygardenworld.v1.AccountService/StartAlipayLogin"
-	AccountService_DisconnectAccount_FullMethodName = "/mygardenworld.v1.AccountService/DisconnectAccount"
-	AccountService_RedeemCode_FullMethodName        = "/mygardenworld.v1.AccountService/RedeemCode"
+	AccountService_CreateAccount_FullMethodName        = "/mygardenworld.v1.AccountService/CreateAccount"
+	AccountService_DeleteAccount_FullMethodName        = "/mygardenworld.v1.AccountService/DeleteAccount"
+	AccountService_ListAccounts_FullMethodName         = "/mygardenworld.v1.AccountService/ListAccounts"
+	AccountService_ConnectAccount_FullMethodName       = "/mygardenworld.v1.AccountService/ConnectAccount"
+	AccountService_StartAlipayLogin_FullMethodName     = "/mygardenworld.v1.AccountService/StartAlipayLogin"
+	AccountService_DisconnectAccount_FullMethodName    = "/mygardenworld.v1.AccountService/DisconnectAccount"
+	AccountService_RedeemCode_FullMethodName           = "/mygardenworld.v1.AccountService/RedeemCode"
+	AccountService_GetAutoRedeemStatus_FullMethodName  = "/mygardenworld.v1.AccountService/GetAutoRedeemStatus"
+	AccountService_SetAutoRedeemEnabled_FullMethodName = "/mygardenworld.v1.AccountService/SetAutoRedeemEnabled"
+	AccountService_ListRedeemCodes_FullMethodName      = "/mygardenworld.v1.AccountService/ListRedeemCodes"
+	AccountService_ListRedeemHistory_FullMethodName    = "/mygardenworld.v1.AccountService/ListRedeemHistory"
+	AccountService_ForceSyncRedeem_FullMethodName      = "/mygardenworld.v1.AccountService/ForceSyncRedeem"
 )
 
 // AccountServiceClient is the client API for AccountService service.
@@ -50,6 +55,13 @@ type AccountServiceClient interface {
 	// Redeem one gift code across an explicit set of accounts from one channel.
 	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(ctx context.Context, in *RedeemCodeRequest, opts ...grpc.CallOption) (*RedeemCodeResponse, error)
+	GetAutoRedeemStatus(ctx context.Context, in *GetAutoRedeemStatusRequest, opts ...grpc.CallOption) (*GetAutoRedeemStatusResponse, error)
+	SetAutoRedeemEnabled(ctx context.Context, in *SetAutoRedeemEnabledRequest, opts ...grpc.CallOption) (*SetAutoRedeemEnabledResponse, error)
+	ListRedeemCodes(ctx context.Context, in *ListRedeemCodesRequest, opts ...grpc.CallOption) (*ListRedeemCodesResponse, error)
+	ListRedeemHistory(ctx context.Context, in *ListRedeemHistoryRequest, opts ...grpc.CallOption) (*ListRedeemHistoryResponse, error)
+	// Force a fetch of redeem codes from the external API, save them, and redeem
+	// for all accounts. Returns the updated sync timestamp.
+	ForceSyncRedeem(ctx context.Context, in *ForceSyncRedeemRequest, opts ...grpc.CallOption) (*ForceSyncRedeemResponse, error)
 }
 
 type accountServiceClient struct {
@@ -130,6 +142,56 @@ func (c *accountServiceClient) RedeemCode(ctx context.Context, in *RedeemCodeReq
 	return out, nil
 }
 
+func (c *accountServiceClient) GetAutoRedeemStatus(ctx context.Context, in *GetAutoRedeemStatusRequest, opts ...grpc.CallOption) (*GetAutoRedeemStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAutoRedeemStatusResponse)
+	err := c.cc.Invoke(ctx, AccountService_GetAutoRedeemStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SetAutoRedeemEnabled(ctx context.Context, in *SetAutoRedeemEnabledRequest, opts ...grpc.CallOption) (*SetAutoRedeemEnabledResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetAutoRedeemEnabledResponse)
+	err := c.cc.Invoke(ctx, AccountService_SetAutoRedeemEnabled_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListRedeemCodes(ctx context.Context, in *ListRedeemCodesRequest, opts ...grpc.CallOption) (*ListRedeemCodesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRedeemCodesResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListRedeemCodes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListRedeemHistory(ctx context.Context, in *ListRedeemHistoryRequest, opts ...grpc.CallOption) (*ListRedeemHistoryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRedeemHistoryResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListRedeemHistory_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ForceSyncRedeem(ctx context.Context, in *ForceSyncRedeemRequest, opts ...grpc.CallOption) (*ForceSyncRedeemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ForceSyncRedeemResponse)
+	err := c.cc.Invoke(ctx, AccountService_ForceSyncRedeem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccountServiceServer is the server API for AccountService service.
 // All implementations should embed UnimplementedAccountServiceServer
 // for forward compatibility.
@@ -152,6 +214,13 @@ type AccountServiceServer interface {
 	// Redeem one gift code across an explicit set of accounts from one channel.
 	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error)
+	GetAutoRedeemStatus(context.Context, *GetAutoRedeemStatusRequest) (*GetAutoRedeemStatusResponse, error)
+	SetAutoRedeemEnabled(context.Context, *SetAutoRedeemEnabledRequest) (*SetAutoRedeemEnabledResponse, error)
+	ListRedeemCodes(context.Context, *ListRedeemCodesRequest) (*ListRedeemCodesResponse, error)
+	ListRedeemHistory(context.Context, *ListRedeemHistoryRequest) (*ListRedeemHistoryResponse, error)
+	// Force a fetch of redeem codes from the external API, save them, and redeem
+	// for all accounts. Returns the updated sync timestamp.
+	ForceSyncRedeem(context.Context, *ForceSyncRedeemRequest) (*ForceSyncRedeemResponse, error)
 }
 
 // UnimplementedAccountServiceServer should be embedded to have
@@ -181,6 +250,21 @@ func (UnimplementedAccountServiceServer) DisconnectAccount(context.Context, *Dis
 }
 func (UnimplementedAccountServiceServer) RedeemCode(context.Context, *RedeemCodeRequest) (*RedeemCodeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RedeemCode not implemented")
+}
+func (UnimplementedAccountServiceServer) GetAutoRedeemStatus(context.Context, *GetAutoRedeemStatusRequest) (*GetAutoRedeemStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAutoRedeemStatus not implemented")
+}
+func (UnimplementedAccountServiceServer) SetAutoRedeemEnabled(context.Context, *SetAutoRedeemEnabledRequest) (*SetAutoRedeemEnabledResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetAutoRedeemEnabled not implemented")
+}
+func (UnimplementedAccountServiceServer) ListRedeemCodes(context.Context, *ListRedeemCodesRequest) (*ListRedeemCodesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRedeemCodes not implemented")
+}
+func (UnimplementedAccountServiceServer) ListRedeemHistory(context.Context, *ListRedeemHistoryRequest) (*ListRedeemHistoryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRedeemHistory not implemented")
+}
+func (UnimplementedAccountServiceServer) ForceSyncRedeem(context.Context, *ForceSyncRedeemRequest) (*ForceSyncRedeemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ForceSyncRedeem not implemented")
 }
 func (UnimplementedAccountServiceServer) testEmbeddedByValue() {}
 
@@ -328,6 +412,96 @@ func _AccountService_RedeemCode_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_GetAutoRedeemStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAutoRedeemStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).GetAutoRedeemStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_GetAutoRedeemStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).GetAutoRedeemStatus(ctx, req.(*GetAutoRedeemStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SetAutoRedeemEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetAutoRedeemEnabledRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SetAutoRedeemEnabled(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SetAutoRedeemEnabled_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SetAutoRedeemEnabled(ctx, req.(*SetAutoRedeemEnabledRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ListRedeemCodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRedeemCodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListRedeemCodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListRedeemCodes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListRedeemCodes(ctx, req.(*ListRedeemCodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ListRedeemHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRedeemHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListRedeemHistory(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListRedeemHistory_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListRedeemHistory(ctx, req.(*ListRedeemHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ForceSyncRedeem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ForceSyncRedeemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ForceSyncRedeem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ForceSyncRedeem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ForceSyncRedeem(ctx, req.(*ForceSyncRedeemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccountService_ServiceDesc is the grpc.ServiceDesc for AccountService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -362,6 +536,26 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RedeemCode",
 			Handler:    _AccountService_RedeemCode_Handler,
+		},
+		{
+			MethodName: "GetAutoRedeemStatus",
+			Handler:    _AccountService_GetAutoRedeemStatus_Handler,
+		},
+		{
+			MethodName: "SetAutoRedeemEnabled",
+			Handler:    _AccountService_SetAutoRedeemEnabled_Handler,
+		},
+		{
+			MethodName: "ListRedeemCodes",
+			Handler:    _AccountService_ListRedeemCodes_Handler,
+		},
+		{
+			MethodName: "ListRedeemHistory",
+			Handler:    _AccountService_ListRedeemHistory_Handler,
+		},
+		{
+			MethodName: "ForceSyncRedeem",
+			Handler:    _AccountService_ForceSyncRedeem_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

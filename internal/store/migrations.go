@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 3
+const currentSchemaVersion = 5
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -118,6 +118,45 @@ CREATE INDEX idx_event_log_ts ON event_log(ts);
 		version: 3,
 		name:    "remove retired dessert policy",
 		apply:   migratePoliciesV3,
+	},
+	{
+		version: 4,
+		name:    "auto redeem tables",
+		sql: `
+CREATE TABLE auto_redeem_config (
+    id         INTEGER PRIMARY KEY CHECK(id = 1),
+    enabled    INTEGER NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT OR IGNORE INTO auto_redeem_config(id, enabled) VALUES(1, 0);
+
+CREATE TABLE redeem_codes (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    code        TEXT    NOT NULL UNIQUE,
+    source_time INTEGER NOT NULL DEFAULT 0,
+    fetched_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX idx_redeem_codes_source_time ON redeem_codes(source_time);
+
+CREATE TABLE redeem_history (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id    INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    code          TEXT    NOT NULL,
+    status        TEXT    NOT NULL DEFAULT 'failed',
+    message       TEXT    NOT NULL DEFAULT '',
+    attempt_count INTEGER NOT NULL DEFAULT 1,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(account_id, code)
+);
+CREATE INDEX idx_redeem_history_account ON redeem_history(account_id);
+CREATE INDEX idx_redeem_history_code ON redeem_history(code);
+`,
+	},
+	{
+		version: 5,
+		name:    "add last_sync_at to auto_redeem_config",
+		sql:     `ALTER TABLE auto_redeem_config ADD COLUMN last_sync_at DATETIME;`,
 	},
 }
 

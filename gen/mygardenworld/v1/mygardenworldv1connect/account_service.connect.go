@@ -54,6 +54,21 @@ const (
 	// AccountServiceRedeemCodeProcedure is the fully-qualified name of the AccountService's RedeemCode
 	// RPC.
 	AccountServiceRedeemCodeProcedure = "/mygardenworld.v1.AccountService/RedeemCode"
+	// AccountServiceGetAutoRedeemStatusProcedure is the fully-qualified name of the AccountService's
+	// GetAutoRedeemStatus RPC.
+	AccountServiceGetAutoRedeemStatusProcedure = "/mygardenworld.v1.AccountService/GetAutoRedeemStatus"
+	// AccountServiceSetAutoRedeemEnabledProcedure is the fully-qualified name of the AccountService's
+	// SetAutoRedeemEnabled RPC.
+	AccountServiceSetAutoRedeemEnabledProcedure = "/mygardenworld.v1.AccountService/SetAutoRedeemEnabled"
+	// AccountServiceListRedeemCodesProcedure is the fully-qualified name of the AccountService's
+	// ListRedeemCodes RPC.
+	AccountServiceListRedeemCodesProcedure = "/mygardenworld.v1.AccountService/ListRedeemCodes"
+	// AccountServiceListRedeemHistoryProcedure is the fully-qualified name of the AccountService's
+	// ListRedeemHistory RPC.
+	AccountServiceListRedeemHistoryProcedure = "/mygardenworld.v1.AccountService/ListRedeemHistory"
+	// AccountServiceForceSyncRedeemProcedure is the fully-qualified name of the AccountService's
+	// ForceSyncRedeem RPC.
+	AccountServiceForceSyncRedeemProcedure = "/mygardenworld.v1.AccountService/ForceSyncRedeem"
 )
 
 // AccountServiceClient is a client for the mygardenworld.v1.AccountService service.
@@ -76,6 +91,13 @@ type AccountServiceClient interface {
 	// Redeem one gift code across an explicit set of accounts from one channel.
 	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error)
+	GetAutoRedeemStatus(context.Context, *connect.Request[v1.GetAutoRedeemStatusRequest]) (*connect.Response[v1.GetAutoRedeemStatusResponse], error)
+	SetAutoRedeemEnabled(context.Context, *connect.Request[v1.SetAutoRedeemEnabledRequest]) (*connect.Response[v1.SetAutoRedeemEnabledResponse], error)
+	ListRedeemCodes(context.Context, *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error)
+	ListRedeemHistory(context.Context, *connect.Request[v1.ListRedeemHistoryRequest]) (*connect.Response[v1.ListRedeemHistoryResponse], error)
+	// Force a fetch of redeem codes from the external API, save them, and redeem
+	// for all accounts. Returns the updated sync timestamp.
+	ForceSyncRedeem(context.Context, *connect.Request[v1.ForceSyncRedeemRequest]) (*connect.Response[v1.ForceSyncRedeemResponse], error)
 }
 
 // NewAccountServiceClient constructs a client for the mygardenworld.v1.AccountService service. By
@@ -131,18 +153,53 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(accountServiceMethods.ByName("RedeemCode")),
 			connect.WithClientOptions(opts...),
 		),
+		getAutoRedeemStatus: connect.NewClient[v1.GetAutoRedeemStatusRequest, v1.GetAutoRedeemStatusResponse](
+			httpClient,
+			baseURL+AccountServiceGetAutoRedeemStatusProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("GetAutoRedeemStatus")),
+			connect.WithClientOptions(opts...),
+		),
+		setAutoRedeemEnabled: connect.NewClient[v1.SetAutoRedeemEnabledRequest, v1.SetAutoRedeemEnabledResponse](
+			httpClient,
+			baseURL+AccountServiceSetAutoRedeemEnabledProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("SetAutoRedeemEnabled")),
+			connect.WithClientOptions(opts...),
+		),
+		listRedeemCodes: connect.NewClient[v1.ListRedeemCodesRequest, v1.ListRedeemCodesResponse](
+			httpClient,
+			baseURL+AccountServiceListRedeemCodesProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListRedeemCodes")),
+			connect.WithClientOptions(opts...),
+		),
+		listRedeemHistory: connect.NewClient[v1.ListRedeemHistoryRequest, v1.ListRedeemHistoryResponse](
+			httpClient,
+			baseURL+AccountServiceListRedeemHistoryProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ListRedeemHistory")),
+			connect.WithClientOptions(opts...),
+		),
+		forceSyncRedeem: connect.NewClient[v1.ForceSyncRedeemRequest, v1.ForceSyncRedeemResponse](
+			httpClient,
+			baseURL+AccountServiceForceSyncRedeemProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ForceSyncRedeem")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // accountServiceClient implements AccountServiceClient.
 type accountServiceClient struct {
-	createAccount     *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
-	deleteAccount     *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
-	listAccounts      *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	connectAccount    *connect.Client[v1.ConnectAccountRequest, v1.ConnectAccountResponse]
-	startAlipayLogin  *connect.Client[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse]
-	disconnectAccount *connect.Client[v1.DisconnectAccountRequest, v1.DisconnectAccountResponse]
-	redeemCode        *connect.Client[v1.RedeemCodeRequest, v1.RedeemCodeResponse]
+	createAccount        *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
+	deleteAccount        *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
+	listAccounts         *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	connectAccount       *connect.Client[v1.ConnectAccountRequest, v1.ConnectAccountResponse]
+	startAlipayLogin     *connect.Client[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse]
+	disconnectAccount    *connect.Client[v1.DisconnectAccountRequest, v1.DisconnectAccountResponse]
+	redeemCode           *connect.Client[v1.RedeemCodeRequest, v1.RedeemCodeResponse]
+	getAutoRedeemStatus  *connect.Client[v1.GetAutoRedeemStatusRequest, v1.GetAutoRedeemStatusResponse]
+	setAutoRedeemEnabled *connect.Client[v1.SetAutoRedeemEnabledRequest, v1.SetAutoRedeemEnabledResponse]
+	listRedeemCodes      *connect.Client[v1.ListRedeemCodesRequest, v1.ListRedeemCodesResponse]
+	listRedeemHistory    *connect.Client[v1.ListRedeemHistoryRequest, v1.ListRedeemHistoryResponse]
+	forceSyncRedeem      *connect.Client[v1.ForceSyncRedeemRequest, v1.ForceSyncRedeemResponse]
 }
 
 // CreateAccount calls mygardenworld.v1.AccountService.CreateAccount.
@@ -180,6 +237,31 @@ func (c *accountServiceClient) RedeemCode(ctx context.Context, req *connect.Requ
 	return c.redeemCode.CallUnary(ctx, req)
 }
 
+// GetAutoRedeemStatus calls mygardenworld.v1.AccountService.GetAutoRedeemStatus.
+func (c *accountServiceClient) GetAutoRedeemStatus(ctx context.Context, req *connect.Request[v1.GetAutoRedeemStatusRequest]) (*connect.Response[v1.GetAutoRedeemStatusResponse], error) {
+	return c.getAutoRedeemStatus.CallUnary(ctx, req)
+}
+
+// SetAutoRedeemEnabled calls mygardenworld.v1.AccountService.SetAutoRedeemEnabled.
+func (c *accountServiceClient) SetAutoRedeemEnabled(ctx context.Context, req *connect.Request[v1.SetAutoRedeemEnabledRequest]) (*connect.Response[v1.SetAutoRedeemEnabledResponse], error) {
+	return c.setAutoRedeemEnabled.CallUnary(ctx, req)
+}
+
+// ListRedeemCodes calls mygardenworld.v1.AccountService.ListRedeemCodes.
+func (c *accountServiceClient) ListRedeemCodes(ctx context.Context, req *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error) {
+	return c.listRedeemCodes.CallUnary(ctx, req)
+}
+
+// ListRedeemHistory calls mygardenworld.v1.AccountService.ListRedeemHistory.
+func (c *accountServiceClient) ListRedeemHistory(ctx context.Context, req *connect.Request[v1.ListRedeemHistoryRequest]) (*connect.Response[v1.ListRedeemHistoryResponse], error) {
+	return c.listRedeemHistory.CallUnary(ctx, req)
+}
+
+// ForceSyncRedeem calls mygardenworld.v1.AccountService.ForceSyncRedeem.
+func (c *accountServiceClient) ForceSyncRedeem(ctx context.Context, req *connect.Request[v1.ForceSyncRedeemRequest]) (*connect.Response[v1.ForceSyncRedeemResponse], error) {
+	return c.forceSyncRedeem.CallUnary(ctx, req)
+}
+
 // AccountServiceHandler is an implementation of the mygardenworld.v1.AccountService service.
 type AccountServiceHandler interface {
 	// Add an iOS game account. Verifies credentials, derives the display name,
@@ -200,6 +282,13 @@ type AccountServiceHandler interface {
 	// Redeem one gift code across an explicit set of accounts from one channel.
 	// Offline accounts are started first so the game RPC can run.
 	RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error)
+	GetAutoRedeemStatus(context.Context, *connect.Request[v1.GetAutoRedeemStatusRequest]) (*connect.Response[v1.GetAutoRedeemStatusResponse], error)
+	SetAutoRedeemEnabled(context.Context, *connect.Request[v1.SetAutoRedeemEnabledRequest]) (*connect.Response[v1.SetAutoRedeemEnabledResponse], error)
+	ListRedeemCodes(context.Context, *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error)
+	ListRedeemHistory(context.Context, *connect.Request[v1.ListRedeemHistoryRequest]) (*connect.Response[v1.ListRedeemHistoryResponse], error)
+	// Force a fetch of redeem codes from the external API, save them, and redeem
+	// for all accounts. Returns the updated sync timestamp.
+	ForceSyncRedeem(context.Context, *connect.Request[v1.ForceSyncRedeemRequest]) (*connect.Response[v1.ForceSyncRedeemResponse], error)
 }
 
 // NewAccountServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -251,6 +340,36 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 		connect.WithSchema(accountServiceMethods.ByName("RedeemCode")),
 		connect.WithHandlerOptions(opts...),
 	)
+	accountServiceGetAutoRedeemStatusHandler := connect.NewUnaryHandler(
+		AccountServiceGetAutoRedeemStatusProcedure,
+		svc.GetAutoRedeemStatus,
+		connect.WithSchema(accountServiceMethods.ByName("GetAutoRedeemStatus")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceSetAutoRedeemEnabledHandler := connect.NewUnaryHandler(
+		AccountServiceSetAutoRedeemEnabledProcedure,
+		svc.SetAutoRedeemEnabled,
+		connect.WithSchema(accountServiceMethods.ByName("SetAutoRedeemEnabled")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListRedeemCodesHandler := connect.NewUnaryHandler(
+		AccountServiceListRedeemCodesProcedure,
+		svc.ListRedeemCodes,
+		connect.WithSchema(accountServiceMethods.ByName("ListRedeemCodes")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceListRedeemHistoryHandler := connect.NewUnaryHandler(
+		AccountServiceListRedeemHistoryProcedure,
+		svc.ListRedeemHistory,
+		connect.WithSchema(accountServiceMethods.ByName("ListRedeemHistory")),
+		connect.WithHandlerOptions(opts...),
+	)
+	accountServiceForceSyncRedeemHandler := connect.NewUnaryHandler(
+		AccountServiceForceSyncRedeemProcedure,
+		svc.ForceSyncRedeem,
+		connect.WithSchema(accountServiceMethods.ByName("ForceSyncRedeem")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/mygardenworld.v1.AccountService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AccountServiceCreateAccountProcedure:
@@ -267,6 +386,16 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 			accountServiceDisconnectAccountHandler.ServeHTTP(w, r)
 		case AccountServiceRedeemCodeProcedure:
 			accountServiceRedeemCodeHandler.ServeHTTP(w, r)
+		case AccountServiceGetAutoRedeemStatusProcedure:
+			accountServiceGetAutoRedeemStatusHandler.ServeHTTP(w, r)
+		case AccountServiceSetAutoRedeemEnabledProcedure:
+			accountServiceSetAutoRedeemEnabledHandler.ServeHTTP(w, r)
+		case AccountServiceListRedeemCodesProcedure:
+			accountServiceListRedeemCodesHandler.ServeHTTP(w, r)
+		case AccountServiceListRedeemHistoryProcedure:
+			accountServiceListRedeemHistoryHandler.ServeHTTP(w, r)
+		case AccountServiceForceSyncRedeemProcedure:
+			accountServiceForceSyncRedeemHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -302,4 +431,24 @@ func (UnimplementedAccountServiceHandler) DisconnectAccount(context.Context, *co
 
 func (UnimplementedAccountServiceHandler) RedeemCode(context.Context, *connect.Request[v1.RedeemCodeRequest]) (*connect.Response[v1.RedeemCodeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.RedeemCode is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) GetAutoRedeemStatus(context.Context, *connect.Request[v1.GetAutoRedeemStatusRequest]) (*connect.Response[v1.GetAutoRedeemStatusResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.GetAutoRedeemStatus is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) SetAutoRedeemEnabled(context.Context, *connect.Request[v1.SetAutoRedeemEnabledRequest]) (*connect.Response[v1.SetAutoRedeemEnabledResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.SetAutoRedeemEnabled is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListRedeemCodes(context.Context, *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.ListRedeemCodes is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ListRedeemHistory(context.Context, *connect.Request[v1.ListRedeemHistoryRequest]) (*connect.Response[v1.ListRedeemHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.ListRedeemHistory is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ForceSyncRedeem(context.Context, *connect.Request[v1.ForceSyncRedeemRequest]) (*connect.Response[v1.ForceSyncRedeemResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.ForceSyncRedeem is not implemented"))
 }

@@ -31,6 +31,14 @@ service AccountService {
   // Redeem one gift code across an explicit set of accounts from one channel.
   // Offline accounts are started first so the game RPC can run.
   rpc RedeemCode(RedeemCodeRequest) returns (RedeemCodeResponse);
+
+  rpc GetAutoRedeemStatus(GetAutoRedeemStatusRequest) returns (GetAutoRedeemStatusResponse);
+  rpc SetAutoRedeemEnabled(SetAutoRedeemEnabledRequest) returns (SetAutoRedeemEnabledResponse);
+  rpc ListRedeemCodes(ListRedeemCodesRequest) returns (ListRedeemCodesResponse);
+  rpc ListRedeemHistory(ListRedeemHistoryRequest) returns (ListRedeemHistoryResponse);
+  // Force a fetch of redeem codes from the external API, save them, and redeem
+  // for all accounts. Returns the updated sync timestamp.
+  rpc ForceSyncRedeem(ForceSyncRedeemRequest) returns (ForceSyncRedeemResponse);
 }
 
 message CreateAccountRequest {
@@ -103,4 +111,49 @@ message RedeemCodeResult {
   string account_name = 2;
   bool ok = 3;
   string message = 4;
+}
+
+message GetAutoRedeemStatusRequest {}
+message GetAutoRedeemStatusResponse {
+  bool enabled = 1;
+  // When the codes were last synced from the external API.
+  google.protobuf.Timestamp last_sync_at = 2;
+}
+
+message SetAutoRedeemEnabledRequest {
+  bool enabled = 1;
+}
+message SetAutoRedeemEnabledResponse {}
+
+message ListRedeemCodesRequest {}
+message ListRedeemCodesResponse {
+  repeated RedeemCodeEntry codes = 1;
+}
+message RedeemCodeEntry {
+  string code = 1;
+  google.protobuf.Timestamp fetched_at = 2;
+  // Original timestamp from the external redeem code API (createdTime).
+  google.protobuf.Timestamp source_time = 3;
+}
+
+message ListRedeemHistoryRequest {
+  // filter by account_id; 0 means all accounts
+  int64 account_id = 1;
+}
+message ListRedeemHistoryResponse {
+  repeated RedeemHistoryEntry entries = 1;
+}
+message RedeemHistoryEntry {
+  int64 account_id = 1;
+  string account_name = 2;
+  string code = 3;
+  string status = 4;
+  string message = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message ForceSyncRedeemRequest {}
+message ForceSyncRedeemResponse {
+  google.protobuf.Timestamp last_sync_at = 1;
 }

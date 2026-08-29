@@ -88,6 +88,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
   const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
   const [redeemOpen, setRedeemOpen] = useState(false);
+  const [autoRedeemEnabled, setAutoRedeemEnabled] = useState(false);
   const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("basic");
   const didAutoSelectAccount = useRef(false);
   const workspaceClientRef = useRef<WorkspaceClient | null>(null);
@@ -127,6 +128,55 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   useEffect(() => {
     selectedAccountIdRef.current = selectedAccountId;
   }, [selectedAccountId]);
+
+  useEffect(() => {
+    if (!redeemOpen) return;
+    let cancelled = false;
+    accountClient.getAutoRedeemStatus({}).then((res) => {
+      if (!cancelled) setAutoRedeemEnabled(res.enabled);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [redeemOpen]);
+
+  const handleLoadSyncStatus = useCallback(async () => {
+    const res = await accountClient.getAutoRedeemStatus({});
+    return res.lastSyncAt ? new Date(Number(res.lastSyncAt.seconds) * 1000 + Math.floor(res.lastSyncAt.nanos / 1e6)) : undefined;
+  }, []);
+
+  const handleAutoRedeemChange = useCallback(async (enabled: boolean) => {
+    setAutoRedeemEnabled(enabled);
+    try {
+      await accountClient.setAutoRedeemEnabled({ enabled });
+    } catch {
+      setAutoRedeemEnabled(!enabled);
+    }
+  }, []);
+
+  const handleLoadCodes = useCallback(async () => {
+    const res = await accountClient.listRedeemCodes({});
+    return res.codes.map((c) => ({
+      code: c.code,
+      fetchedAt: c.fetchedAt ? new Date(Number(c.fetchedAt.seconds) * 1000 + Math.floor(c.fetchedAt.nanos / 1e6)) : undefined,
+      sourceTime: c.sourceTime ? new Date(Number(c.sourceTime.seconds) * 1000 + Math.floor(c.sourceTime.nanos / 1e6)) : undefined,
+    }));
+  }, []);
+
+  const handleLoadHistory = useCallback(async () => {
+    const res = await accountClient.listRedeemHistory({});
+    return res.entries.map((e) => ({
+      accountId: e.accountId,
+      accountName: e.accountName,
+      code: e.code,
+      status: e.status,
+      message: e.message,
+      createdAt: e.createdAt ? new Date(Number(e.createdAt.seconds) * 1000 + Math.floor(e.createdAt.nanos / 1e6)) : undefined,
+    }));
+  }, []);
+
+  const handleForceSyncRedeem = useCallback(async () => {
+    const res = await accountClient.forceSyncRedeem({});
+    return res.lastSyncAt ? new Date(Number(res.lastSyncAt.seconds) * 1000 + Math.floor(res.lastSyncAt.nanos / 1e6)) : undefined;
+  }, []);
 
   const refreshAccounts = useCallback(async () => {
     const accountRes = await accountClient.listAccounts({});
@@ -684,6 +734,12 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
               failureCount: response.failureCount,
             };
           }}
+          autoRedeemEnabled={autoRedeemEnabled}
+          onAutoRedeemChange={handleAutoRedeemChange}
+          onLoadSyncStatus={handleLoadSyncStatus}
+          onLoadCodes={handleLoadCodes}
+          onLoadHistory={handleLoadHistory}
+          onForceSync={handleForceSyncRedeem}
         />
       )}
     </div>

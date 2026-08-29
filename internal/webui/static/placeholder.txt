@@ -1,2 +1,2 @@
-Release builds copy the generated Web UI bundle into this directory.
-Local Go builds intentionally embed only this placeholder and use the fallback page in internal/webui.
+This placeholder ensures the Go embed directive succeeds for local and CI builds.
+Release builds replace this directory with the real static web output before compiling.

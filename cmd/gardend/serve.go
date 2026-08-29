@@ -19,6 +19,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1connect"
 	"github.com/SilkageNet/mygardenworld/internal/apiserver"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
+	"github.com/SilkageNet/mygardenworld/internal/autoredeem"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -47,6 +48,7 @@ func newServeCmd() *cobra.Command {
 		insecureCORS  bool
 		insecureDebug bool
 		webEnabled    bool
+		autoRedeemURL string
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -80,6 +82,7 @@ func newServeCmd() *cobra.Command {
 				InsecureCORS:  insecureCORS,
 				InsecureDebug: insecureDebug,
 				WebEnabled:    webEnabled,
+				AutoRedeemURL: autoRedeemURL,
 			})
 		},
 	}
@@ -101,6 +104,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&insecureCORS, "allow-insecure-cors", false, "allow --cors-origins '*'")
 	cmd.Flags().BoolVar(&insecureDebug, "allow-insecure-debug", false, "allow --debug-dir while listening on a non-loopback address")
 	cmd.Flags().BoolVar(&webEnabled, "web", true, "serve the embedded web console")
+	cmd.Flags().StringVar(&autoRedeemURL, "auto-redeem-url", "https://syapp.68sou.com/hy.php", "external redeem code API URL (empty to disable)")
 	return cmd
 }
 
@@ -123,6 +127,7 @@ type serveOpts struct {
 	InsecureCORS  bool
 	InsecureDebug bool
 	WebEnabled    bool
+	AutoRedeemURL string
 }
 
 func generateRandomSecret(n int) string {
@@ -181,6 +186,12 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		return fmt.Errorf("configure Alipay channel: %w", err)
 	}
 
+	var autoRedeemSvc *autoredeem.Service
+	if opts.AutoRedeemURL != "" {
+		fetcher := &autoredeem.HTTPCodeFetcher{URL: opts.AutoRedeemURL}
+		autoRedeemSvc = autoredeem.NewService(db, mgr, fetcher, log)
+	}
+
 	svc := &apiserver.Services{
 		DB:      db,
 		Manager: mgr,
@@ -195,6 +206,7 @@ func runServe(ctx context.Context, opts serveOpts) error {
 			IPFailures:   opts.AuthIPFails,
 			Lockout:      opts.AuthLockout,
 		}),
+		AutoRedeem: autoRedeemSvc,
 	}
 	handlers := apiserver.NewHandlers(svc)
 
@@ -303,6 +315,13 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		}
 	}()
 
+	autoRedeemCancel := context.CancelFunc(nil)
+	if autoRedeemSvc != nil {
+		autoRedeemCtx, autoRedeemStop := context.WithCancel(ctx)
+		autoRedeemCancel = autoRedeemStop
+		go autoRedeemSvc.Run(autoRedeemCtx)
+	}
+
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	select {
@@ -318,6 +337,9 @@ func runServe(ctx context.Context, opts serveOpts) error {
 
 	cancelRestore()
 	<-restoreDone
+	if autoRedeemCancel != nil {
+		autoRedeemCancel()
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
