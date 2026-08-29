@@ -80,11 +80,13 @@ func applyRaceDeletePosition(s *state.State, position int32) {
 }
 
 // testRacePolicy returns a policy with the common defaults for race tests:
-// enabled, autoEnableModules on, no score filtering.
+// enabled, automatic completion and explicit automatic give-up on, with no
+// score filtering. Product defaults keep both mutating switches off.
 func testRacePolicy() *pb.UnionRacePolicy {
 	return &pb.UnionRacePolicy{
 		Enabled:           true,
 		AutoEnableModules: true,
+		AutoGiveUpTask:    true,
 		MinTaskScore:      0,
 	}
 }
@@ -276,6 +278,36 @@ func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
 	if len(ops) != 0 {
 		t.Fatalf("expected 0 ops when autoEnableModules off, got %d: %+v", len(ops), ops)
+	}
+}
+
+func TestUnionRaceDoesNotGiveUpWithoutExplicitOptIn(t *testing.T) {
+	s := state.New()
+	// A low-score task may have been taken manually in the game client. Automatic
+	// completion must not silently authorize releasing it.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"12":999}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":0,"4":[23001]}}}}}`))
+	policy := testRacePolicy()
+	policy.AutoGiveUpTask = false
+	policy.MinTaskScore = 28
+
+	for _, op := range unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn()) {
+		if op.Kind == clientproto.RPCFmlRaceGiveUpTask.String() {
+			t.Fatalf("manual task must be kept when auto give-up is off: %+v", op)
+		}
+	}
+}
+
+func TestUnionRaceAutoGiveUpIsIndependentFromAutoComplete(t *testing.T) {
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"12":999}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":0,"4":[23001]}}}}}`))
+	policy := testRacePolicy()
+	policy.AutoEnableModules = false
+	policy.AutoGiveUpTask = true
+	policy.MinTaskScore = 28
+
+	ops := unionRaceOperations(s, policy, 999, time.Now(), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGiveUpTask.String() {
+		t.Fatalf("explicit auto give-up should work independently, got %+v", ops)
 	}
 }
 
@@ -2336,6 +2368,7 @@ func TestBuildPlan_RaceGiveUpPreemptsCustomerFinish(t *testing.T) {
 	p.Order.Customer.Enabled = true
 	p.Union.Race.Enabled = true
 	p.Union.Race.AutoEnableModules = true
+	p.Union.Race.AutoGiveUpTask = true
 	p.Union.Race.MinTaskScore = 24
 	p.Union.Race.TaskTypePriority = map[int32]int32{3016: 4}
 

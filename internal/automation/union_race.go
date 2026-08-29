@@ -214,11 +214,29 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		return []PlannedOp{op}
 	}
 
-	// autoEnableModules gates take/finish/upgrade. Low-score deletion is an
-	// independent pool-maintenance policy. When auto-complete is off, the race
-	// module still syncs (enter/getTaskList + TTL refresh) so the task pool
-	// remains visible and may delete eligible low-score rows, but does not
-	// auto-execute task completion flows.
+	// Giving up is destructive user intent and has its own explicit opt-in. It
+	// may release a task taken manually outside gardend, so auto-complete alone
+	// must never authorize it. Evaluate it after authoritative task sync but
+	// independently of AutoEnableModules.
+	if view.Taken.HasTask && (view.Taken.TargetCnt <= 0 || view.Taken.FinishCnt < view.Taken.TargetCnt) {
+		if reason := raceTakenAbandonReason(s, policy, view, gates); reason != "" {
+			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", reason, 4395, 0, 0, 0)
+			op.TaskMsID = view.Taken.TaskMsId
+			op.TaskID = view.Taken.TaskType
+			if op.TaskID == 0 {
+				op.TaskID = view.Taken.TaskId
+			}
+			op.FlowerID = view.Taken.ParamID
+			op.PreemptFarm = true
+			return []PlannedOp{op}
+		}
+	}
+
+	// autoEnableModules gates take/finish/upgrade. Low-score deletion and
+	// explicitly enabled give-up are independent policies. When auto-complete is
+	// off, the race module still syncs (enter/getTaskList + TTL refresh) so the
+	// task pool remains visible and may delete eligible low-score rows, but does
+	// not auto-execute task completion flows.
 	if !policy.GetAutoEnableModules() {
 		if raceTaskPoolTTLStale(view, now) {
 			op := domainOp(
@@ -235,25 +253,6 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		return ops
 	}
 	var ops []PlannedOp
-
-	// 1a. Abandon a taken task that cannot or should not be kept.
-	// TargetCnt<=0 means progress unknown (e.g. synthesized from pool UID) — treat as unfinished.
-	// Tasks with FinishCnt>0 are kept (do not auto-cancel mid-progress).
-	// Run before module progress sync so a disabled module can giveUp instead
-	// of spinning on getTaskList.
-	if view.Taken.HasTask && (view.Taken.TargetCnt <= 0 || view.Taken.FinishCnt < view.Taken.TargetCnt) {
-		if reason := raceTakenAbandonReason(s, policy, view, gates); reason != "" {
-			op := domainOp(clientproto.RPCFmlRaceGiveUpTask.String(), goal, "union.race.giveUp", "giveUp", reason, 4395, 0, 0, 0)
-			op.TaskMsID = view.Taken.TaskMsId
-			op.TaskID = view.Taken.TaskType
-			if op.TaskID == 0 {
-				op.TaskID = view.Taken.TaskId
-			}
-			op.FlowerID = view.Taken.ParamID
-			op.PreemptFarm = true
-			ops = append(ops, op)
-		}
-	}
 
 	// Module-backed race progress needs getTaskList after ordinary finishes.
 	// Customer/pearl sync only while those modules can still advance counters
@@ -982,7 +981,7 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 // unfinished task should not be kept. Callers must only invoke this for
 // unfinished taken tasks (unknown progress TargetCnt<=0 counts as unfinished).
 //
-// Order (auto-complete on):
+// Order (auto-give-up on):
 //  1. Flower-cultivate at the required score (36): never give up once held
 //     (manual take, priority 0, module off, min_task_score, missing pool row).
 //     Race does not drive cultivate progress — only sync + finishTask.
@@ -998,7 +997,7 @@ func selectRaceTasks(s *state.State, tasks []state.FmlRaceTaskView, policy *pb.U
 //     (mid-progress keep avoids dropping a live task on a transient pool gap)
 func raceTakenAbandonReason(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, gates RaceModuleGates) string {
 	taken := view.Taken
-	if policy == nil || !taken.HasTask {
+	if policy == nil || !policy.GetAutoGiveUpTask() || !taken.HasTask {
 		return ""
 	}
 	score := raceTakenScore(view)
@@ -1061,7 +1060,7 @@ func raceTakenScore(view state.FmlRaceView) int32 {
 // are never blocked by the score-unresolved gate alone.
 func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, gates RaceModuleGates) bool {
 	taken := view.Taken
-	if !taken.HasTask {
+	if policy == nil || !policy.GetAutoGiveUpTask() || !taken.HasTask {
 		return false
 	}
 	if raceTakenAbandonReason(s, policy, view, gates) != "" {
@@ -1070,7 +1069,7 @@ func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view st
 	if taken.FinishCnt > 0 {
 		return false
 	}
-	return policy != nil && policy.GetMinTaskScore() > 0 && raceTakenScore(view) == 0
+	return policy.GetMinTaskScore() > 0 && raceTakenScore(view) == 0
 }
 
 // raceTakenUncompletable reports whether a held unfinished task can never be

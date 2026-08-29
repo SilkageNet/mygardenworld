@@ -356,6 +356,11 @@ message UnionRacePolicy {
   // Skip unclaimed pool tasks whose observed finish_cnt is greater than zero.
   // Presence distinguishes the default-on policy from an explicit false.
   optional bool avoid_progressed_tasks = 14;
+  // Automatically give up an unfinished held task when it violates the current
+  // score/type filters or cannot be progressed. This also applies to tasks
+  // taken outside gardend, so it is an explicit opt-in independent of
+  // auto_enable_modules. Default off.
+  bool auto_give_up_task = 15;
 }
 
 message UnionLandPolicy {
