@@ -42,14 +42,25 @@ func (s *Service) Run(ctx context.Context) {
 	s.log.Info("auto-redeem service started")
 	defer s.log.Info("auto-redeem service stopped")
 
+	// pollGuard is a buffered channel used as a semaphore to prevent
+	// overlapping polls. A successful send means the goroutine owns the
+	// exclusive right to poll; a full channel means a poll is already
+	// running and the current trigger is skipped.
+	pollGuard := make(chan struct{}, 1)
+
 	// Startup check: if last sync was more than 1 hour ago, poll now.
 	if s.needsStartupFetch(ctx) {
-		s.poll(ctx)
+		pollGuard <- struct{}{}
+		go func() {
+			defer func() { <-pollGuard }()
+			s.poll(ctx)
+		}()
 	}
 
 	var (
-		lastFetch  = time.Now()
-		wasEnabled = true
+		lastFetch   = time.Now()
+		wasEnabled  = true
+		pollSkipped bool
 	)
 	for {
 		select {
@@ -79,9 +90,21 @@ func (s *Service) Run(ctx context.Context) {
 		if now.Sub(lastFetch) < interval {
 			continue
 		}
-		lastFetch = now
 
-		s.poll(ctx)
+		select {
+		case pollGuard <- struct{}{}:
+			lastFetch = now
+			pollSkipped = false
+			go func() {
+				defer func() { <-pollGuard }()
+				s.poll(ctx)
+			}()
+		default:
+			if !pollSkipped {
+				s.log.Info("previous poll still running, deferring next poll")
+				pollSkipped = true
+			}
+		}
 	}
 }
 
