@@ -237,6 +237,7 @@ func DefaultPolicy() *pb.Policy {
 				// requires an observed guild position with delete permission.
 				Enabled:                  true,
 				AutoEnableModules:        false,
+				AutoGiveUpTask:           false,
 				AutoStopOnQuotaDone:      true,
 				ExcludeOthersUpgradeTask: true,
 				AvoidProgressedTasks:     proto.Bool(true),
