@@ -79,8 +79,8 @@ func TestOpenMigratesVersionThreeToPearlHireUsageSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 4 {
-		t.Fatalf("schema version=%d err=%v, want 4", version, err)
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 6 {
+		t.Fatalf("schema version=%d err=%v, want 6", version, err)
 	}
 	var column string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('account_pearl_hire_usage') WHERE name = 'used_count'`).Scan(&column); err != nil {
