@@ -165,8 +165,12 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 		}
 		entityID := strconv.FormatInt(taken.TaskMsId, 10)
 		src := raceActionDemandSource(taken.TaskType)
+		itemID := int32(0)
+		if taken.TaskType == raceTaskTypeFlowerArtCraft {
+			itemID = taken.ParamID
+		}
 		return []Demand{{
-			ID:        demandID(raceActionGoal, entityID, src, DemandKindAction, 0),
+			ID:        demandID(raceActionGoal, entityID, src, DemandKindAction, itemID),
 			GoalID:    raceActionGoal,
 			Category:  CategoryRace,
 			Domain:    raceActionGoal,
@@ -174,7 +178,7 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 			Source:    src,
 			Label:     label,
 			Kind:      DemandKindAction,
-			ItemID:    0,
+			ItemID:    itemID,
 			Count:     taken.TargetCnt,
 			Have:      taken.FinishCnt,
 			Available: taken.FinishCnt,
@@ -677,7 +681,10 @@ func driveRaceFlowerArtCraftOperations(s *state.State, policy *pb.Policy, demand
 		return ops
 	}
 	match := func(op PlannedOp) bool {
-		return runnableBusinessOperation(op) && op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String()
+		if !runnableBusinessOperation(op) || op.Kind != clientproto.RPCFlowerArtMakeFlowerArt.String() {
+			return false
+		}
+		return raceDemand.ItemID <= 0 || op.VaseID == raceDemand.ItemID
 	}
 	idx := deterministicOperationIndex(ops, match)
 	if idx >= 0 {
@@ -706,8 +713,10 @@ func driveRaceFlowerArtCraftOperations(s *state.State, policy *pb.Policy, demand
 
 // raceFlowerArtCraftOperation picks a craftable flower-art recipe for race
 // progression: every recipe flower must already have seeds (cultivated), then
-// the highest SaleValue wins. Unlike rack craft, it does not require
-// sell_enabled, craft_enabled, or an empty rack.
+// the highest SaleValue wins. A race craft task carries its required vase in
+// demand.ItemID, so unrelated unlocked vases are never used for progress.
+// Unlike rack craft, it does not require sell_enabled, craft_enabled, or an
+// empty rack.
 func raceFlowerArtCraftOperation(s *state.State, demand Demand, ledger *InventoryLedger) (PlannedOp, bool) {
 	if s == nil || demand.Missing <= 0 {
 		return PlannedOp{}, false
@@ -715,13 +724,16 @@ func raceFlowerArtCraftOperation(s *state.State, demand Demand, ledger *Inventor
 	if ledger == nil {
 		ledger = NewInventoryLedger(s.Inventory())
 	}
-	recipe, count, ok := raceBestSeededCraftableRecipe(s, ledger, demand.Missing)
+	recipe, count, ok := raceBestSeededCraftableRecipe(s, ledger, demand.Missing, demand.ItemID)
 	if !ok {
 		return PlannedOp{}, false
 	}
 	goal := Goal{ID: GoalFlowerArt, Category: CategoryOrder, Domain: "order.flower_art", Label: "花艺/花架", Priority: 40}
-	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft",
-		fmt.Sprintf("公会竞赛花艺制作剩余 %d 次；选价最高有种子配方", demand.Missing),
+	reason := fmt.Sprintf("公会竞赛花艺制作剩余 %d 次；选价最高有种子配方", demand.Missing)
+	if demand.ItemID > 0 {
+		reason = fmt.Sprintf("公会竞赛花艺制作剩余 %d 次；目标花瓶 #%d 选价最高有种子配方", demand.Missing, demand.ItemID)
+	}
+	craft := op(clientproto.RPCFlowerArtMakeFlowerArt.String(), goal, "craft", reason,
 		raceFlowerArtCraftOpPriority, 0, recipe.ArtID, count)
 	craft.DemandID = demand.ID
 	craft.VaseID = recipe.VaseID
@@ -731,12 +743,16 @@ func raceFlowerArtCraftOperation(s *state.State, demand Demand, ledger *Inventor
 }
 
 // raceBestSeededCraftableRecipe returns the craftable recipe whose flowers are
-// all cultivated (有种子) and whose SaleValue is highest.
-func raceBestSeededCraftableRecipe(s *state.State, ledger *InventoryLedger, missing int32) (state.FlowerArtRecipe, int32, bool) {
+// all cultivated (有种子) and whose SaleValue is highest. When vaseID is
+// positive, recipes for every other vase are excluded.
+func raceBestSeededCraftableRecipe(s *state.State, ledger *InventoryLedger, missing, vaseID int32) (state.FlowerArtRecipe, int32, bool) {
 	var best state.FlowerArtRecipe
 	var bestCount int32
 	found := false
 	for _, recipe := range rackCandidateRecipes() {
+		if vaseID > 0 && recipe.VaseID != vaseID {
+			continue
+		}
 		if !raceRecipeAllFlowersSeeded(s, recipe) {
 			continue
 		}

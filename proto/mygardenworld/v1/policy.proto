@@ -77,11 +77,14 @@ message PearlPolicy {
   bool free_enabled = 1;
   bool auto_hire_enabled = 2;
   int32 max_hire_level = 3;
+  // Max concurrent in-shift laborers. 0 disables automatic hiring.
   int32 max_hire_ticket_usage = 4;
   bool draw_enabled = 5;
   bool protect_enabled = 6;
   bool auto_buy_hire_ticket = 7;
   int64 max_spend_diamond = 8;
+  // Max hire tickets (item 1003) spent since 00:00 Asia/Shanghai. 0 means unlimited.
+  int32 daily_hire_ticket_limit = 9;
 }
 
 message ShopPolicy {
@@ -368,14 +371,12 @@ message UnionLandPolicy {
   int32 max_flower_level = 5;
   // When auto-planting and every filtered plantable flower is at/above level 11,
   // only consider flowers whose catalog grow CD is at least this many minutes.
-  // Below level 11, maturity is ignored and lands are force-replaced onto
-  // low-level flowers (except when the current crop matures within 2 minutes).
+  // Below level 11, maturity is ignored when selecting the training flower.
   // 0 means default 20.
   int32 min_maturity_minutes = 6;
-  // After every filtered plantable flower is at/above level 11, occupied lands
-  // with a different flower are only replaced once the current crop has been
-  // planted for at least this many minutes. Empty slots are always filled.
-  // Multiple flower types may coexist across guild lands. 0 means default 60.
+  // Occupied lands are replaced only after this many minutes, with no pending
+  // harvest and no maturity within two minutes. This also applies while
+  // training flowers below level 11. Empty slots are always filled. 0 means 60.
   int32 min_replant_minutes = 7;
 }
 

@@ -131,7 +131,9 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 		},
 		apply:       rt.runner.state.ApplyV,
 		outcome:     rt.runner.state.PearlHireAttemptApplied,
+		ticketSpent: rt.runner.state.PearlHireTicketDecreased,
 		markFailed:  rt.runner.state.MarkPearlHireFailed,
+		noteUsed:    rt.runner.notePearlHireTicketUsed,
 		lockSession: rt.runner.state.LockPearlHireSession,
 		now:         time.Now,
 	}
@@ -160,6 +162,9 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 	fallback, fallbackErr := pearlHireGoldFallback(raw)
 	if babigame.HasPayload(raw) && exec.apply != nil {
 		exec.apply(raw)
+	}
+	if exec.ticketSpent != nil && exec.ticketSpent(snapshot) && exec.noteUsed != nil {
+		exec.noteUsed(ctx, clock())
 	}
 	if fallbackErr != nil {
 		reason := "珍珠雇佣响应中的 3.0 金币回退字段格式异常，当前会话已锁定"

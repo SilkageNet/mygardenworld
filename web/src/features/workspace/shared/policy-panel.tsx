@@ -360,6 +360,7 @@ export default function PolicyPanel({
                 <ToggleRow label="安全雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} />
                 <NumberRow label="雇佣等级上限（0=不限）" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />
                 <NumberRow label="同时在岗上限（0=关闭）" value={pearl?.maxHireTicketUsage || 0} min={0} onChange={(value) => updatePearl({ maxHireTicketUsage: value })} />
+                <NumberRow label="每日雇佣券上限（0=不限）" value={pearl?.dailyHireTicketLimit || 0} min={0} onChange={(value) => updatePearl({ dailyHireTicketLimit: value })} />
                 <ToggleRow label="自动开珍珠" checked={pearl?.drawEnabled ?? false} onChange={(checked) => updatePearl({ drawEnabled: checked })} />
                 <ToggleRow label="开启防身" checked={pearl?.protectEnabled ?? false} onChange={(checked) => updatePearl({ protectEnabled: checked })} />
                 {SHOW_UNSUPPORTED_SETTINGS && (
@@ -544,14 +545,14 @@ export default function PolicyPanel({
                   value={unionLand?.minMaturityMinutes || 20}
                   min={1}
                   onChange={(value) => updateUnionLand({ minMaturityMinutes: value })}
-                  description="未满11级：强制换种低等级花练级（距成熟≤2分钟则等收获后再换）。全部达到11级后：才按成熟时长选种；指定花朵非空时只种这些 ID（莹白露薇=23117）。"
+                  description="未满11级时优先选择低等级花练级；全部达到11级后才按成熟时长选种。指定花朵非空时只种这些 ID（莹白露薇=23117）。"
                 />
                 <NumberRow
                   label="改种冷却(分钟)"
                   value={unionLand?.minReplantMinutes || 60}
                   min={1}
                   onChange={(value) => updateUnionLand({ minReplantMinutes: value })}
-                  description="全部≥11级后：空地随时补种；已种地块需满此时间才允许改种其他花，多种花可并存。未满11级练级换种不受此限制。"
+                  description="空地随时补种；已种地块需无待收获花、距下次成熟超过2分钟且达到此冷却后才能改种。练级与普通轮种遵守同一安全边界。"
                 />
                 <FlowerMultiSelectRow
                   label="指定花朵"

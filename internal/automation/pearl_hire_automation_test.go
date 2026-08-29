@@ -183,3 +183,32 @@ func TestPlanOneSafePearlHireUnknownEnemySourceRefreshes(t *testing.T) {
 		t.Fatalf("unknown enemy source was skipped: %+v", op)
 	}
 }
+
+func TestPlanOneSafePearlHireDailyLimitAndExpiredSlot(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	now := time.Date(2026, 8, 29, 12, 0, 0, 0, shanghai)
+	s := newPearlHireStateForTest(t, 9001)
+	policy := pearlHirePolicyForTest()
+	policy.DailyHireTicketLimit = 2
+	s.SetPearlHireTicketUsed(state.PearlHireTicketDayID(now), 2)
+	op, ok := PlanOneSafePearlHire(s, policy, now, PearlHireIntent{})
+	if !ok || op.Status != PlanStatusBlocked || !strings.Contains(op.Reason, "每日上限 2") {
+		t.Fatalf("daily limit op=%+v ok=%t", op, ok)
+	}
+
+	s.SetPearlHireTicketUsed(state.PearlHireTicketDayID(now), 1)
+	applyPearlFriendForTest(t, s, 9001, 2001)
+	applyMap(t, s, map[string]any{
+		"28": map[string]any{"5": []any{map[string]any{"0": int64(2001), "1": "safe", "4": 12}}},
+		"115": map[string]any{
+			"0": map[string]any{"1": map[string]any{"2": int64(3001), "3": int64(1), "4": 0, "9": now.UnixMilli()}},
+			"5": map[string]any{"2001": int64(0)},
+		},
+	})
+	now = time.UnixMilli(s.PearlHire().Profiles[2001].ObservedAtMs)
+	s.SetPearlHireTicketUsed(state.PearlHireTicketDayID(now), 1)
+	op, ok = PlanOneSafePearlHire(s, policy, now, PearlHireIntent{})
+	if !ok || op.Kind != clientproto.RPCPearlPlaceHire.String() || op.TargetID != 1 || op.TargetUID != 2001 {
+		t.Fatalf("expired slot was not reused safely: %+v ok=%t", op, ok)
+	}
+}
