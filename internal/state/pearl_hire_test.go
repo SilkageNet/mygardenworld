@@ -131,3 +131,42 @@ func TestPearlHireCatalogConstants(t *testing.T) {
 		t.Fatalf("pearl hire config = %+v, %t", config, ok)
 	}
 }
+
+func TestPearlHireDailyUsageUsesShanghaiCalendarBoundary(t *testing.T) {
+	s := New()
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	beforeMidnight := time.Date(2026, 8, 29, 23, 59, 59, 0, shanghai)
+	s.SetPearlHireTicketUsed(PearlHireTicketDayID(beforeMidnight), 3)
+	if got := s.PearlHireAt(beforeMidnight).TicketUsedToday; got != 3 {
+		t.Fatalf("used before midnight=%d, want 3", got)
+	}
+	afterMidnight := beforeMidnight.Add(time.Second)
+	if got := s.PearlHireAt(afterMidnight).TicketUsedToday; got != 0 {
+		t.Fatalf("used after midnight=%d, want 0", got)
+	}
+	s.NotePearlHireTicketUsed(afterMidnight)
+	if got := s.PearlHireAt(afterMidnight).TicketUsedToday; got != 1 {
+		t.Fatalf("used after first next-day spend=%d, want 1", got)
+	}
+	if got := s.PearlHireAt(beforeMidnight).TicketUsedToday; got != 0 {
+		t.Fatalf("prior-day query after rollover=%d, want 0", got)
+	}
+}
+
+func TestPearlHireTicketDecreasedRequiresExactOneTicketDelta(t *testing.T) {
+	s := New()
+	at := time.UnixMilli(1_800_000_000_000)
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"1003":3}}}}`))
+	snapshot := PearlHireAttemptSnapshot{At: at, TicketCount: 3}
+	if s.PearlHireTicketDecreased(snapshot) {
+		t.Fatal("unchanged ticket count reported as spent")
+	}
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"1003":2}}}}`))
+	if !s.PearlHireTicketDecreased(snapshot) {
+		t.Fatal("exact one-ticket decrement was not observed")
+	}
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"1003":1}}}}`))
+	if s.PearlHireTicketDecreased(snapshot) {
+		t.Fatal("two-ticket decrement was accepted")
+	}
+}

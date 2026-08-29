@@ -18,6 +18,7 @@ func TestWorkspaceLogCategoryUsesStableProductBoundaries(t *testing.T) {
 		{"order", "order.customer", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ORDERS},
 		{"race", "union.race", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_UNION},
 		{"activity", "activity.cyclic_note", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_ACTIVITIES},
+		{"basic", "basic.pearl.hire", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_BASIC},
 		{"basic", "basic.inventory", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_WAREHOUSE},
 		{"system", "policy", pb.WorkspaceLogCategory_WORKSPACE_LOG_CATEGORY_SYSTEM},
 	}
