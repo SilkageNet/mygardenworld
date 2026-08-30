@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
+import type { AccountRedeemAttemptFilter } from "@/gen/mygardenworld/v1/workspace_pb";
 import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { ContentReveal } from "@/components/effects/content-reveal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AccountViews } from "@/features/workspace/model";
+import type { RedeemAttemptFeed } from "@/features/workspace/basic/redeem-attempts-model";
 import { DashboardTabBar, type DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 import {
   ActivitiesWorkspace,
@@ -58,6 +60,7 @@ export function AccountDetailView({
   viewsLoading,
   busyAction,
   activeTab,
+  redeemFeed,
   events,
   logsHasMore,
   logsLoading,
@@ -73,6 +76,8 @@ export function AccountDetailView({
   onPolicyChange,
   onPolicySave,
   onLoadMoreLogs,
+  onRedeemFilterChange,
+  onLoadMoreRedeemAttempts,
 }: {
   account: Account;
   status?: AccountStatus;
@@ -81,6 +86,7 @@ export function AccountDetailView({
   viewsLoading: boolean;
   busyAction: string;
   activeTab: DashboardTabId;
+  redeemFeed: RedeemAttemptFeed;
   events: Event[];
   logsHasMore: boolean;
   logsLoading: boolean;
@@ -96,6 +102,8 @@ export function AccountDetailView({
   onPolicyChange: (policy: Policy | null) => void;
   onPolicySave: () => void;
   onLoadMoreLogs: () => void;
+  onRedeemFilterChange: (filter: AccountRedeemAttemptFilter) => void;
+  onLoadMoreRedeemAttempts: () => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const workspaceProps = {
@@ -143,7 +151,14 @@ export function AccountDetailView({
           <LogsWorkspace events={events} hasMore={logsHasMore} loading={logsLoading} onLoadMore={onLoadMoreLogs} />
         ) : (
           <ContentReveal key={`${account.id.toString()}-${activeTab}`}>
-            {activeTab === "basic" && <BasicWorkspace {...workspaceProps} />}
+            {activeTab === "basic" && (
+              <BasicWorkspace
+                {...workspaceProps}
+                redeemFeed={redeemFeed}
+                onRedeemFilterChange={onRedeemFilterChange}
+                onLoadMoreRedeemAttempts={onLoadMoreRedeemAttempts}
+              />
+            )}
             {activeTab === "garden" && <GardenWorkspace {...workspaceProps} />}
             {activeTab === "orders" && <OrdersWorkspace {...workspaceProps} />}
             {activeTab === "union" && <UnionWorkspace {...workspaceProps} />}

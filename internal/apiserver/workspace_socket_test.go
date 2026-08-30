@@ -11,6 +11,8 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
+	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
@@ -139,6 +141,9 @@ func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
+	if _, err := db.RedeemInstanceID(ctx); err != nil {
+		t.Fatal(err)
+	}
 	owner, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
 	if err != nil {
 		t.Fatal(err)
@@ -155,12 +160,27 @@ func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, _, err := db.UpsertRedeemCode(ctx, store.RedeemCodeInput{
+		Code: "OWNER-CODE", Channel: "ios", SourceKey: "test:owner",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.EnsureRedeemAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE redeem_attempts
+SET status = 'success', message = '兑换成功', attempt_count = 1, attempted_at = CURRENT_TIMESTAMP
+WHERE account_id = ?`, ownedAccount.ID); err != nil {
+		t.Fatal(err)
+	}
 	jwt := auth.NewJWT("workspace-test-secret")
 	token, _, err := jwt.GenerateAccessToken(owner.ID, owner.Role)
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := &Services{DB: db, JWT: jwt}
+	manager := runner.NewManager(db, runner.NewBus(), nil)
+	svc := &Services{DB: db, JWT: jwt, Manager: manager}
 	server := httptest.NewServer(svc.WorkspaceHandler(WorkspaceHandlerOptions{}))
 	defer server.Close()
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
@@ -194,13 +214,58 @@ func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.
 
 	writeClientWorkspaceFrame(t, ctx, conn, &pb.WorkspaceClientFrame{
 		RequestId: 3,
+		Payload: &pb.WorkspaceClientFrame_LoadRedeemAttempts{LoadRedeemAttempts: &pb.LoadAccountRedeemAttempts{
+			AccountId: ownedAccount.ID,
+			Filter:    pb.AccountRedeemAttemptFilter_ACCOUNT_REDEEM_ATTEMPT_FILTER_REDEEMED,
+		}},
+	})
+	redeemPage := readServerWorkspaceFrame(t, ctx, conn)
+	if redeemPage.GetRequestId() != 3 || redeemPage.GetRedeemAttempts().GetAccountId() != ownedAccount.ID ||
+		len(redeemPage.GetRedeemAttempts().GetEntries()) != 1 ||
+		redeemPage.GetRedeemAttempts().GetEntries()[0].GetCode() != "OWNER-CODE" ||
+		redeemPage.GetRedeemAttempts().GetSummary().GetSuccess() != 1 {
+		t.Fatalf("redeem page=%+v", redeemPage.GetRedeemAttempts())
+	}
+
+	writeClientWorkspaceFrame(t, ctx, conn, &pb.WorkspaceClientFrame{
+		RequestId: 4,
 		Payload: &pb.WorkspaceClientFrame_LoadLogs{LoadLogs: &pb.LoadWorkspaceLogs{
 			AccountId: otherAccount.ID,
 		}},
 	})
 	denied := readServerWorkspaceFrame(t, ctx, conn)
-	if denied.GetRequestId() != 3 || denied.GetError().GetCode() != "request_failed" {
+	if denied.GetRequestId() != 4 || denied.GetError().GetCode() != "request_failed" {
 		t.Fatalf("cross-owner response=%+v, want request_failed", denied)
+	}
+
+	writeClientWorkspaceFrame(t, ctx, conn, &pb.WorkspaceClientFrame{
+		RequestId: 5,
+		Payload: &pb.WorkspaceClientFrame_LoadRedeemAttempts{LoadRedeemAttempts: &pb.LoadAccountRedeemAttempts{
+			AccountId: otherAccount.ID,
+		}},
+	})
+	denied = readServerWorkspaceFrame(t, ctx, conn)
+	if denied.GetRequestId() != 5 || denied.GetError().GetCode() != "request_failed" {
+		t.Fatalf("cross-owner redeem response=%+v, want request_failed", denied)
+	}
+
+	var attemptID int64
+	if err := db.QueryRowContext(ctx, `SELECT id FROM redeem_attempts WHERE account_id = ?`, ownedAccount.ID).Scan(&attemptID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CompleteRedeemAttempt(ctx, attemptID, store.RedeemValidationInvalid, "无效兑换码", nil); err != nil {
+		t.Fatal(err)
+	}
+	manager.Bus().PublishTransient(runner.Event{
+		TS:        time.Now().UTC(),
+		AccountID: ownedAccount.ID,
+		Kind:      redeemsvc.EventKindRedeemAttemptsUpdated,
+	})
+	push := readServerWorkspaceFrame(t, ctx, conn)
+	if push.GetRequestId() != 0 || !push.GetRedeemAttempts().GetReplace() ||
+		len(push.GetRedeemAttempts().GetEntries()) != 0 ||
+		push.GetRedeemAttempts().GetSummary().GetInvalid() != 1 {
+		t.Fatalf("live redeem page=%+v, want replacement after committed result", push.GetRedeemAttempts())
 	}
 }
 

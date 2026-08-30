@@ -10,6 +10,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"github.com/coder/websocket"
@@ -131,19 +132,23 @@ type workspaceSession struct {
 	identity  *auth.Identity
 	expiresAt time.Time
 
-	sequence        uint64
-	selectedID      int64
-	selectedAccount *store.Account
-	logHighWater    int64
-	catchingUp      bool
-	lastState       *pb.WorkspaceState
-	lastStatuses    []*pb.AccountStatus
-	allowedAccount  map[int64]struct{}
-	pendingLogs     []*pb.Event
-	dirtyState      bool
-	dirtyStatuses   bool
-	alipayLoginID   string
-	alipayPolling   bool
+	sequence          uint64
+	selectedID        int64
+	selectedAccount   *store.Account
+	logHighWater      int64
+	catchingUp        bool
+	lastState         *pb.WorkspaceState
+	lastStatuses      []*pb.AccountStatus
+	allowedAccount    map[int64]struct{}
+	pendingLogs       []*pb.Event
+	dirtyState        bool
+	dirtyStatuses     bool
+	redeemSubscribed  bool
+	redeemFilter      pb.AccountRedeemAttemptFilter
+	redeemWindowLimit int32
+	dirtyRedeem       bool
+	alipayLoginID     string
+	alipayPolling     bool
 }
 
 type alipayPollResult struct {
@@ -288,6 +293,31 @@ func (s *workspaceSession) handleClientFrame(frame *pb.WorkspaceClientFrame) err
 			return err
 		}
 		return s.send(frame.GetRequestId(), &pb.WorkspaceServerFrame_Logs{Logs: page})
+	case *pb.WorkspaceClientFrame_LoadRedeemAttempts:
+		page, err := s.svc.workspaceRedeemAttemptPage(
+			s.ctx,
+			payload.LoadRedeemAttempts.GetAccountId(),
+			payload.LoadRedeemAttempts.GetBeforeId(),
+			payload.LoadRedeemAttempts.GetLimit(),
+			payload.LoadRedeemAttempts.GetFilter(),
+		)
+		if err != nil {
+			return err
+		}
+		if page.GetAccountId() == s.selectedID {
+			requestLimit := int32(normalizeWorkspaceRedeemPageLimit(payload.LoadRedeemAttempts.GetLimit()))
+			if !s.redeemSubscribed || payload.LoadRedeemAttempts.GetBeforeId() <= 0 || s.redeemFilter != page.GetFilter() {
+				s.redeemWindowLimit = requestLimit
+			} else {
+				s.redeemWindowLimit = min(
+					int32(maxWorkspaceRedeemPageLimit),
+					s.redeemWindowLimit+int32(len(page.GetEntries())),
+				)
+			}
+			s.redeemSubscribed = true
+			s.redeemFilter = page.GetFilter()
+		}
+		return s.send(frame.GetRequestId(), &pb.WorkspaceServerFrame_RedeemAttempts{RedeemAttempts: page})
 	case *pb.WorkspaceClientFrame_WatchAlipayLogin:
 		if payload.WatchAlipayLogin.GetLoginId() == "" {
 			return errors.New("login_id required")
@@ -324,6 +354,8 @@ func (s *workspaceSession) selectAccount(requestID uint64, accountID, afterLogID
 	s.lastState = state
 	s.pendingLogs = nil
 	s.dirtyState = false
+	s.redeemSubscribed = false
+	s.dirtyRedeem = false
 	return s.send(requestID, &pb.WorkspaceServerFrame_Snapshot{Snapshot: &pb.WorkspaceSnapshot{
 		State: state,
 		Logs:  logs,
@@ -335,6 +367,10 @@ func (s *workspaceSession) acceptEvent(event runner.Event) {
 		return
 	}
 	if event.AccountID != s.selectedID {
+		return
+	}
+	if event.Kind == redeemsvc.EventKindRedeemAttemptsUpdated {
+		s.dirtyRedeem = s.redeemSubscribed
 		return
 	}
 	s.dirtyState = true
@@ -376,6 +412,22 @@ func (s *workspaceSession) flushChanges() error {
 			if err := s.send(0, &pb.WorkspaceServerFrame_AccountStatuses{AccountStatuses: &pb.AccountStatusBatch{Accounts: statuses}}); err != nil {
 				return err
 			}
+		}
+	}
+	if s.dirtyRedeem && s.selectedID > 0 {
+		s.dirtyRedeem = false
+		page, err := s.svc.workspaceRedeemAttemptPage(
+			s.ctx,
+			s.selectedID,
+			0,
+			s.redeemWindowLimit,
+			s.redeemFilter,
+		)
+		if err != nil {
+			return err
+		}
+		if err := s.send(0, &pb.WorkspaceServerFrame_RedeemAttempts{RedeemAttempts: page}); err != nil {
+			return err
 		}
 	}
 	if s.dirtyState && s.selectedID > 0 {
@@ -490,6 +542,8 @@ func (s *workspaceSession) send(requestID uint64, payload any) error {
 	case *pb.WorkspaceServerFrame_Logs:
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_AlipayLogin:
+		frame.Payload = value
+	case *pb.WorkspaceServerFrame_RedeemAttempts:
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_Error:
 		frame.Payload = value

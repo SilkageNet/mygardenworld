@@ -8,6 +8,8 @@ import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Account, AlipayLoginStatus } from "./account_pb";
 import { file_mygardenworld_v1_account } from "./account_pb";
+import type { Channel } from "./channel_pb";
+import { file_mygardenworld_v1_channel } from "./channel_pb";
 import type { Policy } from "./policy_pb";
 import { file_mygardenworld_v1_policy } from "./policy_pb";
 import type { ActivitiesView } from "./workspace_activity_pb";
@@ -30,7 +32,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/workspace.proto.
  */
 export const file_mygardenworld_v1_workspace: GenFile = /*@__PURE__*/
-  fileDesc("CiBteWdhcmRlbndvcmxkL3YxL3dvcmtzcGFjZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLbAgoUV29ya3NwYWNlQ2xpZW50RnJhbWUSEgoKcmVxdWVzdF9pZBgBIAEoBBIvCgRvcGVuGAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5PcGVuV29ya3NwYWNlSAASQgoOc2VsZWN0X2FjY291bnQYAyABKAsyKC5teWdhcmRlbndvcmxkLnYxLlNlbGVjdFdvcmtzcGFjZUFjY291bnRIABIzCgZyZXN5bmMYBCABKAsyIS5teWdhcmRlbndvcmxkLnYxLlJlc3luY1dvcmtzcGFjZUgAEjgKCWxvYWRfbG9ncxgFIAEoCzIjLm15Z2FyZGVud29ybGQudjEuTG9hZFdvcmtzcGFjZUxvZ3NIABJAChJ3YXRjaF9hbGlwYXlfbG9naW4YBiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldhdGNoQWxpcGF5TG9naW5IAEIJCgdwYXlsb2FkInIKDU9wZW5Xb3Jrc3BhY2USGAoQcHJvdG9jb2xfdmVyc2lvbhgBIAEoDRIUCgxhY2Nlc3NfdG9rZW4YAiABKAkSGwoTc2VsZWN0ZWRfYWNjb3VudF9pZBgDIAEoAxIUCgxhZnRlcl9sb2dfaWQYBCABKAMiQgoWU2VsZWN0V29ya3NwYWNlQWNjb3VudBISCgphY2NvdW50X2lkGAEgASgDEhQKDGFmdGVyX2xvZ19pZBgCIAEoAyInCg9SZXN5bmNXb3Jrc3BhY2USFAoMYWZ0ZXJfbG9nX2lkGAEgASgDIkkKEUxvYWRXb3Jrc3BhY2VMb2dzEhIKCmFjY291bnRfaWQYASABKAMSEQoJYmVmb3JlX2lkGAIgASgDEg0KBWxpbWl0GAMgASgFIiQKEFdhdGNoQWxpcGF5TG9naW4SEAoIbG9naW5faWQYASABKAkizgMKFFdvcmtzcGFjZVNlcnZlckZyYW1lEhAKCHNlcXVlbmNlGAEgASgEEhIKCnJlcXVlc3RfaWQYAiABKAQSMQoFcmVhZHkYAyABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVJlYWR5SAASQAoQYWNjb3VudF9zdGF0dXNlcxgEIAEoCzIkLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFN0YXR1c0JhdGNoSAASNwoIc25hcHNob3QYBSABKAsyIy5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVNuYXBzaG90SAASMQoFcGF0Y2gYBiABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVBhdGNoSAASMgoEbG9ncxgHIAEoCzIiLm15Z2FyZGVud29ybGQudjEuV29ya3NwYWNlTG9nUGFnZUgAEj0KDGFsaXBheV9sb2dpbhgIIAEoCzIlLm15Z2FyZGVud29ybGQudjEuQWxpcGF5TG9naW5Qcm9ncmVzc0gAEjEKBWVycm9yGAkgASgLMiAubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VFcnJvckgAQgkKB3BheWxvYWQihAIKDldvcmtzcGFjZVJlYWR5EhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SLwoLc2VydmVyX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKCGFjY291bnRzGAMgAygLMh8ubXlnYXJkZW53b3JsZC52MS5BY2NvdW50U3RhdHVzEkEKFGZlYXR1cmVfY2FwYWJpbGl0aWVzGAQgAygLMiMubXlnYXJkZW53b3JsZC52MS5GZWF0dXJlQ2FwYWJpbGl0eRIZChFoZWFydGJlYXRfc2Vjb25kcxgFIAEoBRIWCg5zZXJ2ZXJfdmVyc2lvbhgGIAEoCSJHChJBY2NvdW50U3RhdHVzQmF0Y2gSMQoIYWNjb3VudHMYASADKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMi8gMKDldvcmtzcGFjZVN0YXRlEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjkKCnN0YXRpc3RpY3MYCyABKAsyJS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRpc3RpY3MidgoRV29ya3NwYWNlU25hcHNob3QSLwoFc3RhdGUYASABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRlEjAKBGxvZ3MYAiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2UirgQKDldvcmtzcGFjZVBhdGNoEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjkKCnN0YXRpc3RpY3MYCyABKAsyJS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRpc3RpY3MSOgoPY2xlYXJlZF9kb21haW5zGAwgAygOMiEubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VEb21haW4ioQEKE1dvcmtzcGFjZVN0YXRpc3RpY3MSQwoScnVudGltZV9zdGF0aXN0aWNzGAEgASgLMicubXlnYXJkZW53b3JsZC52MS5SdW50aW1lU3RhdGlzdGljc1ZpZXcSRQoTYnVzaW5lc3Nfc3RhdGlzdGljcxgCIAEoCzIoLm15Z2FyZGVud29ybGQudjEuQnVzaW5lc3NTdGF0aXN0aWNzVmlldyLkAQoQV29ya3NwYWNlTG9nUGFnZRISCgphY2NvdW50X2lkGAEgASgDEjQKBGtpbmQYAiABKA4yJi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2VLaW5kEicKBmV2ZW50cxgDIAMoCzIXLm15Z2FyZGVud29ybGQudjEuRXZlbnQSFgoObmV4dF9iZWZvcmVfaWQYBCABKAMSFwoPaGFzX21vcmVfYmVmb3JlGAUgASgIEhYKDmhhc19tb3JlX2FmdGVyGAYgASgIEhQKDGdhcF9kZXRlY3RlZBgHIAEoCCLNAQoTQWxpcGF5TG9naW5Qcm9ncmVzcxIQCghsb2dpbl9pZBgBIAEoCRIzCgZzdGF0dXMYAiABKA4yIy5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luU3RhdHVzEioKB2FjY291bnQYAyABKAsyGS5teWdhcmRlbndvcmxkLnYxLkFjY291bnQSEwoLbG9naW5fZXJyb3IYBCABKAkSLgoKZXhwaXJlc19hdBgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiQgoOV29ya3NwYWNlRXJyb3ISDAoEY29kZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJEhEKCXJldHJ5YWJsZRgDIAEoCCqHAgoPV29ya3NwYWNlRG9tYWluEiAKHFdPUktTUEFDRV9ET01BSU5fVU5TUEVDSUZJRUQQABIaChZXT1JLU1BBQ0VfRE9NQUlOX0JBU0lDEAESGwoXV09SS1NQQUNFX0RPTUFJTl9HQVJERU4QAhIbChdXT1JLU1BBQ0VfRE9NQUlOX09SREVSUxADEhoKFldPUktTUEFDRV9ET01BSU5fVU5JT04QBBIfChtXT1JLU1BBQ0VfRE9NQUlOX0FDVElWSVRJRVMQBRIeChpXT1JLU1BBQ0VfRE9NQUlOX1dBUkVIT1VTRRAGEh8KG1dPUktTUEFDRV9ET01BSU5fU1RBVElTVElDUxAHKswBChRXb3Jrc3BhY2VMb2dQYWdlS2luZBInCiNXT1JLU1BBQ0VfTE9HX1BBR0VfS0lORF9VTlNQRUNJRklFRBAAEiIKHldPUktTUEFDRV9MT0dfUEFHRV9LSU5EX1JFQ0VOVBABEiIKHldPUktTUEFDRV9MT0dfUEFHRV9LSU5EX0JFRk9SRRACEiEKHVdPUktTUEFDRV9MT0dfUEFHRV9LSU5EX0FGVEVSEAMSIAocV09SS1NQQUNFX0xPR19QQUdFX0tJTkRfTElWRRAEQocBChRjb20ubXlnYXJkZW53b3JsZC52MUIOV29ya3NwYWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_policy, file_mygardenworld_v1_workspace_activity, file_mygardenworld_v1_workspace_basic, file_mygardenworld_v1_workspace_common, file_mygardenworld_v1_workspace_garden, file_mygardenworld_v1_workspace_orders, file_mygardenworld_v1_workspace_union, file_mygardenworld_v1_workspace_warehouse]);
+  fileDesc("CiBteWdhcmRlbndvcmxkL3YxL3dvcmtzcGFjZS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSKoAwoUV29ya3NwYWNlQ2xpZW50RnJhbWUSEgoKcmVxdWVzdF9pZBgBIAEoBBIvCgRvcGVuGAIgASgLMh8ubXlnYXJkZW53b3JsZC52MS5PcGVuV29ya3NwYWNlSAASQgoOc2VsZWN0X2FjY291bnQYAyABKAsyKC5teWdhcmRlbndvcmxkLnYxLlNlbGVjdFdvcmtzcGFjZUFjY291bnRIABIzCgZyZXN5bmMYBCABKAsyIS5teWdhcmRlbndvcmxkLnYxLlJlc3luY1dvcmtzcGFjZUgAEjgKCWxvYWRfbG9ncxgFIAEoCzIjLm15Z2FyZGVud29ybGQudjEuTG9hZFdvcmtzcGFjZUxvZ3NIABJAChJ3YXRjaF9hbGlwYXlfbG9naW4YBiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldhdGNoQWxpcGF5TG9naW5IABJLChRsb2FkX3JlZGVlbV9hdHRlbXB0cxgHIAEoCzIrLm15Z2FyZGVud29ybGQudjEuTG9hZEFjY291bnRSZWRlZW1BdHRlbXB0c0gAQgkKB3BheWxvYWQicgoNT3BlbldvcmtzcGFjZRIYChBwcm90b2NvbF92ZXJzaW9uGAEgASgNEhQKDGFjY2Vzc190b2tlbhgCIAEoCRIbChNzZWxlY3RlZF9hY2NvdW50X2lkGAMgASgDEhQKDGFmdGVyX2xvZ19pZBgEIAEoAyJCChZTZWxlY3RXb3Jrc3BhY2VBY2NvdW50EhIKCmFjY291bnRfaWQYASABKAMSFAoMYWZ0ZXJfbG9nX2lkGAIgASgDIicKD1Jlc3luY1dvcmtzcGFjZRIUCgxhZnRlcl9sb2dfaWQYASABKAMiSQoRTG9hZFdvcmtzcGFjZUxvZ3MSEgoKYWNjb3VudF9pZBgBIAEoAxIRCgliZWZvcmVfaWQYAiABKAMSDQoFbGltaXQYAyABKAUiJAoQV2F0Y2hBbGlwYXlMb2dpbhIQCghsb2dpbl9pZBgBIAEoCSKPAQoZTG9hZEFjY291bnRSZWRlZW1BdHRlbXB0cxISCgphY2NvdW50X2lkGAEgASgDEhEKCWJlZm9yZV9pZBgCIAEoAxINCgVsaW1pdBgDIAEoBRI8CgZmaWx0ZXIYBCABKA4yLC5teWdhcmRlbndvcmxkLnYxLkFjY291bnRSZWRlZW1BdHRlbXB0RmlsdGVyIpUEChRXb3Jrc3BhY2VTZXJ2ZXJGcmFtZRIQCghzZXF1ZW5jZRgBIAEoBBISCgpyZXF1ZXN0X2lkGAIgASgEEjEKBXJlYWR5GAMgASgLMiAubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VSZWFkeUgAEkAKEGFjY291bnRfc3RhdHVzZXMYBCABKAsyJC5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXNCYXRjaEgAEjcKCHNuYXBzaG90GAUgASgLMiMubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VTbmFwc2hvdEgAEjEKBXBhdGNoGAYgASgLMiAubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VQYXRjaEgAEjIKBGxvZ3MYByABKAsyIi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2VIABI9CgxhbGlwYXlfbG9naW4YCCABKAsyJS5teWdhcmRlbndvcmxkLnYxLkFsaXBheUxvZ2luUHJvZ3Jlc3NIABIxCgVlcnJvchgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuV29ya3NwYWNlRXJyb3JIABJFCg9yZWRlZW1fYXR0ZW1wdHMYCiABKAsyKi5teWdhcmRlbndvcmxkLnYxLkFjY291bnRSZWRlZW1BdHRlbXB0UGFnZUgAQgkKB3BheWxvYWQihAIKDldvcmtzcGFjZVJlYWR5EhgKEHByb3RvY29sX3ZlcnNpb24YASABKA0SLwoLc2VydmVyX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjEKCGFjY291bnRzGAMgAygLMh8ubXlnYXJkZW53b3JsZC52MS5BY2NvdW50U3RhdHVzEkEKFGZlYXR1cmVfY2FwYWJpbGl0aWVzGAQgAygLMiMubXlnYXJkZW53b3JsZC52MS5GZWF0dXJlQ2FwYWJpbGl0eRIZChFoZWFydGJlYXRfc2Vjb25kcxgFIAEoBRIWCg5zZXJ2ZXJfdmVyc2lvbhgGIAEoCSJHChJBY2NvdW50U3RhdHVzQmF0Y2gSMQoIYWNjb3VudHMYASADKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMi8gMKDldvcmtzcGFjZVN0YXRlEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjkKCnN0YXRpc3RpY3MYCyABKAsyJS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRpc3RpY3MidgoRV29ya3NwYWNlU25hcHNob3QSLwoFc3RhdGUYASABKAsyIC5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRlEjAKBGxvZ3MYAiABKAsyIi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2UirgQKDldvcmtzcGFjZVBhdGNoEhAKCHJldmlzaW9uGAEgASgEEhIKCmFjY291bnRfaWQYAiABKAMSNwoOYWNjb3VudF9zdGF0dXMYAyABKAsyHy5teWdhcmRlbndvcmxkLnYxLkFjY291bnRTdGF0dXMSKAoGcG9saWN5GAQgASgLMhgubXlnYXJkZW53b3JsZC52MS5Qb2xpY3kSKgoFYmFzaWMYBSABKAsyGy5teWdhcmRlbndvcmxkLnYxLkJhc2ljVmlldxIsCgZnYXJkZW4YBiABKAsyHC5teWdhcmRlbndvcmxkLnYxLkdhcmRlblZpZXcSLAoGb3JkZXJzGAcgASgLMhwubXlnYXJkZW53b3JsZC52MS5PcmRlcnNWaWV3EioKBXVuaW9uGAggASgLMhsubXlnYXJkZW53b3JsZC52MS5VbmlvblZpZXcSNAoKYWN0aXZpdGllcxgJIAEoCzIgLm15Z2FyZGVud29ybGQudjEuQWN0aXZpdGllc1ZpZXcSMgoJd2FyZWhvdXNlGAogASgLMh8ubXlnYXJkZW53b3JsZC52MS5XYXJlaG91c2VWaWV3EjkKCnN0YXRpc3RpY3MYCyABKAsyJS5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZVN0YXRpc3RpY3MSOgoPY2xlYXJlZF9kb21haW5zGAwgAygOMiEubXlnYXJkZW53b3JsZC52MS5Xb3Jrc3BhY2VEb21haW4ioQEKE1dvcmtzcGFjZVN0YXRpc3RpY3MSQwoScnVudGltZV9zdGF0aXN0aWNzGAEgASgLMicubXlnYXJkZW53b3JsZC52MS5SdW50aW1lU3RhdGlzdGljc1ZpZXcSRQoTYnVzaW5lc3Nfc3RhdGlzdGljcxgCIAEoCzIoLm15Z2FyZGVud29ybGQudjEuQnVzaW5lc3NTdGF0aXN0aWNzVmlldyLkAQoQV29ya3NwYWNlTG9nUGFnZRISCgphY2NvdW50X2lkGAEgASgDEjQKBGtpbmQYAiABKA4yJi5teWdhcmRlbndvcmxkLnYxLldvcmtzcGFjZUxvZ1BhZ2VLaW5kEicKBmV2ZW50cxgDIAMoCzIXLm15Z2FyZGVud29ybGQudjEuRXZlbnQSFgoObmV4dF9iZWZvcmVfaWQYBCABKAMSFwoPaGFzX21vcmVfYmVmb3JlGAUgASgIEhYKDmhhc19tb3JlX2FmdGVyGAYgASgIEhQKDGdhcF9kZXRlY3RlZBgHIAEoCCLUAgoUQWNjb3VudFJlZGVlbUF0dGVtcHQSCgoCaWQYASABKAMSDAoEY29kZRgCIAEoCRIqCgdjaGFubmVsGAMgASgOMhkubXlnYXJkZW53b3JsZC52MS5DaGFubmVsEjwKBnN0YXR1cxgEIAEoDjIsLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFJlZGVlbUF0dGVtcHRTdGF0dXMSDwoHbWVzc2FnZRgFIAEoCRIVCg1hdHRlbXB0X2NvdW50GAYgASgFEjAKDGF0dGVtcHRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKZXhwaXJlc19hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAivwEKG0FjY291bnRSZWRlZW1BdHRlbXB0U3VtbWFyeRINCgV0b3RhbBgBIAEoAxIPCgdzdWNjZXNzGAIgASgDEhgKEGFscmVhZHlfcmVkZWVtZWQYAyABKAMSDwoHZXhwaXJlZBgEIAEoAxIPCgdpbnZhbGlkGAUgASgDEg8KB3BlbmRpbmcYBiABKAMSDwoHcnVubmluZxgHIAEoAxIRCglyZXRyeWFibGUYCCABKAMSDwoHdW5rbm93bhgJIAEoAyKnAgoYQWNjb3VudFJlZGVlbUF0dGVtcHRQYWdlEhIKCmFjY291bnRfaWQYASABKAMSPAoGZmlsdGVyGAIgASgOMiwubXlnYXJkZW53b3JsZC52MS5BY2NvdW50UmVkZWVtQXR0ZW1wdEZpbHRlchI3CgdlbnRyaWVzGAMgAygLMiYubXlnYXJkZW53b3JsZC52MS5BY2NvdW50UmVkZWVtQXR0ZW1wdBIWCg5uZXh0X2JlZm9yZV9pZBgEIAEoAxIXCg9oYXNfbW9yZV9iZWZvcmUYBSABKAgSPgoHc3VtbWFyeRgGIAEoCzItLm15Z2FyZGVud29ybGQudjEuQWNjb3VudFJlZGVlbUF0dGVtcHRTdW1tYXJ5Eg8KB3JlcGxhY2UYByABKAgizQEKE0FsaXBheUxvZ2luUHJvZ3Jlc3MSEAoIbG9naW5faWQYASABKAkSMwoGc3RhdHVzGAIgASgOMiMubXlnYXJkZW53b3JsZC52MS5BbGlwYXlMb2dpblN0YXR1cxIqCgdhY2NvdW50GAMgASgLMhkubXlnYXJkZW53b3JsZC52MS5BY2NvdW50EhMKC2xvZ2luX2Vycm9yGAQgASgJEi4KCmV4cGlyZXNfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIkIKDldvcmtzcGFjZUVycm9yEgwKBGNvZGUYASABKAkSDwoHbWVzc2FnZRgCIAEoCRIRCglyZXRyeWFibGUYAyABKAgqhwIKD1dvcmtzcGFjZURvbWFpbhIgChxXT1JLU1BBQ0VfRE9NQUlOX1VOU1BFQ0lGSUVEEAASGgoWV09SS1NQQUNFX0RPTUFJTl9CQVNJQxABEhsKF1dPUktTUEFDRV9ET01BSU5fR0FSREVOEAISGwoXV09SS1NQQUNFX0RPTUFJTl9PUkRFUlMQAxIaChZXT1JLU1BBQ0VfRE9NQUlOX1VOSU9OEAQSHwobV09SS1NQQUNFX0RPTUFJTl9BQ1RJVklUSUVTEAUSHgoaV09SS1NQQUNFX0RPTUFJTl9XQVJFSE9VU0UQBhIfChtXT1JLU1BBQ0VfRE9NQUlOX1NUQVRJU1RJQ1MQByrMAQoUV29ya3NwYWNlTG9nUGFnZUtpbmQSJwojV09SS1NQQUNFX0xPR19QQUdFX0tJTkRfVU5TUEVDSUZJRUQQABIiCh5XT1JLU1BBQ0VfTE9HX1BBR0VfS0lORF9SRUNFTlQQARIiCh5XT1JLU1BBQ0VfTE9HX1BBR0VfS0lORF9CRUZPUkUQAhIhCh1XT1JLU1BBQ0VfTE9HX1BBR0VfS0lORF9BRlRFUhADEiAKHFdPUktTUEFDRV9MT0dfUEFHRV9LSU5EX0xJVkUQBCquAwoaQWNjb3VudFJlZGVlbUF0dGVtcHRTdGF0dXMSLQopQUNDT1VOVF9SRURFRU1fQVRURU1QVF9TVEFUVVNfVU5TUEVDSUZJRUQQABIpCiVBQ0NPVU5UX1JFREVFTV9BVFRFTVBUX1NUQVRVU19QRU5ESU5HEAESKQolQUNDT1VOVF9SRURFRU1fQVRURU1QVF9TVEFUVVNfUlVOTklORxACEikKJUFDQ09VTlRfUkVERUVNX0FUVEVNUFRfU1RBVFVTX1NVQ0NFU1MQAxIyCi5BQ0NPVU5UX1JFREVFTV9BVFRFTVBUX1NUQVRVU19BTFJFQURZX1JFREVFTUVEEAQSKQolQUNDT1VOVF9SRURFRU1fQVRURU1QVF9TVEFUVVNfRVhQSVJFRBAFEikKJUFDQ09VTlRfUkVERUVNX0FUVEVNUFRfU1RBVFVTX0lOVkFMSUQQBhIrCidBQ0NPVU5UX1JFREVFTV9BVFRFTVBUX1NUQVRVU19SRVRSWUFCTEUQBxIpCiVBQ0NPVU5UX1JFREVFTV9BVFRFTVBUX1NUQVRVU19VTktOT1dOEAgq+gEKGkFjY291bnRSZWRlZW1BdHRlbXB0RmlsdGVyEi0KKUFDQ09VTlRfUkVERUVNX0FUVEVNUFRfRklMVEVSX1VOU1BFQ0lGSUVEEAASJQohQUNDT1VOVF9SRURFRU1fQVRURU1QVF9GSUxURVJfQUxMEAESKgomQUNDT1VOVF9SRURFRU1fQVRURU1QVF9GSUxURVJfUkVERUVNRUQQAhItCilBQ0NPVU5UX1JFREVFTV9BVFRFTVBUX0ZJTFRFUl9VTkFWQUlMQUJMRRADEisKJ0FDQ09VTlRfUkVERUVNX0FUVEVNUFRfRklMVEVSX0FUVEVOVElPThAEQocBChRjb20ubXlnYXJkZW53b3JsZC52MUIOV29ya3NwYWNlUHJvdG9QAaICA01YWKoCEE15Z2FyZGVud29ybGQuVjHKAhBNeWdhcmRlbndvcmxkXFYx4gIcTXlnYXJkZW53b3JsZFxWMVxHUEJNZXRhZGF0YeoCEU15Z2FyZGVud29ybGQ6OlYxYgZwcm90bzM", [file_google_protobuf_timestamp, file_mygardenworld_v1_account, file_mygardenworld_v1_channel, file_mygardenworld_v1_policy, file_mygardenworld_v1_workspace_activity, file_mygardenworld_v1_workspace_basic, file_mygardenworld_v1_workspace_common, file_mygardenworld_v1_workspace_garden, file_mygardenworld_v1_workspace_orders, file_mygardenworld_v1_workspace_union, file_mygardenworld_v1_workspace_warehouse]);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceClientFrame
@@ -74,6 +76,12 @@ export type WorkspaceClientFrame = Message<"mygardenworld.v1.WorkspaceClientFram
      */
     value: WatchAlipayLogin;
     case: "watchAlipayLogin";
+  } | {
+    /**
+     * @generated from field: mygardenworld.v1.LoadAccountRedeemAttempts load_redeem_attempts = 7;
+     */
+    value: LoadAccountRedeemAttempts;
+    case: "loadRedeemAttempts";
   } | { case: undefined; value?: undefined };
 };
 
@@ -200,6 +208,38 @@ export const WatchAlipayLoginSchema: GenMessage<WatchAlipayLogin> = /*@__PURE__*
   messageDesc(file_mygardenworld_v1_workspace, 5);
 
 /**
+ * @generated from message mygardenworld.v1.LoadAccountRedeemAttempts
+ */
+export type LoadAccountRedeemAttempts = Message<"mygardenworld.v1.LoadAccountRedeemAttempts"> & {
+  /**
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
+
+  /**
+   * @generated from field: int64 before_id = 2;
+   */
+  beforeId: bigint;
+
+  /**
+   * @generated from field: int32 limit = 3;
+   */
+  limit: number;
+
+  /**
+   * @generated from field: mygardenworld.v1.AccountRedeemAttemptFilter filter = 4;
+   */
+  filter: AccountRedeemAttemptFilter;
+};
+
+/**
+ * Describes the message mygardenworld.v1.LoadAccountRedeemAttempts.
+ * Use `create(LoadAccountRedeemAttemptsSchema)` to create a new message.
+ */
+export const LoadAccountRedeemAttemptsSchema: GenMessage<LoadAccountRedeemAttempts> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace, 6);
+
+/**
  * @generated from message mygardenworld.v1.WorkspaceServerFrame
  */
 export type WorkspaceServerFrame = Message<"mygardenworld.v1.WorkspaceServerFrame"> & {
@@ -258,6 +298,12 @@ export type WorkspaceServerFrame = Message<"mygardenworld.v1.WorkspaceServerFram
      */
     value: WorkspaceError;
     case: "error";
+  } | {
+    /**
+     * @generated from field: mygardenworld.v1.AccountRedeemAttemptPage redeem_attempts = 10;
+     */
+    value: AccountRedeemAttemptPage;
+    case: "redeemAttempts";
   } | { case: undefined; value?: undefined };
 };
 
@@ -266,7 +312,7 @@ export type WorkspaceServerFrame = Message<"mygardenworld.v1.WorkspaceServerFram
  * Use `create(WorkspaceServerFrameSchema)` to create a new message.
  */
 export const WorkspaceServerFrameSchema: GenMessage<WorkspaceServerFrame> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 6);
+  messageDesc(file_mygardenworld_v1_workspace, 7);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceReady
@@ -308,7 +354,7 @@ export type WorkspaceReady = Message<"mygardenworld.v1.WorkspaceReady"> & {
  * Use `create(WorkspaceReadySchema)` to create a new message.
  */
 export const WorkspaceReadySchema: GenMessage<WorkspaceReady> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 7);
+  messageDesc(file_mygardenworld_v1_workspace, 8);
 
 /**
  * @generated from message mygardenworld.v1.AccountStatusBatch
@@ -325,7 +371,7 @@ export type AccountStatusBatch = Message<"mygardenworld.v1.AccountStatusBatch"> 
  * Use `create(AccountStatusBatchSchema)` to create a new message.
  */
 export const AccountStatusBatchSchema: GenMessage<AccountStatusBatch> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 8);
+  messageDesc(file_mygardenworld_v1_workspace, 9);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceState
@@ -392,7 +438,7 @@ export type WorkspaceState = Message<"mygardenworld.v1.WorkspaceState"> & {
  * Use `create(WorkspaceStateSchema)` to create a new message.
  */
 export const WorkspaceStateSchema: GenMessage<WorkspaceState> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 9);
+  messageDesc(file_mygardenworld_v1_workspace, 10);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceSnapshot
@@ -414,7 +460,7 @@ export type WorkspaceSnapshot = Message<"mygardenworld.v1.WorkspaceSnapshot"> & 
  * Use `create(WorkspaceSnapshotSchema)` to create a new message.
  */
 export const WorkspaceSnapshotSchema: GenMessage<WorkspaceSnapshot> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 10);
+  messageDesc(file_mygardenworld_v1_workspace, 11);
 
 /**
  * Message presence means that domain changed. An absent field is unchanged.
@@ -488,7 +534,7 @@ export type WorkspacePatch = Message<"mygardenworld.v1.WorkspacePatch"> & {
  * Use `create(WorkspacePatchSchema)` to create a new message.
  */
 export const WorkspacePatchSchema: GenMessage<WorkspacePatch> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 11);
+  messageDesc(file_mygardenworld_v1_workspace, 12);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceStatistics
@@ -510,7 +556,7 @@ export type WorkspaceStatistics = Message<"mygardenworld.v1.WorkspaceStatistics"
  * Use `create(WorkspaceStatisticsSchema)` to create a new message.
  */
 export const WorkspaceStatisticsSchema: GenMessage<WorkspaceStatistics> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 12);
+  messageDesc(file_mygardenworld_v1_workspace, 13);
 
 /**
  * WorkspaceLogPage is the only log transport shape. Events are always ordered
@@ -562,7 +608,168 @@ export type WorkspaceLogPage = Message<"mygardenworld.v1.WorkspaceLogPage"> & {
  * Use `create(WorkspaceLogPageSchema)` to create a new message.
  */
 export const WorkspaceLogPageSchema: GenMessage<WorkspaceLogPage> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 13);
+  messageDesc(file_mygardenworld_v1_workspace, 14);
+
+/**
+ * @generated from message mygardenworld.v1.AccountRedeemAttempt
+ */
+export type AccountRedeemAttempt = Message<"mygardenworld.v1.AccountRedeemAttempt"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: mygardenworld.v1.Channel channel = 3;
+   */
+  channel: Channel;
+
+  /**
+   * @generated from field: mygardenworld.v1.AccountRedeemAttemptStatus status = 4;
+   */
+  status: AccountRedeemAttemptStatus;
+
+  /**
+   * @generated from field: string message = 5;
+   */
+  message: string;
+
+  /**
+   * @generated from field: int32 attempt_count = 6;
+   */
+  attemptCount: number;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp attempted_at = 7;
+   */
+  attemptedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp expires_at = 8;
+   */
+  expiresAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 9;
+   */
+  updatedAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message mygardenworld.v1.AccountRedeemAttempt.
+ * Use `create(AccountRedeemAttemptSchema)` to create a new message.
+ */
+export const AccountRedeemAttemptSchema: GenMessage<AccountRedeemAttempt> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace, 15);
+
+/**
+ * @generated from message mygardenworld.v1.AccountRedeemAttemptSummary
+ */
+export type AccountRedeemAttemptSummary = Message<"mygardenworld.v1.AccountRedeemAttemptSummary"> & {
+  /**
+   * @generated from field: int64 total = 1;
+   */
+  total: bigint;
+
+  /**
+   * @generated from field: int64 success = 2;
+   */
+  success: bigint;
+
+  /**
+   * @generated from field: int64 already_redeemed = 3;
+   */
+  alreadyRedeemed: bigint;
+
+  /**
+   * @generated from field: int64 expired = 4;
+   */
+  expired: bigint;
+
+  /**
+   * @generated from field: int64 invalid = 5;
+   */
+  invalid: bigint;
+
+  /**
+   * @generated from field: int64 pending = 6;
+   */
+  pending: bigint;
+
+  /**
+   * @generated from field: int64 running = 7;
+   */
+  running: bigint;
+
+  /**
+   * @generated from field: int64 retryable = 8;
+   */
+  retryable: bigint;
+
+  /**
+   * @generated from field: int64 unknown = 9;
+   */
+  unknown: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.AccountRedeemAttemptSummary.
+ * Use `create(AccountRedeemAttemptSummarySchema)` to create a new message.
+ */
+export const AccountRedeemAttemptSummarySchema: GenMessage<AccountRedeemAttemptSummary> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace, 16);
+
+/**
+ * @generated from message mygardenworld.v1.AccountRedeemAttemptPage
+ */
+export type AccountRedeemAttemptPage = Message<"mygardenworld.v1.AccountRedeemAttemptPage"> & {
+  /**
+   * @generated from field: int64 account_id = 1;
+   */
+  accountId: bigint;
+
+  /**
+   * @generated from field: mygardenworld.v1.AccountRedeemAttemptFilter filter = 2;
+   */
+  filter: AccountRedeemAttemptFilter;
+
+  /**
+   * @generated from field: repeated mygardenworld.v1.AccountRedeemAttempt entries = 3;
+   */
+  entries: AccountRedeemAttempt[];
+
+  /**
+   * @generated from field: int64 next_before_id = 4;
+   */
+  nextBeforeId: bigint;
+
+  /**
+   * @generated from field: bool has_more_before = 5;
+   */
+  hasMoreBefore: boolean;
+
+  /**
+   * @generated from field: mygardenworld.v1.AccountRedeemAttemptSummary summary = 6;
+   */
+  summary?: AccountRedeemAttemptSummary | undefined;
+
+  /**
+   * @generated from field: bool replace = 7;
+   */
+  replace: boolean;
+};
+
+/**
+ * Describes the message mygardenworld.v1.AccountRedeemAttemptPage.
+ * Use `create(AccountRedeemAttemptPageSchema)` to create a new message.
+ */
+export const AccountRedeemAttemptPageSchema: GenMessage<AccountRedeemAttemptPage> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_workspace, 17);
 
 /**
  * @generated from message mygardenworld.v1.AlipayLoginProgress
@@ -599,7 +806,7 @@ export type AlipayLoginProgress = Message<"mygardenworld.v1.AlipayLoginProgress"
  * Use `create(AlipayLoginProgressSchema)` to create a new message.
  */
 export const AlipayLoginProgressSchema: GenMessage<AlipayLoginProgress> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 14);
+  messageDesc(file_mygardenworld_v1_workspace, 18);
 
 /**
  * @generated from message mygardenworld.v1.WorkspaceError
@@ -626,7 +833,7 @@ export type WorkspaceError = Message<"mygardenworld.v1.WorkspaceError"> & {
  * Use `create(WorkspaceErrorSchema)` to create a new message.
  */
 export const WorkspaceErrorSchema: GenMessage<WorkspaceError> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_workspace, 15);
+  messageDesc(file_mygardenworld_v1_workspace, 19);
 
 /**
  * WorkspaceDomain is the product boundary used by state patches and the Web UI.
@@ -716,4 +923,96 @@ export enum WorkspaceLogPageKind {
  */
 export const WorkspaceLogPageKindSchema: GenEnum<WorkspaceLogPageKind> = /*@__PURE__*/
   enumDesc(file_mygardenworld_v1_workspace, 1);
+
+/**
+ * @generated from enum mygardenworld.v1.AccountRedeemAttemptStatus
+ */
+export enum AccountRedeemAttemptStatus {
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_PENDING = 1;
+   */
+  PENDING = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_RUNNING = 2;
+   */
+  RUNNING = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_SUCCESS = 3;
+   */
+  SUCCESS = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_ALREADY_REDEEMED = 4;
+   */
+  ALREADY_REDEEMED = 4,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_EXPIRED = 5;
+   */
+  EXPIRED = 5,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_INVALID = 6;
+   */
+  INVALID = 6,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_RETRYABLE = 7;
+   */
+  RETRYABLE = 7,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_STATUS_UNKNOWN = 8;
+   */
+  UNKNOWN = 8,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.AccountRedeemAttemptStatus.
+ */
+export const AccountRedeemAttemptStatusSchema: GenEnum<AccountRedeemAttemptStatus> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_workspace, 2);
+
+/**
+ * @generated from enum mygardenworld.v1.AccountRedeemAttemptFilter
+ */
+export enum AccountRedeemAttemptFilter {
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_FILTER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_FILTER_ALL = 1;
+   */
+  ALL = 1,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_FILTER_REDEEMED = 2;
+   */
+  REDEEMED = 2,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_FILTER_UNAVAILABLE = 3;
+   */
+  UNAVAILABLE = 3,
+
+  /**
+   * @generated from enum value: ACCOUNT_REDEEM_ATTEMPT_FILTER_ATTENTION = 4;
+   */
+  ATTENTION = 4,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.AccountRedeemAttemptFilter.
+ */
+export const AccountRedeemAttemptFilterSchema: GenEnum<AccountRedeemAttemptFilter> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_workspace, 3);
 

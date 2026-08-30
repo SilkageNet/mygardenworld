@@ -19,6 +19,7 @@ import (
 
 const (
 	RedeemValidationPending         = "pending"
+	RedeemAttemptStatusRunning      = "running"
 	RedeemValidationSuccess         = "success"
 	RedeemValidationAlreadyRedeemed = "already_redeemed"
 	RedeemValidationExpired         = "expired"
@@ -28,6 +29,11 @@ const (
 
 	RedeemSourceMyGardenWorld = "mygardenworld"
 	RedeemSourceCustomHTTP    = "custom_http"
+
+	RedeemAttemptFilterAll         = "all"
+	RedeemAttemptFilterRedeemed    = "redeemed"
+	RedeemAttemptFilterUnavailable = "unavailable"
+	RedeemAttemptFilterAttention   = "attention"
 )
 
 type RedeemCode struct {
@@ -105,6 +111,38 @@ type RedeemAttempt struct {
 	Fingerprint  string
 	ExpiresAt    *time.Time
 	AttemptCount int
+}
+
+type RedeemAttemptRecord struct {
+	ID           int64
+	AccountID    int64
+	Channel      string
+	Code         string
+	Status       string
+	Message      string
+	AttemptCount int
+	AttemptedAt  *time.Time
+	ExpiresAt    *time.Time
+	UpdatedAt    time.Time
+}
+
+type RedeemAttemptSummary struct {
+	Total           int64
+	Success         int64
+	AlreadyRedeemed int64
+	Expired         int64
+	Invalid         int64
+	Pending         int64
+	Running         int64
+	Retryable       int64
+	Unknown         int64
+}
+
+type ListRedeemAttemptsOptions struct {
+	AccountID int64
+	BeforeID  int64
+	Limit     int
+	Filter    string
 }
 
 type RedeemOutboxItem struct {
@@ -362,6 +400,83 @@ JOIN users u ON u.id = a.user_id AND u.status = 'active'
 WHERE c.validation NOT IN ('expired', 'invalid')
   AND (c.expires_at IS NULL OR c.expires_at > ?)`, now, now, now)
 	return err
+}
+
+func (d *DB) ListRedeemAttempts(ctx context.Context, opts ListRedeemAttemptsOptions) ([]RedeemAttemptRecord, RedeemAttemptSummary, error) {
+	var summary RedeemAttemptSummary
+	tx, err := d.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, summary, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := tx.QueryRowContext(ctx, `
+SELECT COUNT(*),
+       COALESCE(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'already_redeemed' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'invalid' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'retryable' THEN 1 ELSE 0 END), 0),
+       COALESCE(SUM(CASE WHEN status = 'unknown' THEN 1 ELSE 0 END), 0)
+FROM redeem_attempts
+WHERE account_id = ?`, opts.AccountID).Scan(
+		&summary.Total, &summary.Success, &summary.AlreadyRedeemed, &summary.Expired,
+		&summary.Invalid, &summary.Pending, &summary.Running, &summary.Retryable, &summary.Unknown,
+	); err != nil {
+		return nil, summary, err
+	}
+
+	query := `
+SELECT a.id, a.account_id, c.channel, c.code, a.status, a.message, a.attempt_count,
+       a.attempted_at, c.expires_at, a.updated_at
+FROM redeem_attempts a
+JOIN redeem_codes c ON c.id = a.redeem_code_id
+WHERE a.account_id = ?`
+	args := []any{opts.AccountID}
+	switch opts.Filter {
+	case RedeemAttemptFilterRedeemed:
+		query += ` AND a.status IN ('success', 'already_redeemed')`
+	case RedeemAttemptFilterUnavailable:
+		query += ` AND a.status IN ('expired', 'invalid')`
+	case RedeemAttemptFilterAttention:
+		query += ` AND a.status IN ('pending', 'running', 'retryable', 'unknown')`
+	}
+	if opts.BeforeID > 0 {
+		query += ` AND a.id < ?`
+		args = append(args, opts.BeforeID)
+	}
+	query += ` ORDER BY a.id DESC LIMIT ?`
+	args = append(args, opts.Limit)
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, summary, err
+	}
+	records := make([]RedeemAttemptRecord, 0, opts.Limit)
+	for rows.Next() {
+		var record RedeemAttemptRecord
+		var attemptedAt, expiresAt sql.NullTime
+		if err := rows.Scan(&record.ID, &record.AccountID, &record.Channel, &record.Code,
+			&record.Status, &record.Message, &record.AttemptCount, &attemptedAt, &expiresAt,
+			&record.UpdatedAt); err != nil {
+			return nil, summary, err
+		}
+		record.AttemptedAt = nullTimePtr(attemptedAt)
+		record.ExpiresAt = nullTimePtr(expiresAt)
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, summary, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, summary, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, summary, err
+	}
+	return records, summary, nil
 }
 
 func (d *DB) RecoverRedeemWork(ctx context.Context) error {

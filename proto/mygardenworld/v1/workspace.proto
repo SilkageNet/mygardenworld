@@ -4,6 +4,7 @@ package mygardenworld.v1;
 
 import "google/protobuf/timestamp.proto";
 import "mygardenworld/v1/account.proto";
+import "mygardenworld/v1/channel.proto";
 import "mygardenworld/v1/policy.proto";
 import "mygardenworld/v1/workspace_activity.proto";
 import "mygardenworld/v1/workspace_basic.proto";
@@ -33,6 +34,26 @@ enum WorkspaceLogPageKind {
   WORKSPACE_LOG_PAGE_KIND_LIVE = 4;
 }
 
+enum AccountRedeemAttemptStatus {
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_PENDING = 1;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_RUNNING = 2;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_SUCCESS = 3;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_ALREADY_REDEEMED = 4;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_EXPIRED = 5;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_INVALID = 6;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_RETRYABLE = 7;
+  ACCOUNT_REDEEM_ATTEMPT_STATUS_UNKNOWN = 8;
+}
+
+enum AccountRedeemAttemptFilter {
+  ACCOUNT_REDEEM_ATTEMPT_FILTER_UNSPECIFIED = 0;
+  ACCOUNT_REDEEM_ATTEMPT_FILTER_ALL = 1;
+  ACCOUNT_REDEEM_ATTEMPT_FILTER_REDEEMED = 2;
+  ACCOUNT_REDEEM_ATTEMPT_FILTER_UNAVAILABLE = 3;
+  ACCOUNT_REDEEM_ATTEMPT_FILTER_ATTENTION = 4;
+}
+
 message WorkspaceClientFrame {
   uint64 request_id = 1;
 
@@ -42,6 +63,7 @@ message WorkspaceClientFrame {
     ResyncWorkspace resync = 4;
     LoadWorkspaceLogs load_logs = 5;
     WatchAlipayLogin watch_alipay_login = 6;
+    LoadAccountRedeemAttempts load_redeem_attempts = 7;
   }
 }
 
@@ -71,6 +93,13 @@ message WatchAlipayLogin {
   string login_id = 1;
 }
 
+message LoadAccountRedeemAttempts {
+  int64 account_id = 1;
+  int64 before_id = 2;
+  int32 limit = 3;
+  AccountRedeemAttemptFilter filter = 4;
+}
+
 message WorkspaceServerFrame {
   uint64 sequence = 1;
   uint64 request_id = 2;
@@ -83,6 +112,7 @@ message WorkspaceServerFrame {
     WorkspaceLogPage logs = 7;
     AlipayLoginProgress alipay_login = 8;
     WorkspaceError error = 9;
+    AccountRedeemAttemptPage redeem_attempts = 10;
   }
 }
 
@@ -151,6 +181,40 @@ message WorkspaceLogPage {
   bool has_more_before = 5;
   bool has_more_after = 6;
   bool gap_detected = 7;
+}
+
+message AccountRedeemAttempt {
+  int64 id = 1;
+  string code = 2;
+  Channel channel = 3;
+  AccountRedeemAttemptStatus status = 4;
+  string message = 5;
+  int32 attempt_count = 6;
+  google.protobuf.Timestamp attempted_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message AccountRedeemAttemptSummary {
+  int64 total = 1;
+  int64 success = 2;
+  int64 already_redeemed = 3;
+  int64 expired = 4;
+  int64 invalid = 5;
+  int64 pending = 6;
+  int64 running = 7;
+  int64 retryable = 8;
+  int64 unknown = 9;
+}
+
+message AccountRedeemAttemptPage {
+  int64 account_id = 1;
+  AccountRedeemAttemptFilter filter = 2;
+  repeated AccountRedeemAttempt entries = 3;
+  int64 next_before_id = 4;
+  bool has_more_before = 5;
+  AccountRedeemAttemptSummary summary = 6;
+  bool replace = 7;
 }
 
 message AlipayLoginProgress {

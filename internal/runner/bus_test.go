@@ -58,3 +58,20 @@ func TestBusSubscribeLiveSkipsRecentEvents(t *testing.T) {
 		t.Fatalf("live event = %q, want live", event.Kind)
 	}
 }
+
+func TestBusPublishTransientIsLiveOnly(t *testing.T) {
+	bus := NewBus()
+	live, cancelLive := bus.SubscribeLive(1)
+	defer cancelLive()
+	bus.PublishTransient(Event{Kind: "refresh"})
+	if event := <-live; event.Kind != "refresh" {
+		t.Fatalf("live event kind=%q, want refresh", event.Kind)
+	}
+
+	replayed, cancelReplayed := bus.Subscribe(1)
+	defer cancelReplayed()
+	bus.Publish(Event{Kind: "persisted"})
+	if event := <-replayed; event.Kind != "persisted" {
+		t.Fatalf("replayed event kind=%q, want persisted", event.Kind)
+	}
+}

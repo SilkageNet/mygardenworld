@@ -11,7 +11,12 @@ import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { PolicyService } from "@/gen/mygardenworld/v1/policy_service_pb";
-import { WorkspaceLogPageKind, type WorkspaceLogPage } from "@/gen/mygardenworld/v1/workspace_pb";
+import {
+  AccountRedeemAttemptFilter,
+  WorkspaceLogPageKind,
+  type AccountRedeemAttemptPage,
+  type WorkspaceLogPage,
+} from "@/gen/mygardenworld/v1/workspace_pb";
 import { AccountHealth } from "@/lib/api/workspace-models";
 import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
 import AppShell from "@/components/app-shell";
@@ -30,6 +35,13 @@ import {
   workspaceStateToViews,
   type AccountViews,
 } from "@/features/workspace/model";
+import {
+  applyRedeemAttemptPage,
+  emptyRedeemAttemptFeed,
+  loadingRedeemAttemptFeed,
+  REDEEM_ATTEMPT_PAGE_SIZE,
+  type RedeemAttemptLoadingMode,
+} from "@/features/workspace/basic/redeem-attempts-model";
 import { AccountDetailView, SelectAccountPlaceholder, type DashboardTabId } from "@/features/account-workspace/account-detail";
 import AccountListPanel, { type AccountQuota } from "@/features/account-workspace/account-list-panel";
 import AddAccountDialog, { EMPTY_ADD_FORM, type AddAccountForm, type AlipayQRState } from "@/features/account-workspace/add-account-dialog";
@@ -75,6 +87,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const [views, setViews] = useState<AccountViews>(EMPTY_ACCOUNT_VIEWS);
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [logFeed, setLogFeed] = useState<LogFeed>(EMPTY_LOG_FEED);
+  const [redeemFeed, setRedeemFeed] = useState(() => emptyRedeemAttemptFeed());
   const [workspaceConnection, setWorkspaceConnection] = useState<WorkspaceConnectionState>("connecting");
   const [loading, setLoading] = useState(true);
   const [viewsLoading, setViewsLoading] = useState(false);
@@ -97,6 +110,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const accountsLoadedRef = useRef(false);
   const policyOwnerAccountIdRef = useRef("");
   const logFeedsRef = useRef<Map<string, LogFeed>>(new Map());
+  const redeemFeedRef = useRef(emptyRedeemAttemptFeed());
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => accountKey(account.id) === selectedAccountId) ?? null,
@@ -164,6 +178,35 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     }
   }, []);
 
+  const requestRedeemAttemptPage = useCallback((
+    accountId: string,
+    filter: AccountRedeemAttemptFilter,
+    beforeId: bigint,
+    mode: Exclude<RedeemAttemptLoadingMode, "">,
+  ) => {
+    const sent = workspaceClientRef.current?.loadRedeemAttempts(
+      accountId,
+      beforeId,
+      REDEEM_ATTEMPT_PAGE_SIZE,
+      filter,
+    ) ?? false;
+    if (!sent) return false;
+    setRedeemFeed((current) => {
+      const next = loadingRedeemAttemptFeed(current, accountId, filter, mode);
+      redeemFeedRef.current = next;
+      return next;
+    });
+    return true;
+  }, []);
+
+  const applyRedeemPage = useCallback((page: AccountRedeemAttemptPage) => {
+    setRedeemFeed((current) => {
+      const next = applyRedeemAttemptPage(current, page);
+      redeemFeedRef.current = next;
+      return next;
+    });
+  }, []);
+
   const refreshAccountCollection = useCallback(async () => {
     await refreshAccounts();
     workspaceClientRef.current?.resync();
@@ -210,6 +253,12 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
           setStatuses((current) => withAccountStatus(current, state.accountStatus!));
         }
         applyLogPage(snapshot.logs);
+        const accountId = accountKey(state.accountId);
+        const currentRedeemFeed = redeemFeedRef.current;
+        const filter = currentRedeemFeed.accountId === accountId
+          ? currentRedeemFeed.filter
+          : AccountRedeemAttemptFilter.ALL;
+        requestRedeemAttemptPage(accountId, filter, BigInt(0), "replace");
         setViewsLoading(false);
       },
       onPatch: (patch) => {
@@ -224,6 +273,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
         }
       },
       onLogs: applyLogPage,
+      onRedeemAttempts: applyRedeemPage,
       onAlipayLogin: (progress) => {
         setAlipayQR((current) => current && current.loginId === progress.loginId
           ? { ...current, status: progress.status, error: progress.loginError }
@@ -239,6 +289,12 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
       },
       onError: (workspaceError) => {
         setLogFeed((current) => current.loading ? { ...current, loading: false } : current);
+        setRedeemFeed((current) => {
+          if (!current.loadingMode) return current;
+          const next = { ...current, loadingMode: "" as const };
+          redeemFeedRef.current = next;
+          return next;
+        });
         // Access-token rotation is an expected short reconnect: the socket
         // closes with 4401, refreshes through the HttpOnly cookie, then opens
         // again with the new access token. Connection state already presents
@@ -253,7 +309,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
       workspaceClientRef.current = null;
       client.stop();
     };
-  }, [applyLogPage, applyStatuses, onServerVersion, refreshAccounts]);
+  }, [applyLogPage, applyRedeemPage, applyStatuses, onServerVersion, refreshAccounts, requestRedeemAttemptPage]);
 
   useEffect(() => {
     if (accounts.length === 0) {
@@ -284,6 +340,9 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     setLogFeed(selectedAccountId
       ? (logFeedsRef.current.get(selectedAccountId) ?? { ...EMPTY_LOG_FEED, accountId: selectedAccountId })
       : EMPTY_LOG_FEED);
+    const nextRedeemFeed = emptyRedeemAttemptFeed(selectedAccountId);
+    redeemFeedRef.current = nextRedeemFeed;
+    setRedeemFeed(nextRedeemFeed);
     if (!selectedAccountId) {
       setPolicyLoading(false);
       setViewsLoading(false);
@@ -570,6 +629,23 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     }
   }
 
+  function changeRedeemAttemptFilter(filter: AccountRedeemAttemptFilter) {
+    if (!selectedAccountId) return;
+    const current = redeemFeedRef.current;
+    if (current.filter === filter && current.loadingMode) return;
+    if (!requestRedeemAttemptPage(selectedAccountId, filter, BigInt(0), "replace")) {
+      setError("状态通道尚未连接，暂时无法加载兑换记录");
+    }
+  }
+
+  function loadMoreRedeemAttempts() {
+    const current = redeemFeedRef.current;
+    if (!selectedAccountId || current.loadingMode || !current.hasMore || current.nextBeforeId <= BigInt(0)) return;
+    if (!requestRedeemAttemptPage(selectedAccountId, current.filter, current.nextBeforeId, "append")) {
+      setError("状态通道尚未连接，暂时无法加载更早的兑换记录");
+    }
+  }
+
   return (
     <div className="relative z-10 min-h-0 xl:h-full">
       {error && (
@@ -625,6 +701,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
                 viewsLoading={viewsLoading}
                 busyAction={busyAction}
                 activeTab={dashboardTab}
+                redeemFeed={redeemFeed}
                 events={logFeed.events}
                 logsHasMore={logFeed.hasMore}
                 logsLoading={logFeed.loading}
@@ -643,6 +720,8 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
                 onPolicyChange={setPolicy}
                 onPolicySave={() => void savePolicy()}
                 onLoadMoreLogs={loadMoreLogs}
+                onRedeemFilterChange={changeRedeemAttemptFilter}
+                onLoadMoreRedeemAttempts={loadMoreRedeemAttempts}
               />
             ) : (
               <SelectAccountPlaceholder />

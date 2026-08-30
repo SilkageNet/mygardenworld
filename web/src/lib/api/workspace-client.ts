@@ -1,14 +1,17 @@
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
 import {
+  AccountRedeemAttemptFilter,
   WorkspaceClientFrameSchema,
   WorkspaceServerFrameSchema,
+  LoadAccountRedeemAttemptsSchema,
   LoadWorkspaceLogsSchema,
   OpenWorkspaceSchema,
   ResyncWorkspaceSchema,
   SelectWorkspaceAccountSchema,
   WatchAlipayLoginSchema,
   type AccountStatusBatch,
+  type AccountRedeemAttemptPage,
   type AlipayLoginProgress,
   type WorkspaceClientFrame,
   type WorkspaceError,
@@ -38,6 +41,7 @@ export type WorkspaceClientHandlers = {
   onSnapshot?: (snapshot: WorkspaceSnapshot) => void;
   onPatch?: (patch: WorkspacePatch) => void;
   onLogs?: (page: WorkspaceLogPage) => void;
+  onRedeemAttempts?: (page: AccountRedeemAttemptPage) => void;
   onAlipayLogin?: (progress: AlipayLoginProgress) => void;
   onError?: (error: WorkspaceError) => void;
 };
@@ -104,6 +108,24 @@ export class WorkspaceClient {
     return this.send({
       case: "loadLogs",
       value: create(LoadWorkspaceLogsSchema, { accountId: BigInt(accountId), beforeId, limit }),
+    });
+  }
+
+  loadRedeemAttempts(
+    accountId: string,
+    beforeId = BigInt(0),
+    limit = 20,
+    filter = AccountRedeemAttemptFilter.ALL,
+  ) {
+    if (!accountId) return false;
+    return this.send({
+      case: "loadRedeemAttempts",
+      value: create(LoadAccountRedeemAttemptsSchema, {
+        accountId: BigInt(accountId),
+        beforeId,
+        limit,
+        filter,
+      }),
     });
   }
 
@@ -220,6 +242,9 @@ export class WorkspaceClient {
       case "logs":
         this.noteLogs(payload.value.events);
         this.handlers.onLogs?.(payload.value);
+        break;
+      case "redeemAttempts":
+        this.handlers.onRedeemAttempts?.(payload.value);
         break;
       case "alipayLogin":
         if (
