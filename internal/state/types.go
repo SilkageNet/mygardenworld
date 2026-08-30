@@ -365,7 +365,18 @@ type FmlRaceTakenView struct {
 type FmlRaceView struct {
 	Observed      bool // true after a meaningful CurFmlRaceBatch (field 111) was synced
 	TasksObserved bool // true after FmlRaceTaskList (field 114) has been received
-	// TasksSyncedAtMs is local wall time (ms) when field 114 was last applied.
+	// TaskPoolStale is set when a local mutation, reconnect, or server rejection
+	// requires a getTaskList round-trip before the cached pool may drive work.
+	// It is deliberately separate from TasksObserved: a stale pool was still
+	// observed and can be retained for display while mutations remain gated.
+	TaskPoolStale bool
+	// TaskPoolSyncAttemptAtMs is local wall time (ms) of the last successful
+	// getTaskList round-trip. It advances even when the delta omits field 114,
+	// allowing an unobserved channel response to retry with bounded backoff.
+	TaskPoolSyncAttemptAtMs int64
+	// TasksSyncedAtMs is local wall time (ms) when the observed task-pool snapshot
+	// was last confirmed by getTaskList. A successful no-change delta advances it
+	// when TasksObserved is already true.
 	TasksSyncedAtMs int64
 	BatchActive     bool              // true if status/time window indicates an active race
 	BatchID         int64             // CurFmlRaceBatch.batchId (field 0; millisecond timestamp)
@@ -401,9 +412,9 @@ type FmlRaceView struct {
 	// RaceQuotaSyncAtMs is local ms of the last getFmlRaceUsrRankList attempt
 	// that sought fTaskNum / personal score / rank.
 	RaceQuotaSyncAtMs int64
-	// MissingParamRefreshFP is the msId fingerprint of a pool that still lacked
-	// plant-harvest ParamID after a getTaskList refresh. Empty means a refresh
-	// may still be issued for the current incomplete pool.
+	// MissingParamRefreshFP identifies the incomplete task rows for which a
+	// successful getTaskList refresh has already been attempted. Empty means the
+	// current incomplete rows have not yet received their one immediate refresh.
 	MissingParamRefreshFP string
 	// TakeQuotaExhausted is set when takeTask returns「任务接取次数已达上限」.
 	// Cleared when the race batch identity changes. Blocks further take attempts

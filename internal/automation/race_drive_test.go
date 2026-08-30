@@ -540,7 +540,7 @@ func TestRaceExpiredTaskStopsProgressAndRefreshes(t *testing.T) {
 			},
 		},
 	})
-	s.MarkFmlRaceTasksUnobserved()
+	s.MarkFmlRaceTaskPoolStale()
 	policy := racePlantPolicy(true)
 
 	result := BuildPlan(s, policy, now)

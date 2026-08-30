@@ -64,17 +64,7 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 	}
 	if len(activeSideScopes) == 0 {
 		r.sideLaneFarmTurn = false
-	}
-
-	// Contested race take (and required give-up) must not wait for farm-first
-	// fairness or a pending farmTurn; missing AppearTime by a tick loses the row.
-	if urgent := firstUrgentRaceOp(runnable); urgent != nil {
-		if urgent.scope != "" {
-			delete(r.sideLaneFirstWait, urgent.scope)
-		}
-		r.sideLaneFarmTurn = true
-		selected := urgent.op
-		return &selected
+		r.raceSyncNeedsFarmTurn = false
 	}
 
 	firstFarm := -1
@@ -93,10 +83,30 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 		}
 	}
 
+	// Contested race mutations must not wait for farm-first fairness. Read-only
+	// race syncs may preempt once, but a still-runnable duplicate yields one tick
+	// to Farm so a future state bug cannot stop every business operation.
+	if urgent := firstUrgentRaceOp(runnable); urgent != nil {
+		if isYieldingRaceSync(urgent.op) && r.raceSyncNeedsFarmTurn && firstFarm >= 0 {
+			r.raceSyncNeedsFarmTurn = false
+			r.sideLaneFarmTurn = false
+			selected := runnable[firstFarm].op
+			return &selected
+		}
+		if urgent.scope != "" {
+			delete(r.sideLaneFirstWait, urgent.scope)
+		}
+		r.raceSyncNeedsFarmTurn = isYieldingRaceSync(urgent.op)
+		r.sideLaneFarmTurn = true
+		selected := urgent.op
+		return &selected
+	}
+
 	// A forced Side is followed by one Farm operation whenever Farm work is
 	// currently available. With no Farm candidate, due Side scopes may continue.
 	if r.sideLaneFarmTurn && firstFarm >= 0 {
 		r.sideLaneFarmTurn = false
+		r.raceSyncNeedsFarmTurn = false
 		selected := runnable[firstFarm].op
 		return &selected
 	}
@@ -111,6 +121,7 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 	}
 
 	selected := runnable[0]
+	r.raceSyncNeedsFarmTurn = false
 	if selected.op.Lane == automation.LaneFarm {
 		r.sideLaneFarmTurn = false
 	} else if selected.scope != "" {
@@ -128,6 +139,10 @@ func firstUrgentRaceOp(runnable []runnableOperationCandidate) *runnableOperation
 		}
 	}
 	return nil
+}
+
+func isYieldingRaceSync(op automation.PlannedOp) bool {
+	return op.PreemptFarm && op.Action == "sync"
 }
 
 func isSideLane(op automation.PlannedOp) bool {
@@ -153,4 +168,5 @@ func (r *Runner) resetSideLaneFairness() {
 func (r *Runner) resetSideLaneFairnessLocked() {
 	clear(r.sideLaneFirstWait)
 	r.sideLaneFarmTurn = false
+	r.raceSyncNeedsFarmTurn = false
 }

@@ -67,8 +67,9 @@ func TestHandleOperationErrorRaceTakeTips1SoftRecover(t *testing.T) {
 	if got != nil {
 		t.Fatalf("tips1 must soft-recover (nil), got %v", got)
 	}
-	if r.state.FmlRace().TasksObserved {
-		t.Fatal("tips1 must MarkFmlRaceTasksUnobserved")
+	view := r.state.FmlRace()
+	if !view.TasksObserved || !view.TaskPoolStale {
+		t.Fatalf("tips1 must retain the observed snapshot and mark it stale: %+v", view)
 	}
 }
 
@@ -140,8 +141,8 @@ func TestHandleOperationErrorRaceTakeClaimedByOtherSoftRecover(t *testing.T) {
 		t.Fatalf("claimed-by-other must soft-recover (nil), got %v", got)
 	}
 	view := r.state.FmlRace()
-	if view.TasksObserved {
-		t.Fatal("must MarkFmlRaceTasksUnobserved")
+	if !view.TasksObserved || !view.TaskPoolStale {
+		t.Fatalf("must retain the observed snapshot and mark it stale: %+v", view)
 	}
 	if view.Tasks[0].UID == 0 {
 		t.Fatal("must MarkFmlRacePoolTaskClaimed so UID!=0")
@@ -177,8 +178,8 @@ func TestHandleOperationErrorRaceTakeQuotaExceededSoftRecover(t *testing.T) {
 		t.Fatalf("quota exceeded must soft-recover (nil), got %v", got)
 	}
 	view := r.state.FmlRace()
-	if view.TasksObserved {
-		t.Fatal("must MarkFmlRaceTasksUnobserved")
+	if !view.TasksObserved || !view.TaskPoolStale {
+		t.Fatalf("must retain the observed snapshot and mark it stale: %+v", view)
 	}
 	if !view.TakeQuotaExhausted {
 		t.Fatal("must MarkFmlRaceTakeQuotaExhausted")
@@ -335,8 +336,8 @@ func TestHandleOperationErrorRaceTake221ForcesEnter(t *testing.T) {
 		t.Fatalf("take 221 must soft-recover (nil), got %v", got)
 	}
 	view := r.state.FmlRace()
-	if view.Observed || view.TasksObserved {
-		t.Fatalf("take 221 must session-stale: Observed=%v TasksObserved=%v", view.Observed, view.TasksObserved)
+	if view.Observed || !view.TasksObserved || !view.TaskPoolStale {
+		t.Fatalf("take 221 must stale the session while retaining the pool snapshot: %+v", view)
 	}
 }
 
@@ -371,8 +372,8 @@ func TestHandleOperationErrorRaceTakeOrdinaryFailureRetriesImmediately(t *testin
 	if got != nil {
 		t.Fatalf("ordinary take failure must soft-recover (nil), got %v", got)
 	}
-	if r.state.FmlRace().TasksObserved {
-		t.Fatal("must MarkFmlRaceTasksUnobserved for immediate resync/retry")
+	if view := r.state.FmlRace(); !view.TasksObserved || !view.TaskPoolStale {
+		t.Fatalf("must mark the observed pool stale for immediate resync/retry: %+v", view)
 	}
 	if _, cooling := r.operationCoolingDown(op, now.Add(time.Second)); cooling {
 		t.Fatal("must not apply 60s side-op backoff on take failure")
@@ -481,9 +482,9 @@ func TestHandleOperationSuccessMarksRaceProgressUnobserved(t *testing.T) {
 				finishedAt: time.Now(),
 				raw:        json.RawMessage(`{}`),
 			})
-			got := !r.state.FmlRace().TasksObserved
+			got := r.state.FmlRace().TaskPoolStale
 			if got != tc.wantOK {
-				t.Fatalf("MarkFmlRaceTasksUnobserved=%v, want %v (taken=%+v)", got, tc.wantOK, r.state.FmlRace().Taken)
+				t.Fatalf("TaskPoolStale=%v, want %v (taken=%+v)", got, tc.wantOK, r.state.FmlRace().Taken)
 			}
 		})
 	}

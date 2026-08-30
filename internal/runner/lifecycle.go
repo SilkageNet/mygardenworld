@@ -280,7 +280,7 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	if r.state != nil {
 		// Contest window: every login/reconnect must re-fetch the task pool
 		// before farm/order work so takeable rows are claimed immediately.
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 }
 

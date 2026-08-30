@@ -112,10 +112,12 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 
 	now := time.Now()
+	var selected *automation.PlannedOp
 	if snapshot.policy != nil && snapshot.policy.GetAutomationEnabled() &&
 		automation.RaceBootstrapDue(r.state, snapshot.policy, now) {
-		if op := r.nextRunnableOperation(snapshot.policy, now); op != nil && automation.IsUrgentRaceOp(*op) {
-			r.runOperationTick(ctx, snapshot.client, snapshot.session, op, now)
+		selected = r.nextRunnableOperation(snapshot.policy, now)
+		if selected != nil && automation.IsUrgentRaceOp(*selected) {
+			r.runOperationTick(ctx, snapshot.client, snapshot.session, selected, now)
 			return
 		}
 	}
@@ -143,11 +145,17 @@ func (r *Runner) tick(ctx context.Context) {
 	r.emitCustomerOrderInfo()
 	r.emitResidentOrderLimitInfo(snapshot.policy, now)
 
-	op := r.nextRunnableOperation(snapshot.policy, now)
-	if op == nil {
+	// Reuse a non-urgent operation selected during the bootstrap check. Calling
+	// the stateful fairness selector twice in one tick can consume a required
+	// Farm turn and then immediately select the same urgent sync it was meant to
+	// yield, recreating starvation despite the scheduler safety net.
+	if selected == nil {
+		selected = r.nextRunnableOperation(snapshot.policy, now)
+	}
+	if selected == nil {
 		return
 	}
-	r.runOperationTick(ctx, snapshot.client, snapshot.session, op, now)
+	r.runOperationTick(ctx, snapshot.client, snapshot.session, selected, now)
 }
 
 type tickSnapshot struct {

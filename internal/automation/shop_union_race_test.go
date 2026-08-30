@@ -740,6 +740,25 @@ func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 	}
 }
 
+func TestUnionRaceUnobservedTaskPoolEmptySuccessUsesBoundedRetry(t *testing.T) {
+	now := time.UnixMilli(1_783_990_800_000)
+	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}}}}`))
+	s.NoteFmlRaceTaskPoolSync(now)
+	policy := testRacePolicy()
+
+	ops := unionRaceOperations(s, policy, 0, now.Add(time.Second), raceGatesOn())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("successful empty task-pool sync must back off, got %+v", ops)
+		}
+	}
+	ops = unionRaceOperations(s, policy, 0, now.Add(raceTaskPoolBootstrapRetryInterval), raceGatesOn())
+	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
+		t.Fatalf("task-pool bootstrap must retry after bounded interval, got %+v", ops)
+	}
+}
+
 func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 	s := state.New()
 	// Observed pool with a plant-harvest row that never got field-6 param detail.
@@ -753,8 +772,9 @@ func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 		t.Fatalf("expected getTaskList to refresh missing flower param, got %+v", ops)
 	}
 
-	// Same incomplete pool after apply marks the refresh fingerprint — do not loop.
-	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
+	// A successful getTaskList marks the refresh attempt even when its delta
+	// omits field 114 — do not loop on the same incomplete snapshot.
+	s.NoteFmlRaceTaskPoolSync(time.Now())
 	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
@@ -771,6 +791,18 @@ func TestUnionRaceGetTaskListWhenFlowerArtCraftMissingVase(t *testing.T) {
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected getTaskList to refresh missing vase param, got %+v", ops)
+	}
+
+	// Regression: affected channels can acknowledge getTaskList without field
+	// 114. The successful attempt must suppress another immediate sync while
+	// retaining the incomplete row as unselectable.
+	now := time.Now()
+	s.NoteFmlRaceTaskPoolSync(now)
+	ops = unionRaceOperations(s, policy, 0, now.Add(time.Second), raceGatesOn())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {
+			t.Fatalf("empty successful getTaskList must not re-fire next tick: %+v", ops)
+		}
 	}
 }
 
@@ -1330,7 +1362,7 @@ func TestRaceBootstrapDueAfterLoginUnobserved(t *testing.T) {
 	if !RaceBootstrapDue(s, policy, now) {
 		t.Fatal("observed pool with takeable row must bootstrap")
 	}
-	s.MarkFmlRaceTasksUnobserved()
+	s.MarkFmlRaceTaskPoolStale()
 	if !RaceBootstrapDue(s, policy, now) {
 		t.Fatal("login-unobserved pool must bootstrap before farm/order")
 	}
@@ -1345,7 +1377,7 @@ func TestBuildPlan_RaceSyncPreemptsHarvestAfterLogin(t *testing.T) {
 	now := time.UnixMilli(1_700_000)
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"23001":10}}},"100":{"1":{"1001":{"0":23001,"1":3,"2":1,"7":1}}},"25":{"1":{"0":999,"1":88},"111":{"1":1},"117":{"5":4}}}`))
-	s.MarkFmlRaceTasksUnobserved()
+	s.MarkFmlRaceTaskPoolStale()
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoHarvestEnabled = true

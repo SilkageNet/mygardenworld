@@ -35,6 +35,10 @@ type schedulerState struct {
 	cultivateUpgradeRejects   map[int32]cultivateUpgradeResourceObservation
 	sideLaneFirstWait         map[string]time.Time
 	sideLaneFarmTurn          bool
+	// raceSyncNeedsFarmTurn prevents a read-only urgent race sync that remains
+	// runnable from monopolizing every decision tick. Time-critical take/finish/
+	// give-up operations still bypass this safety net.
+	raceSyncNeedsFarmTurn bool
 }
 
 type executionState struct {

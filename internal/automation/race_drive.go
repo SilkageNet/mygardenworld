@@ -30,7 +30,7 @@ const (
 
 	// Customer-order / pearl-hire / flower-art / flower-cultivate race progress
 	// is only authoritative after getTaskList (no live field-134 harvest
-	// deltas). Successful module finishes MarkFmlRaceTasksUnobserved for an
+	// deltas). Successful module finishes MarkFmlRaceTaskPoolStale for an
 	// immediate refresh; this interval is only a slow fallback when finishes
 	// happen outside automation. Flower-cultivate is take/finish only — race
 	// never emits cultivate RPCs; sync still watches FinishCnt for submit.

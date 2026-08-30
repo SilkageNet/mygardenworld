@@ -21,6 +21,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.BatchStartMs = 0
 		view.BatchEndMs = 0
 		view.TakeQuotaExhausted = false
+		resetFmlRaceTaskPoolForBatch(view)
 		return
 	}
 	var batch clientproto.IFmlRaceBatch
@@ -46,6 +47,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime, time.Now())
 	if batch.BatchId != prevBatchID {
 		view.TakeQuotaExhausted = false
+		resetFmlRaceTaskPoolForBatch(view)
 		// Quota counters are per-batch. A new batch's sparse 110 row omits
 		// fTaskNum/buyTaskNum while zero, so presence-merge alone would keep
 		// the previous batch's counts and AutoStopOnQuotaDone could block all
@@ -60,6 +62,18 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.Rank = 0
 		view.RaceQuotaSyncAtMs = 0
 	}
+}
+
+func resetFmlRaceTaskPoolForBatch(view *FmlRaceView) {
+	view.TasksObserved = false
+	view.TaskPoolStale = false
+	view.TaskPoolSyncAttemptAtMs = 0
+	view.TasksSyncedAtMs = 0
+	view.Tasks = nil
+	view.Taken = FmlRaceTakenView{}
+	view.MissingParamRefreshFP = ""
+	view.LocalFinishCnt = 0
+	view.LocalFinishTaskMsId = 0
 }
 
 func applyFmlRaceCurRcdLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -147,7 +161,6 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 			TakeExpireTime: t.TakeExpireTime,
 		})
 	}
-	wasObserved := view.TasksObserved
 	// getTaskList returns the full pool; take/finish responses often carry only
 	// the changed rows. Replace on first sync or when the payload is clearly a
 	// full list; otherwise merge by MsId.
@@ -180,7 +193,7 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 	}
 	view.TasksObserved = true
 	view.TasksSyncedAtMs = nowMs
-	updateFmlRaceMissingParamRefreshFP(view, wasObserved)
+	updateFmlRaceMissingParamRefreshFP(view, fullPool)
 }
 
 // FmlRacePoolMissingParam reports whether any pool task whose target controls
@@ -202,34 +215,48 @@ func FmlRacePoolMissingParam(tasks []FmlRaceTaskView) bool {
 	return false
 }
 
-// FmlRaceTaskPoolMsFingerprint is a stable key for the current pool identity
-// (msIds only), used to avoid re-requesting getTaskList for the same incomplete set.
-func FmlRaceTaskPoolMsFingerprint(tasks []FmlRaceTaskView) string {
-	if len(tasks) == 0 {
+// FmlRaceMissingParamFingerprint is a stable key for only the pool rows whose
+// safe execution target is missing. Including the task instance and catalog id
+// lets a newly incomplete row trigger its own refresh even if the overall pool
+// still contains the same task ids.
+func FmlRaceMissingParamFingerprint(tasks []FmlRaceTaskView) string {
+	missing := make([]FmlRaceTaskView, 0, len(tasks))
+	for _, task := range tasks {
+		taskType := task.TaskType
+		if taskType == 0 {
+			taskType = task.TaskId
+		}
+		if (taskType == 3036 || taskType == 3034) && task.ParamID <= 0 {
+			missing = append(missing, task)
+		}
+	}
+	if len(missing) == 0 {
 		return ""
 	}
-	ids := make([]int64, len(tasks))
-	for i, t := range tasks {
-		ids[i] = t.MsId
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	parts := make([]string, len(ids))
-	for i, id := range ids {
-		parts[i] = strconv.FormatInt(id, 10)
+	sort.Slice(missing, func(i, j int) bool {
+		if missing[i].MsId != missing[j].MsId {
+			return missing[i].MsId < missing[j].MsId
+		}
+		return missing[i].TaskId < missing[j].TaskId
+	})
+	parts := make([]string, len(missing))
+	for i, task := range missing {
+		parts[i] = strconv.FormatInt(task.MsId, 10) + ":" + strconv.FormatInt(int64(task.TaskId), 10)
 	}
 	return strings.Join(parts, ",")
 }
 
-func updateFmlRaceMissingParamRefreshFP(view *FmlRaceView, wasObserved bool) {
+func updateFmlRaceMissingParamRefreshFP(view *FmlRaceView, refreshAttempt bool) {
 	if !FmlRacePoolMissingParam(view.Tasks) {
 		view.MissingParamRefreshFP = ""
 		return
 	}
-	// First observation of an incomplete pool still allows one getTaskList refresh.
-	// A subsequent apply of the same incomplete pool records the fingerprint so
-	// automation does not loop forever when the server omits param.
-	if wasObserved {
-		view.MissingParamRefreshFP = FmlRaceTaskPoolMsFingerprint(view.Tasks)
+	// Ordinary namespace pushes can introduce a newly incomplete row and must
+	// not masquerade as the explicit getTaskList refresh intended to fill it.
+	// Full-pool apply (and NoteFmlRaceTaskPoolSync for empty deltas) records the
+	// attempt; a different incomplete fingerprint remains eligible for refresh.
+	if refreshAttempt {
+		view.MissingParamRefreshFP = FmlRaceMissingParamFingerprint(view.Tasks)
 	}
 }
 
@@ -960,12 +987,14 @@ func (s *State) FmlRace() FmlRaceView {
 	return s.fmlRace
 }
 
-// MarkFmlRaceTasksUnobserved forces the next race tick to re-fetch getTaskList
-// without wiping the last observed pool snapshot.
-func (s *State) MarkFmlRaceTasksUnobserved() {
+// MarkFmlRaceTaskPoolStale forces the next race tick to re-fetch getTaskList
+// without lying about whether field 114 was previously observed or wiping the
+// last snapshot used for display.
+func (s *State) MarkFmlRaceTaskPoolStale() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fmlRace.TasksObserved = false
+	s.fmlRace.TaskPoolStale = true
+	s.fmlRace.TaskPoolSyncAttemptAtMs = 0
 }
 
 // MarkFmlRaceSessionStale clears enter + task-pool observation so the planner
@@ -974,16 +1003,32 @@ func (s *State) MarkFmlRaceSessionStale() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.Observed = false
-	s.fmlRace.TasksObserved = false
+	s.fmlRace.TaskPoolStale = true
+	s.fmlRace.TaskPoolSyncAttemptAtMs = 0
 }
 
-// MarkFmlRaceTasksSynced records a successful getTaskList round-trip even when
-// the payload omitted field 114, so the planner does not re-sync every tick.
-func (s *State) MarkFmlRaceTasksSynced() {
+// NoteFmlRaceTaskPoolSync records a successful getTaskList round-trip. The
+// server uses delta responses, so an omitted field 114 confirms an existing
+// observed snapshot but must not pretend a never-observed pool was received.
+// In both cases the attempt and missing-target fingerprint are recorded so a
+// successful empty delta cannot cause a decision-interval sync loop.
+func (s *State) NoteFmlRaceTaskPoolSync(at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fmlRace.TasksObserved = true
-	s.fmlRace.TasksSyncedAtMs = time.Now().UnixMilli()
+	if at.IsZero() {
+		at = time.Now()
+	}
+	nowMs := at.UnixMilli()
+	s.fmlRace.TaskPoolSyncAttemptAtMs = nowMs
+	s.fmlRace.TaskPoolStale = false
+	if s.fmlRace.TasksObserved {
+		s.fmlRace.TasksSyncedAtMs = nowMs
+	}
+	if FmlRacePoolMissingParam(s.fmlRace.Tasks) {
+		s.fmlRace.MissingParamRefreshFP = FmlRaceMissingParamFingerprint(s.fmlRace.Tasks)
+	} else {
+		s.fmlRace.MissingParamRefreshFP = ""
+	}
 }
 
 // MarkFmlRaceLvlSyncAttempt records that enter was used to seek raceLvl, so the

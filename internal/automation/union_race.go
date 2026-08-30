@@ -19,6 +19,11 @@ const raceTakeLeadWindow = 300 * time.Millisecond
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 30 * time.Second
 
+// raceTaskPoolBootstrapRetryInterval bounds successful getTaskList probes that
+// still do not yield field 114. The first probe remains immediate and urgent;
+// later probes allow ordinary work to proceed between attempts.
+const raceTaskPoolBootstrapRetryInterval = 30 * time.Second
+
 // raceNearCDSyncSuppressWindow is how close a filter-passing CD task must be
 // before periodic getTaskList is deferred. Keeping this much shorter than
 // raceTaskPoolRefreshInterval lets long CD waits still refresh upgrade/claim
@@ -164,7 +169,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 	if view.Taken.HasTask && raceTakenExpired(view.Taken, now) {
-		if !view.TasksObserved || view.TasksSyncedAtMs <= 0 ||
+		if !view.TasksObserved || view.TaskPoolStale || view.TasksSyncedAtMs <= 0 ||
 			!now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceExpiredTaskSyncInterval)) {
 			op := domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
@@ -208,8 +213,21 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	case RaceHoldsUnfinishedFlowerCultivate(view):
 		syncPrio = raceCultivateSyncPriority
 	}
-	if view.BatchActive && (!view.TasksObserved || raceTaskPoolNeedsParamRefresh(view)) {
-		op := domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛拉取任务池与已接任务", syncPrio, 0, 0, 0)
+	if view.BatchActive && view.TaskPoolStale {
+		op := domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛任务池状态已变化，重新同步", syncPrio, 0, 0, 0)
+		op.PreemptFarm = true
+		return []PlannedOp{op}
+	}
+	if view.BatchActive && !view.TasksObserved {
+		if !raceTaskPoolBootstrapSyncDue(view, now) {
+			return nil
+		}
+		op := domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛任务池尚未返回，执行有界重试", syncPrio, 0, 0, 0)
+		op.PreemptFarm = true
+		return []PlannedOp{op}
+	}
+	if view.BatchActive && raceTaskPoolNeedsParamRefresh(view) {
+		op := domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync", "公会竞赛任务目标参数缺失，尝试补全", syncPrio, 0, 0, 0)
 		op.PreemptFarm = true
 		return []PlannedOp{op}
 	}
@@ -397,7 +415,7 @@ func memberPositionSyncDue(build state.FmlBuildView, now time.Time) bool {
 }
 
 func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy, goal Goal) []PlannedOp {
-	if s == nil || policy == nil || !policy.GetDeleteLowScoreTask() || policy.GetDeleteTaskMaxScore() <= 0 || !view.TasksObserved {
+	if s == nil || policy == nil || !policy.GetDeleteLowScoreTask() || policy.GetDeleteTaskMaxScore() <= 0 || !view.TasksObserved || view.TaskPoolStale {
 		return nil
 	}
 	maxScore := policy.GetDeleteTaskMaxScore()
@@ -496,13 +514,23 @@ func raceInactiveEnterRetryDue(view state.FmlRaceView, now, sessionStart time.Ti
 }
 
 func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
-	if !view.BatchActive || !view.TasksObserved {
+	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale {
 		return false
 	}
 	if view.TasksSyncedAtMs <= 0 {
 		return true
 	}
 	return !now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceTaskPoolRefreshInterval))
+}
+
+func raceTaskPoolBootstrapSyncDue(view state.FmlRaceView, now time.Time) bool {
+	if view.TasksObserved {
+		return false
+	}
+	if view.TaskPoolSyncAttemptAtMs <= 0 {
+		return true
+	}
+	return !now.Before(time.UnixMilli(view.TaskPoolSyncAttemptAtMs).Add(raceTaskPoolBootstrapRetryInterval))
 }
 
 // raceNeedsFinishProgressSync reports that plant-harvest LocalFinishCnt already
@@ -559,7 +587,7 @@ func RaceTakeWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.Time 
 	}
 	view := s.FmlRace()
 	view.BatchActive = view.ActiveAt(now)
-	if !view.BatchActive || !view.TasksObserved || view.Taken.HasTask ||
+	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
 		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
 		return time.Time{}
 	}
@@ -603,7 +631,7 @@ func RaceTakeDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	}
 	view := s.FmlRace()
 	view.BatchActive = view.ActiveAt(now)
-	if !view.BatchActive || !view.TasksObserved || view.Taken.HasTask ||
+	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
 		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
 		return false
 	}
@@ -641,8 +669,11 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 		// Still allow calendar-window enter probes (status may still be 0).
 		return raceShouldEnterInactiveBatch(view, now)
 	}
-	if !view.TasksObserved {
+	if view.TaskPoolStale {
 		return true
+	}
+	if !view.TasksObserved {
+		return raceTaskPoolBootstrapSyncDue(view, now)
 	}
 	if view.Taken.HasTask && view.Taken.TargetCnt > 0 && view.Taken.FinishCnt >= view.Taken.TargetCnt {
 		return race.GetAutoEnableModules()
@@ -795,7 +826,7 @@ func ManualRaceTakeOperation(s *state.State, policy *pb.Policy, taskMsID int64, 
 	if !view.Observed || !view.BatchActive {
 		return PlannedOp{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
 	}
-	if !view.TasksObserved {
+	if !view.TasksObserved || view.TaskPoolStale {
 		return PlannedOp{}, fmt.Errorf("竞赛任务池尚未同步")
 	}
 	if view.Taken.HasTask {
@@ -902,7 +933,7 @@ func raceTaskPoolNeedsParamRefresh(view state.FmlRaceView) bool {
 	if !state.FmlRacePoolMissingParam(view.Tasks) {
 		return false
 	}
-	return state.FmlRaceTaskPoolMsFingerprint(view.Tasks) != view.MissingParamRefreshFP
+	return state.FmlRaceMissingParamFingerprint(view.Tasks) != view.MissingParamRefreshFP
 }
 
 // raceTaskTypePriority returns the configured priority for a race task type.
