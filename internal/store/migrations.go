@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 5
+const currentSchemaVersion = 6
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -225,6 +225,14 @@ CREATE TABLE redeem_exchange_outbox (
     UNIQUE(source_id, redeem_code_id)
 );
 CREATE INDEX idx_redeem_outbox_pending ON redeem_exchange_outbox(status, next_attempt_at, id);
+`,
+	},
+	{
+		version: 6,
+		name:    "derive redeem source statistics",
+		sql: `
+ALTER TABLE redeem_sources DROP COLUMN accepted_count;
+ALTER TABLE redeem_sources DROP COLUMN invalid_count;
 `,
 	},
 }

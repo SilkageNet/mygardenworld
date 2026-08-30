@@ -79,8 +79,8 @@ func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 5 {
-		t.Fatalf("schema version=%d err=%v, want 5", version, err)
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 6 {
+		t.Fatalf("schema version=%d err=%v, want 6", version, err)
 	}
 	var column string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('account_pearl_hire_usage') WHERE name = 'used_count'`).Scan(&column); err != nil {
@@ -88,6 +88,64 @@ func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 	}
 	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('redeem_codes') WHERE name = 'fingerprint'`).Scan(&column); err != nil {
 		t.Fatalf("redeem exchange migration: %v", err)
+	}
+	var retiredColumns int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('redeem_sources') WHERE name IN ('accepted_count', 'invalid_count')`).Scan(&retiredColumns); err != nil {
+		t.Fatalf("inspect retired redeem source counters: %v", err)
+	}
+	if retiredColumns != 0 {
+		t.Fatalf("retired redeem source counters=%d, want 0", retiredColumns)
+	}
+}
+
+func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "garden.db")
+	baseline, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := baseline.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	previous, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, statement := range []string{
+		`ALTER TABLE redeem_sources ADD COLUMN accepted_count INTEGER NOT NULL DEFAULT 0 CHECK(accepted_count >= 0)`,
+		`ALTER TABLE redeem_sources ADD COLUMN invalid_count INTEGER NOT NULL DEFAULT 0 CHECK(invalid_count >= 0)`,
+		`INSERT INTO redeem_sources(name, type, base_url, channel, accepted_count, invalid_count) VALUES ('source', 'custom_http', 'https://example.test/codes.json', 'ios', 7, 2)`,
+		`PRAGMA user_version = 5`,
+	} {
+		if _, err := previous.ExecContext(ctx, statement); err != nil {
+			_ = previous.Close()
+			t.Fatal(err)
+		}
+	}
+	if err := previous.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 6 {
+		t.Fatalf("schema version=%d err=%v, want 6", version, err)
+	}
+	var name string
+	if err := db.QueryRowContext(ctx, `SELECT name FROM redeem_sources WHERE name = 'source'`).Scan(&name); err != nil {
+		t.Fatalf("preserved source: %v", err)
+	}
+	var retiredColumns int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('redeem_sources') WHERE name IN ('accepted_count', 'invalid_count')`).Scan(&retiredColumns); err != nil {
+		t.Fatal(err)
+	}
+	if retiredColumns != 0 {
+		t.Fatalf("retired redeem source counters=%d, want 0", retiredColumns)
 	}
 }
 
