@@ -68,3 +68,52 @@ func TestLogoutAccountDisablesAutomationPreference(t *testing.T) {
 		t.Fatal("automation_enabled=true after LogoutAccount, want false")
 	}
 }
+
+func TestRedeemResultMessageReportsOutcomeAndGains(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		in   runner.RedeemResult
+		want string
+	}{
+		{
+			name: "success with items",
+			in: runner.RedeemResult{
+				Outcome: runner.RedeemOutcomeSuccess,
+				Items: []runner.RedeemItemGain{
+					{Name: "金币", Count: 12888},
+					{Name: "花坊币", Count: 66},
+				},
+			},
+			want: "金币x12888、花坊币x66",
+		},
+		{
+			name: "already redeemed",
+			in: runner.RedeemResult{
+				Outcome: runner.RedeemOutcomeAlreadyRedeemed,
+				Message: "已领取过该奖励",
+			},
+			want: "已领取过该奖励",
+		},
+		{
+			name: "invalid without message",
+			in:   runner.RedeemResult{Outcome: runner.RedeemOutcomeInvalid},
+			want: "无效兑换码",
+		},
+		{
+			name: "success mail only",
+			in: runner.RedeemResult{
+				Outcome: runner.RedeemOutcomeSuccess,
+				MailNew: 2,
+			},
+			want: "奖励已入邮件（2 封待领取）",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := redeemResultMessage(tc.in); got != tc.want {
+				t.Fatalf("redeemResultMessage() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

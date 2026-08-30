@@ -13,9 +13,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { LogOut, Shield, Sparkles } from "lucide-react";
+import { LogOut, Shield, Sparkles, Ticket } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserManagementPanel } from "@/components/user-management-panel";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
@@ -75,6 +76,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </span>
           </Link>
           <div className="flex items-center gap-1.5 rounded-md border border-white/55 bg-white/42 p-1 shadow-sm shadow-sky-900/5 dark:border-white/10 dark:bg-white/6">
+            <Link href="/redeem" className={buttonVariants({ variant: "ghost", size: "icon-sm" })} aria-label="兑换码中心">
+              <Ticket className="size-4" />
+            </Link>
             {isAdmin && (
               <Button variant="ghost" size="icon-sm" onClick={() => setUserManagementOpen(true)} aria-label="用户管理">
                 <Shield className="size-4" />

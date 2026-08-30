@@ -95,11 +95,11 @@ func TestPlanOneSafePearlHireBoundariesAndNoBypass(t *testing.T) {
 	s.MarkPearlHireFailed(2001, failureAt)
 	op, _ = PlanOneSafePearlHire(s, policy, failureAt.Add(time.Minute-time.Millisecond), PearlHireIntent{})
 	if op.Kind == clientproto.RPCOpptGetDetailOppts.String() && reflect.DeepEqual(op.TargetUIDs, []int64{2001}) {
-		t.Fatalf("failed UID retried before 60s: %+v", op)
+		t.Fatalf("failed UID retried while session exclusion active: %+v", op)
 	}
-	op, _ = PlanOneSafePearlHire(s, policy, failureAt.Add(time.Minute), PearlHireIntent{})
-	if op.Kind != clientproto.RPCOpptGetDetailOppts.String() || !reflect.DeepEqual(op.TargetUIDs, []int64{2001}) {
-		t.Fatalf("failed UID not eligible at exactly 60s: %+v", op)
+	op, _ = PlanOneSafePearlHire(s, policy, failureAt.Add(24*time.Hour), PearlHireIntent{})
+	if op.Kind == clientproto.RPCOpptGetDetailOppts.String() && reflect.DeepEqual(op.TargetUIDs, []int64{2001}) {
+		t.Fatalf("failed UID retried after long wait without session reset: %+v", op)
 	}
 
 	disabled := proto.Clone(policy).(*pb.PearlPolicy)
@@ -181,5 +181,87 @@ func TestPlanOneSafePearlHireUnknownEnemySourceRefreshes(t *testing.T) {
 	op, _ := PlanOneSafePearlHire(s, pearlHirePolicyForTest(), now, PearlHireIntent{})
 	if op.Kind != clientproto.RPCPearlRefresh.String() {
 		t.Fatalf("unknown enemy source was skipped: %+v", op)
+	}
+}
+
+func TestPlanOneSafePearlHireDailyLimitSkipsFailedAndRehiresExpired(t *testing.T) {
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := newPearlHireStateForTest(t, 9001)
+	applyPearlFriendForTest(t, s, 9001, 2001)
+	applyMap(t, s, map[string]any{
+		"28":  map[string]any{"5": []any{map[string]any{"0": int64(2001), "1": "a", "4": 10}}},
+		"115": map[string]any{"5": map[string]any{"2001": int64(0)}},
+	})
+	policy := pearlHirePolicyForTest()
+	policy.DailyHireTicketLimit = 1
+	s.NotePearlHireTicketUsed(now)
+	op, ok := PlanOneSafePearlHire(s, policy, now, PearlHireIntent{})
+	if !ok || op.Status != PlanStatusBlocked || !strings.Contains(op.Reason, "每日上限") {
+		t.Fatalf("daily limit = %+v, %t", op, ok)
+	}
+
+	s2 := newPearlHireStateForTest(t, 9001)
+	applyMap(t, s2, map[string]any{"24": map[string]any{
+		"0": map[string]any{"0": int64(9001)},
+		"1": []any{
+			map[string]any{"0": int64(9001), "1": int64(2001)},
+			map[string]any{"0": int64(9001), "1": int64(2002)},
+		},
+	}})
+	applyMap(t, s2, map[string]any{
+		"28": map[string]any{"5": []any{
+			map[string]any{"0": int64(2001), "1": "a", "4": 10},
+			map[string]any{"0": int64(2002), "1": "b", "4": 11},
+		}},
+		"115": map[string]any{"5": map[string]any{"2001": int64(0), "2002": int64(0)}},
+	})
+	freshNow := time.UnixMilli(s2.PearlHire().Profiles[2002].ObservedAtMs)
+	s2.MarkPearlHireFailed(2001, freshNow)
+	op, _ = PlanOneSafePearlHire(s2, pearlHirePolicyForTest(), freshNow, PearlHireIntent{})
+	if op.Kind != clientproto.RPCPearlPlaceHire.String() || op.TargetUID != 2002 {
+		t.Fatalf("should skip failed UID and hire next: %+v", op)
+	}
+
+	s3 := newPearlHireStateForTest(t, 9001)
+	applyPearlFriendForTest(t, s3, 9001, 2001)
+	applyMap(t, s3, map[string]any{
+		"28":  map[string]any{"5": []any{map[string]any{"0": int64(2001), "1": "a", "4": 10}}},
+		"115": map[string]any{"5": map[string]any{"2001": int64(0)}},
+	})
+	freshNow = time.UnixMilli(s3.PearlHire().Profiles[2001].ObservedAtMs)
+	ended := freshNow.Add(-time.Minute).UnixMilli()
+	applyMap(t, s3, map[string]any{
+		"115": map[string]any{"0": map[string]any{"1": map[string]any{"2": int64(3001), "3": ended}}},
+	})
+	op, _ = PlanOneSafePearlHire(s3, pearlHirePolicyForTest(), freshNow, PearlHireIntent{})
+	if op.Kind != clientproto.RPCPearlPlaceHire.String() || op.TargetID != 1 || op.TargetUID != 2001 {
+		t.Fatalf("expired labor should free slot for rehire: %+v", op)
+	}
+}
+
+func TestPlanOneSafePearlHireWorldEmptyWaitsOneMinute(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7":   map[string]any{"0": map[string]any{"0": int64(9001), "32": map[string]any{"1003": 3}}},
+		"115": map[string]any{"0": map[string]any{"1": map[string]any{"2": int64(0), "3": nil}}, "1": map[string]any{"5": map[string]any{}}},
+		"24":  map[string]any{"0": map[string]any{"0": int64(9001)}, "1": []any{}},
+	})
+	applyMap(t, s, map[string]any{"115": map[string]any{"6": []any{}}})
+	now := time.UnixMilli(s.PearlHire().RecommendObservedAtMs)
+	op, ok := PlanOneSafePearlHire(s, pearlHirePolicyForTest(), now, PearlHireIntent{})
+	if !ok || op.Status != PlanStatusBlocked || !strings.Contains(op.Reason, "1 分钟后重新拉取") {
+		t.Fatalf("empty world = %+v, %t", op, ok)
+	}
+	view := s.PearlHireAt(now)
+	if view.WorldEmptyUntilMs != now.Add(time.Minute).UnixMilli() || view.FriendsObserved {
+		t.Fatalf("empty world state = %+v", view)
+	}
+	op, _ = PlanOneSafePearlHire(s, pearlHirePolicyForTest(), now.Add(30*time.Second), PearlHireIntent{})
+	if op.Status != PlanStatusBlocked || !strings.Contains(op.Reason, "后重新拉取候选") {
+		t.Fatalf("waiting empty world = %+v", op)
+	}
+	op, _ = PlanOneSafePearlHire(s, pearlHirePolicyForTest(), now.Add(time.Minute), PearlHireIntent{})
+	if op.Kind != clientproto.RPCFrdEnter.String() {
+		t.Fatalf("after wait should re-pull friends: %+v", op)
 	}
 }

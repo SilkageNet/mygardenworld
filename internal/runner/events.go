@@ -206,6 +206,8 @@ func opKindDesc(kind string) string {
 		return "一键领取珍珠产出"
 	case clientproto.RPCPearlPlaceRecv.String():
 		return "领取单个珍珠槽位产出"
+	case clientproto.RPCPearlPlaceHire.String():
+		return "雇佣劳工"
 	case clientproto.RPCRandomEventEnter.String():
 		return "同步地图随机事件"
 	case clientproto.RPCRandomEventDoAffair.String():
@@ -353,6 +355,8 @@ func eventCategory(kind string) string {
 		return "basic"
 	case "waterwheel", "free_water":
 		return "water"
+	case "pearl_hire":
+		return "hire"
 	case "benefit_box", "mail_claim", "sign_claim", "random_event":
 		return "basic"
 	case "task_recv", "task_daily", "task_weekly", "road_grow", "story_unlock":
@@ -376,7 +380,7 @@ func eventCategory(kind string) string {
 
 func normalizeEventCategory(category, kind string) string {
 	switch category {
-	case "account", "basic", "plant", "order", "water", "union", "race", "activity", "system":
+	case "account", "basic", "plant", "order", "water", "hire", "union", "race", "activity", "system":
 		return category
 	case "flower_art":
 		return "order"
@@ -388,6 +392,8 @@ func normalizeEventCategory(category, kind string) string {
 		return "plant"
 	case "resource", "reward", "task":
 		return "basic"
+	case "pearl_hire", "pearl":
+		return "hire"
 	default:
 		return eventCategory(kind)
 	}
@@ -413,6 +419,8 @@ func eventDomain(kind string) string {
 		return "water.waterwheel"
 	case "free_water":
 		return "water.free_water"
+	case "pearl_hire":
+		return "basic.pearl.hire"
 	case "benefit_box":
 		return "basic.benefit"
 	case "mail_claim":
@@ -483,6 +491,8 @@ func eventAction(kind string) string {
 	case strings.HasPrefix(kind, "task_") || strings.Contains(kind, "claim") || strings.Contains(kind, "recv") || strings.Contains(kind, "reward") ||
 		strings.Contains(kind, "waterwheel") || strings.Contains(kind, "free_water") || strings.Contains(kind, "benefit_box"):
 		return "claim"
+	case kind == "pearl_hire" || strings.Contains(kind, "pearl_hire"):
+		return "hire"
 	case strings.Contains(kind, "order"):
 		return "order"
 	case strings.Contains(kind, "race"):
@@ -538,6 +548,8 @@ func eventLabel(kind string) string {
 		return "水车水滴"
 	case "free_water":
 		return "限时水滴"
+	case "pearl_hire":
+		return "雇佣劳工"
 	case "benefit_box":
 		return "福利箱"
 	case "mail_claim":

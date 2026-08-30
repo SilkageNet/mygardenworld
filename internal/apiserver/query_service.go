@@ -193,6 +193,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	resp.SellableFlowerArts = sellableFlowerArtsProto(st)
 	resp.FriendTouchFriends = friendTouchFriendsProto(st.FriendTouchFriends(now))
 	resp.FriendTouchFriendsObserved = st.FriendTouch(now).FriendsObserved
+	resp.PearlHire = pearlHireProto(st.PearlHireAt(now), now)
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
 	resp.FmlLandsObserved = st.FmlLandObserved()
 	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
@@ -1813,6 +1814,67 @@ func friendTouchFriendsProto(friends []state.FriendTouchFriendView) []*pb.Friend
 			QuotaObserved:        friend.QuotaObserved,
 			AvailabilityObserved: friend.AvailabilityObserved,
 		})
+	}
+	return out
+}
+
+func pearlHireProto(view state.PearlHireView, now time.Time) *pb.PearlHireView {
+	config, configOK := state.PearlHireConfigFromCatalog()
+	ticketItemID := int32(1003)
+	if configOK && config.TicketItemID > 0 {
+		ticketItemID = config.TicketItemID
+	}
+	out := &pb.PearlHireView{
+		TicketItemId:      ticketItemID,
+		TicketCount:       view.TicketCount,
+		TicketUsedToday:   view.TicketUsedToday,
+		SessionLocked:     view.SessionLocked,
+		SessionLockReason: view.SessionLockReason,
+		WorldEmptyUntilMs: view.WorldEmptyUntilMs,
+	}
+	placeIDs := make([]int32, 0, len(config.Slots)+len(view.Places))
+	seen := map[int32]struct{}{}
+	if configOK {
+		for id := range config.Slots {
+			placeIDs = append(placeIDs, id)
+			seen[id] = struct{}{}
+		}
+	}
+	for id := range view.Places {
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		placeIDs = append(placeIDs, id)
+	}
+	sort.Slice(placeIDs, func(i, j int) bool { return placeIDs[i] < placeIDs[j] })
+	out.SlotCount = int32(len(placeIDs))
+	nowMs := now.UnixMilli()
+	for _, id := range placeIDs {
+		place, observed := view.Places[id]
+		slot := &pb.PearlPlaceView{PlaceId: id}
+		if configOK {
+			slot.MonthlyCardUnlock = config.Slots[id].MonthlyCardUnlock
+		}
+		if observed {
+			out.PlacesObserved = true
+			slot.LaborUid = place.LaborUID
+			slot.LaborEndTimeMs = place.LaborEndTime
+			slot.LaborUidObserved = place.LaborUIDObserved
+			slot.LaborEndTimeObserved = place.LaborEndTimeObserved
+			slot.HireFailCnt = place.HireFailCnt
+			slot.HireFailCntObserved = place.HireFailCntObserved
+			slot.SurplusRecvNum = place.SurplusRecvNum
+			slot.SurplusRecvNumObserved = place.SurplusRecvNumObserved
+			if place.LaborUIDObserved && place.LaborEndTimeObserved {
+				slot.InShift = place.LaborUID > 0 && place.LaborEndTime > nowMs
+				slot.HireReady = (place.LaborUID == 0 && place.LaborEndTime == 0) ||
+					(place.LaborUID > 0 && place.LaborEndTime > 0 && place.LaborEndTime <= nowMs)
+			}
+			if slot.InShift {
+				out.ActiveWorkers++
+			}
+		}
+		out.Places = append(out.Places, slot)
 	}
 	return out
 }

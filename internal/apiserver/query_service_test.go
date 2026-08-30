@@ -666,6 +666,51 @@ func TestBusinessStatisticsProtoExposesDailyHistory(t *testing.T) {
 	}
 }
 
+func TestPearlHireProtoExposesTicketsAndSlotStatus(t *testing.T) {
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"0": int64(9001), "32": map[string]any{"1003": 7}}},
+		"115": map[string]any{"0": map[string]any{
+			"1": map[string]any{"2": int64(2001), "3": now.Add(30 * time.Minute).UnixMilli(), "4": 0},
+			"2": map[string]any{"2": 0, "3": 0, "4": 0},
+			"3": map[string]any{"2": int64(2002), "3": now.Add(-time.Hour).UnixMilli(), "4": 1},
+		}},
+	})
+	st.SetPearlHireTicketUsed(20260828, 4)
+
+	got := pearlHireProto(st.PearlHireAt(now), now)
+	if got.GetTicketItemId() != 1003 || got.GetTicketCount() != 7 || got.GetTicketUsedToday() != 4 {
+		t.Fatalf("pearl hire tickets=%+v, want item=1003 count=7 usedToday=4", got)
+	}
+	if !got.GetPlacesObserved() || got.GetActiveWorkers() != 1 {
+		t.Fatalf("pearl hire workers=%+v, want placesObserved activeWorkers=1", got)
+	}
+	if got.GetSlotCount() < 3 || len(got.GetPlaces()) < 3 {
+		t.Fatalf("pearl hire slots=%+v, want catalog slots including observed places", got)
+	}
+	byID := map[int32]*pb.PearlPlaceView{}
+	for _, place := range got.GetPlaces() {
+		byID[place.GetPlaceId()] = place
+	}
+	if place := byID[1]; place == nil || !place.GetInShift() || place.GetLaborUid() != 2001 || place.GetHireReady() {
+		t.Fatalf("place 1=%+v, want in-shift labor 2001", place)
+	}
+	if place := byID[2]; place == nil || !place.GetHireReady() || place.GetInShift() {
+		t.Fatalf("place 2=%+v, want hire-ready empty slot", place)
+	}
+	if place := byID[3]; place == nil || !place.GetHireReady() || place.GetInShift() || place.GetLaborUid() != 2002 {
+		t.Fatalf("place 3=%+v, want ended shift still hire-ready", place)
+	}
+	if place := byID[4]; place == nil || !place.GetMonthlyCardUnlock() {
+		t.Fatalf("place 4=%+v, want monthly-card catalog slot", place)
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("pearl_hire")
+	if field == nil || field.Number() != 52 {
+		t.Fatalf("GetSnapshotResponse pearl_hire field=%v, want field 52", field)
+	}
+}
+
 func TestDessertRuntimeProtoProjectsOnlySanitizedSessionDiagnostics(t *testing.T) {
 	snapshot := runner.DessertRuntimeSnapshot{
 		Observed:             true,

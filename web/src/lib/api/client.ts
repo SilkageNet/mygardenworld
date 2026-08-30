@@ -129,7 +129,7 @@ export function formatAPIError(err: unknown, fallback = "操作失败"): string 
   return message ? translatePlainError(message, fallback) : fallback;
 }
 
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (configured) return configured;
   if (typeof window !== "undefined") {

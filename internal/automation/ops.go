@@ -146,7 +146,7 @@ func categoryRank(category string) int {
 		return 0
 	case CategoryPlant:
 		return 1
-	case CategoryOrder, CategoryFlowerArt, CategoryWater:
+	case CategoryOrder, CategoryFlowerArt, CategoryWater, CategoryHire:
 		return 2
 	case CategoryBasic:
 		return 3

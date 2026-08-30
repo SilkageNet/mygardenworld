@@ -2,14 +2,15 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { formatAPIError } from "@/lib/api/client";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ArrowRight, LoaderCircle, LockKeyhole, UserRound } from "lucide-react";
+import { ArrowRight, LoaderCircle, LockKeyhole, Ticket, UserRound } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -142,6 +143,10 @@ export default function LoginPage() {
             {!loading && <ArrowRight className="absolute right-4 size-4 opacity-80" />}
           </Button>
         </form>
+        <Link href="/redeem" className={buttonVariants({ variant: "ghost", className: "mt-3 w-full" })}>
+          <Ticket className="size-4" />
+          查看与录入兑换码
+        </Link>
       </section>
     </main>
   );

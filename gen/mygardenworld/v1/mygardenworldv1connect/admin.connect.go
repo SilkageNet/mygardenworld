@@ -42,6 +42,18 @@ const (
 	// AdminServiceGetSystemStatsProcedure is the fully-qualified name of the AdminService's
 	// GetSystemStats RPC.
 	AdminServiceGetSystemStatsProcedure = "/mygardenworld.v1.AdminService/GetSystemStats"
+	// AdminServiceListRedeemSourcesProcedure is the fully-qualified name of the AdminService's
+	// ListRedeemSources RPC.
+	AdminServiceListRedeemSourcesProcedure = "/mygardenworld.v1.AdminService/ListRedeemSources"
+	// AdminServiceUpsertRedeemSourceProcedure is the fully-qualified name of the AdminService's
+	// UpsertRedeemSource RPC.
+	AdminServiceUpsertRedeemSourceProcedure = "/mygardenworld.v1.AdminService/UpsertRedeemSource"
+	// AdminServiceDeleteRedeemSourceProcedure is the fully-qualified name of the AdminService's
+	// DeleteRedeemSource RPC.
+	AdminServiceDeleteRedeemSourceProcedure = "/mygardenworld.v1.AdminService/DeleteRedeemSource"
+	// AdminServiceSyncRedeemSourceProcedure is the fully-qualified name of the AdminService's
+	// SyncRedeemSource RPC.
+	AdminServiceSyncRedeemSourceProcedure = "/mygardenworld.v1.AdminService/SyncRedeemSource"
 )
 
 // AdminServiceClient is a client for the mygardenworld.v1.AdminService service.
@@ -50,6 +62,10 @@ type AdminServiceClient interface {
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
 	GetSystemStats(context.Context, *connect.Request[v1.GetSystemStatsRequest]) (*connect.Response[v1.GetSystemStatsResponse], error)
+	ListRedeemSources(context.Context, *connect.Request[v1.ListRedeemSourcesRequest]) (*connect.Response[v1.ListRedeemSourcesResponse], error)
+	UpsertRedeemSource(context.Context, *connect.Request[v1.UpsertRedeemSourceRequest]) (*connect.Response[v1.UpsertRedeemSourceResponse], error)
+	DeleteRedeemSource(context.Context, *connect.Request[v1.DeleteRedeemSourceRequest]) (*connect.Response[v1.DeleteRedeemSourceResponse], error)
+	SyncRedeemSource(context.Context, *connect.Request[v1.SyncRedeemSourceRequest]) (*connect.Response[v1.SyncRedeemSourceResponse], error)
 }
 
 // NewAdminServiceClient constructs a client for the mygardenworld.v1.AdminService service. By
@@ -87,15 +103,43 @@ func NewAdminServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(adminServiceMethods.ByName("GetSystemStats")),
 			connect.WithClientOptions(opts...),
 		),
+		listRedeemSources: connect.NewClient[v1.ListRedeemSourcesRequest, v1.ListRedeemSourcesResponse](
+			httpClient,
+			baseURL+AdminServiceListRedeemSourcesProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("ListRedeemSources")),
+			connect.WithClientOptions(opts...),
+		),
+		upsertRedeemSource: connect.NewClient[v1.UpsertRedeemSourceRequest, v1.UpsertRedeemSourceResponse](
+			httpClient,
+			baseURL+AdminServiceUpsertRedeemSourceProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("UpsertRedeemSource")),
+			connect.WithClientOptions(opts...),
+		),
+		deleteRedeemSource: connect.NewClient[v1.DeleteRedeemSourceRequest, v1.DeleteRedeemSourceResponse](
+			httpClient,
+			baseURL+AdminServiceDeleteRedeemSourceProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("DeleteRedeemSource")),
+			connect.WithClientOptions(opts...),
+		),
+		syncRedeemSource: connect.NewClient[v1.SyncRedeemSourceRequest, v1.SyncRedeemSourceResponse](
+			httpClient,
+			baseURL+AdminServiceSyncRedeemSourceProcedure,
+			connect.WithSchema(adminServiceMethods.ByName("SyncRedeemSource")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // adminServiceClient implements AdminServiceClient.
 type adminServiceClient struct {
-	createUser     *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
-	listUsers      *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
-	updateUser     *connect.Client[v1.UpdateUserRequest, v1.UpdateUserResponse]
-	getSystemStats *connect.Client[v1.GetSystemStatsRequest, v1.GetSystemStatsResponse]
+	createUser         *connect.Client[v1.CreateUserRequest, v1.CreateUserResponse]
+	listUsers          *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	updateUser         *connect.Client[v1.UpdateUserRequest, v1.UpdateUserResponse]
+	getSystemStats     *connect.Client[v1.GetSystemStatsRequest, v1.GetSystemStatsResponse]
+	listRedeemSources  *connect.Client[v1.ListRedeemSourcesRequest, v1.ListRedeemSourcesResponse]
+	upsertRedeemSource *connect.Client[v1.UpsertRedeemSourceRequest, v1.UpsertRedeemSourceResponse]
+	deleteRedeemSource *connect.Client[v1.DeleteRedeemSourceRequest, v1.DeleteRedeemSourceResponse]
+	syncRedeemSource   *connect.Client[v1.SyncRedeemSourceRequest, v1.SyncRedeemSourceResponse]
 }
 
 // CreateUser calls mygardenworld.v1.AdminService.CreateUser.
@@ -118,12 +162,36 @@ func (c *adminServiceClient) GetSystemStats(ctx context.Context, req *connect.Re
 	return c.getSystemStats.CallUnary(ctx, req)
 }
 
+// ListRedeemSources calls mygardenworld.v1.AdminService.ListRedeemSources.
+func (c *adminServiceClient) ListRedeemSources(ctx context.Context, req *connect.Request[v1.ListRedeemSourcesRequest]) (*connect.Response[v1.ListRedeemSourcesResponse], error) {
+	return c.listRedeemSources.CallUnary(ctx, req)
+}
+
+// UpsertRedeemSource calls mygardenworld.v1.AdminService.UpsertRedeemSource.
+func (c *adminServiceClient) UpsertRedeemSource(ctx context.Context, req *connect.Request[v1.UpsertRedeemSourceRequest]) (*connect.Response[v1.UpsertRedeemSourceResponse], error) {
+	return c.upsertRedeemSource.CallUnary(ctx, req)
+}
+
+// DeleteRedeemSource calls mygardenworld.v1.AdminService.DeleteRedeemSource.
+func (c *adminServiceClient) DeleteRedeemSource(ctx context.Context, req *connect.Request[v1.DeleteRedeemSourceRequest]) (*connect.Response[v1.DeleteRedeemSourceResponse], error) {
+	return c.deleteRedeemSource.CallUnary(ctx, req)
+}
+
+// SyncRedeemSource calls mygardenworld.v1.AdminService.SyncRedeemSource.
+func (c *adminServiceClient) SyncRedeemSource(ctx context.Context, req *connect.Request[v1.SyncRedeemSourceRequest]) (*connect.Response[v1.SyncRedeemSourceResponse], error) {
+	return c.syncRedeemSource.CallUnary(ctx, req)
+}
+
 // AdminServiceHandler is an implementation of the mygardenworld.v1.AdminService service.
 type AdminServiceHandler interface {
 	CreateUser(context.Context, *connect.Request[v1.CreateUserRequest]) (*connect.Response[v1.CreateUserResponse], error)
 	ListUsers(context.Context, *connect.Request[v1.ListUsersRequest]) (*connect.Response[v1.ListUsersResponse], error)
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
 	GetSystemStats(context.Context, *connect.Request[v1.GetSystemStatsRequest]) (*connect.Response[v1.GetSystemStatsResponse], error)
+	ListRedeemSources(context.Context, *connect.Request[v1.ListRedeemSourcesRequest]) (*connect.Response[v1.ListRedeemSourcesResponse], error)
+	UpsertRedeemSource(context.Context, *connect.Request[v1.UpsertRedeemSourceRequest]) (*connect.Response[v1.UpsertRedeemSourceResponse], error)
+	DeleteRedeemSource(context.Context, *connect.Request[v1.DeleteRedeemSourceRequest]) (*connect.Response[v1.DeleteRedeemSourceResponse], error)
+	SyncRedeemSource(context.Context, *connect.Request[v1.SyncRedeemSourceRequest]) (*connect.Response[v1.SyncRedeemSourceResponse], error)
 }
 
 // NewAdminServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -157,6 +225,30 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(adminServiceMethods.ByName("GetSystemStats")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminServiceListRedeemSourcesHandler := connect.NewUnaryHandler(
+		AdminServiceListRedeemSourcesProcedure,
+		svc.ListRedeemSources,
+		connect.WithSchema(adminServiceMethods.ByName("ListRedeemSources")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceUpsertRedeemSourceHandler := connect.NewUnaryHandler(
+		AdminServiceUpsertRedeemSourceProcedure,
+		svc.UpsertRedeemSource,
+		connect.WithSchema(adminServiceMethods.ByName("UpsertRedeemSource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceDeleteRedeemSourceHandler := connect.NewUnaryHandler(
+		AdminServiceDeleteRedeemSourceProcedure,
+		svc.DeleteRedeemSource,
+		connect.WithSchema(adminServiceMethods.ByName("DeleteRedeemSource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminServiceSyncRedeemSourceHandler := connect.NewUnaryHandler(
+		AdminServiceSyncRedeemSourceProcedure,
+		svc.SyncRedeemSource,
+		connect.WithSchema(adminServiceMethods.ByName("SyncRedeemSource")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/mygardenworld.v1.AdminService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminServiceCreateUserProcedure:
@@ -167,6 +259,14 @@ func NewAdminServiceHandler(svc AdminServiceHandler, opts ...connect.HandlerOpti
 			adminServiceUpdateUserHandler.ServeHTTP(w, r)
 		case AdminServiceGetSystemStatsProcedure:
 			adminServiceGetSystemStatsHandler.ServeHTTP(w, r)
+		case AdminServiceListRedeemSourcesProcedure:
+			adminServiceListRedeemSourcesHandler.ServeHTTP(w, r)
+		case AdminServiceUpsertRedeemSourceProcedure:
+			adminServiceUpsertRedeemSourceHandler.ServeHTTP(w, r)
+		case AdminServiceDeleteRedeemSourceProcedure:
+			adminServiceDeleteRedeemSourceHandler.ServeHTTP(w, r)
+		case AdminServiceSyncRedeemSourceProcedure:
+			adminServiceSyncRedeemSourceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -190,4 +290,20 @@ func (UnimplementedAdminServiceHandler) UpdateUser(context.Context, *connect.Req
 
 func (UnimplementedAdminServiceHandler) GetSystemStats(context.Context, *connect.Request[v1.GetSystemStatsRequest]) (*connect.Response[v1.GetSystemStatsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.GetSystemStats is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) ListRedeemSources(context.Context, *connect.Request[v1.ListRedeemSourcesRequest]) (*connect.Response[v1.ListRedeemSourcesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.ListRedeemSources is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) UpsertRedeemSource(context.Context, *connect.Request[v1.UpsertRedeemSourceRequest]) (*connect.Response[v1.UpsertRedeemSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.UpsertRedeemSource is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) DeleteRedeemSource(context.Context, *connect.Request[v1.DeleteRedeemSourceRequest]) (*connect.Response[v1.DeleteRedeemSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.DeleteRedeemSource is not implemented"))
+}
+
+func (UnimplementedAdminServiceHandler) SyncRedeemSource(context.Context, *connect.Request[v1.SyncRedeemSourceRequest]) (*connect.Response[v1.SyncRedeemSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AdminService.SyncRedeemSource is not implemented"))
 }

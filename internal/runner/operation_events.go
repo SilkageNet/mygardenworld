@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -481,12 +482,17 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			return nil
 		}
 		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "", 0)
+		message := fmt.Sprintf("%s 失败: %v", opDesc(op), err)
+		if op.Kind == clientproto.RPCPearlPlaceHire.String() {
+			message = pearlHireFailureMessage(op, err, r.state, result.finishedAt)
+		}
 		r.emit(Event{
 			Kind:        "operation_failed",
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "failed",
-			Message:     fmt.Sprintf("%s 失败: %v", opDesc(op), err),
+			Label:       operationEventLabel(op),
+			Message:     message,
 			PayloadJSON: operationPayload(payloadOp, args, nil, err),
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error()})
@@ -619,6 +625,11 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "限时水滴"
 		category = automation.CategoryWater
 		message = freeWaterClaimSuccessMessage(op, result.waterDropsBefore, r.state)
+	case clientproto.RPCPearlPlaceHire.String():
+		kind = "pearl_hire"
+		label = "雇佣劳工"
+		category = automation.CategoryHire
+		message = pearlHireSuccessMessage(op, r.state, result.finishedAt)
 	case clientproto.RPCActCyclicStoryRecvOrderRwd.String():
 		kind = "activity_cyclic_story_order"
 		label = "莳花纪闻"
@@ -937,6 +948,15 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "水车水滴"
 	case op.Kind == clientproto.RPCFreeWaterRecv.String() || op.Domain == "basic.free_water":
 		return "限时水滴"
+	case op.Kind == clientproto.RPCPearlPlaceHire.String() ||
+		op.Domain == "basic.pearl.hire" ||
+		op.FeatureID == "basic.pearl_hire" ||
+		op.FeatureID == "basic.pearl_buy_hire_ticket" ||
+		op.Domain == "basic.pearl.buy_hire_ticket":
+		if op.Label != "" {
+			return op.Label
+		}
+		return "雇佣劳工"
 	case op.Kind == clientproto.RPCActCyclicStoryEnter.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecv.String(),
@@ -1216,6 +1236,51 @@ func freeWaterClaimSuccessMessage(op *automation.PlannedOp, waterBefore int32, s
 		parts = append(parts, fmt.Sprintf("当前 %d", after))
 	}
 	return strings.Join(parts, " ")
+}
+
+func pearlHireSuccessMessage(op *automation.PlannedOp, st *state.State, at time.Time) string {
+	parts := []string{"珍珠雇佣成功"}
+	if op != nil && op.TargetID > 0 {
+		parts = append(parts, fmt.Sprintf("槽位=%d", op.TargetID))
+	}
+	if op != nil && op.TargetUID > 0 {
+		parts = append(parts, fmt.Sprintf("劳工=%d", op.TargetUID))
+	}
+	if st != nil && op != nil {
+		if place, ok := st.PearlPlaces()[op.TargetID]; ok && place.EveryMakeNumObserved && place.EveryMakeNum > 0 {
+			parts = append(parts, fmt.Sprintf("产出=%d/次", place.EveryMakeNum))
+			if expected, ok := pearlHireExpectedPearls(place.EveryMakeNum); ok {
+				parts = append(parts, fmt.Sprintf("预计获取珍珠=%d", expected))
+			}
+		}
+		view := st.PearlHireAt(at)
+		parts = append(parts, fmt.Sprintf("雇佣书 -1（剩余 %d，今日已用 %d）", view.TicketCount, view.TicketUsedToday))
+	}
+	return strings.Join(parts, " ")
+}
+
+func pearlHireFailureMessage(op *automation.PlannedOp, err error, st *state.State, at time.Time) string {
+	base := fmt.Sprintf("%s 失败: %v", opDesc(op), err)
+	if err == nil || st == nil || !strings.Contains(err.Error(), "hireFailCnt=") {
+		return base
+	}
+	view := st.PearlHireAt(at)
+	return fmt.Sprintf("%s；雇佣书已消耗（剩余 %d，今日已用 %d）", base, view.TicketCount, view.TicketUsedToday)
+}
+
+func pearlHireExpectedPearls(everyMakeNum int32) (int32, bool) {
+	if everyMakeNum <= 0 {
+		return 0, false
+	}
+	timing, ok := state.PearlProductionTimingFromCatalog()
+	if !ok || timing.HireTimeSeconds <= 0 || timing.GatherCDSeconds <= 0 {
+		return 0, false
+	}
+	cycles := timing.HireTimeSeconds / timing.GatherCDSeconds
+	if cycles <= 0 || cycles > int64(math.MaxInt32/everyMakeNum) {
+		return 0, false
+	}
+	return int32(cycles) * everyMakeNum, true
 }
 
 // flowerUpgradeSuccessMessage formats "花名 lvN-lvM" for cultivate.upgrade logs.

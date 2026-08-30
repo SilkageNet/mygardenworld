@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/channel.proto";
+
+// RedeemExchangeService is the public, deployment-to-deployment exchange
+// protocol. It never exposes users, accounts, sessions, or per-account results.
+service RedeemExchangeService {
+  rpc GetExchangeInfo(GetExchangeInfoRequest) returns (GetExchangeInfoResponse);
+  rpc ListRedeemCodes(ListRedeemCodesRequest) returns (ListRedeemCodesResponse);
+  rpc SubmitRedeemCodes(SubmitRedeemCodesRequest) returns (SubmitRedeemCodesResponse);
+}
+
+enum RedeemValidation {
+  REDEEM_VALIDATION_UNSPECIFIED = 0;
+  REDEEM_VALIDATION_PENDING = 1;
+  REDEEM_VALIDATION_SUCCESS = 2;
+  REDEEM_VALIDATION_ALREADY_REDEEMED = 3;
+  REDEEM_VALIDATION_EXPIRED = 4;
+  REDEEM_VALIDATION_INVALID = 5;
+  REDEEM_VALIDATION_RETRYABLE = 6;
+  REDEEM_VALIDATION_UNKNOWN = 7;
+}
+
+enum RedeemSubmitDisposition {
+  REDEEM_SUBMIT_DISPOSITION_UNSPECIFIED = 0;
+  REDEEM_SUBMIT_DISPOSITION_ACCEPTED = 1;
+  REDEEM_SUBMIT_DISPOSITION_DUPLICATE = 2;
+  REDEEM_SUBMIT_DISPOSITION_REJECTED = 3;
+}
+
+message GetExchangeInfoRequest {}
+
+message GetExchangeInfoResponse {
+  string instance_id = 1;
+  google.protobuf.Timestamp server_time = 2;
+  int32 max_batch_size = 3;
+  repeated Channel channels = 4;
+}
+
+message ListRedeemCodesRequest {
+  // Opaque change cursor returned by a previous response. Empty starts at the
+  // beginning of the retained registry.
+  string cursor = 1;
+  int32 page_size = 2;
+  bool include_expired = 3;
+  repeated Channel channels = 4;
+  // Restricts the response to non-expired codes that this node has verified
+  // locally as successful or already redeemed. Native node synchronization
+  // always enables this filter; registry browsers leave it disabled.
+  bool only_propagatable = 5;
+}
+
+message ListRedeemCodesResponse {
+  repeated RedeemCode entries = 1;
+  string next_cursor = 2;
+}
+
+message SubmitRedeemCodesRequest {
+  repeated RedeemCodeSubmission entries = 1;
+  // Stable id returned by GetExchangeInfo. Browsers leave this empty.
+  string sender_instance_id = 2;
+}
+
+message SubmitRedeemCodesResponse {
+  repeated RedeemSubmitResult results = 1;
+}
+
+message RedeemCodeSubmission {
+  string code = 1;
+  Channel channel = 2;
+  // Absent only when permanent is true.
+  google.protobuf.Timestamp expires_at = 3;
+  bool permanent = 4;
+  // Remote verification is community evidence only. Every receiving node
+  // still validates the code using its own account before forwarding it.
+  RedeemValidation reported_validation = 5;
+  // First node that accepted the code. Empty means the sender is the origin.
+  string origin_instance_id = 6;
+}
+
+message RedeemSubmitResult {
+  string fingerprint = 1;
+  RedeemSubmitDisposition disposition = 2;
+  string message = 3;
+}
+
+message RedeemCode {
+  string fingerprint = 1;
+  string code = 2;
+  Channel channel = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  bool permanent = 5;
+  RedeemValidation validation = 6;
+  google.protobuf.Timestamp first_seen_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  google.protobuf.Timestamp local_verified_at = 9;
+  google.protobuf.Timestamp community_verified_at = 10;
+  string origin_instance_id = 11;
+  string last_message = 12;
+}

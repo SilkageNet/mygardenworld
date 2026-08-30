@@ -48,6 +48,7 @@ func (r *Runner) Start(ctx context.Context) error {
 	}
 
 	r.installStateHandlers()
+	r.hydratePearlHireTicketUsage(ctx)
 	client, err := r.connectFresh(ctx, username, password)
 	if err != nil {
 		if r.autoReloginPending() {

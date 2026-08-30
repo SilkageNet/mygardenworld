@@ -65,12 +65,24 @@ func (b *Bus) subscribe(buffer int, replayRecent bool) (<-chan Event, func()) {
 
 // Publish fans out e to every subscriber. Slow subscribers drop the event.
 func (b *Bus) Publish(e Event) {
+	b.publish(e, true)
+}
+
+// PublishTransient fans out an internal live signal without retaining it for
+// subscribers that request recent user-facing events later.
+func (b *Bus) PublishTransient(e Event) {
+	b.publish(e, false)
+}
+
+func (b *Bus) publish(e Event, remember bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.recentEvents = append(b.recentEvents, e)
-	if len(b.recentEvents) > recentEventLimit {
-		copy(b.recentEvents, b.recentEvents[len(b.recentEvents)-recentEventLimit:])
-		b.recentEvents = b.recentEvents[:recentEventLimit]
+	if remember {
+		b.recentEvents = append(b.recentEvents, e)
+		if len(b.recentEvents) > recentEventLimit {
+			copy(b.recentEvents, b.recentEvents[len(b.recentEvents)-recentEventLimit:])
+			b.recentEvents = b.recentEvents[:recentEventLimit]
+		}
 	}
 	for _, ch := range b.subscribers {
 		select {

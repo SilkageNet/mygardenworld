@@ -36,6 +36,7 @@ import {
   Trash2,
   TrendingUp,
   Trophy,
+  Users,
   Waves,
 } from "lucide-react";
 
@@ -73,6 +74,8 @@ import type {
   InventoryLedgerView,
   LandView,
   OrderStatisticsView,
+  PearlHireView,
+  PearlPlaceView,
   PendingTaskView,
   PlantableFlowerView,
   PlannedOperation,
@@ -105,6 +108,7 @@ import {
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatAPIError, transport } from "@/lib/api/client";
+import { peerStackConfig, redeemCodeAllStacks } from "@/lib/api/redeem-all";
 import { useAuth } from "@/lib/auth/context";
 import { experienceToNextLevel, itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
@@ -112,6 +116,7 @@ import { cn } from "@/lib/utils";
 const accountClient = createClient(AccountService, transport);
 const policyClient = createClient(PolicyService, transport);
 const queryClient = createClient(QueryService, transport);
+const redeemStacks = peerStackConfig();
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("zh-CN");
 const EVENT_LIMIT = 500;
@@ -201,7 +206,9 @@ function DashboardContent() {
   const [redeemCode, setRedeemCode] = useState("");
   const [redeemBusy, setRedeemBusy] = useState(false);
   const [redeemSummary, setRedeemSummary] = useState("");
-  const [redeemResults, setRedeemResults] = useState<Array<{ accountName: string; ok: boolean; message: string }>>([]);
+  const [redeemResults, setRedeemResults] = useState<
+    Array<{ stackLabel: string; accountName: string; ok: boolean; message: string }>
+  >([]);
   const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("monitor");
   const didAutoSelectAccount = useRef(false);
   const accountsRef = useRef<Account[]>([]);
@@ -640,24 +647,28 @@ function DashboardContent() {
   async function submitRedeemCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const code = redeemCode.trim();
-    if (!code || accounts.length === 0 || redeemBusy) return;
+    const canRedeemLocal = accounts.length > 0;
+    const canRedeemPeers = redeemStacks.hasPeers;
+    if (!code || redeemBusy || (!canRedeemLocal && !canRedeemPeers)) return;
     setRedeemBusy(true);
     setRedeemSummary("");
     setRedeemResults([]);
     setError("");
     try {
-      const res = await accountClient.redeemCode({
+      const res = await redeemCodeAllStacks({
         code,
-        accountIds: accounts.map((account) => account.id),
+        localApiUrl: redeemStacks.localApiUrl,
+        localStackLabel: redeemStacks.localStackLabel,
+        peerApiUrls: canRedeemPeers ? redeemStacks.peerApiUrls : [],
+        peerStackLabels: canRedeemPeers ? redeemStacks.peerStackLabels : [],
+        stackAdminUsername: redeemStacks.stackAdminUsername,
+        stackAdminPassword: redeemStacks.stackAdminPassword,
       });
-      setRedeemResults(
-        res.results.map((item) => ({
-          accountName: item.accountName || item.accountId,
-          ok: item.ok,
-          message: item.message || (item.ok ? "ok" : "失败"),
-        })),
+      setRedeemResults(res.results);
+      const stackHint = canRedeemPeers ? "（含对端实例）" : "";
+      setRedeemSummary(
+        `成功 ${res.successCount} / 失败 ${res.failureCount}（共 ${res.results.length} 个账号）${stackHint}`,
       );
-      setRedeemSummary(`成功 ${res.successCount} / 失败 ${res.failureCount}（共 ${res.results.length} 个账号）`);
       await refreshStatuses().catch(() => undefined);
     } catch (err) {
       setRedeemSummary(formatAPIError(err, "兑换失败"));
@@ -904,7 +915,9 @@ function DashboardContent() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={(event) => void submitRedeemCode(event)}>
             <p className="text-sm text-muted-foreground">
-              输入一次兑换码，将对当前账号列表中的全部 {accounts.length} 个账号依次兑换。离线账号会先尝试登录。
+              {redeemStacks.hasPeers
+                ? `输入一次兑换码，将同时兑换「${redeemStacks.localStackLabel}」与对端实例的全部账号。离线账号会先尝试登录。`
+                : `输入一次兑换码，将对当前账号列表中的全部 ${accounts.length} 个账号依次兑换。离线账号会先尝试登录。`}
             </p>
             <Field label="兑换码">
               <Input
@@ -921,8 +934,14 @@ function DashboardContent() {
             {redeemResults.length > 0 && (
               <div className="dark-scrollbar max-h-48 space-y-1.5 overflow-y-auto rounded-md border border-border/50 p-2 text-sm">
                 {redeemResults.map((item) => (
-                  <div key={`${item.accountName}-${item.message}`} className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 truncate font-medium">{item.accountName}</span>
+                  <div
+                    key={`${item.stackLabel}-${item.accountName}-${item.message}`}
+                    className="flex items-start justify-between gap-2"
+                  >
+                    <span className="min-w-0 truncate font-medium">
+                      {redeemStacks.hasPeers ? `[${item.stackLabel}] ` : ""}
+                      {item.accountName}
+                    </span>
                     <span className={cn("min-w-0 text-right", item.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
                       {item.ok ? (item.message && item.message !== "ok" ? item.message : "成功") : item.message}
                     </span>
@@ -934,7 +953,14 @@ function DashboardContent() {
               <Button type="button" variant="outline" onClick={() => setRedeemOpen(false)} disabled={redeemBusy}>
                 关闭
               </Button>
-              <Button type="submit" disabled={redeemBusy || !redeemCode.trim() || accounts.length === 0}>
+              <Button
+                type="submit"
+                disabled={
+                  redeemBusy ||
+                  !redeemCode.trim() ||
+                  (accounts.length === 0 && !redeemStacks.hasPeers)
+                }
+              >
                 {redeemBusy ? <Loader2 className="size-4 animate-spin" /> : <Ticket className="size-4" />}
                 {redeemBusy ? "兑换中" : "全部兑换"}
               </Button>
@@ -1313,6 +1339,7 @@ function MonitorTab({
     <div className="space-y-3 sm:space-y-4">
       <StatusOverviewPanel snapshot={snapshot} status={status} />
       <RuntimeStatisticsPanel runtimeStatistics={runtimeStatistics} />
+      <PearlHireMonitorPanel hire={snapshot?.pearlHire} />
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
@@ -1560,6 +1587,7 @@ function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Promise<bo
 
 const SPEED_UP_TICKET_ITEM_ID = 1001;
 const FLORAL_COIN_ITEM_ID = 1002;
+const PEARL_HIRE_TICKET_ITEM_ID = 1003;
 
 function CollapsibleCard({
   title,
@@ -1697,6 +1725,117 @@ function RuntimeStatisticsPanel({ runtimeStatistics }: { runtimeStatistics?: Run
   );
 }
 
+function PearlHireMonitorPanel({ hire }: { hire?: PearlHireView }) {
+  const ticketItemId = hire?.ticketItemId || PEARL_HIRE_TICKET_ITEM_ID;
+  const ticketName = itemName(ticketItemId) || "雇佣书";
+  const places = hire?.places ?? [];
+  const slotCount = hire?.slotCount || places.length;
+  const activeWorkers = hire?.activeWorkers ?? 0;
+  const hireReady = places.filter((place) => place.hireReady && !place.monthlyCardUnlock).length;
+  const worldEmptyUntilMs = Number(hire?.worldEmptyUntilMs ?? BigInt(0));
+  const worldEmptyRemaining = worldEmptyUntilMs > Date.now() ? worldEmptyUntilMs - Date.now() : 0;
+
+  return (
+    <CollapsibleCard
+      title="雇佣劳工"
+      contentClassName="space-y-3"
+      actions={
+        <>
+          {hire?.placesObserved ? (
+            <Badge variant="secondary">
+              在岗 {activeWorkers}/{slotCount || "-"}
+            </Badge>
+          ) : (
+            <Badge variant="outline">槽位待同步</Badge>
+          )}
+          {hire?.sessionLocked && <Badge variant="destructive">会话锁定</Badge>}
+          {worldEmptyRemaining > 0 && <Badge variant="outline">候选冷却中</Badge>}
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <OverviewStat
+          icon={<Ticket />}
+          label={`${ticketName}总量`}
+          value={formatCount(hire?.ticketCount ?? 0)}
+          detail={`#${ticketItemId}`}
+        />
+        <OverviewStat
+          icon={<CalendarDays />}
+          label="今日消耗"
+          value={formatCount(hire?.ticketUsedToday ?? 0)}
+          detail="上海时区自然日"
+        />
+        <OverviewStat
+          icon={<Users />}
+          label="在岗劳工"
+          value={slotCount > 0 ? `${activeWorkers}/${slotCount}` : "-"}
+          detail={hire?.placesObserved ? (hireReady > 0 ? `${hireReady} 个槽可雇佣` : "暂无可雇槽") : "等待同步珍珠槽位"}
+        />
+        <OverviewStat
+          icon={<ListChecks />}
+          label="槽位状态"
+          value={hire?.placesObserved ? pearlHireSlotSummary(places) : "未同步"}
+          detail={
+            hire?.sessionLocked
+              ? hire.sessionLockReason || "雇佣会话已锁定"
+              : worldEmptyUntilMs > Date.now()
+                ? `候选冷却至 ${formatClockTime(worldEmptyUntilMs)}`
+                : "珍珠采集雇佣"
+          }
+          wrap
+        />
+      </div>
+
+      <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+        <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+          <span>劳工槽位</span>
+          <Badge variant="secondary">{slotCount || places.length} 槽</Badge>
+        </div>
+        {!hire?.placesObserved || places.length === 0 ? (
+          <div className="p-3">
+            <EmptyState title="劳工槽位尚未同步" detail="连接游戏并同步珍珠采集后，会显示各槽在岗/空闲状态。" />
+          </div>
+        ) : (
+          <div className="grid gap-2 p-2 sm:grid-cols-2 lg:grid-cols-4">
+            {places.map((place) => (
+              <PearlHireSlotCard key={place.placeId} place={place} />
+            ))}
+          </div>
+        )}
+      </section>
+    </CollapsibleCard>
+  );
+}
+
+function PearlHireSlotCard({ place }: { place: PearlPlaceView }) {
+  const status = pearlHireSlotStatus(place);
+  const endMs = Number(place.laborEndTimeMs ?? BigInt(0));
+  return (
+    <div className="rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">槽位 {place.placeId}</div>
+          <div className="mt-1 font-medium">{status.label}</div>
+        </div>
+        <Badge variant={status.badge}>{status.badgeLabel}</Badge>
+      </div>
+      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+        {place.monthlyCardUnlock && <div>月卡解锁槽</div>}
+        {place.laborUidObserved && place.laborUid > BigInt(0) && <div>劳工 UID {String(place.laborUid)}</div>}
+        {place.inShift && place.laborEndTimeObserved && endMs > 0 && (
+          <div>{formatClockTime(endMs)} 到期</div>
+        )}
+        {!place.inShift && place.laborEndTimeObserved && endMs > 0 && endMs <= Date.now() && (
+          <div>已于 {formatClockTime(endMs)} 到期</div>
+        )}
+        {place.hireFailCntObserved && place.hireFailCnt > 0 && <div>雇佣失败 {place.hireFailCnt} 次</div>}
+        {place.surplusRecvNumObserved && place.surplusRecvNum > 0 && <div>待领取产量 {place.surplusRecvNum}</div>}
+      </div>
+    </div>
+  );
+}
+
 function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
   const phase = activity?.phase ?? 0;
   if (!activity?.found || (phase !== 1 && phase !== 2 && phase !== 3)) {
@@ -1823,6 +1962,9 @@ function FmlRaceMonitorPanel({
   const rankObserved = race?.rankObserved ?? false;
   const rank = race?.rank ?? 0;
   const showScoreRank = showPersonalScoreRank;
+  const takeableTasks = tasks
+    .map((task, index) => ({ index: index + 1, task }))
+    .filter(({ task }) => isFmlRaceTaskTakeable(task));
 
   const formatMs = (ms: bigint) => {
     if (ms === BigInt(0)) return "";
@@ -1938,6 +2080,25 @@ function FmlRaceMonitorPanel({
               </div>
               <Badge variant="secondary">{tasks.length} 个</Badge>
             </div>
+            {tasks.length > 0 && (
+              <div className="border-b border-border/45 px-3 py-2 text-sm">
+                {takeableTasks.length === 0 ? (
+                  <span className="text-muted-foreground">可接任务：无</span>
+                ) : (
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                    <span className="mr-0.5 shrink-0 font-medium text-red-600 dark:text-red-400">
+                      可接任务
+                    </span>
+                    {takeableTasks.map(({ index, task }, i) => (
+                      <span key={task.msId} className="tabular-nums text-red-600 dark:text-red-400">
+                        {i > 0 ? <span className="text-muted-foreground">· </span> : null}#
+                        {index} {task.score}分
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {tasks.length === 0 ? (
               <div className="p-3">
                 <EmptyState title="任务池为空" detail="竞赛任务已接完或尚未刷新。" />
@@ -2019,11 +2180,15 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   );
 }
 
+/** Ready now, or CD but already passing take filters (automation would take). */
+function isFmlRaceTaskTakeable(task: FmlRaceTask) {
+  const skipReason = (task.takeSkipReason ?? "").trim();
+  return skipReason === "" || skipReason.startsWith("冷却中");
+}
+
 function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
 	const skipReason = (task.takeSkipReason ?? "").trim();
-	// Empty = ready now. "冷却中…后可接" = passes filters, waiting on AppearTime.
-	// Both are tasks automation would take; other skip reasons are hard rejects.
-	const takeable = skipReason === "" || skipReason.startsWith("冷却中");
+	const takeable = isFmlRaceTaskTakeable(task);
 	// The server computes CD using the same lead window as task selection. Using
 	// that snapshot keeps rendering pure and the label consistent with automation.
 	const onCd = skipReason.startsWith("冷却中") || skipReason.endsWith("后刷新");
@@ -3465,7 +3630,7 @@ function EventPanel({ events }: { events: Event[] }) {
     return counts;
   }, [displayEvents]);
   const categories = useMemo(() => {
-    const order = ["basic", "water", "plant", "order", "union", "race", "activity", "account", "system"];
+    const order = ["basic", "water", "hire", "plant", "order", "union", "race", "activity", "account", "system"];
     const keys = new Set(categoryCounts.keys());
     return [...keys].sort((a, b) => {
       const ai = order.indexOf(a);
@@ -3868,6 +4033,41 @@ function formatRemainingMilliseconds(milliseconds: number) {
   return `${minutes}分钟`;
 }
 
+function pearlHireSlotSummary(places: PearlPlaceView[]) {
+  const inShift = places.filter((place) => place.inShift).length;
+  const ready = places.filter((place) => place.hireReady).length;
+  const locked = places.filter((place) => place.monthlyCardUnlock && !place.inShift && !place.hireReady).length;
+  const unknown = places.length - inShift - ready - locked;
+  const parts = [`在岗 ${inShift}`, `可雇 ${ready}`];
+  if (locked > 0) parts.push(`月卡 ${locked}`);
+  if (unknown > 0) parts.push(`未知 ${unknown}`);
+  return parts.join(" · ");
+}
+
+function pearlHireSlotStatus(place: PearlPlaceView): {
+  label: string;
+  badgeLabel: string;
+  badge: "secondary" | "outline" | "destructive";
+} {
+  if (place.monthlyCardUnlock && !place.laborUidObserved && !place.laborEndTimeObserved) {
+    return { label: "月卡锁定", badgeLabel: "锁定", badge: "outline" };
+  }
+  if (!place.laborUidObserved || !place.laborEndTimeObserved) {
+    return { label: "状态未知", badgeLabel: "待同步", badge: "outline" };
+  }
+  if (place.inShift) {
+    return { label: "劳工在岗", badgeLabel: "在岗", badge: "secondary" };
+  }
+  if (place.hireReady) {
+    const ended = place.laborUid > BigInt(0) || Number(place.laborEndTimeMs ?? BigInt(0)) > 0;
+    return { label: ended ? "班次已结束" : "空闲可雇", badgeLabel: "可雇", badge: "secondary" };
+  }
+  if (place.monthlyCardUnlock) {
+    return { label: "月卡锁定", badgeLabel: "锁定", badge: "outline" };
+  }
+  return { label: "状态异常", badgeLabel: "异常", badge: "destructive" };
+}
+
 function planStatusLabel(status: PlanStatus) {
   switch (status) {
     case PlanStatus.READY:
@@ -4034,10 +4234,15 @@ function operationReasonLabel(reason: string) {
 function eventCategory(event: Event) {
   if (event.category === "flower_art") return "order";
   if (event.category === "redeem") return "system";
+  if (event.kind === "pearl_hire" || event.domain?.startsWith("basic.pearl.hire") || event.domain === "basic.pearl.buy_hire_ticket") {
+    return "hire";
+  }
+  if (event.category === "hire") return "hire";
   if (event.category) return event.category;
   if (event.domain) {
     const category = event.domain.split(".")[0];
     if (category === "redeem") return "system";
+    if (event.domain.startsWith("basic.pearl.hire") || event.domain === "basic.pearl.buy_hire_ticket") return "hire";
     return category || "system";
   }
   return "system";
@@ -4081,8 +4286,10 @@ function eventTitle(event: Event) {
   if (event.kind === "order_decorate_finish") return "建材订单";
   if (event.kind === "waterwheel") return "水车水滴";
   if (event.kind === "free_water") return "限时水滴";
+  if (event.kind === "pearl_hire") return "雇佣劳工";
   if (event.domain?.includes("resident.satin")) return "绸缎订单";
   if (event.domain?.includes("resident.decorate")) return "建材订单";
+  if (event.domain?.startsWith("basic.pearl.hire") || event.domain === "basic.pearl.buy_hire_ticket") return "雇佣劳工";
   return [event.domain, event.action].filter(Boolean).join(".") || event.kind || "-";
 }
 
@@ -4096,6 +4303,8 @@ function categoryLabel(category: string) {
       return "基础";
     case "water":
       return "水滴";
+    case "hire":
+      return "雇佣";
     case "plant":
       return "种植";
     case "order":
@@ -4209,6 +4418,18 @@ function formatUnixTime(value?: bigint) {
   return new Intl.DateTimeFormat("zh-CN", {
     hour: "2-digit",
     minute: "2-digit",
+  }).format(new Date(milliseconds));
+}
+
+/** Absolute local clock for hire deadlines (HH:MM:SS). */
+function formatClockTime(value?: bigint | number) {
+  const milliseconds = typeof value === "bigint" ? Number(value) : Number(value ?? 0);
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "-";
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   }).format(new Date(milliseconds));
 }
 

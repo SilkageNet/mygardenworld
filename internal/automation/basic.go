@@ -512,7 +512,7 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 		}
 	}
 	if policy.GetAutoBuyHireTicket() {
-		buy := markerOp(CategoryBasic, "basic.pearl.buy_hire_ticket", "buy", "购买雇佣书涉及元宝成本", 110)
+		buy := markerOp(CategoryHire, "basic.pearl.buy_hire_ticket", "buy", "购买雇佣书涉及元宝成本", 110)
 		buy.Label = "购买雇佣书"
 		buy.Status = PlanStatusAdapterMissing
 		buy.Executable = false

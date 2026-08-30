@@ -32,6 +32,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/apiserver"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/buildinfo"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"github.com/SilkageNet/mygardenworld/internal/updatecmd"
@@ -315,6 +316,21 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	mgr.DebugDir = opts.DebugDir
 	defer mgr.Shutdown()
 
+	redeemService, err := redeemsvc.NewService(ctx, db, mgr, log)
+	if err != nil {
+		return fmt.Errorf("initialize redeem exchange: %w", err)
+	}
+	redeemCtx, cancelRedeem := context.WithCancel(ctx)
+	redeemDone := make(chan struct{})
+	go func() {
+		defer close(redeemDone)
+		redeemService.Run(redeemCtx)
+	}()
+	defer func() {
+		cancelRedeem()
+		<-redeemDone
+	}()
+
 	svc := &apiserver.Services{
 		DB:      db,
 		Manager: mgr,
@@ -326,6 +342,8 @@ func runServe(ctx context.Context, opts serveOpts) error {
 			IPFailures:   opts.AuthIPFails,
 			Lockout:      opts.AuthLockout,
 		}),
+		Redeem:        redeemService,
+		RedeemLimiter: apiserver.NewRedeemSubmitLimiter(),
 	}
 
 	authInterceptor := auth.NewInterceptor(jwtSvc)
@@ -339,6 +357,14 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	// AuthService uses the same interceptor: login/refresh/logout are
 	// explicitly public, while get-me still receives identity context.
 	path, handler := mygardenworldv1connect.NewAuthServiceHandler(svc, protectedOpts...)
+	mux.Handle(path, handler)
+
+	// Redeem exchange is intentionally public: it contains only community
+	// codes and aggregate verification evidence, never account data.
+	path, handler = mygardenworldv1connect.NewRedeemExchangeServiceHandler(
+		svc,
+		connect.WithReadMaxBytes(opts.MaxReqBytes),
+	)
 	mux.Handle(path, handler)
 
 	// All other services: protected

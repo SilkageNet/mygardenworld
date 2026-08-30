@@ -1,0 +1,276 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">MyGardenWorld 社区兑换码网络</title>
+  <desc id="desc">展示兑换码从公开录入、网页来源或其他节点进入本地注册表，按渠道去重并复用 Runner Session 验证，只有成功或已兑换的有效兑换码才会传播给其他节点；过期、无效和可重试结果分别进入历史、抑制或重试流程。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6fcff"/>
+      <stop offset="0.55" stop-color="#eef9ff"/>
+      <stop offset="1" stop-color="#fffaf0"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#edf8ff" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#178eea"/>
+      <stop offset="1" stop-color="#5bc6ff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0fb89a"/>
+      <stop offset="1" stop-color="#56d8b8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#174b73" flood-opacity="0.11"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#174b73" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#218fdd"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#11a98e"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0 0L10 5L0 10Z" fill="#7b94ad"/>
+    </marker>
+    <style>
+      .font { font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+      .ink { fill: #15365e; }
+      .muted { fill: #69819c; }
+      .label { font-size: 18px; font-weight: 700; letter-spacing: .2px; }
+      .small { font-size: 15px; font-weight: 500; }
+      .tiny { font-size: 13px; font-weight: 600; }
+      .section { font-size: 22px; font-weight: 800; }
+      .chip { fill: #eff8ff; stroke: #cae7f8; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <circle cx="1490" cy="85" r="190" fill="#bcecff" opacity="0.25"/>
+  <circle cx="118" cy="932" r="220" fill="#d8f7ed" opacity="0.34"/>
+  <path d="M1190 58C1300 10 1460 28 1544 122" fill="none" stroke="#ffffff" stroke-width="22" opacity="0.48" stroke-linecap="round"/>
+
+  <g class="font">
+    <g transform="translate(70 48)">
+      <rect x="0" y="0" width="48" height="48" rx="16" fill="url(#blue)" filter="url(#softShadow)"/>
+      <path d="M14 28c0-5 4-9 9-9 2-5 10-6 13 0 5 0 8 3 8 7 0 5-4 8-9 8H21c-4 0-7-2-7-6Z" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="66" y="22" class="ink" font-size="30" font-weight="850">兑换码，如何在社区中安全流动</text>
+      <text x="66" y="48" class="muted" font-size="16" font-weight="550">去中心化来源 · 本地验证 · 条件传播 · 接收端再次确认</text>
+    </g>
+    <g transform="translate(1312 58)">
+      <rect width="218" height="40" rx="20" fill="#ffffff" stroke="#d6eaf6" filter="url(#softShadow)"/>
+      <circle cx="25" cy="20" r="7" fill="#14b89b"/>
+      <text x="43" y="26" class="ink" font-size="15" font-weight="750">MyGardenWorld v0.8</text>
+    </g>
+
+    <text x="72" y="160" class="muted" font-size="14" font-weight="800" letter-spacing="2">01 / 多元来源</text>
+    <text x="470" y="160" class="muted" font-size="14" font-weight="800" letter-spacing="2">02 / 本地可信闭环</text>
+    <text x="1205" y="160" class="muted" font-size="14" font-weight="800" letter-spacing="2">03 / 社区传播</text>
+
+    <!-- Sources -->
+    <g filter="url(#softShadow)">
+      <rect x="70" y="185" width="320" height="132" rx="26" fill="#ffffff" stroke="#d8eaf5"/>
+      <rect x="92" y="209" width="52" height="52" rx="17" fill="#eaf7ff"/>
+      <path d="M108 244h20M118 234v20M104 224h28v35h-28Z" fill="none" stroke="#168ee5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="160" y="229" class="label ink">公开手动录入</text>
+      <text x="160" y="253" class="small muted">兑换码 + 渠道 + 过期时间</text>
+      <rect x="92" y="278" width="62" height="24" rx="12" class="chip"/>
+      <text x="112" y="295" class="tiny ink">iOS</text>
+      <rect x="162" y="278" width="82" height="24" rx="12" class="chip"/>
+      <text x="178" y="295" class="tiny ink">Alipay</text>
+    </g>
+
+    <g filter="url(#softShadow)">
+      <rect x="70" y="337" width="320" height="132" rx="26" fill="#ffffff" stroke="#d8eaf5"/>
+      <rect x="92" y="361" width="52" height="52" rx="17" fill="#eef9f5"/>
+      <path d="M106 373h24v29h-24Zm5-7h14v7h-14Zm1 15h12m-12 7h12m-12 7h7" fill="none" stroke="#0fa98d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="160" y="381" class="label ink">自定义 HTTPS 来源</text>
+      <text x="160" y="405" class="small muted">只读 JSON · 管理员配置解析</text>
+      <text x="92" y="447" class="tiny" fill="#0b9a81">不硬编码第三方地址</text>
+    </g>
+
+    <g filter="url(#softShadow)">
+      <rect x="70" y="489" width="320" height="132" rx="26" fill="#ffffff" stroke="#d8eaf5"/>
+      <rect x="92" y="513" width="52" height="52" rx="17" fill="#f1f2ff"/>
+      <circle cx="110" cy="539" r="8" fill="none" stroke="#6877df" stroke-width="2.5"/>
+      <circle cx="128" cy="527" r="7" fill="none" stroke="#6877df" stroke-width="2.5"/>
+      <circle cx="129" cy="552" r="7" fill="none" stroke="#6877df" stroke-width="2.5"/>
+      <path d="m117 535 6-5m-6 13 6 5" stroke="#6877df" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="160" y="533" class="label ink">MyGardenWorld 节点</text>
+      <text x="160" y="557" class="small muted">只拉取对方已验证的有效码</text>
+      <text x="92" y="599" class="tiny" fill="#6575d5">根地址订阅 · Protobuf Connect</text>
+    </g>
+
+    <!-- Source arrows -->
+    <path d="M392 252C425 252 427 278 458 278" fill="none" stroke="#218fdd" stroke-width="3" marker-end="url(#arrowBlue)"/>
+    <path d="M392 404C430 404 426 392 458 392" fill="none" stroke="#218fdd" stroke-width="3" marker-end="url(#arrowBlue)"/>
+    <path d="M392 556C432 556 425 506 458 506" fill="none" stroke="#218fdd" stroke-width="3" marker-end="url(#arrowBlue)"/>
+
+    <!-- Local node -->
+    <rect x="450" y="180" width="685" height="612" rx="34" fill="url(#hero)" stroke="#cbe7f7" stroke-width="2" filter="url(#shadow)"/>
+    <g transform="translate(480 202)">
+      <rect width="625" height="54" rx="18" fill="#e9f7ff"/>
+      <circle cx="28" cy="27" r="15" fill="url(#blue)"/>
+      <path d="M18 29c1-6 6-8 11-6 3-4 10-1 9 4 4 1 5 8-1 9H23c-4 0-6-3-5-7Z" fill="#fff"/>
+      <text x="55" y="25" class="ink" font-size="20" font-weight="850">本地 MyGardenWorld 节点</text>
+      <text x="55" y="44" class="muted" font-size="13" font-weight="600">数据库记录事实，Runner 负责唯一游戏连接</text>
+      <rect x="508" y="13" width="96" height="28" rx="14" fill="#ffffff" stroke="#cbe7f7"/>
+      <text x="532" y="32" class="tiny ink">schema v5</text>
+    </g>
+
+    <!-- Registry column -->
+    <rect x="480" y="278" width="294" height="475" rx="25" fill="#ffffff" stroke="#d8eaf5"/>
+    <text x="508" y="315" class="section ink">接入与注册表</text>
+    <text x="508" y="340" class="small muted">先规范化，再决定下一步</text>
+
+    <g transform="translate(505 365)">
+      <circle cx="17" cy="17" r="17" fill="#e8f6ff"/>
+      <text x="12" y="23" fill="#168ee5" font-size="17" font-weight="850">1</text>
+      <text x="47" y="13" class="label ink">规范化与渠道隔离</text>
+      <text x="47" y="36" class="small muted">channel + code → fingerprint</text>
+      <rect x="47" y="49" width="55" height="23" rx="11.5" fill="#eff8ff"/>
+      <text x="63" y="65" class="tiny ink">去重</text>
+      <rect x="108" y="49" width="80" height="23" rx="11.5" fill="#eff8ff"/>
+      <text x="123" y="65" class="tiny ink">有效期</text>
+    </g>
+    <line x1="508" y1="459" x2="746" y2="459" stroke="#e3eef5"/>
+
+    <g transform="translate(505 482)">
+      <circle cx="17" cy="17" r="17" fill="#e8f6ff"/>
+      <text x="12" y="23" fill="#168ee5" font-size="17" font-weight="850">2</text>
+      <text x="47" y="13" class="label ink">兑换码注册表</text>
+      <text x="47" y="36" class="small muted">来源观测 · revision · 状态</text>
+      <rect x="47" y="52" width="200" height="50" rx="14" fill="#f7fbfe" stroke="#dbeaf3"/>
+      <circle cx="65" cy="77" r="6" fill="#f3b94c"/>
+      <text x="79" y="82" class="tiny ink">PENDING · 等待本地验证</text>
+    </g>
+    <line x1="508" y1="604" x2="746" y2="604" stroke="#e3eef5"/>
+
+    <g transform="translate(505 626)">
+      <circle cx="17" cy="17" r="17" fill="#e8f6ff"/>
+      <text x="12" y="23" fill="#168ee5" font-size="17" font-weight="850">3</text>
+      <text x="47" y="13" class="label ink">按渠道创建尝试</text>
+      <text x="47" y="36" class="small muted">只匹配已有 iOS / Alipay 账号</text>
+      <text x="47" y="67" class="tiny" fill="#168ee5">每个账号独立记录结果</text>
+    </g>
+
+    <!-- flow connector -->
+    <path d="M774 505H808" stroke="#218fdd" stroke-width="3" marker-end="url(#arrowBlue)"/>
+
+    <!-- Validation column -->
+    <rect x="812" y="278" width="293" height="475" rx="25" fill="#ffffff" stroke="#d8eaf5"/>
+    <text x="840" y="315" class="section ink">本地二次验证</text>
+    <text x="840" y="340" class="small muted">远端结论只是社区证据</text>
+
+    <g transform="translate(838 365)">
+      <rect width="241" height="69" rx="18" fill="#eef9ff" stroke="#cae7f8"/>
+      <path d="M20 22h25v25H20Zm7-8h11v8H27Z" fill="none" stroke="#168ee5" stroke-width="2.4" stroke-linejoin="round"/>
+      <text x="58" y="27" class="label ink">复用 Runner Session</text>
+      <text x="58" y="50" class="small muted">不新建第二条游戏连接</text>
+    </g>
+    <path d="M958 438v28" stroke="#218fdd" stroke-width="3" marker-end="url(#arrowBlue)"/>
+    <g transform="translate(838 478)">
+      <rect width="241" height="62" rx="18" fill="#f7fbfe" stroke="#d7e8f3"/>
+      <circle cx="31" cy="31" r="14" fill="#15365e"/>
+      <path d="m24 31 5 5 9-11" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="57" y="28" class="label ink">调用游戏兑换接口</text>
+      <text x="57" y="48" class="small muted">真实返回决定最终状态</text>
+    </g>
+
+    <g transform="translate(838 565)">
+      <rect width="241" height="38" rx="12" fill="#eafaf4"/>
+      <circle cx="19" cy="19" r="6" fill="#12ad90"/>
+      <text x="34" y="24" class="tiny" fill="#087b68">成功 / 已兑换 → 可传播</text>
+    </g>
+    <g transform="translate(838 612)">
+      <rect width="116" height="38" rx="12" fill="#fff7e8"/>
+      <circle cx="18" cy="19" r="6" fill="#e7a82d"/>
+      <text x="32" y="24" class="tiny" fill="#946912">过期 → 历史</text>
+      <rect x="125" width="116" height="38" rx="12" fill="#fff0f0"/>
+      <circle cx="143" cy="19" r="6" fill="#ef6a6a"/>
+      <text x="157" y="24" class="tiny" fill="#ab4141">无效 → 抑制</text>
+    </g>
+    <g transform="translate(838 659)">
+      <rect width="241" height="38" rx="12" fill="#f2f5f8"/>
+      <circle cx="19" cy="19" r="6" fill="#8196aa"/>
+      <text x="34" y="24" class="tiny" fill="#60778e">临时失败 → 退避重试队列</text>
+    </g>
+    <text x="840" y="730" class="tiny muted">只有绿色路径进入 exchange outbox</text>
+
+    <!-- Propagation line -->
+    <path d="M1106 584C1157 584 1150 357 1202 357" fill="none" stroke="#11a98e" stroke-width="4" marker-end="url(#arrowGreen)"/>
+
+    <!-- Peer network -->
+    <g filter="url(#softShadow)">
+      <rect x="1205" y="185" width="325" height="438" rx="30" fill="#ffffff" stroke="#d8eaf5"/>
+    </g>
+    <text x="1234" y="225" class="section ink">节点网络</text>
+    <text x="1234" y="250" class="small muted">没有强制中心，每个节点都能订阅</text>
+
+    <g transform="translate(1233 285)">
+      <rect width="112" height="78" rx="21" fill="#eef9ff" stroke="#c8e8f8"/>
+      <circle cx="27" cy="29" r="12" fill="#168ee5"/>
+      <path d="M20 31c1-5 5-7 9-5 3-4 9-1 8 4 4 1 4 7-1 8H25c-4 0-6-3-5-7Z" fill="#fff"/>
+      <text x="51" y="34" class="label ink">节点 A</text>
+      <text x="20" y="61" class="tiny muted">instance id</text>
+    </g>
+    <g transform="translate(1393 285)">
+      <rect width="112" height="78" rx="21" fill="#eef9ff" stroke="#c8e8f8"/>
+      <circle cx="27" cy="29" r="12" fill="#168ee5"/>
+      <path d="M20 31c1-5 5-7 9-5 3-4 9-1 8 4 4 1 4 7-1 8H25c-4 0-6-3-5-7Z" fill="#fff"/>
+      <text x="51" y="34" class="label ink">节点 B</text>
+      <text x="20" y="61" class="tiny muted">revision</text>
+    </g>
+    <g transform="translate(1313 418)">
+      <rect width="112" height="78" rx="21" fill="#eef9ff" stroke="#c8e8f8"/>
+      <circle cx="27" cy="29" r="12" fill="#168ee5"/>
+      <path d="M20 31c1-5 5-7 9-5 3-4 9-1 8 4 4 1 4 7-1 8H25c-4 0-6-3-5-7Z" fill="#fff"/>
+      <text x="51" y="34" class="label ink">节点 C</text>
+      <text x="20" y="61" class="tiny muted">fingerprint</text>
+    </g>
+    <path d="M1347 324h40" stroke="#7b94ad" stroke-width="2.5" marker-end="url(#arrowGray)"/>
+    <path d="M1444 369c0 31-13 42-31 52" fill="none" stroke="#7b94ad" stroke-width="2.5" marker-end="url(#arrowGray)"/>
+    <path d="M1318 420c-18-11-31-22-31-51" fill="none" stroke="#7b94ad" stroke-width="2.5" marker-end="url(#arrowGray)"/>
+    <path d="M1387 338h-40" stroke="#7b94ad" stroke-width="2" stroke-dasharray="5 6" marker-end="url(#arrowGray)"/>
+
+    <g transform="translate(1233 526)">
+      <rect width="270" height="71" rx="18" fill="#f6fbfe" stroke="#dbeaf3"/>
+      <circle cx="23" cy="23" r="9" fill="#12ad90"/>
+      <path d="m19 23 3 3 6-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      <text x="42" y="27" class="tiny ink">接收端再次过滤并本地验证</text>
+      <text x="22" y="52" class="tiny muted">来源抑制 + 去重，A ↔ B 不形成环</text>
+    </g>
+
+    <!-- Guardrail row -->
+    <text x="72" y="846" class="muted" font-size="14" font-weight="800" letter-spacing="2">设计底线 / TRUST BOUNDARIES</text>
+    <g transform="translate(70 870)" filter="url(#softShadow)">
+      <rect width="350" height="86" rx="24" fill="#ffffff" stroke="#d8eaf5"/>
+      <circle cx="37" cy="43" r="21" fill="#eaf7ff"/>
+      <path d="M29 42h16m-8-8v16" stroke="#168ee5" stroke-width="3" stroke-linecap="round"/>
+      <text x="72" y="37" class="label ink">开放接入，不等于盲目信任</text>
+      <text x="72" y="62" class="small muted">社区证据始终经过本地游戏验证</text>
+    </g>
+    <g transform="translate(440 870)" filter="url(#softShadow)">
+      <rect width="350" height="86" rx="24" fill="#ffffff" stroke="#d8eaf5"/>
+      <circle cx="37" cy="43" r="21" fill="#eef9f5"/>
+      <path d="M27 43h20m-10-10v20" stroke="#0fa98d" stroke-width="3" stroke-linecap="round" transform="rotate(45 37 43)"/>
+      <text x="72" y="37" class="label ink">错误码不会继续扩散</text>
+      <text x="72" y="62" class="small muted">无效抑制；过期与已兑换保留善意</text>
+    </g>
+    <g transform="translate(810 870)" filter="url(#softShadow)">
+      <rect width="350" height="86" rx="24" fill="#ffffff" stroke="#d8eaf5"/>
+      <circle cx="37" cy="43" r="21" fill="#f1f2ff"/>
+      <path d="M27 35h20v17H27Zm5-6h10v6H32Z" fill="none" stroke="#6877df" stroke-width="2.5" stroke-linejoin="round"/>
+      <text x="72" y="37" class="label ink">账号与节点数据彻底分离</text>
+      <text x="72" y="62" class="small muted">交换协议不暴露用户、Session 或结果</text>
+    </g>
+    <g transform="translate(1180 870)" filter="url(#softShadow)">
+      <rect width="350" height="86" rx="24" fill="#ffffff" stroke="#d8eaf5"/>
+      <circle cx="37" cy="43" r="21" fill="#fff6e7"/>
+      <path d="M28 43h18m-4-7 7 7-7 7" fill="none" stroke="#d99a27" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="72" y="37" class="label ink">最终一致，而非中心裁决</text>
+      <text x="72" y="62" class="small muted">节点独立决定，网络自然收敛</text>
+    </g>
+  </g>
+</svg>

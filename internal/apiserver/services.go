@@ -18,6 +18,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1connect"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -26,21 +27,24 @@ import (
 // Services is the consolidated handler. One instance is mounted across all
 // service path prefixes.
 type Services struct {
-	DB           *store.DB
-	Manager      *runner.Manager
-	JWT          *auth.JWT
-	Log          *slog.Logger
-	LoginLimiter *LoginLimiter
+	DB            *store.DB
+	Manager       *runner.Manager
+	JWT           *auth.JWT
+	Log           *slog.Logger
+	LoginLimiter  *LoginLimiter
+	Redeem        *redeemsvc.Service
+	RedeemLimiter *RedeemSubmitLimiter
 }
 
 // Compile-time assertions: every service interface is implemented.
 var (
-	_ mygardenworldv1connect.AccountServiceHandler    = (*Services)(nil)
-	_ mygardenworldv1connect.AutomationServiceHandler = (*Services)(nil)
-	_ mygardenworldv1connect.PolicyServiceHandler     = (*Services)(nil)
-	_ mygardenworldv1connect.QueryServiceHandler      = (*Services)(nil)
-	_ mygardenworldv1connect.AuthServiceHandler       = (*Services)(nil)
-	_ mygardenworldv1connect.AdminServiceHandler      = (*Services)(nil)
+	_ mygardenworldv1connect.AccountServiceHandler         = (*Services)(nil)
+	_ mygardenworldv1connect.AutomationServiceHandler      = (*Services)(nil)
+	_ mygardenworldv1connect.PolicyServiceHandler          = (*Services)(nil)
+	_ mygardenworldv1connect.QueryServiceHandler           = (*Services)(nil)
+	_ mygardenworldv1connect.AuthServiceHandler            = (*Services)(nil)
+	_ mygardenworldv1connect.AdminServiceHandler           = (*Services)(nil)
+	_ mygardenworldv1connect.RedeemExchangeServiceHandler  = (*Services)(nil)
 )
 
 // resolveAccount picks the account by id (preferred) or name. Enforces
@@ -252,24 +256,44 @@ func (svc *Services) RedeemCode(ctx context.Context, req *connect.Request[pb.Red
 			}
 			r = started
 		}
-		if resultInfo, err := r.RedeemCode(ctx, code); err != nil {
+		resultInfo, err := r.RedeemCode(ctx, code)
+		if err != nil {
 			result.Message = babigame.SafeUTF8(err.Error())
 			resp.FailureCount++
 			resp.Results = append(resp.Results, result)
 			continue
-		} else {
-			result.Ok = true
-			result.Message = redeemResultMessage(resultInfo)
-			resp.SuccessCount++
-			resp.Results = append(resp.Results, result)
 		}
+		// Runner returns nil error for classified game outcomes (already
+		// redeemed / expired / invalid); only genuine success counts as ok.
+		result.Ok = resultInfo.Outcome == runner.RedeemOutcomeSuccess
+		result.Message = babigame.SafeUTF8(redeemResultMessage(resultInfo))
+		if result.Ok {
+			resp.SuccessCount++
+		} else {
+			resp.FailureCount++
+		}
+		resp.Results = append(resp.Results, result)
 	}
 	return connect.NewResponse(resp), nil
 }
 
 func redeemResultMessage(result runner.RedeemResult) string {
-	if result.Code == "" {
-		return "ok"
+	if result.Outcome != runner.RedeemOutcomeSuccess && result.Outcome != "" {
+		if msg := strings.TrimSpace(result.Message); msg != "" {
+			return msg
+		}
+		switch result.Outcome {
+		case runner.RedeemOutcomeAlreadyRedeemed:
+			return "该账号已经兑换"
+		case runner.RedeemOutcomeExpired:
+			return "兑换码已经过期"
+		case runner.RedeemOutcomeInvalid:
+			return "无效兑换码"
+		case runner.RedeemOutcomeRetryable:
+			return "暂时无法兑换，请稍后重试"
+		default:
+			return "无法识别游戏返回结果"
+		}
 	}
 	parts := make([]string, 0, len(result.Items))
 	for _, item := range result.Items {
@@ -286,9 +310,11 @@ func redeemResultMessage(result runner.RedeemResult) string {
 		return strings.Join(parts, "、")
 	case result.MailNew > 0:
 		return fmt.Sprintf("奖励已入邮件（%d 封待领取）", result.MailNew)
-	default:
-		return "ok"
 	}
+	if msg := strings.TrimSpace(result.Message); msg != "" {
+		return msg
+	}
+	return "兑换成功"
 }
 
 func (svc *Services) resolveRedeemAccounts(ctx context.Context, accountIDs []string) ([]*store.Account, error) {

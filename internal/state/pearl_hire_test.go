@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"reflect"
 	"testing"
@@ -107,20 +108,55 @@ func TestPearlHireFailureBoundaryAndSessionReset(t *testing.T) {
 	at := time.UnixMilli(1_700_000_000_000)
 	s.MarkPearlHireFailed(2001, at)
 	view := s.PearlHire()
-	if got := view.FailedUntilMs[2001]; got != at.Add(time.Minute).UnixMilli() {
-		t.Fatalf("failure until=%d", got)
+	if got := view.FailedUntilMs[2001]; got != math.MaxInt64 {
+		t.Fatalf("failure until=%d, want MaxInt64", got)
 	}
-	if !time.UnixMilli(view.FailedUntilMs[2001]).After(at.Add(time.Minute - time.Millisecond)) {
-		t.Fatal("candidate should still be cooling before 60s")
-	}
-	if time.UnixMilli(view.FailedUntilMs[2001]).After(at.Add(time.Minute)) {
-		t.Fatal("candidate should be eligible at exactly 60s")
+	if !(view.FailedUntilMs[2001] > at.Add(24*time.Hour).UnixMilli()) {
+		t.Fatal("failed UID should remain excluded for the login session")
 	}
 	s.LockPearlHireSession("fallback")
 	s.ResetPearlHireSession()
 	view = s.PearlHire()
 	if view.SessionLocked || len(view.FailedUntilMs) != 0 || view.FriendsObserved || view.RecommendObserved || view.EnemiesObserved {
 		t.Fatalf("session reset incomplete: %+v", view)
+	}
+}
+
+func TestPearlHireDailyTicketUsageAndWorldEmpty(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s.NotePearlHireTicketUsed(now)
+	s.NotePearlHireTicketUsed(now)
+	view := s.PearlHireAt(now)
+	if view.TicketUsedToday != 2 {
+		t.Fatalf("ticket used today=%d", view.TicketUsedToday)
+	}
+	if got := PearlHireTicketDayID(now); got != 20260828 {
+		t.Fatalf("day id=%d", got)
+	}
+	justAfterMidnight := time.Date(2026, 8, 29, 0, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	if got := s.PearlHireAt(justAfterMidnight).TicketUsedToday; got != 0 {
+		t.Fatalf("ticket used after midnight=%d", got)
+	}
+	beforeMidnight := time.Date(2026, 8, 28, 23, 59, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	if got := s.PearlHireAt(beforeMidnight).TicketUsedToday; got != 2 {
+		t.Fatalf("ticket used before midnight=%d", got)
+	}
+	s.MarkPearlHireWorldEmpty(now)
+	view = s.PearlHireAt(now)
+	if view.WorldEmptyUntilMs != now.Add(time.Minute).UnixMilli() {
+		t.Fatalf("world empty until=%d", view.WorldEmptyUntilMs)
+	}
+	if view.FriendsObserved || view.RecommendObserved || view.EnemiesObserved {
+		t.Fatalf("candidate caches should be invalidated: %+v", view)
+	}
+	s.NotePearlHireTicketUsed(now)
+	if s.PearlHireAt(now).WorldEmptyUntilMs != 0 {
+		t.Fatal("successful hire should clear world-empty wait")
+	}
+	s.SetPearlHireTicketUsed(20260828, 5)
+	if got := s.PearlHireAt(now).TicketUsedToday; got != 5 {
+		t.Fatalf("hydrated ticket used=%d", got)
 	}
 }
 
