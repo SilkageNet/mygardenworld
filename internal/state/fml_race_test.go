@@ -542,16 +542,16 @@ func TestFmlRaceTakenEnrichedTargetCntFromPool(t *testing.T) {
 	}
 }
 
-func TestMarkFmlRaceTasksUnobserved(t *testing.T) {
+func TestMarkFmlRaceTaskPoolStale(t *testing.T) {
 	s := New()
 	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":4001,"10":9}]}}`))
 	if !s.FmlRace().TasksObserved {
 		t.Fatal("expected observed")
 	}
-	s.MarkFmlRaceTasksUnobserved()
+	s.MarkFmlRaceTaskPoolStale()
 	got := s.FmlRace()
-	if got.TasksObserved {
-		t.Fatal("expected TasksObserved=false")
+	if !got.TasksObserved || !got.TaskPoolStale {
+		t.Fatalf("expected observed snapshot marked stale, got %+v", got)
 	}
 	// Pool rows preserved so UI/planner still see last snapshot until re-sync.
 	if len(got.Tasks) != 1 {
@@ -611,17 +611,49 @@ func TestMarkFmlRaceTakeQuotaExhausted(t *testing.T) {
 	}
 }
 
-func TestMarkFmlRaceTasksSynced(t *testing.T) {
+func TestFmlRaceBatchChangeClearsPreviousTaskPool(t *testing.T) {
 	s := New()
-	before := time.Now().UnixMilli()
-	s.MarkFmlRaceTasksSynced()
-	after := time.Now().UnixMilli()
-	got := s.FmlRace()
-	if !got.TasksObserved {
-		t.Fatal("expected TasksObserved")
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":100,"1":1,"2":1000,"3":9000000000},"114":[{"0":55,"4":3034,"6":[3002],"10":24}],"110":{"100":{"7":{"0":55,"1":3034,"2":4,"3":1,"4":[3002]}}}}}`))
+	before := s.FmlRace()
+	if !before.TasksObserved || len(before.Tasks) != 1 || !before.Taken.HasTask {
+		t.Fatalf("seed race state incomplete: %+v", before)
 	}
-	if got.TasksSyncedAtMs < before || got.TasksSyncedAtMs > after {
-		t.Fatalf("TasksSyncedAtMs=%d, want in [%d,%d]", got.TasksSyncedAtMs, before, after)
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":200,"1":1,"2":1000,"3":9000000000}}}`))
+	after := s.FmlRace()
+	if after.TasksObserved || after.TaskPoolStale || len(after.Tasks) != 0 || after.Taken.HasTask {
+		t.Fatalf("new batch retained previous task state: %+v", after)
+	}
+}
+
+func TestNoteFmlRaceTaskPoolSyncDoesNotInventObservation(t *testing.T) {
+	s := New()
+	at := time.UnixMilli(1_700_000_000_000)
+	s.NoteFmlRaceTaskPoolSync(at)
+	got := s.FmlRace()
+	if got.TasksObserved || got.TasksSyncedAtMs != 0 {
+		t.Fatalf("empty sync must not invent field 114 observation: %+v", got)
+	}
+	if got.TaskPoolSyncAttemptAtMs != at.UnixMilli() || got.TaskPoolStale {
+		t.Fatalf("sync attempt not recorded correctly: %+v", got)
+	}
+}
+
+func TestNoteFmlRaceTaskPoolSyncConfirmsObservedIncompletePool(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":99,"4":3034,"6":[],"10":24}]}}`))
+	s.MarkFmlRaceTaskPoolStale()
+	at := time.UnixMilli(1_700_000_000_000)
+	s.NoteFmlRaceTaskPoolSync(at)
+	got := s.FmlRace()
+	if !got.TasksObserved || got.TaskPoolStale {
+		t.Fatalf("observed pool must be confirmed and fresh: %+v", got)
+	}
+	if got.TasksSyncedAtMs != at.UnixMilli() || got.TaskPoolSyncAttemptAtMs != at.UnixMilli() {
+		t.Fatalf("sync timestamps not confirmed at %d: %+v", at.UnixMilli(), got)
+	}
+	wantFP := FmlRaceMissingParamFingerprint(got.Tasks)
+	if wantFP == "" || got.MissingParamRefreshFP != wantFP {
+		t.Fatalf("missing-param attempt fingerprint=%q, want %q", got.MissingParamRefreshFP, wantFP)
 	}
 }
 

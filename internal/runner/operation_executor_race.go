@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
@@ -78,7 +79,7 @@ func runFmlRaceEnter(ctx context.Context, rt operationRuntime, _ *automation.Pla
 		rt.runner.state.ApplyV(v)
 		// Enter may push sparse 114/110. Force the next tick to getTaskList so
 		// full-pool reconcile can replace stale Taken (e.g. 鹤望兰 score 0).
-		rt.runner.state.MarkFmlRaceTasksUnobserved()
+		rt.runner.state.MarkFmlRaceTaskPoolStale()
 	}
 	return v, nil
 }
@@ -132,11 +133,11 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 		v = normalizeFmlRaceEnterV(v)
 		rt.runner.state.ApplyVFullFmlRaceTaskPool(v)
 	}
-	// Successful RPC with empty/no-114 payload must still clear the
-	// !TasksObserved early-exit, or sync loops on the decision interval.
-	if !rt.runner.state.FmlRace().TasksObserved {
-		rt.runner.state.MarkFmlRaceTasksSynced()
-	}
+	// Record every successful round-trip, including empty/no-114 deltas. This
+	// clears an explicit stale gate, backs off a never-observed response, and
+	// records incomplete-target refresh attempts so they cannot live-lock the
+	// decision loop.
+	rt.runner.state.NoteFmlRaceTaskPoolSync(time.Now())
 	// Piggyback member rank list so personal score/rank stay fresh whenever
 	// the task pool syncs (enter bootstrap, TTL refresh, progress catch-up).
 	if batchID := rt.runner.state.FmlRace().BatchID; batchID > 0 {

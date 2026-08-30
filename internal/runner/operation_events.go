@@ -152,13 +152,17 @@ func (r *Runner) handleOperationArgsFailure(ctx context.Context, op *automation.
 }
 
 func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
+	message := fmt.Sprintf("计划执行 %s%s", opDesc(attempt.op), r.opSuffix(attempt.op))
+	if attempt.op.Kind == clientproto.RPCFmlRaceGetTaskList.String() && strings.TrimSpace(attempt.op.Reason) != "" {
+		message += ": " + strings.TrimSpace(attempt.op.Reason)
+	}
 	r.emit(Event{
 		Kind:        "operation_planned",
 		Category:    attempt.op.Category,
 		Domain:      attempt.op.Domain,
 		Action:      attempt.op.Action,
 		Label:       operationEventLabel(attempt.op),
-		Message:     fmt.Sprintf("计划执行 %s%s", opDesc(attempt.op), r.opSuffix(attempt.op)),
+		Message:     message,
 		PayloadJSON: operationPayload(attempt.op, attempt.args, nil, nil),
 	})
 }
@@ -390,7 +394,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "group_finished"})
 		return nil
 	case operationErrorRaceTakeAlreadyTaken:
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 		r.emit(Event{
 			Kind:        "operation_deferred",
 			Category:    op.Category,
@@ -406,7 +410,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		if op.TaskMsID != 0 {
 			r.state.MarkFmlRacePoolTaskClaimed(op.TaskMsID)
 		}
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 		r.emit(Event{
 			Kind:        "operation_deferred",
 			Category:    op.Category,
@@ -420,7 +424,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		return nil
 	case operationErrorRaceTakeQuotaExceeded:
 		r.state.MarkFmlRaceTakeQuotaExhausted()
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 		r.emit(Event{
 			Kind:        "operation_deferred",
 			Category:    op.Category,
@@ -570,7 +574,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			if isRaceTransientSessionError(op.Kind, err) {
 				return r.handleRaceSessionStale(ctx, result, "race_take_session_stale")
 			}
-			r.state.MarkFmlRaceTasksUnobserved()
+			r.state.MarkFmlRaceTaskPoolStale()
 			r.clearOperationCooldown(op)
 			r.emit(Event{
 				Kind:        "operation_deferred",
@@ -604,7 +608,7 @@ func (r *Runner) handleRaceSyncFailure(ctx context.Context, result operationResu
 	if isRaceTransientSessionError(op.Kind, err) {
 		r.state.MarkFmlRaceSessionStale()
 	} else {
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	reason := "竞赛同步失败，稍后重试"
 	message := fmt.Sprintf("%s 暂缓: 同步失败，1 秒后重试", opDesc(op))

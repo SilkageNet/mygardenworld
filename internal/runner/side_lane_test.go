@@ -15,8 +15,39 @@ func TestSideLaneRaceSyncPreemptsFarm(t *testing.T) {
 	farm := runnableLaneOp("farm.harvest", automation.LaneFarm, "")
 	sync := runnableLaneOp("fmlRace.getTaskList", automation.LaneSide, "union.race.sync")
 	sync.Domain = "union.race.sync"
+	sync.Action = "sync"
 	sync.PreemptFarm = true
 	assertSelectedOperation(t, r.selectRunnableOperation([]automation.PlannedOp{farm, sync}, now), sync.OperationID)
+}
+
+func TestSideLaneRepeatedRaceSyncYieldsToFarm(t *testing.T) {
+	now := time.Date(2026, 8, 30, 22, 4, 0, 0, time.UTC)
+	r := newSideLaneTestRunner()
+	farm := runnableLaneOp("farm.harvest", automation.LaneFarm, "")
+	sync := runnableLaneOp("fmlRace.getTaskList", automation.LaneSide, "union.race.sync")
+	sync.Domain = "union.race.sync"
+	sync.Action = "sync"
+	sync.PreemptFarm = true
+	candidates := []automation.PlannedOp{farm, sync}
+
+	assertSelectedOperation(t, r.selectRunnableOperation(candidates, now), sync.OperationID)
+	assertSelectedOperation(t, r.selectRunnableOperation(candidates, now.Add(time.Second)), farm.OperationID)
+	assertSelectedOperation(t, r.selectRunnableOperation(candidates, now.Add(2*time.Second)), sync.OperationID)
+}
+
+func TestSideLaneRaceTakeStillPreemptsAfterRaceSync(t *testing.T) {
+	now := time.Date(2026, 8, 30, 22, 4, 0, 0, time.UTC)
+	r := newSideLaneTestRunner()
+	farm := runnableLaneOp("farm.harvest", automation.LaneFarm, "")
+	sync := runnableLaneOp("fmlRace.getTaskList", automation.LaneSide, "union.race.sync")
+	sync.Action = "sync"
+	sync.PreemptFarm = true
+	take := runnableLaneOp("fmlRace.takeTask", automation.LaneSide, "union.race.take")
+	take.Action = "take"
+	take.PreemptFarm = true
+
+	assertSelectedOperation(t, r.selectRunnableOperation([]automation.PlannedOp{farm, sync}, now), sync.OperationID)
+	assertSelectedOperation(t, r.selectRunnableOperation([]automation.PlannedOp{farm, take}, now.Add(time.Second)), take.OperationID)
 }
 
 func TestSideLaneRaceTakePreemptsFarmAndFarmTurn(t *testing.T) {
@@ -118,8 +149,8 @@ func TestSideLaneFairnessPrunesCoolingAndDisappearedScopes(t *testing.T) {
 
 	r.sideLaneFarmTurn = true
 	assertSelectedOperation(t, r.selectRunnableOperation([]automation.PlannedOp{farm}, now.Add(3*time.Second)), farm.OperationID)
-	if len(r.sideLaneFirstWait) != 0 || r.sideLaneFarmTurn {
-		t.Fatalf("empty Side set did not clear fairness state: waits=%v farmTurn=%t", r.sideLaneFirstWait, r.sideLaneFarmTurn)
+	if len(r.sideLaneFirstWait) != 0 || r.sideLaneFarmTurn || r.raceSyncNeedsFarmTurn {
+		t.Fatalf("empty Side set did not clear fairness state: waits=%v farmTurn=%t raceSyncFarmTurn=%t", r.sideLaneFirstWait, r.sideLaneFarmTurn, r.raceSyncNeedsFarmTurn)
 	}
 }
 
@@ -185,11 +216,12 @@ func assertSelectedOperation(t *testing.T, op *automation.PlannedOp, want string
 func seedSideLaneFairness(r *Runner) {
 	r.sideLaneFirstWait["scope"] = time.Now().Add(-sideLaneMaxWait)
 	r.sideLaneFarmTurn = true
+	r.raceSyncNeedsFarmTurn = true
 }
 
 func assertSideLaneFairnessReset(t *testing.T, r *Runner) {
 	t.Helper()
-	if len(r.sideLaneFirstWait) != 0 || r.sideLaneFarmTurn {
-		t.Fatalf("fairness state not reset: waits=%v farmTurn=%t", r.sideLaneFirstWait, r.sideLaneFarmTurn)
+	if len(r.sideLaneFirstWait) != 0 || r.sideLaneFarmTurn || r.raceSyncNeedsFarmTurn {
+		t.Fatalf("fairness state not reset: waits=%v farmTurn=%t raceSyncFarmTurn=%t", r.sideLaneFirstWait, r.sideLaneFarmTurn, r.raceSyncNeedsFarmTurn)
 	}
 }

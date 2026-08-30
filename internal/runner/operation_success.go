@@ -108,6 +108,9 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "同步竞赛任务"
 		category = automation.CategoryRace
 		message = "完成"
+		if strings.TrimSpace(op.Reason) != "" {
+			message += " · " + strings.TrimSpace(op.Reason)
+		}
 	case clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
 		kind = "race_task_sync"
 		label = "同步竞赛已做次数"
@@ -187,32 +190,32 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRace()) {
 		// Customer-order race FinishCnt advances via getTaskList, not harvest
 		// field 134. Force a pool refresh on the next tick.
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if op.Kind == clientproto.RPCPearlPlaceHire.String() &&
 		automation.RaceHoldsUnfinishedPearlHire(r.state.FmlRace()) {
 		// Pearl-hire race FinishCnt advances via getTaskList. Force a pool
 		// refresh on the next tick after a successful hire.
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() &&
 		automation.RaceHoldsUnfinishedFlowerArtCraft(r.state.FmlRace()) {
 		// Flower-art-craft race FinishCnt advances via getTaskList. Force a
 		// pool refresh on the next tick after a successful craft.
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if op.Kind == clientproto.RPCFlowerRackSell.String() &&
 		automation.RaceHoldsUnfinishedFlowerArtSell(r.state.FmlRace()) {
 		// Flower-art-sell race FinishCnt advances via getTaskList. Force a
 		// pool refresh on the next tick after a successful listing.
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if (op.Kind == clientproto.RPCCultivateCultivate.String() ||
 		op.Kind == clientproto.RPCCultivateRecv.String()) &&
 		automation.RaceHoldsUnfinishedFlowerCultivate(r.state.FmlRace()) {
 		// Flower-cultivate race FinishCnt also advances only via getTaskList;
 		// without this hook submission waits on the 10-minute fallback sync.
-		r.state.MarkFmlRaceTasksUnobserved()
+		r.state.MarkFmlRaceTaskPoolStale()
 	}
 }
 
