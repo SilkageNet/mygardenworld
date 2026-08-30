@@ -534,10 +534,18 @@ type RedeemSource struct {
 	Cursor              string                 `protobuf:"bytes,11,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	LastSyncAt          *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=last_sync_at,json=lastSyncAt,proto3" json:"last_sync_at,omitempty"`
 	LastError           string                 `protobuf:"bytes,13,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
-	AcceptedCount       int64                  `protobuf:"varint,14,opt,name=accepted_count,json=acceptedCount,proto3" json:"accepted_count,omitempty"`
-	InvalidCount        int64                  `protobuf:"varint,15,opt,name=invalid_count,json=invalidCount,proto3" json:"invalid_count,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Distinct codes attributed to this source, regardless of outcome.
+	ObservedCount int64 `protobuf:"varint,14,opt,name=observed_count,json=observedCount,proto3" json:"observed_count,omitempty"`
+	// Success, already-redeemed, and expired outcomes all establish good-faith input.
+	TrustedCount         int64 `protobuf:"varint,15,opt,name=trusted_count,json=trustedCount,proto3" json:"trusted_count,omitempty"`
+	SuccessCount         int64 `protobuf:"varint,16,opt,name=success_count,json=successCount,proto3" json:"success_count,omitempty"`
+	AlreadyRedeemedCount int64 `protobuf:"varint,17,opt,name=already_redeemed_count,json=alreadyRedeemedCount,proto3" json:"already_redeemed_count,omitempty"`
+	ExpiredCount         int64 `protobuf:"varint,18,opt,name=expired_count,json=expiredCount,proto3" json:"expired_count,omitempty"`
+	InvalidCount         int64 `protobuf:"varint,19,opt,name=invalid_count,json=invalidCount,proto3" json:"invalid_count,omitempty"`
+	// Pending, retryable, and unknown outcomes that still need a terminal decision.
+	PendingCount  int64 `protobuf:"varint,20,opt,name=pending_count,json=pendingCount,proto3" json:"pending_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RedeemSource) Reset() {
@@ -661,9 +669,37 @@ func (x *RedeemSource) GetLastError() string {
 	return ""
 }
 
-func (x *RedeemSource) GetAcceptedCount() int64 {
+func (x *RedeemSource) GetObservedCount() int64 {
 	if x != nil {
-		return x.AcceptedCount
+		return x.ObservedCount
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetTrustedCount() int64 {
+	if x != nil {
+		return x.TrustedCount
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetSuccessCount() int64 {
+	if x != nil {
+		return x.SuccessCount
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetAlreadyRedeemedCount() int64 {
+	if x != nil {
+		return x.AlreadyRedeemedCount
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetExpiredCount() int64 {
+	if x != nil {
+		return x.ExpiredCount
 	}
 	return 0
 }
@@ -671,6 +707,13 @@ func (x *RedeemSource) GetAcceptedCount() int64 {
 func (x *RedeemSource) GetInvalidCount() int64 {
 	if x != nil {
 		return x.InvalidCount
+	}
+	return 0
+}
+
+func (x *RedeemSource) GetPendingCount() int64 {
+	if x != nil {
+		return x.PendingCount
 	}
 	return 0
 }
@@ -1114,7 +1157,7 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"totalUsers\x12.\n" +
 	"\x13total_game_accounts\x18\x02 \x01(\x05R\x11totalGameAccounts\x12%\n" +
 	"\x0eactive_runners\x18\x03 \x01(\x05R\ractiveRunners\x12+\n" +
-	"\x11connected_runners\x18\x04 \x01(\x05R\x10connectedRunners\"\xc8\x04\n" +
+	"\x11connected_runners\x18\x04 \x01(\x05R\x10connectedRunners\"\x92\x06\n" +
 	"\fRedeemSource\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x126\n" +
@@ -1132,8 +1175,13 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"lastSyncAt\x12\x1d\n" +
 	"\n" +
 	"last_error\x18\r \x01(\tR\tlastError\x12%\n" +
-	"\x0eaccepted_count\x18\x0e \x01(\x03R\racceptedCount\x12#\n" +
-	"\rinvalid_count\x18\x0f \x01(\x03R\finvalidCount\"\x1a\n" +
+	"\x0eobserved_count\x18\x0e \x01(\x03R\robservedCount\x12#\n" +
+	"\rtrusted_count\x18\x0f \x01(\x03R\ftrustedCount\x12#\n" +
+	"\rsuccess_count\x18\x10 \x01(\x03R\fsuccessCount\x124\n" +
+	"\x16already_redeemed_count\x18\x11 \x01(\x03R\x14alreadyRedeemedCount\x12#\n" +
+	"\rexpired_count\x18\x12 \x01(\x03R\fexpiredCount\x12#\n" +
+	"\rinvalid_count\x18\x13 \x01(\x03R\finvalidCount\x12#\n" +
+	"\rpending_count\x18\x14 \x01(\x03R\fpendingCount\"\x1a\n" +
 	"\x18ListRedeemSourcesRequest\"U\n" +
 	"\x19ListRedeemSourcesResponse\x128\n" +
 	"\asources\x18\x01 \x03(\v2\x1e.mygardenworld.v1.RedeemSourceR\asources\"\xe6\x02\n" +

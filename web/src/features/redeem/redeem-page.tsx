@@ -398,6 +398,26 @@ const EMPTY_SOURCE: SourceForm = {
   pollIntervalSeconds: 300,
 };
 
+function SourceStatistics({ source }: { source: RedeemSource }) {
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="outline">收录 {source.observedCount.toString()}</Badge>
+        <Badge variant="secondary">可采信 {source.trustedCount.toString()}</Badge>
+        <Badge variant={source.invalidCount > BigInt(0) ? "destructive" : "outline"}>
+          无效 {source.invalidCount.toString()}
+        </Badge>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-5 text-muted-foreground">
+        <span>成功 {source.successCount.toString()}</span>
+        <span>已兑换 {source.alreadyRedeemedCount.toString()}</span>
+        <span>已过期 {source.expiredCount.toString()}</span>
+        <span>待验证 {source.pendingCount.toString()}</span>
+      </div>
+    </div>
+  );
+}
+
 function SourceManager() {
   const [sources, setSources] = useState<RedeemSource[]>([]);
   const [form, setForm] = useState<SourceForm>(EMPTY_SOURCE);
@@ -464,7 +484,34 @@ function SourceManager() {
             <div className="flex justify-end gap-2 md:col-span-2"><Button type="button" variant="ghost" onClick={() => setOpen(false)}>取消</Button><Button type="submit" disabled={busy === "save"}>{busy === "save" && <LoaderCircle className="size-4 animate-spin" />}保存数据源</Button></div>
           </form>
         )}
-        {sources.length === 0 ? <div className="py-6 text-center text-sm text-muted-foreground">尚未配置数据源，本节点仍可公开录入和验证。</div> : <div className="grid gap-2 md:grid-cols-2">{sources.map((source) => <div key={source.id.toString()} className="rounded-md border border-border/60 bg-white/42 p-3 dark:bg-white/5"><div className="flex items-start justify-between gap-2"><button type="button" className="min-w-0 text-left" onClick={() => edit(source)}><div className="truncate text-sm font-semibold">{source.name}</div><div className="mt-1 truncate text-xs text-muted-foreground">{source.baseUrl}</div></button><div className="flex shrink-0 gap-1"><Badge variant={source.enabled ? "secondary" : "outline"}>{source.type === RedeemSourceType.MYGARDENWORLD ? "节点" : "网页"}</Badge><Badge variant="outline">{source.type === RedeemSourceType.MYGARDENWORLD ? "按兑换码" : source.channel === Channel.ALIPAY ? "Alipay" : "iOS"}</Badge></div></div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>正确 {source.acceptedCount.toString()} · 错误 {source.invalidCount.toString()}</span><div className="flex gap-1"><Button type="button" variant="ghost" size="icon-xs" aria-label="立即同步" disabled={busy === `sync:${source.id}`} onClick={async () => { setBusy(`sync:${source.id}`); try { await adminClient.syncRedeemSource({ id: source.id }); await load(); } catch (err) { setError(formatAPIError(err, "同步失败")); } finally { setBusy(""); } }}>{busy === `sync:${source.id}` ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button><Button type="button" variant="destructive" size="icon-xs" aria-label="删除数据源" onClick={async () => { if (!window.confirm(`删除数据源“${source.name}”？`)) return; try { await adminClient.deleteRedeemSource({ id: source.id }); await load(); } catch (err) { setError(formatAPIError(err, "删除失败")); } }}><Trash2 /></Button></div></div>{source.lastError && <div className="mt-2 rounded bg-destructive/8 px-2 py-1 text-xs text-destructive">{source.lastError}</div>}</div>)}</div>}
+        {sources.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">尚未配置数据源，本节点仍可公开录入和验证。</div>
+        ) : (
+          <div className="grid gap-2 md:grid-cols-2">
+            {sources.map((source) => (
+              <div key={source.id.toString()} className="rounded-md border border-border/60 bg-white/42 p-3 dark:bg-white/5">
+                <div className="flex items-start justify-between gap-2">
+                  <button type="button" className="min-w-0 text-left" onClick={() => edit(source)}>
+                    <div className="truncate text-sm font-semibold">{source.name}</div>
+                    <div className="mt-1 truncate text-xs text-muted-foreground">{source.baseUrl}</div>
+                  </button>
+                  <div className="flex shrink-0 gap-1">
+                    <Badge variant={source.enabled ? "secondary" : "outline"}>{source.type === RedeemSourceType.MYGARDENWORLD ? "节点" : "网页"}</Badge>
+                    <Badge variant="outline">{source.type === RedeemSourceType.MYGARDENWORLD ? "按兑换码" : source.channel === Channel.ALIPAY ? "Alipay" : "iOS"}</Badge>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  <SourceStatistics source={source} />
+                  <div className="flex shrink-0 gap-1">
+                    <Button type="button" variant="ghost" size="icon-xs" aria-label="立即同步" disabled={busy === `sync:${source.id}`} onClick={async () => { setBusy(`sync:${source.id}`); try { await adminClient.syncRedeemSource({ id: source.id }); await load(); } catch (err) { setError(formatAPIError(err, "同步失败")); } finally { setBusy(""); } }}>{busy === `sync:${source.id}` ? <LoaderCircle className="animate-spin" /> : <RefreshCw />}</Button>
+                    <Button type="button" variant="destructive" size="icon-xs" aria-label="删除数据源" onClick={async () => { if (!window.confirm(`删除数据源“${source.name}”？`)) return; try { await adminClient.deleteRedeemSource({ id: source.id }); await load(); } catch (err) { setError(formatAPIError(err, "删除失败")); } }}><Trash2 /></Button>
+                  </div>
+                </div>
+                {source.lastError && <div className="mt-2 rounded bg-destructive/8 px-2 py-1 text-xs text-destructive">{source.lastError}</div>}
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

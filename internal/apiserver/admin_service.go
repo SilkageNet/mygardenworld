@@ -370,7 +370,10 @@ func redeemSourceToProto(source *store.RedeemSource) *pb.RedeemSource {
 		ParserConfigJson: source.ParserConfigJSON, Enabled: source.Enabled,
 		PushEnabled: source.PushEnabled, PollIntervalSeconds: int32(source.PollIntervalSeconds),
 		RemoteInstanceId: source.RemoteInstanceID, Cursor: source.Cursor, LastError: source.LastError,
-		AcceptedCount: source.AcceptedCount, InvalidCount: source.InvalidCount,
+		ObservedCount: source.ObservedCount, TrustedCount: source.TrustedCount,
+		SuccessCount: source.SuccessCount, AlreadyRedeemedCount: source.AlreadyRedeemedCount,
+		ExpiredCount: source.ExpiredCount, InvalidCount: source.InvalidCount,
+		PendingCount: source.PendingCount,
 	}
 	if source.LastSyncAt != nil {
 		out.LastSyncAt = timestamppb.New(*source.LastSyncAt)

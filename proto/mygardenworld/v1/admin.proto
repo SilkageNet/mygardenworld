@@ -80,8 +80,16 @@ message RedeemSource {
   string cursor = 11;
   google.protobuf.Timestamp last_sync_at = 12;
   string last_error = 13;
-  int64 accepted_count = 14;
-  int64 invalid_count = 15;
+  // Distinct codes attributed to this source, regardless of outcome.
+  int64 observed_count = 14;
+  // Success, already-redeemed, and expired outcomes all establish good-faith input.
+  int64 trusted_count = 15;
+  int64 success_count = 16;
+  int64 already_redeemed_count = 17;
+  int64 expired_count = 18;
+  int64 invalid_count = 19;
+  // Pending, retryable, and unknown outcomes that still need a terminal decision.
+  int64 pending_count = 20;
 }
 
 message ListRedeemSourcesRequest {}

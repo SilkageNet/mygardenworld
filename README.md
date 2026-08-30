@@ -34,6 +34,8 @@ gardend serve --listen 127.0.0.1:50051
 
 公开兑换码中心位于 `/redeem`。管理员可订阅其他 MyGardenWorld 节点或自定义只读来源；节点订阅填写对方站点根地址（如 `https://gardend.example.com`），无需填写接口路径。
 
+[查看社区兑换码的数据流与可信闭环](assets/redeem-exchange.svg)。
+
 数据默认保存在系统用户配置目录下的 `mygardenworld/data`。如需重建本地数据：
 
 ```sh
