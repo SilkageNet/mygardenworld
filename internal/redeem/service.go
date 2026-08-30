@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	MaxSubmitBatch = 20
-	maxSourcePages = 20
-	maxSourceBody  = 1 << 20
+	MaxSubmitBatch                 = 20
+	EventKindRedeemAttemptsUpdated = "redeem_attempts_updated"
+	maxSourcePages                 = 20
+	maxSourceBody                  = 1 << 20
 )
 
 type Submission struct {
@@ -204,7 +205,7 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 		cancel()
 		if err != nil {
 			message := err.Error()
-			_ = s.db.CompleteRedeemAttempt(ctx, attempt.ID, resultStatus, message, &retryAt)
+			s.completeAttempt(ctx, attempt, resultStatus, message, &retryAt)
 			return
 		}
 		r = started
@@ -214,7 +215,7 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 	cancel()
 	if err != nil {
 		message := err.Error()
-		_ = s.db.CompleteRedeemAttempt(ctx, attempt.ID, resultStatus, message, &retryAt)
+		s.completeAttempt(ctx, attempt, resultStatus, message, &retryAt)
 		return
 	}
 	message := strings.TrimSpace(result.Message)
@@ -247,9 +248,28 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 	if !retryAt.IsZero() {
 		retry = &retryAt
 	}
-	if err := s.db.CompleteRedeemAttempt(ctx, attempt.ID, resultStatus, message, retry); err != nil {
+	s.completeAttempt(ctx, attempt, resultStatus, message, retry)
+}
+
+func (s *Service) completeAttempt(
+	ctx context.Context,
+	attempt *store.RedeemAttempt,
+	status, message string,
+	retryAt *time.Time,
+) {
+	if err := s.db.CompleteRedeemAttempt(ctx, attempt.ID, status, message, retryAt); err != nil {
 		s.log.Error("complete redeem attempt", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
+		return
 	}
+	if s.manager == nil || s.manager.Bus() == nil {
+		return
+	}
+	s.manager.Bus().PublishTransient(runner.Event{
+		TS:          time.Now().UTC(),
+		AccountID:   attempt.AccountID,
+		AccountName: attempt.AccountName,
+		Kind:        EventKindRedeemAttemptsUpdated,
+	})
 }
 
 func redeemOutcomeMessage(result runner.RedeemResult) string {
