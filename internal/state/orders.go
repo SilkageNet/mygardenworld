@@ -203,18 +203,30 @@ func (s *State) applyFlowerOrdersLocked(raw json.RawMessage) {
 					continue
 				}
 				order := &FlowerOrder{BoxID: boxID}
-				if rawMode, ok := fields["0"]; ok {
-					_ = json.Unmarshal(rawMode, &order.Mode)
+				if n, ok := readInt32JSONField(fields, "0"); ok {
+					order.NPCID = n
+				}
+				if n, ok := readInt32JSONField(fields, "1"); ok {
+					order.DialogID = n
 				}
 				// field "2" = [[flowerId, count], ...]
 				if rawReqs, ok := fields["2"]; ok {
 					order.Requires = parseFlowerRequires(rawReqs)
+				}
+				if n, ok := readInt32JSONField(fields, "3"); ok {
+					order.IsVideo = n
 				}
 				if rawCdTime, ok := fields["4"]; ok {
 					_ = json.Unmarshal(rawCdTime, &order.CdTimeMs)
 				}
 				if rawCTime, ok := fields["5"]; ok {
 					_ = json.Unmarshal(rawCTime, &order.CTimeMs)
+				}
+				if n, ok := readInt32JSONField(fields, "6"); ok {
+					order.PlaceIdx = n
+				}
+				if rawRewards, ok := fields["7"]; ok {
+					order.VideoRewards = readItemCountsRaw(rawRewards)
 				}
 				s.flowerOrders[boxID] = order
 			}
@@ -260,8 +272,8 @@ func parseResidentSpecialOrder(raw json.RawMessage) ResidentSpecialOrder {
 	if n, ok := readInt32JSONField(fields, "4"); ok {
 		view.IsVideo = n
 	}
-	if n, ok := readInt32JSONField(fields, "5"); ok {
-		view.VideoRwd = n
+	if rawRewards, ok := fields["5"]; ok {
+		view.VideoRewards = readItemCountsRaw(rawRewards)
 	}
 	if n, ok := readInt64JSONField(fields, "6"); ok {
 		view.CdTimeMs = n
@@ -845,6 +857,7 @@ func (s *State) FlowerOrders() map[int32]*FlowerOrder {
 	for k, v := range s.flowerOrders {
 		cp := *v
 		cp.Requires = append([]FlowerRequire(nil), v.Requires...)
+		cp.VideoRewards = append([]ItemCount(nil), v.VideoRewards...)
 		out[k] = &cp
 	}
 	return out
@@ -856,6 +869,7 @@ func (s *State) ResidentSatinOrder() ResidentSpecialOrder {
 	defer s.mu.RUnlock()
 	out := s.residentSatinOrder
 	out.Requires = append([]FlowerRequire(nil), s.residentSatinOrder.Requires...)
+	out.VideoRewards = append([]ItemCount(nil), s.residentSatinOrder.VideoRewards...)
 	return out
 }
 
@@ -865,6 +879,7 @@ func (s *State) ResidentDecorateOrder() ResidentSpecialOrder {
 	defer s.mu.RUnlock()
 	out := s.residentDecorateOrder
 	out.Requires = append([]FlowerRequire(nil), s.residentDecorateOrder.Requires...)
+	out.VideoRewards = append([]ItemCount(nil), s.residentDecorateOrder.VideoRewards...)
 	return out
 }
 
@@ -957,14 +972,14 @@ func (s *State) EmptyFlowerRackSlotIDs() []int32 {
 	return out
 }
 
-// ReadyFlowerOrderAdBoxIDs returns resident-order boxes that currently present
-// the client as a video/share reward before a concrete order is generated.
+// ReadyFlowerOrderAdBoxIDs returns ordinary resident-order slots whose current
+// IFlowerOrder.isVideo flag requires a manual video action.
 func (s *State) ReadyFlowerOrderAdBoxIDs() []int32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]int32, 0)
 	for id, order := range s.flowerOrders {
-		if order != nil && order.Mode == 8 && len(order.Requires) == 0 {
+		if order != nil && order.IsVideo != 0 {
 			out = append(out, id)
 		}
 	}

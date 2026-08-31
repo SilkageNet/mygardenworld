@@ -16,6 +16,7 @@ import {
 } from "@/components/dashboard/dashboard-utils";
 import { experienceToNextLevel } from "@/lib/game/catalog";
 import { CollapsibleCard, EmptyState, OverviewStat } from "@/features/workspace/shared/workspace-ui";
+import { VideoActionItems } from "@/features/workspace/shared/video-action-status";
 
 const SPEED_UP_TICKET_ITEM_ID = 1001;
 const FLORAL_COIN_ITEM_ID = 1002;
@@ -60,15 +61,24 @@ export function StatusOverviewPanel({ basic: snapshot, warehouse, status }: {
 
   return (
     <CollapsibleCard title="监控概览" actions={snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}>
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-        <OverviewStat icon={<ShieldCheck />} label="礼仪分" value={reputationObserved ? formatCount(reputationScore) : "-"} detail={reputationDetail} />
-        <OverviewStat icon={<Trophy />} label="等级" value={level > 0 ? `${level}级` : "-"} detail={`经验 ${formatCount(experience)}`} />
-        <OverviewStat icon={<TrendingUp />} label="距下一等级" value={nextLevelValue} detail={nextLevelDetail} wrap compact />
-        <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
-        <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
-        <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
-        <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
-        <OverviewStat icon={<Ticket />} label="加速卡" value={formatCount(speedUpTickets)} />
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <OverviewStat icon={<ShieldCheck />} label="礼仪分" value={reputationObserved ? formatCount(reputationScore) : "-"} detail={reputationDetail} />
+          <OverviewStat icon={<Trophy />} label="等级" value={level > 0 ? `${level}级` : "-"} detail={`经验 ${formatCount(experience)}`} />
+          <OverviewStat icon={<TrendingUp />} label="距下一等级" value={nextLevelValue} detail={nextLevelDetail} wrap compact />
+          <OverviewStat icon={<Waves />} label="水滴" value={`${formatCount(snapshot?.waterDrops ?? 0)}/${formatCount(snapshot?.waterDropsTotal ?? 0)}`} />
+          <OverviewStat icon={<Gem />} label="元宝" value={formatCount(snapshot?.diamondsFree ?? 0)} />
+          <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
+          <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
+          <OverviewStat icon={<Ticket />} label="加速卡" value={formatCount(speedUpTickets)} />
+        </div>
+        <section className="border-t border-border/58 pt-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold">手动提醒</div>
+            <div className="text-xs text-muted-foreground">仅展示服务端状态，请在官方游戏内操作</div>
+          </div>
+          <VideoActionItems actions={snapshot?.videoActions ?? []} className="sm:grid-cols-3" />
+        </section>
       </div>
     </CollapsibleCard>
   );

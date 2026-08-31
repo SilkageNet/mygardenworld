@@ -34,8 +34,10 @@ type OrdersView struct {
 	OrderStatistics       *OrderStatisticsView         `protobuf:"bytes,8,opt,name=order_statistics,json=orderStatistics,proto3" json:"order_statistics,omitempty"`
 	BusinessStatistics    *BusinessStatisticsView      `protobuf:"bytes,9,opt,name=business_statistics,json=businessStatistics,proto3" json:"business_statistics,omitempty"`
 	SellableFlowerArts    []*SellableFlowerArtView     `protobuf:"bytes,10,rep,name=sellable_flower_arts,json=sellableFlowerArts,proto3" json:"sellable_flower_arts,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Concrete resident-order slots whose current server state requires video.
+	ResidentVideoOrders []*VideoActionStatusView `protobuf:"bytes,11,rep,name=resident_video_orders,json=residentVideoOrders,proto3" json:"resident_video_orders,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *OrdersView) Reset() {
@@ -134,6 +136,13 @@ func (x *OrdersView) GetBusinessStatistics() *BusinessStatisticsView {
 func (x *OrdersView) GetSellableFlowerArts() []*SellableFlowerArtView {
 	if x != nil {
 		return x.SellableFlowerArts
+	}
+	return nil
+}
+
+func (x *OrdersView) GetResidentVideoOrders() []*VideoActionStatusView {
+	if x != nil {
+		return x.ResidentVideoOrders
 	}
 	return nil
 }
@@ -758,7 +767,7 @@ var File_mygardenworld_v1_workspace_orders_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_workspace_orders_proto_rawDesc = "" +
 	"\n" +
-	"'mygardenworld/v1/workspace_orders.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'mygardenworld/v1/workspace_common.proto\"\xaa\x05\n" +
+	"'mygardenworld/v1/workspace_orders.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'mygardenworld/v1/workspace_common.proto\"\x87\x06\n" +
 	"\n" +
 	"OrdersView\x12\x1d\n" +
 	"\n" +
@@ -773,7 +782,8 @@ const file_mygardenworld_v1_workspace_orders_proto_rawDesc = "" +
 	"\x10order_statistics\x18\b \x01(\v2%.mygardenworld.v1.OrderStatisticsViewR\x0forderStatistics\x12Y\n" +
 	"\x13business_statistics\x18\t \x01(\v2(.mygardenworld.v1.BusinessStatisticsViewR\x12businessStatistics\x12Y\n" +
 	"\x14sellable_flower_arts\x18\n" +
-	" \x03(\v2'.mygardenworld.v1.SellableFlowerArtViewR\x12sellableFlowerArts\"\xb4\x01\n" +
+	" \x03(\v2'.mygardenworld.v1.SellableFlowerArtViewR\x12sellableFlowerArts\x12[\n" +
+	"\x15resident_video_orders\x18\v \x03(\v2'.mygardenworld.v1.VideoActionStatusViewR\x13residentVideoOrders\"\xb4\x01\n" +
 	"\x15SellableFlowerArtView\x12\x15\n" +
 	"\x06art_id\x18\x01 \x01(\x05R\x05artId\x12\x19\n" +
 	"\bart_name\x18\x02 \x01(\tR\aartName\x12\x17\n" +
@@ -863,7 +873,8 @@ var file_mygardenworld_v1_workspace_orders_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),       // 7: google.protobuf.Timestamp
 	(*PendingTaskView)(nil),             // 8: mygardenworld.v1.PendingTaskView
 	(*DemandView)(nil),                  // 9: mygardenworld.v1.DemandView
-	(*RequirementView)(nil),             // 10: mygardenworld.v1.RequirementView
+	(*VideoActionStatusView)(nil),       // 10: mygardenworld.v1.VideoActionStatusView
+	(*RequirementView)(nil),             // 11: mygardenworld.v1.RequirementView
 }
 var file_mygardenworld_v1_workspace_orders_proto_depIdxs = []int32{
 	7,  // 0: mygardenworld.v1.OrdersView.captured_at:type_name -> google.protobuf.Timestamp
@@ -874,14 +885,15 @@ var file_mygardenworld_v1_workspace_orders_proto_depIdxs = []int32{
 	4,  // 5: mygardenworld.v1.OrdersView.order_statistics:type_name -> mygardenworld.v1.OrderStatisticsView
 	6,  // 6: mygardenworld.v1.OrdersView.business_statistics:type_name -> mygardenworld.v1.BusinessStatisticsView
 	1,  // 7: mygardenworld.v1.OrdersView.sellable_flower_arts:type_name -> mygardenworld.v1.SellableFlowerArtView
-	10, // 8: mygardenworld.v1.FlowerArtAvailabilityView.requirements:type_name -> mygardenworld.v1.RequirementView
-	5,  // 9: mygardenworld.v1.BusinessStatisticsView.today:type_name -> mygardenworld.v1.DailyBusinessStatisticsView
-	5,  // 10: mygardenworld.v1.BusinessStatisticsView.days:type_name -> mygardenworld.v1.DailyBusinessStatisticsView
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	10, // 8: mygardenworld.v1.OrdersView.resident_video_orders:type_name -> mygardenworld.v1.VideoActionStatusView
+	11, // 9: mygardenworld.v1.FlowerArtAvailabilityView.requirements:type_name -> mygardenworld.v1.RequirementView
+	5,  // 10: mygardenworld.v1.BusinessStatisticsView.today:type_name -> mygardenworld.v1.DailyBusinessStatisticsView
+	5,  // 11: mygardenworld.v1.BusinessStatisticsView.days:type_name -> mygardenworld.v1.DailyBusinessStatisticsView
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_orders_proto_init() }

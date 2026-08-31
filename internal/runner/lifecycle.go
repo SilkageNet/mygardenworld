@@ -225,6 +225,15 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
+	// The giftbag namespace is lazy-loaded by the official client. Refresh it
+	// once per connection so the manual cooldown/quota reminder is accurate
+	// without turning the four-second automation loop into a sync poller.
+	r.syncGiftbagState(ctx, client, session)
+	if r.isSessionInvalidated() {
+		_ = client.Close()
+		r.clearDisconnectedClient(client)
+		return nil, r.sessionInvalidatedError("session invalidated during startup")
+	}
 	if err := r.enforceReputationGuard(ctx, client, session, "startup", time.Now()); err != nil {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)

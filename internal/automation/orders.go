@@ -21,6 +21,9 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			} else {
 				statsObserved := s.Statistics().Observed
 				for boxID, flowerOrder := range s.FlowerOrders() {
+					if flowerOrder == nil || flowerOrder.IsVideo != 0 {
+						continue
+					}
 					if !residentFlowerOrderAllowed(flowerOrder, resident) {
 						ops = append(ops, blockedResidentOrderOp(flowerOrder, boxID, goal, "居民订单品质不符合策略"))
 						continue

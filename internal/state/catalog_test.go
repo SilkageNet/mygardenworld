@@ -115,7 +115,7 @@ func TestFmlPositionAllowsRaceDelete(t *testing.T) {
 
 func TestFmlBuildOptionByID(t *testing.T) {
 	video, ok := FmlBuildOptionByID(1)
-	if !ok || video.Cost != 0 || video.ItemID != 0 || video.ShareID != 14 || video.Type != 1 || video.GroupDailyLimit != 1 {
+	if !ok || video.Cost != 0 || video.ItemID != 0 || video.ShareID != 14 || video.Type != 1 || video.GroupDailyLimit != 1 || len(video.Rewards) != 1 || video.Rewards[0] != (ItemCount{ItemID: 1, Count: 10}) {
 		t.Fatalf("video build option=%+v ok=%t", video, ok)
 	}
 	gold, ok := FmlBuildOptionByID(2)
@@ -125,6 +125,13 @@ func TestFmlBuildOptionByID(t *testing.T) {
 	diamond, ok := FmlBuildOptionByID(3)
 	if !ok || diamond.ItemID != 1 || diamond.Cost <= 0 || diamond.ShareID != 0 || diamond.Type != 2 || diamond.GroupDailyLimit != 5 {
 		t.Fatalf("diamond build option=%+v ok=%t", diamond, ok)
+	}
+}
+
+func TestShareRewardConfigByID(t *testing.T) {
+	pearl, ok := ShareRewardConfigByID(10)
+	if !ok || pearl.Limit != 2 || pearl.LimitType != 1 || len(pearl.Rewards) != 1 || pearl.Rewards[0] != (ItemCount{ItemID: 1006, Count: 500}) {
+		t.Fatalf("pearl share config=%+v ok=%t", pearl, ok)
 	}
 }
 

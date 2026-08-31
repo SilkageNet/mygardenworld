@@ -63,7 +63,7 @@ func TestNamespaceCatalogCoversObservedAndModeledNamespaces(t *testing.T) {
 	if ObservedNamespaceKeys()[0] == "mutated" {
 		t.Fatal("ObservedNamespaceKeys returned backing storage")
 	}
-	for _, key := range []string{"7", "22", "24", "28", "100", "101", "104", "105", "109", "114", "116", "117", "119", "129", "140"} {
+	for _, key := range []string{"7", "22", "24", "28", "31", "100", "101", "104", "105", "109", "114", "116", "117", "118", "119", "129", "140"} {
 		if !IsKnownNamespace(key) {
 			t.Fatalf("IsKnownNamespace(%q)=false, want true", key)
 		}

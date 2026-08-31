@@ -119,6 +119,9 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	if rawNS28, ok := top["28"]; ok {
 		s.applyPearlProfilesLocked(rawNS28)
 	}
+	if rawNS31, ok := top["31"]; ok {
+		s.applyShareTotLocked(rawNS31)
+	}
 	if rawNS110, ok := top["110"]; ok {
 		s.applyFrdExtTotLocked(rawNS110)
 	}

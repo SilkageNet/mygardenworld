@@ -93,7 +93,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 		if resident.GetNormalEnabled() {
 			if _, limited := residentNormalDailyLimitReached(s, resident, now); !limited {
 				for boxID, order := range s.FlowerOrders() {
-					if !residentFlowerOrderAllowed(order, resident) {
+					if order == nil || order.IsVideo != 0 || !residentFlowerOrderAllowed(order, resident) {
 						continue
 					}
 					entityID := strconv.FormatInt(int64(boxID), 10)
@@ -106,7 +106,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 		if resident.GetSatinEnabled() {
 			if _, limited := residentSatinDailyLimitReached(s, resident, now); !limited {
 				satin := s.ResidentSatinOrder()
-				if residentSpecialOrderAllowed(satin, resident) && satin.CooldownReady(now) {
+				if satin.IsVideo == 0 && residentSpecialOrderAllowed(satin, resident) && satin.CooldownReady(now) {
 					for _, req := range satin.Requires {
 						add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, "satin", "绸缎居民订单", nil)
 					}
@@ -116,7 +116,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 		if resident.GetDecorateEnabled() {
 			if _, limited := residentDecorateDailyLimitReached(s, resident, now); !limited {
 				decorate := s.ResidentDecorateOrder()
-				if residentSpecialOrderAllowed(decorate, resident) && decorate.CooldownReady(now) {
+				if decorate.IsVideo == 0 && residentSpecialOrderAllowed(decorate, resident) && decorate.CooldownReady(now) {
 					for _, req := range decorate.Requires {
 						add(goal, "direct", DemandKindFlower, req.FlowerID, req.Count, "decorate", "建材居民订单", nil)
 					}

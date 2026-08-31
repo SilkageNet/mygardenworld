@@ -141,7 +141,13 @@ type assetState struct {
 	shopGiftbagWRecord       map[int32]int32
 	shopGiftbagMRecord       map[int32]int32
 	shopGiftbagTRecord       map[int32]int32
+	shopGiftbagBuyTimeRecord map[int32]int64
+	shopGiftbagResetMs       int64
+	shopGiftbagUpdatedAtMs   int64
+	shopGiftbagCreatedAtMs   int64
 	shopGiftbagObserved      bool
+	shareUsages              map[int32]ShareUsageView
+	shareTotObserved         bool
 	shopCultivateCosts       map[int32]ItemCount
 	shopCultivateBought      map[int32]int32
 	shopCultivateResetMs     int64

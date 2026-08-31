@@ -102,6 +102,8 @@ func New() *State {
 	s.shopGiftbagWRecord = make(map[int32]int32)
 	s.shopGiftbagMRecord = make(map[int32]int32)
 	s.shopGiftbagTRecord = make(map[int32]int32)
+	s.shopGiftbagBuyTimeRecord = make(map[int32]int64)
+	s.shareUsages = make(map[int32]ShareUsageView)
 	s.shopCultivateCosts = make(map[int32]ItemCount)
 	s.shopCultivateBought = make(map[int32]int32)
 	s.pearlPlaces = make(map[int32]*PearlPlaceView)

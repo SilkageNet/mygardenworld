@@ -257,6 +257,67 @@ func (AccountHealth) EnumDescriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{3}
 }
 
+// VideoActionState is deliberately about server-observed eligibility. READY
+// means the user can try the action in the official client; it does not claim
+// that the platform advertising SDK currently has an ad loaded.
+type VideoActionState int32
+
+const (
+	VideoActionState_VIDEO_ACTION_STATE_UNSPECIFIED VideoActionState = 0
+	VideoActionState_VIDEO_ACTION_STATE_UNKNOWN     VideoActionState = 1
+	VideoActionState_VIDEO_ACTION_STATE_READY       VideoActionState = 2
+	VideoActionState_VIDEO_ACTION_STATE_COOLDOWN    VideoActionState = 3
+	VideoActionState_VIDEO_ACTION_STATE_EXHAUSTED   VideoActionState = 4
+	VideoActionState_VIDEO_ACTION_STATE_ACTIVE      VideoActionState = 5
+)
+
+// Enum value maps for VideoActionState.
+var (
+	VideoActionState_name = map[int32]string{
+		0: "VIDEO_ACTION_STATE_UNSPECIFIED",
+		1: "VIDEO_ACTION_STATE_UNKNOWN",
+		2: "VIDEO_ACTION_STATE_READY",
+		3: "VIDEO_ACTION_STATE_COOLDOWN",
+		4: "VIDEO_ACTION_STATE_EXHAUSTED",
+		5: "VIDEO_ACTION_STATE_ACTIVE",
+	}
+	VideoActionState_value = map[string]int32{
+		"VIDEO_ACTION_STATE_UNSPECIFIED": 0,
+		"VIDEO_ACTION_STATE_UNKNOWN":     1,
+		"VIDEO_ACTION_STATE_READY":       2,
+		"VIDEO_ACTION_STATE_COOLDOWN":    3,
+		"VIDEO_ACTION_STATE_EXHAUSTED":   4,
+		"VIDEO_ACTION_STATE_ACTIVE":      5,
+	}
+)
+
+func (x VideoActionState) Enum() *VideoActionState {
+	p := new(VideoActionState)
+	*p = x
+	return p
+}
+
+func (x VideoActionState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VideoActionState) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_workspace_common_proto_enumTypes[4].Descriptor()
+}
+
+func (VideoActionState) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_workspace_common_proto_enumTypes[4]
+}
+
+func (x VideoActionState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VideoActionState.Descriptor instead.
+func (VideoActionState) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{4}
+}
+
 // WorkspaceLogCategory is the stable product-level grouping used by the log
 // workspace. Internal runner categories and domains remain available on Event
 // for diagnostics, but never determine which tabs exist in the Web UI.
@@ -311,11 +372,11 @@ func (x WorkspaceLogCategory) String() string {
 }
 
 func (WorkspaceLogCategory) Descriptor() protoreflect.EnumDescriptor {
-	return file_mygardenworld_v1_workspace_common_proto_enumTypes[4].Descriptor()
+	return file_mygardenworld_v1_workspace_common_proto_enumTypes[5].Descriptor()
 }
 
 func (WorkspaceLogCategory) Type() protoreflect.EnumType {
-	return &file_mygardenworld_v1_workspace_common_proto_enumTypes[4]
+	return &file_mygardenworld_v1_workspace_common_proto_enumTypes[5]
 }
 
 func (x WorkspaceLogCategory) Number() protoreflect.EnumNumber {
@@ -324,7 +385,7 @@ func (x WorkspaceLogCategory) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WorkspaceLogCategory.Descriptor instead.
 func (WorkspaceLogCategory) EnumDescriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{4}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{5}
 }
 
 type TaskExecutionFeature int32
@@ -393,11 +454,11 @@ func (x TaskExecutionFeature) String() string {
 }
 
 func (TaskExecutionFeature) Descriptor() protoreflect.EnumDescriptor {
-	return file_mygardenworld_v1_workspace_common_proto_enumTypes[5].Descriptor()
+	return file_mygardenworld_v1_workspace_common_proto_enumTypes[6].Descriptor()
 }
 
 func (TaskExecutionFeature) Type() protoreflect.EnumType {
-	return &file_mygardenworld_v1_workspace_common_proto_enumTypes[5]
+	return &file_mygardenworld_v1_workspace_common_proto_enumTypes[6]
 }
 
 func (x TaskExecutionFeature) Number() protoreflect.EnumNumber {
@@ -406,7 +467,185 @@ func (x TaskExecutionFeature) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TaskExecutionFeature.Descriptor instead.
 func (TaskExecutionFeature) EnumDescriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{5}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{6}
+}
+
+type VideoActionRewardView struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ItemId        int32                  `protobuf:"varint,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	ItemName      string                 `protobuf:"bytes,2,opt,name=item_name,json=itemName,proto3" json:"item_name,omitempty"`
+	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VideoActionRewardView) Reset() {
+	*x = VideoActionRewardView{}
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VideoActionRewardView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VideoActionRewardView) ProtoMessage() {}
+
+func (x *VideoActionRewardView) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VideoActionRewardView.ProtoReflect.Descriptor instead.
+func (*VideoActionRewardView) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *VideoActionRewardView) GetItemId() int32 {
+	if x != nil {
+		return x.ItemId
+	}
+	return 0
+}
+
+func (x *VideoActionRewardView) GetItemName() string {
+	if x != nil {
+		return x.ItemName
+	}
+	return ""
+}
+
+func (x *VideoActionRewardView) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+// Read-only manual-action status. The daemon never fabricates advertising SDK
+// callbacks; these records are reminders derived from authoritative game state.
+type VideoActionStatusView struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Id            string                   `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Label         string                   `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	Observed      bool                     `protobuf:"varint,3,opt,name=observed,proto3" json:"observed,omitempty"`
+	State         VideoActionState         `protobuf:"varint,4,opt,name=state,proto3,enum=mygardenworld.v1.VideoActionState" json:"state,omitempty"`
+	Used          int32                    `protobuf:"varint,5,opt,name=used,proto3" json:"used,omitempty"`
+	Limit         int32                    `protobuf:"varint,6,opt,name=limit,proto3" json:"limit,omitempty"`
+	AvailableAtMs int64                    `protobuf:"varint,7,opt,name=available_at_ms,json=availableAtMs,proto3" json:"available_at_ms,omitempty"`
+	ExpiresAtMs   int64                    `protobuf:"varint,8,opt,name=expires_at_ms,json=expiresAtMs,proto3" json:"expires_at_ms,omitempty"`
+	Rewards       []*VideoActionRewardView `protobuf:"bytes,9,rep,name=rewards,proto3" json:"rewards,omitempty"`
+	Detail        string                   `protobuf:"bytes,10,opt,name=detail,proto3" json:"detail,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VideoActionStatusView) Reset() {
+	*x = VideoActionStatusView{}
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VideoActionStatusView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VideoActionStatusView) ProtoMessage() {}
+
+func (x *VideoActionStatusView) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VideoActionStatusView.ProtoReflect.Descriptor instead.
+func (*VideoActionStatusView) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *VideoActionStatusView) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *VideoActionStatusView) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *VideoActionStatusView) GetObserved() bool {
+	if x != nil {
+		return x.Observed
+	}
+	return false
+}
+
+func (x *VideoActionStatusView) GetState() VideoActionState {
+	if x != nil {
+		return x.State
+	}
+	return VideoActionState_VIDEO_ACTION_STATE_UNSPECIFIED
+}
+
+func (x *VideoActionStatusView) GetUsed() int32 {
+	if x != nil {
+		return x.Used
+	}
+	return 0
+}
+
+func (x *VideoActionStatusView) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *VideoActionStatusView) GetAvailableAtMs() int64 {
+	if x != nil {
+		return x.AvailableAtMs
+	}
+	return 0
+}
+
+func (x *VideoActionStatusView) GetExpiresAtMs() int64 {
+	if x != nil {
+		return x.ExpiresAtMs
+	}
+	return 0
+}
+
+func (x *VideoActionStatusView) GetRewards() []*VideoActionRewardView {
+	if x != nil {
+		return x.Rewards
+	}
+	return nil
+}
+
+func (x *VideoActionStatusView) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
 }
 
 type AccountStatus struct {
@@ -450,7 +689,7 @@ type AccountStatus struct {
 
 func (x *AccountStatus) Reset() {
 	*x = AccountStatus{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[0]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -462,7 +701,7 @@ func (x *AccountStatus) String() string {
 func (*AccountStatus) ProtoMessage() {}
 
 func (x *AccountStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[0]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -475,7 +714,7 @@ func (x *AccountStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountStatus.ProtoReflect.Descriptor instead.
 func (*AccountStatus) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{0}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AccountStatus) GetAccountId() int64 {
@@ -680,7 +919,7 @@ type RunnerDiagnostics struct {
 
 func (x *RunnerDiagnostics) Reset() {
 	*x = RunnerDiagnostics{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[1]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -692,7 +931,7 @@ func (x *RunnerDiagnostics) String() string {
 func (*RunnerDiagnostics) ProtoMessage() {}
 
 func (x *RunnerDiagnostics) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[1]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -705,7 +944,7 @@ func (x *RunnerDiagnostics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RunnerDiagnostics.ProtoReflect.Descriptor instead.
 func (*RunnerDiagnostics) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{1}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RunnerDiagnostics) GetCurrentOperation() string {
@@ -817,7 +1056,7 @@ type PendingTaskView struct {
 
 func (x *PendingTaskView) Reset() {
 	*x = PendingTaskView{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[2]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -829,7 +1068,7 @@ func (x *PendingTaskView) String() string {
 func (*PendingTaskView) ProtoMessage() {}
 
 func (x *PendingTaskView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[2]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -842,7 +1081,7 @@ func (x *PendingTaskView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PendingTaskView.ProtoReflect.Descriptor instead.
 func (*PendingTaskView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{2}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PendingTaskView) GetCategory() string {
@@ -966,7 +1205,7 @@ type PlannedOperation struct {
 
 func (x *PlannedOperation) Reset() {
 	*x = PlannedOperation{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[3]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -978,7 +1217,7 @@ func (x *PlannedOperation) String() string {
 func (*PlannedOperation) ProtoMessage() {}
 
 func (x *PlannedOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[3]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -991,7 +1230,7 @@ func (x *PlannedOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlannedOperation.ProtoReflect.Descriptor instead.
 func (*PlannedOperation) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{3}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *PlannedOperation) GetCategory() string {
@@ -1263,7 +1502,7 @@ type DomainStatus struct {
 
 func (x *DomainStatus) Reset() {
 	*x = DomainStatus{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[4]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1275,7 +1514,7 @@ func (x *DomainStatus) String() string {
 func (*DomainStatus) ProtoMessage() {}
 
 func (x *DomainStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[4]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1288,7 +1527,7 @@ func (x *DomainStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainStatus.ProtoReflect.Descriptor instead.
 func (*DomainStatus) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{4}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *DomainStatus) GetCategory() string {
@@ -1371,7 +1610,7 @@ type FeatureCapability struct {
 
 func (x *FeatureCapability) Reset() {
 	*x = FeatureCapability{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[5]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1383,7 +1622,7 @@ func (x *FeatureCapability) String() string {
 func (*FeatureCapability) ProtoMessage() {}
 
 func (x *FeatureCapability) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[5]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1396,7 +1635,7 @@ func (x *FeatureCapability) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FeatureCapability.ProtoReflect.Descriptor instead.
 func (*FeatureCapability) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{5}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *FeatureCapability) GetId() string {
@@ -1480,7 +1719,7 @@ type RequirementView struct {
 
 func (x *RequirementView) Reset() {
 	*x = RequirementView{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1492,7 +1731,7 @@ func (x *RequirementView) String() string {
 func (*RequirementView) ProtoMessage() {}
 
 func (x *RequirementView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1505,7 +1744,7 @@ func (x *RequirementView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequirementView.ProtoReflect.Descriptor instead.
 func (*RequirementView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{6}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RequirementView) GetItemId() int32 {
@@ -1592,7 +1831,7 @@ type DemandView struct {
 
 func (x *DemandView) Reset() {
 	*x = DemandView{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1604,7 +1843,7 @@ func (x *DemandView) String() string {
 func (*DemandView) ProtoMessage() {}
 
 func (x *DemandView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1617,7 +1856,7 @@ func (x *DemandView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DemandView.ProtoReflect.Descriptor instead.
 func (*DemandView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{7}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DemandView) GetId() string {
@@ -1778,7 +2017,7 @@ type CostGate struct {
 
 func (x *CostGate) Reset() {
 	*x = CostGate{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1790,7 +2029,7 @@ func (x *CostGate) String() string {
 func (*CostGate) ProtoMessage() {}
 
 func (x *CostGate) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1803,7 +2042,7 @@ func (x *CostGate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CostGate.ProtoReflect.Descriptor instead.
 func (*CostGate) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{8}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *CostGate) GetId() string {
@@ -1886,7 +2125,7 @@ type BlockingSummary struct {
 
 func (x *BlockingSummary) Reset() {
 	*x = BlockingSummary{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1898,7 +2137,7 @@ func (x *BlockingSummary) String() string {
 func (*BlockingSummary) ProtoMessage() {}
 
 func (x *BlockingSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,7 +2150,7 @@ func (x *BlockingSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockingSummary.ProtoReflect.Descriptor instead.
 func (*BlockingSummary) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{9}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *BlockingSummary) GetTotal() int32 {
@@ -1942,7 +2181,7 @@ type BlockingGroup struct {
 
 func (x *BlockingGroup) Reset() {
 	*x = BlockingGroup{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1954,7 +2193,7 @@ func (x *BlockingGroup) String() string {
 func (*BlockingGroup) ProtoMessage() {}
 
 func (x *BlockingGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1967,7 +2206,7 @@ func (x *BlockingGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockingGroup.ProtoReflect.Descriptor instead.
 func (*BlockingGroup) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{10}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *BlockingGroup) GetCategory() string {
@@ -2029,7 +2268,7 @@ type RuntimeStatisticsView struct {
 
 func (x *RuntimeStatisticsView) Reset() {
 	*x = RuntimeStatisticsView{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2041,7 +2280,7 @@ func (x *RuntimeStatisticsView) String() string {
 func (*RuntimeStatisticsView) ProtoMessage() {}
 
 func (x *RuntimeStatisticsView) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2054,7 +2293,7 @@ func (x *RuntimeStatisticsView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeStatisticsView.ProtoReflect.Descriptor instead.
 func (*RuntimeStatisticsView) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{11}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *RuntimeStatisticsView) GetStartedAt() *timestamppb.Timestamp {
@@ -2132,7 +2371,7 @@ type RuntimeResourceTotal struct {
 
 func (x *RuntimeResourceTotal) Reset() {
 	*x = RuntimeResourceTotal{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[12]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2144,7 +2383,7 @@ func (x *RuntimeResourceTotal) String() string {
 func (*RuntimeResourceTotal) ProtoMessage() {}
 
 func (x *RuntimeResourceTotal) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[12]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2157,7 +2396,7 @@ func (x *RuntimeResourceTotal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeResourceTotal.ProtoReflect.Descriptor instead.
 func (*RuntimeResourceTotal) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{12}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RuntimeResourceTotal) GetKey() string {
@@ -2199,7 +2438,7 @@ type RuntimeActionTotal struct {
 
 func (x *RuntimeActionTotal) Reset() {
 	*x = RuntimeActionTotal{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[13]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2211,7 +2450,7 @@ func (x *RuntimeActionTotal) String() string {
 func (*RuntimeActionTotal) ProtoMessage() {}
 
 func (x *RuntimeActionTotal) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[13]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2224,7 +2463,7 @@ func (x *RuntimeActionTotal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RuntimeActionTotal.ProtoReflect.Descriptor instead.
 func (*RuntimeActionTotal) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{13}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *RuntimeActionTotal) GetKey() string {
@@ -2279,7 +2518,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[14]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2291,7 +2530,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[14]
+	mi := &file_mygardenworld_v1_workspace_common_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2304,7 +2543,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{14}
+	return file_mygardenworld_v1_workspace_common_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Event) GetId() int64 {
@@ -2395,7 +2634,23 @@ var File_mygardenworld_v1_workspace_common_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\n" +
-	"'mygardenworld/v1/workspace_common.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf7\t\n" +
+	"'mygardenworld/v1/workspace_common.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"c\n" +
+	"\x15VideoActionRewardView\x12\x17\n" +
+	"\aitem_id\x18\x01 \x01(\x05R\x06itemId\x12\x1b\n" +
+	"\titem_name\x18\x02 \x01(\tR\bitemName\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\"\xe4\x02\n" +
+	"\x15VideoActionStatusView\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12\x1a\n" +
+	"\bobserved\x18\x03 \x01(\bR\bobserved\x128\n" +
+	"\x05state\x18\x04 \x01(\x0e2\".mygardenworld.v1.VideoActionStateR\x05state\x12\x12\n" +
+	"\x04used\x18\x05 \x01(\x05R\x04used\x12\x14\n" +
+	"\x05limit\x18\x06 \x01(\x05R\x05limit\x12&\n" +
+	"\x0favailable_at_ms\x18\a \x01(\x03R\ravailableAtMs\x12\"\n" +
+	"\rexpires_at_ms\x18\b \x01(\x03R\vexpiresAtMs\x12A\n" +
+	"\arewards\x18\t \x03(\v2'.mygardenworld.v1.VideoActionRewardViewR\arewards\x12\x16\n" +
+	"\x06detail\x18\n" +
+	" \x01(\tR\x06detail\"\xf7\t\n" +
 	"\rAccountStatus\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
@@ -2652,7 +2907,14 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x16ACCOUNT_HEALTH_OFFLINE\x10\x01\x12\x19\n" +
 	"\x15ACCOUNT_HEALTH_ONLINE\x10\x02\x12\x1a\n" +
 	"\x16ACCOUNT_HEALTH_BLOCKED\x10\x03\x12\"\n" +
-	"\x1eACCOUNT_HEALTH_SESSION_EXPIRED\x10\x04*\xdc\x02\n" +
+	"\x1eACCOUNT_HEALTH_SESSION_EXPIRED\x10\x04*\xd6\x01\n" +
+	"\x10VideoActionState\x12\"\n" +
+	"\x1eVIDEO_ACTION_STATE_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aVIDEO_ACTION_STATE_UNKNOWN\x10\x01\x12\x1c\n" +
+	"\x18VIDEO_ACTION_STATE_READY\x10\x02\x12\x1f\n" +
+	"\x1bVIDEO_ACTION_STATE_COOLDOWN\x10\x03\x12 \n" +
+	"\x1cVIDEO_ACTION_STATE_EXHAUSTED\x10\x04\x12\x1d\n" +
+	"\x19VIDEO_ACTION_STATE_ACTIVE\x10\x05*\xdc\x02\n" +
 	"\x14WorkspaceLogCategory\x12&\n" +
 	"\"WORKSPACE_LOG_CATEGORY_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eWORKSPACE_LOG_CATEGORY_ACCOUNT\x10\x01\x12 \n" +
@@ -2693,75 +2955,80 @@ func file_mygardenworld_v1_workspace_common_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_workspace_common_proto_rawDescData
 }
 
-var file_mygardenworld_v1_workspace_common_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_mygardenworld_v1_workspace_common_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_mygardenworld_v1_workspace_common_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
+var file_mygardenworld_v1_workspace_common_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_mygardenworld_v1_workspace_common_proto_goTypes = []any{
 	(PlanStatus)(0),               // 0: mygardenworld.v1.PlanStatus
 	(GateResourceKind)(0),         // 1: mygardenworld.v1.GateResourceKind
 	(ExecutionLane)(0),            // 2: mygardenworld.v1.ExecutionLane
 	(AccountHealth)(0),            // 3: mygardenworld.v1.AccountHealth
-	(WorkspaceLogCategory)(0),     // 4: mygardenworld.v1.WorkspaceLogCategory
-	(TaskExecutionFeature)(0),     // 5: mygardenworld.v1.TaskExecutionFeature
-	(*AccountStatus)(nil),         // 6: mygardenworld.v1.AccountStatus
-	(*RunnerDiagnostics)(nil),     // 7: mygardenworld.v1.RunnerDiagnostics
-	(*PendingTaskView)(nil),       // 8: mygardenworld.v1.PendingTaskView
-	(*PlannedOperation)(nil),      // 9: mygardenworld.v1.PlannedOperation
-	(*DomainStatus)(nil),          // 10: mygardenworld.v1.DomainStatus
-	(*FeatureCapability)(nil),     // 11: mygardenworld.v1.FeatureCapability
-	(*RequirementView)(nil),       // 12: mygardenworld.v1.RequirementView
-	(*DemandView)(nil),            // 13: mygardenworld.v1.DemandView
-	(*CostGate)(nil),              // 14: mygardenworld.v1.CostGate
-	(*BlockingSummary)(nil),       // 15: mygardenworld.v1.BlockingSummary
-	(*BlockingGroup)(nil),         // 16: mygardenworld.v1.BlockingGroup
-	(*RuntimeStatisticsView)(nil), // 17: mygardenworld.v1.RuntimeStatisticsView
-	(*RuntimeResourceTotal)(nil),  // 18: mygardenworld.v1.RuntimeResourceTotal
-	(*RuntimeActionTotal)(nil),    // 19: mygardenworld.v1.RuntimeActionTotal
-	(*Event)(nil),                 // 20: mygardenworld.v1.Event
-	nil,                           // 21: mygardenworld.v1.AccountStatus.ByKindEntry
-	nil,                           // 22: mygardenworld.v1.PlannedOperation.ItemCostEntry
-	(*timestamppb.Timestamp)(nil), // 23: google.protobuf.Timestamp
+	(VideoActionState)(0),         // 4: mygardenworld.v1.VideoActionState
+	(WorkspaceLogCategory)(0),     // 5: mygardenworld.v1.WorkspaceLogCategory
+	(TaskExecutionFeature)(0),     // 6: mygardenworld.v1.TaskExecutionFeature
+	(*VideoActionRewardView)(nil), // 7: mygardenworld.v1.VideoActionRewardView
+	(*VideoActionStatusView)(nil), // 8: mygardenworld.v1.VideoActionStatusView
+	(*AccountStatus)(nil),         // 9: mygardenworld.v1.AccountStatus
+	(*RunnerDiagnostics)(nil),     // 10: mygardenworld.v1.RunnerDiagnostics
+	(*PendingTaskView)(nil),       // 11: mygardenworld.v1.PendingTaskView
+	(*PlannedOperation)(nil),      // 12: mygardenworld.v1.PlannedOperation
+	(*DomainStatus)(nil),          // 13: mygardenworld.v1.DomainStatus
+	(*FeatureCapability)(nil),     // 14: mygardenworld.v1.FeatureCapability
+	(*RequirementView)(nil),       // 15: mygardenworld.v1.RequirementView
+	(*DemandView)(nil),            // 16: mygardenworld.v1.DemandView
+	(*CostGate)(nil),              // 17: mygardenworld.v1.CostGate
+	(*BlockingSummary)(nil),       // 18: mygardenworld.v1.BlockingSummary
+	(*BlockingGroup)(nil),         // 19: mygardenworld.v1.BlockingGroup
+	(*RuntimeStatisticsView)(nil), // 20: mygardenworld.v1.RuntimeStatisticsView
+	(*RuntimeResourceTotal)(nil),  // 21: mygardenworld.v1.RuntimeResourceTotal
+	(*RuntimeActionTotal)(nil),    // 22: mygardenworld.v1.RuntimeActionTotal
+	(*Event)(nil),                 // 23: mygardenworld.v1.Event
+	nil,                           // 24: mygardenworld.v1.AccountStatus.ByKindEntry
+	nil,                           // 25: mygardenworld.v1.PlannedOperation.ItemCostEntry
+	(*timestamppb.Timestamp)(nil), // 26: google.protobuf.Timestamp
 }
 var file_mygardenworld_v1_workspace_common_proto_depIdxs = []int32{
-	23, // 0: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
-	21, // 1: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
-	7,  // 2: mygardenworld.v1.AccountStatus.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
-	10, // 3: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
-	3,  // 4: mygardenworld.v1.AccountStatus.health:type_name -> mygardenworld.v1.AccountHealth
-	17, // 5: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	23, // 6: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
-	23, // 7: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
-	23, // 8: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
-	23, // 9: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
-	0,  // 10: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
-	12, // 11: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
-	5,  // 12: mygardenworld.v1.PendingTaskView.execution_feature:type_name -> mygardenworld.v1.TaskExecutionFeature
-	22, // 13: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
-	0,  // 14: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
-	14, // 15: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
-	2,  // 16: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 17: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
-	2,  // 18: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
-	0,  // 19: mygardenworld.v1.FeatureCapability.status:type_name -> mygardenworld.v1.PlanStatus
-	0,  // 20: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
-	14, // 21: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
-	1,  // 22: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
-	0,  // 23: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
-	16, // 24: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
-	0,  // 25: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
-	23, // 26: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
-	23, // 27: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
-	23, // 28: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
-	18, // 29: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
-	19, // 30: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	19, // 31: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	19, // 32: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
-	23, // 33: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
-	4,  // 34: mygardenworld.v1.Event.category:type_name -> mygardenworld.v1.WorkspaceLogCategory
-	35, // [35:35] is the sub-list for method output_type
-	35, // [35:35] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	4,  // 0: mygardenworld.v1.VideoActionStatusView.state:type_name -> mygardenworld.v1.VideoActionState
+	7,  // 1: mygardenworld.v1.VideoActionStatusView.rewards:type_name -> mygardenworld.v1.VideoActionRewardView
+	26, // 2: mygardenworld.v1.AccountStatus.last_event_at:type_name -> google.protobuf.Timestamp
+	24, // 3: mygardenworld.v1.AccountStatus.by_kind:type_name -> mygardenworld.v1.AccountStatus.ByKindEntry
+	10, // 4: mygardenworld.v1.AccountStatus.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
+	13, // 5: mygardenworld.v1.AccountStatus.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
+	3,  // 6: mygardenworld.v1.AccountStatus.health:type_name -> mygardenworld.v1.AccountHealth
+	20, // 7: mygardenworld.v1.AccountStatus.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	26, // 8: mygardenworld.v1.RunnerDiagnostics.current_operation_started_at:type_name -> google.protobuf.Timestamp
+	26, // 9: mygardenworld.v1.RunnerDiagnostics.last_operation_at:type_name -> google.protobuf.Timestamp
+	26, // 10: mygardenworld.v1.RunnerDiagnostics.last_operation_error_at:type_name -> google.protobuf.Timestamp
+	26, // 11: mygardenworld.v1.RunnerDiagnostics.next_decision_at:type_name -> google.protobuf.Timestamp
+	0,  // 12: mygardenworld.v1.PendingTaskView.status:type_name -> mygardenworld.v1.PlanStatus
+	15, // 13: mygardenworld.v1.PendingTaskView.requirements:type_name -> mygardenworld.v1.RequirementView
+	6,  // 14: mygardenworld.v1.PendingTaskView.execution_feature:type_name -> mygardenworld.v1.TaskExecutionFeature
+	25, // 15: mygardenworld.v1.PlannedOperation.item_cost:type_name -> mygardenworld.v1.PlannedOperation.ItemCostEntry
+	0,  // 16: mygardenworld.v1.PlannedOperation.status:type_name -> mygardenworld.v1.PlanStatus
+	17, // 17: mygardenworld.v1.PlannedOperation.cost_gates:type_name -> mygardenworld.v1.CostGate
+	2,  // 18: mygardenworld.v1.PlannedOperation.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 19: mygardenworld.v1.DomainStatus.status:type_name -> mygardenworld.v1.PlanStatus
+	2,  // 20: mygardenworld.v1.DomainStatus.lane:type_name -> mygardenworld.v1.ExecutionLane
+	0,  // 21: mygardenworld.v1.FeatureCapability.status:type_name -> mygardenworld.v1.PlanStatus
+	0,  // 22: mygardenworld.v1.DemandView.status:type_name -> mygardenworld.v1.PlanStatus
+	17, // 23: mygardenworld.v1.DemandView.cost_gates:type_name -> mygardenworld.v1.CostGate
+	1,  // 24: mygardenworld.v1.CostGate.resource_kind:type_name -> mygardenworld.v1.GateResourceKind
+	0,  // 25: mygardenworld.v1.CostGate.status:type_name -> mygardenworld.v1.PlanStatus
+	19, // 26: mygardenworld.v1.BlockingSummary.groups:type_name -> mygardenworld.v1.BlockingGroup
+	0,  // 27: mygardenworld.v1.BlockingGroup.status:type_name -> mygardenworld.v1.PlanStatus
+	26, // 28: mygardenworld.v1.RuntimeStatisticsView.started_at:type_name -> google.protobuf.Timestamp
+	26, // 29: mygardenworld.v1.RuntimeStatisticsView.stopped_at:type_name -> google.protobuf.Timestamp
+	26, // 30: mygardenworld.v1.RuntimeStatisticsView.updated_at:type_name -> google.protobuf.Timestamp
+	21, // 31: mygardenworld.v1.RuntimeStatisticsView.resource_gains:type_name -> mygardenworld.v1.RuntimeResourceTotal
+	22, // 32: mygardenworld.v1.RuntimeStatisticsView.order_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	22, // 33: mygardenworld.v1.RuntimeStatisticsView.task_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	22, // 34: mygardenworld.v1.RuntimeStatisticsView.operation_completions:type_name -> mygardenworld.v1.RuntimeActionTotal
+	26, // 35: mygardenworld.v1.Event.ts:type_name -> google.protobuf.Timestamp
+	5,  // 36: mygardenworld.v1.Event.category:type_name -> mygardenworld.v1.WorkspaceLogCategory
+	37, // [37:37] is the sub-list for method output_type
+	37, // [37:37] is the sub-list for method input_type
+	37, // [37:37] is the sub-list for extension type_name
+	37, // [37:37] is the sub-list for extension extendee
+	0,  // [0:37] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_common_proto_init() }
@@ -2774,8 +3041,8 @@ func file_mygardenworld_v1_workspace_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_workspace_common_proto_rawDesc), len(file_mygardenworld_v1_workspace_common_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   17,
+			NumEnums:      7,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -521,6 +521,33 @@ func (s *State) FmlBuildObserved() bool {
 	return s.fmlBuild.Observed
 }
 
+// FmlBuildOptionUsageAt returns the current calendar-day counters for one
+// c_fmlBld option and its option group. A stale bldTime makes prior counters
+// zero without mutating the preserved server snapshot.
+func (s *State) FmlBuildOptionUsageAt(optionID int32, now time.Time) FmlBuildOptionUsage {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	usage := FmlBuildOptionUsage{Observed: s.fmlBuild.BuildCountsObserved}
+	if !usage.Observed || optionID <= 0 {
+		return usage
+	}
+	if s.fmlBuild.LastBuildTimeMs > 0 && calendarDayID(time.UnixMilli(s.fmlBuild.LastBuildTimeMs)) < calendarDayID(now) {
+		return usage
+	}
+	usage.Count = s.fmlBuild.BuildCounts[optionID]
+	option, ok := FmlBuildOptionByID(optionID)
+	if !ok || option.Type <= 0 {
+		return usage
+	}
+	for id, count := range s.fmlBuild.BuildCounts {
+		row, known := FmlBuildOptionByID(id)
+		if known && row.Type == option.Type {
+			usage.GroupCount += count
+		}
+	}
+	return usage
+}
+
 // BeginFmlMembershipSnapshot starts a new connection epoch. Guild and race
 // snapshots may remain available for diagnostics, but their previous guild ID
 // must not count as current membership until login + lazySync provide evidence

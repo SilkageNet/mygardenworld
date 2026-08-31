@@ -293,8 +293,20 @@ type FmlBuildOption struct {
 	Type            int32
 	DailyLimit      int32
 	GroupDailyLimit int32
+	Rewards         []ItemCount
 	// ShareID > 0 means rewarded-video / share flow (c_share), not a bare fml.bld.
 	ShareID int32
+}
+
+// ShareRewardConfig describes one c_share entry used to interpret the
+// namespace 31 usage map. LimitType 1 is the client's daily-reset mode.
+type ShareRewardConfig struct {
+	ID        int32
+	Name      string
+	Limit     int32
+	LimitType int32
+	Cooldown  int32
+	Rewards   []ItemCount
 }
 
 // FmlLandLvl describes one c_fmlLandLvl growth tier (seconds per flower + stock cap).
@@ -1668,11 +1680,12 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 		return FmlBuildOption{}, false
 	}
 	var row struct {
-		Name       string    `json:"name"`
-		Items      [][]int32 `json:"items"`
-		Type       int32     `json:"type"`
-		DailyCount int32     `json:"dailyCount"`
-		ShareID    int32     `json:"shareId"`
+		Name       string          `json:"name"`
+		Items      [][]int32       `json:"items"`
+		Type       int32           `json:"type"`
+		DailyCount int32           `json:"dailyCount"`
+		ShareID    int32           `json:"shareId"`
+		Rewards    json.RawMessage `json:"rwds"`
 	}
 	if json.Unmarshal(raw, &row) != nil {
 		return FmlBuildOption{}, false
@@ -1683,6 +1696,7 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 		Type:       row.Type,
 		DailyLimit: row.DailyCount,
 		ShareID:    row.ShareID,
+		Rewards:    readItemCountsRaw(row.Rewards),
 	}
 	if masterRaw, exists := StaticRow("c_fmlBld", -1); exists {
 		var master struct {
@@ -1700,6 +1714,33 @@ func FmlBuildOptionByID(id int32) (FmlBuildOption, bool) {
 		out.Cost = row.Items[0][1]
 	}
 	return out, true
+}
+
+// ShareRewardConfigByID returns the counter and reward semantics for one
+// video/share action.
+func ShareRewardConfigByID(id int32) (ShareRewardConfig, bool) {
+	raw, ok := StaticRow("c_share", id)
+	if !ok {
+		return ShareRewardConfig{}, false
+	}
+	var row struct {
+		Name      string          `json:"name"`
+		Limit     int32           `json:"limit"`
+		LimitType int32           `json:"limitType"`
+		Cooldown  int32           `json:"cd"`
+		Rewards   json.RawMessage `json:"award"`
+	}
+	if json.Unmarshal(raw, &row) != nil {
+		return ShareRewardConfig{}, false
+	}
+	return ShareRewardConfig{
+		ID:        id,
+		Name:      strings.TrimSpace(row.Name),
+		Limit:     row.Limit,
+		LimitType: row.LimitType,
+		Cooldown:  row.Cooldown,
+		Rewards:   readItemCountsRaw(row.Rewards),
+	}, true
 }
 
 // FmlLandLvlByID returns growth timing/stock for one guild-land level.

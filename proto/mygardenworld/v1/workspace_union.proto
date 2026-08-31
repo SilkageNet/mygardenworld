@@ -3,6 +3,7 @@ syntax = "proto3";
 package mygardenworld.v1;
 
 import "google/protobuf/timestamp.proto";
+import "mygardenworld/v1/workspace_common.proto";
 
 message UnionView {
   int64 account_id = 1;
@@ -20,6 +21,9 @@ message UnionView {
   string member_position_label = 12;
   // Derived from c_fmlPos.p_raceDelete; false when position is unknown.
   bool race_delete_allowed = 13;
+  // Current user's c_fmlBld video-build quota. Membership remains the hard
+  // gate; this status is never surfaced for an unconfirmed member.
+  VideoActionStatusView video_build = 14;
 }
 
 message FmlRaceView {

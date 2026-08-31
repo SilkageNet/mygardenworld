@@ -56,8 +56,11 @@ type BasicView struct {
 	RuntimeStatistics        *RuntimeStatisticsView `protobuf:"bytes,30,opt,name=runtime_statistics,json=runtimeStatistics,proto3" json:"runtime_statistics,omitempty"`
 	PendingTasks             []*PendingTaskView     `protobuf:"bytes,31,rep,name=pending_tasks,json=pendingTasks,proto3" json:"pending_tasks,omitempty"`
 	PearlHire                *PearlHireStatusView   `protobuf:"bytes,32,opt,name=pearl_hire,json=pearlHire,proto3" json:"pearl_hire,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Manual video rewards owned by the basic workspace: double gold, the free
+	// shop gift, and video pearls. They are status-only and never auto-claimed.
+	VideoActions  []*VideoActionStatusView `protobuf:"bytes,33,rep,name=video_actions,json=videoActions,proto3" json:"video_actions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BasicView) Reset() {
@@ -314,6 +317,13 @@ func (x *BasicView) GetPearlHire() *PearlHireStatusView {
 	return nil
 }
 
+func (x *BasicView) GetVideoActions() []*VideoActionStatusView {
+	if x != nil {
+		return x.VideoActions
+	}
+	return nil
+}
+
 type PearlHireStatusView struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	TicketCount      int32                  `protobuf:"varint,1,opt,name=ticket_count,json=ticketCount,proto3" json:"ticket_count,omitempty"`
@@ -462,7 +472,7 @@ var File_mygardenworld_v1_workspace_basic_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_workspace_basic_proto_rawDesc = "" +
 	"\n" +
-	"&mygardenworld/v1/workspace_basic.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'mygardenworld/v1/workspace_common.proto\"\x9b\f\n" +
+	"&mygardenworld/v1/workspace_basic.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'mygardenworld/v1/workspace_common.proto\"\xe9\f\n" +
 	"\tBasicView\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
@@ -503,7 +513,8 @@ const file_mygardenworld_v1_workspace_basic_proto_rawDesc = "" +
 	"\x12runtime_statistics\x18\x1e \x01(\v2'.mygardenworld.v1.RuntimeStatisticsViewR\x11runtimeStatistics\x12F\n" +
 	"\rpending_tasks\x18\x1f \x03(\v2!.mygardenworld.v1.PendingTaskViewR\fpendingTasks\x12D\n" +
 	"\n" +
-	"pearl_hire\x18  \x01(\v2%.mygardenworld.v1.PearlHireStatusViewR\tpearlHire\"\xce\x01\n" +
+	"pearl_hire\x18  \x01(\v2%.mygardenworld.v1.PearlHireStatusViewR\tpearlHire\x12L\n" +
+	"\rvideo_actions\x18! \x03(\v2'.mygardenworld.v1.VideoActionStatusViewR\fvideoActions\"\xce\x01\n" +
 	"\x13PearlHireStatusView\x12!\n" +
 	"\fticket_count\x18\x01 \x01(\x05R\vticketCount\x12*\n" +
 	"\x11ticket_used_today\x18\x02 \x01(\x05R\x0fticketUsedToday\x12,\n" +
@@ -542,22 +553,24 @@ var file_mygardenworld_v1_workspace_basic_proto_goTypes = []any{
 	(*BlockingSummary)(nil),       // 7: mygardenworld.v1.BlockingSummary
 	(*RuntimeStatisticsView)(nil), // 8: mygardenworld.v1.RuntimeStatisticsView
 	(*PendingTaskView)(nil),       // 9: mygardenworld.v1.PendingTaskView
+	(*VideoActionStatusView)(nil), // 10: mygardenworld.v1.VideoActionStatusView
 }
 var file_mygardenworld_v1_workspace_basic_proto_depIdxs = []int32{
-	3, // 0: mygardenworld.v1.BasicView.captured_at:type_name -> google.protobuf.Timestamp
-	4, // 1: mygardenworld.v1.BasicView.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
-	5, // 2: mygardenworld.v1.BasicView.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
-	6, // 3: mygardenworld.v1.BasicView.planned_operations:type_name -> mygardenworld.v1.PlannedOperation
-	7, // 4: mygardenworld.v1.BasicView.blocking_summary:type_name -> mygardenworld.v1.BlockingSummary
-	8, // 5: mygardenworld.v1.BasicView.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	9, // 6: mygardenworld.v1.BasicView.pending_tasks:type_name -> mygardenworld.v1.PendingTaskView
-	1, // 7: mygardenworld.v1.BasicView.pearl_hire:type_name -> mygardenworld.v1.PearlHireStatusView
-	2, // 8: mygardenworld.v1.PearlHireStatusView.slots:type_name -> mygardenworld.v1.PearlLaborSlotView
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	3,  // 0: mygardenworld.v1.BasicView.captured_at:type_name -> google.protobuf.Timestamp
+	4,  // 1: mygardenworld.v1.BasicView.diagnostics:type_name -> mygardenworld.v1.RunnerDiagnostics
+	5,  // 2: mygardenworld.v1.BasicView.domain_statuses:type_name -> mygardenworld.v1.DomainStatus
+	6,  // 3: mygardenworld.v1.BasicView.planned_operations:type_name -> mygardenworld.v1.PlannedOperation
+	7,  // 4: mygardenworld.v1.BasicView.blocking_summary:type_name -> mygardenworld.v1.BlockingSummary
+	8,  // 5: mygardenworld.v1.BasicView.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	9,  // 6: mygardenworld.v1.BasicView.pending_tasks:type_name -> mygardenworld.v1.PendingTaskView
+	1,  // 7: mygardenworld.v1.BasicView.pearl_hire:type_name -> mygardenworld.v1.PearlHireStatusView
+	10, // 8: mygardenworld.v1.BasicView.video_actions:type_name -> mygardenworld.v1.VideoActionStatusView
+	2,  // 9: mygardenworld.v1.PearlHireStatusView.slots:type_name -> mygardenworld.v1.PearlLaborSlotView
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_basic_proto_init() }

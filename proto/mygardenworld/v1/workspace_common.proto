@@ -41,6 +41,39 @@ enum AccountHealth {
   ACCOUNT_HEALTH_SESSION_EXPIRED = 4;
 }
 
+// VideoActionState is deliberately about server-observed eligibility. READY
+// means the user can try the action in the official client; it does not claim
+// that the platform advertising SDK currently has an ad loaded.
+enum VideoActionState {
+  VIDEO_ACTION_STATE_UNSPECIFIED = 0;
+  VIDEO_ACTION_STATE_UNKNOWN = 1;
+  VIDEO_ACTION_STATE_READY = 2;
+  VIDEO_ACTION_STATE_COOLDOWN = 3;
+  VIDEO_ACTION_STATE_EXHAUSTED = 4;
+  VIDEO_ACTION_STATE_ACTIVE = 5;
+}
+
+message VideoActionRewardView {
+  int32 item_id = 1;
+  string item_name = 2;
+  int32 count = 3;
+}
+
+// Read-only manual-action status. The daemon never fabricates advertising SDK
+// callbacks; these records are reminders derived from authoritative game state.
+message VideoActionStatusView {
+  string id = 1;
+  string label = 2;
+  bool observed = 3;
+  VideoActionState state = 4;
+  int32 used = 5;
+  int32 limit = 6;
+  int64 available_at_ms = 7;
+  int64 expires_at_ms = 8;
+  repeated VideoActionRewardView rewards = 9;
+  string detail = 10;
+}
+
 // WorkspaceLogCategory is the stable product-level grouping used by the log
 // workspace. Internal runner categories and domains remain available on Event
 // for diagnostics, but never determine which tabs exist in the Web UI.
