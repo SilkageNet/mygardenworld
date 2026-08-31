@@ -39,8 +39,11 @@ type UnionView struct {
 	MemberPositionLabel    string `protobuf:"bytes,12,opt,name=member_position_label,json=memberPositionLabel,proto3" json:"member_position_label,omitempty"`
 	// Derived from c_fmlPos.p_raceDelete; false when position is unknown.
 	RaceDeleteAllowed bool `protobuf:"varint,13,opt,name=race_delete_allowed,json=raceDeleteAllowed,proto3" json:"race_delete_allowed,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Current user's c_fmlBld video-build quota. Membership remains the hard
+	// gate; this status is never surfaced for an unconfirmed member.
+	VideoBuild    *VideoActionStatusView `protobuf:"bytes,14,opt,name=video_build,json=videoBuild,proto3" json:"video_build,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UnionView) Reset() {
@@ -162,6 +165,13 @@ func (x *UnionView) GetRaceDeleteAllowed() bool {
 		return x.RaceDeleteAllowed
 	}
 	return false
+}
+
+func (x *UnionView) GetVideoBuild() *VideoActionStatusView {
+	if x != nil {
+		return x.VideoBuild
+	}
+	return nil
 }
 
 type FmlRaceView struct {
@@ -753,7 +763,7 @@ var File_mygardenworld_v1_workspace_union_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\n" +
-	"&mygardenworld/v1/workspace_union.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc7\x04\n" +
+	"&mygardenworld/v1/workspace_union.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'mygardenworld/v1/workspace_common.proto\"\x91\x05\n" +
 	"\tUnionView\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
@@ -770,7 +780,9 @@ const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	" \x01(\bR\x16memberPositionObserved\x12'\n" +
 	"\x0fmember_position\x18\v \x01(\x05R\x0ememberPosition\x122\n" +
 	"\x15member_position_label\x18\f \x01(\tR\x13memberPositionLabel\x12.\n" +
-	"\x13race_delete_allowed\x18\r \x01(\bR\x11raceDeleteAllowed\"\xe2\x04\n" +
+	"\x13race_delete_allowed\x18\r \x01(\bR\x11raceDeleteAllowed\x12H\n" +
+	"\vvideo_build\x18\x0e \x01(\v2'.mygardenworld.v1.VideoActionStatusViewR\n" +
+	"videoBuild\"\xe2\x04\n" +
 	"\vFmlRaceView\x12\x1a\n" +
 	"\bobserved\x18\x01 \x01(\bR\bobserved\x12!\n" +
 	"\fbatch_active\x18\x02 \x01(\bR\vbatchActive\x124\n" +
@@ -864,18 +876,20 @@ var file_mygardenworld_v1_workspace_union_proto_goTypes = []any{
 	(*FmlRaceTaken)(nil),          // 3: mygardenworld.v1.FmlRaceTaken
 	(*FmlLandView)(nil),           // 4: mygardenworld.v1.FmlLandView
 	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*VideoActionStatusView)(nil), // 6: mygardenworld.v1.VideoActionStatusView
 }
 var file_mygardenworld_v1_workspace_union_proto_depIdxs = []int32{
 	5, // 0: mygardenworld.v1.UnionView.captured_at:type_name -> google.protobuf.Timestamp
 	1, // 1: mygardenworld.v1.UnionView.race:type_name -> mygardenworld.v1.FmlRaceView
 	4, // 2: mygardenworld.v1.UnionView.lands:type_name -> mygardenworld.v1.FmlLandView
-	3, // 3: mygardenworld.v1.FmlRaceView.taken:type_name -> mygardenworld.v1.FmlRaceTaken
-	2, // 4: mygardenworld.v1.FmlRaceView.tasks:type_name -> mygardenworld.v1.FmlRaceTask
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	6, // 3: mygardenworld.v1.UnionView.video_build:type_name -> mygardenworld.v1.VideoActionStatusView
+	3, // 4: mygardenworld.v1.FmlRaceView.taken:type_name -> mygardenworld.v1.FmlRaceTaken
+	2, // 5: mygardenworld.v1.FmlRaceView.tasks:type_name -> mygardenworld.v1.FmlRaceTask
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_union_proto_init() }
@@ -883,6 +897,7 @@ func file_mygardenworld_v1_workspace_union_proto_init() {
 	if File_mygardenworld_v1_workspace_union_proto != nil {
 		return
 	}
+	file_mygardenworld_v1_workspace_common_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

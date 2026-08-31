@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -281,6 +282,7 @@ func buildBasicView(model *accountReadModel) *pb.BasicView {
 		BlockingSummary:       blockingSummaryProto(domainStatuses, model.plan),
 		RuntimeStatistics:     runtimeStatisticsProto(model.runner.RuntimeStats()),
 		PendingTasks:          buildPendingTasksAtPolicy(st, now, model.policy),
+		VideoActions:          buildBasicVideoActions(st, now),
 	}
 	if rep, ok := st.Reputation(); ok {
 		resp.ReputationObserved = true
@@ -353,6 +355,7 @@ func buildOrdersView(model *accountReadModel) *pb.OrdersView {
 		OrderStatistics:       orderStatisticsProto(st, now),
 		BusinessStatistics:    businessStatisticsProto(st),
 		SellableFlowerArts:    sellableFlowerArtsProto(st),
+		ResidentVideoOrders:   buildResidentVideoOrders(st, now),
 	}
 	return resp
 }
@@ -371,6 +374,7 @@ func buildUnionView(model *accountReadModel) *pb.UnionView {
 		MemberPosition:         membership.MemberPosition,
 		MemberPositionLabel:    state.FmlPositionLabel(membership.MemberPosition),
 		RaceDeleteAllowed:      membership.MemberPositionObserved && state.FmlPositionAllowsRaceDelete(membership.MemberPosition),
+		VideoBuild:             buildFmlVideoBuildStatus(st, now),
 		LandsObserved:          st.FmlLandObserved(),
 		Lands:                  buildFmlLandViews(st.FmlLands(), st.Cultivations(), now),
 		Race: fmlRaceProto(
@@ -383,6 +387,223 @@ func buildUnionView(model *accountReadModel) *pb.UnionView {
 		),
 	}
 	return resp
+}
+
+const (
+	shareVideoPearl      int32 = 10
+	shareVideoDoubleGold int32 = 11
+	shareVideoFmlBuild   int32 = 14
+	shareVideoOrder      int32 = 5
+	shareVideoSatinOrder int32 = 19
+	shareVideoDecorate   int32 = 34
+	videoFmlBuildOption  int32 = 1
+)
+
+func buildBasicVideoActions(st *state.State, now time.Time) []*pb.VideoActionStatusView {
+	double := st.VideoDouble()
+	_, doubleUsageObserved := st.ShareUsageAt(shareVideoDoubleGold, now)
+	doubleObserved := double.Observed || doubleUsageObserved
+	doubleState := pb.VideoActionState_VIDEO_ACTION_STATE_UNKNOWN
+	doubleDetail := "等待游戏状态同步"
+	if doubleObserved {
+		doubleState = pb.VideoActionState_VIDEO_ACTION_STATE_READY
+		doubleDetail = "未生效，可在游戏内尝试观看"
+	}
+	if double.Observed && double.EndTimeMs > now.UnixMilli() {
+		doubleState = pb.VideoActionState_VIDEO_ACTION_STATE_ACTIVE
+		doubleDetail = "金币收益双倍生效中"
+	}
+	actions := []*pb.VideoActionStatusView{{
+		Id:          "basic.double_gold",
+		Label:       "双倍金币",
+		Observed:    doubleObserved,
+		State:       doubleState,
+		ExpiresAtMs: positiveDeadline(double.EndTimeMs, now.UnixMilli()),
+		Detail:      doubleDetail,
+	}}
+
+	shopAction := &pb.VideoActionStatusView{
+		Id:     "basic.shop_giftbag",
+		Label:  "商城免费礼包",
+		State:  pb.VideoActionState_VIDEO_ACTION_STATE_UNKNOWN,
+		Detail: "等待商城礼包同步",
+	}
+	for _, offer := range st.ShopGiftbagOffersAt(now) {
+		if offer.Type != 1 || offer.ShareID <= 0 || offer.RchgID != 0 || offer.MoneyID != 0 || offer.Price != 0 || offer.PriceMax != 0 {
+			continue
+		}
+		shopAction.Id = fmt.Sprintf("basic.shop_giftbag.%d", offer.ShopID)
+		shopAction.Observed = st.ShopGiftbagObserved()
+		shopAction.Used = offer.DailyBought
+		shopAction.Limit = offer.DailyLimit
+		shopAction.AvailableAtMs = offer.AvailableAtMs
+		shopAction.Rewards = videoActionRewardsProto([]state.ItemCount{offer.NextReward})
+		switch {
+		case !shopAction.Observed:
+			shopAction.State = pb.VideoActionState_VIDEO_ACTION_STATE_UNKNOWN
+			shopAction.Detail = "等待商城礼包同步"
+		case offer.Remaining <= 0:
+			shopAction.State = pb.VideoActionState_VIDEO_ACTION_STATE_EXHAUSTED
+			shopAction.AvailableAtMs = state.NextCalendarDayReset(now).UnixMilli()
+			shopAction.Detail = "今日次数已用完"
+		case offer.AvailableAtMs > now.UnixMilli():
+			shopAction.State = pb.VideoActionState_VIDEO_ACTION_STATE_COOLDOWN
+			shopAction.Detail = "下一次礼包冷却中"
+		default:
+			shopAction.State = pb.VideoActionState_VIDEO_ACTION_STATE_READY
+			shopAction.Detail = "可在游戏内尝试观看"
+		}
+		break
+	}
+	actions = append(actions, shopAction)
+
+	pearlCfg, _ := state.ShareRewardConfigByID(shareVideoPearl)
+	pearl := &pb.VideoActionStatusView{
+		Id:      "basic.pearl.video_reward",
+		Label:   "视频免费珍珠",
+		State:   pb.VideoActionState_VIDEO_ACTION_STATE_UNKNOWN,
+		Detail:  "等待视频次数同步",
+		Rewards: videoActionRewardsProto(pearlCfg.Rewards),
+	}
+	if usage, observed := st.ShareUsageAt(shareVideoPearl, now); observed {
+		pearl.Observed = true
+		pearl.Used = usage.ShareCount
+		pearl.Limit = pearlCfg.Limit
+		if pearlCfg.Limit > 0 && usage.ShareCount >= pearlCfg.Limit {
+			pearl.State = pb.VideoActionState_VIDEO_ACTION_STATE_EXHAUSTED
+			pearl.AvailableAtMs = state.NextCalendarDayReset(now).UnixMilli()
+			pearl.Detail = "今日次数已用完"
+		} else {
+			pearl.State = pb.VideoActionState_VIDEO_ACTION_STATE_READY
+			pearl.Detail = "可在游戏内尝试观看"
+		}
+	}
+	return append(actions, pearl)
+}
+
+func buildFmlVideoBuildStatus(st *state.State, now time.Time) *pb.VideoActionStatusView {
+	option, _ := state.FmlBuildOptionByID(videoFmlBuildOption)
+	usage := st.FmlBuildOptionUsageAt(videoFmlBuildOption, now)
+	view := &pb.VideoActionStatusView{
+		Id:       "union.build.video",
+		Label:    "视频建设",
+		Observed: usage.Observed,
+		State:    pb.VideoActionState_VIDEO_ACTION_STATE_UNKNOWN,
+		Detail:   "等待建设次数同步",
+		Rewards:  videoActionRewardsProto(option.Rewards),
+	}
+	if !usage.Observed {
+		return view
+	}
+	view.Used = usage.Count
+	view.Limit = smallestPositive(option.DailyLimit, option.GroupDailyLimit)
+	exhausted := option.DailyLimit > 0 && usage.Count >= option.DailyLimit
+	exhausted = exhausted || option.GroupDailyLimit > 0 && usage.GroupCount >= option.GroupDailyLimit
+	if exhausted {
+		view.State = pb.VideoActionState_VIDEO_ACTION_STATE_EXHAUSTED
+		view.AvailableAtMs = state.NextCalendarDayReset(now).UnixMilli()
+		view.Detail = "今日建设次数已用完"
+	} else {
+		view.State = pb.VideoActionState_VIDEO_ACTION_STATE_READY
+		view.Detail = "可在游戏内尝试观看"
+	}
+	return view
+}
+
+func buildResidentVideoOrders(st *state.State, now time.Time) []*pb.VideoActionStatusView {
+	orders := st.FlowerOrders()
+	boxIDs := make([]int32, 0, len(orders))
+	for boxID, order := range orders {
+		if order != nil && order.IsVideo != 0 {
+			boxIDs = append(boxIDs, boxID)
+		}
+	}
+	sort.Slice(boxIDs, func(i, j int) bool { return boxIDs[i] < boxIDs[j] })
+	out := make([]*pb.VideoActionStatusView, 0, len(boxIDs)+2)
+	for _, boxID := range boxIDs {
+		order := orders[boxID]
+		out = append(out, residentVideoAction(
+			fmt.Sprintf("orders.resident.normal.%d", boxID),
+			fmt.Sprintf("居民订单 #%d", boxID),
+			shareVideoOrder,
+			order.CdTimeMs,
+			order.VideoRewards,
+			st,
+			now,
+		))
+	}
+	if satin := st.ResidentSatinOrder(); satin.Observed && satin.IsVideo != 0 {
+		out = append(out, residentVideoAction("orders.resident.satin", "绸缎订单", shareVideoSatinOrder, satin.CdTimeMs, satin.VideoRewards, st, now))
+	}
+	if decorate := st.ResidentDecorateOrder(); decorate.Observed && decorate.IsVideo != 0 {
+		out = append(out, residentVideoAction("orders.resident.decorate", "建材订单", shareVideoDecorate, decorate.CdTimeMs, decorate.VideoRewards, st, now))
+	}
+	return out
+}
+
+func residentVideoAction(id, label string, shareID int32, cooldownUntil int64, rewards []state.ItemCount, st *state.State, now time.Time) *pb.VideoActionStatusView {
+	view := &pb.VideoActionStatusView{
+		Id:       id,
+		Label:    label,
+		Observed: true,
+		State:    pb.VideoActionState_VIDEO_ACTION_STATE_READY,
+		Detail:   "需在游戏内观看视频",
+		Rewards:  videoActionRewardsProto(rewards),
+	}
+	if usage, observed := st.ShareUsageAt(shareID, now); observed {
+		cfg, _ := state.ShareRewardConfigByID(shareID)
+		// The generic ad eligibility check in the official client uses recvCnt.
+		// Pearl is the exceptional flow that explicitly presents shareCnt.
+		view.Used = usage.ReceiveCount
+		view.Limit = cfg.Limit
+		if cfg.Limit > 0 && usage.ReceiveCount >= cfg.Limit {
+			view.State = pb.VideoActionState_VIDEO_ACTION_STATE_EXHAUSTED
+			view.AvailableAtMs = state.NextCalendarDayReset(now).UnixMilli()
+			view.Detail = "今日视频次数已用完"
+			return view
+		}
+	}
+	if cooldownUntil > now.UnixMilli() {
+		view.State = pb.VideoActionState_VIDEO_ACTION_STATE_COOLDOWN
+		view.AvailableAtMs = cooldownUntil
+		view.Detail = "订单冷却中"
+	}
+	return view
+}
+
+func videoActionRewardsProto(rewards []state.ItemCount) []*pb.VideoActionRewardView {
+	out := make([]*pb.VideoActionRewardView, 0, len(rewards))
+	for _, reward := range rewards {
+		if reward.ItemID <= 0 || reward.Count <= 0 {
+			continue
+		}
+		out = append(out, &pb.VideoActionRewardView{
+			ItemId:   reward.ItemID,
+			ItemName: state.ItemLabel(reward.ItemID),
+			Count:    reward.Count,
+		})
+	}
+	return out
+}
+
+func positiveDeadline(deadline, now int64) int64 {
+	if deadline > now {
+		return deadline
+	}
+	return 0
+}
+
+func smallestPositive(a, b int32) int32 {
+	switch {
+	case a <= 0:
+		return b
+	case b <= 0:
+		return a
+	case a < b:
+		return a
+	default:
+		return b
+	}
 }
 
 func buildActivitiesView(model *accountReadModel) *pb.ActivitiesView {

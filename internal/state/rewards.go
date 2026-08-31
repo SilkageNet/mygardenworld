@@ -176,6 +176,18 @@ func (s *State) applyShopGiftbagLocked(raw json.RawMessage) {
 	if rawTRecord, ok := fields["4"]; ok {
 		s.shopGiftbagTRecord = readInt32RawMap(rawTRecord)
 	}
+	if rawBuyTimes, ok := fields["5"]; ok {
+		s.shopGiftbagBuyTimeRecord = readInt64RawMap(rawBuyTimes)
+	}
+	if n, ok := readInt64JSONField(fields, "6"); ok {
+		s.shopGiftbagResetMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "7"); ok {
+		s.shopGiftbagUpdatedAtMs = n
+	}
+	if n, ok := readInt64JSONField(fields, "8"); ok {
+		s.shopGiftbagCreatedAtMs = n
+	}
 	s.shopGiftbagObserved = true
 }
 
@@ -578,9 +590,15 @@ func (s *State) ShopGiftbagObserved() bool {
 	return s.shopGiftbagObserved
 }
 
-// ShopGiftbagOffers returns static gift-bag shop rows enriched with observed
-// daily/weekly/monthly/total purchase records.
+// ShopGiftbagOffers returns status normalized at the current wall clock.
 func (s *State) ShopGiftbagOffers() []ShopGiftbagOfferView {
+	return s.ShopGiftbagOffersAt(time.Now())
+}
+
+// ShopGiftbagOffersAt returns static gift-bag rows enriched with observed
+// purchase records, daily reset semantics, the current reward tier, and the
+// client-visible cooldown deadline.
+func (s *State) ShopGiftbagOffersAt(now time.Time) []ShopGiftbagOfferView {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	table, ok := StaticTableByName("c_shop_giftbag")
@@ -598,10 +616,29 @@ func (s *State) ShopGiftbagOffers() []ShopGiftbagOfferView {
 			continue
 		}
 		view.DailyBought = s.shopGiftbagDRecord[shopID]
+		if s.shopGiftbagResetMs > 0 && calendarDayID(time.UnixMilli(s.shopGiftbagResetMs)) < calendarDayID(now) {
+			view.DailyBought = 0
+		}
 		view.WeekBought = s.shopGiftbagWRecord[shopID]
 		view.MonthBought = s.shopGiftbagMRecord[shopID]
 		view.TotalBought = s.shopGiftbagTRecord[shopID]
 		view.Remaining = giftbagRemaining(view)
+		if len(view.Rewards) > 0 {
+			idx := int(view.DailyBought)
+			if idx < 0 {
+				idx = 0
+			}
+			if idx >= len(view.Rewards) {
+				idx = len(view.Rewards) - 1
+			}
+			view.NextReward = view.Rewards[idx]
+		}
+		if boughtAt := s.shopGiftbagBuyTimeRecord[shopID]; boughtAt > 0 && view.CooldownSec > 0 {
+			availableAt := boughtAt + int64(view.CooldownSec)*1000
+			if availableAt > now.UnixMilli() {
+				view.AvailableAtMs = availableAt
+			}
+		}
 		out = append(out, view)
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -874,6 +911,9 @@ func shopGiftbagStatic(shopID int32, rawRow json.RawMessage) (ShopGiftbagOfferVi
 	}
 	if n, ok := readInt32JSONField(row, "sort"); ok {
 		view.Sort = n
+	}
+	if n, ok := readInt32JSONField(row, "cd"); ok {
+		view.CooldownSec = n
 	}
 	view.DailyLimit = firstInt32ListValue(row["dLimit"])
 	view.WeeklyLimit = firstInt32ListValue(row["wLimit"])

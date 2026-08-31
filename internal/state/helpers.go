@@ -27,16 +27,33 @@ func setOf(ids []int32) map[int32]struct{} {
 
 func readItemCountsRaw(raw json.RawMessage) []ItemCount {
 	var stacks []json.RawMessage
-	if len(raw) == 0 || json.Unmarshal(raw, &stacks) != nil {
+	if len(raw) == 0 || string(raw) == "null" {
 		return nil
 	}
-	out := make([]ItemCount, 0, len(stacks))
-	for _, rawStack := range stacks {
-		parts := readInt32OrderedListRaw(rawStack)
-		if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
-			continue
+	if json.Unmarshal(raw, &stacks) == nil {
+		out := make([]ItemCount, 0, len(stacks))
+		for _, rawStack := range stacks {
+			parts := readInt32OrderedListRaw(rawStack)
+			if len(parts) < 2 || parts[0] <= 0 || parts[1] <= 0 {
+				continue
+			}
+			out = append(out, ItemCount{ItemID: parts[0], Count: parts[1]})
 		}
-		out = append(out, ItemCount{ItemID: parts[0], Count: parts[1]})
+		return out
+	}
+	// INumMap is observed both as [[itemId,count], ...] and as a JSON object
+	// depending on the RPC serializer. Accept both without inventing entries.
+	counts := readInt32RawMap(raw)
+	ids := make([]int32, 0, len(counts))
+	for itemID, count := range counts {
+		if itemID > 0 && count > 0 {
+			ids = append(ids, itemID)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]ItemCount, 0, len(ids))
+	for _, itemID := range ids {
+		out = append(out, ItemCount{ItemID: itemID, Count: counts[itemID]})
 	}
 	return out
 }

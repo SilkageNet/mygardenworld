@@ -10,6 +10,7 @@ export default function OrdersWorkspace(props: WorkspaceProps) {
         <TaskOrderMonitorPanel
           tasks={props.views.orders?.pendingTasks ?? []}
           statistics={props.views.orders?.orderStatistics}
+          videoOrders={props.views.orders?.residentVideoOrders ?? []}
           policy={props.policy}
         />
       )}

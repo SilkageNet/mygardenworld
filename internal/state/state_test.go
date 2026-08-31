@@ -2557,7 +2557,7 @@ func TestApplyV_ResidentOrderRewardPartialUpdatePreservesOrders(t *testing.T) {
 	applyMap(t, s, map[string]any{
 		"105": map[string]any{"0": map[string]any{
 			"1": map[string]any{
-				"1": map[string]any{"0": 8, "1": 1},
+				"1": map[string]any{"0": 8001, "1": 91, "3": 1, "6": 4, "7": map[string]any{"1": 8}},
 				"2": map[string]any{"0": 3, "1": 1, "2": [][]int32{{23004, 7}}},
 			},
 		}},
@@ -2577,6 +2577,74 @@ func TestApplyV_ResidentOrderRewardPartialUpdatePreservesOrders(t *testing.T) {
 	orders := s.FlowerOrders()
 	if orders[2] == nil || len(orders[2].Requires) != 1 {
 		t.Fatalf("partial reward update should preserve existing orders, got %+v", orders)
+	}
+	if orders[1] == nil || orders[1].NPCID != 8001 || orders[1].DialogID != 91 || orders[1].PlaceIdx != 4 || len(orders[1].VideoRewards) != 1 || orders[1].VideoRewards[0] != (ItemCount{ItemID: 1, Count: 8}) {
+		t.Fatalf("video order metadata mismatch: %+v", orders[1])
+	}
+}
+
+func TestApplyV_ShareUsageSparseMergeAndDailyReset(t *testing.T) {
+	s := New()
+	loc := gameDayLocation()
+	now := time.Date(2026, 8, 31, 12, 0, 0, 0, loc)
+	applyMap(t, s, map[string]any{"31": map[string]any{"0": map[string]any{
+		"10": map[string]any{"0": 99, "1": 10, "2": 1, "3": 1, "4": now.UnixMilli(), "6": now.UnixMilli()},
+	}}})
+	applyMap(t, s, map[string]any{"31": map[string]any{"0": map[string]any{
+		"10": map[string]any{"3": 2},
+		"11": map[string]any{"1": 11, "2": 3, "6": now.UnixMilli()},
+	}}})
+	usage, ok := s.ShareUsageAt(10, now)
+	if !ok || !usage.Observed || usage.ShareCount != 1 || usage.ReceiveCount != 2 || usage.UID != 99 {
+		t.Fatalf("ShareUsageAt today=%+v ok=%t", usage, ok)
+	}
+	nextDay, ok := s.ShareUsageAt(10, now.Add(24*time.Hour))
+	if !ok || nextDay.ShareCount != 0 || nextDay.ReceiveCount != 0 || nextDay.TotalCount != usage.TotalCount {
+		t.Fatalf("ShareUsageAt next day=%+v ok=%t", nextDay, ok)
+	}
+}
+
+func TestShopGiftbagOffersAtExposesCooldownResetAndNextReward(t *testing.T) {
+	s := New()
+	loc := gameDayLocation()
+	now := time.Date(2026, 8, 31, 12, 0, 0, 0, loc)
+	applyMap(t, s, map[string]any{"112": map[string]any{
+		"1": map[string]any{"1": 1},
+		"5": map[string]any{"1": now.Add(-time.Hour).UnixMilli()},
+		"6": now.UnixMilli(),
+	}})
+	var offer ShopGiftbagOfferView
+	for _, candidate := range s.ShopGiftbagOffersAt(now) {
+		if candidate.ShopID == 1 {
+			offer = candidate
+			break
+		}
+	}
+	if offer.DailyBought != 1 || offer.Remaining != 3 || offer.AvailableAtMs != now.Add(time.Hour).UnixMilli() || offer.NextReward != (ItemCount{ItemID: 1, Count: 6}) {
+		t.Fatalf("giftbag status=%+v", offer)
+	}
+	nextDay := s.ShopGiftbagOffersAt(now.Add(24 * time.Hour))
+	for _, candidate := range nextDay {
+		if candidate.ShopID == 1 && (candidate.DailyBought != 0 || candidate.Remaining != 4 || candidate.AvailableAtMs != 0 || candidate.NextReward != (ItemCount{ItemID: 1, Count: 5})) {
+			t.Fatalf("next-day giftbag status=%+v", candidate)
+		}
+	}
+}
+
+func TestFmlBuildOptionUsageAtResetsStaleCounts(t *testing.T) {
+	s := New()
+	loc := gameDayLocation()
+	now := time.Date(2026, 8, 31, 12, 0, 0, 0, loc)
+	applyMap(t, s, map[string]any{"25": map[string]any{"133": map[string]any{
+		"1": 5, "4": now.UnixMilli(), "5": map[string]any{"1": 1, "2": 2},
+	}}})
+	today := s.FmlBuildOptionUsageAt(1, now)
+	if !today.Observed || today.Count != 1 || today.GroupCount != 1 {
+		t.Fatalf("today build usage=%+v", today)
+	}
+	tomorrow := s.FmlBuildOptionUsageAt(1, now.Add(24*time.Hour))
+	if !tomorrow.Observed || tomorrow.Count != 0 || tomorrow.GroupCount != 0 {
+		t.Fatalf("tomorrow build usage=%+v", tomorrow)
 	}
 }
 

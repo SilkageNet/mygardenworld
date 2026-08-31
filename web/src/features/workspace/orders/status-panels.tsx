@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { AlertTriangle, Check, ListChecks, Package } from "lucide-react";
 import { PlanStatus, TaskExecutionFeature } from "@/lib/api/workspace-models";
-import type { OrderStatisticsView, PendingTaskView, RequirementView } from "@/lib/api/workspace-models";
+import type { OrderStatisticsView, PendingTaskView, RequirementView, VideoActionStatusView } from "@/lib/api/workspace-models";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,10 +23,12 @@ import {
 import { CollapsibleCard, EmptyState, OverviewStat } from "@/features/workspace/shared/workspace-ui";
 import { itemName } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
+import { VideoActionItems } from "@/features/workspace/shared/video-action-status";
 
-export function TaskOrderMonitorPanel({ tasks, statistics, policy }: {
+export function TaskOrderMonitorPanel({ tasks, statistics, videoOrders, policy }: {
   tasks: PendingTaskView[];
   statistics?: OrderStatisticsView;
+  videoOrders: VideoActionStatusView[];
   policy: Policy | null;
 }) {
   const monitoredTasks = useMemo(() => [...tasks].sort(comparePendingTasks), [tasks]);
@@ -75,6 +77,16 @@ export function TaskOrderMonitorPanel({ tasks, statistics, policy }: {
         <div className="rounded-md border border-border/60 bg-secondary/35 px-3 py-2 text-xs leading-5 text-muted-foreground">
           未启用项仅展示状态；任务开关开启后，系统会调用已开启的业务模块尝试推进。条件不足或协议暂不支持时会继续等待，不会反复试探。
         </div>
+      )}
+
+      {videoOrders.length > 0 && (
+        <section className="rounded-md border border-border/58 bg-white/30 p-2.5 dark:bg-white/4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
+            <div className="text-sm font-semibold">广告订单</div>
+            <div className="text-xs text-muted-foreground">当前订单需在官方游戏内观看，自动化不会代领</div>
+          </div>
+          <VideoActionItems actions={videoOrders} className="sm:grid-cols-2 xl:grid-cols-3" />
+        </section>
       )}
 
       {statistics?.observed && (

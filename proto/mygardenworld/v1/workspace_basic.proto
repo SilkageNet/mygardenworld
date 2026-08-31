@@ -38,6 +38,9 @@ message BasicView {
   RuntimeStatisticsView runtime_statistics = 30;
   repeated PendingTaskView pending_tasks = 31;
   PearlHireStatusView pearl_hire = 32;
+  // Manual video rewards owned by the basic workspace: double gold, the free
+  // shop gift, and video pearls. They are status-only and never auto-claimed.
+  repeated VideoActionStatusView video_actions = 33;
 }
 
 message PearlHireStatusView {

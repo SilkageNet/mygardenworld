@@ -227,6 +227,31 @@ func TestBuildPlan_ResidentNormalDisabledDoesNotDemandOrSubmit(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_ResidentVideoOrderDoesNotDemandOrSubmit(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{"23005": 2}}},
+		"105": map[string]any{"0": map[string]any{"1": map[string]any{"1": map[string]any{
+			"0": 801, "2": [][]int32{{23005, 1}}, "3": 1, "7": map[string]any{"1": 8},
+		}}}},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Order.Resident.NormalEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, demand := range result.Demands {
+		if demand.GoalID == GoalResidentOrder {
+			t.Fatalf("video resident order must not create planting demand: %+v", demand)
+		}
+	}
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCOrderFlowerFinishOrder.String() {
+			t.Fatalf("video resident order must not be auto-submitted: %+v", op)
+		}
+	}
+}
+
 func TestBuildPlan_ResidentNormalLimitBlocksSubmit(t *testing.T) {
 	now := time.Date(2026, 7, 24, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	s := state.New()

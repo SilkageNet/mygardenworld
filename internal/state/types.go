@@ -95,11 +95,15 @@ type CultivateView struct {
 
 // FlowerOrder represents a resident order box from namespace 105 (orderFlower).
 type FlowerOrder struct {
-	BoxID    int32           `json:"box_id"`
-	Mode     int32           `json:"mode,omitempty"`
-	Requires []FlowerRequire `json:"requires"`
-	CdTimeMs int64           `json:"cd_time_ms,omitempty"`
-	CTimeMs  int64           `json:"c_time_ms,omitempty"`
+	BoxID        int32           `json:"box_id"`
+	NPCID        int32           `json:"npc_id,omitempty"`
+	DialogID     int32           `json:"dialog_id,omitempty"`
+	Requires     []FlowerRequire `json:"requires"`
+	IsVideo      int32           `json:"is_video,omitempty"`
+	CdTimeMs     int64           `json:"cd_time_ms,omitempty"`
+	CTimeMs      int64           `json:"c_time_ms,omitempty"`
+	PlaceIdx     int32           `json:"place_idx,omitempty"`
+	VideoRewards []ItemCount     `json:"video_rewards,omitempty"`
 }
 
 func (o *FlowerOrder) CooldownReady(now time.Time) bool {
@@ -143,15 +147,15 @@ type CustomerOrderSummary struct {
 // namespace 105 (orderSatin / orderDecorate). Field 0 is [[flowerId,count],...]
 // in the live mini client (same shape as ordinary flower-order requires).
 type ResidentSpecialOrder struct {
-	Observed  bool            `json:"observed,omitempty"`
-	Requires  []FlowerRequire `json:"requires,omitempty"`
-	NPCID     int32           `json:"npc_id,omitempty"`
-	DialogID  int32           `json:"dialog_id,omitempty"`
-	FinishCnt int32           `json:"finish_cnt,omitempty"`
-	IsVideo   int32           `json:"is_video,omitempty"`
-	VideoRwd  int32           `json:"video_rwd,omitempty"`
-	CdTimeMs  int64           `json:"cd_time_ms,omitempty"`
-	CTimeMs   int64           `json:"c_time_ms,omitempty"`
+	Observed     bool            `json:"observed,omitempty"`
+	Requires     []FlowerRequire `json:"requires,omitempty"`
+	NPCID        int32           `json:"npc_id,omitempty"`
+	DialogID     int32           `json:"dialog_id,omitempty"`
+	FinishCnt    int32           `json:"finish_cnt,omitempty"`
+	IsVideo      int32           `json:"is_video,omitempty"`
+	VideoRewards []ItemCount     `json:"video_rewards,omitempty"`
+	CdTimeMs     int64           `json:"cd_time_ms,omitempty"`
+	CTimeMs      int64           `json:"c_time_ms,omitempty"`
 }
 
 func (o ResidentSpecialOrder) CooldownReady(now time.Time) bool {
@@ -264,6 +268,12 @@ type FmlBuildView struct {
 	RaceLvl                int32           `json:"race_lvl,omitempty"`        // 25.0.103 公会竞赛段位
 	BuildCountsObserved    bool            `json:"build_counts_observed,omitempty"`
 	BuildCounts            map[int32]int32 `json:"build_counts,omitempty"`
+}
+
+type FmlBuildOptionUsage struct {
+	Observed   bool  `json:"observed,omitempty"`
+	Count      int32 `json:"count,omitempty"`
+	GroupCount int32 `json:"group_count,omitempty"`
 }
 
 // FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
@@ -469,24 +479,42 @@ type ZooFoodBowlNeed struct {
 // ShopGiftbagOfferView is one configured gift-bag shop item enriched with
 // namespace 112 purchase records.
 type ShopGiftbagOfferView struct {
-	ShopID      int32       `json:"shop_id"`
-	Type        int32       `json:"type,omitempty"`
-	ShareID     int32       `json:"share_id,omitempty"`
-	RchgID      int32       `json:"rchg_id,omitempty"`
-	MoneyID     int32       `json:"money_id,omitempty"`
-	Price       int32       `json:"price,omitempty"`
-	PriceMax    int32       `json:"price_max,omitempty"`
-	DailyLimit  int32       `json:"daily_limit,omitempty"`
-	WeeklyLimit int32       `json:"weekly_limit,omitempty"`
-	MonthLimit  int32       `json:"month_limit,omitempty"`
-	TotalLimit  int32       `json:"total_limit,omitempty"`
-	DailyBought int32       `json:"daily_bought,omitempty"`
-	WeekBought  int32       `json:"week_bought,omitempty"`
-	MonthBought int32       `json:"month_bought,omitempty"`
-	TotalBought int32       `json:"total_bought,omitempty"`
-	Remaining   int32       `json:"remaining,omitempty"`
-	Sort        int32       `json:"sort,omitempty"`
-	Rewards     []ItemCount `json:"rewards,omitempty"`
+	ShopID        int32       `json:"shop_id"`
+	Type          int32       `json:"type,omitempty"`
+	ShareID       int32       `json:"share_id,omitempty"`
+	RchgID        int32       `json:"rchg_id,omitempty"`
+	MoneyID       int32       `json:"money_id,omitempty"`
+	Price         int32       `json:"price,omitempty"`
+	PriceMax      int32       `json:"price_max,omitempty"`
+	DailyLimit    int32       `json:"daily_limit,omitempty"`
+	WeeklyLimit   int32       `json:"weekly_limit,omitempty"`
+	MonthLimit    int32       `json:"month_limit,omitempty"`
+	TotalLimit    int32       `json:"total_limit,omitempty"`
+	DailyBought   int32       `json:"daily_bought,omitempty"`
+	WeekBought    int32       `json:"week_bought,omitempty"`
+	MonthBought   int32       `json:"month_bought,omitempty"`
+	TotalBought   int32       `json:"total_bought,omitempty"`
+	Remaining     int32       `json:"remaining,omitempty"`
+	CooldownSec   int32       `json:"cooldown_sec,omitempty"`
+	AvailableAtMs int64       `json:"available_at_ms,omitempty"`
+	NextReward    ItemCount   `json:"next_reward,omitempty"`
+	Sort          int32       `json:"sort,omitempty"`
+	Rewards       []ItemCount `json:"rewards,omitempty"`
+}
+
+// ShareUsageView is one c_share counter from namespace 31 (IShareTot.map).
+// Counts are normalized by ShareUsageAt when a daily record is from an older
+// calendar day; the raw observation remains preserved for later sparse deltas.
+type ShareUsageView struct {
+	Observed      bool  `json:"observed,omitempty"`
+	ShareID       int32 `json:"share_id"`
+	UID           int64 `json:"uid,omitempty"`
+	ShareCount    int32 `json:"share_count,omitempty"`
+	ReceiveCount  int32 `json:"receive_count,omitempty"`
+	ReceiveTimeMs int64 `json:"receive_time_ms,omitempty"`
+	TotalCount    int32 `json:"total_count,omitempty"`
+	UpdatedAtMs   int64 `json:"updated_at_ms,omitempty"`
+	CreatedAtMs   int64 `json:"created_at_ms,omitempty"`
 }
 
 // PearlView is the tracked subset of namespace 115.1 (pearl).

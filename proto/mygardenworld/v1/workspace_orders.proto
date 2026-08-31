@@ -16,6 +16,8 @@ message OrdersView {
   OrderStatisticsView order_statistics = 8;
   BusinessStatisticsView business_statistics = 9;
   repeated SellableFlowerArtView sellable_flower_arts = 10;
+  // Concrete resident-order slots whose current server state requires video.
+  repeated VideoActionStatusView resident_video_orders = 11;
 }
 
 message SellableFlowerArtView {

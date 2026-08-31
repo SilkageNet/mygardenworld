@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DomainWorkspace, { type WorkspaceProps } from "@/features/workspace/shared/domain-workspace";
 import { EmptyState } from "@/features/workspace/shared/workspace-ui";
 import { FmlLandMonitorPanel } from "./status-panels";
+import { VideoActionItems } from "@/features/workspace/shared/video-action-status";
 
 export default function UnionWorkspace(props: WorkspaceProps) {
   const union = props.views.union;
@@ -28,6 +29,11 @@ export default function UnionWorkspace(props: WorkspaceProps) {
       <div className="space-y-3 sm:space-y-4">
         <Card className="cloud-surface">
           <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="size-4" />公会 #{union.unionId}{union.memberPositionObserved && union.memberPositionLabel ? ` · ${union.memberPositionLabel}` : ""}</CardTitle></CardHeader>
+          {union.videoBuild && (
+            <CardContent className="pt-0">
+              <VideoActionItems actions={[union.videoBuild]} />
+            </CardContent>
+          )}
         </Card>
         <FmlLandMonitorPanel
           lands={union.lands}
