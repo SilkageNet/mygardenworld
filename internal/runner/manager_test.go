@@ -16,6 +16,30 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
+func TestStartSourceIsConsumedOnceAndHasOperatorLabel(t *testing.T) {
+	sources := []StartSource{
+		StartSourceDaemonRestore,
+		StartSourceAccountCreate,
+		StartSourceControlPanel,
+		StartSourceAutomationEnable,
+		StartSourceManualOperation,
+		StartSourceAlipayLogin,
+		StartSourceRedeemAutoConnect,
+	}
+	for _, source := range sources {
+		if label := startSourceLabel(source); label == "" || label == "未标记" {
+			t.Fatalf("start source %q label=%q", source, label)
+		}
+	}
+	r := &Runner{startSource: StartSourceRedeemAutoConnect}
+	if got := r.consumeStartSource(); got != StartSourceRedeemAutoConnect {
+		t.Fatalf("consumeStartSource()=%q, want %q", got, StartSourceRedeemAutoConnect)
+	}
+	if got := r.consumeStartSource(); got != StartSourceUnspecified {
+		t.Fatalf("second consumeStartSource()=%q, want empty", got)
+	}
+}
+
 func TestAccountsWithAutomationEnabledUsesPersistedPolicy(t *testing.T) {
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))

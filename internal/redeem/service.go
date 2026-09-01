@@ -21,6 +21,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1connect"
+	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -80,7 +81,7 @@ func (s *Service) InstanceID() string { return s.instanceID }
 
 func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-	for _, worker := range []func(context.Context){s.runAttempts, s.runSources, s.runOutbox} {
+	for _, worker := range []func(context.Context){s.runAttempts, s.runSessionWakeups, s.runSources, s.runOutbox} {
 		wg.Add(1)
 		go func(run func(context.Context)) {
 			defer wg.Done()
@@ -177,21 +178,125 @@ func (s *Service) runAttempts(ctx context.Context) {
 		case <-ticker.C:
 		case <-s.wake:
 		}
-		if err := s.db.EnsureRedeemAttempts(ctx); err != nil {
-			s.log.Error("ensure redeem attempts", "err", err)
-			continue
+		if err := s.processNextAttempt(ctx); err != nil {
+			s.log.Error("process redeem attempt", "err", err)
 		}
-		attempt, err := s.db.NextRedeemAttempt(ctx)
-		if err != nil {
-			s.log.Error("claim redeem attempt", "err", err)
-			continue
-		}
-		if attempt == nil {
-			continue
-		}
-		s.processAttempt(ctx, attempt)
-		s.signal()
 	}
+}
+
+func (s *Service) processNextAttempt(ctx context.Context) error {
+	if err := s.db.EnsureRedeemAttempts(ctx); err != nil {
+		return fmt.Errorf("ensure redeem attempts: %w", err)
+	}
+	accountIDs, err := s.eligibleAccountIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("select redeem accounts: %w", err)
+	}
+	attempt, err := s.db.NextRedeemAttemptForAccounts(ctx, accountIDs)
+	if err != nil {
+		return fmt.Errorf("claim redeem attempt: %w", err)
+	}
+	if attempt == nil {
+		return nil
+	}
+	s.processAttempt(ctx, attempt)
+	s.signal()
+	return nil
+}
+
+// eligibleAccountIDs applies the account-level session policy before the
+// store claims work. Connected runners are always reusable. An account with a
+// runner that is currently reconnecting is left alone, and an offline account
+// is eligible only when its redeem mode explicitly permits an automatic start.
+func (s *Service) eligibleAccountIDs(ctx context.Context) ([]int64, error) {
+	if s.manager == nil {
+		return nil, nil
+	}
+	dueAccountIDs, err := s.db.DueRedeemAttemptAccountIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accountIDs := make([]int64, 0, len(dueAccountIDs))
+	for _, accountID := range dueAccountIDs {
+		if r := s.manager.Get(accountID); r != nil {
+			if r.Connected() {
+				accountIDs = append(accountIDs, accountID)
+			}
+			continue
+		}
+		allowed, err := s.accountAllowsAutoConnect(ctx, accountID)
+		if err != nil {
+			s.log.Warn("skip redeem account with unreadable policy", "account_id", accountID, "err", err)
+			continue
+		}
+		if allowed {
+			accountIDs = append(accountIDs, accountID)
+		}
+	}
+	return accountIDs, nil
+}
+
+func (s *Service) accountAllowsAutoConnect(ctx context.Context, accountID int64) (bool, error) {
+	if s.manager != nil {
+		if r := s.manager.Get(accountID); r != nil {
+			return r.Policy().GetBasic().GetRedeemConnectMode() != pb.RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY, nil
+		}
+	}
+	raw, err := s.db.LoadPolicyJSON(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	policy, err := policycfg.FromJSON(raw)
+	if err != nil {
+		return false, err
+	}
+	return policy.GetBasic().GetRedeemConnectMode() != pb.RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY, nil
+}
+
+func (s *Service) runSessionWakeups(ctx context.Context) {
+	if s.manager == nil || s.manager.Bus() == nil {
+		<-ctx.Done()
+		return
+	}
+	events, cancel := s.manager.Bus().SubscribeLive(64)
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-events:
+			if !ok {
+				return
+			}
+			if event.Kind != "session" || event.AccountID <= 0 {
+				continue
+			}
+			if _, err := s.db.WakeRedeemAttemptsForAccount(ctx, event.AccountID); err != nil {
+				s.log.Warn("wake redeem attempts after account connection", "account_id", event.AccountID, "err", err)
+				continue
+			}
+			s.signal()
+		}
+	}
+}
+
+// NotifyAccountPolicyChanged wakes the worker after a policy save so changing
+// an offline account from ONLINE_ONLY to AUTO does not wait for the polling
+// fallback.
+func (s *Service) NotifyAccountPolicyChanged() {
+	s.signal()
+}
+
+func (s *Service) publishAttemptsUpdated(attempt *store.RedeemAttempt) {
+	if s.manager == nil || s.manager.Bus() == nil {
+		return
+	}
+	s.manager.Bus().PublishTransient(runner.Event{
+		TS:          time.Now().UTC(),
+		AccountID:   attempt.AccountID,
+		AccountName: attempt.AccountName,
+		Kind:        EventKindRedeemAttemptsUpdated,
+	})
 }
 
 func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttempt) {
@@ -199,9 +304,31 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 	retryAt := time.Now().UTC().Add(5 * time.Minute)
 
 	r := s.manager.Get(attempt.AccountID)
-	if r == nil || !r.Connected() {
+	if r != nil && !r.Connected() {
+		if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, "账号会话正在恢复，等待上线后兑换"); err != nil {
+			s.log.Error("release redeem attempt for reconnecting account", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
+			return
+		}
+		s.publishAttemptsUpdated(attempt)
+		return
+	}
+	if r == nil {
+		allowed, err := s.accountAllowsAutoConnect(ctx, attempt.AccountID)
+		if err != nil {
+			message := err.Error()
+			s.completeAttempt(ctx, attempt, resultStatus, message, &retryAt)
+			return
+		}
+		if !allowed {
+			if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, "账号离线，等待账号上线后兑换"); err != nil {
+				s.log.Error("release redeem attempt for offline account", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
+				return
+			}
+			s.publishAttemptsUpdated(attempt)
+			return
+		}
 		startCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
-		started, err := s.manager.Start(startCtx, attempt.AccountID)
+		started, err := s.manager.StartWithSource(startCtx, attempt.AccountID, runner.StartSourceRedeemAutoConnect)
 		cancel()
 		if err != nil {
 			message := err.Error()
@@ -261,15 +388,7 @@ func (s *Service) completeAttempt(
 		s.log.Error("complete redeem attempt", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
 		return
 	}
-	if s.manager == nil || s.manager.Bus() == nil {
-		return
-	}
-	s.manager.Bus().PublishTransient(runner.Event{
-		TS:          time.Now().UTC(),
-		AccountID:   attempt.AccountID,
-		AccountName: attempt.AccountName,
-		Kind:        EventKindRedeemAttemptsUpdated,
-	})
+	s.publishAttemptsUpdated(attempt)
 }
 
 func redeemOutcomeMessage(result runner.RedeemResult) string {

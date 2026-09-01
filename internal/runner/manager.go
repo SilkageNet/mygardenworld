@@ -19,7 +19,7 @@ import (
 // its protocol Config from the account row's platform via
 // babigame.ConfigForChannel. That keeps host pinning a per-account
 // decision (an iOS account and an Alipay account can coexist) and
-// guarantees we fail fast in Start when an account's platform is not
+// guarantees we fail fast in StartWithSource when an account's platform is not
 // supported by this build.
 type Manager struct {
 	db  *store.DB
@@ -40,6 +40,23 @@ type Manager struct {
 
 const restoreAccountTimeout = 90 * time.Second
 
+// StartSource records which product path created a game session. It is carried
+// into the first successful session event so operators can distinguish an
+// explicit control-panel connection from daemon restore and background redeem
+// processing.
+type StartSource string
+
+const (
+	StartSourceUnspecified       StartSource = ""
+	StartSourceDaemonRestore     StartSource = "daemon_restore"
+	StartSourceAccountCreate     StartSource = "account_create"
+	StartSourceControlPanel      StartSource = "control_panel"
+	StartSourceAutomationEnable  StartSource = "automation_enable"
+	StartSourceManualOperation   StartSource = "manual_operation"
+	StartSourceAlipayLogin       StartSource = "alipay_login"
+	StartSourceRedeemAutoConnect StartSource = "redeem_auto_connect"
+)
+
 // RestoreReport summarizes one daemon startup auto-restore pass.
 type RestoreReport struct {
 	Eligible int
@@ -49,7 +66,7 @@ type RestoreReport struct {
 }
 
 // NewManager wires up the registry. The daemon serves all platforms; the
-// platform → Config mapping is resolved per-account in Start.
+// platform → Config mapping is resolved per-account in StartWithSource.
 func NewManager(db *store.DB, bus *Bus, log *slog.Logger) *Manager {
 	return &Manager{
 		db:        db,
@@ -136,7 +153,7 @@ func (m *Manager) RestoreEnabledRunners(ctx context.Context) RestoreReport {
 			break
 		}
 		startCtx, cancel := context.WithTimeout(ctx, restoreAccountTimeout)
-		_, err := m.Start(startCtx, acc.ID)
+		_, err := m.StartWithSource(startCtx, acc.ID, StartSourceDaemonRestore)
 		cancel()
 		if err != nil {
 			report.Failed++
@@ -178,17 +195,19 @@ func (m *Manager) accountsWithAutomationEnabled(ctx context.Context) ([]*store.A
 	return out, nil
 }
 
-// Start either reuses an existing runner or creates+starts a new one for the
-// account. Login is performed on first start; subsequent calls are no-ops.
+// StartWithSource either reuses an existing runner or creates and starts one
+// for the account. Login is performed on first start; subsequent calls are
+// no-ops and do not emit a second start source. Every caller must identify its
+// product path so successful and failed connection attempts remain auditable.
 //
-// Returns an error when the account's channel is not supported by this
-// build. We never fall back to a "default" channel - that would silently
+// It returns an error when the account's channel is not supported by this
+// build. We never fall back to a "default" channel because that would silently
 // hit the wrong host fronts.
-func (m *Manager) Start(ctx context.Context, accountID int64) (*Runner, error) {
+func (m *Manager) StartWithSource(ctx context.Context, accountID int64, source StartSource) (*Runner, error) {
 	lock := m.accountLock(accountID)
 	lock.Lock()
 	defer lock.Unlock()
-	return m.start(ctx, accountID)
+	return m.start(ctx, accountID, source)
 }
 
 func (m *Manager) accountLock(accountID int64) *sync.Mutex {
@@ -202,7 +221,7 @@ func (m *Manager) accountLock(accountID int64) *sync.Mutex {
 	return lock
 }
 
-func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
+func (m *Manager) start(ctx context.Context, accountID int64, source StartSource) (*Runner, error) {
 	m.mu.Lock()
 	if r, ok := m.runners[accountID]; ok {
 		m.mu.Unlock()
@@ -219,6 +238,7 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 		return nil, fmt.Errorf("account %q: %w", acc.Name, err)
 	}
 	r := New(cfg, m.db, acc, m.bus, m.log)
+	r.startSource = source
 	rawPolicy, err := m.db.LoadPolicyJSON(ctx, acc.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load policy for %q: %w", acc.Name, err)
@@ -237,7 +257,9 @@ func (m *Manager) start(ctx context.Context, accountID int64) (*Runner, error) {
 			r.debugWriter = dw
 		}
 	}
+	m.log.Info("starting account session", "account_id", acc.ID, "account", acc.Name, "source", source)
 	if err := r.Start(ctx); err != nil {
+		m.log.Warn("start account session failed", "account_id", acc.ID, "account", acc.Name, "source", source, "err", err)
 		return nil, err
 	}
 	m.mu.Lock()
@@ -288,13 +310,14 @@ func (m *Manager) stop(accountID int64) error {
 	return nil
 }
 
-// Reload tears down and re-spins the runner. Used to apply config drift.
-func (m *Manager) Reload(ctx context.Context, accountID int64) (*Runner, error) {
+// ReloadWithSource replaces the runner and attributes the new session to
+// source.
+func (m *Manager) ReloadWithSource(ctx context.Context, accountID int64, source StartSource) (*Runner, error) {
 	lock := m.accountLock(accountID)
 	lock.Lock()
 	defer lock.Unlock()
 	_ = m.stop(accountID)
-	return m.start(ctx, accountID)
+	return m.start(ctx, accountID, source)
 }
 
 // Shutdown stops every runner. Used at daemon exit.

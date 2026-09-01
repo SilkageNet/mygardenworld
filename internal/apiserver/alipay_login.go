@@ -13,6 +13,7 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -216,7 +217,7 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 			return nil, err
 		}
 		svc.saveLoginProbe(ctx, existing.ID, session)
-		r, startErr := svc.Manager.Reload(ctx, existing.ID)
+		r, startErr := svc.Manager.ReloadWithSource(ctx, existing.ID, runner.StartSourceAlipayLogin)
 		if startErr != nil {
 			return nil, fmt.Errorf("restart Alipay account: %w", startErr)
 		}
@@ -234,7 +235,7 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 		return nil, err
 	}
 	svc.saveLoginProbe(ctx, account.ID, session)
-	r, err := svc.Manager.Start(ctx, account.ID)
+	r, err := svc.Manager.StartWithSource(ctx, account.ID, runner.StartSourceAlipayLogin)
 	if err != nil {
 		return nil, fmt.Errorf("start Alipay account: %w", err)
 	}

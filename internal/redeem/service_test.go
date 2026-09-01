@@ -1,9 +1,122 @@
 package redeem
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/policycfg"
+	"github.com/SilkageNet/mygardenworld/internal/runner"
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
+
+func TestOfflineOnlineOnlyAccountKeepsRedeemAttemptPending(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.RedeemInstanceID(ctx); err != nil {
+		t.Fatal(err)
+	}
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	account, err := db.CreateAccount(ctx, user.ID, "phone-first", "ios", "game", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := automation.DefaultPolicy()
+	policy.Basic.RedeemConnectMode = pb.RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY
+	raw, err := policycfg.ToJSON(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SavePolicyJSON(ctx, account.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := db.UpsertRedeemCode(ctx, store.RedeemCodeInput{
+		Code: "WAIT-ONLINE", Channel: "ios", SourceKey: "test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	manager := runner.NewManager(db, runner.NewBus(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service, err := NewService(ctx, db, manager, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.processNextAttempt(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if manager.Get(account.ID) != nil {
+		t.Fatal("redeem worker created a runner for an offline ONLINE_ONLY account")
+	}
+	records, summary, err := db.ListRedeemAttempts(ctx, store.ListRedeemAttemptsOptions{AccountID: account.ID, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Status != store.RedeemValidationPending || records[0].AttemptCount != 0 || summary.Pending != 1 {
+		t.Fatalf("redeem attempts=%+v summary=%+v, want untouched pending attempt", records, summary)
+	}
+}
+
+func TestEligibleAccountIDsDefaultToAutoConnect(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.RedeemInstanceID(ctx); err != nil {
+		t.Fatal(err)
+	}
+	user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	auto, err := db.CreateAccount(ctx, user.ID, "auto", "ios", "auto", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	onlineOnly, err := db.CreateAccount(ctx, user.ID, "online-only", "ios", "online", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := automation.DefaultPolicy()
+	policy.Basic.RedeemConnectMode = pb.RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY
+	raw, err := policycfg.ToJSON(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SavePolicyJSON(ctx, onlineOnly.ID, raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := db.UpsertRedeemCode(ctx, store.RedeemCodeInput{Code: "ELIGIBLE", Channel: "ios", SourceKey: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.EnsureRedeemAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	manager := runner.NewManager(db, runner.NewBus(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service, err := NewService(ctx, db, manager, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.eligibleAccountIDs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != auto.ID {
+		t.Fatalf("eligible accounts=%v, want default-AUTO account %d only", got, auto.ID)
+	}
+}
 
 func TestValidateSourceEndpoint(t *testing.T) {
 	tests := []struct {

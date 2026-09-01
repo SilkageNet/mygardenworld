@@ -46,6 +46,24 @@ func TestNormalizeDisplacedSessionReloginDefaultsOffAndPreservesChoice(t *testin
 	}
 }
 
+func TestRedeemConnectModeDefaultsToAutoAndPreservesOnlineOnly(t *testing.T) {
+	defaultPolicy, err := FromJSON(`{"schema_version":3,"basic":{}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultPolicy.GetBasic().GetRedeemConnectMode(); got != pb.RedeemConnectMode_REDEEM_CONNECT_MODE_AUTO {
+		t.Fatalf("missing redeem connect mode=%v, want AUTO", got)
+	}
+
+	onlineOnly, err := FromJSON(`{"schema_version":3,"basic":{"redeem_connect_mode":"REDEEM_CONNECT_MODE_ONLINE_ONLY"}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := onlineOnly.GetBasic().GetRedeemConnectMode(); got != pb.RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY {
+		t.Fatalf("explicit redeem connect mode=%v, want ONLINE_ONLY", got)
+	}
+}
+
 func TestNormalizeClearsUnsupportedSDKAdAutomation(t *testing.T) {
 	p := automation.DefaultPolicy()
 	p.Plant.Planting.VideoSpeedUpEnabled = true

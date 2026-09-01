@@ -184,6 +184,7 @@ func DefaultPolicy() *pb.Policy {
 			Reputation:                     &pb.ReputationPolicy{Enabled: true, Threshold: 80},
 			ReconnectIntervalSeconds:       300,
 			DisplacedSessionReloginEnabled: false,
+			RedeemConnectMode:              pb.RedeemConnectMode_REDEEM_CONNECT_MODE_AUTO,
 			Task:                           &pb.BasicTaskPolicy{},
 			Benefit:                        &pb.BenefitPolicy{},
 			Sign:                           &pb.SignPolicy{},

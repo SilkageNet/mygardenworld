@@ -257,8 +257,45 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	if resume {
 		message = "已恢复缓存会话"
 	}
-	r.emit(Event{Kind: "session", Message: fmt.Sprintf("%s (服务器=%s 区=%d)", message, session.GsHost, session.GsIdx)})
+	event := Event{Kind: "session"}
+	if source := r.consumeStartSource(); source != StartSourceUnspecified {
+		payload, _ := json.Marshal(map[string]any{"start_source": source})
+		event.PayloadJSON = string(payload)
+		event.Message = fmt.Sprintf("%s（来源=%s，服务器=%s 区=%d）", message, startSourceLabel(source), session.GsHost, session.GsIdx)
+	} else {
+		event.Message = fmt.Sprintf("%s (服务器=%s 区=%d)", message, session.GsHost, session.GsIdx)
+	}
+	r.emit(event)
 	return client, nil
+}
+
+func (r *Runner) consumeStartSource() StartSource {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	source := r.startSource
+	r.startSource = StartSourceUnspecified
+	return source
+}
+
+func startSourceLabel(source StartSource) string {
+	switch source {
+	case StartSourceDaemonRestore:
+		return "服务启动恢复"
+	case StartSourceAccountCreate:
+		return "新增账号"
+	case StartSourceControlPanel:
+		return "控制面板"
+	case StartSourceAutomationEnable:
+		return "启用自动化"
+	case StartSourceManualOperation:
+		return "手动操作"
+	case StartSourceAlipayLogin:
+		return "支付宝授权"
+	case StartSourceRedeemAutoConnect:
+		return "兑换码自动上线"
+	default:
+		return "未标记"
+	}
 }
 
 func (r *Runner) resetPearlHireSession() {
