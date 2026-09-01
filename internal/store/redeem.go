@@ -402,6 +402,38 @@ WHERE c.validation NOT IN ('expired', 'invalid')
 	return err
 }
 
+// DueRedeemAttemptAccountIDs returns only accounts that currently have work
+// eligible by time and code state. The redeem service evaluates live-session
+// policy for this small set instead of loading every account policy on each
+// worker tick.
+func (d *DB) DueRedeemAttemptAccountIDs(ctx context.Context) ([]int64, error) {
+	now := time.Now().UTC()
+	rows, err := d.QueryContext(ctx, `
+SELECT DISTINCT a.account_id
+FROM redeem_attempts a
+JOIN redeem_codes c ON c.id = a.redeem_code_id
+JOIN accounts ac ON ac.id = a.account_id
+JOIN users u ON u.id = ac.user_id AND u.status = 'active'
+WHERE a.status IN ('pending', 'retryable')
+  AND (a.retry_at IS NULL OR a.retry_at <= ?)
+  AND c.validation NOT IN ('expired', 'invalid')
+  AND (c.expires_at IS NULL OR c.expires_at > ?)
+ORDER BY a.account_id`, now, now)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var accountIDs []int64
+	for rows.Next() {
+		var accountID int64
+		if err := rows.Scan(&accountID); err != nil {
+			return nil, err
+		}
+		accountIDs = append(accountIDs, accountID)
+	}
+	return accountIDs, rows.Err()
+}
+
 func (d *DB) ListRedeemAttempts(ctx context.Context, opts ListRedeemAttemptsOptions) ([]RedeemAttemptRecord, RedeemAttemptSummary, error) {
 	var summary RedeemAttemptSummary
 	tx, err := d.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
@@ -496,13 +528,29 @@ WHERE status = 'sending'`, now, now)
 }
 
 func (d *DB) NextRedeemAttempt(ctx context.Context) (*RedeemAttempt, error) {
+	return d.nextRedeemAttempt(ctx, nil)
+}
+
+// NextRedeemAttemptForAccounts claims the oldest due attempt belonging to one
+// of accountIDs. The redeem worker uses this to keep offline ONLINE_ONLY
+// accounts pending without repeatedly claiming them or creating a game
+// session. An empty account list is intentionally not equivalent to an
+// unrestricted claim.
+func (d *DB) NextRedeemAttemptForAccounts(ctx context.Context, accountIDs []int64) (*RedeemAttempt, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	return d.nextRedeemAttempt(ctx, accountIDs)
+}
+
+func (d *DB) nextRedeemAttempt(ctx context.Context, accountIDs []int64) (*RedeemAttempt, error) {
 	now := time.Now().UTC()
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	row := tx.QueryRowContext(ctx, `
+	query := `
 SELECT a.id, a.redeem_code_id, a.account_id, ac.name, c.channel, c.code,
        c.fingerprint, c.expires_at, a.attempt_count
 FROM redeem_attempts a
@@ -512,8 +560,16 @@ JOIN users u ON u.id = ac.user_id AND u.status = 'active'
 WHERE a.status IN ('pending', 'retryable')
   AND (a.retry_at IS NULL OR a.retry_at <= ?)
   AND c.validation NOT IN ('expired', 'invalid')
-  AND (c.expires_at IS NULL OR c.expires_at > ?)
-ORDER BY a.id ASC LIMIT 1`, now, now)
+  AND (c.expires_at IS NULL OR c.expires_at > ?)`
+	args := []any{now, now}
+	if accountIDs != nil {
+		query += ` AND a.account_id IN (` + strings.TrimSuffix(strings.Repeat("?,", len(accountIDs)), ",") + `)`
+		for _, accountID := range accountIDs {
+			args = append(args, accountID)
+		}
+	}
+	query += ` ORDER BY a.id ASC LIMIT 1`
+	row := tx.QueryRowContext(ctx, query, args...)
 	var item RedeemAttempt
 	var expires sql.NullTime
 	if err := row.Scan(&item.ID, &item.CodeID, &item.AccountID, &item.AccountName, &item.Channel,
@@ -526,19 +582,50 @@ ORDER BY a.id ASC LIMIT 1`, now, now)
 	item.ExpiresAt = nullTimePtr(expires)
 	res, err := tx.ExecContext(ctx, `
 UPDATE redeem_attempts
-SET status = 'running', attempt_count = attempt_count + 1, attempted_at = ?, updated_at = ?
-WHERE id = ? AND status IN ('pending', 'retryable')`, now, now, item.ID)
+SET status = 'running', updated_at = ?
+WHERE id = ? AND status IN ('pending', 'retryable')`, now, item.ID)
 	if err != nil {
 		return nil, err
 	}
 	if count, _ := res.RowsAffected(); count != 1 {
 		return nil, nil
 	}
-	item.AttemptCount++
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return &item, nil
+}
+
+// ReleaseRedeemAttempt returns a claimed attempt to the pending queue without
+// counting a game RPC attempt. It is used when an account changed to
+// ONLINE_ONLY between eligibility selection and processing.
+func (d *DB) ReleaseRedeemAttempt(ctx context.Context, attemptID int64, message string) error {
+	result, err := d.ExecContext(ctx, `
+UPDATE redeem_attempts
+SET status = 'pending', message = ?, retry_at = NULL, updated_at = ?
+WHERE id = ? AND status = 'running'`, strings.TrimSpace(message), time.Now().UTC(), attemptID)
+	if err != nil {
+		return err
+	}
+	if count, _ := result.RowsAffected(); count != 1 {
+		return errors.New("redeem attempt is not running")
+	}
+	return nil
+}
+
+// WakeRedeemAttemptsForAccount makes transport-retryable attempts immediately
+// due after the account establishes a live session. Pending attempts already
+// have no retry deadline and need no update.
+func (d *DB) WakeRedeemAttemptsForAccount(ctx context.Context, accountID int64) (int64, error) {
+	now := time.Now().UTC()
+	result, err := d.ExecContext(ctx, `
+UPDATE redeem_attempts
+SET retry_at = ?, updated_at = ?
+WHERE account_id = ? AND status = 'retryable' AND retry_at > ?`, now, now, accountID, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 func (d *DB) CompleteRedeemAttempt(ctx context.Context, attemptID int64, status, message string, retryAt *time.Time) error {
@@ -556,10 +643,16 @@ func (d *DB) CompleteRedeemAttempt(ctx context.Context, attemptID int64, status,
 	if err := tx.QueryRowContext(ctx, `SELECT redeem_code_id FROM redeem_attempts WHERE id = ?`, attemptID).Scan(&codeID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `
-UPDATE redeem_attempts SET status = ?, message = ?, retry_at = ?, updated_at = ? WHERE id = ?`,
-		status, strings.TrimSpace(message), nullableTime(retryAt), now, attemptID); err != nil {
+	result, err := tx.ExecContext(ctx, `
+UPDATE redeem_attempts
+SET status = ?, message = ?, retry_at = ?, attempt_count = attempt_count + 1,
+    attempted_at = ?, updated_at = ?
+WHERE id = ? AND status = 'running'`, status, strings.TrimSpace(message), nullableTime(retryAt), now, now, attemptID)
+	if err != nil {
 		return err
+	}
+	if count, _ := result.RowsAffected(); count != 1 {
+		return errors.New("redeem attempt is not running")
 	}
 	current, err := getRedeemCodeByID(ctx, tx, codeID)
 	if err != nil {

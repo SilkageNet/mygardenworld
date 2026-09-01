@@ -2,6 +2,15 @@ syntax = "proto3";
 
 package mygardenworld.v1;
 
+// Controls whether the redeem worker may create a game session for an
+// otherwise offline account. An unspecified value is normalized to AUTO so
+// existing and newly created policies preserve the established behavior.
+enum RedeemConnectMode {
+  REDEEM_CONNECT_MODE_UNSPECIFIED = 0;
+  REDEEM_CONNECT_MODE_AUTO = 1;
+  REDEEM_CONNECT_MODE_ONLINE_ONLY = 2;
+}
+
 // Policy is the full automation configuration for one game account. It is
 // stored as one protojson blob and intentionally models the strategy/settings
 // surface, not the account system.
@@ -46,6 +55,11 @@ message BasicPolicy {
   // perform a fresh login after reconnect_interval_seconds. Disabled by
   // default; ordinary session expiry never uses this recovery path.
   bool displaced_session_relogin_enabled = 16;
+
+  // AUTO may start this account to process its pending redeem codes.
+  // ONLINE_ONLY never creates a session; pending codes wait until the account
+  // is already online for another reason.
+  RedeemConnectMode redeem_connect_mode = 17;
 }
 
 message ReputationPolicy {

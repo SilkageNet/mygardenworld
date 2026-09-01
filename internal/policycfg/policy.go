@@ -115,6 +115,12 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Reputation.Threshold <= 0 {
 		cp.Basic.Reputation.Threshold = def.Basic.Reputation.Threshold
 	}
+	switch cp.Basic.GetRedeemConnectMode() {
+	case pb.RedeemConnectMode_REDEEM_CONNECT_MODE_AUTO,
+		pb.RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY:
+	default:
+		cp.Basic.RedeemConnectMode = def.Basic.GetRedeemConnectMode()
+	}
 	switch {
 	case math.IsNaN(cp.Basic.ReconnectIntervalSeconds), math.IsInf(cp.Basic.ReconnectIntervalSeconds, 0), cp.Basic.ReconnectIntervalSeconds <= 0:
 		cp.Basic.ReconnectIntervalSeconds = def.Basic.ReconnectIntervalSeconds

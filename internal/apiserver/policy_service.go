@@ -121,5 +121,11 @@ func (svc *Services) persistPolicy(ctx context.Context, accountID int64, p *pb.P
 	if err != nil {
 		return err
 	}
-	return svc.DB.SavePolicyJSON(ctx, accountID, raw)
+	if err := svc.DB.SavePolicyJSON(ctx, accountID, raw); err != nil {
+		return err
+	}
+	if svc.Redeem != nil {
+		svc.Redeem.NotifyAccountPolicyChanged()
+	}
+	return nil
 }

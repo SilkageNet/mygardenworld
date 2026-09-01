@@ -253,6 +253,9 @@ WHERE account_id = ?`, ownedAccount.ID); err != nil {
 	if err := db.QueryRowContext(ctx, `SELECT id FROM redeem_attempts WHERE account_id = ?`, ownedAccount.ID).Scan(&attemptID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.ExecContext(ctx, `UPDATE redeem_attempts SET status = 'running' WHERE id = ?`, attemptID); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.CompleteRedeemAttempt(ctx, attemptID, store.RedeemValidationInvalid, "无效兑换码", nil); err != nil {
 		t.Fatal(err)
 	}

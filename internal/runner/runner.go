@@ -99,6 +99,7 @@ type Runner struct {
 	stats       *RuntimeStats
 	lastEventAt time.Time
 	bus         *Bus
+	startSource StartSource
 
 	sessionRuntimeState
 	schedulerState
@@ -107,7 +108,7 @@ type Runner struct {
 
 // New constructs a runner. cfg must already be resolved from the account's
 // channel via babigame.ConfigForChannel; the daemon does that in
-// Manager.Start.
+// Manager.StartWithSource.
 func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, log *slog.Logger) *Runner {
 	r := &Runner{
 		cfg:     cfg,

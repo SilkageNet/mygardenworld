@@ -1,7 +1,7 @@
 "use client";
 
 import { BadgeCheck, Building2, Coins, Droplets, Flower2, Gem, HandCoins, ListChecks, Loader2, Package, Play, Save, ShieldCheck, ShoppingBag, Sparkles, Sprout, Trophy } from "lucide-react";
-import { MarketBuyMode, MarketPutMode, SelectionMode, type Policy } from "@/gen/mygardenworld/v1/policy_pb";
+import { MarketBuyMode, MarketPutMode, RedeemConnectMode, SelectionMode, type Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import type { BasicView, FeatureCapability, GardenView, OrdersView, UnionView, WarehouseView } from "@/lib/api/workspace-models";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -328,6 +328,14 @@ export default function PolicyPanel({
                     ? "已启用：明确检测到异地登录或被挤下线后，将等待上述时间再自动登录。主动退出和普通业务失败不会触发。"
                     : "默认关闭。开启后仅在明确检测到异地登录或被挤下线时自动重登；关闭时不会自动登录。"}
                 </p>
+                <ToggleRow
+                  label="兑换码离线自动上线"
+                  checked={(basic?.redeemConnectMode ?? RedeemConnectMode.AUTO) !== RedeemConnectMode.ONLINE_ONLY}
+                  onChange={(checked) => updateBasic({
+                    redeemConnectMode: checked ? RedeemConnectMode.AUTO : RedeemConnectMode.ONLINE_ONLY,
+                  })}
+                  description="默认开启：有待处理兑换码时可建立游戏会话，可能挤下正在使用的游戏客户端。关闭后仅复用本来就在线的账号，兑换码会保留到下次上线。"
+                />
               </div>
             </PolicyGroup>
 

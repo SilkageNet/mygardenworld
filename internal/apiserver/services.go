@@ -106,7 +106,7 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 		acc = updated
 	}
 	resp := &pb.CreateAccountResponse{Account: store.AccountToProto(acc)}
-	if r, err := svc.Manager.Start(ctx, acc.ID); err != nil {
+	if r, err := svc.Manager.StartWithSource(ctx, acc.ID, runner.StartSourceAccountCreate); err != nil {
 		resp.LoginError = formatLoginErr(err)
 	} else {
 		if err := svc.enableAutomation(ctx, acc.ID, r); err != nil {
@@ -170,7 +170,7 @@ func (svc *Services) ConnectAccount(ctx context.Context, req *connect.Request[pb
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	r, err := svc.Manager.Reload(ctx, acc.ID)
+	r, err := svc.Manager.ReloadWithSource(ctx, acc.ID, runner.StartSourceControlPanel)
 	if err != nil {
 		return nil, mapErr(err)
 	}
