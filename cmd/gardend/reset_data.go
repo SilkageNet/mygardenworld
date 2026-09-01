@@ -46,14 +46,10 @@ func newResetDataCmd() *cobra.Command {
 }
 
 func cleanDataDirPath(dataDir string) (string, error) {
-	if strings.TrimSpace(dataDir) == "" {
-		return "", errors.New("--data-dir cannot be empty")
-	}
-	absDataDir, err := filepath.Abs(dataDir)
+	absDataDir, err := resolveDataDirPath(dataDir)
 	if err != nil {
-		return "", fmt.Errorf("resolve data-dir: %w", err)
+		return "", err
 	}
-	absDataDir = filepath.Clean(absDataDir)
 	volumeRoot := filepath.VolumeName(absDataDir) + string(os.PathSeparator)
 	if samePath(absDataDir, volumeRoot) {
 		return "", fmt.Errorf("refusing to reset filesystem root: %s", absDataDir)
@@ -64,6 +60,18 @@ func cleanDataDirPath(dataDir string) (string, error) {
 	if cwd, err := os.Getwd(); err == nil && samePath(absDataDir, cwd) {
 		return "", fmt.Errorf("refusing to reset current working directory: %s", absDataDir)
 	}
+	return absDataDir, nil
+}
+
+func resolveDataDirPath(dataDir string) (string, error) {
+	if strings.TrimSpace(dataDir) == "" {
+		return "", errors.New("--data-dir cannot be empty")
+	}
+	absDataDir, err := filepath.Abs(dataDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve data-dir: %w", err)
+	}
+	absDataDir = filepath.Clean(absDataDir)
 	return absDataDir, nil
 }
 

@@ -36,7 +36,9 @@ gardend serve --listen 127.0.0.1:50051
 
 [查看社区兑换码的数据流与可信闭环](assets/redeem-exchange.svg)。
 
-数据默认保存在系统用户配置目录下的 `mygardenworld/data`。如需重建本地数据：
+数据默认保存在系统用户配置目录下的 `mygardenworld/data`。事件与操作日志默认保留 7 天，可通过 `gardend serve --log-retention-days N` 调整；`0` 表示永久保留，`1` 表示保留 1 天。清理后 SQLite 会复用空闲页，但文件不会自动缩小；如需归还磁盘空间，先停止 `gardend`，再运行 `gardend compact-db --yes`。
+
+如需重建本地数据：
 
 ```sh
 gardend reset-data --yes

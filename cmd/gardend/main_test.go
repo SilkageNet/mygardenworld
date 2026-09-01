@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -220,5 +221,39 @@ func TestRemoveDataDirDeletesDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(dataDir); !os.IsNotExist(err) {
 		t.Fatalf("dataDir still exists or stat failed unexpectedly: %v", err)
+	}
+}
+
+func TestCompactDBCommandRequiresConfirmationAndCompacts(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	db, err := store.Open(ctx, filepath.Join(dataDir, "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var preview bytes.Buffer
+	cmd := newCompactDBCmd()
+	cmd.SetOut(&preview)
+	cmd.SetArgs([]string{"--data-dir", dataDir})
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(preview.String(), "Would compact") || !strings.Contains(preview.String(), "Stop gardend") {
+		t.Fatalf("compact preview=%q", preview.String())
+	}
+
+	var output bytes.Buffer
+	cmd = newCompactDBCmd()
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"--data-dir", dataDir, "--yes"})
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "Compacted SQLite database") {
+		t.Fatalf("compact output=%q", output.String())
 	}
 }

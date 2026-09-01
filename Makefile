@@ -1,4 +1,4 @@
-.PHONY: default help install build reset-data catalog-gen require-secrets backend server api test test-race vet lint proto-gen proto-gen-web proto-check web-deps frontend web web-dev web-build web-lint web-test dev check clean
+.PHONY: default help install build reset-data compact-db catalog-gen require-secrets backend server api test test-race vet lint proto-gen proto-gen-web proto-check web-deps frontend web web-dev web-build web-lint web-test dev check clean
 
 BIN_DIR ?= bin
 DATA_DIR ?= data
@@ -16,6 +16,7 @@ ADMIN_EMAIL ?= admin@localhost
 CORS_ORIGINS ?= http://localhost:3000,http://127.0.0.1:3000
 SERVER_LOG_LEVEL ?= info
 SERVER_LOG_FORMAT ?= text
+LOG_RETENTION_DAYS ?= 7
 
 ifeq ($(OS),Windows_NT)
 	EXE := .exe
@@ -43,6 +44,7 @@ help:
 	@echo "  gardencap            Capture proxy source is available under cmd/gardencap"
 	@echo "  catalog-gen          Refresh client-derived protocol and catalog artifacts from MINI_DIR"
 	@echo "  reset-data           Delete local DATA_DIR via gardend reset-data"
+	@echo "  compact-db           Reclaim unused SQLite space after stopping gardend"
 	@echo "  backend | server     Start gardend API server"
 	@echo "  backend:debug        Start gardend with debug logs and JSONL output"
 	@echo "  test                 Run go tests"
@@ -75,17 +77,20 @@ catalog-gen:
 reset-data:
 	go run ./cmd/gardend reset-data --data-dir "$(DATA_DIR)" --yes
 
+compact-db:
+	go run ./cmd/gardend compact-db --data-dir "$(DATA_DIR)" --yes
+
 require-secrets:
 	@test -n "$(JWT_SECRET)" || (echo "JWT_SECRET is required" && exit 1)
 	@test -n "$(ADMIN_PASSWORD)" || (echo "ADMIN_PASSWORD is required" && exit 1)
 
 backend: require-secrets
-	go run ./cmd/gardend serve --data-dir "$(DATA_DIR)" --listen "$(LISTEN)" --jwt-secret "$(JWT_SECRET)" --admin-username "$(ADMIN_USERNAME)" --admin-password "$(ADMIN_PASSWORD)" --admin-email "$(ADMIN_EMAIL)" --cors-origins "$(CORS_ORIGINS)" --log-level "$(SERVER_LOG_LEVEL)" --log-format "$(SERVER_LOG_FORMAT)"
+	go run ./cmd/gardend serve --data-dir "$(DATA_DIR)" --listen "$(LISTEN)" --jwt-secret "$(JWT_SECRET)" --admin-username "$(ADMIN_USERNAME)" --admin-password "$(ADMIN_PASSWORD)" --admin-email "$(ADMIN_EMAIL)" --cors-origins "$(CORS_ORIGINS)" --log-level "$(SERVER_LOG_LEVEL)" --log-format "$(SERVER_LOG_FORMAT)" --log-retention-days "$(LOG_RETENTION_DAYS)"
 
 server api: backend
 
 backend\:debug: require-secrets
-	go run ./cmd/gardend serve --data-dir "$(DATA_DIR)" --listen "$(LISTEN)" --jwt-secret "$(JWT_SECRET)" --admin-username "$(ADMIN_USERNAME)" --admin-password "$(ADMIN_PASSWORD)" --admin-email "$(ADMIN_EMAIL)" --cors-origins "$(CORS_ORIGINS)" --log-level debug --log-format "$(SERVER_LOG_FORMAT)" --debug-dir "$(DEBUG_DIR)"
+	go run ./cmd/gardend serve --data-dir "$(DATA_DIR)" --listen "$(LISTEN)" --jwt-secret "$(JWT_SECRET)" --admin-username "$(ADMIN_USERNAME)" --admin-password "$(ADMIN_PASSWORD)" --admin-email "$(ADMIN_EMAIL)" --cors-origins "$(CORS_ORIGINS)" --log-level debug --log-format "$(SERVER_LOG_FORMAT)" --debug-dir "$(DEBUG_DIR)" --log-retention-days "$(LOG_RETENTION_DAYS)"
 
 server\:debug api\:debug:
 	$(MAKE) backend:debug
