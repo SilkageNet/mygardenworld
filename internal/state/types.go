@@ -1166,11 +1166,11 @@ type ZooLogExtView struct {
 	IsUserBackObserved bool            `json:"is_user_back_observed,omitempty"`
 }
 
-// ZooLogView is one namespace 33.2.<petId>|<idx> server event log.
+// ZooLogView is one namespace 33.2 server event log. Key is the opaque
+// server-map key used only for sparse merge and deletion; PetID and Index are
+// the authoritative operation identity carried by fields 1 and 2.
 type ZooLogView struct {
 	Key                   string          `json:"key"`
-	MapPetID              int32           `json:"map_pet_id"`
-	MapIndex              int32           `json:"map_index"`
 	Malformed             bool            `json:"malformed,omitempty"`
 	MalformedReason       string          `json:"malformed_reason,omitempty"`
 	UID                   int64           `json:"uid,omitempty"`

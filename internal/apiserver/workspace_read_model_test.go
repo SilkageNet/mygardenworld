@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -554,6 +555,25 @@ func TestBuildPendingTasksUsesZooLogPetAndIndexIDs(t *testing.T) {
 	}
 	if _, exists := statuses["7:2096"]; exists {
 		t.Fatalf("pending task used eventId instead of log idx: %+v", statuses)
+	}
+}
+
+func TestBuildPendingTasksAggregatesZooCollectionFailure(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{"33": map[string]any{"2": map[string]any{
+		"first":  map[string]any{"1": 7, "2": 41, "5": 2096, "7": 1, "13": int64(1500)},
+		"second": map[string]any{"1": 7, "2": 42, "5": 2096, "7": 1, "13": int64(1600)},
+	}}})
+	st.ApplyVMap(map[string]any{"33": map[string]any{"2": []any{"invalid"}}})
+
+	var zooTasks []*pb.PendingTaskView
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "宠物事件" {
+			zooTasks = append(zooTasks, task)
+		}
+	}
+	if len(zooTasks) != 1 || zooTasks[0].GetId() != "sync" || zooTasks[0].GetStatus() != pb.PlanStatus_PLAN_STATUS_BLOCKED || !strings.Contains(zooTasks[0].GetTitle(), "日志集合") {
+		t.Fatalf("zoo collection tasks=%+v", zooTasks)
 	}
 }
 

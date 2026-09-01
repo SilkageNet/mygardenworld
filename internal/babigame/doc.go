@@ -287,8 +287,9 @@
 //	33.1.<petId>      G.IZooPet, including moodValue, satietyValue,
 //	                  foodstuffArr, status, strokeCdTime, statusCdTime,
 //	                  goOutCdTime
-//	33.2.<petId>|<idx> G.IZooLog; idx is the handleEvent tableId and proType
-//	                  distinguishes pending (0) from completed logs
+//	33.2.<opaqueKey>    G.IZooLog; fields pid/idx identify the pet and
+//	                  handleEvent tableId, while proType distinguishes pending
+//	                  (0) from completed logs. The map key is merge identity.
 //	33.4.<tempId>      G.IZooSouvenir: uid, tempId, isRead, uTime, cTime
 //
 // The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and

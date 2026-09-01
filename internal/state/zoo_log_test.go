@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -118,7 +119,8 @@ func TestZooLogUnsafeGatesAreBlocked(t *testing.T) {
 		{name: "missing event type", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "6"), want: []string{"事件类型"}},
 		{name: "event type mismatch", fields: withZooLogField(safeZooLogFields(7, 42, 2096, 2000), "6", 3), want: []string{"事件类型与静态配置不一致"}},
 		{name: "missing cTime", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "13"), want: []string{"创建时间"}},
-		{name: "identity mismatch", fields: withZooLogField(safeZooLogFields(7, 42, 2096, 2000), "2", 99), want: []string{"日志序号不一致"}},
+		{name: "missing pet id", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "1"), want: []string{"宠物 ID"}},
+		{name: "missing log index", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "2"), want: []string{"日志序号"}},
 		{name: "missing gain", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "8"), want: []string{"收益字段未完整观测"}},
 		{name: "missing top consume", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "9"), want: []string{"消耗字段未观测"}},
 		{name: "missing souvenir", fields: withoutZooLogField(safeZooLogFields(7, 42, 2096, 2000), "10"), want: []string{"纪念品字段未完整观测"}},
@@ -174,19 +176,32 @@ func TestZooLogUnsafeGatesAreBlocked(t *testing.T) {
 	}
 }
 
-func TestZooLogStrictKeysAndDecimalStrings(t *testing.T) {
-	t.Run("invalid keys invalidate the observed map", func(t *testing.T) {
+func TestZooLogOpaqueKeysAndDecimalStrings(t *testing.T) {
+	for _, key := range []string{"2147483648|1", "1|2147483648", "7.0|42", "7|42|1", "-7|42", "server-entry"} {
+		t.Run("opaque key "+key, func(t *testing.T) {
+			s := New()
+			applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{
+				key: safeZooLogFields(7, 42, 2096, 2000),
+			}}})
+			log, ok := s.ZooLogs()[key]
+			if !ok || !s.ZooLogsObserved() || log.Key != key || log.PetID != 7 || log.Index != 42 {
+				t.Fatalf("opaque key was not preserved independently from identity: observed=%t log=%+v", s.ZooLogsObserved(), log)
+			}
+			actions := s.ZooEventActions()
+			if len(actions) != 1 || actions[0].PetID != 7 || actions[0].TableID != 42 {
+				t.Fatalf("opaque key actions=%+v", actions)
+			}
+		})
+	}
+
+	t.Run("entry fields are authoritative identity", func(t *testing.T) {
 		s := New()
-		fields := safeZooLogFields(7, 42, 2096, 2000)
 		applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{
-			"2147483648|1": fields,
-			"1|2147483648": fields,
-			"7.0|42":       fields,
-			"7|42|1":       fields,
-			"-7|42":        fields,
+			"7|42": safeZooLogFields(8, 99, 2096, 2000),
 		}}})
-		if s.ZooLogsObserved() || len(s.ZooLogs()) != 0 || len(s.ZooEventActions()) != 0 {
-			t.Fatalf("invalid log keys remained trusted: observed=%t logs=%+v actions=%+v", s.ZooLogsObserved(), s.ZooLogs(), s.ZooEventActions())
+		actions := s.ZooEventActions()
+		if len(actions) != 1 || actions[0].PetID != 8 || actions[0].TableID != 99 {
+			t.Fatalf("entry identity was replaced by transport key: %+v", actions)
 		}
 	})
 
@@ -214,6 +229,55 @@ func TestZooLogStrictKeysAndDecimalStrings(t *testing.T) {
 			t.Fatalf("exact decimal string item map=%+v ok=%t", items, ok)
 		}
 	})
+}
+
+func TestZooLogUnexpectedKeyDoesNotInvalidateExistingCollection(t *testing.T) {
+	s := New()
+	logs := make(map[string]any, 35)
+	for i := int32(0); i < 35; i++ {
+		index := 930 + i
+		logs[fmt.Sprintf("1|%d", index)] = completedZooLogFields(1, index, 2001, int64(1000+i))
+	}
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"1": map[string]any{"1": map[string]any{"1": 1, "19": int64(2000)}},
+		"2": logs,
+	}})
+	applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{
+		"unexpected-server-key": safeZooLogFields(1, 1024, 2096, 3000),
+	}}})
+
+	if !s.ZooLogsObserved() || len(s.ZooLogs()) != 36 {
+		t.Fatalf("unexpected key invalidated collection: observed=%t logs=%d", s.ZooLogsObserved(), len(s.ZooLogs()))
+	}
+	actions := s.ZooEventActions()
+	if len(actions) != 1 || actions[0].PetID != 1 || actions[0].TableID != 1024 || strings.Contains(actions[0].BlockedReason, "键格式") {
+		t.Fatalf("unexpected key fanned out blocked actions: %+v", actions)
+	}
+	if action, ok := s.ZooHandleEventAction(1, 1024); !ok || action.PetID != 1 || action.TableID != 1024 {
+		t.Fatalf("opaque-key preflight lookup action=%+v ok=%t", action, ok)
+	}
+	applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{"unexpected-server-key": nil}}})
+	if !s.ZooLogHandled(1, 1024) {
+		t.Fatal("opaque-key deletion did not satisfy handle postcondition")
+	}
+}
+
+func TestZooLogDuplicateIdentityIsAggregatedAndFailsClosed(t *testing.T) {
+	s := New()
+	applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{
+		"first":  safeZooLogFields(7, 42, 2096, 2000),
+		"second": safeZooLogFields(7, 42, 2096, 2001),
+	}}})
+	actions := s.ZooEventActions()
+	if len(actions) != 1 || !actions[0].Blocked || !strings.Contains(actions[0].BlockedReason, "身份重复") {
+		t.Fatalf("duplicate identity actions=%+v", actions)
+	}
+	if action, ok := s.ZooHandleEventAction(7, 42); !ok || !action.Blocked || !strings.Contains(action.BlockedReason, "身份重复") {
+		t.Fatalf("duplicate identity preflight action=%+v ok=%t", action, ok)
+	}
+	if s.ZooLogHandled(7, 42) || s.ZooLogRead(7, 42, 2000) {
+		t.Fatal("duplicate identity satisfied an operation postcondition")
+	}
 }
 
 func TestZooLogExistingEntryBecomingMalformedFailsClosed(t *testing.T) {
@@ -258,7 +322,7 @@ func TestZooLogExistingEntryBecomingMalformedFailsClosed(t *testing.T) {
 	}
 }
 
-func TestZooLogWholeMapMalformedInvalidatesOldEntries(t *testing.T) {
+func TestZooLogWholeMapMalformedProducesOneCollectionDiagnostic(t *testing.T) {
 	for name, malformed := range map[string]any{
 		"array":  []any{},
 		"string": "bad",
@@ -275,11 +339,11 @@ func TestZooLogWholeMapMalformedInvalidatesOldEntries(t *testing.T) {
 				t.Fatal("malformed whole map remained observed")
 			}
 			log := s.ZooLogs()["7|42"]
-			if !log.Malformed || !strings.Contains(log.MalformedReason, "失去可信度") {
-				t.Fatalf("old entry not invalidated: %+v", log)
+			if log.Malformed {
+				t.Fatalf("collection failure was copied onto an entry: %+v", log)
 			}
 			actions := s.ZooEventActions()
-			if len(actions) != 1 || !actions[0].Blocked || !strings.Contains(actions[0].BlockedReason, "失去可信度") {
+			if len(actions) != 1 || !actions[0].Blocked || actions[0].Action != "sync_logs" || !strings.Contains(actions[0].BlockedReason, "失去可信度") {
 				t.Fatalf("whole-map malformed actions=%+v", actions)
 			}
 			if action, ok := s.ZooHandleEventAction(7, 42); !ok || !action.Blocked {

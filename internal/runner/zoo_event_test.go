@@ -71,7 +71,7 @@ func TestExecuteZooHandleEventAcceptsExplicitLogRemoval(t *testing.T) {
 	exec := zooHandleEventExecution{
 		preflight: func() error { return nil },
 		handle: func(context.Context, clientproto.ZooHandleEventRequest) (json.RawMessage, error) {
-			return json.RawMessage(`{"33":{"2":{"7|42":null}}}`), nil
+			return json.RawMessage(`{"33":{"2":{"server-entry":null}}}`), nil
 		},
 		read: func(context.Context, clientproto.ZooReadLogRequest) (json.RawMessage, error) {
 			return json.RawMessage(`{"33":{"1":{"7":{"19":2100}}}}`), nil
@@ -82,7 +82,7 @@ func TestExecuteZooHandleEventAcceptsExplicitLogRemoval(t *testing.T) {
 	if _, err := executeZooHandleEvent(context.Background(), req, exec); err != nil {
 		t.Fatalf("executeZooHandleEvent removal: %v", err)
 	}
-	if _, exists := st.ZooLogs()["7|42"]; exists {
+	if _, exists := st.ZooLogs()["server-entry"]; exists {
 		t.Fatal("removed log still present")
 	}
 }
@@ -270,7 +270,7 @@ func TestExecuteZooReadLogAppliesOnceAndRequiresStateChange(t *testing.T) {
 func newObservedType2ZooRunnerState() *state.State {
 	st := state.New()
 	st.ApplyVMap(map[string]any{"33": map[string]any{"2": map[string]any{
-		"7|42": map[string]any{
+		"server-entry": map[string]any{
 			"1": 7, "2": 42, "5": 2096, "6": 2, "7": 0,
 			"8": map[string]any{}, "9": map[string]any{}, "10": map[string]any{}, "11": map[string]any{}, "13": int64(2000),
 		},
