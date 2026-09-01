@@ -30,24 +30,25 @@ import (
 
 func newServeCmd() *cobra.Command {
 	var (
-		dataDir       string
-		listenAddr    string
-		logFormat     string
-		logLevel      string
-		jwtSecret     string
-		adminUsername string
-		adminPassword string
-		adminEmail    string
-		corsOrigins   string
-		debugDir      string
-		authWindow    time.Duration
-		authLockout   time.Duration
-		authUserFails int
-		authIPFails   int
-		maxReqBytes   int
-		insecureCORS  bool
-		insecureDebug bool
-		webEnabled    bool
+		dataDir          string
+		listenAddr       string
+		logFormat        string
+		logLevel         string
+		jwtSecret        string
+		adminUsername    string
+		adminPassword    string
+		adminEmail       string
+		corsOrigins      string
+		debugDir         string
+		authWindow       time.Duration
+		authLockout      time.Duration
+		authUserFails    int
+		authIPFails      int
+		maxReqBytes      int
+		insecureCORS     bool
+		insecureDebug    bool
+		webEnabled       bool
+		logRetentionDays int
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -63,24 +64,25 @@ func newServeCmd() *cobra.Command {
 				adminPassword = os.Getenv("ADMIN_PASSWORD")
 			}
 			return runServe(cmd.Context(), serveOpts{
-				DataDir:       dataDir,
-				ListenAddr:    listenAddr,
-				LogFormat:     logFormat,
-				LogLevel:      logLevel,
-				JWTSecret:     jwtSecret,
-				AdminUsername: adminUsername,
-				AdminPassword: adminPassword,
-				AdminEmail:    adminEmail,
-				CORSOrigins:   corsOrigins,
-				DebugDir:      debugDir,
-				AuthWindow:    authWindow,
-				AuthLockout:   authLockout,
-				AuthUserFails: authUserFails,
-				AuthIPFails:   authIPFails,
-				MaxReqBytes:   maxReqBytes,
-				InsecureCORS:  insecureCORS,
-				InsecureDebug: insecureDebug,
-				WebEnabled:    webEnabled,
+				DataDir:          dataDir,
+				ListenAddr:       listenAddr,
+				LogFormat:        logFormat,
+				LogLevel:         logLevel,
+				JWTSecret:        jwtSecret,
+				AdminUsername:    adminUsername,
+				AdminPassword:    adminPassword,
+				AdminEmail:       adminEmail,
+				CORSOrigins:      corsOrigins,
+				DebugDir:         debugDir,
+				AuthWindow:       authWindow,
+				AuthLockout:      authLockout,
+				AuthUserFails:    authUserFails,
+				AuthIPFails:      authIPFails,
+				MaxReqBytes:      maxReqBytes,
+				InsecureCORS:     insecureCORS,
+				InsecureDebug:    insecureDebug,
+				WebEnabled:       webEnabled,
+				LogRetentionDays: logRetentionDays,
 			})
 		},
 	}
@@ -102,28 +104,30 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&insecureCORS, "allow-insecure-cors", false, "allow --cors-origins '*'")
 	cmd.Flags().BoolVar(&insecureDebug, "allow-insecure-debug", false, "allow --debug-dir while listening on a non-loopback address")
 	cmd.Flags().BoolVar(&webEnabled, "web", true, "serve the embedded web console")
+	cmd.Flags().IntVar(&logRetentionDays, "log-retention-days", defaultLogRetentionDays, "days to retain event and operation logs (0=keep forever)")
 	return cmd
 }
 
 type serveOpts struct {
-	DataDir       string
-	ListenAddr    string
-	LogFormat     string
-	LogLevel      string
-	JWTSecret     string
-	AdminUsername string
-	AdminPassword string
-	AdminEmail    string
-	CORSOrigins   string
-	DebugDir      string
-	AuthWindow    time.Duration
-	AuthLockout   time.Duration
-	AuthUserFails int
-	AuthIPFails   int
-	MaxReqBytes   int
-	InsecureCORS  bool
-	InsecureDebug bool
-	WebEnabled    bool
+	DataDir          string
+	ListenAddr       string
+	LogFormat        string
+	LogLevel         string
+	JWTSecret        string
+	AdminUsername    string
+	AdminPassword    string
+	AdminEmail       string
+	CORSOrigins      string
+	DebugDir         string
+	AuthWindow       time.Duration
+	AuthLockout      time.Duration
+	AuthUserFails    int
+	AuthIPFails      int
+	MaxReqBytes      int
+	InsecureCORS     bool
+	InsecureDebug    bool
+	WebEnabled       bool
+	LogRetentionDays int
 }
 
 func generateRandomSecret(n int) string {
@@ -134,6 +138,10 @@ func generateRandomSecret(n int) string {
 
 func runServe(ctx context.Context, opts serveOpts) error {
 	log := buildLogger(opts.LogFormat, opts.LogLevel)
+	logRetention, err := logRetentionDuration(opts.LogRetentionDays)
+	if err != nil {
+		return err
+	}
 	originPolicy, err := newOriginPolicy(opts.CORSOrigins, opts.InsecureCORS)
 	if err != nil {
 		return err
@@ -160,7 +168,7 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	maintenanceDone := make(chan struct{})
 	go func() {
 		defer close(maintenanceDone)
-		runLogCleanupLoop(maintenanceCtx, db, log)
+		runLogCleanupLoop(maintenanceCtx, db, log, logRetention)
 	}()
 	defer func() {
 		cancelMaintenance()

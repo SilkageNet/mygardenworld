@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -555,6 +556,23 @@ func TestBuildPendingTasksUsesZooLogPetAndIndexIDs(t *testing.T) {
 	}
 	if _, exists := statuses["7:2096"]; exists {
 		t.Fatalf("pending task used eventId instead of log idx: %+v", statuses)
+	}
+}
+
+func TestBuildPendingTasksExcludesZooVisitHistory(t *testing.T) {
+	st := state.New()
+	logs := make(map[string]any, 92)
+	for index := int32(1); index <= 92; index++ {
+		logs[fmt.Sprintf("0:%d", index)] = map[string]any{
+			"2": index, "5": 2096, "6": 9, "7": 0, "13": int64(1000 + index),
+		}
+	}
+	st.ApplyVMap(map[string]any{"33": map[string]any{"2": logs}})
+
+	for _, task := range buildPendingTasks(st) {
+		if task.GetCategory() == "宠物事件" {
+			t.Fatalf("visit history leaked into pending tasks: %+v", task)
+		}
 	}
 }
 

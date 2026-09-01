@@ -290,6 +290,8 @@
 //	33.2.<opaqueKey>    G.IZooLog; fields pid/idx identify the pet and
 //	                  handleEvent tableId, while proType distinguishes pending
 //	                  (0) from completed logs. The map key is merge identity.
+//	                  eventType 9 is visit history, may omit pid, and is never
+//	                  a handleEvent/readLog automation candidate.
 //	33.4.<tempId>      G.IZooSouvenir: uid, tempId, isRead, uTime, cTime
 //
 // The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and

@@ -2,6 +2,7 @@ package automation
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -2555,6 +2556,31 @@ func TestBuildPlan_ZooObservedType2LogsBlockedAndOneReadPerTick(t *testing.T) {
 	}
 	if read.ItemID == 2001 {
 		t.Fatalf("read operation used event ID instead of log index: %+v", read)
+	}
+}
+
+func TestBuildPlan_ZooVisitHistoryDoesNotCreateOperations(t *testing.T) {
+	s := state.New()
+	logs := make(map[string]any, 92)
+	for index := int32(1); index <= 92; index++ {
+		logs[fmt.Sprintf("0:%d", index)] = map[string]any{
+			"2": index, "5": 2096, "6": 9, "7": 0, "13": int64(1000 + index),
+		}
+	}
+	applyMap(t, s, map[string]any{"33": map[string]any{
+		"0": map[string]any{"0": 1},
+		"2": logs,
+	}})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoEventEnabled = true
+
+	result := BuildPlan(s, p, time.Now())
+	for _, op := range result.Operations {
+		if op.Domain == "basic.zoo.event" {
+			t.Fatalf("visit history created automation operation: %+v", op)
+		}
 	}
 }
 

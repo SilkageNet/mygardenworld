@@ -5,6 +5,7 @@
 //
 //	gardend serve   --data-dir <dir> --listen <addr> --jwt-secret <secret>
 //	gardend reset-data --data-dir <dir> --yes
+//	gardend compact-db --data-dir <dir> --yes
 //	gardend version
 package main
 
@@ -23,7 +24,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	rootCmd.AddCommand(newServeCmd(), newResetDataCmd(), newVersionCmd(), updatecmd.New("gardend"))
+	rootCmd.AddCommand(newServeCmd(), newResetDataCmd(), newCompactDBCmd(), newVersionCmd(), updatecmd.New("gardend"))
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

@@ -71,6 +71,47 @@ func TestZooObservedType2LogIsBlockedAndUsesLogIndexAsTableID(t *testing.T) {
 	}
 }
 
+func TestZooVisitHistoryIsPreservedButExcludedFromAutomation(t *testing.T) {
+	s := New()
+	logs := make(map[string]any, 93)
+	for index := int32(1); index <= 92; index++ {
+		fields := safeZooLogFields(0, index, 2096, int64(1000+index))
+		delete(fields, "1")
+		fields["6"] = zooVisitEventType
+		logs[fmt.Sprintf("0:%d", index)] = fields
+	}
+	// A non-visit entry missing pid must continue to fail closed; only the
+	// client-defined visit-history class is excluded.
+	normal := safeZooLogFields(0, 93, 2096, 2000)
+	delete(normal, "1")
+	logs["normal-missing-pid"] = normal
+	applyMap(t, s, map[string]any{"33": map[string]any{"2": logs}})
+
+	if got := len(s.ZooLogs()); got != 93 {
+		t.Fatalf("ZooLogs len=%d, want all 93 raw observations preserved", got)
+	}
+	actions := s.ZooEventActions()
+	if len(actions) != 1 || !actions[0].Blocked || actions[0].TableID != 93 || !strings.Contains(actions[0].BlockedReason, "宠物 ID") {
+		t.Fatalf("ZooEventActions=%+v, want only normal missing-pid diagnostic", actions)
+	}
+
+	for _, actionName := range []string{"handle", "read"} {
+		var action ZooEventAction
+		var ok bool
+		if actionName == "handle" {
+			action, ok = s.ZooHandleEventAction(0, 42)
+		} else {
+			action, ok = s.ZooReadLogAction(0, 42)
+		}
+		if !ok || !action.Blocked || !strings.Contains(action.BlockedReason, "访客历史") {
+			t.Fatalf("%s visit preflight action=%+v ok=%t", actionName, action, ok)
+		}
+	}
+	if s.ZooLogHandled(0, 42) || s.ZooLogRead(0, 42, 1042) {
+		t.Fatal("visit history satisfied an automation postcondition")
+	}
+}
+
 func TestZooLogSparseMergeExtReplacementAndNullDeletion(t *testing.T) {
 	s := New()
 	applyMap(t, s, map[string]any{"33": map[string]any{"2": map[string]any{

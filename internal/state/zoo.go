@@ -1124,6 +1124,8 @@ func (s *State) ReadyZooStrokePetIDs(now time.Time) []int32 {
 
 // ZooEventActions derives conservative actions exclusively from namespace
 // 33.2 server logs. Completed unread logs are coalesced to one read per pet.
+// Visit-history entries (eventType 9) are display-only in the observed client
+// and are deliberately excluded from the automation surface.
 func (s *State) ZooEventActions() []ZooEventAction {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1141,7 +1143,7 @@ func (s *State) ZooEventActions() []ZooEventAction {
 	readByPet := make(map[int32]ZooEventAction)
 	identityCounts := make(map[[2]int32]int)
 	for _, log := range s.zooLogs {
-		if log == nil {
+		if log == nil || isZooVisitLog(*log) {
 			continue
 		}
 		if petID, reason := validatedZooLogIdentity(*log); reason == "" {
@@ -1151,6 +1153,9 @@ func (s *State) ZooEventActions() []ZooEventAction {
 	duplicateReported := make(map[[2]int32]bool)
 	for _, log := range s.zooLogs {
 		if log == nil {
+			continue
+		}
+		if isZooVisitLog(*log) {
 			continue
 		}
 		if petID, reason := validatedZooLogIdentity(*log); reason == "" && identityCounts[[2]int32{petID, log.Index}] > 1 {
@@ -1240,6 +1245,9 @@ func (s *State) ZooHandleEventAction(petID, index int32) (ZooEventAction, bool) 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if log == nil {
+		log, matches = s.zooVisitLogByIndexLocked(index)
+	}
 	if !s.zooLogsObserved {
 		if log == nil {
 			log = &ZooLogView{PetID: petID, PetIDObserved: true, Index: index, IndexObserved: true}
@@ -1248,6 +1256,9 @@ func (s *State) ZooHandleEventAction(petID, index int32) (ZooEventAction, bool) 
 	}
 	if log == nil {
 		return ZooEventAction{}, false
+	}
+	if isZooVisitLog(*log) {
+		return blockedZooLogAction(*log, "handle_event", "拜访日志仅用于访客历史，不执行宠物事件操作"), true
 	}
 	if matches > 1 {
 		return blockedZooLogAction(*log, "handle_event", "宠物日志身份重复，拒绝自动处理"), true
@@ -1274,7 +1285,13 @@ func (s *State) ZooLogHandled(petID, index int32) bool {
 		return false
 	}
 	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if log == nil {
+		log, matches = s.zooVisitLogByIndexLocked(index)
+	}
 	if matches > 1 {
+		return false
+	}
+	if log != nil && isZooVisitLog(*log) {
 		return false
 	}
 	return log == nil || !log.Malformed && log.ProTypeObserved && log.ProType != 0
@@ -1286,6 +1303,9 @@ func (s *State) ZooReadLogAction(petID, index int32) (ZooEventAction, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if log == nil {
+		log, matches = s.zooVisitLogByIndexLocked(index)
+	}
 	if !s.zooLogsObserved {
 		if log == nil {
 			log = &ZooLogView{PetID: petID, PetIDObserved: true, Index: index, IndexObserved: true}
@@ -1300,6 +1320,9 @@ func (s *State) ZooReadLogAction(petID, index int32) (ZooEventAction, bool) {
 	}
 	if matches > 1 {
 		return blocked("宠物日志身份重复，拒绝自动处理")
+	}
+	if isZooVisitLog(*log) {
+		return blocked("拜访日志仅用于访客历史，不执行宠物日志操作")
 	}
 	if log.Malformed {
 		reason := log.MalformedReason
@@ -1346,11 +1369,17 @@ func (s *State) ZooLogRead(petID, index int32, capturedCreatedAtMs int64) bool {
 		return false
 	}
 	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if log == nil {
+		log, matches = s.zooVisitLogByIndexLocked(index)
+	}
 	if matches > 1 {
 		return false
 	}
 	if log == nil {
 		return true
+	}
+	if isZooVisitLog(*log) {
+		return false
 	}
 	if log.Malformed {
 		return false
@@ -1460,6 +1489,12 @@ func validatedZooLogIdentity(log ZooLogView) (int32, string) {
 	return log.PetID, ""
 }
 
+const zooVisitEventType int32 = 9
+
+func isZooVisitLog(log ZooLogView) bool {
+	return !log.Malformed && log.EventTypeObserved && log.EventType == zooVisitEventType
+}
+
 func blockedZooLogAction(log ZooLogView, action, reason string) ZooEventAction {
 	return ZooEventAction{
 		PetID:         log.PetID,
@@ -1478,6 +1513,21 @@ func (s *State) zooLogByIdentityLocked(petID, index int32) (*ZooLogView, int) {
 	matches := 0
 	for _, log := range s.zooLogs {
 		if log == nil || !log.PetIDObserved || !log.IndexObserved || log.PetID != petID || log.Index != index {
+			continue
+		}
+		matches++
+		if found == nil {
+			found = log
+		}
+	}
+	return found, matches
+}
+
+func (s *State) zooVisitLogByIndexLocked(index int32) (*ZooLogView, int) {
+	var found *ZooLogView
+	matches := 0
+	for _, log := range s.zooLogs {
+		if log == nil || !log.IndexObserved || log.Index != index || !isZooVisitLog(*log) {
 			continue
 		}
 		matches++
