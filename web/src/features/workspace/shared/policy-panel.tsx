@@ -330,7 +330,7 @@ export default function PolicyPanel({
                 </p>
                 <ToggleRow
                   label="兑换码离线自动上线"
-                  checked={(basic?.redeemConnectMode ?? RedeemConnectMode.AUTO) === RedeemConnectMode.AUTO}
+                  checked={(basic?.redeemConnectMode ?? RedeemConnectMode.AUTO) !== RedeemConnectMode.ONLINE_ONLY}
                   onChange={(checked) => updateBasic({
                     redeemConnectMode: checked ? RedeemConnectMode.AUTO : RedeemConnectMode.ONLINE_ONLY,
                   })}

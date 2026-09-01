@@ -3,11 +3,12 @@ syntax = "proto3";
 package mygardenworld.v1;
 
 // Controls whether the redeem worker may create a game session for an
-// otherwise offline account. AUTO is the zero value so existing and newly
-// created policies preserve the established automatic behavior.
+// otherwise offline account. An unspecified value is normalized to AUTO so
+// existing and newly created policies preserve the established behavior.
 enum RedeemConnectMode {
-  REDEEM_CONNECT_MODE_AUTO = 0;
-  REDEEM_CONNECT_MODE_ONLINE_ONLY = 1;
+  REDEEM_CONNECT_MODE_UNSPECIFIED = 0;
+  REDEEM_CONNECT_MODE_AUTO = 1;
+  REDEEM_CONNECT_MODE_ONLINE_ONLY = 2;
 }
 
 // Policy is the full automation configuration for one game account. It is

@@ -22,24 +22,27 @@ const (
 )
 
 // Controls whether the redeem worker may create a game session for an
-// otherwise offline account. AUTO is the zero value so existing and newly
-// created policies preserve the established automatic behavior.
+// otherwise offline account. An unspecified value is normalized to AUTO so
+// existing and newly created policies preserve the established behavior.
 type RedeemConnectMode int32
 
 const (
-	RedeemConnectMode_REDEEM_CONNECT_MODE_AUTO        RedeemConnectMode = 0
-	RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY RedeemConnectMode = 1
+	RedeemConnectMode_REDEEM_CONNECT_MODE_UNSPECIFIED RedeemConnectMode = 0
+	RedeemConnectMode_REDEEM_CONNECT_MODE_AUTO        RedeemConnectMode = 1
+	RedeemConnectMode_REDEEM_CONNECT_MODE_ONLINE_ONLY RedeemConnectMode = 2
 )
 
 // Enum value maps for RedeemConnectMode.
 var (
 	RedeemConnectMode_name = map[int32]string{
-		0: "REDEEM_CONNECT_MODE_AUTO",
-		1: "REDEEM_CONNECT_MODE_ONLINE_ONLY",
+		0: "REDEEM_CONNECT_MODE_UNSPECIFIED",
+		1: "REDEEM_CONNECT_MODE_AUTO",
+		2: "REDEEM_CONNECT_MODE_ONLINE_ONLY",
 	}
 	RedeemConnectMode_value = map[string]int32{
-		"REDEEM_CONNECT_MODE_AUTO":        0,
-		"REDEEM_CONNECT_MODE_ONLINE_ONLY": 1,
+		"REDEEM_CONNECT_MODE_UNSPECIFIED": 0,
+		"REDEEM_CONNECT_MODE_AUTO":        1,
+		"REDEEM_CONNECT_MODE_ONLINE_ONLY": 2,
 	}
 )
 
@@ -509,7 +512,7 @@ func (x *BasicPolicy) GetRedeemConnectMode() RedeemConnectMode {
 	if x != nil {
 		return x.RedeemConnectMode
 	}
-	return RedeemConnectMode_REDEEM_CONNECT_MODE_AUTO
+	return RedeemConnectMode_REDEEM_CONNECT_MODE_UNSPECIFIED
 }
 
 type ReputationPolicy struct {
@@ -3378,10 +3381,11 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x127\n" +
 	"\x18auto_claim_order_rewards\x18\x02 \x01(\bR\x15autoClaimOrderRewards\x129\n" +
 	"\x19auto_claim_progress_boxes\x18\x03 \x01(\bR\x16autoClaimProgressBoxes\x12\x1b\n" +
-	"\tmax_score\x18\x04 \x01(\x03R\bmaxScore*V\n" +
-	"\x11RedeemConnectMode\x12\x1c\n" +
-	"\x18REDEEM_CONNECT_MODE_AUTO\x10\x00\x12#\n" +
-	"\x1fREDEEM_CONNECT_MODE_ONLINE_ONLY\x10\x01*\x9c\x01\n" +
+	"\tmax_score\x18\x04 \x01(\x03R\bmaxScore*{\n" +
+	"\x11RedeemConnectMode\x12#\n" +
+	"\x1fREDEEM_CONNECT_MODE_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18REDEEM_CONNECT_MODE_AUTO\x10\x01\x12#\n" +
+	"\x1fREDEEM_CONNECT_MODE_ONLINE_ONLY\x10\x02*\x9c\x01\n" +
 	"\rSelectionMode\x12\x1e\n" +
 	"\x1aSELECTION_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12SELECTION_MODE_ALL\x10\x01\x12\x1a\n" +
