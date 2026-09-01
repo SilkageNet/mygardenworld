@@ -312,28 +312,16 @@ func (s *State) applyZooLogMapLocked(raw json.RawMessage) {
 		return
 	}
 	s.zooLogsObserved = true
+	s.zooLogsInvalidReason = ""
 	if s.zooLogs == nil {
 		s.zooLogs = make(map[string]*ZooLogView)
 	}
 	for key, rawLog := range logMap {
-		if len(rawLog) == 0 || string(rawLog) == "null" {
+		if bytes.Equal(bytes.TrimSpace(rawLog), []byte("null")) {
 			delete(s.zooLogs, key)
 			continue
 		}
-		mapPetID, mapIndex, ok := parseZooLogKey(key)
-		if !ok {
-			s.invalidateZooLogsLocked("宠物日志键格式无效，日志集合已失去可信度")
-			return
-		}
-		base := ZooLogView{
-			Key:           key,
-			MapPetID:      mapPetID,
-			MapIndex:      mapIndex,
-			PetID:         mapPetID,
-			PetIDObserved: true,
-			Index:         mapIndex,
-			IndexObserved: true,
-		}
+		base := ZooLogView{Key: key}
 		if old := s.zooLogs[key]; old != nil && !old.Malformed {
 			base = cloneZooLogView(*old)
 		}
@@ -455,24 +443,7 @@ func isZooLogJSONObject(raw json.RawMessage) bool {
 
 func (s *State) invalidateZooLogsLocked(reason string) {
 	s.zooLogsObserved = false
-	for _, log := range s.zooLogs {
-		if log == nil {
-			continue
-		}
-		log.Malformed = true
-		log.MalformedReason = reason
-	}
-}
-
-func parseZooLogKey(key string) (int32, int32, bool) {
-	petRaw, indexRaw, ok := strings.Cut(key, "|")
-	if !ok || strings.Contains(indexRaw, "|") {
-		return 0, 0, false
-	}
-	petValue, petErr := strconv.ParseInt(petRaw, 10, 32)
-	indexValue, indexErr := strconv.ParseInt(indexRaw, 10, 32)
-	petID, index := int32(petValue), int32(indexValue)
-	return petID, index, petErr == nil && indexErr == nil && petID > 0 && index > 0
+	s.zooLogsInvalidReason = reason
 }
 
 func parseZooLogView(raw json.RawMessage, base ZooLogView) (ZooLogView, bool) {
@@ -773,6 +744,14 @@ func (s *State) ZooLogsObserved() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.zooLogsObserved
+}
+
+// ZooLogsUnavailableReason describes an observed collection-level parse
+// failure. An empty result means namespace 33.2 has simply not been observed.
+func (s *State) ZooLogsUnavailableReason() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.zooLogsInvalidReason
 }
 
 // ZooSouvenirs returns a defensive copy of namespace 33.4.
@@ -1149,13 +1128,44 @@ func (s *State) ZooEventActions() []ZooEventAction {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	if !s.zooLogsObserved && s.zooLogsInvalidReason != "" {
+		return []ZooEventAction{{
+			Name:          "宠物日志同步异常",
+			Action:        "sync_logs",
+			Blocked:       true,
+			BlockedReason: s.zooLogsUnavailableReasonLocked(),
+		}}
+	}
+
 	var actions []ZooEventAction
 	readByPet := make(map[int32]ZooEventAction)
+	identityCounts := make(map[[2]int32]int)
 	for _, log := range s.zooLogs {
 		if log == nil {
 			continue
 		}
-		if !s.zooLogsObserved || log.Malformed {
+		if petID, reason := validatedZooLogIdentity(*log); reason == "" {
+			identityCounts[[2]int32{petID, log.Index}]++
+		}
+	}
+	duplicateReported := make(map[[2]int32]bool)
+	for _, log := range s.zooLogs {
+		if log == nil {
+			continue
+		}
+		if petID, reason := validatedZooLogIdentity(*log); reason == "" && identityCounts[[2]int32{petID, log.Index}] > 1 {
+			identity := [2]int32{petID, log.Index}
+			if !duplicateReported[identity] {
+				action := "handle_event"
+				if log.ProTypeObserved && log.ProType != 0 {
+					action = "read_log"
+				}
+				actions = append(actions, blockedZooLogAction(*log, action, "宠物日志身份重复，拒绝自动处理"))
+				duplicateReported[identity] = true
+			}
+			continue
+		}
+		if log.Malformed {
 			reason := log.MalformedReason
 			if reason == "" {
 				reason = "宠物日志状态不可信，拒绝自动处理"
@@ -1196,7 +1206,7 @@ func (s *State) ZooEventActions() []ZooEventAction {
 		action := ZooEventAction{
 			PetID:       petID,
 			EventID:     log.GoOutEventID,
-			TableID:     log.MapIndex,
+			TableID:     log.Index,
 			CreatedAtMs: log.CreatedAtMs,
 			Name:        zooEventName(log.GoOutEventID),
 			Action:      "read_log",
@@ -1229,12 +1239,20 @@ func (s *State) ZooEventActions() []ZooEventAction {
 func (s *State) ZooHandleEventAction(petID, index int32) (ZooEventAction, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	key := itoaState(int(petID)) + "|" + itoaState(int(index))
-	log := s.zooLogs[key]
+	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if !s.zooLogsObserved {
+		if log == nil {
+			log = &ZooLogView{PetID: petID, PetIDObserved: true, Index: index, IndexObserved: true}
+		}
+		return blockedZooLogAction(*log, "handle_event", s.zooLogsUnavailableReasonLocked()), true
+	}
 	if log == nil {
 		return ZooEventAction{}, false
 	}
-	if !s.zooLogsObserved || log.Malformed {
+	if matches > 1 {
+		return blockedZooLogAction(*log, "handle_event", "宠物日志身份重复，拒绝自动处理"), true
+	}
+	if log.Malformed {
 		reason := log.MalformedReason
 		if reason == "" {
 			reason = "宠物日志状态不可信"
@@ -1252,9 +1270,11 @@ func (s *State) ZooHandleEventAction(petID, index int32) (ZooEventAction, bool) 
 func (s *State) ZooLogHandled(petID, index int32) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	key := itoaState(int(petID)) + "|" + itoaState(int(index))
-	log := s.zooLogs[key]
 	if !s.zooLogsObserved {
+		return false
+	}
+	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if matches > 1 {
 		return false
 	}
 	return log == nil || !log.Malformed && log.ProTypeObserved && log.ProType != 0
@@ -1265,15 +1285,23 @@ func (s *State) ZooLogHandled(petID, index int32) bool {
 func (s *State) ZooReadLogAction(petID, index int32) (ZooEventAction, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	key := itoaState(int(petID)) + "|" + itoaState(int(index))
-	log := s.zooLogs[key]
+	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if !s.zooLogsObserved {
+		if log == nil {
+			log = &ZooLogView{PetID: petID, PetIDObserved: true, Index: index, IndexObserved: true}
+		}
+		return blockedZooLogAction(*log, "read_log", s.zooLogsUnavailableReasonLocked()), true
+	}
 	if log == nil {
 		return ZooEventAction{}, false
 	}
 	blocked := func(reason string) (ZooEventAction, bool) {
 		return blockedZooLogAction(*log, "read_log", reason), true
 	}
-	if !s.zooLogsObserved || log.Malformed {
+	if matches > 1 {
+		return blocked("宠物日志身份重复，拒绝自动处理")
+	}
+	if log.Malformed {
 		reason := log.MalformedReason
 		if reason == "" {
 			reason = "宠物日志状态不可信"
@@ -1314,11 +1342,13 @@ func (s *State) ZooReadLogAction(petID, index int32) (ZooEventAction, bool) {
 func (s *State) ZooLogRead(petID, index int32, capturedCreatedAtMs int64) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	key := itoaState(int(petID)) + "|" + itoaState(int(index))
 	if !s.zooLogsObserved {
 		return false
 	}
-	log := s.zooLogs[key]
+	log, matches := s.zooLogByIdentityLocked(petID, index)
+	if matches > 1 {
+		return false
+	}
 	if log == nil {
 		return true
 	}
@@ -1331,9 +1361,9 @@ func (s *State) ZooLogRead(petID, index int32, capturedCreatedAtMs int64) bool {
 
 func zooActiveLogAction(log ZooLogView) ZooEventAction {
 	action := ZooEventAction{
-		PetID:       log.MapPetID,
+		PetID:       log.PetID,
 		EventID:     log.GoOutEventID,
-		TableID:     log.MapIndex,
+		TableID:     log.Index,
 		CreatedAtMs: log.CreatedAtMs,
 		Name:        zooEventName(log.GoOutEventID),
 		Action:      "handle_event",
@@ -1421,32 +1451,48 @@ func zooClientHandleBranch(log ZooLogView, info ZooEventInfo) bool {
 }
 
 func validatedZooLogIdentity(log ZooLogView) (int32, string) {
-	if !log.PetIDObserved || log.PetID <= 0 || log.MapPetID <= 0 {
+	if !log.PetIDObserved || log.PetID <= 0 {
 		return 0, "宠物日志缺少宠物 ID"
 	}
-	if log.PetID != log.MapPetID {
-		return 0, "宠物日志键与宠物 ID 不一致"
-	}
-	if !log.IndexObserved || log.Index <= 0 || log.MapIndex <= 0 {
+	if !log.IndexObserved || log.Index <= 0 {
 		return 0, "宠物日志缺少日志序号"
-	}
-	if log.Index != log.MapIndex {
-		return 0, "宠物日志键与日志序号不一致"
 	}
 	return log.PetID, ""
 }
 
 func blockedZooLogAction(log ZooLogView, action, reason string) ZooEventAction {
 	return ZooEventAction{
-		PetID:         log.MapPetID,
+		PetID:         log.PetID,
 		EventID:       log.GoOutEventID,
-		TableID:       log.MapIndex,
+		TableID:       log.Index,
 		CreatedAtMs:   log.CreatedAtMs,
 		Name:          zooEventName(log.GoOutEventID),
 		Action:        action,
 		Blocked:       true,
 		BlockedReason: reason,
 	}
+}
+
+func (s *State) zooLogByIdentityLocked(petID, index int32) (*ZooLogView, int) {
+	var found *ZooLogView
+	matches := 0
+	for _, log := range s.zooLogs {
+		if log == nil || !log.PetIDObserved || !log.IndexObserved || log.PetID != petID || log.Index != index {
+			continue
+		}
+		matches++
+		if found == nil {
+			found = log
+		}
+	}
+	return found, matches
+}
+
+func (s *State) zooLogsUnavailableReasonLocked() string {
+	if s.zooLogsInvalidReason != "" {
+		return s.zooLogsInvalidReason
+	}
+	return "宠物服务端日志尚未同步，不使用宠物字段猜测事件"
 }
 
 func zooEventName(eventID int32) string {

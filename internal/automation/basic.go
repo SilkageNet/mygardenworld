@@ -458,7 +458,10 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 	}
 	if policy.GetAutoEventEnabled() {
 		if !s.ZooLogsObserved() {
-			reason := "宠物服务端日志尚未同步，不使用宠物字段猜测事件"
+			reason := s.ZooLogsUnavailableReason()
+			if reason == "" {
+				reason = "宠物服务端日志尚未同步，不使用宠物字段猜测事件"
+			}
 			blocked := markerOp(CategoryBasic, "basic.zoo.event", "handle_event", reason, 5665)
 			blocked.Status = PlanStatusBlocked
 			blocked.Executable = false

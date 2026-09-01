@@ -193,6 +193,7 @@ type assetState struct {
 	zooDecorates             map[int32]*ZooDecorateView
 	zooDecorateSuits         map[int32]*ZooDecorateSuitView
 	zooLogsObserved          bool
+	zooLogsInvalidReason     string
 	zooSouvenirsObserved     bool
 	zooDecoratesObserved     bool
 	zooDecorateSuitsObserved bool
