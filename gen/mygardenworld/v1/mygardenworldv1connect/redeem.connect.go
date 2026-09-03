@@ -39,6 +39,9 @@ const (
 	// RedeemExchangeServiceListRedeemCodesProcedure is the fully-qualified name of the
 	// RedeemExchangeService's ListRedeemCodes RPC.
 	RedeemExchangeServiceListRedeemCodesProcedure = "/mygardenworld.v1.RedeemExchangeService/ListRedeemCodes"
+	// RedeemExchangeServiceBrowseRedeemCodesProcedure is the fully-qualified name of the
+	// RedeemExchangeService's BrowseRedeemCodes RPC.
+	RedeemExchangeServiceBrowseRedeemCodesProcedure = "/mygardenworld.v1.RedeemExchangeService/BrowseRedeemCodes"
 	// RedeemExchangeServiceSubmitRedeemCodesProcedure is the fully-qualified name of the
 	// RedeemExchangeService's SubmitRedeemCodes RPC.
 	RedeemExchangeServiceSubmitRedeemCodesProcedure = "/mygardenworld.v1.RedeemExchangeService/SubmitRedeemCodes"
@@ -48,6 +51,9 @@ const (
 type RedeemExchangeServiceClient interface {
 	GetExchangeInfo(context.Context, *connect.Request[v1.GetExchangeInfoRequest]) (*connect.Response[v1.GetExchangeInfoResponse], error)
 	ListRedeemCodes(context.Context, *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error)
+	// Browser-oriented newest-first pagination. The change-feed semantics of
+	// ListRedeemCodes remain dedicated to node synchronization.
+	BrowseRedeemCodes(context.Context, *connect.Request[v1.BrowseRedeemCodesRequest]) (*connect.Response[v1.BrowseRedeemCodesResponse], error)
 	SubmitRedeemCodes(context.Context, *connect.Request[v1.SubmitRedeemCodesRequest]) (*connect.Response[v1.SubmitRedeemCodesResponse], error)
 }
 
@@ -74,6 +80,12 @@ func NewRedeemExchangeServiceClient(httpClient connect.HTTPClient, baseURL strin
 			connect.WithSchema(redeemExchangeServiceMethods.ByName("ListRedeemCodes")),
 			connect.WithClientOptions(opts...),
 		),
+		browseRedeemCodes: connect.NewClient[v1.BrowseRedeemCodesRequest, v1.BrowseRedeemCodesResponse](
+			httpClient,
+			baseURL+RedeemExchangeServiceBrowseRedeemCodesProcedure,
+			connect.WithSchema(redeemExchangeServiceMethods.ByName("BrowseRedeemCodes")),
+			connect.WithClientOptions(opts...),
+		),
 		submitRedeemCodes: connect.NewClient[v1.SubmitRedeemCodesRequest, v1.SubmitRedeemCodesResponse](
 			httpClient,
 			baseURL+RedeemExchangeServiceSubmitRedeemCodesProcedure,
@@ -87,6 +99,7 @@ func NewRedeemExchangeServiceClient(httpClient connect.HTTPClient, baseURL strin
 type redeemExchangeServiceClient struct {
 	getExchangeInfo   *connect.Client[v1.GetExchangeInfoRequest, v1.GetExchangeInfoResponse]
 	listRedeemCodes   *connect.Client[v1.ListRedeemCodesRequest, v1.ListRedeemCodesResponse]
+	browseRedeemCodes *connect.Client[v1.BrowseRedeemCodesRequest, v1.BrowseRedeemCodesResponse]
 	submitRedeemCodes *connect.Client[v1.SubmitRedeemCodesRequest, v1.SubmitRedeemCodesResponse]
 }
 
@@ -100,6 +113,11 @@ func (c *redeemExchangeServiceClient) ListRedeemCodes(ctx context.Context, req *
 	return c.listRedeemCodes.CallUnary(ctx, req)
 }
 
+// BrowseRedeemCodes calls mygardenworld.v1.RedeemExchangeService.BrowseRedeemCodes.
+func (c *redeemExchangeServiceClient) BrowseRedeemCodes(ctx context.Context, req *connect.Request[v1.BrowseRedeemCodesRequest]) (*connect.Response[v1.BrowseRedeemCodesResponse], error) {
+	return c.browseRedeemCodes.CallUnary(ctx, req)
+}
+
 // SubmitRedeemCodes calls mygardenworld.v1.RedeemExchangeService.SubmitRedeemCodes.
 func (c *redeemExchangeServiceClient) SubmitRedeemCodes(ctx context.Context, req *connect.Request[v1.SubmitRedeemCodesRequest]) (*connect.Response[v1.SubmitRedeemCodesResponse], error) {
 	return c.submitRedeemCodes.CallUnary(ctx, req)
@@ -110,6 +128,9 @@ func (c *redeemExchangeServiceClient) SubmitRedeemCodes(ctx context.Context, req
 type RedeemExchangeServiceHandler interface {
 	GetExchangeInfo(context.Context, *connect.Request[v1.GetExchangeInfoRequest]) (*connect.Response[v1.GetExchangeInfoResponse], error)
 	ListRedeemCodes(context.Context, *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error)
+	// Browser-oriented newest-first pagination. The change-feed semantics of
+	// ListRedeemCodes remain dedicated to node synchronization.
+	BrowseRedeemCodes(context.Context, *connect.Request[v1.BrowseRedeemCodesRequest]) (*connect.Response[v1.BrowseRedeemCodesResponse], error)
 	SubmitRedeemCodes(context.Context, *connect.Request[v1.SubmitRedeemCodesRequest]) (*connect.Response[v1.SubmitRedeemCodesResponse], error)
 }
 
@@ -132,6 +153,12 @@ func NewRedeemExchangeServiceHandler(svc RedeemExchangeServiceHandler, opts ...c
 		connect.WithSchema(redeemExchangeServiceMethods.ByName("ListRedeemCodes")),
 		connect.WithHandlerOptions(opts...),
 	)
+	redeemExchangeServiceBrowseRedeemCodesHandler := connect.NewUnaryHandler(
+		RedeemExchangeServiceBrowseRedeemCodesProcedure,
+		svc.BrowseRedeemCodes,
+		connect.WithSchema(redeemExchangeServiceMethods.ByName("BrowseRedeemCodes")),
+		connect.WithHandlerOptions(opts...),
+	)
 	redeemExchangeServiceSubmitRedeemCodesHandler := connect.NewUnaryHandler(
 		RedeemExchangeServiceSubmitRedeemCodesProcedure,
 		svc.SubmitRedeemCodes,
@@ -144,6 +171,8 @@ func NewRedeemExchangeServiceHandler(svc RedeemExchangeServiceHandler, opts ...c
 			redeemExchangeServiceGetExchangeInfoHandler.ServeHTTP(w, r)
 		case RedeemExchangeServiceListRedeemCodesProcedure:
 			redeemExchangeServiceListRedeemCodesHandler.ServeHTTP(w, r)
+		case RedeemExchangeServiceBrowseRedeemCodesProcedure:
+			redeemExchangeServiceBrowseRedeemCodesHandler.ServeHTTP(w, r)
 		case RedeemExchangeServiceSubmitRedeemCodesProcedure:
 			redeemExchangeServiceSubmitRedeemCodesHandler.ServeHTTP(w, r)
 		default:
@@ -161,6 +190,10 @@ func (UnimplementedRedeemExchangeServiceHandler) GetExchangeInfo(context.Context
 
 func (UnimplementedRedeemExchangeServiceHandler) ListRedeemCodes(context.Context, *connect.Request[v1.ListRedeemCodesRequest]) (*connect.Response[v1.ListRedeemCodesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.RedeemExchangeService.ListRedeemCodes is not implemented"))
+}
+
+func (UnimplementedRedeemExchangeServiceHandler) BrowseRedeemCodes(context.Context, *connect.Request[v1.BrowseRedeemCodesRequest]) (*connect.Response[v1.BrowseRedeemCodesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.RedeemExchangeService.BrowseRedeemCodes is not implemented"))
 }
 
 func (UnimplementedRedeemExchangeServiceHandler) SubmitRedeemCodes(context.Context, *connect.Request[v1.SubmitRedeemCodesRequest]) (*connect.Response[v1.SubmitRedeemCodesResponse], error) {

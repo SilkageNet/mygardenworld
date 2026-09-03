@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 6
+const currentSchemaVersion = 7
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -233,6 +233,14 @@ CREATE INDEX idx_redeem_outbox_pending ON redeem_exchange_outbox(status, next_at
 		sql: `
 ALTER TABLE redeem_sources DROP COLUMN accepted_count;
 ALTER TABLE redeem_sources DROP COLUMN invalid_count;
+`,
+	},
+	{
+		version: 7,
+		name:    "administrator redeem expiry overrides",
+		sql: `
+ALTER TABLE redeem_codes ADD COLUMN expiry_overridden INTEGER NOT NULL DEFAULT 0 CHECK(expiry_overridden IN (0, 1));
+CREATE INDEX idx_redeem_codes_browse ON redeem_codes(first_seen_at DESC, id DESC);
 `,
 	},
 }

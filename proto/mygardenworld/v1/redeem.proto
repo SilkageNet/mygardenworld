@@ -10,6 +10,9 @@ import "mygardenworld/v1/channel.proto";
 service RedeemExchangeService {
   rpc GetExchangeInfo(GetExchangeInfoRequest) returns (GetExchangeInfoResponse);
   rpc ListRedeemCodes(ListRedeemCodesRequest) returns (ListRedeemCodesResponse);
+  // Browser-oriented newest-first pagination. The change-feed semantics of
+  // ListRedeemCodes remain dedicated to node synchronization.
+  rpc BrowseRedeemCodes(BrowseRedeemCodesRequest) returns (BrowseRedeemCodesResponse);
   rpc SubmitRedeemCodes(SubmitRedeemCodesRequest) returns (SubmitRedeemCodesResponse);
 }
 
@@ -58,6 +61,27 @@ message ListRedeemCodesResponse {
   string next_cursor = 2;
 }
 
+enum RedeemBrowseFilter {
+  REDEEM_BROWSE_FILTER_UNSPECIFIED = 0;
+  REDEEM_BROWSE_FILTER_ACTIVE = 1;
+  REDEEM_BROWSE_FILTER_HISTORY = 2;
+}
+
+message BrowseRedeemCodesRequest {
+  // Zero-based page number for the human-facing registry browser.
+  int32 page = 1;
+  int32 page_size = 2;
+  RedeemBrowseFilter filter = 3;
+}
+
+message BrowseRedeemCodesResponse {
+  repeated RedeemCode entries = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 active_total = 4;
+  int64 history_total = 5;
+}
+
 message SubmitRedeemCodesRequest {
   repeated RedeemCodeSubmission entries = 1;
   // Stable id returned by GetExchangeInfo. Browsers leave this empty.
@@ -100,4 +124,6 @@ message RedeemCode {
   google.protobuf.Timestamp community_verified_at = 10;
   string origin_instance_id = 11;
   string last_message = 12;
+  // True when a local administrator has overridden source-reported expiry.
+  bool expiry_overridden = 13;
 }

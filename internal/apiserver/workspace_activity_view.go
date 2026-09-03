@@ -87,19 +87,30 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 		if taskType == 0 {
 			taskType = t.TaskId
 		}
+		deleteBlockedReason := automation.RaceDeleteSkipReason(s, t, now)
+		switch {
+		case racePolicy == nil || !racePolicy.GetEnabled():
+			deleteBlockedReason = "请先开启公会竞赛"
+		case !view.Observed || !view.ActiveAt(now):
+			deleteBlockedReason = "当前不在竞赛期间"
+		case !view.TasksObserved || view.TaskPoolStale:
+			deleteBlockedReason = "竞赛任务池尚未同步"
+		}
 		out.Tasks = append(out.Tasks, &pb.FmlRaceTask{
-			MsId:           t.MsId,
-			TaskId:         t.TaskId,
-			TaskType:       taskType,
-			TaskLabel:      fmlRaceTaskLabels[taskType],
-			Score:          t.Score,
-			IsUpgrade:      t.IsUpgrade != 0,
-			UpgradeUid:     t.UpgradeUid,
-			TargetLabel:    t.TargetLabel,
-			AppearTimeMs:   t.AppearTime,
-			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, gates),
-			TargetCnt:      t.TargetCnt,
-			FinishCnt:      t.FinishCnt,
+			MsId:                t.MsId,
+			TaskId:              t.TaskId,
+			TaskType:            taskType,
+			TaskLabel:           fmlRaceTaskLabels[taskType],
+			Score:               t.Score,
+			IsUpgrade:           t.IsUpgrade != 0,
+			UpgradeUid:          t.UpgradeUid,
+			TargetLabel:         t.TargetLabel,
+			AppearTimeMs:        t.AppearTime,
+			TakeSkipReason:      automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, gates),
+			TargetCnt:           t.TargetCnt,
+			FinishCnt:           t.FinishCnt,
+			DeleteAllowed:       deleteBlockedReason == "",
+			DeleteBlockedReason: deleteBlockedReason,
 		})
 	}
 	return out

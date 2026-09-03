@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AutomationService_EnableAutomation_FullMethodName  = "/mygardenworld.v1.AutomationService/EnableAutomation"
-	AutomationService_DisableAutomation_FullMethodName = "/mygardenworld.v1.AutomationService/DisableAutomation"
-	AutomationService_TakeUnionRaceTask_FullMethodName = "/mygardenworld.v1.AutomationService/TakeUnionRaceTask"
+	AutomationService_EnableAutomation_FullMethodName    = "/mygardenworld.v1.AutomationService/EnableAutomation"
+	AutomationService_DisableAutomation_FullMethodName   = "/mygardenworld.v1.AutomationService/DisableAutomation"
+	AutomationService_TakeUnionRaceTask_FullMethodName   = "/mygardenworld.v1.AutomationService/TakeUnionRaceTask"
+	AutomationService_DeleteUnionRaceTask_FullMethodName = "/mygardenworld.v1.AutomationService/DeleteUnionRaceTask"
 )
 
 // AutomationServiceClient is the client API for AutomationService service.
@@ -38,6 +39,11 @@ type AutomationServiceClient interface {
 	// applies the same observed-state and policy gates as automatic selection;
 	// this never bypasses the server's appear-time cooldown.
 	TakeUnionRaceTask(ctx context.Context, in *TakeUnionRaceTaskRequest, opts ...grpc.CallOption) (*TakeUnionRaceTaskResponse, error)
+	// Deletes one user-selected, currently unclaimed guild-race task. This is
+	// an explicit management action and therefore does not use the automatic
+	// low-score threshold, but still requires fresh membership and permission
+	// evidence from the current race cycle.
+	DeleteUnionRaceTask(ctx context.Context, in *DeleteUnionRaceTaskRequest, opts ...grpc.CallOption) (*DeleteUnionRaceTaskResponse, error)
 }
 
 type automationServiceClient struct {
@@ -78,6 +84,16 @@ func (c *automationServiceClient) TakeUnionRaceTask(ctx context.Context, in *Tak
 	return out, nil
 }
 
+func (c *automationServiceClient) DeleteUnionRaceTask(ctx context.Context, in *DeleteUnionRaceTaskRequest, opts ...grpc.CallOption) (*DeleteUnionRaceTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteUnionRaceTaskResponse)
+	err := c.cc.Invoke(ctx, AutomationService_DeleteUnionRaceTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AutomationServiceServer is the server API for AutomationService service.
 // All implementations should embed UnimplementedAutomationServiceServer
 // for forward compatibility.
@@ -92,6 +108,11 @@ type AutomationServiceServer interface {
 	// applies the same observed-state and policy gates as automatic selection;
 	// this never bypasses the server's appear-time cooldown.
 	TakeUnionRaceTask(context.Context, *TakeUnionRaceTaskRequest) (*TakeUnionRaceTaskResponse, error)
+	// Deletes one user-selected, currently unclaimed guild-race task. This is
+	// an explicit management action and therefore does not use the automatic
+	// low-score threshold, but still requires fresh membership and permission
+	// evidence from the current race cycle.
+	DeleteUnionRaceTask(context.Context, *DeleteUnionRaceTaskRequest) (*DeleteUnionRaceTaskResponse, error)
 }
 
 // UnimplementedAutomationServiceServer should be embedded to have
@@ -109,6 +130,9 @@ func (UnimplementedAutomationServiceServer) DisableAutomation(context.Context, *
 }
 func (UnimplementedAutomationServiceServer) TakeUnionRaceTask(context.Context, *TakeUnionRaceTaskRequest) (*TakeUnionRaceTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TakeUnionRaceTask not implemented")
+}
+func (UnimplementedAutomationServiceServer) DeleteUnionRaceTask(context.Context, *DeleteUnionRaceTaskRequest) (*DeleteUnionRaceTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteUnionRaceTask not implemented")
 }
 func (UnimplementedAutomationServiceServer) testEmbeddedByValue() {}
 
@@ -184,6 +208,24 @@ func _AutomationService_TakeUnionRaceTask_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AutomationService_DeleteUnionRaceTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteUnionRaceTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AutomationServiceServer).DeleteUnionRaceTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AutomationService_DeleteUnionRaceTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AutomationServiceServer).DeleteUnionRaceTask(ctx, req.(*DeleteUnionRaceTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AutomationService_ServiceDesc is the grpc.ServiceDesc for AutomationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,6 +244,10 @@ var AutomationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TakeUnionRaceTask",
 			Handler:    _AutomationService_TakeUnionRaceTask_Handler,
+		},
+		{
+			MethodName: "DeleteUnionRaceTask",
+			Handler:    _AutomationService_DeleteUnionRaceTask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

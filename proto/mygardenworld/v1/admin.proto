@@ -5,6 +5,7 @@ package mygardenworld.v1;
 import "google/protobuf/timestamp.proto";
 import "mygardenworld/v1/auth.proto";
 import "mygardenworld/v1/channel.proto";
+import "mygardenworld/v1/redeem.proto";
 
 service AdminService {
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
@@ -15,6 +16,7 @@ service AdminService {
   rpc UpsertRedeemSource(UpsertRedeemSourceRequest) returns (UpsertRedeemSourceResponse);
   rpc DeleteRedeemSource(DeleteRedeemSourceRequest) returns (DeleteRedeemSourceResponse);
   rpc SyncRedeemSource(SyncRedeemSourceRequest) returns (SyncRedeemSourceResponse);
+  rpc UpdateRedeemCodeExpiry(UpdateRedeemCodeExpiryRequest) returns (UpdateRedeemCodeExpiryResponse);
 }
 
 message CreateUserRequest {
@@ -126,4 +128,23 @@ message SyncRedeemSourceRequest {
 
 message SyncRedeemSourceResponse {
   RedeemSource source = 1;
+}
+
+enum RedeemExpiryOverrideMode {
+  REDEEM_EXPIRY_OVERRIDE_MODE_UNSPECIFIED = 0;
+  REDEEM_EXPIRY_OVERRIDE_MODE_FINITE = 1;
+  REDEEM_EXPIRY_OVERRIDE_MODE_PERMANENT = 2;
+  // Removes the local override and recalculates expiry from source evidence.
+  REDEEM_EXPIRY_OVERRIDE_MODE_SOURCE = 3;
+}
+
+message UpdateRedeemCodeExpiryRequest {
+  string fingerprint = 1;
+  RedeemExpiryOverrideMode mode = 2;
+  // Required only for FINITE and must be in the future.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message UpdateRedeemCodeExpiryResponse {
+  RedeemCode code = 1;
 }

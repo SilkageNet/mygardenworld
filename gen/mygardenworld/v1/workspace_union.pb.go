@@ -364,10 +364,15 @@ type FmlRaceTask struct {
 	TakeSkipReason string `protobuf:"bytes,10,opt,name=take_skip_reason,json=takeSkipReason,proto3" json:"take_skip_reason,omitempty"`
 	// Observed target/progress from IFmlRaceTask fields 7 and 8.
 	// Positive finish_cnt unambiguously means this pool task was advanced.
-	TargetCnt     int32 `protobuf:"varint,11,opt,name=target_cnt,json=targetCnt,proto3" json:"target_cnt,omitempty"`
-	FinishCnt     int32 `protobuf:"varint,12,opt,name=finish_cnt,json=finishCnt,proto3" json:"finish_cnt,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TargetCnt int32 `protobuf:"varint,11,opt,name=target_cnt,json=targetCnt,proto3" json:"target_cnt,omitempty"`
+	FinishCnt int32 `protobuf:"varint,12,opt,name=finish_cnt,json=finishCnt,proto3" json:"finish_cnt,omitempty"`
+	// Manual deletion is independent from the automatic low-score policy.
+	// It still requires a fresh task pool, an unclaimed task, and the current
+	// member position's c_fmlPos.p_raceDelete permission.
+	DeleteAllowed       bool   `protobuf:"varint,13,opt,name=delete_allowed,json=deleteAllowed,proto3" json:"delete_allowed,omitempty"`
+	DeleteBlockedReason string `protobuf:"bytes,14,opt,name=delete_blocked_reason,json=deleteBlockedReason,proto3" json:"delete_blocked_reason,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *FmlRaceTask) Reset() {
@@ -482,6 +487,20 @@ func (x *FmlRaceTask) GetFinishCnt() int32 {
 		return x.FinishCnt
 	}
 	return 0
+}
+
+func (x *FmlRaceTask) GetDeleteAllowed() bool {
+	if x != nil {
+		return x.DeleteAllowed
+	}
+	return false
+}
+
+func (x *FmlRaceTask) GetDeleteBlockedReason() string {
+	if x != nil {
+		return x.DeleteBlockedReason
+	}
+	return ""
 }
 
 type FmlRaceTaken struct {
@@ -801,7 +820,7 @@ const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\x05score\x18\r \x01(\x05R\x05score\x12%\n" +
 	"\x0escore_observed\x18\x0e \x01(\bR\rscoreObserved\x12\x12\n" +
 	"\x04rank\x18\x0f \x01(\x05R\x04rank\x12#\n" +
-	"\rrank_observed\x18\x10 \x01(\bR\frankObserved\"\xfe\x02\n" +
+	"\rrank_observed\x18\x10 \x01(\bR\frankObserved\"\xd9\x03\n" +
 	"\vFmlRaceTask\x12\x13\n" +
 	"\x05ms_id\x18\x01 \x01(\x03R\x04msId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\x05R\x06taskId\x12\x1d\n" +
@@ -820,7 +839,9 @@ const file_mygardenworld_v1_workspace_union_proto_rawDesc = "" +
 	"\n" +
 	"target_cnt\x18\v \x01(\x05R\ttargetCnt\x12\x1d\n" +
 	"\n" +
-	"finish_cnt\x18\f \x01(\x05R\tfinishCnt\"\xb9\x02\n" +
+	"finish_cnt\x18\f \x01(\x05R\tfinishCnt\x12%\n" +
+	"\x0edelete_allowed\x18\r \x01(\bR\rdeleteAllowed\x122\n" +
+	"\x15delete_blocked_reason\x18\x0e \x01(\tR\x13deleteBlockedReason\"\xb9\x02\n" +
 	"\fFmlRaceTaken\x12\x19\n" +
 	"\bhas_task\x18\x01 \x01(\bR\ahasTask\x12\x1c\n" +
 	"\n" +

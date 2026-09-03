@@ -138,6 +138,55 @@ func (RedeemSubmitDisposition) EnumDescriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{1}
 }
 
+type RedeemBrowseFilter int32
+
+const (
+	RedeemBrowseFilter_REDEEM_BROWSE_FILTER_UNSPECIFIED RedeemBrowseFilter = 0
+	RedeemBrowseFilter_REDEEM_BROWSE_FILTER_ACTIVE      RedeemBrowseFilter = 1
+	RedeemBrowseFilter_REDEEM_BROWSE_FILTER_HISTORY     RedeemBrowseFilter = 2
+)
+
+// Enum value maps for RedeemBrowseFilter.
+var (
+	RedeemBrowseFilter_name = map[int32]string{
+		0: "REDEEM_BROWSE_FILTER_UNSPECIFIED",
+		1: "REDEEM_BROWSE_FILTER_ACTIVE",
+		2: "REDEEM_BROWSE_FILTER_HISTORY",
+	}
+	RedeemBrowseFilter_value = map[string]int32{
+		"REDEEM_BROWSE_FILTER_UNSPECIFIED": 0,
+		"REDEEM_BROWSE_FILTER_ACTIVE":      1,
+		"REDEEM_BROWSE_FILTER_HISTORY":     2,
+	}
+)
+
+func (x RedeemBrowseFilter) Enum() *RedeemBrowseFilter {
+	p := new(RedeemBrowseFilter)
+	*p = x
+	return p
+}
+
+func (x RedeemBrowseFilter) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RedeemBrowseFilter) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_redeem_proto_enumTypes[2].Descriptor()
+}
+
+func (RedeemBrowseFilter) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_redeem_proto_enumTypes[2]
+}
+
+func (x RedeemBrowseFilter) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RedeemBrowseFilter.Descriptor instead.
+func (RedeemBrowseFilter) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{2}
+}
+
 type GetExchangeInfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -375,6 +424,143 @@ func (x *ListRedeemCodesResponse) GetNextCursor() string {
 	return ""
 }
 
+type BrowseRedeemCodesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Zero-based page number for the human-facing registry browser.
+	Page          int32              `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32              `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Filter        RedeemBrowseFilter `protobuf:"varint,3,opt,name=filter,proto3,enum=mygardenworld.v1.RedeemBrowseFilter" json:"filter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowseRedeemCodesRequest) Reset() {
+	*x = BrowseRedeemCodesRequest{}
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowseRedeemCodesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowseRedeemCodesRequest) ProtoMessage() {}
+
+func (x *BrowseRedeemCodesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowseRedeemCodesRequest.ProtoReflect.Descriptor instead.
+func (*BrowseRedeemCodesRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *BrowseRedeemCodesRequest) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *BrowseRedeemCodesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *BrowseRedeemCodesRequest) GetFilter() RedeemBrowseFilter {
+	if x != nil {
+		return x.Filter
+	}
+	return RedeemBrowseFilter_REDEEM_BROWSE_FILTER_UNSPECIFIED
+}
+
+type BrowseRedeemCodesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*RedeemCode          `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	ActiveTotal   int64                  `protobuf:"varint,4,opt,name=active_total,json=activeTotal,proto3" json:"active_total,omitempty"`
+	HistoryTotal  int64                  `protobuf:"varint,5,opt,name=history_total,json=historyTotal,proto3" json:"history_total,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BrowseRedeemCodesResponse) Reset() {
+	*x = BrowseRedeemCodesResponse{}
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BrowseRedeemCodesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BrowseRedeemCodesResponse) ProtoMessage() {}
+
+func (x *BrowseRedeemCodesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BrowseRedeemCodesResponse.ProtoReflect.Descriptor instead.
+func (*BrowseRedeemCodesResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *BrowseRedeemCodesResponse) GetEntries() []*RedeemCode {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+func (x *BrowseRedeemCodesResponse) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *BrowseRedeemCodesResponse) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *BrowseRedeemCodesResponse) GetActiveTotal() int64 {
+	if x != nil {
+		return x.ActiveTotal
+	}
+	return 0
+}
+
+func (x *BrowseRedeemCodesResponse) GetHistoryTotal() int64 {
+	if x != nil {
+		return x.HistoryTotal
+	}
+	return 0
+}
+
 type SubmitRedeemCodesRequest struct {
 	state   protoimpl.MessageState  `protogen:"open.v1"`
 	Entries []*RedeemCodeSubmission `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
@@ -386,7 +572,7 @@ type SubmitRedeemCodesRequest struct {
 
 func (x *SubmitRedeemCodesRequest) Reset() {
 	*x = SubmitRedeemCodesRequest{}
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[4]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -398,7 +584,7 @@ func (x *SubmitRedeemCodesRequest) String() string {
 func (*SubmitRedeemCodesRequest) ProtoMessage() {}
 
 func (x *SubmitRedeemCodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[4]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -411,7 +597,7 @@ func (x *SubmitRedeemCodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitRedeemCodesRequest.ProtoReflect.Descriptor instead.
 func (*SubmitRedeemCodesRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{4}
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SubmitRedeemCodesRequest) GetEntries() []*RedeemCodeSubmission {
@@ -437,7 +623,7 @@ type SubmitRedeemCodesResponse struct {
 
 func (x *SubmitRedeemCodesResponse) Reset() {
 	*x = SubmitRedeemCodesResponse{}
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[5]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -449,7 +635,7 @@ func (x *SubmitRedeemCodesResponse) String() string {
 func (*SubmitRedeemCodesResponse) ProtoMessage() {}
 
 func (x *SubmitRedeemCodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[5]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -462,7 +648,7 @@ func (x *SubmitRedeemCodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubmitRedeemCodesResponse.ProtoReflect.Descriptor instead.
 func (*SubmitRedeemCodesResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{5}
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SubmitRedeemCodesResponse) GetResults() []*RedeemSubmitResult {
@@ -490,7 +676,7 @@ type RedeemCodeSubmission struct {
 
 func (x *RedeemCodeSubmission) Reset() {
 	*x = RedeemCodeSubmission{}
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -502,7 +688,7 @@ func (x *RedeemCodeSubmission) String() string {
 func (*RedeemCodeSubmission) ProtoMessage() {}
 
 func (x *RedeemCodeSubmission) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[6]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -515,7 +701,7 @@ func (x *RedeemCodeSubmission) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RedeemCodeSubmission.ProtoReflect.Descriptor instead.
 func (*RedeemCodeSubmission) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{6}
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RedeemCodeSubmission) GetCode() string {
@@ -571,7 +757,7 @@ type RedeemSubmitResult struct {
 
 func (x *RedeemSubmitResult) Reset() {
 	*x = RedeemSubmitResult{}
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -583,7 +769,7 @@ func (x *RedeemSubmitResult) String() string {
 func (*RedeemSubmitResult) ProtoMessage() {}
 
 func (x *RedeemSubmitResult) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[7]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -596,7 +782,7 @@ func (x *RedeemSubmitResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RedeemSubmitResult.ProtoReflect.Descriptor instead.
 func (*RedeemSubmitResult) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{7}
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RedeemSubmitResult) GetFingerprint() string {
@@ -634,13 +820,15 @@ type RedeemCode struct {
 	CommunityVerifiedAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=community_verified_at,json=communityVerifiedAt,proto3" json:"community_verified_at,omitempty"`
 	OriginInstanceId    string                 `protobuf:"bytes,11,opt,name=origin_instance_id,json=originInstanceId,proto3" json:"origin_instance_id,omitempty"`
 	LastMessage         string                 `protobuf:"bytes,12,opt,name=last_message,json=lastMessage,proto3" json:"last_message,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// True when a local administrator has overridden source-reported expiry.
+	ExpiryOverridden bool `protobuf:"varint,13,opt,name=expiry_overridden,json=expiryOverridden,proto3" json:"expiry_overridden,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RedeemCode) Reset() {
 	*x = RedeemCode{}
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -652,7 +840,7 @@ func (x *RedeemCode) String() string {
 func (*RedeemCode) ProtoMessage() {}
 
 func (x *RedeemCode) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_redeem_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -665,7 +853,7 @@ func (x *RedeemCode) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RedeemCode.ProtoReflect.Descriptor instead.
 func (*RedeemCode) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{8}
+	return file_mygardenworld_v1_redeem_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RedeemCode) GetFingerprint() string {
@@ -752,6 +940,13 @@ func (x *RedeemCode) GetLastMessage() string {
 	return ""
 }
 
+func (x *RedeemCode) GetExpiryOverridden() bool {
+	if x != nil {
+		return x.ExpiryOverridden
+	}
+	return false
+}
+
 var File_mygardenworld_v1_redeem_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_redeem_proto_rawDesc = "" +
@@ -774,7 +969,17 @@ const file_mygardenworld_v1_redeem_proto_rawDesc = "" +
 	"\x17ListRedeemCodesResponse\x126\n" +
 	"\aentries\x18\x01 \x03(\v2\x1c.mygardenworld.v1.RedeemCodeR\aentries\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor\"\x8a\x01\n" +
+	"nextCursor\"\x89\x01\n" +
+	"\x18BrowseRedeemCodesRequest\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12<\n" +
+	"\x06filter\x18\x03 \x01(\x0e2$.mygardenworld.v1.RedeemBrowseFilterR\x06filter\"\xcc\x01\n" +
+	"\x19BrowseRedeemCodesResponse\x126\n" +
+	"\aentries\x18\x01 \x03(\v2\x1c.mygardenworld.v1.RedeemCodeR\aentries\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x12!\n" +
+	"\factive_total\x18\x04 \x01(\x03R\vactiveTotal\x12#\n" +
+	"\rhistory_total\x18\x05 \x01(\x03R\fhistoryTotal\"\x8a\x01\n" +
 	"\x18SubmitRedeemCodesRequest\x12@\n" +
 	"\aentries\x18\x01 \x03(\v2&.mygardenworld.v1.RedeemCodeSubmissionR\aentries\x12,\n" +
 	"\x12sender_instance_id\x18\x02 \x01(\tR\x10senderInstanceId\"[\n" +
@@ -791,7 +996,7 @@ const file_mygardenworld_v1_redeem_proto_rawDesc = "" +
 	"\x12RedeemSubmitResult\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12K\n" +
 	"\vdisposition\x18\x02 \x01(\x0e2).mygardenworld.v1.RedeemSubmitDispositionR\vdisposition\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"\xf8\x04\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\xa5\x05\n" +
 	"\n" +
 	"RedeemCode\x12 \n" +
 	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12\x12\n" +
@@ -810,7 +1015,8 @@ const file_mygardenworld_v1_redeem_proto_rawDesc = "" +
 	"\x15community_verified_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\x13communityVerifiedAt\x12,\n" +
 	"\x12origin_instance_id\x18\v \x01(\tR\x10originInstanceId\x12!\n" +
-	"\flast_message\x18\f \x01(\tR\vlastMessage*\x99\x02\n" +
+	"\flast_message\x18\f \x01(\tR\vlastMessage\x12+\n" +
+	"\x11expiry_overridden\x18\r \x01(\bR\x10expiryOverridden*\x99\x02\n" +
 	"\x10RedeemValidation\x12!\n" +
 	"\x1dREDEEM_VALIDATION_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19REDEEM_VALIDATION_PENDING\x10\x01\x12\x1d\n" +
@@ -824,10 +1030,15 @@ const file_mygardenworld_v1_redeem_proto_rawDesc = "" +
 	"%REDEEM_SUBMIT_DISPOSITION_UNSPECIFIED\x10\x00\x12&\n" +
 	"\"REDEEM_SUBMIT_DISPOSITION_ACCEPTED\x10\x01\x12'\n" +
 	"#REDEEM_SUBMIT_DISPOSITION_DUPLICATE\x10\x02\x12&\n" +
-	"\"REDEEM_SUBMIT_DISPOSITION_REJECTED\x10\x032\xd5\x02\n" +
+	"\"REDEEM_SUBMIT_DISPOSITION_REJECTED\x10\x03*}\n" +
+	"\x12RedeemBrowseFilter\x12$\n" +
+	" REDEEM_BROWSE_FILTER_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bREDEEM_BROWSE_FILTER_ACTIVE\x10\x01\x12 \n" +
+	"\x1cREDEEM_BROWSE_FILTER_HISTORY\x10\x022\xc3\x03\n" +
 	"\x15RedeemExchangeService\x12f\n" +
 	"\x0fGetExchangeInfo\x12(.mygardenworld.v1.GetExchangeInfoRequest\x1a).mygardenworld.v1.GetExchangeInfoResponse\x12f\n" +
 	"\x0fListRedeemCodes\x12(.mygardenworld.v1.ListRedeemCodesRequest\x1a).mygardenworld.v1.ListRedeemCodesResponse\x12l\n" +
+	"\x11BrowseRedeemCodes\x12*.mygardenworld.v1.BrowseRedeemCodesRequest\x1a+.mygardenworld.v1.BrowseRedeemCodesResponse\x12l\n" +
 	"\x11SubmitRedeemCodes\x12*.mygardenworld.v1.SubmitRedeemCodesRequest\x1a+.mygardenworld.v1.SubmitRedeemCodesResponseB\xce\x01\n" +
 	"\x14com.mygardenworld.v1B\vRedeemProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
@@ -843,52 +1054,59 @@ func file_mygardenworld_v1_redeem_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_redeem_proto_rawDescData
 }
 
-var file_mygardenworld_v1_redeem_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_mygardenworld_v1_redeem_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_mygardenworld_v1_redeem_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_mygardenworld_v1_redeem_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_mygardenworld_v1_redeem_proto_goTypes = []any{
 	(RedeemValidation)(0),             // 0: mygardenworld.v1.RedeemValidation
 	(RedeemSubmitDisposition)(0),      // 1: mygardenworld.v1.RedeemSubmitDisposition
-	(*GetExchangeInfoRequest)(nil),    // 2: mygardenworld.v1.GetExchangeInfoRequest
-	(*GetExchangeInfoResponse)(nil),   // 3: mygardenworld.v1.GetExchangeInfoResponse
-	(*ListRedeemCodesRequest)(nil),    // 4: mygardenworld.v1.ListRedeemCodesRequest
-	(*ListRedeemCodesResponse)(nil),   // 5: mygardenworld.v1.ListRedeemCodesResponse
-	(*SubmitRedeemCodesRequest)(nil),  // 6: mygardenworld.v1.SubmitRedeemCodesRequest
-	(*SubmitRedeemCodesResponse)(nil), // 7: mygardenworld.v1.SubmitRedeemCodesResponse
-	(*RedeemCodeSubmission)(nil),      // 8: mygardenworld.v1.RedeemCodeSubmission
-	(*RedeemSubmitResult)(nil),        // 9: mygardenworld.v1.RedeemSubmitResult
-	(*RedeemCode)(nil),                // 10: mygardenworld.v1.RedeemCode
-	(*timestamppb.Timestamp)(nil),     // 11: google.protobuf.Timestamp
-	(Channel)(0),                      // 12: mygardenworld.v1.Channel
+	(RedeemBrowseFilter)(0),           // 2: mygardenworld.v1.RedeemBrowseFilter
+	(*GetExchangeInfoRequest)(nil),    // 3: mygardenworld.v1.GetExchangeInfoRequest
+	(*GetExchangeInfoResponse)(nil),   // 4: mygardenworld.v1.GetExchangeInfoResponse
+	(*ListRedeemCodesRequest)(nil),    // 5: mygardenworld.v1.ListRedeemCodesRequest
+	(*ListRedeemCodesResponse)(nil),   // 6: mygardenworld.v1.ListRedeemCodesResponse
+	(*BrowseRedeemCodesRequest)(nil),  // 7: mygardenworld.v1.BrowseRedeemCodesRequest
+	(*BrowseRedeemCodesResponse)(nil), // 8: mygardenworld.v1.BrowseRedeemCodesResponse
+	(*SubmitRedeemCodesRequest)(nil),  // 9: mygardenworld.v1.SubmitRedeemCodesRequest
+	(*SubmitRedeemCodesResponse)(nil), // 10: mygardenworld.v1.SubmitRedeemCodesResponse
+	(*RedeemCodeSubmission)(nil),      // 11: mygardenworld.v1.RedeemCodeSubmission
+	(*RedeemSubmitResult)(nil),        // 12: mygardenworld.v1.RedeemSubmitResult
+	(*RedeemCode)(nil),                // 13: mygardenworld.v1.RedeemCode
+	(*timestamppb.Timestamp)(nil),     // 14: google.protobuf.Timestamp
+	(Channel)(0),                      // 15: mygardenworld.v1.Channel
 }
 var file_mygardenworld_v1_redeem_proto_depIdxs = []int32{
-	11, // 0: mygardenworld.v1.GetExchangeInfoResponse.server_time:type_name -> google.protobuf.Timestamp
-	12, // 1: mygardenworld.v1.GetExchangeInfoResponse.channels:type_name -> mygardenworld.v1.Channel
-	12, // 2: mygardenworld.v1.ListRedeemCodesRequest.channels:type_name -> mygardenworld.v1.Channel
-	10, // 3: mygardenworld.v1.ListRedeemCodesResponse.entries:type_name -> mygardenworld.v1.RedeemCode
-	8,  // 4: mygardenworld.v1.SubmitRedeemCodesRequest.entries:type_name -> mygardenworld.v1.RedeemCodeSubmission
-	9,  // 5: mygardenworld.v1.SubmitRedeemCodesResponse.results:type_name -> mygardenworld.v1.RedeemSubmitResult
-	12, // 6: mygardenworld.v1.RedeemCodeSubmission.channel:type_name -> mygardenworld.v1.Channel
-	11, // 7: mygardenworld.v1.RedeemCodeSubmission.expires_at:type_name -> google.protobuf.Timestamp
-	0,  // 8: mygardenworld.v1.RedeemCodeSubmission.reported_validation:type_name -> mygardenworld.v1.RedeemValidation
-	1,  // 9: mygardenworld.v1.RedeemSubmitResult.disposition:type_name -> mygardenworld.v1.RedeemSubmitDisposition
-	12, // 10: mygardenworld.v1.RedeemCode.channel:type_name -> mygardenworld.v1.Channel
-	11, // 11: mygardenworld.v1.RedeemCode.expires_at:type_name -> google.protobuf.Timestamp
-	0,  // 12: mygardenworld.v1.RedeemCode.validation:type_name -> mygardenworld.v1.RedeemValidation
-	11, // 13: mygardenworld.v1.RedeemCode.first_seen_at:type_name -> google.protobuf.Timestamp
-	11, // 14: mygardenworld.v1.RedeemCode.updated_at:type_name -> google.protobuf.Timestamp
-	11, // 15: mygardenworld.v1.RedeemCode.local_verified_at:type_name -> google.protobuf.Timestamp
-	11, // 16: mygardenworld.v1.RedeemCode.community_verified_at:type_name -> google.protobuf.Timestamp
-	2,  // 17: mygardenworld.v1.RedeemExchangeService.GetExchangeInfo:input_type -> mygardenworld.v1.GetExchangeInfoRequest
-	4,  // 18: mygardenworld.v1.RedeemExchangeService.ListRedeemCodes:input_type -> mygardenworld.v1.ListRedeemCodesRequest
-	6,  // 19: mygardenworld.v1.RedeemExchangeService.SubmitRedeemCodes:input_type -> mygardenworld.v1.SubmitRedeemCodesRequest
-	3,  // 20: mygardenworld.v1.RedeemExchangeService.GetExchangeInfo:output_type -> mygardenworld.v1.GetExchangeInfoResponse
-	5,  // 21: mygardenworld.v1.RedeemExchangeService.ListRedeemCodes:output_type -> mygardenworld.v1.ListRedeemCodesResponse
-	7,  // 22: mygardenworld.v1.RedeemExchangeService.SubmitRedeemCodes:output_type -> mygardenworld.v1.SubmitRedeemCodesResponse
-	20, // [20:23] is the sub-list for method output_type
-	17, // [17:20] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	14, // 0: mygardenworld.v1.GetExchangeInfoResponse.server_time:type_name -> google.protobuf.Timestamp
+	15, // 1: mygardenworld.v1.GetExchangeInfoResponse.channels:type_name -> mygardenworld.v1.Channel
+	15, // 2: mygardenworld.v1.ListRedeemCodesRequest.channels:type_name -> mygardenworld.v1.Channel
+	13, // 3: mygardenworld.v1.ListRedeemCodesResponse.entries:type_name -> mygardenworld.v1.RedeemCode
+	2,  // 4: mygardenworld.v1.BrowseRedeemCodesRequest.filter:type_name -> mygardenworld.v1.RedeemBrowseFilter
+	13, // 5: mygardenworld.v1.BrowseRedeemCodesResponse.entries:type_name -> mygardenworld.v1.RedeemCode
+	11, // 6: mygardenworld.v1.SubmitRedeemCodesRequest.entries:type_name -> mygardenworld.v1.RedeemCodeSubmission
+	12, // 7: mygardenworld.v1.SubmitRedeemCodesResponse.results:type_name -> mygardenworld.v1.RedeemSubmitResult
+	15, // 8: mygardenworld.v1.RedeemCodeSubmission.channel:type_name -> mygardenworld.v1.Channel
+	14, // 9: mygardenworld.v1.RedeemCodeSubmission.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 10: mygardenworld.v1.RedeemCodeSubmission.reported_validation:type_name -> mygardenworld.v1.RedeemValidation
+	1,  // 11: mygardenworld.v1.RedeemSubmitResult.disposition:type_name -> mygardenworld.v1.RedeemSubmitDisposition
+	15, // 12: mygardenworld.v1.RedeemCode.channel:type_name -> mygardenworld.v1.Channel
+	14, // 13: mygardenworld.v1.RedeemCode.expires_at:type_name -> google.protobuf.Timestamp
+	0,  // 14: mygardenworld.v1.RedeemCode.validation:type_name -> mygardenworld.v1.RedeemValidation
+	14, // 15: mygardenworld.v1.RedeemCode.first_seen_at:type_name -> google.protobuf.Timestamp
+	14, // 16: mygardenworld.v1.RedeemCode.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 17: mygardenworld.v1.RedeemCode.local_verified_at:type_name -> google.protobuf.Timestamp
+	14, // 18: mygardenworld.v1.RedeemCode.community_verified_at:type_name -> google.protobuf.Timestamp
+	3,  // 19: mygardenworld.v1.RedeemExchangeService.GetExchangeInfo:input_type -> mygardenworld.v1.GetExchangeInfoRequest
+	5,  // 20: mygardenworld.v1.RedeemExchangeService.ListRedeemCodes:input_type -> mygardenworld.v1.ListRedeemCodesRequest
+	7,  // 21: mygardenworld.v1.RedeemExchangeService.BrowseRedeemCodes:input_type -> mygardenworld.v1.BrowseRedeemCodesRequest
+	9,  // 22: mygardenworld.v1.RedeemExchangeService.SubmitRedeemCodes:input_type -> mygardenworld.v1.SubmitRedeemCodesRequest
+	4,  // 23: mygardenworld.v1.RedeemExchangeService.GetExchangeInfo:output_type -> mygardenworld.v1.GetExchangeInfoResponse
+	6,  // 24: mygardenworld.v1.RedeemExchangeService.ListRedeemCodes:output_type -> mygardenworld.v1.ListRedeemCodesResponse
+	8,  // 25: mygardenworld.v1.RedeemExchangeService.BrowseRedeemCodes:output_type -> mygardenworld.v1.BrowseRedeemCodesResponse
+	10, // 26: mygardenworld.v1.RedeemExchangeService.SubmitRedeemCodes:output_type -> mygardenworld.v1.SubmitRedeemCodesResponse
+	23, // [23:27] is the sub-list for method output_type
+	19, // [19:23] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_redeem_proto_init() }
@@ -902,8 +1120,8 @@ func file_mygardenworld_v1_redeem_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_redeem_proto_rawDesc), len(file_mygardenworld_v1_redeem_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   9,
+			NumEnums:      3,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

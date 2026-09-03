@@ -46,6 +46,7 @@ export default function UnionWorkspace(props: WorkspaceProps) {
           race={union.race}
           showTakenTask={props.policy?.union?.race?.enabled ?? true}
           showPersonalScoreRank={props.policy?.union?.race?.showPersonalScoreRank ?? false}
+          canDeleteTasks={union.raceDeleteAllowed}
         />
       </div>
     );

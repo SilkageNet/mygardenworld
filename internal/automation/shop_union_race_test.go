@@ -190,6 +190,55 @@ func TestManualRaceTakeOperationUsesObservedPolicyGates(t *testing.T) {
 	})
 }
 
+func TestManualRaceDeleteOperationUsesCurrentPermissionAndTaskState(t *testing.T) {
+	now := time.Now()
+	newState := func(position int32) *state.State {
+		s := state.New()
+		applyRaceState(s, [][5]int32{{1, 3036, 300, 0, 0}})
+		applyRaceDeletePosition(s, position)
+		return s
+	}
+
+	t.Run("explicit high score delete ignores automatic threshold", func(t *testing.T) {
+		s := newState(1)
+		policy := testEnabledRaceFullPolicy()
+		policy.Union.Race.DeleteLowScoreTask = false
+		policy.Union.Race.DeleteTaskMaxScore = 10
+		op, err := ManualRaceDeleteOperation(s, policy, 1, now)
+		if err != nil {
+			t.Fatalf("ManualRaceDeleteOperation: %v", err)
+		}
+		if op.Kind != clientproto.RPCFmlRaceDelTask.String() || op.TaskMsID != 1 || op.CooldownKey != "union.race.delete:1" {
+			t.Fatalf("unexpected manual delete op: %+v", op)
+		}
+	})
+
+	t.Run("position without delete permission", func(t *testing.T) {
+		if _, err := ManualRaceDeleteOperation(newState(3), testEnabledRaceFullPolicy(), 1, now); err == nil || !strings.Contains(err.Error(), "没有删除权限") {
+			t.Fatalf("expected permission error, got %v", err)
+		}
+	})
+
+	t.Run("claimed task", func(t *testing.T) {
+		s := newState(2)
+		s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":300,"12":123}]}}`))
+		if _, err := ManualRaceDeleteOperation(s, testEnabledRaceFullPolicy(), 1, now); err == nil || !strings.Contains(err.Error(), "已被成员接取") {
+			t.Fatalf("expected claimed-task error, got %v", err)
+		}
+	})
+
+	t.Run("replacement slot cooldown", func(t *testing.T) {
+		s := newState(2)
+		s.ApplyV(json.RawMessage(fmt.Sprintf(
+			`{"25":{"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":300}]}}`,
+			now.Add(time.Minute).UnixMilli(),
+		)))
+		if _, err := ManualRaceDeleteOperation(s, testEnabledRaceFullPolicy(), 1, now); err == nil || !strings.Contains(err.Error(), "冷却中") {
+			t.Fatalf("expected cooldown error, got %v", err)
+		}
+	})
+}
+
 func TestUnionRaceEnterIsExecutable(t *testing.T) {
 	s := state.New()
 	// Real startup baselines may include the guild object (25.0) while omitting

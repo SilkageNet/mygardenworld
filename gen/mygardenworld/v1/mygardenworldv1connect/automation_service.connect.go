@@ -42,6 +42,9 @@ const (
 	// AutomationServiceTakeUnionRaceTaskProcedure is the fully-qualified name of the
 	// AutomationService's TakeUnionRaceTask RPC.
 	AutomationServiceTakeUnionRaceTaskProcedure = "/mygardenworld.v1.AutomationService/TakeUnionRaceTask"
+	// AutomationServiceDeleteUnionRaceTaskProcedure is the fully-qualified name of the
+	// AutomationService's DeleteUnionRaceTask RPC.
+	AutomationServiceDeleteUnionRaceTaskProcedure = "/mygardenworld.v1.AutomationService/DeleteUnionRaceTask"
 )
 
 // AutomationServiceClient is a client for the mygardenworld.v1.AutomationService service.
@@ -56,6 +59,11 @@ type AutomationServiceClient interface {
 	// applies the same observed-state and policy gates as automatic selection;
 	// this never bypasses the server's appear-time cooldown.
 	TakeUnionRaceTask(context.Context, *connect.Request[v1.TakeUnionRaceTaskRequest]) (*connect.Response[v1.TakeUnionRaceTaskResponse], error)
+	// Deletes one user-selected, currently unclaimed guild-race task. This is
+	// an explicit management action and therefore does not use the automatic
+	// low-score threshold, but still requires fresh membership and permission
+	// evidence from the current race cycle.
+	DeleteUnionRaceTask(context.Context, *connect.Request[v1.DeleteUnionRaceTaskRequest]) (*connect.Response[v1.DeleteUnionRaceTaskResponse], error)
 }
 
 // NewAutomationServiceClient constructs a client for the mygardenworld.v1.AutomationService
@@ -87,14 +95,21 @@ func NewAutomationServiceClient(httpClient connect.HTTPClient, baseURL string, o
 			connect.WithSchema(automationServiceMethods.ByName("TakeUnionRaceTask")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteUnionRaceTask: connect.NewClient[v1.DeleteUnionRaceTaskRequest, v1.DeleteUnionRaceTaskResponse](
+			httpClient,
+			baseURL+AutomationServiceDeleteUnionRaceTaskProcedure,
+			connect.WithSchema(automationServiceMethods.ByName("DeleteUnionRaceTask")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // automationServiceClient implements AutomationServiceClient.
 type automationServiceClient struct {
-	enableAutomation  *connect.Client[v1.EnableAutomationRequest, v1.EnableAutomationResponse]
-	disableAutomation *connect.Client[v1.DisableAutomationRequest, v1.DisableAutomationResponse]
-	takeUnionRaceTask *connect.Client[v1.TakeUnionRaceTaskRequest, v1.TakeUnionRaceTaskResponse]
+	enableAutomation    *connect.Client[v1.EnableAutomationRequest, v1.EnableAutomationResponse]
+	disableAutomation   *connect.Client[v1.DisableAutomationRequest, v1.DisableAutomationResponse]
+	takeUnionRaceTask   *connect.Client[v1.TakeUnionRaceTaskRequest, v1.TakeUnionRaceTaskResponse]
+	deleteUnionRaceTask *connect.Client[v1.DeleteUnionRaceTaskRequest, v1.DeleteUnionRaceTaskResponse]
 }
 
 // EnableAutomation calls mygardenworld.v1.AutomationService.EnableAutomation.
@@ -112,6 +127,11 @@ func (c *automationServiceClient) TakeUnionRaceTask(ctx context.Context, req *co
 	return c.takeUnionRaceTask.CallUnary(ctx, req)
 }
 
+// DeleteUnionRaceTask calls mygardenworld.v1.AutomationService.DeleteUnionRaceTask.
+func (c *automationServiceClient) DeleteUnionRaceTask(ctx context.Context, req *connect.Request[v1.DeleteUnionRaceTaskRequest]) (*connect.Response[v1.DeleteUnionRaceTaskResponse], error) {
+	return c.deleteUnionRaceTask.CallUnary(ctx, req)
+}
+
 // AutomationServiceHandler is an implementation of the mygardenworld.v1.AutomationService service.
 type AutomationServiceHandler interface {
 	// Enables the automation loop on the account. Equivalent to setting
@@ -124,6 +144,11 @@ type AutomationServiceHandler interface {
 	// applies the same observed-state and policy gates as automatic selection;
 	// this never bypasses the server's appear-time cooldown.
 	TakeUnionRaceTask(context.Context, *connect.Request[v1.TakeUnionRaceTaskRequest]) (*connect.Response[v1.TakeUnionRaceTaskResponse], error)
+	// Deletes one user-selected, currently unclaimed guild-race task. This is
+	// an explicit management action and therefore does not use the automatic
+	// low-score threshold, but still requires fresh membership and permission
+	// evidence from the current race cycle.
+	DeleteUnionRaceTask(context.Context, *connect.Request[v1.DeleteUnionRaceTaskRequest]) (*connect.Response[v1.DeleteUnionRaceTaskResponse], error)
 }
 
 // NewAutomationServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -151,6 +176,12 @@ func NewAutomationServiceHandler(svc AutomationServiceHandler, opts ...connect.H
 		connect.WithSchema(automationServiceMethods.ByName("TakeUnionRaceTask")),
 		connect.WithHandlerOptions(opts...),
 	)
+	automationServiceDeleteUnionRaceTaskHandler := connect.NewUnaryHandler(
+		AutomationServiceDeleteUnionRaceTaskProcedure,
+		svc.DeleteUnionRaceTask,
+		connect.WithSchema(automationServiceMethods.ByName("DeleteUnionRaceTask")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/mygardenworld.v1.AutomationService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AutomationServiceEnableAutomationProcedure:
@@ -159,6 +190,8 @@ func NewAutomationServiceHandler(svc AutomationServiceHandler, opts ...connect.H
 			automationServiceDisableAutomationHandler.ServeHTTP(w, r)
 		case AutomationServiceTakeUnionRaceTaskProcedure:
 			automationServiceTakeUnionRaceTaskHandler.ServeHTTP(w, r)
+		case AutomationServiceDeleteUnionRaceTaskProcedure:
+			automationServiceDeleteUnionRaceTaskHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -178,4 +211,8 @@ func (UnimplementedAutomationServiceHandler) DisableAutomation(context.Context, 
 
 func (UnimplementedAutomationServiceHandler) TakeUnionRaceTask(context.Context, *connect.Request[v1.TakeUnionRaceTaskRequest]) (*connect.Response[v1.TakeUnionRaceTaskResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.TakeUnionRaceTask is not implemented"))
+}
+
+func (UnimplementedAutomationServiceHandler) DeleteUnionRaceTask(context.Context, *connect.Request[v1.DeleteUnionRaceTaskRequest]) (*connect.Response[v1.DeleteUnionRaceTaskResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AutomationService.DeleteUnionRaceTask is not implemented"))
 }

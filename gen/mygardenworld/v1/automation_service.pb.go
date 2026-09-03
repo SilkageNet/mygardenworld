@@ -269,6 +269,94 @@ func (*TakeUnionRaceTaskResponse) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{5}
 }
 
+type DeleteUnionRaceTaskRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	TaskMsId      int64                  `protobuf:"varint,2,opt,name=task_ms_id,json=taskMsId,proto3" json:"task_ms_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUnionRaceTaskRequest) Reset() {
+	*x = DeleteUnionRaceTaskRequest{}
+	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUnionRaceTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUnionRaceTaskRequest) ProtoMessage() {}
+
+func (x *DeleteUnionRaceTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUnionRaceTaskRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUnionRaceTaskRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *DeleteUnionRaceTaskRequest) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
+	}
+	return 0
+}
+
+func (x *DeleteUnionRaceTaskRequest) GetTaskMsId() int64 {
+	if x != nil {
+		return x.TaskMsId
+	}
+	return 0
+}
+
+type DeleteUnionRaceTaskResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUnionRaceTaskResponse) Reset() {
+	*x = DeleteUnionRaceTaskResponse{}
+	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUnionRaceTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUnionRaceTaskResponse) ProtoMessage() {}
+
+func (x *DeleteUnionRaceTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_automation_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUnionRaceTaskResponse.ProtoReflect.Descriptor instead.
+func (*DeleteUnionRaceTaskResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_automation_service_proto_rawDescGZIP(), []int{7}
+}
+
 var File_mygardenworld_v1_automation_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_automation_service_proto_rawDesc = "" +
@@ -287,11 +375,18 @@ const file_mygardenworld_v1_automation_service_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x1c\n" +
 	"\n" +
 	"task_ms_id\x18\x02 \x01(\x03R\btaskMsId\"\x1b\n" +
-	"\x19TakeUnionRaceTaskResponse2\xda\x02\n" +
+	"\x19TakeUnionRaceTaskResponse\"Y\n" +
+	"\x1aDeleteUnionRaceTaskRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x1c\n" +
+	"\n" +
+	"task_ms_id\x18\x02 \x01(\x03R\btaskMsId\"\x1d\n" +
+	"\x1bDeleteUnionRaceTaskResponse2\xce\x03\n" +
 	"\x11AutomationService\x12i\n" +
 	"\x10EnableAutomation\x12).mygardenworld.v1.EnableAutomationRequest\x1a*.mygardenworld.v1.EnableAutomationResponse\x12l\n" +
 	"\x11DisableAutomation\x12*.mygardenworld.v1.DisableAutomationRequest\x1a+.mygardenworld.v1.DisableAutomationResponse\x12l\n" +
-	"\x11TakeUnionRaceTask\x12*.mygardenworld.v1.TakeUnionRaceTaskRequest\x1a+.mygardenworld.v1.TakeUnionRaceTaskResponseB\xd9\x01\n" +
+	"\x11TakeUnionRaceTask\x12*.mygardenworld.v1.TakeUnionRaceTaskRequest\x1a+.mygardenworld.v1.TakeUnionRaceTaskResponse\x12r\n" +
+	"\x13DeleteUnionRaceTask\x12,.mygardenworld.v1.DeleteUnionRaceTaskRequest\x1a-.mygardenworld.v1.DeleteUnionRaceTaskResponseB\xd9\x01\n" +
 	"\x14com.mygardenworld.v1B\x16AutomationServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
 var (
@@ -306,24 +401,28 @@ func file_mygardenworld_v1_automation_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_automation_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_automation_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_mygardenworld_v1_automation_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_mygardenworld_v1_automation_service_proto_goTypes = []any{
-	(*EnableAutomationRequest)(nil),   // 0: mygardenworld.v1.EnableAutomationRequest
-	(*EnableAutomationResponse)(nil),  // 1: mygardenworld.v1.EnableAutomationResponse
-	(*DisableAutomationRequest)(nil),  // 2: mygardenworld.v1.DisableAutomationRequest
-	(*DisableAutomationResponse)(nil), // 3: mygardenworld.v1.DisableAutomationResponse
-	(*TakeUnionRaceTaskRequest)(nil),  // 4: mygardenworld.v1.TakeUnionRaceTaskRequest
-	(*TakeUnionRaceTaskResponse)(nil), // 5: mygardenworld.v1.TakeUnionRaceTaskResponse
+	(*EnableAutomationRequest)(nil),     // 0: mygardenworld.v1.EnableAutomationRequest
+	(*EnableAutomationResponse)(nil),    // 1: mygardenworld.v1.EnableAutomationResponse
+	(*DisableAutomationRequest)(nil),    // 2: mygardenworld.v1.DisableAutomationRequest
+	(*DisableAutomationResponse)(nil),   // 3: mygardenworld.v1.DisableAutomationResponse
+	(*TakeUnionRaceTaskRequest)(nil),    // 4: mygardenworld.v1.TakeUnionRaceTaskRequest
+	(*TakeUnionRaceTaskResponse)(nil),   // 5: mygardenworld.v1.TakeUnionRaceTaskResponse
+	(*DeleteUnionRaceTaskRequest)(nil),  // 6: mygardenworld.v1.DeleteUnionRaceTaskRequest
+	(*DeleteUnionRaceTaskResponse)(nil), // 7: mygardenworld.v1.DeleteUnionRaceTaskResponse
 }
 var file_mygardenworld_v1_automation_service_proto_depIdxs = []int32{
 	0, // 0: mygardenworld.v1.AutomationService.EnableAutomation:input_type -> mygardenworld.v1.EnableAutomationRequest
 	2, // 1: mygardenworld.v1.AutomationService.DisableAutomation:input_type -> mygardenworld.v1.DisableAutomationRequest
 	4, // 2: mygardenworld.v1.AutomationService.TakeUnionRaceTask:input_type -> mygardenworld.v1.TakeUnionRaceTaskRequest
-	1, // 3: mygardenworld.v1.AutomationService.EnableAutomation:output_type -> mygardenworld.v1.EnableAutomationResponse
-	3, // 4: mygardenworld.v1.AutomationService.DisableAutomation:output_type -> mygardenworld.v1.DisableAutomationResponse
-	5, // 5: mygardenworld.v1.AutomationService.TakeUnionRaceTask:output_type -> mygardenworld.v1.TakeUnionRaceTaskResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	6, // 3: mygardenworld.v1.AutomationService.DeleteUnionRaceTask:input_type -> mygardenworld.v1.DeleteUnionRaceTaskRequest
+	1, // 4: mygardenworld.v1.AutomationService.EnableAutomation:output_type -> mygardenworld.v1.EnableAutomationResponse
+	3, // 5: mygardenworld.v1.AutomationService.DisableAutomation:output_type -> mygardenworld.v1.DisableAutomationResponse
+	5, // 6: mygardenworld.v1.AutomationService.TakeUnionRaceTask:output_type -> mygardenworld.v1.TakeUnionRaceTaskResponse
+	7, // 7: mygardenworld.v1.AutomationService.DeleteUnionRaceTask:output_type -> mygardenworld.v1.DeleteUnionRaceTaskResponse
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -340,7 +439,7 @@ func file_mygardenworld_v1_automation_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_automation_service_proto_rawDesc), len(file_mygardenworld_v1_automation_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

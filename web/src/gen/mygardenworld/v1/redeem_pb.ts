@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/redeem.proto.
  */
 export const file_mygardenworld_v1_redeem: GenFile = /*@__PURE__*/
-  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3JlZGVlbS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSIYChZHZXRFeGNoYW5nZUluZm9SZXF1ZXN0IqQBChdHZXRFeGNoYW5nZUluZm9SZXNwb25zZRITCgtpbnN0YW5jZV9pZBgBIAEoCRIvCgtzZXJ2ZXJfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFgoObWF4X2JhdGNoX3NpemUYAyABKAUSKwoIY2hhbm5lbHMYBCADKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwinAEKFkxpc3RSZWRlZW1Db2Rlc1JlcXVlc3QSDgoGY3Vyc29yGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRIXCg9pbmNsdWRlX2V4cGlyZWQYAyABKAgSKwoIY2hhbm5lbHMYBCADKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwSGQoRb25seV9wcm9wYWdhdGFibGUYBSABKAgiXQoXTGlzdFJlZGVlbUNvZGVzUmVzcG9uc2USLQoHZW50cmllcxgBIAMoCzIcLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZRITCgtuZXh0X2N1cnNvchgCIAEoCSJvChhTdWJtaXRSZWRlZW1Db2Rlc1JlcXVlc3QSNwoHZW50cmllcxgBIAMoCzImLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVN1Ym1pc3Npb24SGgoSc2VuZGVyX2luc3RhbmNlX2lkGAIgASgJIlIKGVN1Ym1pdFJlZGVlbUNvZGVzUmVzcG9uc2USNQoHcmVzdWx0cxgBIAMoCzIkLm15Z2FyZGVud29ybGQudjEuUmVkZWVtU3VibWl0UmVzdWx0IvABChRSZWRlZW1Db2RlU3VibWlzc2lvbhIMCgRjb2RlGAEgASgJEioKB2NoYW5uZWwYAiABKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJcGVybWFuZW50GAQgASgIEj8KE3JlcG9ydGVkX3ZhbGlkYXRpb24YBSABKA4yIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbVZhbGlkYXRpb24SGgoSb3JpZ2luX2luc3RhbmNlX2lkGAYgASgJInoKElJlZGVlbVN1Ym1pdFJlc3VsdBITCgtmaW5nZXJwcmludBgBIAEoCRI+CgtkaXNwb3NpdGlvbhgCIAEoDjIpLm15Z2FyZGVud29ybGQudjEuUmVkZWVtU3VibWl0RGlzcG9zaXRpb24SDwoHbWVzc2FnZRgDIAEoCSLdAwoKUmVkZWVtQ29kZRITCgtmaW5nZXJwcmludBgBIAEoCRIMCgRjb2RlGAIgASgJEioKB2NoYW5uZWwYAyABKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJcGVybWFuZW50GAUgASgIEjYKCnZhbGlkYXRpb24YBiABKA4yIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbVZhbGlkYXRpb24SMQoNZmlyc3Rfc2Vlbl9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASNQoRbG9jYWxfdmVyaWZpZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjkKFWNvbW11bml0eV92ZXJpZmllZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGgoSb3JpZ2luX2luc3RhbmNlX2lkGAsgASgJEhQKDGxhc3RfbWVzc2FnZRgMIAEoCSqZAgoQUmVkZWVtVmFsaWRhdGlvbhIhCh1SRURFRU1fVkFMSURBVElPTl9VTlNQRUNJRklFRBAAEh0KGVJFREVFTV9WQUxJREFUSU9OX1BFTkRJTkcQARIdChlSRURFRU1fVkFMSURBVElPTl9TVUNDRVNTEAISJgoiUkVERUVNX1ZBTElEQVRJT05fQUxSRUFEWV9SRURFRU1FRBADEh0KGVJFREVFTV9WQUxJREFUSU9OX0VYUElSRUQQBBIdChlSRURFRU1fVkFMSURBVElPTl9JTlZBTElEEAUSHwobUkVERUVNX1ZBTElEQVRJT05fUkVUUllBQkxFEAYSHQoZUkVERUVNX1ZBTElEQVRJT05fVU5LTk9XThAHKr0BChdSZWRlZW1TdWJtaXREaXNwb3NpdGlvbhIpCiVSRURFRU1fU1VCTUlUX0RJU1BPU0lUSU9OX1VOU1BFQ0lGSUVEEAASJgoiUkVERUVNX1NVQk1JVF9ESVNQT1NJVElPTl9BQ0NFUFRFRBABEicKI1JFREVFTV9TVUJNSVRfRElTUE9TSVRJT05fRFVQTElDQVRFEAISJgoiUkVERUVNX1NVQk1JVF9ESVNQT1NJVElPTl9SRUpFQ1RFRBADMtUCChVSZWRlZW1FeGNoYW5nZVNlcnZpY2USZgoPR2V0RXhjaGFuZ2VJbmZvEigubXlnYXJkZW53b3JsZC52MS5HZXRFeGNoYW5nZUluZm9SZXF1ZXN0GikubXlnYXJkZW53b3JsZC52MS5HZXRFeGNoYW5nZUluZm9SZXNwb25zZRJmCg9MaXN0UmVkZWVtQ29kZXMSKC5teWdhcmRlbndvcmxkLnYxLkxpc3RSZWRlZW1Db2Rlc1JlcXVlc3QaKS5teWdhcmRlbndvcmxkLnYxLkxpc3RSZWRlZW1Db2Rlc1Jlc3BvbnNlEmwKEVN1Ym1pdFJlZGVlbUNvZGVzEioubXlnYXJkZW53b3JsZC52MS5TdWJtaXRSZWRlZW1Db2Rlc1JlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLlN1Ym1pdFJlZGVlbUNvZGVzUmVzcG9uc2VChAEKFGNvbS5teWdhcmRlbndvcmxkLnYxQgtSZWRlZW1Qcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
+  fileDesc("Ch1teWdhcmRlbndvcmxkL3YxL3JlZGVlbS5wcm90bxIQbXlnYXJkZW53b3JsZC52MSIYChZHZXRFeGNoYW5nZUluZm9SZXF1ZXN0IqQBChdHZXRFeGNoYW5nZUluZm9SZXNwb25zZRITCgtpbnN0YW5jZV9pZBgBIAEoCRIvCgtzZXJ2ZXJfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASFgoObWF4X2JhdGNoX3NpemUYAyABKAUSKwoIY2hhbm5lbHMYBCADKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwinAEKFkxpc3RSZWRlZW1Db2Rlc1JlcXVlc3QSDgoGY3Vyc29yGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRIXCg9pbmNsdWRlX2V4cGlyZWQYAyABKAgSKwoIY2hhbm5lbHMYBCADKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwSGQoRb25seV9wcm9wYWdhdGFibGUYBSABKAgiXQoXTGlzdFJlZGVlbUNvZGVzUmVzcG9uc2USLQoHZW50cmllcxgBIAMoCzIcLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZRITCgtuZXh0X2N1cnNvchgCIAEoCSJxChhCcm93c2VSZWRlZW1Db2Rlc1JlcXVlc3QSDAoEcGFnZRgBIAEoBRIRCglwYWdlX3NpemUYAiABKAUSNAoGZmlsdGVyGAMgASgOMiQubXlnYXJkZW53b3JsZC52MS5SZWRlZW1Ccm93c2VGaWx0ZXIimAEKGUJyb3dzZVJlZGVlbUNvZGVzUmVzcG9uc2USLQoHZW50cmllcxgBIAMoCzIcLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZRIMCgRwYWdlGAIgASgFEhEKCXBhZ2Vfc2l6ZRgDIAEoBRIUCgxhY3RpdmVfdG90YWwYBCABKAMSFQoNaGlzdG9yeV90b3RhbBgFIAEoAyJvChhTdWJtaXRSZWRlZW1Db2Rlc1JlcXVlc3QSNwoHZW50cmllcxgBIAMoCzImLm15Z2FyZGVud29ybGQudjEuUmVkZWVtQ29kZVN1Ym1pc3Npb24SGgoSc2VuZGVyX2luc3RhbmNlX2lkGAIgASgJIlIKGVN1Ym1pdFJlZGVlbUNvZGVzUmVzcG9uc2USNQoHcmVzdWx0cxgBIAMoCzIkLm15Z2FyZGVud29ybGQudjEuUmVkZWVtU3VibWl0UmVzdWx0IvABChRSZWRlZW1Db2RlU3VibWlzc2lvbhIMCgRjb2RlGAEgASgJEioKB2NoYW5uZWwYAiABKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwSLgoKZXhwaXJlc19hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJcGVybWFuZW50GAQgASgIEj8KE3JlcG9ydGVkX3ZhbGlkYXRpb24YBSABKA4yIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbVZhbGlkYXRpb24SGgoSb3JpZ2luX2luc3RhbmNlX2lkGAYgASgJInoKElJlZGVlbVN1Ym1pdFJlc3VsdBITCgtmaW5nZXJwcmludBgBIAEoCRI+CgtkaXNwb3NpdGlvbhgCIAEoDjIpLm15Z2FyZGVud29ybGQudjEuUmVkZWVtU3VibWl0RGlzcG9zaXRpb24SDwoHbWVzc2FnZRgDIAEoCSL4AwoKUmVkZWVtQ29kZRITCgtmaW5nZXJwcmludBgBIAEoCRIMCgRjb2RlGAIgASgJEioKB2NoYW5uZWwYAyABKA4yGS5teWdhcmRlbndvcmxkLnYxLkNoYW5uZWwSLgoKZXhwaXJlc19hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJcGVybWFuZW50GAUgASgIEjYKCnZhbGlkYXRpb24YBiABKA4yIi5teWdhcmRlbndvcmxkLnYxLlJlZGVlbVZhbGlkYXRpb24SMQoNZmlyc3Rfc2Vlbl9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASNQoRbG9jYWxfdmVyaWZpZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjkKFWNvbW11bml0eV92ZXJpZmllZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGgoSb3JpZ2luX2luc3RhbmNlX2lkGAsgASgJEhQKDGxhc3RfbWVzc2FnZRgMIAEoCRIZChFleHBpcnlfb3ZlcnJpZGRlbhgNIAEoCCqZAgoQUmVkZWVtVmFsaWRhdGlvbhIhCh1SRURFRU1fVkFMSURBVElPTl9VTlNQRUNJRklFRBAAEh0KGVJFREVFTV9WQUxJREFUSU9OX1BFTkRJTkcQARIdChlSRURFRU1fVkFMSURBVElPTl9TVUNDRVNTEAISJgoiUkVERUVNX1ZBTElEQVRJT05fQUxSRUFEWV9SRURFRU1FRBADEh0KGVJFREVFTV9WQUxJREFUSU9OX0VYUElSRUQQBBIdChlSRURFRU1fVkFMSURBVElPTl9JTlZBTElEEAUSHwobUkVERUVNX1ZBTElEQVRJT05fUkVUUllBQkxFEAYSHQoZUkVERUVNX1ZBTElEQVRJT05fVU5LTk9XThAHKr0BChdSZWRlZW1TdWJtaXREaXNwb3NpdGlvbhIpCiVSRURFRU1fU1VCTUlUX0RJU1BPU0lUSU9OX1VOU1BFQ0lGSUVEEAASJgoiUkVERUVNX1NVQk1JVF9ESVNQT1NJVElPTl9BQ0NFUFRFRBABEicKI1JFREVFTV9TVUJNSVRfRElTUE9TSVRJT05fRFVQTElDQVRFEAISJgoiUkVERUVNX1NVQk1JVF9ESVNQT1NJVElPTl9SRUpFQ1RFRBADKn0KElJlZGVlbUJyb3dzZUZpbHRlchIkCiBSRURFRU1fQlJPV1NFX0ZJTFRFUl9VTlNQRUNJRklFRBAAEh8KG1JFREVFTV9CUk9XU0VfRklMVEVSX0FDVElWRRABEiAKHFJFREVFTV9CUk9XU0VfRklMVEVSX0hJU1RPUlkQAjLDAwoVUmVkZWVtRXhjaGFuZ2VTZXJ2aWNlEmYKD0dldEV4Y2hhbmdlSW5mbxIoLm15Z2FyZGVud29ybGQudjEuR2V0RXhjaGFuZ2VJbmZvUmVxdWVzdBopLm15Z2FyZGVud29ybGQudjEuR2V0RXhjaGFuZ2VJbmZvUmVzcG9uc2USZgoPTGlzdFJlZGVlbUNvZGVzEigubXlnYXJkZW53b3JsZC52MS5MaXN0UmVkZWVtQ29kZXNSZXF1ZXN0GikubXlnYXJkZW53b3JsZC52MS5MaXN0UmVkZWVtQ29kZXNSZXNwb25zZRJsChFCcm93c2VSZWRlZW1Db2RlcxIqLm15Z2FyZGVud29ybGQudjEuQnJvd3NlUmVkZWVtQ29kZXNSZXF1ZXN0GisubXlnYXJkZW53b3JsZC52MS5Ccm93c2VSZWRlZW1Db2Rlc1Jlc3BvbnNlEmwKEVN1Ym1pdFJlZGVlbUNvZGVzEioubXlnYXJkZW53b3JsZC52MS5TdWJtaXRSZWRlZW1Db2Rlc1JlcXVlc3QaKy5teWdhcmRlbndvcmxkLnYxLlN1Ym1pdFJlZGVlbUNvZGVzUmVzcG9uc2VChAEKFGNvbS5teWdhcmRlbndvcmxkLnYxQgtSZWRlZW1Qcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
 
 /**
  * @generated from message mygardenworld.v1.GetExchangeInfoRequest
@@ -128,6 +128,72 @@ export const ListRedeemCodesResponseSchema: GenMessage<ListRedeemCodesResponse> 
   messageDesc(file_mygardenworld_v1_redeem, 3);
 
 /**
+ * @generated from message mygardenworld.v1.BrowseRedeemCodesRequest
+ */
+export type BrowseRedeemCodesRequest = Message<"mygardenworld.v1.BrowseRedeemCodesRequest"> & {
+  /**
+   * Zero-based page number for the human-facing registry browser.
+   *
+   * @generated from field: int32 page = 1;
+   */
+  page: number;
+
+  /**
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * @generated from field: mygardenworld.v1.RedeemBrowseFilter filter = 3;
+   */
+  filter: RedeemBrowseFilter;
+};
+
+/**
+ * Describes the message mygardenworld.v1.BrowseRedeemCodesRequest.
+ * Use `create(BrowseRedeemCodesRequestSchema)` to create a new message.
+ */
+export const BrowseRedeemCodesRequestSchema: GenMessage<BrowseRedeemCodesRequest> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_redeem, 4);
+
+/**
+ * @generated from message mygardenworld.v1.BrowseRedeemCodesResponse
+ */
+export type BrowseRedeemCodesResponse = Message<"mygardenworld.v1.BrowseRedeemCodesResponse"> & {
+  /**
+   * @generated from field: repeated mygardenworld.v1.RedeemCode entries = 1;
+   */
+  entries: RedeemCode[];
+
+  /**
+   * @generated from field: int32 page = 2;
+   */
+  page: number;
+
+  /**
+   * @generated from field: int32 page_size = 3;
+   */
+  pageSize: number;
+
+  /**
+   * @generated from field: int64 active_total = 4;
+   */
+  activeTotal: bigint;
+
+  /**
+   * @generated from field: int64 history_total = 5;
+   */
+  historyTotal: bigint;
+};
+
+/**
+ * Describes the message mygardenworld.v1.BrowseRedeemCodesResponse.
+ * Use `create(BrowseRedeemCodesResponseSchema)` to create a new message.
+ */
+export const BrowseRedeemCodesResponseSchema: GenMessage<BrowseRedeemCodesResponse> = /*@__PURE__*/
+  messageDesc(file_mygardenworld_v1_redeem, 5);
+
+/**
  * @generated from message mygardenworld.v1.SubmitRedeemCodesRequest
  */
 export type SubmitRedeemCodesRequest = Message<"mygardenworld.v1.SubmitRedeemCodesRequest"> & {
@@ -149,7 +215,7 @@ export type SubmitRedeemCodesRequest = Message<"mygardenworld.v1.SubmitRedeemCod
  * Use `create(SubmitRedeemCodesRequestSchema)` to create a new message.
  */
 export const SubmitRedeemCodesRequestSchema: GenMessage<SubmitRedeemCodesRequest> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_redeem, 4);
+  messageDesc(file_mygardenworld_v1_redeem, 6);
 
 /**
  * @generated from message mygardenworld.v1.SubmitRedeemCodesResponse
@@ -166,7 +232,7 @@ export type SubmitRedeemCodesResponse = Message<"mygardenworld.v1.SubmitRedeemCo
  * Use `create(SubmitRedeemCodesResponseSchema)` to create a new message.
  */
 export const SubmitRedeemCodesResponseSchema: GenMessage<SubmitRedeemCodesResponse> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_redeem, 5);
+  messageDesc(file_mygardenworld_v1_redeem, 7);
 
 /**
  * @generated from message mygardenworld.v1.RedeemCodeSubmission
@@ -215,7 +281,7 @@ export type RedeemCodeSubmission = Message<"mygardenworld.v1.RedeemCodeSubmissio
  * Use `create(RedeemCodeSubmissionSchema)` to create a new message.
  */
 export const RedeemCodeSubmissionSchema: GenMessage<RedeemCodeSubmission> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_redeem, 6);
+  messageDesc(file_mygardenworld_v1_redeem, 8);
 
 /**
  * @generated from message mygardenworld.v1.RedeemSubmitResult
@@ -242,7 +308,7 @@ export type RedeemSubmitResult = Message<"mygardenworld.v1.RedeemSubmitResult"> 
  * Use `create(RedeemSubmitResultSchema)` to create a new message.
  */
 export const RedeemSubmitResultSchema: GenMessage<RedeemSubmitResult> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_redeem, 7);
+  messageDesc(file_mygardenworld_v1_redeem, 9);
 
 /**
  * @generated from message mygardenworld.v1.RedeemCode
@@ -307,6 +373,13 @@ export type RedeemCode = Message<"mygardenworld.v1.RedeemCode"> & {
    * @generated from field: string last_message = 12;
    */
   lastMessage: string;
+
+  /**
+   * True when a local administrator has overridden source-reported expiry.
+   *
+   * @generated from field: bool expiry_overridden = 13;
+   */
+  expiryOverridden: boolean;
 };
 
 /**
@@ -314,7 +387,7 @@ export type RedeemCode = Message<"mygardenworld.v1.RedeemCode"> & {
  * Use `create(RedeemCodeSchema)` to create a new message.
  */
 export const RedeemCodeSchema: GenMessage<RedeemCode> = /*@__PURE__*/
-  messageDesc(file_mygardenworld_v1_redeem, 8);
+  messageDesc(file_mygardenworld_v1_redeem, 10);
 
 /**
  * @generated from enum mygardenworld.v1.RedeemValidation
@@ -399,6 +472,32 @@ export const RedeemSubmitDispositionSchema: GenEnum<RedeemSubmitDisposition> = /
   enumDesc(file_mygardenworld_v1_redeem, 1);
 
 /**
+ * @generated from enum mygardenworld.v1.RedeemBrowseFilter
+ */
+export enum RedeemBrowseFilter {
+  /**
+   * @generated from enum value: REDEEM_BROWSE_FILTER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: REDEEM_BROWSE_FILTER_ACTIVE = 1;
+   */
+  ACTIVE = 1,
+
+  /**
+   * @generated from enum value: REDEEM_BROWSE_FILTER_HISTORY = 2;
+   */
+  HISTORY = 2,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.RedeemBrowseFilter.
+ */
+export const RedeemBrowseFilterSchema: GenEnum<RedeemBrowseFilter> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_redeem, 2);
+
+/**
  * RedeemExchangeService is the public, deployment-to-deployment exchange
  * protocol. It never exposes users, accounts, sessions, or per-account results.
  *
@@ -420,6 +519,17 @@ export const RedeemExchangeService: GenService<{
     methodKind: "unary";
     input: typeof ListRedeemCodesRequestSchema;
     output: typeof ListRedeemCodesResponseSchema;
+  },
+  /**
+   * Browser-oriented newest-first pagination. The change-feed semantics of
+   * ListRedeemCodes remain dedicated to node synchronization.
+   *
+   * @generated from rpc mygardenworld.v1.RedeemExchangeService.BrowseRedeemCodes
+   */
+  browseRedeemCodes: {
+    methodKind: "unary";
+    input: typeof BrowseRedeemCodesRequestSchema;
+    output: typeof BrowseRedeemCodesResponseSchema;
   },
   /**
    * @generated from rpc mygardenworld.v1.RedeemExchangeService.SubmitRedeemCodes

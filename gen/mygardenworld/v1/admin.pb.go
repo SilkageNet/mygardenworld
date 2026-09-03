@@ -71,6 +71,59 @@ func (RedeemSourceType) EnumDescriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{0}
 }
 
+type RedeemExpiryOverrideMode int32
+
+const (
+	RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_UNSPECIFIED RedeemExpiryOverrideMode = 0
+	RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_FINITE      RedeemExpiryOverrideMode = 1
+	RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_PERMANENT   RedeemExpiryOverrideMode = 2
+	// Removes the local override and recalculates expiry from source evidence.
+	RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_SOURCE RedeemExpiryOverrideMode = 3
+)
+
+// Enum value maps for RedeemExpiryOverrideMode.
+var (
+	RedeemExpiryOverrideMode_name = map[int32]string{
+		0: "REDEEM_EXPIRY_OVERRIDE_MODE_UNSPECIFIED",
+		1: "REDEEM_EXPIRY_OVERRIDE_MODE_FINITE",
+		2: "REDEEM_EXPIRY_OVERRIDE_MODE_PERMANENT",
+		3: "REDEEM_EXPIRY_OVERRIDE_MODE_SOURCE",
+	}
+	RedeemExpiryOverrideMode_value = map[string]int32{
+		"REDEEM_EXPIRY_OVERRIDE_MODE_UNSPECIFIED": 0,
+		"REDEEM_EXPIRY_OVERRIDE_MODE_FINITE":      1,
+		"REDEEM_EXPIRY_OVERRIDE_MODE_PERMANENT":   2,
+		"REDEEM_EXPIRY_OVERRIDE_MODE_SOURCE":      3,
+	}
+)
+
+func (x RedeemExpiryOverrideMode) Enum() *RedeemExpiryOverrideMode {
+	p := new(RedeemExpiryOverrideMode)
+	*p = x
+	return p
+}
+
+func (x RedeemExpiryOverrideMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RedeemExpiryOverrideMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_admin_proto_enumTypes[1].Descriptor()
+}
+
+func (RedeemExpiryOverrideMode) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_admin_proto_enumTypes[1]
+}
+
+func (x RedeemExpiryOverrideMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RedeemExpiryOverrideMode.Descriptor instead.
+func (RedeemExpiryOverrideMode) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{1}
+}
+
 type CreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -1118,11 +1171,116 @@ func (x *SyncRedeemSourceResponse) GetSource() *RedeemSource {
 	return nil
 }
 
+type UpdateRedeemCodeExpiryRequest struct {
+	state       protoimpl.MessageState   `protogen:"open.v1"`
+	Fingerprint string                   `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	Mode        RedeemExpiryOverrideMode `protobuf:"varint,2,opt,name=mode,proto3,enum=mygardenworld.v1.RedeemExpiryOverrideMode" json:"mode,omitempty"`
+	// Required only for FINITE and must be in the future.
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRedeemCodeExpiryRequest) Reset() {
+	*x = UpdateRedeemCodeExpiryRequest{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRedeemCodeExpiryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRedeemCodeExpiryRequest) ProtoMessage() {}
+
+func (x *UpdateRedeemCodeExpiryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRedeemCodeExpiryRequest.ProtoReflect.Descriptor instead.
+func (*UpdateRedeemCodeExpiryRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *UpdateRedeemCodeExpiryRequest) GetFingerprint() string {
+	if x != nil {
+		return x.Fingerprint
+	}
+	return ""
+}
+
+func (x *UpdateRedeemCodeExpiryRequest) GetMode() RedeemExpiryOverrideMode {
+	if x != nil {
+		return x.Mode
+	}
+	return RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_UNSPECIFIED
+}
+
+func (x *UpdateRedeemCodeExpiryRequest) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+type UpdateRedeemCodeExpiryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          *RedeemCode            `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRedeemCodeExpiryResponse) Reset() {
+	*x = UpdateRedeemCodeExpiryResponse{}
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRedeemCodeExpiryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRedeemCodeExpiryResponse) ProtoMessage() {}
+
+func (x *UpdateRedeemCodeExpiryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_admin_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateRedeemCodeExpiryResponse.ProtoReflect.Descriptor instead.
+func (*UpdateRedeemCodeExpiryResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_admin_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *UpdateRedeemCodeExpiryResponse) GetCode() *RedeemCode {
+	if x != nil {
+		return x.Code
+	}
+	return nil
+}
+
 var File_mygardenworld_v1_admin_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\n" +
-	"\x1cmygardenworld/v1/admin.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bmygardenworld/v1/auth.proto\x1a\x1emygardenworld/v1/channel.proto\"\x9e\x02\n" +
+	"\x1cmygardenworld/v1/admin.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bmygardenworld/v1/auth.proto\x1a\x1emygardenworld/v1/channel.proto\x1a\x1dmygardenworld/v1/redeem.proto\"\x9e\x02\n" +
 	"\x11CreateUserRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1a\n" +
@@ -1203,11 +1361,23 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\x17SyncRedeemSourceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"R\n" +
 	"\x18SyncRedeemSourceResponse\x126\n" +
-	"\x06source\x18\x01 \x01(\v2\x1e.mygardenworld.v1.RedeemSourceR\x06source*\x80\x01\n" +
+	"\x06source\x18\x01 \x01(\v2\x1e.mygardenworld.v1.RedeemSourceR\x06source\"\xbc\x01\n" +
+	"\x1dUpdateRedeemCodeExpiryRequest\x12 \n" +
+	"\vfingerprint\x18\x01 \x01(\tR\vfingerprint\x12>\n" +
+	"\x04mode\x18\x02 \x01(\x0e2*.mygardenworld.v1.RedeemExpiryOverrideModeR\x04mode\x129\n" +
+	"\n" +
+	"expires_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"R\n" +
+	"\x1eUpdateRedeemCodeExpiryResponse\x120\n" +
+	"\x04code\x18\x01 \x01(\v2\x1c.mygardenworld.v1.RedeemCodeR\x04code*\x80\x01\n" +
 	"\x10RedeemSourceType\x12\"\n" +
 	"\x1eREDEEM_SOURCE_TYPE_UNSPECIFIED\x10\x00\x12$\n" +
 	" REDEEM_SOURCE_TYPE_MYGARDENWORLD\x10\x01\x12\"\n" +
-	"\x1eREDEEM_SOURCE_TYPE_CUSTOM_HTTP\x10\x022\xb6\x06\n" +
+	"\x1eREDEEM_SOURCE_TYPE_CUSTOM_HTTP\x10\x02*\xc2\x01\n" +
+	"\x18RedeemExpiryOverrideMode\x12+\n" +
+	"'REDEEM_EXPIRY_OVERRIDE_MODE_UNSPECIFIED\x10\x00\x12&\n" +
+	"\"REDEEM_EXPIRY_OVERRIDE_MODE_FINITE\x10\x01\x12)\n" +
+	"%REDEEM_EXPIRY_OVERRIDE_MODE_PERMANENT\x10\x02\x12&\n" +
+	"\"REDEEM_EXPIRY_OVERRIDE_MODE_SOURCE\x10\x032\xb3\a\n" +
 	"\fAdminService\x12W\n" +
 	"\n" +
 	"CreateUser\x12#.mygardenworld.v1.CreateUserRequest\x1a$.mygardenworld.v1.CreateUserResponse\x12T\n" +
@@ -1218,7 +1388,8 @@ const file_mygardenworld_v1_admin_proto_rawDesc = "" +
 	"\x11ListRedeemSources\x12*.mygardenworld.v1.ListRedeemSourcesRequest\x1a+.mygardenworld.v1.ListRedeemSourcesResponse\x12o\n" +
 	"\x12UpsertRedeemSource\x12+.mygardenworld.v1.UpsertRedeemSourceRequest\x1a,.mygardenworld.v1.UpsertRedeemSourceResponse\x12o\n" +
 	"\x12DeleteRedeemSource\x12+.mygardenworld.v1.DeleteRedeemSourceRequest\x1a,.mygardenworld.v1.DeleteRedeemSourceResponse\x12i\n" +
-	"\x10SyncRedeemSource\x12).mygardenworld.v1.SyncRedeemSourceRequest\x1a*.mygardenworld.v1.SyncRedeemSourceResponseB\xcd\x01\n" +
+	"\x10SyncRedeemSource\x12).mygardenworld.v1.SyncRedeemSourceRequest\x1a*.mygardenworld.v1.SyncRedeemSourceResponse\x12{\n" +
+	"\x16UpdateRedeemCodeExpiry\x12/.mygardenworld.v1.UpdateRedeemCodeExpiryRequest\x1a0.mygardenworld.v1.UpdateRedeemCodeExpiryResponseB\xcd\x01\n" +
 	"\x14com.mygardenworld.v1B\n" +
 	"AdminProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
 
@@ -1234,70 +1405,79 @@ func file_mygardenworld_v1_admin_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_admin_proto_rawDescData
 }
 
-var file_mygardenworld_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_mygardenworld_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_mygardenworld_v1_admin_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_mygardenworld_v1_admin_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_mygardenworld_v1_admin_proto_goTypes = []any{
-	(RedeemSourceType)(0),              // 0: mygardenworld.v1.RedeemSourceType
-	(*CreateUserRequest)(nil),          // 1: mygardenworld.v1.CreateUserRequest
-	(*CreateUserResponse)(nil),         // 2: mygardenworld.v1.CreateUserResponse
-	(*ListUsersRequest)(nil),           // 3: mygardenworld.v1.ListUsersRequest
-	(*ListUsersResponse)(nil),          // 4: mygardenworld.v1.ListUsersResponse
-	(*UpdateUserRequest)(nil),          // 5: mygardenworld.v1.UpdateUserRequest
-	(*UpdateUserResponse)(nil),         // 6: mygardenworld.v1.UpdateUserResponse
-	(*GetSystemStatsRequest)(nil),      // 7: mygardenworld.v1.GetSystemStatsRequest
-	(*GetSystemStatsResponse)(nil),     // 8: mygardenworld.v1.GetSystemStatsResponse
-	(*RedeemSource)(nil),               // 9: mygardenworld.v1.RedeemSource
-	(*ListRedeemSourcesRequest)(nil),   // 10: mygardenworld.v1.ListRedeemSourcesRequest
-	(*ListRedeemSourcesResponse)(nil),  // 11: mygardenworld.v1.ListRedeemSourcesResponse
-	(*UpsertRedeemSourceRequest)(nil),  // 12: mygardenworld.v1.UpsertRedeemSourceRequest
-	(*UpsertRedeemSourceResponse)(nil), // 13: mygardenworld.v1.UpsertRedeemSourceResponse
-	(*DeleteRedeemSourceRequest)(nil),  // 14: mygardenworld.v1.DeleteRedeemSourceRequest
-	(*DeleteRedeemSourceResponse)(nil), // 15: mygardenworld.v1.DeleteRedeemSourceResponse
-	(*SyncRedeemSourceRequest)(nil),    // 16: mygardenworld.v1.SyncRedeemSourceRequest
-	(*SyncRedeemSourceResponse)(nil),   // 17: mygardenworld.v1.SyncRedeemSourceResponse
-	(UserRole)(0),                      // 18: mygardenworld.v1.UserRole
-	(UserStatus)(0),                    // 19: mygardenworld.v1.UserStatus
-	(*User)(nil),                       // 20: mygardenworld.v1.User
-	(Channel)(0),                       // 21: mygardenworld.v1.Channel
-	(*timestamppb.Timestamp)(nil),      // 22: google.protobuf.Timestamp
+	(RedeemSourceType)(0),                  // 0: mygardenworld.v1.RedeemSourceType
+	(RedeemExpiryOverrideMode)(0),          // 1: mygardenworld.v1.RedeemExpiryOverrideMode
+	(*CreateUserRequest)(nil),              // 2: mygardenworld.v1.CreateUserRequest
+	(*CreateUserResponse)(nil),             // 3: mygardenworld.v1.CreateUserResponse
+	(*ListUsersRequest)(nil),               // 4: mygardenworld.v1.ListUsersRequest
+	(*ListUsersResponse)(nil),              // 5: mygardenworld.v1.ListUsersResponse
+	(*UpdateUserRequest)(nil),              // 6: mygardenworld.v1.UpdateUserRequest
+	(*UpdateUserResponse)(nil),             // 7: mygardenworld.v1.UpdateUserResponse
+	(*GetSystemStatsRequest)(nil),          // 8: mygardenworld.v1.GetSystemStatsRequest
+	(*GetSystemStatsResponse)(nil),         // 9: mygardenworld.v1.GetSystemStatsResponse
+	(*RedeemSource)(nil),                   // 10: mygardenworld.v1.RedeemSource
+	(*ListRedeemSourcesRequest)(nil),       // 11: mygardenworld.v1.ListRedeemSourcesRequest
+	(*ListRedeemSourcesResponse)(nil),      // 12: mygardenworld.v1.ListRedeemSourcesResponse
+	(*UpsertRedeemSourceRequest)(nil),      // 13: mygardenworld.v1.UpsertRedeemSourceRequest
+	(*UpsertRedeemSourceResponse)(nil),     // 14: mygardenworld.v1.UpsertRedeemSourceResponse
+	(*DeleteRedeemSourceRequest)(nil),      // 15: mygardenworld.v1.DeleteRedeemSourceRequest
+	(*DeleteRedeemSourceResponse)(nil),     // 16: mygardenworld.v1.DeleteRedeemSourceResponse
+	(*SyncRedeemSourceRequest)(nil),        // 17: mygardenworld.v1.SyncRedeemSourceRequest
+	(*SyncRedeemSourceResponse)(nil),       // 18: mygardenworld.v1.SyncRedeemSourceResponse
+	(*UpdateRedeemCodeExpiryRequest)(nil),  // 19: mygardenworld.v1.UpdateRedeemCodeExpiryRequest
+	(*UpdateRedeemCodeExpiryResponse)(nil), // 20: mygardenworld.v1.UpdateRedeemCodeExpiryResponse
+	(UserRole)(0),                          // 21: mygardenworld.v1.UserRole
+	(UserStatus)(0),                        // 22: mygardenworld.v1.UserStatus
+	(*User)(nil),                           // 23: mygardenworld.v1.User
+	(Channel)(0),                           // 24: mygardenworld.v1.Channel
+	(*timestamppb.Timestamp)(nil),          // 25: google.protobuf.Timestamp
+	(*RedeemCode)(nil),                     // 26: mygardenworld.v1.RedeemCode
 }
 var file_mygardenworld_v1_admin_proto_depIdxs = []int32{
-	18, // 0: mygardenworld.v1.CreateUserRequest.role:type_name -> mygardenworld.v1.UserRole
-	19, // 1: mygardenworld.v1.CreateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
-	20, // 2: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
-	20, // 3: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
-	18, // 4: mygardenworld.v1.UpdateUserRequest.role:type_name -> mygardenworld.v1.UserRole
-	19, // 5: mygardenworld.v1.UpdateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
-	20, // 6: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
+	21, // 0: mygardenworld.v1.CreateUserRequest.role:type_name -> mygardenworld.v1.UserRole
+	22, // 1: mygardenworld.v1.CreateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
+	23, // 2: mygardenworld.v1.CreateUserResponse.user:type_name -> mygardenworld.v1.User
+	23, // 3: mygardenworld.v1.ListUsersResponse.users:type_name -> mygardenworld.v1.User
+	21, // 4: mygardenworld.v1.UpdateUserRequest.role:type_name -> mygardenworld.v1.UserRole
+	22, // 5: mygardenworld.v1.UpdateUserRequest.status:type_name -> mygardenworld.v1.UserStatus
+	23, // 6: mygardenworld.v1.UpdateUserResponse.user:type_name -> mygardenworld.v1.User
 	0,  // 7: mygardenworld.v1.RedeemSource.type:type_name -> mygardenworld.v1.RedeemSourceType
-	21, // 8: mygardenworld.v1.RedeemSource.channel:type_name -> mygardenworld.v1.Channel
-	22, // 9: mygardenworld.v1.RedeemSource.last_sync_at:type_name -> google.protobuf.Timestamp
-	9,  // 10: mygardenworld.v1.ListRedeemSourcesResponse.sources:type_name -> mygardenworld.v1.RedeemSource
+	24, // 8: mygardenworld.v1.RedeemSource.channel:type_name -> mygardenworld.v1.Channel
+	25, // 9: mygardenworld.v1.RedeemSource.last_sync_at:type_name -> google.protobuf.Timestamp
+	10, // 10: mygardenworld.v1.ListRedeemSourcesResponse.sources:type_name -> mygardenworld.v1.RedeemSource
 	0,  // 11: mygardenworld.v1.UpsertRedeemSourceRequest.type:type_name -> mygardenworld.v1.RedeemSourceType
-	21, // 12: mygardenworld.v1.UpsertRedeemSourceRequest.channel:type_name -> mygardenworld.v1.Channel
-	9,  // 13: mygardenworld.v1.UpsertRedeemSourceResponse.source:type_name -> mygardenworld.v1.RedeemSource
-	9,  // 14: mygardenworld.v1.SyncRedeemSourceResponse.source:type_name -> mygardenworld.v1.RedeemSource
-	1,  // 15: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
-	3,  // 16: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
-	5,  // 17: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
-	7,  // 18: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
-	10, // 19: mygardenworld.v1.AdminService.ListRedeemSources:input_type -> mygardenworld.v1.ListRedeemSourcesRequest
-	12, // 20: mygardenworld.v1.AdminService.UpsertRedeemSource:input_type -> mygardenworld.v1.UpsertRedeemSourceRequest
-	14, // 21: mygardenworld.v1.AdminService.DeleteRedeemSource:input_type -> mygardenworld.v1.DeleteRedeemSourceRequest
-	16, // 22: mygardenworld.v1.AdminService.SyncRedeemSource:input_type -> mygardenworld.v1.SyncRedeemSourceRequest
-	2,  // 23: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
-	4,  // 24: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
-	6,  // 25: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
-	8,  // 26: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
-	11, // 27: mygardenworld.v1.AdminService.ListRedeemSources:output_type -> mygardenworld.v1.ListRedeemSourcesResponse
-	13, // 28: mygardenworld.v1.AdminService.UpsertRedeemSource:output_type -> mygardenworld.v1.UpsertRedeemSourceResponse
-	15, // 29: mygardenworld.v1.AdminService.DeleteRedeemSource:output_type -> mygardenworld.v1.DeleteRedeemSourceResponse
-	17, // 30: mygardenworld.v1.AdminService.SyncRedeemSource:output_type -> mygardenworld.v1.SyncRedeemSourceResponse
-	23, // [23:31] is the sub-list for method output_type
-	15, // [15:23] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	24, // 12: mygardenworld.v1.UpsertRedeemSourceRequest.channel:type_name -> mygardenworld.v1.Channel
+	10, // 13: mygardenworld.v1.UpsertRedeemSourceResponse.source:type_name -> mygardenworld.v1.RedeemSource
+	10, // 14: mygardenworld.v1.SyncRedeemSourceResponse.source:type_name -> mygardenworld.v1.RedeemSource
+	1,  // 15: mygardenworld.v1.UpdateRedeemCodeExpiryRequest.mode:type_name -> mygardenworld.v1.RedeemExpiryOverrideMode
+	25, // 16: mygardenworld.v1.UpdateRedeemCodeExpiryRequest.expires_at:type_name -> google.protobuf.Timestamp
+	26, // 17: mygardenworld.v1.UpdateRedeemCodeExpiryResponse.code:type_name -> mygardenworld.v1.RedeemCode
+	2,  // 18: mygardenworld.v1.AdminService.CreateUser:input_type -> mygardenworld.v1.CreateUserRequest
+	4,  // 19: mygardenworld.v1.AdminService.ListUsers:input_type -> mygardenworld.v1.ListUsersRequest
+	6,  // 20: mygardenworld.v1.AdminService.UpdateUser:input_type -> mygardenworld.v1.UpdateUserRequest
+	8,  // 21: mygardenworld.v1.AdminService.GetSystemStats:input_type -> mygardenworld.v1.GetSystemStatsRequest
+	11, // 22: mygardenworld.v1.AdminService.ListRedeemSources:input_type -> mygardenworld.v1.ListRedeemSourcesRequest
+	13, // 23: mygardenworld.v1.AdminService.UpsertRedeemSource:input_type -> mygardenworld.v1.UpsertRedeemSourceRequest
+	15, // 24: mygardenworld.v1.AdminService.DeleteRedeemSource:input_type -> mygardenworld.v1.DeleteRedeemSourceRequest
+	17, // 25: mygardenworld.v1.AdminService.SyncRedeemSource:input_type -> mygardenworld.v1.SyncRedeemSourceRequest
+	19, // 26: mygardenworld.v1.AdminService.UpdateRedeemCodeExpiry:input_type -> mygardenworld.v1.UpdateRedeemCodeExpiryRequest
+	3,  // 27: mygardenworld.v1.AdminService.CreateUser:output_type -> mygardenworld.v1.CreateUserResponse
+	5,  // 28: mygardenworld.v1.AdminService.ListUsers:output_type -> mygardenworld.v1.ListUsersResponse
+	7,  // 29: mygardenworld.v1.AdminService.UpdateUser:output_type -> mygardenworld.v1.UpdateUserResponse
+	9,  // 30: mygardenworld.v1.AdminService.GetSystemStats:output_type -> mygardenworld.v1.GetSystemStatsResponse
+	12, // 31: mygardenworld.v1.AdminService.ListRedeemSources:output_type -> mygardenworld.v1.ListRedeemSourcesResponse
+	14, // 32: mygardenworld.v1.AdminService.UpsertRedeemSource:output_type -> mygardenworld.v1.UpsertRedeemSourceResponse
+	16, // 33: mygardenworld.v1.AdminService.DeleteRedeemSource:output_type -> mygardenworld.v1.DeleteRedeemSourceResponse
+	18, // 34: mygardenworld.v1.AdminService.SyncRedeemSource:output_type -> mygardenworld.v1.SyncRedeemSourceResponse
+	20, // 35: mygardenworld.v1.AdminService.UpdateRedeemCodeExpiry:output_type -> mygardenworld.v1.UpdateRedeemCodeExpiryResponse
+	27, // [27:36] is the sub-list for method output_type
+	18, // [18:27] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_admin_proto_init() }
@@ -1307,6 +1487,7 @@ func file_mygardenworld_v1_admin_proto_init() {
 	}
 	file_mygardenworld_v1_auth_proto_init()
 	file_mygardenworld_v1_channel_proto_init()
+	file_mygardenworld_v1_redeem_proto_init()
 	file_mygardenworld_v1_admin_proto_msgTypes[0].OneofWrappers = []any{}
 	file_mygardenworld_v1_admin_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
@@ -1314,8 +1495,8 @@ func file_mygardenworld_v1_admin_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_admin_proto_rawDesc), len(file_mygardenworld_v1_admin_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   17,
+			NumEnums:      2,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
