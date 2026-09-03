@@ -43,7 +43,10 @@ import { formatAPIError, transport } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
 import {
+  DEFAULT_REDEEM_PAGE_SIZE,
   EXPIRY_PRESETS,
+  REDEEM_PAGE_SIZES,
+  redeemPageCount,
   redeemValidationLabel,
   resolveRedeemExpiry,
   type CustomUnit,
@@ -53,7 +56,6 @@ import { RedeemExpiryDialog } from "./redeem-expiry-dialog";
 
 const redeemClient = createClient(RedeemExchangeService, transport);
 const adminClient = createClient(AdminService, transport);
-const DEFAULT_PAGE_SIZE = 20;
 
 export default function RedeemPage() {
   const { user, loading: authLoading } = useAuth();
@@ -62,7 +64,7 @@ export default function RedeemPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showExpired, setShowExpired] = useState(false);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(DEFAULT_REDEEM_PAGE_SIZE);
   const [activeCount, setActiveCount] = useState(0);
   const [historicalCount, setHistoricalCount] = useState(0);
   const [editingEntry, setEditingEntry] = useState<RedeemCode>();
@@ -120,7 +122,7 @@ export default function RedeemPage() {
   }, [loadEntries]);
 
   const selectedTotal = showExpired ? historicalCount : activeCount;
-  const totalPages = Math.max(1, Math.ceil(selectedTotal / pageSize));
+  const totalPages = redeemPageCount(selectedTotal, pageSize);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -291,20 +293,22 @@ export default function RedeemPage() {
 
           <Card className="cloud-surface min-h-[20rem] lg:min-h-[32rem]">
             <CardHeader className="border-b border-border/45 pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
                 <div className="flex items-center gap-2">
                   <span className="flex size-8 items-center justify-center rounded-md bg-sky-100 text-sky-600 dark:bg-sky-400/12 dark:text-sky-300"><Globe2 className="size-4" /></span>
-                  <div><CardTitle>社区兑换码</CardTitle><p className="mt-0.5 text-xs text-muted-foreground">当前有效 {activeCount} 条</p></div>
+                  <div><CardTitle>社区兑换码</CardTitle><p className="mt-0.5 text-xs text-muted-foreground">按最新收录排序</p></div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Button type="button" size="sm" variant={showExpired ? "outline" : "secondary"} onClick={() => {
-                    if (!showExpired) { void loadEntries(); return; }
-                    setLoading(true); setEntries([]); setShowExpired(false); setPage(0);
-                  }}>有效 {activeCount}</Button>
-                  <Button type="button" size="sm" variant={showExpired ? "secondary" : "outline"} onClick={() => {
-                    if (showExpired) { void loadEntries(); return; }
-                    setLoading(true); setEntries([]); setShowExpired(true); setPage(0);
-                  }}>历史 {historicalCount}</Button>
+                <div className="flex w-full items-center gap-1.5 sm:w-auto">
+                  <div className="grid min-w-0 flex-1 grid-cols-2 rounded-md bg-secondary/55 p-0.5 sm:flex-none" role="group" aria-label="兑换码状态筛选">
+                    <Button type="button" size="sm" variant={showExpired ? "ghost" : "secondary"} className="min-w-0 shadow-none" aria-pressed={!showExpired} onClick={() => {
+                      if (!showExpired) { void loadEntries(); return; }
+                      setLoading(true); setEntries([]); setShowExpired(false); setPage(0);
+                    }}>有效 <span className="tabular-nums text-muted-foreground">{activeCount}</span></Button>
+                    <Button type="button" size="sm" variant={showExpired ? "secondary" : "ghost"} className="min-w-0 shadow-none" aria-pressed={showExpired} onClick={() => {
+                      if (showExpired) { void loadEntries(); return; }
+                      setLoading(true); setEntries([]); setShowExpired(true); setPage(0);
+                    }}>历史 <span className="tabular-nums text-muted-foreground">{historicalCount}</span></Button>
+                  </div>
                   <Button type="button" size="icon-sm" variant="ghost" onClick={() => void loadEntries()} disabled={loading} aria-label="刷新兑换码"><RefreshCw className={cn("size-4", loading && "animate-spin")} /></Button>
                 </div>
               </div>
@@ -320,23 +324,35 @@ export default function RedeemPage() {
                 </div>
               )}
               {selectedTotal > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/45 px-3 py-2.5 text-xs text-muted-foreground">
-                  <label className="flex items-center gap-2">
-                    每页
-                    <select
-                      value={pageSize}
-                      onChange={(event) => { setLoading(true); setEntries([]); setPageSize(Number(event.target.value)); setPage(0); }}
-                      className="h-7 rounded-md border border-input/85 bg-white/66 px-2 text-xs text-foreground outline-none focus:border-ring focus:ring-3 focus:ring-ring/24 dark:bg-input/42"
-                      aria-label="每页兑换码条数"
-                    >
-                      {[20, 50, 100].map((size) => <option key={size} value={size}>{size} 条</option>)}
-                    </select>
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <span className="mr-1 tabular-nums">第 {page + 1} / {totalPages} 页</span>
-                    <Button type="button" size="icon-sm" variant="outline" onClick={() => { setLoading(true); setEntries([]); setPage((current) => Math.max(0, current - 1)); }} disabled={loading || page === 0} aria-label="上一页"><ChevronLeft className="size-3.5" /></Button>
-                    <Button type="button" size="icon-sm" variant="outline" onClick={() => { setLoading(true); setEntries([]); setPage((current) => Math.min(totalPages - 1, current + 1)); }} disabled={loading || page + 1 >= totalPages} aria-label="下一页"><ChevronRight className="size-3.5" /></Button>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/45 bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="tabular-nums">共 {selectedTotal} 条</span>
+                    <span className="h-3.5 w-px bg-border" aria-hidden="true" />
+                    <span>每页</span>
+                    <div className="flex rounded-md bg-background/65 p-0.5" role="group" aria-label="每页兑换码条数">
+                      {REDEEM_PAGE_SIZES.map((size) => (
+                        <Button
+                          key={size}
+                          type="button"
+                          size="xs"
+                          variant={pageSize === size ? "secondary" : "ghost"}
+                          className="h-6 min-w-7 px-1.5 shadow-none"
+                          aria-pressed={pageSize === size}
+                          onClick={() => {
+                            if (pageSize === size) return;
+                            setLoading(true); setEntries([]); setPageSize(size); setPage(0);
+                          }}
+                        >
+                          {size}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
+                  <nav className="flex items-center gap-1" aria-label="兑换码分页">
+                    <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => { setLoading(true); setEntries([]); setPage((current) => Math.max(0, current - 1)); }} disabled={loading || page === 0} aria-label="上一页"><ChevronLeft className="size-3.5" /><span className="hidden min-[420px]:inline">上一页</span></Button>
+                    <span className="min-w-14 text-center tabular-nums text-foreground/80">{page + 1} / {totalPages}</span>
+                    <Button type="button" size="sm" variant="ghost" className="h-7 px-1.5" onClick={() => { setLoading(true); setEntries([]); setPage((current) => Math.min(totalPages - 1, current + 1)); }} disabled={loading || page + 1 >= totalPages} aria-label="下一页"><span className="hidden min-[420px]:inline">下一页</span><ChevronRight className="size-3.5" /></Button>
+                  </nav>
                 </div>
               )}
             </CardContent>
@@ -379,26 +395,27 @@ function RedeemCodeRow({ entry, onEdit }: { entry: RedeemCode; onEdit?: () => vo
   const expiryText = expired
     ? entry.validation === RedeemValidation.EXPIRED ? "游戏已判定过期" : "已过期"
     : entry.permanent ? "未知期限" : entry.expiresAt ? formatRemaining(timestampDate(entry.expiresAt)) : "待确认";
+  const collectedAt = entry.firstSeenAt ? formatCompactTime(timestampDate(entry.firstSeenAt)) : "";
   return (
-    <article className="grid gap-2 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <code className="break-all rounded bg-muted/70 px-2 py-1 font-mono text-sm font-semibold text-foreground">{entry.code}</code>
-          <Badge variant="outline">{entry.channel === Channel.IOS ? "iOS" : "Alipay"}</Badge>
+    <article className="flex min-w-0 items-start gap-2 px-3 py-2.5 sm:px-4">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <code className="mr-0.5 break-all font-mono text-[0.82rem] font-semibold leading-5 text-foreground">{entry.code}</code>
+          <Badge variant="outline" className="px-1.5 font-medium text-muted-foreground">{entry.channel === Channel.IOS ? "iOS" : "Alipay"}</Badge>
           <Badge variant={destructive ? "destructive" : positive ? "secondary" : "outline"}>{label}</Badge>
-          {entry.expiryOverridden && <Badge variant="outline">已人工校正</Badge>}
+          {entry.expiryOverridden && <Badge variant="outline" className="font-medium">人工期限</Badge>}
         </div>
-        {entry.lastMessage && <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{entry.lastMessage}</p>}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[0.72rem] leading-4 text-muted-foreground">
+          <span className="inline-flex items-center gap-1">{positive ? <ShieldCheck className="size-3 text-emerald-500" /> : <Clock3 className="size-3" />}{expiryText}</span>
+          {collectedAt && <span>收录于 {collectedAt}</span>}
+        </div>
+        {entry.lastMessage && <p className="mt-1 truncate text-xs leading-4 text-muted-foreground/85" title={entry.lastMessage}>{entry.lastMessage}</p>}
       </div>
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground sm:justify-end">
-        {positive ? <ShieldCheck className="size-3.5 text-emerald-500" /> : <Clock3 className="size-3.5" />}
-        {expiryText}
-        {onEdit && (
-          <Button type="button" size="icon-sm" variant="ghost" onClick={onEdit} aria-label={`修正兑换码 ${entry.code} 的有效期`} title="修正有效期">
-            <Pencil className="size-3.5" />
-          </Button>
-        )}
-      </div>
+      {onEdit && (
+        <Button type="button" size="icon-sm" variant="ghost" className="-mr-1 shrink-0" onClick={onEdit} aria-label={`修正兑换码 ${entry.code} 的有效期`} title="修正有效期">
+          <Pencil className="size-3.5" />
+        </Button>
+      )}
     </article>
   );
 }
@@ -419,6 +436,15 @@ function formatRemaining(expiry: Date): string {
   const hours = Math.ceil(minutes / 60);
   if (hours < 48) return `${hours}小时后过期`;
   return `${Math.ceil(hours / 24)}天后过期`;
+}
+
+function formatCompactTime(value: Date): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
 }
 
 type SourceForm = {
