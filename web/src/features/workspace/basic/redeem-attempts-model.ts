@@ -5,7 +5,7 @@ import {
   type AccountRedeemAttemptSummary,
 } from "@/gen/mygardenworld/v1/workspace_pb";
 
-export const REDEEM_ATTEMPT_PAGE_SIZE = 20;
+export const REDEEM_ATTEMPT_PAGE_SIZE = 5;
 
 export type RedeemAttemptLoadingMode = "" | "replace" | "append";
 

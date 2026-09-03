@@ -11,13 +11,13 @@ import {
 
 describe("redeem list pagination", () => {
   it("defaults to a compact recent-code page", () => {
-    expect(DEFAULT_REDEEM_PAGE_SIZE).toBe(10);
+    expect(DEFAULT_REDEEM_PAGE_SIZE).toBe(5);
     expect(REDEEM_PAGE_SIZES).toEqual([5, 10]);
   });
 
   it("keeps the empty list on a single page", () => {
     expect(redeemPageCount(0, DEFAULT_REDEEM_PAGE_SIZE)).toBe(1);
-    expect(redeemPageCount(21, DEFAULT_REDEEM_PAGE_SIZE)).toBe(3);
+    expect(redeemPageCount(21, DEFAULT_REDEEM_PAGE_SIZE)).toBe(5);
   });
 });
 

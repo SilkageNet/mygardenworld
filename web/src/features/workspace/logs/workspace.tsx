@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WorkspaceLogCategory } from "@/gen/mygardenworld/v1/workspace_common_pb";
 import type { Event } from "@/lib/api/workspace-models";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { collapseRaceSyncLogEvents, eventMessage, eventTitle, formatTimestamp } from "@/components/dashboard/dashboard-utils";
+import { ListPaginationControl } from "@/features/workspace/shared/list-pagination-control";
+import { resolveListPageWindow } from "@/features/workspace/shared/list-pagination";
 import { EmptyState } from "@/features/workspace/shared/workspace-ui";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ const VIEW_TABS: Array<{ value: LogView; label: string }> = [
 ];
 
 const STATE_EVENT_KINDS = new Set(["land_changed", "resource_changed", "inventory_changed", "race_task_sync"]);
+const LOG_PAGE_SIZE = 50;
 
 export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: {
   events: Event[];
@@ -40,6 +41,8 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
 }) {
   const [activeCategory, setActiveCategory] = useState<WorkspaceLogCategory | "all">("all");
   const [activeView, setActiveView] = useState<LogView>("key");
+  const [requestedPage, setRequestedPage] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
   const displayEvents = useMemo(() => collapseRaceSyncLogEvents(events), [events]);
   const categoryCounts = useMemo(() => {
     const counts = new Map<WorkspaceLogCategory, number>();
@@ -50,18 +53,41 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
     if (activeCategory !== "all" && event.category !== activeCategory) return false;
     return eventMatchesView(event, activeView);
   }), [activeCategory, activeView, displayEvents]);
+  const pageWindow = resolveListPageWindow(requestedPage, visibleEvents.length, LOG_PAGE_SIZE);
+  const pageEvents = visibleEvents.slice(pageWindow.start, pageWindow.end);
+  const hasNextPage = pageWindow.end < visibleEvents.length || hasMore;
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0 });
+  }, [activeCategory, activeView, pageWindow.pageIndex]);
+
+  function selectCategory(category: WorkspaceLogCategory | "all") {
+    setRequestedPage(0);
+    setActiveCategory(category);
+  }
+
+  function selectView(view: LogView) {
+    setRequestedPage(0);
+    setActiveView(view);
+  }
+
+  function showNextPage() {
+    if (!hasNextPage || loading) return;
+    setRequestedPage(pageWindow.pageIndex + 1);
+    if (pageWindow.end >= visibleEvents.length) onLoadMore();
+  }
 
   return (
     <Card className="cloud-surface min-h-0 flex-1">
       <CardHeader className="shrink-0 gap-3">
         <div className="flex items-center justify-between gap-3">
           <CardTitle>日志</CardTitle>
-          <span className="text-xs text-muted-foreground">内存窗口 {events.length} 条</span>
+          <span className="text-xs text-muted-foreground">已载入 {events.length} 条</span>
         </div>
         <div className="dark-scrollbar grid grid-cols-3 gap-1 rounded-md border border-border/58 bg-white/42 p-1 dark:bg-white/5 sm:flex sm:overflow-x-auto">
-          <CategoryButton active={activeCategory === "all"} label="全部" count={displayEvents.length} onClick={() => setActiveCategory("all")} />
+          <CategoryButton active={activeCategory === "all"} label="全部" count={displayEvents.length} onClick={() => selectCategory("all")} />
           {CATEGORY_TABS.map((category) => (
-            <CategoryButton key={category.value} active={activeCategory === category.value} label={category.label} count={categoryCounts.get(category.value) ?? 0} onClick={() => setActiveCategory(category.value)} />
+            <CategoryButton key={category.value} active={activeCategory === category.value} label={category.label} count={categoryCounts.get(category.value) ?? 0} onClick={() => selectCategory(category.value)} />
           ))}
         </div>
         <div className="dark-scrollbar grid grid-cols-2 gap-1 sm:flex sm:overflow-x-auto">
@@ -75,7 +101,7 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
                   ? "border-primary/45 bg-primary/10 text-primary"
                   : "border-border/55 bg-white/30 text-muted-foreground hover:text-foreground dark:bg-white/5",
               )}
-              onClick={() => setActiveView(view.value)}
+              onClick={() => selectView(view.value)}
             >
               {view.label}
             </button>
@@ -83,13 +109,13 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
         </div>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
-        {visibleEvents.length === 0 ? (
+        {pageEvents.length === 0 ? (
           <div className="flex min-h-0 flex-1 items-center justify-center">
             <EmptyState title="当前筛选下暂无日志" detail="分类始终保留；有事件后会自动出现在这里。" />
           </div>
         ) : (
-          <div className="dark-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border/58 bg-white/34 p-2 font-mono text-xs sm:space-y-0 sm:p-0 dark:bg-white/5">
-            {visibleEvents.map((event, index) => (
+          <div ref={listRef} className="dark-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border/58 bg-white/34 p-2 font-mono text-xs sm:space-y-0 sm:p-0 dark:bg-white/5">
+            {pageEvents.map((event, index) => (
               <div key={event.id || `${event.kind}-${index}-${event.message}`} className="grid gap-1 rounded-md border border-border/55 bg-card/72 px-3 py-2 last:border-b-0 sm:grid-cols-[108px_72px_minmax(0,1fr)] sm:gap-3 sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent">
                 <span className="text-muted-foreground">{formatTimestamp(event.ts)}</span>
                 <span className={cn("font-sans text-xs font-medium", event.level === "error" ? "text-destructive" : event.level === "warn" ? "text-amber-600 dark:text-amber-300" : "text-primary")}>
@@ -103,13 +129,17 @@ export default function LogsWorkspace({ events, hasMore, loading, onLoadMore }: 
             ))}
           </div>
         )}
-        {hasMore && (
-          <div className="flex shrink-0 justify-center">
-            <Button type="button" variant="outline" onClick={onLoadMore} disabled={loading}>
-              {loading && <Loader2 className="size-4 animate-spin" />}
-              {loading ? "加载中" : "加载更早日志"}
-            </Button>
-          </div>
+        {(visibleEvents.length > 0 || hasMore) && (
+          <ListPaginationControl
+            ariaLabel="日志分页"
+            summary={<span className="tabular-nums">本页 {pageEvents.length} 条 · 已载入 {visibleEvents.length} 条</span>}
+            pageIndex={pageWindow.pageIndex}
+            previousDisabled={pageWindow.pageIndex === 0}
+            nextDisabled={!hasNextPage || loading}
+            nextLoading={loading}
+            onPrevious={() => setRequestedPage(Math.max(0, pageWindow.pageIndex - 1))}
+            onNext={showNextPage}
+          />
         )}
       </CardContent>
     </Card>

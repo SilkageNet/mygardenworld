@@ -10,7 +10,7 @@ export const EXPIRY_PRESETS = [
 ] as const;
 
 export const REDEEM_PAGE_SIZES = [5, 10] as const;
-export const DEFAULT_REDEEM_PAGE_SIZE = 10;
+export const DEFAULT_REDEEM_PAGE_SIZE = 5;
 
 export type ExpiryMode = (typeof EXPIRY_PRESETS)[number]["id"] | "permanent" | "custom";
 export type CustomUnit = "minutes" | "hours" | "days";
