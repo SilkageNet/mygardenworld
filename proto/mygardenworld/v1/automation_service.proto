@@ -15,6 +15,12 @@ service AutomationService {
   // applies the same observed-state and policy gates as automatic selection;
   // this never bypasses the server's appear-time cooldown.
   rpc TakeUnionRaceTask(TakeUnionRaceTaskRequest) returns (TakeUnionRaceTaskResponse);
+
+  // Deletes one user-selected, currently unclaimed guild-race task. This is
+  // an explicit management action and therefore does not use the automatic
+  // low-score threshold, but still requires fresh membership and permission
+  // evidence from the current race cycle.
+  rpc DeleteUnionRaceTask(DeleteUnionRaceTaskRequest) returns (DeleteUnionRaceTaskResponse);
 }
 
 message EnableAutomationRequest {
@@ -35,3 +41,10 @@ message TakeUnionRaceTaskRequest {
 }
 
 message TakeUnionRaceTaskResponse {}
+
+message DeleteUnionRaceTaskRequest {
+  int64 account_id = 1;
+  int64 task_ms_id = 2;
+}
+
+message DeleteUnionRaceTaskResponse {}

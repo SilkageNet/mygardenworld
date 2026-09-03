@@ -72,6 +72,11 @@ message FmlRaceTask {
   // Positive finish_cnt unambiguously means this pool task was advanced.
   int32 target_cnt = 11;
   int32 finish_cnt = 12;
+  // Manual deletion is independent from the automatic low-score policy.
+  // It still requires a fresh task pool, an unclaimed task, and the current
+  // member position's c_fmlPos.p_raceDelete permission.
+  bool delete_allowed = 13;
+  string delete_blocked_reason = 14;
 }
 
 message FmlRaceTaken {

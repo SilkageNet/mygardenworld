@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AdminService_CreateUser_FullMethodName         = "/mygardenworld.v1.AdminService/CreateUser"
-	AdminService_ListUsers_FullMethodName          = "/mygardenworld.v1.AdminService/ListUsers"
-	AdminService_UpdateUser_FullMethodName         = "/mygardenworld.v1.AdminService/UpdateUser"
-	AdminService_GetSystemStats_FullMethodName     = "/mygardenworld.v1.AdminService/GetSystemStats"
-	AdminService_ListRedeemSources_FullMethodName  = "/mygardenworld.v1.AdminService/ListRedeemSources"
-	AdminService_UpsertRedeemSource_FullMethodName = "/mygardenworld.v1.AdminService/UpsertRedeemSource"
-	AdminService_DeleteRedeemSource_FullMethodName = "/mygardenworld.v1.AdminService/DeleteRedeemSource"
-	AdminService_SyncRedeemSource_FullMethodName   = "/mygardenworld.v1.AdminService/SyncRedeemSource"
+	AdminService_CreateUser_FullMethodName             = "/mygardenworld.v1.AdminService/CreateUser"
+	AdminService_ListUsers_FullMethodName              = "/mygardenworld.v1.AdminService/ListUsers"
+	AdminService_UpdateUser_FullMethodName             = "/mygardenworld.v1.AdminService/UpdateUser"
+	AdminService_GetSystemStats_FullMethodName         = "/mygardenworld.v1.AdminService/GetSystemStats"
+	AdminService_ListRedeemSources_FullMethodName      = "/mygardenworld.v1.AdminService/ListRedeemSources"
+	AdminService_UpsertRedeemSource_FullMethodName     = "/mygardenworld.v1.AdminService/UpsertRedeemSource"
+	AdminService_DeleteRedeemSource_FullMethodName     = "/mygardenworld.v1.AdminService/DeleteRedeemSource"
+	AdminService_SyncRedeemSource_FullMethodName       = "/mygardenworld.v1.AdminService/SyncRedeemSource"
+	AdminService_UpdateRedeemCodeExpiry_FullMethodName = "/mygardenworld.v1.AdminService/UpdateRedeemCodeExpiry"
 )
 
 // AdminServiceClient is the client API for AdminService service.
@@ -41,6 +42,7 @@ type AdminServiceClient interface {
 	UpsertRedeemSource(ctx context.Context, in *UpsertRedeemSourceRequest, opts ...grpc.CallOption) (*UpsertRedeemSourceResponse, error)
 	DeleteRedeemSource(ctx context.Context, in *DeleteRedeemSourceRequest, opts ...grpc.CallOption) (*DeleteRedeemSourceResponse, error)
 	SyncRedeemSource(ctx context.Context, in *SyncRedeemSourceRequest, opts ...grpc.CallOption) (*SyncRedeemSourceResponse, error)
+	UpdateRedeemCodeExpiry(ctx context.Context, in *UpdateRedeemCodeExpiryRequest, opts ...grpc.CallOption) (*UpdateRedeemCodeExpiryResponse, error)
 }
 
 type adminServiceClient struct {
@@ -131,6 +133,16 @@ func (c *adminServiceClient) SyncRedeemSource(ctx context.Context, in *SyncRedee
 	return out, nil
 }
 
+func (c *adminServiceClient) UpdateRedeemCodeExpiry(ctx context.Context, in *UpdateRedeemCodeExpiryRequest, opts ...grpc.CallOption) (*UpdateRedeemCodeExpiryResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateRedeemCodeExpiryResponse)
+	err := c.cc.Invoke(ctx, AdminService_UpdateRedeemCodeExpiry_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AdminServiceServer is the server API for AdminService service.
 // All implementations should embed UnimplementedAdminServiceServer
 // for forward compatibility.
@@ -143,6 +155,7 @@ type AdminServiceServer interface {
 	UpsertRedeemSource(context.Context, *UpsertRedeemSourceRequest) (*UpsertRedeemSourceResponse, error)
 	DeleteRedeemSource(context.Context, *DeleteRedeemSourceRequest) (*DeleteRedeemSourceResponse, error)
 	SyncRedeemSource(context.Context, *SyncRedeemSourceRequest) (*SyncRedeemSourceResponse, error)
+	UpdateRedeemCodeExpiry(context.Context, *UpdateRedeemCodeExpiryRequest) (*UpdateRedeemCodeExpiryResponse, error)
 }
 
 // UnimplementedAdminServiceServer should be embedded to have
@@ -175,6 +188,9 @@ func (UnimplementedAdminServiceServer) DeleteRedeemSource(context.Context, *Dele
 }
 func (UnimplementedAdminServiceServer) SyncRedeemSource(context.Context, *SyncRedeemSourceRequest) (*SyncRedeemSourceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SyncRedeemSource not implemented")
+}
+func (UnimplementedAdminServiceServer) UpdateRedeemCodeExpiry(context.Context, *UpdateRedeemCodeExpiryRequest) (*UpdateRedeemCodeExpiryResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateRedeemCodeExpiry not implemented")
 }
 func (UnimplementedAdminServiceServer) testEmbeddedByValue() {}
 
@@ -340,6 +356,24 @@ func _AdminService_SyncRedeemSource_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AdminService_UpdateRedeemCodeExpiry_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRedeemCodeExpiryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AdminServiceServer).UpdateRedeemCodeExpiry(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AdminService_UpdateRedeemCodeExpiry_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AdminServiceServer).UpdateRedeemCodeExpiry(ctx, req.(*UpdateRedeemCodeExpiryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AdminService_ServiceDesc is the grpc.ServiceDesc for AdminService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -378,6 +412,10 @@ var AdminService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SyncRedeemSource",
 			Handler:    _AdminService_SyncRedeemSource_Handler,
+		},
+		{
+			MethodName: "UpdateRedeemCodeExpiry",
+			Handler:    _AdminService_UpdateRedeemCodeExpiry_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

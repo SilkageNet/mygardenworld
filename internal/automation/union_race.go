@@ -854,6 +854,74 @@ func ManualRaceTakeOperation(s *state.State, policy *pb.Policy, taskMsID int64, 
 	return op, nil
 }
 
+// ManualRaceDeleteOperation validates an explicit task-pool deletion without
+// applying the automatic low-score threshold. Human intent supplies task
+// selection, while current-cycle membership, permission, task freshness, and
+// server cooldown evidence still fail closed.
+func ManualRaceDeleteOperation(s *state.State, policy *pb.Policy, taskMsID int64, now time.Time) (PlannedOp, error) {
+	if s == nil || policy == nil {
+		return PlannedOp{}, fmt.Errorf("公会竞赛状态不可用")
+	}
+	if taskMsID <= 0 {
+		return PlannedOp{}, fmt.Errorf("竞赛任务标识无效")
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() {
+		return PlannedOp{}, fmt.Errorf("请先开启公会竞赛")
+	}
+	view := s.FmlRace()
+	if !view.Observed || !view.ActiveAt(now) {
+		return PlannedOp{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
+	}
+	if !view.TasksObserved || view.TaskPoolStale {
+		return PlannedOp{}, fmt.Errorf("竞赛任务池尚未同步")
+	}
+	task, ok := raceTaskByMsID(view.Tasks, taskMsID)
+	if !ok {
+		return PlannedOp{}, fmt.Errorf("任务已不在当前任务池，请等待列表刷新")
+	}
+	if reason := RaceDeleteSkipReason(s, task, now); reason != "" {
+		return PlannedOp{}, fmt.Errorf("当前不可删除：%s", reason)
+	}
+	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
+	op := domainOp(clientproto.RPCFmlRaceDelTask.String(), goal, "union.race.delete", "delete", "手动删除公会竞赛任务", 4385, 0, 0, 0)
+	op.TaskMsID = task.MsId
+	op.TaskID = task.TaskType
+	if op.TaskID == 0 {
+		op.TaskID = task.TaskId
+	}
+	op.FlowerID = task.ParamID
+	op.CooldownKey = fmt.Sprintf("union.race.delete:%d", task.MsId)
+	return op, nil
+}
+
+// RaceDeleteSkipReason describes the state-derived gate for a manual delete.
+// Empty means the task can be offered to the current user.
+func RaceDeleteSkipReason(s *state.State, task state.FmlRaceTaskView, now time.Time) string {
+	if s == nil {
+		return "公会状态不可用"
+	}
+	build := s.FmlBuild()
+	switch {
+	case !build.MembershipObserved:
+		return "公会成员身份尚未同步"
+	case build.MemberFmlID <= 0:
+		return "当前账号未加入公会"
+	case !build.MemberPositionObserved:
+		return "公会职位尚未同步"
+	case !state.FmlPositionAllowsRaceDelete(build.MemberPosition):
+		return "当前公会职位没有删除权限"
+	case task.MsId <= 0:
+		return "竞赛任务标识无效"
+	case task.UID != 0:
+		return "任务已被成员接取"
+	case task.AppearTime > now.UnixMilli():
+		return "任务槽位冷却中"
+	default:
+		return ""
+	}
+}
+
 // raceTakeNonCDSkipReason evaluates take filters other than far-CD AppearTime.
 // Empty means those filters would allow take (ready / within-lead still apply outside).
 func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.UnionRacePolicy, uid int64, gates RaceModuleGates) string {

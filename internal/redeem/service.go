@@ -161,6 +161,30 @@ func (s *Service) List(ctx context.Context, cursor string, limit int, includeExp
 	return entries, strconv.FormatInt(next, 10), nil
 }
 
+func (s *Service) Browse(ctx context.Context, page, pageSize int, history bool) ([]*store.RedeemCode, int64, int64, error) {
+	return s.db.BrowseRedeemCodes(ctx, page*pageSize, pageSize, history)
+}
+
+func (s *Service) UpdateExpiry(ctx context.Context, fingerprint string, expiresAt *time.Time, clearOverride bool) (*store.RedeemCode, error) {
+	var (
+		entry *store.RedeemCode
+		err   error
+	)
+	if clearOverride {
+		entry, err = s.db.ClearRedeemCodeExpiryOverride(ctx, fingerprint)
+	} else {
+		entry, err = s.db.SetRedeemCodeExpiryOverride(ctx, fingerprint, expiresAt)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.db.EnsureRedeemAttempts(ctx); err != nil {
+		return nil, err
+	}
+	s.signal()
+	return entry, nil
+}
+
 func (s *Service) signal() {
 	select {
 	case s.wake <- struct{}{}:

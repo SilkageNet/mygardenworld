@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	RedeemExchangeService_GetExchangeInfo_FullMethodName   = "/mygardenworld.v1.RedeemExchangeService/GetExchangeInfo"
 	RedeemExchangeService_ListRedeemCodes_FullMethodName   = "/mygardenworld.v1.RedeemExchangeService/ListRedeemCodes"
+	RedeemExchangeService_BrowseRedeemCodes_FullMethodName = "/mygardenworld.v1.RedeemExchangeService/BrowseRedeemCodes"
 	RedeemExchangeService_SubmitRedeemCodes_FullMethodName = "/mygardenworld.v1.RedeemExchangeService/SubmitRedeemCodes"
 )
 
@@ -33,6 +34,9 @@ const (
 type RedeemExchangeServiceClient interface {
 	GetExchangeInfo(ctx context.Context, in *GetExchangeInfoRequest, opts ...grpc.CallOption) (*GetExchangeInfoResponse, error)
 	ListRedeemCodes(ctx context.Context, in *ListRedeemCodesRequest, opts ...grpc.CallOption) (*ListRedeemCodesResponse, error)
+	// Browser-oriented newest-first pagination. The change-feed semantics of
+	// ListRedeemCodes remain dedicated to node synchronization.
+	BrowseRedeemCodes(ctx context.Context, in *BrowseRedeemCodesRequest, opts ...grpc.CallOption) (*BrowseRedeemCodesResponse, error)
 	SubmitRedeemCodes(ctx context.Context, in *SubmitRedeemCodesRequest, opts ...grpc.CallOption) (*SubmitRedeemCodesResponse, error)
 }
 
@@ -64,6 +68,16 @@ func (c *redeemExchangeServiceClient) ListRedeemCodes(ctx context.Context, in *L
 	return out, nil
 }
 
+func (c *redeemExchangeServiceClient) BrowseRedeemCodes(ctx context.Context, in *BrowseRedeemCodesRequest, opts ...grpc.CallOption) (*BrowseRedeemCodesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BrowseRedeemCodesResponse)
+	err := c.cc.Invoke(ctx, RedeemExchangeService_BrowseRedeemCodes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *redeemExchangeServiceClient) SubmitRedeemCodes(ctx context.Context, in *SubmitRedeemCodesRequest, opts ...grpc.CallOption) (*SubmitRedeemCodesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SubmitRedeemCodesResponse)
@@ -83,6 +97,9 @@ func (c *redeemExchangeServiceClient) SubmitRedeemCodes(ctx context.Context, in 
 type RedeemExchangeServiceServer interface {
 	GetExchangeInfo(context.Context, *GetExchangeInfoRequest) (*GetExchangeInfoResponse, error)
 	ListRedeemCodes(context.Context, *ListRedeemCodesRequest) (*ListRedeemCodesResponse, error)
+	// Browser-oriented newest-first pagination. The change-feed semantics of
+	// ListRedeemCodes remain dedicated to node synchronization.
+	BrowseRedeemCodes(context.Context, *BrowseRedeemCodesRequest) (*BrowseRedeemCodesResponse, error)
 	SubmitRedeemCodes(context.Context, *SubmitRedeemCodesRequest) (*SubmitRedeemCodesResponse, error)
 }
 
@@ -98,6 +115,9 @@ func (UnimplementedRedeemExchangeServiceServer) GetExchangeInfo(context.Context,
 }
 func (UnimplementedRedeemExchangeServiceServer) ListRedeemCodes(context.Context, *ListRedeemCodesRequest) (*ListRedeemCodesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRedeemCodes not implemented")
+}
+func (UnimplementedRedeemExchangeServiceServer) BrowseRedeemCodes(context.Context, *BrowseRedeemCodesRequest) (*BrowseRedeemCodesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BrowseRedeemCodes not implemented")
 }
 func (UnimplementedRedeemExchangeServiceServer) SubmitRedeemCodes(context.Context, *SubmitRedeemCodesRequest) (*SubmitRedeemCodesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SubmitRedeemCodes not implemented")
@@ -158,6 +178,24 @@ func _RedeemExchangeService_ListRedeemCodes_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RedeemExchangeService_BrowseRedeemCodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BrowseRedeemCodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RedeemExchangeServiceServer).BrowseRedeemCodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RedeemExchangeService_BrowseRedeemCodes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RedeemExchangeServiceServer).BrowseRedeemCodes(ctx, req.(*BrowseRedeemCodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RedeemExchangeService_SubmitRedeemCodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SubmitRedeemCodesRequest)
 	if err := dec(in); err != nil {
@@ -190,6 +228,10 @@ var RedeemExchangeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRedeemCodes",
 			Handler:    _RedeemExchangeService_ListRedeemCodes_Handler,
+		},
+		{
+			MethodName: "BrowseRedeemCodes",
+			Handler:    _RedeemExchangeService_BrowseRedeemCodes_Handler,
 		},
 		{
 			MethodName: "SubmitRedeemCodes",

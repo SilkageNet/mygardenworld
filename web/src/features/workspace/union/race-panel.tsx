@@ -2,12 +2,13 @@
 
 import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
-import { Hand, Loader2 } from "lucide-react";
+import { Hand, Loader2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { AutomationService, TakeUnionRaceTaskRequestSchema } from "@/gen/mygardenworld/v1/automation_service_pb";
+import { AutomationService, DeleteUnionRaceTaskRequestSchema, TakeUnionRaceTaskRequestSchema } from "@/gen/mygardenworld/v1/automation_service_pb";
 import type { FmlRaceTask, FmlRaceTaken, FmlRaceView } from "@/lib/api/workspace-models";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CollapsibleCard, EmptyState } from "@/features/workspace/shared/workspace-ui";
 import { formatAPIError, transport } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
@@ -23,11 +24,12 @@ import {
 const automationClient = createClient(AutomationService, transport);
 const EMPTY_RACE_TASKS: FmlRaceTask[] = [];
 
-export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, showPersonalScoreRank = false }: {
+export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, showPersonalScoreRank = false, canDeleteTasks = false }: {
   accountId: bigint;
   race?: FmlRaceView;
   showTakenTask: boolean;
   showPersonalScoreRank?: boolean;
+  canDeleteTasks?: boolean;
 }) {
   const tasks = race?.tasks ?? EMPTY_RACE_TASKS;
   const taken = race?.taken;
@@ -45,7 +47,9 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [taskFilter, setTaskFilter] = useState<RaceTaskFilter>("all");
   const [taskSort, setTaskSort] = useState<RaceTaskSort>("score");
-  const [busyTaskId, setBusyTaskId] = useState("");
+  const [busyAction, setBusyAction] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<FmlRaceTask>();
+  const [deleteError, setDeleteError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const accountCanTake = !taken?.hasTask && accountId > BigInt(0);
 
@@ -65,7 +69,7 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
 
   const takeTask = async (task: FmlRaceTask) => {
     const taskKey = task.msId.toString();
-    setBusyTaskId(taskKey);
+    setBusyAction(`take:${taskKey}`);
     setActionMessage("");
     try {
       await automationClient.takeUnionRaceTask(create(TakeUnionRaceTaskRequestSchema, {
@@ -76,7 +80,29 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
     } catch (err) {
       setActionMessage(formatAPIError(err, "接取竞赛任务失败"));
     } finally {
-      setBusyTaskId("");
+      setBusyAction("");
+    }
+  };
+
+  const deleteTask = async () => {
+    if (!deleteTarget) return;
+    const taskKey = deleteTarget.msId.toString();
+    setBusyAction(`delete:${taskKey}`);
+    setActionMessage("");
+    setDeleteError("");
+    try {
+      await automationClient.deleteUnionRaceTask(create(DeleteUnionRaceTaskRequestSchema, {
+        accountId,
+        taskMsId: deleteTarget.msId,
+      }));
+      setActionMessage("删除请求已成功，正在等待任务池刷新。");
+      setDeleteTarget(undefined);
+    } catch (err) {
+      const message = formatAPIError(err, "删除竞赛任务失败");
+      setActionMessage(message);
+      setDeleteError(message);
+    } finally {
+      setBusyAction("");
     }
   };
 
@@ -88,7 +114,8 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
   });
 
   return (
-    <CollapsibleCard
+    <>
+      <CollapsibleCard
       title="公会竞赛"
       contentClassName="space-y-3"
       actions={(
@@ -185,8 +212,13 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
                           task={task}
                           nowMs={nowMs}
                           canTake={accountCanTake}
-                          busy={busyTaskId === task.msId.toString()}
+                          canDelete={canDeleteTasks && task.deleteAllowed}
+                          showDelete={canDeleteTasks}
+                          deleteBlockedReason={task.deleteBlockedReason}
+                          takeBusy={busyAction === `take:${task.msId.toString()}`}
+                          deleteBusy={busyAction === `delete:${task.msId.toString()}`}
                           onTake={() => void takeTask(task)}
+                          onDelete={() => { setDeleteError(""); setDeleteTarget(task); }}
                         />
                       ))}
                     </div>
@@ -197,7 +229,30 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
           </section>
         </>
       )}
-    </CollapsibleCard>
+      </CollapsibleCard>
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open && !busyAction.startsWith("delete:")) setDeleteTarget(undefined); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除竞赛任务</DialogTitle>
+            <DialogDescription>该操作会立即从任务池移除这个任务，并让对应槽位进入刷新冷却。</DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="rounded-md border border-border/60 bg-secondary/35 px-3 py-3 text-sm">
+              <div className="font-medium">{raceTaskTitle(deleteTarget)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{deleteTarget.score} 分 · 任务 #{deleteTarget.msId.toString()}</div>
+            </div>
+          )}
+          {deleteError && <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{deleteError}</div>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDeleteTarget(undefined)} disabled={busyAction.startsWith("delete:")}>取消</Button>
+            <Button type="button" variant="destructive" onClick={() => void deleteTask()} disabled={!deleteTarget || busyAction.startsWith("delete:")}>
+              {busyAction.startsWith("delete:") ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              {busyAction.startsWith("delete:") ? "删除中" : "确认删除"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -239,20 +294,25 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   );
 }
 
-function FmlRaceTaskCard({ index, task, nowMs, canTake, busy, onTake }: {
+function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDelete, deleteBlockedReason, takeBusy, deleteBusy, onTake, onDelete }: {
   index: number;
   task: FmlRaceTask;
   nowMs: number;
   canTake: boolean;
-  busy: boolean;
+  canDelete: boolean;
+  showDelete: boolean;
+  deleteBlockedReason: string;
+  takeBusy: boolean;
+  deleteBusy: boolean;
   onTake: () => void;
+  onDelete: () => void;
 }) {
   const skipReason = (task.takeSkipReason ?? "").trim();
   const takeable = raceTaskReady(task, nowMs);
   const onCooldown = !takeable && skipReason.startsWith("冷却中");
   const availability = takeable && !canTake ? "需先完成当前任务" : raceTaskAvailability(task, nowMs);
   const progressLabel = raceTaskProgressLabel(task);
-  const baseTitle = task.targetLabel ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}` : task.taskLabel || `任务 #${task.taskId}`;
+  const baseTitle = raceTaskTitle(task);
   return (
     <div className={cn(
       "rounded-md border bg-white/36 px-3 py-2.5 dark:bg-white/5",
@@ -269,13 +329,25 @@ function FmlRaceTaskCard({ index, task, nowMs, canTake, busy, onTake }: {
       </div>
       <div className="mt-2 flex min-h-7 items-center justify-between gap-2">
         <span className={cn("text-xs", takeable && canTake ? "font-medium text-primary" : onCooldown ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{availability}</span>
-        {takeable && canTake && (
-          <Button type="button" size="sm" onClick={onTake} disabled={busy} title="立即接取此任务">
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Hand className="size-3.5" />}
-            {busy ? "接取中" : "手动抢"}
-          </Button>
-        )}
+        <span className="flex items-center gap-1.5">
+          {showDelete && (
+            <Button type="button" size="sm" variant="destructive" onClick={onDelete} disabled={!canDelete || deleteBusy || takeBusy} title={canDelete ? "删除此任务" : deleteBlockedReason || "当前不可删除"}>
+              {deleteBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {deleteBusy ? "删除中" : "删除"}
+            </Button>
+          )}
+          {takeable && canTake && (
+            <Button type="button" size="sm" onClick={onTake} disabled={takeBusy || deleteBusy} title="立即接取此任务">
+              {takeBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Hand className="size-3.5" />}
+              {takeBusy ? "接取中" : "手动抢"}
+            </Button>
+          )}
+        </span>
       </div>
     </div>
   );
+}
+
+function raceTaskTitle(task: FmlRaceTask): string {
+  return task.targetLabel ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}` : task.taskLabel || `任务 #${task.taskId}`;
 }

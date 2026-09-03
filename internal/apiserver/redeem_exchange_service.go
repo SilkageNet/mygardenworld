@@ -85,6 +85,50 @@ func (svc *Services) ListRedeemCodes(ctx context.Context, req *connect.Request[p
 	return connect.NewResponse(resp), nil
 }
 
+func (svc *Services) BrowseRedeemCodes(ctx context.Context, req *connect.Request[pb.BrowseRedeemCodesRequest]) (*connect.Response[pb.BrowseRedeemCodesResponse], error) {
+	if svc.Redeem == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("redeem exchange unavailable"))
+	}
+	page := int(req.Msg.GetPage())
+	pageSize := int(req.Msg.GetPageSize())
+	if page < 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("page must be non-negative"))
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	if page > int(^uint(0)>>1)/pageSize {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("page is too large"))
+	}
+	history := false
+	switch req.Msg.GetFilter() {
+	case pb.RedeemBrowseFilter_REDEEM_BROWSE_FILTER_UNSPECIFIED,
+		pb.RedeemBrowseFilter_REDEEM_BROWSE_FILTER_ACTIVE:
+	case pb.RedeemBrowseFilter_REDEEM_BROWSE_FILTER_HISTORY:
+		history = true
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("valid redeem browse filter required"))
+	}
+	entries, activeTotal, historyTotal, err := svc.Redeem.Browse(ctx, page, pageSize, history)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	resp := &pb.BrowseRedeemCodesResponse{
+		Page:         int32(page),
+		PageSize:     int32(pageSize),
+		ActiveTotal:  activeTotal,
+		HistoryTotal: historyTotal,
+		Entries:      make([]*pb.RedeemCode, 0, len(entries)),
+	}
+	for _, entry := range entries {
+		resp.Entries = append(resp.Entries, redeemCodeToProto(entry))
+	}
+	return connect.NewResponse(resp), nil
+}
+
 func (svc *Services) SubmitRedeemCodes(ctx context.Context, req *connect.Request[pb.SubmitRedeemCodesRequest]) (*connect.Response[pb.SubmitRedeemCodesResponse], error) {
 	if svc.Redeem == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("redeem exchange unavailable"))
@@ -169,6 +213,7 @@ func redeemCodeToProto(entry *store.RedeemCode) *pb.RedeemCode {
 		UpdatedAt:        timestamppb.New(entry.UpdatedAt),
 		OriginInstanceId: entry.OriginInstanceID,
 		LastMessage:      entry.LastMessage,
+		ExpiryOverridden: entry.ExpiryOverridden,
 	}
 	if entry.ExpiresAt != nil {
 		out.ExpiresAt = timestamppb.New(*entry.ExpiresAt)

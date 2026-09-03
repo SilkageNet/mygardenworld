@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	connect "connectrpc.com/connect"
 	"golang.org/x/crypto/bcrypt"
@@ -337,6 +338,61 @@ func (svc *Services) SyncRedeemSource(ctx context.Context, req *connect.Request[
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(&pb.SyncRedeemSourceResponse{Source: redeemSourceToProto(source)}), nil
+}
+
+func (svc *Services) UpdateRedeemCodeExpiry(ctx context.Context, req *connect.Request[pb.UpdateRedeemCodeExpiryRequest]) (*connect.Response[pb.UpdateRedeemCodeExpiryResponse], error) {
+	if err := svc.requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if svc.Redeem == nil {
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("redeem exchange unavailable"))
+	}
+	fingerprint := strings.TrimSpace(req.Msg.GetFingerprint())
+	if fingerprint == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem code fingerprint required"))
+	}
+	var expiresAt *time.Time
+	clearOverride := false
+	switch req.Msg.GetMode() {
+	case pb.RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_FINITE:
+		if req.Msg.GetExpiresAt() == nil || !req.Msg.GetExpiresAt().IsValid() {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("valid expires_at required for finite expiry"))
+		}
+		value := req.Msg.GetExpiresAt().AsTime().UTC()
+		if !value.After(time.Now().UTC()) {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("redeem code expiry must be in the future"))
+		}
+		expiresAt = &value
+	case pb.RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_PERMANENT:
+		if req.Msg.GetExpiresAt() != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("permanent expiry must not include expires_at"))
+		}
+	case pb.RedeemExpiryOverrideMode_REDEEM_EXPIRY_OVERRIDE_MODE_SOURCE:
+		if req.Msg.GetExpiresAt() != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("source expiry must not include expires_at"))
+		}
+		clearOverride = true
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("valid redeem expiry override mode required"))
+	}
+	entry, err := svc.Redeem.UpdateExpiry(ctx, fingerprint, expiresAt, clearOverride)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	if svc.Log != nil {
+		identity := auth.IdentityFromContext(ctx)
+		var userID int64
+		if identity != nil {
+			userID = identity.UserID
+		}
+		svc.Log.Info("administrator updated redeem code expiry",
+			"user_id", userID,
+			"fingerprint", fingerprint,
+			"mode", req.Msg.GetMode().String(),
+			"expires_at", expiresAt,
+		)
+	}
+	return connect.NewResponse(&pb.UpdateRedeemCodeExpiryResponse{Code: redeemCodeToProto(entry)}), nil
 }
 
 func redeemSourceTypeStore(value pb.RedeemSourceType) string {

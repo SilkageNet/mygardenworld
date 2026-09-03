@@ -53,6 +53,97 @@ func TestRedeemCodeDeduplicatesPerChannelAndSupportsPermanent(t *testing.T) {
 	}
 }
 
+func TestRedeemCodeBrowsePaginatesNewestFirstAndCountsFilters(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.RedeemInstanceID(ctx); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for index, input := range []RedeemCodeInput{
+		{Code: "ACTIVE-OLD", Channel: "ios", ExpiresAt: timePtr(now.Add(time.Hour)), SourceKey: "test:1"},
+		{Code: "ACTIVE-NEW", Channel: "ios", ExpiresAt: timePtr(now.Add(2 * time.Hour)), SourceKey: "test:2"},
+		{Code: "HISTORY", Channel: "ios", ExpiresAt: timePtr(now.Add(-time.Hour)), SourceKey: "test:3"},
+	} {
+		if _, _, err := db.UpsertRedeemCode(ctx, input); err != nil {
+			t.Fatalf("insert %d: %v", index, err)
+		}
+	}
+	page, activeTotal, historyTotal, err := db.BrowseRedeemCodes(ctx, 0, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activeTotal != 2 || historyTotal != 1 {
+		t.Fatalf("totals active=%d history=%d, want 2/1", activeTotal, historyTotal)
+	}
+	if len(page) != 1 || page[0].Code != "ACTIVE-NEW" {
+		t.Fatalf("first active page=%+v", page)
+	}
+	page, _, _, err = db.BrowseRedeemCodes(ctx, 1, 1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page) != 1 || page[0].Code != "ACTIVE-OLD" {
+		t.Fatalf("second active page=%+v", page)
+	}
+	history, _, _, err := db.BrowseRedeemCodes(ctx, 0, 20, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(history) != 1 || history[0].Code != "HISTORY" {
+		t.Fatalf("history page=%+v", history)
+	}
+}
+
+func TestRedeemCodeExpiryOverrideSurvivesSourcesAndCanBeCleared(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err := db.RedeemInstanceID(ctx); err != nil {
+		t.Fatal(err)
+	}
+	original := time.Now().UTC().Add(time.Hour)
+	entry, _, err := db.UpsertRedeemCode(ctx, RedeemCodeInput{
+		Code: "CORRECT-ME", Channel: "ios", ExpiresAt: &original, SourceKey: "source:1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrected := time.Now().UTC().Add(15 * time.Minute)
+	entry, err = db.SetRedeemCodeExpiryOverride(ctx, entry.Fingerprint, &corrected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !entry.ExpiryOverridden || entry.ExpiresAt == nil || !entry.ExpiresAt.Equal(corrected) {
+		t.Fatalf("corrected entry=%+v", entry)
+	}
+	entry, _, err = db.UpsertRedeemCode(ctx, RedeemCodeInput{
+		Code: "CORRECT-ME", Channel: "ios", ExpiresAt: nil, SourceKey: "source:2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !entry.ExpiryOverridden || entry.ExpiresAt == nil || !entry.ExpiresAt.Equal(corrected) {
+		t.Fatalf("source replaced administrator override: %+v", entry)
+	}
+	entry, err = db.ClearRedeemCodeExpiryOverride(ctx, entry.Fingerprint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if entry.ExpiryOverridden || entry.ExpiresAt != nil {
+		t.Fatalf("source expiry not restored: %+v", entry)
+	}
+}
+
+func timePtr(value time.Time) *time.Time { return &value }
+
 func TestRedeemInvalidStopsRemainingAccountAttempts(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, filepath.Join(t.TempDir(), "garden.db"))

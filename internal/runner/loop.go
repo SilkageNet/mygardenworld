@@ -293,6 +293,20 @@ func (r *Runner) TakeUnionRaceTask(ctx context.Context, taskMsID int64) error {
 	return r.executeOperation(ctx, snapshot.client, snapshot.session, &op, time.Now())
 }
 
+// DeleteUnionRaceTask validates and immediately executes a user-selected race
+// task deletion through the runner's serialized mutation pipeline.
+func (r *Runner) DeleteUnionRaceTask(ctx context.Context, taskMsID int64) error {
+	snapshot := r.readTickSnapshot()
+	if snapshot.sessionInvalidated || snapshot.client == nil || snapshot.session == nil {
+		return fmt.Errorf("账号当前未连接游戏服务")
+	}
+	op, err := automation.ManualRaceDeleteOperation(r.state, snapshot.policy, taskMsID, time.Now())
+	if err != nil {
+		return err
+	}
+	return r.executeOperation(ctx, snapshot.client, snapshot.session, &op, time.Now())
+}
+
 const (
 	raceTakeCDRetryPad = 80 * time.Millisecond
 	raceTakeCDRetryGap = 10 * time.Millisecond
