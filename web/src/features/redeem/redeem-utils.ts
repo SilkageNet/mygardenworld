@@ -9,8 +9,16 @@ export const EXPIRY_PRESETS = [
   { id: "1d", label: "1天", seconds: 24 * 60 * 60 },
 ] as const;
 
+export const REDEEM_PAGE_SIZES = [5, 10] as const;
+export const DEFAULT_REDEEM_PAGE_SIZE = 5;
+
 export type ExpiryMode = (typeof EXPIRY_PRESETS)[number]["id"] | "permanent" | "custom";
 export type CustomUnit = "minutes" | "hours" | "days";
+
+export function redeemPageCount(total: number, pageSize: number): number {
+  if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(pageSize) || pageSize <= 0) return 1;
+  return Math.max(1, Math.ceil(total / pageSize));
+}
 
 const UNIT_SECONDS: Record<CustomUnit, number> = {
   minutes: 60,

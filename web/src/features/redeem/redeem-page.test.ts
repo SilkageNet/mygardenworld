@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import { RedeemValidation } from "@/gen/mygardenworld/v1/redeem_pb";
-import { redeemValidationLabel, resolveRedeemExpiry } from "./redeem-utils";
+import {
+  DEFAULT_REDEEM_PAGE_SIZE,
+  REDEEM_PAGE_SIZES,
+  redeemPageCount,
+  redeemValidationLabel,
+  resolveRedeemExpiry,
+} from "./redeem-utils";
+
+describe("redeem list pagination", () => {
+  it("defaults to a compact recent-code page", () => {
+    expect(DEFAULT_REDEEM_PAGE_SIZE).toBe(5);
+    expect(REDEEM_PAGE_SIZES).toEqual([5, 10]);
+  });
+
+  it("keeps the empty list on a single page", () => {
+    expect(redeemPageCount(0, DEFAULT_REDEEM_PAGE_SIZE)).toBe(1);
+    expect(redeemPageCount(21, DEFAULT_REDEEM_PAGE_SIZE)).toBe(5);
+  });
+});
 
 describe("resolveRedeemExpiry", () => {
   const now = new Date("2026-08-29T00:00:00Z");

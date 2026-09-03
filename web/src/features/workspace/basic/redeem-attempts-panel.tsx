@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { AlertCircle, CheckCircle2, Clock3, Gift, LoaderCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,9 @@ import {
   type AccountRedeemAttempt,
 } from "@/gen/mygardenworld/v1/workspace_pb";
 import { CollapsibleCard, EmptyState } from "@/features/workspace/shared/workspace-ui";
-import type { RedeemAttemptFeed } from "./redeem-attempts-model";
+import { ListPaginationControl } from "@/features/workspace/shared/list-pagination-control";
+import { resolveListPageWindow } from "@/features/workspace/shared/list-pagination";
+import { REDEEM_ATTEMPT_PAGE_SIZE, type RedeemAttemptFeed } from "./redeem-attempts-model";
 
 const FILTERS = [
   { id: AccountRedeemAttemptFilter.ALL, label: "全部" },
@@ -23,6 +26,7 @@ export function RedeemAttemptsPanel({ feed, onFilterChange, onLoadMore }: {
   onFilterChange: (filter: AccountRedeemAttemptFilter) => void;
   onLoadMore: () => void;
 }) {
+  const [requestedPage, setRequestedPage] = useState(0);
   const summary = feed.summary;
   const redeemed = (summary?.success ?? BigInt(0)) + (summary?.alreadyRedeemed ?? BigInt(0));
   const unavailable = (summary?.expired ?? BigInt(0)) + (summary?.invalid ?? BigInt(0));
@@ -35,6 +39,25 @@ export function RedeemAttemptsPanel({ feed, onFilterChange, onLoadMore }: {
     [AccountRedeemAttemptFilter.ATTENTION, attention],
   ]);
   const firstLoading = feed.loadingMode === "replace" && feed.entries.length === 0;
+  const pageWindow = resolveListPageWindow(requestedPage, feed.entries.length, REDEEM_ATTEMPT_PAGE_SIZE);
+  const pageEntries = feed.entries.slice(pageWindow.start, pageWindow.end);
+  const selectedTotal = filterCounts.get(feed.filter) ?? BigInt(0);
+  const totalPages = Math.max(
+    pageWindow.loadedPages,
+    Number((selectedTotal + BigInt(REDEEM_ATTEMPT_PAGE_SIZE - 1)) / BigInt(REDEEM_ATTEMPT_PAGE_SIZE)),
+  );
+  const hasNextPage = pageWindow.end < feed.entries.length || feed.hasMore;
+
+  function changeFilter(filter: AccountRedeemAttemptFilter) {
+    setRequestedPage(0);
+    onFilterChange(filter);
+  }
+
+  function showNextPage() {
+    if (!hasNextPage || feed.loadingMode !== "") return;
+    setRequestedPage(pageWindow.pageIndex + 1);
+    if (pageWindow.end >= feed.entries.length) onLoadMore();
+  }
 
   return (
     <CollapsibleCard
@@ -55,7 +78,7 @@ export function RedeemAttemptsPanel({ feed, onFilterChange, onLoadMore }: {
               size="sm"
               variant={feed.filter === filter.id ? "secondary" : "ghost"}
               className="h-8 shrink-0 gap-1.5 px-2.5"
-              onClick={() => onFilterChange(filter.id)}
+              onClick={() => changeFilter(filter.id)}
               disabled={feed.loadingMode !== "" && feed.filter === filter.id}
             >
               {filter.label}
@@ -75,21 +98,22 @@ export function RedeemAttemptsPanel({ feed, onFilterChange, onLoadMore }: {
           />
         ) : (
           <div className="divide-y divide-border/65 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
-            {feed.entries.map((entry) => <RedeemAttemptRow key={entry.id.toString()} entry={entry} />)}
+            {pageEntries.map((entry) => <RedeemAttemptRow key={entry.id.toString()} entry={entry} />)}
           </div>
         )}
 
-        {feed.hasMore && (
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={onLoadMore}
-            disabled={feed.loadingMode !== ""}
-          >
-            {feed.loadingMode === "append" && <LoaderCircle className="size-4 animate-spin" />}
-            加载更早记录
-          </Button>
+        {!firstLoading && selectedTotal > BigInt(0) && (
+          <ListPaginationControl
+            ariaLabel="兑换记录分页"
+            summary={<span className="tabular-nums">共 {selectedTotal.toString()} 条 · 每页 {REDEEM_ATTEMPT_PAGE_SIZE} 条</span>}
+            pageIndex={pageWindow.pageIndex}
+            totalPages={Math.max(1, totalPages)}
+            previousDisabled={pageWindow.pageIndex === 0}
+            nextDisabled={!hasNextPage || feed.loadingMode !== ""}
+            nextLoading={feed.loadingMode === "append"}
+            onPrevious={() => setRequestedPage(Math.max(0, pageWindow.pageIndex - 1))}
+            onNext={showNextPage}
+          />
         )}
       </div>
     </CollapsibleCard>
@@ -111,7 +135,7 @@ function RedeemAttemptRow({ entry }: { entry: AccountRedeemAttempt }) {
           {entry.attemptCount > 0 && <span>尝试 {entry.attemptCount} 次</span>}
           {entry.expiresAt && <span>有效至 {formatAttemptTime(timestampDate(entry.expiresAt))}</span>}
         </div>
-        {entry.message && <div className="mt-1 break-words text-xs text-muted-foreground">{entry.message}</div>}
+        {entry.message && <div className="mt-1 line-clamp-1 break-words text-xs text-muted-foreground" title={entry.message}>{entry.message}</div>}
       </div>
     </div>
   );
