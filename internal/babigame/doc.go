@@ -125,9 +125,10 @@
 // item 1003 x1 cost gate. Only this RPC inspects namespace `3.0` as the
 // client-side `$ext.iv`: exact zero is safe; nonzero makes the official client
 // show `c_pearl.$hireDefGld` and return to candidate selection without a second
-// payment RPC, so automation skips only that UID for the current session.
-// Malformed-present data or an otherwise ambiguous result locks automatic
-// hiring for the rest of the session.
+// payment RPC. The rejected attempt may still consume its submitted hire
+// ticket, so automation records any exact one-ticket decrease and skips only
+// that UID for the current session. Malformed-present data or an otherwise
+// ambiguous result locks automatic hiring for the rest of the session.
 //
 // # Friend Flower Pick State (Namespaces 24, 110, 111)
 //

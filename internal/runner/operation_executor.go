@@ -28,6 +28,14 @@ type harvestLandError struct {
 	Err    error
 }
 
+// pearlHireCandidateFallbackError is an authoritative, candidate-scoped
+// outcome rather than an RPC failure. The server may consume the submitted
+// hire ticket while telling the client that this candidate requires the
+// configured gold alternative. Automation never follows that alternative.
+type pearlHireCandidateFallbackError struct {
+	TicketSpent bool
+}
+
 type zooHandleEventExecution struct {
 	preflight func() error
 	handle    func(context.Context, clientproto.ZooHandleEventRequest) (json.RawMessage, error)
@@ -94,6 +102,13 @@ func (e *harvestLandError) Unwrap() error {
 		return nil
 	}
 	return e.Err
+}
+
+func (e *pearlHireCandidateFallbackError) Error() string {
+	if e != nil && e.TicketSpent {
+		return "珍珠雇佣触发金币替代提示，本次已消耗 1 张雇佣券；已在当前会话跳过该候选，不会自动使用金币"
+	}
+	return "珍珠雇佣触发金币替代提示，未观察到雇佣券扣除；已在当前会话跳过该候选，不会自动使用金币"
 }
 
 func stateDeltaOperation[Req any](

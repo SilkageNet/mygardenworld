@@ -89,24 +89,25 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 	base := time.UnixMilli(1_700_000_000_000)
 	snapshot := state.PearlHireAttemptSnapshot{At: base, PlaceID: 1, TargetUID: 2001, TicketCount: 3}
 	tests := []struct {
-		name        string
-		raw         string
-		hireErr     error
-		success     bool
-		failCount   int32
-		known       bool
-		ticketSpent bool
-		wantErr     string
-		wantFailed  bool
-		wantSkipped bool
-		wantLocked  bool
-		wantNoted   bool
+		name         string
+		raw          string
+		hireErr      error
+		success      bool
+		failCount    int32
+		known        bool
+		ticketSpent  bool
+		wantErr      string
+		wantFailed   bool
+		wantSkipped  bool
+		wantLocked   bool
+		wantNoted    bool
+		wantFallback bool
 	}{
 		{name: "success explicit zero", raw: `{"3":{"0":0},"115":{}}`, success: true, known: true, ticketSpent: true, wantNoted: true},
 		{name: "contested", raw: `{"115":{}}`, failCount: 2, known: true, ticketSpent: true, wantErr: "contested", wantFailed: true, wantNoted: true},
 		{name: "contested takes precedence over fallback", raw: `{"3":{"0":1},"115":{}}`, failCount: 2, known: true, ticketSpent: true, wantErr: "contested", wantFailed: true, wantNoted: true},
-		{name: "gold fallback", raw: `{"3":{"0":1}}`, wantErr: "跳过该角色", wantSkipped: true},
-		{name: "gold fallback with ticket decrement", raw: `{"3":{"0":1}}`, ticketSpent: true, wantErr: "结果不明确", wantFailed: true, wantLocked: true, wantNoted: true},
+		{name: "gold fallback", raw: `{"3":{"0":1}}`, wantErr: "未观察到雇佣券扣除", wantSkipped: true, wantFallback: true},
+		{name: "gold fallback with ticket decrement", raw: `{"3":{"0":1}}`, ticketSpent: true, wantErr: "已消耗 1 张雇佣券", wantSkipped: true, wantNoted: true, wantFallback: true},
 		{name: "malformed fallback", raw: `{"3":{"0":null}}`, wantErr: "格式异常", wantFailed: true, wantLocked: true},
 		{name: "postcondition unknown", raw: `{"115":{}}`, wantErr: "postcondition", wantFailed: true, wantLocked: true},
 		{name: "transport unknown", hireErr: errors.New("timeout"), wantErr: "timeout", wantFailed: true, wantLocked: true},
@@ -130,7 +131,7 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 				lockSession:   func(string) { locked = true },
 				now:           func() time.Time { return base },
 			}
-			_, err := executePearlHire(context.Background(), clientproto.PearlPlaceHireRequest{PlaceId: 1, DstUid: 2001}, exec)
+			raw, err := executePearlHire(context.Background(), clientproto.PearlPlaceHireRequest{PlaceId: 1, DstUid: 2001}, exec)
 			if tc.wantErr == "" && err != nil {
 				t.Fatal(err)
 			}
@@ -142,6 +143,18 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 			}
 			if noted != tc.wantNoted {
 				t.Fatalf("noted=%t, want %t", noted, tc.wantNoted)
+			}
+			var fallbackErr *pearlHireCandidateFallbackError
+			if got := errors.As(err, &fallbackErr); got != tc.wantFallback {
+				t.Fatalf("candidate fallback=%t, want %t (err=%v)", got, tc.wantFallback, err)
+			}
+			if tc.wantFallback {
+				if fallbackErr.TicketSpent != tc.ticketSpent {
+					t.Fatalf("fallback ticketSpent=%t, want %t", fallbackErr.TicketSpent, tc.ticketSpent)
+				}
+				if len(raw) == 0 {
+					t.Fatal("recognized fallback discarded its authoritative response")
+				}
 			}
 			if tc.raw != "" && tc.hireErr == nil && !applied {
 				t.Fatal("authoritative payload was not applied")

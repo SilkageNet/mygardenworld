@@ -48,6 +48,14 @@ func isFlowerNotMatureError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "鲜花尚未成熟")
 }
 
+func isPearlHireCandidateFallbackError(kind string, err error) bool {
+	if kind != clientproto.RPCPearlPlaceHire.String() || err == nil {
+		return false
+	}
+	var fallbackErr *pearlHireCandidateFallbackError
+	return errors.As(err, &fallbackErr)
+}
+
 func isResidentOrderCooldownError(kind string, err error) bool {
 	return (kind == clientproto.RPCOrderFlowerFinishOrder.String() ||
 		kind == clientproto.RPCOrderFlowerFinishSatinOrder.String() ||
