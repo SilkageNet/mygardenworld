@@ -183,15 +183,8 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 		return nil, fmt.Errorf("%s: %w", reason, fallbackErr)
 	}
 	if fallback {
-		if ticketSpent {
-			reason := "珍珠雇佣同时出现金币回退与雇佣券扣除，结果不明确，当前会话已锁定"
-			exec.lockSession(reason)
-			exec.markFailed(snapshot.TargetUID, clock())
-			return nil, fmt.Errorf("%s", reason)
-		}
-		reason := "珍珠雇佣触发金币回退，已在当前会话跳过该角色；不会自动消耗金币"
 		exec.skipCandidate(snapshot.TargetUID)
-		return nil, fmt.Errorf("%s", reason)
+		return raw, &pearlHireCandidateFallbackError{TicketSpent: ticketSpent}
 	}
 	if !success {
 		exec.lockSession("珍珠雇佣响应未满足票券与槽位后置条件，当前会话已锁定")

@@ -1178,6 +1178,12 @@ func TestClassifyOperationError(t *testing.T) {
 		want operationErrorKind
 	}{
 		{
+			name: "pearl hire candidate gold fallback",
+			kind: clientproto.RPCPearlPlaceHire.String(),
+			err:  &pearlHireCandidateFallbackError{TicketSpent: true},
+			want: operationErrorPearlHireCandidateFallback,
+		},
+		{
 			name: "harvest not mature",
 			kind: clientproto.RPCUsrLandHarvest.String(),
 			err:  errors.New("rpc usrLand.harvest: server: 鲜花尚未成熟"),
@@ -1380,6 +1386,50 @@ func TestHandleOperationErrorMailAlreadyPicked(t *testing.T) {
 	}
 	if got := r.state.ReadyMailPickTargets(); len(got) != 0 {
 		t.Fatalf("ReadyMailPickTargets=%+v, want none after already-picked recovery", got)
+	}
+}
+
+func TestHandleOperationErrorPearlHireCandidateFallback(t *testing.T) {
+	now := time.Date(2026, 9, 4, 21, 51, 36, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	r := newOperationEventTestRunner()
+	r.bus = NewBus()
+	events, cancel := r.bus.SubscribeLive(1)
+	defer cancel()
+	op := &automation.PlannedOp{
+		Kind:      clientproto.RPCPearlPlaceHire.String(),
+		Lane:      automation.LaneSide,
+		Category:  automation.CategoryBasic,
+		Domain:    "basic.pearl",
+		Action:    "hire",
+		TargetID:  1,
+		TargetUID: 2001,
+		Count:     1,
+		ItemCost:  map[int32]int32{1003: 1},
+	}
+	r.setSideOperationCooldown(op, now, errors.New("old failure"), "", time.Minute)
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              &pearlHireCandidateFallbackError{TicketSpent: true},
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if _, coolingDown := r.operationCoolingDown(op, now.Add(time.Second)); coolingDown {
+		t.Fatal("recognized candidate fallback retained an operation cooldown")
+	}
+	select {
+	case event := <-events:
+		if event.Kind != "operation_deferred" || event.Action != "blocked" || event.Level != "warn" {
+			t.Fatalf("event=%+v, want warning deferred event", event)
+		}
+		if !strings.Contains(event.Message, "已消耗 1 张雇佣券") ||
+			!strings.Contains(event.Message, "继续检查其他候选") ||
+			!strings.Contains(event.Message, "未自动使用金币") {
+			t.Fatalf("message=%q, want handled fallback details", event.Message)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing pearl candidate fallback event")
 	}
 }
 

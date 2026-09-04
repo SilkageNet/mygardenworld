@@ -40,31 +40,34 @@ type operationErrorKind string
 const customerOrderGenerationNoopCooldown = 10 * time.Minute
 
 const (
-	operationErrorOrdinary                  operationErrorKind = "ordinary"
-	operationErrorHarvestNotMature          operationErrorKind = "harvest_not_mature"
-	operationErrorResidentOrderCooldown     operationErrorKind = "resident_order_cooldown"
-	operationErrorResidentOrderDailyLimit   operationErrorKind = "resident_order_daily_limit"
-	operationErrorWaterwheelInvalidData     operationErrorKind = "waterwheel_invalid_data"
-	operationErrorWaterwheelDailyLimit      operationErrorKind = "waterwheel_daily_limit"
-	operationErrorShopCultivateExhausted    operationErrorKind = "shop_cultivate_exhausted"
-	operationErrorWaterDropRejected         operationErrorKind = "water_drop_rejected"
-	operationErrorCultivateUpgradeRejected  operationErrorKind = "cultivate_upgrade_resource_rejected"
-	operationErrorFlowerArtMaterialRejected operationErrorKind = "flower_art_material_rejected"
-	operationErrorTaskGroupFinished         operationErrorKind = "task_group_finished"
-	operationErrorRaceTakeAlreadyTaken      operationErrorKind = "race_take_already_taken"
-	operationErrorRaceTakeClaimedByOther    operationErrorKind = "race_take_claimed_by_other"
-	operationErrorRaceTakeQuotaExceeded     operationErrorKind = "race_take_quota_exceeded"
-	operationErrorRaceTakeOnCooldown        operationErrorKind = "race_take_on_cooldown"
-	operationErrorRaceDeleteOnCooldown      operationErrorKind = "race_delete_on_cooldown"
-	operationErrorFmlBuildDailyLimit        operationErrorKind = "fml_build_daily_limit"
-	operationErrorFmlNotJoined              operationErrorKind = "fml_not_joined"
-	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
-	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
-	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
+	operationErrorOrdinary                   operationErrorKind = "ordinary"
+	operationErrorHarvestNotMature           operationErrorKind = "harvest_not_mature"
+	operationErrorResidentOrderCooldown      operationErrorKind = "resident_order_cooldown"
+	operationErrorResidentOrderDailyLimit    operationErrorKind = "resident_order_daily_limit"
+	operationErrorWaterwheelInvalidData      operationErrorKind = "waterwheel_invalid_data"
+	operationErrorWaterwheelDailyLimit       operationErrorKind = "waterwheel_daily_limit"
+	operationErrorShopCultivateExhausted     operationErrorKind = "shop_cultivate_exhausted"
+	operationErrorWaterDropRejected          operationErrorKind = "water_drop_rejected"
+	operationErrorCultivateUpgradeRejected   operationErrorKind = "cultivate_upgrade_resource_rejected"
+	operationErrorFlowerArtMaterialRejected  operationErrorKind = "flower_art_material_rejected"
+	operationErrorTaskGroupFinished          operationErrorKind = "task_group_finished"
+	operationErrorRaceTakeAlreadyTaken       operationErrorKind = "race_take_already_taken"
+	operationErrorRaceTakeClaimedByOther     operationErrorKind = "race_take_claimed_by_other"
+	operationErrorRaceTakeQuotaExceeded      operationErrorKind = "race_take_quota_exceeded"
+	operationErrorRaceTakeOnCooldown         operationErrorKind = "race_take_on_cooldown"
+	operationErrorRaceDeleteOnCooldown       operationErrorKind = "race_delete_on_cooldown"
+	operationErrorFmlBuildDailyLimit         operationErrorKind = "fml_build_daily_limit"
+	operationErrorFmlNotJoined               operationErrorKind = "fml_not_joined"
+	operationErrorFmlFlowerTakeDailyLimit    operationErrorKind = "fml_flower_take_daily_limit"
+	operationErrorCyclicStoryOrderNotReady   operationErrorKind = "cyclic_story_order_not_ready"
+	operationErrorMailAlreadyPicked          operationErrorKind = "mail_already_picked"
+	operationErrorPearlHireCandidateFallback operationErrorKind = "pearl_hire_candidate_fallback"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
 	switch {
+	case isPearlHireCandidateFallbackError(kind, err):
+		return operationErrorPearlHireCandidateFallback
 	case isHarvestOp(kind) && isFlowerNotMatureError(err):
 		return operationErrorHarvestNotMature
 	case isResidentOrderCooldownError(kind, err):
@@ -170,6 +173,34 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
 	switch classifyOperationError(op.Kind, err) {
+	case operationErrorPearlHireCandidateFallback:
+		var fallbackErr *pearlHireCandidateFallbackError
+		_ = errors.As(err, &fallbackErr)
+		ticketResult := "未观察到雇佣券扣除"
+		ticketSpent := false
+		if fallbackErr != nil && fallbackErr.TicketSpent {
+			ticketResult = "本次已消耗 1 张雇佣券并计入今日用量"
+			ticketSpent = true
+		}
+		r.clearOperationCooldown(op)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端提示该候选需改用金币雇佣，%s；已继续检查其他候选，未自动使用金币", opDesc(op), ticketResult),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{
+			"error":       err.Error(),
+			"stage":       "candidate_gold_fallback",
+			"ticketSpent": ticketSpent,
+			"placeId":     op.TargetID,
+			"targetUid":   op.TargetUID,
+		})
+		return nil
 	case operationErrorFmlNotJoined:
 		r.state.MarkNoFmlMembership()
 		r.clearOperationCooldown(op)

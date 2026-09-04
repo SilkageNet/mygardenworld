@@ -461,8 +461,9 @@ func (s *State) MarkPearlHireFailed(uid int64, at time.Time) {
 
 // SkipPearlHireCandidate excludes one candidate for the remainder of the
 // current connection session. The official client treats pearlPlace.hire's
-// gold fallback as a candidate-level result and returns to candidate selection
-// without issuing a second payment request.
+// gold alternative as a candidate-level result and returns to candidate
+// selection without issuing a second payment request, even when the rejected
+// attempt has already consumed its submitted hire ticket.
 func (s *State) SkipPearlHireCandidate(uid int64) {
 	if uid <= 0 {
 		return
