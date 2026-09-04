@@ -259,6 +259,7 @@ func (s *State) PearlHireAt(now time.Time) PearlHireView {
 		RecommendObservedAtMs: s.pearlRecommendAtMs,
 		EnemiesObserved:       s.pearlEnemiesObserved,
 		FailedUntilMs:         make(map[int64]int64, len(s.pearlHireFailedUntil)),
+		SkippedUIDs:           make(map[int64]struct{}, len(s.pearlHireSkippedUIDs)),
 		SessionLocked:         s.pearlHireSessionLocked,
 		SessionLockReason:     s.pearlHireLockReason,
 	}
@@ -288,6 +289,9 @@ func (s *State) PearlHireAt(now time.Time) PearlHireView {
 	})
 	for uid, until := range s.pearlHireFailedUntil {
 		view.FailedUntilMs[uid] = until
+	}
+	for uid := range s.pearlHireSkippedUIDs {
+		view.SkippedUIDs[uid] = struct{}{}
 	}
 	return view
 }
@@ -455,20 +459,37 @@ func (s *State) MarkPearlHireFailed(uid int64, at time.Time) {
 	s.mu.Unlock()
 }
 
-// LockPearlHireSession disables every later automatic hire in this login
-// session after the server exposes the gold-fallback extension.
+// SkipPearlHireCandidate excludes one candidate for the remainder of the
+// current connection session. The official client treats pearlPlace.hire's
+// gold fallback as a candidate-level result and returns to candidate selection
+// without issuing a second payment request.
+func (s *State) SkipPearlHireCandidate(uid int64) {
+	if uid <= 0 {
+		return
+	}
+	s.mu.Lock()
+	if s.pearlHireSkippedUIDs == nil {
+		s.pearlHireSkippedUIDs = make(map[int64]struct{})
+	}
+	s.pearlHireSkippedUIDs[uid] = struct{}{}
+	s.mu.Unlock()
+}
+
+// LockPearlHireSession disables every later automatic hire in this connection
+// session after an ambiguous response makes another ticket spend unsafe.
 func (s *State) LockPearlHireSession(reason string) {
 	s.mu.Lock()
 	s.pearlHireSessionLocked = true
 	s.pearlHireLockReason = strings.TrimSpace(reason)
 	if s.pearlHireLockReason == "" {
-		s.pearlHireLockReason = "检测到金币回退，当前会话已停止自动雇佣"
+		s.pearlHireLockReason = "珍珠雇佣结果不明确，当前会话已停止自动雇佣"
 	}
 	s.mu.Unlock()
 }
 
 // ResetPearlHireSession drops all short-lived candidate state, failure
-// cooldowns, and the gold-fallback lock when a genuinely new session starts.
+// cooldowns, candidate skips, and safety locks when a genuinely new session
+// starts.
 func (s *State) ResetPearlHireSession() {
 	s.mu.Lock()
 	s.pearlFriendRelations = make(map[string]pearlFriendRelation)
@@ -482,6 +503,7 @@ func (s *State) ResetPearlHireSession() {
 	s.pearlEnemies = make(map[int64]int64)
 	s.pearlEnemiesObserved = false
 	s.pearlHireFailedUntil = make(map[int64]int64)
+	s.pearlHireSkippedUIDs = make(map[int64]struct{})
 	s.pearlHireSessionLocked = false
 	s.pearlHireLockReason = ""
 	s.mu.Unlock()

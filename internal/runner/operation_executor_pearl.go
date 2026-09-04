@@ -129,19 +129,20 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 		hire: func(ctx context.Context, request clientproto.PearlPlaceHireRequest) (json.RawMessage, error) {
 			return checkedStateDelta(rt.rpc.PearlPlace().Hire(ctx, request, babigame.WithPayloadApply(false)))
 		},
-		apply:       rt.runner.state.ApplyV,
-		outcome:     rt.runner.state.PearlHireAttemptApplied,
-		ticketSpent: rt.runner.state.PearlHireTicketDecreased,
-		markFailed:  rt.runner.state.MarkPearlHireFailed,
-		noteUsed:    rt.runner.notePearlHireTicketUsed,
-		lockSession: rt.runner.state.LockPearlHireSession,
-		now:         time.Now,
+		apply:         rt.runner.state.ApplyV,
+		outcome:       rt.runner.state.PearlHireAttemptApplied,
+		ticketSpent:   rt.runner.state.PearlHireTicketDecreased,
+		markFailed:    rt.runner.state.MarkPearlHireFailed,
+		skipCandidate: rt.runner.state.SkipPearlHireCandidate,
+		noteUsed:      rt.runner.notePearlHireTicketUsed,
+		lockSession:   rt.runner.state.LockPearlHireSession,
+		now:           time.Now,
 	}
 	return executePearlHire(ctx, req, exec)
 }
 
 func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest, exec pearlHireExecution) (json.RawMessage, error) {
-	if exec.preflight == nil || exec.hire == nil || exec.outcome == nil || exec.markFailed == nil || exec.lockSession == nil {
+	if exec.preflight == nil || exec.hire == nil || exec.outcome == nil || exec.markFailed == nil || exec.skipCandidate == nil || exec.lockSession == nil {
 		return nil, fmt.Errorf("pearl hire execution is incomplete")
 	}
 	clock := exec.now
@@ -163,8 +164,17 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 	if babigame.HasPayload(raw) && exec.apply != nil {
 		exec.apply(raw)
 	}
-	if exec.ticketSpent != nil && exec.ticketSpent(snapshot) && exec.noteUsed != nil {
+	ticketSpent := exec.ticketSpent != nil && exec.ticketSpent(snapshot)
+	if ticketSpent && exec.noteUsed != nil {
 		exec.noteUsed(ctx, clock())
+	}
+	success, failCount, known := exec.outcome(snapshot)
+	// Match the official client's result precedence: an authoritative
+	// hireFailCnt belongs to the contested-candidate path even if $ext also
+	// happens to be present in the same namespace delta.
+	if known && failCount > 0 {
+		exec.markFailed(snapshot.TargetUID, clock())
+		return nil, fmt.Errorf("pearlPlace.hire candidate was contested (hireFailCnt=%d)", failCount)
 	}
 	if fallbackErr != nil {
 		reason := "珍珠雇佣响应中的 3.0 金币回退字段格式异常，当前会话已锁定"
@@ -173,15 +183,15 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 		return nil, fmt.Errorf("%s: %w", reason, fallbackErr)
 	}
 	if fallback {
-		reason := "珍珠雇佣触发金币回退，当前会话已锁定；不会自动消耗金币"
-		exec.lockSession(reason)
-		exec.markFailed(snapshot.TargetUID, clock())
+		if ticketSpent {
+			reason := "珍珠雇佣同时出现金币回退与雇佣券扣除，结果不明确，当前会话已锁定"
+			exec.lockSession(reason)
+			exec.markFailed(snapshot.TargetUID, clock())
+			return nil, fmt.Errorf("%s", reason)
+		}
+		reason := "珍珠雇佣触发金币回退，已在当前会话跳过该角色；不会自动消耗金币"
+		exec.skipCandidate(snapshot.TargetUID)
 		return nil, fmt.Errorf("%s", reason)
-	}
-	success, failCount, known := exec.outcome(snapshot)
-	if known && failCount > 0 {
-		exec.markFailed(snapshot.TargetUID, clock())
-		return nil, fmt.Errorf("pearlPlace.hire candidate was contested (hireFailCnt=%d)", failCount)
 	}
 	if !success {
 		exec.lockSession("珍珠雇佣响应未满足票券与槽位后置条件，当前会话已锁定")
@@ -193,8 +203,8 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 
 // pearlHireGoldFallback inspects only namespace 3 field 0, the wire field
 // exposed to the official client as $ext.iv for this RPC. Missing or exact
-// integer zero is safe; any nonzero value is fallback and any present malformed value is an
-// error that must lock the session.
+// integer zero is safe; any nonzero value is a candidate-level fallback and
+// any present malformed value is an error that must lock the session.
 func pearlHireGoldFallback(raw json.RawMessage) (bool, error) {
 	if !babigame.HasPayload(raw) {
 		return false, nil

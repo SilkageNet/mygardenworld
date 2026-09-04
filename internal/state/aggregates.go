@@ -170,6 +170,7 @@ type assetState struct {
 	pearlEnemies             map[int64]int64
 	pearlEnemiesObserved     bool
 	pearlHireFailedUntil     map[int64]int64
+	pearlHireSkippedUIDs     map[int64]struct{}
 	pearlHireSessionLocked   bool
 	pearlHireLockReason      string
 	pearlHireTicketUsedDayID int32

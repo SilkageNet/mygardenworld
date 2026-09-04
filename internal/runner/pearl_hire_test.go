@@ -98,19 +98,22 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 		ticketSpent bool
 		wantErr     string
 		wantFailed  bool
+		wantSkipped bool
 		wantLocked  bool
 		wantNoted   bool
 	}{
 		{name: "success explicit zero", raw: `{"3":{"0":0},"115":{}}`, success: true, known: true, ticketSpent: true, wantNoted: true},
 		{name: "contested", raw: `{"115":{}}`, failCount: 2, known: true, ticketSpent: true, wantErr: "contested", wantFailed: true, wantNoted: true},
-		{name: "gold fallback", raw: `{"3":{"0":1}}`, wantErr: "金币回退", wantFailed: true, wantLocked: true},
+		{name: "contested takes precedence over fallback", raw: `{"3":{"0":1},"115":{}}`, failCount: 2, known: true, ticketSpent: true, wantErr: "contested", wantFailed: true, wantNoted: true},
+		{name: "gold fallback", raw: `{"3":{"0":1}}`, wantErr: "跳过该角色", wantSkipped: true},
+		{name: "gold fallback with ticket decrement", raw: `{"3":{"0":1}}`, ticketSpent: true, wantErr: "结果不明确", wantFailed: true, wantLocked: true, wantNoted: true},
 		{name: "malformed fallback", raw: `{"3":{"0":null}}`, wantErr: "格式异常", wantFailed: true, wantLocked: true},
 		{name: "postcondition unknown", raw: `{"115":{}}`, wantErr: "postcondition", wantFailed: true, wantLocked: true},
 		{name: "transport unknown", hireErr: errors.New("timeout"), wantErr: "timeout", wantFailed: true, wantLocked: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			failed, locked, applied, noted := false, false, false, false
+			failed, skipped, locked, applied, noted := false, false, false, false, false
 			exec := pearlHireExecution{
 				preflight: func(time.Time) (state.PearlHireAttemptSnapshot, error) { return snapshot, nil },
 				hire: func(context.Context, clientproto.PearlPlaceHireRequest) (json.RawMessage, error) {
@@ -120,11 +123,12 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 				outcome: func(state.PearlHireAttemptSnapshot) (bool, int32, bool) {
 					return tc.success, tc.failCount, tc.known
 				},
-				ticketSpent: func(state.PearlHireAttemptSnapshot) bool { return tc.ticketSpent },
-				markFailed:  func(uid int64, _ time.Time) { failed = uid == 2001 },
-				noteUsed:    func(context.Context, time.Time) { noted = true },
-				lockSession: func(string) { locked = true },
-				now:         func() time.Time { return base },
+				ticketSpent:   func(state.PearlHireAttemptSnapshot) bool { return tc.ticketSpent },
+				markFailed:    func(uid int64, _ time.Time) { failed = uid == 2001 },
+				skipCandidate: func(uid int64) { skipped = uid == 2001 },
+				noteUsed:      func(context.Context, time.Time) { noted = true },
+				lockSession:   func(string) { locked = true },
+				now:           func() time.Time { return base },
 			}
 			_, err := executePearlHire(context.Background(), clientproto.PearlPlaceHireRequest{PlaceId: 1, DstUid: 2001}, exec)
 			if tc.wantErr == "" && err != nil {
@@ -133,8 +137,8 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 			if tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)) {
 				t.Fatalf("err=%v, want substring %q", err, tc.wantErr)
 			}
-			if failed != tc.wantFailed || locked != tc.wantLocked {
-				t.Fatalf("failed=%t locked=%t", failed, locked)
+			if failed != tc.wantFailed || skipped != tc.wantSkipped || locked != tc.wantLocked {
+				t.Fatalf("failed=%t skipped=%t locked=%t", failed, skipped, locked)
 			}
 			if noted != tc.wantNoted {
 				t.Fatalf("noted=%t, want %t", noted, tc.wantNoted)
@@ -162,6 +166,7 @@ func TestPearlHireOperationRegistryAndFreshSessionReset(t *testing.T) {
 	s := state.New()
 	s.LockPearlHireSession("fallback")
 	s.MarkPearlHireFailed(2001, time.Now())
+	s.SkipPearlHireCandidate(2002)
 	r := &Runner{
 		state: s,
 		operationCooldowns: map[string]operationCooldown{
@@ -171,7 +176,7 @@ func TestPearlHireOperationRegistryAndFreshSessionReset(t *testing.T) {
 	}
 	r.resetPearlHireSession()
 	view := s.PearlHire()
-	if view.SessionLocked || len(view.FailedUntilMs) != 0 {
+	if view.SessionLocked || len(view.FailedUntilMs) != 0 || len(view.SkippedUIDs) != 0 {
 		t.Fatalf("state reset incomplete: %+v", view)
 	}
 	if _, exists := r.operationCooldowns[clientproto.RPCPearlPlaceHire.String()+":1:2001"]; exists {

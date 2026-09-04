@@ -56,15 +56,16 @@ type pearlRecvOneKeyExecution struct {
 }
 
 type pearlHireExecution struct {
-	preflight   func(time.Time) (state.PearlHireAttemptSnapshot, error)
-	hire        func(context.Context, clientproto.PearlPlaceHireRequest) (json.RawMessage, error)
-	apply       func(json.RawMessage)
-	outcome     func(state.PearlHireAttemptSnapshot) (bool, int32, bool)
-	ticketSpent func(state.PearlHireAttemptSnapshot) bool
-	markFailed  func(int64, time.Time)
-	noteUsed    func(context.Context, time.Time)
-	lockSession func(string)
-	now         func() time.Time
+	preflight     func(time.Time) (state.PearlHireAttemptSnapshot, error)
+	hire          func(context.Context, clientproto.PearlPlaceHireRequest) (json.RawMessage, error)
+	apply         func(json.RawMessage)
+	outcome       func(state.PearlHireAttemptSnapshot) (bool, int32, bool)
+	ticketSpent   func(state.PearlHireAttemptSnapshot) bool
+	markFailed    func(int64, time.Time)
+	skipCandidate func(int64)
+	noteUsed      func(context.Context, time.Time)
+	lockSession   func(string)
+	now           func() time.Time
 }
 
 type zooRecvSouvenirRewardExecution struct {

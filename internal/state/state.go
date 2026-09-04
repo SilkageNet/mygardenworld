@@ -112,6 +112,7 @@ func New() *State {
 	s.pearlHireStates = make(map[int64]*PearlCandidateHireState)
 	s.pearlEnemies = make(map[int64]int64)
 	s.pearlHireFailedUntil = make(map[int64]int64)
+	s.pearlHireSkippedUIDs = make(map[int64]struct{})
 	s.flowerOrders = make(map[int32]*FlowerOrder)
 	s.flowerOrderRewardsReceived = make(map[int32]bool)
 	s.dailyTasks = make(map[int32]*DailyTaskView)
