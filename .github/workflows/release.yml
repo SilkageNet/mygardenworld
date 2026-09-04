@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -39,12 +39,12 @@ jobs:
           fi
 
       - name: Setup Node
-        uses: actions/setup-node@v6.4.0
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: "22"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6.0.8
+        uses: pnpm/action-setup@v6.0.10
         with:
           version: 10
 
@@ -59,7 +59,7 @@ jobs:
           cp -R web/out/. internal/webui/static/
 
       - name: Setup Go
-        uses: actions/setup-go@v6.4.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: true
@@ -136,7 +136,7 @@ jobs:
           (cd dist && sha256sum --check checksums.txt)
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3.0.0
+        uses: softprops/action-gh-release@v3.0.3
         with:
           generate_release_notes: true
           files: |
