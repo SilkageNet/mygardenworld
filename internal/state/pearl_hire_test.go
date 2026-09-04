@@ -116,10 +116,14 @@ func TestPearlHireFailureBoundaryAndSessionReset(t *testing.T) {
 	if time.UnixMilli(view.FailedUntilMs[2001]).After(at.Add(time.Minute)) {
 		t.Fatal("candidate should be eligible at exactly 60s")
 	}
+	s.SkipPearlHireCandidate(2002)
+	if _, skipped := s.PearlHire().SkippedUIDs[2002]; !skipped {
+		t.Fatal("session candidate skip was not recorded")
+	}
 	s.LockPearlHireSession("fallback")
 	s.ResetPearlHireSession()
 	view = s.PearlHire()
-	if view.SessionLocked || len(view.FailedUntilMs) != 0 || view.FriendsObserved || view.RecommendObserved || view.EnemiesObserved {
+	if view.SessionLocked || len(view.FailedUntilMs) != 0 || len(view.SkippedUIDs) != 0 || view.FriendsObserved || view.RecommendObserved || view.EnemiesObserved {
 		t.Fatalf("session reset incomplete: %+v", view)
 	}
 }

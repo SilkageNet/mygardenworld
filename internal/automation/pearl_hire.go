@@ -58,7 +58,7 @@ func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	if view.SessionLocked {
 		reason := view.SessionLockReason
 		if reason == "" {
-			reason = "当前会话检测到金币回退，已停止自动雇佣"
+			reason = "当前会话因珍珠雇佣结果不明确，已停止自动雇佣"
 		}
 		return blockedPearlHire(intent, reason), true
 	}
@@ -106,7 +106,7 @@ func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	if op, done := planPearlCandidateSource(view, config, policy, now, intent, "enemy", "仇人", enemyUIDs, placeID); done {
 		return op, true
 	}
-	return blockedPearlHire(intent, "好友、推荐和三日内仇人中暂无满足等级、保护期与失败冷却门槛的候选"), true
+	return blockedPearlHire(intent, "好友、推荐和三日内仇人中暂无满足等级、保护期、失败冷却与当前会话跳过门槛的候选"), true
 }
 
 // ValidateSafePearlHire reruns the same planner gates immediately before an
@@ -299,6 +299,9 @@ func filterPearlCandidateUIDs(input []int64, view state.PearlHireView, activeUID
 			continue
 		}
 		if until := view.FailedUntilMs[uid]; until > now.UnixMilli() {
+			continue
+		}
+		if _, skipped := view.SkippedUIDs[uid]; skipped {
 			continue
 		}
 		if _, exists := seen[uid]; exists {

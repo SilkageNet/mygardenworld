@@ -597,6 +597,7 @@ type PearlHireView struct {
 	Enemies               []PearlEnemyView
 	EnemiesObserved       bool
 	FailedUntilMs         map[int64]int64
+	SkippedUIDs           map[int64]struct{}
 	SessionLocked         bool
 	SessionLockReason     string
 }

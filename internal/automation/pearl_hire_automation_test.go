@@ -109,6 +109,33 @@ func TestPlanOneSafePearlHireBoundariesAndNoBypass(t *testing.T) {
 	}
 }
 
+func TestPlanOneSafePearlHireSkipsGoldFallbackCandidateForSession(t *testing.T) {
+	s := newPearlHireStateForTest(t, 9001)
+	applyMap(t, s, map[string]any{
+		"24": map[string]any{
+			"0": map[string]any{"0": int64(9001)},
+			"1": []any{
+				map[string]any{"0": int64(9001), "1": int64(2001)},
+				map[string]any{"0": int64(9001), "1": int64(2002)},
+			},
+		},
+		"28": map[string]any{"5": []any{
+			map[string]any{"0": int64(2001), "4": 12},
+			map[string]any{"0": int64(2002), "4": 12},
+		}},
+		"115": map[string]any{"5": map[string]any{
+			"2001": int64(0),
+			"2002": int64(0),
+		}},
+	})
+	s.SkipPearlHireCandidate(2001)
+
+	op, ok := PlanOneSafePearlHire(s, pearlHirePolicyForTest(), time.Now(), PearlHireIntent{})
+	if !ok || op.Kind != clientproto.RPCPearlPlaceHire.String() || op.TargetUID != 2002 {
+		t.Fatalf("planner did not continue with the next candidate: %+v, %t", op, ok)
+	}
+}
+
 func TestPlanOneSafePearlHireFailClosedGates(t *testing.T) {
 	tests := []struct {
 		name   string
