@@ -147,6 +147,52 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	return v, nil
 }
 
+// preflightFmlRaceTaskMutation narrows the task-pool race window by fetching a
+// fresh authoritative list while the runner's operation lock is held, then
+// reapplying the current policy and exact planned-task guard before mutation.
+func preflightFmlRaceTaskMutation(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) error {
+	if rt.runner == nil || rt.runner.state == nil {
+		return fmt.Errorf("公会竞赛执行前校验缺少 runner 状态")
+	}
+	v, d, err := rpcResult(rt.rpc.FmlRace().GetTaskList(
+		ctx,
+		clientproto.FmlRaceGetTaskListRequest{},
+		babigame.WithPayloadApply(false),
+	))
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		return fmt.Errorf("刷新竞赛任务池: %w", err)
+	}
+	if !babigame.HasPayload(v) {
+		rt.runner.state.MarkFmlRaceTaskPoolStale()
+		return fmt.Errorf("刷新竞赛任务池未返回任务列表")
+	}
+	v = normalizeFmlRaceEnterV(v)
+	if !fmlRaceTaskListPresent(v) {
+		rt.runner.state.MarkFmlRaceTaskPoolStale()
+		return fmt.Errorf("刷新竞赛任务池响应缺少任务列表")
+	}
+	rt.runner.state.ApplyVFullFmlRaceTaskPool(v)
+	rt.runner.state.NoteFmlRaceTaskPoolSync(time.Now())
+	if err := automation.ValidateRaceTaskMutation(rt.runner.state, rt.runner.Policy(), op, time.Now()); err != nil {
+		return fmt.Errorf("竞赛任务执行前校验未通过: %w", err)
+	}
+	return nil
+}
+
+func fmlRaceTaskListPresent(v json.RawMessage) bool {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(v, &top); err != nil {
+		return false
+	}
+	var fml map[string]json.RawMessage
+	if err := json.Unmarshal(top["25"], &fml); err != nil {
+		return false
+	}
+	_, ok := fml["114"]
+	return ok
+}
+
 func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
 	if rt.runner == nil || rt.runner.state == nil {
 		return nil, fmt.Errorf("fmlRace.getFmlRaceUsrRankList requires runner state")

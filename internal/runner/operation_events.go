@@ -717,6 +717,9 @@ func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, e
 		"vaseId":         op.VaseID,
 		"flowerIds":      op.FlowerIDs,
 	}
+	if op.RaceTaskGuard != nil {
+		payload["raceTaskGuard"] = op.RaceTaskGuard
+	}
 	if len(raw) > 0 {
 		payload["raw"] = json.RawMessage(raw)
 	}

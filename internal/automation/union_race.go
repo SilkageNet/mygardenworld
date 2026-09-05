@@ -328,6 +328,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 				op.TaskID = best.TaskId
 			}
 			op.FlowerID = best.ParamID
+			op.RaceTaskGuard = newRaceTaskMutationGuard(best, false)
 			op.PreemptFarm = true
 			ops = append(ops, op)
 		}
@@ -427,7 +428,7 @@ func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy
 		// be taken; it is not an observed deletion precondition. If the server
 		// still rejects deletion during refresh, the runner defers this task by
 		// its task-scoped cooldown without blocking other candidates.
-		if task.MsId <= 0 || task.UID != 0 || task.Score <= 0 || task.Score > maxScore {
+		if task.MsId <= 0 || task.UID != 0 || task.Score <= 0 || task.Score > maxScore || task.FinishCnt > 0 || task.IsUpgrade != 0 {
 			continue
 		}
 		candidates = append(candidates, task)
@@ -460,6 +461,7 @@ func raceLowScoreDeleteOperations(s *state.State, view state.FmlRaceView, policy
 			op.TaskID = task.TaskId
 		}
 		op.FlowerID = task.ParamID
+		op.RaceTaskGuard = newRaceTaskMutationGuard(task, true)
 		// Global operation ordering uses OperationID as its final stable key.
 		// Preserve score-first deletion after the complete plan is sorted while
 		// keeping retry cooldowns scoped to the mutable task instance.
@@ -811,36 +813,9 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 // switch controls visibility/availability, while the explicit click supplies
 // the execution intent.
 func ManualRaceTakeOperation(s *state.State, policy *pb.Policy, taskMsID int64, now time.Time) (PlannedOp, error) {
-	if s == nil || policy == nil {
-		return PlannedOp{}, fmt.Errorf("公会竞赛状态不可用")
-	}
-	if taskMsID <= 0 {
-		return PlannedOp{}, fmt.Errorf("竞赛任务标识无效")
-	}
-	race := policy.GetUnion().GetRace()
-	if race == nil || !race.GetEnabled() {
-		return PlannedOp{}, fmt.Errorf("请先开启公会竞赛")
-	}
-	view := s.FmlRace()
-	view.BatchActive = view.ActiveAt(now)
-	if !view.Observed || !view.BatchActive {
-		return PlannedOp{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
-	}
-	if !view.TasksObserved || view.TaskPoolStale {
-		return PlannedOp{}, fmt.Errorf("竞赛任务池尚未同步")
-	}
-	if view.Taken.HasTask {
-		return PlannedOp{}, fmt.Errorf("已有竞赛任务，请先完成或放弃当前任务")
-	}
-	if view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
-		return PlannedOp{}, fmt.Errorf("竞赛任务接取次数已用完")
-	}
-	task, ok := raceTaskByMsID(view.Tasks, taskMsID)
-	if !ok {
-		return PlannedOp{}, fmt.Errorf("任务已不在当前任务池，请等待列表刷新")
-	}
-	if reason := RaceTakeSkipReason(s, task, race, s.RoleID(), now, raceModuleGatesFromPolicy(policy)); reason != "" {
-		return PlannedOp{}, fmt.Errorf("当前不可接取：%s", reason)
+	task, err := raceTakeTaskForOperation(s, policy, taskMsID, now)
+	if err != nil {
+		return PlannedOp{}, err
 	}
 	goal := Goal{ID: "union.race", Category: CategoryRace, Domain: "union.race", Label: "公会竞赛", Priority: 43}
 	op := domainOp(clientproto.RPCFmlRaceTakeTask.String(), goal, "union.race.take", "take", "手动接取公会竞赛任务", 4380, 0, 0, 0)
@@ -850,8 +825,44 @@ func ManualRaceTakeOperation(s *state.State, policy *pb.Policy, taskMsID int64, 
 		op.TaskID = task.TaskId
 	}
 	op.FlowerID = task.ParamID
+	op.RaceTaskGuard = newRaceTaskMutationGuard(task, false)
 	op.PreemptFarm = true
 	return op, nil
+}
+
+func raceTakeTaskForOperation(s *state.State, policy *pb.Policy, taskMsID int64, now time.Time) (state.FmlRaceTaskView, error) {
+	if s == nil || policy == nil {
+		return state.FmlRaceTaskView{}, fmt.Errorf("公会竞赛状态不可用")
+	}
+	if taskMsID <= 0 {
+		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务标识无效")
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() {
+		return state.FmlRaceTaskView{}, fmt.Errorf("请先开启公会竞赛")
+	}
+	view := s.FmlRace()
+	view.BatchActive = view.ActiveAt(now)
+	if !view.Observed || !view.BatchActive {
+		return state.FmlRaceTaskView{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
+	}
+	if !view.TasksObserved || view.TaskPoolStale {
+		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务池尚未同步")
+	}
+	if view.Taken.HasTask {
+		return state.FmlRaceTaskView{}, fmt.Errorf("已有竞赛任务，请先完成或放弃当前任务")
+	}
+	if view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务接取次数已用完")
+	}
+	task, ok := raceTaskByMsID(view.Tasks, taskMsID)
+	if !ok {
+		return state.FmlRaceTaskView{}, fmt.Errorf("任务已不在当前任务池，请等待列表刷新")
+	}
+	if reason := RaceTakeSkipReason(s, task, race, s.RoleID(), now, raceModuleGatesFromPolicy(policy)); reason != "" {
+		return state.FmlRaceTaskView{}, fmt.Errorf("当前不可接取：%s", reason)
+	}
+	return task, nil
 }
 
 // ManualRaceDeleteOperation validates an explicit task-pool deletion without
@@ -891,8 +902,100 @@ func ManualRaceDeleteOperation(s *state.State, policy *pb.Policy, taskMsID int64
 		op.TaskID = task.TaskId
 	}
 	op.FlowerID = task.ParamID
+	op.RaceTaskGuard = newRaceTaskMutationGuard(task, false)
 	op.CooldownKey = fmt.Sprintf("union.race.delete:%d", task.MsId)
 	return op, nil
+}
+
+func newRaceTaskMutationGuard(task state.FmlRaceTaskView, automaticDelete bool) *RaceTaskMutationGuard {
+	return &RaceTaskMutationGuard{
+		AutomaticDelete: automaticDelete,
+		Planned:         raceTaskMutationFacts(task),
+	}
+}
+
+func raceTaskMutationFacts(task state.FmlRaceTaskView) RaceTaskMutationFacts {
+	return RaceTaskMutationFacts{
+		MsID:       task.MsId,
+		TaskID:     task.TaskId,
+		TaskType:   task.TaskType,
+		Score:      task.Score,
+		IsUpgrade:  task.IsUpgrade,
+		UpgradeUID: task.UpgradeUid,
+		UID:        task.UID,
+		ParamID:    task.ParamID,
+		FinishCnt:  task.FinishCnt,
+	}
+}
+
+// ValidateRaceTaskMutation rechecks a planned race-pool mutation against the
+// latest full task-list snapshot. It also records the current task facts on the
+// operation so deferred-operation logs explain which field changed.
+func ValidateRaceTaskMutation(s *state.State, policy *pb.Policy, op *PlannedOp, now time.Time) error {
+	if op == nil || op.RaceTaskGuard == nil {
+		return fmt.Errorf("竞赛任务缺少执行前校验信息")
+	}
+	if s != nil {
+		if current, ok := raceTaskByMsID(s.FmlRace().Tasks, op.TaskMsID); ok {
+			op.RaceTaskGuard.Current = raceTaskMutationFacts(current)
+			if op.RaceTaskGuard.Current != op.RaceTaskGuard.Planned {
+				return fmt.Errorf("竞赛任务在规划后已变化（原分数 %d，当前 %d；原升级状态 %d，当前 %d），等待重新规划",
+					op.RaceTaskGuard.Planned.Score, op.RaceTaskGuard.Current.Score,
+					op.RaceTaskGuard.Planned.IsUpgrade, op.RaceTaskGuard.Current.IsUpgrade)
+			}
+		}
+	}
+	var (
+		task state.FmlRaceTaskView
+		err  error
+	)
+	switch op.Kind {
+	case clientproto.RPCFmlRaceTakeTask.String():
+		task, err = raceTakeTaskForOperation(s, policy, op.TaskMsID, now)
+	case clientproto.RPCFmlRaceDelTask.String():
+		task, err = raceDeleteTaskForOperation(s, policy, op.TaskMsID, now, op.RaceTaskGuard.AutomaticDelete)
+	default:
+		return fmt.Errorf("不支持的竞赛任务校验操作 %s", op.Kind)
+	}
+	if err != nil {
+		return err
+	}
+	op.RaceTaskGuard.Current = raceTaskMutationFacts(task)
+	return nil
+}
+
+func raceDeleteTaskForOperation(s *state.State, policy *pb.Policy, taskMsID int64, now time.Time, automatic bool) (state.FmlRaceTaskView, error) {
+	if s == nil || policy == nil || taskMsID <= 0 {
+		return state.FmlRaceTaskView{}, fmt.Errorf("公会竞赛状态不可用")
+	}
+	race := policy.GetUnion().GetRace()
+	if race == nil || !race.GetEnabled() {
+		return state.FmlRaceTaskView{}, fmt.Errorf("请先开启公会竞赛")
+	}
+	view := s.FmlRace()
+	if !view.Observed || !view.ActiveAt(now) || !view.TasksObserved || view.TaskPoolStale {
+		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务池尚未同步或批次无效")
+	}
+	task, ok := raceTaskByMsID(view.Tasks, taskMsID)
+	if !ok {
+		return state.FmlRaceTaskView{}, fmt.Errorf("任务已不在当前任务池，请等待列表刷新")
+	}
+	if reason := RaceDeleteSkipReason(s, task, now); reason != "" {
+		return state.FmlRaceTaskView{}, fmt.Errorf("当前不可删除：%s", reason)
+	}
+	if automatic {
+		switch {
+		case !race.GetDeleteLowScoreTask() || race.GetDeleteTaskMaxScore() <= 0:
+			return state.FmlRaceTaskView{}, fmt.Errorf("自动删除低分任务已关闭")
+		case task.Score <= 0 || task.Score > race.GetDeleteTaskMaxScore():
+			return state.FmlRaceTaskView{}, fmt.Errorf("当前分数 %d 已超出自动删除范围", task.Score)
+		case task.FinishCnt > 0:
+			return state.FmlRaceTaskView{}, fmt.Errorf("已有进度的任务不会自动删除")
+		case task.IsUpgrade != 0:
+			return state.FmlRaceTaskView{}, fmt.Errorf("已升级任务不会自动删除")
+		}
+	}
+	return task, nil
 }
 
 // RaceDeleteSkipReason describes the state-derived gate for a manual delete.

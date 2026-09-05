@@ -10,6 +10,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientrpc"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -203,6 +204,31 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 		opErr = fmt.Errorf("rqst: %w", err)
 		r.handleRqstFailure(ctx, op, err, opErr)
 		return opErr
+	}
+
+	if op.Kind == clientproto.RPCFmlRaceTakeTask.String() || op.Kind == clientproto.RPCFmlRaceDelTask.String() {
+		rawRPC := babigame.NewRPCClient(
+			client,
+			session,
+			babigame.WithDefaultTimeout(30*time.Second),
+			babigame.WithApplyV(r.state.ApplyV),
+		)
+		err := preflightFmlRaceTaskMutation(ctx, operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}, op)
+		if err != nil {
+			opErr = err
+			r.emit(Event{
+				Kind:        "operation_deferred",
+				Category:    op.Category,
+				Domain:      op.Domain,
+				Action:      "blocked",
+				Label:       operationEventLabel(op),
+				Message:     fmt.Sprintf("%s 已跳过: %v", opDesc(op), err),
+				PayloadJSON: operationPayload(op, nil, nil, err),
+				Level:       "warn",
+			})
+			r.logOperation(ctx, op.Kind, nil, map[string]any{"error": err.Error(), "stage": "race_preflight"})
+			return err
+		}
 	}
 
 	releaseWaterLock, err := r.lockOperationWaterDrops(op, now)

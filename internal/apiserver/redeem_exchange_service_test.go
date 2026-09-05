@@ -195,7 +195,7 @@ func completeRedeemTestCode(t *testing.T, node *redeemTestNode, code, validation
 	if err != nil || attempt == nil || attempt.CodeID != entry.ID {
 		t.Fatalf("attempt=%+v entry=%+v err=%v", attempt, entry, err)
 	}
-	if err := node.db.CompleteRedeemAttempt(ctx, attempt.ID, validation, validation, nil); err != nil {
+	if err := node.db.CompleteRedeemAttempt(ctx, attempt.ID, attempt.RunToken, validation, validation, nil); err != nil {
 		t.Fatal(err)
 	}
 	entries, _, err := node.db.ListRedeemCodes(ctx, 0, 100, true, false, nil)
@@ -260,7 +260,7 @@ func TestNativeRedeemNodesExchangeOnlyLocallyVerifiedCodesWithoutLooping(t *test
 	if err != nil || attempt == nil {
 		t.Fatalf("subscriber attempt=%+v err=%v", attempt, err)
 	}
-	if err := subscriber.db.CompleteRedeemAttempt(ctx, attempt.ID, store.RedeemValidationSuccess, "success", nil); err != nil {
+	if err := subscriber.db.CompleteRedeemAttempt(ctx, attempt.ID, attempt.RunToken, store.RedeemValidationSuccess, "success", nil); err != nil {
 		t.Fatal(err)
 	}
 	var returnOutbox int

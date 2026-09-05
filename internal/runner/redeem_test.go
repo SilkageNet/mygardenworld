@@ -3,9 +3,9 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
@@ -37,39 +37,13 @@ func TestRedeemCodeRejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestRedeemCodeWaitsForActiveAutomationOperation(t *testing.T) {
+func TestRedeemCodeDefersWhenAutomationOperationIsBusy(t *testing.T) {
 	r := &Runner{state: state.New()}
 	r.operationMu.Lock()
-	locked := true
-	defer func() {
-		if locked {
-			r.operationMu.Unlock()
-		}
-	}()
-
-	started := make(chan struct{})
-	done := make(chan error, 1)
-	go func() {
-		close(started)
-		_, err := r.RedeemCode(context.Background(), "CODE")
-		done <- err
-	}()
-	<-started
-	select {
-	case err := <-done:
-		t.Fatalf("RedeemCode returned before operation lock was released: %v", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-
+	_, err := r.RedeemCode(context.Background(), "CODE")
 	r.operationMu.Unlock()
-	locked = false
-	select {
-	case err := <-done:
-		if err == nil || err.Error() != "account not connected" {
-			t.Fatalf("RedeemCode error=%v, want account not connected after lock release", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("RedeemCode did not continue after operation lock was released")
+	if !errors.Is(err, ErrAccountOperationBusy) {
+		t.Fatalf("RedeemCode error=%v, want ErrAccountOperationBusy", err)
 	}
 }
 

@@ -28,6 +28,10 @@ type RedeemResult struct {
 
 type RedeemOutcome string
 
+// ErrAccountOperationBusy means another serialized game mutation currently
+// owns the runner. Redeem workers should defer without counting a game RPC.
+var ErrAccountOperationBusy = errors.New("account operation is busy")
+
 const (
 	RedeemOutcomeSuccess         RedeemOutcome = "success"
 	RedeemOutcomeAlreadyRedeemed RedeemOutcome = "already_redeemed"
@@ -52,7 +56,12 @@ func (r *Runner) RedeemCode(ctx context.Context, code string) (RedeemResult, err
 	if code == "" {
 		return out, fmt.Errorf("empty redeem code")
 	}
-	r.operationMu.Lock()
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	if !r.operationMu.TryLock() {
+		return out, ErrAccountOperationBusy
+	}
 	defer r.operationMu.Unlock()
 
 	r.mu.RLock()

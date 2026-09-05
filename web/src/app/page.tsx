@@ -448,11 +448,14 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     }
   }
 
-  async function runAutomationBulk(action: "start" | "pause") {
+  async function runAutomationBulk(action: "start" | "pause", accountIds?: string[]) {
     if (busyBulkAutomation || busyAutomationAccountId) return;
     const wantOnline = action === "start";
+    const selected = accountIds ? new Set(accountIds) : null;
     const targets = accountsRef.current.filter((account) => {
-      const online = accountConnected(account, statusesRef.current.get(accountKey(account.id)));
+      const key = accountKey(account.id);
+      if (selected && !selected.has(key)) return false;
+      const online = accountConnected(account, statusesRef.current.get(key));
       return online !== wantOnline;
     });
     if (targets.length === 0) return;
@@ -680,8 +683,8 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
             onSelect={setSelectedAccountId}
             onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
             onAutomationStop={(accountId) => void runAutomationStop(accountId)}
-            onBulkStart={() => void runAutomationBulk("start")}
-            onBulkPause={() => void runAutomationBulk("pause")}
+            onBulkStart={(accountIds) => void runAutomationBulk("start", accountIds)}
+            onBulkPause={(accountIds) => void runAutomationBulk("pause", accountIds)}
           />
         </aside>
 
