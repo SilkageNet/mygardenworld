@@ -34,6 +34,10 @@ const (
 	RedeemAttemptFilterRedeemed    = "redeemed"
 	RedeemAttemptFilterUnavailable = "unavailable"
 	RedeemAttemptFilterAttention   = "attention"
+
+	// RedeemAttemptLeaseDuration exceeds the bounded account-start and game-RPC
+	// windows while still allowing abandoned work to recover during runtime.
+	RedeemAttemptLeaseDuration = 3 * time.Minute
 )
 
 type RedeemCode struct {
@@ -112,6 +116,8 @@ type RedeemAttempt struct {
 	Fingerprint  string
 	ExpiresAt    *time.Time
 	AttemptCount int
+	RunToken     string
+	LeaseUntil   time.Time
 }
 
 type RedeemAttemptRecord struct {
@@ -663,7 +669,8 @@ func (d *DB) RecoverRedeemWork(ctx context.Context) error {
 	now := time.Now().UTC()
 	_, err := d.ExecContext(ctx, `
 UPDATE redeem_attempts
-SET status = 'retryable', retry_at = ?, message = 'daemon restarted during attempt', updated_at = ?
+SET status = 'retryable', retry_at = ?, run_token = '', lease_until = NULL,
+    message = 'daemon restarted during attempt', updated_at = ?
 WHERE status = 'running'`, now, now)
 	if err != nil {
 		return err
@@ -673,6 +680,36 @@ UPDATE redeem_exchange_outbox
 SET status = 'pending', next_attempt_at = ?, last_error = 'daemon restarted during delivery', updated_at = ?
 WHERE status = 'sending'`, now, now)
 	return err
+}
+
+// RecoverExpiredRedeemAttempts requeues work whose owner disappeared without
+// completing or releasing its lease. Completion tokens prevent a late owner
+// from overwriting the subsequently retried result.
+func (d *DB) RecoverExpiredRedeemAttempts(ctx context.Context, now time.Time) ([]int64, error) {
+	now = now.UTC()
+	rows, err := d.QueryContext(ctx, `
+UPDATE redeem_attempts
+SET status = 'retryable', retry_at = ?, run_token = '', lease_until = NULL,
+    message = '兑换任务执行超时，已自动重新排队', updated_at = ?
+WHERE status = 'running' AND (lease_until IS NULL OR lease_until <= ?)
+RETURNING account_id`, now, now, now)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	seen := make(map[int64]struct{})
+	var accountIDs []int64
+	for rows.Next() {
+		var accountID int64
+		if err := rows.Scan(&accountID); err != nil {
+			return nil, err
+		}
+		if _, ok := seen[accountID]; !ok {
+			seen[accountID] = struct{}{}
+			accountIDs = append(accountIDs, accountID)
+		}
+	}
+	return accountIDs, rows.Err()
 }
 
 func (d *DB) NextRedeemAttempt(ctx context.Context) (*RedeemAttempt, error) {
@@ -693,6 +730,8 @@ func (d *DB) NextRedeemAttemptForAccounts(ctx context.Context, accountIDs []int6
 
 func (d *DB) nextRedeemAttempt(ctx context.Context, accountIDs []int64) (*RedeemAttempt, error) {
 	now := time.Now().UTC()
+	leaseUntil := now.Add(RedeemAttemptLeaseDuration)
+	runToken := uuid.NewString()
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -730,8 +769,8 @@ WHERE a.status IN ('pending', 'retryable')
 	item.ExpiresAt = nullTimePtr(expires)
 	res, err := tx.ExecContext(ctx, `
 UPDATE redeem_attempts
-SET status = 'running', updated_at = ?
-WHERE id = ? AND status IN ('pending', 'retryable')`, now, item.ID)
+SET status = 'running', message = '', retry_at = NULL, run_token = ?, lease_until = ?, updated_at = ?
+WHERE id = ? AND status IN ('pending', 'retryable')`, runToken, leaseUntil, now, item.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -741,22 +780,27 @@ WHERE id = ? AND status IN ('pending', 'retryable')`, now, item.ID)
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	item.RunToken = runToken
+	item.LeaseUntil = leaseUntil
 	return &item, nil
 }
 
 // ReleaseRedeemAttempt returns a claimed attempt to the pending queue without
 // counting a game RPC attempt. It is used when an account changed to
 // ONLINE_ONLY between eligibility selection and processing.
-func (d *DB) ReleaseRedeemAttempt(ctx context.Context, attemptID int64, message string) error {
+func (d *DB) ReleaseRedeemAttempt(ctx context.Context, attemptID int64, runToken, message string, retryAt *time.Time) error {
+	if strings.TrimSpace(runToken) == "" {
+		return errors.New("redeem attempt run token required")
+	}
 	result, err := d.ExecContext(ctx, `
 UPDATE redeem_attempts
-SET status = 'pending', message = ?, retry_at = NULL, updated_at = ?
-WHERE id = ? AND status = 'running'`, strings.TrimSpace(message), time.Now().UTC(), attemptID)
+SET status = 'pending', message = ?, retry_at = ?, run_token = '', lease_until = NULL, updated_at = ?
+WHERE id = ? AND status = 'running' AND run_token = ?`, strings.TrimSpace(message), nullableTime(retryAt), time.Now().UTC(), attemptID, runToken)
 	if err != nil {
 		return err
 	}
 	if count, _ := result.RowsAffected(); count != 1 {
-		return errors.New("redeem attempt is not running")
+		return errors.New("redeem attempt lease is no longer active")
 	}
 	return nil
 }
@@ -776,7 +820,10 @@ WHERE account_id = ? AND status = 'retryable' AND retry_at > ?`, now, now, accou
 	return result.RowsAffected()
 }
 
-func (d *DB) CompleteRedeemAttempt(ctx context.Context, attemptID int64, status, message string, retryAt *time.Time) error {
+func (d *DB) CompleteRedeemAttempt(ctx context.Context, attemptID int64, runToken, status, message string, retryAt *time.Time) error {
+	if strings.TrimSpace(runToken) == "" {
+		return errors.New("redeem attempt run token required")
+	}
 	status = normalizeRedeemValidation(status)
 	if status == RedeemValidationPending {
 		return errors.New("terminal or retryable redeem status required")
@@ -794,13 +841,13 @@ func (d *DB) CompleteRedeemAttempt(ctx context.Context, attemptID int64, status,
 	result, err := tx.ExecContext(ctx, `
 UPDATE redeem_attempts
 SET status = ?, message = ?, retry_at = ?, attempt_count = attempt_count + 1,
-    attempted_at = ?, updated_at = ?
-WHERE id = ? AND status = 'running'`, status, strings.TrimSpace(message), nullableTime(retryAt), now, now, attemptID)
+    attempted_at = ?, run_token = '', lease_until = NULL, updated_at = ?
+WHERE id = ? AND status = 'running' AND run_token = ?`, status, strings.TrimSpace(message), nullableTime(retryAt), now, now, attemptID, runToken)
 	if err != nil {
 		return err
 	}
 	if count, _ := result.RowsAffected(); count != 1 {
-		return errors.New("redeem attempt is not running")
+		return errors.New("redeem attempt lease is no longer active")
 	}
 	current, err := getRedeemCodeByID(ctx, tx, codeID)
 	if err != nil {

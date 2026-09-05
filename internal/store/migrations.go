@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 7
+const currentSchemaVersion = 8
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -241,6 +241,15 @@ ALTER TABLE redeem_sources DROP COLUMN invalid_count;
 		sql: `
 ALTER TABLE redeem_codes ADD COLUMN expiry_overridden INTEGER NOT NULL DEFAULT 0 CHECK(expiry_overridden IN (0, 1));
 CREATE INDEX idx_redeem_codes_browse ON redeem_codes(first_seen_at DESC, id DESC);
+`,
+	},
+	{
+		version: 8,
+		name:    "leased redeem attempts",
+		sql: `
+ALTER TABLE redeem_attempts ADD COLUMN run_token TEXT NOT NULL DEFAULT '';
+ALTER TABLE redeem_attempts ADD COLUMN lease_until DATETIME;
+CREATE INDEX idx_redeem_attempts_lease ON redeem_attempts(status, lease_until);
 `,
 	},
 }

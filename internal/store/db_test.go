@@ -79,8 +79,8 @@ func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 7 {
-		t.Fatalf("schema version=%d err=%v, want 7", version, err)
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 8 {
+		t.Fatalf("schema version=%d err=%v, want 8", version, err)
 	}
 	var column string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('account_pearl_hire_usage') WHERE name = 'used_count'`).Scan(&column); err != nil {
@@ -98,6 +98,9 @@ func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 	}
 	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('redeem_codes') WHERE name = 'expiry_overridden'`).Scan(&column); err != nil {
 		t.Fatalf("redeem expiry override migration: %v", err)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT name FROM pragma_table_info('redeem_attempts') WHERE name = 'lease_until'`).Scan(&column); err != nil {
+		t.Fatalf("redeem attempt lease migration: %v", err)
 	}
 }
 
@@ -117,6 +120,9 @@ func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testi
 		t.Fatal(err)
 	}
 	for _, statement := range []string{
+		`DROP INDEX idx_redeem_attempts_lease`,
+		`ALTER TABLE redeem_attempts DROP COLUMN lease_until`,
+		`ALTER TABLE redeem_attempts DROP COLUMN run_token`,
 		`DROP INDEX idx_redeem_codes_browse`,
 		`ALTER TABLE redeem_codes DROP COLUMN expiry_overridden`,
 		`ALTER TABLE redeem_sources ADD COLUMN accepted_count INTEGER NOT NULL DEFAULT 0 CHECK(accepted_count >= 0)`,
@@ -138,8 +144,8 @@ func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testi
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 7 {
-		t.Fatalf("schema version=%d err=%v, want 7", version, err)
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 8 {
+		t.Fatalf("schema version=%d err=%v, want 8", version, err)
 	}
 	var name string
 	if err := db.QueryRowContext(ctx, `SELECT name FROM redeem_sources WHERE name = 'source'`).Scan(&name); err != nil {
@@ -182,6 +188,9 @@ func TestOpenMigratesVersionSixRedeemCodesWithoutLosingData(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, statement := range []string{
+		`DROP INDEX idx_redeem_attempts_lease`,
+		`ALTER TABLE redeem_attempts DROP COLUMN lease_until`,
+		`ALTER TABLE redeem_attempts DROP COLUMN run_token`,
 		`DROP INDEX idx_redeem_codes_browse`,
 		`ALTER TABLE redeem_codes DROP COLUMN expiry_overridden`,
 		`PRAGMA user_version = 6`,

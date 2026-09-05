@@ -249,14 +249,15 @@ WHERE account_id = ?`, ownedAccount.ID); err != nil {
 		t.Fatalf("cross-owner redeem response=%+v, want request_failed", denied)
 	}
 
+	const runToken = "workspace-test-run"
 	var attemptID int64
 	if err := db.QueryRowContext(ctx, `SELECT id FROM redeem_attempts WHERE account_id = ?`, ownedAccount.ID).Scan(&attemptID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `UPDATE redeem_attempts SET status = 'running' WHERE id = ?`, attemptID); err != nil {
+	if _, err := db.ExecContext(ctx, `UPDATE redeem_attempts SET status = 'running', run_token = ?, lease_until = ? WHERE id = ?`, runToken, time.Now().Add(time.Minute), attemptID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.CompleteRedeemAttempt(ctx, attemptID, store.RedeemValidationInvalid, "无效兑换码", nil); err != nil {
+	if err := db.CompleteRedeemAttempt(ctx, attemptID, runToken, store.RedeemValidationInvalid, "无效兑换码", nil); err != nil {
 		t.Fatal(err)
 	}
 	manager.Bus().PublishTransient(runner.Event{

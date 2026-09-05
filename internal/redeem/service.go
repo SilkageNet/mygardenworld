@@ -32,6 +32,8 @@ const (
 	EventKindRedeemAttemptsUpdated = "redeem_attempts_updated"
 	maxSourcePages                 = 20
 	maxSourceBody                  = 1 << 20
+	attemptWorkerCount             = 4
+	accountBusyRetryDelay          = 3 * time.Second
 )
 
 type Submission struct {
@@ -81,7 +83,11 @@ func (s *Service) InstanceID() string { return s.instanceID }
 
 func (s *Service) Run(ctx context.Context) {
 	var wg sync.WaitGroup
-	for _, worker := range []func(context.Context){s.runAttempts, s.runSessionWakeups, s.runSources, s.runOutbox} {
+	workers := []func(context.Context){s.runSessionWakeups, s.runSources, s.runOutbox}
+	for range attemptWorkerCount {
+		workers = append(workers, s.runAttempts)
+	}
+	for _, worker := range workers {
 		wg.Add(1)
 		go func(run func(context.Context)) {
 			defer wg.Done()
@@ -209,6 +215,14 @@ func (s *Service) runAttempts(ctx context.Context) {
 }
 
 func (s *Service) processNextAttempt(ctx context.Context) error {
+	recoveredAccounts, err := s.db.RecoverExpiredRedeemAttempts(ctx, time.Now())
+	if err != nil {
+		return fmt.Errorf("recover expired redeem attempts: %w", err)
+	}
+	for _, accountID := range recoveredAccounts {
+		s.log.Warn("recovered expired redeem attempt lease", "account_id", accountID)
+		s.publishAttemptsUpdated(&store.RedeemAttempt{AccountID: accountID})
+	}
 	if err := s.db.EnsureRedeemAttempts(ctx); err != nil {
 		return fmt.Errorf("ensure redeem attempts: %w", err)
 	}
@@ -329,7 +343,7 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 
 	r := s.manager.Get(attempt.AccountID)
 	if r != nil && !r.Connected() {
-		if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, "账号会话正在恢复，等待上线后兑换"); err != nil {
+		if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, attempt.RunToken, "账号会话正在恢复，等待上线后兑换", nil); err != nil {
 			s.log.Error("release redeem attempt for reconnecting account", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
 			return
 		}
@@ -344,7 +358,7 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 			return
 		}
 		if !allowed {
-			if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, "账号离线，等待账号上线后兑换"); err != nil {
+			if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, attempt.RunToken, "账号离线，等待账号上线后兑换", nil); err != nil {
 				s.log.Error("release redeem attempt for offline account", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
 				return
 			}
@@ -365,6 +379,15 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 	result, err := r.RedeemCode(attemptCtx, attempt.Code)
 	cancel()
 	if err != nil {
+		if errors.Is(err, runner.ErrAccountOperationBusy) {
+			retryAt := time.Now().UTC().Add(accountBusyRetryDelay)
+			if releaseErr := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, attempt.RunToken, "账号正在执行其他操作，稍后兑换", &retryAt); releaseErr != nil {
+				s.log.Error("defer redeem attempt for busy account", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", releaseErr)
+				return
+			}
+			s.publishAttemptsUpdated(attempt)
+			return
+		}
 		message := err.Error()
 		s.completeAttempt(ctx, attempt, resultStatus, message, &retryAt)
 		return
@@ -408,7 +431,7 @@ func (s *Service) completeAttempt(
 	status, message string,
 	retryAt *time.Time,
 ) {
-	if err := s.db.CompleteRedeemAttempt(ctx, attempt.ID, status, message, retryAt); err != nil {
+	if err := s.db.CompleteRedeemAttempt(ctx, attempt.ID, attempt.RunToken, status, message, retryAt); err != nil {
 		s.log.Error("complete redeem attempt", "account_id", attempt.AccountID, "code", attempt.Fingerprint, "err", err)
 		return
 	}
