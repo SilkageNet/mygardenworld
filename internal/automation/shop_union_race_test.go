@@ -934,6 +934,48 @@ func TestUnionRaceDeleteSkipsOccupiedTask(t *testing.T) {
 	}
 }
 
+func TestUnionRaceDeleteSkipsUpgradedAndProgressedTasks(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{
+		{1, 3036, 5, 1, 88},
+		{2, 3036, 6, 0, 0},
+	})
+	// A sparse progress update makes task 2 unsafe for unattended deletion.
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":2,"4":3036,"6":[23001],"7":10,"8":1,"10":6,"14":0,"15":0}]}}`))
+	applyRaceDeletePosition(s, 1)
+	policy := testRacePolicy()
+	policy.DeleteLowScoreTask = true
+	policy.DeleteTaskMaxScore = 10
+
+	for _, op := range unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn()) {
+		if op.Kind == clientproto.RPCFmlRaceDelTask.String() {
+			t.Fatalf("must not automatically delete upgraded or progressed tasks: %+v", op)
+		}
+	}
+}
+
+func TestValidateRaceTaskMutationRejectsChangedScore(t *testing.T) {
+	now := time.Now()
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 28, 0, 0}})
+	policy := testEnabledRaceFullPolicy()
+	policy.Union.Race.MinTaskScore = 27
+	op, err := ManualRaceTakeOperation(s, policy, 1, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.ApplyVFullFmlRaceTaskPool(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 21, 0, 0}})))
+	s.NoteFmlRaceTaskPoolSync(now)
+
+	err = ValidateRaceTaskMutation(s, policy, &op, now)
+	if err == nil || !strings.Contains(err.Error(), "原分数 28，当前 21") {
+		t.Fatalf("changed score preflight error=%v", err)
+	}
+	if op.RaceTaskGuard.Current.Score != 21 {
+		t.Fatalf("current task evidence=%+v, want score 21", op.RaceTaskGuard.Current)
+	}
+}
+
 func TestUnionRaceDeleteRunsWhenAutoModulesOff(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 25, 0, 0}})

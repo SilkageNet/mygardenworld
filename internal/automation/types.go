@@ -284,4 +284,30 @@ type PlannedOp struct {
 	BlockingStage  string
 	CooldownUntil  time.Time
 	CooldownReason string
+	// RaceTaskGuard captures the exact pool facts that authorized a race take
+	// or automatic deletion. The runner refreshes the authoritative pool and
+	// revalidates this guard immediately before sending the mutating RPC.
+	RaceTaskGuard *RaceTaskMutationGuard
+}
+
+// RaceTaskMutationGuard is runner-only decision evidence for a guild-race
+// pool mutation. It is intentionally not part of the public workspace schema.
+type RaceTaskMutationGuard struct {
+	AutomaticDelete bool
+	Planned         RaceTaskMutationFacts
+	Current         RaceTaskMutationFacts
+}
+
+// RaceTaskMutationFacts are the mutable fields that can invalidate a task
+// choice between planning and execution.
+type RaceTaskMutationFacts struct {
+	MsID       int64
+	TaskID     int32
+	TaskType   int32
+	Score      int32
+	IsUpgrade  int32
+	UpgradeUID int64
+	UID        int64
+	ParamID    int32
+	FinishCnt  int32
 }
