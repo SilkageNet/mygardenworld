@@ -143,17 +143,18 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 	}
 	incoming := make([]FmlRaceTaskView, 0, len(tasks))
 	for _, t := range tasks {
-		paramID := firstInt32FromRaw(t.Param)
+		taskType := FmlRaceTaskTypeByID(t.TaskId)
+		paramID, targetLabel := fmlRaceTaskTarget(taskType, t.Param)
 		incoming = append(incoming, FmlRaceTaskView{
 			MsId:           t.MsId,
 			TaskId:         t.TaskId,
-			TaskType:       FmlRaceTaskTypeByID(t.TaskId),
+			TaskType:       taskType,
 			Score:          t.Score,
 			IsUpgrade:      t.IsUpgrade,
 			UpgradeUid:     t.UpgradeUid,
 			UID:            t.UID,
 			ParamID:        paramID,
-			TargetLabel:    ItemLabel(paramID),
+			TargetLabel:    targetLabel,
 			AppearTime:     t.AppearTime,
 			TargetCnt:      t.TargetCnt,
 			FinishCnt:      t.FinishCnt,
@@ -261,6 +262,11 @@ func updateFmlRaceMissingParamRefreshFP(view *FmlRaceView, refreshAttempt bool) 
 }
 
 func preserveFmlRaceTaskDetail(next, prev FmlRaceTaskView) FmlRaceTaskView {
+	if !fmlRaceTaskHasTarget(next.TaskType, next.TaskId) {
+		next.ParamID = 0
+		next.TargetLabel = ""
+		return next
+	}
 	if next.ParamID == 0 && prev.ParamID != 0 {
 		next.ParamID = prev.ParamID
 		next.TargetLabel = prev.TargetLabel
@@ -608,18 +614,34 @@ func isJSONEmptyObject(raw json.RawMessage) bool {
 }
 
 func takenFromTakeTask(tt clientproto.IFmlRaceTakeTask) FmlRaceTakenView {
-	paramID := firstInt32FromRaw(tt.Param)
+	taskType := FmlRaceTaskTypeByID(tt.TaskId)
+	paramID, targetLabel := fmlRaceTaskTarget(taskType, tt.Param)
 	return FmlRaceTakenView{
 		TaskMsId:    tt.TaskMsId,
 		TaskId:      tt.TaskId,
-		TaskType:    FmlRaceTaskTypeByID(tt.TaskId),
+		TaskType:    taskType,
 		TargetCnt:   tt.TargetCnt,
 		FinishCnt:   tt.FinishCnt,
 		ParamID:     paramID,
-		TargetLabel: ItemLabel(paramID),
+		TargetLabel: targetLabel,
 		ExpireTime:  tt.ExpireTime,
 		HasTask:     true,
 	}
+}
+
+func fmlRaceTaskHasTarget(taskType, taskID int32) bool {
+	if taskType == 0 {
+		taskType = FmlRaceTaskTypeByID(taskID)
+	}
+	return taskType == 3034 || taskType == 3036
+}
+
+func fmlRaceTaskTarget(taskType int32, raw json.RawMessage) (int32, string) {
+	if !fmlRaceTaskHasTarget(taskType, 0) {
+		return 0, ""
+	}
+	paramID := firstInt32FromRaw(raw)
+	return paramID, ItemLabel(paramID)
 }
 
 func mergeFmlRaceTakenProgress(dst *FmlRaceTakenView, src FmlRaceTakenView) {

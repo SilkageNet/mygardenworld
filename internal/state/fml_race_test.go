@@ -86,6 +86,21 @@ func TestFmlRaceTaskEmptyParamHasNoTargetLabel(t *testing.T) {
 	}
 }
 
+func TestFmlRaceTargetlessTasksIgnoreNoisyParam(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3019,"6":[23001],"10":18},{"0":2,"4":3017,"6":[23562],"10":12},{"0":3,"4":3018,"6":[23009],"10":36}]}}`))
+	for _, task := range s.FmlRace().Tasks {
+		if task.ParamID != 0 || task.TargetLabel != "" {
+			t.Fatalf("targetless race task exposed noisy param: %+v", task)
+		}
+	}
+
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1},"110":{"42":{"7":{"0":3,"1":3018,"2":5,"3":0,"4":[23009]}}}}}`))
+	if taken := s.FmlRace().Taken; !taken.HasTask || taken.ParamID != 0 || taken.TargetLabel != "" {
+		t.Fatalf("targetless taken task exposed noisy param: %+v", taken)
+	}
+}
+
 func TestFmlRacePoolMissingParamCoversExecutionTargets(t *testing.T) {
 	tests := []struct {
 		name  string
