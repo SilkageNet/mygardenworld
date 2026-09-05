@@ -1,4 +1,5 @@
-import { Cloud, Loader2, Pause, Play, Plus, RefreshCw, Square, Ticket } from "lucide-react";
+import { useState } from "react";
+import { CheckSquare2, Cloud, Loader2, Pause, Play, Plus, RefreshCw, Square, Ticket, X } from "lucide-react";
 import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { AccountStatus } from "@/lib/api/workspace-models";
 import {
@@ -49,13 +50,33 @@ export default function AccountListPanel({
   onSelect: (accountId: string) => void;
   onAutomationToggle: (accountId: string) => void;
   onAutomationStop: (accountId: string) => void;
-  onBulkStart: () => void;
-  onBulkPause: () => void;
+  onBulkStart: (accountIds?: string[]) => void;
+  onBulkPause: (accountIds?: string[]) => void;
 }) {
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(() => new Set());
   const hasAccounts = accounts.length > 0;
   const quotaReached = quota?.reached ?? false;
   const bulkBusy = busyBulkAutomation !== "";
   const automationLocked = bulkBusy || busyAutomationAccountId !== "";
+  const availableAccountIds = accounts.map((account) => account.id.toString());
+  const selectedIds = availableAccountIds.filter((accountId) => selectedAccountIds.has(accountId));
+  const allSelected = selectedIds.length === availableAccountIds.length && availableAccountIds.length > 0;
+
+  function toggleSelected(accountId: string) {
+    setSelectedAccountIds((current) => {
+      const next = new Set(current);
+      if (next.has(accountId)) next.delete(accountId);
+      else next.add(accountId);
+      return next;
+    });
+  }
+
+  function closeBulkMode() {
+    setBulkMode(false);
+    setSelectedAccountIds(new Set());
+  }
+
   return (
     <Card className={cn("cloud-surface min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
       <CardHeader className="border-b border-border/45 pb-2.5 sm:pb-3">
@@ -72,22 +93,58 @@ export default function AccountListPanel({
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
             <Button type="button" variant="ghost" size="icon-sm" onClick={onRedeem} aria-label="兑换码中心" disabled={bulkBusy}><Ticket className="size-4" /></Button>
-            {hasAccounts && (
+            {hasAccounts && !bulkMode && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setBulkMode(true)}
+                aria-label="批量管理账号"
+                disabled={automationLocked}
+              >
+                <CheckSquare2 className="size-4" />
+              </Button>
+            )}
+            {hasAccounts && !bulkMode && (
               <Button type="button" variant="outline" size="icon-sm" onClick={onAdd} aria-label="新增账号" disabled={quotaReached || bulkBusy}>
                 <Plus className="size-4" />
               </Button>
             )}
           </div>
         </div>
-        {hasAccounts && (
+        {hasAccounts && !bulkMode && (
           <div className="mt-2.5 flex items-center gap-2">
-            <Button type="button" size="sm" className="h-7 flex-1 px-2" aria-label="一键启动全部账号" disabled={automationLocked} onClick={onBulkStart}>
+            <Button type="button" size="sm" className="h-7 flex-1 px-2" aria-label="一键启动全部账号" disabled={automationLocked} onClick={() => onBulkStart()}>
               {busyBulkAutomation === "start" ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
               一键启动
             </Button>
-            <Button type="button" variant="secondary" size="sm" className="h-7 flex-1 px-2" aria-label="一键暂停全部账号" disabled={automationLocked} onClick={onBulkPause}>
+            <Button type="button" variant="secondary" size="sm" className="h-7 flex-1 px-2" aria-label="一键暂停全部账号" disabled={automationLocked} onClick={() => onBulkPause()}>
               {busyBulkAutomation === "pause" ? <Loader2 className="size-3.5 animate-spin" /> : <Pause className="size-3.5" />}
               一键暂停
+            </Button>
+          </div>
+        )}
+        {hasAccounts && bulkMode && (
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-md border border-border/55 bg-white/45 p-1.5 dark:bg-white/5">
+            <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 accent-primary"
+                checked={allSelected}
+                onChange={() => setSelectedAccountIds(allSelected ? new Set() : new Set(availableAccountIds))}
+              />
+              <span className="truncate">已选 {selectedIds.length}/{accounts.length}</span>
+            </label>
+            <Button type="button" size="sm" className="h-7 px-2" disabled={automationLocked || selectedIds.length === 0} onClick={() => onBulkStart(selectedIds)}>
+              {busyBulkAutomation === "start" ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+              启动
+            </Button>
+            <Button type="button" variant="secondary" size="sm" className="h-7 px-2" disabled={automationLocked || selectedIds.length === 0} onClick={() => onBulkPause(selectedIds)}>
+              {busyBulkAutomation === "pause" ? <Loader2 className="size-3.5 animate-spin" /> : <Pause className="size-3.5" />}
+              暂停
+            </Button>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="退出批量管理" disabled={bulkBusy} onClick={closeBulkMode}>
+              <X className="size-4" />
             </Button>
           </div>
         )}
@@ -106,6 +163,7 @@ export default function AccountListPanel({
               const accountId = account.id.toString();
               const status = statuses.get(accountId);
               const selected = accountId === selectedAccountId;
+              const bulkSelected = selectedAccountIds.has(accountId);
               const identity = accountIdentity(account, status);
               const online = accountConnected(account, status);
               const abnormal = accountIsAbnormal(status);
@@ -114,16 +172,19 @@ export default function AccountListPanel({
               return (
                 <SoftSpotlight
                   key={accountId}
-                  role="button"
-                  tabIndex={0}
+                  role={bulkMode ? undefined : "button"}
+                  tabIndex={bulkMode ? undefined : 0}
                   className={cn(
                     "w-full cursor-pointer rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
-                    selected
+                    bulkMode && bulkSelected
+                      ? "border-sky-400/60 bg-sky-50/80 shadow-[0_10px_20px_rgba(14,165,233,0.10)] dark:bg-sky-400/10"
+                      : selected
                       ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
                       : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
-                  onClick={() => onSelect(accountId)}
+                  onClick={() => bulkMode ? toggleSelected(accountId) : onSelect(accountId)}
                   onKeyDown={(event) => {
+                    if (bulkMode) return;
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       onSelect(accountId);
@@ -131,12 +192,22 @@ export default function AccountListPanel({
                   }}
                 >
                   <div className="flex items-center justify-between gap-2">
+                    {bulkMode && (
+                      <input
+                        type="checkbox"
+                        className="size-4 shrink-0 accent-primary"
+                        aria-label={`选择账号 ${identity.nickname}`}
+                        checked={bulkSelected}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => toggleSelected(accountId)}
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{identity.nickname}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{identity.area}</span><span>{identity.channel}</span></div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      <Button
+                      {!bulkMode && <Button
                         type="button"
                         variant={online ? "secondary" : "default"}
                         size="sm"
@@ -147,8 +218,8 @@ export default function AccountListPanel({
                       >
                         {automationSpinning ? <Loader2 className="size-3.5 animate-spin" /> : online ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                         {online ? "暂停" : "启动"}
-                      </Button>
-                      {abnormal && (
+                      </Button>}
+                      {!bulkMode && abnormal && (
                         <Button
                           type="button"
                           variant="outline"
