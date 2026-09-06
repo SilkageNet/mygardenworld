@@ -386,6 +386,7 @@ func buildUnionView(model *accountReadModel) *pb.UnionView {
 			},
 		),
 	}
+	applyRaceRequestSafety(resp.Race, model.policy.GetUnion().GetRace(), model.diag)
 	return resp
 }
 

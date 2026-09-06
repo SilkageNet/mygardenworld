@@ -132,6 +132,12 @@ func plannedOperationsProto(ops []automation.PlannedOp, diag runner.Diagnostics)
 			TaskId:          op.TaskID,
 			MilestoneIndex:  op.MilestoneIndex,
 		})
+		if cd, paused := cooldowns["account.request"]; paused {
+			view := out[len(out)-1]
+			view.Executable = false
+			view.Status = pb.PlanStatus_PLAN_STATUS_BLOCKED
+			view.BlockedReasons = append(view.BlockedReasons, cd.Reason)
+		}
 	}
 	return out
 }
@@ -148,17 +154,28 @@ func cooldownsByOperation(diag runner.Diagnostics) map[string]runner.OperationCo
 }
 
 func lookupPlannedOperationCooldown(cooldowns map[string]runner.OperationCooldownSnapshot, op automation.PlannedOp) (runner.OperationCooldownSnapshot, bool) {
+	if cd, ok := cooldowns["account.request"]; ok {
+		return cd, true
+	}
+	var selected runner.OperationCooldownSnapshot
+	if op.Kind == "fmlRace.delTask" {
+		selected = cooldowns["union.race.delete.interval"]
+	}
 	if key := strings.TrimSpace(op.CooldownKey); key != "" {
 		if cd, ok := cooldowns[key]; ok {
-			return cd, true
+			if selected.Until.IsZero() || cd.Until.After(selected.Until) {
+				selected = cd
+			}
 		}
 	}
 	if op.OperationID != "" {
 		if cd, ok := cooldowns[op.OperationID]; ok {
-			return cd, true
+			if selected.Until.IsZero() || cd.Until.After(selected.Until) {
+				selected = cd
+			}
 		}
 	}
-	return runner.OperationCooldownSnapshot{}, false
+	return selected, !selected.Until.IsZero()
 }
 
 func executionLaneProto(lane string) pb.ExecutionLane {

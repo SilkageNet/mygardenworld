@@ -26,6 +26,7 @@ type sessionRuntimeState struct {
 }
 
 type schedulerState struct {
+	pearlDiagnosticLog        pearlDiagnosticLogState
 	lastWaterSyncTick         time.Time
 	lastReputationSyncTick    time.Time
 	lastResidentOrderSyncTick time.Time

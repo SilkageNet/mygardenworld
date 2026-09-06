@@ -243,6 +243,7 @@ func DefaultPolicy() *pb.Policy {
 				ExcludeOthersUpgradeTask: true,
 				AvoidProgressedTasks:     proto.Bool(true),
 				MinTaskScore:             28,
+				DeleteIntervalSeconds:    120,
 				TaskTypePriority:         defaultUnionRacePriority(),
 			},
 			Land: &pb.UnionLandPolicy{},

@@ -56,6 +56,9 @@ func (r *Runner) tickInterval() time.Duration {
 // retries at AppearTime rather than waiting out the next 4s tick.
 func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 	interval := r.tickInterval()
+	if r.restrictionError() != nil {
+		return max(interval, time.Second)
+	}
 	soonest := interval
 	consider := func(at time.Time) {
 		if at.IsZero() {
@@ -107,8 +110,14 @@ func (r *Runner) soonestRaceOpCooldownUntil(now time.Time) time.Time {
 
 func (r *Runner) tick(ctx context.Context) {
 	snapshot := r.readTickSnapshot()
+	if r.restrictionError() == nil {
+		r.emitPearlHireDiagnostic(snapshot, time.Now())
+	}
 	if snapshot.sessionInvalidated || snapshot.client == nil || snapshot.session == nil {
 		r.resetSideLaneFairness()
+		return
+	}
+	if r.recoverAccountRestriction(snapshot.client, time.Now()) {
 		return
 	}
 
@@ -193,6 +202,10 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 	var opErr error
 	finishOperation := r.beginOperation(op.Kind)
 	defer func() { finishOperation(opErr) }()
+	if err := r.restrictionError(); err != nil {
+		opErr = err
+		return err
+	}
 
 	if err := r.checkOperationResources(op, now); err != nil {
 		opErr = err
@@ -200,6 +213,12 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 		return err
 	}
 
+	// Reserve before any delete preflight or verification RPC. Failures keep
+	// the reservation, and a manual request uses this same serialized gate.
+	if err := r.reserveRaceDelete(ctx, op, time.Now()); err != nil {
+		opErr = err
+		return err
+	}
 	if err := r.ensurePlannedOperationRqst(ctx, op); err != nil {
 		opErr = fmt.Errorf("rqst: %w", err)
 		r.handleRqstFailure(ctx, op, err, opErr)
