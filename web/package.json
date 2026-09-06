@@ -32,7 +32,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5",
+    "typescript": "^6",
     "vitest": "^4.1.11"
   },
   "pnpm": {
