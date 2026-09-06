@@ -3298,10 +3298,10 @@ func TestBuildPlan_UnionLandHarvest(t *testing.T) {
 			if op.Kind != clientproto.RPCFmlLandHarvest.String() || !op.Executable || op.SyncOnly {
 				t.Fatalf("union land harvest op mismatch: %+v", op)
 			}
-			if len(op.LandIDs) != 1 || op.LandIDs[0] != 1 || op.Count != 1 {
+			if len(op.LandIDs) != 2 || op.LandIDs[0] != 1 || op.LandIDs[1] != 2 || op.Count != 2 {
 				t.Fatalf("union land harvest ids/count mismatch: %+v", op)
 			}
-			if !strings.Contains(op.Reason, "土地#1") || !strings.Contains(op.Reason, "×4") {
+			if !strings.Contains(op.Reason, "土地#1") || !strings.Contains(op.Reason, "×6") {
 				t.Fatalf("union land harvest reason should describe targets: %q", op.Reason)
 			}
 			return
@@ -3616,6 +3616,7 @@ func TestBuildPlan_UnionLandAutoPlantReplacesAfterHarvestCycle(t *testing.T) {
 						"2": now.Add(-70 * time.Minute).UnixMilli(),
 						"3": 0,
 						"4": 999,
+						"5": now.Add(-10 * time.Minute).UnixMilli(),
 					},
 				},
 			},
@@ -3688,8 +3689,9 @@ func TestBuildPlan_UnionLandAutoPlantReplacesHourly(t *testing.T) {
 						"0": 0,
 						"1": 23001,
 						"2": now.Add(-2 * time.Hour).UnixMilli(),
-						"3": 6,
+						"3": 0, // Current stock was emptied by harvest.
 						"4": 6,
+						"5": now.UnixMilli(),
 					},
 				},
 			},
@@ -3731,6 +3733,7 @@ func TestBuildPlan_UnionLandAutoPlantReplacesBelow11AfterSafeBoundary(t *testing
 						"2": now.Add(-70 * time.Minute).UnixMilli(),
 						"3": 0,
 						"4": 4,
+						"5": now.Add(-10 * time.Minute).UnixMilli(),
 					},
 					"2": map[string]any{"0": 0}, // empty
 				},

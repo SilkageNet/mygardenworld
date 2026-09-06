@@ -629,11 +629,12 @@ type FmlLandView struct {
 	Level       int32 `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
 	FlowerId    int32 `protobuf:"varint,3,opt,name=flower_id,json=flowerId,proto3" json:"flower_id,omitempty"`
 	StartTimeMs int64 `protobuf:"varint,4,opt,name=start_time_ms,json=startTimeMs,proto3" json:"start_time_ms,omitempty"`
-	// Protocol matureFlwCnt; often stale until the client UI recalculates.
+	// Protocol matureFlwCnt: current unclaimed stock before elapsed production.
 	MatureFlowerCount int32 `protobuf:"varint,5,opt,name=mature_flower_count,json=matureFlowerCount,proto3" json:"mature_flower_count,omitempty"`
-	HarvestedCount    int32 `protobuf:"varint,6,opt,name=harvested_count,json=harvestedCount,proto3" json:"harvested_count,omitempty"`
-	LastCalcTimeMs    int64 `protobuf:"varint,7,opt,name=last_calc_time_ms,json=lastCalcTimeMs,proto3" json:"last_calc_time_ms,omitempty"`
-	// Unclaimed mature flowers (max of protocol delta and startTime+c_fmlLandLvl).
+	// Historical harvestedFlwCnt, independent of current stock.
+	HarvestedCount int32 `protobuf:"varint,6,opt,name=harvested_count,json=harvestedCount,proto3" json:"harvested_count,omitempty"`
+	LastCalcTimeMs int64 `protobuf:"varint,7,opt,name=last_calc_time_ms,json=lastCalcTimeMs,proto3" json:"last_calc_time_ms,omitempty"`
+	// Current stock plus production since lastCalcTime (or startTime), capped by stock_cap.
 	PendingHarvest int32 `protobuf:"varint,8,opt,name=pending_harvest,json=pendingHarvest,proto3" json:"pending_harvest,omitempty"`
 	// c_fmlLandLvl.stock for this land level; 0 when unknown.
 	StockCap int32 `protobuf:"varint,9,opt,name=stock_cap,json=stockCap,proto3" json:"stock_cap,omitempty"`

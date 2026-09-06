@@ -457,12 +457,12 @@ func TestApplyV_FmlLandState(t *testing.T) {
 	}
 	now := time.UnixMilli(1_800_000_000_000) // after fixture startTime, stock-capped
 	ready := s.ReadyFmlLandHarvestIDs(now)
-	if len(ready) != 1 || ready[0] != 1 {
-		t.Fatalf("ReadyFmlLandHarvestIDs()=%v, want [1]", ready)
+	if len(ready) != 2 || ready[0] != 1 || ready[1] != 2 {
+		t.Fatalf("ReadyFmlLandHarvestIDs()=%v, want [1 2]", ready)
 	}
 	reason := FormatFmlLandHarvestReason(lands, ready, now)
-	// Stored mature=5 harvested=2, but startTime+c_fmlLandLvl yields stock-capped pending.
-	if !strings.Contains(reason, "土地#1") || !strings.Contains(reason, "×8") {
+	// Current stock grows to level-2 capacity 10, regardless of harvest history.
+	if !strings.Contains(reason, "土地#1") || !strings.Contains(reason, "×10") {
 		t.Fatalf("FormatFmlLandHarvestReason()=%q, want land and computed pending count", reason)
 	}
 }

@@ -188,6 +188,36 @@ func TestBuildFmlLandViewsExposesPlantingInfo(t *testing.T) {
 	}
 }
 
+func TestFmlLandViewAfterRepeatedHarvests(t *testing.T) {
+	now := time.UnixMilli(1_800_000_000_000)
+	for _, tt := range []struct {
+		name    string
+		stock   int32
+		elapsed time.Duration
+		pending int32
+		next    int64
+		want    string
+	}{
+		{"full stock after earlier harvests", 6, 0, 6, 0, "harvest"},
+		{"recently emptied", 0, 5 * time.Minute, 0, now.Add(10 * time.Minute).UnixMilli(), "wait"},
+		{"new flower after earlier harvests", 0, 15 * time.Minute, 1, 0, "harvest"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			land := state.FmlLandView{
+				LandID: 1, FlowerID: 23001, MatureFlowerCnt: tt.stock, HarvestedCnt: 100,
+				StartTimeMs: now.Add(-24 * time.Hour).UnixMilli(), LastCalcTimeMs: now.Add(-tt.elapsed).UnixMilli(),
+			}
+			got := fmlLandViewProto(land, nil, now)
+			if got.GetPendingHarvest() != tt.pending || got.GetNextMatureMs() != tt.next || got.GetRecommendation() != tt.want {
+				t.Fatalf("view=%+v", got)
+			}
+			if got.GetHarvestedCount() != 100 {
+				t.Fatal("view must preserve observed harvest history")
+			}
+		})
+	}
+}
+
 func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 	lands := map[int32]state.LandView{
 		1001: {Observed: true, FlowerID: 23001, State: 1},

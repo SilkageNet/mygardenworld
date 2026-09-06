@@ -686,61 +686,46 @@ func FormatFmlLandHarvestReason(lands map[int32]FmlLandView, landIDs []int32, no
 }
 
 // FmlLandPendingHarvest returns unclaimed mature flowers on one guild land.
-// When protocol matureFlwCnt is stale (often 0 until the client UI recalculates),
-// maturity is derived from startTime and c_fmlLandLvl time/stock.
+// matureFlwCnt is current stock, not lifetime production; harvestedFlwCnt is
+// historical and must not be subtracted. Match mini's calcFmlLandMature:
+// add production since lastCalcTime (or startTime) up to the stock capacity.
 func FmlLandPendingHarvest(land FmlLandView, now time.Time) int32 {
 	if land.FlowerID <= 0 {
 		return 0
 	}
-	stored := land.MatureFlowerCnt - land.HarvestedCnt
-	if stored < 0 {
-		stored = 0
+	stored := max(land.MatureFlowerCnt, 0)
+	anchor := fmlLandCalculationTimeMs(land)
+	cfg, ok := FmlLandLvlByID(land.Level)
+	if !ok || cfg.TimeSec <= 0 || cfg.Stock <= 0 || anchor <= 0 || now.UnixMilli() <= anchor {
+		return stored
 	}
-	computed := int32(0)
-	if land.StartTimeMs > 0 {
-		if cfg, ok := FmlLandLvlByID(land.Level); ok && cfg.TimeSec > 0 {
-			elapsedSec := (now.UnixMilli() - land.StartTimeMs) / 1000
-			if elapsedSec > 0 {
-				produced := elapsedSec / int64(cfg.TimeSec)
-				if cfg.Stock > 0 && produced > int64(cfg.Stock) {
-					produced = int64(cfg.Stock)
-				}
-				computed = int32(produced) - land.HarvestedCnt
-				if computed < 0 {
-					computed = 0
-				}
-			}
-		}
+	produced := (now.UnixMilli() - anchor) / (int64(cfg.TimeSec) * 1000)
+	room := max(cfg.Stock-stored, 0)
+	return stored + int32(min(produced, int64(room)))
+}
+
+func fmlLandCalculationTimeMs(land FmlLandView) int64 {
+	if land.LastCalcTimeMs > 0 {
+		return land.LastCalcTimeMs
 	}
-	if computed > stored {
-		return computed
-	}
-	return stored
+	return land.StartTimeMs
 }
 
 // FmlLandNextMatureMs returns when the next flower becomes harvestable.
 // Zero means empty, already pending, stock-full, or catalog/timing unknown.
 func FmlLandNextMatureMs(land FmlLandView, now time.Time) int64 {
-	if land.FlowerID <= 0 || land.StartTimeMs <= 0 {
+	anchor := fmlLandCalculationTimeMs(land)
+	if land.FlowerID <= 0 || anchor <= 0 {
 		return 0
 	}
 	if FmlLandPendingHarvest(land, now) > 0 {
 		return 0
 	}
 	cfg, ok := FmlLandLvlByID(land.Level)
-	if !ok || cfg.TimeSec <= 0 {
+	if !ok || cfg.TimeSec <= 0 || cfg.Stock <= 0 {
 		return 0
 	}
-	elapsedSec := (now.UnixMilli() - land.StartTimeMs) / 1000
-	if elapsedSec < 0 {
-		elapsedSec = 0
-	}
-	produced := elapsedSec / int64(cfg.TimeSec)
-	if cfg.Stock > 0 && produced >= int64(cfg.Stock) {
-		return 0
-	}
-	nextIndex := produced + 1
-	return land.StartTimeMs + nextIndex*int64(cfg.TimeSec)*1000
+	return anchor + int64(cfg.TimeSec)*1000
 }
 
 // ReadyFmlLandHarvestIDs returns guild lands with unclaimed mature flowers.
