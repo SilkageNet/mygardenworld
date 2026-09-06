@@ -216,6 +216,10 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 		err := preflightFmlRaceTaskMutation(ctx, operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}, op)
 		if err != nil {
 			opErr = err
+			// Preflight failures return before ordinary RPC error handling. Give
+			// the rejected task its own retry delay so an unchanged snapshot or
+			// failed refresh cannot monopolize the next decision.
+			op = r.cooldownSideOperation(op, time.Now(), err, "竞赛任务执行前校验未通过", 5*time.Second)
 			r.emit(Event{
 				Kind:        "operation_deferred",
 				Category:    op.Category,

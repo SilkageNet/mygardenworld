@@ -187,12 +187,13 @@
 //	"0" = level (c_fmlLandLvl growth tier)
 //	"1" = flowerId (0 = empty)
 //	"2" = startTime (ms; plant start)
-//	"3" = matureFlwCnt (often stale until the client UI recalculates)
-//	"4" = harvestedFlwCnt
+//	"3" = matureFlwCnt (current unclaimed stock; client adds elapsed production)
+//	"4" = harvestedFlwCnt (historical harvest count, not subtracted from stock)
 //	"5" = lastCalcTime (ms)
 //
-// Pending harvest prefers max(protocol mature-harvested, startTime+c_fmlLandLvl
-// time/stock). Sync via fml.enter; mutate with fmlLand.harvest / fmlLand.plant.
+// Pending harvest follows mini's calcFmlLandMature: matureFlwCnt plus production
+// since lastCalcTime (falling back to startTime), limited by c_fmlLandLvl.stock.
+// Sync via fml.enter; mutate with fmlLand.harvest / fmlLand.plant.
 //
 // # Guild Race Task Targets (Namespace 25.114 / 25.110)
 //

@@ -101,11 +101,12 @@ message FmlLandView {
   int32 level = 2;
   int32 flower_id = 3;
   int64 start_time_ms = 4;
-  // Protocol matureFlwCnt; often stale until the client UI recalculates.
+  // Protocol matureFlwCnt: current unclaimed stock before elapsed production.
   int32 mature_flower_count = 5;
+  // Historical harvestedFlwCnt, independent of current stock.
   int32 harvested_count = 6;
   int64 last_calc_time_ms = 7;
-  // Unclaimed mature flowers (max of protocol delta and startTime+c_fmlLandLvl).
+  // Current stock plus production since lastCalcTime (or startTime), capped by stock_cap.
   int32 pending_harvest = 8;
   // c_fmlLandLvl.stock for this land level; 0 when unknown.
   int32 stock_cap = 9;

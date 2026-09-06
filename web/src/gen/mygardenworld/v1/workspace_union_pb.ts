@@ -404,13 +404,15 @@ export type FmlLandView = Message<"mygardenworld.v1.FmlLandView"> & {
   startTimeMs: bigint;
 
   /**
-   * Protocol matureFlwCnt; often stale until the client UI recalculates.
+   * Protocol matureFlwCnt: current unclaimed stock before elapsed production.
    *
    * @generated from field: int32 mature_flower_count = 5;
    */
   matureFlowerCount: number;
 
   /**
+   * Historical harvestedFlwCnt, independent of current stock.
+   *
    * @generated from field: int32 harvested_count = 6;
    */
   harvestedCount: number;
@@ -421,7 +423,7 @@ export type FmlLandView = Message<"mygardenworld.v1.FmlLandView"> & {
   lastCalcTimeMs: bigint;
 
   /**
-   * Unclaimed mature flowers (max of protocol delta and startTime+c_fmlLandLvl).
+   * Current stock plus production since lastCalcTime (or startTime), capped by stock_cap.
    *
    * @generated from field: int32 pending_harvest = 8;
    */
