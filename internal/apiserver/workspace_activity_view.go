@@ -31,12 +31,13 @@ var fmlRaceTaskLabels = map[int32]string{
 
 func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, gates automation.RaceModuleGates) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
-		Observed:        view.Observed,
-		BatchActive:     view.ActiveAt(now),
-		BatchStartMs:    view.BatchStartMs,
-		BatchEndMs:      view.BatchEndMs,
-		BatchStatus:     view.BatchStatus,
-		TasksSyncedAtMs: view.TasksSyncedAtMs,
+		AutoDeleteStatus: automation.RaceAutoDeleteStatus(s, racePolicy, now),
+		Observed:         view.Observed,
+		BatchActive:      view.ActiveAt(now),
+		BatchStartMs:     view.BatchStartMs,
+		BatchEndMs:       view.BatchEndMs,
+		BatchStatus:      view.BatchStatus,
+		TasksSyncedAtMs:  view.TasksSyncedAtMs,
 	}
 	if view.TaskQuotaObserved {
 		out.TaskQuotaObserved = true

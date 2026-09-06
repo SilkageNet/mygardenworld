@@ -27,6 +27,8 @@ message UnionView {
 }
 
 message FmlRaceView {
+  // Planner-derived explanation of automatic deletion gates.
+  string auto_delete_status = 17;
   bool observed = 1;
   bool batch_active = 2;
   FmlRaceTaken taken = 3;

@@ -20,6 +20,10 @@ service AccountService {
   // session token, routeToken, gsHost. Daemon will rebuild the WS.
   rpc ConnectAccount(ConnectAccountRequest) returns (ConnectAccountResponse);
 
+  // Replace an existing iOS account's password after verifying its identity.
+  // Preserves its ID, policy, history and automation start/pause preference.
+  rpc ReauthenticateAccount(ReauthenticateAccountRequest) returns (ReauthenticateAccountResponse);
+
   // Starts a short-lived Alipay PC game-center QR authorization. The returned
   // qr_content must be rendered locally as a QR code and is never persisted.
   rpc StartAlipayLogin(StartAlipayLoginRequest) returns (StartAlipayLoginResponse);
@@ -34,6 +38,8 @@ message CreateAccountRequest {
   string password = 2;
   // Required: distribution channel we should impersonate. CHANNEL_IOS today.
   Channel channel = 3;
+  // Copy the complete saved policy before the first runner starts. Zero uses defaults.
+  int64 initial_policy_account_id = 4;
 }
 
 message CreateAccountResponse {
@@ -64,7 +70,22 @@ message ConnectAccountResponse {
   google.protobuf.Timestamp logged_in_at = 2;
 }
 
-message StartAlipayLoginRequest {}
+message ReauthenticateAccountRequest {
+  int64 id = 1;
+  string password = 2;
+}
+
+message ReauthenticateAccountResponse {
+  Account account = 1;
+  google.protobuf.Timestamp logged_in_at = 2;
+}
+
+message StartAlipayLoginRequest {
+  // Nonzero binds this authorization to an existing account's channel identity.
+  int64 account_id = 1;
+  // Used only for new accounts. Cannot be combined with account_id.
+  int64 initial_policy_account_id = 2;
+}
 
 message StartAlipayLoginResponse {
   string login_id = 1;

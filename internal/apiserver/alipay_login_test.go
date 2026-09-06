@@ -32,7 +32,7 @@ func (f *fakeAlipayProvider) LoginWithWebGrant(context.Context, *babigame.HTTPCl
 func TestAlipayLoginCoordinatorWaitsThenCompletes(t *testing.T) {
 	provider := &fakeAlipayProvider{}
 	coordinator := NewAlipayLoginCoordinator(provider)
-	loginID, qr, _, err := coordinator.start(context.Background(), 7)
+	loginID, qr, _, err := coordinator.start(context.Background(), 7, alipayLoginOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestAlipayLoginCoordinatorWaitsThenCompletes(t *testing.T) {
 		t.Fatalf("loginID=%q qr=%q", loginID, qr)
 	}
 	creatorCalls := 0
-	create := func(_ context.Context, grant babigame.AlipayWebGrant) (*store.Account, error) {
+	create := func(_ context.Context, grant babigame.AlipayWebGrant, _ alipayLoginOptions) (*store.Account, error) {
 		creatorCalls++
 		if grant.UserID != "u1" || grant.Token != "private-web-token" {
 			t.Fatalf("grant=%+v", grant)
@@ -64,11 +64,11 @@ func TestAlipayLoginCoordinatorWaitsThenCompletes(t *testing.T) {
 
 func TestAlipayLoginCoordinatorHidesOtherOwners(t *testing.T) {
 	coordinator := NewAlipayLoginCoordinator(&fakeAlipayProvider{})
-	loginID, _, _, err := coordinator.start(context.Background(), 7)
+	loginID, _, _, err := coordinator.start(context.Background(), 7, alipayLoginOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := coordinator.poll(context.Background(), 8, loginID, func(context.Context, babigame.AlipayWebGrant) (*store.Account, error) {
+	got := coordinator.poll(context.Background(), 8, loginID, func(context.Context, babigame.AlipayWebGrant, alipayLoginOptions) (*store.Account, error) {
 		t.Fatal("creator must not run")
 		return nil, nil
 	})

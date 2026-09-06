@@ -31,6 +31,8 @@ type schedulerState struct {
 	lastResidentOrderSyncTick time.Time
 	nextDecisionAt            time.Time
 	harvestBlockedUntil       map[int32]time.Time
+	harvestFailures           map[harvestFailureKey]harvestFailure
+	raceUpgradeAttempts       map[[2]int64]bool
 	operationCooldowns        map[string]operationCooldown
 	cultivateUpgradeRejects   map[int32]cultivateUpgradeResourceObservation
 	sideLaneFirstWait         map[string]time.Time

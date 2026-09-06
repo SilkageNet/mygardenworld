@@ -285,9 +285,10 @@ type PlannedOp struct {
 	CooldownUntil  time.Time
 	CooldownReason string
 	// RaceTaskGuard captures the exact pool facts that authorized a race take
-	// or automatic deletion. The runner refreshes the authoritative pool and
+	// upgrade or automatic deletion. The runner refreshes the authoritative pool and
 	// revalidates this guard immediately before sending the mutating RPC.
 	RaceTaskGuard *RaceTaskMutationGuard
+	RaceBatchID   int64
 }
 
 // RaceTaskMutationGuard is runner-only decision evidence for a guild-race

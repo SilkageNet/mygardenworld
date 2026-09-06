@@ -355,9 +355,12 @@ message UnionRacePolicy {
   bool only_upgrade_task = 5;
   bool exclude_others_upgrade_task = 6;
   map<int32, int32> task_type_priority = 7;
+  // Independently upgrades the current unfinished task, subject to a known
+  // cost and max_spend_diamond. Does not require auto_enable_modules.
   bool upgrade_task = 8;
   bool delete_low_score_task = 9;
   int32 delete_task_max_score = 10;
+  // Per-task upgrade cost ceiling. Zero prohibits spending; never unlimited.
   int64 max_spend_diamond = 11;
   // When true with auto_enable_modules, stop planning takeTask once this
   // batch's free task quota is used up (finished_task_num >= total_task_num).

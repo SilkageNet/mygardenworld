@@ -69,6 +69,12 @@ type Account struct {
 // already present. Channel must be a known babigame.Channel value; the
 // daemon's CreateAccount handler validates it before invoking us.
 func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, username, password string) (*Account, error) {
+	return d.CreateAccountWithPolicy(ctx, userID, name, channel, username, password, "")
+}
+
+// CreateAccountWithPolicy commits the account and initial policy atomically,
+// before any runner can load defaults for the newly created account.
+func (d *DB) CreateAccountWithPolicy(ctx context.Context, userID int64, name, channel, username, password, policyJSON string) (*Account, error) {
 	if channel == "" {
 		return nil, errors.New("CreateAccount: channel required")
 	}
@@ -77,7 +83,12 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 	if err != nil {
 		return nil, fmt.Errorf("encode password: %w", err)
 	}
-	res, err := d.ExecContext(ctx,
+	tx, err := d.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx,
 		`INSERT INTO accounts(user_id, name, channel, username, password_enc, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		userID, name, channel, username, passwordEnc, now, now,
 	)
@@ -90,6 +101,14 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("read inserted account id: %w", err)
+	}
+	if policyJSON != "" {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO account_policies(account_id, policy_json, updated_at) VALUES (?, ?, ?)`, id, policyJSON, now); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
 	}
 	return d.GetAccountByID(ctx, id)
 }

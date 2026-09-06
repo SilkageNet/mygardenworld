@@ -27,9 +27,11 @@ type CreateAccountRequest struct {
 	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Password string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	// Required: distribution channel we should impersonate. CHANNEL_IOS today.
-	Channel       Channel `protobuf:"varint,3,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Channel Channel `protobuf:"varint,3,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
+	// Copy the complete saved policy before the first runner starts. Zero uses defaults.
+	InitialPolicyAccountId int64 `protobuf:"varint,4,opt,name=initial_policy_account_id,json=initialPolicyAccountId,proto3" json:"initial_policy_account_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *CreateAccountRequest) Reset() {
@@ -81,6 +83,13 @@ func (x *CreateAccountRequest) GetChannel() Channel {
 		return x.Channel
 	}
 	return Channel_CHANNEL_UNSPECIFIED
+}
+
+func (x *CreateAccountRequest) GetInitialPolicyAccountId() int64 {
+	if x != nil {
+		return x.InitialPolicyAccountId
+	}
+	return 0
 }
 
 type CreateAccountResponse struct {
@@ -393,15 +402,123 @@ func (x *ConnectAccountResponse) GetLoggedInAt() *timestamppb.Timestamp {
 	return nil
 }
 
-type StartAlipayLoginRequest struct {
+type ReauthenticateAccountRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *ReauthenticateAccountRequest) Reset() {
+	*x = ReauthenticateAccountRequest{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReauthenticateAccountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReauthenticateAccountRequest) ProtoMessage() {}
+
+func (x *ReauthenticateAccountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReauthenticateAccountRequest.ProtoReflect.Descriptor instead.
+func (*ReauthenticateAccountRequest) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ReauthenticateAccountRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ReauthenticateAccountRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type ReauthenticateAccountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Account       *Account               `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
+	LoggedInAt    *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=logged_in_at,json=loggedInAt,proto3" json:"logged_in_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReauthenticateAccountResponse) Reset() {
+	*x = ReauthenticateAccountResponse{}
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReauthenticateAccountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReauthenticateAccountResponse) ProtoMessage() {}
+
+func (x *ReauthenticateAccountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReauthenticateAccountResponse.ProtoReflect.Descriptor instead.
+func (*ReauthenticateAccountResponse) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ReauthenticateAccountResponse) GetAccount() *Account {
+	if x != nil {
+		return x.Account
+	}
+	return nil
+}
+
+func (x *ReauthenticateAccountResponse) GetLoggedInAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LoggedInAt
+	}
+	return nil
+}
+
+type StartAlipayLoginRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Nonzero binds this authorization to an existing account's channel identity.
+	AccountId int64 `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// Used only for new accounts. Cannot be combined with account_id.
+	InitialPolicyAccountId int64 `protobuf:"varint,2,opt,name=initial_policy_account_id,json=initialPolicyAccountId,proto3" json:"initial_policy_account_id,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
 func (x *StartAlipayLoginRequest) Reset() {
 	*x = StartAlipayLoginRequest{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -413,7 +530,7 @@ func (x *StartAlipayLoginRequest) String() string {
 func (*StartAlipayLoginRequest) ProtoMessage() {}
 
 func (x *StartAlipayLoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[8]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -426,7 +543,21 @@ func (x *StartAlipayLoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartAlipayLoginRequest.ProtoReflect.Descriptor instead.
 func (*StartAlipayLoginRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{8}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *StartAlipayLoginRequest) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
+	}
+	return 0
+}
+
+func (x *StartAlipayLoginRequest) GetInitialPolicyAccountId() int64 {
+	if x != nil {
+		return x.InitialPolicyAccountId
+	}
+	return 0
 }
 
 type StartAlipayLoginResponse struct {
@@ -441,7 +572,7 @@ type StartAlipayLoginResponse struct {
 
 func (x *StartAlipayLoginResponse) Reset() {
 	*x = StartAlipayLoginResponse{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -453,7 +584,7 @@ func (x *StartAlipayLoginResponse) String() string {
 func (*StartAlipayLoginResponse) ProtoMessage() {}
 
 func (x *StartAlipayLoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -466,7 +597,7 @@ func (x *StartAlipayLoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartAlipayLoginResponse.ProtoReflect.Descriptor instead.
 func (*StartAlipayLoginResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{9}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *StartAlipayLoginResponse) GetLoginId() string {
@@ -506,7 +637,7 @@ type DisconnectAccountRequest struct {
 
 func (x *DisconnectAccountRequest) Reset() {
 	*x = DisconnectAccountRequest{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -518,7 +649,7 @@ func (x *DisconnectAccountRequest) String() string {
 func (*DisconnectAccountRequest) ProtoMessage() {}
 
 func (x *DisconnectAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -531,7 +662,7 @@ func (x *DisconnectAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectAccountRequest.ProtoReflect.Descriptor instead.
 func (*DisconnectAccountRequest) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{10}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DisconnectAccountRequest) GetId() int64 {
@@ -550,7 +681,7 @@ type DisconnectAccountResponse struct {
 
 func (x *DisconnectAccountResponse) Reset() {
 	*x = DisconnectAccountResponse{}
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -562,7 +693,7 @@ func (x *DisconnectAccountResponse) String() string {
 func (*DisconnectAccountResponse) ProtoMessage() {}
 
 func (x *DisconnectAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_account_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -575,7 +706,7 @@ func (x *DisconnectAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisconnectAccountResponse.ProtoReflect.Descriptor instead.
 func (*DisconnectAccountResponse) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{11}
+	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *DisconnectAccountResponse) GetAccount() *Account {
@@ -589,11 +720,12 @@ var File_mygardenworld_v1_account_service_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\n" +
-	"&mygardenworld/v1/account_service.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/account.proto\x1a\x1emygardenworld/v1/channel.proto\"\x83\x01\n" +
+	"&mygardenworld/v1/account_service.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/account.proto\x1a\x1emygardenworld/v1/channel.proto\"\xbe\x01\n" +
 	"\x14CreateAccountRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x123\n" +
-	"\achannel\x18\x03 \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel\"m\n" +
+	"\achannel\x18\x03 \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel\x129\n" +
+	"\x19initial_policy_account_id\x18\x04 \x01(\x03R\x16initialPolicyAccountId\"m\n" +
 	"\x15CreateAccountResponse\x123\n" +
 	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount\x12\x1f\n" +
 	"\vlogin_error\x18\x02 \x01(\tR\n" +
@@ -609,8 +741,18 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\x16ConnectAccountResponse\x123\n" +
 	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount\x12<\n" +
 	"\flogged_in_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"loggedInAt\"\x19\n" +
-	"\x17StartAlipayLoginRequest\"\xcc\x01\n" +
+	"loggedInAt\"J\n" +
+	"\x1cReauthenticateAccountRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\"\x92\x01\n" +
+	"\x1dReauthenticateAccountResponse\x123\n" +
+	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount\x12<\n" +
+	"\flogged_in_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"loggedInAt\"s\n" +
+	"\x17StartAlipayLoginRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\x129\n" +
+	"\x19initial_policy_account_id\x18\x02 \x01(\x03R\x16initialPolicyAccountId\"\xcc\x01\n" +
 	"\x18StartAlipayLoginResponse\x12\x19\n" +
 	"\blogin_id\x18\x01 \x01(\tR\aloginId\x12\x1d\n" +
 	"\n" +
@@ -621,12 +763,13 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\x18DisconnectAccountRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"P\n" +
 	"\x19DisconnectAccountResponse\x123\n" +
-	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount2\xf1\x04\n" +
+	"\aaccount\x18\x01 \x01(\v2\x19.mygardenworld.v1.AccountR\aaccount2\xeb\x05\n" +
 	"\x0eAccountService\x12`\n" +
 	"\rCreateAccount\x12&.mygardenworld.v1.CreateAccountRequest\x1a'.mygardenworld.v1.CreateAccountResponse\x12`\n" +
 	"\rDeleteAccount\x12&.mygardenworld.v1.DeleteAccountRequest\x1a'.mygardenworld.v1.DeleteAccountResponse\x12]\n" +
 	"\fListAccounts\x12%.mygardenworld.v1.ListAccountsRequest\x1a&.mygardenworld.v1.ListAccountsResponse\x12c\n" +
-	"\x0eConnectAccount\x12'.mygardenworld.v1.ConnectAccountRequest\x1a(.mygardenworld.v1.ConnectAccountResponse\x12i\n" +
+	"\x0eConnectAccount\x12'.mygardenworld.v1.ConnectAccountRequest\x1a(.mygardenworld.v1.ConnectAccountResponse\x12x\n" +
+	"\x15ReauthenticateAccount\x12..mygardenworld.v1.ReauthenticateAccountRequest\x1a/.mygardenworld.v1.ReauthenticateAccountResponse\x12i\n" +
 	"\x10StartAlipayLogin\x12).mygardenworld.v1.StartAlipayLoginRequest\x1a*.mygardenworld.v1.StartAlipayLoginResponse\x12l\n" +
 	"\x11DisconnectAccount\x12*.mygardenworld.v1.DisconnectAccountRequest\x1a+.mygardenworld.v1.DisconnectAccountResponseB\xd6\x01\n" +
 	"\x14com.mygardenworld.v1B\x13AccountServiceProtoP\x01ZHgithub.com/SilkageNet/mygardenworld/gen/mygardenworld/v1;mygardenworldv1\xa2\x02\x03MXX\xaa\x02\x10Mygardenworld.V1\xca\x02\x10Mygardenworld\\V1\xe2\x02\x1cMygardenworld\\V1\\GPBMetadata\xea\x02\x11Mygardenworld::V1b\x06proto3"
@@ -643,51 +786,57 @@ func file_mygardenworld_v1_account_service_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_account_service_proto_rawDescData
 }
 
-var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_mygardenworld_v1_account_service_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_mygardenworld_v1_account_service_proto_goTypes = []any{
-	(*CreateAccountRequest)(nil),      // 0: mygardenworld.v1.CreateAccountRequest
-	(*CreateAccountResponse)(nil),     // 1: mygardenworld.v1.CreateAccountResponse
-	(*DeleteAccountRequest)(nil),      // 2: mygardenworld.v1.DeleteAccountRequest
-	(*DeleteAccountResponse)(nil),     // 3: mygardenworld.v1.DeleteAccountResponse
-	(*ListAccountsRequest)(nil),       // 4: mygardenworld.v1.ListAccountsRequest
-	(*ListAccountsResponse)(nil),      // 5: mygardenworld.v1.ListAccountsResponse
-	(*ConnectAccountRequest)(nil),     // 6: mygardenworld.v1.ConnectAccountRequest
-	(*ConnectAccountResponse)(nil),    // 7: mygardenworld.v1.ConnectAccountResponse
-	(*StartAlipayLoginRequest)(nil),   // 8: mygardenworld.v1.StartAlipayLoginRequest
-	(*StartAlipayLoginResponse)(nil),  // 9: mygardenworld.v1.StartAlipayLoginResponse
-	(*DisconnectAccountRequest)(nil),  // 10: mygardenworld.v1.DisconnectAccountRequest
-	(*DisconnectAccountResponse)(nil), // 11: mygardenworld.v1.DisconnectAccountResponse
-	(Channel)(0),                      // 12: mygardenworld.v1.Channel
-	(*Account)(nil),                   // 13: mygardenworld.v1.Account
-	(*timestamppb.Timestamp)(nil),     // 14: google.protobuf.Timestamp
-	(AlipayLoginStatus)(0),            // 15: mygardenworld.v1.AlipayLoginStatus
+	(*CreateAccountRequest)(nil),          // 0: mygardenworld.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),         // 1: mygardenworld.v1.CreateAccountResponse
+	(*DeleteAccountRequest)(nil),          // 2: mygardenworld.v1.DeleteAccountRequest
+	(*DeleteAccountResponse)(nil),         // 3: mygardenworld.v1.DeleteAccountResponse
+	(*ListAccountsRequest)(nil),           // 4: mygardenworld.v1.ListAccountsRequest
+	(*ListAccountsResponse)(nil),          // 5: mygardenworld.v1.ListAccountsResponse
+	(*ConnectAccountRequest)(nil),         // 6: mygardenworld.v1.ConnectAccountRequest
+	(*ConnectAccountResponse)(nil),        // 7: mygardenworld.v1.ConnectAccountResponse
+	(*ReauthenticateAccountRequest)(nil),  // 8: mygardenworld.v1.ReauthenticateAccountRequest
+	(*ReauthenticateAccountResponse)(nil), // 9: mygardenworld.v1.ReauthenticateAccountResponse
+	(*StartAlipayLoginRequest)(nil),       // 10: mygardenworld.v1.StartAlipayLoginRequest
+	(*StartAlipayLoginResponse)(nil),      // 11: mygardenworld.v1.StartAlipayLoginResponse
+	(*DisconnectAccountRequest)(nil),      // 12: mygardenworld.v1.DisconnectAccountRequest
+	(*DisconnectAccountResponse)(nil),     // 13: mygardenworld.v1.DisconnectAccountResponse
+	(Channel)(0),                          // 14: mygardenworld.v1.Channel
+	(*Account)(nil),                       // 15: mygardenworld.v1.Account
+	(*timestamppb.Timestamp)(nil),         // 16: google.protobuf.Timestamp
+	(AlipayLoginStatus)(0),                // 17: mygardenworld.v1.AlipayLoginStatus
 }
 var file_mygardenworld_v1_account_service_proto_depIdxs = []int32{
-	12, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
-	13, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
-	13, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
-	13, // 3: mygardenworld.v1.ConnectAccountResponse.account:type_name -> mygardenworld.v1.Account
-	14, // 4: mygardenworld.v1.ConnectAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
-	14, // 5: mygardenworld.v1.StartAlipayLoginResponse.expires_at:type_name -> google.protobuf.Timestamp
-	15, // 6: mygardenworld.v1.StartAlipayLoginResponse.status:type_name -> mygardenworld.v1.AlipayLoginStatus
-	13, // 7: mygardenworld.v1.DisconnectAccountResponse.account:type_name -> mygardenworld.v1.Account
-	0,  // 8: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
-	2,  // 9: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
-	4,  // 10: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
-	6,  // 11: mygardenworld.v1.AccountService.ConnectAccount:input_type -> mygardenworld.v1.ConnectAccountRequest
-	8,  // 12: mygardenworld.v1.AccountService.StartAlipayLogin:input_type -> mygardenworld.v1.StartAlipayLoginRequest
-	10, // 13: mygardenworld.v1.AccountService.DisconnectAccount:input_type -> mygardenworld.v1.DisconnectAccountRequest
-	1,  // 14: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
-	3,  // 15: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
-	5,  // 16: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
-	7,  // 17: mygardenworld.v1.AccountService.ConnectAccount:output_type -> mygardenworld.v1.ConnectAccountResponse
-	9,  // 18: mygardenworld.v1.AccountService.StartAlipayLogin:output_type -> mygardenworld.v1.StartAlipayLoginResponse
-	11, // 19: mygardenworld.v1.AccountService.DisconnectAccount:output_type -> mygardenworld.v1.DisconnectAccountResponse
-	14, // [14:20] is the sub-list for method output_type
-	8,  // [8:14] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	14, // 0: mygardenworld.v1.CreateAccountRequest.channel:type_name -> mygardenworld.v1.Channel
+	15, // 1: mygardenworld.v1.CreateAccountResponse.account:type_name -> mygardenworld.v1.Account
+	15, // 2: mygardenworld.v1.ListAccountsResponse.accounts:type_name -> mygardenworld.v1.Account
+	15, // 3: mygardenworld.v1.ConnectAccountResponse.account:type_name -> mygardenworld.v1.Account
+	16, // 4: mygardenworld.v1.ConnectAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
+	15, // 5: mygardenworld.v1.ReauthenticateAccountResponse.account:type_name -> mygardenworld.v1.Account
+	16, // 6: mygardenworld.v1.ReauthenticateAccountResponse.logged_in_at:type_name -> google.protobuf.Timestamp
+	16, // 7: mygardenworld.v1.StartAlipayLoginResponse.expires_at:type_name -> google.protobuf.Timestamp
+	17, // 8: mygardenworld.v1.StartAlipayLoginResponse.status:type_name -> mygardenworld.v1.AlipayLoginStatus
+	15, // 9: mygardenworld.v1.DisconnectAccountResponse.account:type_name -> mygardenworld.v1.Account
+	0,  // 10: mygardenworld.v1.AccountService.CreateAccount:input_type -> mygardenworld.v1.CreateAccountRequest
+	2,  // 11: mygardenworld.v1.AccountService.DeleteAccount:input_type -> mygardenworld.v1.DeleteAccountRequest
+	4,  // 12: mygardenworld.v1.AccountService.ListAccounts:input_type -> mygardenworld.v1.ListAccountsRequest
+	6,  // 13: mygardenworld.v1.AccountService.ConnectAccount:input_type -> mygardenworld.v1.ConnectAccountRequest
+	8,  // 14: mygardenworld.v1.AccountService.ReauthenticateAccount:input_type -> mygardenworld.v1.ReauthenticateAccountRequest
+	10, // 15: mygardenworld.v1.AccountService.StartAlipayLogin:input_type -> mygardenworld.v1.StartAlipayLoginRequest
+	12, // 16: mygardenworld.v1.AccountService.DisconnectAccount:input_type -> mygardenworld.v1.DisconnectAccountRequest
+	1,  // 17: mygardenworld.v1.AccountService.CreateAccount:output_type -> mygardenworld.v1.CreateAccountResponse
+	3,  // 18: mygardenworld.v1.AccountService.DeleteAccount:output_type -> mygardenworld.v1.DeleteAccountResponse
+	5,  // 19: mygardenworld.v1.AccountService.ListAccounts:output_type -> mygardenworld.v1.ListAccountsResponse
+	7,  // 20: mygardenworld.v1.AccountService.ConnectAccount:output_type -> mygardenworld.v1.ConnectAccountResponse
+	9,  // 21: mygardenworld.v1.AccountService.ReauthenticateAccount:output_type -> mygardenworld.v1.ReauthenticateAccountResponse
+	11, // 22: mygardenworld.v1.AccountService.StartAlipayLogin:output_type -> mygardenworld.v1.StartAlipayLoginResponse
+	13, // 23: mygardenworld.v1.AccountService.DisconnectAccount:output_type -> mygardenworld.v1.DisconnectAccountResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_account_service_proto_init() }
@@ -703,7 +852,7 @@ func file_mygardenworld_v1_account_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_account_service_proto_rawDesc), len(file_mygardenworld_v1_account_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -7,6 +7,7 @@ import {
   Cloud,
   Loader2,
   LogOut,
+  KeyRound,
   Play,
   RefreshCw,
   Send,
@@ -73,6 +74,7 @@ export function AccountDetailView({
   onRefresh,
   onAction,
   onDelete,
+  onReauthenticate,
   onPolicyChange,
   onPolicySave,
   onLoadMoreLogs,
@@ -99,6 +101,7 @@ export function AccountDetailView({
   onRefresh: () => void;
   onAction: (action: "login" | "logout") => Promise<void>;
   onDelete: () => void;
+  onReauthenticate: () => void;
   onPolicyChange: (policy: Policy | null) => void;
   onPolicySave: () => void;
   onLoadMoreLogs: () => void;
@@ -135,6 +138,7 @@ export function AccountDetailView({
           onRefresh={onRefresh}
           onAction={onAction}
           onDelete={onDelete}
+          onReauthenticate={onReauthenticate}
         />
       </div>
       <DashboardTabBar activeTab={activeTab} onChange={onTabChange} />
@@ -181,6 +185,7 @@ function HeaderPanel({
   onRefresh,
   onAction,
   onDelete,
+  onReauthenticate,
 }: {
   account: Account;
   status?: AccountStatus;
@@ -190,6 +195,7 @@ function HeaderPanel({
   onRefresh: () => void;
   onAction: (action: "login" | "logout") => Promise<void>;
   onDelete: () => void;
+  onReauthenticate: () => void;
 }) {
   const connected = accountConnected(account, status);
   const sessionAction = connected ? "logout" : "login";
@@ -230,6 +236,9 @@ function HeaderPanel({
               disabled={busyAction === sessionAction}
             >
               {busyAction === sessionAction ? <Loader2 className="size-4 animate-spin" /> : connected ? <LogOut className="size-4" /> : <Play className="size-4" />}
+            </IconButtonWithTooltip>
+            <IconButtonWithTooltip label="重新登录／更新凭据" type="button" variant="outline" size="icon-lg" className="size-8 sm:size-9" onClick={onReauthenticate} disabled={!!busyAction}>
+              <KeyRound className="size-4" />
             </IconButtonWithTooltip>
             <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-lg" className="size-8 sm:size-9" onClick={onDelete} disabled={busyAction === "delete"}>
               <Trash2 className="size-4" />
