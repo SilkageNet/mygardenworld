@@ -2653,10 +2653,13 @@ type UnionRacePolicy struct {
 	OnlyUpgradeTask          bool            `protobuf:"varint,5,opt,name=only_upgrade_task,json=onlyUpgradeTask,proto3" json:"only_upgrade_task,omitempty"`
 	ExcludeOthersUpgradeTask bool            `protobuf:"varint,6,opt,name=exclude_others_upgrade_task,json=excludeOthersUpgradeTask,proto3" json:"exclude_others_upgrade_task,omitempty"`
 	TaskTypePriority         map[int32]int32 `protobuf:"bytes,7,rep,name=task_type_priority,json=taskTypePriority,proto3" json:"task_type_priority,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
-	UpgradeTask              bool            `protobuf:"varint,8,opt,name=upgrade_task,json=upgradeTask,proto3" json:"upgrade_task,omitempty"`
-	DeleteLowScoreTask       bool            `protobuf:"varint,9,opt,name=delete_low_score_task,json=deleteLowScoreTask,proto3" json:"delete_low_score_task,omitempty"`
-	DeleteTaskMaxScore       int32           `protobuf:"varint,10,opt,name=delete_task_max_score,json=deleteTaskMaxScore,proto3" json:"delete_task_max_score,omitempty"`
-	MaxSpendDiamond          int64           `protobuf:"varint,11,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
+	// Independently upgrades the current unfinished task, subject to a known
+	// cost and max_spend_diamond. Does not require auto_enable_modules.
+	UpgradeTask        bool  `protobuf:"varint,8,opt,name=upgrade_task,json=upgradeTask,proto3" json:"upgrade_task,omitempty"`
+	DeleteLowScoreTask bool  `protobuf:"varint,9,opt,name=delete_low_score_task,json=deleteLowScoreTask,proto3" json:"delete_low_score_task,omitempty"`
+	DeleteTaskMaxScore int32 `protobuf:"varint,10,opt,name=delete_task_max_score,json=deleteTaskMaxScore,proto3" json:"delete_task_max_score,omitempty"`
+	// Per-task upgrade cost ceiling. Zero prohibits spending; never unlimited.
+	MaxSpendDiamond int64 `protobuf:"varint,11,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
 	// When true with auto_enable_modules, stop planning takeTask once this
 	// batch's free task quota is used up (finished_task_num >= total_task_num).
 	// Sync / finish / giveUp of an already-held task still run. Default on in

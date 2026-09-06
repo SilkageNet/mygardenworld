@@ -47,12 +47,14 @@ func annotateOperationGates(s *state.State, ops []PlannedOp, now time.Time) {
 
 type sequentialResourceBudget struct {
 	gold       int64
+	diamonds   int64
 	waterDrops int64
 	items      map[int32]int64
 }
 
 type operationResourceCost struct {
 	gold       int64
+	diamonds   int64
 	waterDrops int64
 	items      map[int32]int64
 }
@@ -64,6 +66,7 @@ func annotateSequentialResourceBudget(s *state.State, ops []PlannedOp, now time.
 	waterDrops, _, _ := s.AvailableWaterDrops(now)
 	budget := sequentialResourceBudget{
 		gold:       int64(s.Gold()),
+		diamonds:   int64(s.SpendableDiamonds()),
 		waterDrops: int64(waterDrops),
 		items:      int64Inventory(s.Inventory()),
 	}
@@ -116,6 +119,8 @@ func operationCostFromGates(gates []CostGate) operationResourceCost {
 			continue
 		}
 		switch gate.ResourceKind {
+		case GateResourceDiamond:
+			cost.diamonds = max(cost.diamonds, gate.Required)
 		case GateResourceGold:
 			if gate.Required > cost.gold {
 				cost.gold = gate.Required
@@ -140,11 +145,14 @@ func operationCostFromGates(gates []CostGate) operationResourceCost {
 }
 
 func (c operationResourceCost) empty() bool {
-	return c.gold <= 0 && c.waterDrops <= 0 && len(c.items) == 0
+	return c.gold <= 0 && c.diamonds <= 0 && c.waterDrops <= 0 && len(c.items) == 0
 }
 
 func (b sequentialResourceBudget) queueBlockedGates(cost operationResourceCost) []CostGate {
 	var gates []CostGate
+	if cost.diamonds > b.diamonds {
+		gates = append(gates, queueBudgetGate("diamond", GateResourceDiamond, "元宝", 1, cost.diamonds, b.diamonds))
+	}
 	if cost.gold > b.gold {
 		gates = append(gates, queueBudgetGate("gold", GateResourceGold, "金币", 0, cost.gold, b.gold))
 	}
@@ -185,6 +193,7 @@ func queueBudgetGate(id, kind, label string, itemID int32, required, available i
 }
 
 func (b *sequentialResourceBudget) spend(cost operationResourceCost) {
+	b.diamonds = max(0, b.diamonds-cost.diamonds)
 	b.gold -= cost.gold
 	if b.gold < 0 {
 		b.gold = 0
@@ -212,7 +221,7 @@ func implicitOperationCostGates(s *state.State, op *PlannedOp, now time.Time) []
 	if op.DiamondCost > 0 {
 		available := s.SpendableDiamonds()
 		gate := resourceGate("diamond", GateResourceDiamond, "元宝", 1, int64(op.DiamondCost), int64(available), "operation.cost")
-		if len(gate.BlockedReasons) == 0 {
+		if len(gate.BlockedReasons) == 0 && op.Kind != clientproto.RPCFmlRaceUpgradeTask.String() {
 			gate.Status = PlanStatusAdapterMissing
 			gate.BlockedReasons = []string{"元宝成本操作默认不自动执行"}
 		}

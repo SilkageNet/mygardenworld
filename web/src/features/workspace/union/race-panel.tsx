@@ -167,6 +167,7 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
           ) : <div className="rounded-md border border-dashed border-border/58 px-3 py-2 text-sm text-muted-foreground">当前未接取任务</div>)}
 
           <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            {race?.autoDeleteStatus && <p className="border-b border-border/50 px-3 py-2 text-xs text-muted-foreground">自动删除：{race.autoDeleteStatus}</p>}
             <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-2 text-sm font-semibold dark:bg-muted/45">
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span>任务池</span>

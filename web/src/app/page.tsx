@@ -99,6 +99,8 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const [error, setError] = useState("");
   const [policyMessage, setPolicyMessage] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [reauthAccount, setReauthAccount] = useState<Account | null>(null);
+  const activeAlipayLoginId = useRef("");
   const [addForm, setAddForm] = useState<AddAccountForm>(EMPTY_ADD_FORM);
   const [alipayQR, setAlipayQR] = useState<AlipayQRState | null>(null);
   const [dashboardTab, setDashboardTab] = useState<DashboardTabId>("basic");
@@ -275,6 +277,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
       onLogs: applyLogPage,
       onRedeemAttempts: applyRedeemPage,
       onAlipayLogin: (progress) => {
+        if (progress.loginId !== activeAlipayLoginId.current) return;
         setAlipayQR((current) => current && current.loginId === progress.loginId
           ? { ...current, status: progress.status, error: progress.loginError }
           : current);
@@ -284,6 +287,8 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
           setAddOpen(false);
           setAddForm(EMPTY_ADD_FORM);
           setAlipayQR(null);
+          setReauthAccount(null);
+          activeAlipayLoginId.current = "";
           void refreshAccounts();
         }
       },
@@ -519,7 +524,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
       }
       return;
     }
-    if (accountQuota?.reached) {
+    if (!reauthAccount && accountQuota?.reached) {
       setError(`账号已满（${accountQuota.current}/${accountQuota.max}）`);
       return;
     }
@@ -527,22 +532,26 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     setBusyAction("create");
     setError("");
     try {
-      const res = await accountClient.createAccount({
+      const res = reauthAccount ? await accountClient.reauthenticateAccount({
+        id: reauthAccount.id, password: addForm.password,
+      }) : await accountClient.createAccount({
         username: addForm.username.trim(),
         password: addForm.password,
         channel: addForm.channel,
+        initialPolicyAccountId: BigInt(addForm.initialPolicyAccountId || "0"),
       });
       setAddOpen(false);
       setAddForm(EMPTY_ADD_FORM);
+      setReauthAccount(null);
       await refreshAccountCollection();
       if (res.account?.id) {
         setSelectedAccountId(accountKey(res.account.id));
       }
-      if (res.loginError) {
+      if ("loginError" in res && res.loginError) {
         setError(res.loginError);
       }
     } catch (err) {
-      setError(formatAPIError(err, "新增账号失败"));
+      setError(formatAPIError(err, reauthAccount ? "重新登录失败" : "新增账号失败"));
     } finally {
       setBusyAction("");
     }
@@ -553,7 +562,11 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     setError("");
     setAlipayQR(null);
     try {
-      const response = await accountClient.startAlipayLogin({});
+      const response = await accountClient.startAlipayLogin({
+        accountId: reauthAccount?.id ?? BigInt(0),
+        initialPolicyAccountId: BigInt(addForm.initialPolicyAccountId || "0"),
+      });
+      activeAlipayLoginId.current = response.loginId;
       setAlipayQR({
         loginId: response.loginId,
         content: response.qrContent,
@@ -678,7 +691,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
             busyAutomationAccountId={busyAutomationAccountId}
             busyBulkAutomation={busyBulkAutomation}
             onRefresh={() => void refreshDashboardStatus()}
-            onAdd={() => setAddOpen(true)}
+            onAdd={() => { setReauthAccount(null); setAddForm(EMPTY_ADD_FORM); setError(""); setAddOpen(true); }}
             onRedeem={() => router.push("/redeem")}
             onSelect={setSelectedAccountId}
             onAutomationToggle={(accountId) => void runAutomationToggle(accountId)}
@@ -720,6 +733,14 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
                 }}
                 onAction={runAccountAction}
                 onDelete={() => void deleteSelectedAccount()}
+                onReauthenticate={() => {
+                  setReauthAccount(selectedAccount);
+                  setAddForm({ ...EMPTY_ADD_FORM, channel: selectedAccount.channel, username: selectedAccount.username });
+                  setAlipayQR(null);
+                  activeAlipayLoginId.current = "";
+                  setError("");
+                  setAddOpen(true);
+                }}
                 onPolicyChange={setPolicy}
                 onPolicySave={() => void savePolicy()}
                 onLoadMoreLogs={loadMoreLogs}
@@ -739,15 +760,21 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
         qr={alipayQR}
         quota={accountQuota}
         creating={creatingAccount}
+        accounts={accounts}
+        targetAccount={reauthAccount}
+        error={error}
         onOpenChange={(open) => {
+          if (creatingAccount) return;
           setAddOpen(open);
           if (!open) {
             setAddForm(EMPTY_ADD_FORM);
             setAlipayQR(null);
+            setReauthAccount(null);
+            activeAlipayLoginId.current = "";
           }
         }}
         onFormChange={setAddForm}
-        onClearQR={() => setAlipayQR(null)}
+        onClearQR={() => { setAlipayQR(null); activeAlipayLoginId.current = ""; }}
         onSubmit={createAccount}
       />
 

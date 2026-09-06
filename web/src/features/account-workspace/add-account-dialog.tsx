@@ -1,7 +1,7 @@
 import type { FormEvent } from "react";
 import { Check, Loader2, Plus, RefreshCw } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { AlipayLoginStatus } from "@/gen/mygardenworld/v1/account_pb";
+import { AlipayLoginStatus, type Account } from "@/gen/mygardenworld/v1/account_pb";
 import { Channel } from "@/gen/mygardenworld/v1/channel_pb";
 import { alipayLoginStatusLabel } from "@/components/dashboard/dashboard-utils";
 import { Field } from "@/features/workspace/shared/workspace-ui";
@@ -16,6 +16,7 @@ export type AddAccountForm = {
   channel: Channel;
   username: string;
   password: string;
+  initialPolicyAccountId: string;
 };
 
 export type AlipayQRState = {
@@ -29,6 +30,7 @@ export const EMPTY_ADD_FORM: AddAccountForm = {
   channel: Channel.IOS,
   username: "",
   password: "",
+  initialPolicyAccountId: "",
 };
 
 export default function AddAccountDialog({
@@ -37,6 +39,9 @@ export default function AddAccountDialog({
   qr,
   quota,
   creating,
+  accounts,
+  targetAccount,
+  error,
   onOpenChange,
   onFormChange,
   onClearQR,
@@ -47,19 +52,25 @@ export default function AddAccountDialog({
   qr: AlipayQRState | null;
   quota: AccountQuota | null;
   creating: boolean;
+  accounts: Account[];
+  targetAccount: Account | null;
+  error: string;
   onOpenChange: (open: boolean) => void;
   onFormChange: (form: AddAccountForm) => void;
   onClearQR: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const alipay = form.channel === Channel.ALIPAY;
+  const reauth = targetAccount !== null;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(600px,calc(100dvh-2rem))] max-h-[600px] flex-col overflow-hidden">
-        <DialogHeader><DialogTitle>新增账号</DialogTitle></DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-y-auto sm:max-w-lg">
+        <DialogHeader><DialogTitle>{reauth ? "重新登录" : "新增账号"}</DialogTitle></DialogHeader>
         <form className="flex min-h-0 flex-1 flex-col gap-4" onSubmit={onSubmit}>
-          <LoginProgress alipay={alipay} qr={qr} creating={creating} />
-          <Field label="渠道">
+          <LoginProgress alipay={alipay} reauth={reauth} qr={qr} creating={creating} />
+          {error && <p role="alert" className="break-words text-sm text-destructive">{error}</p>}
+          {reauth && <p className="text-sm text-muted-foreground">{targetAccount.name}：更新登录凭据，保留配置、历史和运行／暂停设置。{alipay && "请使用原支付宝账号扫码。"}</p>}
+          {!reauth && <Field label="渠道">
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="渠道">
               {[
                 { channel: Channel.IOS, label: "iOS" },
@@ -86,7 +97,15 @@ export default function AddAccountDialog({
                 </button>
               ))}
             </div>
-          </Field>
+          </Field>}
+          {!reauth && <Field label="初始配置">
+            <select aria-label="初始配置" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.initialPolicyAccountId} disabled={creating || !!qr}
+              onChange={(event) => onFormChange({ ...form, initialPolicyAccountId: event.target.value })}>
+              <option value="">使用默认配置</option>
+              {accounts.map((account) => <option key={String(account.id)} value={String(account.id)}>{account.name}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">复制所选账号已保存的全部模块配置，新账号添加后自动运行。含好友、花种等指定对象，请确认适用。</p>
+          </Field>}
           {alipay ? (
             <ContentReveal key="alipay" className="flex min-h-0 flex-1 items-center justify-center rounded-md border border-border/60 bg-white/52 p-4 text-center dark:bg-white/5">
               {qr?.content ? (
@@ -113,7 +132,7 @@ export default function AddAccountDialog({
           ) : (
             <ContentReveal key="ios" className="min-h-0 flex-1 space-y-4">
               <Field label="账号">
-                <Input value={form.username} onChange={(event) => onFormChange({ ...form, username: event.target.value })} autoComplete="username" disabled={creating} />
+                <Input value={form.username} onChange={(event) => onFormChange({ ...form, username: event.target.value })} autoComplete="username" disabled={creating || reauth} />
               </Field>
               <Field label="密码">
                 <Input type="password" value={form.password} onChange={(event) => onFormChange({ ...form, password: event.target.value })} autoComplete="current-password" disabled={creating} />
@@ -123,9 +142,9 @@ export default function AddAccountDialog({
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={creating}>取消</Button>
             {!alipay && (
-              <Button type="submit" disabled={creating || quota?.reached}>
-                {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-                {creating ? "处理中" : "新增"}
+              <Button type="submit" disabled={creating || (!reauth && quota?.reached)}>
+                {creating ? <Loader2 className="size-4 animate-spin" /> : reauth ? <RefreshCw className="size-4" /> : <Plus className="size-4" />}
+                {creating ? "处理中" : reauth ? "验证并重新登录" : "新增"}
               </Button>
             )}
           </DialogFooter>
@@ -135,14 +154,14 @@ export default function AddAccountDialog({
   );
 }
 
-function LoginProgress({ alipay, qr, creating }: { alipay: boolean; qr: AlipayQRState | null; creating: boolean }) {
+function LoginProgress({ alipay, reauth, qr, creating }: { alipay: boolean; reauth: boolean; qr: AlipayQRState | null; creating: boolean }) {
   const failed = alipay && (qr?.status === AlipayLoginStatus.EXPIRED || qr?.status === AlipayLoginStatus.FAILED);
   const connecting = creating || (alipay && (qr?.status === AlipayLoginStatus.PROCESSING || qr?.status === AlipayLoginStatus.COMPLETE));
   const activeStep = connecting ? 3 : 2;
-  const steps = ["选择渠道", alipay ? "扫码授权" : "账号验证", "连接账号"];
+  const steps = [reauth ? "确认账号" : "选择渠道", alipay ? "扫码授权" : "账号验证", "连接账号"];
 
   return (
-    <ol className="grid grid-cols-3 gap-1 rounded-md border border-border/55 bg-white/38 p-1.5 dark:bg-white/4" aria-label="新增账号进度">
+    <ol className="grid grid-cols-3 gap-1 rounded-md border border-border/55 bg-white/38 p-1.5 dark:bg-white/4" aria-label="账号登录进度">
       {steps.map((label, index) => {
         const step = index + 1;
         const complete = step < activeStep;

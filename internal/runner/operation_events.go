@@ -594,6 +594,15 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "mail_already_picked", "msId": op.TargetID, "allId": op.ItemID})
 		return nil
 	default:
+		if isHarvestOp(op.Kind) {
+			wait := r.deferFailedHarvest(op, err, result.finishedAt)
+			r.emit(Event{Kind: "operation_deferred", Category: op.Category, Domain: op.Domain,
+				Action: "blocked", Label: operationEventLabel(op), Level: "warn",
+				Message:     fmt.Sprintf("%s 暂缓: %v；失败田地将在 %d 秒后重试，其他操作继续", opDesc(op), err, int(wait.Seconds())),
+				PayloadJSON: operationPayload(op, args, result.raw, err)})
+			r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "retryAfterSeconds": int(wait.Seconds())})
+			return nil
+		}
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() ||
 			op.Kind == clientproto.RPCFmlRaceEnter.String() {
 			return r.handleRaceSyncFailure(ctx, result, "race_sync_retry")
@@ -719,6 +728,15 @@ func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, e
 	}
 	if op.RaceTaskGuard != nil {
 		payload["raceTaskGuard"] = op.RaceTaskGuard
+	}
+	if op.RaceBatchID != 0 {
+		payload["raceBatchId"] = op.RaceBatchID
+	}
+	if op.TaskMsID != 0 {
+		payload["taskMsId"] = op.TaskMsID
+	}
+	if op.DiamondCost > 0 {
+		payload["diamondCost"] = op.DiamondCost
 	}
 	if len(raw) > 0 {
 		payload["raw"] = json.RawMessage(raw)

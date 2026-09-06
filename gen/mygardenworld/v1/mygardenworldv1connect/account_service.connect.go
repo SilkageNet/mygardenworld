@@ -45,6 +45,9 @@ const (
 	// AccountServiceConnectAccountProcedure is the fully-qualified name of the AccountService's
 	// ConnectAccount RPC.
 	AccountServiceConnectAccountProcedure = "/mygardenworld.v1.AccountService/ConnectAccount"
+	// AccountServiceReauthenticateAccountProcedure is the fully-qualified name of the AccountService's
+	// ReauthenticateAccount RPC.
+	AccountServiceReauthenticateAccountProcedure = "/mygardenworld.v1.AccountService/ReauthenticateAccount"
 	// AccountServiceStartAlipayLoginProcedure is the fully-qualified name of the AccountService's
 	// StartAlipayLogin RPC.
 	AccountServiceStartAlipayLoginProcedure = "/mygardenworld.v1.AccountService/StartAlipayLogin"
@@ -64,6 +67,9 @@ type AccountServiceClient interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	ConnectAccount(context.Context, *connect.Request[v1.ConnectAccountRequest]) (*connect.Response[v1.ConnectAccountResponse], error)
+	// Replace an existing iOS account's password after verifying its identity.
+	// Preserves its ID, policy, history and automation start/pause preference.
+	ReauthenticateAccount(context.Context, *connect.Request[v1.ReauthenticateAccountRequest]) (*connect.Response[v1.ReauthenticateAccountResponse], error)
 	// Starts a short-lived Alipay PC game-center QR authorization. The returned
 	// qr_content must be rendered locally as a QR code and is never persisted.
 	StartAlipayLogin(context.Context, *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error)
@@ -107,6 +113,12 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(accountServiceMethods.ByName("ConnectAccount")),
 			connect.WithClientOptions(opts...),
 		),
+		reauthenticateAccount: connect.NewClient[v1.ReauthenticateAccountRequest, v1.ReauthenticateAccountResponse](
+			httpClient,
+			baseURL+AccountServiceReauthenticateAccountProcedure,
+			connect.WithSchema(accountServiceMethods.ByName("ReauthenticateAccount")),
+			connect.WithClientOptions(opts...),
+		),
 		startAlipayLogin: connect.NewClient[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse](
 			httpClient,
 			baseURL+AccountServiceStartAlipayLoginProcedure,
@@ -124,12 +136,13 @@ func NewAccountServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // accountServiceClient implements AccountServiceClient.
 type accountServiceClient struct {
-	createAccount     *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
-	deleteAccount     *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
-	listAccounts      *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
-	connectAccount    *connect.Client[v1.ConnectAccountRequest, v1.ConnectAccountResponse]
-	startAlipayLogin  *connect.Client[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse]
-	disconnectAccount *connect.Client[v1.DisconnectAccountRequest, v1.DisconnectAccountResponse]
+	createAccount         *connect.Client[v1.CreateAccountRequest, v1.CreateAccountResponse]
+	deleteAccount         *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
+	listAccounts          *connect.Client[v1.ListAccountsRequest, v1.ListAccountsResponse]
+	connectAccount        *connect.Client[v1.ConnectAccountRequest, v1.ConnectAccountResponse]
+	reauthenticateAccount *connect.Client[v1.ReauthenticateAccountRequest, v1.ReauthenticateAccountResponse]
+	startAlipayLogin      *connect.Client[v1.StartAlipayLoginRequest, v1.StartAlipayLoginResponse]
+	disconnectAccount     *connect.Client[v1.DisconnectAccountRequest, v1.DisconnectAccountResponse]
 }
 
 // CreateAccount calls mygardenworld.v1.AccountService.CreateAccount.
@@ -150,6 +163,11 @@ func (c *accountServiceClient) ListAccounts(ctx context.Context, req *connect.Re
 // ConnectAccount calls mygardenworld.v1.AccountService.ConnectAccount.
 func (c *accountServiceClient) ConnectAccount(ctx context.Context, req *connect.Request[v1.ConnectAccountRequest]) (*connect.Response[v1.ConnectAccountResponse], error) {
 	return c.connectAccount.CallUnary(ctx, req)
+}
+
+// ReauthenticateAccount calls mygardenworld.v1.AccountService.ReauthenticateAccount.
+func (c *accountServiceClient) ReauthenticateAccount(ctx context.Context, req *connect.Request[v1.ReauthenticateAccountRequest]) (*connect.Response[v1.ReauthenticateAccountResponse], error) {
+	return c.reauthenticateAccount.CallUnary(ctx, req)
 }
 
 // StartAlipayLogin calls mygardenworld.v1.AccountService.StartAlipayLogin.
@@ -173,6 +191,9 @@ type AccountServiceHandler interface {
 	// Force a fresh username+password login for the account. Refreshes
 	// session token, routeToken, gsHost. Daemon will rebuild the WS.
 	ConnectAccount(context.Context, *connect.Request[v1.ConnectAccountRequest]) (*connect.Response[v1.ConnectAccountResponse], error)
+	// Replace an existing iOS account's password after verifying its identity.
+	// Preserves its ID, policy, history and automation start/pause preference.
+	ReauthenticateAccount(context.Context, *connect.Request[v1.ReauthenticateAccountRequest]) (*connect.Response[v1.ReauthenticateAccountResponse], error)
 	// Starts a short-lived Alipay PC game-center QR authorization. The returned
 	// qr_content must be rendered locally as a QR code and is never persisted.
 	StartAlipayLogin(context.Context, *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error)
@@ -212,6 +233,12 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 		connect.WithSchema(accountServiceMethods.ByName("ConnectAccount")),
 		connect.WithHandlerOptions(opts...),
 	)
+	accountServiceReauthenticateAccountHandler := connect.NewUnaryHandler(
+		AccountServiceReauthenticateAccountProcedure,
+		svc.ReauthenticateAccount,
+		connect.WithSchema(accountServiceMethods.ByName("ReauthenticateAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
 	accountServiceStartAlipayLoginHandler := connect.NewUnaryHandler(
 		AccountServiceStartAlipayLoginProcedure,
 		svc.StartAlipayLogin,
@@ -234,6 +261,8 @@ func NewAccountServiceHandler(svc AccountServiceHandler, opts ...connect.Handler
 			accountServiceListAccountsHandler.ServeHTTP(w, r)
 		case AccountServiceConnectAccountProcedure:
 			accountServiceConnectAccountHandler.ServeHTTP(w, r)
+		case AccountServiceReauthenticateAccountProcedure:
+			accountServiceReauthenticateAccountHandler.ServeHTTP(w, r)
 		case AccountServiceStartAlipayLoginProcedure:
 			accountServiceStartAlipayLoginHandler.ServeHTTP(w, r)
 		case AccountServiceDisconnectAccountProcedure:
@@ -261,6 +290,10 @@ func (UnimplementedAccountServiceHandler) ListAccounts(context.Context, *connect
 
 func (UnimplementedAccountServiceHandler) ConnectAccount(context.Context, *connect.Request[v1.ConnectAccountRequest]) (*connect.Response[v1.ConnectAccountResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.ConnectAccount is not implemented"))
+}
+
+func (UnimplementedAccountServiceHandler) ReauthenticateAccount(context.Context, *connect.Request[v1.ReauthenticateAccountRequest]) (*connect.Response[v1.ReauthenticateAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("mygardenworld.v1.AccountService.ReauthenticateAccount is not implemented"))
 }
 
 func (UnimplementedAccountServiceHandler) StartAlipayLogin(context.Context, *connect.Request[v1.StartAlipayLoginRequest]) (*connect.Response[v1.StartAlipayLoginResponse], error) {

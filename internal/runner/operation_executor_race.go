@@ -15,6 +15,36 @@ func fmlEnterSyncRequest() clientproto.FmlEnterRequest {
 	return clientproto.FmlEnterRequest{Fml: 1, Mb: 1, MbL: 1}
 }
 
+func runFmlRaceUpgrade(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil {
+		return nil, fmt.Errorf("竞赛升级缺少当前账号状态")
+	}
+	return executeRaceUpgrade(ctx, raceUpgradeExecution{
+		preflight: func(ctx context.Context) error {
+			if err := preflightFmlRaceTaskMutation(ctx, rt, op); err != nil {
+				return err
+			}
+			return rt.runner.checkOperationResources(op, time.Now())
+		},
+		reserve: func() bool { return rt.runner.reserveRaceUpgrade(op) },
+		upgrade: func(ctx context.Context) (json.RawMessage, error) {
+			return checkedStateDelta(rt.rpc.FmlRace().UpgradeTask(ctx, clientproto.FmlRaceUpgradeTaskRequest{}))
+		},
+		confirm: func(ctx context.Context) (bool, error) {
+			if _, err := runFmlRaceGetTaskList(ctx, rt, op); err != nil {
+				return false, err
+			}
+			for _, task := range rt.runner.state.FmlRace().Tasks {
+				if task.MsId == op.TaskMsID && task.IsUpgrade != 0 {
+					return true, nil
+				}
+			}
+			return false, nil
+		},
+		markStale: rt.runner.state.MarkFmlRaceTaskPoolStale,
+	})
+}
+
 func runFmlEnter(ctx context.Context, rt operationRuntime, _ *automation.PlannedOp) (json.RawMessage, error) {
 	if rt.runner == nil || rt.runner.state == nil {
 		return nil, fmt.Errorf("fml.enter requires runner state")

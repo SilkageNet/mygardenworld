@@ -75,6 +75,10 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 	if channelStr == string(babigame.ChannelAlipay) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("alipay accounts must use StartAlipayLogin"))
 	}
+	initialPolicy, err := svc.initialAccountPolicy(ctx, in.GetInitialPolicyAccountId())
+	if err != nil {
+		return nil, err
+	}
 	userID := auth.UserIDFromContext(ctx)
 	if userID > 0 {
 		user, err := svc.DB.GetUserByID(ctx, userID)
@@ -97,7 +101,7 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	acc, err := svc.DB.CreateAccount(ctx, userID, name, channelStr, username, password)
+	acc, err := svc.DB.CreateAccountWithPolicy(ctx, userID, name, channelStr, username, password, initialPolicy)
 	if err != nil {
 		return nil, mapErr(err)
 	}

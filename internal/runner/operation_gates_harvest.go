@@ -1,11 +1,49 @@
 package runner
 
 import (
+	"errors"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
+
+type harvestFailureKey struct {
+	Kind   string
+	LandID int32
+}
+
+type harvestFailure struct {
+	Attempts int
+	Until    time.Time
+}
+
+// Unknown harvest failures also need backoff: Farm operations intentionally
+// bypass the ordinary Side cooldown. Keep rejection history scoped to a land
+// and RPC, so a failed garden land cannot hold up other lands or guild work.
+func (r *Runner) deferFailedHarvest(op *automation.PlannedOp, err error, now time.Time) time.Duration {
+	ids := op.LandIDs
+	var landErr *harvestLandError
+	if errors.As(err, &landErr) {
+		ids = []int32{landErr.LandID}
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.harvestFailures == nil {
+		r.harvestFailures = make(map[harvestFailureKey]harvestFailure)
+	}
+	wait := harvestRetryWait
+	for _, id := range ids {
+		key := harvestFailureKey{op.Kind, id}
+		failure := r.harvestFailures[key]
+		failure.Attempts = min(failure.Attempts+1, 5)
+		delay := min(harvestRetryWait*time.Duration(1<<(failure.Attempts-1)), 5*time.Minute)
+		failure.Until = now.Add(delay)
+		r.harvestFailures[key] = failure
+		wait = max(wait, delay)
+	}
+	return wait
+}
 
 func (r *Runner) applyHarvestBlocks(op *automation.PlannedOp, now time.Time) *automation.PlannedOp {
 	if op == nil || !isHarvestOp(op.Kind) {
@@ -19,6 +57,9 @@ func (r *Runner) applyHarvestBlocks(op *automation.PlannedOp, now time.Time) *au
 	r.mu.RLock()
 	for _, id := range op.LandIDs {
 		until := r.harvestBlockedUntil[id]
+		if rejected := r.harvestFailures[harvestFailureKey{op.Kind, id}].Until; rejected.After(until) {
+			until = rejected
+		}
 		if until.IsZero() || !now.Before(until) {
 			continue
 		}

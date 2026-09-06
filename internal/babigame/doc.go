@@ -207,7 +207,19 @@
 // or locked vase targets are unsafe to take; a held task with such a target
 // cannot be completed by automation.
 //
+// fmlRace.upgradeTask sends an empty object and upgrades only the current held
+// task. Mini PFmlRaceTaskUpDlg computes calFmlUpgradeCost from the task's score
+// and upgraded reward, then checks item 1 (the visible 元宝 balance, 7.0.41).
+// Automation requires an explicit switch, positive per-task budget, fresh pool
+// evidence and execution-time cost validation; an ambiguous result must not be
+// automatically retried within the same runner session.
+//
 // # Personal Land Fields (G.ILand, Namespace 100)
+//
+// Mini 176 src/assets/scripts/game.js registers message 97777 with a handler
+// returning null, but supplies no reason for the server rejection. This does
+// not establish immaturity, login expiry or success. Preserve the raw error,
+// reconcile through the current session and back off the failed land only.
 //
 // Per-land fields use numeric-string keys:
 //

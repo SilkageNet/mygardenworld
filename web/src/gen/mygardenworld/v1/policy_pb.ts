@@ -1327,6 +1327,9 @@ export type UnionRacePolicy = Message<"mygardenworld.v1.UnionRacePolicy"> & {
   taskTypePriority: { [key: number]: number };
 
   /**
+   * Independently upgrades the current unfinished task, subject to a known
+   * cost and max_spend_diamond. Does not require auto_enable_modules.
+   *
    * @generated from field: bool upgrade_task = 8;
    */
   upgradeTask: boolean;
@@ -1342,6 +1345,8 @@ export type UnionRacePolicy = Message<"mygardenworld.v1.UnionRacePolicy"> & {
   deleteTaskMaxScore: number;
 
   /**
+   * Per-task upgrade cost ceiling. Zero prohibits spending; never unlimited.
+   *
    * @generated from field: int64 max_spend_diamond = 11;
    */
   maxSpendDiamond: bigint;
