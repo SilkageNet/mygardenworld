@@ -49,6 +49,16 @@ func (r *Runner) Start(ctx context.Context) error {
 
 	r.installStateHandlers()
 	r.hydratePearlHireTicketUsage(ctx, time.Now())
+	if err := r.loadAccountSafety(ctx); err != nil {
+		return fail(err)
+	}
+	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 && s.RestrictedUntilMS > time.Now().UnixMilli() {
+		r.emit(Event{Kind: "account_request_paused", Category: "account", Domain: "account.request", Action: "blocked",
+			Label: "账号请求保护", Message: r.restrictionError().Error(), Level: "warn"})
+		go r.decisionLoop(rctx)
+		go r.connectionLoop(rctx, username, password, nil)
+		return nil
+	}
 	client, err := r.connectStoredOrFresh(ctx, username, password)
 	if err != nil {
 		if r.autoReloginPending() {
@@ -56,7 +66,7 @@ func (r *Runner) Start(ctx context.Context) error {
 			go r.connectionLoop(rctx, username, password, nil)
 			return nil
 		}
-		if errors.Is(err, errWebSocketSessionStart) {
+		if errors.Is(err, errWebSocketSessionStart) || r.restrictionError() != nil {
 			// Credentials and the HTTP login path were good enough to reach the
 			// game WebSocket. Keep the runner alive so transient DNS, gateway, or
 			// handshake failures recover with the normal reconnect backoff.
@@ -76,6 +86,9 @@ func (r *Runner) Start(ctx context.Context) error {
 // account creation or the previous successful login. A rejected/corrupt cache
 // is deleted and the channel-specific fresh login becomes the fallback.
 func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
+	if !r.waitAccountRestriction(ctx) {
+		return nil, ctx.Err()
+	}
 	blob, err := r.db.LoadSession(ctx, r.account.ID)
 	if err != nil {
 		r.log.Warn("load cached session failed; using fresh login", "err", err)
@@ -94,7 +107,7 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 			// A transport outage does not prove that the cached route token is
 			// invalid. Preserve it for the reconnect loop instead of replacing a
 			// reusable session with repeated fresh HTTP logins.
-			if errors.Is(resumeErr, errWebSocketSessionStart) {
+			if errors.Is(resumeErr, errWebSocketSessionStart) || r.restrictionError() != nil {
 				return nil, resumeErr
 			}
 			decodeErr = resumeErr
@@ -108,6 +121,9 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 }
 
 func (r *Runner) connectFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
+	if !r.waitAccountRestriction(ctx) {
+		return nil, ctx.Err()
+	}
 	httpc := r.prepareHTTPClient(ctx, "", "", "")
 	var (
 		session *babigame.Session
@@ -161,6 +177,8 @@ func (r *Runner) prepareHTTPClient(ctx context.Context, deviceID, uuid, session0
 func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient, session *babigame.Session, resume bool) (*babigame.Client, error) {
 	client := babigame.NewClient(session)
 	client.DebugWriter = r.debugWriter
+	client.BeforeRPC = r.beforeGameRPC
+	client.OnRPCResponse = r.observeGameRPC
 	if err := client.Connect(ctx); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("%w: ws connect: %w", errWebSocketSessionStart, err)
@@ -169,6 +187,7 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// A cached route token resumes with index.reLogin; a freshly issued route
 	// token uses index.login, matching the official client lifecycle.
 	r.state.BeginFmlMembershipSnapshot()
+	_, safetyRevision := r.accountSafetySnapshot()
 	var (
 		v   json.RawMessage
 		err error
@@ -180,6 +199,11 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	}
 	if err == nil {
 		r.state.ApplyV(v)
+		if err := r.clearAccountRestriction(safetyRevision); err != nil {
+			_ = client.Close()
+			r.deferRestrictionProbe(safetyRevision, err)
+			return nil, err
+		}
 		r.syncAccountDisplayName(ctx, v, session)
 	} else {
 		_ = client.Close()
@@ -356,6 +380,12 @@ func (r *Runner) syncAccountDisplayName(ctx context.Context, rawV json.RawMessag
 
 func (r *Runner) attachClientHandlers(client *babigame.Client) {
 	client.OnSessionExpired(func(d babigame.WSResponseD) {
+		// 97778's localized text itself asks the player to log in later.
+		// That wording must not discard the cache or disable automation as
+		// ordinary expiry. Explicit displacement evidence still wins.
+		if (d.ErrorCode() == 97777 || d.ErrorCode() == 97778) && !d.IsSessionDisplaced() {
+			return
+		}
 		r.handleSessionInvalidated(d.ErrorMsg(), d.IsSessionDisplaced())
 	})
 	client.OnBinary(func(items []json.RawMessage) {

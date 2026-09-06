@@ -32,7 +32,11 @@ func TestRacePreflightFailureYieldsToOtherTask(t *testing.T) {
 			other.CooldownKey = "race-task:2"
 			other.TaskMsID = 2
 			selected := r.selectRunnableOperation([]automation.PlannedOp{op, other}, now)
-			if selected == nil || selected.TaskMsID != 2 {
+			if kind == clientproto.RPCFmlRaceDelTask.String() {
+				if selected != nil {
+					t.Fatalf("delete failure must retain account-wide interval: %+v", selected)
+				}
+			} else if selected == nil || selected.TaskMsID != 2 {
 				t.Fatalf("failed preflight blocked another task: %+v", selected)
 			}
 			if _, cooling := r.operationCoolingDown(&op, now.Add(6*time.Second)); cooling {

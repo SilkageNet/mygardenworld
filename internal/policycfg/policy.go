@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
@@ -252,6 +253,7 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Union.Race.TaskTypePriority == nil {
 		cp.Union.Race.TaskTypePriority = map[int32]int32{}
 	}
+	cp.Union.Race.DeleteIntervalSeconds = int32(automation.RaceDeleteInterval(cp.Union.Race) / time.Second)
 	if cp.Union.Race.AvoidProgressedTasks == nil {
 		cp.Union.Race.AvoidProgressedTasks = proto.Bool(def.Union.Race.GetAvoidProgressedTasks())
 	}

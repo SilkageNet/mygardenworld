@@ -57,6 +57,20 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	out.UnknownNamespaceCount = r.state.UnknownNamespaceCount()
 	out.ObservedNamespaces = r.state.ObservedNamespaces()
 	out.OperationCooldowns = r.operationCooldownSnapshots(now)
+	if err := r.restrictionError(); err != nil {
+		out.BlockedReasons = append(out.BlockedReasons, err.Error())
+		s, _ := r.accountSafetySnapshot()
+		out.OperationCooldowns = append(out.OperationCooldowns, OperationCooldownSnapshot{
+			OperationID: "account.request", Category: "account", Domain: "account.request",
+			Reason: err.Error(), Until: time.UnixMilli(s.RestrictedUntilMS), FailureCount: int32(s.RestrictionAttempts),
+		})
+	}
+	if wait := r.raceDeleteWait(now); wait > 0 {
+		out.OperationCooldowns = append(out.OperationCooldowns, OperationCooldownSnapshot{
+			OperationID: "union.race.delete.interval", Category: "race", Domain: "union.race.delete",
+			Reason: "账号级竞赛删除间隔（自动与手动共用）", Until: now.Add(wait),
+		})
+	}
 	return out
 }
 

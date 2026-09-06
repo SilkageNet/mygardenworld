@@ -635,6 +635,7 @@ export default function PolicyPanel({
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} description="独立于自动完成；升级当前持有的未完成任务，消耗元宝。结果未确认时不会重复提交" onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />
                 <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} description="独立于自动完成；定期删除无人接取且分数不高于上限的任务，仅会长和副会长可用" status={raceDeleteStatus} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
                 <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} description="只处理已同步、无人接取且分数明确大于 0 的任务；0 表示不删除" onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
+                <NumberRow label="删除间隔（秒）" value={unionRace?.deleteIntervalSeconds || 120} min={30} max={3600} description="默认 120 秒，可设 30～3600 秒；自动与手动删除共用账号间隔，重启后仍保留。此为本地保护策略，不代表服务端安全阈值" onChange={(value) => updateUnionRace({ deleteIntervalSeconds: value })} />
                 <BigIntNumberRow label="单次升级元宝上限" description="0 表示禁止消费；每个任务升级前核对实际费用与可用余额" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
               <div className="mt-3 space-y-2">

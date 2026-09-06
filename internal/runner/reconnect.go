@@ -59,6 +59,18 @@ connection:
 			if isReputationGuardError(err) {
 				return
 			}
+			if r.restrictionError() != nil {
+				// Coded failures already carry a single pause event. Do not
+				// relabel them as a 2-second network retry or evict the cache.
+				if s, revision := r.accountSafetySnapshot(); s.RestrictedUntilMS <= time.Now().UnixMilli() {
+					r.deferRestrictionProbe(revision, err)
+				}
+				if !r.waitAccountRestriction(ctx) {
+					return
+				}
+				wait = reconnectInitialWait
+				continue
+			}
 			if ctx.Err() != nil || r.isSessionInvalidated() {
 				if r.autoReloginPending() {
 					current = nil

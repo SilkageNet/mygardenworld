@@ -104,6 +104,7 @@ type Runner struct {
 	sessionRuntimeState
 	schedulerState
 	executionState
+	accountSafetyState
 }
 
 // New constructs a runner. cfg must already be resolved from the account's

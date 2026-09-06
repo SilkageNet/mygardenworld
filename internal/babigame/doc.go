@@ -115,11 +115,15 @@
 // Automatic labor hiring uses only observed ticket-gated state:
 //
 //	24.1[]       friend relations; a full 24.0+24.1 replaces, relation-only deltas merge
-//	28.5[]       opponent summaries keyed by exact int64 UID, including level
+//	28.5[]       opponent summaries keyed by exact int64 UID; IOppt.lvl is field 4
 //	115.1.5      enemy UID -> event timestamp (incremental map; null entry deletes)
 //	115.5        candidate UID -> last/current labor end timestamp (incremental subset)
 //	115.6[]      recommendation UID list (whole-list replacement)
 //
+// Only observed positive IOppt.lvl values pass the level gate: limit 0 is
+// unlimited, otherwise lvl <= limit. Unknown levels must not count as an
+// over-level rejection. Filter levels before requesting protection states,
+// and prefer a fully checked candidate over unrelated incomplete profiles.
 // Candidate summaries and hire states are trusted for 30 seconds. A contested
 // UID is cooled for 60 seconds. `pearlPlace.hire` must carry the exact observed
 // item 1003 x1 cost gate. Only this RPC inspects namespace `3.0` as the
@@ -219,7 +223,12 @@
 // Mini 176 src/assets/scripts/game.js registers message 97777 with a handler
 // returning null, but supplies no reason for the server rejection. This does
 // not establish immaturity, login expiry or success. Preserve the raw error,
-// reconcile through the current session and back off the failed land only.
+// and do not infer that the operation succeeded. Mini's onMsgDlg_97778 formats
+// args[0] as a date; c_msgCode describes temporarily unavailable role data and
+// asks the player to retry after that time. Neither artifact establishes a
+// safe deletion frequency. The runner pauses all account RPCs on either code,
+// preserves that pause across restarts, and validates a cached-session login
+// after the deadline before replanning from its full state baseline.
 //
 // Per-land fields use numeric-string keys:
 //

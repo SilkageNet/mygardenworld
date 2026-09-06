@@ -378,6 +378,10 @@ message UnionRacePolicy {
   // taken outside gardend, so it is an explicit opt-in independent of
   // auto_enable_modules. Default off.
   bool auto_give_up_task = 15;
+  // Account-wide minimum spacing between delete attempts, including manual
+  // deletion and its preflight refresh. Zero uses 120 seconds; clamped to
+  // 30..3600 seconds. This is a conservative local guard, not a server limit.
+  int32 delete_interval_seconds = 16;
 }
 
 message UnionLandPolicy {
