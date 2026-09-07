@@ -21,14 +21,74 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type NotificationProvider int32
+
+const (
+	NotificationProvider_NOTIFICATION_PROVIDER_UNSPECIFIED NotificationProvider = 0
+	NotificationProvider_NOTIFICATION_PROVIDER_CUSTOM      NotificationProvider = 1
+	NotificationProvider_NOTIFICATION_PROVIDER_WECOM       NotificationProvider = 2
+	NotificationProvider_NOTIFICATION_PROVIDER_DINGTALK    NotificationProvider = 3
+	NotificationProvider_NOTIFICATION_PROVIDER_FEISHU      NotificationProvider = 4
+)
+
+// Enum value maps for NotificationProvider.
+var (
+	NotificationProvider_name = map[int32]string{
+		0: "NOTIFICATION_PROVIDER_UNSPECIFIED",
+		1: "NOTIFICATION_PROVIDER_CUSTOM",
+		2: "NOTIFICATION_PROVIDER_WECOM",
+		3: "NOTIFICATION_PROVIDER_DINGTALK",
+		4: "NOTIFICATION_PROVIDER_FEISHU",
+	}
+	NotificationProvider_value = map[string]int32{
+		"NOTIFICATION_PROVIDER_UNSPECIFIED": 0,
+		"NOTIFICATION_PROVIDER_CUSTOM":      1,
+		"NOTIFICATION_PROVIDER_WECOM":       2,
+		"NOTIFICATION_PROVIDER_DINGTALK":    3,
+		"NOTIFICATION_PROVIDER_FEISHU":      4,
+	}
+)
+
+func (x NotificationProvider) Enum() *NotificationProvider {
+	p := new(NotificationProvider)
+	*p = x
+	return p
+}
+
+func (x NotificationProvider) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NotificationProvider) Descriptor() protoreflect.EnumDescriptor {
+	return file_mygardenworld_v1_notification_proto_enumTypes[0].Descriptor()
+}
+
+func (NotificationProvider) Type() protoreflect.EnumType {
+	return &file_mygardenworld_v1_notification_proto_enumTypes[0]
+}
+
+func (x NotificationProvider) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NotificationProvider.Descriptor instead.
+func (NotificationProvider) EnumDescriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_notification_proto_rawDescGZIP(), []int{0}
+}
+
 type SaveNotificationSettingsRequest struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Enabled bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	// Absent retains the saved endpoint; explicitly empty clears it.
-	Endpoint        *string `protobuf:"bytes,2,opt,name=endpoint,proto3,oneof" json:"endpoint,omitempty"`
-	CooldownMinutes int32   `protobuf:"varint,3,opt,name=cooldown_minutes,json=cooldownMinutes,proto3" json:"cooldown_minutes,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Absent retains the saved endpoint only for an unchanged provider;
+	// explicitly empty clears the endpoint and its signing key.
+	Endpoint        *string              `protobuf:"bytes,2,opt,name=endpoint,proto3,oneof" json:"endpoint,omitempty"`
+	CooldownMinutes int32                `protobuf:"varint,3,opt,name=cooldown_minutes,json=cooldownMinutes,proto3" json:"cooldown_minutes,omitempty"`
+	Provider        NotificationProvider `protobuf:"varint,4,opt,name=provider,proto3,enum=mygardenworld.v1.NotificationProvider" json:"provider,omitempty"`
+	// Absent retains only when the endpoint/provider are unchanged. Empty clears.
+	// Only DingTalk and Feishu support signing; never returned to the browser.
+	SigningSecret *string `protobuf:"bytes,5,opt,name=signing_secret,json=signingSecret,proto3,oneof" json:"signing_secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SaveNotificationSettingsRequest) Reset() {
@@ -80,6 +140,20 @@ func (x *SaveNotificationSettingsRequest) GetCooldownMinutes() int32 {
 		return x.CooldownMinutes
 	}
 	return 0
+}
+
+func (x *SaveNotificationSettingsRequest) GetProvider() NotificationProvider {
+	if x != nil {
+		return x.Provider
+	}
+	return NotificationProvider_NOTIFICATION_PROVIDER_UNSPECIFIED
+}
+
+func (x *SaveNotificationSettingsRequest) GetSigningSecret() string {
+	if x != nil && x.SigningSecret != nil {
+		return *x.SigningSecret
+	}
+	return ""
 }
 
 type SaveNotificationSettingsResponse struct {
@@ -244,12 +318,14 @@ func (x *LoadUserNotifications) GetBeforeId() int64 {
 }
 
 type UserNotificationSettings struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Enabled         bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	HasEndpoint     bool                   `protobuf:"varint,2,opt,name=has_endpoint,json=hasEndpoint,proto3" json:"has_endpoint,omitempty"`
-	CooldownMinutes int32                  `protobuf:"varint,3,opt,name=cooldown_minutes,json=cooldownMinutes,proto3" json:"cooldown_minutes,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Enabled          bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	HasEndpoint      bool                   `protobuf:"varint,2,opt,name=has_endpoint,json=hasEndpoint,proto3" json:"has_endpoint,omitempty"`
+	CooldownMinutes  int32                  `protobuf:"varint,3,opt,name=cooldown_minutes,json=cooldownMinutes,proto3" json:"cooldown_minutes,omitempty"`
+	Provider         NotificationProvider   `protobuf:"varint,4,opt,name=provider,proto3,enum=mygardenworld.v1.NotificationProvider" json:"provider,omitempty"`
+	HasSigningSecret bool                   `protobuf:"varint,5,opt,name=has_signing_secret,json=hasSigningSecret,proto3" json:"has_signing_secret,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *UserNotificationSettings) Reset() {
@@ -301,6 +377,20 @@ func (x *UserNotificationSettings) GetCooldownMinutes() int32 {
 		return x.CooldownMinutes
 	}
 	return 0
+}
+
+func (x *UserNotificationSettings) GetProvider() NotificationProvider {
+	if x != nil {
+		return x.Provider
+	}
+	return NotificationProvider_NOTIFICATION_PROVIDER_UNSPECIFIED
+}
+
+func (x *UserNotificationSettings) GetHasSigningSecret() bool {
+	if x != nil {
+		return x.HasSigningSecret
+	}
+	return false
 }
 
 type NotificationDelivery struct {
@@ -388,14 +478,16 @@ func (x *NotificationDelivery) GetLastError() string {
 }
 
 type UserNotificationsView struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	Settings      *UserNotificationSettings `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
-	Deliveries    []*NotificationDelivery   `protobuf:"bytes,2,rep,name=deliveries,proto3" json:"deliveries,omitempty"`
-	HasMore       bool                      `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
-	NextBeforeId  int64                     `protobuf:"varint,4,opt,name=next_before_id,json=nextBeforeId,proto3" json:"next_before_id,omitempty"`
-	BeforeId      int64                     `protobuf:"varint,5,opt,name=before_id,json=beforeId,proto3" json:"before_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState    `protogen:"open.v1"`
+	Settings     *UserNotificationSettings `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	Deliveries   []*NotificationDelivery   `protobuf:"bytes,2,rep,name=deliveries,proto3" json:"deliveries,omitempty"`
+	HasMore      bool                      `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
+	NextBeforeId int64                     `protobuf:"varint,4,opt,name=next_before_id,json=nextBeforeId,proto3" json:"next_before_id,omitempty"`
+	BeforeId     int64                     `protobuf:"varint,5,opt,name=before_id,json=beforeId,proto3" json:"before_id,omitempty"`
+	// Synthetic example serialized using the same contract as actual deliveries.
+	CustomPayloadExample string `protobuf:"bytes,6,opt,name=custom_payload_example,json=customPayloadExample,proto3" json:"custom_payload_example,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *UserNotificationsView) Reset() {
@@ -463,27 +555,39 @@ func (x *UserNotificationsView) GetBeforeId() int64 {
 	return 0
 }
 
+func (x *UserNotificationsView) GetCustomPayloadExample() string {
+	if x != nil {
+		return x.CustomPayloadExample
+	}
+	return ""
+}
+
 var File_mygardenworld_v1_notification_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_notification_proto_rawDesc = "" +
 	"\n" +
-	"#mygardenworld/v1/notification.proto\x12\x10mygardenworld.v1\"\x94\x01\n" +
+	"#mygardenworld/v1/notification.proto\x12\x10mygardenworld.v1\"\x97\x02\n" +
 	"\x1fSaveNotificationSettingsRequest\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1f\n" +
 	"\bendpoint\x18\x02 \x01(\tH\x00R\bendpoint\x88\x01\x01\x12)\n" +
-	"\x10cooldown_minutes\x18\x03 \x01(\x05R\x0fcooldownMinutesB\v\n" +
-	"\t_endpoint\"\"\n" +
+	"\x10cooldown_minutes\x18\x03 \x01(\x05R\x0fcooldownMinutes\x12B\n" +
+	"\bprovider\x18\x04 \x01(\x0e2&.mygardenworld.v1.NotificationProviderR\bprovider\x12*\n" +
+	"\x0esigning_secret\x18\x05 \x01(\tH\x01R\rsigningSecret\x88\x01\x01B\v\n" +
+	"\t_endpointB\x11\n" +
+	"\x0f_signing_secret\"\"\n" +
 	" SaveNotificationSettingsResponse\"\x19\n" +
 	"\x17TestNotificationRequest\";\n" +
 	"\x18TestNotificationResponse\x12\x1f\n" +
 	"\vdelivery_id\x18\x01 \x01(\x03R\n" +
 	"deliveryId\"4\n" +
 	"\x15LoadUserNotifications\x12\x1b\n" +
-	"\tbefore_id\x18\x01 \x01(\x03R\bbeforeId\"\x82\x01\n" +
+	"\tbefore_id\x18\x01 \x01(\x03R\bbeforeId\"\xf4\x01\n" +
 	"\x18UserNotificationSettings\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12!\n" +
 	"\fhas_endpoint\x18\x02 \x01(\bR\vhasEndpoint\x12)\n" +
-	"\x10cooldown_minutes\x18\x03 \x01(\x05R\x0fcooldownMinutes\"\xae\x01\n" +
+	"\x10cooldown_minutes\x18\x03 \x01(\x05R\x0fcooldownMinutes\x12B\n" +
+	"\bprovider\x18\x04 \x01(\x0e2&.mygardenworld.v1.NotificationProviderR\bprovider\x12,\n" +
+	"\x12has_signing_secret\x18\x05 \x01(\bR\x10hasSigningSecret\"\xae\x01\n" +
 	"\x14NotificationDelivery\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x16\n" +
@@ -492,7 +596,7 @@ const file_mygardenworld_v1_notification_proto_rawDesc = "" +
 	"\n" +
 	"created_ms\x18\x05 \x01(\x03R\tcreatedMs\x12\x1d\n" +
 	"\n" +
-	"last_error\x18\x06 \x01(\tR\tlastError\"\x85\x02\n" +
+	"last_error\x18\x06 \x01(\tR\tlastError\"\xbb\x02\n" +
 	"\x15UserNotificationsView\x12F\n" +
 	"\bsettings\x18\x01 \x01(\v2*.mygardenworld.v1.UserNotificationSettingsR\bsettings\x12F\n" +
 	"\n" +
@@ -500,7 +604,14 @@ const file_mygardenworld_v1_notification_proto_rawDesc = "" +
 	"deliveries\x12\x19\n" +
 	"\bhas_more\x18\x03 \x01(\bR\ahasMore\x12$\n" +
 	"\x0enext_before_id\x18\x04 \x01(\x03R\fnextBeforeId\x12\x1b\n" +
-	"\tbefore_id\x18\x05 \x01(\x03R\bbeforeId2\x84\x02\n" +
+	"\tbefore_id\x18\x05 \x01(\x03R\bbeforeId\x124\n" +
+	"\x16custom_payload_example\x18\x06 \x01(\tR\x14customPayloadExample*\xc6\x01\n" +
+	"\x14NotificationProvider\x12%\n" +
+	"!NOTIFICATION_PROVIDER_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cNOTIFICATION_PROVIDER_CUSTOM\x10\x01\x12\x1f\n" +
+	"\x1bNOTIFICATION_PROVIDER_WECOM\x10\x02\x12\"\n" +
+	"\x1eNOTIFICATION_PROVIDER_DINGTALK\x10\x03\x12 \n" +
+	"\x1cNOTIFICATION_PROVIDER_FEISHU\x10\x042\x84\x02\n" +
 	"\x13NotificationService\x12\x81\x01\n" +
 	"\x18SaveNotificationSettings\x121.mygardenworld.v1.SaveNotificationSettingsRequest\x1a2.mygardenworld.v1.SaveNotificationSettingsResponse\x12i\n" +
 	"\x10TestNotification\x12).mygardenworld.v1.TestNotificationRequest\x1a*.mygardenworld.v1.TestNotificationResponseB\xd4\x01\n" +
@@ -518,29 +629,33 @@ func file_mygardenworld_v1_notification_proto_rawDescGZIP() []byte {
 	return file_mygardenworld_v1_notification_proto_rawDescData
 }
 
+var file_mygardenworld_v1_notification_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_mygardenworld_v1_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_mygardenworld_v1_notification_proto_goTypes = []any{
-	(*SaveNotificationSettingsRequest)(nil),  // 0: mygardenworld.v1.SaveNotificationSettingsRequest
-	(*SaveNotificationSettingsResponse)(nil), // 1: mygardenworld.v1.SaveNotificationSettingsResponse
-	(*TestNotificationRequest)(nil),          // 2: mygardenworld.v1.TestNotificationRequest
-	(*TestNotificationResponse)(nil),         // 3: mygardenworld.v1.TestNotificationResponse
-	(*LoadUserNotifications)(nil),            // 4: mygardenworld.v1.LoadUserNotifications
-	(*UserNotificationSettings)(nil),         // 5: mygardenworld.v1.UserNotificationSettings
-	(*NotificationDelivery)(nil),             // 6: mygardenworld.v1.NotificationDelivery
-	(*UserNotificationsView)(nil),            // 7: mygardenworld.v1.UserNotificationsView
+	(NotificationProvider)(0),                // 0: mygardenworld.v1.NotificationProvider
+	(*SaveNotificationSettingsRequest)(nil),  // 1: mygardenworld.v1.SaveNotificationSettingsRequest
+	(*SaveNotificationSettingsResponse)(nil), // 2: mygardenworld.v1.SaveNotificationSettingsResponse
+	(*TestNotificationRequest)(nil),          // 3: mygardenworld.v1.TestNotificationRequest
+	(*TestNotificationResponse)(nil),         // 4: mygardenworld.v1.TestNotificationResponse
+	(*LoadUserNotifications)(nil),            // 5: mygardenworld.v1.LoadUserNotifications
+	(*UserNotificationSettings)(nil),         // 6: mygardenworld.v1.UserNotificationSettings
+	(*NotificationDelivery)(nil),             // 7: mygardenworld.v1.NotificationDelivery
+	(*UserNotificationsView)(nil),            // 8: mygardenworld.v1.UserNotificationsView
 }
 var file_mygardenworld_v1_notification_proto_depIdxs = []int32{
-	5, // 0: mygardenworld.v1.UserNotificationsView.settings:type_name -> mygardenworld.v1.UserNotificationSettings
-	6, // 1: mygardenworld.v1.UserNotificationsView.deliveries:type_name -> mygardenworld.v1.NotificationDelivery
-	0, // 2: mygardenworld.v1.NotificationService.SaveNotificationSettings:input_type -> mygardenworld.v1.SaveNotificationSettingsRequest
-	2, // 3: mygardenworld.v1.NotificationService.TestNotification:input_type -> mygardenworld.v1.TestNotificationRequest
-	1, // 4: mygardenworld.v1.NotificationService.SaveNotificationSettings:output_type -> mygardenworld.v1.SaveNotificationSettingsResponse
-	3, // 5: mygardenworld.v1.NotificationService.TestNotification:output_type -> mygardenworld.v1.TestNotificationResponse
-	4, // [4:6] is the sub-list for method output_type
-	2, // [2:4] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // 0: mygardenworld.v1.SaveNotificationSettingsRequest.provider:type_name -> mygardenworld.v1.NotificationProvider
+	0, // 1: mygardenworld.v1.UserNotificationSettings.provider:type_name -> mygardenworld.v1.NotificationProvider
+	6, // 2: mygardenworld.v1.UserNotificationsView.settings:type_name -> mygardenworld.v1.UserNotificationSettings
+	7, // 3: mygardenworld.v1.UserNotificationsView.deliveries:type_name -> mygardenworld.v1.NotificationDelivery
+	1, // 4: mygardenworld.v1.NotificationService.SaveNotificationSettings:input_type -> mygardenworld.v1.SaveNotificationSettingsRequest
+	3, // 5: mygardenworld.v1.NotificationService.TestNotification:input_type -> mygardenworld.v1.TestNotificationRequest
+	2, // 6: mygardenworld.v1.NotificationService.SaveNotificationSettings:output_type -> mygardenworld.v1.SaveNotificationSettingsResponse
+	4, // 7: mygardenworld.v1.NotificationService.TestNotification:output_type -> mygardenworld.v1.TestNotificationResponse
+	6, // [6:8] is the sub-list for method output_type
+	4, // [4:6] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_notification_proto_init() }
@@ -554,13 +669,14 @@ func file_mygardenworld_v1_notification_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_notification_proto_rawDesc), len(file_mygardenworld_v1_notification_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_mygardenworld_v1_notification_proto_goTypes,
 		DependencyIndexes: file_mygardenworld_v1_notification_proto_depIdxs,
+		EnumInfos:         file_mygardenworld_v1_notification_proto_enumTypes,
 		MessageInfos:      file_mygardenworld_v1_notification_proto_msgTypes,
 	}.Build()
 	File_mygardenworld_v1_notification_proto = out.File

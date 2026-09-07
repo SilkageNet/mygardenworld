@@ -3,17 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@connectrpc/connect";
 import { Bell } from "lucide-react";
-import { NotificationService, type UserNotificationsView } from "@/gen/mygardenworld/v1/notification_pb";
+import { NotificationProvider, NotificationService, type UserNotificationsView } from "@/gen/mygardenworld/v1/notification_pb";
 import { transport, formatAPIError } from "@/lib/api/client";
 import { WorkspaceClient } from "@/lib/api/workspace-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { notificationSettingsUpdate } from "./settings-model";
+import { notificationProviders, notificationSettingsUpdate, supportsSigning } from "./settings-model";
+import { WebhookHelp } from "./webhook-help";
 
 const commands = createClient(NotificationService, transport);
-const statusLabels: Record<string, string> = { pending: "等待发送", sending: "发送中", sent: "已送达", failed: "发送失败", cancelled: "已取消" };
+const statusLabels: Record<string, string> = { pending: "等待发送", sending: "发送中", sent: "接收端已确认", failed: "发送失败", cancelled: "已取消" };
 
 export function NotificationSettings() {
   const [open, setOpen] = useState(false);
@@ -39,6 +40,9 @@ function NotificationForm() {
   const [enabled, setEnabled] = useState(false);
   const [endpoint, setEndpoint] = useState("");
   const [clearEndpoint, setClearEndpoint] = useState(false);
+  const [provider, setProvider] = useState(NotificationProvider.CUSTOM);
+  const [signingSecret, setSigningSecret] = useState("");
+  const [clearSigningSecret, setClearSigningSecret] = useState(false);
   const [cooldown, setCooldown] = useState("30");
   const [pages, setPages] = useState<bigint[]>([BigInt(0)]);
   const [busy, setBusy] = useState(false);
@@ -57,6 +61,7 @@ function NotificationForm() {
         if (!initialized.current && next.settings) {
           initialized.current = true;
           setEnabled(next.settings.enabled);
+          setProvider(next.settings.provider);
           setCooldown(String(next.settings.cooldownMinutes));
         }
       },
@@ -77,10 +82,11 @@ function NotificationForm() {
   async function save() {
     setBusy(true); setError(""); setNotice("");
     try {
-      await commands.saveNotificationSettings(notificationSettingsUpdate({ enabled, cooldown, endpoint, clearEndpoint }));
+      await commands.saveNotificationSettings(notificationSettingsUpdate({ enabled, cooldown, endpoint, clearEndpoint, provider, savedProvider: view!.settings!.provider, signingSecret, clearSigningSecret }));
       setEndpoint(""); setClearEndpoint(false);
+      setSigningSecret(""); setClearSigningSecret(false);
       showPage([BigInt(0)]);
-      setNotice("已保存。启用或更换地址后仅处理新事件；更换地址、关闭通知会取消原有待发送记录。");
+      setNotice("已保存。启用或更换渠道、地址、密钥后仅处理新事件；旧的待发送记录会取消。请发送测试确认配置。");
     } catch (err) { setError(formatAPIError(err)); } finally { setBusy(false); }
   }
 
@@ -93,20 +99,36 @@ function NotificationForm() {
     } catch (err) { setError(formatAPIError(err)); } finally { setBusy(false); }
   }
 
-  const dirty = !!view?.settings && (enabled !== view.settings.enabled || cooldown !== String(view.settings.cooldownMinutes) || !!endpoint.trim() || clearEndpoint);
+  const dirty = !!view?.settings && (enabled !== view.settings.enabled || provider !== view.settings.provider || cooldown !== String(view.settings.cooldownMinutes) || !!endpoint.trim() || clearEndpoint || !!signingSecret.trim() || clearSigningSecret);
+  const sameProvider = provider === view?.settings?.provider;
+  const keepingSecret = sameProvider && !endpoint.trim() && !clearEndpoint && !clearSigningSecret && view?.settings?.hasSigningSecret;
   const pageReady = view?.beforeId === pages.at(-1);
 
   return <div className="space-y-4 text-sm">
     <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/25 p-3">
-      <div><label htmlFor="notifications-enabled" className="font-medium">Webhook 通知</label><p className="mt-1 text-xs text-muted-foreground">一个接收地址，覆盖你的全部游戏账号</p></div>
+      <div><label htmlFor="notifications-enabled" className="font-medium">启用个人通知</label><p className="mt-1 text-xs text-muted-foreground">一个接收渠道，覆盖你的全部游戏账号</p></div>
       <Switch id="notifications-enabled" checked={enabled} onCheckedChange={(value) => { setEnabled(value); if (value) setClearEndpoint(false); }} disabled={!view || busy} />
     </div>
     <div className="space-y-2">
+      <label htmlFor="notification-provider" className="font-medium">推送渠道</label>
+      <select id="notification-provider" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" disabled={!view || busy} value={provider} onChange={(e) => { setProvider(Number(e.target.value)); setEndpoint(""); setSigningSecret(""); setClearEndpoint(false); setClearSigningSecret(false); }}>
+        {notificationProviders.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+      </select>
+      {view?.settings && !sameProvider && <p className="text-xs text-muted-foreground">切换渠道需重新填写地址和密钥，不会沿用其他渠道的凭据。</p>}
+    </div>
+    <div className="space-y-2">
       <label htmlFor="notification-endpoint" className="font-medium">接收地址</label>
-      <Input id="notification-endpoint" type="password" autoComplete="off" placeholder={view?.settings?.hasEndpoint && !clearEndpoint ? "已保存加密地址，留空保持不变" : "https://example.com/webhook"} value={endpoint} onChange={(e) => { setEndpoint(e.target.value); setClearEndpoint(false); }} disabled={!view || busy} aria-describedby="notification-endpoint-help" />
-      <p id="notification-endpoint-help" className="text-xs leading-relaxed text-muted-foreground">仅支持公网 HTTPS，发送通用 JSON。不会发送游戏凭据、原始响应或完整日志。企微、钉钉等专用格式需由接收端转换。</p>
+      <Input id="notification-endpoint" type="password" autoComplete="off" placeholder={sameProvider && view?.settings?.hasEndpoint && !clearEndpoint ? "已保存加密地址，留空保持不变" : notificationProviders.find((item) => item.value === provider)?.placeholder} value={endpoint} onChange={(e) => { setEndpoint(e.target.value); setClearEndpoint(false); }} disabled={!view || busy} aria-describedby="notification-endpoint-help" />
+      <p id="notification-endpoint-help" className="text-xs leading-relaxed text-muted-foreground">{provider === NotificationProvider.CUSTOM ? "接收端需支持下方说明中的通用 JSON 格式。" : "从所选平台的群机器人设置中复制原始 Webhook 地址，系统会自动转换消息格式；同一用户的机器人消息至少间隔 4 秒发送。"} 地址加密保存，不会回显；仅支持公网 HTTPS。</p>
       {view?.settings?.hasEndpoint && <Button variant="ghost" size="sm" disabled={busy} onClick={() => { setClearEndpoint(true); setEndpoint(""); setEnabled(false); }}>{clearEndpoint ? "保存后清除地址并关闭通知" : "清除已保存地址"}</Button>}
     </div>
+    {supportsSigning(provider) && <div className="space-y-2">
+      <label htmlFor="notification-signing-secret" className="font-medium">加签密钥 <span className="font-normal text-muted-foreground">（按机器人安全设置填写）</span></label>
+      <Input id="notification-signing-secret" type="password" autoComplete="off" maxLength={1024} value={signingSecret} disabled={!view || busy || clearEndpoint} placeholder={keepingSecret ? "已加密保存，留空保持不变" : "机器人启用签名校验时必填"} onChange={(e) => { setSigningSecret(e.target.value); setClearSigningSecret(false); }} aria-describedby="notification-signing-help" />
+      <p id="notification-signing-help" className="text-xs leading-relaxed text-muted-foreground">更换地址时请重新填写对应密钥，旧密钥会清除。若使用关键词校验，请在机器人中添加关键词“小云朵”；若配置 IP 白名单，请放行部署服务器的出口 IP。</p>
+      {sameProvider && view?.settings?.hasSigningSecret && <Button variant="ghost" size="sm" disabled={busy || clearEndpoint} onClick={() => { setClearSigningSecret(true); setSigningSecret(""); }}>{clearSigningSecret ? "保存后清除加签密钥" : "清除已保存密钥"}</Button>}
+    </div>}
+    {provider === NotificationProvider.CUSTOM && <WebhookHelp example={view?.customPayloadExample ?? ""} />}
     <div className="flex items-center justify-between gap-3">
       <label htmlFor="notification-cooldown">同一账号同类异常冷却</label>
       <div className="flex items-center gap-2"><Input id="notification-cooldown" type="number" min={1} max={1440} step={1} className="w-24" value={cooldown} onChange={(e) => setCooldown(e.target.value)} disabled={!view || busy} /><span className="text-muted-foreground">分钟</span></div>

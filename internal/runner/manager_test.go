@@ -84,12 +84,12 @@ func TestAccountsWithAutomationEnabledUsesPersistedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	disabledStatus := "disabled"
-	if _, err := db.UpdateUser(ctx, disabledOwner.ID, nil, nil, &disabledStatus); err != nil {
-		t.Fatal(err)
-	}
 	disabledOwnerAccount, err := db.CreateAccount(ctx, disabledOwner.ID, "disabled-owner-account", "ios", "game5", "pw5")
 	if err != nil {
+		t.Fatal(err)
+	}
+	disabledStatus := "disabled"
+	if _, err := db.UpdateUser(ctx, disabledOwner.ID, nil, nil, &disabledStatus); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SavePolicyJSON(ctx, disabledOwnerAccount.ID, enabledRaw); err != nil {

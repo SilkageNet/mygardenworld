@@ -227,6 +227,10 @@ func mapErr(err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, store.ErrAccountExists):
 		return connect.NewError(connect.CodeAlreadyExists, err)
+	case errors.Is(err, store.ErrAccountQuota):
+		return connect.NewError(connect.CodeResourceExhausted, err)
+	case errors.Is(err, store.ErrUserInactive):
+		return connect.NewError(connect.CodePermissionDenied, err)
 	case errors.Is(err, store.ErrUserNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, store.ErrUserExists):

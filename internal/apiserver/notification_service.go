@@ -11,17 +11,28 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
+var notificationProviders = map[pb.NotificationProvider]string{
+	pb.NotificationProvider_NOTIFICATION_PROVIDER_CUSTOM:   "custom",
+	pb.NotificationProvider_NOTIFICATION_PROVIDER_WECOM:    "wecom",
+	pb.NotificationProvider_NOTIFICATION_PROVIDER_DINGTALK: "dingtalk",
+	pb.NotificationProvider_NOTIFICATION_PROVIDER_FEISHU:   "feishu",
+}
+
 func (svc *Services) SaveNotificationSettings(ctx context.Context, req *connect.Request[pb.SaveNotificationSettingsRequest]) (*connect.Response[pb.SaveNotificationSettingsResponse], error) {
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
+	provider, ok := notificationProviders[req.Msg.GetProvider()]
+	if !ok {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("请选择支持的通知渠道"))
+	}
 	if req.Msg.Endpoint != nil && req.Msg.GetEndpoint() != "" {
-		if err := notification.ValidateEndpoint(req.Msg.GetEndpoint()); err != nil {
+		if err := notification.ValidateProviderEndpoint(provider, req.Msg.GetEndpoint()); err != nil {
 			return nil, connect.NewError(connect.CodeInvalidArgument, err)
 		}
 	}
-	err = svc.DB.SaveNotificationSettings(ctx, userID, req.Msg.GetEnabled(), req.Msg.Endpoint, int(req.Msg.GetCooldownMinutes()))
+	err = svc.DB.SaveNotificationSettings(ctx, userID, store.NotificationUpdate{Enabled: req.Msg.GetEnabled(), Endpoint: req.Msg.Endpoint, CooldownMinutes: int(req.Msg.GetCooldownMinutes()), Provider: provider, SigningSecret: req.Msg.SigningSecret})
 	if errors.Is(err, store.ErrNotificationSettings) {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -66,6 +77,13 @@ func (svc *Services) userNotifications(ctx context.Context, beforeID int64) (*pb
 		return nil, errors.New("读取通知记录失败")
 	}
 	view := &pb.UserNotificationsView{BeforeId: beforeID, Settings: &pb.UserNotificationSettings{Enabled: settings.Enabled, HasEndpoint: settings.HasEndpoint, CooldownMinutes: int32(settings.CooldownMinutes)}, HasMore: len(rows) > 5}
+	for provider, name := range notificationProviders {
+		if name == settings.Provider {
+			view.Settings.Provider = provider
+		}
+	}
+	view.Settings.HasSigningSecret = settings.HasSigningSecret
+	view.CustomPayloadExample = notification.CustomPayloadExample()
 	if len(rows) > 5 {
 		rows = rows[:5]
 	}

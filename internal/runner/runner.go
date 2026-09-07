@@ -1,7 +1,7 @@
 // Package runner owns the per-account lifecycle: HTTP login + WebSocket
 // connection + state tracker + automation loop + event broadcast. The
-// gRPC server creates one runner per account on demand and keeps them in
-// a Manager.
+// daemon keeps one runner per account in a Manager; authenticated Connect
+// commands control it and workspace WebSocket reads reuse its state.
 package runner
 
 import (
