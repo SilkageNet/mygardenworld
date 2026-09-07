@@ -275,6 +275,7 @@ type WorkspaceClientFrame struct {
 	//	*WorkspaceClientFrame_LoadLogs
 	//	*WorkspaceClientFrame_WatchAlipayLogin
 	//	*WorkspaceClientFrame_LoadRedeemAttempts
+	//	*WorkspaceClientFrame_LoadNotifications
 	Payload       isWorkspaceClientFrame_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -378,6 +379,15 @@ func (x *WorkspaceClientFrame) GetLoadRedeemAttempts() *LoadAccountRedeemAttempt
 	return nil
 }
 
+func (x *WorkspaceClientFrame) GetLoadNotifications() *LoadUserNotifications {
+	if x != nil {
+		if x, ok := x.Payload.(*WorkspaceClientFrame_LoadNotifications); ok {
+			return x.LoadNotifications
+		}
+	}
+	return nil
+}
+
 type isWorkspaceClientFrame_Payload interface {
 	isWorkspaceClientFrame_Payload()
 }
@@ -406,6 +416,10 @@ type WorkspaceClientFrame_LoadRedeemAttempts struct {
 	LoadRedeemAttempts *LoadAccountRedeemAttempts `protobuf:"bytes,7,opt,name=load_redeem_attempts,json=loadRedeemAttempts,proto3,oneof"`
 }
 
+type WorkspaceClientFrame_LoadNotifications struct {
+	LoadNotifications *LoadUserNotifications `protobuf:"bytes,8,opt,name=load_notifications,json=loadNotifications,proto3,oneof"`
+}
+
 func (*WorkspaceClientFrame_Open) isWorkspaceClientFrame_Payload() {}
 
 func (*WorkspaceClientFrame_SelectAccount) isWorkspaceClientFrame_Payload() {}
@@ -417,6 +431,8 @@ func (*WorkspaceClientFrame_LoadLogs) isWorkspaceClientFrame_Payload() {}
 func (*WorkspaceClientFrame_WatchAlipayLogin) isWorkspaceClientFrame_Payload() {}
 
 func (*WorkspaceClientFrame_LoadRedeemAttempts) isWorkspaceClientFrame_Payload() {}
+
+func (*WorkspaceClientFrame_LoadNotifications) isWorkspaceClientFrame_Payload() {}
 
 type OpenWorkspace struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
@@ -768,6 +784,7 @@ type WorkspaceServerFrame struct {
 	//	*WorkspaceServerFrame_AlipayLogin
 	//	*WorkspaceServerFrame_Error
 	//	*WorkspaceServerFrame_RedeemAttempts
+	//	*WorkspaceServerFrame_Notifications
 	Payload       isWorkspaceServerFrame_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -896,6 +913,15 @@ func (x *WorkspaceServerFrame) GetRedeemAttempts() *AccountRedeemAttemptPage {
 	return nil
 }
 
+func (x *WorkspaceServerFrame) GetNotifications() *UserNotificationsView {
+	if x != nil {
+		if x, ok := x.Payload.(*WorkspaceServerFrame_Notifications); ok {
+			return x.Notifications
+		}
+	}
+	return nil
+}
+
 type isWorkspaceServerFrame_Payload interface {
 	isWorkspaceServerFrame_Payload()
 }
@@ -932,6 +958,10 @@ type WorkspaceServerFrame_RedeemAttempts struct {
 	RedeemAttempts *AccountRedeemAttemptPage `protobuf:"bytes,10,opt,name=redeem_attempts,json=redeemAttempts,proto3,oneof"`
 }
 
+type WorkspaceServerFrame_Notifications struct {
+	Notifications *UserNotificationsView `protobuf:"bytes,11,opt,name=notifications,proto3,oneof"`
+}
+
 func (*WorkspaceServerFrame_Ready) isWorkspaceServerFrame_Payload() {}
 
 func (*WorkspaceServerFrame_AccountStatuses) isWorkspaceServerFrame_Payload() {}
@@ -947,6 +977,8 @@ func (*WorkspaceServerFrame_AlipayLogin) isWorkspaceServerFrame_Payload() {}
 func (*WorkspaceServerFrame_Error) isWorkspaceServerFrame_Payload() {}
 
 func (*WorkspaceServerFrame_RedeemAttempts) isWorkspaceServerFrame_Payload() {}
+
+func (*WorkspaceServerFrame_Notifications) isWorkspaceServerFrame_Payload() {}
 
 type WorkspaceReady struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
@@ -1981,7 +2013,7 @@ var File_mygardenworld_v1_workspace_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"\n" +
-	" mygardenworld/v1/workspace.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/account.proto\x1a\x1emygardenworld/v1/channel.proto\x1a\x1dmygardenworld/v1/policy.proto\x1a)mygardenworld/v1/workspace_activity.proto\x1a&mygardenworld/v1/workspace_basic.proto\x1a'mygardenworld/v1/workspace_common.proto\x1a'mygardenworld/v1/workspace_garden.proto\x1a'mygardenworld/v1/workspace_orders.proto\x1a&mygardenworld/v1/workspace_union.proto\x1a*mygardenworld/v1/workspace_warehouse.proto\"\x80\x04\n" +
+	" mygardenworld/v1/workspace.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/account.proto\x1a\x1emygardenworld/v1/channel.proto\x1a\x1dmygardenworld/v1/policy.proto\x1a#mygardenworld/v1/notification.proto\x1a)mygardenworld/v1/workspace_activity.proto\x1a&mygardenworld/v1/workspace_basic.proto\x1a'mygardenworld/v1/workspace_common.proto\x1a'mygardenworld/v1/workspace_garden.proto\x1a'mygardenworld/v1/workspace_orders.proto\x1a&mygardenworld/v1/workspace_union.proto\x1a*mygardenworld/v1/workspace_warehouse.proto\"\xda\x04\n" +
 	"\x14WorkspaceClientFrame\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x04R\trequestId\x125\n" +
@@ -1990,7 +2022,8 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"\x06resync\x18\x04 \x01(\v2!.mygardenworld.v1.ResyncWorkspaceH\x00R\x06resync\x12B\n" +
 	"\tload_logs\x18\x05 \x01(\v2#.mygardenworld.v1.LoadWorkspaceLogsH\x00R\bloadLogs\x12R\n" +
 	"\x12watch_alipay_login\x18\x06 \x01(\v2\".mygardenworld.v1.WatchAlipayLoginH\x00R\x10watchAlipayLogin\x12_\n" +
-	"\x14load_redeem_attempts\x18\a \x01(\v2+.mygardenworld.v1.LoadAccountRedeemAttemptsH\x00R\x12loadRedeemAttemptsB\t\n" +
+	"\x14load_redeem_attempts\x18\a \x01(\v2+.mygardenworld.v1.LoadAccountRedeemAttemptsH\x00R\x12loadRedeemAttempts\x12X\n" +
+	"\x12load_notifications\x18\b \x01(\v2'.mygardenworld.v1.LoadUserNotificationsH\x00R\x11loadNotificationsB\t\n" +
 	"\apayload\"\xaf\x01\n" +
 	"\rOpenWorkspace\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12!\n" +
@@ -2018,7 +2051,7 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x1b\n" +
 	"\tbefore_id\x18\x02 \x01(\x03R\bbeforeId\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12D\n" +
-	"\x06filter\x18\x04 \x01(\x0e2,.mygardenworld.v1.AccountRedeemAttemptFilterR\x06filter\"\xfd\x04\n" +
+	"\x06filter\x18\x04 \x01(\x0e2,.mygardenworld.v1.AccountRedeemAttemptFilterR\x06filter\"\xce\x05\n" +
 	"\x14WorkspaceServerFrame\x12\x1a\n" +
 	"\bsequence\x18\x01 \x01(\x04R\bsequence\x12\x1d\n" +
 	"\n" +
@@ -2031,7 +2064,8 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"\falipay_login\x18\b \x01(\v2%.mygardenworld.v1.AlipayLoginProgressH\x00R\valipayLogin\x128\n" +
 	"\x05error\x18\t \x01(\v2 .mygardenworld.v1.WorkspaceErrorH\x00R\x05error\x12U\n" +
 	"\x0fredeem_attempts\x18\n" +
-	" \x01(\v2*.mygardenworld.v1.AccountRedeemAttemptPageH\x00R\x0eredeemAttemptsB\t\n" +
+	" \x01(\v2*.mygardenworld.v1.AccountRedeemAttemptPageH\x00R\x0eredeemAttempts\x12O\n" +
+	"\rnotifications\x18\v \x01(\v2'.mygardenworld.v1.UserNotificationsViewH\x00R\rnotificationsB\t\n" +
 	"\apayload\"\xe1\x02\n" +
 	"\x0eWorkspaceReady\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12;\n" +
@@ -2210,22 +2244,24 @@ var file_mygardenworld_v1_workspace_proto_goTypes = []any{
 	(*AccountRedeemAttemptPage)(nil),    // 21: mygardenworld.v1.AccountRedeemAttemptPage
 	(*AlipayLoginProgress)(nil),         // 22: mygardenworld.v1.AlipayLoginProgress
 	(*WorkspaceError)(nil),              // 23: mygardenworld.v1.WorkspaceError
-	(*timestamppb.Timestamp)(nil),       // 24: google.protobuf.Timestamp
-	(*AccountStatus)(nil),               // 25: mygardenworld.v1.AccountStatus
-	(*FeatureCapability)(nil),           // 26: mygardenworld.v1.FeatureCapability
-	(*Policy)(nil),                      // 27: mygardenworld.v1.Policy
-	(*BasicView)(nil),                   // 28: mygardenworld.v1.BasicView
-	(*GardenView)(nil),                  // 29: mygardenworld.v1.GardenView
-	(*OrdersView)(nil),                  // 30: mygardenworld.v1.OrdersView
-	(*UnionView)(nil),                   // 31: mygardenworld.v1.UnionView
-	(*ActivitiesView)(nil),              // 32: mygardenworld.v1.ActivitiesView
-	(*WarehouseView)(nil),               // 33: mygardenworld.v1.WarehouseView
-	(*RuntimeStatisticsView)(nil),       // 34: mygardenworld.v1.RuntimeStatisticsView
-	(*BusinessStatisticsView)(nil),      // 35: mygardenworld.v1.BusinessStatisticsView
-	(*Event)(nil),                       // 36: mygardenworld.v1.Event
-	(Channel)(0),                        // 37: mygardenworld.v1.Channel
-	(AlipayLoginStatus)(0),              // 38: mygardenworld.v1.AlipayLoginStatus
-	(*Account)(nil),                     // 39: mygardenworld.v1.Account
+	(*LoadUserNotifications)(nil),       // 24: mygardenworld.v1.LoadUserNotifications
+	(*UserNotificationsView)(nil),       // 25: mygardenworld.v1.UserNotificationsView
+	(*timestamppb.Timestamp)(nil),       // 26: google.protobuf.Timestamp
+	(*AccountStatus)(nil),               // 27: mygardenworld.v1.AccountStatus
+	(*FeatureCapability)(nil),           // 28: mygardenworld.v1.FeatureCapability
+	(*Policy)(nil),                      // 29: mygardenworld.v1.Policy
+	(*BasicView)(nil),                   // 30: mygardenworld.v1.BasicView
+	(*GardenView)(nil),                  // 31: mygardenworld.v1.GardenView
+	(*OrdersView)(nil),                  // 32: mygardenworld.v1.OrdersView
+	(*UnionView)(nil),                   // 33: mygardenworld.v1.UnionView
+	(*ActivitiesView)(nil),              // 34: mygardenworld.v1.ActivitiesView
+	(*WarehouseView)(nil),               // 35: mygardenworld.v1.WarehouseView
+	(*RuntimeStatisticsView)(nil),       // 36: mygardenworld.v1.RuntimeStatisticsView
+	(*BusinessStatisticsView)(nil),      // 37: mygardenworld.v1.BusinessStatisticsView
+	(*Event)(nil),                       // 38: mygardenworld.v1.Event
+	(Channel)(0),                        // 39: mygardenworld.v1.Channel
+	(AlipayLoginStatus)(0),              // 40: mygardenworld.v1.AlipayLoginStatus
+	(*Account)(nil),                     // 41: mygardenworld.v1.Account
 }
 var file_mygardenworld_v1_workspace_proto_depIdxs = []int32{
 	5,  // 0: mygardenworld.v1.WorkspaceClientFrame.open:type_name -> mygardenworld.v1.OpenWorkspace
@@ -2234,60 +2270,62 @@ var file_mygardenworld_v1_workspace_proto_depIdxs = []int32{
 	8,  // 3: mygardenworld.v1.WorkspaceClientFrame.load_logs:type_name -> mygardenworld.v1.LoadWorkspaceLogs
 	9,  // 4: mygardenworld.v1.WorkspaceClientFrame.watch_alipay_login:type_name -> mygardenworld.v1.WatchAlipayLogin
 	10, // 5: mygardenworld.v1.WorkspaceClientFrame.load_redeem_attempts:type_name -> mygardenworld.v1.LoadAccountRedeemAttempts
-	3,  // 6: mygardenworld.v1.LoadAccountRedeemAttempts.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
-	12, // 7: mygardenworld.v1.WorkspaceServerFrame.ready:type_name -> mygardenworld.v1.WorkspaceReady
-	13, // 8: mygardenworld.v1.WorkspaceServerFrame.account_statuses:type_name -> mygardenworld.v1.AccountStatusBatch
-	15, // 9: mygardenworld.v1.WorkspaceServerFrame.snapshot:type_name -> mygardenworld.v1.WorkspaceSnapshot
-	16, // 10: mygardenworld.v1.WorkspaceServerFrame.patch:type_name -> mygardenworld.v1.WorkspacePatch
-	18, // 11: mygardenworld.v1.WorkspaceServerFrame.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
-	22, // 12: mygardenworld.v1.WorkspaceServerFrame.alipay_login:type_name -> mygardenworld.v1.AlipayLoginProgress
-	23, // 13: mygardenworld.v1.WorkspaceServerFrame.error:type_name -> mygardenworld.v1.WorkspaceError
-	21, // 14: mygardenworld.v1.WorkspaceServerFrame.redeem_attempts:type_name -> mygardenworld.v1.AccountRedeemAttemptPage
-	24, // 15: mygardenworld.v1.WorkspaceReady.server_time:type_name -> google.protobuf.Timestamp
-	25, // 16: mygardenworld.v1.WorkspaceReady.accounts:type_name -> mygardenworld.v1.AccountStatus
-	26, // 17: mygardenworld.v1.WorkspaceReady.feature_capabilities:type_name -> mygardenworld.v1.FeatureCapability
-	25, // 18: mygardenworld.v1.AccountStatusBatch.accounts:type_name -> mygardenworld.v1.AccountStatus
-	25, // 19: mygardenworld.v1.WorkspaceState.account_status:type_name -> mygardenworld.v1.AccountStatus
-	27, // 20: mygardenworld.v1.WorkspaceState.policy:type_name -> mygardenworld.v1.Policy
-	28, // 21: mygardenworld.v1.WorkspaceState.basic:type_name -> mygardenworld.v1.BasicView
-	29, // 22: mygardenworld.v1.WorkspaceState.garden:type_name -> mygardenworld.v1.GardenView
-	30, // 23: mygardenworld.v1.WorkspaceState.orders:type_name -> mygardenworld.v1.OrdersView
-	31, // 24: mygardenworld.v1.WorkspaceState.union:type_name -> mygardenworld.v1.UnionView
-	32, // 25: mygardenworld.v1.WorkspaceState.activities:type_name -> mygardenworld.v1.ActivitiesView
-	33, // 26: mygardenworld.v1.WorkspaceState.warehouse:type_name -> mygardenworld.v1.WarehouseView
-	17, // 27: mygardenworld.v1.WorkspaceState.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
-	14, // 28: mygardenworld.v1.WorkspaceSnapshot.state:type_name -> mygardenworld.v1.WorkspaceState
-	18, // 29: mygardenworld.v1.WorkspaceSnapshot.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
-	25, // 30: mygardenworld.v1.WorkspacePatch.account_status:type_name -> mygardenworld.v1.AccountStatus
-	27, // 31: mygardenworld.v1.WorkspacePatch.policy:type_name -> mygardenworld.v1.Policy
-	28, // 32: mygardenworld.v1.WorkspacePatch.basic:type_name -> mygardenworld.v1.BasicView
-	29, // 33: mygardenworld.v1.WorkspacePatch.garden:type_name -> mygardenworld.v1.GardenView
-	30, // 34: mygardenworld.v1.WorkspacePatch.orders:type_name -> mygardenworld.v1.OrdersView
-	31, // 35: mygardenworld.v1.WorkspacePatch.union:type_name -> mygardenworld.v1.UnionView
-	32, // 36: mygardenworld.v1.WorkspacePatch.activities:type_name -> mygardenworld.v1.ActivitiesView
-	33, // 37: mygardenworld.v1.WorkspacePatch.warehouse:type_name -> mygardenworld.v1.WarehouseView
-	17, // 38: mygardenworld.v1.WorkspacePatch.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
-	0,  // 39: mygardenworld.v1.WorkspacePatch.cleared_domains:type_name -> mygardenworld.v1.WorkspaceDomain
-	34, // 40: mygardenworld.v1.WorkspaceStatistics.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	35, // 41: mygardenworld.v1.WorkspaceStatistics.business_statistics:type_name -> mygardenworld.v1.BusinessStatisticsView
-	1,  // 42: mygardenworld.v1.WorkspaceLogPage.kind:type_name -> mygardenworld.v1.WorkspaceLogPageKind
-	36, // 43: mygardenworld.v1.WorkspaceLogPage.events:type_name -> mygardenworld.v1.Event
-	37, // 44: mygardenworld.v1.AccountRedeemAttempt.channel:type_name -> mygardenworld.v1.Channel
-	2,  // 45: mygardenworld.v1.AccountRedeemAttempt.status:type_name -> mygardenworld.v1.AccountRedeemAttemptStatus
-	24, // 46: mygardenworld.v1.AccountRedeemAttempt.attempted_at:type_name -> google.protobuf.Timestamp
-	24, // 47: mygardenworld.v1.AccountRedeemAttempt.expires_at:type_name -> google.protobuf.Timestamp
-	24, // 48: mygardenworld.v1.AccountRedeemAttempt.updated_at:type_name -> google.protobuf.Timestamp
-	3,  // 49: mygardenworld.v1.AccountRedeemAttemptPage.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
-	19, // 50: mygardenworld.v1.AccountRedeemAttemptPage.entries:type_name -> mygardenworld.v1.AccountRedeemAttempt
-	20, // 51: mygardenworld.v1.AccountRedeemAttemptPage.summary:type_name -> mygardenworld.v1.AccountRedeemAttemptSummary
-	38, // 52: mygardenworld.v1.AlipayLoginProgress.status:type_name -> mygardenworld.v1.AlipayLoginStatus
-	39, // 53: mygardenworld.v1.AlipayLoginProgress.account:type_name -> mygardenworld.v1.Account
-	24, // 54: mygardenworld.v1.AlipayLoginProgress.expires_at:type_name -> google.protobuf.Timestamp
-	55, // [55:55] is the sub-list for method output_type
-	55, // [55:55] is the sub-list for method input_type
-	55, // [55:55] is the sub-list for extension type_name
-	55, // [55:55] is the sub-list for extension extendee
-	0,  // [0:55] is the sub-list for field type_name
+	24, // 6: mygardenworld.v1.WorkspaceClientFrame.load_notifications:type_name -> mygardenworld.v1.LoadUserNotifications
+	3,  // 7: mygardenworld.v1.LoadAccountRedeemAttempts.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
+	12, // 8: mygardenworld.v1.WorkspaceServerFrame.ready:type_name -> mygardenworld.v1.WorkspaceReady
+	13, // 9: mygardenworld.v1.WorkspaceServerFrame.account_statuses:type_name -> mygardenworld.v1.AccountStatusBatch
+	15, // 10: mygardenworld.v1.WorkspaceServerFrame.snapshot:type_name -> mygardenworld.v1.WorkspaceSnapshot
+	16, // 11: mygardenworld.v1.WorkspaceServerFrame.patch:type_name -> mygardenworld.v1.WorkspacePatch
+	18, // 12: mygardenworld.v1.WorkspaceServerFrame.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
+	22, // 13: mygardenworld.v1.WorkspaceServerFrame.alipay_login:type_name -> mygardenworld.v1.AlipayLoginProgress
+	23, // 14: mygardenworld.v1.WorkspaceServerFrame.error:type_name -> mygardenworld.v1.WorkspaceError
+	21, // 15: mygardenworld.v1.WorkspaceServerFrame.redeem_attempts:type_name -> mygardenworld.v1.AccountRedeemAttemptPage
+	25, // 16: mygardenworld.v1.WorkspaceServerFrame.notifications:type_name -> mygardenworld.v1.UserNotificationsView
+	26, // 17: mygardenworld.v1.WorkspaceReady.server_time:type_name -> google.protobuf.Timestamp
+	27, // 18: mygardenworld.v1.WorkspaceReady.accounts:type_name -> mygardenworld.v1.AccountStatus
+	28, // 19: mygardenworld.v1.WorkspaceReady.feature_capabilities:type_name -> mygardenworld.v1.FeatureCapability
+	27, // 20: mygardenworld.v1.AccountStatusBatch.accounts:type_name -> mygardenworld.v1.AccountStatus
+	27, // 21: mygardenworld.v1.WorkspaceState.account_status:type_name -> mygardenworld.v1.AccountStatus
+	29, // 22: mygardenworld.v1.WorkspaceState.policy:type_name -> mygardenworld.v1.Policy
+	30, // 23: mygardenworld.v1.WorkspaceState.basic:type_name -> mygardenworld.v1.BasicView
+	31, // 24: mygardenworld.v1.WorkspaceState.garden:type_name -> mygardenworld.v1.GardenView
+	32, // 25: mygardenworld.v1.WorkspaceState.orders:type_name -> mygardenworld.v1.OrdersView
+	33, // 26: mygardenworld.v1.WorkspaceState.union:type_name -> mygardenworld.v1.UnionView
+	34, // 27: mygardenworld.v1.WorkspaceState.activities:type_name -> mygardenworld.v1.ActivitiesView
+	35, // 28: mygardenworld.v1.WorkspaceState.warehouse:type_name -> mygardenworld.v1.WarehouseView
+	17, // 29: mygardenworld.v1.WorkspaceState.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
+	14, // 30: mygardenworld.v1.WorkspaceSnapshot.state:type_name -> mygardenworld.v1.WorkspaceState
+	18, // 31: mygardenworld.v1.WorkspaceSnapshot.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
+	27, // 32: mygardenworld.v1.WorkspacePatch.account_status:type_name -> mygardenworld.v1.AccountStatus
+	29, // 33: mygardenworld.v1.WorkspacePatch.policy:type_name -> mygardenworld.v1.Policy
+	30, // 34: mygardenworld.v1.WorkspacePatch.basic:type_name -> mygardenworld.v1.BasicView
+	31, // 35: mygardenworld.v1.WorkspacePatch.garden:type_name -> mygardenworld.v1.GardenView
+	32, // 36: mygardenworld.v1.WorkspacePatch.orders:type_name -> mygardenworld.v1.OrdersView
+	33, // 37: mygardenworld.v1.WorkspacePatch.union:type_name -> mygardenworld.v1.UnionView
+	34, // 38: mygardenworld.v1.WorkspacePatch.activities:type_name -> mygardenworld.v1.ActivitiesView
+	35, // 39: mygardenworld.v1.WorkspacePatch.warehouse:type_name -> mygardenworld.v1.WarehouseView
+	17, // 40: mygardenworld.v1.WorkspacePatch.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
+	0,  // 41: mygardenworld.v1.WorkspacePatch.cleared_domains:type_name -> mygardenworld.v1.WorkspaceDomain
+	36, // 42: mygardenworld.v1.WorkspaceStatistics.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	37, // 43: mygardenworld.v1.WorkspaceStatistics.business_statistics:type_name -> mygardenworld.v1.BusinessStatisticsView
+	1,  // 44: mygardenworld.v1.WorkspaceLogPage.kind:type_name -> mygardenworld.v1.WorkspaceLogPageKind
+	38, // 45: mygardenworld.v1.WorkspaceLogPage.events:type_name -> mygardenworld.v1.Event
+	39, // 46: mygardenworld.v1.AccountRedeemAttempt.channel:type_name -> mygardenworld.v1.Channel
+	2,  // 47: mygardenworld.v1.AccountRedeemAttempt.status:type_name -> mygardenworld.v1.AccountRedeemAttemptStatus
+	26, // 48: mygardenworld.v1.AccountRedeemAttempt.attempted_at:type_name -> google.protobuf.Timestamp
+	26, // 49: mygardenworld.v1.AccountRedeemAttempt.expires_at:type_name -> google.protobuf.Timestamp
+	26, // 50: mygardenworld.v1.AccountRedeemAttempt.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 51: mygardenworld.v1.AccountRedeemAttemptPage.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
+	19, // 52: mygardenworld.v1.AccountRedeemAttemptPage.entries:type_name -> mygardenworld.v1.AccountRedeemAttempt
+	20, // 53: mygardenworld.v1.AccountRedeemAttemptPage.summary:type_name -> mygardenworld.v1.AccountRedeemAttemptSummary
+	40, // 54: mygardenworld.v1.AlipayLoginProgress.status:type_name -> mygardenworld.v1.AlipayLoginStatus
+	41, // 55: mygardenworld.v1.AlipayLoginProgress.account:type_name -> mygardenworld.v1.Account
+	26, // 56: mygardenworld.v1.AlipayLoginProgress.expires_at:type_name -> google.protobuf.Timestamp
+	57, // [57:57] is the sub-list for method output_type
+	57, // [57:57] is the sub-list for method input_type
+	57, // [57:57] is the sub-list for extension type_name
+	57, // [57:57] is the sub-list for extension extendee
+	0,  // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_proto_init() }
@@ -2298,6 +2336,7 @@ func file_mygardenworld_v1_workspace_proto_init() {
 	file_mygardenworld_v1_account_proto_init()
 	file_mygardenworld_v1_channel_proto_init()
 	file_mygardenworld_v1_policy_proto_init()
+	file_mygardenworld_v1_notification_proto_init()
 	file_mygardenworld_v1_workspace_activity_proto_init()
 	file_mygardenworld_v1_workspace_basic_proto_init()
 	file_mygardenworld_v1_workspace_common_proto_init()
@@ -2312,6 +2351,7 @@ func file_mygardenworld_v1_workspace_proto_init() {
 		(*WorkspaceClientFrame_LoadLogs)(nil),
 		(*WorkspaceClientFrame_WatchAlipayLogin)(nil),
 		(*WorkspaceClientFrame_LoadRedeemAttempts)(nil),
+		(*WorkspaceClientFrame_LoadNotifications)(nil),
 	}
 	file_mygardenworld_v1_workspace_proto_msgTypes[7].OneofWrappers = []any{
 		(*WorkspaceServerFrame_Ready)(nil),
@@ -2322,6 +2362,7 @@ func file_mygardenworld_v1_workspace_proto_init() {
 		(*WorkspaceServerFrame_AlipayLogin)(nil),
 		(*WorkspaceServerFrame_Error)(nil),
 		(*WorkspaceServerFrame_RedeemAttempts)(nil),
+		(*WorkspaceServerFrame_Notifications)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

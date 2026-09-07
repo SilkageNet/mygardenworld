@@ -17,6 +17,7 @@ import { LogOut, Shield, Sparkles, Ticket } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserManagementPanel } from "@/components/user-management-panel";
 import { UserRole } from "@/gen/mygardenworld/v1/auth_pb";
+import { NotificationSettings } from "@/features/notifications/notification-settings";
 
 export default function AppLayout({ children, version }: { children: ReactNode; version?: string }) {
   const { user, loading, logout } = useAuth();
@@ -93,6 +94,7 @@ export default function AppLayout({ children, version }: { children: ReactNode; 
               </Button>
             )}
             <ThemeToggle />
+            <NotificationSettings key={String(user.id)} />
             <Button variant="ghost" size="icon-sm" onClick={handleLogout} aria-label="退出登录">
               <LogOut className="size-4" />
             </Button>

@@ -6,12 +6,13 @@ import "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1/mygardenworldv1
 // service is mounted through its own wrapper so route assembly cannot
 // accidentally treat the entire application core as one giant handler.
 type Handlers struct {
-	Auth       *AuthHandler
-	Account    *AccountHandler
-	Automation *AutomationHandler
-	Policy     *PolicyHandler
-	Admin      *AdminHandler
-	Redeem     *RedeemHandler
+	Auth         *AuthHandler
+	Account      *AccountHandler
+	Automation   *AutomationHandler
+	Policy       *PolicyHandler
+	Admin        *AdminHandler
+	Redeem       *RedeemHandler
+	Notification *NotificationHandler
 }
 
 type AuthHandler struct{ *Services }
@@ -20,15 +21,17 @@ type AutomationHandler struct{ *Services }
 type PolicyHandler struct{ *Services }
 type AdminHandler struct{ *Services }
 type RedeemHandler struct{ *Services }
+type NotificationHandler struct{ *Services }
 
 func NewHandlers(services *Services) Handlers {
 	return Handlers{
-		Auth:       &AuthHandler{Services: services},
-		Account:    &AccountHandler{Services: services},
-		Automation: &AutomationHandler{Services: services},
-		Policy:     &PolicyHandler{Services: services},
-		Admin:      &AdminHandler{Services: services},
-		Redeem:     &RedeemHandler{Services: services},
+		Auth:         &AuthHandler{Services: services},
+		Account:      &AccountHandler{Services: services},
+		Automation:   &AutomationHandler{Services: services},
+		Policy:       &PolicyHandler{Services: services},
+		Admin:        &AdminHandler{Services: services},
+		Redeem:       &RedeemHandler{Services: services},
+		Notification: &NotificationHandler{Services: services},
 	}
 }
 
@@ -39,4 +42,5 @@ var (
 	_ mygardenworldv1connect.PolicyServiceHandler         = (*PolicyHandler)(nil)
 	_ mygardenworldv1connect.AdminServiceHandler          = (*AdminHandler)(nil)
 	_ mygardenworldv1connect.RedeemExchangeServiceHandler = (*RedeemHandler)(nil)
+	_ mygardenworldv1connect.NotificationServiceHandler   = (*NotificationHandler)(nil)
 )

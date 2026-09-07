@@ -6,6 +6,7 @@ import "google/protobuf/timestamp.proto";
 import "mygardenworld/v1/account.proto";
 import "mygardenworld/v1/channel.proto";
 import "mygardenworld/v1/policy.proto";
+import "mygardenworld/v1/notification.proto";
 import "mygardenworld/v1/workspace_activity.proto";
 import "mygardenworld/v1/workspace_basic.proto";
 import "mygardenworld/v1/workspace_common.proto";
@@ -64,6 +65,7 @@ message WorkspaceClientFrame {
     LoadWorkspaceLogs load_logs = 5;
     WatchAlipayLogin watch_alipay_login = 6;
     LoadAccountRedeemAttempts load_redeem_attempts = 7;
+    LoadUserNotifications load_notifications = 8;
   }
 }
 
@@ -113,6 +115,7 @@ message WorkspaceServerFrame {
     AlipayLoginProgress alipay_login = 8;
     WorkspaceError error = 9;
     AccountRedeemAttemptPage redeem_attempts = 10;
+    UserNotificationsView notifications = 11;
   }
 }
 

@@ -33,13 +33,26 @@ export function raceTaskAvailability(task: FmlRaceTask, nowMs: number): string {
   const reason = (task.takeSkipReason ?? "").trim();
   if (raceTaskReady(task, nowMs)) return "现在可抢";
   if (reason.startsWith("冷却中")) {
-    const remainSeconds = Math.max(1, Math.ceil((Number(task.appearTimeMs) - nowMs) / 1000));
-    if (remainSeconds < 60) return `${remainSeconds} 秒后可抢`;
-    const minutes = Math.floor(remainSeconds / 60);
-    const seconds = remainSeconds % 60;
-    return `${minutes} 分${seconds > 0 ? ` ${seconds} 秒` : ""}后可抢`;
+    return `${formatRaceTaskTime(task.appearTimeMs)} 后可抢`;
   }
   return reason ? `不可抢：${reason}` : "状态待刷新";
+}
+
+export function formatRaceTaskTime(ms: bigint): string {
+  if (ms <= BigInt(0)) return "";
+  return new Date(Number(ms)).toLocaleString("zh-CN", {
+    month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+}
+
+// Only wake the task list when availability changes, not on every elapsed second.
+export function nextRaceTaskReadyAt(tasks: FmlRaceTask[], nowMs: number): number | null {
+  let next: number | null = null;
+  for (const task of tasks) {
+    const at = Number(task.appearTimeMs);
+    if ((task.takeSkipReason ?? "").trim().startsWith("冷却中") && at > nowMs && (next === null || at < next)) next = at;
+  }
+  return next;
 }
 
 export function raceTaskProgressLabel(task: FmlRaceTask): string | null {

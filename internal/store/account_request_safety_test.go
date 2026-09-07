@@ -28,7 +28,7 @@ func TestAccountRequestSafetyMigrationPersistenceAndAtomicReservation(t *testing
 		t.Fatal(err)
 	}
 	// Restore a v8 fixture; migration v9 must leave account data untouched.
-	if _, err := db.ExecContext(ctx, `DROP TABLE account_request_safety; PRAGMA user_version=8`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications; DROP TABLE account_request_safety; PRAGMA user_version=8`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -38,7 +38,7 @@ func TestAccountRequestSafetyMigrationPersistenceAndAtomicReservation(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 9 {
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != currentSchemaVersion {
 		t.Fatalf("v8 migration: %d %v", version, err)
 	}
 	if u, p, err := db.GetCredentials(ctx, account.ID); err != nil || u != "game" || p != "secret" {

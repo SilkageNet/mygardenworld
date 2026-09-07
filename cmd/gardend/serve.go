@@ -20,6 +20,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/apiserver"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/notification"
 	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
@@ -222,6 +223,13 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		}),
 	}
 	handlers := apiserver.NewHandlers(svc)
+	notificationCtx, cancelNotifications := context.WithCancel(ctx)
+	notificationsDone := make(chan struct{})
+	go func() {
+		defer close(notificationsDone)
+		notification.New(db, log).Run(notificationCtx)
+	}()
+	defer func() { cancelNotifications(); <-notificationsDone }()
 
 	authInterceptor := auth.NewInterceptor(jwtSvc, func(ctx context.Context, userID int64) (*auth.Identity, error) {
 		user, err := db.GetUserByID(ctx, userID)
@@ -267,6 +275,9 @@ func runServe(ctx context.Context, opts serveOpts) error {
 
 	// All other services: protected
 	for _, mounter := range []func() (string, http.Handler){
+		func() (string, http.Handler) {
+			return mygardenworldv1connect.NewNotificationServiceHandler(handlers.Notification, protectedOpts...)
+		},
 		func() (string, http.Handler) {
 			return mygardenworldv1connect.NewAccountServiceHandler(handlers.Account, protectedOpts...)
 		},

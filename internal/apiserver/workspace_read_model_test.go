@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
@@ -29,7 +30,7 @@ func TestWorkspaceReadySourcesCapabilitiesAndStatuses(t *testing.T) {
 	if len(featureCapabilitiesProto()) == 0 {
 		t.Fatal("feature capabilities are missing")
 	}
-	statuses, err := svc.accountStatuses(ctx)
+	statuses, err := svc.accountStatuses(auth.ContextWithIdentity(ctx, &auth.Identity{UserID: 1, Role: "user"}))
 	if err != nil {
 		t.Fatal(err)
 	}

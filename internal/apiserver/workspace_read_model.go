@@ -8,7 +8,6 @@ import (
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
-	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/state"
@@ -18,9 +17,9 @@ import (
 )
 
 func (svc *Services) accountStatuses(ctx context.Context) ([]*pb.AccountStatus, error) {
-	var userID int64
-	if !auth.IsAdmin(ctx) {
-		userID = auth.UserIDFromContext(ctx)
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 	accs, err := svc.DB.ListAccounts(ctx, userID)
 	if err != nil {
