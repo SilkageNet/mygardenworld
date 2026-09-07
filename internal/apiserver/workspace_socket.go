@@ -280,6 +280,12 @@ func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) err
 
 func (s *workspaceSession) handleClientFrame(frame *pb.WorkspaceClientFrame) error {
 	switch payload := frame.GetPayload().(type) {
+	case *pb.WorkspaceClientFrame_LoadNotifications:
+		view, err := s.svc.userNotifications(s.ctx, payload.LoadNotifications.GetBeforeId())
+		if err != nil {
+			return err
+		}
+		return s.send(frame.GetRequestId(), &pb.WorkspaceServerFrame_Notifications{Notifications: view})
 	case *pb.WorkspaceClientFrame_SelectAccount:
 		return s.selectAccount(frame.GetRequestId(), payload.SelectAccount.GetAccountId(), payload.SelectAccount.GetAfterLogId())
 	case *pb.WorkspaceClientFrame_Resync:
@@ -544,6 +550,8 @@ func (s *workspaceSession) send(requestID uint64, payload any) error {
 	case *pb.WorkspaceServerFrame_AlipayLogin:
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_RedeemAttempts:
+		frame.Payload = value
+	case *pb.WorkspaceServerFrame_Notifications:
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_Error:
 		frame.Payload = value

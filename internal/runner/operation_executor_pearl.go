@@ -135,8 +135,11 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 		markFailed:    rt.runner.state.MarkPearlHireFailed,
 		skipCandidate: rt.runner.state.SkipPearlHireCandidate,
 		noteUsed:      rt.runner.notePearlHireTicketUsed,
-		lockSession:   rt.runner.state.LockPearlHireSession,
-		now:           time.Now,
+		lockSession: func(reason string) {
+			rt.runner.state.LockPearlHireSession(reason)
+			rt.runner.emit(Event{Kind: "pearl_hire_locked", Category: "basic", Domain: "basic.pearl", Action: "blocked", Level: "error", Label: "珍珠雇佣保护", Message: reason})
+		},
+		now: time.Now,
 	}
 	return executePearlHire(ctx, req, exec)
 }

@@ -44,6 +44,7 @@ web/             embedded Next.js control panel
 
 ## Product boundaries
 
+- System users, including admins, may only read or operate their own game accounts. Administrative user/quota management is not a game-account access bypass. Notification settings belong to the authenticated system user, apply only to that user's accounts, and never travel with game policy import/export/copy.
 - Supported game channels are only iOS and Alipay. Alipay login is QR-driven and must not ask for a manual game username.
 - The Web product has eight top-level workspaces: basic, garden, orders, union, activities, warehouse, statistics, and logs.
 - Each business workspace owns its status and settings. Warehouse is inventory-only; statistics contains aggregated history; logs contains structured execution/runtime records and no settings.
@@ -66,7 +67,7 @@ web/             embedded Next.js control panel
 
 - This prototype does not carry runtime backward compatibility. Do not add deprecated fields, Protobuf `reserved` declarations, legacy decoders, old policy aliases, or parallel API versions unless explicitly requested.
 - Breaking schema work stays in `mygardenworld.v1`. Regenerate both Go and TypeScript outputs and update all callers atomically.
-- SQLite uses transactional, ordered `PRAGMA user_version` migrations and currently targets schema v9. A database schema change requires a one-way migration and tests; unversioned legacy databases remain rejected.
+- SQLite uses transactional, ordered `PRAGMA user_version` migrations and currently targets schema v10. A database schema change requires a one-way migration and tests; unversioned legacy databases remain rejected.
 - Policy is one strict protojson document in `account_policies.policy_json`. Public replace/import/export/copy operations handle the whole current policy.
 - Credentials and recoverable Sessions are encrypted with `garden.db.key`. Session restore is preferred; invalid server sessions fall back to the channel login flow.
 

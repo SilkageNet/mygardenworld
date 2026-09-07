@@ -13,6 +13,8 @@ import { CollapsibleCard, EmptyState } from "@/features/workspace/shared/workspa
 import { formatAPIError, transport } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import {
+  formatRaceTaskTime,
+  nextRaceTaskReadyAt,
   raceTaskAvailability,
   raceTaskProgressLabel,
   raceTaskReady,
@@ -54,9 +56,12 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
   const accountCanTake = !taken?.hasTask && accountId > BigInt(0);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
+    const nextReadyAt = nextRaceTaskReadyAt(tasks, nowMs);
+    if (nextReadyAt === null) return;
+    const delay = Math.min(Math.max(0, nextReadyAt - Date.now()), 2_147_483_647);
+    const timer = window.setTimeout(() => setNowMs(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [tasks, nowMs]);
 
   const readyCount = useMemo(
     () => accountCanTake ? tasks.filter((task) => raceTaskReady(task, nowMs)).length : 0,
@@ -258,38 +263,17 @@ export default function FmlRaceMonitorPanel({ accountId, race, showTakenTask, sh
 }
 
 function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
-  const [nowMs, setNowMs] = useState<number | null>(null);
-  useEffect(() => {
-    const updateNow = () => setNowMs(Date.now());
-    updateNow();
-    const timer = window.setInterval(updateNow, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
   const progress = taken.targetCnt > 0 ? Math.min(100, Math.round((taken.finishCnt / taken.targetCnt) * 100)) : 0;
   const title = taken.targetLabel ? `${taken.taskLabel || `任务 #${taken.taskId}`} · ${taken.targetLabel}` : taken.taskLabel || `任务 #${taken.taskId}`;
-  const expireMs = Number(taken.expireTimeMs ?? BigInt(0));
-  const remainMs = expireMs > 0 && nowMs !== null ? expireMs - nowMs : 0;
-  const expireUrgent = expireMs > 0 && nowMs !== null && remainMs > 0 && remainMs <= 10 * 60 * 1000 && progress < 100;
-  const expireLabel = expireMs > 0 ? new Date(expireMs).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
-  const remainLabel = (() => {
-    if (expireMs <= 0 || nowMs === null) return "";
-    if (remainMs <= 0) return "已过期";
-    const totalSeconds = Math.floor(remainMs / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    if (hours > 0) return `剩余 ${hours}小时${minutes}分`;
-    if (minutes > 0) return `剩余 ${minutes}分钟`;
-    return `剩余 ${totalSeconds}秒`;
-  })();
+  const expireLabel = formatRaceTaskTime(taken.expireTimeMs ?? BigInt(0));
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between"><span className="text-sm font-medium">{title}</span><Badge variant={progress >= 100 ? "secondary" : "outline"}>{progress}%</Badge></div>
       <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} /></div>
       <div className="text-xs text-muted-foreground">进度 {taken.finishCnt} / {taken.targetCnt} · 分数 {taken.score}</div>
-      <div className={`text-xs ${expireUrgent ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
-        {expireLabel ? <>{progress >= 100 ? "已完成，待提交" : expireUrgent ? "即将过期" : "过期时间"}：{expireLabel}{remainLabel && progress < 100 ? `（${remainLabel}）` : null}</> : "过期时间：等待同步任务时长"}
+      <div className="text-xs text-muted-foreground">
+        {expireLabel ? <>{progress >= 100 ? "已完成，待提交" : "过期时间"}：{expireLabel}</> : "过期时间：等待同步任务时长"}
       </div>
     </div>
   );

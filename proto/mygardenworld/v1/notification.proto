@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package mygardenworld.v1;
+
+// Notification settings belong to the authenticated system user, including
+// admins. No command accepts a user/account id or exposes stored credentials.
+service NotificationService {
+  rpc SaveNotificationSettings(SaveNotificationSettingsRequest) returns (SaveNotificationSettingsResponse);
+  rpc TestNotification(TestNotificationRequest) returns (TestNotificationResponse);
+}
+
+message SaveNotificationSettingsRequest {
+  bool enabled = 1;
+  // Absent retains the saved endpoint; explicitly empty clears it.
+  optional string endpoint = 2;
+  int32 cooldown_minutes = 3;
+}
+message SaveNotificationSettingsResponse {}
+message TestNotificationRequest {}
+message TestNotificationResponse { int64 delivery_id = 1; }
+
+// Read via the authenticated workspace WebSocket, never Connect queries.
+message LoadUserNotifications { int64 before_id = 1; }
+message UserNotificationSettings {
+  bool enabled = 1;
+  bool has_endpoint = 2;
+  int32 cooldown_minutes = 3;
+}
+message NotificationDelivery {
+  int64 id = 1;
+  string title = 2;
+  string status = 3;
+  int32 attempts = 4;
+  int64 created_ms = 5;
+  string last_error = 6;
+}
+message UserNotificationsView {
+  UserNotificationSettings settings = 1;
+  repeated NotificationDelivery deliveries = 2;
+  bool has_more = 3;
+  int64 next_before_id = 4;
+  int64 before_id = 5;
+}

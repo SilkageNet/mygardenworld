@@ -11,6 +11,7 @@ import (
 	connect "connectrpc.com/connect"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/auth"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/runner"
@@ -109,6 +110,7 @@ func TestSetPolicyRejectsSDKAdAutomation(t *testing.T) {
 
 	requested := automation.DefaultPolicy()
 	requested.Basic.Shop.VideoFreeGiftEnabled = true
+	ctx = auth.ContextWithIdentity(ctx, &auth.Identity{UserID: user.ID, Role: user.Role})
 	_, err = svc.SetPolicy(ctx, connect.NewRequest(&pb.SetPolicyRequest{
 		AccountId: account.ID,
 		Policy:    requested,

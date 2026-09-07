@@ -42,9 +42,12 @@ type Services struct {
 }
 
 // resolveAccount resolves the only public account identity: its stable id.
-// Non-admin users can only access their own accounts.
+// Every user, including admins, can only access their own game accounts.
 func (svc *Services) resolveAccount(ctx context.Context, id int64) (*store.Account, error) {
-	identity := auth.IdentityFromContext(ctx)
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if id <= 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("valid account id required"))
 	}
@@ -52,13 +55,25 @@ func (svc *Services) resolveAccount(ctx context.Context, id int64) (*store.Accou
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	if identity != nil && identity.Role != "admin" && acc.UserID != identity.UserID {
+	if acc.UserID != userID {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("not your account"))
 	}
 	return acc, nil
 }
 
+func requireUserID(ctx context.Context) (int64, error) {
+	id := auth.UserIDFromContext(ctx)
+	if id <= 0 {
+		return 0, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	}
+	return id, nil
+}
+
 func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.CreateAccountRequest]) (*connect.Response[pb.CreateAccountResponse], error) {
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	in := req.Msg
 	username := strings.TrimSpace(in.GetUsername())
 	password := in.GetPassword()
@@ -79,19 +94,16 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 	if err != nil {
 		return nil, err
 	}
-	userID := auth.UserIDFromContext(ctx)
-	if userID > 0 {
-		user, err := svc.DB.GetUserByID(ctx, userID)
-		if err != nil {
-			return nil, mapErr(err)
-		}
-		count, err := svc.DB.CountAccountsByUser(ctx, userID)
-		if err != nil {
-			return nil, mapErr(err)
-		}
-		if count >= user.MaxAccounts {
-			return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("account quota reached (%d/%d)", count, user.MaxAccounts))
-		}
+	user, err := svc.DB.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	count, err := svc.DB.CountAccountsByUser(ctx, userID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	if count >= user.MaxAccounts {
+		return nil, connect.NewError(connect.CodeResourceExhausted, fmt.Errorf("account quota reached (%d/%d)", count, user.MaxAccounts))
 	}
 	session, err := svc.probeAccountIdentity(ctx, channelStr, username, password)
 	if err != nil {
@@ -150,9 +162,9 @@ func (svc *Services) DeleteAccount(ctx context.Context, req *connect.Request[pb.
 }
 
 func (svc *Services) ListAccounts(ctx context.Context, _ *connect.Request[pb.ListAccountsRequest]) (*connect.Response[pb.ListAccountsResponse], error) {
-	var userID int64
-	if !auth.IsAdmin(ctx) {
-		userID = auth.UserIDFromContext(ctx)
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
 	}
 	accounts, err := svc.DB.ListAccounts(ctx, userID)
 	if err != nil {

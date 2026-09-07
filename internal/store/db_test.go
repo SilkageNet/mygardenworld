@@ -121,6 +121,7 @@ func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testi
 	}
 	for _, statement := range []string{
 		`DROP TABLE account_request_safety`,
+		`DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications`,
 		`DROP INDEX idx_redeem_attempts_lease`,
 		`ALTER TABLE redeem_attempts DROP COLUMN lease_until`,
 		`ALTER TABLE redeem_attempts DROP COLUMN run_token`,
@@ -190,6 +191,7 @@ func TestOpenMigratesVersionSixRedeemCodesWithoutLosingData(t *testing.T) {
 	}
 	for _, statement := range []string{
 		`DROP TABLE account_request_safety`,
+		`DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications`,
 		`DROP INDEX idx_redeem_attempts_lease`,
 		`ALTER TABLE redeem_attempts DROP COLUMN lease_until`,
 		`ALTER TABLE redeem_attempts DROP COLUMN run_token`,

@@ -69,6 +69,7 @@ func (r *Runner) handleSessionInvalidated(reason string, sessionDisplaced bool) 
 		wait := r.reloginInterval()
 		r.emit(Event{
 			Kind:    "session_expired",
+			Action:  "retry_scheduled",
 			Message: fmt.Sprintf("检测到账号在其他设备登录，%s 后自动登录：%s", wait, reason),
 			Level:   "warn",
 		})
@@ -79,7 +80,7 @@ func (r *Runner) handleSessionInvalidated(reason string, sessionDisplaced bool) 
 	}
 
 	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
-	r.emit(Event{Kind: "session_expired", Message: fmt.Sprintf("检测到会话失效，已停止自动化：%s", reason)})
+	r.emit(Event{Kind: "session_expired", Action: "blocked", Message: fmt.Sprintf("检测到会话失效，已停止自动化：%s", reason)})
 	r.Stop()
 }
 
@@ -109,6 +110,7 @@ func (r *Runner) failClosedPendingDisplacedRelogin() bool {
 	r.disableAutomationPreferenceForInvalidatedSession(ctx, reason)
 	r.emit(Event{
 		Kind:    "session_expired",
+		Action:  "blocked",
 		Message: fmt.Sprintf("被挤号自动重登已关闭，已停止自动化：%s", reason),
 		Level:   "warn",
 	})

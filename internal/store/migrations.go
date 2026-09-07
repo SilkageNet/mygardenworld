@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 9
+const currentSchemaVersion = 10
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -265,6 +265,7 @@ CREATE TABLE account_request_safety (
 );
 `,
 	},
+	{version: 10, name: "user-owned webhook notifications", sql: notificationMigrationSQL},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

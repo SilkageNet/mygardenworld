@@ -135,6 +135,13 @@ func TestWorkspaceTokenExpiryIsAnExpectedReconnect(t *testing.T) {
 }
 
 func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.T) {
+	for _, role := range []string{"user", "admin"} {
+		t.Run(role, func(t *testing.T) { testWorkspaceSocketScopesAccounts(t, role) })
+	}
+}
+
+func testWorkspaceSocketScopesAccounts(t *testing.T, role string) {
+	t.Helper()
 	ctx := context.Background()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
 	if err != nil {
@@ -152,6 +159,10 @@ func TestWorkspaceSocketScopesAccountsSnapshotsAndLogPagesToIdentity(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.ExecContext(ctx, `UPDATE users SET role = ? WHERE id = ?`, role, owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	owner.Role = role
 	ownedAccount, err := db.CreateAccount(ctx, owner.ID, "owned", "ios", "owned", "secret")
 	if err != nil {
 		t.Fatal(err)
@@ -270,6 +281,29 @@ WHERE account_id = ?`, ownedAccount.ID); err != nil {
 		len(push.GetRedeemAttempts().GetEntries()) != 0 ||
 		push.GetRedeemAttempts().GetSummary().GetInvalid() != 1 {
 		t.Fatalf("live redeem page=%+v, want replacement after committed result", push.GetRedeemAttempts())
+	}
+	writeClientWorkspaceFrame(t, ctx, conn, &pb.WorkspaceClientFrame{RequestId: 6, Payload: &pb.WorkspaceClientFrame_SelectAccount{SelectAccount: &pb.SelectWorkspaceAccount{AccountId: otherAccount.ID}}})
+	denied = readServerWorkspaceFrame(t, ctx, conn)
+	if denied.GetRequestId() != 6 || denied.GetError() == nil {
+		t.Fatal("cross-owner selection accepted", denied)
+	}
+	endpoint := "https://example.com/hook?token=secret"
+	for _, userID := range []int64{owner.ID, other.ID} {
+		if err := db.SaveNotificationSettings(ctx, userID, true, &endpoint, 30); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ownerDeliveryID, err := db.QueueNotificationTest(ctx, owner.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.QueueNotificationTest(ctx, other.ID, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	writeClientWorkspaceFrame(t, ctx, conn, &pb.WorkspaceClientFrame{RequestId: 7, Payload: &pb.WorkspaceClientFrame_LoadNotifications{LoadNotifications: &pb.LoadUserNotifications{}}})
+	notifications := readServerWorkspaceFrame(t, ctx, conn)
+	if notifications.GetRequestId() != 7 || !notifications.GetNotifications().GetSettings().GetEnabled() || len(notifications.GetNotifications().GetDeliveries()) != 1 || notifications.GetNotifications().GetDeliveries()[0].GetId() != ownerDeliveryID {
+		t.Fatal("user notification view leaked or failed", notifications)
 	}
 }
 
