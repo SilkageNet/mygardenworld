@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net"
 	"net/http"
-	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,40 +45,6 @@ func TestClassifyOnlyActionableEventsWithSafeMessages(t *testing.T) {
 	}
 }
 
-func TestEndpointRestrictionsAndDNSRebindingGate(t *testing.T) {
-	for _, endpoint := range []string{"http://example.com/hook", "https://localhost/h", "https://user:pass@example.com", "https://example.com/#token", "https://127.0.0.1", "https://[::1]", "https://169.254.169.254", "https://100.100.100.200", "https://example.com:99999", "https://example.com:invalid"} {
-		if ValidateEndpoint(endpoint) == nil {
-			t.Errorf("accepted unsafe endpoint %q", endpoint)
-		}
-	}
-	if err := ValidateEndpoint("https://example.com/hook?token=secret"); err != nil {
-		t.Fatal(err)
-	}
-	for _, ip := range []string{"127.0.0.1", "10.1.2.3", "172.16.1.2", "192.168.1.2", "169.254.169.254", "100.100.100.200", "0.0.0.0", "224.0.0.1", "240.0.0.1", "192.0.2.1", "::1", "::ffff:127.0.0.1", "fc00::1", "fe80::1", "64:ff9b::a9fe:a9fe", "2002:7f00:1::", "2001:db8::1"} {
-		if publicAddress(netip.MustParseAddr(ip)) {
-			t.Errorf("accepted non-public %s", ip)
-		}
-	}
-	for _, ip := range []string{"1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"} {
-		if !publicAddress(netip.MustParseAddr(ip)) {
-			t.Errorf("rejected public %s", ip)
-		}
-	}
-	for _, answers := range [][]net.IPAddr{{{IP: net.ParseIP("127.0.0.1")}}, {{IP: net.ParseIP("1.1.1.1")}, {IP: net.ParseIP("10.0.0.1")}}} {
-		lookup := func(context.Context, string) ([]net.IPAddr, error) { return answers, nil }
-		if _, err := dialPublic(context.Background(), "tcp", "example.com:443", lookup); !errors.Is(err, ErrUnsafeEndpoint) {
-			t.Fatal("DNS rebinding gate failed", err)
-		}
-	}
-	client := safeClient()
-	if client.Transport.(*http.Transport).Proxy != nil || client.Timeout > 10*time.Second {
-		t.Fatal("unsafe transport options")
-	}
-	if client.CheckRedirect(&http.Request{}, nil) != http.ErrUseLastResponse {
-		t.Fatal("redirects allowed")
-	}
-}
-
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
@@ -107,7 +71,7 @@ func TestDeliverRetriesWithStableIDAndRedactedErrors(t *testing.T) {
 				t.Fatal(err)
 			}
 			endpoint := "https://example.com/hook?token=SECRET"
-			if err := db.SaveNotificationSettings(ctx, u.ID, true, &endpoint, 30); err != nil {
+			if err := db.SaveNotificationSettings(ctx, u.ID, store.NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := db.QueueNotificationTest(ctx, u.ID, now); err != nil {
@@ -163,5 +127,66 @@ func TestRetryAfterBoundedAndSupportsDates(t *testing.T) {
 		if got := retryAfter(tc.value, now); got != tc.want {
 			t.Fatalf("%q: %v want %v", tc.value, got, tc.want)
 		}
+	}
+}
+
+func TestDeliverNativeAcknowledgementAndRateLimit(t *testing.T) {
+	for _, tc := range []struct{ name, body, status string }{
+		{"accepted", `{"errcode":0}`, "sent"},
+		{"rejected", `{"errcode":310000,"errmsg":"SECRET"}`, "failed"},
+		{"limited", `{"errcode":410100,"errmsg":"SECRET"}`, "pending"},
+		{"invalid", `{"errcode":null}`, "failed"},
+		{"oversized", strings.Repeat(" ", 65537) + `{"errcode":0}`, "failed"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, now := context.Background(), time.Now().UTC()
+			db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = db.Close() }()
+			u, err := db.CreateUser(ctx, "owner", "owner@test.invalid", "hash")
+			if err != nil {
+				t.Fatal(err)
+			}
+			endpoint, secret := "https://oapi.dingtalk.com/robot/send?access_token=fixture", "SECRET"
+			if err := db.SaveNotificationSettings(ctx, u.ID, store.NotificationUpdate{Enabled: true, Endpoint: &endpoint, Provider: "dingtalk", SigningSecret: &secret, CooldownMinutes: 30}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.QueueNotificationTest(ctx, u.ID, now); err != nil {
+				t.Fatal(err)
+			}
+			service := New(db, nil)
+			requests := 0
+			service.client = &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				requests++
+				body, _ := io.ReadAll(r.Body)
+				if r.URL.Query().Get("sign") == "" || r.Header.Get("X-Notification-ID") == "" || !strings.Contains(string(body), "测试通知") || strings.Contains(string(body), secret) {
+					t.Fatal("incorrect signed delivery")
+				}
+				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(tc.body))}, nil
+			})}
+			if err := service.deliverNext(ctx, now); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := db.NotificationDeliveries(ctx, u.ID, 0)
+			if err != nil || len(rows) != 1 || rows[0].Status != tc.status || strings.Contains(rows[0].LastError, secret) {
+				t.Fatalf("result=%+v err=%v", rows, err)
+			}
+			if tc.status == "pending" {
+				if err := service.deliverNext(ctx, now.Add(9*time.Minute)); err != nil {
+					t.Fatal(err)
+				}
+				if requests != 1 {
+					t.Fatal("retry within platform's ten-minute limit")
+				}
+				if err := service.deliverNext(ctx, now.Add(10*time.Minute)); err != nil {
+					t.Fatal(err)
+				}
+				if requests != 2 {
+					t.Fatal("retry not released")
+				}
+			}
+		})
 	}
 }

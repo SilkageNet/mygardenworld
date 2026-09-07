@@ -11,10 +11,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/SilkageNet/mygardenworld/internal/outbound"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
@@ -28,7 +28,7 @@ func New(db *store.DB, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{db: db, log: log, client: safeClient()}
+	return &Service{db: db, log: log, client: outbound.NewClient(10 * time.Second)}
 }
 
 // Run has separate bounded ingestion and delivery loops. No network call can
@@ -107,37 +107,46 @@ func (s *Service) deliverNext(ctx context.Context, now time.Time) error {
 	if err != nil || n == nil {
 		return err
 	}
-	endpoint, err := s.db.NotificationEndpoint(ctx, n)
+	target, err := s.db.NotificationDestination(ctx, n)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s.db.FinishNotification(ctx, n, "cancelled", "通知设置或账号归属已变化", now)
 	}
 	if err != nil {
 		return s.db.FinishNotification(ctx, n, "failed", "无法读取通知凭据，请重新保存设置", now)
 	}
-	if err := ValidateEndpoint(endpoint); err != nil {
-		return s.db.FinishNotification(ctx, n, "failed", "通知地址不符合安全要求", now)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(n.Payload))
+	req, err := providerRequest(ctx, target, n.Payload, now)
 	if err != nil {
-		return s.db.FinishNotification(ctx, n, "failed", "通知地址无效", now)
+		return s.db.FinishNotification(ctx, n, "failed", "通知地址或内容无效，请检查渠道与地址", now)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "mygardenworld-webhook/1")
 	req.Header.Set("X-Notification-ID", n.Key)
 	resp, sendErr := s.client.Do(req)
 	status, safeError := "pending", "网络请求失败或超时"
-	if errors.Is(sendErr, ErrUnsafeEndpoint) {
+	if errors.Is(sendErr, outbound.ErrUnsafeEndpoint) {
 		status, safeError = "failed", "通知地址解析到受限网络，已阻止发送"
 	}
 	next := now.Add(retryDelay(n.Attempts))
 	if sendErr == nil {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 65537))
 		_ = resp.Body.Close()
 		code := resp.StatusCode
 		safeError = "接收端返回 HTTP " + strconv.Itoa(code)
 		switch {
 		case code >= 200 && code < 300:
-			status, safeError = "sent", ""
+			if target.Provider != "custom" && (readErr != nil || len(body) > 65536) {
+				status, safeError = "failed", "平台响应不完整或过大，未确认接收"
+			} else {
+				status, safeError = providerAcknowledgement(target.Provider, body)
+				// DingTalk documents a ten-minute ban after exceeding its limit.
+				// Other native providers get at least a minute before retrying.
+				if status == "pending" {
+					next = now.Add(max(time.Minute, retryDelay(n.Attempts)))
+					if target.Provider == "dingtalk" {
+						next = now.Add(10 * time.Minute)
+					}
+				}
+			}
 		case code == 408 || code == 429 || code >= 500:
 			if delay := retryAfter(resp.Header.Get("Retry-After"), now); delay > next.Sub(now) {
 				next = now.Add(delay)

@@ -4,9 +4,11 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/http"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
@@ -127,7 +129,9 @@ func TestValidateSourceEndpoint(t *testing.T) {
 	}{
 		{name: "native local HTTP", url: "http://127.0.0.1:8080", native: true},
 		{name: "custom requires HTTPS", url: "http://example.com/codes", wantErrSub: "HTTPS"},
-		{name: "custom rejects literal private address", url: "https://127.0.0.1/codes", wantErrSub: "private or local"},
+		{name: "custom rejects literal private address", url: "https://127.0.0.1/codes", wantErrSub: "公网"},
+		{name: "custom rejects shared metadata range", url: "https://100.100.100.200/codes", wantErrSub: "公网"},
+		{name: "custom rejects IPv6 translation range", url: "https://[64:ff9b::a9fe:a9fe]/codes", wantErrSub: "公网"},
 		{name: "credentials rejected", url: "https://user:secret@example.com", native: true, wantErrSub: "credentials"},
 		{name: "fragment rejected", url: "https://example.com/codes#private", native: true, wantErrSub: "fragments"},
 	}
@@ -141,6 +145,33 @@ func TestValidateSourceEndpoint(t *testing.T) {
 				t.Fatalf("ValidateSourceEndpoint() error = %v, want substring %q", err, tt.wantErrSub)
 			}
 		})
+	}
+}
+
+func TestCustomSourceTransportCannotUseProxyOrPrivateRedirect(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "http://proxy.example:8080")
+	client := newSourceHTTPClient(false, 12*time.Second)
+	if client.Transport.(*http.Transport).Proxy != nil || client.Timeout != 12*time.Second {
+		t.Fatal("custom source bypasses public-only transport")
+	}
+	for _, raw := range []string{"https://127.0.0.1/codes", "https://100.100.100.200/codes", "http://example.com/codes"} {
+		req, err := http.NewRequest(http.MethodGet, raw, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.CheckRedirect(req, nil); err == nil {
+			t.Fatalf("unsafe redirect allowed: %s", raw)
+		}
+	}
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/codes", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.CheckRedirect(req, nil); err != nil {
+		t.Fatal("public redirect rejected", err)
+	}
+	if err := client.CheckRedirect(req, make([]*http.Request, 10)); err == nil {
+		t.Fatal("redirect loop allowed")
 	}
 }
 

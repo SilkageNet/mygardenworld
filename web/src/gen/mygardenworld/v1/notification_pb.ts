@@ -2,15 +2,15 @@
 // @generated from file mygardenworld/v1/notification.proto (package mygardenworld.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file mygardenworld/v1/notification.proto.
  */
 export const file_mygardenworld_v1_notification: GenFile = /*@__PURE__*/
-  fileDesc("CiNteWdhcmRlbndvcmxkL3YxL25vdGlmaWNhdGlvbi5wcm90bxIQbXlnYXJkZW53b3JsZC52MSJwCh9TYXZlTm90aWZpY2F0aW9uU2V0dGluZ3NSZXF1ZXN0Eg8KB2VuYWJsZWQYASABKAgSFQoIZW5kcG9pbnQYAiABKAlIAIgBARIYChBjb29sZG93bl9taW51dGVzGAMgASgFQgsKCV9lbmRwb2ludCIiCiBTYXZlTm90aWZpY2F0aW9uU2V0dGluZ3NSZXNwb25zZSIZChdUZXN0Tm90aWZpY2F0aW9uUmVxdWVzdCIvChhUZXN0Tm90aWZpY2F0aW9uUmVzcG9uc2USEwoLZGVsaXZlcnlfaWQYASABKAMiKgoVTG9hZFVzZXJOb3RpZmljYXRpb25zEhEKCWJlZm9yZV9pZBgBIAEoAyJbChhVc2VyTm90aWZpY2F0aW9uU2V0dGluZ3MSDwoHZW5hYmxlZBgBIAEoCBIUCgxoYXNfZW5kcG9pbnQYAiABKAgSGAoQY29vbGRvd25fbWludXRlcxgDIAEoBSJ7ChROb3RpZmljYXRpb25EZWxpdmVyeRIKCgJpZBgBIAEoAxINCgV0aXRsZRgCIAEoCRIOCgZzdGF0dXMYAyABKAkSEAoIYXR0ZW1wdHMYBCABKAUSEgoKY3JlYXRlZF9tcxgFIAEoAxISCgpsYXN0X2Vycm9yGAYgASgJIs4BChVVc2VyTm90aWZpY2F0aW9uc1ZpZXcSPAoIc2V0dGluZ3MYASABKAsyKi5teWdhcmRlbndvcmxkLnYxLlVzZXJOb3RpZmljYXRpb25TZXR0aW5ncxI6CgpkZWxpdmVyaWVzGAIgAygLMiYubXlnYXJkZW53b3JsZC52MS5Ob3RpZmljYXRpb25EZWxpdmVyeRIQCghoYXNfbW9yZRgDIAEoCBIWCg5uZXh0X2JlZm9yZV9pZBgEIAEoAxIRCgliZWZvcmVfaWQYBSABKAMyhAIKE05vdGlmaWNhdGlvblNlcnZpY2USgQEKGFNhdmVOb3RpZmljYXRpb25TZXR0aW5ncxIxLm15Z2FyZGVud29ybGQudjEuU2F2ZU5vdGlmaWNhdGlvblNldHRpbmdzUmVxdWVzdBoyLm15Z2FyZGVud29ybGQudjEuU2F2ZU5vdGlmaWNhdGlvblNldHRpbmdzUmVzcG9uc2USaQoQVGVzdE5vdGlmaWNhdGlvbhIpLm15Z2FyZGVud29ybGQudjEuVGVzdE5vdGlmaWNhdGlvblJlcXVlc3QaKi5teWdhcmRlbndvcmxkLnYxLlRlc3ROb3RpZmljYXRpb25SZXNwb25zZUKKAQoUY29tLm15Z2FyZGVud29ybGQudjFCEU5vdGlmaWNhdGlvblByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z");
+  fileDesc("CiNteWdhcmRlbndvcmxkL3YxL25vdGlmaWNhdGlvbi5wcm90bxIQbXlnYXJkZW53b3JsZC52MSLaAQofU2F2ZU5vdGlmaWNhdGlvblNldHRpbmdzUmVxdWVzdBIPCgdlbmFibGVkGAEgASgIEhUKCGVuZHBvaW50GAIgASgJSACIAQESGAoQY29vbGRvd25fbWludXRlcxgDIAEoBRI4Cghwcm92aWRlchgEIAEoDjImLm15Z2FyZGVud29ybGQudjEuTm90aWZpY2F0aW9uUHJvdmlkZXISGwoOc2lnbmluZ19zZWNyZXQYBSABKAlIAYgBAUILCglfZW5kcG9pbnRCEQoPX3NpZ25pbmdfc2VjcmV0IiIKIFNhdmVOb3RpZmljYXRpb25TZXR0aW5nc1Jlc3BvbnNlIhkKF1Rlc3ROb3RpZmljYXRpb25SZXF1ZXN0Ii8KGFRlc3ROb3RpZmljYXRpb25SZXNwb25zZRITCgtkZWxpdmVyeV9pZBgBIAEoAyIqChVMb2FkVXNlck5vdGlmaWNhdGlvbnMSEQoJYmVmb3JlX2lkGAEgASgDIrEBChhVc2VyTm90aWZpY2F0aW9uU2V0dGluZ3MSDwoHZW5hYmxlZBgBIAEoCBIUCgxoYXNfZW5kcG9pbnQYAiABKAgSGAoQY29vbGRvd25fbWludXRlcxgDIAEoBRI4Cghwcm92aWRlchgEIAEoDjImLm15Z2FyZGVud29ybGQudjEuTm90aWZpY2F0aW9uUHJvdmlkZXISGgoSaGFzX3NpZ25pbmdfc2VjcmV0GAUgASgIInsKFE5vdGlmaWNhdGlvbkRlbGl2ZXJ5EgoKAmlkGAEgASgDEg0KBXRpdGxlGAIgASgJEg4KBnN0YXR1cxgDIAEoCRIQCghhdHRlbXB0cxgEIAEoBRISCgpjcmVhdGVkX21zGAUgASgDEhIKCmxhc3RfZXJyb3IYBiABKAki7gEKFVVzZXJOb3RpZmljYXRpb25zVmlldxI8CghzZXR0aW5ncxgBIAEoCzIqLm15Z2FyZGVud29ybGQudjEuVXNlck5vdGlmaWNhdGlvblNldHRpbmdzEjoKCmRlbGl2ZXJpZXMYAiADKAsyJi5teWdhcmRlbndvcmxkLnYxLk5vdGlmaWNhdGlvbkRlbGl2ZXJ5EhAKCGhhc19tb3JlGAMgASgIEhYKDm5leHRfYmVmb3JlX2lkGAQgASgDEhEKCWJlZm9yZV9pZBgFIAEoAxIeChZjdXN0b21fcGF5bG9hZF9leGFtcGxlGAYgASgJKsYBChROb3RpZmljYXRpb25Qcm92aWRlchIlCiFOT1RJRklDQVRJT05fUFJPVklERVJfVU5TUEVDSUZJRUQQABIgChxOT1RJRklDQVRJT05fUFJPVklERVJfQ1VTVE9NEAESHwobTk9USUZJQ0FUSU9OX1BST1ZJREVSX1dFQ09NEAISIgoeTk9USUZJQ0FUSU9OX1BST1ZJREVSX0RJTkdUQUxLEAMSIAocTk9USUZJQ0FUSU9OX1BST1ZJREVSX0ZFSVNIVRAEMoQCChNOb3RpZmljYXRpb25TZXJ2aWNlEoEBChhTYXZlTm90aWZpY2F0aW9uU2V0dGluZ3MSMS5teWdhcmRlbndvcmxkLnYxLlNhdmVOb3RpZmljYXRpb25TZXR0aW5nc1JlcXVlc3QaMi5teWdhcmRlbndvcmxkLnYxLlNhdmVOb3RpZmljYXRpb25TZXR0aW5nc1Jlc3BvbnNlEmkKEFRlc3ROb3RpZmljYXRpb24SKS5teWdhcmRlbndvcmxkLnYxLlRlc3ROb3RpZmljYXRpb25SZXF1ZXN0GioubXlnYXJkZW53b3JsZC52MS5UZXN0Tm90aWZpY2F0aW9uUmVzcG9uc2VCigEKFGNvbS5teWdhcmRlbndvcmxkLnYxQhFOb3RpZmljYXRpb25Qcm90b1ABogIDTVhYqgIQTXlnYXJkZW53b3JsZC5WMcoCEE15Z2FyZGVud29ybGRcVjHiAhxNeWdhcmRlbndvcmxkXFYxXEdQQk1ldGFkYXRh6gIRTXlnYXJkZW53b3JsZDo6VjFiBnByb3RvMw");
 
 /**
  * @generated from message mygardenworld.v1.SaveNotificationSettingsRequest
@@ -22,7 +22,8 @@ export type SaveNotificationSettingsRequest = Message<"mygardenworld.v1.SaveNoti
   enabled: boolean;
 
   /**
-   * Absent retains the saved endpoint; explicitly empty clears it.
+   * Absent retains the saved endpoint only for an unchanged provider;
+   * explicitly empty clears the endpoint and its signing key.
    *
    * @generated from field: optional string endpoint = 2;
    */
@@ -32,6 +33,19 @@ export type SaveNotificationSettingsRequest = Message<"mygardenworld.v1.SaveNoti
    * @generated from field: int32 cooldown_minutes = 3;
    */
   cooldownMinutes: number;
+
+  /**
+   * @generated from field: mygardenworld.v1.NotificationProvider provider = 4;
+   */
+  provider: NotificationProvider;
+
+  /**
+   * Absent retains only when the endpoint/provider are unchanged. Empty clears.
+   * Only DingTalk and Feishu support signing; never returned to the browser.
+   *
+   * @generated from field: optional string signing_secret = 5;
+   */
+  signingSecret?: string | undefined;
 };
 
 /**
@@ -121,6 +135,16 @@ export type UserNotificationSettings = Message<"mygardenworld.v1.UserNotificatio
    * @generated from field: int32 cooldown_minutes = 3;
    */
   cooldownMinutes: number;
+
+  /**
+   * @generated from field: mygardenworld.v1.NotificationProvider provider = 4;
+   */
+  provider: NotificationProvider;
+
+  /**
+   * @generated from field: bool has_signing_secret = 5;
+   */
+  hasSigningSecret: boolean;
 };
 
 /**
@@ -200,6 +224,13 @@ export type UserNotificationsView = Message<"mygardenworld.v1.UserNotificationsV
    * @generated from field: int64 before_id = 5;
    */
   beforeId: bigint;
+
+  /**
+   * Synthetic example serialized using the same contract as actual deliveries.
+   *
+   * @generated from field: string custom_payload_example = 6;
+   */
+  customPayloadExample: string;
 };
 
 /**
@@ -208,6 +239,42 @@ export type UserNotificationsView = Message<"mygardenworld.v1.UserNotificationsV
  */
 export const UserNotificationsViewSchema: GenMessage<UserNotificationsView> = /*@__PURE__*/
   messageDesc(file_mygardenworld_v1_notification, 7);
+
+/**
+ * @generated from enum mygardenworld.v1.NotificationProvider
+ */
+export enum NotificationProvider {
+  /**
+   * @generated from enum value: NOTIFICATION_PROVIDER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: NOTIFICATION_PROVIDER_CUSTOM = 1;
+   */
+  CUSTOM = 1,
+
+  /**
+   * @generated from enum value: NOTIFICATION_PROVIDER_WECOM = 2;
+   */
+  WECOM = 2,
+
+  /**
+   * @generated from enum value: NOTIFICATION_PROVIDER_DINGTALK = 3;
+   */
+  DINGTALK = 3,
+
+  /**
+   * @generated from enum value: NOTIFICATION_PROVIDER_FEISHU = 4;
+   */
+  FEISHU = 4,
+}
+
+/**
+ * Describes the enum mygardenworld.v1.NotificationProvider.
+ */
+export const NotificationProviderSchema: GenEnum<NotificationProvider> = /*@__PURE__*/
+  enumDesc(file_mygardenworld_v1_notification, 0);
 
 /**
  * Notification settings belong to the authenticated system user, including

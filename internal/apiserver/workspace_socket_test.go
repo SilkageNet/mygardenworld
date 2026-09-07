@@ -289,7 +289,7 @@ WHERE account_id = ?`, ownedAccount.ID); err != nil {
 	}
 	endpoint := "https://example.com/hook?token=secret"
 	for _, userID := range []int64{owner.ID, other.ID} {
-		if err := db.SaveNotificationSettings(ctx, userID, true, &endpoint, 30); err != nil {
+		if err := db.SaveNotificationSettings(ctx, userID, store.NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 			t.Fatal(err)
 		}
 	}

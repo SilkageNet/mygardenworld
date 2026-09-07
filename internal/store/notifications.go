@@ -16,11 +16,28 @@ var ErrNotificationQueueFull = errors.New("通知队列已满，请稍后重试"
 var ErrNotificationTestCooldown = errors.New("测试通知每分钟只能发送一次")
 
 type NotificationSettings struct {
-	UserID          int64
+	UserID           int64
+	Enabled          bool
+	HasEndpoint      bool
+	CooldownMinutes  int
+	Revision         int64
+	Provider         string
+	HasSigningSecret bool
+}
+
+// NotificationUpdate is scoped to a system user, not a game account.
+type NotificationUpdate struct {
 	Enabled         bool
-	HasEndpoint     bool
+	Endpoint        *string
 	CooldownMinutes int
-	Revision        int64
+	Provider        string
+	SigningSecret   *string
+}
+
+type NotificationTarget struct {
+	Provider      string
+	Endpoint      string
+	SigningSecret string
 }
 
 // NotificationSignal contains only reviewed, non-secret summaries. In particular,
@@ -61,29 +78,39 @@ type NotificationDelivery struct {
 }
 
 func (d *DB) NotificationSettings(ctx context.Context, userID int64) (NotificationSettings, error) {
-	s := NotificationSettings{UserID: userID, CooldownMinutes: 30}
+	s := NotificationSettings{UserID: userID, CooldownMinutes: 30, Provider: "custom"}
 	if userID <= 0 {
 		return s, ErrNotificationSettings
 	}
-	err := d.QueryRowContext(ctx, `SELECT enabled, endpoint_enc <> '', cooldown_minutes, revision FROM user_notifications WHERE user_id = ?`, userID).Scan(&s.Enabled, &s.HasEndpoint, &s.CooldownMinutes, &s.Revision)
+	err := d.QueryRowContext(ctx, `SELECT enabled, endpoint_enc <> '', cooldown_minutes, revision, provider, signing_secret_enc <> '' FROM user_notifications WHERE user_id = ?`, userID).Scan(&s.Enabled, &s.HasEndpoint, &s.CooldownMinutes, &s.Revision, &s.Provider, &s.HasSigningSecret)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	return s, err
 }
 
-// SaveNotificationSettings retains the secret when endpoint is nil and clears it
-// when explicitly empty. Enabling starts at the current log head, not historical
-// failures. Changing the destination or enabled state cancels old pending
-// deliveries/incidents; changing cooldown alone preserves them.
-func (d *DB) SaveNotificationSettings(ctx context.Context, userID int64, enabled bool, endpoint *string, cooldownMinutes int) error {
+// SaveNotificationSettings retains omitted credentials only for an unchanged
+// route. Replacing the URL clears the signing key unless explicitly supplied.
+// Enabling starts at the current log head, not historical failures. Changing
+// credentials, provider or enabled state cancels old pending deliveries and
+// incidents; changing cooldown alone preserves them.
+func (d *DB) SaveNotificationSettings(ctx context.Context, userID int64, update NotificationUpdate) error {
+	enabled, endpoint, cooldownMinutes := update.Enabled, update.Endpoint, update.CooldownMinutes
 	if userID <= 0 || cooldownMinutes < 1 || cooldownMinutes > 1440 {
+		return ErrNotificationSettings
+	}
+	switch update.Provider {
+	case "custom", "wecom", "dingtalk", "feishu":
+	default:
+		return ErrNotificationSettings
+	}
+	if update.SigningSecret != nil && (len(*update.SigningSecret) > 1024 || (*update.SigningSecret != "" && update.Provider != "dingtalk" && update.Provider != "feishu")) {
 		return ErrNotificationSettings
 	}
 	var encrypted string
 	var err error
 	if endpoint != nil && *endpoint != "" {
-		encrypted, err = d.encodeNotificationEndpoint(userID, *endpoint)
+		encrypted, err = d.encodeNotificationCredential(userID, "endpoint", *endpoint)
 		if err != nil {
 			return err
 		}
@@ -96,19 +123,39 @@ func (d *DB) SaveNotificationSettings(ctx context.Context, userID int64, enabled
 	if _, err := tx.ExecContext(ctx, `INSERT INTO user_notifications(user_id) SELECT id FROM users WHERE id = ? AND status = 'active' ON CONFLICT(user_id) DO NOTHING`, userID); err != nil {
 		return err
 	}
-	var previous string
+	var previous, previousProvider, previousSecret string
 	var previouslyEnabled bool
-	if err := tx.QueryRowContext(ctx, `SELECT endpoint_enc, enabled FROM user_notifications n JOIN users u ON u.id = n.user_id WHERE n.user_id = ? AND u.status = 'active'`, userID).Scan(&previous, &previouslyEnabled); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT endpoint_enc, enabled, provider, signing_secret_enc FROM user_notifications n JOIN users u ON u.id = n.user_id WHERE n.user_id = ? AND u.status = 'active'`, userID).Scan(&previous, &previouslyEnabled, &previousProvider, &previousSecret); err != nil {
+		return ErrNotificationSettings
+	}
+	// Never silently send old credentials to a newly selected provider.
+	if update.Provider != previousProvider && endpoint == nil {
 		return ErrNotificationSettings
 	}
 	if endpoint == nil {
 		encrypted = previous
 	}
+	secret := previousSecret
+	if endpoint != nil || update.Provider != previousProvider {
+		secret = ""
+	}
+	if update.SigningSecret != nil {
+		secret = ""
+		if *update.SigningSecret != "" {
+			if encrypted == "" {
+				return ErrNotificationSettings
+			}
+			secret, err = d.encodeNotificationCredential(userID, "signing", *update.SigningSecret)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	if enabled && encrypted == "" {
 		return ErrNotificationSettings
 	}
-	routingChanged := previouslyEnabled != enabled || encrypted != previous
-	if _, err := tx.ExecContext(ctx, `UPDATE user_notifications SET enabled = ?, endpoint_enc = ?, cooldown_minutes = ?, revision = revision + ?, event_cursor = CASE WHEN ? THEN (SELECT COALESCE(MAX(id), 0) FROM event_log) ELSE event_cursor END WHERE user_id = ?`, enabled, encrypted, cooldownMinutes, routingChanged, routingChanged, userID); err != nil {
+	routingChanged := previouslyEnabled != enabled || encrypted != previous || update.Provider != previousProvider || secret != previousSecret
+	if _, err := tx.ExecContext(ctx, `UPDATE user_notifications SET enabled = ?, endpoint_enc = ?, cooldown_minutes = ?, provider = ?, signing_secret_enc = ?, revision = revision + ?, retry_after_ms = CASE WHEN ? THEN 0 ELSE retry_after_ms END, event_cursor = CASE WHEN ? THEN (SELECT COALESCE(MAX(id), 0) FROM event_log) ELSE event_cursor END WHERE user_id = ?`, enabled, encrypted, cooldownMinutes, update.Provider, secret, routingChanged, routingChanged, routingChanged, userID); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE notification_outbox SET status = 'cancelled', last_error = '通知设置已更改' WHERE user_id = ? AND ? AND status IN ('pending', 'sending')`, userID, routingChanged); err != nil {
@@ -120,7 +167,7 @@ func (d *DB) SaveNotificationSettings(ctx context.Context, userID int64, enabled
 	return tx.Commit()
 }
 
-func (d *DB) encodeNotificationEndpoint(userID int64, endpoint string) (string, error) {
+func (d *DB) encodeNotificationCredential(userID int64, purpose, value string) (string, error) {
 	aead, err := d.credentialAEAD()
 	if err != nil {
 		return "", err
@@ -129,10 +176,10 @@ func (d *DB) encodeNotificationEndpoint(userID int64, endpoint string) (string, 
 	if _, err := rand.Read(nonce); err != nil {
 		return "", err
 	}
-	return base64.RawStdEncoding.EncodeToString(aead.Seal(nonce, nonce, []byte(endpoint), notificationAAD(userID))), nil
+	return base64.RawStdEncoding.EncodeToString(aead.Seal(nonce, nonce, []byte(value), notificationAAD(userID, purpose))), nil
 }
 
-func (d *DB) decodeNotificationEndpoint(userID int64, encrypted string) (string, error) {
+func (d *DB) decodeNotificationCredential(userID int64, purpose, encrypted string) (string, error) {
 	aead, err := d.credentialAEAD()
 	if err != nil {
 		return "", err
@@ -141,12 +188,17 @@ func (d *DB) decodeNotificationEndpoint(userID int64, encrypted string) (string,
 	if err != nil || len(b) < aead.NonceSize() {
 		return "", ErrNotificationSettings
 	}
-	plain, err := aead.Open(nil, b[:aead.NonceSize()], b[aead.NonceSize():], notificationAAD(userID))
+	plain, err := aead.Open(nil, b[:aead.NonceSize()], b[aead.NonceSize():], notificationAAD(userID, purpose))
 	return string(plain), err
 }
 
-func notificationAAD(userID int64) []byte {
-	return []byte(fmt.Sprintf("mygardenworld/notification/user/%d", userID))
+func notificationAAD(userID int64, purpose string) []byte {
+	aad := fmt.Sprintf("mygardenworld/notification/user/%d", userID)
+	// Preserve the endpoint's existing encryption domain when migrating v10.
+	if purpose != "endpoint" {
+		aad += "/" + purpose
+	}
+	return []byte(aad)
 }
 
 func (d *DB) NotificationUsers(ctx context.Context) ([]int64, error) {
@@ -348,7 +400,10 @@ func (d *DB) NotificationDeliveries(ctx context.Context, userID, beforeID int64)
 }
 
 // ClaimNotification uses a lease and attempt token (the incremented attempt
-// number). Expired workers cannot acknowledge a newer attempt.
+// number). Expired workers cannot acknowledge a newer attempt. Native robots
+// are paced to one attempt per user per four seconds, atomically across workers
+// and restarts, below the 20/minute DingTalk and WeCom limits. External senders
+// sharing the same bot can still cause provider throttling.
 func (d *DB) ClaimNotification(ctx context.Context, now time.Time) (*NotificationDelivery, error) {
 	if _, err := d.ExecContext(ctx, `UPDATE notification_outbox SET status = 'failed', last_error = '通知已过期或达到重试上限' WHERE status IN ('pending', 'sending') AND (created_ms < ? OR (attempts >= 5 AND lease_ms <= ?))`, now.Add(-24*time.Hour).UnixMilli(), now.UnixMilli()); err != nil {
 		return nil, err
@@ -357,28 +412,54 @@ func (d *DB) ClaimNotification(ctx context.Context, now time.Time) (*Notificatio
 		return nil, err
 	}
 	var n NotificationDelivery
-	err := d.QueryRowContext(ctx, `UPDATE notification_outbox SET status = 'sending', attempts = attempts + 1, lease_ms = ? WHERE id = (
+	err := d.QueryRowContext(ctx, `UPDATE notification_outbox SET status = 'sending', attempts = attempts + 1, lease_ms = ?, last_attempt_ms = ? WHERE id = (
 SELECT o.id FROM notification_outbox o WHERE ((o.status = 'pending' AND o.next_ms <= ?) OR (o.status = 'sending' AND o.lease_ms <= ?))
 AND NOT EXISTS (SELECT 1 FROM notification_outbox older WHERE older.user_id = o.user_id AND older.account_id IS o.account_id AND older.id < o.id AND older.status IN ('pending', 'sending'))
-ORDER BY o.id LIMIT 1) RETURNING id, delivery_key, user_id, payload, revision, attempts, created_ms`, now.Add(time.Minute).UnixMilli(), now.UnixMilli(), now.UnixMilli()).Scan(&n.ID, &n.Key, &n.UserID, &n.Payload, &n.Revision, &n.Attempts, &n.CreatedMS)
+AND NOT EXISTS (SELECT 1 FROM user_notifications settings WHERE settings.user_id = o.user_id AND settings.retry_after_ms > ?)
+AND NOT EXISTS (SELECT 1 FROM user_notifications settings JOIN notification_outbox recent ON recent.user_id = settings.user_id WHERE settings.user_id = o.user_id AND settings.provider <> 'custom' AND recent.last_attempt_ms > ?)
+ORDER BY o.id LIMIT 1) RETURNING id, delivery_key, user_id, payload, revision, attempts, created_ms`, now.Add(time.Minute).UnixMilli(), now.UnixMilli(), now.UnixMilli(), now.UnixMilli(), now.UnixMilli(), now.Add(-4*time.Second).UnixMilli()).Scan(&n.ID, &n.Key, &n.UserID, &n.Payload, &n.Revision, &n.Attempts, &n.CreatedMS)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return &n, err
 }
 
-// NotificationEndpoint rechecks ownership, user status and settings revision
+// NotificationDestination rechecks ownership, user status and settings revision
 // immediately before network delivery. There is intentionally no admin bypass.
-func (d *DB) NotificationEndpoint(ctx context.Context, n *NotificationDelivery) (string, error) {
-	var encrypted string
-	err := d.QueryRowContext(ctx, `SELECT s.endpoint_enc FROM notification_outbox o JOIN user_notifications s ON s.user_id = o.user_id JOIN users u ON u.id = o.user_id WHERE o.id = ? AND o.user_id = ? AND o.status = 'sending' AND o.attempts = ? AND s.enabled = 1 AND s.revision = ? AND u.status = 'active' AND (o.account_id IS NULL OR EXISTS(SELECT 1 FROM accounts a WHERE a.id = o.account_id AND a.user_id = o.user_id))`, n.ID, n.UserID, n.Attempts, n.Revision).Scan(&encrypted)
+func (d *DB) NotificationDestination(ctx context.Context, n *NotificationDelivery) (NotificationTarget, error) {
+	var encrypted, secret string
+	var target NotificationTarget
+	err := d.QueryRowContext(ctx, `SELECT s.endpoint_enc, s.provider, s.signing_secret_enc FROM notification_outbox o JOIN user_notifications s ON s.user_id = o.user_id JOIN users u ON u.id = o.user_id WHERE o.id = ? AND o.user_id = ? AND o.status = 'sending' AND o.attempts = ? AND s.enabled = 1 AND s.revision = ? AND u.status = 'active' AND (o.account_id IS NULL OR EXISTS(SELECT 1 FROM accounts a WHERE a.id = o.account_id AND a.user_id = o.user_id))`, n.ID, n.UserID, n.Attempts, n.Revision).Scan(&encrypted, &target.Provider, &secret)
 	if err != nil {
-		return "", err
+		return target, err
 	}
-	return d.decodeNotificationEndpoint(n.UserID, encrypted)
+	target.Endpoint, err = d.decodeNotificationCredential(n.UserID, "endpoint", encrypted)
+	if err == nil && secret != "" {
+		target.SigningSecret, err = d.decodeNotificationCredential(n.UserID, "signing", secret)
+	}
+	return target, err
 }
 
 func (d *DB) FinishNotification(ctx context.Context, n *NotificationDelivery, status, safeError string, next time.Time) error {
-	_, err := d.ExecContext(ctx, `UPDATE notification_outbox SET status = ?, last_error = ?, next_ms = ?, lease_ms = 0 WHERE id = ? AND status = 'sending' AND attempts = ?`, status, safeError, next.UnixMilli(), n.ID, n.Attempts)
-	return err
+	tx, err := d.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx, `UPDATE notification_outbox SET status = ?, last_error = ?, next_ms = ?, lease_ms = 0 WHERE id = ? AND status = 'sending' AND attempts = ?`, status, safeError, next.UnixMilli(), n.ID, n.Attempts)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	// Backoff belongs to the destination, not just this account's message.
+	// A stale worker or changed settings must not postpone a new route.
+	if affected > 0 && status == "pending" {
+		if _, err := tx.ExecContext(ctx, `UPDATE user_notifications SET retry_after_ms = MAX(retry_after_ms, ?) WHERE user_id = ? AND revision = ?`, next.UnixMilli(), n.UserID, n.Revision); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }

@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 10
+const currentSchemaVersion = 11
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -266,6 +266,13 @@ CREATE TABLE account_request_safety (
 `,
 	},
 	{version: 10, name: "user-owned webhook notifications", sql: notificationMigrationSQL},
+	{version: 11, name: "notification providers and signing", sql: `
+ALTER TABLE user_notifications ADD COLUMN provider TEXT NOT NULL DEFAULT 'custom' CHECK(provider IN ('custom', 'wecom', 'dingtalk', 'feishu'));
+ALTER TABLE user_notifications ADD COLUMN signing_secret_enc TEXT NOT NULL DEFAULT '';
+ALTER TABLE user_notifications ADD COLUMN retry_after_ms INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE notification_outbox ADD COLUMN last_attempt_ms INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX idx_notification_outbox_attempt ON notification_outbox(user_id, last_attempt_ms);
+`},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

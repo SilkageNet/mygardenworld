@@ -23,6 +23,9 @@ type DB struct {
 	credentialKey []byte
 }
 
+var ErrAccountQuota = errors.New("account quota reached")
+var ErrUserInactive = errors.New("account owner is not active")
+
 // Open initialises the database file and applies all pending versioned
 // migrations. Unversioned databases are deliberately rejected; this release
 // carries no historical compatibility code.
@@ -73,7 +76,9 @@ func (d *DB) CreateAccount(ctx context.Context, userID int64, name, channel, use
 }
 
 // CreateAccountWithPolicy commits the account and initial policy atomically,
-// before any runner can load defaults for the newly created account.
+// before any runner can load defaults for the newly created account. Owner
+// status and quota are checked in the same write statement, not just before
+// the potentially slow login probe in the API.
 func (d *DB) CreateAccountWithPolicy(ctx context.Context, userID int64, name, channel, username, password, policyJSON string) (*Account, error) {
 	if channel == "" {
 		return nil, errors.New("CreateAccount: channel required")
@@ -89,14 +94,30 @@ func (d *DB) CreateAccountWithPolicy(ctx context.Context, userID int64, name, ch
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO accounts(user_id, name, channel, username, password_enc, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		userID, name, channel, username, passwordEnc, now, now,
+		`INSERT INTO accounts(user_id, name, channel, username, password_enc, created_at, updated_at)
+SELECT id, ?, ?, ?, ?, ?, ? FROM users WHERE id = ? AND status = 'active'
+AND (SELECT COUNT(*) FROM accounts WHERE user_id = users.id) < max_accounts`,
+		name, channel, username, passwordEnc, now, now, userID,
 	)
 	if err != nil {
 		if isUniqueErr(err) {
 			return nil, ErrAccountExists
 		}
 		return nil, fmt.Errorf("insert account: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		var active bool
+		if err := tx.QueryRowContext(ctx, `SELECT status = 'active' FROM users WHERE id = ?`, userID).Scan(&active); err != nil || !active {
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return nil, err
+			}
+			return nil, ErrUserInactive
+		}
+		return nil, ErrAccountQuota
 	}
 	id, err := res.LastInsertId()
 	if err != nil {

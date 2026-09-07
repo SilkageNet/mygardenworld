@@ -1,4 +1,7 @@
-package notification
+// Package outbound provides the shared public-HTTPS boundary for user-supplied
+// destinations. It owns address validation and pinned dialing, not retries,
+// provider formats, authorization, or explicitly private federation peers.
+package outbound
 
 import (
 	"context"
@@ -12,7 +15,7 @@ import (
 	"time"
 )
 
-var ErrUnsafeEndpoint = errors.New("通知地址仅支持公网 HTTPS，不允许内网地址、凭据字段或重定向")
+var ErrUnsafeEndpoint = errors.New("地址仅支持公网 HTTPS，不允许内网地址、凭据字段或片段")
 
 func ValidateEndpoint(raw string) error {
 	u, err := url.Parse(raw)
@@ -95,7 +98,10 @@ func dialPublic(ctx context.Context, network, address string, lookup lookupIP) (
 	return nil, err
 }
 
-func safeClient() *http.Client {
+// NewClient disables environment proxies, pins DNS results at connection time,
+// and rejects redirects by default. Callers may allow bounded redirects only
+// when each new URL is validated with ValidateEndpoint as well.
+func NewClient(timeout time.Duration) *http.Client {
 	transport := &http.Transport{
 		Proxy: nil,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -106,5 +112,5 @@ func safeClient() *http.Client {
 		DisableKeepAlives:      true,
 		MaxResponseHeaderBytes: 16 << 10,
 	}
-	return &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return &http.Client{Transport: transport, Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 }

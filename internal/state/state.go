@@ -1,5 +1,4 @@
-// Package state tracks per-account land + inventory state. This is the Go
-// port of GardenState from scripts/tools/garden_bot.py.
+// Package state tracks authoritative per-account observations and typed views.
 //
 // The tracker is fed v-namespace fragments (typically `100` and `7`) from
 // either index.reLogin responses (initial bulk) or per-RPC responses (delta

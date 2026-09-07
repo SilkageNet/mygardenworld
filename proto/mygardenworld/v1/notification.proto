@@ -9,11 +9,24 @@ service NotificationService {
   rpc TestNotification(TestNotificationRequest) returns (TestNotificationResponse);
 }
 
+enum NotificationProvider {
+  NOTIFICATION_PROVIDER_UNSPECIFIED = 0;
+  NOTIFICATION_PROVIDER_CUSTOM = 1;
+  NOTIFICATION_PROVIDER_WECOM = 2;
+  NOTIFICATION_PROVIDER_DINGTALK = 3;
+  NOTIFICATION_PROVIDER_FEISHU = 4;
+}
+
 message SaveNotificationSettingsRequest {
   bool enabled = 1;
-  // Absent retains the saved endpoint; explicitly empty clears it.
+  // Absent retains the saved endpoint only for an unchanged provider;
+  // explicitly empty clears the endpoint and its signing key.
   optional string endpoint = 2;
   int32 cooldown_minutes = 3;
+  NotificationProvider provider = 4;
+  // Absent retains only when the endpoint/provider are unchanged. Empty clears.
+  // Only DingTalk and Feishu support signing; never returned to the browser.
+  optional string signing_secret = 5;
 }
 message SaveNotificationSettingsResponse {}
 message TestNotificationRequest {}
@@ -25,6 +38,8 @@ message UserNotificationSettings {
   bool enabled = 1;
   bool has_endpoint = 2;
   int32 cooldown_minutes = 3;
+  NotificationProvider provider = 4;
+  bool has_signing_secret = 5;
 }
 message NotificationDelivery {
   int64 id = 1;
@@ -40,4 +55,6 @@ message UserNotificationsView {
   bool has_more = 3;
   int64 next_before_id = 4;
   int64 before_id = 5;
+  // Synthetic example serialized using the same contract as actual deliveries.
+  string custom_payload_example = 6;
 }

@@ -57,7 +57,7 @@ func TestNotificationMigrationPreservesV9DataAndIsDisabledByDefault(t *testing.T
 	if err := applyMigrations(ctx, db.DB); err != nil {
 		t.Fatal(err)
 	}
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != 10 {
+	if version, err := databaseVersion(ctx, db.DB); err != nil || version != currentSchemaVersion {
 		t.Fatalf("version %d: %v", version, err)
 	}
 	if _, p, err := db.GetCredentials(ctx, a.ID); err != nil || p != "password" {
@@ -76,7 +76,7 @@ func TestNotificationSecretsAreEncryptedUserBoundAndNeverInHistory(t *testing.T)
 	db, u, _, v, _ := notificationFixture(t)
 	ctx := context.Background()
 	endpoint := "https://example.com/hook?token=TOP-SECRET"
-	if err := db.SaveNotificationSettings(ctx, u.ID, true, &endpoint, 30); err != nil {
+	if err := db.SaveNotificationSettings(ctx, u.ID, NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 		t.Fatal(err)
 	}
 	var encrypted string
@@ -86,10 +86,10 @@ func TestNotificationSecretsAreEncryptedUserBoundAndNeverInHistory(t *testing.T)
 	if strings.Contains(encrypted, "SECRET") {
 		t.Fatal("plaintext endpoint stored")
 	}
-	if got, err := db.decodeNotificationEndpoint(u.ID, encrypted); err != nil || got != endpoint {
+	if got, err := db.decodeNotificationCredential(u.ID, "endpoint", encrypted); err != nil || got != endpoint {
 		t.Fatal("cannot decrypt own endpoint", err)
 	}
-	if _, err := db.decodeNotificationEndpoint(v.ID, encrypted); err == nil {
+	if _, err := db.decodeNotificationCredential(v.ID, "endpoint", encrypted); err == nil {
 		t.Fatal("ciphertext can move across users")
 	}
 	if _, err := db.decodeSession(u.ID, "v1:"+encrypted); err == nil {
@@ -109,13 +109,13 @@ func TestNotificationSecretsAreEncryptedUserBoundAndNeverInHistory(t *testing.T)
 	if strings.Contains(n.Payload, "SECRET") || strings.Contains(n.Payload, "token") {
 		t.Fatal("payload leaks endpoint")
 	}
-	if got, err := db.NotificationEndpoint(ctx, n); err != nil || got != endpoint {
+	if got, err := db.NotificationDestination(ctx, n); err != nil || got.Endpoint != endpoint {
 		t.Fatal("delivery endpoint", err)
 	}
-	if err := db.SaveNotificationSettings(ctx, u.ID, false, nil, 30); err != nil {
+	if err := db.SaveNotificationSettings(ctx, u.ID, NotificationUpdate{Enabled: false, Endpoint: nil, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.NotificationEndpoint(ctx, n); err == nil {
+	if _, err := db.NotificationDestination(ctx, n); err == nil {
 		t.Fatal("disabled delivery still authorized")
 	}
 	s, err := db.NotificationSettings(ctx, u.ID)
@@ -123,7 +123,7 @@ func TestNotificationSecretsAreEncryptedUserBoundAndNeverInHistory(t *testing.T)
 		t.Fatalf("retain: %+v %v", s, err)
 	}
 	empty := ""
-	if err := db.SaveNotificationSettings(ctx, u.ID, false, &empty, 30); err != nil {
+	if err := db.SaveNotificationSettings(ctx, u.ID, NotificationUpdate{Enabled: false, Endpoint: &empty, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 		t.Fatal(err)
 	}
 	s, _ = db.NotificationSettings(ctx, u.ID)
@@ -145,7 +145,7 @@ func TestNotificationCursorIsolationDedupEscalationRecoveryAndCooldownEdits(t *t
 	}
 	appendEvent(a.ID, "failure", "warn", now.Add(-time.Hour))
 	for _, id := range []int64{u.ID, v.ID} {
-		if err := db.SaveNotificationSettings(ctx, id, true, &endpoint, 30); err != nil {
+		if err := db.SaveNotificationSettings(ctx, id, NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -175,7 +175,7 @@ func TestNotificationCursorIsolationDedupEscalationRecoveryAndCooldownEdits(t *t
 	}
 	// Cooldown-only edits must not reset the incident or discard queued events.
 	appendEvent(a.ID, "failure", "warn", now.Add(4*time.Second))
-	if err := db.SaveNotificationSettings(ctx, u.ID, true, nil, 60); err != nil {
+	if err := db.SaveNotificationSettings(ctx, u.ID, NotificationUpdate{Enabled: true, Endpoint: nil, CooldownMinutes: 60, Provider: "custom"}); err != nil {
 		t.Fatal(err)
 	}
 	consume(now.Add(4 * time.Second))
@@ -210,7 +210,7 @@ func TestNotificationLeasesOrderingAndOwnership(t *testing.T) {
 	now := time.Now().UTC()
 	endpoint := "https://example.com/hook"
 	for _, id := range []int64{u.ID, v.ID} {
-		if err := db.SaveNotificationSettings(ctx, id, true, &endpoint, 30); err != nil {
+		if err := db.SaveNotificationSettings(ctx, id, NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -239,19 +239,19 @@ func TestNotificationLeasesOrderingAndOwnership(t *testing.T) {
 	if err := db.FinishNotification(ctx, first, "sent", "", now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.NotificationEndpoint(ctx, retry); err != nil {
+	if _, err := db.NotificationDestination(ctx, retry); err != nil {
 		t.Fatal("stale acknowledgement overwrote new lease", err)
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE accounts SET user_id = ? WHERE id = ?`, v.ID, a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.NotificationEndpoint(ctx, retry); err == nil {
+	if _, err := db.NotificationDestination(ctx, retry); err == nil {
 		t.Fatal("ownership recheck omitted")
 	}
 	if _, err := db.ExecContext(ctx, `UPDATE users SET status = 'disabled' WHERE id = ?`, v.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.NotificationEndpoint(ctx, other); err == nil {
+	if _, err := db.NotificationDestination(ctx, other); err == nil {
 		t.Fatal("disabled user can receive")
 	}
 	if _, err := db.NotificationDeliveries(ctx, 0, 0); !errors.Is(err, ErrNotificationSettings) {
@@ -264,7 +264,7 @@ func TestNotificationQueueFullRollsBackCursorAndTestRateLimit(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	endpoint := "https://example.com/hook"
-	if err := db.SaveNotificationSettings(ctx, u.ID, true, &endpoint, 30); err != nil {
+	if err := db.SaveNotificationSettings(ctx, u.ID, NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.QueueNotificationTest(ctx, u.ID, now); err != nil {
@@ -317,7 +317,7 @@ func TestNotificationRestartAndConcurrentClaims(t *testing.T) {
 		t.Fatal(err)
 	}
 	endpoint := "https://example.com/hook"
-	if err := db.SaveNotificationSettings(ctx, u.ID, true, &endpoint, 30); err != nil {
+	if err := db.SaveNotificationSettings(ctx, u.ID, NotificationUpdate{Enabled: true, Endpoint: &endpoint, CooldownMinutes: 30, Provider: "custom"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.LogEvent(ctx, EventLog{AccountID: a.ID, Kind: "failure", TS: now}); err != nil {
@@ -360,7 +360,7 @@ func TestNotificationRestartAndConcurrentClaims(t *testing.T) {
 		t.Fatal("concurrent workers claimed same delivery", len(claims))
 	}
 	n := <-claims
-	if got, err := db.NotificationEndpoint(ctx, n); err != nil || got != endpoint {
+	if got, err := db.NotificationDestination(ctx, n); err != nil || got.Endpoint != endpoint {
 		t.Fatal("credential not recoverable after restart", err)
 	}
 	// A stopped worker's last attempt eventually becomes visible as failed.

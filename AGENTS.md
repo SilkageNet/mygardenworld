@@ -42,6 +42,10 @@ web/             embedded Next.js control panel
 
 `internal/auth`, `internal/updater`, `internal/captureanalysis`, `internal/cataloggen`, and `internal/webui` contain bounded supporting services; keep executable entrypoints thin and place reusable behavior in `internal/` packages.
 
+- Keep dependency direction stable: `babigame` and `state` do not depend on planning, runners, persistence, or API services; `automation` does not call runners or persistence. `internal/architecture` tests guard these core directions.
+- Reuse `internal/outbound` for public-only user-configured HTTPS destinations. Provider payloads/retries stay in their domain services; explicitly private federation peers keep a separate, deliberate transport policy.
+- Enforce quotas and durable scheduling reservations in the same database write as the mutation. API prechecks improve feedback but are not concurrency guards.
+
 ## Product boundaries
 
 - System users, including admins, may only read or operate their own game accounts. Administrative user/quota management is not a game-account access bypass. Notification settings belong to the authenticated system user, apply only to that user's accounts, and never travel with game policy import/export/copy.
@@ -67,7 +71,7 @@ web/             embedded Next.js control panel
 
 - This prototype does not carry runtime backward compatibility. Do not add deprecated fields, Protobuf `reserved` declarations, legacy decoders, old policy aliases, or parallel API versions unless explicitly requested.
 - Breaking schema work stays in `mygardenworld.v1`. Regenerate both Go and TypeScript outputs and update all callers atomically.
-- SQLite uses transactional, ordered `PRAGMA user_version` migrations and currently targets schema v10. A database schema change requires a one-way migration and tests; unversioned legacy databases remain rejected.
+- SQLite uses transactional, ordered `PRAGMA user_version` migrations and currently targets schema v11. A database schema change requires a one-way migration and tests; unversioned legacy databases remain rejected.
 - Policy is one strict protojson document in `account_policies.policy_json`. Public replace/import/export/copy operations handle the whole current policy.
 - Credentials and recoverable Sessions are encrypted with `garden.db.key`. Session restore is preferred; invalid server sessions fall back to the channel login flow.
 
