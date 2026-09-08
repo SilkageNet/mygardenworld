@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,6 +70,7 @@ func resetFmlRaceTaskPoolForBatch(view *FmlRaceView) {
 	view.TaskPoolStale = false
 	view.TaskPoolSyncAttemptAtMs = 0
 	view.TasksSyncedAtMs = 0
+	view.FullTasksSyncedAtMs = 0
 	view.Tasks = nil
 	view.Taken = FmlRaceTakenView{}
 	view.MissingParamRefreshFP = ""
@@ -135,6 +137,9 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 		view.Tasks = nil
 		view.MissingParamRefreshFP = ""
 		view.TasksSyncedAtMs = nowMs
+		if fullPool {
+			view.FullTasksSyncedAtMs = nowMs
+		}
 		return
 	}
 	var tasks []clientproto.IFmlRaceTask
@@ -194,6 +199,9 @@ func applyFmlRaceTasksLocked(view *FmlRaceView, raw json.RawMessage, nowMs int64
 	}
 	view.TasksObserved = true
 	view.TasksSyncedAtMs = nowMs
+	if fullPool {
+		view.FullTasksSyncedAtMs = nowMs
+	}
 	updateFmlRaceMissingParamRefreshFP(view, fullPool)
 }
 
@@ -1006,7 +1014,9 @@ func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
 func (s *State) FmlRace() FmlRaceView {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.fmlRace
+	view := s.fmlRace
+	view.Tasks = slices.Clone(view.Tasks)
+	return view
 }
 
 // MarkFmlRaceTaskPoolStale forces the next race tick to re-fetch getTaskList
@@ -1016,6 +1026,7 @@ func (s *State) MarkFmlRaceTaskPoolStale() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.TaskPoolStale = true
+	s.fmlRace.FullTasksSyncedAtMs = 0
 	s.fmlRace.TaskPoolSyncAttemptAtMs = 0
 }
 
@@ -1025,6 +1036,7 @@ func (s *State) MarkFmlRaceSessionStale() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.Observed = false
+	s.fmlRace.FullTasksSyncedAtMs = 0
 	s.fmlRace.TaskPoolStale = true
 	s.fmlRace.TaskPoolSyncAttemptAtMs = 0
 }

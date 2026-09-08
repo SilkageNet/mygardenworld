@@ -16,6 +16,12 @@ import (
 // reads, share this guard. Only a post-wait login
 // can pass while recovery is pending. HTTP reconnect is separately gated.
 func (r *Runner) beforeGameRPC(ctx context.Context, name string) error {
+	if err := r.checkGameRPC(name); err != nil {
+		return err
+	}
+	if err := r.waitRaceTakeReady(ctx, name); err != nil {
+		return err
+	}
 	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPC(name) }); err != nil {
 		return err
 	}

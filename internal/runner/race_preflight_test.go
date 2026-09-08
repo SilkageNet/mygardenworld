@@ -14,6 +14,41 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
+func TestFreshFullRacePoolSkipsNetworkButStillValidatesFacts(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.policy = automation.DefaultPolicy()
+	r.policy.Union.Race.MinTaskScore = 0
+	r.policy.Union.Race.TaskTypePriority = map[int32]int32{3036: 5}
+	r.state.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"101":{"0":{"23001":{"1":23001,"2":1,"4":2}}},"25":{"1":{"0":999,"1":42},"111":{"0":42,"1":1},"117":{"5":4},"110":{"999":{"0":999,"1":42,"3":0,"4":0}}}}`))
+	r.state.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":28}]}}`))
+	op, err := automation.ManualRaceTakeOperation(r.state, r.Policy(), 1, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, timing := r.startRaceTiming(t.Context(), &op)
+	// No RPC transport: even an accidental redundant refresh fails this test.
+	rt := operationRuntime{runner: r}
+	if err := preflightFmlRaceTaskMutation(ctx, rt, &op); err != nil || !timing.reusedPool {
+		t.Fatalf("fresh preflight: %v", err)
+	}
+	r.state.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":28,"14":1,"15":100}]}}`))
+	if err := preflightFmlRaceTaskMutation(ctx, rt, &op); err == nil {
+		t.Fatal("fresh evidence bypassed task/upgrade guard")
+	}
+}
+
+func TestQueuedAutomaticRaceTakeHonorsDisabledAutomation(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.policy = automation.DefaultPolicy()
+	r.policy.AutomationEnabled = false
+	op := &automation.PlannedOp{Kind: clientproto.RPCFmlRaceTakeTask.String()}
+	ctx := context.WithValue(t.Context(), scheduledOperationKey{}, true)
+	ctx = context.WithValue(ctx, raceMutationContextKey{}, op)
+	if err := r.validateRaceMutationBeforeSend(ctx, op.Kind); err == nil || !strings.Contains(err.Error(), "自动接单已关闭") {
+		t.Fatalf("disabled queued take: %v", err)
+	}
+}
+
 func TestRacePreflightFailureYieldsToOtherTask(t *testing.T) {
 	for _, kind := range []string{clientproto.RPCFmlRaceDelTask.String(), clientproto.RPCFmlRaceTakeTask.String()} {
 		t.Run(kind, func(t *testing.T) {

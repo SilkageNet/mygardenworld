@@ -131,6 +131,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 	r.unknownRPCCounts = make(map[string]int32)
 	r.lastCustomerOrderInfo = make(map[int32]string)
 	r.done = make(chan struct{})
+	r.decisionWake = make(chan struct{}, 1)
 	return r
 }
 
@@ -199,4 +200,5 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 	if stopPendingRelogin {
 		r.failClosedPendingDisplacedRelogin()
 	}
+	r.wakeDecision()
 }

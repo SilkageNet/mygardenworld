@@ -21,11 +21,17 @@ type runnableOperationCandidate struct {
 func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now time.Time) *automation.PlannedOp {
 	runnable := make([]runnableOperationCandidate, 0, len(candidates))
 	activeSideScopes := make(map[string]struct{})
+	reserveUrgentSlot := false
 	for _, candidate := range candidates {
 		if !runnablePlannedOp(candidate) {
 			continue
 		}
 		op := candidate
+		if automation.IsUrgentRaceOp(op) && !isYieldingRaceSync(op) && r.pacer.reserveUrgentSlot(op.Kind, now) {
+			if _, cooling := r.operationCoolingDown(&op, now); !cooling {
+				reserveUrgentSlot = true
+			}
+		}
 		if r.pacer.delay(op.Kind, now) > 0 {
 			continue
 		}
@@ -58,6 +64,9 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 			}
 		}
 		runnable = append(runnable, entry)
+	}
+	if reserveUrgentSlot && firstUrgentRaceOp(runnable) == nil {
+		return nil
 	}
 
 	r.mu.Lock()

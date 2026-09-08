@@ -202,6 +202,7 @@ type assetState struct {
 }
 
 type hooksState struct {
+	onRaceChange      func()
 	onChange          func(changed []LandChange)
 	onResourceChange  func(ResourceSnapshot)
 	onInventoryChange func(InventorySnapshot)

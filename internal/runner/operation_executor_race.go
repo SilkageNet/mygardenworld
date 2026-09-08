@@ -9,6 +9,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func fmlEnterSyncRequest() clientproto.FmlEnterRequest {
@@ -16,6 +17,30 @@ func fmlEnterSyncRequest() clientproto.FmlEnterRequest {
 }
 
 type raceMutationContextKey struct{}
+
+const raceFreshPoolWindow = 3 * time.Second
+
+func reusableRaceTakePool(view state.FmlRaceView, op *automation.PlannedOp, now time.Time) bool {
+	age := now.Sub(time.UnixMilli(view.FullTasksSyncedAtMs))
+	return op != nil && op.Kind == clientproto.RPCFmlRaceTakeTask.String() &&
+		view.TasksObserved && !view.TaskPoolStale && view.FullTasksSyncedAtMs > 0 &&
+		age >= 0 && age <= raceFreshPoolWindow
+}
+
+func (r *Runner) waitRaceTakeReady(ctx context.Context, name string) error {
+	op, _ := ctx.Value(raceMutationContextKey{}).(*automation.PlannedOp)
+	if op == nil || op.Kind != name || name != clientproto.RPCFmlRaceTakeTask.String() {
+		return nil
+	}
+	// The planner's lead window is for preparation, not speculative sends.
+	// A server CD rejection returns to the paced scheduler, never a retry loop.
+	if wait := time.Until(raceTakeAppearTime(r.state, op)); wait > 0 {
+		if !sleepOrDone(ctx, wait) {
+			return ctx.Err()
+		}
+	}
+	return nil
+}
 
 // The authoritative preflight precedes request pacing. Recheck local facts and
 // current policy after that wait too: namespace pushes can change the selected
@@ -26,8 +51,24 @@ func (r *Runner) validateRaceMutationBeforeSend(ctx context.Context, name string
 	if op == nil || op.Kind != name {
 		return nil
 	}
-	if err := automation.ValidateRaceTaskMutation(r.state, r.Policy(), op, time.Now()); err != nil {
+	policy := r.Policy()
+	if scheduled, _ := ctx.Value(scheduledOperationKey{}).(bool); scheduled && name == clientproto.RPCFmlRaceTakeTask.String() &&
+		(!policy.GetAutomationEnabled() || !policy.GetUnion().GetRace().GetAutoEnableModules()) {
+		return fmt.Errorf("自动接单已关闭，取消尚未发送的竞赛接单")
+	}
+	timing, _ := ctx.Value(raceTimingKey{}).(*raceTiming)
+	if timing != nil && timing.reusedPool && !reusableRaceTakePool(r.state.FmlRace(), op, time.Now()) {
+		r.state.MarkFmlRaceTaskPoolStale()
+		return fmt.Errorf("竞赛完整任务池已超过复用时限，等待重新同步")
+	}
+	if err := automation.ValidateRaceTaskMutation(r.state, policy, op, time.Now()); err != nil {
 		return fmt.Errorf("竞赛任务发送前校验未通过: %w", err)
+	}
+	if name == clientproto.RPCFmlRaceTakeTask.String() && raceTakeAppearTime(r.state, op).After(time.Now()) {
+		return fmt.Errorf("竞赛任务冷却时间已变化，取消提前发送")
+	}
+	if timing != nil {
+		timing.admitted = time.Now()
 	}
 	return nil
 }
@@ -185,12 +226,9 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	// records incomplete-target refresh attempts so they cannot live-lock the
 	// decision loop.
 	rt.runner.state.NoteFmlRaceTaskPoolSync(time.Now())
-	// Piggyback member rank list so personal score/rank stay fresh whenever
-	// the task pool syncs (enter bootstrap, TTL refresh, progress catch-up).
-	if batchID := rt.runner.state.FmlRace().BatchID; batchID > 0 {
-		// Soft: pool sync already succeeded; rank can retry on the next tick.
-		_, _ = runFmlRaceGetUsrRankList(ctx, rt, &automation.PlannedOp{TaskMsID: batchID})
-	}
+	// Rank/quota has its own planner operation. Do not hold the executor for
+	// another paced read after discovering a takeable task.
+	rt.runner.wakeDecision()
 	return v, nil
 }
 
@@ -200,6 +238,12 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 func preflightFmlRaceTaskMutation(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) error {
 	if rt.runner == nil || rt.runner.state == nil {
 		return fmt.Errorf("公会竞赛执行前校验缺少 runner 状态")
+	}
+	if reusableRaceTakePool(rt.runner.state.FmlRace(), op, time.Now().Add(rt.runner.pacer.delay(op.Kind, time.Now()))) {
+		if timing, _ := ctx.Value(raceTimingKey{}).(*raceTiming); timing != nil {
+			timing.reusedPool = true
+		}
+		return automation.ValidateRaceTaskMutation(rt.runner.state, rt.runner.Policy(), op, time.Now())
 	}
 	v, d, err := rpcResult(rt.rpc.FmlRace().GetTaskList(
 		ctx,
@@ -236,8 +280,9 @@ func fmlRaceTaskListPresent(v json.RawMessage) bool {
 	if err := json.Unmarshal(top["25"], &fml); err != nil {
 		return false
 	}
-	_, ok := fml["114"]
-	return ok
+	rawTasks, ok := fml["114"]
+	var tasks []clientproto.IFmlRaceTask
+	return ok && json.Unmarshal(rawTasks, &tasks) == nil
 }
 
 func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {

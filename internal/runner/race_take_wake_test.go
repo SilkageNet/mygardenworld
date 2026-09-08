@@ -1,13 +1,16 @@
 package runner
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
@@ -74,17 +77,23 @@ func TestNextTickIntervalWakesForRaceSyncCooldown(t *testing.T) {
 	}
 }
 
-func TestRaceTakeRetrySleep(t *testing.T) {
-	appear := time.UnixMilli(2_000_000)
-	if got := raceTakeRetrySleep(appear.Add(-150*time.Millisecond), appear); got != 150*time.Millisecond {
-		t.Fatalf("before appear sleep=%v, want 150ms", got)
-	}
-	if got := raceTakeRetrySleep(appear, appear); got != raceTakeCDRetryGap {
-		t.Fatalf("at appear sleep=%v, want retry gap", got)
-	}
-	if got := raceTakeRetrySleep(appear.Add(time.Millisecond), appear); got != raceTakeCDRetryGap {
-		t.Fatalf("after appear sleep=%v, want retry gap", got)
-	}
+func TestRaceTakeWaitsForAppearBeforePacingAdmission(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		r := newOperationEventTestRunner()
+		now := time.Now()
+		op := &automation.PlannedOp{Kind: clientproto.RPCFmlRaceTakeTask.String(), TaskMsID: 1}
+		r.state.ApplyV(json.RawMessage(fmt.Sprintf(`{"25":{"114":[{"0":1,"5":%d}]}}`, now.Add(300*time.Millisecond).UnixMilli())))
+		ctx := context.WithValue(t.Context(), raceMutationContextKey{}, op)
+		if err := r.waitRaceTakeReady(ctx, op.Kind); err != nil {
+			t.Fatal(err)
+		}
+		if elapsed := time.Since(now); elapsed != 300*time.Millisecond {
+			t.Fatalf("wait=%v", elapsed)
+		}
+		if err := r.waitRaceTakeReady(ctx, op.Kind); err != nil || time.Since(now) != 300*time.Millisecond {
+			t.Fatalf("ready task waited again: %v", err)
+		}
+	})
 }
 
 func TestNextTickIntervalWakesImmediatelyForRaceBootstrap(t *testing.T) {
