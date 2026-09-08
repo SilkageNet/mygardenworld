@@ -51,7 +51,7 @@ func notificationTestSignal(e EventLog) *NotificationSignal {
 func TestNotificationMigrationPreservesV9DataAndIsDisabledByDefault(t *testing.T) {
 	db, u, a, _, _ := notificationFixture(t)
 	ctx := context.Background()
-	if _, err := db.ExecContext(ctx, `DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications; PRAGMA user_version = 9`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP TABLE daemon_maintenance; DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications; PRAGMA user_version = 9`); err != nil {
 		t.Fatal(err)
 	}
 	if err := applyMigrations(ctx, db.DB); err != nil {

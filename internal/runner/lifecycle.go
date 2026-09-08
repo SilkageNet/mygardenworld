@@ -86,6 +86,11 @@ func (r *Runner) Start(ctx context.Context) error {
 // account creation or the previous successful login. A rejected/corrupt cache
 // is deleted and the channel-specific fresh login becomes the fallback.
 func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
+	ctx, release, gateErr := r.beginGameWork(ctx)
+	if gateErr != nil {
+		return nil, gateErr
+	}
+	defer release()
 	if !r.waitAccountRestriction(ctx) {
 		return nil, ctx.Err()
 	}
@@ -93,13 +98,14 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 	if err != nil {
 		r.log.Warn("load cached session failed; using fresh login", "err", err)
 		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
-			r.log.Warn("delete unreadable cached session failed", "err", deleteErr)
+			return nil, fmt.Errorf("delete unreadable cached session: %w", deleteErr)
 		}
 	} else if len(blob) > 0 {
 		session, decodeErr := babigame.UnmarshalSessionJSON(blob, r.cfg)
 		if decodeErr == nil {
 			httpc := r.prepareHTTPClient(ctx, session.DeviceID, session.UUID, session.Session0)
 			session.Cfg = httpc.Cfg
+			_, restoreRevision := r.accountSafetySnapshot()
 			client, resumeErr := r.connectSession(ctx, httpc, session, true)
 			if resumeErr == nil {
 				return client, nil
@@ -107,20 +113,47 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 			// A transport outage does not prove that the cached route token is
 			// invalid. Preserve it for the reconnect loop instead of replacing a
 			// reusable session with repeated fresh HTTP logins.
-			if errors.Is(resumeErr, errWebSocketSessionStart) || r.restrictionError() != nil {
+			if r.preserveCachedSession(ctx, resumeErr, restoreRevision) {
 				return nil, resumeErr
 			}
 			decodeErr = resumeErr
 		}
 		r.log.Info("cached session rejected; using fresh login", "err", decodeErr)
 		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
-			r.log.Warn("delete rejected cached session failed", "err", deleteErr)
+			return nil, fmt.Errorf("delete rejected cached session: %w", deleteErr)
 		}
 	}
 	return r.connectFresh(ctx, username, password)
 }
 
+// preserveCachedSession distinguishes a pending recovery validation from an
+// active cooldown. After the deadline, index.reLogin code 91102 explicitly
+// invalidates the cached login, not the recovery attempt itself. Keep the
+// restriction until a fresh login baseline succeeds; never release normal RPCs
+// merely because its deadline elapsed or replace a cache on ambiguous errors.
+func (r *Runner) preserveCachedSession(ctx context.Context, err error, restoreRevision uint64) bool {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, errWebSocketSessionStart) || r.isSessionInvalidated() {
+		return true
+	}
+	s, revision := r.accountSafetySnapshot()
+	if s.RestrictionCode == 0 {
+		return false
+	}
+	if s.RestrictedUntilMS > time.Now().UnixMilli() || revision != restoreRevision {
+		return true
+	}
+	var rejected *babigame.RPCServerError
+	return !errors.As(err, &rejected) || rejected == nil || rejected.Name != clientproto.RPCIndexReLogin ||
+		rejected.Envelope.ErrorCode() != 91102 || rejected.Envelope.IsSessionDisplaced()
+}
+
 func (r *Runner) connectFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
+	ctx, release, gateErr := r.beginGameWork(ctx)
+	if gateErr != nil {
+		return nil, gateErr
+	}
+	defer release()
 	if !r.waitAccountRestriction(ctx) {
 		return nil, ctx.Err()
 	}
@@ -175,9 +208,18 @@ func (r *Runner) prepareHTTPClient(ctx context.Context, deviceID, uuid, session0
 }
 
 func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient, session *babigame.Session, resume bool) (*babigame.Client, error) {
+	// Track the actual connection until physical close, even before this
+	// runner is registered or while Stop races with reconnect installation.
+	connectionCtx, releaseConnection, gateErr := r.beginGameWork(context.Background())
+	if gateErr != nil {
+		return nil, gateErr
+	}
 	client := babigame.NewClient(session)
+	client.OnClosed = releaseConnection
+	context.AfterFunc(connectionCtx, func() { _ = client.Close() })
 	client.DebugWriter = r.debugWriter
 	client.BeforeRPC = r.beforeGameRPC
+	client.BeginRPC = r.beginGameWork
 	client.OnRPCResponse = r.observeGameRPC
 	if err := client.Connect(ctx); err != nil {
 		_ = client.Close()

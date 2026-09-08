@@ -15,7 +15,16 @@ import (
 // All game RPC paths, including heartbeat and executor-internal follow-up
 // reads, share this guard. Only a post-wait login
 // can pass while recovery is pending. HTTP reconnect is separately gated.
-func (r *Runner) beforeGameRPC(_ context.Context, name string) error {
+func (r *Runner) beforeGameRPC(ctx context.Context, name string) error {
+	return r.pacer.wait(ctx, name, func() error { return r.checkGameRPC(name) })
+}
+
+func (r *Runner) checkGameRPC(name string) error {
+	if r.gameGate != nil {
+		if blocked, _ := r.gameGate.status(); blocked {
+			return ErrMaintenance
+		}
+	}
 	s, _ := r.accountSafetySnapshot()
 	if s.RestrictionCode == 0 {
 		return nil

@@ -215,6 +215,9 @@ func (s *Service) runAttempts(ctx context.Context) {
 }
 
 func (s *Service) processNextAttempt(ctx context.Context) error {
+	if s.manager != nil && s.manager.MaintenanceStatus().Enabled {
+		return nil
+	}
 	recoveredAccounts, err := s.db.RecoverExpiredRedeemAttempts(ctx, time.Now())
 	if err != nil {
 		return fmt.Errorf("recover expired redeem attempts: %w", err)
@@ -263,6 +266,9 @@ func (s *Service) eligibleAccountIDs(ctx context.Context) ([]int64, error) {
 			continue
 		}
 		allowed, err := s.accountAllowsAutoConnect(ctx, accountID)
+		if !s.manager.BackgroundStartsAllowed() {
+			continue
+		}
 		if err != nil {
 			s.log.Warn("skip redeem account with unreadable policy", "account_id", accountID, "err", err)
 			continue
@@ -351,6 +357,12 @@ func (s *Service) processAttempt(ctx context.Context, attempt *store.RedeemAttem
 		return
 	}
 	if r == nil {
+		if !s.manager.BackgroundStartsAllowed() {
+			if err := s.db.ReleaseRedeemAttempt(ctx, attempt.ID, attempt.RunToken, "维护后等待手动连接账号", nil); err != nil {
+				s.log.Error("release redeem attempt after maintenance", "err", err)
+			}
+			return
+		}
 		allowed, err := s.accountAllowsAutoConnect(ctx, attempt.AccountID)
 		if err != nil {
 			message := err.Error()

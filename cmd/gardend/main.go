@@ -24,7 +24,7 @@ func main() {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	rootCmd.AddCommand(newServeCmd(), newResetDataCmd(), newCompactDBCmd(), newVersionCmd(), updatecmd.New("gardend"))
+	rootCmd.AddCommand(newServeCmd(), newMaintenanceCmd(), newResetDataCmd(), newCompactDBCmd(), newVersionCmd(), updatecmd.New("gardend"))
 	if err := rootCmd.Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

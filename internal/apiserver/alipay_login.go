@@ -157,6 +157,11 @@ func snapshotAlipayFlow(flow *alipayLoginFlow) alipayLoginSnapshot {
 }
 
 func (svc *Services) StartAlipayLogin(ctx context.Context, req *connect.Request[pb.StartAlipayLoginRequest]) (*connect.Response[pb.StartAlipayLoginResponse], error) {
+	ctx, release, gateErr := svc.beginGameWork(ctx)
+	if gateErr != nil {
+		return nil, mapErr(gateErr)
+	}
+	defer release()
 	if svc.AlipayLogins == nil {
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("alipay QR login is unavailable"))
 	}
@@ -193,6 +198,11 @@ func (svc *Services) StartAlipayLogin(ctx context.Context, req *connect.Request[
 }
 
 func (svc *Services) pollAlipayLogin(ctx context.Context, loginID string) (alipayLoginSnapshot, error) {
+	ctx, release, gateErr := svc.beginGameWork(ctx)
+	if gateErr != nil {
+		return alipayLoginSnapshot{}, gateErr
+	}
+	defer release()
 	if svc.AlipayLogins == nil {
 		return alipayLoginSnapshot{}, errors.New("alipay QR login is unavailable")
 	}

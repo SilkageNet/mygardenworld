@@ -5,6 +5,36 @@ import (
 	"testing"
 )
 
+func TestNumericMessageCodes(t *testing.T) {
+	for _, tc := range []struct {
+		raw     string
+		code    int
+		expired bool
+	}{
+		{`91102`, 91102, true},
+		{`{"code":91102}`, 91102, true},
+		{` 91102 `, 91102, true},
+		{`97777`, 97777, false},
+		{`{"code":97777,"args":[]}`, 97777, false},
+		{`97778`, 97778, false},
+		{`312`, 312, false},
+		{`"91102"`, 0, false},
+		{`[91102]`, 0, false},
+		{`91102.5`, 0, false},
+		{`{"code":"fmlShare_tips8"}`, 0, false},
+	} {
+		t.Run(tc.raw, func(t *testing.T) {
+			d := WSResponseD{M: json.RawMessage(tc.raw)}
+			if d.ErrorCode() != tc.code || d.IsSessionExpired() != tc.expired || d.IsSessionDisplaced() {
+				t.Fatalf("code=%d expired=%v displaced=%v", d.ErrorCode(), d.IsSessionExpired(), d.IsSessionDisplaced())
+			}
+			if d.ErrorMsg() != tc.raw {
+				t.Fatal("raw diagnostic was changed")
+			}
+		})
+	}
+}
+
 func TestHasPayload(t *testing.T) {
 	tests := []struct {
 		name string

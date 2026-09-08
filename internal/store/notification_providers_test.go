@@ -87,7 +87,7 @@ func TestNotificationProviderMigrationPreservesV10SettingsAndOutbox(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.ExecContext(ctx, `ALTER TABLE user_notifications DROP COLUMN provider; ALTER TABLE user_notifications DROP COLUMN signing_secret_enc; ALTER TABLE user_notifications DROP COLUMN retry_after_ms; DROP INDEX idx_notification_outbox_attempt; ALTER TABLE notification_outbox DROP COLUMN last_attempt_ms; PRAGMA user_version = 10`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP TABLE daemon_maintenance; ALTER TABLE user_notifications DROP COLUMN provider; ALTER TABLE user_notifications DROP COLUMN signing_secret_enc; ALTER TABLE user_notifications DROP COLUMN retry_after_ms; DROP INDEX idx_notification_outbox_attempt; ALTER TABLE notification_outbox DROP COLUMN last_attempt_ms; PRAGMA user_version = 10`); err != nil {
 		t.Fatal(err)
 	}
 	if err := applyMigrations(ctx, db.DB); err != nil {

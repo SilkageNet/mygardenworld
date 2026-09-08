@@ -229,6 +229,15 @@
 // safe deletion frequency. The runner pauses all account RPCs on either code,
 // preserves that pause across restarts, and validates a cached-session login
 // after the deadline before replanning from its full state baseline.
+// Mini's c_msgCode 91102 explicitly means the login has expired; CnnMgr stops
+// and requests reloadGame on acknowledgement. If a post-deadline index.reLogin
+// returns 91102, the runner discards that rejected cache and falls back to the
+// channel login flow. It keeps the restriction until the new baseline succeeds;
+// transport failures, unknown codes and new restrictions do not trigger this
+// fallback during recovery.
+// Message envelopes may be bare numeric codes (m:91102) or objects with a
+// numeric code. Both feed the same safety classifier; unstructured error text
+// is not parsed as an authentication or request-protection code.
 //
 // Per-land fields use numeric-string keys:
 //

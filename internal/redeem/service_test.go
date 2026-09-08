@@ -118,6 +118,21 @@ func TestEligibleAccountIDsDefaultToAutoConnect(t *testing.T) {
 	if len(got) != 1 || got[0] != auto.ID {
 		t.Fatalf("eligible accounts=%v, want default-AUTO account %d only", got, auto.ID)
 	}
+	for _, enabled := range []bool{true, false} {
+		if _, err := db.RequestMaintenance(ctx, enabled, false); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.ApplyMaintenance(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.processNextAttempt(ctx); err != nil {
+			t.Fatal(err)
+		}
+		got, err := service.eligibleAccountIDs(ctx)
+		if err != nil || len(got) != 0 {
+			t.Fatalf("maintenance=%t eligible=%v error=%v", enabled, got, err)
+		}
+	}
 }
 
 func TestValidateSourceEndpoint(t *testing.T) {

@@ -16,6 +16,7 @@ import {
   WorkspaceLogPageKind,
   type AccountRedeemAttemptPage,
   type WorkspaceLogPage,
+  type MaintenanceView,
 } from "@/gen/mygardenworld/v1/workspace_pb";
 import { AccountHealth } from "@/lib/api/workspace-models";
 import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
@@ -78,6 +79,7 @@ export default function HomePage() {
 }
 
 function DashboardContent({ onServerVersion }: { onServerVersion: (version: string) => void }) {
+  const [maintenance, setMaintenance] = useState<MaintenanceView>();
   const { user } = useAuth();
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -238,11 +240,13 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     const client = new WorkspaceClient({
       onConnectionState: setWorkspaceConnection,
       onReady: (ready) => {
+        setMaintenance(ready.maintenance);
         applyStatuses(ready.accounts);
         setFeatureCapabilities(ready.featureCapabilities);
         onServerVersion(ready.serverVersion || "dev");
       },
       onStatuses: (batch) => applyStatuses(batch.accounts),
+      onMaintenance: setMaintenance,
       onSnapshot: (snapshot) => {
         const state = snapshot.state;
         if (!state || accountKey(state.accountId) !== selectedAccountIdRef.current) return;
@@ -664,6 +668,12 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
 
   return (
     <div className="relative z-10 min-h-0 xl:h-full">
+      {maintenance?.enabled && (
+        <div role="status" className="mb-4 rounded-md border border-amber-400/30 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-400/10 dark:text-amber-200">
+          {maintenance.draining ? "正在进入系统维护，停止游戏连接与在途请求。" : "系统维护中，游戏连接与操作已暂停。"}
+          您的自动化配置保持不变，仍可查看已有记录及调整设置。
+        </div>
+      )}
       {error && (
         <div className="mb-4 rounded-md border border-destructive/25 bg-white/72 px-3 py-2 text-sm text-destructive shadow-sm backdrop-blur-xl dark:bg-destructive/12">
           {error}

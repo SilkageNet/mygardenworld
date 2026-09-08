@@ -70,7 +70,8 @@ func TestProviderRequestsAndFreshSignatures(t *testing.T) {
 			if err := json.Unmarshal(body, &msg); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(body), "小云朵") || !strings.Contains(string(body), "示例账号") || !strings.Contains(string(body), "请求保护") {
+			if !strings.Contains(string(body), "小云朵") || !strings.Contains(string(body), "示例账号") || !strings.Contains(string(body), "请求保护") ||
+				!strings.Contains(string(body), "2026-09-07 14:00:00（北京时间 UTC+8）") {
 				t.Fatal("missing curated message")
 			}
 			var content map[string]string
@@ -114,6 +115,24 @@ func TestProviderRequestsAndFreshSignatures(t *testing.T) {
 				t.Fatal("unsigned request has signature")
 			}
 		})
+	}
+}
+
+func TestRobotTimeUsesBeijingIndependentlyOfTimestampZone(t *testing.T) {
+	instant := time.Date(2026, 9, 8, 23, 30, 45, 0, time.UTC)
+	for _, zone := range []*time.Location{time.UTC, time.FixedZone("source-west", -7*3600), time.FixedZone("source-east", 9*3600)} {
+		for _, kind := range []string{"test", "account_request", "recovery"} {
+			t.Run(zone.String()+"/"+kind, func(t *testing.T) {
+				p := store.NotificationPayload{Kind: kind, TS: instant.In(zone), Recovered: kind == "recovery"}
+				before := p.TS
+				if got := robotText(p); !strings.Contains(got, "时间：2026-09-09 07:30:45（北京时间 UTC+8）") {
+					t.Fatalf("wrong human timestamp: %s", got)
+				}
+				if p.TS != before {
+					t.Fatal("rendering mutated persisted timestamp")
+				}
+			})
+		}
 	}
 }
 

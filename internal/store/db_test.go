@@ -120,6 +120,7 @@ func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testi
 		t.Fatal(err)
 	}
 	for _, statement := range []string{
+		`DROP TABLE daemon_maintenance`,
 		`DROP TABLE account_request_safety`,
 		`DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications`,
 		`DROP INDEX idx_redeem_attempts_lease`,
@@ -190,6 +191,7 @@ func TestOpenMigratesVersionSixRedeemCodesWithoutLosingData(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, statement := range []string{
+		`DROP TABLE daemon_maintenance`,
 		`DROP TABLE account_request_safety`,
 		`DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications`,
 		`DROP INDEX idx_redeem_attempts_lease`,
