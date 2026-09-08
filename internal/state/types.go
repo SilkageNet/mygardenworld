@@ -338,7 +338,7 @@ type FmlRaceTaskView struct {
 	TaskType       int32  // c_fmlRaceTask.type (priority / label key, e.g. 3036)
 	Score          int32  // task score
 	IsUpgrade      int32  // 1 if already upgraded
-	UpgradeUid     int64  // UID of the member who upgraded (0 if none)
+	UpgradeUid     int64  // observed upgrader UID; 0 does not prove a system upgrade
 	UID            int64  // taker uid; non-zero means the task is already taken
 	ParamID        int32  // first param id when present (flower/item); 0 if none
 	TargetLabel    string // catalog name for ParamID; empty when unavailable

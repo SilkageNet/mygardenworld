@@ -142,6 +142,9 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	if !ok {
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)
 	}
+	if op.Kind == clientproto.RPCFmlRaceTakeTask.String() || op.Kind == clientproto.RPCFmlRaceDelTask.String() {
+		ctx = context.WithValue(ctx, raceMutationContextKey{}, op)
+	}
 	rawRPC := babigame.NewRPCClient(
 		client,
 		session,

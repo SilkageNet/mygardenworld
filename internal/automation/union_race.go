@@ -1120,10 +1120,17 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 	if policy.GetOnlyUpgradeTask() && t.IsUpgrade == 0 {
 		return "仅接已升级任务"
 	}
-	// Only member upgrades carry UpgradeUid. UpgradeUid==0 is system upgrade
-	// and stays takeable when exclude-others is on.
-	if policy.GetExcludeOthersUpgradeTask() && t.UpgradeUid != 0 && t.UpgradeUid != uid {
-		return "他人已升级"
+	// Mini uses isUpgrade for the upgrade badge and upgradeUid for the member
+	// identity independently. A missing/zero UID is not evidence of a system
+	// upgrade: when exclusion is enabled, only positively identified self
+	// upgrades may pass. Ordinary unupgraded tasks remain eligible.
+	if policy.GetExcludeOthersUpgradeTask() {
+		if t.UpgradeUid > 0 && t.UpgradeUid != uid {
+			return "他人已升级"
+		}
+		if (t.IsUpgrade != 0 || t.UpgradeUid != 0) && (t.UpgradeUid <= 0 || uid <= 0) {
+			return "升级归属不明，已跳过"
+		}
 	}
 	taskType := t.TaskType
 	if taskType == 0 {
