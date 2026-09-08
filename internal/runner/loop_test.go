@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
@@ -1001,6 +1002,11 @@ func TestIsWaterwheelDailyLimitError(t *testing.T) {
 }
 
 func TestIsFmlFlowerTakeDailyLimitError(t *testing.T) {
+	// Keep the one-minute shared-cooldown assertion within one calendar day.
+	synctest.Test(t, testFmlFlowerTakeDailyLimitError)
+}
+
+func testFmlFlowerTakeDailyLimitError(t *testing.T) {
 	err := errors.New(`rpc fmlFlowerShare.take: server: {"code":"fmlShare_tips8","msg":"今日拿取次数已达上限","args":[]}`)
 	if !isFmlFlowerTakeDailyLimitError(clientproto.RPCFmlFlowerShareTake.String(), err) {
 		t.Fatal("isFmlFlowerTakeDailyLimitError = false, want true")

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -4318,6 +4319,12 @@ func TestBuildPlan_UnionFlowerTakeNoMatchDoesNotTake(t *testing.T) {
 }
 
 func TestBuildPlan_UnionFlowerTakeHourlyResync(t *testing.T) {
+	// This test advances a fresh snapshot by one minute/hour, not across a
+	// calendar reset. Freeze both state observation and planner clocks.
+	synctest.Test(t, testUnionFlowerTakeHourlyResync)
+}
+
+func testUnionFlowerTakeHourlyResync(t *testing.T) {
 	s := state.New()
 	synced := time.Now().UnixMilli()
 	applyMap(t, s, map[string]any{
