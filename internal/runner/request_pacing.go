@@ -119,3 +119,15 @@ func (p *requestPacer) diagnostic(name string) map[string]any {
 	scope, minimum := p.scope(name)
 	return map[string]any{"scope": scope, "minimum_interval_ms": minimum.Milliseconds(), "last_admitted_at": p.lastScope[scope], "previous_interval_ms": p.lastSpacing[scope].Milliseconds()}
 }
+
+// Reserve only the final account-spacing window for a due urgent mutation.
+// Long repeated-RPC cooldowns still leave opportunities for unrelated work.
+func (p *requestPacer) reserveUrgentSlot(name string, now time.Time) bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delay := p.delayLocked(name, now)
+	return delay > 0 && delay <= p.config.RequestInterval
+}

@@ -449,6 +449,7 @@ func observedCaptureNamespaces() []string {
 }
 
 func (r *Runner) installStateHandlers() {
+	r.state.SetOnRaceChange(r.wakeDecision)
 	r.state.SetOnChange(func(changes []state.LandChange) {
 		if len(changes) > 0 {
 			r.mu.Lock()

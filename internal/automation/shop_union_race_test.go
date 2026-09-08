@@ -1942,7 +1942,7 @@ func TestUnionRaceNoPeriodicGetTaskListWithinTTL(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
-	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval - time.Second)
+	now := time.UnixMilli(synced).Add(9 * time.Second)
 	ops := unionRaceOperations(s, policy, 0, now, raceGatesOn())
 	for _, op := range ops {
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() {

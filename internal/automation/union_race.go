@@ -11,13 +11,15 @@ import (
 )
 
 // raceTakeLeadWindow is how early automation may emit takeTask for a CD pool
-// row that already meets filter rules. The decision loop wakes at
-// AppearTime-lead so the default 4s tick cannot miss this window.
+// row that already meets filter rules. This is preparation time only: the
+// runner does not send before AppearTime and still applies account pacing.
 const raceTakeLeadWindow = 300 * time.Millisecond
 
 // raceTaskPoolRefreshInterval is how often automation re-fetches the task pool
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 30 * time.Second
+
+const raceIdleTaskPoolRefreshInterval = 10 * time.Second
 
 // raceTaskPoolBootstrapRetryInterval bounds successful getTaskList probes that
 // still do not yield field 114. The first probe remains immediate and urgent;
@@ -343,7 +345,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 
-	if !hasPrimary && raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
+	if !hasPrimary && raceTaskPoolRefreshDue(view, policy, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
 		op := domainOp(
 			clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 			"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
@@ -597,10 +599,31 @@ func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
 	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale {
 		return false
 	}
-	if view.TasksSyncedAtMs <= 0 {
+	lastSync := view.TaskPoolSyncAttemptAtMs
+	if lastSync <= 0 {
+		lastSync = view.TasksSyncedAtMs
+	}
+	if lastSync <= 0 {
 		return true
 	}
-	return !now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceTaskPoolRefreshInterval))
+	return !now.Before(time.UnixMilli(lastSync).Add(raceTaskPoolRefreshInterval))
+}
+
+// Only active auto-take waiters need the shorter fallback. Held tasks and
+// accounts with auto-complete off retain the ordinary refresh rate.
+func raceTaskPoolRefreshDue(view state.FmlRaceView, policy *pb.UnionRacePolicy, now time.Time) bool {
+	if raceTaskPoolTTLStale(view, now) {
+		return true
+	}
+	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
+		!policy.GetAutoEnableModules() || view.TakeQuotaExhausted {
+		return false
+	}
+	lastSync := view.TaskPoolSyncAttemptAtMs
+	if lastSync <= 0 {
+		lastSync = view.TasksSyncedAtMs
+	}
+	return !now.Before(time.UnixMilli(lastSync).Add(raceIdleTaskPoolRefreshInterval))
 }
 
 func raceTaskPoolBootstrapSyncDue(view state.FmlRaceView, now time.Time) bool {
@@ -761,7 +784,29 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	if !race.GetAutoEnableModules() {
 		return false
 	}
-	return RaceTakeDue(s, policy, now)
+	return RaceTakeDue(s, policy, now) || raceTaskPoolRefreshDue(view, race, now)
+}
+
+// RaceTaskPoolWakeAt bounds idle discovery even if the ordinary decision
+// interval is long. It is a scheduling deadline, not an extra connection or
+// permission to bypass per-account request spacing.
+func RaceTaskPoolWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.Time {
+	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
+		return time.Time{}
+	}
+	race := policy.GetUnion().GetRace()
+	build := s.FmlBuild()
+	view := s.FmlRace()
+	if !race.GetEnabled() || !race.GetAutoEnableModules() || !build.MembershipObserved || build.MemberFmlID <= 0 ||
+		!view.ActiveAt(now) || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
+		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		return time.Time{}
+	}
+	lastSync := view.TaskPoolSyncAttemptAtMs
+	if lastSync <= 0 {
+		lastSync = view.TasksSyncedAtMs
+	}
+	return time.UnixMilli(lastSync).Add(raceIdleTaskPoolRefreshInterval)
 }
 
 // IsUrgentRaceOp reports ops that must preempt farm/order lanes (login/pool

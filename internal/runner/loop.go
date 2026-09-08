@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -31,8 +30,18 @@ func (r *Runner) decisionLoop(ctx context.Context) {
 			timer.Stop()
 			return
 		case <-timer.C:
-			r.tick(ctx)
+		case <-r.decisionWake:
+			timer.Stop()
 		}
+		r.tick(ctx)
+	}
+}
+
+// Coalesce notifications; never run a second decision/executor concurrently.
+func (r *Runner) wakeDecision() {
+	select {
+	case r.decisionWake <- struct{}{}:
+	default:
 	}
 }
 
@@ -73,6 +82,7 @@ func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 	st := r.state
 	r.mu.RUnlock()
 	consider(automation.RaceTakeWakeAt(st, policy, now))
+	consider(automation.RaceTaskPoolWakeAt(st, policy, now))
 	raceCooldownUntil := r.soonestRaceOpCooldownUntil(now)
 	consider(raceCooldownUntil)
 	// A failed bootstrap op carries a short runner cooldown. Respect it here;
@@ -82,6 +92,14 @@ func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 		// Pacing may currently reject the bootstrap candidate. Do not busy-loop
 		// every 5ms during the new account-wide/repeated-RPC spacing window.
 		if r.pacer != nil {
+			for _, op := range automation.PlanOperations(st, policy, now) {
+				if automation.IsUrgentRaceOp(op) && runnablePlannedOp(op) {
+					if delay := r.pacer.delay(op.Kind, now); delay > 0 {
+						return max(minDecisionWake, min(soonest, delay))
+					}
+					return minDecisionWake
+				}
+			}
 			return min(interval, time.Second)
 		}
 		return minDecisionWake
@@ -132,6 +150,11 @@ func (r *Runner) tick(ctx context.Context) {
 		selected = r.nextRunnableOperation(snapshot.policy, now)
 		if selected != nil && automation.IsUrgentRaceOp(*selected) {
 			r.runOperationTick(ctx, snapshot.client, snapshot.session, selected, now)
+			return
+		}
+		if selected == nil {
+			// An urgent operation waiting for account pacing must not lose its
+			// next slot to a water/resident sync hidden in the tick preamble.
 			return
 		}
 	}
@@ -192,14 +215,32 @@ func (r *Runner) readTickSnapshot() tickSnapshot {
 }
 
 func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) {
+	// Harvest is a sequence of independent single-land RPCs, not a server
+	// batch. Replan remaining lands after each result so urgent work can run
+	// between requests and logs/statistics cover only the executed land.
+	op = scheduledOperationChunk(op)
+	ctx = context.WithValue(ctx, scheduledOperationKey{}, true)
 	_ = r.executeOperation(ctx, client, session, op, now)
+}
+
+type scheduledOperationKey struct{}
+
+func scheduledOperationChunk(op *automation.PlannedOp) *automation.PlannedOp {
+	if op.Kind != clientproto.RPCUsrLandHarvest.String() || len(op.LandIDs) <= 1 {
+		return op
+	}
+	chunk := *op
+	chunk.LandIDs = append([]int32(nil), op.LandIDs[:1]...)
+	return &chunk
 }
 
 // executeOperation runs one operation through the same serialization,
 // resource gates, state reconciliation, logging, and diagnostics used by the
 // scheduler. It returns the original request error to explicit callers while
 // keeping handled/transient errors out of runtime failure diagnostics.
-func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) error {
+func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) (resultErr error) {
+	ctx, timing := r.startRaceTiming(ctx, op)
+	defer func() { r.emitRaceTiming(op, timing, resultErr) }()
 	ctx, release, gateErr := r.beginGameWork(ctx)
 	if gateErr != nil {
 		return gateErr
@@ -207,6 +248,9 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 	defer release()
 	r.operationMu.Lock()
 	defer r.operationMu.Unlock()
+	if timing != nil {
+		timing.locked = time.Now()
+	}
 
 	var opErr error
 	finishOperation := r.beginOperation(op.Kind)
@@ -242,6 +286,10 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 			babigame.WithApplyV(r.state.ApplyV),
 		)
 		err := preflightFmlRaceTaskMutation(ctx, operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}, op)
+		if timing != nil {
+			timing.preflightDone = time.Now()
+			timing.preflightPassed = err == nil
+		}
 		if err != nil {
 			opErr = err
 			// Preflight failures return before ordinary RPC error handling. Give
@@ -327,9 +375,6 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 	r.emitOperationPlanned(attempt)
 
 	raw, err := r.executePlannedOp(ctx, client, session, op)
-	if isRaceTakeOnCooldownError(op.Kind, err) {
-		raw, err = r.retryRaceTakeUntilAppear(ctx, client, session, op)
-	}
 	result := operationResult{
 		operationAttempt: attempt,
 		raw:              raw,
@@ -373,47 +418,6 @@ func (r *Runner) DeleteUnionRaceTask(ctx context.Context, taskMsID int64) error 
 	return r.executeOperation(ctx, snapshot.client, snapshot.session, &op, time.Now())
 }
 
-const (
-	raceTakeCDRetryPad = 80 * time.Millisecond
-	raceTakeCDRetryGap = 10 * time.Millisecond
-	raceTakeCDRetryMax = 8
-)
-
-// retryRaceTakeUntilAppear re-sends takeTask at AppearTime after a preemptive
-// lead-window CD rejection, instead of waiting for the next 4s decision tick.
-func (r *Runner) retryRaceTakeUntilAppear(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp) (json.RawMessage, error) {
-	appear := raceTakeAppearTime(r.state, op)
-	deadline := time.Now().Add(raceTakeCDRetryPad)
-	if !appear.IsZero() {
-		deadline = appear.Add(raceTakeCDRetryPad)
-	}
-	var raw json.RawMessage
-	var err error
-	for i := 0; i < raceTakeCDRetryMax; i++ {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		now := time.Now()
-		if sleep := raceTakeRetrySleep(now, appear); sleep > 0 {
-			timer := time.NewTimer(sleep)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return nil, ctx.Err()
-			case <-timer.C:
-			}
-		}
-		raw, err = r.executePlannedOp(ctx, client, session, op)
-		if err == nil || !isRaceTakeOnCooldownError(op.Kind, err) {
-			return raw, err
-		}
-		if !time.Now().Before(deadline) {
-			break
-		}
-	}
-	return raw, err
-}
-
 func raceTakeAppearTime(st *state.State, op *automation.PlannedOp) time.Time {
 	if st == nil || op == nil || op.TaskMsID == 0 {
 		return time.Time{}
@@ -424,14 +428,4 @@ func raceTakeAppearTime(st *state.State, op *automation.PlannedOp) time.Time {
 		}
 	}
 	return time.Time{}
-}
-
-func raceTakeRetrySleep(now, appear time.Time) time.Duration {
-	if appear.IsZero() {
-		return raceTakeCDRetryGap
-	}
-	if now.Before(appear) {
-		return appear.Sub(now)
-	}
-	return raceTakeCDRetryGap
 }

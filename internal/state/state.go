@@ -132,6 +132,14 @@ func New() *State {
 	return s
 }
 
+// SetOnRaceChange installs a notification for task, progress, batch or quota
+// changes. It runs outside the state lock; repeated snapshots do not notify.
+func (s *State) SetOnRaceChange(fn func()) {
+	s.mu.Lock()
+	s.onRaceChange = fn
+	s.mu.Unlock()
+}
+
 // SetOnChange installs a callback fired whenever lands change. Called with
 // the lock released.
 func (s *State) SetOnChange(fn func(changed []LandChange)) {

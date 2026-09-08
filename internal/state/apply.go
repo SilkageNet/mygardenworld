@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
@@ -54,6 +55,10 @@ type applyHints struct {
 
 func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	s.mu.Lock()
+	previousRace := s.fmlRace
+	if s.onRaceChange != nil {
+		previousRace.Tasks = slices.Clone(previousRace.Tasks)
+	}
 	now := time.Now().UnixMilli()
 	s.lastApplyMs = now
 
@@ -230,9 +235,14 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	}
 
 	cb := s.onChange
+	raceCb := s.onRaceChange
+	raceChanged := raceCb != nil && raceDecisionChanged(previousRace, s.fmlRace)
 	s.bumpRevisionLocked()
 	s.mu.Unlock()
 
+	if raceChanged {
+		raceCb()
+	}
 	if cb != nil && len(changes) > 0 {
 		cb(changes)
 	}
@@ -242,4 +252,13 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	if inventoryCb != nil {
 		inventoryCb(inventorySnap)
 	}
+}
+
+func raceDecisionChanged(before, after FmlRaceView) bool {
+	return before.BatchID != after.BatchID || before.BatchStatus != after.BatchStatus ||
+		before.BatchStartMs != after.BatchStartMs || before.BatchEndMs != after.BatchEndMs ||
+		before.TasksObserved != after.TasksObserved || before.Taken != after.Taken ||
+		before.LocalFinishCnt != after.LocalFinishCnt || before.TaskQuotaObserved != after.TaskQuotaObserved ||
+		before.FinishedTaskNum != after.FinishedTaskNum || before.BuyTaskNum != after.BuyTaskNum ||
+		before.TakeQuotaExhausted != after.TakeQuotaExhausted || !slices.Equal(before.Tasks, after.Tasks)
 }
