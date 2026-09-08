@@ -53,6 +53,7 @@ web/             embedded Next.js control panel
 - Supported game channels are only iOS and Alipay. Alipay login is QR-driven and must not ask for a manual game username.
 - The Web product has eight top-level workspaces: basic, garden, orders, union, activities, warehouse, statistics, and logs.
 - Each business workspace owns its status and settings. Warehouse is inventory-only; statistics contains aggregated history; logs contains structured execution/runtime records and no settings.
+- Settings remain accessible without a live game session or confirmed membership/unlocks. Configuration access is not execution permission; runner and planner state gates remain authoritative.
 - Union land, construction, and race behavior require authoritative current-cycle membership evidence. Never plan union work from stale snapshots for an account that is not confirmed as a member.
 - Supported activities are 花笺集芳 (`tmpType 4002`) and 莳花纪闻 (`tmpType 4003`). Removed activities must not remain in policy, state, API, or UI compatibility paths.
 
