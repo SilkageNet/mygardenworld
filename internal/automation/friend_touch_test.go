@@ -3,6 +3,7 @@ package automation
 import (
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -75,6 +76,12 @@ func TestFriendTouchDisabledDoesNotSyncFriendList(t *testing.T) {
 }
 
 func TestFriendTouchDoesNotRefreshObservedProfileOnShortTTL(t *testing.T) {
+	// A real 23:59 fixture plus one minute correctly requests new-day quota
+	// verification. That is unrelated to this profile/dynamic TTL assertion.
+	synctest.Test(t, testFriendTouchObservedProfileShortTTL)
+}
+
+func testFriendTouchObservedProfileShortTTL(t *testing.T) {
 	s := state.New()
 	now := applyFriendTouchFixture(s, []int64{2001}, map[int64]bool{2001: true}, map[int64]int32{2001: 0})
 	policy := &pb.FriendStealPolicy{Enabled: true, FriendMode: pb.SelectionMode_SELECTION_MODE_ALL}
