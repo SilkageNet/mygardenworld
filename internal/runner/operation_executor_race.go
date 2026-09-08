@@ -35,6 +35,11 @@ func (r *Runner) waitRaceTakeReady(ctx context.Context, name string) error {
 	// The planner's lead window is for preparation, not speculative sends.
 	// A server CD rejection returns to the paced scheduler, never a retry loop.
 	if wait := time.Until(raceTakeAppearTime(r.state, op)); wait > 0 {
+		// A concurrent push may move the deadline far beyond the planner's
+		// 300ms preparation window. Do not occupy the executor until then.
+		if wait > time.Second {
+			return fmt.Errorf("竞赛任务冷却时间已变化，等待重新规划")
+		}
 		if !sleepOrDone(ctx, wait) {
 			return ctx.Err()
 		}

@@ -93,6 +93,10 @@ func TestRaceTakeWaitsForAppearBeforePacingAdmission(t *testing.T) {
 		if err := r.waitRaceTakeReady(ctx, op.Kind); err != nil || time.Since(now) != 300*time.Millisecond {
 			t.Fatalf("ready task waited again: %v", err)
 		}
+		r.state.ApplyV(json.RawMessage(fmt.Sprintf(`{"25":{"114":[{"0":1,"5":%d}]}}`, now.Add(time.Hour).UnixMilli())))
+		if err := r.waitRaceTakeReady(ctx, op.Kind); err == nil || time.Since(now) != 300*time.Millisecond {
+			t.Fatalf("changed deadline held the executor: %v", err)
+		}
 	})
 }
 
