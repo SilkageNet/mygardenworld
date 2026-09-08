@@ -42,6 +42,20 @@ gardend serve --listen 127.0.0.1:50051
 
 数据默认保存在系统用户配置目录下的 `mygardenworld/data`。事件与操作日志默认保留 7 天，可通过 `gardend serve --log-retention-days N` 调整；`0` 表示永久保留，`1` 表示保留 1 天。清理后 SQLite 会复用空闲页，但文件不会自动缩小；如需归还磁盘空间，先停止 `gardend`，再运行 `gardend compact-db --yes`。
 
+游戏请求默认按账号间隔 2 秒，同一 RPC 至少间隔 8 秒，同一商城的购买及珍珠雇佣至少间隔 30 秒（心跳保活除外；已有更长冷却仍有效）。运维可通过 `serve --game-request-interval 2s --game-repeat-interval 8s --game-purchase-interval 30s` 调整。该间隔同时覆盖自动操作、手动命令与操作内部连续请求，只是本地预防措施，不代表服务端限流阈值。
+
+普通部署直接停止服务即可统一断开游戏连接。如需保留 Web 可访问、暂停全部游戏交互，可在服务所在机器使用同一版本的 `gardend` 和相同的 `--data-dir`：
+
+```sh
+gardend maintenance on          # 等待守护进程确认停止在途请求与连接
+gardend maintenance status      # 查看持久化请求及确认状态，不是服务健康检查
+gardend maintenance off         # 解除维护，账号由各用户手动连接
+# 或显式恢复当前仍启用自动化、且所属用户有效的账号：
+gardend maintenance off --resume-enabled
+```
+
+维护状态跨重启保留，不修改任何用户策略；控制命令要求本机数据库访问权，Web 管理员没有跨用户账号权限。`--wait 0` 仅保存待处理请求，适用于停机时预设维护状态，不能视为维护完成。退出维护后再次正常重启服务，仍按用户当前的自动化配置恢复账号。数据库离线压缩/备份仍须停止守护进程，维护开关不能代替停机。
+
 如需重建本地数据：
 
 ```sh

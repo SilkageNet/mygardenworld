@@ -785,6 +785,7 @@ type WorkspaceServerFrame struct {
 	//	*WorkspaceServerFrame_Error
 	//	*WorkspaceServerFrame_RedeemAttempts
 	//	*WorkspaceServerFrame_Notifications
+	//	*WorkspaceServerFrame_Maintenance
 	Payload       isWorkspaceServerFrame_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -922,6 +923,15 @@ func (x *WorkspaceServerFrame) GetNotifications() *UserNotificationsView {
 	return nil
 }
 
+func (x *WorkspaceServerFrame) GetMaintenance() *MaintenanceView {
+	if x != nil {
+		if x, ok := x.Payload.(*WorkspaceServerFrame_Maintenance); ok {
+			return x.Maintenance
+		}
+	}
+	return nil
+}
+
 type isWorkspaceServerFrame_Payload interface {
 	isWorkspaceServerFrame_Payload()
 }
@@ -962,6 +972,10 @@ type WorkspaceServerFrame_Notifications struct {
 	Notifications *UserNotificationsView `protobuf:"bytes,11,opt,name=notifications,proto3,oneof"`
 }
 
+type WorkspaceServerFrame_Maintenance struct {
+	Maintenance *MaintenanceView `protobuf:"bytes,12,opt,name=maintenance,proto3,oneof"`
+}
+
 func (*WorkspaceServerFrame_Ready) isWorkspaceServerFrame_Payload() {}
 
 func (*WorkspaceServerFrame_AccountStatuses) isWorkspaceServerFrame_Payload() {}
@@ -980,6 +994,8 @@ func (*WorkspaceServerFrame_RedeemAttempts) isWorkspaceServerFrame_Payload() {}
 
 func (*WorkspaceServerFrame_Notifications) isWorkspaceServerFrame_Payload() {}
 
+func (*WorkspaceServerFrame_Maintenance) isWorkspaceServerFrame_Payload() {}
+
 type WorkspaceReady struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	ProtocolVersion     uint32                 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
@@ -988,6 +1004,7 @@ type WorkspaceReady struct {
 	FeatureCapabilities []*FeatureCapability   `protobuf:"bytes,4,rep,name=feature_capabilities,json=featureCapabilities,proto3" json:"feature_capabilities,omitempty"`
 	HeartbeatSeconds    int32                  `protobuf:"varint,5,opt,name=heartbeat_seconds,json=heartbeatSeconds,proto3" json:"heartbeat_seconds,omitempty"`
 	ServerVersion       string                 `protobuf:"bytes,6,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
+	Maintenance         *MaintenanceView       `protobuf:"bytes,7,opt,name=maintenance,proto3" json:"maintenance,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1064,6 +1081,66 @@ func (x *WorkspaceReady) GetServerVersion() string {
 	return ""
 }
 
+func (x *WorkspaceReady) GetMaintenance() *MaintenanceView {
+	if x != nil {
+		return x.Maintenance
+	}
+	return nil
+}
+
+// Shared operational state only. No account counts, identifiers or owner data.
+type MaintenanceView struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Draining      bool                   `protobuf:"varint,2,opt,name=draining,proto3" json:"draining,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MaintenanceView) Reset() {
+	*x = MaintenanceView{}
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MaintenanceView) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MaintenanceView) ProtoMessage() {}
+
+func (x *MaintenanceView) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MaintenanceView.ProtoReflect.Descriptor instead.
+func (*MaintenanceView) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *MaintenanceView) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *MaintenanceView) GetDraining() bool {
+	if x != nil {
+		return x.Draining
+	}
+	return false
+}
+
 type AccountStatusBatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Accounts      []*AccountStatus       `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
@@ -1073,7 +1150,7 @@ type AccountStatusBatch struct {
 
 func (x *AccountStatusBatch) Reset() {
 	*x = AccountStatusBatch{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1085,7 +1162,7 @@ func (x *AccountStatusBatch) String() string {
 func (*AccountStatusBatch) ProtoMessage() {}
 
 func (x *AccountStatusBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[9]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1098,7 +1175,7 @@ func (x *AccountStatusBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountStatusBatch.ProtoReflect.Descriptor instead.
 func (*AccountStatusBatch) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{9}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AccountStatusBatch) GetAccounts() []*AccountStatus {
@@ -1127,7 +1204,7 @@ type WorkspaceState struct {
 
 func (x *WorkspaceState) Reset() {
 	*x = WorkspaceState{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1139,7 +1216,7 @@ func (x *WorkspaceState) String() string {
 func (*WorkspaceState) ProtoMessage() {}
 
 func (x *WorkspaceState) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[10]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1152,7 +1229,7 @@ func (x *WorkspaceState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceState.ProtoReflect.Descriptor instead.
 func (*WorkspaceState) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{10}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WorkspaceState) GetRevision() uint64 {
@@ -1242,7 +1319,7 @@ type WorkspaceSnapshot struct {
 
 func (x *WorkspaceSnapshot) Reset() {
 	*x = WorkspaceSnapshot{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1254,7 +1331,7 @@ func (x *WorkspaceSnapshot) String() string {
 func (*WorkspaceSnapshot) ProtoMessage() {}
 
 func (x *WorkspaceSnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[11]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1267,7 +1344,7 @@ func (x *WorkspaceSnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceSnapshot.ProtoReflect.Descriptor instead.
 func (*WorkspaceSnapshot) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{11}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *WorkspaceSnapshot) GetState() *WorkspaceState {
@@ -1305,7 +1382,7 @@ type WorkspacePatch struct {
 
 func (x *WorkspacePatch) Reset() {
 	*x = WorkspacePatch{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[12]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1317,7 +1394,7 @@ func (x *WorkspacePatch) String() string {
 func (*WorkspacePatch) ProtoMessage() {}
 
 func (x *WorkspacePatch) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[12]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1330,7 +1407,7 @@ func (x *WorkspacePatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspacePatch.ProtoReflect.Descriptor instead.
 func (*WorkspacePatch) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{12}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *WorkspacePatch) GetRevision() uint64 {
@@ -1427,7 +1504,7 @@ type WorkspaceStatistics struct {
 
 func (x *WorkspaceStatistics) Reset() {
 	*x = WorkspaceStatistics{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[13]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1439,7 +1516,7 @@ func (x *WorkspaceStatistics) String() string {
 func (*WorkspaceStatistics) ProtoMessage() {}
 
 func (x *WorkspaceStatistics) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[13]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1452,7 +1529,7 @@ func (x *WorkspaceStatistics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceStatistics.ProtoReflect.Descriptor instead.
 func (*WorkspaceStatistics) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{13}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *WorkspaceStatistics) GetRuntimeStatistics() *RuntimeStatisticsView {
@@ -1488,7 +1565,7 @@ type WorkspaceLogPage struct {
 
 func (x *WorkspaceLogPage) Reset() {
 	*x = WorkspaceLogPage{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[14]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1500,7 +1577,7 @@ func (x *WorkspaceLogPage) String() string {
 func (*WorkspaceLogPage) ProtoMessage() {}
 
 func (x *WorkspaceLogPage) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[14]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1513,7 +1590,7 @@ func (x *WorkspaceLogPage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceLogPage.ProtoReflect.Descriptor instead.
 func (*WorkspaceLogPage) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{14}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *WorkspaceLogPage) GetAccountId() int64 {
@@ -1582,7 +1659,7 @@ type AccountRedeemAttempt struct {
 
 func (x *AccountRedeemAttempt) Reset() {
 	*x = AccountRedeemAttempt{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[15]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1594,7 +1671,7 @@ func (x *AccountRedeemAttempt) String() string {
 func (*AccountRedeemAttempt) ProtoMessage() {}
 
 func (x *AccountRedeemAttempt) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[15]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1607,7 +1684,7 @@ func (x *AccountRedeemAttempt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRedeemAttempt.ProtoReflect.Descriptor instead.
 func (*AccountRedeemAttempt) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{15}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AccountRedeemAttempt) GetId() int64 {
@@ -1690,7 +1767,7 @@ type AccountRedeemAttemptSummary struct {
 
 func (x *AccountRedeemAttemptSummary) Reset() {
 	*x = AccountRedeemAttemptSummary{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[16]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1702,7 +1779,7 @@ func (x *AccountRedeemAttemptSummary) String() string {
 func (*AccountRedeemAttemptSummary) ProtoMessage() {}
 
 func (x *AccountRedeemAttemptSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[16]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1715,7 +1792,7 @@ func (x *AccountRedeemAttemptSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRedeemAttemptSummary.ProtoReflect.Descriptor instead.
 func (*AccountRedeemAttemptSummary) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{16}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AccountRedeemAttemptSummary) GetTotal() int64 {
@@ -1796,7 +1873,7 @@ type AccountRedeemAttemptPage struct {
 
 func (x *AccountRedeemAttemptPage) Reset() {
 	*x = AccountRedeemAttemptPage{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[17]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1808,7 +1885,7 @@ func (x *AccountRedeemAttemptPage) String() string {
 func (*AccountRedeemAttemptPage) ProtoMessage() {}
 
 func (x *AccountRedeemAttemptPage) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[17]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1821,7 +1898,7 @@ func (x *AccountRedeemAttemptPage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRedeemAttemptPage.ProtoReflect.Descriptor instead.
 func (*AccountRedeemAttemptPage) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{17}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AccountRedeemAttemptPage) GetAccountId() int64 {
@@ -1886,7 +1963,7 @@ type AlipayLoginProgress struct {
 
 func (x *AlipayLoginProgress) Reset() {
 	*x = AlipayLoginProgress{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[18]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1898,7 +1975,7 @@ func (x *AlipayLoginProgress) String() string {
 func (*AlipayLoginProgress) ProtoMessage() {}
 
 func (x *AlipayLoginProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[18]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,7 +1988,7 @@ func (x *AlipayLoginProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlipayLoginProgress.ProtoReflect.Descriptor instead.
 func (*AlipayLoginProgress) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{18}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AlipayLoginProgress) GetLoginId() string {
@@ -1960,7 +2037,7 @@ type WorkspaceError struct {
 
 func (x *WorkspaceError) Reset() {
 	*x = WorkspaceError{}
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[19]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1972,7 +2049,7 @@ func (x *WorkspaceError) String() string {
 func (*WorkspaceError) ProtoMessage() {}
 
 func (x *WorkspaceError) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[19]
+	mi := &file_mygardenworld_v1_workspace_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1985,7 +2062,7 @@ func (x *WorkspaceError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorkspaceError.ProtoReflect.Descriptor instead.
 func (*WorkspaceError) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{19}
+	return file_mygardenworld_v1_workspace_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *WorkspaceError) GetCode() string {
@@ -2051,7 +2128,7 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x1b\n" +
 	"\tbefore_id\x18\x02 \x01(\x03R\bbeforeId\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12D\n" +
-	"\x06filter\x18\x04 \x01(\x0e2,.mygardenworld.v1.AccountRedeemAttemptFilterR\x06filter\"\xce\x05\n" +
+	"\x06filter\x18\x04 \x01(\x0e2,.mygardenworld.v1.AccountRedeemAttemptFilterR\x06filter\"\x95\x06\n" +
 	"\x14WorkspaceServerFrame\x12\x1a\n" +
 	"\bsequence\x18\x01 \x01(\x04R\bsequence\x12\x1d\n" +
 	"\n" +
@@ -2065,8 +2142,9 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"\x05error\x18\t \x01(\v2 .mygardenworld.v1.WorkspaceErrorH\x00R\x05error\x12U\n" +
 	"\x0fredeem_attempts\x18\n" +
 	" \x01(\v2*.mygardenworld.v1.AccountRedeemAttemptPageH\x00R\x0eredeemAttempts\x12O\n" +
-	"\rnotifications\x18\v \x01(\v2'.mygardenworld.v1.UserNotificationsViewH\x00R\rnotificationsB\t\n" +
-	"\apayload\"\xe1\x02\n" +
+	"\rnotifications\x18\v \x01(\v2'.mygardenworld.v1.UserNotificationsViewH\x00R\rnotifications\x12E\n" +
+	"\vmaintenance\x18\f \x01(\v2!.mygardenworld.v1.MaintenanceViewH\x00R\vmaintenanceB\t\n" +
+	"\apayload\"\xa6\x03\n" +
 	"\x0eWorkspaceReady\x12)\n" +
 	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12;\n" +
 	"\vserver_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
@@ -2074,7 +2152,11 @@ const file_mygardenworld_v1_workspace_proto_rawDesc = "" +
 	"\baccounts\x18\x03 \x03(\v2\x1f.mygardenworld.v1.AccountStatusR\baccounts\x12V\n" +
 	"\x14feature_capabilities\x18\x04 \x03(\v2#.mygardenworld.v1.FeatureCapabilityR\x13featureCapabilities\x12+\n" +
 	"\x11heartbeat_seconds\x18\x05 \x01(\x05R\x10heartbeatSeconds\x12%\n" +
-	"\x0eserver_version\x18\x06 \x01(\tR\rserverVersion\"Q\n" +
+	"\x0eserver_version\x18\x06 \x01(\tR\rserverVersion\x12C\n" +
+	"\vmaintenance\x18\a \x01(\v2!.mygardenworld.v1.MaintenanceViewR\vmaintenance\"G\n" +
+	"\x0fMaintenanceView\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
+	"\bdraining\x18\x02 \x01(\bR\bdraining\"Q\n" +
 	"\x12AccountStatusBatch\x12;\n" +
 	"\baccounts\x18\x01 \x03(\v2\x1f.mygardenworld.v1.AccountStatusR\baccounts\"\xdf\x04\n" +
 	"\x0eWorkspaceState\x12\x1a\n" +
@@ -2218,7 +2300,7 @@ func file_mygardenworld_v1_workspace_proto_rawDescGZIP() []byte {
 }
 
 var file_mygardenworld_v1_workspace_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_mygardenworld_v1_workspace_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_mygardenworld_v1_workspace_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_mygardenworld_v1_workspace_proto_goTypes = []any{
 	(WorkspaceDomain)(0),                // 0: mygardenworld.v1.WorkspaceDomain
 	(WorkspaceLogPageKind)(0),           // 1: mygardenworld.v1.WorkspaceLogPageKind
@@ -2233,35 +2315,36 @@ var file_mygardenworld_v1_workspace_proto_goTypes = []any{
 	(*LoadAccountRedeemAttempts)(nil),   // 10: mygardenworld.v1.LoadAccountRedeemAttempts
 	(*WorkspaceServerFrame)(nil),        // 11: mygardenworld.v1.WorkspaceServerFrame
 	(*WorkspaceReady)(nil),              // 12: mygardenworld.v1.WorkspaceReady
-	(*AccountStatusBatch)(nil),          // 13: mygardenworld.v1.AccountStatusBatch
-	(*WorkspaceState)(nil),              // 14: mygardenworld.v1.WorkspaceState
-	(*WorkspaceSnapshot)(nil),           // 15: mygardenworld.v1.WorkspaceSnapshot
-	(*WorkspacePatch)(nil),              // 16: mygardenworld.v1.WorkspacePatch
-	(*WorkspaceStatistics)(nil),         // 17: mygardenworld.v1.WorkspaceStatistics
-	(*WorkspaceLogPage)(nil),            // 18: mygardenworld.v1.WorkspaceLogPage
-	(*AccountRedeemAttempt)(nil),        // 19: mygardenworld.v1.AccountRedeemAttempt
-	(*AccountRedeemAttemptSummary)(nil), // 20: mygardenworld.v1.AccountRedeemAttemptSummary
-	(*AccountRedeemAttemptPage)(nil),    // 21: mygardenworld.v1.AccountRedeemAttemptPage
-	(*AlipayLoginProgress)(nil),         // 22: mygardenworld.v1.AlipayLoginProgress
-	(*WorkspaceError)(nil),              // 23: mygardenworld.v1.WorkspaceError
-	(*LoadUserNotifications)(nil),       // 24: mygardenworld.v1.LoadUserNotifications
-	(*UserNotificationsView)(nil),       // 25: mygardenworld.v1.UserNotificationsView
-	(*timestamppb.Timestamp)(nil),       // 26: google.protobuf.Timestamp
-	(*AccountStatus)(nil),               // 27: mygardenworld.v1.AccountStatus
-	(*FeatureCapability)(nil),           // 28: mygardenworld.v1.FeatureCapability
-	(*Policy)(nil),                      // 29: mygardenworld.v1.Policy
-	(*BasicView)(nil),                   // 30: mygardenworld.v1.BasicView
-	(*GardenView)(nil),                  // 31: mygardenworld.v1.GardenView
-	(*OrdersView)(nil),                  // 32: mygardenworld.v1.OrdersView
-	(*UnionView)(nil),                   // 33: mygardenworld.v1.UnionView
-	(*ActivitiesView)(nil),              // 34: mygardenworld.v1.ActivitiesView
-	(*WarehouseView)(nil),               // 35: mygardenworld.v1.WarehouseView
-	(*RuntimeStatisticsView)(nil),       // 36: mygardenworld.v1.RuntimeStatisticsView
-	(*BusinessStatisticsView)(nil),      // 37: mygardenworld.v1.BusinessStatisticsView
-	(*Event)(nil),                       // 38: mygardenworld.v1.Event
-	(Channel)(0),                        // 39: mygardenworld.v1.Channel
-	(AlipayLoginStatus)(0),              // 40: mygardenworld.v1.AlipayLoginStatus
-	(*Account)(nil),                     // 41: mygardenworld.v1.Account
+	(*MaintenanceView)(nil),             // 13: mygardenworld.v1.MaintenanceView
+	(*AccountStatusBatch)(nil),          // 14: mygardenworld.v1.AccountStatusBatch
+	(*WorkspaceState)(nil),              // 15: mygardenworld.v1.WorkspaceState
+	(*WorkspaceSnapshot)(nil),           // 16: mygardenworld.v1.WorkspaceSnapshot
+	(*WorkspacePatch)(nil),              // 17: mygardenworld.v1.WorkspacePatch
+	(*WorkspaceStatistics)(nil),         // 18: mygardenworld.v1.WorkspaceStatistics
+	(*WorkspaceLogPage)(nil),            // 19: mygardenworld.v1.WorkspaceLogPage
+	(*AccountRedeemAttempt)(nil),        // 20: mygardenworld.v1.AccountRedeemAttempt
+	(*AccountRedeemAttemptSummary)(nil), // 21: mygardenworld.v1.AccountRedeemAttemptSummary
+	(*AccountRedeemAttemptPage)(nil),    // 22: mygardenworld.v1.AccountRedeemAttemptPage
+	(*AlipayLoginProgress)(nil),         // 23: mygardenworld.v1.AlipayLoginProgress
+	(*WorkspaceError)(nil),              // 24: mygardenworld.v1.WorkspaceError
+	(*LoadUserNotifications)(nil),       // 25: mygardenworld.v1.LoadUserNotifications
+	(*UserNotificationsView)(nil),       // 26: mygardenworld.v1.UserNotificationsView
+	(*timestamppb.Timestamp)(nil),       // 27: google.protobuf.Timestamp
+	(*AccountStatus)(nil),               // 28: mygardenworld.v1.AccountStatus
+	(*FeatureCapability)(nil),           // 29: mygardenworld.v1.FeatureCapability
+	(*Policy)(nil),                      // 30: mygardenworld.v1.Policy
+	(*BasicView)(nil),                   // 31: mygardenworld.v1.BasicView
+	(*GardenView)(nil),                  // 32: mygardenworld.v1.GardenView
+	(*OrdersView)(nil),                  // 33: mygardenworld.v1.OrdersView
+	(*UnionView)(nil),                   // 34: mygardenworld.v1.UnionView
+	(*ActivitiesView)(nil),              // 35: mygardenworld.v1.ActivitiesView
+	(*WarehouseView)(nil),               // 36: mygardenworld.v1.WarehouseView
+	(*RuntimeStatisticsView)(nil),       // 37: mygardenworld.v1.RuntimeStatisticsView
+	(*BusinessStatisticsView)(nil),      // 38: mygardenworld.v1.BusinessStatisticsView
+	(*Event)(nil),                       // 39: mygardenworld.v1.Event
+	(Channel)(0),                        // 40: mygardenworld.v1.Channel
+	(AlipayLoginStatus)(0),              // 41: mygardenworld.v1.AlipayLoginStatus
+	(*Account)(nil),                     // 42: mygardenworld.v1.Account
 }
 var file_mygardenworld_v1_workspace_proto_depIdxs = []int32{
 	5,  // 0: mygardenworld.v1.WorkspaceClientFrame.open:type_name -> mygardenworld.v1.OpenWorkspace
@@ -2270,62 +2353,64 @@ var file_mygardenworld_v1_workspace_proto_depIdxs = []int32{
 	8,  // 3: mygardenworld.v1.WorkspaceClientFrame.load_logs:type_name -> mygardenworld.v1.LoadWorkspaceLogs
 	9,  // 4: mygardenworld.v1.WorkspaceClientFrame.watch_alipay_login:type_name -> mygardenworld.v1.WatchAlipayLogin
 	10, // 5: mygardenworld.v1.WorkspaceClientFrame.load_redeem_attempts:type_name -> mygardenworld.v1.LoadAccountRedeemAttempts
-	24, // 6: mygardenworld.v1.WorkspaceClientFrame.load_notifications:type_name -> mygardenworld.v1.LoadUserNotifications
+	25, // 6: mygardenworld.v1.WorkspaceClientFrame.load_notifications:type_name -> mygardenworld.v1.LoadUserNotifications
 	3,  // 7: mygardenworld.v1.LoadAccountRedeemAttempts.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
 	12, // 8: mygardenworld.v1.WorkspaceServerFrame.ready:type_name -> mygardenworld.v1.WorkspaceReady
-	13, // 9: mygardenworld.v1.WorkspaceServerFrame.account_statuses:type_name -> mygardenworld.v1.AccountStatusBatch
-	15, // 10: mygardenworld.v1.WorkspaceServerFrame.snapshot:type_name -> mygardenworld.v1.WorkspaceSnapshot
-	16, // 11: mygardenworld.v1.WorkspaceServerFrame.patch:type_name -> mygardenworld.v1.WorkspacePatch
-	18, // 12: mygardenworld.v1.WorkspaceServerFrame.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
-	22, // 13: mygardenworld.v1.WorkspaceServerFrame.alipay_login:type_name -> mygardenworld.v1.AlipayLoginProgress
-	23, // 14: mygardenworld.v1.WorkspaceServerFrame.error:type_name -> mygardenworld.v1.WorkspaceError
-	21, // 15: mygardenworld.v1.WorkspaceServerFrame.redeem_attempts:type_name -> mygardenworld.v1.AccountRedeemAttemptPage
-	25, // 16: mygardenworld.v1.WorkspaceServerFrame.notifications:type_name -> mygardenworld.v1.UserNotificationsView
-	26, // 17: mygardenworld.v1.WorkspaceReady.server_time:type_name -> google.protobuf.Timestamp
-	27, // 18: mygardenworld.v1.WorkspaceReady.accounts:type_name -> mygardenworld.v1.AccountStatus
-	28, // 19: mygardenworld.v1.WorkspaceReady.feature_capabilities:type_name -> mygardenworld.v1.FeatureCapability
-	27, // 20: mygardenworld.v1.AccountStatusBatch.accounts:type_name -> mygardenworld.v1.AccountStatus
-	27, // 21: mygardenworld.v1.WorkspaceState.account_status:type_name -> mygardenworld.v1.AccountStatus
-	29, // 22: mygardenworld.v1.WorkspaceState.policy:type_name -> mygardenworld.v1.Policy
-	30, // 23: mygardenworld.v1.WorkspaceState.basic:type_name -> mygardenworld.v1.BasicView
-	31, // 24: mygardenworld.v1.WorkspaceState.garden:type_name -> mygardenworld.v1.GardenView
-	32, // 25: mygardenworld.v1.WorkspaceState.orders:type_name -> mygardenworld.v1.OrdersView
-	33, // 26: mygardenworld.v1.WorkspaceState.union:type_name -> mygardenworld.v1.UnionView
-	34, // 27: mygardenworld.v1.WorkspaceState.activities:type_name -> mygardenworld.v1.ActivitiesView
-	35, // 28: mygardenworld.v1.WorkspaceState.warehouse:type_name -> mygardenworld.v1.WarehouseView
-	17, // 29: mygardenworld.v1.WorkspaceState.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
-	14, // 30: mygardenworld.v1.WorkspaceSnapshot.state:type_name -> mygardenworld.v1.WorkspaceState
-	18, // 31: mygardenworld.v1.WorkspaceSnapshot.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
-	27, // 32: mygardenworld.v1.WorkspacePatch.account_status:type_name -> mygardenworld.v1.AccountStatus
-	29, // 33: mygardenworld.v1.WorkspacePatch.policy:type_name -> mygardenworld.v1.Policy
-	30, // 34: mygardenworld.v1.WorkspacePatch.basic:type_name -> mygardenworld.v1.BasicView
-	31, // 35: mygardenworld.v1.WorkspacePatch.garden:type_name -> mygardenworld.v1.GardenView
-	32, // 36: mygardenworld.v1.WorkspacePatch.orders:type_name -> mygardenworld.v1.OrdersView
-	33, // 37: mygardenworld.v1.WorkspacePatch.union:type_name -> mygardenworld.v1.UnionView
-	34, // 38: mygardenworld.v1.WorkspacePatch.activities:type_name -> mygardenworld.v1.ActivitiesView
-	35, // 39: mygardenworld.v1.WorkspacePatch.warehouse:type_name -> mygardenworld.v1.WarehouseView
-	17, // 40: mygardenworld.v1.WorkspacePatch.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
-	0,  // 41: mygardenworld.v1.WorkspacePatch.cleared_domains:type_name -> mygardenworld.v1.WorkspaceDomain
-	36, // 42: mygardenworld.v1.WorkspaceStatistics.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
-	37, // 43: mygardenworld.v1.WorkspaceStatistics.business_statistics:type_name -> mygardenworld.v1.BusinessStatisticsView
-	1,  // 44: mygardenworld.v1.WorkspaceLogPage.kind:type_name -> mygardenworld.v1.WorkspaceLogPageKind
-	38, // 45: mygardenworld.v1.WorkspaceLogPage.events:type_name -> mygardenworld.v1.Event
-	39, // 46: mygardenworld.v1.AccountRedeemAttempt.channel:type_name -> mygardenworld.v1.Channel
-	2,  // 47: mygardenworld.v1.AccountRedeemAttempt.status:type_name -> mygardenworld.v1.AccountRedeemAttemptStatus
-	26, // 48: mygardenworld.v1.AccountRedeemAttempt.attempted_at:type_name -> google.protobuf.Timestamp
-	26, // 49: mygardenworld.v1.AccountRedeemAttempt.expires_at:type_name -> google.protobuf.Timestamp
-	26, // 50: mygardenworld.v1.AccountRedeemAttempt.updated_at:type_name -> google.protobuf.Timestamp
-	3,  // 51: mygardenworld.v1.AccountRedeemAttemptPage.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
-	19, // 52: mygardenworld.v1.AccountRedeemAttemptPage.entries:type_name -> mygardenworld.v1.AccountRedeemAttempt
-	20, // 53: mygardenworld.v1.AccountRedeemAttemptPage.summary:type_name -> mygardenworld.v1.AccountRedeemAttemptSummary
-	40, // 54: mygardenworld.v1.AlipayLoginProgress.status:type_name -> mygardenworld.v1.AlipayLoginStatus
-	41, // 55: mygardenworld.v1.AlipayLoginProgress.account:type_name -> mygardenworld.v1.Account
-	26, // 56: mygardenworld.v1.AlipayLoginProgress.expires_at:type_name -> google.protobuf.Timestamp
-	57, // [57:57] is the sub-list for method output_type
-	57, // [57:57] is the sub-list for method input_type
-	57, // [57:57] is the sub-list for extension type_name
-	57, // [57:57] is the sub-list for extension extendee
-	0,  // [0:57] is the sub-list for field type_name
+	14, // 9: mygardenworld.v1.WorkspaceServerFrame.account_statuses:type_name -> mygardenworld.v1.AccountStatusBatch
+	16, // 10: mygardenworld.v1.WorkspaceServerFrame.snapshot:type_name -> mygardenworld.v1.WorkspaceSnapshot
+	17, // 11: mygardenworld.v1.WorkspaceServerFrame.patch:type_name -> mygardenworld.v1.WorkspacePatch
+	19, // 12: mygardenworld.v1.WorkspaceServerFrame.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
+	23, // 13: mygardenworld.v1.WorkspaceServerFrame.alipay_login:type_name -> mygardenworld.v1.AlipayLoginProgress
+	24, // 14: mygardenworld.v1.WorkspaceServerFrame.error:type_name -> mygardenworld.v1.WorkspaceError
+	22, // 15: mygardenworld.v1.WorkspaceServerFrame.redeem_attempts:type_name -> mygardenworld.v1.AccountRedeemAttemptPage
+	26, // 16: mygardenworld.v1.WorkspaceServerFrame.notifications:type_name -> mygardenworld.v1.UserNotificationsView
+	13, // 17: mygardenworld.v1.WorkspaceServerFrame.maintenance:type_name -> mygardenworld.v1.MaintenanceView
+	27, // 18: mygardenworld.v1.WorkspaceReady.server_time:type_name -> google.protobuf.Timestamp
+	28, // 19: mygardenworld.v1.WorkspaceReady.accounts:type_name -> mygardenworld.v1.AccountStatus
+	29, // 20: mygardenworld.v1.WorkspaceReady.feature_capabilities:type_name -> mygardenworld.v1.FeatureCapability
+	13, // 21: mygardenworld.v1.WorkspaceReady.maintenance:type_name -> mygardenworld.v1.MaintenanceView
+	28, // 22: mygardenworld.v1.AccountStatusBatch.accounts:type_name -> mygardenworld.v1.AccountStatus
+	28, // 23: mygardenworld.v1.WorkspaceState.account_status:type_name -> mygardenworld.v1.AccountStatus
+	30, // 24: mygardenworld.v1.WorkspaceState.policy:type_name -> mygardenworld.v1.Policy
+	31, // 25: mygardenworld.v1.WorkspaceState.basic:type_name -> mygardenworld.v1.BasicView
+	32, // 26: mygardenworld.v1.WorkspaceState.garden:type_name -> mygardenworld.v1.GardenView
+	33, // 27: mygardenworld.v1.WorkspaceState.orders:type_name -> mygardenworld.v1.OrdersView
+	34, // 28: mygardenworld.v1.WorkspaceState.union:type_name -> mygardenworld.v1.UnionView
+	35, // 29: mygardenworld.v1.WorkspaceState.activities:type_name -> mygardenworld.v1.ActivitiesView
+	36, // 30: mygardenworld.v1.WorkspaceState.warehouse:type_name -> mygardenworld.v1.WarehouseView
+	18, // 31: mygardenworld.v1.WorkspaceState.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
+	15, // 32: mygardenworld.v1.WorkspaceSnapshot.state:type_name -> mygardenworld.v1.WorkspaceState
+	19, // 33: mygardenworld.v1.WorkspaceSnapshot.logs:type_name -> mygardenworld.v1.WorkspaceLogPage
+	28, // 34: mygardenworld.v1.WorkspacePatch.account_status:type_name -> mygardenworld.v1.AccountStatus
+	30, // 35: mygardenworld.v1.WorkspacePatch.policy:type_name -> mygardenworld.v1.Policy
+	31, // 36: mygardenworld.v1.WorkspacePatch.basic:type_name -> mygardenworld.v1.BasicView
+	32, // 37: mygardenworld.v1.WorkspacePatch.garden:type_name -> mygardenworld.v1.GardenView
+	33, // 38: mygardenworld.v1.WorkspacePatch.orders:type_name -> mygardenworld.v1.OrdersView
+	34, // 39: mygardenworld.v1.WorkspacePatch.union:type_name -> mygardenworld.v1.UnionView
+	35, // 40: mygardenworld.v1.WorkspacePatch.activities:type_name -> mygardenworld.v1.ActivitiesView
+	36, // 41: mygardenworld.v1.WorkspacePatch.warehouse:type_name -> mygardenworld.v1.WarehouseView
+	18, // 42: mygardenworld.v1.WorkspacePatch.statistics:type_name -> mygardenworld.v1.WorkspaceStatistics
+	0,  // 43: mygardenworld.v1.WorkspacePatch.cleared_domains:type_name -> mygardenworld.v1.WorkspaceDomain
+	37, // 44: mygardenworld.v1.WorkspaceStatistics.runtime_statistics:type_name -> mygardenworld.v1.RuntimeStatisticsView
+	38, // 45: mygardenworld.v1.WorkspaceStatistics.business_statistics:type_name -> mygardenworld.v1.BusinessStatisticsView
+	1,  // 46: mygardenworld.v1.WorkspaceLogPage.kind:type_name -> mygardenworld.v1.WorkspaceLogPageKind
+	39, // 47: mygardenworld.v1.WorkspaceLogPage.events:type_name -> mygardenworld.v1.Event
+	40, // 48: mygardenworld.v1.AccountRedeemAttempt.channel:type_name -> mygardenworld.v1.Channel
+	2,  // 49: mygardenworld.v1.AccountRedeemAttempt.status:type_name -> mygardenworld.v1.AccountRedeemAttemptStatus
+	27, // 50: mygardenworld.v1.AccountRedeemAttempt.attempted_at:type_name -> google.protobuf.Timestamp
+	27, // 51: mygardenworld.v1.AccountRedeemAttempt.expires_at:type_name -> google.protobuf.Timestamp
+	27, // 52: mygardenworld.v1.AccountRedeemAttempt.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 53: mygardenworld.v1.AccountRedeemAttemptPage.filter:type_name -> mygardenworld.v1.AccountRedeemAttemptFilter
+	20, // 54: mygardenworld.v1.AccountRedeemAttemptPage.entries:type_name -> mygardenworld.v1.AccountRedeemAttempt
+	21, // 55: mygardenworld.v1.AccountRedeemAttemptPage.summary:type_name -> mygardenworld.v1.AccountRedeemAttemptSummary
+	41, // 56: mygardenworld.v1.AlipayLoginProgress.status:type_name -> mygardenworld.v1.AlipayLoginStatus
+	42, // 57: mygardenworld.v1.AlipayLoginProgress.account:type_name -> mygardenworld.v1.Account
+	27, // 58: mygardenworld.v1.AlipayLoginProgress.expires_at:type_name -> google.protobuf.Timestamp
+	59, // [59:59] is the sub-list for method output_type
+	59, // [59:59] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_workspace_proto_init() }
@@ -2363,6 +2448,7 @@ func file_mygardenworld_v1_workspace_proto_init() {
 		(*WorkspaceServerFrame_Error)(nil),
 		(*WorkspaceServerFrame_RedeemAttempts)(nil),
 		(*WorkspaceServerFrame_Notifications)(nil),
+		(*WorkspaceServerFrame_Maintenance)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2370,7 +2456,7 @@ func file_mygardenworld_v1_workspace_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_workspace_proto_rawDesc), len(file_mygardenworld_v1_workspace_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

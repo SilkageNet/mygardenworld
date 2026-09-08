@@ -100,6 +100,8 @@ type Runner struct {
 	lastEventAt time.Time
 	bus         *Bus
 	startSource StartSource
+	gameGate    *gameGate
+	pacer       *requestPacer
 
 	sessionRuntimeState
 	schedulerState
@@ -120,6 +122,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 		policy:  automation.DefaultPolicy(),
 		stats:   newRuntimeStats(time.Now()),
 		bus:     bus,
+		pacer:   newRequestPacer(RequestPacing{}),
 	}
 	r.harvestBlockedUntil = make(map[int32]time.Time)
 	r.operationCooldowns = make(map[string]operationCooldown)

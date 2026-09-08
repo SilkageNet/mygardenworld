@@ -110,6 +110,10 @@ func signature(key, message string) string {
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// Robot messages target human readers in China. Do not inherit the daemon's
+// timezone (often UTC in containers); keep custom JSON timestamps untouched.
+var notificationBeijingTime = time.FixedZone("Asia/Shanghai", 8*60*60)
+
 func robotText(p store.NotificationPayload) string {
 	state := "异常提醒"
 	if p.Recovered {
@@ -122,7 +126,7 @@ func robotText(p store.NotificationPayload) string {
 		text += "\n账号：" + safeText(p.AccountName, 240)
 	}
 	text += "\n" + safeText(p.Message, 1000)
-	text += "\n时间：" + p.TS.Format(time.RFC3339)
+	text += "\n时间：" + p.TS.In(notificationBeijingTime).Format("2006-01-02 15:04:05") + "（北京时间 UTC+8）"
 	if p.Kind != "test" {
 		text += fmt.Sprintf("\n累计 %d 次 · 持续 %d 秒", p.Occurrences, p.DurationSeconds)
 	}

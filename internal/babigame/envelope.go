@@ -133,6 +133,12 @@ func (d WSResponseD) parseErrorMessage() (wsErrorMessage, bool) {
 	if len(d.M) == 0 || string(d.M) == "{}" || string(d.M) == "null" {
 		return wsErrorMessage{}, false
 	}
+	// Mini's message dispatcher accepts numeric codes as well as objects.
+	// A bare m:91102 is observed on rejected cached index.reLogin responses.
+	var code int
+	if json.Unmarshal(d.M, &code) == nil && code > 0 {
+		return wsErrorMessage{Code: code}, true
+	}
 	var m wsErrorMessage
 	if json.Unmarshal(d.M, &m) != nil {
 		return wsErrorMessage{}, false
@@ -282,7 +288,7 @@ func (d WSResponseD) isSessionInvalidatingError() bool {
 	if !d.IsError() {
 		return false
 	}
-	if d.hasSessionExpiredType() {
+	if d.hasSessionExpiredType() || d.ErrorCode() == 91102 {
 		return true
 	}
 	if d.hasBlockingErrorCode() {

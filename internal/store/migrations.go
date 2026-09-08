@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 11
+const currentSchemaVersion = 12
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -272,6 +272,16 @@ ALTER TABLE user_notifications ADD COLUMN signing_secret_enc TEXT NOT NULL DEFAU
 ALTER TABLE user_notifications ADD COLUMN retry_after_ms INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE notification_outbox ADD COLUMN last_attempt_ms INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX idx_notification_outbox_attempt ON notification_outbox(user_id, last_attempt_ms);
+`},
+	{version: 12, name: "operator maintenance gate", sql: `
+CREATE TABLE daemon_maintenance (
+    id INTEGER PRIMARY KEY CHECK(id=1),
+    enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+    revision INTEGER NOT NULL DEFAULT 0 CHECK(revision>=0),
+    applied_revision INTEGER NOT NULL DEFAULT 0 CHECK(applied_revision>=0 AND applied_revision<=revision),
+    resume_enabled INTEGER NOT NULL DEFAULT 0 CHECK(resume_enabled IN (0,1))
+);
+INSERT INTO daemon_maintenance(id) VALUES(1);
 `},
 }
 

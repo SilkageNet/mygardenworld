@@ -221,6 +221,8 @@ func (svc *Services) DisconnectAccount(ctx context.Context, req *connect.Request
 
 func mapErr(err error) error {
 	switch {
+	case errors.Is(err, runner.ErrMaintenance):
+		return connect.NewError(connect.CodeUnavailable, err)
 	case errors.Is(err, sql.ErrNoRows):
 		return connect.NewError(connect.CodeNotFound, errors.New("resource not found"))
 	case errors.Is(err, store.ErrAccountNotFound):

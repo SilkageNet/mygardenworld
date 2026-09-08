@@ -149,6 +149,7 @@ type workspaceSession struct {
 	dirtyRedeem       bool
 	alipayLoginID     string
 	alipayPolling     bool
+	lastMaintenance   *pb.MaintenanceView
 }
 
 type alipayPollResult struct {
@@ -169,6 +170,7 @@ func newWorkspaceSession(ctx context.Context, svc *Services, conn *websocket.Con
 }
 
 func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) error {
+	s.lastMaintenance = s.svc.maintenanceView()
 	statuses, err := s.svc.accountStatuses(s.ctx)
 	if err != nil {
 		return err
@@ -181,6 +183,7 @@ func (s *workspaceSession) run(openRequestID uint64, open *pb.OpenWorkspace) err
 		FeatureCapabilities: featureCapabilitiesProto(),
 		HeartbeatSeconds:    int32(workspaceHeartbeat.Seconds()),
 		ServerVersion:       buildinfo.GetVersion(),
+		Maintenance:         s.lastMaintenance,
 	}}); err != nil {
 		return err
 	}
@@ -393,6 +396,15 @@ func (s *workspaceSession) acceptEvent(event runner.Event) {
 }
 
 func (s *workspaceSession) flushChanges() error {
+	maintenance := s.svc.maintenanceView()
+	if !proto.Equal(s.lastMaintenance, maintenance) {
+		s.lastMaintenance = maintenance
+		s.dirtyStatuses = true
+		s.dirtyState = s.selectedID > 0
+		if err := s.send(0, &pb.WorkspaceServerFrame_Maintenance{Maintenance: maintenance}); err != nil {
+			return err
+		}
+	}
 	if len(s.pendingLogs) > 0 {
 		logs := s.pendingLogs
 		s.pendingLogs = nil
@@ -449,6 +461,14 @@ func (s *workspaceSession) flushChanges() error {
 		}
 	}
 	return nil
+}
+
+func (svc *Services) maintenanceView() *pb.MaintenanceView {
+	if svc.Manager == nil {
+		return &pb.MaintenanceView{}
+	}
+	s := svc.Manager.MaintenanceStatus()
+	return &pb.MaintenanceView{Enabled: s.Enabled, Draining: s.Draining}
 }
 
 func (s *workspaceSession) replayMissedLogs() error {

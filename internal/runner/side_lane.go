@@ -26,6 +26,9 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 			continue
 		}
 		op := candidate
+		if r.pacer.delay(op.Kind, now) > 0 {
+			continue
+		}
 		if op.Kind == "fmlRace.delTask" && r.raceDeleteWait(now) > 0 {
 			continue
 		}

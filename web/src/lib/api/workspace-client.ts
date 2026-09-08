@@ -20,6 +20,7 @@ import {
   type WorkspacePatch,
   type WorkspaceReady,
   type WorkspaceSnapshot,
+  type MaintenanceView,
 } from "@/gen/mygardenworld/v1/workspace_pb";
 import {
   AUTH_EXPIRED_EVENT,
@@ -44,6 +45,7 @@ export type WorkspaceClientHandlers = {
   onLogs?: (page: WorkspaceLogPage) => void;
   onRedeemAttempts?: (page: AccountRedeemAttemptPage) => void;
   onNotifications?: (view: UserNotificationsView) => void;
+  onMaintenance?: (view: MaintenanceView) => void;
   onAlipayLogin?: (progress: AlipayLoginProgress) => void;
   onError?: (error: WorkspaceError) => void;
 };
@@ -254,6 +256,9 @@ export class WorkspaceClient {
         break;
       case "notifications":
         this.handlers.onNotifications?.(payload.value);
+        break;
+      case "maintenance":
+        this.handlers.onMaintenance?.(payload.value);
         break;
       case "alipayLogin":
         if (

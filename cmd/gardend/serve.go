@@ -50,6 +50,7 @@ func newServeCmd() *cobra.Command {
 		insecureDebug    bool
 		webEnabled       bool
 		logRetentionDays int
+		pacing           runner.RequestPacing
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -84,6 +85,7 @@ func newServeCmd() *cobra.Command {
 				InsecureDebug:    insecureDebug,
 				WebEnabled:       webEnabled,
 				LogRetentionDays: logRetentionDays,
+				Pacing:           pacing,
 			})
 		},
 	}
@@ -106,6 +108,9 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&insecureDebug, "allow-insecure-debug", false, "allow --debug-dir while listening on a non-loopback address")
 	cmd.Flags().BoolVar(&webEnabled, "web", true, "serve the embedded web console")
 	cmd.Flags().IntVar(&logRetentionDays, "log-retention-days", defaultLogRetentionDays, "days to retain event and operation logs (0=keep forever)")
+	cmd.Flags().DurationVar(&pacing.RequestInterval, "game-request-interval", 2*time.Second, "minimum per-account game RPC spacing (heartbeat excluded)")
+	cmd.Flags().DurationVar(&pacing.RepeatInterval, "game-repeat-interval", 8*time.Second, "minimum per-account repeated RPC spacing")
+	cmd.Flags().DurationVar(&pacing.PurchaseInterval, "game-purchase-interval", 30*time.Second, "minimum per-account purchase/hire spacing within each namespace")
 	return cmd
 }
 
@@ -129,6 +134,7 @@ type serveOpts struct {
 	InsecureDebug    bool
 	WebEnabled       bool
 	LogRetentionDays int
+	Pacing           runner.RequestPacing
 }
 
 func generateRandomSecret(n int) string {
@@ -138,6 +144,9 @@ func generateRandomSecret(n int) string {
 }
 
 func runServe(ctx context.Context, opts serveOpts) error {
+	if err := opts.Pacing.Validate(); err != nil {
+		return err
+	}
 	log := buildLogger(opts.LogFormat, opts.LogLevel)
 	logRetention, err := logRetentionDuration(opts.LogRetentionDays)
 	if err != nil {
@@ -185,7 +194,15 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	bus := runner.NewBus()
 	mgr := runner.NewManager(db, bus, log)
 	mgr.DebugDir = opts.DebugDir
+	mgr.Pacing = opts.Pacing
 	defer mgr.Shutdown()
+	if err := mgr.ApplyMaintenance(ctx); err != nil {
+		return fmt.Errorf("initialize maintenance gate: %w", err)
+	}
+	gameMaintenanceCtx, cancelGameMaintenance := context.WithCancel(ctx)
+	gameMaintenanceDone := make(chan struct{})
+	go func() { defer close(gameMaintenanceDone); mgr.RunMaintenance(gameMaintenanceCtx) }()
+	defer func() { cancelGameMaintenance(); <-gameMaintenanceDone }()
 	redeemService, err := redeemsvc.NewService(ctx, db, mgr, log)
 	if err != nil {
 		return fmt.Errorf("initialize redeem exchange: %w", err)

@@ -26,6 +26,7 @@ type operationAttempt struct {
 	friendStealUsedBeforeSet   bool
 	friendStealBoughtBefore    int32
 	friendStealBoughtBeforeSet bool
+	shopOfferBefore            *state.ShopCultivateOfferView
 }
 
 type operationResult struct {
@@ -172,6 +173,16 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
+	if result.shopOfferBefore != nil {
+		payload, _ := json.Marshal(map[string]any{
+			"offer_before": result.shopOfferBefore, "request": args, "error": err.Error(),
+			"started_at": result.startedAt, "finished_at": result.finishedAt,
+			"pacing": r.pacer.diagnostic(op.Kind),
+		})
+		r.emit(Event{Kind: "shop_purchase_diagnostic", Category: op.Category, Domain: op.Domain,
+			Action: "diagnostic", Label: "材料商城诊断", Level: "warn",
+			Message: "购买失败，已记录购买前商品价格/次数与请求间隔；间隔不是已知服务端阈值", PayloadJSON: string(payload)})
+	}
 	switch classifyOperationError(op.Kind, err) {
 	case operationErrorPearlHireCandidateFallback:
 		var fallbackErr *pearlHireCandidateFallbackError

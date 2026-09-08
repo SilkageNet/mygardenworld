@@ -116,6 +116,7 @@ message WorkspaceServerFrame {
     WorkspaceError error = 9;
     AccountRedeemAttemptPage redeem_attempts = 10;
     UserNotificationsView notifications = 11;
+    MaintenanceView maintenance = 12;
   }
 }
 
@@ -126,6 +127,13 @@ message WorkspaceReady {
   repeated FeatureCapability feature_capabilities = 4;
   int32 heartbeat_seconds = 5;
   string server_version = 6;
+  MaintenanceView maintenance = 7;
+}
+
+// Shared operational state only. No account counts, identifiers or owner data.
+message MaintenanceView {
+  bool enabled = 1;
+  bool draining = 2;
 }
 
 message AccountStatusBatch {

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -11,6 +12,12 @@ import (
 
 func (r *Runner) connectionLoop(ctx context.Context, username, password string, client *babigame.Client) {
 	current := client
+	defer func() {
+		if current != nil {
+			_ = current.Close()
+			r.clearDisconnectedClient(current)
+		}
+	}()
 
 connection:
 	for {
@@ -55,6 +62,9 @@ connection:
 			if err == nil {
 				current = next
 				break
+			}
+			if ctx.Err() != nil || errors.Is(err, ErrMaintenance) {
+				return // Administrative cancellation is not a failed recovery probe.
 			}
 			if isReputationGuardError(err) {
 				return

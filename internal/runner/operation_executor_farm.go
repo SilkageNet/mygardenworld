@@ -14,7 +14,7 @@ func runUsrLandHarvest(ctx context.Context, rt operationRuntime, op *automation.
 		return nil, err
 	}
 	results := make([]harvestCallResult, 0, len(reqs))
-	for i, req := range reqs {
+	for _, req := range reqs {
 		raw, err := checkedStateDelta(rt.rpc.UsrLand().Harvest(ctx, req))
 		if err != nil {
 			// Reconcile through the existing session after a rejection. 97777 has
@@ -42,16 +42,6 @@ func runUsrLandHarvest(ctx context.Context, rt operationRuntime, op *automation.
 			rt.runner.mu.Unlock()
 		}
 		results = append(results, harvestCallResult{LandID: req.LandId, Raw: raw})
-		if i == len(reqs)-1 || harvestRPCInterval <= 0 {
-			continue
-		}
-		timer := time.NewTimer(harvestRPCInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
-		}
 	}
 	raw, err := json.Marshal(results)
 	if err != nil {

@@ -16,7 +16,6 @@ import (
 
 const (
 	harvestRetryWait      = 30 * time.Second
-	harvestRPCInterval    = 120 * time.Millisecond
 	waterSourceSyncPeriod = 60 * time.Second
 )
 
@@ -80,6 +79,11 @@ func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 	// otherwise RaceBootstrapDue would force a 5ms loop until the cooldown
 	// expires even though selectRunnableOperation cannot run the race op.
 	if automation.RaceBootstrapDue(st, policy, now) && raceCooldownUntil.IsZero() {
+		// Pacing may currently reject the bootstrap candidate. Do not busy-loop
+		// every 5ms during the new account-wide/repeated-RPC spacing window.
+		if r.pacer != nil {
+			return min(interval, time.Second)
+		}
 		return minDecisionWake
 	}
 	if soonest < minDecisionWake {
@@ -196,6 +200,11 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 // scheduler. It returns the original request error to explicit callers while
 // keeping handled/transient errors out of runtime failure diagnostics.
 func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, session *babigame.Session, op *automation.PlannedOp, now time.Time) error {
+	ctx, release, gateErr := r.beginGameWork(ctx)
+	if gateErr != nil {
+		return gateErr
+	}
+	defer release()
 	r.operationMu.Lock()
 	defer r.operationMu.Unlock()
 
@@ -269,6 +278,14 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 	}
 
 	attempt := operationAttempt{op: op, args: args, startedAt: time.Now()}
+	if op.Kind == clientproto.RPCShopCultivateBuy.String() {
+		for _, offer := range r.state.ShopCultivateOffers() {
+			if offer.ShopID == op.TargetID {
+				attempt.shopOfferBefore = &offer
+				break
+			}
+		}
+	}
 	if op.Kind == clientproto.RPCFrdStealSteal.String() || op.Kind == clientproto.RPCFrdExtBuyStealCnt.String() {
 		used, bought, usedObserved, boughtObserved := r.state.FriendStealCounters(op.TargetUID, attempt.startedAt)
 		attempt.friendStealUsedBefore = used

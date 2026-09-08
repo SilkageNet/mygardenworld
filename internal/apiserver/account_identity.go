@@ -8,6 +8,11 @@ import (
 )
 
 func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username, password string) (*babigame.Session, error) {
+	ctx, release, err := svc.beginGameWork(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	cfg, err := babigame.ConfigForChannel(babigame.Channel(channel))
 	if err != nil {
 		return nil, err
@@ -18,6 +23,13 @@ func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username
 		httpc.Cfg.ClientVersion = pkg.GameVersion
 	}
 	return babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
+}
+
+func (svc *Services) beginGameWork(ctx context.Context) (context.Context, func(), error) {
+	if svc.Manager == nil {
+		return ctx, func() {}, ctx.Err()
+	}
+	return svc.Manager.BeginGameWork(ctx)
 }
 
 func (svc *Services) saveLoginProbe(ctx context.Context, accountID int64, session *babigame.Session) {
