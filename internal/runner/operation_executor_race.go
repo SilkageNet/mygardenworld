@@ -15,6 +15,23 @@ func fmlEnterSyncRequest() clientproto.FmlEnterRequest {
 	return clientproto.FmlEnterRequest{Fml: 1, Mb: 1, MbL: 1}
 }
 
+type raceMutationContextKey struct{}
+
+// The authoritative preflight precedes request pacing. Recheck local facts and
+// current policy after that wait too: namespace pushes can change the selected
+// row while it is queued. Scope the guard to this operation's mutation RPC, not
+// its supporting reads or independent heartbeat. No extra game request is made.
+func (r *Runner) validateRaceMutationBeforeSend(ctx context.Context, name string) error {
+	op, _ := ctx.Value(raceMutationContextKey{}).(*automation.PlannedOp)
+	if op == nil || op.Kind != name {
+		return nil
+	}
+	if err := automation.ValidateRaceTaskMutation(r.state, r.Policy(), op, time.Now()); err != nil {
+		return fmt.Errorf("竞赛任务发送前校验未通过: %w", err)
+	}
+	return nil
+}
+
 func runFmlRaceUpgrade(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
 	if rt.runner == nil {
 		return nil, fmt.Errorf("竞赛升级缺少当前账号状态")

@@ -635,7 +635,8 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 		t.Fatalf("expected taskMsId 2 (exclude uid-100 upgraded task), got %d", ops[0].TaskMsID)
 	}
 
-	// System upgrade (IsUpgrade=1, UpgradeUid=0) remains takeable.
+	// An upgraded row without an identified member is not known to be a
+	// system upgrade. Exclusion must prefer the ordinary task instead.
 	s2 := state.New()
 	s2.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s2.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
@@ -643,8 +644,59 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 		{"0":2,"4":3036,"6":[23001],"10":10,"14":0,"15":0}
 	]}}`))
 	ops2 := unionRaceOperations(s2, policy, 999, time.Now(), raceGatesOn())
-	if len(ops2) != 1 || ops2[0].TaskMsID != 1 {
-		t.Fatalf("expected take system-upgraded msId 1, got %+v", ops2)
+	if len(ops2) != 1 || ops2[0].TaskMsID != 2 {
+		t.Fatalf("expected take non-upgraded msId 2, got %+v", ops2)
+	}
+}
+
+func TestRaceUpgradeOwnershipFiltersAllTakePaths(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		fields  string
+		blocked bool
+	}{
+		{"ordinary", `"14":0,"15":0`, false},
+		{"own", `"14":1,"15":999`, false},
+		{"other", `"14":1,"15":100`, true},
+		{"unknown zero", `"14":1,"15":0`, true},
+		{"unknown omitted", `"14":1`, true},
+		{"unknown null", `"14":1,"15":null`, true},
+		{"invalid owner", `"14":1,"15":-1`, true},
+		{"other without badge", `"15":100`, true},
+	} {
+		for _, exclude := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/exclude=%t", tc.name, exclude), func(t *testing.T) {
+				s := state.New()
+				applyRaceState(s, [][5]int32{{1, 3036, 28, 0, 0}})
+				s.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":28,` + tc.fields + `}]}}`))
+				p := testEnabledRaceFullPolicy()
+				p.Union.Race.ExcludeOthersUpgradeTask = exclude
+				now := time.Now()
+				wantBlocked := exclude && tc.blocked
+				_, err := ManualRaceTakeOperation(s, p, 1, now)
+				if (err != nil) != wantBlocked {
+					t.Fatalf("manual error=%v, want blocked=%t", err, wantBlocked)
+				}
+				hasTake := false
+				for _, op := range unionRaceOperations(s, p.Union.Race, s.RoleID(), now, raceGatesOn()) {
+					hasTake = hasTake || op.Kind == clientproto.RPCFmlRaceTakeTask.String()
+				}
+				if hasTake == wantBlocked {
+					t.Fatalf("automatic take=%t, want blocked=%t", hasTake, wantBlocked)
+				}
+				// Plan with exclusion off, then enable it before execution. The
+				// exact same task must be checked against the current policy.
+				p.Union.Race.ExcludeOthersUpgradeTask = false
+				op, err := ManualRaceTakeOperation(s, p, 1, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				p.Union.Race.ExcludeOthersUpgradeTask = exclude
+				if err := ValidateRaceTaskMutation(s, p, &op, now); (err != nil) != wantBlocked {
+					t.Fatalf("execution error=%v, want blocked=%t", err, wantBlocked)
+				}
+			})
+		}
 	}
 }
 
@@ -1709,14 +1761,14 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want:   "他人已升级",
 		},
 		{
-			name: "system upgraded ok",
+			name: "unknown upgrade owner blocked",
 			task: state.FmlRaceTaskView{MsId: 16, TaskId: 3036, TaskType: 3036, Score: 28, ParamID: 23001, IsUpgrade: 1, UpgradeUid: 0},
 			policy: func() *pb.UnionRacePolicy {
 				p := takeablePlant()
 				p.ExcludeOthersUpgradeTask = true
 				return p
 			}(),
-			want: "",
+			want: "升级归属不明，已跳过",
 		},
 		{
 			name: "own upgraded ok",

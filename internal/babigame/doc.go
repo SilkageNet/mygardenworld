@@ -211,6 +211,12 @@
 // or locked vase targets are unsafe to take; a held task with such a target
 // cannot be completed by automation.
 //
+// IFmlRaceTask fields 14/15 are isUpgrade/upgradeUid. Mini 176's race UI uses
+// field 14 for the upgrade badge and field 15 to look up the upgrading member.
+// It does not establish that an upgraded row with a zero/missing upgradeUid
+// was system-upgraded. Such a row has unknown ownership, not confirmed self
+// ownership, and cannot bypass an exclude-other-upgrades policy.
+//
 // fmlRace.upgradeTask sends an empty object and upgrades only the current held
 // task. Mini PFmlRaceTaskUpDlg computes calFmlUpgradeCost from the task's score
 // and upgraded reward, then checks item 1 (the visible 元宝 balance, 7.0.41).
