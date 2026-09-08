@@ -131,3 +131,64 @@ func TestSetPolicyRejectsSDKAdAutomation(t *testing.T) {
 		t.Fatal("rejected video gift policy was persisted")
 	}
 }
+
+func TestOfflineGuildPolicyCanBeReadAndSavedWithoutStartingRunner(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		name := "paused"
+		if enabled {
+			name = "enabled but disconnected"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := t.Context()
+			db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = db.Close() }()
+			user, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+			if err != nil {
+				t.Fatal(err)
+			}
+			account, err := db.CreateAccount(ctx, user.ID, "offline", "ios", "game", "pw")
+			if err != nil {
+				t.Fatal(err)
+			}
+			log := slog.New(slog.NewTextHandler(io.Discard, nil))
+			svc := &Services{DB: db, Manager: runner.NewManager(db, runner.NewBus(), log), Log: log}
+			policy := automation.DefaultPolicy()
+			policy.AutomationEnabled = enabled
+			if err := svc.persistPolicy(ctx, account.ID, policy); err != nil {
+				t.Fatal(err)
+			}
+			ctx = auth.ContextWithIdentity(ctx, &auth.Identity{UserID: user.ID, Role: user.Role})
+			loaded, err := svc.GetPolicy(ctx, connect.NewRequest(&pb.GetPolicyRequest{AccountId: account.ID}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			requested := loaded.Msg.Policy
+			requested.Union.Race.MinTaskScore = 35
+			requested.Union.Race.ExcludeOthersUpgradeTask = true
+			requested.Union.Race.AutoEnableModules = false
+			requested.AutomationEnabled = !enabled // Settings must not change lifecycle intent.
+			saved, err := svc.SetPolicy(ctx, connect.NewRequest(&pb.SetPolicyRequest{AccountId: account.ID, Policy: requested}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if saved.Msg.Policy.GetAutomationEnabled() != enabled {
+				t.Fatal("saving offline settings changed automation lifecycle intent")
+			}
+			readBack, err := svc.GetPolicy(ctx, connect.NewRequest(&pb.GetPolicyRequest{AccountId: account.ID}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if readBack.Msg.Policy.GetUnion().GetRace().GetMinTaskScore() != 35 ||
+				readBack.Msg.Policy.GetUnion().GetRace().GetAutoEnableModules() ||
+				!readBack.Msg.Policy.GetUnion().GetRace().GetExcludeOthersUpgradeTask() {
+				t.Fatal("offline guild policy was not persisted")
+			}
+			if len(svc.Manager.All()) != 0 {
+				t.Fatal("policy reads or writes started a game runner")
+			}
+		})
+	}
+}

@@ -14,14 +14,14 @@ export default function UnionWorkspace(props: WorkspaceProps) {
     statusContent = (
       <Card className="cloud-surface">
         <CardHeader><CardTitle>公会</CardTitle></CardHeader>
-        <CardContent><EmptyState title="公会状态待同步" detail="确认会员状态前，服务端不会规划或执行任何公会操作。" /></CardContent>
+        <CardContent><EmptyState title="公会状态待同步" detail="可先切换到「设置」保存配置，再登录游戏。确认成员身份前，服务端不会规划或执行公会操作。" /></CardContent>
       </Card>
     );
   } else if (!union.inUnion) {
     statusContent = (
       <Card className="cloud-surface">
         <CardHeader><CardTitle>公会</CardTitle></CardHeader>
-        <CardContent><EmptyState title="当前账号未加入公会" detail="公会土地、建设和竞赛模块均保持停用，加入公会并同步后才会运行。" /></CardContent>
+        <CardContent><EmptyState title="当前账号未加入公会" detail="可在「设置」中预先配置；公会土地、建设和竞赛操作会等待加入公会并确认当前成员身份后再运行。" /></CardContent>
       </Card>
     );
   } else {
