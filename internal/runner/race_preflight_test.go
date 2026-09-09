@@ -37,6 +37,42 @@ func TestFreshFullRacePoolSkipsNetworkButStillValidatesFacts(t *testing.T) {
 	}
 }
 
+func TestDeleteReusesFullPoolAndStillRejectsQueuedChanges(t *testing.T) {
+	for _, change := range []string{"none", "claimed", "expired", "policy"} {
+		t.Run(change, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r := newOperationEventTestRunner()
+				r.policy = automation.DefaultPolicy()
+				r.policy.Union.Race.Enabled = true
+				r.state.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"0":{"0":42},"1":{"0":999,"1":42,"2":1},"111":{"0":42,"1":1},"117":{"5":4}}}`))
+				r.state.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":10}]}}`))
+				time.Sleep(10 * time.Second)
+				op, err := automation.ManualRaceDeleteOperation(r.state, r.Policy(), 1, time.Now())
+				if err != nil {
+					t.Fatal(err)
+				}
+				ctx, timing := r.startRaceTiming(t.Context(), &op)
+				if err := preflightFmlRaceTaskMutation(ctx, operationRuntime{runner: r}, &op); err != nil || !timing.reusedPool {
+					t.Fatalf("redundant delete refresh or invalid reuse: %v", err)
+				}
+				switch change {
+				case "claimed":
+					r.state.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":10,"12":100}]}}`))
+				case "expired":
+					time.Sleep(21 * time.Second)
+				case "policy":
+					r.policy.Union.Race.Enabled = false
+				}
+				ctx = context.WithValue(ctx, raceMutationContextKey{}, &op)
+				err = r.validateRaceMutationBeforeSend(ctx, op.Kind)
+				if (err != nil) != (change != "none") {
+					t.Fatalf("send guard: %v", err)
+				}
+			})
+		})
+	}
+}
+
 func TestQueuedAutomaticRaceTakeHonorsDisabledAutomation(t *testing.T) {
 	r := newOperationEventTestRunner()
 	r.policy = automation.DefaultPolicy()

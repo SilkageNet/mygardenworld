@@ -21,6 +21,10 @@ const raceTaskPoolRefreshInterval = 30 * time.Second
 
 const raceIdleTaskPoolRefreshInterval = 10 * time.Second
 
+// Read-only/low-score maintenance has no race-to-take deadline. Mutations
+// still obtain fresh full-list evidence in the runner before sending.
+const raceMaintenanceTaskPoolRefreshInterval = 5 * time.Minute
+
 // raceTaskPoolBootstrapRetryInterval bounds successful getTaskList probes that
 // still do not yield field 114. The first probe remains immediate and urgent;
 // later probes allow ordinary work to proceed between attempts.
@@ -258,7 +262,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	// task pool remains visible and may delete eligible low-score rows, but does
 	// not auto-execute task completion flows.
 	if !policy.GetAutoEnableModules() {
-		if raceTaskPoolTTLStale(view, now) {
+		if raceTaskPoolRefreshDue(view, policy, now) {
 			op := domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
 				"公会竞赛定时刷新任务池", 4398, 0, 0, 0,
@@ -549,7 +553,7 @@ func RaceAutoDeleteStatus(s *state.State, policy *pb.UnionRacePolicy, now time.T
 	if !state.FmlPositionAllowsRaceDelete(build.MemberPosition) {
 		return "当前职位无删除权限，仅会长／副会长可用"
 	}
-	if !view.TasksObserved || view.TaskPoolStale || raceTaskPoolTTLStale(view, now) {
+	if !view.TasksObserved || view.TaskPoolStale || raceTaskPoolRefreshDue(view, policy, now) {
 		return "等待刷新任务池"
 	}
 	ops := raceLowScoreDeleteOperations(s, view, policy, Goal{}, now)
@@ -609,9 +613,17 @@ func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
 	return !now.Before(time.UnixMilli(lastSync).Add(raceTaskPoolRefreshInterval))
 }
 
-// Only active auto-take waiters need the shorter fallback. Held tasks and
-// accounts with auto-complete off retain the ordinary refresh rate.
+// Active auto-take waiters use the shorter fallback; held tasks retain the
+// ordinary rate. Idle maintenance-only accounts refresh every five minutes.
 func raceTaskPoolRefreshDue(view state.FmlRaceView, policy *pb.UnionRacePolicy, now time.Time) bool {
+	if !policy.GetAutoEnableModules() && !view.Taken.HasTask {
+		last := view.TaskPoolSyncAttemptAtMs
+		if last <= 0 {
+			last = view.TasksSyncedAtMs
+		}
+		return view.BatchActive && view.TasksObserved && !view.TaskPoolStale &&
+			(last <= 0 || !now.Before(time.UnixMilli(last).Add(raceMaintenanceTaskPoolRefreshInterval)))
+	}
 	if raceTaskPoolTTLStale(view, now) {
 		return true
 	}

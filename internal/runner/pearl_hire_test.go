@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
@@ -111,6 +113,7 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 		{name: "malformed fallback", raw: `{"3":{"0":null}}`, wantErr: "格式异常", wantFailed: true, wantLocked: true},
 		{name: "postcondition unknown", raw: `{"115":{}}`, wantErr: "postcondition", wantFailed: true, wantLocked: true},
 		{name: "transport unknown", hireErr: errors.New("timeout"), wantErr: "timeout", wantFailed: true, wantLocked: true},
+		{name: "local veto", hireErr: &pearlHireNotSentError{err: errors.New("policy changed")}, wantErr: "policy changed"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -159,6 +162,49 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 			if tc.raw != "" && tc.hireErr == nil && !applied {
 				t.Fatal("authoritative payload was not applied")
 			}
+		})
+	}
+}
+
+func TestPearlHireRechecksAfterPacingWithoutLockingUnsentAttempt(t *testing.T) {
+	for _, reject := range []bool{false, true} {
+		t.Run(fmt.Sprint(reject), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				r := newOperationEventTestRunner()
+				r.pacer = newRequestPacer(RequestPacing{})
+				start := time.Now()
+				r.pacer.lastRequest = start
+				checks := 0
+				locked, sent := false, false
+				_, err := executePearlHire(t.Context(), clientproto.PearlPlaceHireRequest{PlaceId: 1, DstUid: 2001}, pearlHireExecution{
+					preflight: func(at time.Time) (state.PearlHireAttemptSnapshot, error) {
+						checks++
+						if checks == 2 && reject {
+							return state.PearlHireAttemptSnapshot{}, errors.New("policy changed while paced")
+						}
+						return state.PearlHireAttemptSnapshot{At: at}, nil
+					},
+					hire: func(ctx context.Context, _ clientproto.PearlPlaceHireRequest) (json.RawMessage, error) {
+						if err := r.beforeGameRPC(ctx, clientproto.RPCPearlPlaceHire.String()); err != nil {
+							return nil, err
+						}
+						sent = true
+						return json.RawMessage(`{}`), nil
+					},
+					outcome: func(snapshot state.PearlHireAttemptSnapshot) (bool, int32, bool) {
+						if snapshot.At.Sub(start) != 2*time.Second {
+							t.Fatalf("snapshot was not refreshed at send time: %v", snapshot.At.Sub(start))
+						}
+						return true, 0, true
+					},
+					markFailed:    func(int64, time.Time) { t.Fatal("unsent candidate marked contested") },
+					skipCandidate: func(int64) { t.Fatal("unsent candidate skipped") },
+					lockSession:   func(string) { locked = true },
+				})
+				if (err != nil) != reject || locked || sent == reject || checks != 2 {
+					t.Fatalf("err=%v locked=%v sent=%v checks=%d", err, locked, sent, checks)
+				}
+			})
 		})
 	}
 }

@@ -124,8 +124,12 @@
 // unlimited, otherwise lvl <= limit. Unknown levels must not count as an
 // over-level rejection. Filter levels before requesting protection states,
 // and prefer a fully checked candidate over unrelated incomplete profiles.
-// Candidate summaries and hire states are trusted for 30 seconds. A contested
-// UID is cooled for 60 seconds. `pearlPlace.hire` must carry the exact observed
+// Discovery caches survive five minutes of paced scheduling. Before spending,
+// the runner refreshes only the selected UID as necessary and rechecks level,
+// labor state, policy, slots and tickets after request pacing; candidate level
+// and labor evidence must both be younger than 30 seconds. A local pre-send
+// veto does not lock the session, while an ambiguous sent hire still does.
+// A contested UID is cooled for 60 seconds. `pearlPlace.hire` must carry the exact observed
 // item 1003 x1 cost gate. Only this RPC inspects namespace `3.0` as the
 // client-side `$ext.iv`: exact zero is safe; nonzero makes the official client
 // show `c_pearl.$hireDefGld` and return to candidate selection without a second

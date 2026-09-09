@@ -22,7 +22,7 @@ type raceTiming struct {
 }
 
 func (r *Runner) startRaceTiming(ctx context.Context, op *automation.PlannedOp) (context.Context, *raceTiming) {
-	if op.Kind != clientproto.RPCFmlRaceTakeTask.String() {
+	if op.Kind != clientproto.RPCFmlRaceTakeTask.String() && op.Kind != clientproto.RPCFmlRaceDelTask.String() {
 		return ctx, nil
 	}
 	timing := &raceTiming{started: time.Now()}
@@ -73,7 +73,11 @@ func (r *Runner) emitRaceTiming(op *automation.PlannedOp, timing *raceTiming, er
 	}
 	data["outcome"] = outcome
 	raw, _ := json.Marshal(data)
-	r.emit(Event{Kind: "race_take_diagnostic", Category: "race", Domain: "union.race.take", Action: "diagnostic",
-		Label: "竞赛接单耗时", Message: fmt.Sprintf("竞赛接单 #%d: %s，耗时 %dms（详见明细）", op.TaskMsID, outcome, time.Since(timing.started).Milliseconds()),
+	kind, domain, label := "race_take_diagnostic", "union.race.take", "竞赛接单"
+	if op.Kind == clientproto.RPCFmlRaceDelTask.String() {
+		kind, domain, label = "race_delete_diagnostic", "union.race.delete", "竞赛删单"
+	}
+	r.emit(Event{Kind: kind, Category: "race", Domain: domain, Action: "diagnostic",
+		Label: label + "耗时", Message: fmt.Sprintf("%s #%d: %s，耗时 %dms（详见明细）", label, op.TaskMsID, outcome, time.Since(timing.started).Milliseconds()),
 		PayloadJSON: string(raw), Level: "info"})
 }

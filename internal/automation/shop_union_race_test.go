@@ -380,7 +380,7 @@ func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	s = state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
-	now := time.UnixMilli(synced).Add(raceTaskPoolRefreshInterval + time.Second)
+	now := time.UnixMilli(synced).Add(raceMaintenanceTaskPoolRefreshInterval + time.Second)
 	ops = unionRaceOperations(s, policy, 0, now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
 		t.Fatalf("expected TTL refresh when modules off, got %+v", ops)
@@ -1233,7 +1233,7 @@ func TestUnionRaceDeleteRefreshesStalePoolBeforeMutation(t *testing.T) {
 		DeleteTaskMaxScore: 10,
 	}
 	view := s.FmlRace()
-	now := time.UnixMilli(view.TasksSyncedAtMs).Add(raceTaskPoolRefreshInterval)
+	now := time.UnixMilli(view.TasksSyncedAtMs).Add(raceMaintenanceTaskPoolRefreshInterval)
 
 	ops := unionRaceOperations(s, policy, s.RoleID(), now, raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
