@@ -26,6 +26,9 @@ type sessionRuntimeState struct {
 }
 
 type schedulerState struct {
+	activityBatchSync         map[int32]activitySyncEntry
+	nextActivityBatchSync     time.Time
+	lastActivityDiagnostic    string
 	decisionWake              chan struct{}
 	pearlDiagnosticLog        pearlDiagnosticLogState
 	lastWaterSyncTick         time.Time

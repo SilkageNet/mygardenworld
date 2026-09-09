@@ -3,10 +3,12 @@ package state
 import "time"
 
 // CyclicNoteEnterSnapshot returns the exact dynamically selected batch only
-// when an enter request is safe and still needed. It never guesses a batch ID.
+// when an enter request is safe and still needed. Missing lazy state or an
+// invalid task list may be resynchronized; claims still require the full view.
+// It never guesses a batch ID.
 func (s *State) CyclicNoteEnterSnapshot(now time.Time) (CyclicNoteEnterSnapshot, bool) {
 	view, ok := s.CyclicNoteView(now)
-	if !ok || !view.Valid || view.BatchID <= 0 || (view.Phase != 2 && view.Phase != 3) || view.TaskListObserved {
+	if !ok || !view.EnterReady || (view.TaskListObserved && view.TaskListValid && view.Valid) {
 		return CyclicNoteEnterSnapshot{}, false
 	}
 	return CyclicNoteEnterSnapshot{At: now, BatchID: view.BatchID, Phase: view.Phase}, true
@@ -20,7 +22,7 @@ func (s *State) CyclicNoteEnterApplied(snapshot CyclicNoteEnterSnapshot) bool {
 		return false
 	}
 	view, ok := s.CyclicNoteView(snapshot.At)
-	return ok && view.Valid && view.BatchID == snapshot.BatchID && view.TaskListObserved
+	return ok && view.Valid && view.BatchID == snapshot.BatchID && view.TaskListObserved && view.TaskListValid
 }
 
 // CyclicNoteTaskClaimSnapshot validates an exact unique slot/task pair. Both

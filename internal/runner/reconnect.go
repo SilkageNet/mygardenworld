@@ -19,7 +19,6 @@ func (r *Runner) connectionLoop(ctx context.Context, username, password string, 
 		}
 	}()
 
-connection:
 	for {
 		if current != nil {
 			select {
@@ -38,6 +37,7 @@ connection:
 				return
 			}
 			current = next
+			r.emitConnectionRecovered()
 			continue
 		}
 		if r.isSessionInvalidated() {
@@ -49,52 +49,46 @@ connection:
 		}
 		r.emit(Event{Kind: "ws_disconnected", Message: message, Level: "warn"})
 
-		wait := reconnectInitialWait
-		for {
-			if !sleepOrDone(ctx, wait) || r.isSessionInvalidated() {
-				if r.autoReloginPending() {
-					current = nil
-					continue connection
-				}
-				return
-			}
-			next, err := r.connectStoredOrFresh(ctx, username, password)
-			if err == nil {
-				current = next
-				break
-			}
-			if ctx.Err() != nil || errors.Is(err, ErrMaintenance) {
-				return // Administrative cancellation is not a failed recovery probe.
-			}
-			if isReputationGuardError(err) {
-				return
-			}
-			if r.restrictionError() != nil {
-				// Coded failures already carry a single pause event. Do not
-				// relabel them as a 2-second network retry or evict the cache.
-				if s, revision := r.accountSafetySnapshot(); s.RestrictedUntilMS <= time.Now().UnixMilli() {
-					r.deferRestrictionProbe(revision, err)
-				}
-				if !r.waitAccountRestriction(ctx) {
-					return
-				}
-				wait = reconnectInitialWait
-				continue
-			}
-			if ctx.Err() != nil || r.isSessionInvalidated() {
-				if r.autoReloginPending() {
-					current = nil
-					continue connection
-				}
-				return
-			}
-			r.emit(Event{
-				Kind:    "ws_disconnected",
-				Message: fmt.Sprintf("重连失败: %v；%s 后重试", err, nextReconnectWait(wait)),
-				Level:   "warn",
-			})
-			wait = nextReconnectWait(wait)
+		current = r.reconnect(ctx, username, password)
+		if current != nil {
+			r.emitConnectionRecovered()
+		} else if !r.autoReloginPending() {
+			return
 		}
+	}
+}
+
+func (r *Runner) reconnect(ctx context.Context, username, password string) *babigame.Client {
+	stopWatching := r.watchConnectionRecovery(ctx)
+	defer stopWatching()
+	wait := reconnectInitialWait
+	for {
+		if !sleepOrDone(ctx, wait) || r.isSessionInvalidated() {
+			return nil
+		}
+		next, err := r.connectStoredOrFresh(ctx, username, password)
+		if err == nil {
+			return next
+		}
+		if ctx.Err() != nil || errors.Is(err, ErrMaintenance) || isReputationGuardError(err) {
+			return nil // Administrative cancellation is not a failed recovery probe.
+		}
+		if r.restrictionError() != nil {
+			// Coded failures have their own incident and recovery validation.
+			if s, revision := r.accountSafetySnapshot(); s.RestrictedUntilMS <= time.Now().UnixMilli() {
+				r.deferRestrictionProbe(revision, err)
+			}
+			if !r.waitAccountRestriction(ctx) {
+				return nil
+			}
+			wait = reconnectInitialWait
+			continue
+		}
+		if r.isSessionInvalidated() {
+			return nil
+		}
+		r.emit(Event{Kind: "ws_disconnected", Message: fmt.Sprintf("重连失败: %v；%s 后重试", err, nextReconnectWait(wait)), Level: "warn"})
+		wait = nextReconnectWait(wait)
 	}
 }
 

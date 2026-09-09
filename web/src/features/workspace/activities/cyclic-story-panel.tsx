@@ -25,7 +25,7 @@ export default function CyclicStoryMonitorPanel({ activity }: { activity?: Cycli
         <>
           <Badge variant={visible && phase === 2 ? "secondary" : "outline"}>{visible ? cyclicNotePhaseLabel(phase) : activity?.observed ? "未开放" : "待同步"}</Badge>
           {visible && <Badge variant="outline">批次 {activity.batchId}</Badge>}
-          {visible && !activity.valid && <Badge variant="destructive">配置异常</Badge>}
+          {visible && !activity.valid && <Badge variant="outline">状态待补齐</Badge>}
           {visible && activity.valid && !activity.milestoneReceiptsObserved && <Badge variant="outline">里程碑待同步</Badge>}
           {readyOrders + readyMilestones > 0 && <Badge variant="secondary">可领取 {readyOrders + readyMilestones}</Badge>}
         </>
@@ -34,7 +34,7 @@ export default function CyclicStoryMonitorPanel({ activity }: { activity?: Cycli
       {!visible ? (
         <InactiveActivityOverview activity={activity} profile={CYCLIC_STORY_PROFILE} currencyItemId={activity?.currencyItemId} />
       ) : !activity.valid ? (
-        <EmptyState title="莳花纪闻配置或状态异常" detail="已阻塞自动化；等待完整模板与时间状态同步后再显示订单详情。" />
+        <EmptyState title="莳花纪闻状态尚未完整" detail="启用活动自动化后会尝试初始化当前批次；订单、资源与模板完整前不会提交或领奖。若长时间未恢复，请查看活动日志中的同步结果。" />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">

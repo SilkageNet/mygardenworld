@@ -134,6 +134,7 @@ func (r *Runner) tick(ctx context.Context) {
 	snapshot := r.readTickSnapshot()
 	if r.restrictionError() == nil {
 		r.emitPearlHireDiagnostic(snapshot, time.Now())
+		r.emitActivityDiagnostic(snapshot, time.Now())
 	}
 	if snapshot.sessionInvalidated || snapshot.client == nil || snapshot.session == nil {
 		r.resetSideLaneFairness()
@@ -159,6 +160,9 @@ func (r *Runner) tick(ctx context.Context) {
 		}
 	}
 
+	if r.tickActivityBatchSync(ctx, snapshot, now) {
+		return
+	}
 	r.state.RefreshWaterDrops(now)
 	r.tickWaterSourceSync(ctx, snapshot.client, snapshot.session)
 	if r.isSessionInvalidated() {

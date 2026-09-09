@@ -47,10 +47,10 @@ func cyclicNoteOperations(s *state.State, policy *pb.ActivityPolicy, now time.Ti
 	}
 
 	view, ok := s.CyclicNoteView(now)
-	if !ok || !view.Valid || view.BatchID <= 0 {
+	if !ok || view.BatchID <= 0 {
 		return nil
 	}
-	if (claimTasks || satisfyTasks) && !view.TaskListObserved {
+	if claimTasks || satisfyTasks || (claimMilestones && !view.Valid) {
 		if snapshot, ready := s.CyclicNoteEnterSnapshot(now); ready && snapshot.BatchID == view.BatchID {
 			planned := cyclicNotePlannedOp(
 				clientproto.RPCActCyclicNoteEnter.String(), "enter", "活动任务尚未初始化，进入花笺集芳同步任务",
@@ -58,6 +58,8 @@ func cyclicNoteOperations(s *state.State, policy *pb.ActivityPolicy, now time.Ti
 			)
 			return []PlannedOp{planned}
 		}
+	}
+	if !view.Valid {
 		return nil
 	}
 

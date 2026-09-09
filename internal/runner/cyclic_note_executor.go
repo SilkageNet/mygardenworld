@@ -281,7 +281,7 @@ func (r *Runner) cyclicNotePolicy() *pb.CyclicNotePolicy {
 
 func (r *Runner) cyclicNoteEnterAutomationEnabled() bool {
 	module := r.cyclicNotePolicy()
-	return module != nil && (module.GetAutoClaimTaskRewards() || module.GetSatisfyTasks())
+	return module != nil && (module.GetAutoClaimTaskRewards() || module.GetSatisfyTasks() || module.GetAutoClaimProgressBoxes())
 }
 
 func (r *Runner) cyclicNoteTaskClaimAutomationEnabled() bool {

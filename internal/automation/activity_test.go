@@ -234,3 +234,24 @@ func cyclicNotePlannerState(t *testing.T, now time.Time, phase int32, tasks []an
 	applyMap(t, s, map[string]any{"23": ns23})
 	return s
 }
+
+func TestCyclicNotePlannerBootstrapsFreshBatchBeforeRewardState(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	for _, flag := range []string{cyclicNoteAutoClaimTaskRewardsKey, cyclicNoteSatisfyTasksKey, cyclicNoteAutoClaimProgressBoxesKey} {
+		t.Run(flag, func(t *testing.T) {
+			s := state.New()
+			applyMap(t, s, map[string]any{"23": map[string]any{"0": map[string]any{"9001": map[string]any{
+				"0": 9001, "1": 40020007, "2": 4002, "3": 1, "5": now.Add(-time.Minute).UnixMilli(), "7": now.Add(time.Hour).UnixMilli(),
+			}}}})
+			policy := cyclicNotePlannerPolicy(true, map[string]bool{flag: true})
+			ops := cyclicNotePlanOperations(BuildPlan(s, policy, now).Operations)
+			if len(ops) != 1 || ops[0].Kind != clientproto.RPCActCyclicNoteEnter.String() || ops[0].BatchID != 9001 {
+				t.Fatalf("fresh batch bootstrap=%+v", ops)
+			}
+			policy.AutomationEnabled = false
+			if ops := cyclicNotePlanOperations(BuildPlan(s, policy, now).Operations); len(ops) != 0 {
+				t.Fatal("disabled automation initialized activity")
+			}
+		})
+	}
+}
