@@ -102,7 +102,10 @@ func TestReusableRaceTakePool(t *testing.T) {
 		{name: "clock rollback", age: -time.Second},
 		{name: "stale", stale: true},
 		{name: "push only", missing: true},
-		{name: "deletion always refreshes", deletion: true},
+		{name: "deletion fresh", deletion: true, want: true},
+		{name: "deletion boundary", deletion: true, age: 30 * time.Second, want: true},
+		{name: "deletion old", deletion: true, age: 30*time.Second + time.Millisecond},
+		{name: "deletion push only", deletion: true, missing: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			view := state.FmlRaceView{TasksObserved: true, TaskPoolStale: tc.stale, FullTasksSyncedAtMs: now.Add(-tc.age).UnixMilli()}
@@ -113,7 +116,7 @@ func TestReusableRaceTakePool(t *testing.T) {
 			if tc.deletion {
 				op.Kind = clientproto.RPCFmlRaceDelTask.String()
 			}
-			if got := reusableRaceTakePool(view, op, time.UnixMilli(now.UnixMilli())); got != tc.want {
+			if got := reusableRaceMutationPool(view, op, time.UnixMilli(now.UnixMilli())); got != tc.want {
 				t.Fatalf("reuse=%v want=%v", got, tc.want)
 			}
 		})

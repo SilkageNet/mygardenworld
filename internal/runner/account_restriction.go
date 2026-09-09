@@ -15,7 +15,14 @@ import (
 // All game RPC paths, including heartbeat and executor-internal follow-up
 // reads, share this guard. Only a post-wait login
 // can pass while recovery is pending. HTTP reconnect is separately gated.
-func (r *Runner) beforeGameRPC(ctx context.Context, name string) error {
+func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
+	guard, guardedHire := ctx.Value(pearlHireSendGuardKey{}).(func() error)
+	guardedHire = guardedHire && name == clientproto.RPCPearlPlaceHire.String()
+	defer func() {
+		if guardedHire && err != nil {
+			err = &pearlHireNotSentError{err: err}
+		}
+	}()
 	if err := r.checkGameRPC(name); err != nil {
 		return err
 	}
@@ -27,6 +34,14 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) error {
 	}
 	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
 		return err
+	}
+	if guardedHire {
+		if scheduled, _ := ctx.Value(scheduledOperationKey{}).(bool); scheduled && !r.Policy().GetAutomationEnabled() {
+			return fmt.Errorf("自动化已关闭，取消尚未发送的珍珠雇佣")
+		}
+		if err := guard(); err != nil {
+			return err
+		}
 	}
 	return r.validateRaceMutationBeforeSend(ctx, name)
 }
@@ -73,8 +88,8 @@ func (r *Runner) recordAccountRestriction(name string, d babigame.WSResponseD, n
 		"rpc": name, "server_code": next.RestrictionCode,
 		"restricted_until_ms": next.RestrictedUntilMS, "attempt": next.RestrictionAttempts,
 	})
-	message := fmt.Sprintf("服务端返回 %d，暂停该账号全部游戏请求；%s 后验证恢复。97777 含义尚未确认，不能据此断定封禁或删除频率阈值",
-		d.ErrorCode(), time.UnixMilli(next.RestrictedUntilMS).Local().Format("01/02 15:04:05"))
+	message := fmt.Sprintf("%s 返回 %d，暂停该账号全部游戏请求；%s 后验证恢复。97777 含义尚未确认，不能据此断定封禁或删除频率阈值",
+		name, d.ErrorCode(), time.UnixMilli(next.RestrictedUntilMS).Local().Format("01/02 15:04:05"))
 	if err != nil {
 		message += fmt.Sprintf("；保护状态保存失败，当前进程仍保持暂停: %v", err)
 	}

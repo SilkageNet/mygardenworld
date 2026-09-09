@@ -14,7 +14,9 @@ import (
 )
 
 const (
-	pearlCandidateCacheTTL = 30 * time.Second
+	// Discovery spans several independently scheduled operations. Its cache
+	// must survive ordinary Side-lane waits; it is not permission to spend.
+	pearlCandidateCacheTTL = 5 * time.Minute
 	pearlHirePriority      = int32(5540)
 )
 
@@ -105,7 +107,7 @@ func planOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 	}
 
 	if !cacheFresh(view.RecommendObservedAtMs, now) {
-		return pearlHireSyncOp(clientproto.RPCPearlGetRecommendList.String(), intent, "recommend", "推荐候选缓存缺失或已超过 30 秒，刷新推荐列表", nil, pearlHirePriority+3), true
+		return pearlHireSyncOp(clientproto.RPCPearlGetRecommendList.String(), intent, "recommend", "推荐候选缓存缺失或已超过 5 分钟，刷新推荐列表", nil, pearlHirePriority+3), true
 	}
 	recommendDiagnostic := diagnostic.source(1)
 	recommendUIDs := filterPearlCandidateUIDs(view.RecommendUIDs, view, activeUIDs, seen, now, recommendDiagnostic)
@@ -128,6 +130,18 @@ func planOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time,
 // ValidateSafePearlHire reruns the same planner gates immediately before an
 // RPC. The requested UID/place must still be the unique next safe hire.
 func ValidateSafePearlHire(s *state.State, policy *pb.PearlPolicy, op *PlannedOp, now time.Time) error {
+	if err := ValidatePearlHireCandidate(s, policy, op, now); err != nil {
+		return err
+	}
+	if !PearlHireCandidateFresh(s, op.TargetUID, now) {
+		return fmt.Errorf("雇佣候选等级或保护状态已超过 30 秒，等待重新核验")
+	}
+	return nil
+}
+
+// ValidatePearlHireCandidate checks discovery, policy and resource gates only.
+// Callers must use ValidateSafePearlHire at the actual mutation boundary.
+func ValidatePearlHireCandidate(s *state.State, policy *pb.PearlPolicy, op *PlannedOp, now time.Time) error {
 	if op == nil {
 		return fmt.Errorf("pearl hire operation is nil")
 	}
@@ -149,6 +163,24 @@ func ValidateSafePearlHire(s *state.State, policy *pb.PearlPolicy, op *PlannedOp
 		return fmt.Errorf("pearl hire preflight requires exact ItemCost{1003:1}")
 	}
 	return nil
+}
+
+// PearlHireCandidateFresh is the stricter spend-time evidence gate. Discovery
+// may reuse five-minute observations, but the selected UID's level and labor
+// state must both be younger than 30 seconds before sending a paid hire.
+func PearlHireCandidateFresh(s *state.State, uid int64, now time.Time) bool {
+	if s == nil || uid <= 0 {
+		return false
+	}
+	view := s.PearlHireAt(now)
+	profile, profileOK := view.Profiles[uid]
+	hire, hireOK := view.HireStates[uid]
+	fresh := func(at int64) bool {
+		age := now.Sub(time.UnixMilli(at))
+		return at > 0 && age >= 0 && age < 30*time.Second
+	}
+	return profileOK && hireOK && profile.LevelObserved && profile.Level > 0 &&
+		fresh(profile.ObservedAtMs) && fresh(hire.ObservedAtMs)
 }
 
 func planPearlCandidateSource(view state.PearlHireView, config state.PearlHireConfig, policy *pb.PearlPolicy, now time.Time, intent PearlHireIntent, source, sourceLabel string, uids []int64, placeID int32, diagnostic *PearlHireSourceDiagnostic) (PlannedOp, bool) {
@@ -215,10 +247,10 @@ func planPearlCandidateSource(view state.PearlHireView, config state.PearlHireCo
 		return op, true
 	}
 	if len(staleProfiles) > 0 {
-		return pearlHireSyncOp(clientproto.RPCOpptGetDetailOppts.String(), intent, source, sourceLabel+"候选详情缺失或已超过 30 秒", staleProfiles, pearlHirePriority+5), true
+		return pearlHireSyncOp(clientproto.RPCOpptGetDetailOppts.String(), intent, source, sourceLabel+"候选详情缺失或已超过 5 分钟", staleProfiles, pearlHirePriority+5), true
 	}
 	if len(staleHireStates) > 0 {
-		return pearlHireSyncOp(clientproto.RPCPearlGetHireStateByUids.String(), intent, source, sourceLabel+"候选保护状态缺失或已超过 30 秒", staleHireStates, pearlHirePriority+4), true
+		return pearlHireSyncOp(clientproto.RPCPearlGetHireStateByUids.String(), intent, source, sourceLabel+"候选保护状态缺失或已超过 5 分钟", staleHireStates, pearlHirePriority+4), true
 	}
 	return PlannedOp{}, false
 }

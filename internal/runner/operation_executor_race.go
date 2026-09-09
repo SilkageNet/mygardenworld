@@ -20,11 +20,24 @@ type raceMutationContextKey struct{}
 
 const raceFreshPoolWindow = 3 * time.Second
 
-func reusableRaceTakePool(view state.FmlRaceView, op *automation.PlannedOp, now time.Time) bool {
+// Taking needs a tight three-second window. Deletion may reuse the ordinary
+// 30-second full-pool evidence, but never a push-only timestamp. Both paths
+// revalidate the exact task and policy after pacing; this is not a bulk delete.
+func reusableRaceMutationPool(view state.FmlRaceView, op *automation.PlannedOp, now time.Time) bool {
+	if op == nil {
+		return false
+	}
+	window := raceFreshPoolWindow
+	switch op.Kind {
+	case clientproto.RPCFmlRaceTakeTask.String():
+	case clientproto.RPCFmlRaceDelTask.String():
+		window = 30 * time.Second
+	default:
+		return false
+	}
 	age := now.Sub(time.UnixMilli(view.FullTasksSyncedAtMs))
-	return op != nil && op.Kind == clientproto.RPCFmlRaceTakeTask.String() &&
-		view.TasksObserved && !view.TaskPoolStale && view.FullTasksSyncedAtMs > 0 &&
-		age >= 0 && age <= raceFreshPoolWindow
+	return view.TasksObserved && !view.TaskPoolStale && view.FullTasksSyncedAtMs > 0 &&
+		age >= 0 && age <= window
 }
 
 func (r *Runner) waitRaceTakeReady(ctx context.Context, name string) error {
@@ -62,7 +75,7 @@ func (r *Runner) validateRaceMutationBeforeSend(ctx context.Context, name string
 		return fmt.Errorf("自动接单已关闭，取消尚未发送的竞赛接单")
 	}
 	timing, _ := ctx.Value(raceTimingKey{}).(*raceTiming)
-	if timing != nil && timing.reusedPool && !reusableRaceTakePool(r.state.FmlRace(), op, time.Now()) {
+	if timing != nil && timing.reusedPool && !reusableRaceMutationPool(r.state.FmlRace(), op, time.Now()) {
 		r.state.MarkFmlRaceTaskPoolStale()
 		return fmt.Errorf("竞赛完整任务池已超过复用时限，等待重新同步")
 	}
@@ -237,14 +250,14 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	return v, nil
 }
 
-// preflightFmlRaceTaskMutation narrows the task-pool race window by fetching a
-// fresh authoritative list while the runner's operation lock is held, then
+// preflightFmlRaceTaskMutation narrows the task-pool race window by reusing a
+// recent full list or fetching one while the runner's operation lock is held, then
 // reapplying the current policy and exact planned-task guard before mutation.
 func preflightFmlRaceTaskMutation(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) error {
 	if rt.runner == nil || rt.runner.state == nil {
 		return fmt.Errorf("公会竞赛执行前校验缺少 runner 状态")
 	}
-	if reusableRaceTakePool(rt.runner.state.FmlRace(), op, time.Now().Add(rt.runner.pacer.delay(op.Kind, time.Now()))) {
+	if reusableRaceMutationPool(rt.runner.state.FmlRace(), op, time.Now().Add(rt.runner.pacer.delay(op.Kind, time.Now()))) {
 		if timing, _ := ctx.Value(raceTimingKey{}).(*raceTiming); timing != nil {
 			timing.reusedPool = true
 		}

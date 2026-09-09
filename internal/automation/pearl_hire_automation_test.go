@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
@@ -82,9 +83,9 @@ func TestPlanOneSafePearlHireBoundariesAndNoBypass(t *testing.T) {
 	if op.Kind != clientproto.RPCPearlPlaceHire.String() {
 		t.Fatalf("cache should be fresh before 30s: %+v", op)
 	}
-	op, _ = PlanOneSafePearlHire(s, policy, time.UnixMilli(observedAt).Add(30*time.Second), PearlHireIntent{})
+	op, _ = PlanOneSafePearlHire(s, policy, time.UnixMilli(observedAt).Add(pearlCandidateCacheTTL), PearlHireIntent{})
 	if op.Kind != clientproto.RPCOpptGetDetailOppts.String() {
-		t.Fatalf("cache should be stale at 30s: %+v", op)
+		t.Fatalf("discovery cache should expire at five minutes: %+v", op)
 	}
 	op, _ = PlanOneSafePearlHire(s, policy, time.UnixMilli(observedAt).Add(-time.Millisecond), PearlHireIntent{})
 	if op.Kind != clientproto.RPCOpptGetDetailOppts.String() {
@@ -106,6 +107,47 @@ func TestPlanOneSafePearlHireBoundariesAndNoBypass(t *testing.T) {
 	disabled.AutoHireEnabled = false
 	if _, ok := PlanOneSafePearlHire(s, disabled, time.Now(), PearlHireIntent{Category: CategoryActivity, Domain: "activity.cyclicNote"}); ok {
 		t.Fatal("activity intent bypassed disabled pearl module")
+	}
+}
+
+func TestPearlDiscoverySurvivesPacedStepsButCannotSpendStaleEvidence(t *testing.T) {
+	for _, step := range []time.Duration{24 * time.Second, 40 * time.Second} {
+		t.Run(step.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newPearlHireStateForTest(t, 9001)
+				policy := &pb.PearlPolicy{AutoHireEnabled: true, MaxHireLevel: 30, MaxHireTicketUsage: 3, DrawEnabled: true}
+				applyMap(t, s, map[string]any{"24": map[string]any{"0": map[string]any{"0": int64(9001)}, "1": []any{}}})
+				applyMap(t, s, map[string]any{"115": map[string]any{"6": []int64{2001}}})
+				time.Sleep(step)
+				op, _ := PlanOneSafePearlHire(s, policy, time.Now(), PearlHireIntent{})
+				if op.Kind != clientproto.RPCOpptGetDetailOppts.String() {
+					t.Fatalf("recommendation discovery restarted: %+v", op)
+				}
+				applyMap(t, s, map[string]any{"28": map[string]any{"5": []any{map[string]any{"0": int64(2001), "4": 30}}}})
+				time.Sleep(step)
+				op, _ = PlanOneSafePearlHire(s, policy, time.Now(), PearlHireIntent{})
+				if op.Kind != clientproto.RPCPearlGetHireStateByUids.String() {
+					t.Fatalf("profile discovery restarted: %+v", op)
+				}
+				applyMap(t, s, map[string]any{"115": map[string]any{"5": map[string]any{"2001": int64(0)}}})
+				time.Sleep(step)
+				op, _ = PlanOneSafePearlHire(s, policy, time.Now(), PearlHireIntent{})
+				if op.Kind != clientproto.RPCPearlPlaceHire.String() {
+					t.Fatalf("hire never reached: %+v", op)
+				}
+				if err := ValidateSafePearlHire(s, policy, &op, time.Now()); err == nil {
+					t.Fatal("stale discovery evidence authorized spending")
+				}
+				applyMap(t, s, map[string]any{"28": map[string]any{"5": []any{map[string]any{"0": int64(2001), "4": 30}}}, "115": map[string]any{"5": map[string]any{"2001": int64(0)}}})
+				if err := ValidateSafePearlHire(s, policy, &op, time.Now()); err != nil {
+					t.Fatalf("fresh exact-boundary candidate: %v", err)
+				}
+				time.Sleep(30 * time.Second)
+				if err := ValidateSafePearlHire(s, policy, &op, time.Now()); err == nil {
+					t.Fatal("spend-time evidence must expire at 30 seconds")
+				}
+			})
+		})
 	}
 }
 
