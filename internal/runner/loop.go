@@ -191,6 +191,9 @@ func (r *Runner) tick(ctx context.Context) {
 	// Farm turn and then immediately select the same urgent sync it was meant to
 	// yield, recreating starvation despite the scheduler safety net.
 	if selected == nil {
+		// Preamble syncs share the pacer and may have waited for or sent RPCs.
+		// Evaluate readiness against current time, not the pre-sync timestamp.
+		now = time.Now()
 		selected = r.nextRunnableOperation(snapshot.policy, now)
 	}
 	if selected == nil {

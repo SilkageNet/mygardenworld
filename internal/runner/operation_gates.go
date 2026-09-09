@@ -16,7 +16,10 @@ func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automa
 		r.resetSideLaneFairness()
 		return nil
 	}
-	return r.selectRunnableOperation(automation.PlanOperations(r.state, policy, now), now)
+	candidates := automation.PlanOperations(r.state, policy, now)
+	selected := r.selectRunnableOperation(candidates, now)
+	r.emitSchedulerWaitDiagnostic(candidates, selected, now)
+	return selected
 }
 
 func runnablePlannedOp(op automation.PlannedOp) bool {

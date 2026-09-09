@@ -15,9 +15,11 @@ type runnableOperationCandidate struct {
 }
 
 // selectRunnableOperation preserves the planner's Farm-first order until a
-// runnable, non-cooling Side scope has waited for sideLaneMaxWait. The input is
-// already deterministically sorted by automation.PlanOperations, so the first
-// due Side below is also the highest-ranked due Side.
+// eligible, non-cooling Side scope has waited for sideLaneMaxWait. Request
+// spacing only determines send readiness; it must not erase eligibility or
+// accumulated wait. Among overdue scopes, oldest wins, with planner order as
+// the deterministic tie-break. This is an aging threshold, not a deadline:
+// request pacing, required Farm turns and contested mutations still apply.
 func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now time.Time) *automation.PlannedOp {
 	runnable := make([]runnableOperationCandidate, 0, len(candidates))
 	activeSideScopes := make(map[string]struct{})
@@ -27,17 +29,6 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 			continue
 		}
 		op := candidate
-		if automation.IsUrgentRaceOp(op) && !isYieldingRaceSync(op) && r.pacer.reserveUrgentSlot(op.Kind, now) {
-			if _, cooling := r.operationCoolingDown(&op, now); !cooling {
-				reserveUrgentSlot = true
-			}
-		}
-		if r.pacer.delay(op.Kind, now) > 0 {
-			continue
-		}
-		if op.Kind == "fmlRace.delTask" && r.raceDeleteWait(now) > 0 {
-			continue
-		}
 		if op.Kind == "fmlRace.upgradeTask" {
 			r.mu.RLock()
 			attempted := r.raceUpgradeAttempts[[2]int64{op.RaceBatchID, op.TaskMsID}]
@@ -63,10 +54,20 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 				activeSideScopes[entry.scope] = struct{}{}
 			}
 		}
+		// Only genuinely eligible urgent work may reserve a send slot. A
+		// longer durable deletion interval cannot reserve an earlier slot.
+		deleteWait := time.Duration(0)
+		if op.Kind == "fmlRace.delTask" {
+			deleteWait = r.raceDeleteWait(now)
+		}
+		delay := r.pacer.delay(op.Kind, now)
+		if automation.IsUrgentRaceOp(op) && !isYieldingRaceSync(op) && deleteWait <= delay && r.pacer.reserveUrgentSlot(op.Kind, now) {
+			reserveUrgentSlot = true
+		}
+		if delay > 0 || deleteWait > 0 {
+			continue
+		}
 		runnable = append(runnable, entry)
-	}
-	if reserveUrgentSlot && firstUrgentRaceOp(runnable) == nil {
-		return nil
 	}
 
 	r.mu.Lock()
@@ -89,6 +90,10 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 		r.sideLaneFarmTurn = false
 		r.raceSyncNeedsFarmTurn = false
 	}
+	urgent := firstUrgentRaceOp(runnable)
+	if reserveUrgentSlot && (urgent == nil || isYieldingRaceSync(urgent.op)) {
+		return nil
+	}
 
 	firstFarm := -1
 	firstDueSide := -1
@@ -97,19 +102,20 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 		if entry.op.Lane == automation.LaneFarm && firstFarm < 0 {
 			firstFarm = i
 		}
-		if firstDueSide >= 0 || entry.scope == "" {
+		if entry.scope == "" {
 			continue
 		}
 		firstWait := r.sideLaneFirstWait[entry.scope]
-		if !firstWait.IsZero() && !now.Before(firstWait.Add(sideLaneMaxWait)) {
+		if !firstWait.IsZero() && !now.Before(firstWait.Add(sideLaneMaxWait)) &&
+			(firstDueSide < 0 || firstWait.Before(r.sideLaneFirstWait[runnable[firstDueSide].scope])) {
 			firstDueSide = i
 		}
 	}
 
 	// Contested race mutations must not wait for farm-first fairness. Read-only
-	// race syncs may preempt once, but a still-runnable duplicate yields one tick
-	// to Farm so a future state bug cannot stop every business operation.
-	if urgent := firstUrgentRaceOp(runnable); urgent != nil {
+	// race syncs yield both to overdue Side work and to the required Farm turn;
+	// repeated reads must not monopolize execution in either lane.
+	if urgent != nil && (!isYieldingRaceSync(urgent.op) || firstDueSide < 0) {
 		if isYieldingRaceSync(urgent.op) && r.raceSyncNeedsFarmTurn && firstFarm >= 0 {
 			r.raceSyncNeedsFarmTurn = false
 			r.sideLaneFarmTurn = false
@@ -137,6 +143,7 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 		selected := runnable[firstDueSide]
 		delete(r.sideLaneFirstWait, selected.scope)
 		r.sideLaneFarmTurn = true
+		r.raceSyncNeedsFarmTurn = false
 		return &selected.op
 	}
 	if len(runnable) == 0 {
@@ -156,12 +163,18 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 }
 
 func firstUrgentRaceOp(runnable []runnableOperationCandidate) *runnableOperationCandidate {
+	var sync *runnableOperationCandidate
 	for i := range runnable {
 		if automation.IsUrgentRaceOp(runnable[i].op) {
-			return &runnable[i]
+			if !isYieldingRaceSync(runnable[i].op) {
+				return &runnable[i]
+			}
+			if sync == nil {
+				sync = &runnable[i]
+			}
 		}
 	}
-	return nil
+	return sync
 }
 
 func isYieldingRaceSync(op automation.PlannedOp) bool {
@@ -190,6 +203,7 @@ func (r *Runner) resetSideLaneFairness() {
 
 func (r *Runner) resetSideLaneFairnessLocked() {
 	clear(r.sideLaneFirstWait)
+	r.lastSchedulerWaitDiagnostic = time.Time{}
 	r.sideLaneFarmTurn = false
 	r.raceSyncNeedsFarmTurn = false
 }

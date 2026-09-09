@@ -26,22 +26,23 @@ type sessionRuntimeState struct {
 }
 
 type schedulerState struct {
-	activityBatchSync         map[int32]activitySyncEntry
-	nextActivityBatchSync     time.Time
-	lastActivityDiagnostic    string
-	decisionWake              chan struct{}
-	pearlDiagnosticLog        pearlDiagnosticLogState
-	lastWaterSyncTick         time.Time
-	lastReputationSyncTick    time.Time
-	lastResidentOrderSyncTick time.Time
-	nextDecisionAt            time.Time
-	harvestBlockedUntil       map[int32]time.Time
-	harvestFailures           map[harvestFailureKey]harvestFailure
-	raceUpgradeAttempts       map[[2]int64]bool
-	operationCooldowns        map[string]operationCooldown
-	cultivateUpgradeRejects   map[int32]cultivateUpgradeResourceObservation
-	sideLaneFirstWait         map[string]time.Time
-	sideLaneFarmTurn          bool
+	activityBatchSync           map[int32]activitySyncEntry
+	nextActivityBatchSync       time.Time
+	lastActivityDiagnostic      string
+	decisionWake                chan struct{}
+	pearlDiagnosticLog          pearlDiagnosticLogState
+	lastWaterSyncTick           time.Time
+	lastReputationSyncTick      time.Time
+	lastResidentOrderSyncTick   time.Time
+	nextDecisionAt              time.Time
+	harvestBlockedUntil         map[int32]time.Time
+	harvestFailures             map[harvestFailureKey]harvestFailure
+	raceUpgradeAttempts         map[[2]int64]bool
+	operationCooldowns          map[string]operationCooldown
+	cultivateUpgradeRejects     map[int32]cultivateUpgradeResourceObservation
+	sideLaneFirstWait           map[string]time.Time
+	lastSchedulerWaitDiagnostic time.Time
+	sideLaneFarmTurn            bool
 	// raceSyncNeedsFarmTurn prevents a read-only urgent race sync that remains
 	// runnable from monopolizing every decision tick. Time-critical take/finish/
 	// give-up operations still bypass this safety net.
