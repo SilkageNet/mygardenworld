@@ -9,6 +9,7 @@ import (
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func TestActivitySyncRespectsSendTimePolicy(t *testing.T) {
@@ -76,5 +77,31 @@ func TestActivityWaitReason(t *testing.T) {
 		if (tc.want == "" && got != "") || (tc.want != "" && !strings.Contains(got, tc.want)) {
 			t.Fatalf("reason=%q", got)
 		}
+	}
+}
+
+func TestCyclicNoteWaitReasonForValidBatchWithoutProgress(t *testing.T) {
+	for _, tc := range []struct {
+		name                                           string
+		needsTasks, list, unlocked, progress, receipts bool
+		phase                                          int32
+		want                                           string
+	}{
+		{"missing list", true, false, false, false, false, 2, "任务列表待初始化"},
+		{"new account record absent", true, true, true, false, false, 2, "记录尚未下发"},
+		{"receipt absent", true, true, true, true, false, 2, "记录尚未下发"},
+		{"complete evidence", true, true, true, true, true, 2, ""},
+		{"locked slot", true, true, false, false, false, 2, ""},
+		{"milestones only", false, false, true, false, false, 2, ""},
+		{"reward grace", true, true, true, false, false, 3, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			v := state.CyclicNoteView{Observed: true, Found: true, Valid: true, BatchID: 9001, Phase: tc.phase, TaskListObserved: tc.list,
+				Tasks: []state.CyclicNoteTaskSlotView{{Unlocked: tc.unlocked, ProgressObserved: tc.progress, ReceiptObserved: tc.receipts}}}
+			got := cyclicNoteWaitReason(v, tc.needsTasks)
+			if (tc.want == "" && got != "") || (tc.want != "" && !strings.Contains(got, tc.want)) {
+				t.Fatalf("reason=%q want=%q", got, tc.want)
+			}
+		})
 	}
 }

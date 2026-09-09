@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
 func (r *Runner) emitActivityDiagnostic(snapshot tickSnapshot, now time.Time) {
@@ -17,7 +19,8 @@ func (r *Runner) emitActivityDiagnostic(snapshot tickSnapshot, now time.Time) {
 		if v.Found && !v.Valid {
 			batches = append(batches, v.BatchID)
 		}
-		if reason := activityWaitReason("花笺集芳", v.Observed, v.Found, v.EnterReady, v.Valid, v.BatchID); reason != "" {
+		module := snapshot.policy.GetActivity().GetCyclicNote()
+		if reason := cyclicNoteWaitReason(v, module.GetAutoClaimTaskRewards() || module.GetSatisfyTasks()); reason != "" {
 			reasons = append(reasons, reason)
 		}
 	}
@@ -42,6 +45,27 @@ func (r *Runner) emitActivityDiagnostic(snapshot tickSnapshot, now time.Time) {
 	}
 	r.queueActivityBatchSync(batches)
 	r.emit(Event{Kind: "activity_diagnostic", Category: "activity", Domain: "activity.sync", Action: "wait", Label: "活动同步诊断", Message: reason})
+}
+
+// A valid batch is not proof of observed task progress. New accounts may
+// have a task list but no task record yet; do not silently label that ready,
+// fabricate zero progress, or keep retrying enter on every decision tick.
+func cyclicNoteWaitReason(v state.CyclicNoteView, needsTasks bool) string {
+	if reason := activityWaitReason("花笺集芳", v.Observed, v.Found, v.EnterReady, v.Valid, v.BatchID); reason != "" {
+		return reason
+	}
+	if !needsTasks || v.Phase != 2 {
+		return ""
+	}
+	if !v.TaskListObserved {
+		return fmt.Sprintf("花笺集芳：批次 %d 任务列表待初始化，等待调度", v.BatchID)
+	}
+	for _, task := range v.Tasks {
+		if task.Unlocked && (!task.ProgressObserved || !task.ReceiptObserved) {
+			return fmt.Sprintf("花笺集芳：批次 %d 任务进度或领取记录尚未下发；相关业务仍按各自设置执行，记录确认前不领取任务奖励", v.BatchID)
+		}
+	}
+	return ""
 }
 
 func activityWaitReason(name string, observed, found, enterReady, valid bool, batch int32) string {
