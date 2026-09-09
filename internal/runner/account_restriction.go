@@ -25,6 +25,9 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) error {
 	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPC(name) }); err != nil {
 		return err
 	}
+	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
+		return err
+	}
 	return r.validateRaceMutationBeforeSend(ctx, name)
 }
 

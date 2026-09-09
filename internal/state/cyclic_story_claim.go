@@ -11,7 +11,7 @@ func (s *State) CyclicStoryEnterSnapshot(now time.Time) (CyclicStoryEnterSnapsho
 	if !ok || !view.EnterReady || view.BatchID <= 0 {
 		return CyclicStoryEnterSnapshot{}, false
 	}
-	if view.OrdersObserved && view.OrdersValid {
+	if view.OrdersObserved && view.OrdersValid && view.Valid {
 		return CyclicStoryEnterSnapshot{}, false
 	}
 	return CyclicStoryEnterSnapshot{At: now, BatchID: view.BatchID, Phase: view.Phase}, true
@@ -24,7 +24,7 @@ func (s *State) CyclicStoryEnterApplied(snapshot CyclicStoryEnterSnapshot) bool 
 		return false
 	}
 	view, ok := s.CyclicStoryView(snapshot.At)
-	return ok && view.EnterReady && view.BatchID == snapshot.BatchID && view.OrdersObserved && view.OrdersValid
+	return ok && view.Valid && view.EnterReady && view.BatchID == snapshot.BatchID && view.OrdersObserved && view.OrdersValid
 }
 
 // CyclicStoryOrderClaimSnapshot validates one active order that can be

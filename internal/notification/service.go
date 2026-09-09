@@ -81,6 +81,10 @@ func (s *Service) Run(ctx context.Context) {
 // incidents. An intentional disconnect must not become a webhook alert.
 func Classify(e store.EventLog) *store.NotificationSignal {
 	switch e.Kind {
+	case "connection_unavailable":
+		return &store.NotificationSignal{Kind: "connection", Message: "账号连接异常，自动化暂不可用，请查看控制台", Severity: 2}
+	case "connection_recovered":
+		return &store.NotificationSignal{Kind: "connection", Message: "账号连接已恢复，自动化将按当前配置运行", Recovered: true}
 	case "account_request_paused":
 		return &store.NotificationSignal{Kind: "account_request", Message: "账号进入请求保护，游戏请求已暂停，请查看控制台", Severity: 2}
 	case "account_request_resumed":

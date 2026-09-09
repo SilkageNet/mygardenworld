@@ -198,7 +198,7 @@ func (s *State) CyclicStoryView(now time.Time) (CyclicStoryView, bool) {
 		template != nil && template.IdentityValid && template.TmpID == batch.TmpID && template.TmpType == config.TmpType &&
 		template.BoxesObserved && template.BoxesValid
 	// Enter can bootstrap a fresh batch before score/bag/orders arrive.
-	out.EnterReady = identityReady && (phase == 2 || phase == 3)
+	out.EnterReady = activityBatchEnterReady(batch, cyclicStoryTmpType, phase)
 	out.Valid = identityReady && batch.ScoreObserved && batch.ScoreValid && batch.BagObserved && batch.BagValid &&
 		(!batch.Story.FinishCountObserved || batch.Story.FinishCountValid) &&
 		(!batch.Story.ExpOrderNumObserved || batch.Story.ExpOrderNumValid) &&

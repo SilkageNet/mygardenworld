@@ -20,6 +20,9 @@ func TestClassifyOnlyActionableEventsWithSafeMessages(t *testing.T) {
 		severity     int
 		recovered    bool
 	}{
+		{"connection_unavailable", "unavailable", true, 2, false},
+		{"connection_unavailable", "start_failed", true, 2, false},
+		{"connection_recovered", "recovered", true, 0, true},
 		{"account_request_paused", "blocked", true, 2, false},
 		{"account_request_resumed", "resumed", true, 0, true},
 		{"session_expired", "retry_scheduled", true, 1, false},

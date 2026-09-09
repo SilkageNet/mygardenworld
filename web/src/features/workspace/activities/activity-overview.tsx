@@ -78,9 +78,9 @@ export function InactiveActivityOverview({
   return (
     <div className="space-y-3">
       <EmptyState
-        title={observed ? "当前没有开放批次" : "活动状态尚未同步"}
+        title={observed ? "尚未发现开放批次" : "活动状态尚未同步"}
         detail={observed
-          ? "游戏活动状态已同步，目前没有处于预告、进行中或领奖期的批次。"
+          ? "已收到部分活动状态，但尚未发现当前批次。若游戏内活动已开放，请查看活动日志；系统不会猜测批次或提交未知任务。"
           : "连接游戏并完成活动状态同步后，这里会自动显示当前批次。"}
       />
       <div className="grid gap-2 sm:grid-cols-3">

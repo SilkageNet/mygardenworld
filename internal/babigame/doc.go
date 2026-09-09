@@ -176,6 +176,12 @@
 // present. Task completion uses raw server progress; UI progress is clamped.
 // Slot unlock, paid reroll/direct-complete, gifts, and the activity shop are
 // deliberately outside the safe automatic surface.
+// Initialization uses the batch identity and active/grace phase, not the lazy
+// score/bag/task fields; reward submission still requires the full valid view.
+// The official client also handles bst act_refreshBatch notices by calling
+// act.syncBatchInfo with batchIdList from refreshBatchIds. The runner coalesces
+// those IDs and synchronizes them on its serialized, paced decision loop.
+// An empty/missing list is not evidence of a supported full-discovery RPC.
 //
 // # Guild Land State (Namespace 25.102)
 //

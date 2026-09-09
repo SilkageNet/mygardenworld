@@ -707,6 +707,8 @@ type MainTaskClaimSnapshot struct {
 // CyclicNoteView is a defensive snapshot of the dynamically selected
 // 花笺集芳 (tmpType 4002) activity in namespace 23.
 type CyclicNoteView struct {
+	EnterReady                bool
+	TaskListValid             bool
 	Observed                  bool
 	Found                     bool
 	Valid                     bool
@@ -849,7 +851,7 @@ type CyclicStoryMilestoneClaimSnapshot struct {
 
 // CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.
 // Enter is only safe while the batch is in its active or reward-grace phase
-// and before its authoritative task list has been observed.
+// and its authoritative task/resource/template state still needs initialization.
 type CyclicNoteEnterSnapshot struct {
 	At      time.Time
 	BatchID int32

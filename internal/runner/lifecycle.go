@@ -39,6 +39,10 @@ func (r *Runner) Start(ctx context.Context) error {
 		r.mu.Lock()
 		r.cancel = nil
 		r.mu.Unlock()
+		if ctx.Err() == nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrMaintenance) && !isReputationGuardError(err) && !r.isSessionInvalidated() {
+			r.emit(Event{Kind: "connection_unavailable", Category: "account", Domain: "account.connection", Action: "start_failed",
+				Label: "连接异常", Level: "error", Message: "账号启动失败，未进入自动重连，请查看启动错误后重试"})
+		}
 		return err
 	}
 
@@ -77,6 +81,7 @@ func (r *Runner) Start(ctx context.Context) error {
 		return fail(err)
 	}
 
+	r.emitConnectionRecovered()
 	go r.decisionLoop(rctx)
 	go r.connectionLoop(rctx, username, password, client)
 	return nil
@@ -215,6 +220,9 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 		return nil, gateErr
 	}
 	client := babigame.NewClient(session)
+	// Activity notices can arrive during login, before invalidation handlers
+	// are safe to install on a not-yet-validated cached session.
+	client.OnBinary(r.observeActivityRefresh)
 	client.OnClosed = releaseConnection
 	context.AfterFunc(connectionCtx, func() { _ = client.Close() })
 	client.DebugWriter = r.debugWriter
@@ -388,6 +396,7 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetResidentOrderSession()
 	r.mu.Lock()
 	clear(r.cultivateUpgradeRejects)
+	r.lastActivityDiagnostic = ""
 	r.mu.Unlock()
 	if r.state != nil {
 		// Contest window: every login/reconnect must re-fetch the task pool

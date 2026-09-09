@@ -366,6 +366,7 @@ func (s *State) CyclicNoteView(now time.Time) (CyclicNoteView, bool) {
 	out.FinishCountObserved = batch.FinishCountObserved && batch.FinishCountValid
 	out.LastRefreshTimeMs = batch.LastRefreshTimeMs
 	out.TaskListObserved = batch.TaskListObserved
+	out.TaskListValid = batch.TaskListObserved && batch.TaskListValid
 	out.MilestoneReceiptsObserved = batch.BoxesObserved && batch.BoxesValid
 	out.ClaimedMilestoneIndexes = append([]int32(nil), batch.ClaimedBoxes...)
 
@@ -385,6 +386,9 @@ func (s *State) CyclicNoteView(now time.Time) (CyclicNoteView, bool) {
 	recordKey := activityTaskRecordKey(batch.BatchID, cyclicNoteTaskRecordIndex)
 	record := s.activityTaskRecords[recordKey]
 	out.TaskRecordObserved = record != nil
+	// Initialization only needs an authoritative current batch identity. Score,
+	// inventory and reward templates may be lazy-loaded by enter itself.
+	out.EnterReady = activityBatchEnterReady(batch, 4002, phase)
 	out.Valid = catalogOK && config.TmpType == batch.TmpType && batch.BatchID > 0 && batch.IdentityValid && batch.TmpID > 0 &&
 		batch.Status == 1 && batch.BeginMs > 0 && batch.EndMs > batch.BeginMs && batch.DurationBeforeMs >= 0 &&
 		batch.DurationAfterMs >= 0 && batch.ScoreObserved && batch.ScoreValid && batch.BagObserved && batch.BagValid &&
