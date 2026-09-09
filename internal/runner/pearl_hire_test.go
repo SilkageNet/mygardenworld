@@ -209,6 +209,23 @@ func TestPearlHireRechecksAfterPacingWithoutLockingUnsentAttempt(t *testing.T) {
 	}
 }
 
+func TestQueuedPearlHireHonorsAutomationPause(t *testing.T) {
+	r := newOperationEventTestRunner()
+	p := automation.DefaultPolicy()
+	p.AutomationEnabled = false
+	r.SetPolicy(p)
+	ctx := context.WithValue(t.Context(), scheduledOperationKey{}, true)
+	ctx = context.WithValue(ctx, pearlHireSendGuardKey{}, func() error {
+		t.Fatal("paused automation reached spend-time snapshot")
+		return nil
+	})
+	err := r.beforeGameRPC(ctx, clientproto.RPCPearlPlaceHire.String())
+	var notSent *pearlHireNotSentError
+	if !errors.As(err, &notSent) || !strings.Contains(err.Error(), "自动化已关闭") {
+		t.Fatalf("pause did not veto queued hire: %v", err)
+	}
+}
+
 func TestPearlHireOperationRegistryAndFreshSessionReset(t *testing.T) {
 	for _, kind := range []string{
 		clientproto.RPCFrdEnter.String(),

@@ -36,6 +36,9 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 		return err
 	}
 	if guardedHire {
+		if scheduled, _ := ctx.Value(scheduledOperationKey{}).(bool); scheduled && !r.Policy().GetAutomationEnabled() {
+			return fmt.Errorf("自动化已关闭，取消尚未发送的珍珠雇佣")
+		}
 		if err := guard(); err != nil {
 			return err
 		}
