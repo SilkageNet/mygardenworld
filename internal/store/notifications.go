@@ -230,10 +230,6 @@ func (d *DB) ConsumeNotificationEvents(ctx context.Context, userID int64, now ti
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	// Acquire SQLite's write reservation before reading a snapshot.
-	if _, err := tx.ExecContext(ctx, `UPDATE user_notifications SET event_cursor = event_cursor WHERE user_id = ?`, userID); err != nil {
-		return err
-	}
 	var cursor, revision int64
 	var cooldown int
 	err = tx.QueryRowContext(ctx, `SELECT event_cursor, revision, cooldown_minutes FROM user_notifications n JOIN users u ON u.id = n.user_id WHERE n.user_id = ? AND n.enabled = 1 AND u.status = 'active'`, userID).Scan(&cursor, &revision, &cooldown)

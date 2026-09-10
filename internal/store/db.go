@@ -30,7 +30,13 @@ var ErrUserInactive = errors.New("account owner is not active")
 // migrations. Unversioned databases are deliberately rejected; this release
 // carries no historical compatibility code.
 func Open(ctx context.Context, path string) (*DB, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
+	// Reserve the writer at BEGIN, before any transaction reads its snapshot.
+	// Deferred read-to-write upgrades can fail immediately with SQLITE_BUSY
+	// after another connection commits; busy_timeout cannot repair that snapshot.
+	// modernc keeps TxOptions.ReadOnly transactions deferred, preserving WAL
+	// reader/writer concurrency. Keep transactions local and short: never call
+	// network services or re-enter this pool while holding a write transaction.
+	dsn := fmt.Sprintf("file:%s?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
 	sqldb, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)

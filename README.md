@@ -42,6 +42,8 @@ gardend serve --listen 127.0.0.1:50051
 
 数据默认保存在系统用户配置目录下的 `mygardenworld/data`。事件与操作日志默认保留 7 天，可通过 `gardend serve --log-retention-days N` 调整；`0` 表示永久保留，`1` 表示保留 1 天。清理后 SQLite 会复用空闲页，但文件不会自动缩小；如需归还磁盘空间，先停止 `gardend`，再运行 `gardend compact-db --yes`。
 
+需要多个独立实例时，为每个实例指定不同的 `--data-dir` 和 `--listen`，例如分别使用 `gardend serve --data-dir ./data-a --listen 127.0.0.1:50051` 与 `gardend serve --data-dir ./data-b --listen 127.0.0.1:50052`（各自配置启动所需的密钥和管理员密码）。目录分别保存数据库及加密密钥；不要让多个守护进程共用同一数据目录，也不要在不同实例中同时运行同一个游戏账号。当前仅支持本机 SQLite，不支持共享数据库的集群部署或 MySQL。
+
 游戏请求默认按账号间隔 2 秒，同一 RPC 至少间隔 8 秒，同一商城的购买及珍珠雇佣至少间隔 30 秒（心跳保活除外；已有更长冷却仍有效）。运维可通过 `serve --game-request-interval 2s --game-repeat-interval 8s --game-purchase-interval 30s` 调整。该间隔同时覆盖自动操作、手动命令与操作内部连续请求，只是本地预防措施，不代表服务端限流阈值。
 
 普通部署直接停止服务即可统一断开游戏连接。如需保留 Web 可访问、暂停全部游戏交互，可在服务所在机器使用同一版本的 `gardend` 和相同的 `--data-dir`：
