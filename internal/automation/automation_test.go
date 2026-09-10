@@ -3956,8 +3956,9 @@ func TestBuildPlan_UnionDomainWaitsForObservedMembership(t *testing.T) {
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
-		if op.Category == CategoryUnion || op.Category == CategoryRace {
-			t.Fatalf("unobserved membership must gate every guild operation: %+v", op)
+		if (op.Category == CategoryUnion || op.Category == CategoryRace) &&
+			(op.Kind != clientproto.RPCFmlEnter.String() || !op.Executable) {
+			t.Fatalf("unobserved membership must allow only executable identity recovery: %+v", op)
 		}
 	}
 }

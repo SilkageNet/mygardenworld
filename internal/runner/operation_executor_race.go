@@ -125,23 +125,10 @@ func runFmlEnter(ctx context.Context, rt operationRuntime, _ *automation.Planned
 	if rt.runner == nil || rt.runner.state == nil {
 		return nil, fmt.Errorf("fml.enter requires runner state")
 	}
-	v, d, err := rpcResult(rt.rpc.Fml().Enter(
-		ctx,
-		fmlEnterSyncRequest(),
-		babigame.WithPayloadApply(false),
-	))
-	// Mark failures and empty acknowledgements too, otherwise an omitted mb
-	// payload retries every decision tick and can starve ordinary operations.
-	rt.runner.state.MarkFmlMemberPositionSyncAttempt()
-	v, err = checkedPayload(v, d, err)
-	if err != nil {
-		return nil, err
-	}
-	if babigame.HasPayload(v) {
-		v = normalizeFmlEnterV(v)
-		rt.runner.state.ApplyV(v)
-	}
-	return v, nil
+	return rt.runner.syncFmlMembership(func() (json.RawMessage, error) {
+		v, d, err := rpcResult(rt.rpc.Fml().Enter(ctx, fmlEnterSyncRequest(), babigame.WithPayloadApply(false)))
+		return checkedPayload(v, d, err)
+	})
 }
 
 // normalizeFmlEnterV wraps the IFmlTot-shaped response returned by fml.enter

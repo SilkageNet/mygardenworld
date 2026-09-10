@@ -29,6 +29,7 @@ func TestRaceUpgradeBudgetAndIndependentSwitch(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := state.New()
+			s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 			s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 			s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0}],"110":{"42":{"3":0,"4":10,"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}},"116":[{"0":999,"1":42,"3":0,"4":10}]}}`))
 			s.ApplyVMap(map[string]any{"7": map[string]any{"0": map[string]any{"41": tc.balance}}})

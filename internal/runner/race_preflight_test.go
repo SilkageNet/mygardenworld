@@ -202,6 +202,7 @@ func TestRaceTakeRechecksAfterRequestPacing(t *testing.T) {
 
 func TestRaceSendGuardDoesNotLeakToOtherRPCs(t *testing.T) {
 	r := newOperationEventTestRunner()
+	r.state.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	// Invalid race operation would be rejected if accidentally checked.
 	op := &automation.PlannedOp{Kind: clientproto.RPCFmlRaceTakeTask.String()}
 	ctx := context.WithValue(t.Context(), raceMutationContextKey{}, op)

@@ -12,6 +12,7 @@ import (
 
 func TestUnionRacePlansUsrRankWhenQuotaUnobserved(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":82665}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1786291200000,"1":1,"2":1786410000000,"3":1786885200000},"112":[{"0":1786291200000,"1":82665,"5":4}],"0":{"0":82665,"103":4}}}`))
 	v := s.FmlRace()
 	if !v.BatchActive || v.BatchID == 0 || v.TaskQuotaObserved {
@@ -29,6 +30,7 @@ func TestUnionRacePlansUsrRankWhenQuotaUnobserved(t *testing.T) {
 
 func TestUnionRacePlansUsrRankForScoreWhenIdle(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	// Quota observed via 110, pool observed, nothing to take/finish — still need score/rank.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":99}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000000},"117":{"5":4},"110":{"42":{"3":0}},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":1,"14":0,"15":0}]}}`))
 	got := s.FmlRace()

@@ -31,7 +31,7 @@ func unionOperations(s *state.State, policy *pb.Policy, now time.Time) []Planned
 	// automation stays closed. Sparse stale guild/race fragments never reopen it.
 	build := s.FmlBuild()
 	if !build.MembershipObserved || build.MemberFmlID <= 0 {
-		return nil
+		return unionMembershipOperations(build, union, now)
 	}
 	uid := s.RoleID()
 	gates := raceModuleGatesFromPolicy(policy)

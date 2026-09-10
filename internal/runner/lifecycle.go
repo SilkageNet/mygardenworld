@@ -277,15 +277,7 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
-	if v, err := client.LazySync(ctx); err == nil {
-		r.state.ApplyV(v)
-	} else {
-		r.log.Warn("ws lazy sync failed", "err", err)
-	}
-	// index.login + lazySync form the startup membership baseline. Some channel
-	// fronts omit IFmlTot.mb (25.1) for joined accounts, so finalization also
-	// accepts the guild ID in IFmlTot.fml (25.0) as positive membership evidence.
-	r.state.FinalizeFmlMembershipSnapshot()
+	r.applyStartupLazySync(client.LazySync(ctx))
 	if r.isSessionInvalidated() {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -448,7 +440,16 @@ func (r *Runner) attachClientHandlers(client *babigame.Client) {
 		ns := ns
 		client.OnNamespace(ns, func(_ string, raw json.RawMessage, _ babigame.WSResponseD) {
 			fragment, _ := json.Marshal(map[string]json.RawMessage{ns: raw})
+			if ns != "25" {
+				r.state.ApplyV(fragment)
+				return
+			}
+			before := r.state.FmlBuild()
 			r.state.ApplyV(fragment)
+			after := r.state.FmlBuild()
+			if before.MembershipObserved != after.MembershipObserved || before.MemberFmlID != after.MemberFmlID {
+				r.emitFmlMembershipDiagnostic("namespace.25", before, nil)
+			}
 		})
 	}
 }

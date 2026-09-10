@@ -1252,13 +1252,13 @@ func TestClassifyOperationError(t *testing.T) {
 		{
 			name: "fml enter account has no guild",
 			kind: clientproto.RPCFmlEnter.String(),
-			err:  errors.New(`rpc fml.enter: server: {"code":109,"args":[]}`),
+			err:  &babigame.RPCServerError{Name: clientproto.RPCFmlEnter, Envelope: babigame.WSResponseD{M: json.RawMessage(`{"code":109,"args":[]}`)}},
 			want: operationErrorFmlNotJoined,
 		},
 		{
 			name: "race account has no guild",
 			kind: clientproto.RPCFmlRaceGetTaskList.String(),
-			err:  errors.New("rpc fmlRace.getTaskList: server: 您还未加入任何公会"),
+			err:  &babigame.RPCServerError{Name: clientproto.RPCFmlRaceGetTaskList, Envelope: babigame.WSResponseD{M: json.RawMessage(`{"msg":"您还未加入任何公会"}`)}},
 			want: operationErrorFmlNotJoined,
 		},
 		{

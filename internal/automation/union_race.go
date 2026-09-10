@@ -81,13 +81,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 	view := s.FmlRace()
 	build := s.FmlBuild()
-	if build.MembershipObserved && build.MemberFmlID <= 0 {
-		return nil
-	}
-	// A race batch is itself proof of guild membership for sparse deltas. Until
-	// one has been observed, require the authoritative guild ID from namespace
-	// 25.0 before sending any race bootstrap RPC.
-	if !view.Observed && build.FmlID <= 0 {
+	if !build.MembershipObserved || build.MemberFmlID <= 0 {
 		return nil
 	}
 
@@ -432,7 +426,7 @@ func ValidateRaceUpgrade(s *state.State, policy *pb.UnionRacePolicy, op *Planned
 	view := s.FmlRace()
 	build := s.FmlBuild()
 	if !view.ActiveAt(now) || view.BatchID != op.RaceBatchID || !view.TasksObserved || view.TaskPoolStale || raceTaskPoolTTLStale(view, now) ||
-		(build.MembershipObserved && build.MemberFmlID <= 0) {
+		!build.MembershipObserved || build.MemberFmlID <= 0 {
 		return fmt.Errorf("竞赛当前周期或任务池尚未确认")
 	}
 	if !view.Taken.HasTask || view.Taken.TaskMsId != op.TaskMsID ||
@@ -1405,6 +1399,10 @@ func raceTakenScore(view state.FmlRaceView) int32 {
 // full-field race plants of sub-threshold tasks). Started tasks (FinishCnt>0)
 // are never blocked by the score-unresolved gate alone.
 func raceTakenBlocksProgress(s *state.State, policy *pb.UnionRacePolicy, view state.FmlRaceView, gates RaceModuleGates) bool {
+	build := s.FmlBuild()
+	if !build.MembershipObserved || build.MemberFmlID <= 0 {
+		return true
+	}
 	taken := view.Taken
 	if policy == nil || !policy.GetAutoGiveUpTask() || !taken.HasTask {
 		return false

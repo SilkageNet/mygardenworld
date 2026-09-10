@@ -145,6 +145,9 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	if op.Kind == clientproto.RPCFmlRaceTakeTask.String() || op.Kind == clientproto.RPCFmlRaceDelTask.String() {
 		ctx = context.WithValue(ctx, raceMutationContextKey{}, op)
 	}
+	if isGuildRPC(op.Kind) && op.Kind != clientproto.RPCFmlEnter.String() {
+		ctx = context.WithValue(ctx, fmlExecutionContextKey{}, r.state.FmlBuild().MemberFmlID)
+	}
 	rawRPC := babigame.NewRPCClient(
 		client,
 		session,

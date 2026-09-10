@@ -248,26 +248,21 @@ func isFmlRaceRPCKind(kind string) bool {
 }
 
 func isFmlNotJoinedError(kind string, err error) bool {
-	if err == nil || (!strings.HasPrefix(kind, "fml.") &&
-		!strings.HasPrefix(kind, "fmlRace.") &&
-		!strings.HasPrefix(kind, "fmlLand.") &&
-		!strings.HasPrefix(kind, "fmlFlowerShare.") &&
-		!strings.HasPrefix(kind, "fmlForest.")) {
+	var rpcErr *babigame.RPCServerError
+	if !isGuildRPC(kind) || !errors.As(err, &rpcErr) || rpcErr == nil || !isGuildRPC(rpcErr.Name.String()) {
 		return false
 	}
-	msg := err.Error()
+	// Match the actual failed RPC, not a containing multi-step operation or
+	// local preflight text. Network errors are not membership evidence.
+	if code := rpcErr.Envelope.ErrorCode(); code == 97777 || code == 97778 {
+		return false
+	}
+	msg := rpcErr.Envelope.ErrorMsg()
 	if strings.Contains(msg, "未加入任何公会") || strings.Contains(msg, "未加入公会") {
 		return true
 	}
 	// fml.enter returns bare code 109 for an account without a guild.
-	if kind != clientproto.RPCFmlEnter.String() {
-		return false
-	}
-	var rpcErr *babigame.RPCServerError
-	if errors.As(err, &rpcErr) && rpcErr != nil {
-		return rpcErr.Envelope.ErrorCode() == 109
-	}
-	return strings.Contains(msg, `"code":109`) || strings.Contains(msg, `"code": 109`)
+	return rpcErr.Name == clientproto.RPCFmlEnter && rpcErr.Envelope.ErrorCode() == 109
 }
 
 func isRaceTakeOnCooldownError(kind string, err error) bool {

@@ -312,6 +312,10 @@ func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time)
 	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
 		return false
 	}
+	build := s.FmlBuild()
+	if !build.MembershipObserved || build.MemberFmlID <= 0 {
+		return false
+	}
 	race := policy.GetUnion().GetRace()
 	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
