@@ -26,6 +26,13 @@ func (s *State) ApplyVFullFmlRaceTaskPool(rawV json.RawMessage) {
 	s.applyV(rawV, applyHints{fullFmlRaceTaskPool: true})
 }
 
+// ApplyVFmlMembership applies a successful, normalized fml.enter response.
+// Only this explicit read may use a returned guild record when mb is omitted;
+// cached guild records and ordinary namespace pushes cannot confirm membership.
+func (s *State) ApplyVFmlMembership(rawV json.RawMessage) {
+	s.applyV(rawV, applyHints{fullFmlMembership: true})
+}
+
 func (s *State) applyV(rawV json.RawMessage, hints applyHints) {
 	if len(rawV) == 0 {
 		return
@@ -51,6 +58,7 @@ func (s *State) ApplyVMap(top map[string]any) {
 
 type applyHints struct {
 	fullFmlRaceTaskPool bool
+	fullFmlMembership   bool
 }
 
 func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
@@ -164,7 +172,7 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 		s.applyPalaceOrderLocked(rawNS108)
 	}
 	if rawNS25, ok := top["25"]; ok {
-		s.applyFmlLocked(rawNS25, hints.fullFmlRaceTaskPool)
+		s.applyFmlLocked(rawNS25, hints)
 	}
 	if rawNS112, ok := top["112"]; ok {
 		s.applyShopGiftbagLocked(rawNS112)

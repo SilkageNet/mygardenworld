@@ -8,11 +8,39 @@ import (
 	"time"
 )
 
-func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
+func (s *State) applyFmlLocked(raw json.RawMessage, hints applyHints) {
 	var ns25 map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &ns25); err != nil {
 		return
 	}
+	fullRaceTaskPool := hints.fullFmlRaceTaskPool
+	rawMember, memberPresent := ns25["1"]
+	memberConfirmed := false
+	if memberPresent {
+		memberConfirmed = s.applyFmlMemberObjectLocked(rawMember)
+	}
+	// fml.enter may return the current user only inside mbL (25.2), even when
+	// mb=1 was requested. Use the member list strictly as a fallback matched by
+	// the authenticated role UID; an explicit null 25.1 remains authoritative.
+	if rawMembers, ok := ns25["2"]; ok &&
+		(!memberConfirmed || (s.fmlBuild.MemberFmlID > 0 && !s.fmlBuild.MemberPositionObserved)) {
+		expectedID := int32(0)
+		if memberConfirmed {
+			expectedID = s.fmlBuild.MemberFmlID
+		}
+		memberConfirmed = s.applyFmlMemberListForCurrentRoleLocked(rawMembers, expectedID) || memberConfirmed
+	}
+	if hints.fullFmlMembership && !memberPresent && !memberConfirmed {
+		var guild map[string]json.RawMessage
+		if json.Unmarshal(ns25["0"], &guild) == nil {
+			if id, ok := readInt32JSONField(guild, "0"); ok && id > 0 &&
+				(!s.fmlBuild.MembershipObserved || s.fmlBuild.MemberFmlID != id) {
+				s.setFmlMembershipLocked(id)
+			}
+		}
+	}
+	// Membership changes invalidate the old guild before applying this delta's
+	// domain facts. A new guild must not inherit the previous guild's task pool.
 	prevTaken := s.fmlRace.Taken
 	s.fmlBuild.Observed = true
 	if s.fmlBuild.BuildCounts == nil {
@@ -20,17 +48,6 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	}
 	if rawFml, ok := ns25["0"]; ok {
 		s.applyFmlObjectLocked(rawFml)
-	}
-	rawMember, memberPresent := ns25["1"]
-	if memberPresent {
-		s.applyFmlMemberObjectLocked(rawMember)
-	}
-	// fml.enter may return the current user only inside mbL (25.2), even when
-	// mb=1 was requested. Use the member list strictly as a fallback matched by
-	// the authenticated role UID; an explicit null 25.1 remains authoritative.
-	if rawMembers, ok := ns25["2"]; ok &&
-		(!memberPresent || (s.fmlBuild.MemberFmlID > 0 && !s.fmlBuild.MemberPositionObserved)) {
-		s.applyFmlMemberListForCurrentRoleLocked(rawMembers)
 	}
 	if rawBuild, ok := ns25["133"]; ok {
 		s.applyFmlBuildObjectLocked(rawBuild)
@@ -176,37 +193,49 @@ func (s *State) applyFmlObjectLocked(raw json.RawMessage) {
 // current-user guild membership record. IFmlTot.fml (25.0) can survive as
 // cached guild/race data after the user has left and is therefore not proof of
 // current membership.
-func (s *State) applyFmlMemberObjectLocked(raw json.RawMessage) {
-	s.fmlBuild.MembershipObserved = true
-	s.fmlBuild.MemberFmlID = 0
-	s.fmlBuild.MemberPositionObserved = false
-	s.fmlBuild.MemberPosition = 0
-	if len(raw) == 0 || string(raw) == "null" {
-		return
+func (s *State) applyFmlMemberObjectLocked(raw json.RawMessage) bool {
+	if isJSONNull(raw) {
+		s.setFmlMembershipLocked(0)
+		return true
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return
+		return false
 	}
-	if id, ok := readInt32JSONField(fields, "1"); ok {
-		s.fmlBuild.MemberFmlID = id
-		if s.fmlBuild.FmlID <= 0 {
-			s.fmlBuild.FmlID = id
+	if rawUID, present := fields["0"]; present {
+		uid, valid := readInt64JSONField(fields, "0")
+		if !valid || uid <= 0 || isJSONNull(rawUID) || (s.roleID > 0 && uid != s.roleID) {
+			return false
 		}
 	}
-	if position, ok := readInt32JSONField(fields, "2"); ok {
+	if rawID, present := fields["1"]; present && isJSONNull(rawID) {
+		return false
+	}
+	confirmed := false
+	if id, ok := readInt32JSONField(fields, "1"); ok {
+		if id < 0 {
+			return false
+		}
+		s.setFmlMembershipLocked(id)
+		confirmed = true
+	} else if _, present := fields["1"]; present {
+		return false
+	}
+	if position, ok := readInt32JSONField(fields, "2"); ok &&
+		s.fmlBuild.MembershipObserved && s.fmlBuild.MemberFmlID > 0 {
 		s.fmlBuild.MemberPositionObserved = true
 		s.fmlBuild.MemberPosition = position
 	}
+	return confirmed
 }
 
-func (s *State) applyFmlMemberListForCurrentRoleLocked(raw json.RawMessage) {
+func (s *State) applyFmlMemberListForCurrentRoleLocked(raw json.RawMessage, expectedID int32) bool {
 	if s.roleID <= 0 || len(raw) == 0 || string(raw) == "null" {
-		return
+		return false
 	}
 	var members []json.RawMessage
 	if err := json.Unmarshal(raw, &members); err != nil {
-		return
+		return false
 	}
 	for _, rawMember := range members {
 		var fields map[string]json.RawMessage
@@ -217,9 +246,12 @@ func (s *State) applyFmlMemberListForCurrentRoleLocked(raw json.RawMessage) {
 		if !ok || uid != s.roleID {
 			continue
 		}
-		s.applyFmlMemberObjectLocked(rawMember)
-		return
+		if id, present := readInt32JSONField(fields, "1"); expectedID > 0 && present && id != expectedID {
+			continue // A fallback list must not override the explicit self record.
+		}
+		return s.applyFmlMemberObjectLocked(rawMember)
 	}
+	return false
 }
 
 func (s *State) applyFmlBuildObjectLocked(raw json.RawMessage) {
@@ -548,20 +580,14 @@ func (s *State) FmlBuildOptionUsageAt(optionID int32, now time.Time) FmlBuildOpt
 	return usage
 }
 
-// BeginFmlMembershipSnapshot starts a new connection epoch. Guild and race
-// snapshots may remain available for diagnostics, but their previous guild ID
-// must not count as current membership until login + lazySync provide evidence
-// for this epoch.
+// BeginFmlMembershipSnapshot starts a new connection epoch. All typed guild
+// facts require a fresh baseline; otherwise a member-omitting login into a
+// different guild could accidentally inherit the old guild's lands/task pool.
+// Raw namespace observations remain available for diagnostics.
 func (s *State) BeginFmlMembershipSnapshot() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fmlBuild.FmlID = 0
-	s.fmlBuild.MembershipObserved = false
-	s.fmlBuild.MemberFmlID = 0
-	s.fmlBuild.MemberPositionObserved = false
-	s.fmlBuild.MemberPosition = 0
-	s.fmlBuild.MemberPositionSyncAtMs = 0
-	s.fmlForestRefreshAttemptAtMs = 0
+	s.unionState = unionState{}
 	s.bumpRevisionLocked()
 }
 
@@ -569,12 +595,14 @@ func (s *State) BeginFmlMembershipSnapshot() {
 // account is not currently a guild member. It lets every guild planner stop
 // immediately even if stale IFml/race records remain in the login snapshot.
 func (s *State) MarkNoFmlMembership() {
+	s.MarkNoFmlMembershipAt(time.Now())
+}
+
+func (s *State) MarkNoFmlMembershipAt(at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.fmlBuild.MembershipObserved = true
-	s.fmlBuild.MemberFmlID = 0
-	s.fmlBuild.MemberPositionObserved = false
-	s.fmlBuild.MemberPosition = 0
+	s.setFmlMembershipLocked(0)
+	s.fmlBuild.MembershipSyncAtMs = at.UnixMilli()
 	s.fmlBuild.MemberPositionSyncAtMs = 0
 	s.fmlForestRefreshAttemptAtMs = 0
 	s.bumpRevisionLocked()
@@ -629,10 +657,8 @@ func (s *State) FinalizeFmlMembershipSnapshot() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.fmlBuild.MembershipObserved {
-		s.fmlBuild.MembershipObserved = true
-		if s.fmlBuild.FmlID > 0 {
-			s.fmlBuild.MemberFmlID = s.fmlBuild.FmlID
-		}
+		s.setFmlMembershipLocked(s.fmlBuild.FmlID)
+		s.fmlBuild.MembershipSyncAtMs = time.Now().UnixMilli()
 		s.bumpRevisionLocked()
 	}
 }

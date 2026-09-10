@@ -84,6 +84,7 @@ type orderState struct {
 }
 
 type unionState struct {
+	lastConfirmedFmlID          int32
 	fmlBuild                    FmlBuildView
 	fmlLandObserved             bool
 	fmlLands                    map[int32]*FmlLandView

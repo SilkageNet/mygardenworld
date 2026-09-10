@@ -128,6 +128,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "union.flower_take", Label: "公会摸花", Category: CategoryUnion, Domain: "union.flower.take", Action: "take", Status: PlanStatusManaged, Executable: true},
 	{ID: "union.race", Label: "公会竞赛", Category: CategoryRace, Domain: "union.race", Action: "race", Status: PlanStatusSyncOnly, SyncOnly: true},
 	{ID: "union.race.enter", Label: "公会竞赛进入", Category: CategoryRace, Domain: "union.race.enter", Action: "enter", Status: PlanStatusManaged, Executable: true},
+	{ID: "union.membership.sync", Label: "公会身份同步", Category: CategoryUnion, Domain: "union.membership.sync", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "union.race.sync", Label: "公会竞赛任务同步", Category: CategoryRace, Domain: "union.race.sync", Action: "sync", Status: PlanStatusManaged, Executable: true},
 	{ID: "union.race.take", Label: "公会竞赛接任务", Category: CategoryRace, Domain: "union.race.take", Action: "take", Status: PlanStatusManaged, Executable: true},
 	{ID: "union.race.progress", Label: "公会竞赛进行任务", Category: CategoryRace, Domain: "union.race", Action: "progress", Status: PlanStatusManaged, Executable: true},

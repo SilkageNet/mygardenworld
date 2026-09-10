@@ -187,6 +187,17 @@
 // those IDs and synchronizes them on its serialized, paced decision loop.
 // An empty/missing list is not evidence of a supported full-discovery RPC.
 //
+// # Guild Membership (Namespace 25.1)
+//
+// IFmlTot.mb uses uid=0, fid=1, pos=2; contribution/activity updates may omit
+// fid and must merge rather than clear membership (tmp/mini/176 IFmlMb).
+// Explicit null mb or fid=0 closes guild execution. fml.enter requests
+// {fml:1,mb:1,mbL:1}; replies can be bare IFmlTot or wrapped in namespace 25.
+// mbL (25.2) is a fallback only for the authenticated UID. A successful explicit
+// enter may supply only the current guild record; ordinary cached 25.0/race
+// deltas do not establish membership. Bare code 109 is observed for fml.enter
+// without a guild; timeouts and 97777/97778 are not membership evidence.
+//
 // # Guild Land State (Namespace 25.102)
 //
 // Guild/union planting lives under namespace 25 field 102 (IFmlLand):

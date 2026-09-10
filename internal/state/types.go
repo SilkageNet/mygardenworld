@@ -262,6 +262,8 @@ type FmlBuildView struct {
 	MemberPositionObserved bool            `json:"member_position_observed,omitempty"`
 	MemberPosition         int32           `json:"member_position,omitempty"`
 	MemberPositionSyncAtMs int64           `json:"member_position_sync_at_ms,omitempty"`
+	MembershipSyncAtMs     int64           `json:"membership_sync_at_ms,omitempty"`
+	MembershipSyncAttempts int             `json:"membership_sync_attempts,omitempty"`
 	TodayBuildNum          int32           `json:"today_build_num,omitempty"`
 	LastBuildTimeMs        int64           `json:"last_build_time_ms,omitempty"`
 	FlowerTakeCnt          int32           `json:"flower_take_cnt,omitempty"` // 25.0.102 公会摸花次数上限

@@ -48,7 +48,7 @@ func raceStateJSONWithParams(tasks [][5]int32, plantParam int32) string {
 		}
 		pool = "[" + strings.Join(parts, ",") + "]"
 	}
-	return `{"25":{"111":{"0":42,"1":1},"117":{"5":4},"110":{"42":{"3":0,"4":0}},"114":` + pool + `}}`
+	return `{"25":{"1":{"1":42},"111":{"0":42,"1":1},"117":{"5":4},"110":{"42":{"3":0,"4":0}},"114":` + pool + `}}`
 }
 
 // applyRaceState seeds cultivated flower 23001, unlocked vase 3002, and an
@@ -117,6 +117,7 @@ func raceGatesNoCultivate() RaceModuleGates {
 
 func TestUnionRaceDisabledProducesNoOps(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
 	policy := &pb.UnionRacePolicy{Enabled: false}
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
@@ -289,6 +290,7 @@ func TestUnionRaceEmptyEnterProbeBacksOffWithoutStarvingOtherWork(t *testing.T) 
 	now := time.Date(2026, time.August, 25, 10, 0, 0, 0, time.Local)
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88}}}`))
+	s.FinalizeFmlMembershipSnapshot()
 	s.MarkFmlRaceLvlSyncAttemptAt(now)
 	policy := testRacePolicy()
 
@@ -309,6 +311,7 @@ func TestUnionRaceEmptyEnterProbeBacksOffWithoutStarvingOtherWork(t *testing.T) 
 
 func TestUnionRaceEnterNotEmittedWhenObserved(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Race data present → Observed=true → no enter op.
 	s.ApplyV(json.RawMessage(raceStateJSON([][5]int32{{1, 3036, 10, 0, 0}})))
 	policy := testRacePolicy()
@@ -348,6 +351,7 @@ func TestUnionRaceDoesNotGiveUpWithoutExplicitOptIn(t *testing.T) {
 
 func TestUnionRaceAutoGiveUpIsIndependentFromAutoComplete(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"12":999}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":0,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
 	policy.AutoEnableModules = false
@@ -363,7 +367,9 @@ func TestUnionRaceAutoGiveUpIsIndependentFromAutoComplete(t *testing.T) {
 func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	// Enabled + !AutoEnableModules: observe/sync the pool for UI, but never take.
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88}}}`))
+	s.FinalizeFmlMembershipSnapshot()
 	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false}
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceEnter.String() {
@@ -371,6 +377,8 @@ func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	}
 
 	s = state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4}}}`))
 	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
@@ -378,6 +386,7 @@ func TestUnionRaceAutoModulesOffStillSyncsAndRefreshes(t *testing.T) {
 	}
 
 	s = state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	now := time.UnixMilli(synced).Add(raceMaintenanceTaskPoolRefreshInterval + time.Second)
@@ -543,6 +552,7 @@ func TestUnionRacePriorityZeroFallsThroughToPositive(t *testing.T) {
 
 func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Taken material-shop 3017 (priority 0), unfinished with no progress.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3017,"10":24,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3017,"2":60,"3":0}}}}}`))
 	policy := testRacePolicy()
@@ -567,6 +577,7 @@ func TestUnionRaceGiveUpTakenPriorityZero(t *testing.T) {
 
 func TestUnionRaceGiveUpLowScoreEvenWithProgress(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Low score + FinishCnt>0 → still give up (do not plant a sub-threshold hold to completion).
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":60,"3":16,"4":[23001]}}}}}`))
 	policy := testRacePolicy()
@@ -588,6 +599,7 @@ func TestUnionRaceGiveUpLowScoreEvenWithProgress(t *testing.T) {
 
 func TestUnionRaceGiveUpTakenMissingFromPool(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	// Taken msId=99 not present in observed pool; completable plant-harvest, FinishCnt=0 → give up for pool gap.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":30,"14":0,"15":0}],"110":{"999":{"7":{"0":99,"1":3036,"2":280,"3":0,"4":[23001]}}}}}`))
@@ -621,6 +633,7 @@ func TestUnionRaceNoGiveUpMissingFromPoolWhenHasProgress(t *testing.T) {
 
 func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	applyRaceState(s, [][5]int32{
 		{1, 3036, 10, 1, 100}, // upgraded by uid 100
 		{2, 3036, 10, 0, 0},   // not upgraded
@@ -638,6 +651,7 @@ func TestUnionRaceExcludeOthersUpgraded(t *testing.T) {
 	// An upgraded row without an identified member is not known to be a
 	// system upgrade. Exclusion must prefer the ordinary task instead.
 	s2 := state.New()
+	s2.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s2.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s2.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
 		{"0":1,"4":3036,"6":[23001],"10":28,"14":1,"15":0},
@@ -702,6 +716,7 @@ func TestRaceUpgradeOwnershipFiltersAllTakePaths(t *testing.T) {
 
 func TestUnionRaceFinishCompletedTask(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// User uid 999 holds task msId 5, FinishCnt 3 == TargetCnt 3 -> finish.
 	// One available task in pool (msId 1, score 10).
 	// Field 110 is a map keyed by UID string: {"999":{"7":{"0":5,"1":3036,"2":3,"3":3}}}
@@ -752,6 +767,7 @@ func TestUnionRaceOnlyUpgradeTaskFilter(t *testing.T) {
 
 func TestUnionRaceBatchInactiveProducesNoOps(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Ended batch (status=2) with closed window → no race ops off-season.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}]}}`))
 	policy := testRacePolicy()
@@ -764,6 +780,7 @@ func TestUnionRaceBatchInactiveProducesNoOps(t *testing.T) {
 
 func TestUnionRaceEnterAtWeeklyOpen(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
 	open := time.Date(2026, 8, 18, 9, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	ops := unionRaceOperations(s, testRacePolicy(), 0, open, raceGatesOn())
@@ -777,6 +794,7 @@ func TestUnionRaceEnterAtWeeklyOpen(t *testing.T) {
 
 func TestUnionRaceNoEnterBeforeWeeklyOpen(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
 	before := time.Date(2026, 8, 18, 8, 59, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	ops := unionRaceOperations(s, testRacePolicy(), 0, before, raceGatesOn())
@@ -787,6 +805,7 @@ func TestUnionRaceNoEnterBeforeWeeklyOpen(t *testing.T) {
 
 func TestUnionRaceEnterWhenPublishedStartArrives(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
 	start := time.Date(2026, 8, 18, 9, 0, 0, 0, loc)
 	end := time.Date(2026, 8, 23, 21, 0, 0, 0, loc)
@@ -802,6 +821,7 @@ func TestUnionRaceEnterWhenPublishedStartArrives(t *testing.T) {
 
 func TestUnionRaceInactiveEnterWaitsForRetry(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":9,"1":2,"2":1000,"3":2000},"117":{"5":4}}}`))
 	open := time.Date(2026, 8, 18, 9, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	s.MarkFmlRaceLvlSyncAttemptAt(open)
@@ -817,6 +837,7 @@ func TestUnionRaceInactiveEnterWaitsForRetry(t *testing.T) {
 
 func TestUnionRaceEnterEmittedWhenOnlyTaskStubsObserved(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	// Task pool / usr stubs without a real CurFmlRaceBatch must still trigger enter.
 	s.ApplyV(json.RawMessage(`{"25":{"0":{"0":88},"114":[{"0":1,"4":3036,"10":10,"14":0,"15":0}],"110":{}}}`))
 	policy := testRacePolicy()
@@ -828,6 +849,7 @@ func TestUnionRaceEnterEmittedWhenOnlyTaskStubsObserved(t *testing.T) {
 
 func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Enter response carries batch 111 but not task pool 114.
 	// Seed fTaskNum so usr-rank quota sync does not preempt getTaskList.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}}}}`))
@@ -844,6 +866,7 @@ func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 func TestUnionRaceUnobservedTaskPoolEmptySuccessUsesBoundedRetry(t *testing.T) {
 	now := time.UnixMilli(1_783_990_800_000)
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}}}}`))
 	s.NoteFmlRaceTaskPoolSync(now)
 	policy := testRacePolicy()
@@ -862,6 +885,7 @@ func TestUnionRaceUnobservedTaskPoolEmptySuccessUsesBoundedRetry(t *testing.T) {
 
 func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Observed pool with a plant-harvest row that never got field-6 param detail.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}},"114":[{"0":178397176088908,"4":4011,"10":25,"14":0,"15":0,"6":[]},{"0":178397176088909,"4":4011,"6":[23001],"10":28,"14":0,"15":0}]}}`))
 	if got := s.FmlRace(); !got.TasksObserved || len(got.Tasks) != 2 || got.Tasks[0].ParamID != 0 || got.Tasks[1].ParamID != 23001 {
@@ -886,6 +910,7 @@ func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 
 func TestUnionRaceGetTaskListWhenFlowerArtCraftMissingVase(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}},"114":[{"0":178397176088910,"4":3034,"10":24,"14":0,"15":0,"6":[]}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3034: 4}
@@ -909,6 +934,7 @@ func TestUnionRaceGetTaskListWhenFlowerArtCraftMissingVase(t *testing.T) {
 
 func TestUnionRaceUpgradeOpEmission(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9,"12":999,"14":0,"15":0}],"110":{"42":{"3":0,"4":10,"7":{"0":1,"1":4001,"2":10,"3":1,"4":[23001]}}},"116":[{"0":999,"1":42,"3":0,"4":10,"5":1000}]}}`))
 	policy := testRacePolicy()
@@ -1081,6 +1107,7 @@ func TestUnionRaceDeleteActivelySyncsMissingMemberPosition(t *testing.T) {
 
 func TestUnionRacePositionSyncPreemptsUnobservedForest(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	applyMap(t, s, map[string]any{
 		"25": map[string]any{
 			"102": map[string]any{},
@@ -1243,6 +1270,7 @@ func TestUnionRaceDeleteRefreshesStalePoolBeforeMutation(t *testing.T) {
 
 func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Task pool: task msId=1, score=5. Taken task: msId=1, not completed (0/3).
 	// Field 110: {"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}  — FinishCnt=0
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":3,"3":0}}}}}`))
@@ -1262,6 +1290,7 @@ func TestUnionRaceGiveUpTaskBelowScoreThreshold(t *testing.T) {
 
 func TestUnionRaceGiveUpUsesPoolScoreWhenTakenScoreUnset(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Pool only (no field 110): score=5 lives on the pool row.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"10":5,"14":0,"15":0}]}}`))
 	// Progress/take ACK creates Taken without score in the payload; finalize/enrich
@@ -1289,6 +1318,7 @@ func TestUnionRaceGiveUpUsesPoolScoreWhenTakenScoreUnset(t *testing.T) {
 
 func TestUnionRaceGiveUpUncultivatedTakenPlantHarvest(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Taken plant-harvest for uncultivated flower 23099 — impossible to complete.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23099],"10":56,"14":0,"15":0}],"110":{"999":{"7":{"0":1,"1":3036,"2":600,"3":0,"4":[23099]}}}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
@@ -1338,6 +1368,7 @@ func TestUnionRaceNoGiveUpWhenTaskComplete(t *testing.T) {
 
 func TestUnionRaceDoesNotFinishUnknownZeroTarget(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1},"117":{"5":4},"114":[{"0":1,"4":4001,"6":[23001],"10":9}],"110":{"42":{"7":{"0":1,"1":4001,"2":0,"3":0,"4":[23001]}}}}}`))
 
 	for _, op := range unionRaceOperations(s, testRacePolicy(), 0, time.Now(), raceGatesOn()) {
@@ -1398,6 +1429,7 @@ func TestUnionRacePrefersReadyOverUpcoming(t *testing.T) {
 	readyAppear := now.UnixMilli()
 	upcomingAppear := now.Add(raceTakeLeadWindow / 2).UnixMilli()
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
 		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"5":%d,"6":[23001],"10":5,"14":0,"15":0},{"0":2,"4":3036,"5":%d,"6":[23001],"10":99,"14":0,"15":0}]}}`,
@@ -1416,6 +1448,7 @@ func TestUnionRacePreemptiveTakeWithinLead(t *testing.T) {
 	now := time.UnixMilli(1_000_000)
 	appear := now.Add(raceTakeLeadWindow / 2).UnixMilli()
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(fmt.Sprintf(
 		`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":7,"4":3036,"5":%d,"6":[23001],"10":10,"14":0,"15":0}]}}`, appear,
@@ -1554,6 +1587,7 @@ func TestBuildPlan_RaceSyncPreemptsHarvestAfterLogin(t *testing.T) {
 
 func TestUnionRaceSkipsUncultivatedPlantHarvest(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Only plant-harvest with unknown / uncultivated flower — no take.
 	s.ApplyV(json.RawMessage(raceStateJSONWithParams([][5]int32{{1, 3036, 10, 0, 0}}, 23099)))
 	ops := unionRaceOperations(s, testRacePolicy(), 0, time.Now(), raceGatesOn())
@@ -1566,6 +1600,7 @@ func TestUnionRaceSkipsUncultivatedPlantHarvest(t *testing.T) {
 
 func TestUnionRaceTakesCultivatedPlantHarvestOverUncultivated(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[
 		{"0":1,"4":3036,"6":[23099],"10":99,"14":0,"15":0},
@@ -1920,6 +1955,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 
 func TestUnionRacePeriodicGetTaskListAfterTTL(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Empty pool: TasksObserved, nothing to take.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
@@ -1972,6 +2008,7 @@ func TestUnionRaceTakeWinsOverPeriodicSync(t *testing.T) {
 func raceStateAtTTL(t *testing.T, appearRem time.Duration, plantParam int32, taskUID int64) (*state.State, time.Time) {
 	t.Helper()
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	if plantParam > 0 {
 		s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(plantParam)}})
 	}
@@ -2030,6 +2067,7 @@ func TestUnionRacePeriodicRunsDespiteFarTakeableCD(t *testing.T) {
 
 func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Cultivate 23001 so the free alternate plant-harvest (msId 56) is genuinely
 	// takeable — a HasTask-guard regression would emit takeTask.
 	s.ApplyVMap(map[string]any{"101": map[string]any{"0": cultivate(23001)}})
@@ -2048,6 +2086,7 @@ func TestUnionRaceNoTakeWhenTakenSynthesizedFromPoolUID(t *testing.T) {
 
 func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Synthesized taken with TargetCnt=0/FinishCnt=0 must not finish.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":4012,"6":[23363],"10":25,"12":999}],"110":{"42":{"3":0}}}}`))
 	ops := unionRaceOperations(s, testRacePolicy(), 999, time.Now(), raceGatesOn())
@@ -2063,6 +2102,7 @@ func TestUnionRaceNoFinishWhenTakenProgressUnknown(t *testing.T) {
 
 func TestUnionRaceGiveUpSynthesizedTakenPriorityZero(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Synthesized taken from pool UID: task type 3017 (priority 0), no progress.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"117":{"5":4},"114":[{"0":55,"4":3017,"7":10,"8":0,"10":25,"12":999}],"110":{"42":{"3":0,"4":0}},"116":[{"0":999,"1":42,"3":0,"4":0}]}}`))
 	policy := testRacePolicy()
@@ -2141,6 +2181,7 @@ func TestUnionRaceTakesFlowerCultivateWhenModuleOff(t *testing.T) {
 
 func TestUnionRaceSkipsFlowerCultivateWithProgress(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	policy := testRacePolicy()
 	policy.AvoidProgressedTasks = proto.Bool(true)
 	policy.TaskTypePriority = map[int32]int32{3044: 4}
@@ -2157,6 +2198,7 @@ func TestUnionRaceSkipsFlowerCultivateWithProgress(t *testing.T) {
 
 func TestUnionRaceGiveUpFlowerCultivateNon36(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":2,"3":0}}},"114":[{"0":71,"4":3044,"7":2,"8":0,"10":18,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3044: 4}
@@ -2282,6 +2324,7 @@ func TestUnionRaceSkipsFlowerArtCraftWithoutTargetVase(t *testing.T) {
 
 func TestUnionRaceGivesUpFlowerArtCraftWithoutTargetVase(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1,"4":[3074]}}},"114":[{"0":71,"4":3034,"6":[3074],"7":5,"8":1,"10":24,"12":999}]},"102":{"0":{"3002":{"1":3002}}}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3034: 4}
@@ -2323,6 +2366,7 @@ func TestUnionRaceTakesFlowerArtSell(t *testing.T) {
 
 func TestUnionRaceFinishesCompletedCustomerOrder(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":5}}},"114":[{"0":71,"4":3019,"7":5,"8":5,"10":24,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4}
@@ -2337,6 +2381,7 @@ func TestUnionRaceFinishesCompletedCustomerOrder(t *testing.T) {
 
 func TestUnionRaceFinishesCompletedPearlHire(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":3}}},"114":[{"0":71,"4":1022,"7":3,"8":3,"10":24,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3023: 4}
@@ -2351,6 +2396,7 @@ func TestUnionRaceFinishesCompletedPearlHire(t *testing.T) {
 
 func TestUnionRaceGiveUpCustomerOrderWhenModuleOff(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":0}}},"114":[{"0":71,"4":3019,"7":5,"8":0,"10":24,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3016: 4}
@@ -2362,6 +2408,7 @@ func TestUnionRaceGiveUpCustomerOrderWhenModuleOff(t *testing.T) {
 
 func TestUnionRaceGiveUpPearlHireWhenModuleOff(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":0}}},"114":[{"0":71,"4":1022,"7":3,"8":0,"10":24,"12":999}]}}`))
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3023: 4}
@@ -2386,6 +2433,7 @@ func TestUnionRaceKeepsFlowerArtWhenCraftModuleOff(t *testing.T) {
 
 func TestUnionRaceCustomerProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3019,"2":5,"3":1}}},"114":[{"0":71,"4":3019,"7":5,"8":1,"10":24,"12":999}]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
@@ -2402,6 +2450,7 @@ func TestUnionRaceCustomerProgressSyncAfterInterval(t *testing.T) {
 
 func TestUnionRacePearlProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":1}}},"114":[{"0":71,"4":1022,"7":3,"8":1,"10":24,"12":999}]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
@@ -2418,6 +2467,7 @@ func TestUnionRacePearlProgressSyncAfterInterval(t *testing.T) {
 
 func TestUnionRaceFlowerArtProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3034,"2":5,"3":1,"4":[3002]}}},"114":[{"0":71,"4":3034,"6":[3002],"7":5,"8":1,"10":24,"12":999}]},"102":{"0":{"3002":{"1":3002}}}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
@@ -2434,6 +2484,7 @@ func TestUnionRaceFlowerArtProgressSyncAfterInterval(t *testing.T) {
 
 func TestUnionRaceFlowerArtSellProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3030,"2":5,"3":1}}},"114":[{"0":71,"4":3030,"7":5,"8":1,"10":24,"12":999}]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
@@ -2450,6 +2501,7 @@ func TestUnionRaceFlowerArtSellProgressSyncAfterInterval(t *testing.T) {
 
 func TestUnionRaceCultivateProgressSyncAfterInterval(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":3044,"2":4,"3":1}}},"114":[{"0":71,"4":3044,"7":4,"8":1,"10":36,"12":999}]}}`))
 	synced := s.FmlRace().TasksSyncedAtMs
 	policy := testRacePolicy()
@@ -2484,6 +2536,7 @@ func TestRaceNeedsFinishProgressSyncCooldown(t *testing.T) {
 
 func TestUnionRaceFinishProgressSyncRespectsCooldown(t *testing.T) {
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	// Held plant-harvest at 48/300; field 134 raises LocalFinishCnt to 300.
 	// Include 117 raceLvl so planner does not divert to enter for tier sync.
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"117":{"5":4},"110":{"1785081600000":{"3":0,"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
@@ -2576,6 +2629,7 @@ func TestBuildPlan_RaceGiveUpPreemptsCustomerFinish(t *testing.T) {
 func TestBuildPlan_RacePearlHireLinksHire(t *testing.T) {
 	now := time.Now().Add(2 * time.Second)
 	s := state.New()
+	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":88}}}`))
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999,"32":{"1003":3}}},"25":{"111":{"1":1},"117":{"5":4},"110":{"999":{"7":{"0":71,"1":1022,"2":3,"3":1}}},"114":[{"0":71,"4":1022,"7":3,"8":1,"10":24,"12":999}]},"115":{"0":{"1":{"2":0,"3":null,"4":0,"9":1}},"1":{"5":{}}},"24":{"0":{"0":999},"1":[{"0":999,"1":2001}]},"28":{"5":[{"0":2001,"1":"safe","4":12}]}}`))
 	s.ApplyV(json.RawMessage(`{"115":{"5":{"2001":0}}}`))
 	p := DefaultPolicy()

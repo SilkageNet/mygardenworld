@@ -35,6 +35,9 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
 		return err
 	}
+	if err := r.validateFmlMembershipBeforeSend(ctx, name); err != nil {
+		return err
+	}
 	if guardedHire {
 		if scheduled, _ := ctx.Value(scheduledOperationKey{}).(bool); scheduled && !r.Policy().GetAutomationEnabled() {
 			return fmt.Errorf("自动化已关闭，取消尚未发送的珍珠雇佣")

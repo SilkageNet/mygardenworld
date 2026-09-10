@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
@@ -213,7 +214,15 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		})
 		return nil
 	case operationErrorFmlNotJoined:
-		r.state.MarkNoFmlMembership()
+		before := r.state.FmlBuild()
+		var rpcErr *babigame.RPCServerError
+		errors.As(err, &rpcErr)
+		if rpcErr.Name == clientproto.RPCFmlEnter {
+			r.state.MarkNoFmlMembershipAt(result.finishedAt)
+		} else {
+			r.state.MarkFmlMembershipUncertainAt(result.finishedAt)
+		}
+		r.emitFmlMembershipDiagnostic(rpcErr.Name.String(), before, err)
 		r.clearOperationCooldown(op)
 		r.emit(Event{
 			Kind:        "operation_deferred",
@@ -221,7 +230,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Domain:      op.Domain,
 			Action:      "blocked",
 			Label:       operationEventLabel(op),
-			Message:     fmt.Sprintf("%s 已跳过: 账号未加入公会，已停止公会相关自动化", opDesc(op)),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端返回未加入公会，已暂停公会操作并安排低频身份确认", opDesc(op)),
 			PayloadJSON: operationPayload(op, args, nil, err),
 			Level:       "warn",
 		})
