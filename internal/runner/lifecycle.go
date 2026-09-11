@@ -26,6 +26,10 @@ var errWebSocketSessionStart = errors.New("websocket session start failed")
 // Start kicks off the runner. Blocks until login completes (or fails); the
 // WebSocket loop and decision loop run in background goroutines.
 func (r *Runner) Start(ctx context.Context) error {
+	return r.start(ctx, false)
+}
+
+func (r *Runner) start(ctx context.Context, activate bool) error {
 	r.mu.Lock()
 	if r.cancel != nil {
 		r.mu.Unlock()
@@ -35,15 +39,27 @@ func (r *Runner) Start(ctx context.Context) error {
 	r.cancel = cancel
 	r.mu.Unlock()
 	fail := func(err error) error {
-		cancel()
-		r.mu.Lock()
-		r.cancel = nil
-		r.mu.Unlock()
+		r.Stop()
+		if ctx.Err() != nil {
+			r.emit(Event{Kind: "connection_start_cancelled", Category: "account", Domain: "account.connection", Action: "start_cancelled",
+				Label: "启动取消", Message: "账号启动请求已取消，未完成的连接已关闭，请重试"})
+		}
 		if ctx.Err() == nil && !errors.Is(err, context.Canceled) && !errors.Is(err, ErrMaintenance) && !isReputationGuardError(err) && !r.isSessionInvalidated() {
 			r.emit(Event{Kind: "connection_unavailable", Category: "account", Domain: "account.connection", Action: "start_failed",
 				Label: "连接异常", Level: "error", Message: "账号启动失败，未进入自动重连，请查看启动错误后重试"})
 		}
 		return err
+	}
+	finish := func(client *babigame.Client, username, password string) error {
+		if err := r.completeStartup(ctx, activate); err != nil {
+			return fail(err)
+		}
+		if client != nil {
+			r.emitConnectionRecovered()
+		}
+		go r.decisionLoop(rctx)
+		go r.connectionLoop(rctx, username, password, client)
+		return nil
 	}
 
 	username, password, err := r.db.GetCredentials(ctx, r.account.ID)
@@ -59,32 +75,26 @@ func (r *Runner) Start(ctx context.Context) error {
 	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 && s.RestrictedUntilMS > time.Now().UnixMilli() {
 		r.emit(Event{Kind: "account_request_paused", Category: "account", Domain: "account.request", Action: "blocked",
 			Label: "账号请求保护", Message: r.restrictionError().Error(), Level: "warn"})
-		go r.decisionLoop(rctx)
-		go r.connectionLoop(rctx, username, password, nil)
-		return nil
+		return finish(nil, username, password)
 	}
 	client, err := r.connectStoredOrFresh(ctx, username, password)
 	if err != nil {
+		if ctx.Err() != nil {
+			return fail(ctx.Err())
+		}
 		if r.autoReloginPending() {
-			go r.decisionLoop(rctx)
-			go r.connectionLoop(rctx, username, password, nil)
-			return nil
+			return finish(nil, username, password)
 		}
 		if errors.Is(err, errWebSocketSessionStart) || r.restrictionError() != nil {
 			// Credentials and the HTTP login path were good enough to reach the
 			// game WebSocket. Keep the runner alive so transient DNS, gateway, or
 			// handshake failures recover with the normal reconnect backoff.
-			go r.decisionLoop(rctx)
-			go r.connectionLoop(rctx, username, password, nil)
-			return nil
+			return finish(nil, username, password)
 		}
 		return fail(err)
 	}
 
-	r.emitConnectionRecovered()
-	go r.decisionLoop(rctx)
-	go r.connectionLoop(rctx, username, password, client)
-	return nil
+	return finish(client, username, password)
 }
 
 // connectStoredOrFresh first tries the encrypted session captured during
@@ -212,7 +222,7 @@ func (r *Runner) prepareHTTPClient(ctx context.Context, deviceID, uuid, session0
 	return httpc
 }
 
-func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient, session *babigame.Session, resume bool) (*babigame.Client, error) {
+func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient, session *babigame.Session, resume bool) (result *babigame.Client, err error) {
 	// Track the actual connection until physical close, even before this
 	// runner is registered or while Stop races with reconnect installation.
 	connectionCtx, releaseConnection, gateErr := r.beginGameWork(context.Background())
@@ -220,6 +230,16 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 		return nil, gateErr
 	}
 	client := babigame.NewClient(session)
+	defer func() {
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			_ = client.Close()
+			r.clearDisconnectedClient(client)
+			result = nil
+		}
+	}()
 	// Activity notices can arrive during login, before invalidation handlers
 	// are safe to install on a not-yet-validated cached session.
 	client.OnBinary(r.observeActivityRefresh)
@@ -238,10 +258,7 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// token uses index.login, matching the official client lifecycle.
 	r.state.BeginFmlMembershipSnapshot()
 	_, safetyRevision := r.accountSafetySnapshot()
-	var (
-		v   json.RawMessage
-		err error
-	)
+	var v json.RawMessage
 	if resume {
 		v, err = client.ReLogin(ctx, r.cfg.IsSimulator)
 	} else {
@@ -318,6 +335,9 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	}
 	if err := r.db.UpdateLogin(ctx, r.account.ID, session.AID, int32(session.GsIdx), session.WSURL(), time.Now().UTC()); err != nil {
 		r.log.Warn("persist login metadata failed", "err", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	message := "已连接"
 	if resume {
