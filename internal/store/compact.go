@@ -10,7 +10,7 @@ import (
 // stop the daemon first: this maintenance operation needs exclusive database
 // access and can temporarily require additional disk space.
 func (d *DB) Compact(ctx context.Context) error {
-	conn, err := d.Conn(ctx)
+	conn, err := d.writer.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire sqlite connection: %w", err)
 	}

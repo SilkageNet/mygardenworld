@@ -45,7 +45,7 @@ func (d *DB) AdvancePearlHireTicketUsed(ctx context.Context, accountID int64, da
 		return 0, fmt.Errorf("AdvancePearlHireTicketUsed: account_id, day_id, and minimum_used required")
 	}
 	var used int32
-	err := d.QueryRowContext(ctx, `
+	err := d.writeRowContext(ctx, `
 		INSERT INTO account_pearl_hire_usage(account_id, day_id, used_count, updated_at)
 		VALUES(?, ?, ?, CURRENT_TIMESTAMP)
 		ON CONFLICT(account_id) DO UPDATE SET

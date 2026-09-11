@@ -687,7 +687,7 @@ WHERE status = 'sending'`, now, now)
 // from overwriting the subsequently retried result.
 func (d *DB) RecoverExpiredRedeemAttempts(ctx context.Context, now time.Time) ([]int64, error) {
 	now = now.UTC()
-	rows, err := d.QueryContext(ctx, `
+	rows, err := d.writeQueryContext(ctx, `
 UPDATE redeem_attempts
 SET status = 'retryable', retry_at = ?, run_token = '', lease_until = NULL,
     message = '兑换任务执行超时，已自动重新排队', updated_at = ?

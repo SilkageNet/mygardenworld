@@ -20,7 +20,7 @@ func (d *DB) Maintenance(ctx context.Context) (Maintenance, error) {
 
 func (d *DB) RequestMaintenance(ctx context.Context, enabled, resume bool) (Maintenance, error) {
 	var s Maintenance
-	err := d.QueryRowContext(ctx, `UPDATE daemon_maintenance SET enabled=?, resume_enabled=?, revision=revision+1 WHERE id=1 RETURNING enabled, revision, applied_revision, resume_enabled`, enabled, !enabled && resume).Scan(&s.Enabled, &s.Revision, &s.AppliedRevision, &s.ResumeEnabled)
+	err := d.writeRowContext(ctx, `UPDATE daemon_maintenance SET enabled=?, resume_enabled=?, revision=revision+1 WHERE id=1 RETURNING enabled, revision, applied_revision, resume_enabled`, enabled, !enabled && resume).Scan(&s.Enabled, &s.Revision, &s.AppliedRevision, &s.ResumeEnabled)
 	return s, err
 }
 

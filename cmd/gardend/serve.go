@@ -176,6 +176,11 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	log.Info("opened sqlite", "path", dbPath)
 	maintenanceCtx, cancelMaintenance := context.WithCancel(ctx)
 	maintenanceDone := make(chan struct{})
+	diagnosticsDone := make(chan struct{})
+	go func() {
+		defer close(diagnosticsDone)
+		runDatabaseDiagnosticsLoop(maintenanceCtx, db, log)
+	}()
 	go func() {
 		defer close(maintenanceDone)
 		runLogCleanupLoop(maintenanceCtx, db, log, logRetention)
@@ -183,6 +188,7 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	defer func() {
 		cancelMaintenance()
 		<-maintenanceDone
+		<-diagnosticsDone
 	}()
 
 	if err := seedAdmin(ctx, db, log, opts); err != nil {

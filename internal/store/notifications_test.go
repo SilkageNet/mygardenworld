@@ -54,10 +54,10 @@ func TestNotificationMigrationPreservesV9DataAndIsDisabledByDefault(t *testing.T
 	if _, err := db.ExecContext(ctx, `DROP TABLE daemon_maintenance; DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications; PRAGMA user_version = 9`); err != nil {
 		t.Fatal(err)
 	}
-	if err := applyMigrations(ctx, db.DB); err != nil {
+	if err := applyMigrations(ctx, db.writer); err != nil {
 		t.Fatal(err)
 	}
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != currentSchemaVersion {
+	if version, err := databaseVersion(ctx, db.writer); err != nil || version != currentSchemaVersion {
 		t.Fatalf("version %d: %v", version, err)
 	}
 	if _, p, err := db.GetCredentials(ctx, a.ID); err != nil || p != "password" {
@@ -370,11 +370,14 @@ func TestNotificationRestartAndConcurrentClaims(t *testing.T) {
 	if next, err := db.ClaimNotification(ctx, now.Add(time.Second)); err != nil || next != nil {
 		t.Fatal("exhausted lease retried", err)
 	}
+	if err := db.CleanNotificationOutbox(ctx, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
 	rows, _ = db.NotificationDeliveries(ctx, u.ID, 0)
 	if rows[0].Status != "failed" {
 		t.Fatal("exhausted delivery not failed")
 	}
-	if _, err := db.ClaimNotification(ctx, now.Add(8*24*time.Hour)); err != nil {
+	if err := db.CleanNotificationOutbox(ctx, now.Add(8*24*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	rows, _ = db.NotificationDeliveries(ctx, u.ID, 0)
