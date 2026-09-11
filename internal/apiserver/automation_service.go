@@ -2,7 +2,6 @@ package apiserver
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	connect "connectrpc.com/connect"
@@ -16,11 +15,7 @@ func (svc *Services) EnableAutomation(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	r, err := svc.Manager.StartWithSource(ctx, acc.ID, runner.StartSourceAutomationEnable)
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	if err := svc.enableAutomation(ctx, acc.ID, r); err != nil {
+	if _, err := svc.startAutomation(ctx, acc.ID, runner.StartSourceAutomationEnable, false); err != nil {
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(&pb.EnableAutomationResponse{}), nil
@@ -31,7 +26,7 @@ func (svc *Services) DisableAutomation(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	if err := svc.disableAutomation(ctx, acc.ID, svc.Manager.Get(acc.ID)); err != nil {
+	if err := svc.disableAutomation(ctx, acc.ID); err != nil {
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(&pb.DisableAutomationResponse{}), nil
@@ -73,45 +68,31 @@ func (svc *Services) DeleteUnionRaceTask(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&pb.DeleteUnionRaceTaskResponse{}), nil
 }
 
-func policyEvent(enabled bool) runner.Event {
-	payload, _ := json.Marshal(map[string]any{"automation_enabled": enabled})
-	message := "自动化已停止"
-	if enabled {
-		message = "自动化已启动"
+func (svc *Services) startAutomation(ctx context.Context, accountID int64, source runner.StartSource, reconnect bool) (*runner.Runner, error) {
+	r, err := svc.Manager.StartAutomation(ctx, accountID, source, reconnect)
+	if err != nil {
+		return nil, err
 	}
-	return runner.Event{Kind: "policy_changed", Category: "system", Domain: "policy", Action: "set", Message: message, PayloadJSON: string(payload)}
+	if svc.Redeem != nil {
+		svc.Redeem.NotifyAccountPolicyChanged()
+	}
+	return r, nil
 }
 
-func (svc *Services) enableAutomation(ctx context.Context, accountID int64, r *runner.Runner) error {
-	if r == nil {
+func (svc *Services) disableAutomation(ctx context.Context, accountID int64) error {
+	if svc.Manager != nil {
+		if err := svc.Manager.PauseAutomation(ctx, accountID, false); err != nil {
+			return err
+		}
+		if svc.Redeem != nil {
+			svc.Redeem.NotifyAccountPolicyChanged()
+		}
 		return nil
 	}
-	p := r.Policy()
-	wasEnabled := p.GetAutomationEnabled()
-	p.AutomationEnabled = true
-	if err := svc.persistPolicy(ctx, accountID, p); err != nil {
-		return err
-	}
-	if !wasEnabled {
-		r.SetPolicy(p)
-		r.Emit(policyEvent(true))
-	}
-	return nil
-}
-
-func (svc *Services) disableAutomation(ctx context.Context, accountID int64, r *runner.Runner) error {
 	p, err := svc.policyFor(ctx, accountID)
 	if err != nil {
 		return err
 	}
 	p.AutomationEnabled = false
-	if r != nil {
-		live := r.Policy()
-		if live.GetAutomationEnabled() {
-			live.AutomationEnabled = false
-			r.SetPolicy(live)
-			r.Emit(policyEvent(false))
-		}
-	}
 	return svc.persistPolicy(ctx, accountID, p)
 }

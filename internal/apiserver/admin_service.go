@@ -14,7 +14,6 @@ import (
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/auth"
 	redeemsvc "github.com/SilkageNet/mygardenworld/internal/redeem"
-	"github.com/SilkageNet/mygardenworld/internal/runner"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -206,11 +205,7 @@ func (svc *Services) disableUserAccess(ctx context.Context, userID int64) error 
 	}
 	var firstErr error
 	for _, account := range accounts {
-		var runtime *runner.Runner
-		if svc.Manager != nil {
-			runtime = svc.Manager.Get(account.ID)
-		}
-		if err := svc.disableAutomation(ctx, account.ID, runtime); err != nil && firstErr == nil {
+		if err := svc.disableAutomation(ctx, account.ID); err != nil && firstErr == nil {
 			firstErr = err
 		}
 		if svc.Manager != nil {

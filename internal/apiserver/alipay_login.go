@@ -277,12 +277,9 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 		return nil, err
 	}
 	svc.saveLoginProbe(ctx, account.ID, session)
-	r, err := svc.Manager.StartWithSource(ctx, account.ID, runner.StartSourceAlipayLogin)
+	r, err := svc.startAutomation(ctx, account.ID, runner.StartSourceAlipayLogin, false)
 	if err != nil {
 		return nil, fmt.Errorf("start Alipay account: %w", err)
-	}
-	if err := svc.enableAutomation(ctx, account.ID, r); err != nil {
-		return nil, fmt.Errorf("enable Alipay account automation: %w", err)
 	}
 	return r.Account(), nil
 }
