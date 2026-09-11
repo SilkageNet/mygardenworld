@@ -35,6 +35,20 @@ func New(db *store.DB, log *slog.Logger) *Service {
 // hold a store transaction, block a game runner, or stall event ingestion.
 func (s *Service) Run(ctx context.Context) {
 	var workers sync.WaitGroup
+	workers.Go(func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			if err := s.db.CleanNotificationOutbox(ctx, time.Now().UTC()); err != nil && ctx.Err() == nil {
+				s.log.Warn("notification cleanup deferred", "error", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	})
 	for range 4 {
 		workers.Go(func() {
 			ticker := time.NewTicker(time.Second)

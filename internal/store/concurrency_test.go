@@ -186,7 +186,7 @@ func TestCanceledTransactionDoesNotRetainWriter(t *testing.T) {
 	}
 	cancelActive()
 	var revision int
-	if err := db.QueryRowContext(t.Context(), `UPDATE redeem_node_state SET next_revision = next_revision + 1 WHERE id = 1 RETURNING next_revision`).Scan(&revision); err != nil || revision != 1 {
+	if err := db.writeRowContext(t.Context(), `UPDATE redeem_node_state SET next_revision = next_revision + 1 WHERE id = 1 RETURNING next_revision`).Scan(&revision); err != nil || revision != 1 {
 		t.Fatalf("write after active cancellation: revision=%d err=%v", revision, err)
 	}
 }

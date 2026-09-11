@@ -17,7 +17,7 @@ func TestMaintenanceMigrationAndCommandRevisions(t *testing.T) {
 	if _, err := db.ExecContext(ctx, `DROP TABLE daemon_maintenance; PRAGMA user_version=11`); err != nil {
 		t.Fatal(err)
 	}
-	if err := applyMigrations(ctx, db.DB); err != nil {
+	if err := applyMigrations(ctx, db.writer); err != nil {
 		t.Fatal(err)
 	}
 	s, err := db.Maintenance(ctx)
@@ -38,7 +38,7 @@ func TestMaintenanceMigrationAndCommandRevisions(t *testing.T) {
 	if ok, err := db.AcknowledgeMaintenance(ctx, off.Revision); err != nil || !ok {
 		t.Fatal(err)
 	}
-	if err := applyMigrations(ctx, db.DB); err != nil {
+	if err := applyMigrations(ctx, db.writer); err != nil {
 		t.Fatal(err)
 	}
 	reopened, err := Open(ctx, path)

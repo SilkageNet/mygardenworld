@@ -38,7 +38,7 @@ func TestAccountRequestSafetyMigrationPersistenceAndAtomicReservation(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != currentSchemaVersion {
+	if version, err := databaseVersion(ctx, db.writer); err != nil || version != currentSchemaVersion {
 		t.Fatalf("v8 migration: %d %v", version, err)
 	}
 	if u, p, err := db.GetCredentials(ctx, account.ID); err != nil || u != "game" || p != "secret" {

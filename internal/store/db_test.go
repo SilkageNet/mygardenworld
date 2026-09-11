@@ -21,7 +21,7 @@ func TestOpenCreatesVersionedBaseline(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 
-	version, err := databaseVersion(ctx, db.DB)
+	version, err := databaseVersion(ctx, db.writer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != currentSchemaVersion {
+	if version, err := databaseVersion(ctx, db.writer); err != nil || version != currentSchemaVersion {
 		t.Fatalf("schema version=%d err=%v, want %d", version, err, currentSchemaVersion)
 	}
 	var column string
@@ -147,7 +147,7 @@ func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testi
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
-	if version, err := databaseVersion(ctx, db.DB); err != nil || version != currentSchemaVersion {
+	if version, err := databaseVersion(ctx, db.writer); err != nil || version != currentSchemaVersion {
 		t.Fatalf("schema version=%d err=%v, want %d", version, err, currentSchemaVersion)
 	}
 	var name string

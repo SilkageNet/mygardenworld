@@ -225,6 +225,17 @@ func (d *DB) ConsumeNotificationEvents(ctx context.Context, userID int64, now ti
 	if userID <= 0 {
 		return ErrNotificationSettings
 	}
+	// An idle subscriber must not reserve the writer every two seconds. This
+	// is only a fast path: settings, ownership and cursor are reread inside the
+	// transaction so concurrent consumers/settings changes remain atomic.
+	var pending bool
+	if err := d.QueryRowContext(ctx, `SELECT EXISTS (
+SELECT 1 FROM user_notifications n JOIN users u ON u.id = n.user_id
+JOIN accounts a ON a.user_id = n.user_id JOIN event_log e ON e.account_id = a.id
+WHERE n.user_id = ? AND n.enabled = 1 AND u.status = 'active' AND e.id > n.event_cursor
+)`, userID).Scan(&pending); err != nil || !pending {
+		return err
+	}
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -401,23 +412,42 @@ func (d *DB) NotificationDeliveries(ctx context.Context, userID, beforeID int64)
 // and restarts, below the 20/minute DingTalk and WeCom limits. External senders
 // sharing the same bot can still cause provider throttling.
 func (d *DB) ClaimNotification(ctx context.Context, now time.Time) (*NotificationDelivery, error) {
-	if _, err := d.ExecContext(ctx, `UPDATE notification_outbox SET status = 'failed', last_error = '通知已过期或达到重试上限' WHERE status IN ('pending', 'sending') AND (created_ms < ? OR (attempts >= 5 AND lease_ms <= ?))`, now.Add(-24*time.Hour).UnixMilli(), now.UnixMilli()); err != nil {
+	args := []any{now.UnixMilli(), now.UnixMilli(), now.Add(-24 * time.Hour).UnixMilli(), now.UnixMilli(), now.Add(-4 * time.Second).UnixMilli()}
+	var pending bool
+	if err := d.QueryRowContext(ctx, `SELECT EXISTS (`+notificationClaimSelect+`)`, args...).Scan(&pending); err != nil || !pending {
 		return nil, err
 	}
-	if _, err := d.ExecContext(ctx, `DELETE FROM notification_outbox WHERE status IN ('sent', 'failed', 'cancelled') AND created_ms < ?`, now.Add(-7*24*time.Hour).UnixMilli()); err != nil {
-		return nil, err
-	}
+	// Repeat the entire eligibility predicate at the write boundary. The read
+	// above avoids idle writes; it is not a lease or a pacing reservation.
 	var n NotificationDelivery
-	err := d.QueryRowContext(ctx, `UPDATE notification_outbox SET status = 'sending', attempts = attempts + 1, lease_ms = ?, last_attempt_ms = ? WHERE id = (
-SELECT o.id FROM notification_outbox o WHERE ((o.status = 'pending' AND o.next_ms <= ?) OR (o.status = 'sending' AND o.lease_ms <= ?))
-AND NOT EXISTS (SELECT 1 FROM notification_outbox older WHERE older.user_id = o.user_id AND older.account_id IS o.account_id AND older.id < o.id AND older.status IN ('pending', 'sending'))
-AND NOT EXISTS (SELECT 1 FROM user_notifications settings WHERE settings.user_id = o.user_id AND settings.retry_after_ms > ?)
-AND NOT EXISTS (SELECT 1 FROM user_notifications settings JOIN notification_outbox recent ON recent.user_id = settings.user_id WHERE settings.user_id = o.user_id AND settings.provider <> 'custom' AND recent.last_attempt_ms > ?)
-ORDER BY o.id LIMIT 1) RETURNING id, delivery_key, user_id, payload, revision, attempts, created_ms`, now.Add(time.Minute).UnixMilli(), now.UnixMilli(), now.UnixMilli(), now.UnixMilli(), now.UnixMilli(), now.Add(-4*time.Second).UnixMilli()).Scan(&n.ID, &n.Key, &n.UserID, &n.Payload, &n.Revision, &n.Attempts, &n.CreatedMS)
+	writeArgs := append([]any{now.Add(time.Minute).UnixMilli(), now.UnixMilli()}, args...)
+	err := d.writeRowContext(ctx, `UPDATE notification_outbox SET status = 'sending', attempts = attempts + 1, lease_ms = ?, last_attempt_ms = ? WHERE id = (`+notificationClaimSelect+`) RETURNING id, delivery_key, user_id, payload, revision, attempts, created_ms`, writeArgs...).Scan(&n.ID, &n.Key, &n.UserID, &n.Payload, &n.Revision, &n.Attempts, &n.CreatedMS)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return &n, err
+}
+
+const notificationClaimSelect = `SELECT o.id FROM notification_outbox o WHERE ((o.status = 'pending' AND o.next_ms <= ?) OR (o.status = 'sending' AND o.lease_ms <= ?))
+AND o.created_ms >= ? AND o.attempts < 5
+AND NOT EXISTS (SELECT 1 FROM notification_outbox older WHERE older.user_id = o.user_id AND older.account_id IS o.account_id AND older.id < o.id AND older.status IN ('pending', 'sending'))
+AND NOT EXISTS (SELECT 1 FROM user_notifications settings WHERE settings.user_id = o.user_id AND settings.retry_after_ms > ?)
+AND NOT EXISTS (SELECT 1 FROM user_notifications settings JOIN notification_outbox recent ON recent.user_id = settings.user_id WHERE settings.user_id = o.user_id AND settings.provider <> 'custom' AND recent.last_attempt_ms > ?)
+ORDER BY o.id LIMIT 1`
+
+// CleanNotificationOutbox runs independently of delivery workers. Bounded
+// batches release the writer between maintenance passes; claims enforce expiry
+// and attempt limits even before the next cleanup pass marks a row failed.
+func (d *DB) CleanNotificationOutbox(ctx context.Context, now time.Time) error {
+	if _, err := d.ExecContext(ctx, `UPDATE notification_outbox SET status = 'failed', last_error = '通知已过期或达到重试上限' WHERE id IN (
+SELECT id FROM notification_outbox WHERE status IN ('pending', 'sending') AND (created_ms < ? OR (attempts >= 5 AND lease_ms <= ?)) ORDER BY id LIMIT 1000
+)`, now.Add(-24*time.Hour).UnixMilli(), now.UnixMilli()); err != nil {
+		return err
+	}
+	_, err := d.ExecContext(ctx, `DELETE FROM notification_outbox WHERE id IN (
+SELECT id FROM notification_outbox WHERE status IN ('sent', 'failed', 'cancelled') AND created_ms < ? ORDER BY id LIMIT 1000
+)`, now.Add(-7*24*time.Hour).UnixMilli())
+	return err
 }
 
 // NotificationDestination rechecks ownership, user status and settings revision

@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -19,7 +21,8 @@ import (
 
 // DB is the typed handle returned by Open.
 type DB struct {
-	*sql.DB
+	writer        *sql.DB
+	reader        *sql.DB
 	credentialKey []byte
 }
 
@@ -33,14 +36,20 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	// Reserve the writer at BEGIN, before any transaction reads its snapshot.
 	// Deferred read-to-write upgrades can fail immediately with SQLITE_BUSY
 	// after another connection commits; busy_timeout cannot repair that snapshot.
-	// modernc keeps TxOptions.ReadOnly transactions deferred, preserving WAL
-	// reader/writer concurrency. Keep transactions local and short: never call
-	// network services or re-enter this pool while holding a write transaction.
-	dsn := fmt.Sprintf("file:%s?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)", path)
-	sqldb, err := sql.Open("sqlite", dsn)
+	// A single physical writer queues in-process writes in database/sql instead
+	// of making them compete for SQLite's one writer lock. The timeout remains
+	// necessary for independent operator commands that access the same file.
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("database path: %w", err)
+	}
+	fileURL := databaseFileURL(absolutePath)
+	sqldb, err := sql.Open("sqlite", fileURL+"?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)
 	}
+	sqldb.SetMaxOpenConns(1)
+	sqldb.SetMaxIdleConns(1)
 	if err := sqldb.PingContext(ctx); err != nil {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("ping: %w", err)
@@ -54,7 +63,33 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("credential key: %w", err)
 	}
-	return &DB{DB: sqldb, credentialKey: credentialKey}, nil
+	// Open readers only after WAL and migrations are committed. Enforce read
+	// routing in SQLite too: a misplaced UPDATE ... RETURNING must fail rather
+	// than silently introducing a second writer. Do not reset journal_mode on
+	// reader connections. Read-only transactions retain deferred WAL snapshots.
+	reader, err := sql.Open("sqlite", fileURL+"?mode=ro&_pragma=query_only(1)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	if err != nil {
+		_ = sqldb.Close()
+		return nil, fmt.Errorf("open sqlite readers: %w", err)
+	}
+	reader.SetMaxOpenConns(4)
+	reader.SetMaxIdleConns(4)
+	if err := reader.PingContext(ctx); err != nil {
+		_ = reader.Close()
+		_ = sqldb.Close()
+		return nil, fmt.Errorf("ping sqlite readers: %w", err)
+	}
+	return &DB{writer: sqldb, reader: reader, credentialKey: credentialKey}, nil
+}
+
+func databaseFileURL(absolutePath string) string {
+	path := filepath.ToSlash(absolutePath)
+	// Windows drive paths need a leading slash, otherwise C: is parsed as
+	// the URI authority instead of part of the filename.
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return (&url.URL{Scheme: "file", Path: path}).String()
 }
 
 // Account is the row shape we hand to the API layer. Password is *not*
