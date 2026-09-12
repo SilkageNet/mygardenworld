@@ -36,19 +36,34 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 			flowerFilter = preferFlower
 			preferFlower = 0
 		}
-		if lands, count := speedUpCandidates(s, now, flowerFilter, preferFlower); count > 0 {
-			reason := "存在可加速土地"
-			if !planting.GetUseSpeedUpTicket() {
-				reason = "公会竞赛种植任务使用加速卡"
-				if raceExpireUrgentSpeedup(s.FmlRace().Taken, now) &&
-					!policy.GetUnion().GetRace().GetUseSpeedupTicketInTask() {
-					reason = "公会竞赛任务即将过期，使用加速卡"
-				}
+		// speed_up_ticket_max is a calendar-day spend cap (Asia/Shanghai);
+		// <=0 means unlimited (still bounded by inventory). Remaining budget
+		// also caps each batch so a single loop cannot overshoot the day.
+		batchMax := planting.GetSpeedUpTicketMax()
+		dayBudgetOK := true
+		if batchMax > 0 {
+			remaining := batchMax - s.SpeedUpTicketsUsedToday(now)
+			if remaining <= 0 {
+				dayBudgetOK = false
+			} else {
+				batchMax = remaining
 			}
-			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", reason, 7400, 0, 0, count)
-			speed.LandIDs = lands
-			speed.ItemCost = map[int32]int32{1001: count}
-			ops = append(ops, speed)
+		}
+		if dayBudgetOK {
+			if lands, count := speedUpCandidates(s, now, flowerFilter, preferFlower, batchMax); count > 0 {
+				reason := "存在可加速土地"
+				if !planting.GetUseSpeedUpTicket() {
+					reason = "公会竞赛种植任务使用加速卡"
+					if raceExpireUrgentSpeedup(s.FmlRace().Taken, now) &&
+						!policy.GetUnion().GetRace().GetUseSpeedupTicketInTask() {
+						reason = "公会竞赛任务即将过期，使用加速卡"
+					}
+				}
+				speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", reason, 7400, 0, 0, count)
+				speed.LandIDs = lands
+				speed.ItemCost = map[int32]int32{1001: count}
+				ops = append(ops, speed)
+			}
 		}
 	}
 	if cultivate.GetEnabled() || cultivate.GetUpgradeEnabled() {
@@ -90,7 +105,10 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 // (used by guild-race plant-harvest speedup).
 // When preferFlower > 0, matching lands are ordered first so scarce tickets
 // serve the race crop before other growing lands.
-func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int32) ([]int32, int32) {
+// ticketMax caps how many tickets this batch may spend (caller usually
+// passes the remaining daily budget). Non-positive means unlimited
+// (inventory only).
+func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower, ticketMax int32) ([]int32, int32) {
 	available := s.Inventory()[1001]
 	if available <= 0 {
 		return nil, 0
@@ -120,8 +138,8 @@ func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int
 	if want > available {
 		want = available
 	}
-	if want > 5 {
-		want = 5
+	if ticketMax > 0 && want > ticketMax {
+		want = ticketMax
 	}
 	return ids[:want], want
 }

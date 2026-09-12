@@ -517,6 +517,10 @@ func driveRaceFlowerArtSellOperations(s *state.State, policy *pb.Policy, demands
 		return runnableBusinessOperation(op) && op.Kind == clientproto.RPCFlowerRackSell.String() &&
 			op.TargetID > 0 && op.ItemID > 0 && op.Count > 0
 	}
+	// Prefer highest finished stock over ordinary sell_art_ids listings.
+	if sell, ok := raceFlowerArtSellOperation(s, raceDemand, ledger, prefix); ok {
+		return append(ops, sell)
+	}
 	if idx := deterministicOperationIndex(ops, matchSell); idx >= 0 {
 		ops[idx].DemandID = raceDemand.ID
 		if ops[idx].Reason == "" {
@@ -547,19 +551,24 @@ func driveRaceFlowerArtSellOperations(s *state.State, policy *pb.Policy, demands
 		return ops
 	}
 
-	if sell, ok := raceFlowerArtSellOperation(s, raceDemand, ledger, prefix); ok {
-		return append(ops, sell)
-	}
-	// No finished art in stock — craft one batch so the next tick can list it.
-	if craft, ok := raceFlowerArtCraftOperation(s, Demand{
-		ID:      raceDemand.ID,
-		Missing: raceDemand.Missing,
-	}, ledger); ok {
-		craft.Reason = prefix + "；缺少成品，先制作"
-		if craft.Priority < raceFlowerArtCraftOpPriority {
-			craft.Priority = raceFlowerArtCraftOpPriority
+	// Only craft when a rack is free and no finished art is listable.
+	// Listing always prefers highest finished stock (bestRackArtForRace).
+	if len(s.EmptyFlowerRackSlotIDs()) > 0 {
+		if ledger == nil {
+			ledger = NewInventoryLedger(s.Inventory())
 		}
-		return append(ops, craft)
+		if _, _, hasStock := bestRackArtForRace(s, ledger); !hasStock {
+			if craft, ok := raceFlowerArtCraftOperation(s, Demand{
+				ID:      raceDemand.ID,
+				Missing: raceDemand.Missing,
+			}, ledger); ok {
+				craft.Reason = prefix + "；缺少成品，先制作"
+				if craft.Priority < raceFlowerArtCraftOpPriority {
+					craft.Priority = raceFlowerArtCraftOpPriority
+				}
+				return append(ops, craft)
+			}
+		}
 	}
 	return ops
 }
@@ -589,25 +598,45 @@ func raceFlowerArtClaimOperation(s *state.State, demand Demand, prefix string, n
 // at least raceFlowerArtRelistAfter old and not yet claimable. Claimable racks
 // are left for recvSellMoney so gold is not discarded.
 func raceFlowerArtCancelStaleListings(s *state.State, demand Demand, prefix string, now time.Time) []PlannedOp {
-	if s == nil || demand.Missing <= 0 {
+	return flowerArtCancelStaleListings(s, demand, prefix, now, raceFlowerArtRelistAfter,
+		raceFlowerArtCancelOpPriority, "union.race.flower_art_cancel", false, false, false)
+}
+
+// flowerArtCancelStaleListings cancels occupied racks listed for at least
+// `after`. When includeClaimable is false, claimable slots are left for
+// recvSellMoney. allowZeroMissing lets cyclic-note cancel while Missing==0.
+// cancelUnknownListedAt forces cancel of occupied slots with no usable
+// ListedAt/UpdatedAt (post-complete only — mid-task uses UpdatedAt fallback).
+func flowerArtCancelStaleListings(s *state.State, demand Demand, prefix string, now time.Time, after time.Duration, priority int32, featureID string, allowZeroMissing, includeClaimable, cancelUnknownListedAt bool) []PlannedOp {
+	if s == nil || after <= 0 || (demand.Missing <= 0 && !allowZeroMissing) {
 		return nil
 	}
 	nowMs := now.UnixMilli()
-	cutoff := now.Add(-raceFlowerArtRelistAfter).UnixMilli()
+	cutoff := now.Add(-after).UnixMilli()
 	type stale struct {
 		rackID int32
 		slot   state.FlowerRackSlot
 	}
 	var staleSlots []stale
 	for rackID, slot := range s.FlowerRackSlots() {
-		if slot.ItemID <= 0 || slot.Count <= 0 || slot.ListedAtMs <= 0 {
+		if slot.ItemID <= 0 || slot.Count <= 0 {
 			continue
 		}
-		if slot.SellReadyAtMs > 0 && nowMs >= slot.SellReadyAtMs {
-			continue
+		listedAt := slot.ListedAtMs
+		if listedAt <= 0 {
+			listedAt = slot.UpdatedAtMs
 		}
-		if slot.ListedAtMs > cutoff {
-			continue
+		if listedAt <= 0 {
+			if !cancelUnknownListedAt {
+				continue
+			}
+		} else {
+			if !includeClaimable && slot.SellReadyAtMs > 0 && nowMs >= slot.SellReadyAtMs {
+				continue
+			}
+			if listedAt > cutoff {
+				continue
+			}
 		}
 		staleSlots = append(staleSlots, stale{rackID: rackID, slot: slot})
 	}
@@ -618,16 +647,19 @@ func raceFlowerArtCancelStaleListings(s *state.State, demand Demand, prefix stri
 	goal := Goal{ID: GoalFlowerArt, Category: CategoryOrder, Domain: "order.flower_art", Label: "花艺/花架", Priority: 40}
 	out := make([]PlannedOp, 0, len(staleSlots))
 	for _, item := range staleSlots {
+		minutes := int(after / time.Minute)
+		if minutes <= 0 {
+			minutes = 5
+		}
 		cancel := op(clientproto.RPCFlowerRackCancelSell.String(), goal, "cancel",
-			prefix+"；上架已满5分钟，全部下架再挂",
-			raceFlowerArtCancelOpPriority, item.rackID, item.slot.ItemID, item.slot.Count)
+			fmt.Sprintf("%s；上架已满%d分钟，全部下架再挂", prefix, minutes),
+			priority, item.rackID, item.slot.ItemID, item.slot.Count)
 		cancel.DemandID = demand.ID
-		// Ordinary early-cancel is adapter-missing; race owns this path.
 		cancel.Status = PlanStatusManaged
 		cancel.Executable = true
 		cancel.SyncOnly = false
 		cancel.BlockedReasons = nil
-		cancel.FeatureID = "union.race.flower_art_cancel"
+		cancel.FeatureID = featureID
 		out = append(out, cancel)
 	}
 	return out

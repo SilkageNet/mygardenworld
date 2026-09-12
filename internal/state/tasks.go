@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"time"
 )
 
 func (s *State) applyTasksLocked(raw json.RawMessage) {
@@ -550,6 +551,75 @@ func (s *State) RandomEventTableReady() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.randomEventObserved && s.randomEventMapValid
+}
+
+// RandomEventNeedsEnter reports whether automation should call randomEvent.enter.
+// Catalog c_randomEvent[-1].$refreshTime is [9,14,20] Asia/Shanghai; after those
+// boundaries the server may spawn new map events while a connected session still
+// holds a stale (often empty) local table. Re-enter after each crossed refresh.
+func (s *State) RandomEventNeedsEnter(now time.Time) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.randomEventObserved || !s.randomEventMapValid {
+		return true
+	}
+	if s.randomEventSyncedAtMs <= 0 {
+		return true
+	}
+	return randomEventRefreshDue(time.UnixMilli(s.randomEventSyncedAtMs), now)
+}
+
+func randomEventRefreshDue(synced, now time.Time) bool {
+	loc := gameDayLocation()
+	synced = synced.In(loc)
+	now = now.In(loc)
+	hours := randomEventRefreshHours()
+	if len(hours) == 0 {
+		hours = []int{9, 14, 20}
+	}
+	// Most recent refresh instant at or before now.
+	refreshAt := time.Time{}
+	y, m, d := now.Date()
+	for _, hour := range hours {
+		candidate := time.Date(y, m, d, hour, 0, 0, 0, loc)
+		if !candidate.After(now) && candidate.After(refreshAt) {
+			refreshAt = candidate
+		}
+	}
+	if refreshAt.IsZero() {
+		// Before today's first refresh: use yesterday's last refresh hour.
+		prev := now.AddDate(0, 0, -1)
+		py, pm, pd := prev.Date()
+		lastHour := hours[len(hours)-1]
+		refreshAt = time.Date(py, pm, pd, lastHour, 0, 0, 0, loc)
+	}
+	return synced.Before(refreshAt)
+}
+
+func randomEventRefreshHours() []int {
+	raw, ok := StaticRow("c_randomEvent", -1)
+	if !ok {
+		return []int{9, 14, 20}
+	}
+	var row map[string]json.RawMessage
+	if json.Unmarshal(raw, &row) != nil {
+		return []int{9, 14, 20}
+	}
+	parts := readInt32OrderedListRaw(row["$refreshTime"])
+	if len(parts) == 0 {
+		return []int{9, 14, 20}
+	}
+	out := make([]int, 0, len(parts))
+	for _, hour := range parts {
+		if hour >= 0 && hour <= 23 {
+			out = append(out, int(hour))
+		}
+	}
+	if len(out) == 0 {
+		return []int{9, 14, 20}
+	}
+	sort.Ints(out)
+	return out
 }
 
 // RandomEvents returns the current map-random-event state.

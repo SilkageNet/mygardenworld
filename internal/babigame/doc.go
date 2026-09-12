@@ -141,12 +141,32 @@
 //	111.2         sparse visited-land changes
 //
 // c_frd currently declares $stealMax=10, $pickMax=10, and $pickAddCost=1;
-// item 1305 is the friendship coin used by frdExt.buyStealCnt. The runner
-// validates friendship membership, current-day used/bought maps, recent
-// isSteal state, inventory cost, and the exact land again immediately before
-// mutation. Unknown or stale state is a hard stop. The observed request field
-// stealElves exists, but flower-elf availability and success deltas are not yet
-// live-verified, so automation always sends stealElves=0.
+// item 1305 is the friendship coin used by frdExt.buyStealCnt. Policy may
+// raise per-friend extras up to 75 (FriendStealMaxExtra); 0 max_buy_per_friend
+// keeps the catalog $pickMax default. The runner validates friendship
+// membership, current-day used/bought maps, recent isSteal state, inventory
+// cost, and the exact land again immediately before mutation. Unknown or
+// stale state is a hard stop.
+//
+// Flower-elf steal (stealElves=1) is a separate plant.elves_plant policy path
+// (steal_friend_elves_enabled + friend_uids). Observed client (mini_184):
+//
+//	stealElves = !!land.elvesId
+//	icon requires getStealCntLeftNumByFrdUid>0 and empty elvesStealUids
+//	daily cap = c_flowerElves.$sneakMax via IFrdSteal.stealElvesCnt
+//	success may surface type-16 gains in $usrTot.oi.bi; land field 8 marks done
+//
+// Regular friend-steal automation still always sends stealElves=0.
+//
+// Flower-elf friend aid (namespace 132.5 IFlowerElvesAid) is driven by
+// ElvesPlantPolicy request_aid / receive_aid / help_friend. Each toggle is
+// independent of elves_plant.enabled (auto plant):
+//
+//	flowerElvesAid.reqAid {}           open a help request (cooldown $friendTime min)
+//	flowerElvesAid.recvAidEff {}       claim buff when aidMap>=$friendHelpNum
+//	                                   (reqAid may already be 0 once helpers filled)
+//	flowerElvesAid.helpFrd {dstUid}    help a friend with isAid (daily $helpMax)
+//	frdExt.getFrdOtherInfoByUids sets steal=1 and aid=1 so isSteal/isAid share one sync
 //
 // # Cyclic Note Activity (Namespace 23)
 //
@@ -223,9 +243,9 @@
 //	"3" = harvestCount
 //	"4" = stealUids (players who already picked this plot)
 //	"5" = nextTimeMs (regrow completion timestamp)
-//	"6" = elvesId (observed schema; automatic elf picking is unsupported)
+//	"6" = elvesId (flower elf on plot; used by planting-elves harvest/steal)
 //	"7" = plantTimeMs (last state change)
-//	"8" = elvesStealUids (observed schema; automatic elf picking is unsupported)
+//	"8" = elvesStealUids (uids that already stole the elf; non-empty => not stealable)
 //
 // # Cultivation State (Namespace 101)
 //
@@ -302,7 +322,9 @@
 // strokeCdTime to decide whether strokePet is available. Normal bowl stocking
 // uses zoo.addFoodstuff with inventory food IDs; zoo.feedPets is only an
 // acknowledgement path for another player's feeding notification. Automated
-// event handling is sourced from 33.2 logs, never inferred from pet fields.
+// cat-food purchase uses shop.enter/buy against static shop tempId=9 SKU
+// 90001 (金币→1501). Diamond SKU 90002 is never auto-bought.
+// Automated event handling is sourced from 33.2 logs, never inferred from pet fields.
 // Souvenir collection progress is the number of distinct 33.4 map entries,
 // independent of isRead. Reward readiness requires both that map and 33.0.13
 // to be observed, then compares the count with c_zooSouvenirCollect.value.
@@ -317,6 +339,9 @@
 // sparse fields retain the previous table, while null or an empty object means
 // a valid empty table. Within a replacement object, a null entry deletes that
 // event id (doAffair commonly clears the claimed affair this way).
+// c_randomEvent[-1].$refreshTime is [9,14,20] Asia/Shanghai; automation
+// re-enters after those boundaries when no ready events remain, so long-lived
+// sessions pick up newly spawned map events without requiring a reconnect.
 //
 // # Key RPCs
 //
@@ -373,8 +398,9 @@
 //	oppt.getDetailOppts  {uids:[uid],extKeys:[1]}  → {28}
 //	frdExt.getFrdOtherInfoByUids {uids:[uid],steal:1} → {110}
 //	frdExt.buyStealCnt   {frdUid,buyCnt:1}        → {7,24,...}       costs c_frd.$pickAddCost item 1305
-//	frdSteal.enterFrdSteal {point:[22,frdUid]}    → {111,...}
-//	frdSteal.steal      {frdUid,landId,stealElves:0} → {7,111,...}
+//	frdHome.getFrdHomeInfo {frdUid}            → {133,...}   friend garden lands (IUsrLand)
+//	frdSteal.enterFrdSteal {point:[22,bi]}     → {}          UsrStats BI ping only (not garden sync)
+//	frdSteal.steal      {frdUid,landId,stealElves:0|1} → {7,111,...}  1=摸花灵（!!elvesId）
 //	pearl.getHireStateByUids {uids:[uid]}          → {115.5}
 //	pearl.getRecommendList {}                      → {115.5,115.6}
 //	pearlPlace.hire      {placeId,dstUid}           → {7,115,...}

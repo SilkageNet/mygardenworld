@@ -2374,20 +2374,109 @@ func TestBuildPlan_ZooCostAndEventBlocked(t *testing.T) {
 	p.Basic.Zoo.AutoEventEnabled = true
 
 	result := BuildPlan(s, p, time.Now())
-	want := map[string]bool{"basic.zoo.buy_food": false, "basic.zoo.event": false}
+	var buyFood *PlannedOp
+	var eventBlocked bool
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Domain == "basic.zoo.buy_food" {
+			buyFood = op
+		}
+		if op.Domain == "basic.zoo.event" && !op.Executable && len(op.BlockedReasons) > 0 {
+			eventBlocked = true
+		}
+	}
+	if buyFood == nil || buyFood.Kind != clientproto.RPCShopEnter.String() || !buyFood.Executable || buyFood.Action != "sync" {
+		t.Fatalf("expected zoo food shop sync, got %+v", buyFood)
+	}
+	if !eventBlocked {
+		t.Fatalf("missing blocked zoo event op: %+v", result.Operations)
+	}
+}
+
+func TestBuildPlan_ZooBuyFoodGoldCatFood(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{}, "44": 5000}},
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"1": 9, "3": time.Now().UnixMilli(), "12": map[string]any{}},
+		}},
+		"33": map[string]any{
+			"0": map[string]any{"0": 1},
+			"1": map[string]any{
+				"1": map[string]any{
+					"1": 1,
+					"3": 0,
+					"4": []int32{},
+					"5": 2,
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoBuyFood = true
+	p.Basic.Zoo.AutoFeed = true
+	p.Basic.Zoo.MaxSpendGold = 1000
+	p.Union.Race.Enabled = false
+	p.Union.Land.HarvestEnabled = false
+	p.Union.Land.AutoPlantEnabled = false
+
+	result := BuildPlan(s, p, time.Now())
+	var buy *PlannedOp
+	for i := range result.Operations {
+		op := &result.Operations[i]
+		if op.Domain == "basic.zoo.buy_food" && op.Action == "buy" {
+			buy = op
+			break
+		}
+	}
+	if buy == nil || buy.Kind != clientproto.RPCShopBuy.String() || !buy.Executable {
+		t.Fatalf("expected executable cat food buy, got %+v from %+v", buy, result.Operations)
+	}
+	if buy.TargetID != state.ZooFoodShopTempID || buy.ItemID != state.ZooFoodShopItemCatFood || buy.Count <= 0 || buy.GoldCost != 100*buy.Count {
+		t.Fatalf("buy payload mismatch: %+v", buy)
+	}
+}
+
+func TestBuildPlan_ZooBuyFoodRequiresGoldBudget(t *testing.T) {
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{}, "44": 5000}},
+		"20": map[string]any{"0": map[string]any{
+			"9": map[string]any{"1": 9, "3": time.Now().UnixMilli(), "12": map[string]any{}},
+		}},
+		"33": map[string]any{
+			"0": map[string]any{"0": 1},
+			"1": map[string]any{
+				"1": map[string]any{
+					"1": 1,
+					"3": 0,
+					"4": []int32{},
+					"5": 2,
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Basic.Zoo.Enabled = true
+	p.Basic.Zoo.AutoBuyFood = true
+	p.Basic.Zoo.MaxSpendGold = 0
+	p.Union.Race.Enabled = false
+	p.Union.Land.HarvestEnabled = false
+	p.Union.Land.AutoPlantEnabled = false
+
+	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {
-		if _, ok := want[op.Domain]; ok {
+		if op.Domain == "basic.zoo.buy_food" && op.Action == "buy" {
 			if op.Executable || len(op.BlockedReasons) == 0 {
-				t.Fatalf("zoo blocked op mismatch: %+v", op)
+				t.Fatalf("buy without budget should block: %+v", op)
 			}
-			want[op.Domain] = true
+			return
 		}
 	}
-	for domain, seen := range want {
-		if !seen {
-			t.Fatalf("missing blocked %s op: %+v", domain, result.Operations)
-		}
-	}
+	t.Fatalf("missing blocked buy op: %+v", result.Operations)
 }
 
 func TestZooFindPetFeatureRemainsBlocked(t *testing.T) {
@@ -2411,6 +2500,8 @@ func TestZooFindPetFeatureRemainsBlocked(t *testing.T) {
 		"basic.zoo_read_log":        false,
 		"basic.zoo_souvenir_reward": false,
 		"basic.zoo_souvenir_read":   false,
+		"basic.zoo_buy_food":        false,
+		"basic.zoo_buy_food_sync":   false,
 	}
 	for _, spec := range featureSpecs {
 		if _, ok := wantExecutable[spec.ID]; !ok {
@@ -4196,6 +4287,162 @@ func TestBuildPlan_UnionFlowerTakePrefersLowestStock(t *testing.T) {
 	t.Fatalf("missing union flower take op: %+v", result.Operations)
 }
 
+func TestBuildPlan_UnionFlowerTakeZeroInventoryOnly(t *testing.T) {
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23009": 12,
+			// 23011 absent => stock 0
+		}}},
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+				"3": now.UnixMilli(),
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102483,
+					"1": map[string]any{
+						"1": map[string]any{"0": 23009, "1": 8, "2": 0},
+					},
+				},
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 0},
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeZeroInventoryOnly = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" {
+			if op.Kind != clientproto.RPCFmlFlowerShareTake.String() || !op.Executable {
+				t.Fatalf("union flower take op mismatch: %+v", op)
+			}
+			if op.FlowerID != 23011 || op.TargetUID != 77900091102484 {
+				t.Fatalf("expected zero-stock 23011, got %+v", op)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing union flower take op: %+v", result.Operations)
+}
+
+func TestBuildPlan_UnionFlowerTakeZeroInventoryOnlySkipsPositiveStock(t *testing.T) {
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{"32": map[string]any{
+			"23009": 5,
+			"23011": 3,
+		}}},
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+				"3": now.UnixMilli(),
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102483,
+					"1": map[string]any{
+						"1": map[string]any{"0": 23009, "1": 8, "2": 0},
+					},
+				},
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 0},
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeZeroInventoryOnly = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	result := BuildPlan(s, p, now)
+	for _, op := range result.Operations {
+		if op.Domain == "union.flower.take" && op.Kind == clientproto.RPCFmlFlowerShareTake.String() {
+			t.Fatalf("zero-only mode should not take positive-stock flowers: %+v", op)
+		}
+	}
+}
+
+func TestBuildPlan_UnionFlowerTakeZeroInventoryOnlyOncePerFlower(t *testing.T) {
+	// Two members share the same zero-stock flower; after one take is noted,
+	// zero-only mode must not re-queue the same flower type.
+	s := state.New()
+	now := state.FmlFlowerTakeWindowStart(time.Now()).Add(time.Minute)
+	applyMap(t, s, map[string]any{
+		"25": map[string]any{
+			"107": map[string]any{
+				"0": 77900091102482,
+				"1": map[string]any{},
+				"2": 0,
+				"3": now.UnixMilli(),
+			},
+			"108": []any{
+				map[string]any{
+					"0": 77900091102483,
+					"1": map[string]any{
+						"1": map[string]any{"0": 23011, "1": 4, "2": 0},
+					},
+				},
+				map[string]any{
+					"0": 77900091102484,
+					"1": map[string]any{
+						"2": map[string]any{"0": 23011, "1": 6, "2": 0},
+					},
+				},
+			},
+		},
+	})
+	p := DefaultPolicy()
+	p.AutomationEnabled = true
+	p.Union.Flower.TakeEnabled = true
+	p.Union.Flower.TakeZeroInventoryOnly = true
+	p.Union.Flower.TakeMode = pb.SelectionMode_SELECTION_MODE_ALL
+
+	first := BuildPlan(s, p, now)
+	var took bool
+	for _, op := range first.Operations {
+		if op.Domain == "union.flower.take" && op.Kind == clientproto.RPCFmlFlowerShareTake.String() {
+			if op.FlowerID != 23011 {
+				t.Fatalf("expected 23011, got %+v", op)
+			}
+			s.NoteFmlFlowerShareTake(op.TargetUID, op.TargetID, op.FlowerID)
+			took = true
+			break
+		}
+	}
+	if !took {
+		t.Fatalf("missing first take: %+v", first.Operations)
+	}
+
+	second := BuildPlan(s, p, now)
+	for _, op := range second.Operations {
+		if op.Domain == "union.flower.take" && op.Kind == clientproto.RPCFmlFlowerShareTake.String() {
+			t.Fatalf("zero-only should take each flower type only once: %+v", op)
+		}
+	}
+}
+
 func TestBuildPlan_UnionFlowerTakeSkipsWhenDailyLimitReached(t *testing.T) {
 	s := state.New()
 	applyMap(t, s, map[string]any{
@@ -4829,7 +5076,7 @@ func TestFarmOps_BlockedDemandEmitsDiagnosticPlantOperation(t *testing.T) {
 		Label:    "顾客订单",
 	}}
 
-	ops := farmOps(s, p.Plant, demands, time.Now(), false)
+	ops := farmOps(s, p.Plant, demands, time.Now(), false, false, false)
 	var blocked *PlannedOp
 	var fallback *PlannedOp
 	for i := range ops {

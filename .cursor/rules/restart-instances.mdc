@@ -1,0 +1,18 @@
+---
+description: Restart gardend A/B instances with -Instance all when both need to be up
+alwaysApply: true
+---
+
+# Restart A/B instances
+
+When both A and B stacks should stay running, restart with:
+
+```powershell
+powershell -NoProfile -File scripts\start-gardend.ps1 -Instance all
+```
+
+Do **not** restart A then B (or B then A) separately. Single-instance restart can stop the other instance's backend (shared repo process cleanup), leaving only one stack up.
+
+- A only: `-Instance a` (api `:50051`, web `:3000`)
+- B only: `-Instance b` (api `:50052`, web `:3001`)
+- Both: `-Instance all`

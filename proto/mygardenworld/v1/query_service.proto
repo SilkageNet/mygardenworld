@@ -184,6 +184,188 @@ message GetSnapshotResponse {
   bool friend_touch_friends_observed = 51;
   // Pearl hire labor slots + hire-ticket balance / daily usage (item 1003).
   PearlHireView pearl_hire = 52;
+  // Local calendar-day spend of speed-up tickets (item 1001) since 00:00 Asia/Shanghai.
+  // Distinct from BusinessStatisticsView.speed_up_card (game IStatistics field).
+  int32 speed_up_tickets_used_today = 53;
+  // Flower-art shelf listing slots from namespace 104 (flowerRack).
+  FlowerRackView flower_rack = 54;
+  // Cultivation room state from namespace 101 (cultivate.*).
+  repeated CultivateStatusView cultivations = 55;
+  // True after namespace 101 has been observed for this account session.
+  bool cultivations_observed = 56;
+  // Ad-watched gold double buff from namespace 118 (videoDouble / G.IVideoDouble).
+  VideoDoubleView video_double = 57;
+  // Flower-elves house monitoring (currency + dispatchable inventory + land elves).
+  FlowerElvesView flower_elves = 58;
+  // Daily tasks board for the monitor tab (includes claimed rows).
+  DailyTaskBoardView daily_task_board = 59;
+  // 花之密令 progress / claim readiness (namespace 131).
+  PassBoardView flower_pass = 60;
+  // 花灵密令 progress / claim readiness (namespace 132 passMap/passTaskMap).
+  PassBoardView flower_elves_pass = 61;
+}
+
+// DailyTaskBoardView is the monitor-facing daily task list.
+message DailyTaskBoardView {
+  bool observed = 1;
+  repeated DailyTaskBoardItem tasks = 2;
+}
+
+message DailyTaskBoardItem {
+  int32 task_id = 1;
+  string title = 2;
+  int32 finished = 3;
+  int32 target = 4;
+  int32 status = 5;
+  bool received = 6;
+  PlanStatus plan_status = 7;
+}
+
+// PassBoardView is shared by 花之密令 and 花灵密令 monitor boards.
+message PassBoardView {
+  bool observed = 1;
+  bool found = 2;
+  int32 bid = 3;
+  string name = 4;
+  int32 lvl = 5;
+  int32 exp = 6;
+  int32 pass_type = 7;
+  int32 buy_lvl = 8;
+  int32 lvl_max = 9;
+  repeated PassTaskSlot tasks = 10;
+  int32 ready_task_count = 11;
+  int32 ready_free_level_count = 12;
+}
+
+message PassTaskSlot {
+  int32 task_id = 1;
+  // 1 = daily, 2 = challenge.
+  int32 task_type = 2;
+  int32 progress_type = 3;
+  int32 param = 4;
+  string title = 5;
+  int32 target = 6;
+  int32 progress = 7;
+  bool received = 8;
+  bool catalog_known = 9;
+  int32 reward_exp = 10;
+  PlanStatus status = 11;
+}
+
+// FlowerElvesView is the monitoring snapshot for the flower-elves house.
+message FlowerElvesView {
+  // True after namespace 132 placeMap has been observed this session.
+  bool places_observed = 1;
+  // Active seasonal currency from c_flowerElvesMoney (e.g. 1046 天穹币).
+  int32 money_item_id = 2;
+  int32 money_count = 3;
+  // Sum of inventory items with c_item.type == 16 (可派遣花灵).
+  int32 dispatchable_count = 4;
+  // Today own-land flower-elves harvest count (IUsrCount type 103 tdyCnt).
+  int32 planted_count = 5;
+  // Friend-garden elf steals used today (IFrdSteal.stealElvesCnt).
+  int32 harvestable_count = 6;
+  // Sum of place.elves_num when places_observed.
+  int32 dispatched_count = 7;
+  // Catalog $elvesLimit (dispatch capacity).
+  int32 elves_limit = 8;
+  // Daily plant/harvest cap ($harvestMax+$addHarvestMax when pass applies; default 30).
+  int32 planted_cap = 9;
+  // Catalog $sneakMax (friend elf-steal daily limit, default 4).
+  int32 harvestable_cap = 10;
+  // True after namespace 111 frdSteal has been observed this session.
+  bool harvestable_observed = 11;
+  // True after IUsrTot.cntMap type 103 (daily flower-elves harvest) observed.
+  bool planted_observed = 12;
+  // Catalog place slots (c_flowerElves id>0) plus any observed placeMap ids.
+  int32 slot_count = 13;
+  // Sum of per-place reward_money for occupied slots.
+  int32 pending_reward_money = 14;
+  repeated FlowerElvesPlaceView places = 15;
+  // Namespace 132.5 flowerElvesAid observed this session.
+  bool aid_observed = 16;
+  // IFlowerElvesAid.effEndTime (ms). 0 when inactive / unknown.
+  int64 aid_eff_end_time_ms = 17;
+  // Catalog c_flowerElves.$friendAddRate (percent buff while aid is active).
+  int32 aid_friend_add_rate = 18;
+  // True while a help request is open (reqAid != 0).
+  bool aid_req_open = 19;
+  // Friends who helped the current/last request (len of aidMap).
+  int32 aid_helper_count = 20;
+  // IFlowerElvesAid.preReqAidTime (ms). Last reqAid timestamp; 0 if never.
+  int64 aid_pre_req_time_ms = 21;
+  // Next time reqAid is allowed (preReq + $friendTime). 0 when ready / unknown.
+  int64 aid_req_ready_at_ms = 22;
+  // True when recvAidEff is safe (open request with enough helpers).
+  bool aid_can_recv = 23;
+}
+
+// FlowerElvesPlaceView is one dispatch slot from namespace 132.2 placeMap.
+message FlowerElvesPlaceView {
+  int32 place_id = 1;
+  int32 elves_id = 2;
+  string elves_name = 3;
+  int32 elves_num = 4;
+  int64 disp_end_time_ms = 5;
+  int32 gain_multi = 6;
+  // Expected flower-elves money on recv: elvesNum * $elvesMoney[color-1] * gainMulti.
+  int32 reward_money = 7;
+  // True when elves_id > 0 and disp_end_time_ms > now.
+  bool dispatching = 8;
+  // True when elves_id > 0 and (disp_end_time_ms == 0 or <= now).
+  bool reward_ready = 9;
+}
+
+// VideoDoubleView is the monitoring snapshot for ad gold-double buff timing.
+message VideoDoubleView {
+  // True after namespace 118 has been observed for this account session.
+  bool observed = 1;
+  // True when observed and end_time_ms > now.
+  bool active = 2;
+  // Buff expiry timestamp in ms (IVideoDouble.eTime).
+  int64 end_time_ms = 3;
+  // Client-observed video claim count for the buff window.
+  int32 video_count = 4;
+}
+
+// CultivateStatusView is one flower's cultivation progress (G.ICultivate).
+message CultivateStatusView {
+  int32 flower_id = 1;
+  string flower_name = 2;
+  // Cultivation level (0 before first recv; typically 1+ after).
+  int32 lvl = 3;
+  // Completion timestamp in ms when status==1; 0 otherwise.
+  int64 cul_time_ms = 4;
+  // 0=idle/uncultivated, 1=cultivating, 2=received/ready for upgrade.
+  int32 status = 5;
+  int64 u_time_ms = 6;
+  // True when status==1 and cul_time_ms > 0 and cul_time_ms <= now.
+  bool ready = 7;
+}
+
+// FlowerRackView is the monitoring snapshot for flower-art shelf listings.
+message FlowerRackView {
+  // True after at least one rack slot (namespace 104) has been observed.
+  bool observed = 1;
+  int32 slot_count = 2;
+  int32 listed_count = 3;
+  int32 empty_count = 4;
+  int32 claimable_count = 5;
+  repeated FlowerRackSlotView slots = 6;
+}
+
+// FlowerRackSlotView is one flower-art shelf position.
+message FlowerRackSlotView {
+  int32 rack_id = 1;
+  int32 item_id = 2;
+  string item_name = 3;
+  int32 count = 4;
+  int64 listed_at_ms = 5;
+  int64 sell_ready_at_ms = 6;
+  // True when item_id > 0 and count > 0.
+  bool listed = 7;
+  // True when listed and now >= sell_ready_at_ms.
+  bool claimable = 8;
 }
 
 // PearlHireView is the monitoring snapshot for pearl labor hiring.
@@ -377,6 +559,22 @@ message FmlRaceView {
   int32 rank = 15;
   // True after a usable member rank list ranked the current uid.
   bool rank_observed = 16;
+  // True after getTaskLogList / NS25 field 118 was observed for this batch.
+  bool completed_tasks_observed = 17;
+  // This account's finished race tasks for the current batch (newest first).
+  repeated FmlRaceCompletedTask completed_tasks = 18;
+}
+
+message FmlRaceCompletedTask {
+  int64 log_ms_id = 1;
+  int64 task_ms_id = 2;
+  int32 task_id = 3;
+  int32 task_type = 4;
+  string task_label = 5;
+  string target_label = 6;
+  int32 score = 7;
+  // Server cTime for the log entry (ms).
+  int64 completed_at_ms = 8;
 }
 
 message FmlRaceTask {
@@ -393,6 +591,8 @@ message FmlRaceTask {
   int64 appear_time_ms = 9;
   // Empty = automation would consider takeable; otherwise primary skip reason.
   string take_skip_reason = 10;
+  // Target flower/item id from task param (e.g. plant-harvest flower). 0 if unknown.
+  int32 target_item_id = 11;
 }
 
 message FmlRaceTaken {
@@ -408,6 +608,8 @@ message FmlRaceTaken {
   // Held-task deadline in ms (IFmlRaceTakeTask.expireTime / pool takeExpireTime).
   // 0 means unknown / not yet observed.
   int64 expire_time_ms = 10;
+  // Target flower/item id from task param (e.g. plant-harvest flower). 0 if unknown.
+  int32 target_item_id = 11;
 }
 
 message DessertView {
@@ -563,6 +765,13 @@ message LandView {
   int32 open_level = 12;
   repeated int32 unlock_cost = 13;
   repeated int32 wasteland = 14;
+  // Flower elf on this plot (G.ILand field 6); 0 when absent.
+  int32 elves_id = 15;
+  repeated int64 elves_steal_uids = 16;
+  // Flowers still expected from this planting after harvest rounds and steals.
+  int32 remaining_yield = 17;
+  // Flowers friends can still steal from the current mature round.
+  int32 can_touch = 18;
 }
 
 // FmlLandView is one guild land slot from namespace 25.102.fmlLand.landMap.
@@ -878,7 +1087,7 @@ message Event {
   // every internal event type). Contents stable per kind.
   string payload_json = 6;
   // Coarse log grouping for UI filters:
-  // account|basic|plant|order|union|activity|system.
+  // account|basic|plant|elves|order|water|hire|union|race|activity|system.
   string category = 7;
   // Short human-readable type label, e.g. "田地" or "操作失败".
   string label = 8;

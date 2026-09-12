@@ -55,6 +55,21 @@ func TestNormalizeMigratesLegacyFriendTouch(t *testing.T) {
 	}
 }
 
+func TestNormalizeFriendStealAllowsExtraUpTo75(t *testing.T) {
+	got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{FriendSteal: &pb.FriendStealPolicy{
+		FriendMode:      pb.SelectionMode_SELECTION_MODE_ALL,
+		FriendCounts:    map[int64]int32{2001: 10 + 75},
+		MaxBuyPerFriend: 75,
+	}}})
+	policy := got.GetPlant().GetFriendSteal()
+	if policy.GetFriendCounts()[2001] != 85 {
+		t.Fatalf("want target stealMax+75 kept, got %+v", policy.GetFriendCounts())
+	}
+	if policy.GetMaxBuyPerFriend() != 75 {
+		t.Fatalf("want max buy 75 kept, got %d", policy.GetMaxBuyPerFriend())
+	}
+}
+
 func TestNormalizeFriendStealFailClosedLimits(t *testing.T) {
 	got := Normalize(&pb.Policy{Plant: &pb.PlantPolicy{FriendSteal: &pb.FriendStealPolicy{
 		FriendMode:      pb.SelectionMode_SELECTION_MODE_QUALITY,
@@ -68,10 +83,10 @@ func TestNormalizeFriendStealFailClosedLimits(t *testing.T) {
 	if policy.GetFriendMode() != pb.SelectionMode_SELECTION_MODE_SPECIFIC {
 		t.Fatalf("invalid friend mode should normalize to specific with targets: %v", policy.GetFriendMode())
 	}
-	if _, exists := policy.GetFriendCounts()[-1]; exists || policy.GetFriendCounts()[2001] > 20 {
+	if _, exists := policy.GetFriendCounts()[-1]; exists || policy.GetFriendCounts()[2001] > 85 {
 		t.Fatalf("friend counts not cleaned: %+v", policy.GetFriendCounts())
 	}
-	if len(policy.GetExcludeUids()) != 1 || policy.GetMaxBuyPerFriend() > 10 {
+	if len(policy.GetExcludeUids()) != 1 || policy.GetMaxBuyPerFriend() > 75 {
 		t.Fatalf("friend limits not cleaned: %+v", policy)
 	}
 	if policy.GetBuyCount() != 0 || policy.GetMaxSpendDiamond() != 0 {

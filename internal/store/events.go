@@ -32,7 +32,9 @@ type ListEventLogsOptions struct {
 	AccountIDs []int64
 	Kinds      []string
 	AfterID    int64
-	Limit      int
+	// Since, when set, keeps events with ts >= Since (inclusive).
+	Since time.Time
+	Limit int
 }
 
 // LogEvent appends a persisted stream event and returns its monotonic id.
@@ -83,6 +85,10 @@ func (d *DB) ListEventLogs(ctx context.Context, opts ListEventLogsOptions) ([]Ev
 		for _, kind := range opts.Kinds {
 			args = append(args, kind)
 		}
+	}
+	if !opts.Since.IsZero() {
+		where = append(where, "ts >= ?")
+		args = append(args, opts.Since.UTC())
 	}
 
 	query := `SELECT id, account_id, account_name, ts, kind, message, payload_json, category, domain, action, label, level FROM event_log`

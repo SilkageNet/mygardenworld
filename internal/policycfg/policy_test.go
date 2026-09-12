@@ -253,6 +253,39 @@ func TestRaceUrgentSpeedupFieldStillRoundTrips(t *testing.T) {
 	}
 }
 
+func TestNormalizeMigratesLegacyPassTaskPolicy(t *testing.T) {
+	got := Normalize(&pb.Policy{
+		Plant: &pb.PlantPolicy{
+			Elves: &pb.FlowerElvesPolicy{
+				PassRewardEnabled:           true,
+				PassTaskRewardEnabled:       true,
+				FlowerPassRewardEnabled:     true,
+				FlowerPassTaskRewardEnabled: true,
+			},
+		},
+	})
+	task := got.GetBasic().GetTask()
+	if !task.GetElvesPassRewardEnabled() || !task.GetElvesPassTaskRewardEnabled() ||
+		!task.GetFlowerPassRewardEnabled() || !task.GetFlowerPassTaskRewardEnabled() {
+		t.Fatalf("pass toggles not migrated: %+v", task)
+	}
+	// Explicit basic values win over legacy.
+	got = Normalize(&pb.Policy{
+		Basic: &pb.BasicPolicy{Task: &pb.BasicTaskPolicy{FlowerPassRewardEnabled: true}},
+		Plant: &pb.PlantPolicy{Elves: &pb.FlowerElvesPolicy{
+			PassTaskRewardEnabled:       true,
+			FlowerPassTaskRewardEnabled: true,
+		}},
+	})
+	task = got.GetBasic().GetTask()
+	if !task.GetFlowerPassRewardEnabled() {
+		t.Fatal("explicit flower_pass_reward_enabled lost")
+	}
+	if task.GetFlowerPassTaskRewardEnabled() || task.GetElvesPassTaskRewardEnabled() {
+		t.Fatalf("should not migrate when basic pass fields already set: %+v", task)
+	}
+}
+
 func TestNormalizeFillsNewPlantDefaults(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	planting := p.GetPlant().GetPlanting()

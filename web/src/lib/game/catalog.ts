@@ -26,6 +26,10 @@ export type FlowerInfo = {
   experience?: number;
   gold?: number;
   cultivate_cost?: ItemStack[];
+  /** Cultivation duration in seconds (c_flower.culTime). */
+  cultivate_time?: number;
+  /** Prerequisite flower id that must already be cultivated (c_flower.cultivate). */
+  cultivate?: number;
 };
 
 export type FarmLandInfo = {

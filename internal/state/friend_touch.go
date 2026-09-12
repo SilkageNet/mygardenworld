@@ -2,12 +2,19 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const friendCoinItemID int32 = 1305
+
+// FriendStealMaxExtra is the policy/UI ceiling for friendship-coin buys
+// (extra pick attempts) per friend. Catalog $pickMax is only the default when
+// max_buy_per_friend is 0; settings may raise extras up to this value.
+const FriendStealMaxExtra int32 = 75
 
 // FriendCoinItemID is the friendship coin used to buy extra pick quota.
 func FriendCoinItemID() int32 { return friendCoinItemID }
@@ -15,6 +22,7 @@ func FriendCoinItemID() int32 { return friendCoinItemID }
 // FriendOtherInfoView is namespace 110.1 frdOtherInfoMap entry.
 type FriendOtherInfoView struct {
 	IsSteal    bool  `json:"is_steal,omitempty"`
+	IsAid      bool  `json:"is_aid,omitempty"`
 	ObservedAt int64 `json:"observed_at_ms,omitempty"`
 }
 
@@ -23,6 +31,30 @@ type FriendTouchConfig struct {
 	StealMax    int32
 	PickMax     int32
 	PickAddCost int32
+}
+
+// ResolveFriendStealMaxBuy returns the allowed extra (bought) attempts per friend.
+// Policy 0 keeps the catalog $pickMax default; explicit values may exceed the
+// catalog up to FriendStealMaxExtra.
+func ResolveFriendStealMaxBuy(maxBuyPerFriend int32, cfg FriendTouchConfig) int32 {
+	if maxBuyPerFriend <= 0 {
+		if cfg.PickMax > 0 && cfg.PickMax <= FriendStealMaxExtra {
+			return cfg.PickMax
+		}
+		if cfg.PickMax > FriendStealMaxExtra {
+			return FriendStealMaxExtra
+		}
+		return 10
+	}
+	if maxBuyPerFriend > FriendStealMaxExtra {
+		return FriendStealMaxExtra
+	}
+	return maxBuyPerFriend
+}
+
+// FriendStealMaxTarget is free daily attempts plus the max allowed extras.
+func FriendStealMaxTarget(cfg FriendTouchConfig, maxBuyPerFriend int32) int32 {
+	return cfg.StealMax + ResolveFriendStealMaxBuy(maxBuyPerFriend, cfg)
 }
 
 // FriendTouchFriendView is one friend row for policy UI and planners.
@@ -98,6 +130,21 @@ func (s *State) applyFrdStealLocked(raw json.RawMessage) {
 	if rawChg, ok := fields["2"]; ok {
 		s.applyFrdVisitChgLandLocked(rawChg)
 	}
+	if rawRcd, ok := fields["3"]; ok {
+		s.applyFrdStealRcdListLocked(rawRcd)
+	}
+}
+
+// applyFrdHomeLocked applies namespace 133 (IFrdHomeTot). Client loads a
+// friend's garden via frdHome.getFrdHomeInfo {frdUid}; field 0 is IUsrLand.
+func (s *State) applyFrdHomeLocked(raw json.RawMessage) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return
+	}
+	if rawUsrLand, ok := fields["0"]; ok {
+		s.applyFrdVisitUsrLandLocked(rawUsrLand)
+	}
 }
 
 func (s *State) applyFrdExtTotLocked(raw json.RawMessage) {
@@ -115,6 +162,8 @@ func (s *State) applyFrdStealObjectLocked(raw json.RawMessage) {
 		s.frdStealObserved = false
 		s.frdStealRTimeMs = 0
 		s.frdStealMap = nil
+		s.frdStealElvesCnt = 0
+		s.frdStealHasUnReadRcd = false
 		return
 	}
 	var fields map[string]json.RawMessage
@@ -140,6 +189,49 @@ func (s *State) applyFrdStealObjectLocked(raw json.RawMessage) {
 			}
 		}
 	}
+	if rawUnread, ok := fields["6"]; ok {
+		if v, ok := readExactInt32Raw(rawUnread); ok {
+			s.frdStealHasUnReadRcd = v != 0
+		}
+	}
+	if rawElvesCnt, ok := fields["7"]; ok {
+		if v, ok := readExactInt32Raw(rawElvesCnt); ok {
+			s.frdStealElvesCnt = v
+		}
+	}
+}
+
+func (s *State) applyFrdStealRcdListLocked(raw json.RawMessage) {
+	if isJSONNull(raw) {
+		s.frdStealRcdList = nil
+		s.frdStealRcdObserved = true
+		return
+	}
+	var asArray []json.RawMessage
+	if json.Unmarshal(raw, &asArray) != nil {
+		return
+	}
+	out := make([]FrdStealRcdView, 0, len(asArray))
+	for _, rawRcd := range asArray {
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(rawRcd, &fields) != nil {
+			continue
+		}
+		view := FrdStealRcdView{}
+		if uid, ok := readExactInt64Raw(fields["2"]); ok {
+			view.FrdUID = uid
+		}
+		if ms, ok := readExactInt64Raw(fields["5"]); ok {
+			view.CTimeMs = ms
+		}
+		if rawMap, ok := fields["3"]; ok && !isJSONNull(rawMap) {
+			view.StealMap = parseInt32Int32Map(rawMap)
+		}
+		out = append(out, view)
+	}
+	s.frdStealRcdList = out
+	s.frdStealRcdObserved = true
+	s.frdStealHasUnReadRcd = false
 }
 
 func (s *State) applyFrdVisitUsrLandLocked(raw json.RawMessage) {
@@ -238,6 +330,13 @@ func (s *State) applyFrdExtOtherInfoLocked(raw json.RawMessage) {
 				view.IsSteal = v != 0
 			}
 		}
+		if rawAid, ok := infoFields["1"]; ok {
+			if v, ok := readInt64Raw(rawAid); ok {
+				view.IsAid = v != 0
+			} else if v, ok := readExactInt32Raw(rawAid); ok {
+				view.IsAid = v != 0
+			}
+		}
 		parsed[uid] = view
 	}
 	if len(parsed) == 0 {
@@ -295,6 +394,26 @@ func parseInt64Int32Map(raw json.RawMessage) map[int64]int32 {
 			continue
 		}
 		out[uid] = count
+	}
+	return out
+}
+
+func parseInt32Int32Map(raw json.RawMessage) map[int32]int32 {
+	var asObject map[string]json.RawMessage
+	if json.Unmarshal(raw, &asObject) != nil {
+		return nil
+	}
+	out := make(map[int32]int32, len(asObject))
+	for key, rawValue := range asObject {
+		id64, err := parseInt64Key(key)
+		if err != nil || id64 <= 0 || id64 > int64(^uint32(0)>>1) {
+			continue
+		}
+		count, ok := readExactInt32Raw(rawValue)
+		if !ok || count < 0 {
+			continue
+		}
+		out[int32(id64)] = count
 	}
 	return out
 }
@@ -548,14 +667,7 @@ func (s *State) NoteFriendStealSuccess(uid int64, landID int32, usedBefore int32
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if usedBeforeObserved && s.frdStealObserved && frdStealMapFresh(s.frdStealRTimeMs, now) {
-		if s.frdStealMap == nil {
-			s.frdStealMap = make(map[int64]int32)
-		}
-		if minimum := usedBefore + 1; s.frdStealMap[uid] < minimum {
-			s.frdStealMap[uid] = minimum
-		}
-	}
+	s.noteFriendStealUsedLocked(uid, usedBefore, usedBeforeObserved, now)
 	if s.frdVisitUID != uid {
 		return
 	}
@@ -565,6 +677,137 @@ func (s *State) NoteFriendStealSuccess(uid int64, landID int32, usedBefore int32
 	}
 	land.StealUIDs = append(land.StealUIDs, s.roleID)
 	s.frdVisitLands[landID] = land
+}
+
+// NoteFriendStealElvesSuccess reconciles a stealElves=1 success that may omit
+// IFrdSteal.stealElvesCnt / land.elvesStealUids. Client still consumes the
+// per-friend flower-steal quota (getStealCntLeftNumByFrdUid).
+func (s *State) NoteFriendStealElvesSuccess(uid int64, landID int32, usedBefore int32, usedBeforeObserved bool, elvesCntBefore int32, elvesCntBeforeObserved bool, now time.Time) {
+	if s == nil || uid <= 0 || landID <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.noteFriendStealUsedLocked(uid, usedBefore, usedBeforeObserved, now)
+	if elvesCntBeforeObserved && s.frdStealObserved && frdStealMapFresh(s.frdStealRTimeMs, now) {
+		if minimum := elvesCntBefore + 1; s.frdStealElvesCnt < minimum {
+			s.frdStealElvesCnt = minimum
+		}
+	}
+	if s.frdVisitUID != uid {
+		return
+	}
+	land, exists := s.frdVisitLands[landID]
+	if !exists || s.roleID <= 0 || int64SliceContains(land.ElvesStealUIDs, s.roleID) {
+		return
+	}
+	land.ElvesStealUIDs = append(append([]int64(nil), land.ElvesStealUIDs...), s.roleID)
+	s.frdVisitLands[landID] = land
+}
+
+// MarkFriendStealElvesLandUnavailable sticky-skips a friend land for elf steals
+// until that plot's plantTime advances (replant). frdHome refreshes that still
+// show elvesId with empty elvesStealUids must not revive a server-rejected plot.
+func (s *State) MarkFriendStealElvesLandUnavailable(friendUID int64, landID int32) {
+	if s == nil || friendUID <= 0 || landID <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	plantTime := int64(0)
+	if s.frdVisitUID == friendUID {
+		if land, ok := s.frdVisitLands[landID]; ok {
+			plantTime = land.PlantTimeMs
+			// Also hide it on the current visit snapshot so the next plan tick
+			// can advance without waiting for another enter.
+			if s.roleID > 0 && !int64SliceContains(land.ElvesStealUIDs, s.roleID) {
+				land.ElvesStealUIDs = append(append([]int64(nil), land.ElvesStealUIDs...), s.roleID)
+				s.frdVisitLands[landID] = land
+			} else if s.roleID <= 0 {
+				land.ElvesID = 0
+				s.frdVisitLands[landID] = land
+			}
+		}
+	}
+	if s.frdStealElvesSkipPlantTime == nil {
+		s.frdStealElvesSkipPlantTime = make(map[int64]map[int32]int64)
+	}
+	byLand := s.frdStealElvesSkipPlantTime[friendUID]
+	if byLand == nil {
+		byLand = make(map[int32]int64)
+		s.frdStealElvesSkipPlantTime[friendUID] = byLand
+	}
+	byLand[landID] = plantTime
+}
+
+// FriendStealElvesLandSkipped reports a sticky elf-steal skip for friend+land
+// that still matches the observed plantTime (0 matches an unknown plantTime).
+func (s *State) FriendStealElvesLandSkipped(friendUID int64, landID int32, plantTimeMs int64) bool {
+	if s == nil || friendUID <= 0 || landID <= 0 {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byLand := s.frdStealElvesSkipPlantTime[friendUID]
+	if byLand == nil {
+		return false
+	}
+	skippedAt, ok := byLand[landID]
+	if !ok {
+		return false
+	}
+	return skippedAt == plantTimeMs
+}
+
+// FriendStealElvesActuallyStolen reports whether a stealElves=1 response landed
+// an elf (cnt bump, elvesStealUids, or elves inventory gain) rather than an
+// ordinary flower steal that still returned ok.
+func (s *State) FriendStealElvesActuallyStolen(friendUID int64, landID, elvesItemID, elvesCntBefore int32, elvesCntBeforeObserved bool, inventoryBefore int32, now time.Time) bool {
+	if s == nil {
+		return false
+	}
+	if elvesCntBeforeObserved && s.StealElvesCntAt(now) > elvesCntBefore {
+		return true
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.frdVisitUID == friendUID {
+		if land, ok := s.frdVisitLands[landID]; ok {
+			if s.roleID > 0 && int64SliceContains(land.ElvesStealUIDs, s.roleID) {
+				return true
+			}
+			if len(land.ElvesStealUIDs) > 0 && land.ElvesID == 0 {
+				return true
+			}
+		}
+	}
+	if elvesItemID > 0 && s.inventory[elvesItemID] > inventoryBefore {
+		return true
+	}
+	return false
+}
+
+// NoteFriendStealUsed reconciles per-friend flower-steal quota after a steal
+// that consumed an attempt without confirming an elf gain (false flower steal).
+func (s *State) NoteFriendStealUsed(uid int64, usedBefore int32, usedBeforeObserved bool, now time.Time) {
+	if s == nil || uid <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.noteFriendStealUsedLocked(uid, usedBefore, usedBeforeObserved, now)
+}
+
+func (s *State) noteFriendStealUsedLocked(uid int64, usedBefore int32, usedBeforeObserved bool, now time.Time) {
+	if !usedBeforeObserved || !s.frdStealObserved || !frdStealMapFresh(s.frdStealRTimeMs, now) {
+		return
+	}
+	if s.frdStealMap == nil {
+		s.frdStealMap = make(map[int64]int32)
+	}
+	if minimum := usedBefore + 1; s.frdStealMap[uid] < minimum {
+		s.frdStealMap[uid] = minimum
+	}
 }
 
 // NoteFriendStealPurchase reconciles a successful purchase response that omits
@@ -586,6 +829,27 @@ func (s *State) NoteFriendStealPurchase(uid int64, boughtBefore int32, boughtBef
 	}
 }
 
+// FriendZoneFromUID extracts the zone id embedded in a role uid (uid % 100000).
+// Observed labels use the same trailing zone: s2489 / s3424 / s2297.
+func FriendZoneFromUID(uid int64) int32 {
+	if uid <= 0 {
+		return 0
+	}
+	return int32(uid % 100000)
+}
+
+// FriendDisplayName prefers the synced oppt name; otherwise falls back to s{zone}.
+func FriendDisplayName(uid int64, name string) string {
+	name = strings.TrimSpace(name)
+	if name != "" {
+		return name
+	}
+	if zone := FriendZoneFromUID(uid); zone > 0 {
+		return fmt.Sprintf("s%d", zone)
+	}
+	return ""
+}
+
 // FriendTouchFriends builds UI rows for all known friends.
 func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 	cfg, ok := FriendTouchConfigFromCatalog()
@@ -598,8 +862,8 @@ func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 		profile := view.Profiles[uid]
 		row := FriendTouchFriendView{
 			UID:             uid,
-			Name:            profile.Name,
-			ProfileObserved: profile.ObservedAtMs > 0,
+			Name:            FriendDisplayName(uid, profile.Name),
+			ProfileObserved: profile.ObservedAtMs > 0 && strings.TrimSpace(profile.Name) != "",
 			StolenCount:     view.StealMap[uid],
 			BaseStealMax:    cfg.StealMax,
 			BoughtCount:     view.StealCntBuyMap[uid],
@@ -617,7 +881,7 @@ func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 			row.StealLeft = 0
 		}
 		if info, exists := view.OtherInfo[uid]; exists {
-			row.AvailabilityObserved = info.ObservedAt > 0 && now.UnixMilli()-info.ObservedAt <= (30*time.Second).Milliseconds()
+			row.AvailabilityObserved = info.ObservedAt > 0 && now.UnixMilli()-info.ObservedAt <= (5*time.Minute).Milliseconds()
 			row.CanSteal = row.QuotaObserved && row.AvailabilityObserved && info.IsSteal && row.StealLeft > 0
 		}
 		out = append(out, row)

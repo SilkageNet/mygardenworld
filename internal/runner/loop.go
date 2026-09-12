@@ -211,6 +211,13 @@ func (r *Runner) runOperationTick(ctx context.Context, client *babigame.Client, 
 		attempt.friendStealUsedBeforeSet = usedObserved
 		attempt.friendStealBoughtBefore = bought
 		attempt.friendStealBoughtBeforeSet = boughtObserved
+		if op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves" {
+			attempt.friendStealElvesCntBefore = r.state.StealElvesCntAt(attempt.startedAt)
+			attempt.friendStealElvesCntBeforeSet = usedObserved
+			if op.ItemID > 0 {
+				attempt.friendStealElvesInvBefore = r.state.Inventory()[op.ItemID]
+			}
+		}
 	}
 	if op.Kind == clientproto.RPCFlowerRackRecvSellMoney.String() {
 		attempt.goldBefore = r.state.Gold()

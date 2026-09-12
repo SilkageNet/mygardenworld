@@ -105,6 +105,28 @@ func TestBuildFmlLandViewsExposesPlantingInfo(t *testing.T) {
 	}
 }
 
+func TestBuildLandViewsExposesRemainingYieldAndCanTouch(t *testing.T) {
+	// 23001 lvl 1: cropGets=2 frequencys=1; one steal → remaining 1, can_touch 1 when mature.
+	lands := map[int32]state.LandView{
+		1001: {
+			Observed: true, FlowerID: 23001, State: 3, Lvl: 1, HarvestCnt: 0,
+			StealUIDs: []int64{42},
+		},
+	}
+	farmLands := []state.FarmLandInfo{{ID: 1001, OpenLevel: 1}}
+	now := time.UnixMilli(1_000)
+	got := buildLandViews(lands, farmLands, true, true, 1, now, 0)
+	if len(got) != 1 {
+		t.Fatalf("len=%d, want 1", len(got))
+	}
+	if got[0].GetRemainingYield() != 1 {
+		t.Fatalf("remaining_yield=%d, want 1", got[0].GetRemainingYield())
+	}
+	if got[0].GetCanTouch() != 1 {
+		t.Fatalf("can_touch=%d, want 1", got[0].GetCanTouch())
+	}
+}
+
 func TestBuildLandViewsUsesServerRosterForOpenedStatus(t *testing.T) {
 	lands := map[int32]state.LandView{
 		1001: {Observed: true, FlowerID: 23001, State: 1},
@@ -666,6 +688,108 @@ func TestBusinessStatisticsProtoExposesDailyHistory(t *testing.T) {
 	}
 }
 
+func TestPassBoardAndDailyTaskBoardProto(t *testing.T) {
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"22": map[string]any{
+			"1": map[string]any{
+				"1": map[string]any{"3016": 3},
+				"3": map[string]any{},
+				"100": map[string]any{
+					"101": map[string]any{"0": 101, "1": 10, "2": 10, "4": 1},
+				},
+			},
+		},
+		"131": map[string]any{
+			"0": map[string]any{"15": map[string]any{"1": 15, "2": 2, "3": 0, "6": map[string]any{"1": []any{}}}},
+			"1": map[string]any{"15": map[string]any{"1": 15, "5": []any{1001}, "6": map[string]any{"2010_0": 3}, "8": map[string]any{}}},
+		},
+		"132": map[string]any{
+			"3": map[string]any{"14": map[string]any{"1": 14, "2": 1, "6": map[string]any{"1": []any{}}}},
+			"4": map[string]any{"14": map[string]any{"1": 14, "5": []any{1001}, "6": map[string]any{"3006_0": 50}, "8": map[string]any{}}},
+		},
+	})
+
+	daily := dailyTaskBoardProto(st)
+	if !daily.GetObserved() || len(daily.GetTasks()) == 0 {
+		t.Fatalf("daily board=%+v", daily)
+	}
+	flower := passBoardProto(st.FlowerPassView())
+	if !flower.GetFound() || flower.GetBid() != 15 || flower.GetReadyTaskCount() < 1 {
+		t.Fatalf("flower pass board=%+v", flower)
+	}
+	elves := passBoardProto(st.FlowerElvesPassView())
+	if !elves.GetFound() || elves.GetBid() != 14 {
+		t.Fatalf("elves pass board=%+v", elves)
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("flower_pass")
+	if field == nil || field.Number() != 60 {
+		t.Fatalf("GetSnapshotResponse flower_pass field=%v, want 60", field)
+	}
+}
+
+func TestFlowerElvesProtoExposesHouseMetrics(t *testing.T) {
+	st := state.New()
+	now := time.Unix(1_788_768_000, 0)
+	st.ApplyVMap(map[string]any{
+		"7": map[string]any{
+			"0": map[string]any{"32": map[string]any{
+				"1046": 11, "110001": 4,
+			}},
+			"4": map[string]any{
+				"103": map[string]any{"1": 103, "2": 28, "4": now.UnixMilli()},
+			},
+		},
+		"100": map[string]any{"1": map[string]any{
+			"1001": map[string]any{"0": 23331, "1": 3, "6": 110132, "8": []any{}},
+			"1002": map[string]any{"0": 23331, "1": 3, "6": 110132, "8": []any{float64(1)}},
+		}},
+		"111": map[string]any{"0": map[string]any{
+			"0": int64(9001),
+			"7": 1,
+		}},
+		"132": map[string]any{"2": map[string]any{
+			"1": map[string]any{"1": 1, "2": 110001, "3": 3},
+		}},
+	})
+	got := flowerElvesProto(st.FlowerElvesHouseAt(now), now)
+	if got.GetMoneyItemId() != 1046 || got.GetMoneyCount() != 11 {
+		t.Fatalf("money=%+v", got)
+	}
+	if !got.GetPlantedObserved() || got.GetPlantedCount() != 28 || got.GetPlantedCap() != 30 {
+		t.Fatalf("planted=%+v", got)
+	}
+	if got.GetDispatchableCount() != 4 {
+		t.Fatalf("dispatchable=%+v", got)
+	}
+	if !got.GetHarvestableObserved() || got.GetHarvestableCount() != 1 || got.GetHarvestableCap() != 4 {
+		t.Fatalf("steal=%+v", got)
+	}
+	if !got.GetPlacesObserved() || got.GetDispatchedCount() != 3 || got.GetElvesLimit() != 300 {
+		t.Fatalf("dispatch=%+v", got)
+	}
+	if got.GetSlotCount() < 1 || len(got.GetPlaces()) == 0 {
+		t.Fatalf("places=%+v", got)
+	}
+	var occupied *pb.FlowerElvesPlaceView
+	for _, place := range got.GetPlaces() {
+		if place.GetPlaceId() == 1 {
+			occupied = place
+			break
+		}
+	}
+	if occupied == nil || occupied.GetElvesNum() != 3 || occupied.GetRewardMoney() <= 0 {
+		t.Fatalf("place1=%+v, want elves_num=3 with reward", occupied)
+	}
+	if got.GetPendingRewardMoney() < occupied.GetRewardMoney() {
+		t.Fatalf("pending_reward=%d place1=%d", got.GetPendingRewardMoney(), occupied.GetRewardMoney())
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("flower_elves")
+	if field == nil || field.Number() != 58 {
+		t.Fatalf("GetSnapshotResponse flower_elves field=%v, want field 58", field)
+	}
+}
+
 func TestPearlHireProtoExposesTicketsAndSlotStatus(t *testing.T) {
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.FixedZone("CST", 8*3600))
 	st := state.New()
@@ -708,6 +832,111 @@ func TestPearlHireProtoExposesTicketsAndSlotStatus(t *testing.T) {
 	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("pearl_hire")
 	if field == nil || field.Number() != 52 {
 		t.Fatalf("GetSnapshotResponse pearl_hire field=%v, want field 52", field)
+	}
+}
+
+func TestFlowerRackProtoExposesListedSlots(t *testing.T) {
+	listedAt := int64(1_700_000_000_000)
+	sellReady := listedAt + int64(6)*state.FlowerRackSellDurationMs()
+	now := time.UnixMilli(sellReady)
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"104": map[string]any{
+			"0": map[string]any{
+				"1": map[string]any{"1": 1, "2": 0, "3": 0, "4": nil, "5": 100},
+				"3": map[string]any{"1": 3, "2": 300207, "3": 6, "4": listedAt, "5": listedAt},
+			},
+		},
+	})
+
+	got := flowerRackProto(st, now)
+	if !got.GetObserved() || got.GetSlotCount() != 2 || got.GetListedCount() != 1 || got.GetEmptyCount() != 1 || got.GetClaimableCount() != 1 {
+		t.Fatalf("flower rack summary=%+v, want observed listed=1 empty=1 claimable=1", got)
+	}
+	if len(got.GetSlots()) != 2 {
+		t.Fatalf("flower rack slots=%+v, want 2 sorted slots", got.GetSlots())
+	}
+	if slot := got.GetSlots()[0]; slot.GetRackId() != 1 || slot.GetListed() || slot.GetClaimable() || slot.GetItemId() != 0 {
+		t.Fatalf("slot 1=%+v, want empty rack", slot)
+	}
+	slot := got.GetSlots()[1]
+	if slot.GetRackId() != 3 || !slot.GetListed() || !slot.GetClaimable() || slot.GetItemId() != 300207 || slot.GetCount() != 6 {
+		t.Fatalf("slot 3=%+v, want listed claimable 300207x6", slot)
+	}
+	if slot.GetItemName() == "" || slot.GetListedAtMs() != listedAt || slot.GetSellReadyAtMs() != sellReady {
+		t.Fatalf("slot 3 names/times=%+v, want name + listed/ready timestamps", slot)
+	}
+	beforeReady := flowerRackProto(st, time.UnixMilli(sellReady-1))
+	if beforeReady.GetClaimableCount() != 0 || beforeReady.GetSlots()[1].GetClaimable() {
+		t.Fatalf("before ready claimable=%+v, want none", beforeReady)
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("flower_rack")
+	if field == nil || field.Number() != 54 {
+		t.Fatalf("GetSnapshotResponse flower_rack field=%v, want field 54", field)
+	}
+}
+
+func TestCultivationsProtoExposesProgress(t *testing.T) {
+	now := time.UnixMilli(1_700_000_100_000)
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"101": map[string]any{
+			"0": map[string]any{
+				"23006": map[string]any{"1": 23006, "2": 0, "3": int64(1_700_000_050_000), "4": 1, "5": int64(1_700_000_000_000)},
+				"23001": map[string]any{"1": 23001, "2": 3, "3": int64(0), "4": 2, "5": int64(1_700_000_000_000)},
+			},
+		},
+	})
+
+	got, observed := cultivationsProto(st, now)
+	if !observed || len(got) != 2 {
+		t.Fatalf("cultivations=%+v observed=%v, want 2 observed", got, observed)
+	}
+	byID := map[int32]*pb.CultivateStatusView{}
+	for _, row := range got {
+		byID[row.GetFlowerId()] = row
+	}
+	if row := byID[23006]; row == nil || row.GetStatus() != 1 || !row.GetReady() || row.GetCulTimeMs() != 1_700_000_050_000 {
+		t.Fatalf("23006=%+v, want ready cultivating", row)
+	}
+	if row := byID[23001]; row == nil || row.GetStatus() != 2 || row.GetLvl() != 3 || row.GetReady() {
+		t.Fatalf("23001=%+v, want received lvl 3", row)
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("cultivations")
+	if field == nil || field.Number() != 55 {
+		t.Fatalf("GetSnapshotResponse cultivations field=%v, want field 55", field)
+	}
+}
+
+func TestVideoDoubleProtoExposesExpiry(t *testing.T) {
+	now := time.UnixMilli(1_700_000_100_000)
+	endMs := int64(1_700_000_200_000)
+	st := state.New()
+	st.ApplyVMap(map[string]any{
+		"118": map[string]any{
+			"0": int64(42),
+			"1": int32(1),
+			"2": endMs,
+			"3": int64(1_700_000_000_000),
+			"4": int64(1_700_000_000_000),
+		},
+	})
+
+	got := videoDoubleProto(st.VideoDouble(), now)
+	if !got.GetObserved() || !got.GetActive() || got.GetEndTimeMs() != endMs || got.GetVideoCount() != 1 {
+		t.Fatalf("video double=%+v, want observed active end=%d count=1", got, endMs)
+	}
+	expired := videoDoubleProto(st.VideoDouble(), time.UnixMilli(endMs+1))
+	if !expired.GetObserved() || expired.GetActive() || expired.GetEndTimeMs() != endMs {
+		t.Fatalf("expired video double=%+v, want observed inactive", expired)
+	}
+	empty := videoDoubleProto(state.VideoDoubleView{}, now)
+	if empty.GetObserved() || empty.GetActive() || empty.GetEndTimeMs() != 0 {
+		t.Fatalf("empty video double=%+v, want unobserved", empty)
+	}
+	field := (&pb.GetSnapshotResponse{}).ProtoReflect().Descriptor().Fields().ByName("video_double")
+	if field == nil || field.Number() != 57 {
+		t.Fatalf("GetSnapshotResponse video_double field=%v, want field 57", field)
 	}
 }
 

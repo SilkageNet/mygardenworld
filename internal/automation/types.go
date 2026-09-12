@@ -10,6 +10,7 @@ const (
 	CategoryAccount   = "account"
 	CategoryBasic     = "basic"
 	CategoryPlant     = "plant"
+	CategoryElves     = "elves"
 	CategoryOrder     = "order"
 	CategoryFlowerArt = "flower_art"
 	CategoryWater     = "water"

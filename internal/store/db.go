@@ -107,6 +107,22 @@ CREATE TABLE IF NOT EXISTS account_pearl_hire_daily (
     PRIMARY KEY(account_id, day_id)
 );
 
+CREATE TABLE IF NOT EXISTS account_speed_up_ticket_daily (
+    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    day_id      INTEGER NOT NULL,
+    used_count  INTEGER NOT NULL DEFAULT 0 CHECK(used_count >= 0),
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(account_id, day_id)
+);
+
+CREATE TABLE IF NOT EXISTS account_elves_aid_help_daily (
+    account_id       INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    day_id           INTEGER NOT NULL,
+    helped_uids_json TEXT    NOT NULL DEFAULT '[]',
+    updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(account_id, day_id)
+);
+
 CREATE TABLE IF NOT EXISTS redeem_node_state (
     id            INTEGER PRIMARY KEY CHECK(id = 1),
     instance_id   TEXT    NOT NULL UNIQUE,

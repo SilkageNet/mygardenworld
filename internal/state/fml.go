@@ -13,7 +13,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
-func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
+func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool, fullRaceTaskLogList bool) {
 	var ns25 map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &ns25); err != nil {
 		return
@@ -66,6 +66,12 @@ func (s *State) applyFmlLocked(raw json.RawMessage, fullRaceTaskPool bool) {
 	// restart when enter/getTaskList omit field 110.
 	if rawRank, ok := ns25["116"]; ok {
 		applyFmlRaceUsrRankListLocked(&s.fmlRace, rawRank, s.roleID)
+	}
+	// Field 118 is FmlRaceTaskLogList ([]IFmlRaceTaskLog) from getTaskLogList —
+	// this batch's accepted-and-finished tasks for members (we keep self only).
+	// Only full getTaskLogList responses replace the list; sparse deltas merge.
+	if rawLogs, ok := ns25["118"]; ok {
+		applyFmlRaceTaskLogListLocked(&s.fmlRace, rawLogs, s.roleID, s.lastApplyMs, fullRaceTaskLogList)
 	}
 	if rawUsrRcd, ok := ns25["110"]; ok {
 		if isJSONNull(rawUsrRcd) {
@@ -181,7 +187,170 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.RankObserved = false
 		view.Rank = 0
 		view.RaceQuotaSyncAtMs = 0
+		view.TaskLogsObserved = false
+		view.TaskLogsSyncedAtMs = 0
+		view.CompletedTasks = nil
 	}
+}
+
+// applyFmlRaceTaskLogListLocked updates CompletedTasks from NS25 field 118.
+// getTaskLogList full responses replace (then merge keeps local-only rows with
+// higher coverage). Sparse deltas only merge by LogMsId.
+func applyFmlRaceTaskLogListLocked(view *FmlRaceView, raw json.RawMessage, uid, nowMs int64, fullList bool) {
+	if isJSONNull(raw) {
+		if fullList {
+			view.TaskLogsObserved = true
+			view.TaskLogsSyncedAtMs = nowMs
+			// Keep locally noted finishes; do not wipe on empty full sync.
+		}
+		return
+	}
+	logs, ok := parseFmlRaceTaskLogs(raw)
+	if !ok {
+		return
+	}
+	incoming := make([]FmlRaceCompletedTaskView, 0, len(logs))
+	for _, entry := range logs {
+		if uid > 0 && entry.UID != 0 && entry.UID != uid {
+			continue
+		}
+		task := entry.Data
+		paramID := firstInt32FromRaw(task.Param)
+		taskType := FmlRaceTaskTypeByID(task.TaskId)
+		taskMsID := task.MsId
+		if taskMsID == 0 {
+			taskMsID = entry.MsId
+		}
+		incoming = append(incoming, FmlRaceCompletedTaskView{
+			LogMsId:       entry.MsId,
+			TaskMsId:      taskMsID,
+			TaskId:        task.TaskId,
+			TaskType:      taskType,
+			Score:         task.Score,
+			ParamID:       paramID,
+			TargetLabel:   ItemLabel(paramID),
+			CompletedAtMs: entry.CTime,
+			LogType:       entry.Type,
+		})
+	}
+	if fullList {
+		view.CompletedTasks = mergeFmlRaceCompletedTasks(view.CompletedTasks, incoming)
+		view.TaskLogsObserved = true
+		view.TaskLogsSyncedAtMs = nowMs
+		return
+	}
+	view.CompletedTasks = mergeFmlRaceCompletedTasks(view.CompletedTasks, incoming)
+}
+
+// parseFmlRaceTaskLogs accepts either []IFmlRaceTaskLog or a map of the same.
+func parseFmlRaceTaskLogs(raw json.RawMessage) ([]clientproto.IFmlRaceTaskLog, bool) {
+	var logs []clientproto.IFmlRaceTaskLog
+	if err := json.Unmarshal(raw, &logs); err == nil {
+		return logs, true
+	}
+	var byKey map[string]clientproto.IFmlRaceTaskLog
+	if err := json.Unmarshal(raw, &byKey); err != nil {
+		return nil, false
+	}
+	out := make([]clientproto.IFmlRaceTaskLog, 0, len(byKey))
+	for _, entry := range byKey {
+		out = append(out, entry)
+	}
+	return out, true
+}
+
+func mergeFmlRaceCompletedTasks(dst, src []FmlRaceCompletedTaskView) []FmlRaceCompletedTaskView {
+	if len(src) == 0 {
+		return dst
+	}
+	out := append([]FmlRaceCompletedTaskView(nil), dst...)
+	for _, t := range src {
+		if t.LogMsId == 0 && t.TaskMsId == 0 && t.CompletedAtMs == 0 {
+			continue
+		}
+		if i := findFmlRaceCompletedTask(out, t); i >= 0 {
+			out[i] = enrichFmlRaceCompletedTask(out[i], t)
+			continue
+		}
+		out = append(out, t)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].CompletedAtMs != out[j].CompletedAtMs {
+			return out[i].CompletedAtMs > out[j].CompletedAtMs
+		}
+		return out[i].LogMsId > out[j].LogMsId
+	})
+	return out
+}
+
+func findFmlRaceCompletedTask(list []FmlRaceCompletedTaskView, t FmlRaceCompletedTaskView) int {
+	for i, prev := range list {
+		if t.LogMsId != 0 && prev.LogMsId == t.LogMsId {
+			return i
+		}
+		if t.TaskMsId != 0 && prev.TaskMsId == t.TaskMsId {
+			return i
+		}
+		if t.CompletedAtMs > 0 && prev.CompletedAtMs > 0 {
+			diff := t.CompletedAtMs - prev.CompletedAtMs
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff <= 3000 {
+				sameTarget := t.TargetLabel == "" || prev.TargetLabel == "" || t.TargetLabel == prev.TargetLabel
+				sameType := t.TaskType == 0 || prev.TaskType == 0 || t.TaskType == prev.TaskType
+				if sameTarget && sameType {
+					return i
+				}
+			}
+		}
+	}
+	return -1
+}
+
+func enrichFmlRaceCompletedTask(dst, src FmlRaceCompletedTaskView) FmlRaceCompletedTaskView {
+	if src.LogMsId != 0 && (dst.LogMsId == 0 || dst.LogMsId == dst.CompletedAtMs) {
+		dst.LogMsId = src.LogMsId
+	}
+	if src.TaskMsId != 0 && dst.TaskMsId == 0 {
+		dst.TaskMsId = src.TaskMsId
+	}
+	if src.TaskId != 0 && dst.TaskId == 0 {
+		dst.TaskId = src.TaskId
+	}
+	if src.TaskType != 0 && dst.TaskType == 0 {
+		dst.TaskType = src.TaskType
+	}
+	if src.Score != 0 && dst.Score == 0 {
+		dst.Score = src.Score
+	}
+	if src.ParamID != 0 && dst.ParamID == 0 {
+		dst.ParamID = src.ParamID
+	}
+	if src.TargetLabel != "" && dst.TargetLabel == "" {
+		dst.TargetLabel = src.TargetLabel
+	}
+	if src.CompletedAtMs != 0 && dst.CompletedAtMs == 0 {
+		dst.CompletedAtMs = src.CompletedAtMs
+	}
+	if src.LogType != 0 && dst.LogType == 0 {
+		dst.LogType = src.LogType
+	}
+	return dst
+}
+
+// NoteFmlRaceCompletedTask records a locally finished race task so the logs UI
+// keeps the full batch history even when getTaskLogList returns a partial list.
+func (s *State) NoteFmlRaceCompletedTask(task FmlRaceCompletedTaskView) {
+	if task.CompletedAtMs <= 0 && task.LogMsId == 0 && task.TaskMsId == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if task.TargetLabel == "" && task.ParamID > 0 {
+		task.TargetLabel = ItemLabel(task.ParamID)
+	}
+	s.fmlRace.CompletedTasks = mergeFmlRaceCompletedTasks(s.fmlRace.CompletedTasks, []FmlRaceCompletedTaskView{task})
 }
 
 func applyFmlRaceCurRcdLocked(view *FmlRaceView, raw json.RawMessage) {
@@ -1543,12 +1712,20 @@ func (s *State) FmlFlowerTakeExhausted(now time.Time) bool {
 // take when the response omitted a 25.108 delta, so the planner advances to
 // the next candidate instead of retrying a depleted slot under shared cooldown.
 // Own tdyTakeCnt is left to ApplyV / tips8 — do not guess it here.
-func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32) {
+// When flowerID > 0, also records a zero-stock take mark so take_zero_inventory_only
+// does not re-queue the same flower type before ns7 inventory catches up.
+func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32, flowerID int32) {
 	if dstUID == 0 || slotID <= 0 {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if flowerID > 0 {
+		if s.fmlFlowerZeroTakeIDs == nil {
+			s.fmlFlowerZeroTakeIDs = make(map[int32]struct{})
+		}
+		s.fmlFlowerZeroTakeIDs[flowerID] = struct{}{}
+	}
 	for key, share := range s.fmlOtherFlowerShares {
 		if share == nil {
 			continue
@@ -1572,6 +1749,28 @@ func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32) {
 		slot.TakeNum++
 		share.Slots[slotID] = slot
 	}
+}
+
+// FmlFlowerZeroTakeSeen reports whether flowerID was already taken once while
+// local stock still looked like 0 (inventory delta lag). Cleared when stock > 0.
+func (s *State) FmlFlowerZeroTakeSeen(flowerID int32) bool {
+	if flowerID <= 0 {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.fmlFlowerZeroTakeIDs[flowerID]
+	return ok
+}
+
+// ClearFmlFlowerZeroTake drops the anti-lag mark once inventory shows stock > 0.
+func (s *State) ClearFmlFlowerZeroTake(flowerID int32) {
+	if flowerID <= 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.fmlFlowerZeroTakeIDs, flowerID)
 }
 
 // MarkFmlFlowerTakeDailyLimitReached records the server-side daily take cap so
@@ -1864,6 +2063,7 @@ func (s *State) MarkFmlRaceSessionStale() {
 	defer s.mu.Unlock()
 	s.fmlRace.Observed = false
 	s.fmlRace.TasksObserved = false
+	s.fmlRace.TaskLogsObserved = false
 }
 
 // MarkFmlRaceTasksSynced records a successful getTaskList round-trip even when
@@ -1896,6 +2096,23 @@ func (s *State) MarkFmlRaceQuotaSyncAttempt() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.RaceQuotaSyncAtMs = time.Now().UnixMilli()
+}
+
+// MarkFmlRaceTaskLogsSynced records a successful getTaskLogList round-trip even
+// when the payload omitted field 118, so the planner does not re-sync every tick.
+func (s *State) MarkFmlRaceTaskLogsSynced() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.TaskLogsObserved = true
+	s.fmlRace.TaskLogsSyncedAtMs = time.Now().UnixMilli()
+}
+
+// MarkFmlRaceTaskLogsUnobserved forces the next race tick to re-fetch
+// getTaskLogList (e.g. after finishTask so the completed list stays current).
+func (s *State) MarkFmlRaceTaskLogsUnobserved() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fmlRace.TaskLogsObserved = false
 }
 
 // MarkFmlRacePoolTaskClaimed marks a pool row as already taken so automation

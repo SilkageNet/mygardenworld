@@ -25,6 +25,12 @@ func (s *State) ApplyVFullFmlRaceTaskPool(rawV json.RawMessage) {
 	s.applyV(rawV, applyHints{fullFmlRaceTaskPool: true})
 }
 
+// ApplyVFullFmlRaceTaskLogList applies a getTaskLogList response. Field 25.118
+// is the authoritative completed-task list for the batch.
+func (s *State) ApplyVFullFmlRaceTaskLogList(rawV json.RawMessage) {
+	s.applyV(rawV, applyHints{fullFmlRaceTaskLogList: true})
+}
+
 func (s *State) applyV(rawV json.RawMessage, hints applyHints) {
 	if len(rawV) == 0 {
 		return
@@ -49,7 +55,8 @@ func (s *State) ApplyVMap(top map[string]any) {
 }
 
 type applyHints struct {
-	fullFmlRaceTaskPool bool
+	fullFmlRaceTaskPool    bool
+	fullFmlRaceTaskLogList bool
 }
 
 func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
@@ -88,13 +95,14 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	if rawNS100, ok := top["100"]; ok {
 		var ns map[string]json.RawMessage
 		if err := json.Unmarshal(rawNS100, &ns); err == nil {
-			changes = append(changes, s.applyLandsLocked(ns)...)
+			changes = append(changes, s.applyLandsLocked(ns, now)...)
 		}
 	}
 	if rawNS7, ok := top["7"]; ok {
 		var ns map[string]json.RawMessage
 		if err := json.Unmarshal(rawNS7, &ns); err == nil {
 			s.applyInventoryLocked(ns)
+			s.applyUsrCountLocked(ns)
 			s.applyBaseRewardsLocked(ns)
 			s.applyUsrExtraLocked(ns)
 			s.applyReputationLocked(ns)
@@ -121,6 +129,9 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	}
 	if rawNS111, ok := top["111"]; ok {
 		s.applyFrdStealLocked(rawNS111)
+	}
+	if rawNS133, ok := top["133"]; ok {
+		s.applyFrdHomeLocked(rawNS133)
 	}
 	if rawNS101, ok := top["101"]; ok {
 		s.applyCultivationsLocked(rawNS101)
@@ -150,7 +161,7 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 		s.applyPalaceOrderLocked(rawNS108)
 	}
 	if rawNS25, ok := top["25"]; ok {
-		s.applyFmlLocked(rawNS25, hints.fullFmlRaceTaskPool)
+		s.applyFmlLocked(rawNS25, hints.fullFmlRaceTaskPool, hints.fullFmlRaceTaskLogList)
 	}
 	if rawNS112, ok := top["112"]; ok {
 		s.applyShopGiftbagLocked(rawNS112)
@@ -190,6 +201,15 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	}
 	if rawNS129, ok := top["129"]; ok {
 		s.applyRandomEventsLocked(rawNS129)
+	}
+	if rawNS20, ok := top["20"]; ok {
+		s.applyShopTotLocked(rawNS20)
+	}
+	if rawNS131, ok := top["131"]; ok {
+		s.applyFlowerPassLocked(rawNS131)
+	}
+	if rawNS132, ok := top["132"]; ok {
+		s.applyFlowerElvesLocked(rawNS132)
 	}
 	if rawNS140, ok := top["140"]; ok {
 		s.applySignTypesLocked(rawNS140)

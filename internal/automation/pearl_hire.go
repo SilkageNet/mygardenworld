@@ -18,24 +18,26 @@ const (
 	pearlHirePriority      = int32(5540)
 )
 
-// PearlHireIntent contains only queue metadata. It intentionally has no gate
-// overrides, so activity task drivers can reuse the helper without bypassing
-// the user's pearl policy, ticket, slot, level, protection, or session lock.
+// PearlHireIntent contains queue metadata. BypassAutoHireEnabled is the only
+// gate override: 花笺集芳 auto_hire may run the safe planner while the basic
+// "安全雇佣劳工" switch is off. Ticket, slot, level, protection, daily limit,
+// and session locks still apply.
 type PearlHireIntent struct {
-	GoalID   string
-	DemandID string
-	Category string
-	Domain   string
-	Label    string
-	Reason   string
-	Priority int32
+	GoalID                string
+	DemandID              string
+	Category              string
+	Domain                string
+	Label                 string
+	Reason                string
+	Priority              int32
+	BypassAutoHireEnabled bool
 }
 
 // PlanOneSafePearlHire advances the ticket-only hire state machine by at most
 // one synchronization or hire operation.
 func PlanOneSafePearlHire(s *state.State, policy *pb.PearlPolicy, now time.Time, intent PearlHireIntent) (PlannedOp, bool) {
 	intent = normalizePearlHireIntent(intent)
-	if s == nil || policy == nil || !policy.GetAutoHireEnabled() {
+	if s == nil || policy == nil || (!policy.GetAutoHireEnabled() && !intent.BypassAutoHireEnabled) {
 		return PlannedOp{}, false
 	}
 	if policy.GetMaxHireTicketUsage() <= 0 {
@@ -126,6 +128,9 @@ func ValidateSafePearlHire(s *state.State, policy *pb.PearlPolicy, op *PlannedOp
 	planned, ok := PlanOneSafePearlHire(s, policy, now, PearlHireIntent{
 		GoalID: op.GoalID, DemandID: op.DemandID, Category: op.Category,
 		Domain: op.Domain, Label: op.Label, Reason: op.Reason, Priority: op.Priority,
+		// 花笺集芳 auto_hire emits DemandID activity.cyclicNote:* while basic
+		// auto_hire_enabled may stay off; preflight must use the same bypass.
+		BypassAutoHireEnabled: strings.HasPrefix(op.DemandID, cyclicNoteActionGoal+":"),
 	})
 	if !ok || planned.Kind != clientproto.RPCPearlPlaceHire.String() {
 		if planned.Reason != "" {

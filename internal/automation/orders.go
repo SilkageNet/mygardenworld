@@ -10,12 +10,13 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
-func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, ledger *InventoryLedger, now time.Time) []PlannedOp {
+func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	var ops []PlannedOp
 	order := policy.GetOrder()
+	deferResidentOrders := cyclicNoteShouldDeferOrderModuleResidentOrders(s, policy, activityActions, now)
 	if goal, ok := goalByID(goals, GoalResidentOrder); ok {
 		resident := order.GetResident()
-		if resident.GetNormalEnabled() {
+		if resident.GetNormalEnabled() && !deferResidentOrders {
 			if blocked, ok := residentOrderLimitBlock(s, resident, goal, now); ok {
 				ops = append(ops, blocked)
 			} else {
@@ -44,7 +45,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				ops = append(ops, op(clientproto.RPCOrderFlowerRecvOrderRwd.String(), goal, "reward", "居民订单阶段奖励可领取", goal.Priority*100+620, target, 0, 0))
 			}
 		}
-		if resident.GetSatinEnabled() {
+		if resident.GetSatinEnabled() && !deferResidentOrders {
 			satin := s.ResidentSatinOrder()
 			reason, limited := residentSatinDailyLimitReached(s, resident, now)
 			switch {
@@ -81,7 +82,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 				ops = append(ops, finish)
 			}
 		}
-		if resident.GetDecorateEnabled() {
+		if resident.GetDecorateEnabled() && !deferResidentOrders {
 			decorate := s.ResidentDecorateOrder()
 			reason, limited := residentDecorateDailyLimitReached(s, resident, now)
 			switch {

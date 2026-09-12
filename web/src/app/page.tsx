@@ -33,6 +33,7 @@ import {
   Square,
   Sprout,
   Ticket,
+  Timer,
   Trash2,
   TrendingUp,
   Trophy,
@@ -56,7 +57,10 @@ import type {
   CyclicNoteTaskSlot,
   CyclicNoteView,
   CyclicStoryOrder,
+  CultivateStatusView,
   CyclicStoryView,
+  DailyTaskBoardItem,
+  DailyTaskBoardView,
   DessertCelebrityLikeView,
   DessertMilestoneView,
   DessertModeView,
@@ -69,11 +73,18 @@ import type {
   FmlRaceTask,
   FmlRaceTaken,
   FmlRaceView,
+  FlowerArtAvailabilityView,
+  FlowerElvesPlaceView,
+  FlowerElvesView,
+  FlowerRackSlotView,
+  FlowerRackView,
   GetSnapshotResponse,
   InventoryLedgerItem,
   InventoryLedgerView,
   LandView,
   OrderStatisticsView,
+  PassBoardView,
+  PassTaskSlot,
   PearlHireView,
   PearlPlaceView,
   PendingTaskView,
@@ -89,6 +100,7 @@ import PolicyPanel from "@/components/dashboard/policy-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -110,7 +122,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatAPIError, transport } from "@/lib/api/client";
 import { peerStackConfig, redeemCodeAllStacks } from "@/lib/api/redeem-all";
 import { useAuth } from "@/lib/auth/context";
-import { experienceToNextLevel, itemName } from "@/lib/game/catalog";
+import { allFlowers, experienceToNextLevel, itemName, type FlowerInfo } from "@/lib/game/catalog";
 import { cn } from "@/lib/utils";
 
 const accountClient = createClient(AccountService, transport);
@@ -123,6 +135,9 @@ const EVENT_LIMIT = 500;
 const EVENT_RECONNECT_INITIAL_MS = 1000;
 const EVENT_RECONNECT_MAX_MS = 15000;
 const STATUS_POLL_MS = 5000;
+/** Collapse bursty event-driven snapshot fetches (esp. StreamEvents replay). */
+const SNAPSHOT_EVENT_REFRESH_DEBOUNCE_MS = 750;
+const EVENT_UI_FLUSH_MS = 50;
 const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "operation_ack",
   "union_flower_take",
@@ -141,13 +156,24 @@ const SNAPSHOT_REFRESH_EVENT_KINDS = new Set([
   "benefit_box",
 ]);
 
-type DashboardTabId = "monitor" | "settings" | "logs" | "race" | "land" | "warehouse" | "business";
+type DashboardTabId =
+  | "monitor"
+  | "settings"
+  | "logs"
+  | "race"
+  | "activity"
+  | "land"
+  | "cultivate"
+  | "flower_elves"
+  | "warehouse"
+  | "business";
 type AccountQuota = {
   current: number;
   max: number;
   reached: boolean;
 };
 type WarehouseCategory = "flower" | "art" | "item";
+type CultivateCandidateFilter = "materials" | "seeds" | "all";
 
 const WAREHOUSE_CATEGORIES: { id: WarehouseCategory; label: string; icon: ReactNode }[] = [
   { id: "flower", label: "鲜花", icon: <Flower2 /> },
@@ -160,7 +186,10 @@ const DASHBOARD_TABS: { id: DashboardTabId; label: string; icon: ReactNode }[] =
   { id: "settings", label: "设置", icon: <ShieldCheck /> },
   { id: "logs", label: "日志", icon: <CalendarDays /> },
   { id: "race", label: "公会竞赛", icon: <Trophy /> },
+  { id: "activity", label: "活动", icon: <Sparkles /> },
   { id: "land", label: "土地", icon: <Sprout /> },
+  { id: "cultivate", label: "培育室", icon: <Flower2 /> },
+  { id: "flower_elves", label: "花灵屋", icon: <Sparkles /> },
   { id: "warehouse", label: "仓库", icon: <Package /> },
   { id: "business", label: "营业统计", icon: <BarChart3 /> },
 ];
@@ -171,6 +200,11 @@ const EMPTY_ADD_FORM = {
   username: "",
   password: "",
 };
+
+const SPEED_UP_TICKET_ITEM_ID = 1001;
+const FLORAL_COIN_ITEM_ID = 1002;
+const PEARL_HIRE_TICKET_ITEM_ID = 1003;
+const FLOWER_ELVES_MONEY_ITEM_ID = 1046;
 
 type AddAccountForm = typeof EMPTY_ADD_FORM;
 
@@ -220,6 +254,10 @@ function DashboardContent() {
   // onto B).
   const policyFetchGenRef = useRef(0);
   const policyOwnerAccountIdRef = useRef("");
+  // Same race guard for getSnapshot: account switches must not keep showing (or
+  // accept) another account's snapshot.
+  const snapshotFetchGenRef = useRef(0);
+  const snapshotOwnerAccountIdRef = useRef("");
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId) ?? null,
@@ -288,11 +326,16 @@ function DashboardContent() {
   }, []);
 
   const refreshSnapshot = useCallback(async (accountId: string, showLoading = false, options?: { force?: boolean }) => {
+    const fetchGen = ++snapshotFetchGenRef.current;
     if (!accountId) {
+      snapshotOwnerAccountIdRef.current = "";
       setSnapshot(null);
+      setSnapshotLoading(false);
       return;
     }
     if (!options?.force && !canReadSnapshot(accountId)) {
+      if (fetchGen !== snapshotFetchGenRef.current) return;
+      snapshotOwnerAccountIdRef.current = "";
       setSnapshot(null);
       setSnapshotLoading(false);
       setError((current) => (isRunnerNotStartedError(current) ? "" : current));
@@ -302,8 +345,13 @@ function DashboardContent() {
       setSnapshotLoading(true);
     }
     try {
-      setSnapshot(await queryClient.getSnapshot({ accountId }));
+      const next = await queryClient.getSnapshot({ accountId });
+      if (fetchGen !== snapshotFetchGenRef.current) return;
+      snapshotOwnerAccountIdRef.current = accountId;
+      setSnapshot(next);
     } catch (err) {
+      if (fetchGen !== snapshotFetchGenRef.current) return;
+      snapshotOwnerAccountIdRef.current = "";
       setSnapshot(null);
       if (!isRunnerNotStartedError(err)) {
         setError(formatAPIError(err, "读取快照失败"));
@@ -311,7 +359,9 @@ function DashboardContent() {
         setError((current) => (isRunnerNotStartedError(current) ? "" : current));
       }
     } finally {
-      setSnapshotLoading(false);
+      if (fetchGen === snapshotFetchGenRef.current) {
+        setSnapshotLoading(false);
+      }
     }
   }, [canReadSnapshot]);
 
@@ -379,19 +429,24 @@ function DashboardContent() {
   }, [selectedAccountId]);
 
   useEffect(() => {
+    // Invalidate any in-flight snapshot from the previous account immediately so
+    // boards do not keep showing stale data while the next fetch is in flight.
+    snapshotFetchGenRef.current += 1;
+    snapshotOwnerAccountIdRef.current = "";
+    setSnapshot(null);
+
     if (!selectedAccountId) {
       policyFetchGenRef.current += 1;
       policyOwnerAccountIdRef.current = "";
-      setSnapshot(null);
       setPolicy(null);
       setPolicyLoading(false);
+      setSnapshotLoading(false);
       setEvents([]);
       return;
     }
     if (selectedConnected) {
       void refreshSnapshot(selectedAccountId, true);
     } else {
-      setSnapshot(null);
       setSnapshotLoading(false);
       setError((current) => (isRunnerNotStartedError(current) ? "" : current));
     }
@@ -426,7 +481,46 @@ function DashboardContent() {
     }
     const controller = new AbortController();
     let active = true;
+    const streamAccountId = selectedAccountId;
     setEvents([]);
+
+    // StreamEvents replays up to EVENT_LIMIT rows on connect. Refreshing the
+    // snapshot on every matching historical event previously flooded GetSnapshot
+    // (often hundreds of concurrent calls) and froze the dashboards for ~1min.
+    let snapshotRefreshTimer: number | undefined;
+    let eventFlushTimer: number | undefined;
+    const pendingEvents: Event[] = [];
+    let snapshotRefreshQueued = false;
+
+    const flushPendingEvents = () => {
+      eventFlushTimer = undefined;
+      if (pendingEvents.length === 0) return;
+      const batch = pendingEvents.splice(0);
+      setEvents((prev) => {
+        const newestFirst = batch.slice().reverse();
+        return [...newestFirst, ...prev].slice(0, EVENT_LIMIT);
+      });
+    };
+
+    const enqueueEvent = (event: Event) => {
+      pendingEvents.push(event);
+      if (eventFlushTimer === undefined) {
+        eventFlushTimer = window.setTimeout(flushPendingEvents, EVENT_UI_FLUSH_MS);
+      }
+    };
+
+    const scheduleSnapshotRefresh = () => {
+      snapshotRefreshQueued = true;
+      if (snapshotRefreshTimer !== undefined) {
+        window.clearTimeout(snapshotRefreshTimer);
+      }
+      snapshotRefreshTimer = window.setTimeout(() => {
+        snapshotRefreshTimer = undefined;
+        if (!active || !snapshotRefreshQueued) return;
+        snapshotRefreshQueued = false;
+        void refreshSnapshot(streamAccountId).catch(() => undefined);
+      }, SNAPSHOT_EVENT_REFRESH_DEBOUNCE_MS);
+    };
 
     async function readEvents() {
       let retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
@@ -435,7 +529,7 @@ function DashboardContent() {
         let receivedEvent = false;
         try {
           for await (const event of queryClient.streamEvents(
-            { accountId: selectedAccountId, replayLimit: EVENT_LIMIT, afterEventId: lastEventId },
+            { accountId: streamAccountId, replayLimit: EVENT_LIMIT, afterEventId: lastEventId },
             { signal: controller.signal },
           )) {
             if (!active || controller.signal.aborted) return;
@@ -446,9 +540,9 @@ function DashboardContent() {
             receivedEvent = true;
             retryDelayMs = EVENT_RECONNECT_INITIAL_MS;
             setError((current) => (isTransientConnectionMessage(current) ? "" : current));
-            setEvents((prev) => [event, ...prev].slice(0, EVENT_LIMIT));
+            enqueueEvent(event);
             if (SNAPSHOT_REFRESH_EVENT_KINDS.has(event.kind)) {
-              void refreshSnapshot(selectedAccountId).catch(() => undefined);
+              scheduleSnapshotRefresh();
             }
           }
         } catch (err) {
@@ -470,6 +564,8 @@ function DashboardContent() {
     return () => {
       active = false;
       controller.abort();
+      if (snapshotRefreshTimer !== undefined) window.clearTimeout(snapshotRefreshTimer);
+      if (eventFlushTimer !== undefined) window.clearTimeout(eventFlushTimer);
     };
   }, [refreshSnapshot, selectedAccountId]);
 
@@ -809,7 +905,7 @@ function DashboardContent() {
                 account={selectedAccount}
                 status={selectedStatus}
                 featureCapabilities={featureCapabilities}
-                snapshot={snapshot}
+                snapshot={snapshot?.accountId === selectedAccount.id ? snapshot : null}
                 snapshotLoading={snapshotLoading}
                 busyAction={busyAction}
                 activeTab={dashboardTab}
@@ -1276,7 +1372,7 @@ function AccountDetailView({
         )}
       >
         {activeTab === "monitor" && <MonitorTab snapshot={snapshot} status={status} />}
-        {activeTab === "logs" && <EventPanel events={events} />}
+        {activeTab === "logs" && <EventPanel events={events} race={snapshot?.fmlRace} />}
         {activeTab === "settings" && (
           <PolicyPanel
             policy={policy}
@@ -1290,7 +1386,10 @@ function AccountDetailView({
           />
         )}
         {activeTab === "race" && <RaceTab snapshot={snapshot} policy={policy} />}
+        {activeTab === "activity" && <ActivityTab snapshot={snapshot} />}
         {activeTab === "land" && <LandTab snapshot={snapshot} policy={policy} />}
+        {activeTab === "cultivate" && <CultivateTab snapshot={snapshot} />}
+        {activeTab === "flower_elves" && <FlowerElvesTab snapshot={snapshot} />}
         {activeTab === "warehouse" && <WarehouseTab snapshot={snapshot} />}
         {activeTab === "business" && <BusinessTab snapshot={snapshot} />}
       </div>
@@ -1339,12 +1438,22 @@ function MonitorTab({
     <div className="space-y-3 sm:space-y-4">
       <StatusOverviewPanel snapshot={snapshot} status={status} />
       <RuntimeStatisticsPanel runtimeStatistics={runtimeStatistics} />
-      <PearlHireMonitorPanel hire={snapshot?.pearlHire} />
       <OperationPanel operations={snapshot?.plannedOperations ?? []} />
+      <DailyTaskMonitorPanel board={snapshot?.dailyTaskBoard} />
+      <PassBoardMonitorPanel title="花之密令" board={snapshot?.flowerPass} />
+      <PassBoardMonitorPanel title="花灵密令" board={snapshot?.flowerElvesPass} />
       <TaskOrderMonitorPanel tasks={snapshot?.pendingTasks ?? []} statistics={snapshot?.orderStatistics} />
+    </div>
+  );
+}
+
+function ActivityTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
       <CyclicNoteMonitorPanel activity={snapshot?.cyclicNote} />
       <CyclicStoryMonitorPanel activity={snapshot?.cyclicStory} />
-      <DessertMonitorPanel activity={snapshot?.dessert} />
+      <PearlHireMonitorPanel hire={snapshot?.pearlHire} />
+      <FlowerRackMonitorPanel rack={snapshot?.flowerRack} inventory={snapshot?.inventory ?? {}} />
     </div>
   );
 }
@@ -1360,6 +1469,7 @@ function RaceTab({
     <div className="space-y-3 sm:space-y-4">
       <FmlRaceMonitorPanel
         race={snapshot?.fmlRace}
+        inventory={snapshot?.inventory ?? {}}
         showTakenTask={policy?.union?.race?.enabled ?? true}
         showPersonalScoreRank={policy?.union?.race?.showPersonalScoreRank ?? false}
       />
@@ -1378,16 +1488,40 @@ function LandTab({
     <div className="space-y-3 sm:space-y-4">
       <LandMonitorPanel
         lands={snapshot?.lands ?? []}
+        inventory={snapshot?.inventory ?? {}}
         waterDrops={snapshot?.waterDrops ?? 0}
         waterDropsTotal={snapshot?.waterDropsTotal ?? 0}
         minWaterDrops={policy?.plant?.planting?.minWaterDrops ?? 0}
+        todaySpeedUpCard={snapshot?.speedUpTicketsUsedToday ?? 0}
+        speedUpTickets={snapshot?.inventory[SPEED_UP_TICKET_ITEM_ID] ?? 0}
       />
       <FmlLandMonitorPanel
         lands={snapshot?.fmlLands ?? []}
+        inventory={snapshot?.inventory ?? {}}
         plantableFlowers={snapshot?.plantableFlowers ?? []}
         observed={snapshot?.fmlLandsObserved ?? false}
         automationEnabled={policy?.automationEnabled ?? false}
       />
+    </div>
+  );
+}
+
+function CultivateTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <CultivateMonitorPanel
+        cultivations={snapshot?.cultivations ?? []}
+        observed={snapshot?.cultivationsObserved ?? false}
+        inventory={snapshot?.inventory ?? {}}
+      />
+    </div>
+  );
+}
+
+function FlowerElvesTab({ snapshot }: { snapshot: GetSnapshotResponse | null }) {
+  return (
+    <div className="space-y-3 sm:space-y-4">
+      <FlowerElvesMonitorPanel elves={snapshot?.flowerElves} />
     </div>
   );
 }
@@ -1585,10 +1719,6 @@ function waitForAbortableDelay(delayMs: number, signal: AbortSignal): Promise<bo
   });
 }
 
-const SPEED_UP_TICKET_ITEM_ID = 1001;
-const FLORAL_COIN_ITEM_ID = 1002;
-const PEARL_HIRE_TICKET_ITEM_ID = 1003;
-
 function CollapsibleCard({
   title,
   actions,
@@ -1659,6 +1789,22 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
     : nextLevelExperience > 0
       ? `当前 ${formatCount(experience)} / 需要 ${formatCount(nextLevelExperience)}`
       : undefined;
+  const videoDouble = snapshot?.videoDouble;
+  const videoDoubleEndMs = Number(videoDouble?.endTimeMs ?? BigInt(0));
+  const videoDoubleActive =
+    Boolean(videoDouble?.observed) && videoDoubleEndMs > Date.now();
+  const videoDoubleValue = !videoDouble?.observed
+    ? "-"
+    : videoDoubleEndMs > 0
+      ? formatClockTime(videoDoubleEndMs)
+      : "未生效";
+  const videoDoubleDetail = !videoDouble?.observed
+    ? "未同步"
+    : videoDoubleActive
+      ? `生效中 · 剩余 ${formatRemainingMilliseconds(videoDoubleEndMs - Date.now())}`
+      : videoDoubleEndMs > 0
+        ? "已到期"
+        : "需自行观看广告";
   return (
     <CollapsibleCard title="监控概览" actions={snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}>
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
@@ -1682,6 +1828,12 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
         <OverviewStat icon={<Coins />} label="金币" value={formatCount(snapshot?.gold ?? 0)} />
         <OverviewStat icon={<HandCoins />} label="花坊币" value={formatCount(floralCoins)} />
         <OverviewStat icon={<Ticket />} label="加速卡" value={formatCount(speedUpTickets)} />
+        <OverviewStat
+          icon={<Timer />}
+          label="广告金币双倍"
+          value={videoDoubleValue}
+          detail={videoDoubleDetail}
+        />
 
       </div>
     </CollapsibleCard>
@@ -1808,6 +1960,192 @@ function PearlHireMonitorPanel({ hire }: { hire?: PearlHireView }) {
   );
 }
 
+function FlowerElvesMonitorPanel({ elves }: { elves?: FlowerElvesView }) {
+  const moneyItemId = elves?.moneyItemId || FLOWER_ELVES_MONEY_ITEM_ID;
+  const moneyName = itemName(moneyItemId) || "花灵币";
+  const elvesLimit = elves?.elvesLimit ?? 0;
+  const dispatched = elves?.dispatchedCount ?? 0;
+  const places = elves?.places ?? [];
+  const slotCount = elves?.slotCount || places.length;
+  const pendingReward = elves?.pendingRewardMoney ?? 0;
+  const dispatchDetail = elves?.placesObserved
+    ? elvesLimit > 0
+      ? `派遣中 ${formatCount(dispatched)} / 上限 ${formatCount(elvesLimit)}`
+      : `派遣中 ${formatCount(dispatched)}`
+    : "派遣槽位待同步";
+  const plantedCap = elves?.plantedCap || 30;
+  const plantedValue = elves?.plantedObserved
+    ? `${formatCount(elves?.plantedCount ?? 0)}/${formatCount(plantedCap)}`
+    : `-/${formatCount(plantedCap)}`;
+  const harvestableCap = elves?.harvestableCap || 4;
+  const harvestableValue = elves?.harvestableObserved
+    ? `${formatCount(elves?.harvestableCount ?? 0)}/${formatCount(harvestableCap)}`
+    : `-/${formatCount(harvestableCap)}`;
+  const occupiedSlots = places.filter((place) => (place.elvesId ?? 0) > 0).length;
+  const readySlots = places.filter((place) => place.rewardReady).length;
+  const aidEndMs = Number(elves?.aidEffEndTimeMs ?? BigInt(0));
+  const aidReadyAtMs = Number(elves?.aidReqReadyAtMs ?? BigInt(0));
+  const aidActive = Boolean(elves?.aidObserved && aidEndMs > Date.now());
+  const aidRate = elves?.aidFriendAddRate ?? 0;
+  const aidHelpers = elves?.aidHelperCount ?? 0;
+  const aidCanRecv = Boolean(elves?.aidCanRecv);
+  const aidCooldown = Boolean(elves?.aidObserved && !aidActive && !elves?.aidReqOpen && aidReadyAtMs > Date.now());
+  const aidDetail = !elves?.aidObserved
+    ? "协助状态待同步"
+    : aidActive
+      ? `${aidRate > 0 ? `+${aidRate}% · ` : ""}剩余 ${formatRemainingMilliseconds(aidEndMs - Date.now())}`
+      : aidCanRecv
+        ? `可领取加成 · 已协助 ${formatCount(aidHelpers)} 人`
+        : elves?.aidReqOpen
+          ? `请求中，等待好友协助${aidHelpers > 0 ? ` · 已有 ${formatCount(aidHelpers)} 人` : ""}`
+          : aidCooldown
+            ? `申请冷却中 · ${formatRemainingMilliseconds(aidReadyAtMs - Date.now())}后可再申请`
+            : aidHelpers > 0
+              ? `当前无加成 · 上次协助 ${formatCount(aidHelpers)} 人`
+              : "当前无加成";
+  const aidValue = !elves?.aidObserved
+    ? "-"
+    : aidActive
+      ? formatClockTime(aidEndMs)
+      : aidCanRecv
+        ? "可领取"
+        : elves?.aidReqOpen
+          ? "请求中"
+          : aidCooldown
+            ? formatClockTime(aidReadyAtMs)
+            : "未生效";
+  const aidValueLabel = aidCooldown && !aidActive && !aidCanRecv && !elves?.aidReqOpen
+    ? "协助申请冷却至"
+    : "协助加成到期";
+
+  return (
+    <CollapsibleCard
+      title="花灵屋"
+      contentClassName="space-y-3"
+      actions={
+        <>
+          {elves?.placesObserved ? (
+            <Badge variant="secondary">
+              派遣 {occupiedSlots}/{slotCount || "-"}
+            </Badge>
+          ) : (
+            <Badge variant="outline">派遣待同步</Badge>
+          )}
+          {elves?.plantedObserved && (elves?.plantedCount ?? 0) > 0 && (
+            <Badge variant="secondary">已种 {formatCount(elves?.plantedCount ?? 0)}</Badge>
+          )}
+          {elves?.harvestableObserved && (elves?.harvestableCount ?? 0) > 0 && (
+            <Badge variant="secondary">已摸 {formatCount(elves?.harvestableCount ?? 0)}</Badge>
+          )}
+          {aidActive && <Badge variant="secondary">协助加成中</Badge>}
+          {aidCanRecv && <Badge variant="secondary">协助可领取</Badge>}
+          {aidCooldown && <Badge variant="outline">协助冷却中</Badge>}
+          {pendingReward > 0 && <Badge variant="secondary">待领 {formatCount(pendingReward)}</Badge>}
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
+        <OverviewStat
+          icon={<Coins />}
+          label="花灵币"
+          value={formatCount(elves?.moneyCount ?? 0)}
+          detail={`${moneyName} #${moneyItemId}`}
+        />
+        <OverviewStat
+          icon={<Send />}
+          label="可派遣花灵"
+          value={formatCount(elves?.dispatchableCount ?? 0)}
+          detail={dispatchDetail}
+        />
+        <OverviewStat
+          icon={<Sprout />}
+          label="种植花灵数"
+          value={plantedValue}
+          detail={elves?.plantedObserved ? "今日已种植 / 上限" : "种植计数待同步"}
+        />
+        <OverviewStat
+          icon={<HandCoins />}
+          label="可摘取花灵数"
+          value={harvestableValue}
+          detail={elves?.harvestableObserved ? "今日已摸好友花灵 / 上限" : "摸取次数待同步"}
+        />
+        <OverviewStat
+          icon={<Sparkles />}
+          label={aidValueLabel}
+          value={aidValue}
+          detail={aidDetail}
+        />
+      </div>
+
+      <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+        <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+          <span>派遣坑位</span>
+          <div className="flex items-center gap-1.5">
+            {elves?.placesObserved && pendingReward > 0 && (
+              <Badge variant="secondary">
+                预计 {formatCount(pendingReward)} {moneyName}
+              </Badge>
+            )}
+            <Badge variant="secondary">{slotCount || places.length} 槽</Badge>
+          </div>
+        </div>
+        {!elves?.placesObserved || places.length === 0 ? (
+          <div className="p-3">
+            <EmptyState title="派遣坑位尚未同步" detail="连接游戏并进入花灵屋后，会显示各槽派遣数量与预计花灵币收益。" />
+          </div>
+        ) : (
+          <div className="grid gap-2 p-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {places.map((place) => (
+              <FlowerElvesPlaceCard key={place.placeId} place={place} moneyName={moneyName} />
+            ))}
+          </div>
+        )}
+        {elves?.placesObserved && readySlots > 0 && (
+          <div className="border-t border-border/40 px-3 py-2 text-xs text-muted-foreground">
+            {readySlots} 个坑位可领取
+          </div>
+        )}
+      </section>
+    </CollapsibleCard>
+  );
+}
+
+function FlowerElvesPlaceCard({ place, moneyName }: { place: FlowerElvesPlaceView; moneyName: string }) {
+  const status = flowerElvesPlaceStatus(place);
+  const endMs = Number(place.dispEndTimeMs ?? BigInt(0));
+  const elvesNum = place.elvesNum ?? 0;
+  const reward = place.rewardMoney ?? 0;
+  const multi = place.gainMulti ?? 0;
+  return (
+    <div className="rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">坑位 {place.placeId}</div>
+          <div className="mt-1 truncate font-medium">{status.label}</div>
+        </div>
+        <Badge variant={status.badge}>{status.badgeLabel}</Badge>
+      </div>
+      <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+        {(place.elvesId ?? 0) > 0 ? (
+          <>
+            <div className="truncate">
+              {place.elvesName || `#${place.elvesId}`} × {formatCount(elvesNum)}
+            </div>
+            <div>
+              预计 {formatCount(reward)} {moneyName}
+              {multi > 1 ? `（×${multi}）` : ""}
+            </div>
+            {place.dispatching && endMs > 0 && <div>{formatClockTime(endMs)} 归来</div>}
+            {place.rewardReady && endMs > 0 && <div>已于 {formatClockTime(endMs)} 可领</div>}
+          </>
+        ) : (
+          <div>空闲</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PearlHireSlotCard({ place }: { place: PearlPlaceView }) {
   const status = pearlHireSlotStatus(place);
   const endMs = Number(place.laborEndTimeMs ?? BigInt(0));
@@ -1831,6 +2169,479 @@ function PearlHireSlotCard({ place }: { place: PearlPlaceView }) {
         )}
         {place.hireFailCntObserved && place.hireFailCnt > 0 && <div>雇佣失败 {place.hireFailCnt} 次</div>}
         {place.surplusRecvNumObserved && place.surplusRecvNum > 0 && <div>待领取产量 {place.surplusRecvNum}</div>}
+      </div>
+    </div>
+  );
+}
+
+function CultivateMonitorPanel({
+  cultivations,
+  observed,
+  inventory,
+}: {
+  cultivations: CultivateStatusView[];
+  observed: boolean;
+  inventory: Record<number, number> | { [key: number]: number };
+}) {
+  const [candidateFilter, setCandidateFilter] = useState<CultivateCandidateFilter>("seeds");
+
+  const statusByFlower = useMemo(() => {
+    const map = new Map<number, CultivateStatusView>();
+    for (const row of cultivations) {
+      map.set(row.flowerId, row);
+    }
+    return map;
+  }, [cultivations]);
+
+  const cultivating = useMemo(() => {
+    return cultivations
+      .filter((row) => row.status === 1)
+      .slice()
+      .sort((a, b) => {
+        if (a.ready !== b.ready) return a.ready ? -1 : 1;
+        const aMs = Number(a.culTimeMs ?? BigInt(0));
+        const bMs = Number(b.culTimeMs ?? BigInt(0));
+        if (aMs !== bMs) return aMs - bMs;
+        return a.flowerId - b.flowerId;
+      });
+  }, [cultivations]);
+
+  const readyCount = cultivating.filter((row) => row.ready).length;
+
+  const candidates = useMemo(() => {
+    const rows: CultivateCandidateRow[] = [];
+    for (const flower of allFlowers()) {
+      const costs = flower.cultivate_cost ?? [];
+      if (costs.length === 0) continue;
+      const status = statusByFlower.get(flower.id);
+      if (isCultivatingStatus(status) || isCultivatedStatus(status)) continue;
+      const prereqId = flower.cultivate ?? 0;
+      const prereqMet = prereqId <= 0 || isCultivatedStatus(statusByFlower.get(prereqId));
+      // Protocol flower-seed stock lives under flower id (23000-23999).
+      const seedCount = inventory[flower.id] ?? 0;
+      // "有种子未培育" in the cultivate room: namespace 101 entry with status=0
+      // (idle). Merely owning harvested blooms without a cultivate record is
+      // not enough — that over-counts shop/steal/event inventory.
+      const idleInCultivateRoom = status?.status === 0;
+
+      const materials = costs
+        .filter((cost) => (cost.item_id ?? 0) > 0 && (cost.count ?? 0) > 0)
+        .map((cost) => {
+          const itemId = cost.item_id;
+          const required = cost.count ?? 0;
+          const owned = inventory[itemId] ?? 0;
+          return {
+            itemId,
+            itemName: itemName(itemId) || `#${itemId}`,
+            required,
+            owned,
+            enough: owned >= required,
+          };
+        });
+      const materialsEnough = materials.length > 0 && materials.every((item) => item.enough);
+      rows.push({
+        flower,
+        durationSec: flower.cultivate_time ?? 0,
+        materials,
+        materialsEnough,
+        prereqId,
+        prereqMet,
+        seedId: flower.id,
+        seedCount,
+        hasSeed: idleInCultivateRoom,
+      });
+    }
+    rows.sort((a, b) => {
+      if (a.materialsEnough !== b.materialsEnough) return a.materialsEnough ? -1 : 1;
+      if (a.hasSeed !== b.hasSeed) return a.hasSeed ? -1 : 1;
+      const aSort = a.flower.sort || a.flower.id;
+      const bSort = b.flower.sort || b.flower.id;
+      if (aSort !== bSort) return aSort - bSort;
+      return a.flower.id - b.flower.id;
+    });
+    return rows;
+  }, [inventory, statusByFlower]);
+
+  const unlockableCandidates = useMemo(() => candidates.filter((row) => row.prereqMet), [candidates]);
+  const materialsReadyCount = unlockableCandidates.filter((row) => row.materialsEnough).length;
+  const seedOwnedCount = candidates.filter((row) => row.hasSeed).length;
+  const visibleCandidates = useMemo(() => {
+    if (candidateFilter === "materials") return unlockableCandidates.filter((row) => row.materialsEnough);
+    if (candidateFilter === "seeds") {
+      return candidates
+        .filter((row) => row.hasSeed)
+        .slice()
+        .sort((a, b) => {
+          if (a.prereqMet !== b.prereqMet) return a.prereqMet ? -1 : 1;
+          if (a.materialsEnough !== b.materialsEnough) return a.materialsEnough ? -1 : 1;
+          if (a.seedCount !== b.seedCount) return b.seedCount - a.seedCount;
+          return (a.flower.sort || a.flower.id) - (b.flower.sort || b.flower.id);
+        });
+    }
+    return unlockableCandidates;
+  }, [candidateFilter, candidates, unlockableCandidates]);
+
+  return (
+    <CollapsibleCard
+      title="培育室"
+      contentClassName="space-y-3"
+      actions={
+        <>
+          {observed ? <Badge variant="secondary">已同步</Badge> : <Badge variant="outline">待同步</Badge>}
+          {readyCount > 0 && <Badge variant="secondary">可领取 {readyCount}</Badge>}
+          {materialsReadyCount > 0 && <Badge variant="outline">材料足够 {materialsReadyCount}</Badge>}
+          {seedOwnedCount > 0 && <Badge variant="outline">有种子 {seedOwnedCount}</Badge>}
+        </>
+      }
+    >
+      {!observed ? (
+        <EmptyState title="培育状态尚未同步" detail="连接游戏并进入培育相关流程后，监控会从命名空间 101 自动发现培育进度。" />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <OverviewStat
+              icon={<Timer />}
+              label="培育中"
+              value={formatCount(cultivating.length)}
+              detail={readyCount > 0 ? `${readyCount} 朵可领取` : cultivating.length > 0 ? "进行中" : "暂无进行中"}
+            />
+            <OverviewStat
+              icon={<Check />}
+              label="可领取"
+              value={formatCount(readyCount)}
+              detail={readyCount > 0 ? "培育完成，等待领取" : "暂无完成"}
+            />
+            <OverviewStat
+              icon={<Package />}
+              label="材料足够"
+              value={formatCount(materialsReadyCount)}
+              detail={`可解锁未培育 ${formatCount(unlockableCandidates.length)}`}
+            />
+            <OverviewStat
+              icon={<Sprout />}
+              label="有种子"
+              value={formatCount(seedOwnedCount)}
+              detail={`已培育 ${formatCount(cultivations.filter((row) => isCultivatedStatus(row)).length)}`}
+            />
+          </div>
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>当前培育</span>
+              <Badge variant="secondary">{cultivating.length}</Badge>
+            </div>
+            {cultivating.length === 0 ? (
+              <div className="p-3">
+                <EmptyState title="当前没有正在培育的花朵" detail="材料足够时可从下方未培育列表启动培育。" />
+              </div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-2">
+                {cultivating.map((row) => (
+                  <CultivateProgressCard key={row.flowerId} row={row} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 flex-wrap items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>未培育花朵</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={candidateFilter === "seeds" ? "secondary" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setCandidateFilter("seeds")}
+                >
+                  有种子 {seedOwnedCount}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={candidateFilter === "materials" ? "secondary" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setCandidateFilter("materials")}
+                >
+                  材料足够 {materialsReadyCount}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={candidateFilter === "all" ? "secondary" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setCandidateFilter("all")}
+                >
+                  全部可解锁 {unlockableCandidates.length}
+                </Button>
+              </div>
+            </div>
+            {visibleCandidates.length === 0 ? (
+              <div className="p-3">
+                <EmptyState
+                  title={
+                    candidateFilter === "materials"
+                      ? "暂无材料足够的未培育花朵"
+                      : candidateFilter === "seeds"
+                        ? "暂无拥有种子的未培育花朵"
+                        : "暂无可解锁的未培育花朵"
+                  }
+                  detail={
+                    candidateFilter === "materials"
+                      ? "可切换到「有种子」或「全部可解锁」查看更多条目。"
+                      : candidateFilter === "seeds"
+                        ? "培育室中状态为空闲（尚未领取/可种植）且有花种记录的花朵会出现在这里。"
+                        : "前置花朵培育完成后会出现新的可解锁条目。"
+                  }
+                />
+              </div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-2 xl:grid-cols-3">
+                {visibleCandidates.map((row) => (
+                  <CultivateCandidateCard key={row.flower.id} row={row} />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+type CultivateCandidateRow = {
+  flower: FlowerInfo;
+  durationSec: number;
+  materials: { itemId: number; itemName: string; required: number; owned: number; enough: boolean }[];
+  materialsEnough: boolean;
+  prereqId: number;
+  prereqMet: boolean;
+  seedId: number;
+  seedCount: number;
+  hasSeed: boolean;
+};
+
+function CultivateProgressCard({ row }: { row: CultivateStatusView }) {
+  const completeMs = Number(row.culTimeMs ?? BigInt(0));
+  const remainingMs = completeMs > Date.now() ? completeMs - Date.now() : 0;
+  const name = row.flowerName || itemName(row.flowerId) || `#${row.flowerId}`;
+  return (
+    <div className="rounded-md border border-border/50 bg-background/55 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-medium">{name}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            #{row.flowerId}
+            {row.lvl > 0 ? ` · lv${row.lvl}` : ""}
+          </div>
+        </div>
+        <Badge variant={row.ready ? "secondary" : "outline"}>{row.ready ? "可领取" : "培育中"}</Badge>
+      </div>
+      <div className="mt-2 space-y-1 text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">预计完成</span>
+          <span className="font-medium tabular-nums">{completeMs > 0 ? formatCultivateCompleteTime(completeMs) : "-"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">剩余时间</span>
+          <span className="tabular-nums">
+            {row.ready ? "已完成" : remainingMs > 0 ? formatRemainingMilliseconds(remainingMs) : "-"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CultivateCandidateCard({ row }: { row: CultivateCandidateRow }) {
+  const name = itemName(row.flower.id) || `#${row.flower.id}`;
+  const seedLabel = row.seedId > 0 ? itemName(row.seedId) || `#${row.seedId}` : "";
+  return (
+    <div className="rounded-md border border-border/50 bg-background/55 px-3 py-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="truncate font-medium">{name}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            #{row.flower.id}
+            {row.prereqId > 0 ? ` · 前置 ${itemName(row.prereqId) || `#${row.prereqId}`}${row.prereqMet ? "" : "（未完成）"}` : ""}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <Badge variant={row.materialsEnough ? "secondary" : "outline"}>{row.materialsEnough ? "材料足够" : "材料不足"}</Badge>
+          {row.hasSeed && <Badge variant="outline">种子 {formatCount(row.seedCount)}</Badge>}
+        </div>
+      </div>
+      <div className="mt-2 space-y-1.5 text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">培育时长</span>
+          <span className="tabular-nums">{row.durationSec > 0 ? formatCultivateDuration(row.durationSec) : "-"}</span>
+        </div>
+        {row.seedId > 0 && (
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="truncate text-muted-foreground">种子 {seedLabel}</span>
+            <span className={cn("tabular-nums", row.hasSeed ? "text-foreground" : "text-muted-foreground")}>
+              x{formatCount(row.seedCount)}
+            </span>
+          </div>
+        )}
+        <div className="space-y-1">
+          <div className="text-muted-foreground">培育材料</div>
+          {row.materials.length === 0 ? (
+            <div className="text-xs text-muted-foreground">无材料配置</div>
+          ) : (
+            <div className="space-y-0.5">
+              {row.materials.map((mat) => (
+                <div key={mat.itemId} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate">{mat.itemName}</span>
+                  <span className={cn("tabular-nums", mat.enough ? "text-foreground" : "text-destructive")}>
+                    {formatCount(mat.owned)}/{formatCount(mat.required)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function isCultivatedStatus(row?: CultivateStatusView) {
+  return !!row && row.status === 2 && row.lvl > 0;
+}
+
+function isCultivatingStatus(row?: CultivateStatusView) {
+  return !!row && row.status === 1;
+}
+
+function formatCultivateCompleteTime(milliseconds: number) {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "-";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(milliseconds));
+}
+
+function formatCultivateDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "-";
+  if (seconds < 60) return `${seconds}秒`;
+  return formatRemainingMilliseconds(seconds * 1000);
+}
+
+function FlowerRackMonitorPanel({
+  rack,
+  inventory,
+}: {
+  rack?: FlowerRackView;
+  inventory: Record<number, number> | { [key: number]: number };
+}) {
+  const slots = rack?.slots ?? [];
+  const slotCount = rack?.slotCount || slots.length;
+  const listedCount = rack?.listedCount ?? 0;
+  const emptyCount = rack?.emptyCount ?? 0;
+  const claimableCount = rack?.claimableCount ?? 0;
+
+  return (
+    <CollapsibleCard
+      title="花艺上架"
+      contentClassName="space-y-3"
+      actions={
+        rack?.observed ? (
+          <Badge variant="secondary">
+            上架 {listedCount}/{slotCount || "-"}
+          </Badge>
+        ) : (
+          <Badge variant="outline">花架待同步</Badge>
+        )
+      }
+    >
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <OverviewStat
+          icon={<Flower2 />}
+          label="已上架"
+          value={rack?.observed ? formatCount(listedCount) : "-"}
+          detail={rack?.observed ? `共 ${slotCount || slots.length} 个花架位` : "等待同步花架"}
+        />
+        <OverviewStat
+          icon={<Package />}
+          label="空位"
+          value={rack?.observed ? formatCount(emptyCount) : "-"}
+          detail={rack?.observed ? (emptyCount > 0 ? "可继续上架" : "暂无空位") : "等待同步花架"}
+        />
+        <OverviewStat
+          icon={<HandCoins />}
+          label="可领取"
+          value={rack?.observed ? formatCount(claimableCount) : "-"}
+          detail={rack?.observed ? (claimableCount > 0 ? "售卖窗口已到" : "暂无可领") : "等待同步花架"}
+        />
+        <OverviewStat
+          icon={<ListChecks />}
+          label="槽位状态"
+          value={rack?.observed ? flowerRackSlotSummary(slots) : "未同步"}
+          detail="花架售卖位"
+          wrap
+        />
+      </div>
+
+      <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+        <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+          <span>花架位置</span>
+          <Badge variant="secondary">{slotCount || slots.length} 位</Badge>
+        </div>
+        {!rack?.observed || slots.length === 0 ? (
+          <div className="p-3">
+            <EmptyState title="花架位置尚未同步" detail="连接游戏并同步花架后，会显示各位置上架的花艺信息。" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-6 gap-2 p-2">
+            {slots.map((slot) => (
+              <FlowerRackSlotCard
+                key={slot.rackId}
+                slot={slot}
+                stock={slot.itemId > 0 ? (inventory[slot.itemId] ?? 0) : 0}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </CollapsibleCard>
+  );
+}
+
+function FlowerRackSlotCard({ slot, stock }: { slot: FlowerRackSlotView; stock: number }) {
+  const status = flowerRackSlotStatus(slot);
+  const listedAtMs = Number(slot.listedAtMs ?? BigInt(0));
+  const sellReadyAtMs = Number(slot.sellReadyAtMs ?? BigInt(0));
+  const artLabel = slot.itemName || (slot.itemId > 0 ? itemName(slot.itemId) || `#${slot.itemId}` : "空位");
+  return (
+    <div className="min-w-0 rounded-md border border-border/58 bg-background/72 p-2 text-sm">
+      <div className="flex items-start justify-between gap-1">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">位置 {slot.rackId}</div>
+          <div className="mt-1 truncate font-medium">{slot.listed ? artLabel : "空位"}</div>
+        </div>
+        <Badge variant={status.badge} className="shrink-0 text-[10px]">
+          {status.badgeLabel}
+        </Badge>
+      </div>
+      <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+        {slot.listed && (
+          <>
+            <div className="truncate">x{formatCount(slot.count)}</div>
+            <div className="truncate">库存 {formatCount(stock)}</div>
+            {listedAtMs > 0 && <div className="truncate">{formatClockTime(listedAtMs)} 上架</div>}
+            {sellReadyAtMs > 0 && (
+              <div className="truncate">
+                {slot.claimable ? `已于 ${formatClockTime(sellReadyAtMs)} 可领` : `${formatClockTime(sellReadyAtMs)} 可领`}
+              </div>
+            )}
+          </>
+        )}
+        {!slot.listed && <div>暂无上架</div>}
       </div>
     </div>
   );
@@ -1941,10 +2752,12 @@ function CyclicNoteMonitorPanel({ activity }: { activity?: CyclicNoteView }) {
 
 function FmlRaceMonitorPanel({
   race,
+  inventory = {},
   showTakenTask,
   showPersonalScoreRank = false,
 }: {
   race?: FmlRaceView;
+  inventory?: { [key: number]: number };
   showTakenTask: boolean;
   showPersonalScoreRank?: boolean;
 }) {
@@ -2056,7 +2869,7 @@ function FmlRaceMonitorPanel({
                   <span>当前已接任务</span>
                 </div>
                 <div className="p-3">
-                  <FmlRaceTakenCard taken={taken} />
+                  <FmlRaceTakenCard taken={taken} inventory={inventory} />
                 </div>
               </section>
             ) : (
@@ -2089,12 +2902,17 @@ function FmlRaceMonitorPanel({
                     <span className="mr-0.5 shrink-0 font-medium text-red-600 dark:text-red-400">
                       可接任务
                     </span>
-                    {takeableTasks.map(({ index, task }, i) => (
-                      <span key={task.msId} className="tabular-nums text-red-600 dark:text-red-400">
-                        {i > 0 ? <span className="text-muted-foreground">· </span> : null}#
-                        {index} {task.score}分
-                      </span>
-                    ))}
+                    {takeableTasks.map(({ index, task }, i) => {
+                      const name = `${task.taskLabel ?? ""}${task.targetLabel ?? ""}`.trim();
+                      const stock = fmlRacePlantHarvestStock(task, inventory);
+                      return (
+                        <span key={task.msId} className="tabular-nums text-red-600 dark:text-red-400">
+                          {i > 0 ? <span className="text-muted-foreground">· </span> : null}#
+                          {index} {task.score}分{name}
+                          {stock !== null ? `(库存${formatCount(stock)})` : null}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2106,7 +2924,7 @@ function FmlRaceMonitorPanel({
             ) : (
               <div className="grid gap-2 p-2 lg:grid-cols-3">
                 {tasks.map((task, index) => (
-                  <FmlRaceTaskCard key={task.msId} index={index + 1} task={task} />
+                  <FmlRaceTaskCard key={task.msId} index={index + 1} task={task} inventory={inventory} />
                 ))}
               </div>
             )}
@@ -2117,7 +2935,13 @@ function FmlRaceMonitorPanel({
   );
 }
 
-function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
+function FmlRaceTakenCard({
+  taken,
+  inventory = {},
+}: {
+  taken: FmlRaceTaken;
+  inventory?: { [key: number]: number };
+}) {
   const [nowMs, setNowMs] = useState<number | null>(null);
 
   useEffect(() => {
@@ -2154,6 +2978,7 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
     if (m > 0) return `剩余 ${m}分钟`;
     return `剩余 ${totalSec}秒`;
   })();
+  const flowerStock = fmlRacePlantHarvestStock(taken, inventory);
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -2165,6 +2990,7 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
       </div>
       <div className="text-xs text-muted-foreground">
         进度 {taken.finishCnt} / {taken.targetCnt} · 分数 {taken.score}
+        {flowerStock !== null ? ` · 库存 ${formatCount(flowerStock)}` : null}
       </div>
       <div className={`text-xs ${expireUrgent ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
         {expireLabel !== "" ? (
@@ -2186,7 +3012,62 @@ function isFmlRaceTaskTakeable(task: FmlRaceTask) {
   return skipReason === "" || skipReason.startsWith("冷却中");
 }
 
-function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) {
+const FML_RACE_TASK_TYPE_PLANT_HARVEST = 3036;
+
+function inventoryItemCount(inventory: { [key: number]: number }, itemId: number): number {
+  const direct = inventory[itemId];
+  if (typeof direct === "number") return direct;
+  const asString = (inventory as Record<string, number>)[String(itemId)];
+  return typeof asString === "number" ? asString : 0;
+}
+
+function fmlRaceResolveFlowerItemId(task: {
+  taskType?: number;
+  taskLabel?: string;
+  targetItemId?: number;
+  targetLabel?: string;
+}): number {
+  const itemId = task.targetItemId ?? 0;
+  if (itemId >= 23000 && itemId < 24000) return itemId;
+  const isPlantHarvest =
+    task.taskType === FML_RACE_TASK_TYPE_PLANT_HARVEST || (task.taskLabel ?? "").includes("种植收获");
+  if (!isPlantHarvest) return 0;
+  if (itemId > 0) return itemId;
+  const label = (task.targetLabel ?? "").trim();
+  if (!label) return 0;
+  for (const flower of allFlowers()) {
+    if (itemName(flower.id) === label) return flower.id;
+  }
+  return 0;
+}
+
+/** Owned flower stock for plant-harvest race tasks; null when not applicable. */
+function fmlRacePlantHarvestStock(
+  task: {
+    taskType?: number;
+    taskLabel?: string;
+    targetItemId?: number;
+    targetLabel?: string;
+  },
+  inventory: { [key: number]: number },
+): number | null {
+  const isPlantHarvest =
+    task.taskType === FML_RACE_TASK_TYPE_PLANT_HARVEST || (task.taskLabel ?? "").includes("种植收获");
+  if (!isPlantHarvest) return null;
+  const itemId = fmlRaceResolveFlowerItemId(task);
+  if (itemId <= 0) return null;
+  return inventoryItemCount(inventory, itemId);
+}
+
+function FmlRaceTaskCard({
+  index,
+  task,
+  inventory = {},
+}: {
+  index: number;
+  task: FmlRaceTask;
+  inventory?: { [key: number]: number };
+}) {
 	const skipReason = (task.takeSkipReason ?? "").trim();
 	const takeable = isFmlRaceTaskTakeable(task);
 	// The server computes CD using the same lead window as task selection. Using
@@ -2196,6 +3077,7 @@ function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) 
 		? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
 		: task.taskLabel || `任务 #${task.taskId}`;
 	const title = onCd ? `CD ${baseTitle}` : baseTitle;
+  const flowerStock = fmlRacePlantHarvestStock(task, inventory);
   return (
     <div
       className={cn(
@@ -2210,8 +3092,11 @@ function FmlRaceTaskCard({ index, task }: { index: number; task: FmlRaceTask }) 
         </span>
         <Badge variant={task.isUpgrade ? "secondary" : "outline"}>{task.isUpgrade ? "已升级" : "普通"}</Badge>
       </div>
-      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-        <span>分数 {task.score}</span>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+        <span className="tabular-nums">分数 {task.score}</span>
+        {flowerStock !== null ? (
+          <span className="tabular-nums font-medium text-foreground">库存 {formatCount(flowerStock)}</span>
+        ) : null}
         {task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}
       </div>
       {skipReason === "" ? (
@@ -2838,6 +3723,165 @@ function ActivityItemChip({ item, compact = false }: { item: ActivityItem; compa
   );
 }
 
+function DailyTaskMonitorPanel({ board }: { board?: DailyTaskBoardView }) {
+  const tasks = board?.tasks ?? [];
+  const readyCount = tasks.filter((task) => task.planStatus === PlanStatus.READY && !task.received).length;
+  const receivedCount = tasks.filter((task) => task.received).length;
+
+  return (
+    <CollapsibleCard
+      title="每日任务"
+      contentClassName="space-y-3"
+      actions={
+        <>
+          {!board?.observed && <Badge variant="outline">待同步</Badge>}
+          {board?.observed && <Badge variant="secondary">共 {tasks.length}</Badge>}
+          {readyCount > 0 && <Badge variant="secondary">可领取 {readyCount}</Badge>}
+        </>
+      }
+    >
+      {!board?.observed ? (
+        <EmptyState title="每日任务尚未同步" detail="连接游戏后，会从任务命名空间同步每日任务进度。" />
+      ) : tasks.length === 0 ? (
+        <EmptyState title="当前没有每日任务" />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+            <OverviewStat icon={<ListChecks />} label="任务数" value={tasks.length} detail={`${receivedCount} 已领取`} />
+            <OverviewStat icon={<Check />} label="可领取" value={readyCount} detail={readyCount > 0 ? "奖励可主动领取" : "暂无可领"} />
+            <OverviewStat
+              icon={<Trophy />}
+              label="完成进度"
+              value={`${tasks.filter((task) => task.target > 0 && task.finished >= task.target).length}/${tasks.length}`}
+              detail="已达目标 / 全部"
+            />
+          </div>
+          <div className="dark-scrollbar max-h-[280px] divide-y divide-border/70 overflow-y-auto rounded-md border border-border/58 bg-white/34 dark:bg-white/5 sm:max-h-[320px]">
+            {tasks.map((task) => (
+              <DailyTaskBoardRow key={task.taskId} task={task} />
+            ))}
+          </div>
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function DailyTaskBoardRow({ task }: { task: DailyTaskBoardItem }) {
+  const percent = task.target > 0 ? Math.min(100, Math.round((task.finished / task.target) * 100)) : 0;
+  return (
+    <div className="min-h-[4.5rem] px-3 py-2.5">
+      <div className="flex items-start gap-3">
+        <PassTaskStatusBadge status={task.planStatus} received={task.received} />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+            <span className="min-w-0 truncate font-medium">{task.title || `#${task.taskId}`}</span>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">#{task.taskId}</span>
+            {task.target > 0 && (
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {formatCount(task.finished)}/{formatCount(task.target)}
+              </span>
+            )}
+          </div>
+          {task.target > 0 && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PassBoardMonitorPanel({ title, board }: { title: string; board?: PassBoardView }) {
+  const tasks = board?.tasks ?? [];
+  const readyTasks = board?.readyTaskCount ?? 0;
+  const readyLevels = board?.readyFreeLevelCount ?? 0;
+
+  return (
+    <CollapsibleCard
+      title={title}
+      contentClassName="space-y-3"
+      actions={
+        <>
+          {!board?.observed && <Badge variant="outline">待同步</Badge>}
+          {board?.observed && !board.found && <Badge variant="outline">无进行中批次</Badge>}
+          {board?.found && <Badge variant="outline">期次 {board.bid}</Badge>}
+          {board?.found && <Badge variant="secondary">Lv.{board.lvl}{board.lvlMax > 0 ? `/${board.lvlMax}` : ""}</Badge>}
+          {readyTasks + readyLevels > 0 && <Badge variant="secondary">可领取 {readyTasks + readyLevels}</Badge>}
+        </>
+      }
+    >
+      {!board?.observed ? (
+        <EmptyState title={`${title}尚未同步`} detail="开启领奖或进入游戏后，会同步密令进度。" />
+      ) : !board.found ? (
+        <EmptyState title={`当前没有进行中的${title}`} />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <OverviewStat icon={<Trophy />} label="等级" value={board.lvl} detail={board.name || `期次 ${board.bid}`} />
+            <OverviewStat icon={<Sparkles />} label="经验" value={formatCount(board.exp)} detail={board.lvlMax > 0 ? `上限 ${board.lvlMax}` : "等级经验"} />
+            <OverviewStat icon={<ListChecks />} label="任务可领" value={readyTasks} detail={`共 ${tasks.length} 个任务`} />
+            <OverviewStat icon={<Check />} label="免费等级可领" value={readyLevels} detail="仅免费档" />
+          </div>
+          <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+            <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+              <span>任务进度</span>
+              <Badge variant="secondary">{tasks.length}</Badge>
+            </div>
+            {tasks.length === 0 ? (
+              <div className="p-3">
+                <EmptyState title="暂无密令任务" />
+              </div>
+            ) : (
+              <div className="grid gap-2 p-2 lg:grid-cols-2">
+                {tasks.map((task) => (
+                  <PassTaskCard key={`${board.bid}:${task.taskId}`} task={task} />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
+    </CollapsibleCard>
+  );
+}
+
+function PassTaskCard({ task }: { task: PassTaskSlot }) {
+  const percent = task.target > 0 ? Math.min(100, Math.round((task.progress / task.target) * 100)) : 0;
+  return (
+    <div className="min-w-0 rounded-md border border-border/58 bg-background/72 p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">{task.taskType === 2 ? "挑战" : "每日"} · #{task.taskId}</div>
+          <div className="mt-1 truncate font-medium">{task.title || `任务 #${task.taskId}`}</div>
+        </div>
+        <PassTaskStatusBadge status={task.status} received={task.received} unknown={!task.catalogKnown} />
+      </div>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {formatCount(task.progress)}/{formatCount(task.target)}
+        </span>
+        {task.rewardExp > 0 && <span>+{formatCount(task.rewardExp)} 经验</span>}
+      </div>
+      {task.target > 0 && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PassTaskStatusBadge({ status, received, unknown = false }: { status: PlanStatus; received: boolean; unknown?: boolean }) {
+  if (received) return <Badge variant="outline">已领</Badge>;
+  if (unknown) return <Badge variant="outline">未知</Badge>;
+  if (status === PlanStatus.READY) return <Badge variant="secondary">可领取</Badge>;
+  if (status === PlanStatus.SKIPPED) return <Badge variant="outline">已完成</Badge>;
+  return <Badge variant="outline">进行中</Badge>;
+}
+
 function TaskOrderMonitorPanel({
   tasks,
   statistics,
@@ -3016,14 +4060,20 @@ function RequirementChips({ requirements }: { requirements: RequirementView[] })
 
 function LandMonitorPanel({
   lands,
+  inventory,
   waterDrops,
   waterDropsTotal,
   minWaterDrops,
+  todaySpeedUpCard,
+  speedUpTickets,
 }: {
   lands: LandView[];
+  inventory: { [key: number]: number };
   waterDrops: number;
   waterDropsTotal: number;
   minWaterDrops: number;
+  todaySpeedUpCard: number;
+  speedUpTickets: number;
 }) {
   const landsByDisplay = useMemo(() => {
     const map = new Map<number, LandView>();
@@ -3064,36 +4114,51 @@ function LandMonitorPanel({
           <Badge variant="secondary">已开 {openedCount}</Badge>
           {unopenedCount > 0 && <Badge variant="outline">未开 {unopenedCount}</Badge>}
           {lockedCount > 0 && <Badge variant="outline">锁定 {lockedCount}</Badge>}
+          <Badge variant="outline">今日加速券 {formatCount(todaySpeedUpCard)}</Badge>
         </>
       }
     >
-      {lands.length === 0 ? (
-        <EmptyState title="暂无土地快照" />
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {statusOrder.map((key) => {
-              const count = recommendationCounts.get(key) ?? 0;
-              return (
-                <Fragment key={key}>
-                  {count > 0 && (
-                    <Badge variant="outline">
-                      {recommendationLabel(key)} {count}
-                    </Badge>
-                  )}
-                  {key === "plant" && (
-                    <Badge variant="outline">
-                      水滴总数 {formatCount(waterDrops)}/{formatCount(waterDropsTotal)}
-                    </Badge>
-                  )}
-                </Fragment>
-              );
-            })}
-            {minWaterDrops > 0 && (
-              <Badge variant="outline">可用水滴数 {formatCount(availableWaterDrops)}</Badge>
-            )}
-          </div>
-          <div className="dark-scrollbar max-h-[440px] overflow-y-auto pr-0.5 sm:h-[560px] sm:max-h-none sm:pr-1">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <OverviewStat
+            icon={<Ticket />}
+            label="今日加速券"
+            value={formatCount(todaySpeedUpCard)}
+            detail="今日使用总量"
+          />
+          <OverviewStat
+            icon={<Ticket />}
+            label="加速券库存"
+            value={formatCount(speedUpTickets)}
+            detail="当前持有"
+          />
+        </div>
+        {lands.length === 0 ? (
+          <EmptyState title="暂无土地快照" />
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {statusOrder.map((key) => {
+                const count = recommendationCounts.get(key) ?? 0;
+                return (
+                  <Fragment key={key}>
+                    {count > 0 && (
+                      <Badge variant="outline">
+                        {recommendationLabel(key)} {count}
+                      </Badge>
+                    )}
+                    {key === "plant" && (
+                      <Badge variant="outline">
+                        水滴总数 {formatCount(waterDrops)}/{formatCount(waterDropsTotal)}
+                      </Badge>
+                    )}
+                  </Fragment>
+                );
+              })}
+              {minWaterDrops > 0 && (
+                <Badge variant="outline">可用水滴数 {formatCount(availableWaterDrops)}</Badge>
+              )}
+            </div>
             <div
               className="grid gap-2"
               style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr)) 0.75rem repeat(4, minmax(0, 1fr))" }}
@@ -3111,20 +4176,21 @@ function LandMonitorPanel({
                       </div>
                     );
                   }
-                  return <LandTile key={land.landId} land={land} />;
+                  const flowerStock = land.flowerId > 0 ? (inventory[land.flowerId] ?? 0) : 0;
+                  return <LandTile key={land.landId} land={land} flowerStock={flowerStock} />;
                 })();
                 if (index % 8 !== 4) return [tile];
                 return [<div key={`aisle-${index}`} className="min-h-[78px]" aria-hidden />, tile];
               })}
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </CollapsibleCard>
   );
 }
 
-function LandTile({ land }: { land: LandView }) {
+function LandTile({ land, flowerStock }: { land: LandView; flowerStock: number }) {
   const planted = land.flowerId > 0;
   const status = land.landStatus || (land.observed ? "opened" : "unknown");
   const opened = status === "opened";
@@ -3163,6 +4229,12 @@ function LandTile({ land }: { land: LandView }) {
             "-"
           )}
         </div>
+        {opened && planted ? <div className="truncate">库存{formatCount(flowerStock)}</div> : null}
+        {opened && planted ? (
+          <div className="truncate">
+            剩：{land.remainingYield || 0};可摸：{land.canTouch || 0}
+          </div>
+        ) : null}
         <div className="text-left">{timing}</div>
       </div>
     </div>
@@ -3171,11 +4243,13 @@ function LandTile({ land }: { land: LandView }) {
 
 function FmlLandMonitorPanel({
   lands,
+  inventory,
   plantableFlowers,
   observed,
   automationEnabled,
 }: {
   lands: FmlLandView[];
+  inventory: { [key: number]: number };
   plantableFlowers: PlantableFlowerView[];
   observed: boolean;
   automationEnabled: boolean;
@@ -3250,6 +4324,7 @@ function FmlLandMonitorPanel({
                 key={land.landId}
                 land={land}
                 flowerLvl={land.flowerLvl > 0 ? land.flowerLvl : flowerLvlById.get(land.flowerId) ?? 0}
+                flowerStock={land.flowerId > 0 ? (inventory[land.flowerId] ?? 0) : 0}
               />
             ))}
           </div>
@@ -3259,7 +4334,15 @@ function FmlLandMonitorPanel({
   );
 }
 
-function FmlLandTile({ land, flowerLvl }: { land: FmlLandView; flowerLvl: number }) {
+function FmlLandTile({
+  land,
+  flowerLvl,
+  flowerStock,
+}: {
+  land: FmlLandView;
+  flowerLvl: number;
+  flowerStock: number;
+}) {
   const planted = land.flowerId > 0;
   const recommendation = recommendationLabel(land.recommendation);
   const timing = fmlLandTimingLabel(land);
@@ -3298,6 +4381,7 @@ function FmlLandTile({ land, flowerLvl }: { land: FmlLandView; flowerLvl: number
           {stockLabel ? ` · ${stockLabel}` : ""}
           {land.pendingHarvest > 0 ? ` · 待收${land.pendingHarvest}` : ""}
         </div>
+        {planted ? <div className="truncate">库存{formatCount(flowerStock)}</div> : null}
         <div className="text-left">{timing}</div>
       </div>
     </div>
@@ -3477,7 +4561,7 @@ function BusinessStatisticsPanel({ statistics }: { statistics?: BusinessStatisti
             <OverviewStat icon={<Flower2 />} label="收获鲜花" value={formatCount(today.flowerHarvestNum)} detail="今日收获" />
             <OverviewStat icon={<Sparkles />} label="花艺售出" value={formatCount(today.flowerArtSold)} />
             <OverviewStat icon={<ListChecks />} label="完成订单" value={formatCount(orderTotal)} detail="居民/顾客/宫廷/绸缎/建材" />
-            <OverviewStat icon={<Ticket />} label="加速券" value={formatCount(today.speedUpCard)} />
+            <OverviewStat icon={<Ticket />} label="加速券" value={formatCount(today.speedUpCard)} detail="营业统计字段" />
             <OverviewStat icon={<HandCoins />} label="花币" value={formatCount(today.flowerShopCoin)} />
           </div>
 
@@ -3618,9 +4702,10 @@ function isRunnableOperation(operation: PlannedOperation) {
 
 
 
-function EventPanel({ events }: { events: Event[] }) {
+function EventPanel({ events, race }: { events: Event[]; race?: FmlRaceView }) {
   const [activeCategory, setActiveCategory] = useState("all");
-  const displayEvents = useMemo(() => collapseRaceSyncLogEvents(events), [events]);
+  const [showCompletedRaceTasks, setShowCompletedRaceTasks] = useState(false);
+  const displayEvents = useMemo(() => collapseElvesLogEvents(collapseRaceSyncLogEvents(events)), [events]);
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const event of displayEvents) {
@@ -3630,8 +4715,11 @@ function EventPanel({ events }: { events: Event[] }) {
     return counts;
   }, [displayEvents]);
   const categories = useMemo(() => {
-    const order = ["basic", "water", "hire", "plant", "order", "union", "race", "activity", "account", "system"];
+    const order = ["basic", "water", "hire", "plant", "elves", "order", "union", "race", "activity", "account", "system"];
     const keys = new Set(categoryCounts.keys());
+    if (race?.observed || race?.completedTasksObserved || (race?.completedTasks?.length ?? 0) > 0) {
+      keys.add("race");
+    }
     return [...keys].sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
@@ -3640,11 +4728,13 @@ function EventPanel({ events }: { events: Event[] }) {
       if (bi >= 0) return 1;
       return a.localeCompare(b);
     });
-  }, [categoryCounts]);
+  }, [categoryCounts, race?.completedTasks?.length, race?.completedTasksObserved, race?.observed]);
   const visibleEvents = useMemo(() => {
     if (activeCategory === "all") return displayEvents;
     return displayEvents.filter((event) => eventCategory(event) === activeCategory);
   }, [activeCategory, displayEvents]);
+  const completedRaceTasks = race?.completedTasks ?? [];
+  const showCompletedList = activeCategory === "race" && showCompletedRaceTasks;
 
   useEffect(() => {
     if (activeCategory !== "all" && !categories.includes(activeCategory)) {
@@ -3684,7 +4774,70 @@ function EventPanel({ events }: { events: Event[] }) {
           ))}
         </div>
 
-        {visibleEvents.length === 0 ? (
+        {activeCategory === "race" && (
+          <label className="flex shrink-0 cursor-pointer items-center justify-between gap-3 rounded-md border border-border/58 bg-white/42 px-3 py-2 dark:bg-white/5">
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">展示已完成任务</span>
+              <span className="block text-xs text-muted-foreground">展示本期竞赛你接取并完成的全部任务</span>
+            </span>
+            <Switch
+              size="sm"
+              checked={showCompletedRaceTasks}
+              onCheckedChange={(checked) => setShowCompletedRaceTasks(checked === true)}
+              aria-label="展示已完成任务"
+            />
+          </label>
+        )}
+
+        {showCompletedList ? (
+          !race?.completedTasksObserved ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center">
+              <EmptyState title="已完成任务同步中" detail="竞赛期间会自动拉取本期完成记录，请稍候。" />
+            </div>
+          ) : completedRaceTasks.length === 0 ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center">
+              <EmptyState title="暂无已完成任务" detail="本期尚未提交完成任何竞赛任务。" />
+            </div>
+          ) : (
+            <div className="dark-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border/58 bg-white/34 p-2 font-mono text-xs sm:space-y-0 sm:p-0 dark:bg-white/5">
+              <div className="border-b border-border/45 px-3 py-2 font-sans text-xs text-muted-foreground sm:rounded-none">
+                本期已完成 {completedRaceTasks.length} 个
+                {race?.taskQuotaObserved && race.totalTaskNum > 0
+                  ? ` · 配额 ${race.finishedTaskNum}/${race.totalTaskNum}`
+                  : race?.taskQuotaObserved
+                    ? ` · 已做 ${race.finishedTaskNum}`
+                    : ""}
+              </div>
+              {completedRaceTasks.map((task, index) => {
+                const title = task.targetLabel
+                  ? `${task.taskLabel || `任务 #${task.taskId}`} · ${task.targetLabel}`
+                  : task.taskLabel || `任务 #${task.taskId}`;
+                const completedAt =
+                  task.completedAtMs > BigInt(0)
+                    ? new Date(Number(task.completedAtMs)).toLocaleString("zh-CN", {
+                        month: "numeric",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "";
+                return (
+                  <div
+                    key={`${task.logMsId}-${task.taskMsId}-${index}`}
+                    className="grid gap-1 rounded-md border border-border/55 bg-card/72 px-3 py-2 last:border-b-0 sm:rounded-none sm:border-x-0 sm:border-t-0 sm:bg-transparent sm:grid-cols-[108px_64px_minmax(0,1fr)] sm:gap-3"
+                  >
+                    <span className="text-muted-foreground">{completedAt || "-"}</span>
+                    <span className="font-sans text-xs font-medium text-primary">竞赛</span>
+                    <div className="min-w-0 whitespace-pre-wrap break-words text-foreground">
+                      <span className="font-semibold">{title}</span>
+                      {task.score > 0 && <span className="text-muted-foreground"> - {task.score} 分</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : visibleEvents.length === 0 ? (
           <div className="flex min-h-0 flex-1 items-center justify-center">
             <EmptyState title="暂无日志" />
           </div>
@@ -4044,6 +5197,35 @@ function pearlHireSlotSummary(places: PearlPlaceView[]) {
   return parts.join(" · ");
 }
 
+function flowerElvesPlaceStatus(place: FlowerElvesPlaceView): {
+  label: string;
+  badge: "default" | "secondary" | "outline" | "destructive";
+  badgeLabel: string;
+} {
+  if ((place.elvesId ?? 0) <= 0) {
+    return { label: "空闲", badge: "outline", badgeLabel: "空闲" };
+  }
+  if (place.rewardReady) {
+    return {
+      label: place.elvesName || `花灵 #${place.elvesId}`,
+      badge: "default",
+      badgeLabel: "可领",
+    };
+  }
+  if (place.dispatching) {
+    return {
+      label: place.elvesName || `花灵 #${place.elvesId}`,
+      badge: "secondary",
+      badgeLabel: "派遣中",
+    };
+  }
+  return {
+    label: place.elvesName || `花灵 #${place.elvesId}`,
+    badge: "secondary",
+    badgeLabel: "占用",
+  };
+}
+
 function pearlHireSlotStatus(place: PearlPlaceView): {
   label: string;
   badgeLabel: string;
@@ -4066,6 +5248,36 @@ function pearlHireSlotStatus(place: PearlPlaceView): {
     return { label: "月卡锁定", badgeLabel: "锁定", badge: "outline" };
   }
   return { label: "状态异常", badgeLabel: "异常", badge: "destructive" };
+}
+
+function flowerRackSlotSummary(slots: FlowerRackSlotView[]) {
+  let listed = 0;
+  let empty = 0;
+  let claimable = 0;
+  for (const slot of slots) {
+    if (slot.claimable) claimable += 1;
+    if (slot.listed) listed += 1;
+    else empty += 1;
+  }
+  const parts: string[] = [];
+  if (listed > 0) parts.push(`上架 ${listed}`);
+  if (empty > 0) parts.push(`空 ${empty}`);
+  if (claimable > 0) parts.push(`可领 ${claimable}`);
+  return parts.length > 0 ? parts.join(" · ") : "无槽位";
+}
+
+function flowerRackSlotStatus(slot: FlowerRackSlotView): {
+  label: string;
+  badgeLabel: string;
+  badge: "secondary" | "outline" | "destructive";
+} {
+  if (slot.claimable) {
+    return { label: "可领取收益", badgeLabel: "可领", badge: "secondary" };
+  }
+  if (slot.listed) {
+    return { label: "售卖中", badgeLabel: "上架", badge: "secondary" };
+  }
+  return { label: "空位", badgeLabel: "空", badge: "outline" };
 }
 
 function planStatusLabel(status: PlanStatus) {
@@ -4238,6 +5450,17 @@ function eventCategory(event: Event) {
     return "hire";
   }
   if (event.category === "hire") return "hire";
+  if (event.category === "elves") return "elves";
+  if (event.domain === "farm.elves_aid" || event.domain === "farm.elves_steal" || event.action === "steal_elves") {
+    return "elves";
+  }
+  // Legacy plant-tagged steal/aid sync rows (before dedicated elves category).
+  if (
+    event.domain === "farm.friend_steal" &&
+    (event.message?.includes("花灵") || event.label?.includes("花灵") || event.message?.includes("摸取"))
+  ) {
+    return "elves";
+  }
   if (event.category) return event.category;
   if (event.domain) {
     const category = event.domain.split(".")[0];
@@ -4260,11 +5483,37 @@ function collapseRaceSyncLogEvents(events: Event[]): Event[] {
   });
 }
 
+/** Flower-elves log tab: only aid/steal completions, never plans or sync noise. */
+function collapseElvesLogEvents(events: Event[]): Event[] {
+  return events.filter((event) => {
+    if (eventCategory(event) !== "elves") return true;
+    return isElvesCompletionLogEvent(event);
+  });
+}
+
+function isElvesCompletionLogEvent(event: Event) {
+  if (event.kind === "operation_planned") return false;
+  if (event.kind === "operation_deferred") return false;
+  const action = event.action || "";
+  if (action === "steal_elves" || action === "request" || action === "claim" || action === "help") {
+    return event.kind === "operation_ack" || event.kind === "operation_failed" || !event.kind?.startsWith("operation_");
+  }
+  const text = `${event.label || ""} ${event.message || ""}`;
+  if (/计划执行|同步|进入好友花园/.test(text)) return false;
+  return /摸取花灵|申请花灵协助|领取花灵协助|协助好友/.test(text);
+}
+
 function isRaceSyncLogEvent(event: Event) {
   if (event.domain === "union.race.sync" || event.kind === "race_task_sync") return true;
   const title = eventTitle(event);
   const message = eventMessage(event);
-  return title.includes("同步竞赛任务") || message.includes("同步竞赛任务");
+  return (
+    title.includes("同步竞赛任务") ||
+    title.includes("同步竞赛已做次数") ||
+    title.includes("同步竞赛已完成任务") ||
+    message.includes("同步竞赛任务") ||
+    message.includes("同步竞赛已完成任务")
+  );
 }
 
 function isRaceSyncCompleteLogEvent(event: Event) {
@@ -4273,7 +5522,13 @@ function isRaceSyncCompleteLogEvent(event: Event) {
   if (event.kind === "race_task_sync" || event.kind === "operation_ack") return true;
   const title = eventTitle(event);
   const message = eventMessage(event);
-  return title === "同步竞赛任务" || message.includes("同步竞赛任务 完成") || message === "完成";
+  return (
+    title === "同步竞赛任务" ||
+    title === "同步竞赛已做次数" ||
+    title === "同步竞赛已完成任务" ||
+    message.includes("同步竞赛任务 完成") ||
+    message === "完成"
+  );
 }
 
 function isRaceSyncPlannedLogEvent(event: Event) {
@@ -4290,6 +5545,8 @@ function eventTitle(event: Event) {
   if (event.domain?.includes("resident.satin")) return "绸缎订单";
   if (event.domain?.includes("resident.decorate")) return "建材订单";
   if (event.domain?.startsWith("basic.pearl.hire") || event.domain === "basic.pearl.buy_hire_ticket") return "雇佣劳工";
+  if (event.domain === "farm.elves_aid") return "花灵协助";
+  if (event.domain === "farm.elves_steal" || event.action === "steal_elves") return "摸取花灵";
   return [event.domain, event.action].filter(Boolean).join(".") || event.kind || "-";
 }
 
@@ -4307,6 +5564,8 @@ function categoryLabel(category: string) {
       return "雇佣";
     case "plant":
       return "种植";
+    case "elves":
+      return "花灵";
     case "order":
       return "订单";
     case "union":

@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"reflect"
@@ -28,11 +29,11 @@ func TestPearlHireSparseStateAndStrictUIDs(t *testing.T) {
 	s.ApplyV(fixture["initial"])
 	s.ApplyV(fixture["friends_full"])
 	view := s.PearlHire()
-	if !view.FriendsObserved || !reflect.DeepEqual(view.FriendUIDs, []int64{2001, 2002}) {
+	if !view.FriendsObserved || !reflect.DeepEqual(view.FriendUIDs, []int64{2001, 2002, 3001}) {
 		t.Fatalf("full friends = observed:%t uids:%v", view.FriendsObserved, view.FriendUIDs)
 	}
 	s.ApplyV(fixture["friends_delta"])
-	if got := s.PearlHire().FriendUIDs; !reflect.DeepEqual(got, []int64{2001, 2002, 2003}) {
+	if got := s.PearlHire().FriendUIDs; !reflect.DeepEqual(got, []int64{2001, 2002, 3001, 2003}) {
 		t.Fatalf("delta friends = %v", got)
 	}
 
@@ -165,5 +166,32 @@ func TestPearlHireCatalogConstants(t *testing.T) {
 	if !ok || config.TicketItemID != 1003 || config.RestTimeSeconds != 3600 || config.EnemyMaxDays != 3 ||
 		len(config.Slots) != 4 || !config.Slots[4].MonthlyCardUnlock {
 		t.Fatalf("pearl hire config = %+v, %t", config, ok)
+	}
+}
+
+func TestPearlFriendUIDsIncludesCrossServerSelfPairs(t *testing.T) {
+	s := New()
+	nowMs := time.Now().UnixMilli()
+	// Same-server: uid0=friend, uid1=self. Cross-server: uid0=uid1=friend (observed on Siri).
+	s.ApplyV(json.RawMessage(fmt.Sprintf(
+		`{"7":{"0":{"0":49844918102489}},"24":{"0":{"0":49844918102489,"9":%d},"1":[{"0":2001,"1":49844918102489},{"0":75485026103424,"1":75485026103424}]}}`,
+		nowMs,
+	)))
+	got := s.FriendTouch(time.Now()).FriendUIDs
+	want := []int64{2001, 75485026103424}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("friend UIDs=%v want %v", got, want)
+	}
+}
+
+func TestFriendDisplayNameFallsBackToZone(t *testing.T) {
+	if got := FriendZoneFromUID(44112916102297); got != 2297 {
+		t.Fatalf("zone=%d want 2297", got)
+	}
+	if got := FriendDisplayName(44112916102297, ""); got != "s2297" {
+		t.Fatalf("display=%q", got)
+	}
+	if got := FriendDisplayName(44112916102297, "s2297.龚美如"); got != "s2297.龚美如" {
+		t.Fatalf("keep name=%q", got)
 	}
 }

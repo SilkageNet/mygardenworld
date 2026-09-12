@@ -817,3 +817,71 @@ func TestFmlRaceActiveAtOpensPublishedWindow(t *testing.T) {
 		t.Fatal("status=2 must stay inactive after weekly open")
 	}
 }
+
+func TestFmlRaceTaskLogListKeepsSelfNewestFirst(t *testing.T) {
+	s := New()
+	s.roleID = 1001
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":2000}}}`))
+	s.ApplyVFullFmlRaceTaskLogList(json.RawMessage(`{"25":{"118":[
+		{"0":11,"1":1001,"2":42,"4":1,"5":{"0":101,"4":1017,"10":9,"6":[23001]},"6":2000},
+		{"0":12,"1":2002,"2":42,"4":1,"5":{"0":102,"4":1017,"10":12},"6":3000},
+		{"0":13,"1":1001,"2":42,"4":1,"5":{"0":103,"4":3036,"10":15,"6":[23002]},"6":4000}
+	]}}`))
+	got := s.FmlRace()
+	if !got.TaskLogsObserved {
+		t.Fatal("expected TaskLogsObserved")
+	}
+	if len(got.CompletedTasks) != 2 {
+		t.Fatalf("CompletedTasks=%d, want 2 (self only): %+v", len(got.CompletedTasks), got.CompletedTasks)
+	}
+	if got.CompletedTasks[0].TaskMsId != 103 || got.CompletedTasks[0].Score != 15 {
+		t.Fatalf("newest first = %+v", got.CompletedTasks[0])
+	}
+	if got.CompletedTasks[1].TaskMsId != 101 || got.CompletedTasks[1].Score != 9 {
+		t.Fatalf("older self = %+v", got.CompletedTasks[1])
+	}
+}
+
+func TestFmlRaceTaskLogListEmptyMarksObserved(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":2000}}}`))
+	s.ApplyVFullFmlRaceTaskLogList(json.RawMessage(`{"25":{"118":[]}}`))
+	got := s.FmlRace()
+	if !got.TaskLogsObserved {
+		t.Fatalf("empty log list should mark observed: %+v", got)
+	}
+}
+
+func TestFmlRaceNewBatchClearsCompletedTasks(t *testing.T) {
+	s := New()
+	s.roleID = 1001
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":2000}}}`))
+	s.ApplyVFullFmlRaceTaskLogList(json.RawMessage(`{"25":{"118":[
+		{"0":11,"1":1001,"2":42,"4":1,"5":{"0":101,"4":1017,"10":9},"6":2000}
+	]}}`))
+	if len(s.FmlRace().CompletedTasks) != 1 {
+		t.Fatalf("seed logs = %+v", s.FmlRace().CompletedTasks)
+	}
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":99,"1":1,"2":3000,"3":4000}}}`))
+	got := s.FmlRace()
+	if got.TaskLogsObserved || len(got.CompletedTasks) != 0 {
+		t.Fatalf("new batch must clear logs: observed=%v tasks=%+v", got.TaskLogsObserved, got.CompletedTasks)
+	}
+}
+
+func TestFmlRaceNoteCompletedTaskMerges(t *testing.T) {
+	s := New()
+	s.NoteFmlRaceCompletedTask(FmlRaceCompletedTaskView{
+		LogMsId: 1, TaskMsId: 10, TaskType: 3036, ParamID: 23001, CompletedAtMs: 1000, Score: 9,
+	})
+	s.NoteFmlRaceCompletedTask(FmlRaceCompletedTaskView{
+		LogMsId: 2, TaskMsId: 11, TaskType: 3036, ParamID: 23002, CompletedAtMs: 2000, Score: 12,
+	})
+	s.ApplyVFullFmlRaceTaskLogList(json.RawMessage(`{"25":{"118":[
+		{"0":2,"1":0,"2":42,"4":1,"5":{"0":11,"4":1017,"10":12},"6":2000}
+	]}}`))
+	got := s.FmlRace().CompletedTasks
+	if len(got) != 2 {
+		t.Fatalf("merge should keep local+server: %+v", got)
+	}
+}

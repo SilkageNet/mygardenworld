@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
+	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
@@ -45,22 +46,23 @@ func (r *Runner) tickResidentOrderSync(ctx context.Context, client *babigame.Cli
 	resident := policy.GetOrder().GetResident()
 	satinOn := resident.GetSatinEnabled()
 	decorateOn := resident.GetDecorateEnabled()
-	if !satinOn && !decorateOn {
+	activityResidentDrive := automation.CyclicNoteAutoCompleteResidentOrders(policy)
+	if !satinOn && !decorateOn && !activityResidentDrive {
 		return
 	}
 
 	now := time.Now()
 	needSync := false
-	if satinOn {
-		if _, limited := r.state.ResidentSatinDailyLimitReached(now); !limited {
+	if satinOn || activityResidentDrive {
+		if _, limited := r.state.ResidentSatinDailyLimitReached(now); activityResidentDrive || !limited {
 			satin := r.state.ResidentSatinOrder()
 			if !satin.Observed || satin.IsVideo != 0 {
 				needSync = true
 			}
 		}
 	}
-	if decorateOn {
-		if _, limited := r.state.ResidentDecorateDailyLimitReached(now); !limited {
+	if decorateOn || activityResidentDrive {
+		if _, limited := r.state.ResidentDecorateDailyLimitReached(now); activityResidentDrive || !limited {
 			decorate := r.state.ResidentDecorateOrder()
 			if !decorate.Observed || decorate.IsVideo != 0 {
 				needSync = true

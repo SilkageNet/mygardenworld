@@ -1311,6 +1311,40 @@ func TestHandleOperationErrorMailAlreadyPicked(t *testing.T) {
 	}
 }
 
+func TestHandleOperationErrorPassFreeRecvRejected(t *testing.T) {
+	now := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+	r := newOperationEventTestRunner()
+	r.state.ApplyVMap(map[string]any{
+		"131": map[string]any{
+			"0": map[string]any{"15": map[string]any{"1": 15, "2": 3, "6": map[string]any{"1": []any{}}}},
+		},
+	})
+	if _, levels := r.state.ReadyFlowerPassFreeLevels(); len(levels) == 0 {
+		t.Fatal("setup expected ready free levels")
+	}
+	op := &automation.PlannedOp{
+		Kind:     clientproto.RPCFlowerPassRecv.String(),
+		Lane:     automation.LaneSide,
+		Category: automation.CategoryBasic,
+		Domain:   "basic.flower_pass",
+		Action:   "claim",
+		TargetID: 15,
+		ItemID:   1,
+		Count:    state.PassRwdTypeFree,
+	}
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              errors.New("rpc flowerPass.recv: server: 客户端请求的参数有误"),
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if _, levels := r.state.ReadyFlowerPassFreeLevels(); len(levels) != 0 {
+		t.Fatalf("ReadyFlowerPassFreeLevels=%v, want none after reject recovery", levels)
+	}
+}
+
 func TestHandleOperationErrorOutcomes(t *testing.T) {
 	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
 	r := newOperationEventTestRunner()

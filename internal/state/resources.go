@@ -196,6 +196,7 @@ func (s *State) MarkLandsWatered(landIDs []int32) {
 			before := l
 			l.State = 2
 			l.PlantTimeMs = now.UnixMilli()
+			l.HarvestableSinceMs = 0
 			s.lands[id] = l
 			changes = append(changes, LandChange{LandID: id, Before: before, After: l})
 		}

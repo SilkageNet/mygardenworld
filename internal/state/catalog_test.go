@@ -44,6 +44,23 @@ func TestCultivateCostReturnsCopy(t *testing.T) {
 	}
 }
 
+func TestCultivateTimeSecondsKnownFlower(t *testing.T) {
+	sec, ok := CultivateTimeSeconds(23006)
+	if !ok || sec != 660 {
+		t.Fatalf("CultivateTimeSeconds(23006)=(%d,%t), want (660,true)", sec, ok)
+	}
+}
+
+func TestCultivatePrerequisiteKnownFlower(t *testing.T) {
+	prereq, ok := CultivatePrerequisite(23004)
+	if !ok || prereq != 23001 {
+		t.Fatalf("CultivatePrerequisite(23004)=(%d,%t), want (23001,true)", prereq, ok)
+	}
+	if got, ok := CultivatePrerequisite(23001); ok || got != 0 {
+		t.Fatalf("CultivatePrerequisite(23001)=(%d,%t), want (0,false)", got, ok)
+	}
+}
+
 func TestItemInfoByIDIncludesClientDetails(t *testing.T) {
 	item, ok := ItemInfoByID(7)
 	if !ok {

@@ -26,11 +26,43 @@ func TestCyclicNoteEnterSnapshotAndExactPostcondition(t *testing.T) {
 	if !s.CyclicNoteEnterApplied(snapshot) {
 		t.Fatal("enter postcondition rejected exact observed task list")
 	}
+	if got := s.cyclicNoteLastEnterAtMs(); got != now.UnixMilli() {
+		t.Fatalf("cyclicNoteEnterAtMs=%d, want %d", got, now.UnixMilli())
+	}
 
 	wrong := snapshot
 	wrong.BatchID++
 	if s.CyclicNoteEnterApplied(wrong) {
 		t.Fatal("enter postcondition accepted a different batch")
+	}
+}
+
+func TestCyclicNoteEnterSnapshotRefreshesShortTaskList(t *testing.T) {
+	s := applyCyclicNoteCaptureFixture(t)
+	now := time.UnixMilli(cyclicNoteFixtureNowMs)
+	s.ApplyV(json.RawMessage(`{"23":{"0":{"9001":{"14":{"105":{"0":[4003]}}}}}}`))
+
+	// Catalog has 3 slots; a length-1 server list must re-enter until cooldown.
+	snapshot, ok := s.CyclicNoteEnterSnapshot(now)
+	if !ok || snapshot.BatchID != 9001 {
+		t.Fatalf("short task list should request enter: (%+v,%t)", snapshot, ok)
+	}
+	if !s.CyclicNoteEnterApplied(snapshot) {
+		t.Fatal("enter applied with short authoritative list")
+	}
+	if again, ready := s.CyclicNoteEnterSnapshot(now); ready {
+		t.Fatalf("refresh must cool down immediately after enter: (%+v,%t)", again, ready)
+	}
+	later := now.Add(cyclicNoteTaskListRefreshMinInterval)
+	if again, ready := s.CyclicNoteEnterSnapshot(later); !ready || again.BatchID != 9001 {
+		t.Fatalf("short list should refresh after cooldown: (%+v,%t)", again, ready)
+	}
+
+	// Length-3 list with a trailing locked null is already at catalog size.
+	full := applyCyclicNoteCaptureFixture(t)
+	full.ApplyV(json.RawMessage(`{"23":{"0":{"9001":{"14":{"105":{"0":[2001,4003,null]}}}}}}`))
+	if _, ready := full.CyclicNoteEnterSnapshot(now); ready {
+		t.Fatal("length-3 task list must not request enter refresh")
 	}
 }
 

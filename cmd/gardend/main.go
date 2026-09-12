@@ -300,10 +300,6 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		defer close(maintenanceDone)
 		runLogCleanupLoop(maintenanceCtx, db, log)
 	}()
-	defer func() {
-		cancelMaintenance()
-		<-maintenanceDone
-	}()
 
 	if err := seedAdmin(ctx, db, log, opts); err != nil {
 		return fmt.Errorf("seed admin: %w", err)
@@ -345,6 +341,17 @@ func runServe(ctx context.Context, opts serveOpts) error {
 		Redeem:        redeemService,
 		RedeemLimiter: apiserver.NewRedeemSubmitLimiter(),
 	}
+
+	midnightDone := make(chan struct{})
+	go func() {
+		defer close(midnightDone)
+		runMidnightAccountEnsureLoop(maintenanceCtx, svc, log)
+	}()
+	defer func() {
+		cancelMaintenance()
+		<-maintenanceDone
+		<-midnightDone
+	}()
 
 	authInterceptor := auth.NewInterceptor(jwtSvc)
 	protectedOpts := []connect.HandlerOption{

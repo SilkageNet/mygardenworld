@@ -1284,7 +1284,37 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			name:   "flower cultivate progress skipped",
 			task:   state.FmlRaceTaskView{MsId: 32, TaskId: 3044, TaskType: 3044, Score: 36, FinishCnt: 1, TargetCnt: 4},
 			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3044: 4}},
-			want:   "仅接进度为0的花种培育",
+			want:   "仅接进度为0的任务",
+		},
+		{
+			name:   "plant harvest progress skipped",
+			task:   state.FmlRaceTaskView{MsId: 33, TaskId: 3036, TaskType: 3036, Score: 30, ParamID: 23001, FinishCnt: 5, TargetCnt: 100},
+			policy: policyBase(),
+			want:   "仅接进度为0的任务",
+		},
+		{
+			name:   "customer order progress skipped",
+			task:   state.FmlRaceTaskView{MsId: 34, TaskId: 3016, TaskType: 3016, Score: 24, FinishCnt: 2, TargetCnt: 10},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3016: 4}},
+			want:   "仅接进度为0的任务",
+		},
+		{
+			name:   "flower art sell progress skipped",
+			task:   state.FmlRaceTaskView{MsId: 35, TaskId: 3030, TaskType: 3030, Score: 24, FinishCnt: 1, TargetCnt: 5},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3030: 4}},
+			want:   "仅接进度为0的任务",
+		},
+		{
+			name:   "pearl hire progress skipped",
+			task:   state.FmlRaceTaskView{MsId: 36, TaskId: 3023, TaskType: 3023, Score: 24, FinishCnt: 3, TargetCnt: 8},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3023: 4}},
+			want:   "仅接进度为0的任务",
+		},
+		{
+			name:   "flower art craft progress skipped",
+			task:   state.FmlRaceTaskView{MsId: 37, TaskId: 3034, TaskType: 3034, Score: 24, ParamID: 3002, FinishCnt: 1, TargetCnt: 3},
+			policy: &pb.UnionRacePolicy{TaskTypePriority: map[int32]int32{3034: 4}},
+			want:   "仅接进度为0的任务",
 		},
 		{
 			name:   "default zero type skipped when map empty",
@@ -1319,6 +1349,52 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				t.Fatalf("RaceTakeSkipReason = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestRaceTakeSkipReasonPlantHarvestMaxInventory(t *testing.T) {
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.Local)
+	s := state.New()
+	s.ApplyVMap(map[string]any{
+		"7":   map[string]any{"0": map[string]any{"0": 999, "32": map[string]any{"23001": 50}}},
+		"101": map[string]any{"0": cultivate(23001)},
+	})
+	policy := &pb.UnionRacePolicy{
+		MinTaskScore:             0,
+		OnlyUpgradeTask:          false,
+		ExcludeOthersUpgradeTask: false,
+		TaskTypePriority:         defaultUnionRacePriority(),
+		PlantHarvestMaxInventory: 20,
+	}
+	task := state.FmlRaceTaskView{MsId: 1, TaskId: 3036, TaskType: 3036, Score: 30, ParamID: 23001}
+	got := RaceTakeSkipReason(s, task, policy, 0, now, raceGatesOn())
+	if got != "库存过多（>20）" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 库存过多（>20）", got)
+	}
+
+	// Exactly at the ceiling remains takeable.
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"23001":20}}}}`))
+	got = RaceTakeSkipReason(s, task, policy, 0, now, raceGatesOn())
+	if got != "" {
+		t.Fatalf("at ceiling RaceTakeSkipReason = %q, want empty", got)
+	}
+
+	// 0 disables the inventory gate.
+	policy.PlantHarvestMaxInventory = 0
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"23001":999}}}}`))
+	got = RaceTakeSkipReason(s, task, policy, 0, now, raceGatesOn())
+	if got != "" {
+		t.Fatalf("disabled ceiling RaceTakeSkipReason = %q, want empty", got)
+	}
+
+	// Far CD with excess stock shows refresh copy (not takeable CD).
+	policy.PlantHarvestMaxInventory = 20
+	s.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"23001":50}}}}`))
+	task.AppearTime = now.Add(time.Hour).UnixMilli()
+	got = RaceTakeSkipReason(s, task, policy, 0, now, raceGatesOn())
+	wantRefresh := time.UnixMilli(task.AppearTime).Local().Format("15:04:05") + " 后刷新"
+	if got != wantRefresh {
+		t.Fatalf("far CD excess RaceTakeSkipReason = %q, want %q", got, wantRefresh)
 	}
 }
 
@@ -1546,8 +1622,28 @@ func TestUnionRaceSkipsFlowerCultivateWithProgress(t *testing.T) {
 	policy.TaskTypePriority = map[int32]int32{3044: 4}
 	task := state.FmlRaceTaskView{MsId: 1, TaskId: 3044, TaskType: 3044, Score: 36, FinishCnt: 2, TargetCnt: 4}
 	got := RaceTakeSkipReason(s, task, policy, 0, time.Now(), raceGatesNoCultivate())
-	if got != "仅接进度为0的花种培育" {
-		t.Fatalf("RaceTakeSkipReason = %q, want 仅接进度为0的花种培育", got)
+	if got != "仅接进度为0的任务" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 仅接进度为0的任务", got)
+	}
+}
+
+func TestUnionRaceSkipsPlantHarvestWithProgress(t *testing.T) {
+	s := state.New()
+	s.ApplyVMap(map[string]any{
+		"101": map[string]any{"0": cultivate(23001)},
+	})
+	// Pool row with FinishCnt>0 (abandoned mid-progress); must not auto-take.
+	s.ApplyV(json.RawMessage(`{"25":{"111":{"1":1},"117":{"5":4},"114":[{"0":1,"4":3036,"6":[23001],"7":100,"8":12,"10":30}]}}`))
+	policy := testRacePolicy()
+	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not takeTask pool row with FinishCnt>0, got %+v", ops)
+		}
+	}
+	got := RaceTakeSkipReason(s, s.FmlRace().Tasks[0], policy, 0, time.Now(), raceGatesOn())
+	if got != "仅接进度为0的任务" {
+		t.Fatalf("RaceTakeSkipReason = %q, want 仅接进度为0的任务", got)
 	}
 }
 

@@ -260,6 +260,89 @@ func TestCyclicNoteExecutionsApplyPayloadExactlyOnce(t *testing.T) {
 		}
 	})
 
+	t.Run("enter empty keeps sync while local ahead of server", func(t *testing.T) {
+		s := cyclicNoteRunnerState(t, true)
+		// Fixture rack progress is 70; bump local ahead so reconcile cannot clear.
+		s.BumpCyclicNoteLocalProgress(9001, state.CyclicNoteTaskTypeFlowerRack, 70, 12)
+		if !s.CyclicNoteProgressSyncNeeded() {
+			t.Fatal("expected progress sync after local bump")
+		}
+		snapshot, ok := s.CyclicNoteEnterSnapshot(now)
+		if !ok {
+			t.Fatal("enter snapshot unavailable for progress sync")
+		}
+		applyCount := 0
+		_, err := executeCyclicNoteEnter(context.Background(), clientproto.ActCyclicNoteEnterRequest{BatchId: 9001}, cyclicNoteEnterExecution{
+			preflight: func() (state.CyclicNoteEnterSnapshot, error) { return snapshot, nil },
+			enter: func(context.Context, clientproto.ActCyclicNoteEnterRequest) (json.RawMessage, error) {
+				return json.RawMessage(`{}`), nil
+			},
+			apply:   func(json.RawMessage) { applyCount++ },
+			applied: s.CyclicNoteEnterApplied,
+		})
+		if err != nil || applyCount != 0 {
+			t.Fatalf("empty enter err=%v apply=%d", err, applyCount)
+		}
+		if !s.CyclicNoteProgressSyncNeeded() {
+			t.Fatal("empty enter must keep progress sync while local high-water is ahead")
+		}
+		if again, ready := s.CyclicNoteEnterSnapshot(now); ready {
+			t.Fatalf("throttled enter must not replan immediately: %+v", again)
+		}
+		later := now.Add(30 * time.Second)
+		if again, ready := s.CyclicNoteEnterSnapshot(later); !ready || again.BatchID != 9001 {
+			t.Fatalf("progress sync enter due after throttle: ready=%t snap=%+v", ready, again)
+		}
+	})
+
+	t.Run("enter empty clears sync when no local high-water", func(t *testing.T) {
+		s := cyclicNoteRunnerState(t, true)
+		s.MarkCyclicNoteProgressSyncNeeded()
+		snapshot, ok := s.CyclicNoteEnterSnapshot(now)
+		if !ok {
+			t.Fatal("enter snapshot unavailable for progress sync")
+		}
+		_, err := executeCyclicNoteEnter(context.Background(), clientproto.ActCyclicNoteEnterRequest{BatchId: 9001}, cyclicNoteEnterExecution{
+			preflight: func() (state.CyclicNoteEnterSnapshot, error) { return snapshot, nil },
+			enter: func(context.Context, clientproto.ActCyclicNoteEnterRequest) (json.RawMessage, error) {
+				return json.RawMessage(`{}`), nil
+			},
+			apply:   func(json.RawMessage) {},
+			applied: s.CyclicNoteEnterApplied,
+		})
+		if err != nil {
+			t.Fatalf("empty enter err=%v", err)
+		}
+		if s.CyclicNoteProgressSyncNeeded() {
+			t.Fatal("empty enter should clear progress sync when no local high-water remains")
+		}
+	})
+
+	t.Run("enter progress catch-up clears local high-water", func(t *testing.T) {
+		s := cyclicNoteRunnerState(t, true)
+		s.BumpCyclicNoteLocalProgress(9001, state.CyclicNoteTaskTypeFlowerRack, 70, 5)
+		snapshot, ok := s.CyclicNoteEnterSnapshot(now)
+		if !ok {
+			t.Fatal("enter snapshot unavailable")
+		}
+		response := json.RawMessage(`{"23":{"3":{"9001|0":{"3":{"2001":75}}}}}`)
+		_, err := executeCyclicNoteEnter(context.Background(), clientproto.ActCyclicNoteEnterRequest{BatchId: 9001}, cyclicNoteEnterExecution{
+			preflight: func() (state.CyclicNoteEnterSnapshot, error) { return snapshot, nil },
+			enter: func(context.Context, clientproto.ActCyclicNoteEnterRequest) (json.RawMessage, error) {
+				return response, nil
+			},
+			apply:   s.ApplyV,
+			applied: s.CyclicNoteEnterApplied,
+		})
+		if err != nil {
+			t.Fatalf("enter catch-up err=%v", err)
+		}
+		if s.CyclicNoteProgressSyncNeeded() || s.CyclicNoteLocalProgress(9001, state.CyclicNoteTaskTypeFlowerRack) != 0 {
+			t.Fatalf("server catch-up should clear local/sync local=%d sync=%t",
+				s.CyclicNoteLocalProgress(9001, state.CyclicNoteTaskTypeFlowerRack), s.CyclicNoteProgressSyncNeeded())
+		}
+	})
+
 	t.Run("task reward", func(t *testing.T) {
 		s := cyclicNoteRunnerState(t, true)
 		snapshot, ok := s.CyclicNoteTaskClaimSnapshot(now, 9001, 1, 4003)

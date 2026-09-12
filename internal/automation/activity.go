@@ -12,10 +12,15 @@ import (
 )
 
 const (
-	cyclicNoteModuleKey                 = "cyclicNote"
-	cyclicNoteAutoClaimTaskRewardsKey   = "auto_claim_task_rewards"
-	cyclicNoteAutoClaimProgressBoxesKey = "auto_claim_progress_boxes"
-	cyclicNoteSatisfyTasksKey           = "satisfy_tasks"
+	cyclicNoteModuleKey                   = "cyclicNote"
+	cyclicNoteAutoClaimTaskRewardsKey     = "auto_claim_task_rewards"
+	cyclicNoteAutoClaimProgressBoxesKey   = "auto_claim_progress_boxes"
+	cyclicNoteSatisfyTasksKey             = "satisfy_tasks"
+	cyclicNoteAutoPlantAnyKey             = "auto_plant_any"
+	cyclicNoteAutoSellFlowerArtKey        = "auto_sell_flower_art"
+	cyclicNoteAutoHireKey                 = "auto_hire"
+	cyclicNoteAutoCompleteResidentOrdersKey       = "auto_complete_resident_orders"
+	cyclicNoteRespectResidentOrderDailyLimitKey = "respect_resident_order_daily_limit"
 	// Operation priorities use goalPriority*100 scale. Activity base 50 must
 	// stay below main/major orders and above ordinary flower-rack work.
 	cyclicNotePriority int32 = 50 * 100
@@ -71,15 +76,23 @@ func cyclicNoteOperations(s *state.State, policy *pb.ActivityPolicy, now time.Ti
 	if !ok || !view.Valid || view.BatchID <= 0 {
 		return nil
 	}
-	if (claimTasks || satisfyTasks) && !view.TaskListObserved {
+	if claimTasks || satisfyTasks {
 		if snapshot, ready := s.CyclicNoteEnterSnapshot(now); ready && snapshot.BatchID == view.BatchID {
+			reason := "活动任务尚未初始化，进入花笺集芳同步任务"
+			if view.TaskListObserved && s.CyclicNoteProgressSyncDue(now) {
+				reason = "花笺集芳任务进度待同步，重新进入刷新"
+			} else if view.TaskListObserved {
+				reason = "花笺集芳任务槽未开满，重新进入同步槽位"
+			}
 			planned := cyclicNotePlannedOp(
-				clientproto.RPCActCyclicNoteEnter.String(), "enter", "活动任务尚未初始化，进入花笺集芳同步任务",
+				clientproto.RPCActCyclicNoteEnter.String(), "enter", reason,
 				snapshot.BatchID, 0, 0, 0,
 			)
 			return []PlannedOp{planned}
 		}
-		return nil
+		if !view.TaskListObserved {
+			return nil
+		}
 	}
 
 	// Completed task rewards always precede score milestones. Server slot

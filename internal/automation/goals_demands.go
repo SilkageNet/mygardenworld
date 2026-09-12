@@ -36,8 +36,12 @@ func enabledGoals(policy *pb.Policy) []Goal {
 	flowerArt := order.GetFlowerArt()
 	add(flowerArt.GetSellEnabled() || flowerArt.GetCraftEnabled() || flowerArt.GetCreateRewardEnabled() || flowerArt.GetCollectRewardEnabled(), GoalFlowerArt, CategoryOrder, "order.flower_art", "花艺/花架")
 	add(task.GetMainEnabled(), GoalMainTask, CategoryBasic, "basic.task.main", "主线任务")
-	add(task.GetDailyEnabled(), GoalDailyTask, CategoryBasic, "basic.task.daily", "每日任务")
+	add(task.GetDailyEnabled() || task.GetDailyAutoAdvance(), GoalDailyTask, CategoryBasic, "basic.task.daily", "每日任务")
 	add(task.GetWeeklyEnabled(), GoalWeeklyTask, CategoryBasic, "basic.task.weekly", "每周任务")
+	add(task.GetFlowerPassTaskRewardEnabled() || task.GetFlowerPassRewardEnabled() || task.GetFlowerPassAutoAdvance(),
+		"basic.flower_pass", CategoryBasic, "basic.flower_pass", "花之密令")
+	add(task.GetElvesPassTaskRewardEnabled() || task.GetElvesPassRewardEnabled() || task.GetElvesPassAutoAdvance(),
+		"basic.elves_pass", CategoryBasic, "basic.elves_pass", "花灵密令")
 	return goals
 }
 

@@ -107,6 +107,13 @@ func TestPlanOneSafePearlHireBoundariesAndNoBypass(t *testing.T) {
 	if _, ok := PlanOneSafePearlHire(s, disabled, time.Now(), PearlHireIntent{Category: CategoryActivity, Domain: "activity.cyclicNote"}); ok {
 		t.Fatal("activity intent bypassed disabled pearl module")
 	}
+	op, ok := PlanOneSafePearlHire(s, disabled, time.Now(), PearlHireIntent{
+		Category: CategoryActivity, Domain: "activity.cyclicNote", DemandID: "activity.cyclicNote:1:1010",
+		BypassAutoHireEnabled: true,
+	})
+	if !ok || op.Kind == "" {
+		t.Fatal("BypassAutoHireEnabled should allow planning while auto_hire_enabled=false")
+	}
 }
 
 func TestPlanOneSafePearlHireFailClosedGates(t *testing.T) {

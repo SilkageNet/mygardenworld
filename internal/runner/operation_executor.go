@@ -459,6 +459,7 @@ func friendTouchOtherInfoRequest(op *automation.PlannedOp) (clientproto.FrdExtGe
 	return clientproto.FrdExtGetFrdOtherInfoByUidsRequest{
 		UIDs:  append(clientproto.RPCUIDList(nil), op.TargetUIDs...),
 		Steal: 1,
+		AID:   1,
 	}, nil
 }
 
@@ -477,26 +478,26 @@ func friendTouchBuyRequest(op *automation.PlannedOp) (clientproto.FrdExtBuySteal
 	return clientproto.FrdExtBuyStealCntRequest{FrdUid: op.TargetUID, BuyCnt: op.Count}, nil
 }
 
-func friendTouchEnterRequest(op *automation.PlannedOp) (clientproto.FrdStealEnterFrdStealRequest, error) {
+func friendTouchEnterRequest(op *automation.PlannedOp) (clientproto.FrdHomeGetFrdHomeInfoRequest, error) {
 	if op == nil || op.TargetUID <= 0 {
-		return nil, fmt.Errorf("frdSteal.enterFrdSteal requires frdUid")
+		return clientproto.FrdHomeGetFrdHomeInfoRequest{}, fmt.Errorf("frdHome.getFrdHomeInfo requires frdUid")
 	}
 	if op.Count != 0 || op.TargetID != 0 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 ||
 		len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
 		plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
-		return nil, fmt.Errorf("frdSteal.enterFrdSteal carries unexpected fields")
+		return clientproto.FrdHomeGetFrdHomeInfoRequest{}, fmt.Errorf("frdHome.getFrdHomeInfo carries unexpected fields")
 	}
-	// Observed client biEnter shape: point=[22, frdUid].
-	return clientproto.FrdStealEnterFrdStealRequest{
-		"point": []any{int32(22), op.TargetUID},
-	}, nil
+	return clientproto.FrdHomeGetFrdHomeInfoRequest{FrdUid: op.TargetUID}, nil
 }
 
 func friendTouchStealRequest(op *automation.PlannedOp) (clientproto.FrdStealStealRequest, error) {
 	if op == nil || op.TargetUID <= 0 || op.TargetID <= 0 || op.Count != 1 {
 		return clientproto.FrdStealStealRequest{}, fmt.Errorf("frdSteal.steal requires frdUid, landId and count=1")
 	}
-	if len(op.TargetUIDs) != 0 || op.ItemID != 0 || op.FlowerID != 0 || op.VaseID != 0 || op.SlotID != 0 ||
+	// steal_elves plans stash elvesId in ItemID for success logs only; RPC body
+	// is still {frdUid,landId,stealElves:0|1} and must not reject that metadata.
+	itemIDUnexpected := op.ItemID != 0 && op.Action != "steal_elves"
+	if len(op.TargetUIDs) != 0 || itemIDUnexpected || op.FlowerID != 0 || op.VaseID != 0 || op.SlotID != 0 ||
 		len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
 		plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
 		return clientproto.FrdStealStealRequest{}, fmt.Errorf("frdSteal.steal carries unexpected fields")
@@ -504,8 +505,27 @@ func friendTouchStealRequest(op *automation.PlannedOp) (clientproto.FrdStealStea
 	return clientproto.FrdStealStealRequest{
 		FrdUid:     op.TargetUID,
 		LandId:     op.TargetID,
-		StealElves: 0,
+		StealElves: stealElvesFlag(op),
 	}, nil
+}
+
+func stealElvesFlag(op *automation.PlannedOp) clientproto.RPCInt {
+	if op != nil && op.Action == "steal_elves" {
+		return 1
+	}
+	return 0
+}
+
+func friendStealRcdListRequest(op *automation.PlannedOp) (clientproto.FrdStealGetFrdStealRcdListRequest, error) {
+	if op == nil {
+		return clientproto.FrdStealGetFrdStealRcdListRequest{}, fmt.Errorf("nil op")
+	}
+	if op.TargetUID != 0 || op.TargetID != 0 || op.Count != 0 || op.ItemID != 0 || op.FlowerID != 0 ||
+		len(op.TargetUIDs) != 0 || len(op.LandIDs) != 0 || len(op.SlotIDs) != 0 || len(op.FlowerIDs) != 0 ||
+		plannedOpHasCyclicNoteTargets(op) || op.GoldCost != 0 || op.DiamondCost != 0 || len(op.ItemCost) != 0 {
+		return clientproto.FrdStealGetFrdStealRcdListRequest{}, fmt.Errorf("frdSteal.getFrdStealRcdList carries unexpected fields")
+	}
+	return clientproto.FrdStealGetFrdStealRcdListRequest{}, nil
 }
 
 func validateFriendTouchSyncOperation(op *automation.PlannedOp, requireUIDs bool) error {
@@ -864,7 +884,8 @@ func normalizeFmlRaceEnterV(v json.RawMessage) json.RawMessage {
 	_, hasTasks := top["114"]
 	_, hasUsr := top["110"]
 	_, hasRank := top["116"]
-	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr && !hasRank {
+	_, hasTaskLogs := top["118"]
+	if !hasBatch && !hasCurRcd && !hasGroup && !hasTasks && !hasUsr && !hasRank && !hasTaskLogs {
 		return v
 	}
 	wrapped, err := json.Marshal(map[string]json.RawMessage{"25": v})
@@ -904,6 +925,7 @@ func runFmlRaceGetTaskList(ctx context.Context, rt operationRuntime, _ *automati
 	if batchID := rt.runner.state.FmlRace().BatchID; batchID > 0 {
 		// Soft: pool sync already succeeded; rank can retry on the next tick.
 		_, _ = runFmlRaceGetUsrRankList(ctx, rt, &automation.PlannedOp{TaskMsID: batchID})
+		_, _ = runFmlRaceGetTaskLogList(ctx, rt, &automation.PlannedOp{TaskMsID: batchID})
 	}
 	return v, nil
 }
@@ -939,6 +961,42 @@ func runFmlRaceGetUsrRankList(ctx context.Context, rt operationRuntime, op *auto
 		v = normalizeFmlRaceEnterV(v)
 		rt.runner.state.ApplyV(v)
 	}
+	return v, nil
+}
+
+func runFmlRaceGetTaskLogList(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) (json.RawMessage, error) {
+	if rt.runner == nil || rt.runner.state == nil {
+		return nil, fmt.Errorf("fmlRace.getTaskLogList requires runner state")
+	}
+	batchID := op.TaskMsID
+	if batchID <= 0 {
+		batchID = rt.runner.state.FmlRace().BatchID
+	}
+	if batchID <= 0 {
+		return nil, fmt.Errorf("fmlRace.getTaskLogList requires batchId")
+	}
+	args := map[string]any{"batchId": batchID}
+	// Generated FmlRaceGetTaskLogListRequest.BatchId is int32; race batchIds
+	// are millisecond timestamps, so send an int64 map value.
+	v, d, err := rpcResult(rt.rpc.CallStateDelta(
+		ctx,
+		clientproto.RPCFmlRaceGetTaskLogList.String(),
+		args,
+		babigame.WithPayloadApply(false),
+	))
+	v, err = checkedPayload(v, d, err)
+	if err != nil {
+		rt.runner.logOperation(ctx, clientproto.RPCFmlRaceGetTaskLogList.String(), args, map[string]any{"error": err.Error()})
+		return nil, err
+	}
+	if babigame.HasPayload(v) {
+		v = normalizeFmlRaceEnterV(v)
+		rt.runner.state.ApplyVFullFmlRaceTaskLogList(v)
+	}
+	if !rt.runner.state.FmlRace().TaskLogsObserved {
+		rt.runner.state.MarkFmlRaceTaskLogsSynced()
+	}
+	rt.runner.logOperation(ctx, clientproto.RPCFmlRaceGetTaskLogList.String(), args, json.RawMessage(v))
 	return v, nil
 }
 

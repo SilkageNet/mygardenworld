@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
@@ -66,9 +67,8 @@ func runRandomEventEnter(ctx context.Context, rt operationRuntime, op *automatio
 			if !rt.runner.randomEventAutomationEnabled() {
 				return fmt.Errorf("random event automation is disabled")
 			}
-			observed, valid, _ := rt.runner.state.RandomEventMapStatus()
-			if observed && valid {
-				return fmt.Errorf("randomEvent.enter preflight rejected: event table is already valid")
+			if !rt.runner.state.RandomEventNeedsEnter(time.Now()) {
+				return fmt.Errorf("randomEvent.enter preflight rejected: event table is already fresh")
 			}
 			return nil
 		},

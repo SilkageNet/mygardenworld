@@ -642,9 +642,12 @@ func TestNoteFmlFlowerShareTake_AdvancesDepletedSlot(t *testing.T) {
 	if n := len(s.FmlFlowerTakeCandidates()); n != 1 {
 		t.Fatalf("candidates=%d, want 1", n)
 	}
-	s.NoteFmlFlowerShareTake(77900091102484, 2)
+	s.NoteFmlFlowerShareTake(77900091102484, 2, 23011)
 	if n := len(s.FmlFlowerTakeCandidates()); n != 0 {
 		t.Fatalf("after note candidates=%d, want 0", n)
+	}
+	if !s.FmlFlowerZeroTakeSeen(23011) {
+		t.Fatal("expected zero-take mark for flower 23011")
 	}
 }
 

@@ -50,6 +50,12 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 			return fmt.Errorf("%s: 公会建设 shareId=%d", automation.SDKAdUnsupportedReason, option.ShareID)
 		}
 	case clientproto.RPCFrdStealSteal.String(), clientproto.RPCFrdExtBuyStealCnt.String():
+		if op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves" {
+			if err := automation.ValidateFriendStealElvesMutation(r.state, r.Policy().GetPlant(), op, now); err != nil {
+				return err
+			}
+			break
+		}
 		if err := automation.ValidateFriendTouchMutation(r.state, r.Policy().GetPlant().GetFriendSteal(), op, now); err != nil {
 			return err
 		}
@@ -535,6 +541,39 @@ func isMailAlreadyPickedError(kind string, err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "附件已领取") || strings.Contains(msg, "不存在可以领取的邮件") || strings.Contains(msg, "mail_nonToPick") || strings.Contains(msg, "mail_alreadyPick")
+}
+
+// isFriendStealElvesUnavailableError covers stealElves=1 rejects where the plot
+// must be sticky-skipped so the planner can advance to another land. Ordinary
+// flower-steal "已摘取过该鲜花" stays on the normal failure path.
+func isFriendStealElvesUnavailableError(op *automation.PlannedOp, err error) bool {
+	if op == nil || err == nil {
+		return false
+	}
+	if op.Kind != clientproto.RPCFrdStealSteal.String() {
+		return false
+	}
+	if op.Action != "steal_elves" && op.FeatureID != "plant.friend_steal_elves" {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "花灵已被他人摘取") ||
+		strings.Contains(msg, "已摘取过该鲜花") ||
+		strings.Contains(msg, "当前土地状态发生变动")
+}
+
+func isPassFreeRecvRejectedError(kind string, err error) bool {
+	if err == nil {
+		return false
+	}
+	switch kind {
+	case clientproto.RPCFlowerPassRecv.String(), clientproto.RPCFlowerPassRecvOneKey.String(),
+		clientproto.RPCFlowerElvesPassRecv.String(), clientproto.RPCFlowerElvesPassRecvOneKey.String():
+	default:
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "客户端请求的参数有误") || strings.Contains(msg, "参数有误")
 }
 
 func waterResponseIncludesDrops(raw json.RawMessage) bool {

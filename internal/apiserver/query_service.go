@@ -141,6 +141,8 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	cyclicNote, _ := st.CyclicNoteView(now)
 	cyclicStory, _ := st.CyclicStoryView(now)
 	fmlRace := st.FmlRace()
+	svc.backfillFmlRaceCompletedTasks(ctx, acc.ID, st, fmlRace, now)
+	fmlRace = st.FmlRace()
 	dessert, _ := st.DessertView(now)
 	dessertRuntime := r.DessertRuntimeSnapshot()
 	policy := r.Policy()
@@ -194,6 +196,14 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	resp.FriendTouchFriends = friendTouchFriendsProto(st.FriendTouchFriends(now))
 	resp.FriendTouchFriendsObserved = st.FriendTouch(now).FriendsObserved
 	resp.PearlHire = pearlHireProto(st.PearlHireAt(now), now)
+	resp.FlowerRack = flowerRackProto(st, now)
+	resp.Cultivations, resp.CultivationsObserved = cultivationsProto(st, now)
+	resp.VideoDouble = videoDoubleProto(st.VideoDouble(), now)
+	resp.FlowerElves = flowerElvesProto(st.FlowerElvesHouseAt(now), now)
+	resp.DailyTaskBoard = dailyTaskBoardProto(st)
+	resp.FlowerPass = passBoardProto(st.FlowerPassView())
+	resp.FlowerElvesPass = passBoardProto(st.FlowerElvesPassView())
+	resp.SpeedUpTicketsUsedToday = st.SpeedUpTicketsUsedToday(now)
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
 	resp.FmlLandsObserved = st.FmlLandObserved()
 	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
@@ -535,6 +545,7 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			Score:        view.Taken.Score,
 			TargetLabel:  view.Taken.TargetLabel,
 			ExpireTimeMs: view.Taken.ExpireTime,
+			TargetItemId: view.Taken.ParamID,
 		}
 	}
 
@@ -554,9 +565,102 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			TargetLabel:    t.TargetLabel,
 			AppearTimeMs:   t.AppearTime,
 			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, gates),
+			TargetItemId:   t.ParamID,
 		})
 	}
+	if view.TaskLogsObserved {
+		out.CompletedTasksObserved = true
+	}
+	// Always surface merged completed tasks (server log + local finish notes +
+	// event_log backfill). Mark observed when we have any source of truth.
+	if len(view.CompletedTasks) > 0 || view.TaskLogsObserved {
+		out.CompletedTasksObserved = true
+		for _, t := range view.CompletedTasks {
+			taskType := t.TaskType
+			if taskType == 0 {
+				taskType = t.TaskId
+			}
+			out.CompletedTasks = append(out.CompletedTasks, &pb.FmlRaceCompletedTask{
+				LogMsId:       t.LogMsId,
+				TaskMsId:      t.TaskMsId,
+				TaskId:        t.TaskId,
+				TaskType:      taskType,
+				TaskLabel:     fmlRaceTaskLabels[taskType],
+				TargetLabel:   t.TargetLabel,
+				Score:         t.Score,
+				CompletedAtMs: t.CompletedAtMs,
+			})
+		}
+	}
 	return out
+}
+
+// backfillFmlRaceCompletedTasks merges this batch's race_task_finished events
+// from event_log into state so the logs UI shows the full period, not only the
+// partial getTaskLogList payload.
+func (svc *Services) backfillFmlRaceCompletedTasks(ctx context.Context, accountID int64, st *state.State, view state.FmlRaceView, now time.Time) {
+	if svc == nil || svc.DB == nil || st == nil {
+		return
+	}
+	sinceMs := view.BatchStartMs
+	if sinceMs <= 0 {
+		sinceMs = state.FmlRaceCalendarSessionStart(now).UnixMilli()
+	}
+	if sinceMs <= 0 {
+		return
+	}
+	events, err := svc.DB.ListEventLogs(ctx, store.ListEventLogsOptions{
+		AccountIDs: []int64{accountID},
+		Kinds:      []string{"race_task_finished"},
+		Since:      time.UnixMilli(sinceMs),
+		Limit:      100,
+	})
+	if err != nil || len(events) == 0 {
+		return
+	}
+	for _, e := range events {
+		task := completedTaskFromRaceFinishEvent(e)
+		if task.CompletedAtMs <= 0 && task.LogMsId == 0 {
+			continue
+		}
+		st.NoteFmlRaceCompletedTask(task)
+	}
+}
+
+func completedTaskFromRaceFinishEvent(e store.EventLog) state.FmlRaceCompletedTaskView {
+	taskLabel, targetLabel := splitRaceFinishMessage(e.Message)
+	taskType := raceTaskTypeFromLabel(taskLabel)
+	completedAt := e.TS.UnixMilli()
+	return state.FmlRaceCompletedTaskView{
+		// Stable key from event time so repeats merge cleanly.
+		LogMsId:       completedAt,
+		TaskType:      taskType,
+		TargetLabel:   targetLabel,
+		CompletedAtMs: completedAt,
+	}
+}
+
+func splitRaceFinishMessage(message string) (taskLabel, targetLabel string) {
+	message = strings.TrimSpace(message)
+	if message == "" || message == "完成" {
+		return "", ""
+	}
+	if i := strings.Index(message, " · "); i >= 0 {
+		return strings.TrimSpace(message[:i]), strings.TrimSpace(message[i+len(" · "):])
+	}
+	if i := strings.Index(message, "·"); i >= 0 {
+		return strings.TrimSpace(message[:i]), strings.TrimSpace(message[i+len("·"):])
+	}
+	return message, ""
+}
+
+func raceTaskTypeFromLabel(label string) int32 {
+	for id, name := range fmlRaceTaskLabels {
+		if name == label {
+			return id
+		}
+	}
+	return 0
 }
 
 func dessertProto(view state.DessertView) *pb.DessertView {
@@ -1769,6 +1873,43 @@ func plantableFlowersProto(flowers []state.PlantableFlower) []*pb.PlantableFlowe
 	return out
 }
 
+func cultivationsProto(st *state.State, now time.Time) ([]*pb.CultivateStatusView, bool) {
+	if st == nil {
+		return nil, false
+	}
+	observed := false
+	for _, ns := range st.ObservedNamespaces() {
+		if ns == "101" {
+			observed = true
+			break
+		}
+	}
+	cultivations := st.Cultivations()
+	if len(cultivations) == 0 {
+		return nil, observed
+	}
+	ids := make([]int32, 0, len(cultivations))
+	for id := range cultivations {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	nowMs := now.UnixMilli()
+	out := make([]*pb.CultivateStatusView, 0, len(ids))
+	for _, id := range ids {
+		cv := cultivations[id]
+		out = append(out, &pb.CultivateStatusView{
+			FlowerId:   id,
+			FlowerName: itemNameOrID(id),
+			Lvl:        cv.Lvl,
+			CulTimeMs:  cv.CulTimeMs,
+			Status:     cv.Status,
+			UTimeMs:    cv.UTimeMs,
+			Ready:      cv.Status == 1 && cv.CulTimeMs > 0 && cv.CulTimeMs <= nowMs,
+		})
+	}
+	return out, true
+}
+
 func sellableFlowerArtsProto(st *state.State) []*pb.SellableFlowerArtView {
 	if st == nil {
 		return nil
@@ -1813,6 +1954,186 @@ func friendTouchFriendsProto(friends []state.FriendTouchFriendView) []*pb.Friend
 			BoughtCount:          friend.BoughtCount,
 			QuotaObserved:        friend.QuotaObserved,
 			AvailabilityObserved: friend.AvailabilityObserved,
+		})
+	}
+	return out
+}
+
+func videoDoubleProto(view state.VideoDoubleView, now time.Time) *pb.VideoDoubleView {
+	out := &pb.VideoDoubleView{
+		Observed:   view.Observed,
+		EndTimeMs:  view.EndTimeMs,
+		VideoCount: view.VideoCount,
+	}
+	if view.Observed && view.EndTimeMs > now.UnixMilli() {
+		out.Active = true
+	}
+	return out
+}
+
+func flowerRackProto(st *state.State, now time.Time) *pb.FlowerRackView {
+	out := &pb.FlowerRackView{}
+	if st == nil {
+		return out
+	}
+	slots := st.FlowerRackSlots()
+	if len(slots) == 0 {
+		return out
+	}
+	out.Observed = true
+	rackIDs := make([]int32, 0, len(slots))
+	for id := range slots {
+		rackIDs = append(rackIDs, id)
+	}
+	sort.Slice(rackIDs, func(i, j int) bool { return rackIDs[i] < rackIDs[j] })
+	nowMs := now.UnixMilli()
+	for _, id := range rackIDs {
+		slot := slots[id]
+		view := &pb.FlowerRackSlotView{
+			RackId:        id,
+			ItemId:        slot.ItemID,
+			Count:         slot.Count,
+			ListedAtMs:    slot.ListedAtMs,
+			SellReadyAtMs: slot.SellReadyAtMs,
+			Listed:        slot.ItemID > 0 && slot.Count > 0,
+			Claimable:     slot.ItemID > 0 && slot.Count > 0 && slot.SellReadyAtMs > 0 && nowMs >= slot.SellReadyAtMs,
+		}
+		if view.ItemId > 0 {
+			view.ItemName = itemNameOrID(view.ItemId)
+		}
+		out.Slots = append(out.Slots, view)
+		out.SlotCount++
+		if view.Listed {
+			out.ListedCount++
+		} else {
+			out.EmptyCount++
+		}
+		if view.Claimable {
+			out.ClaimableCount++
+		}
+	}
+	return out
+}
+
+func flowerElvesProto(view state.FlowerElvesHouseView, now time.Time) *pb.FlowerElvesView {
+	nowMs := now.UnixMilli()
+	out := &pb.FlowerElvesView{
+		PlacesObserved:      view.PlacesObserved,
+		MoneyItemId:         view.MoneyItemID,
+		MoneyCount:          view.MoneyCount,
+		DispatchableCount:   view.DispatchableCount,
+		PlantedCount:        view.PlantedCount,
+		PlantedCap:          view.PlantedCap,
+		PlantedObserved:     view.PlantedObserved,
+		HarvestableCount:    view.HarvestableCount,
+		HarvestableCap:      view.HarvestableCap,
+		HarvestableObserved: view.HarvestableObserved,
+		DispatchedCount:     view.DispatchedCount,
+		ElvesLimit:          view.ElvesLimit,
+		SlotCount:           view.SlotCount,
+		PendingRewardMoney:  view.PendingRewardMoney,
+		AidObserved:         view.AidObserved,
+		AidEffEndTimeMs:     view.AidEffEndTimeMs,
+		AidFriendAddRate:    view.AidFriendAddRate,
+		AidReqOpen:          view.AidReqOpen,
+		AidHelperCount:      view.AidHelperCount,
+		AidPreReqTimeMs:     view.AidPreReqTimeMs,
+		AidReqReadyAtMs:     view.AidReqReadyAtMs,
+		AidCanRecv:          view.AidCanRecv,
+	}
+	if len(view.Places) == 0 {
+		return out
+	}
+	out.Places = make([]*pb.FlowerElvesPlaceView, 0, len(view.Places))
+	for _, place := range view.Places {
+		multi := place.GainMulti
+		if multi <= 0 && place.ElvesID > 0 {
+			multi = 1
+		}
+		reward := state.FlowerElvesDispatchRewardMoney(place.ElvesID, place.ElvesNum, place.GainMulti)
+		dispatching := place.ElvesID > 0 && place.DispEndTimeMs > nowMs
+		rewardReady := place.ElvesID > 0 && (place.DispEndTimeMs <= 0 || place.DispEndTimeMs <= nowMs)
+		out.Places = append(out.Places, &pb.FlowerElvesPlaceView{
+			PlaceId:       place.PlaceID,
+			ElvesId:       place.ElvesID,
+			ElvesName:     itemNameOrID(place.ElvesID),
+			ElvesNum:      place.ElvesNum,
+			DispEndTimeMs: place.DispEndTimeMs,
+			GainMulti:     multi,
+			RewardMoney:   reward,
+			Dispatching:   dispatching,
+			RewardReady:   rewardReady,
+		})
+	}
+	return out
+}
+
+func dailyTaskBoardProto(st *state.State) *pb.DailyTaskBoardView {
+	observed, tasks := st.DailyTaskBoard()
+	out := &pb.DailyTaskBoardView{Observed: observed}
+	for _, task := range tasks {
+		title := state.DailyTaskTitle(task.TaskID, task.Target)
+		if title == "" {
+			title = fmt.Sprintf("日常任务 #%d", task.TaskID)
+		}
+		planStatus := pb.PlanStatus_PLAN_STATUS_MANAGED
+		received := task.Receipted != 0
+		if received {
+			planStatus = pb.PlanStatus_PLAN_STATUS_SKIPPED
+		} else if task.Status == 1 || (task.Target > 0 && task.Finished >= task.Target) {
+			planStatus = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		out.Tasks = append(out.Tasks, &pb.DailyTaskBoardItem{
+			TaskId:     task.TaskID,
+			Title:      title,
+			Finished:   task.Finished,
+			Target:     task.Target,
+			Status:     task.Status,
+			Received:   received,
+			PlanStatus: planStatus,
+		})
+	}
+	return out
+}
+
+func passBoardProto(view state.PassBoardView) *pb.PassBoardView {
+	out := &pb.PassBoardView{
+		Observed:            view.Observed,
+		Found:               view.Found,
+		Bid:                 view.Bid,
+		Name:                view.Name,
+		Lvl:                 view.Lvl,
+		Exp:                 view.Exp,
+		PassType:            view.PassType,
+		BuyLvl:              view.BuyLvl,
+		LvlMax:              view.LvlMax,
+		ReadyTaskCount:      view.ReadyTaskCount,
+		ReadyFreeLevelCount: view.ReadyFreeLevelCount,
+	}
+	for _, task := range view.Tasks {
+		status := pb.PlanStatus_PLAN_STATUS_MANAGED
+		switch {
+		case task.Received:
+			status = pb.PlanStatus_PLAN_STATUS_SKIPPED
+		case task.Ready:
+			status = pb.PlanStatus_PLAN_STATUS_READY
+		}
+		progress := task.Progress
+		if task.Target > 0 && progress > task.Target {
+			progress = task.Target
+		}
+		out.Tasks = append(out.Tasks, &pb.PassTaskSlot{
+			TaskId:       task.TaskID,
+			TaskType:     task.TaskType,
+			ProgressType: task.ProgressType,
+			Param:        task.Param,
+			Title:        task.Title,
+			Target:       task.Target,
+			Progress:     progress,
+			Received:     task.Received,
+			CatalogKnown: task.CatalogKnown,
+			RewardExp:    task.RewardExp,
+			Status:       status,
 		})
 	}
 	return out
@@ -2300,6 +2621,10 @@ func landViewProtoWithLimit(id int32, l state.LandView, info state.FarmLandInfo,
 		OpenLevel:      info.OpenLevel,
 		UnlockCost:     farmLandActualCost(info.Cost),
 		Wasteland:      append([]int32(nil), info.Wasteland...),
+		ElvesId:        int32(l.ElvesID),
+		ElvesStealUids: append([]int64(nil), l.ElvesStealUIDs...),
+		RemainingYield: state.LandRemainingYield(l),
+		CanTouch:       state.LandCanTouch(l, now),
 	}
 }
 

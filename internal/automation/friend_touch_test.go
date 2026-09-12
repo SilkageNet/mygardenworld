@@ -23,8 +23,8 @@ func TestFriendTouchPlansStealAfterSync(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() || op.TargetUID != 2001 {
-		t.Fatalf("want enterFrdSteal, got %+v", op)
+	if op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() || op.TargetUID != 2001 {
+		t.Fatalf("want getFrdHomeInfo, got %+v", op)
 	}
 
 	s.ApplyV([]byte(`{"111":{"1":{"0":2001,"1":{"11":{"0":23001,"1":3},"12":{"0":23002,"1":1}}}}}`))
@@ -65,7 +65,8 @@ func TestFriendTouchDoesNotRefreshObservedProfileOnShortTTL(t *testing.T) {
 	s := state.New()
 	now := applyFriendTouchFixture(s, []int64{2001}, map[int64]bool{2001: true}, map[int64]int32{2001: 0})
 	policy := &pb.FriendStealPolicy{Enabled: true, FriendMode: pb.SelectionMode_SELECTION_MODE_ALL}
-	op, ok := PlanOneFriendTouch(s, policy, now.Add(time.Minute))
+	// OtherInfo TTL is 5m; profiles must not be re-pulled just because availability expired.
+	op, ok := PlanOneFriendTouch(s, policy, now.Add(friendTouchOtherInfoTTL+time.Second))
 	if !ok || op.Kind != clientproto.RPCFrdExtGetFrdOtherInfoByUids.String() {
 		t.Fatalf("observed names must not refresh on dynamic-state TTL, got %+v ok=%v", op, ok)
 	}
@@ -84,7 +85,7 @@ func TestFriendTouchAllModeSkipsExcluded(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() || op.TargetUID != 2002 {
+	if op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() || op.TargetUID != 2002 {
 		t.Fatalf("want enter uid 2002, got %+v", op)
 	}
 }
@@ -103,7 +104,7 @@ func TestFriendTouchSpecificRespectsExclude(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() {
+	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() {
 		t.Fatalf("want enter uid 2002, got %+v", op)
 	}
 }
@@ -120,7 +121,7 @@ func TestFriendTouchSkipsNonStealableFriend(t *testing.T) {
 	if !ok {
 		t.Fatal("expected enter garden op")
 	}
-	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdStealEnterFrdSteal.String() {
+	if op.TargetUID != 2002 || op.Kind != clientproto.RPCFrdHomeGetFrdHomeInfo.String() {
 		t.Fatalf("want enter uid 2002, got %+v", op)
 	}
 }
@@ -155,6 +156,24 @@ func TestFriendTouchPrefersHigherQualityLowerStockLand(t *testing.T) {
 	}
 	if op.Kind != clientproto.RPCFrdStealSteal.String() || op.TargetID != 11 {
 		t.Fatalf("want higher-quality lower-stock land 11, got %+v", op)
+	}
+}
+
+func TestFriendTouchAllModePerFriendExtraOverride(t *testing.T) {
+	s := state.New()
+	policy := &pb.FriendStealPolicy{
+		Enabled:         true,
+		FriendMode:      pb.SelectionMode_SELECTION_MODE_ALL,
+		FriendCounts:    map[int64]int32{2001: 12},
+		AutoBuyTimes:    true,
+		MaxBuyPerFriend: 5,
+	}
+	now := applyFriendTouchFixture(s, []int64{2001, 2002}, map[int64]bool{2001: true, 2002: true}, map[int64]int32{2001: 10, 2002: 0})
+	s.ApplyV([]byte(`{"7":{"0":{"0":100,"32":{"1305":5}}}}`))
+
+	op, ok := PlanOneFriendTouch(s, policy, now)
+	if !ok || op.Kind != clientproto.RPCFrdExtBuyStealCnt.String() || op.TargetUID != 2001 {
+		t.Fatalf("want buy for overridden friend 2001, got %+v ok=%v", op, ok)
 	}
 }
 

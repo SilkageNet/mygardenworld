@@ -47,6 +47,16 @@ const (
 	RPCActBigHeartReforge                       RPCName = "actBigHeart.reforge"
 	RPCActBigHeartRejectTradeInv                RPCName = "actBigHeart.rejectTradeInv"
 	RPCActBigHeartTradeCard                     RPCName = "actBigHeart.tradeCard"
+	RPCActCabinetEnter                          RPCName = "actCabinet.enter"
+	RPCActCabinetGameOver                       RPCName = "actCabinet.gameOver"
+	RPCActCabinetGameStart                      RPCName = "actCabinet.gameStart"
+	RPCActCabinetGameSync                       RPCName = "actCabinet.gameSync"
+	RPCActCabinetGiftBuy                        RPCName = "actCabinet.giftBuy"
+	RPCActCabinetOpenBox                        RPCName = "actCabinet.openBox"
+	RPCActCabinetRise                           RPCName = "actCabinet.rise"
+	RPCActCabinetSwitchModle                    RPCName = "actCabinet.switchModle"
+	RPCActCabinetTimeOutRise                    RPCName = "actCabinet.timeOutRise"
+	RPCActCabinetUseItem                        RPCName = "actCabinet.useItem"
 	RPCActCallBackActCallBackBind               RPCName = "actCallBack.actCallBackBind"
 	RPCActCallBackActCallBackEnter              RPCName = "actCallBack.actCallBackEnter"
 	RPCActCallBackActCallBackRecv               RPCName = "actCallBack.actCallBackRecv"
@@ -223,12 +233,13 @@ const (
 	RPCActRchgWheelGetMyLog                     RPCName = "actRchgWheel.getMyLog"
 	RPCActRchgWheelStartWheel                   RPCName = "actRchgWheel.startWheel"
 	RPCActRealFlowerGetBigLogList               RPCName = "actRealFlower.getBigLogList"
+	RPCActRealFruitGetBigLogList                RPCName = "actRealFruit.getBigLogList"
 	RPCActRealMilkTeaGetBigLogList              RPCName = "actRealMilkTea.getBigLogList"
 	RPCActRedpacketRedPacketRecv                RPCName = "actRedpacket.redPacketRecv"
 	RPCActSpaceAnswerQuestion                   RPCName = "actSpace.answerQuestion"
 	RPCActSpaceBeginQuestion                    RPCName = "actSpace.beginQuestion"
 	RPCActSpaceEnter                            RPCName = "actSpace.enter"
-	RPCActSpaceRecvBox                          RPCName = "actSpace.recvBox"
+	RPCActSpaceRecv                             RPCName = "actSpace.recv"
 	RPCActSpoolEnter                            RPCName = "actSpool.enter"
 	RPCActSpoolGameOver                         RPCName = "actSpool.gameOver"
 	RPCActSpoolGameStart                        RPCName = "actSpool.gameStart"
@@ -246,6 +257,8 @@ const (
 	RPCActStarryGardenDianzan                   RPCName = "actStarryGarden.dianzan"
 	RPCActStarryGardenEnter                     RPCName = "actStarryGarden.enter"
 	RPCActVipTimeShopGiftBuy                    RPCName = "actVipTimeShop.giftBuy"
+	RPCActZFBBbFarmBrowseWeb                    RPCName = "actZFBBbFarm.browseWeb"
+	RPCActZFBBbFarmEnter                        RPCName = "actZFBBbFarm.enter"
 	RPCActZFBForestBrowseWeb                    RPCName = "actZFBForest.browseWeb"
 	RPCActZFBForestBrowseWeb2                   RPCName = "actZFBForest.browseWeb2"
 	RPCActZFBForestEnter                        RPCName = "actZFBForest.enter"
@@ -255,6 +268,7 @@ const (
 	RPCAnnivMemoirReadEnd                       RPCName = "annivMemoir.readEnd"
 	RPCAnnivMemoirRecv                          RPCName = "annivMemoir.recv"
 	RPCBagCombine                               RPCName = "bag.combine"
+	RPCBagRecycle                               RPCName = "bag.recycle"
 	RPCBagSell                                  RPCName = "bag.sell"
 	RPCBagUse                                   RPCName = "bag.use"
 	RPCBattlePassBuyLvl                         RPCName = "battlePass.buyLvl"
@@ -279,6 +293,15 @@ const (
 	RPCBoostRefresh                             RPCName = "boost.refresh"
 	RPCBubbleActiveBubble                       RPCName = "bubble.activeBubble"
 	RPCBubbleChgBubble                          RPCName = "bubble.chgBubble"
+	RPCButlerButlerBuy                          RPCName = "butler.butlerBuy"
+	RPCButlerButlerHarvestOneKey                RPCName = "butler.butlerHarvestOneKey"
+	RPCButlerButlerPlantOneKey                  RPCName = "butler.butlerPlantOneKey"
+	RPCButlerButlerWaterOneKey                  RPCName = "butler.butlerWaterOneKey"
+	RPCButlerExecCal                            RPCName = "butler.execCal"
+	RPCButlerGetButlerLogList                   RPCName = "butler.getButlerLogList"
+	RPCButlerGetLog                             RPCName = "butler.getLog"
+	RPCButlerSetButlerSetting                   RPCName = "butler.setButlerSetting"
+	RPCButlerSetSetting                         RPCName = "butler.setSetting"
 	RPCCallFriendEnter                          RPCName = "callFriend.enter"
 	RPCCallFriendRecv                           RPCName = "callFriend.recv"
 	RPCCallFriendUseCode                        RPCName = "callFriend.useCode"
@@ -332,6 +355,7 @@ const (
 	RPCFlowerElvesPassRecvOneKey                RPCName = "flowerElvesPass.recvOneKey"
 	RPCFlowerElvesPassRefreshTask               RPCName = "flowerElvesPass.refreshTask"
 	RPCFlowerElvesPassTaskDone                  RPCName = "flowerElvesPass.taskDone"
+	RPCFlowerElvesPlaceCancelDispatch           RPCName = "flowerElvesPlace.cancelDispatch"
 	RPCFlowerElvesPlaceDispatch                 RPCName = "flowerElvesPlace.dispatch"
 	RPCFlowerElvesPlaceRecv                     RPCName = "flowerElvesPlace.recv"
 	RPCFlowerElvesPlaceRecvAllReward            RPCName = "flowerElvesPlace.recvAllReward"
@@ -348,6 +372,7 @@ const (
 	RPCFlowerMarketHarvestIncome                RPCName = "flowerMarket.harvestIncome"
 	RPCFlowerMarketPutFlower                    RPCName = "flowerMarket.putFlower"
 	RPCFlowerMarketPutFlowerBatch               RPCName = "flowerMarket.putFlowerBatch"
+	RPCFlowerMarketSetMsg                       RPCName = "flowerMarket.setMsg"
 	RPCFlowerMarketTakeDownFlower               RPCName = "flowerMarket.takeDownFlower"
 	RPCFlowerMarketUnlockShelf                  RPCName = "flowerMarket.unlockShelf"
 	RPCFlowerOrderRqstShowR                     RPCName = "flowerOrderRqst.showR"
@@ -367,6 +392,7 @@ const (
 	RPCFmlAutoJoin                              RPCName = "fml.autoJoin"
 	RPCFmlBld                                   RPCName = "fml.bld"
 	RPCFmlBuyRaceBoat                           RPCName = "fml.buyRaceBoat"
+	RPCFmlChgDecorate                           RPCName = "fml.chgDecorate"
 	RPCFmlChgPos                                RPCName = "fml.chgPos"
 	RPCFmlChgTitle                              RPCName = "fml.chgTitle"
 	RPCFmlClearQuitTime                         RPCName = "fml.clearQuitTime"
@@ -374,6 +400,7 @@ const (
 	RPCFmlDissolve                              RPCName = "fml.dissolve"
 	RPCFmlEnter                                 RPCName = "fml.enter"
 	RPCFmlEquipRaceBoat                         RPCName = "fml.equipRaceBoat"
+	RPCFmlGetDecorateList                       RPCName = "fml.getDecorateList"
 	RPCFmlGetHonor                              RPCName = "fml.getHonor"
 	RPCFmlGetLog                                RPCName = "fml.getLog"
 	RPCFmlGetMedalRwd                           RPCName = "fml.getMedalRwd"
@@ -388,6 +415,7 @@ const (
 	RPCFmlOpenFmlRaceBox                        RPCName = "fml.openFmlRaceBox"
 	RPCFmlQuit                                  RPCName = "fml.quit"
 	RPCFmlRecvBox                               RPCName = "fml.recvBox"
+	RPCFmlRefreshDecorate                       RPCName = "fml.refreshDecorate"
 	RPCFmlRefreshRaceBoat                       RPCName = "fml.refreshRaceBoat"
 	RPCFmlRefreshTitle                          RPCName = "fml.refreshTitle"
 	RPCFmlSearch                                RPCName = "fml.search"
@@ -567,6 +595,7 @@ const (
 	RPCOrderTeamSubmitOrder                     RPCName = "orderTeam.submitOrder"
 	RPCOrderTeamTakeOrder                       RPCName = "orderTeam.takeOrder"
 	RPCOrderTeamTakeStoredOrder                 RPCName = "orderTeam.takeStoredOrder"
+	RPCPearlConvert                             RPCName = "pearl.convert"
 	RPCPearlDraw                                RPCName = "pearl.draw"
 	RPCPearlGetHireMyLog                        RPCName = "pearl.getHireMyLog"
 	RPCPearlGetHireStateByUids                  RPCName = "pearl.getHireStateByUids"
@@ -706,6 +735,7 @@ const (
 	RPCTbGiftRcdRecvRwd                         RPCName = "tbGiftRcd.recvRwd"
 	RPCTeamOrderPopupShowT                      RPCName = "teamOrderPopup.showT"
 	RPCThirdpartyApplyToken                     RPCName = "thirdparty.applyToken"
+	RPCTimeItemChooseItem                       RPCName = "timeItem.chooseItem"
 	RPCTitleActiveTitle                         RPCName = "title.activeTitle"
 	RPCTitleChgTitle                            RPCName = "title.chgTitle"
 	RPCTitleSetTitleShow                        RPCName = "title.setTitleShow"
@@ -722,6 +752,7 @@ const (
 	RPCUsrActiveTitle                           RPCName = "usr.activeTitle"
 	RPCUsrAddSubscribeNum                       RPCName = "usr.addSubscribeNum"
 	RPCUsrAfterShare                            RPCName = "usr.afterShare"
+	RPCUsrChangeInfoBg                          RPCName = "usr.changeInfoBg"
 	RPCUsrChgBubble                             RPCName = "usr.chgBubble"
 	RPCUsrChgCard                               RPCName = "usr.chgCard"
 	RPCUsrChgFace                               RPCName = "usr.chgFace"
@@ -739,6 +770,7 @@ const (
 	RPCUsrMsgPushSetting                        RPCName = "usr.msgPushSetting"
 	RPCUsrMsgPushSettingGlobal                  RPCName = "usr.msgPushSettingGlobal"
 	RPCUsrRecvSignRwd                           RPCName = "usr.recvSignRwd"
+	RPCUsrRecycle                               RPCName = "usr.recycle"
 	RPCUsrRefreshMedal                          RPCName = "usr.refreshMedal"
 	RPCUsrSaveAuthInfo                          RPCName = "usr.saveAuthInfo"
 	RPCUsrSaveCustIco                           RPCName = "usr.saveCustIco"
@@ -780,7 +812,6 @@ const (
 	RPCUsrLandSpeedUpBatch                      RPCName = "usrLand.speedUpBatch"
 	RPCUsrLandSpeedUpFree                       RPCName = "usrLand.speedUpFree"
 	RPCUsrLandSpeedUpOneKey                     RPCName = "usrLand.speedUpOneKey"
-	RPCUsrLandTestPlantElves                    RPCName = "usrLand.testPlantElves"
 	RPCUsrLandUnlockLand                        RPCName = "usrLand.unlockLand"
 	RPCUsrLandWater                             RPCName = "usrLand.water"
 	RPCUsrLandWaterBatch                        RPCName = "usrLand.waterBatch"
@@ -895,6 +926,16 @@ var gameJSRPCNames = []RPCName{
 	RPCActBigHeartReforge,
 	RPCActBigHeartRejectTradeInv,
 	RPCActBigHeartTradeCard,
+	RPCActCabinetEnter,
+	RPCActCabinetGameOver,
+	RPCActCabinetGameStart,
+	RPCActCabinetGameSync,
+	RPCActCabinetGiftBuy,
+	RPCActCabinetOpenBox,
+	RPCActCabinetRise,
+	RPCActCabinetSwitchModle,
+	RPCActCabinetTimeOutRise,
+	RPCActCabinetUseItem,
 	RPCActCallBackActCallBackBind,
 	RPCActCallBackActCallBackEnter,
 	RPCActCallBackActCallBackRecv,
@@ -1071,12 +1112,13 @@ var gameJSRPCNames = []RPCName{
 	RPCActRchgWheelGetMyLog,
 	RPCActRchgWheelStartWheel,
 	RPCActRealFlowerGetBigLogList,
+	RPCActRealFruitGetBigLogList,
 	RPCActRealMilkTeaGetBigLogList,
 	RPCActRedpacketRedPacketRecv,
 	RPCActSpaceAnswerQuestion,
 	RPCActSpaceBeginQuestion,
 	RPCActSpaceEnter,
-	RPCActSpaceRecvBox,
+	RPCActSpaceRecv,
 	RPCActSpoolEnter,
 	RPCActSpoolGameOver,
 	RPCActSpoolGameStart,
@@ -1094,6 +1136,8 @@ var gameJSRPCNames = []RPCName{
 	RPCActStarryGardenDianzan,
 	RPCActStarryGardenEnter,
 	RPCActVipTimeShopGiftBuy,
+	RPCActZFBBbFarmBrowseWeb,
+	RPCActZFBBbFarmEnter,
 	RPCActZFBForestBrowseWeb,
 	RPCActZFBForestBrowseWeb2,
 	RPCActZFBForestEnter,
@@ -1103,6 +1147,7 @@ var gameJSRPCNames = []RPCName{
 	RPCAnnivMemoirReadEnd,
 	RPCAnnivMemoirRecv,
 	RPCBagCombine,
+	RPCBagRecycle,
 	RPCBagSell,
 	RPCBagUse,
 	RPCBattlePassBuyLvl,
@@ -1127,6 +1172,15 @@ var gameJSRPCNames = []RPCName{
 	RPCBoostRefresh,
 	RPCBubbleActiveBubble,
 	RPCBubbleChgBubble,
+	RPCButlerButlerBuy,
+	RPCButlerButlerHarvestOneKey,
+	RPCButlerButlerPlantOneKey,
+	RPCButlerButlerWaterOneKey,
+	RPCButlerExecCal,
+	RPCButlerGetButlerLogList,
+	RPCButlerGetLog,
+	RPCButlerSetButlerSetting,
+	RPCButlerSetSetting,
 	RPCCallFriendEnter,
 	RPCCallFriendRecv,
 	RPCCallFriendUseCode,
@@ -1180,6 +1234,7 @@ var gameJSRPCNames = []RPCName{
 	RPCFlowerElvesPassRecvOneKey,
 	RPCFlowerElvesPassRefreshTask,
 	RPCFlowerElvesPassTaskDone,
+	RPCFlowerElvesPlaceCancelDispatch,
 	RPCFlowerElvesPlaceDispatch,
 	RPCFlowerElvesPlaceRecv,
 	RPCFlowerElvesPlaceRecvAllReward,
@@ -1196,6 +1251,7 @@ var gameJSRPCNames = []RPCName{
 	RPCFlowerMarketHarvestIncome,
 	RPCFlowerMarketPutFlower,
 	RPCFlowerMarketPutFlowerBatch,
+	RPCFlowerMarketSetMsg,
 	RPCFlowerMarketTakeDownFlower,
 	RPCFlowerMarketUnlockShelf,
 	RPCFlowerOrderRqstShowR,
@@ -1215,6 +1271,7 @@ var gameJSRPCNames = []RPCName{
 	RPCFmlAutoJoin,
 	RPCFmlBld,
 	RPCFmlBuyRaceBoat,
+	RPCFmlChgDecorate,
 	RPCFmlChgPos,
 	RPCFmlChgTitle,
 	RPCFmlClearQuitTime,
@@ -1222,6 +1279,7 @@ var gameJSRPCNames = []RPCName{
 	RPCFmlDissolve,
 	RPCFmlEnter,
 	RPCFmlEquipRaceBoat,
+	RPCFmlGetDecorateList,
 	RPCFmlGetHonor,
 	RPCFmlGetLog,
 	RPCFmlGetMedalRwd,
@@ -1236,6 +1294,7 @@ var gameJSRPCNames = []RPCName{
 	RPCFmlOpenFmlRaceBox,
 	RPCFmlQuit,
 	RPCFmlRecvBox,
+	RPCFmlRefreshDecorate,
 	RPCFmlRefreshRaceBoat,
 	RPCFmlRefreshTitle,
 	RPCFmlSearch,
@@ -1415,6 +1474,7 @@ var gameJSRPCNames = []RPCName{
 	RPCOrderTeamSubmitOrder,
 	RPCOrderTeamTakeOrder,
 	RPCOrderTeamTakeStoredOrder,
+	RPCPearlConvert,
 	RPCPearlDraw,
 	RPCPearlGetHireMyLog,
 	RPCPearlGetHireStateByUids,
@@ -1554,6 +1614,7 @@ var gameJSRPCNames = []RPCName{
 	RPCTbGiftRcdRecvRwd,
 	RPCTeamOrderPopupShowT,
 	RPCThirdpartyApplyToken,
+	RPCTimeItemChooseItem,
 	RPCTitleActiveTitle,
 	RPCTitleChgTitle,
 	RPCTitleSetTitleShow,
@@ -1570,6 +1631,7 @@ var gameJSRPCNames = []RPCName{
 	RPCUsrActiveTitle,
 	RPCUsrAddSubscribeNum,
 	RPCUsrAfterShare,
+	RPCUsrChangeInfoBg,
 	RPCUsrChgBubble,
 	RPCUsrChgCard,
 	RPCUsrChgFace,
@@ -1587,6 +1649,7 @@ var gameJSRPCNames = []RPCName{
 	RPCUsrMsgPushSetting,
 	RPCUsrMsgPushSettingGlobal,
 	RPCUsrRecvSignRwd,
+	RPCUsrRecycle,
 	RPCUsrRefreshMedal,
 	RPCUsrSaveAuthInfo,
 	RPCUsrSaveCustIco,
@@ -1628,7 +1691,6 @@ var gameJSRPCNames = []RPCName{
 	RPCUsrLandSpeedUpBatch,
 	RPCUsrLandSpeedUpFree,
 	RPCUsrLandSpeedUpOneKey,
-	RPCUsrLandTestPlantElves,
 	RPCUsrLandUnlockLand,
 	RPCUsrLandWater,
 	RPCUsrLandWaterBatch,
@@ -1751,6 +1813,16 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCActBigHeartReforge, Group: "actBigHeart", Method: "reforge", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "consume"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActBigHeartRejectTradeInv, Group: "actBigHeart", Method: "rejectTradeInv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "dstUid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActBigHeartTradeCard, Group: "actBigHeart", Method: "tradeCard", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "dstUid", "deckId", "exDeckId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetEnter, Group: "actCabinet", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "isInPage"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetGameOver, Group: "actCabinet", Method: "gameOver", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "gameTimes"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetGameStart, Group: "actCabinet", Method: "gameStart", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "gameTimes"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetGameSync, Group: "actCabinet", Method: "gameSync", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "cMaps", "sltInfo", "putInfo", "gameTimes"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetGiftBuy, Group: "actCabinet", Method: "giftBuy", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "giftId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetOpenBox, Group: "actCabinet", Method: "openBox", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "num"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetRise, Group: "actCabinet", Method: "rise", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "gameTimes"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetSwitchModle, Group: "actCabinet", Method: "switchModle", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "gameTimes", "newGameTimes"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetTimeOutRise, Group: "actCabinet", Method: "timeOutRise", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "gameTimes"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActCabinetUseItem, Group: "actCabinet", Method: "useItem", RequestShape: RPCRequestFields, RequestFields: []string{"operationType", "batchId", "gameTimes", "cMaps", "sltInfo"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActCallBackActCallBackBind, Group: "actCallBack", Method: "actCallBackBind", RequestShape: RPCRequestFields, RequestFields: []string{"bid", "code"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActCallBackActCallBackEnter, Group: "actCallBack", Method: "actCallBackEnter", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActCallBackActCallBackRecv, Group: "actCallBack", Method: "actCallBackRecv", RequestShape: RPCRequestFields, RequestFields: []string{"bid", "id"}, ResponseSchema: "StateDelta"},
@@ -1927,12 +1999,13 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCActRchgWheelGetMyLog, Group: "actRchgWheel", Method: "getMyLog", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActRchgWheelStartWheel, Group: "actRchgWheel", Method: "startWheel", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActRealFlowerGetBigLogList, Group: "actRealFlower", Method: "getBigLogList", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActRealFruitGetBigLogList, Group: "actRealFruit", Method: "getBigLogList", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActRealMilkTeaGetBigLogList, Group: "actRealMilkTea", Method: "getBigLogList", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActRedpacketRedPacketRecv, Group: "actRedpacket", Method: "redPacketRecv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActSpaceAnswerQuestion, Group: "actSpace", Method: "answerQuestion", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "day", "questionId", "optionId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActSpaceBeginQuestion, Group: "actSpace", Method: "beginQuestion", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "day"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActSpaceEnter, Group: "actSpace", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
-	{Name: RPCActSpaceRecvBox, Group: "actSpace", Method: "recvBox", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "day", "boxId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActSpaceRecv, Group: "actSpace", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActSpoolEnter, Group: "actSpool", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "isInPage"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActSpoolGameOver, Group: "actSpool", Method: "gameOver", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "gameType"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActSpoolGameStart, Group: "actSpool", Method: "gameStart", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
@@ -1950,6 +2023,8 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCActStarryGardenDianzan, Group: "actStarryGarden", Method: "dianzan", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActStarryGardenEnter, Group: "actStarryGarden", Method: "enter", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActVipTimeShopGiftBuy, Group: "actVipTimeShop", Method: "giftBuy", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "giftId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActZFBBbFarmBrowseWeb, Group: "actZFBBbFarm", Method: "browseWeb", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActZFBBbFarmEnter, Group: "actZFBBbFarm", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActZFBForestBrowseWeb, Group: "actZFBForest", Method: "browseWeb", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActZFBForestBrowseWeb2, Group: "actZFBForest", Method: "browseWeb2", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActZFBForestEnter, Group: "actZFBForest", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
@@ -1959,6 +2034,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCAnnivMemoirReadEnd, Group: "annivMemoir", Method: "readEnd", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCAnnivMemoirRecv, Group: "annivMemoir", Method: "recv", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCBagCombine, Group: "bag", Method: "combine", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCBagRecycle, Group: "bag", Method: "recycle", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCBagSell, Group: "bag", Method: "sell", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCBagUse, Group: "bag", Method: "use", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCBattlePassBuyLvl, Group: "battlePass", Method: "buyLvl", RequestShape: RPCRequestFields, RequestFields: []string{"bid", "count"}, ResponseSchema: "StateDelta"},
@@ -1983,6 +2059,15 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCBoostRefresh, Group: "boost", Method: "refresh", RequestShape: RPCRequestFields, RequestFields: []string{"type"}, ResponseSchema: "StateDelta"},
 	{Name: RPCBubbleActiveBubble, Group: "bubble", Method: "activeBubble", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCBubbleChgBubble, Group: "bubble", Method: "chgBubble", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerButlerBuy, Group: "butler", Method: "butlerBuy", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerButlerHarvestOneKey, Group: "butler", Method: "butlerHarvestOneKey", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerButlerPlantOneKey, Group: "butler", Method: "butlerPlantOneKey", RequestShape: RPCRequestFields, RequestFields: []string{"flowerAndLandList"}, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerButlerWaterOneKey, Group: "butler", Method: "butlerWaterOneKey", RequestShape: RPCRequestFields, RequestFields: []string{"landIds"}, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerExecCal, Group: "butler", Method: "execCal", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerGetButlerLogList, Group: "butler", Method: "getButlerLogList", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerGetLog, Group: "butler", Method: "getLog", RequestShape: RPCRequestFields, RequestFields: []string{"type", "isOnline"}, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerSetButlerSetting, Group: "butler", Method: "setButlerSetting", RequestShape: RPCRequestFields, RequestFields: []string{"type", "setting"}, ResponseSchema: "StateDelta"},
+	{Name: RPCButlerSetSetting, Group: "butler", Method: "setSetting", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCCallFriendEnter, Group: "callFriend", Method: "enter", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCCallFriendRecv, Group: "callFriend", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"id"}, ResponseSchema: "StateDelta"},
 	{Name: RPCCallFriendUseCode, Group: "callFriend", Method: "useCode", RequestShape: RPCRequestFields, RequestFields: []string{"code"}, ResponseSchema: "StateDelta"},
@@ -2036,6 +2121,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCFlowerElvesPassRecvOneKey, Group: "flowerElvesPass", Method: "recvOneKey", RequestShape: RPCRequestFields, RequestFields: []string{"bid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerElvesPassRefreshTask, Group: "flowerElvesPass", Method: "refreshTask", RequestShape: RPCRequestFields, RequestFields: []string{"bid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerElvesPassTaskDone, Group: "flowerElvesPass", Method: "taskDone", RequestShape: RPCRequestFields, RequestFields: []string{"bid", "taskId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCFlowerElvesPlaceCancelDispatch, Group: "flowerElvesPlace", Method: "cancelDispatch", RequestShape: RPCRequestFields, RequestFields: []string{"placeId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerElvesPlaceDispatch, Group: "flowerElvesPlace", Method: "dispatch", RequestShape: RPCRequestFields, RequestFields: []string{"placeId", "elvesId", "elvesNum", "iid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerElvesPlaceRecv, Group: "flowerElvesPlace", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"placeId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerElvesPlaceRecvAllReward, Group: "flowerElvesPlace", Method: "recvAllReward", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
@@ -2052,6 +2138,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCFlowerMarketHarvestIncome, Group: "flowerMarket", Method: "harvestIncome", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerMarketPutFlower, Group: "flowerMarket", Method: "putFlower", RequestShape: RPCRequestFields, RequestFields: []string{"shelfId", "flowerId", "count", "priceIdx", "password"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerMarketPutFlowerBatch, Group: "flowerMarket", Method: "putFlowerBatch", RequestShape: RPCRequestFields, RequestFields: []string{"shelfIds", "flowerId", "count", "priceIdx", "password"}, ResponseSchema: "StateDelta"},
+	{Name: RPCFlowerMarketSetMsg, Group: "flowerMarket", Method: "setMsg", RequestShape: RPCRequestFields, RequestFields: []string{"msg"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerMarketTakeDownFlower, Group: "flowerMarket", Method: "takeDownFlower", RequestShape: RPCRequestFields, RequestFields: []string{"shelfId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerMarketUnlockShelf, Group: "flowerMarket", Method: "unlockShelf", RequestShape: RPCRequestFields, RequestFields: []string{"shelfId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFlowerOrderRqstShowR, Group: "flowerOrderRqst", Method: "showR", RequestShape: RPCRequestFields, RequestFields: []string{"point"}, ResponseSchema: "StateDelta"},
@@ -2071,6 +2158,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCFmlAutoJoin, Group: "fml", Method: "autoJoin", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlBld, Group: "fml", Method: "bld", RequestShape: RPCRequestFields, RequestFields: []string{"id"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlBuyRaceBoat, Group: "fml", Method: "buyRaceBoat", RequestShape: RPCRequestFields, RequestFields: []string{"boatId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCFmlChgDecorate, Group: "fml", Method: "chgDecorate", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlChgPos, Group: "fml", Method: "chgPos", RequestShape: RPCRequestFields, RequestFields: []string{"uid", "pos"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlChgTitle, Group: "fml", Method: "chgTitle", RequestShape: RPCRequestFields, RequestFields: []string{"titleId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlClearQuitTime, Group: "fml", Method: "clearQuitTime", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
@@ -2078,6 +2166,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCFmlDissolve, Group: "fml", Method: "dissolve", RequestShape: RPCRequestFields, RequestFields: []string{"pwd"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlEnter, Group: "fml", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"apply", "mb", "mbL", "fml", "inv"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlEquipRaceBoat, Group: "fml", Method: "equipRaceBoat", RequestShape: RPCRequestFields, RequestFields: []string{"boatId", "idx"}, ResponseSchema: "StateDelta"},
+	{Name: RPCFmlGetDecorateList, Group: "fml", Method: "getDecorateList", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlGetHonor, Group: "fml", Method: "getHonor", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlGetLog, Group: "fml", Method: "getLog", RequestShape: RPCRequestFields, RequestFields: []string{"fid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlGetMedalRwd, Group: "fml", Method: "getMedalRwd", RequestShape: RPCRequestFields, RequestFields: []string{"medalId"}, ResponseSchema: "StateDelta"},
@@ -2092,6 +2181,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCFmlOpenFmlRaceBox, Group: "fml", Method: "openFmlRaceBox", RequestShape: RPCRequestFields, RequestFields: []string{"isAll"}, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlQuit, Group: "fml", Method: "quit", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlRecvBox, Group: "fml", Method: "recvBox", RequestShape: RPCRequestFields, RequestFields: []string{"idx"}, ResponseSchema: "StateDelta"},
+	{Name: RPCFmlRefreshDecorate, Group: "fml", Method: "refreshDecorate", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlRefreshRaceBoat, Group: "fml", Method: "refreshRaceBoat", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlRefreshTitle, Group: "fml", Method: "refreshTitle", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCFmlSearch, Group: "fml", Method: "search", RequestShape: RPCRequestFields, RequestFields: []string{"fid", "withMb"}, ResponseSchema: "StateDelta"},
@@ -2250,9 +2340,9 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCOpptGetDetailOppts, Group: "oppt", Method: "getDetailOppts", RequestShape: RPCRequestFields, RequestFields: []string{"uids", "extKeys"}, ResponseSchema: "StateDelta"},
 	{Name: RPCOpptGetOppt, Group: "oppt", Method: "getOppt", RequestShape: RPCRequestFields, RequestFields: []string{"uid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCOpptGetOppts, Group: "oppt", Method: "getOppts", RequestShape: RPCRequestFields, RequestFields: []string{"uids", "force"}, ResponseSchema: "StateDelta"},
-	{Name: RPCOrderCustomerFinishOrder, Group: "orderCustomer", Method: "finishOrder", RequestShape: RPCRequestFields, RequestFields: []string{"npcId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCOrderCustomerFinishOrder, Group: "orderCustomer", Method: "finishOrder", RequestShape: RPCRequestFields, RequestFields: []string{"npcId", "guestNpcIdList"}, ResponseSchema: "StateDelta"},
 	{Name: RPCOrderCustomerGenOrder, Group: "orderCustomer", Method: "genOrder", RequestShape: RPCRequestFields, RequestFields: []string{"guestNpcIdList"}, ResponseSchema: "StateDelta"},
-	{Name: RPCOrderCustomerRejectOrder, Group: "orderCustomer", Method: "rejectOrder", RequestShape: RPCRequestFields, RequestFields: []string{"npcId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCOrderCustomerRejectOrder, Group: "orderCustomer", Method: "rejectOrder", RequestShape: RPCRequestFields, RequestFields: []string{"npcId", "guestNpcIdList"}, ResponseSchema: "StateDelta"},
 	{Name: RPCOrderFlowerEnter, Group: "orderFlower", Method: "enter", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCOrderFlowerFinishCommonOrder, Group: "orderFlower", Method: "finishCommonOrder", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCOrderFlowerFinishDecorateOrder, Group: "orderFlower", Method: "finishDecorateOrder", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
@@ -2271,6 +2361,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCOrderTeamSubmitOrder, Group: "orderTeam", Method: "submitOrder", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCOrderTeamTakeOrder, Group: "orderTeam", Method: "takeOrder", RequestShape: RPCRequestFields, RequestFields: []string{"isAgree", "isCost"}, ResponseSchema: "StateDelta"},
 	{Name: RPCOrderTeamTakeStoredOrder, Group: "orderTeam", Method: "takeStoredOrder", RequestShape: RPCRequestFields, RequestFields: []string{"npcId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCPearlConvert, Group: "pearl", Method: "convert", RequestShape: RPCRequestFields, RequestFields: []string{"num"}, ResponseSchema: "StateDelta"},
 	{Name: RPCPearlDraw, Group: "pearl", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"count"}, ResponseSchema: "StateDelta"},
 	{Name: RPCPearlGetHireMyLog, Group: "pearl", Method: "getHireMyLog", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCPearlGetHireStateByUids, Group: "pearl", Method: "getHireStateByUids", RequestShape: RPCRequestFields, RequestFields: []string{"uids"}, ResponseSchema: "StateDelta"},
@@ -2393,7 +2484,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCStoryMainUnlock, Group: "storyMain", Method: "unlock", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCSysInformChat, Group: "sys", Method: "informChat", RequestShape: RPCRequestFields, RequestFields: []string{"msgId", "violationType"}, ResponseSchema: "StateDelta"},
 	{Name: RPCSysInformFml, Group: "sys", Method: "informFml", RequestShape: RPCRequestFields, RequestFields: []string{"fmlId", "name", "iNotice", "oNotice", "other", "violationType"}, ResponseSchema: "StateDelta"},
-	{Name: RPCSysInformUsr, Group: "sys", Method: "informUsr", RequestShape: RPCRequestFields, RequestFields: []string{"usrId", "name", "sign", "other", "violationType"}, ResponseSchema: "StateDelta"},
+	{Name: RPCSysInformUsr, Group: "sys", Method: "informUsr", RequestShape: RPCRequestFields, RequestFields: []string{"usrId", "name", "sign", "other", "violationType", "ext"}, ResponseSchema: "StateDelta"},
 	{Name: RPCTaskAchRecv, Group: "taskAch", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"id"}, ResponseSchema: "StateDelta"},
 	{Name: RPCTaskAchRecvOneKey, Group: "taskAch", Method: "recvOneKey", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCTaskDlyEnter, Group: "taskDly", Method: "enter", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
@@ -2410,6 +2501,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCTbGiftRcdRecvRwd, Group: "tbGiftRcd", Method: "recvRwd", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCTeamOrderPopupShowT, Group: "teamOrderPopup", Method: "showT", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCThirdpartyApplyToken, Group: "thirdparty", Method: "applyToken", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCTimeItemChooseItem, Group: "timeItem", Method: "chooseItem", RequestShape: RPCRequestFields, RequestFields: []string{"msId", "itemId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCTitleActiveTitle, Group: "title", Method: "activeTitle", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCTitleChgTitle, Group: "title", Method: "chgTitle", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCTitleSetTitleShow, Group: "title", Method: "setTitleShow", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
@@ -2426,6 +2518,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCUsrActiveTitle, Group: "usr", Method: "activeTitle", RequestShape: RPCRequestFields, RequestFields: []string{"titleId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrAddSubscribeNum, Group: "usr", Method: "addSubscribeNum", RequestShape: RPCRequestFields, RequestFields: []string{"typeList"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrAfterShare, Group: "usr", Method: "afterShare", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCUsrChangeInfoBg, Group: "usr", Method: "changeInfoBg", RequestShape: RPCRequestFields, RequestFields: []string{"bgId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrChgBubble, Group: "usr", Method: "chgBubble", RequestShape: RPCRequestFields, RequestFields: []string{"bubbleId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrChgCard, Group: "usr", Method: "chgCard", RequestShape: RPCRequestFields, RequestFields: []string{"cardId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrChgFace, Group: "usr", Method: "chgFace", RequestShape: RPCRequestFields, RequestFields: []string{"faceId"}, ResponseSchema: "StateDelta"},
@@ -2443,6 +2536,7 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCUsrMsgPushSetting, Group: "usr", Method: "msgPushSetting", RequestShape: RPCRequestFields, RequestFields: []string{"settingMap"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrMsgPushSettingGlobal, Group: "usr", Method: "msgPushSettingGlobal", RequestShape: RPCRequestFields, RequestFields: []string{"isOpen", "isSubscribeOpen"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrRecvSignRwd, Group: "usr", Method: "recvSignRwd", RequestShape: RPCRequestFields, RequestFields: []string{"medalId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCUsrRecycle, Group: "usr", Method: "recycle", RequestShape: RPCRequestFields, RequestFields: []string{"iid", "num"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrRefreshMedal, Group: "usr", Method: "refreshMedal", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrSaveAuthInfo, Group: "usr", Method: "saveAuthInfo", RequestShape: RPCRequestFields, RequestFields: []string{"authInfo"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrSaveCustIco, Group: "usr", Method: "saveCustIco", RequestShape: RPCRequestFields, RequestFields: []string{"icoMD5", "ico64"}, ResponseSchema: "StateDelta"},
@@ -2484,7 +2578,6 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCUsrLandSpeedUpBatch, Group: "usrLand", Method: "speedUpBatch", RequestShape: RPCRequestFields, RequestFields: []string{"landIds"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrLandSpeedUpFree, Group: "usrLand", Method: "speedUpFree", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrLandSpeedUpOneKey, Group: "usrLand", Method: "speedUpOneKey", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
-	{Name: RPCUsrLandTestPlantElves, Group: "usrLand", Method: "testPlantElves", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrLandUnlockLand, Group: "usrLand", Method: "unlockLand", RequestShape: RPCRequestFields, RequestFields: []string{"landId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrLandWater, Group: "usrLand", Method: "water", RequestShape: RPCRequestFields, RequestFields: []string{"landId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCUsrLandWaterBatch, Group: "usrLand", Method: "waterBatch", RequestShape: RPCRequestFields, RequestFields: []string{"landIds"}, ResponseSchema: "StateDelta"},

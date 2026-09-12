@@ -170,7 +170,15 @@ func runCyclicNoteTaskClaim(ctx context.Context, rt operationRuntime, op *automa
 		recv: func(ctx context.Context, request clientproto.ActCyclicNoteRecvTaskRwdRequest) (json.RawMessage, error) {
 			return checkedStateDelta(rt.rpc.ActCyclicNote().RecvTaskRwd(ctx, request, babigame.WithPayloadApply(false)))
 		},
-		apply:   rt.runner.state.ApplyV,
+		apply: func(raw json.RawMessage) {
+			// Arm before ApplyV replaces the 3015 slot so post-complete
+			// cancel survives recvTaskRwd (and process restart still recovers
+			// via ListedAt orphan path when the timer was never observed).
+			if state.CyclicNoteTaskInfoByID(op.TaskID).TaskType == state.CyclicNoteTaskTypeFlowerRack {
+				rt.runner.state.BeginCyclicNoteFlowerRackPostCompleteCancel(op.BatchID, time.Now())
+			}
+			rt.runner.state.ApplyV(raw)
+		},
 		applied: rt.runner.state.CyclicNoteTaskClaimApplied,
 	}
 	return executeCyclicNoteTaskClaim(ctx, req, exec)
@@ -219,11 +227,18 @@ func executeCyclicNoteEnter(ctx context.Context, req clientproto.ActCyclicNoteEn
 	if err != nil {
 		return nil, fmt.Errorf("actCyclicNote.enter: %w", err)
 	}
-	if !babigame.HasPayload(raw) {
-		return nil, fmt.Errorf("actCyclicNote.enter postcondition failed: response payload is empty")
+	// Official client enter is often a no-op once taskList is already on the
+	// wire: the server returns {} / null. Local high-water still requests a
+	// follow-up enter; treating empty-as-failure there would loop forever.
+	// Applied reconcile keeps ProgressSyncNeeded set until observed 23.3
+	// catches the local high-water (EnterSnapshot throttles retries).
+	if babigame.HasPayload(raw) {
+		exec.apply(raw)
 	}
-	exec.apply(raw)
 	if !exec.applied(snapshot) {
+		if !babigame.HasPayload(raw) {
+			return nil, fmt.Errorf("actCyclicNote.enter postcondition failed: response payload is empty")
+		}
 		return nil, fmt.Errorf("actCyclicNote.enter postcondition failed: exact batch task list was not initialized")
 	}
 	return raw, nil

@@ -95,6 +95,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 			break
 		}
 	}
+	ops = append(ops, passClaimOperations(s, task)...)
 	if basic.GetRoadGrowRewardEnabled() {
 		for _, id := range s.ReadyRoadGrowTaskIDs() {
 			add(true, clientproto.RPCRoadGrowRecv.String(), "basic.road_grow", "claim", "成长之路奖励可领取", 5980, id, CategoryBasic)
@@ -102,7 +103,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 		}
 	}
 	if basic.GetMapEventEnabled() {
-		ops = append(ops, randomEventOperations(s)...)
+		ops = append(ops, randomEventOperations(s, now)...)
 	}
 	ops = append(ops, zooOperations(s, basic.GetZoo(), now)...)
 	if basic.GetMailEnabled() {
@@ -124,7 +125,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 	return ops
 }
 
-func randomEventOperations(s *state.State) []PlannedOp {
+func randomEventOperations(s *state.State, now time.Time) []PlannedOp {
 	goal := Goal{ID: "basic.map_event", Category: CategoryBasic, Domain: "basic.map_event", Label: "地图随机事件", Priority: 59}
 	observed, mapValid, mapError := s.RandomEventMapStatus()
 	if !observed || !mapValid {
@@ -146,7 +147,7 @@ func randomEventOperations(s *state.State) []PlannedOp {
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	operations := make([]PlannedOp, 0, len(ids))
+	operations := make([]PlannedOp, 0, len(ids)+1)
 	for _, id := range ids {
 		event := events[id]
 		if event.Valid {
@@ -165,6 +166,14 @@ func randomEventOperations(s *state.State) []PlannedOp {
 		blocked.BlockedReasons = []string{reason}
 		blocked.CooldownKey = "basic.map_event:claim"
 		operations = append(operations, blocked)
+	}
+	// Prefer claiming known events first. When the table is empty (or only
+	// blocked rows remain) and a catalog refresh hour has passed, re-enter so
+	// newly spawned map events become visible without requiring a reconnect.
+	if len(s.ReadyRandomEventIDs()) == 0 && s.RandomEventNeedsEnter(now) {
+		planned := op(clientproto.RPCRandomEventEnter.String(), goal, "sync", "地图随机事件已过刷新点，重新进入同步最新事件", 5970, 0, 0, 0)
+		planned.CooldownKey = "basic.map_event:sync"
+		operations = append(operations, planned)
 	}
 	return operations
 }
@@ -463,13 +472,44 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 		}
 	}
 	if policy.GetAutoBuyFood() {
-		blocked := markerOp(CategoryBasic, "basic.zoo.buy_food", "buy", "购买猫粮涉及成本和商品选择，暂不自动执行", 5660)
-		blocked.Status = PlanStatusAdapterMissing
-		blocked.Executable = false
-		blocked.BlockedReasons = []string{"猫粮购买成本和商品选择尚未放开自动执行"}
-		ops = append(ops, blocked)
+		ops = append(ops, zooBuyFoodOperations(s, policy, goal, now)...)
 	}
 	return ops
+}
+
+func zooBuyFoodOperations(s *state.State, policy *pb.ZooPolicy, goal Goal, now time.Time) []PlannedOp {
+	if s.ZooFoodShopNeedsEnter(now) {
+		planned := domainOp(clientproto.RPCShopEnter.String(), goal, "basic.zoo.buy_food", "sync", "宠物商店未同步，先进入商店获取猫粮购买记录", 5661, state.ZooFoodShopTempID, 0, 0)
+		planned.CooldownKey = "basic.zoo.buy_food:sync"
+		return []PlannedOp{planned}
+	}
+	plan, ok := s.NextZooFoodBuyPlan()
+	if !ok {
+		return nil
+	}
+	buy := domainOp(clientproto.RPCShopBuy.String(), goal, "basic.zoo.buy_food", "buy", "宠物食盆缺粮且库存不足，金币购买猫粮", 5660, plan.ShopTempID, plan.ShopItemID, plan.Count)
+	buy.GoldCost = plan.GoldCost
+	buy.CooldownKey = "basic.zoo.buy_food:buy"
+	if blocked := applyZooFoodBuyCostGate(&buy, plan, policy); len(blocked) > 0 {
+		buy.Status = PlanStatusBlocked
+		buy.Executable = false
+		buy.BlockedReasons = blocked
+		return []PlannedOp{buy}
+	}
+	return []PlannedOp{buy}
+}
+
+func applyZooFoodBuyCostGate(op *PlannedOp, plan state.ZooFoodBuyPlan, policy *pb.ZooPolicy) []string {
+	if plan.GoldCost <= 0 || plan.Count <= 0 {
+		return []string{"猫粮价格或数量无效"}
+	}
+	if policy.GetMaxSpendGold() <= 0 {
+		return []string{"猫粮金币预算未设置"}
+	}
+	if int64(plan.GoldCost) > policy.GetMaxSpendGold() {
+		return []string{"猫粮金币成本超过策略上限"}
+	}
+	return nil
 }
 
 func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []PlannedOp {

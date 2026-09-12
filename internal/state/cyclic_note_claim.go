@@ -2,11 +2,26 @@ package state
 
 import "time"
 
+// cyclicNoteTaskListRefreshMinInterval throttles re-enter when the observed
+// server taskList is shorter than c_actCyclicNote.$taskNum. Official-client
+// unlocks (or login deltas that only carried the first slot) otherwise leave
+// TaskListObserved stuck at a short list forever.
+const cyclicNoteTaskListRefreshMinInterval = 2 * time.Minute
+
 // CyclicNoteEnterSnapshot returns the exact dynamically selected batch only
 // when an enter request is safe and still needed. It never guesses a batch ID.
 func (s *State) CyclicNoteEnterSnapshot(now time.Time) (CyclicNoteEnterSnapshot, bool) {
 	view, ok := s.CyclicNoteView(now)
-	if !ok || !view.Valid || view.BatchID <= 0 || (view.Phase != 2 && view.Phase != 3) || view.TaskListObserved {
+	if !ok || !view.Valid || view.BatchID <= 0 || (view.Phase != 2 && view.Phase != 3) {
+		return CyclicNoteEnterSnapshot{}, false
+	}
+	if !view.TaskListObserved {
+		return CyclicNoteEnterSnapshot{At: now, BatchID: view.BatchID, Phase: view.Phase}, true
+	}
+	if s.CyclicNoteProgressSyncDue(now) {
+		return CyclicNoteEnterSnapshot{At: now, BatchID: view.BatchID, Phase: view.Phase}, true
+	}
+	if !s.cyclicNoteTaskListNeedsRefresh(view.BatchID, now) {
 		return CyclicNoteEnterSnapshot{}, false
 	}
 	return CyclicNoteEnterSnapshot{At: now, BatchID: view.BatchID, Phase: view.Phase}, true
@@ -20,7 +35,42 @@ func (s *State) CyclicNoteEnterApplied(snapshot CyclicNoteEnterSnapshot) bool {
 		return false
 	}
 	view, ok := s.CyclicNoteView(snapshot.At)
-	return ok && view.Valid && view.BatchID == snapshot.BatchID && view.TaskListObserved
+	if !ok || !view.Valid || view.BatchID != snapshot.BatchID || !view.TaskListObserved {
+		return false
+	}
+	s.mu.Lock()
+	s.cyclicNoteEnterAtMs = snapshot.At.UnixMilli()
+	s.mu.Unlock()
+	s.ReconcileCyclicNoteLocalProgressFromTasks(view.BatchID, view.Tasks)
+	return true
+}
+
+func (s *State) cyclicNoteTaskListNeedsRefresh(batchID int32, now time.Time) bool {
+	config, ok := CyclicNoteCatalogConfig()
+	if !ok || config.TaskSlotCount <= 0 {
+		return false
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	batch := s.activityBatches[batchID]
+	if batch == nil || !batch.TaskListObserved {
+		return true
+	}
+	// Official client uses taskList.length as unlocked slot count; catalog
+	// padding in CyclicNoteView must not count as observed slots here.
+	if int32(len(batch.TaskList)) >= config.TaskSlotCount {
+		return false
+	}
+	if s.cyclicNoteEnterAtMs <= 0 {
+		return true
+	}
+	return now.UnixMilli()-s.cyclicNoteEnterAtMs >= int64(cyclicNoteTaskListRefreshMinInterval/time.Millisecond)
+}
+
+func (s *State) cyclicNoteLastEnterAtMs() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cyclicNoteEnterAtMs
 }
 
 // CyclicNoteTaskClaimSnapshot validates an exact unique slot/task pair. Both

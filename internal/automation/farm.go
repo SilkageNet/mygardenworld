@@ -41,10 +41,10 @@ func Recommend(land state.LandView, now time.Time, harvestDelay time.Duration) (
 	return KindWait, fmt.Sprintf("state=%d not actionable", land.State)
 }
 
-// harvestReadyAt is when auto-harvest may run. State 3 uses plantTime (last
-// state change into harvestable) plus the configured delay. State 2 uses
-// nextTime plus max(protocol grace, configured delay) so short delays still
-// avoid premature harvest races.
+// harvestReadyAt is when auto-harvest may run. State 3 uses HarvestableSinceMs
+// (when this bloom became ready) plus the configured delay, falling back to
+// plantTime. State 2 uses nextTime plus max(protocol grace, configured delay)
+// so short delays still avoid premature harvest races.
 func harvestReadyAt(land state.LandView, harvestDelay time.Duration) (time.Time, bool) {
 	if harvestDelay < 0 {
 		harvestDelay = 0
@@ -54,11 +54,14 @@ func harvestReadyAt(land state.LandView, harvestDelay time.Duration) (time.Time,
 		if harvestDelay <= 0 {
 			return time.Time{}, false
 		}
-		matureMs := land.PlantTimeMs
+		matureMs := land.HarvestableSinceMs
 		if matureMs <= 0 {
-			// plantTime (field 7) missing: no reliable "became ready" tick.
-			// Fall back to immediate harvest — nextTime (field 5) is a future
-			// regrow timestamp on state=3 rows and would stall harvests.
+			matureMs = land.PlantTimeMs
+		}
+		if matureMs <= 0 {
+			// No reliable "became ready" tick. Fall back to immediate harvest —
+			// nextTime (field 5) is a future regrow timestamp on state=3 rows
+			// and would stall harvests.
 			return time.Time{}, false
 		}
 		return time.UnixMilli(matureMs).Add(harvestDelay), true
@@ -76,7 +79,7 @@ func harvestReadyAt(land state.LandView, harvestDelay time.Duration) (time.Time,
 	}
 }
 
-func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time, suppressAutoReplant bool) []PlannedOp {
+func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time, suppressAutoReplant, forceFarmCycle, forceFarmPlant bool) []PlannedOp {
 	if policy == nil {
 		return nil
 	}
@@ -87,6 +90,10 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	// need watering (and later harvest). raceProgress is true for that whole
 	// window. Race plant slots still claim first; leftover empties may
 	// auto-replant when ordinary AutoEnabled is on.
+	// forceFarmCycle covers 花笺集芳 plant-any water/harvest while the task is
+	// still open on the server (including Missing==0 under 23.3 lag).
+	// forceFarmPlant covers further planting / auto-replant fallback only while
+	// activity quota remains after local high-water.
 	raceProgress := suppressAutoReplant
 	raceDriven := hasRacePlantDemand(demands) || raceProgress
 	raceFlowerID := racePlantHarvestFlowerID(s, demands)
@@ -97,6 +104,11 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		ids = append(ids, id)
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	elvesP := elvesPlantPolicy(policy)
+	elvesOn := elvesPlantActive(elvesP)
+	elvesDelayedHarvest := elvesPlantDelayedHarvest(elvesP)
+	autoPlantDriven := plantingPolicy.GetAutoEnabled() || raceDriven || forceFarmCycle || forceFarmPlant || elvesOn
+
 	for _, id := range ids {
 		land := lands[id]
 		delay := harvestDelay
@@ -104,6 +116,9 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		// as soon as ready (state=2 still keeps the short protocol grace).
 		if raceFlowerID > 0 && int32(land.FlowerID) == raceFlowerID {
 			delay = 0
+		}
+		if elvesDelayedHarvest && int32(land.FlowerID) == elvesP.GetSecondaryFlowerId() {
+			delay = elvesPlantHarvestDelayForLand(elvesP, land)
 		}
 		kind, _ := Recommend(land, now, delay)
 		switch kind {
@@ -116,60 +131,102 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
-	if (plantingPolicy.GetAutoHarvestEnabled() || raceDriven) && len(harvest) > 0 {
+	autoHarvestDriven := plantingPolicy.GetAutoHarvestEnabled() || raceDriven || forceFarmCycle
+	if elvesDelayedHarvest {
+		secHarvest := filterOnlyFlowerLandIDs(s, harvest, elvesP.GetSecondaryFlowerId())
+		if len(secHarvest) > 0 {
+			planned := landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest",
+				fmt.Sprintf("花灵副花延迟收获 %d 地", len(secHarvest)), elvesPlantHarvestPriority, secHarvest, 0, "elves_plant", "elves_plant")
+			planned.FeatureID = "plant.elves_plant_harvest"
+			planned.Label = "花灵副花延迟收获"
+			ops = append(ops, planned)
+		}
+		// Hold secondary (+ main) out of ordinary auto-harvest while delayed harvest is active.
+		harvest = filterOutFlowerLandIDs(s, harvest, elvesP.GetSecondaryFlowerId())
+		harvest = filterOutFlowerLandIDs(s, harvest, elvesP.GetMainFlowerId())
+	}
+	if autoHarvestDriven && len(harvest) > 0 {
 		// Without ordinary auto-harvest, only race flowers are forced; other
 		// ready lands stay untouched until AutoHarvestEnabled is on.
-		if raceDriven && !plantingPolicy.GetAutoHarvestEnabled() && raceFlowerID > 0 {
+		// Cyclic-note plant-any (forceFarmCycle) harvests all ready lands so
+		// empty slots keep turning over until the activity task completes.
+		if raceDriven && !plantingPolicy.GetAutoHarvestEnabled() && !forceFarmCycle && raceFlowerID > 0 {
 			harvest = filterLandIDsByFlower(s, harvest, raceFlowerID)
+		}
+		if elvesOn {
+			harvest = filterOutFlowerLandIDs(s, harvest, elvesP.GetMainFlowerId())
+			if elvesDelayedHarvest {
+				harvest = filterOutFlowerLandIDs(s, harvest, elvesP.GetSecondaryFlowerId())
+			}
 		}
 		if len(harvest) > 0 {
 			ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
 		}
 	}
-	if !plantingPolicy.GetAutoEnabled() && !raceDriven {
-		return ops
-	}
-	if len(plant) > 0 {
-		plantDemands := demands
-		// Race-only drive (AutoEnabled off) must not fill leftover empties with
-		// 自主补种. Active race still assigns first; leftover empties auto-replant
-		// when AutoEnabled is on. Expired plant-harvest holds keep freezing
-		// replant until getTaskList clears the stale task.
-		suppressFallback := !plantingPolicy.GetAutoEnabled() ||
-			(raceProgress && raceTakenExpired(s.FmlRace().Taken, now))
-		plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressFallback)
-		cursor := 0
-		for _, assignment := range plan.executable {
-			if cursor >= len(plant) {
-				break
+	if !autoPlantDriven {
+		// watering may still run when elvesOn (included in autoPlantDriven)
+	} else if len(plant) > 0 {
+		if elvesOn {
+			if !elvesPlantBlockedByPendingAid(s, now) {
+				ops = append(ops, elvesPlantPlantOps(s, elvesP, plant)...)
+				s.EnsureElvesRoundStarted(now)
 			}
-			count := int(assignment.Count)
-			if count > len(plant)-cursor {
-				count = len(plant) - cursor
+			// While aid sync/claim is pending, skip planting; claim op comes from
+			// flowerElvesAidOperations at elvesPlantAidGatePriority.
+		} else {
+			plantDemands := demands
+			// Race-only drive (AutoEnabled off) must not fill leftover empties with
+			// 自主补种. Active race still assigns first; leftover empties auto-replant
+			// when AutoEnabled is on. Expired plant-harvest holds keep freezing
+			// replant until getTaskList clears the stale task. Cyclic-note plant-any
+			// forceFarmPlant still wants PlantingPolicy-filtered fallback on empties
+			// while quota remains; Missing==0 must not keep replanting when auto is off.
+			suppressFallback := (!plantingPolicy.GetAutoEnabled() && !forceFarmPlant) ||
+				(raceProgress && raceTakenExpired(s.FmlRace().Taken, now))
+			plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressFallback)
+			cursor := 0
+			for _, assignment := range plan.executable {
+				if cursor >= len(plant) {
+					break
+				}
+				count := int(assignment.Count)
+				if count > len(plant)-cursor {
+					count = len(plant) - cursor
+				}
+				picks := append([]int32(nil), plant[cursor:cursor+count]...)
+				cursor += count
+				kind := clientproto.RPCUsrLandPlant.String()
+				if len(picks) > 1 {
+					kind = clientproto.RPCUsrLandPlantBatch.String()
+				}
+				ops = append(ops, landOp(kind, "farm.plant", "plant", assignment.Reason, assignment.Priority, picks, assignment.FlowerID, assignment.GoalID, assignment.DemandID))
 			}
-			picks := append([]int32(nil), plant[cursor:cursor+count]...)
-			cursor += count
-			kind := clientproto.RPCUsrLandPlant.String()
-			if len(picks) > 1 {
-				kind = clientproto.RPCUsrLandPlantBatch.String()
+			for _, diagnostic := range plan.blockedDiagnostic {
+				ops = append(ops, blockedPlantDiagnosticOp(diagnostic))
 			}
-			ops = append(ops, landOp(kind, "farm.plant", "plant", assignment.Reason, assignment.Priority, picks, assignment.FlowerID, assignment.GoalID, assignment.DemandID))
 		}
-		for _, diagnostic := range plan.blockedDiagnostic {
-			ops = append(ops, blockedPlantDiagnosticOp(diagnostic))
-		}
 	}
-	if len(water) > 0 {
+	waterDriven := plantingPolicy.GetAutoEnabled() || raceDriven || forceFarmCycle || elvesOn
+	if len(water) > 0 && waterDriven {
+		if elvesOn {
+			water = filterOutFlowerLandIDs(s, water, elvesP.GetMainFlowerId())
+			if elvesPlantBlockedByPendingAid(s, now) {
+				// Hold secondary watering until aid is claimed/synced.
+				water = filterOutFlowerLandIDs(s, water, elvesP.GetSecondaryFlowerId())
+			}
+		}
 		if flowerID := racePlantHarvestFlowerID(s, demands); flowerID > 0 && raceProgress {
-			if !plantingPolicy.GetAutoEnabled() {
+			if !plantingPolicy.GetAutoEnabled() && !forceFarmCycle && !elvesOn {
 				// Race-only farm drive: water only the race flower.
 				water = filterLandIDsByFlower(s, water, flowerID)
 			} else {
-				// Auto planting on: still water race lands first so limited
-				// water drops are not spent on unrelated crops.
+				// Auto planting or cyclic-note plant-any: still water race lands
+				// first so limited water drops are not spent on unrelated crops.
 				water = prioritizeLandIDsByFlower(s, water, flowerID)
 			}
 		}
+	} else {
+		water = nil
 	}
 	if len(water) > 0 {
 		waterDrops, _, _ := s.AvailableWaterDrops(now)

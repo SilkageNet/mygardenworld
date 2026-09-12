@@ -111,16 +111,21 @@ func (s *State) applyPearlProfilesLocked(raw json.RawMessage) {
 			} else {
 				_ = json.Unmarshal(rawName, &profile.Name)
 			}
+			// Name alone is enough to treat the profile as observed for UI labels.
+			if strings.TrimSpace(profile.Name) != "" && s.lastApplyMs > 0 {
+				profile.ObservedAtMs = s.lastApplyMs
+			}
 		}
 		if rawLevel, exists := profileFields["4"]; exists {
 			level, validLevel := readExactInt32Raw(rawLevel)
 			profile.LevelObserved = validLevel && level >= 0
 			if profile.LevelObserved {
 				profile.Level = level
-				profile.ObservedAtMs = s.lastApplyMs
+				if s.lastApplyMs > 0 {
+					profile.ObservedAtMs = s.lastApplyMs
+				}
 			} else {
 				profile.Level = 0
-				profile.ObservedAtMs = 0
 			}
 		}
 	}
@@ -349,17 +354,18 @@ func (s *State) pearlFriendUIDsLocked() []int64 {
 		if !ok {
 			continue
 		}
+		// Client FrdCtrl.isFriend only matches uid0. Same-server rows are typically
+		// {uid0:friend, uid1:self}; cross-server rows often repeat the friend as
+		// {uid0:friend, uid1:friend}. Never require roleID on either side.
 		uid := relation.UID0
-		if relation.UID0 != s.roleID && relation.UID1 != s.roleID {
+		if uid <= 0 {
 			continue
 		}
-		if uid == s.roleID && relation.UID1 != s.roleID {
+		if s.roleID > 0 && uid == s.roleID {
+			if relation.UID1 <= 0 || relation.UID1 == s.roleID {
+				continue
+			}
 			uid = relation.UID1
-		} else if relation.UID1 == s.roleID && relation.UID0 != s.roleID {
-			uid = relation.UID0
-		}
-		if uid <= 0 || uid == s.roleID {
-			continue
 		}
 		if _, exists := seen[uid]; exists {
 			continue

@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange {
+func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage, nowMs int64) []LandChange {
 	var changes []LandChange
 	if raw0, ok := ns100["0"]; ok {
 		var s0 map[string]json.RawMessage
@@ -35,8 +35,9 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 						} else {
 							view = EmptyObserved()
 						}
-						next[lid] = view
 						before, existed := s.lands[lid]
+						view = stampLandHarvestable(before, view, nowMs)
+						next[lid] = view
 						if !existed || !landViewEqual(before, view) {
 							changes = append(changes, LandChange{LandID: lid, Before: before, After: view})
 						}
@@ -47,6 +48,7 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 						}
 					}
 					s.lands = next
+					s.noteElvesSpawnLocked(next)
 				}
 			}
 		}
@@ -66,7 +68,7 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 						view = FromPrimary(entry)
 					}
 				}
-				if change, ok := s.upsertLandLocked(lid, view, "primary"); ok {
+				if change, ok := s.upsertLandLocked(lid, view, nowMs); ok {
 					changes = append(changes, change)
 				}
 			}
@@ -75,19 +77,52 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 	return changes
 }
 
-func (s *State) upsertLandLocked(lid int32, next LandView, _ string) (LandChange, bool) {
+// stampLandHarvestable sets HarvestableSinceMs when a land is (or becomes)
+// bloom-ready. Prefer protocol plantTime when that field changes with the
+// bloom; when plantTime is unchanged across a new ready transition (common
+// after speed-up / regrow), stamp with apply time so harvest delay still waits.
+func stampLandHarvestable(prev, next LandView, nowMs int64) LandView {
+	if next.State != 3 || !next.IsPlanted() {
+		next.HarvestableSinceMs = 0
+		return next
+	}
+	if next.PlantTimeMs > 0 && next.PlantTimeMs != prev.PlantTimeMs {
+		next.HarvestableSinceMs = next.PlantTimeMs
+		return next
+	}
+	sameBloom := prev.State == 3 && prev.FlowerID == next.FlowerID && prev.HarvestCnt == next.HarvestCnt
+	if sameBloom && prev.HarvestableSinceMs > 0 {
+		next.HarvestableSinceMs = prev.HarvestableSinceMs
+		return next
+	}
+	if nowMs > 0 {
+		next.HarvestableSinceMs = nowMs
+		return next
+	}
+	if next.PlantTimeMs > 0 {
+		next.HarvestableSinceMs = next.PlantTimeMs
+	}
+	return next
+}
+
+func (s *State) upsertLandLocked(lid int32, next LandView, nowMs int64) (LandChange, bool) {
 	prev, existed := s.lands[lid]
+	next = stampLandHarvestable(prev, next, nowMs)
 	if existed && landViewEqual(prev, next) {
 		return LandChange{}, false
 	}
 	s.lands[lid] = next
+	if next.ElvesID != 0 {
+		s.noteElvesSpawnLandLocked(lid)
+	}
 	return LandChange{LandID: lid, Before: prev, After: next}, true
 }
 
 func landViewEqual(a, b LandView) bool {
 	if a.FlowerID != b.FlowerID || a.State != b.State || a.Lvl != b.Lvl ||
 		a.HarvestCnt != b.HarvestCnt || a.NextTimeMs != b.NextTimeMs ||
-		a.PlantTimeMs != b.PlantTimeMs || a.Observed != b.Observed {
+		a.ElvesID != b.ElvesID || a.PlantTimeMs != b.PlantTimeMs ||
+		a.Observed != b.Observed {
 		return false
 	}
 	if len(a.StealUIDs) != len(b.StealUIDs) {
@@ -95,6 +130,14 @@ func landViewEqual(a, b LandView) bool {
 	}
 	for i := range a.StealUIDs {
 		if a.StealUIDs[i] != b.StealUIDs[i] {
+			return false
+		}
+	}
+	if len(a.ElvesStealUIDs) != len(b.ElvesStealUIDs) {
+		return false
+	}
+	for i := range a.ElvesStealUIDs {
+		if a.ElvesStealUIDs[i] != b.ElvesStealUIDs[i] {
 			return false
 		}
 	}

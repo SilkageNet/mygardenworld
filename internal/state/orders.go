@@ -153,10 +153,13 @@ func (s *State) applyFlowerRackLocked(raw json.RawMessage) {
 				slot.Count = n
 			}
 		}
+		listedAtSeen := false
+		listedAtVal := int64(0)
 		if rawListedAt, ok := fields["4"]; ok {
 			var n int64
 			if json.Unmarshal(rawListedAt, &n) == nil {
-				slot.ListedAtMs = n
+				listedAtSeen = true
+				listedAtVal = n
 			}
 		}
 		if rawUpdatedAt, ok := fields["5"]; ok {
@@ -168,9 +171,19 @@ func (s *State) applyFlowerRackLocked(raw json.RawMessage) {
 		if slot.ItemID == 0 || slot.Count == 0 {
 			slot.ItemID = 0
 			slot.Count = 0
+			slot.ListedAtMs = 0
 			slot.SellReadyAtMs = 0
-		} else if sellDurationMs := FlowerRackSellDurationMs(); sellDurationMs > 0 && slot.ListedAtMs > 0 {
-			slot.SellReadyAtMs = slot.ListedAtMs + int64(slot.Count)*sellDurationMs
+		} else {
+			if listedAtSeen {
+				// Ignore zero timestamps on occupied slots — sparse deltas after
+				// sell sometimes send "4":0 and would freeze age-based cancel.
+				if listedAtVal > 0 {
+					slot.ListedAtMs = listedAtVal
+				}
+			}
+			if sellDurationMs := FlowerRackSellDurationMs(); sellDurationMs > 0 && slot.ListedAtMs > 0 {
+				slot.SellReadyAtMs = slot.ListedAtMs + int64(slot.Count)*sellDurationMs
+			}
 		}
 	}
 }
@@ -420,6 +433,7 @@ func (s *State) applyRandomEventsLocked(raw json.RawMessage) {
 		s.randomEvents = make(map[int32]*RandomEventView)
 		s.randomEventMapValid = true
 		s.randomEventMapError = ""
+		s.randomEventSyncedAtMs = time.Now().UnixMilli()
 		return
 	}
 	var events map[string]json.RawMessage
@@ -464,6 +478,7 @@ func (s *State) applyRandomEventsLocked(raw json.RawMessage) {
 	s.randomEvents = replacement
 	s.randomEventMapValid = true
 	s.randomEventMapError = ""
+	s.randomEventSyncedAtMs = time.Now().UnixMilli()
 }
 
 func (s *State) invalidateRandomEventMapLocked(reason string) {
@@ -471,6 +486,7 @@ func (s *State) invalidateRandomEventMapLocked(reason string) {
 	s.randomEvents = make(map[int32]*RandomEventView)
 	s.randomEventMapValid = false
 	s.randomEventMapError = reason
+	s.randomEventSyncedAtMs = 0
 }
 
 func strictRandomEventInt32(fields map[string]json.RawMessage, key string) (int32, bool) {

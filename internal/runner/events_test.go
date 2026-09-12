@@ -64,6 +64,7 @@ func TestNormalizeEventCategoryRejectsLegacyBuckets(t *testing.T) {
 		"task":        "basic",
 		"flower_art":  "order",
 		"redeem":      "system",
+		"elves":       "elves",
 	}
 	for legacy, want := range cases {
 		if got := normalizeEventCategory(legacy, "resource_changed"); got != want {

@@ -18,15 +18,25 @@ const FlowerSeedHigh = 24000
 //	field 3 = harvestCnt (times this plant has been harvested)
 //	field 4 = stealUids (uids that already stole from this plot)
 //	field 5 = nextTime (ms; next state transition - regrow ready)
+//	field 6 = elvesId (flower-elf item/book id when an elf is on the plot)
 //	field 7 = plantTime (ms; last plant/state-change tick)
+//	field 8 = elvesStealUids (uids that already stole the elf from this plot)
 type LandView struct {
-	FlowerID    int     `json:"flower_id,omitempty"`
-	State       int     `json:"state,omitempty"`
-	Lvl         int     `json:"lvl,omitempty"`
-	HarvestCnt  int     `json:"harvest_cnt,omitempty"`
-	StealUIDs   []int64 `json:"steal_uids,omitempty"`
-	NextTimeMs  int64   `json:"next_time_ms,omitempty"`
-	PlantTimeMs int64   `json:"plant_time_ms,omitempty"`
+	FlowerID       int     `json:"flower_id,omitempty"`
+	State          int     `json:"state,omitempty"`
+	Lvl            int     `json:"lvl,omitempty"`
+	HarvestCnt     int     `json:"harvest_cnt,omitempty"`
+	StealUIDs      []int64 `json:"steal_uids,omitempty"`
+	NextTimeMs     int64   `json:"next_time_ms,omitempty"`
+	ElvesID        int     `json:"elves_id,omitempty"`
+	PlantTimeMs    int64   `json:"plant_time_ms,omitempty"`
+	ElvesStealUIDs []int64 `json:"elves_steal_uids,omitempty"`
+
+	// HarvestableSinceMs is a local clock for auto-harvest delay. Set when the
+	// land enters state=3 (ready). Prefer protocol plantTime when it advances
+	// with that maturity; otherwise use apply time so speed-up / regrow blooms
+	// that leave field 7 unchanged still wait the configured delay.
+	HarvestableSinceMs int64 `json:"harvestable_since_ms,omitempty"`
 
 	// Observed = the server has confirmed this land's state at least once
 	// (including the empty-after-harvest state). Distinguishes "land we have
@@ -37,8 +47,49 @@ type LandView struct {
 // IsPlanted returns true when a flower id is set on the land.
 func (l LandView) IsPlanted() bool { return l.FlowerID != 0 }
 
+// HasStealableElves reports whether a friend can still steal the flower elf
+// using wall-clock now. Prefer HasStealableElvesAt when a planner timestamp
+// is already in hand.
+func (l LandView) HasStealableElves() bool {
+	return l.HasStealableElvesAt(time.Now())
+}
+
+// HasStealableElvesAt reports whether a friend can still steal the flower elf.
+// Client removes the elf-steal icon once elvesStealUids is non-empty.
+// Bloom readiness matches ordinary friend-steal: state=3, or state=2 with
+// nextTime already due (frdHome snapshots often keep state=2 after the tick).
+func (l LandView) HasStealableElvesAt(now time.Time) bool {
+	return l.HasStealableElvesFor(0, now)
+}
+
+// HasStealableElvesFor is HasStealableElvesAt plus an optional self-UID gate:
+// once this account is already in stealUids (ordinary flower steal), the server
+// rejects stealElves=1 with "已摘取过该鲜花" even when elvesStealUids is empty.
+func (l LandView) HasStealableElvesFor(selfUID int64, now time.Time) bool {
+	if l.ElvesID == 0 || len(l.ElvesStealUIDs) != 0 {
+		return false
+	}
+	if selfUID > 0 && int64SliceContains(l.StealUIDs, selfUID) {
+		return false
+	}
+	return landBloomReady(l, now.UnixMilli())
+}
+
+// landBloomReady mirrors friendLandStealable's maturity check without
+// ordinary stealUid gating.
+func landBloomReady(land LandView, nowMs int64) bool {
+	switch land.State {
+	case 3:
+		return true
+	case 2:
+		return land.NextTimeMs > 0 && land.NextTimeMs <= nowMs
+	default:
+		return false
+	}
+}
+
 // FromPrimary builds a LandView from the raw `100.1.<id>` JSON dict. Server
-// responses use numeric-string keys ("0".."7"), per the G.ILand schema.
+// responses use numeric-string keys ("0".."8"), per the G.ILand schema.
 func FromPrimary(raw map[string]any) LandView {
 	v := LandView{Observed: true}
 	v.FlowerID = readInt(raw, "0")
@@ -47,7 +98,9 @@ func FromPrimary(raw map[string]any) LandView {
 	v.HarvestCnt = readInt(raw, "3")
 	v.StealUIDs = readInt64Slice(raw, "4")
 	v.NextTimeMs = readInt64(raw, "5")
+	v.ElvesID = readInt(raw, "6")
 	v.PlantTimeMs = readInt64(raw, "7")
+	v.ElvesStealUIDs = readInt64Slice(raw, "8")
 	return v
 }
 
@@ -59,13 +112,16 @@ func EmptyObserved() LandView { return LandView{Observed: true} }
 // ToJSON returns the LandView as JSON for event emission.
 func (l LandView) ToJSON() map[string]any {
 	return map[string]any{
-		"flowerId":   l.FlowerID,
-		"state":      l.State,
-		"lvl":        l.Lvl,
-		"harvestCnt": l.HarvestCnt,
-		"nextTime":   l.NextTimeMs,
-		"plantTime":  l.PlantTimeMs,
-		"observed":   l.Observed,
+		"flowerId":         l.FlowerID,
+		"state":            l.State,
+		"lvl":              l.Lvl,
+		"harvestCnt":       l.HarvestCnt,
+		"nextTime":         l.NextTimeMs,
+		"elvesId":          l.ElvesID,
+		"plantTime":        l.PlantTimeMs,
+		"harvestableSince": l.HarvestableSinceMs,
+		"elvesStealUids":   l.ElvesStealUIDs,
+		"observed":         l.Observed,
 	}
 }
 
@@ -347,6 +403,20 @@ type FmlRaceTakenView struct {
 	HasTask    bool // true if the user currently holds a task
 }
 
+// FmlRaceCompletedTaskView is one finished race task from getTaskLogList
+// (NS25 field 118 / IFmlRaceTaskLog) for the current account.
+type FmlRaceCompletedTaskView struct {
+	LogMsId        int64  // IFmlRaceTaskLog.msId
+	TaskMsId       int64  // embedded IFmlRaceTask.msId
+	TaskId         int32  // catalog task id
+	TaskType       int32  // c_fmlRaceTask.type
+	Score          int32
+	ParamID        int32
+	TargetLabel    string
+	CompletedAtMs  int64  // IFmlRaceTaskLog.cTime
+	LogType        int32  // IFmlRaceTaskLog.type (server enum; kept for diagnostics)
+}
+
 // FmlRaceView is the race-related slice of namespace 25.
 type FmlRaceView struct {
 	Observed      bool // true after a meaningful CurFmlRaceBatch (field 111) was synced
@@ -404,6 +474,14 @@ type FmlRaceView struct {
 	// LocalFinishTaskMsId is the TaskMsId LocalFinishCnt applies to; reset on
 	// task change / clear.
 	LocalFinishTaskMsId int64
+	// TaskLogsObserved is true after FmlRaceTaskLogList (field 118) was applied
+	// for the current batch (including an explicit empty list).
+	TaskLogsObserved bool
+	// TaskLogsSyncedAtMs is local wall time (ms) when field 118 was last applied.
+	TaskLogsSyncedAtMs int64
+	// CompletedTasks are this account's finished tasks for the current batch
+	// (getTaskLogList / field 118), newest first.
+	CompletedTasks []FmlRaceCompletedTaskView
 }
 
 // ShopCultivateOfferView is one buyable material-shop offer from namespace 113.
@@ -974,8 +1052,9 @@ type DessertRewardBoxOpenSnapshot struct {
 }
 
 // CyclicNoteEnterSnapshot freezes the exact active batch before an enter RPC.
-// Enter is only safe while the batch is in its active or reward-grace phase
-// and before its authoritative task list has been observed.
+// Enter is safe while the batch is in its active or reward-grace phase and
+// either the task list is still missing, or unlocked slots are short of the
+// catalog maximum and the refresh cooldown has elapsed.
 type CyclicNoteEnterSnapshot struct {
 	At      time.Time
 	BatchID int32

@@ -14,6 +14,53 @@ import (
 
 const maxReconnectIntervalSeconds = 24 * 60 * 60
 
+// migrateLegacyPassTaskPolicy copies flower/elves pass claim toggles from the
+// older plant.elves fields into basic.task when the basic side still looks
+// unset. Legacy fields are left intact for round-trip compatibility.
+func migrateLegacyPassTaskPolicy(task *pb.BasicTaskPolicy, elves *pb.FlowerElvesPolicy) {
+	if task == nil || elves == nil {
+		return
+	}
+	basicPassUnset := !task.GetFlowerPassTaskRewardEnabled() && !task.GetFlowerPassRewardEnabled() &&
+		!task.GetFlowerPassAutoAdvance() && !task.GetElvesPassTaskRewardEnabled() &&
+		!task.GetElvesPassRewardEnabled() && !task.GetElvesPassAutoAdvance()
+	if !basicPassUnset {
+		return
+	}
+	if elves.GetFlowerPassTaskRewardEnabled() {
+		task.FlowerPassTaskRewardEnabled = true
+	}
+	if elves.GetFlowerPassRewardEnabled() {
+		task.FlowerPassRewardEnabled = true
+	}
+	if elves.GetPassTaskRewardEnabled() {
+		task.ElvesPassTaskRewardEnabled = true
+	}
+	if elves.GetPassRewardEnabled() {
+		task.ElvesPassRewardEnabled = true
+	}
+}
+
+// migrateLegacyElvesAidPolicy copies aid toggles from plant.elves into
+// elves_plant when the new fields are still all false.
+func migrateLegacyElvesAidPolicy(plant *pb.ElvesPlantPolicy, elves *pb.FlowerElvesPolicy) {
+	if plant == nil || elves == nil {
+		return
+	}
+	if plant.GetRequestAid() || plant.GetReceiveAid() || plant.GetHelpFriend() {
+		return
+	}
+	if elves.GetRequestAid() {
+		plant.RequestAid = true
+	}
+	if elves.GetReceiveAid() {
+		plant.ReceiveAid = true
+	}
+	if elves.GetHelpFriend() {
+		plant.HelpFriend = true
+	}
+}
+
 func migrateLegacyFriendTouch(dst *pb.FriendStealPolicy, legacy *pb.FriendTouchPolicy) {
 	if dst == nil || legacy == nil {
 		return
@@ -71,12 +118,12 @@ func normalizeFriendSteal(policy, def *pb.FriendStealPolicy) {
 	if policy.FriendCounts == nil {
 		policy.FriendCounts = map[int64]int32{}
 	}
-	maxTarget := int32(20)
-	maxBuy := int32(10)
-	if cfg, ok := state.FriendTouchConfigFromCatalog(); ok {
-		maxTarget = cfg.StealMax + cfg.PickMax
-		maxBuy = cfg.PickMax
+	cfg, _ := state.FriendTouchConfigFromCatalog()
+	if cfg.StealMax <= 0 {
+		cfg.StealMax = 10
 	}
+	maxBuy := state.FriendStealMaxExtra
+	maxTarget := cfg.StealMax + maxBuy
 	for uid, count := range policy.FriendCounts {
 		if uid <= 0 || count <= 0 {
 			delete(policy.FriendCounts, uid)
@@ -217,6 +264,12 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Elves == nil {
 		cp.Plant.Elves = proto.Clone(def.Plant.Elves).(*pb.FlowerElvesPolicy)
 	}
+	migrateLegacyPassTaskPolicy(cp.Basic.Task, cp.Plant.Elves)
+	if cp.Plant.ElvesPlant == nil {
+		cp.Plant.ElvesPlant = proto.Clone(def.Plant.ElvesPlant).(*pb.ElvesPlantPolicy)
+	}
+	migrateLegacyElvesAidPolicy(cp.Plant.ElvesPlant, cp.Plant.Elves)
+	normalizeElvesPlant(cp.Plant.ElvesPlant, def.Plant.ElvesPlant)
 	if cp.Plant.Market == nil {
 		cp.Plant.Market = proto.Clone(def.Plant.Market).(*pb.FlowerMarketPolicy)
 	}
@@ -456,6 +509,44 @@ func shouldBackfillRaceAutoStopOnQuotaDone(raw string) bool {
 		return true
 	}
 	return !hasAnyField(race, "auto_stop_on_quota_done", "autoStopOnQuotaDone")
+}
+
+func normalizeElvesPlant(p, def *pb.ElvesPlantPolicy) {
+	if p == nil {
+		return
+	}
+	if p.MainLandCount <= 0 {
+		if def != nil && def.MainLandCount > 0 {
+			p.MainLandCount = def.MainLandCount
+		} else {
+			p.MainLandCount = 4
+		}
+	}
+	if p.ElvesSpawnCap < 0 {
+		p.ElvesSpawnCap = 0
+	}
+	if p.ElvesSpawnCap == 0 && def != nil && def.ElvesSpawnCap > 0 {
+		p.ElvesSpawnCap = def.ElvesSpawnCap
+	}
+	if p.HarvestDelaySeconds < 0 {
+		p.HarvestDelaySeconds = 0
+	}
+	seen := map[int64]struct{}{}
+	out := make([]int64, 0, len(p.FriendUids))
+	for _, uid := range p.FriendUids {
+		if uid <= 0 {
+			continue
+		}
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		out = append(out, uid)
+	}
+	p.FriendUids = out
+	if !p.StealFriendElvesEnabled {
+		// keep friend_uids so UI can restore selection when re-enabled
+	}
 }
 
 func objectField(obj map[string]any, key string) (map[string]any, bool) {

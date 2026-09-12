@@ -37,13 +37,15 @@ func TestRaceTaskSuccessMessage(t *testing.T) {
 
 func TestRaceOperationEventLabels(t *testing.T) {
 	cases := map[string]string{
-		clientproto.RPCFmlRaceGetTaskList.String():  "同步竞赛任务",
-		clientproto.RPCFmlRaceEnter.String():        "进入公会竞赛",
-		clientproto.RPCFmlRaceTakeTask.String():     "接取竞赛任务",
-		clientproto.RPCFmlRaceFinishTask.String():   "完成竞赛任务",
-		clientproto.RPCFmlRaceUpgradeTask.String():  "升级竞赛任务",
-		clientproto.RPCFmlRaceDelTask.String():      "删除竞赛任务",
-		clientproto.RPCFmlRaceGiveUpTask.String():   "放弃竞赛任务",
+		clientproto.RPCFmlRaceGetTaskList.String():           "同步竞赛任务",
+		clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String(): "同步竞赛已做次数",
+		clientproto.RPCFmlRaceGetTaskLogList.String():        "同步竞赛已完成任务",
+		clientproto.RPCFmlRaceEnter.String():                 "进入公会竞赛",
+		clientproto.RPCFmlRaceTakeTask.String():              "接取竞赛任务",
+		clientproto.RPCFmlRaceFinishTask.String():            "完成竞赛任务",
+		clientproto.RPCFmlRaceUpgradeTask.String():           "升级竞赛任务",
+		clientproto.RPCFmlRaceDelTask.String():               "删除竞赛任务",
+		clientproto.RPCFmlRaceGiveUpTask.String():            "放弃竞赛任务",
 	}
 	for kind, want := range cases {
 		if got := operationEventLabel(&automation.PlannedOp{Kind: kind}); got != want {

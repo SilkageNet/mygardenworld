@@ -202,6 +202,10 @@ func opKindDesc(kind string) string {
 		return "领取宠物纪念品奖励"
 	case clientproto.RPCZooReadSouvenir.String():
 		return "确认宠物纪念品已读"
+	case clientproto.RPCShopEnter.String():
+		return "进入宠物商店"
+	case clientproto.RPCShopBuy.String():
+		return "购买猫粮"
 	case clientproto.RPCPearlPlaceRecvOneKey.String():
 		return "一键领取珍珠产出"
 	case clientproto.RPCPearlPlaceRecv.String():
@@ -250,6 +254,8 @@ func opKindDesc(kind string) string {
 		return "同步竞赛任务"
 	case clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
 		return "同步竞赛已做次数"
+	case clientproto.RPCFmlRaceGetTaskLogList.String():
+		return "同步竞赛已完成任务"
 	case clientproto.RPCFmlRaceTakeTask.String():
 		return "接取竞赛任务"
 	case clientproto.RPCFmlRaceFinishTask.String():
@@ -305,13 +311,23 @@ func opKindDesc(kind string) string {
 	case clientproto.RPCFrdEnter.String():
 		return "同步好友列表"
 	case clientproto.RPCFrdExtGetFrdOtherInfoByUids.String():
-		return "同步好友摘花状态"
+		return "同步好友摘花/协助状态"
 	case clientproto.RPCFrdExtBuyStealCnt.String():
 		return "兑换摘花次数"
-	case clientproto.RPCFrdStealEnterFrdSteal.String():
+	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
 		return "进入好友花园"
+	case clientproto.RPCFrdStealEnterFrdSteal.String():
+		return "进入好友花园(埋点)"
 	case clientproto.RPCFrdStealSteal.String():
 		return "好友摸花"
+	case clientproto.RPCFlowerElvesCheckConvert.String():
+		return "同步花灵协助"
+	case clientproto.RPCFlowerElvesAidReqAid.String():
+		return "申请花灵协助"
+	case clientproto.RPCFlowerElvesAidRecvAidEff.String():
+		return "领取花灵协助"
+	case clientproto.RPCFlowerElvesAidHelpFrd.String():
+		return "协助好友花灵"
 	default:
 		return kind
 	}
@@ -380,7 +396,7 @@ func eventCategory(kind string) string {
 
 func normalizeEventCategory(category, kind string) string {
 	switch category {
-	case "account", "basic", "plant", "order", "water", "hire", "union", "race", "activity", "system":
+	case "account", "basic", "plant", "elves", "order", "water", "hire", "union", "race", "activity", "system":
 		return category
 	case "flower_art":
 		return "order"

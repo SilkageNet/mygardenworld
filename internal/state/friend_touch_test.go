@@ -113,3 +113,61 @@ func TestFriendStealSuccessReconcilesOmittedDelta(t *testing.T) {
 		t.Fatal("locally reconciled land must not be selected again")
 	}
 }
+
+func TestApplyFrdHomeSetsVisitLands(t *testing.T) {
+	s := New()
+	s.ApplyV(json.RawMessage(`{"133":{"0":{"0":2001,"1":{"21":{"0":23331,"1":3,"6":110132,"8":[]}}}}}`))
+	view := s.FriendTouch(time.Now())
+	if view.VisitUID != 2001 {
+		t.Fatalf("VisitUID=%d want 2001", view.VisitUID)
+	}
+	land, ok := view.VisitLands[21]
+	if !ok || land.FlowerID != 23331 || !land.HasStealableElves() {
+		t.Fatalf("visit land=%v ok=%v", land, ok)
+	}
+}
+
+func TestNoteFriendStealElvesSuccess(t *testing.T) {
+	s := New()
+	now := time.Now()
+	s.ApplyVMap(map[string]any{
+		"7": map[string]any{"0": map[string]any{"0": int64(100)}},
+		"111": map[string]any{
+			"0": map[string]any{"0": int64(100), "1": map[string]any{"2001": 2}, "3": now.UnixMilli(), "7": 1},
+			"1": map[string]any{"0": int64(2001), "1": map[string]any{
+				"21": map[string]any{"0": 23331, "1": 3, "6": 110132, "8": []any{}},
+			}},
+		},
+	})
+	s.NoteFriendStealElvesSuccess(2001, 21, 2, true, 1, true, now)
+	if got := s.StealElvesCntAt(now); got != 2 {
+		t.Fatalf("elvesCnt=%d want 2", got)
+	}
+	used, _, usedObs, _ := s.FriendStealCounters(2001, now)
+	if !usedObs || used != 3 {
+		t.Fatalf("used=%d obs=%v want 3", used, usedObs)
+	}
+	land := s.FriendTouch(now).VisitLands[21]
+	if len(land.ElvesStealUIDs) != 1 || land.ElvesStealUIDs[0] != 100 {
+		t.Fatalf("elvesStealUids=%v", land.ElvesStealUIDs)
+	}
+	if land.HasStealableElves() {
+		t.Fatal("land should no longer be stealable")
+	}
+}
+
+func TestResolveFriendStealMaxBuy(t *testing.T) {
+	cfg := FriendTouchConfig{StealMax: 10, PickMax: 10, PickAddCost: 1}
+	if got := ResolveFriendStealMaxBuy(0, cfg); got != 10 {
+		t.Fatalf("catalog default: got %d", got)
+	}
+	if got := ResolveFriendStealMaxBuy(75, cfg); got != 75 {
+		t.Fatalf("policy override to 75: got %d", got)
+	}
+	if got := ResolveFriendStealMaxBuy(100, cfg); got != FriendStealMaxExtra {
+		t.Fatalf("ceiling 75: got %d", got)
+	}
+	if got := FriendStealMaxTarget(cfg, 75); got != 85 {
+		t.Fatalf("max target: got %d", got)
+	}
+}

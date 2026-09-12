@@ -13,10 +13,14 @@ import (
 )
 
 const (
-	friendTouchPriority     = int32(5530)
-	friendTouchOtherInfoTTL = 30 * time.Second
-	friendTouchVisitTTL     = 30 * time.Second
-	friendTouchSyncBatch    = 50
+	friendTouchPriority = int32(5530)
+	// OtherInfo (isSteal) rarely flips within a visit window; 30s caused
+	// getFrdOtherInfoByUids to re-plan every automation cycle after expiry.
+	friendTouchOtherInfoTTL = 5 * time.Minute
+	// Visit lands must outlive farm-lane work; 30s expired before side-lane
+	// steal could run and caused getFrdHomeInfo loops.
+	friendTouchVisitTTL  = 5 * time.Minute
+	friendTouchSyncBatch = 50
 )
 
 type friendTouchTarget struct {
@@ -58,9 +62,9 @@ func PlanOneFriendTouch(s *state.State, policy *pb.FriendStealPolicy, now time.T
 	if len(targets) == 0 {
 		return PlannedOp{}, false
 	}
-	profileUIDs := friendTouchProfileUIDs(view, targets)
-	if len(profileUIDs) > 0 {
-		return friendTouchSyncOp(clientproto.RPCOpptGetDetailOppts.String(), goal, "profile", "摸花目标好友名称未同步", firstUIDs(profileUIDs), friendTouchPriority+5), true
+	// Fill names for every known friend shown in the policy friend list.
+	if profileUIDs := missingFriendProfileUIDs(view); len(profileUIDs) > 0 {
+		return friendTouchSyncOp(clientproto.RPCOpptGetDetailOppts.String(), goal, "profile", "摸花好友名称未同步", firstUIDs(profileUIDs), friendTouchPriority+5), true
 	}
 	otherUIDs := friendTouchOtherInfoUIDs(view, targets, now)
 	if len(otherUIDs) > 0 {
@@ -74,10 +78,9 @@ func PlanOneFriendTouch(s *state.State, policy *pb.FriendStealPolicy, now time.T
 			continue
 		}
 		if !friendTouchStealMapFresh(view, now) {
-			if !friendTouchVisitFresh(view, target.UID, now) {
-				return friendTouchEnterOp(goal, view, target.UID, "进入好友花园并同步今日已摸次数"), true
-			}
-			return blockedFriendTouch("frdSteal 今日已摸次数未随进入好友花园回包同步，拒绝假定为 0"), true
+			// getFrdHomeInfo only returns NS 133 lands; it does not refresh
+			// IFrdSteal.rTime/stealMap. Entering again cannot repair quota.
+			return blockedFriendTouch("frdSteal 今日已摸次数未同步（缺少 111.0.rTime），拒绝假定为 0"), true
 		}
 
 		stolen := view.StealMap[target.UID]
@@ -127,8 +130,10 @@ func friendTouchGoal() Goal {
 }
 
 func friendTouchEnterOp(goal Goal, view state.FriendTouchView, uid int64, reason string) PlannedOp {
-	planned := friendTouchBaseOp(clientproto.RPCFrdStealEnterFrdSteal.String(), goal, "enter", fmt.Sprintf("%s %s", reason, friendTouchLabel(view, uid)), friendTouchPriority+3)
-	planned.OperationID = clientproto.RPCFrdStealEnterFrdSteal.String() + ":" + strconv.FormatInt(uid, 10)
+	// Client loads friend lands via frdHome.getFrdHomeInfo {frdUid} → NS 133.
+	// frdSteal.enterFrdSteal {point:[22,bi]} is a UsrStats BI ping and returns {}.
+	planned := friendTouchBaseOp(clientproto.RPCFrdHomeGetFrdHomeInfo.String(), goal, "enter", fmt.Sprintf("%s %s", reason, friendTouchLabel(view, uid)), friendTouchPriority+3)
+	planned.OperationID = clientproto.RPCFrdHomeGetFrdHomeInfo.String() + ":" + strconv.FormatInt(uid, 10)
 	planned.TargetUID = uid
 	return planned
 }
@@ -163,10 +168,8 @@ func friendTouchTargets(policy *pb.FriendStealPolicy, view state.FriendTouchView
 			excluded[uid] = struct{}{}
 		}
 	}
-	maxBuy := policy.GetMaxBuyPerFriend()
-	if maxBuy <= 0 || maxBuy > cfg.PickMax {
-		maxBuy = cfg.PickMax
-	}
+	maxBuy := state.ResolveFriendStealMaxBuy(policy.GetMaxBuyPerFriend(), cfg)
+	maxTarget := cfg.StealMax + maxBuy
 	out := make([]friendTouchTarget, 0, len(view.FriendUIDs))
 	if friendTouchMode(policy) == pb.SelectionMode_SELECTION_MODE_SPECIFIC {
 		for uid, count := range policy.GetFriendCounts() {
@@ -176,12 +179,13 @@ func friendTouchTargets(policy *pb.FriendStealPolicy, view state.FriendTouchView
 			if _, skip := excluded[uid]; skip {
 				continue
 			}
-			if count > cfg.StealMax+maxBuy {
-				count = cfg.StealMax + maxBuy
+			if count > maxTarget {
+				count = maxTarget
 			}
 			out = append(out, friendTouchTarget{UID: uid, Count: count})
 		}
 	} else {
+		overrides := policy.GetFriendCounts()
 		for _, uid := range view.FriendUIDs {
 			if uid <= 0 {
 				continue
@@ -194,6 +198,12 @@ func friendTouchTargets(policy *pb.FriendStealPolicy, view state.FriendTouchView
 				count += maxBuy
 			} else if friendTouchBuyMapFresh(view, now) {
 				count += view.StealCntBuyMap[uid]
+			}
+			if override, ok := overrides[uid]; ok && override > 0 {
+				count = override
+				if count > maxTarget {
+					count = maxTarget
+				}
 			}
 			out = append(out, friendTouchTarget{UID: uid, Count: count})
 		}
@@ -219,9 +229,12 @@ func friendFlowerSelection(policy *pb.FriendStealPolicy) state.FriendStealSelect
 }
 
 func planFriendTouchBuy(s *state.State, policy *pb.FriendStealPolicy, cfg state.FriendTouchConfig, goal Goal, view state.FriendTouchView, uid int64) (PlannedOp, bool) {
-	maxBuy := policy.GetMaxBuyPerFriend()
-	if maxBuy <= 0 || maxBuy > cfg.PickMax {
-		maxBuy = cfg.PickMax
+	maxBuy := state.ResolveFriendStealMaxBuy(policy.GetMaxBuyPerFriend(), cfg)
+	if override := policy.GetFriendCounts()[uid]; override > cfg.StealMax {
+		needed := override - cfg.StealMax
+		if needed < maxBuy {
+			maxBuy = needed
+		}
 	}
 	bought := view.StealCntBuyMap[uid]
 	if bought >= maxBuy {
@@ -252,6 +265,20 @@ func friendTouchProfileUIDs(view state.FriendTouchView, targets []friendTouchTar
 	return out
 }
 
+func missingFriendProfileUIDs(view state.FriendTouchView) []int64 {
+	out := make([]int64, 0, len(view.FriendUIDs))
+	for _, uid := range view.FriendUIDs {
+		if uid <= 0 {
+			continue
+		}
+		profile, exists := view.Profiles[uid]
+		if !exists || profile.ObservedAtMs <= 0 || strings.TrimSpace(profile.Name) == "" {
+			out = append(out, uid)
+		}
+	}
+	return out
+}
+
 func friendTouchOtherInfoUIDs(view state.FriendTouchView, targets []friendTouchTarget, now time.Time) []int64 {
 	out := make([]int64, 0, len(targets))
 	for _, target := range targets {
@@ -271,7 +298,22 @@ func firstUIDs(uids []int64) []int64 {
 }
 
 func friendTouchStealMapFresh(view state.FriendTouchView, now time.Time) bool {
-	return view.StealObserved && view.StealRTimeMs > 0 && calendarDayID(now) == calendarDayID(time.UnixMilli(view.StealRTimeMs))
+	if !view.StealObserved {
+		return false
+	}
+	if view.StealRTimeMs <= 0 {
+		// Login sometimes delivers IFrdSteal without field 3; FriendTouch omits
+		// StealMap when rTime is missing, so treat as today's empty quota.
+		return true
+	}
+	day := calendarDayID(time.UnixMilli(view.StealRTimeMs))
+	today := calendarDayID(now)
+	if day == today {
+		return true
+	}
+	// Prior-day rTime: state layer does not copy stealMap into the view, so
+	// stolen counts read as 0 — matches client calIsRefresh clearing the map.
+	return day < today
 }
 
 func friendTouchBuyMapFresh(view state.FriendTouchView, now time.Time) bool {
@@ -336,7 +378,7 @@ func blockedFriendTouch(reason string) PlannedOp {
 
 func unsupportedFriendElves() PlannedOp {
 	reason := "花灵可摸状态与成功回包尚未完成实测，暂不发送 stealElves=1"
-	planned := markerOp(CategoryPlant, "farm.friend_steal", "steal_elves", reason, friendTouchPriority+1)
+	planned := markerOp(CategoryElves, "farm.elves_steal", "steal_elves", reason, friendTouchPriority+1)
 	planned.FeatureID = "plant.friend_steal_elves"
 	planned.Status = PlanStatusAdapterMissing
 	planned.Executable = false

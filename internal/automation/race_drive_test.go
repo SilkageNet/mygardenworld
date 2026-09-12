@@ -573,6 +573,134 @@ func TestGlobalSpeedUpTicketStillCoversAllGrowingLands(t *testing.T) {
 	}
 }
 
+func TestSpeedUpBatchNoHardCapOfFive(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := state.New()
+	lands := map[string]any{}
+	for i := int32(1); i <= 8; i++ {
+		lands[itoa32(1000+i)] = map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()}
+	}
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 20},
+		}},
+		"100": map[string]any{"1": lands},
+	})
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Plant.Planting.UseSpeedUpTicket = true
+	policy.Plant.Planting.SpeedUpTicketMax = 0 // unlimited
+
+	result := BuildPlan(s, policy, now)
+	speed := findSpeedUpBatch(t, result.Operations)
+	if len(speed.LandIDs) != 8 {
+		t.Fatalf("unlimited speedup LandIDs=%v, want all 8 growing lands (no hard cap of 5)", speed.LandIDs)
+	}
+	if speed.ItemCost[1001] != 8 {
+		t.Fatalf("ItemCost tickets=%d, want 8", speed.ItemCost[1001])
+	}
+}
+
+func TestSpeedUpTicketMaxCapsByDailyRemaining(t *testing.T) {
+	now := time.UnixMilli(1_500_000)
+	s := state.New()
+	lands := map[string]any{}
+	for i := int32(1); i <= 8; i++ {
+		lands[itoa32(1000+i)] = map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()}
+	}
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 20},
+		}},
+		"100": map[string]any{"1": lands},
+	})
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Plant.Planting.UseSpeedUpTicket = true
+	policy.Plant.Planting.SpeedUpTicketMax = 3
+
+	result := BuildPlan(s, policy, now)
+	speed := findSpeedUpBatch(t, result.Operations)
+	if len(speed.LandIDs) != 3 {
+		t.Fatalf("speed_up_ticket_max=3 with 0 used today LandIDs=%v, want exactly 3", speed.LandIDs)
+	}
+	if speed.ItemCost[1001] != 3 {
+		t.Fatalf("ItemCost tickets=%d, want 3", speed.ItemCost[1001])
+	}
+}
+
+func TestSpeedUpTicketMaxStopsWhenDailyBudgetExhausted(t *testing.T) {
+	now := time.Date(2026, 8, 31, 17, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	lands := map[string]any{}
+	for i := int32(1); i <= 8; i++ {
+		lands[itoa32(1000+i)] = map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()}
+	}
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 50},
+		}},
+		"100": map[string]any{"1": lands},
+	})
+	s.SetSpeedUpTicketsUsed(20260831, 2000)
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Plant.Planting.UseSpeedUpTicket = true
+	policy.Plant.Planting.SpeedUpTicketMax = 2000
+
+	result := BuildPlan(s, policy, now)
+	for _, op := range result.Operations {
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			t.Fatalf("expected no speedup after daily max exhausted, got LandIDs=%v", op.LandIDs)
+		}
+	}
+}
+
+func TestSpeedUpTicketMaxUsesOnlyDailyRemaining(t *testing.T) {
+	now := time.Date(2026, 8, 31, 17, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	s := state.New()
+	lands := map[string]any{}
+	for i := int32(1); i <= 8; i++ {
+		lands[itoa32(1000+i)] = map[string]any{"0": 23001, "1": 2, "5": now.Add(2 * time.Hour).UnixMilli()}
+	}
+	applyMap(t, s, map[string]any{
+		"7": map[string]any{"0": map[string]any{
+			"0":  999,
+			"32": map[string]any{"1001": 50},
+		}},
+		"100": map[string]any{"1": lands},
+	})
+	s.SetSpeedUpTicketsUsed(20260831, 1998)
+	policy := DefaultPolicy()
+	policy.AutomationEnabled = true
+	policy.Plant.Planting.UseSpeedUpTicket = true
+	policy.Plant.Planting.SpeedUpTicketMax = 2000
+
+	result := BuildPlan(s, policy, now)
+	speed := findSpeedUpBatch(t, result.Operations)
+	if len(speed.LandIDs) != 2 {
+		t.Fatalf("remaining daily budget=2 LandIDs=%v, want exactly 2", speed.LandIDs)
+	}
+	if speed.ItemCost[1001] != 2 {
+		t.Fatalf("ItemCost tickets=%d, want 2", speed.ItemCost[1001])
+	}
+}
+
+func findSpeedUpBatch(t *testing.T, ops []PlannedOp) *PlannedOp {
+	t.Helper()
+	for i := range ops {
+		op := &ops[i]
+		if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() && op.Executable {
+			return op
+		}
+	}
+	t.Fatalf("expected executable speedUpBatch, ops=%+v", ops)
+	return nil
+}
+
 func TestRaceNoSpeedupWhenFlagOff(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	s := raceTakenPlantState(t, 2, 10)

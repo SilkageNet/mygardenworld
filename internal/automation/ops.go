@@ -144,7 +144,7 @@ func categoryRank(category string) int {
 	switch category {
 	case CategoryRace:
 		return 0
-	case CategoryPlant:
+	case CategoryPlant, CategoryElves:
 		return 1
 	case CategoryOrder, CategoryFlowerArt, CategoryWater, CategoryHire:
 		return 2
@@ -209,6 +209,10 @@ func DefaultPolicy() *pb.Policy {
 				FriendCounts: map[int64]int32{},
 			},
 			Elves: &pb.FlowerElvesPolicy{},
+			ElvesPlant: &pb.ElvesPlantPolicy{
+				MainLandCount: 4,
+				ElvesSpawnCap: 30,
+			},
 			Market: &pb.FlowerMarketPolicy{
 				PutMode:    pb.MarketPutMode_MARKET_PUT_MODE_INVENTORY,
 				BuyMode:    pb.MarketBuyMode_MARKET_BUY_MODE_ALL,

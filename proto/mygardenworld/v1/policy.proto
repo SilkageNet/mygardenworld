@@ -76,6 +76,20 @@ message BasicTaskPolicy {
   bool weekly_enabled = 3;
   bool story_enabled = 4;
   bool achievement_enabled = 5;
+  // Auto-advance drives incomplete daily progress. Reserved; not executed yet.
+  bool daily_auto_advance = 6;
+
+  // 花之密令 (gs.flowerPass / namespace 131).
+  bool flower_pass_task_reward_enabled = 7;
+  bool flower_pass_reward_enabled = 8;
+  // Reserved; gameplay drive not executed yet.
+  bool flower_pass_auto_advance = 9;
+
+  // 花灵密令 (gs.flowerElvesPass / namespace 132 passMap/passTaskMap).
+  bool elves_pass_task_reward_enabled = 10;
+  bool elves_pass_reward_enabled = 11;
+  // Reserved; gameplay drive not executed yet.
+  bool elves_pass_auto_advance = 12;
 }
 
 message BenefitPolicy {
@@ -141,6 +155,8 @@ message PlantPolicy {
   FriendStealPolicy friend_steal = 3;
   FlowerElvesPolicy elves = 4;
   FlowerMarketPolicy market = 5;
+  // Land planting of main+secondary flowers to spawn flower elves.
+  ElvesPlantPolicy elves_plant = 6;
 }
 
 message CultivatePolicy {
@@ -158,6 +174,9 @@ message PlantingPolicy {
 
   bool video_speed_up_enabled = 9;
   bool use_speed_up_ticket = 10;
+  // Max tickets spent per calendar day (Asia/Shanghai 00:00). Each batch is
+  // also capped by the remaining daily budget. Non-positive means unlimited
+  // (inventory only). Applies to global planting speedup and race speedup.
   int32 speed_up_ticket_max = 11;
 
   map<string, int32> demand_priority = 14;
@@ -204,15 +223,20 @@ message FriendStealPolicy {
   // Friend selection is separate from mode, which selects flower types.
   // Only ALL and SPECIFIC are accepted here.
   SelectionMode friend_mode = 10;
+  // Absolute daily touch targets. SPECIFIC: only these friends. ALL: optional
+  // per-friend overrides on top of the default free (+ optional global buy) quota.
   map<int64, int32> friend_counts = 11;
   repeated int64 exclude_uids = 12;
-  // Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
+  // Maximum friendship-coin purchases per friend. 0 uses catalog $pickMax;
+  // explicit values may go up to 75 (policy/UI ceiling).
   int32 max_buy_per_friend = 13;
 }
 
 message FlowerElvesPolicy {
   bool enabled = 1;
   repeated int32 selected_ids = 2;
+  // Deprecated: migrated into ElvesPlantPolicy.request_aid / receive_aid /
+  // help_friend. Kept for policy JSON round-trip of older blobs.
   bool request_aid = 3;
   bool receive_aid = 4;
   bool help_friend = 5;
@@ -225,6 +249,35 @@ message FlowerElvesPolicy {
   bool flower_pass_reward_enabled = 12;
   bool flower_pass_task_reward_enabled = 13;
   int64 max_spend_diamond = 14;
+}
+
+// ElvesPlantPolicy automates main/secondary land planting for flower elves.
+message ElvesPlantPolicy {
+  bool enabled = 1;
+  int32 main_flower_id = 2;
+  int32 secondary_flower_id = 3;
+  // Number of lands to keep planted with the main flower (unwatered). Remaining
+  // empty lands are filled with the secondary flower.
+  int32 main_land_count = 4;
+  reserved 5;
+  reserved "harvest_after_elves_picked";
+  // Speed up secondary growing lands until elves_spawn_cap elves have appeared.
+  bool use_speed_up_ticket = 6;
+  // Visit designated friends and steal only flower elves (stealElves=1).
+  bool steal_friend_elves_enabled = 7;
+  repeated int64 friend_uids = 8;
+  // Max elves to spawn this round before stopping speed-up. 0 => default 30.
+  int32 elves_spawn_cap = 9;
+  // When > 0, force-harvest secondary flowers after this many seconds past
+  // maturity (independent of auto_harvest). The first watering-round bloom
+  // produces no elves and is harvested immediately; the second maturity
+  // (regrow) is when elves appear and the delay applies.
+  int32 harvest_delay_seconds = 10;
+  // Flower-elf friend aid. Each toggle runs on its own; none require enabled
+  // (auto plant) above.
+  bool request_aid = 11;
+  bool receive_aid = 12;
+  bool help_friend = 13;
 }
 
 message FlowerMarketPolicy {
@@ -349,6 +402,11 @@ message UnionFlowerPolicy {
   SelectionMode take_mode = 6;
   repeated int32 take_qualities = 7;
   repeated int32 take_flower_ids = 8;
+  // When true with take_enabled, only take others' shared flowers whose local
+  // inventory stock is 0. Each such flower type is taken once (stock becomes
+  // >=1), then the planner moves on to other zero-stock types. Flowers with
+  // stock > 0 are skipped entirely (no fallback to refill).
+  bool take_zero_inventory_only = 9;
 }
 
 message UnionRacePolicy {
@@ -379,6 +437,9 @@ message UnionRacePolicy {
   // When true, the race monitor shows personal cumulative score and guild-member
   // rank for the current batch. Default off.
   bool show_personal_score_rank = 14;
+  // Skip taking plant-harvest (3036) tasks when owned stock of the target flower
+  // exceeds this count. 0 means no inventory ceiling (disabled).
+  int32 plant_harvest_max_inventory = 15;
 }
 
 message UnionLandPolicy {

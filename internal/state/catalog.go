@@ -40,13 +40,15 @@ type ItemInfo struct {
 
 // FlowerInfo is the selected c_flower row data.
 type FlowerInfo struct {
-	ID            int32       `json:"id"`
-	SeedID        int32       `json:"seed_id,omitempty"`
-	EliteID       int32       `json:"elite_id,omitempty"`
-	Sort          int32       `json:"sort,omitempty"`
-	Experience    int32       `json:"experience,omitempty"`
-	Gold          int32       `json:"gold,omitempty"`
-	CultivateCost []ItemStack `json:"cultivate_cost,omitempty"`
+	ID              int32       `json:"id"`
+	SeedID          int32       `json:"seed_id,omitempty"`
+	EliteID         int32       `json:"elite_id,omitempty"`
+	Sort            int32       `json:"sort,omitempty"`
+	Experience      int32       `json:"experience,omitempty"`
+	Gold            int32       `json:"gold,omitempty"`
+	CultivateCost   []ItemStack `json:"cultivate_cost,omitempty"`
+	CultivateTime   int32       `json:"cultivate_time,omitempty"` // seconds; c_flower.culTime
+	CultivatePrereq int32       `json:"cultivate,omitempty"`      // prerequisite flower id
 }
 
 // FarmLandInfo is the selected c_farmLand row data.
@@ -1705,8 +1707,8 @@ func readStoryMainInt64(raw json.RawMessage) (int64, bool) {
 }
 
 // StoryMainTerminal returns the only catalog-derived completed progress pair.
-// With the current decoded client this is 165:0, immediately after chapter
-// 164's final section 17306.
+// With the current decoded client this is 173:0, immediately after chapter
+// 172's final section 18106.
 func StoryMainTerminal() (chapter, sectionIdx int32, ok bool) {
 	table, exists := StaticTableByName("c_storyMainChapter")
 	if !exists {
@@ -2407,6 +2409,28 @@ func CultivateCost(flowerID int32) ([]ItemCount, bool) {
 		out = append(out, ItemCount{ItemID: cost.ItemID, Count: cost.Count})
 	}
 	return out, len(out) > 0
+}
+
+// CultivateTimeSeconds returns c_flower.culTime (cultivation duration in
+// seconds) for a flower. ok=false when the flower is unknown or duration is
+// unset/non-positive.
+func CultivateTimeSeconds(flowerID int32) (int32, bool) {
+	flower, ok := catalog.Flowers[flowerID]
+	if !ok || flower.CultivateTime <= 0 {
+		return 0, false
+	}
+	return flower.CultivateTime, true
+}
+
+// CultivatePrerequisite returns c_flower.cultivate — the flower that must
+// already be cultivated before this one can start. ok=false when unknown or
+// there is no prerequisite.
+func CultivatePrerequisite(flowerID int32) (int32, bool) {
+	flower, ok := catalog.Flowers[flowerID]
+	if !ok || flower.CultivatePrereq <= 0 {
+		return 0, false
+	}
+	return flower.CultivatePrereq, true
 }
 
 func atoiCatalogID(s string) int32 {

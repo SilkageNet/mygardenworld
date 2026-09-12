@@ -9,8 +9,9 @@ import (
 
 const ensureAccountTimeout = 90 * time.Second
 
-// EnsureRunningAccounts starts every account that does not currently have a
-// live connection. Displaced-session auto-relogin waits are left alone.
+// EnsureRunningAccounts brings every account online with automation enabled.
+// Displaced-session auto-relogin waits are left alone. Connected runners that
+// only have automation disabled are re-enabled without a reconnect.
 // Successful starts persist automation_enabled=true like LoginAccount.
 func (svc *Services) EnsureRunningAccounts(ctx context.Context) runner.RestoreReport {
 	report := runner.RestoreReport{}
@@ -31,11 +32,23 @@ func (svc *Services) EnsureRunningAccounts(ctx context.Context) runner.RestoreRe
 			break
 		}
 		r := svc.Manager.Get(acc.ID)
-		if r != nil && r.Connected() {
-			continue
-		}
 		if r != nil && r.DisplacedReloginPending() {
 			report.Skipped++
+			continue
+		}
+		if r != nil && r.Connected() {
+			if r.Policy().GetAutomationEnabled() {
+				continue
+			}
+			report.Eligible++
+			svc.enableAutomation(ctx, acc.ID, r)
+			report.Started++
+			if svc.Log != nil {
+				svc.Log.Info("ensure-running re-enabled automation",
+					"account_id", acc.ID,
+					"account", acc.Name,
+				)
+			}
 			continue
 		}
 		report.Eligible++

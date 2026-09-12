@@ -241,6 +241,9 @@ func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goa
 	// Prefer the allowed share whose flower has the lowest personal inventory
 	// stock, so multi-flower take lists refill scarcest flowers first instead
 	// of always taking the first configured / lowest FlowerID match.
+	// take_zero_inventory_only: only stock==0 candidates; each type is taken
+	// once (inventory rises), then the planner moves to other zero-stock types.
+	zeroOnly := policy.GetTakeZeroInventoryOnly()
 	inventory := s.Inventory()
 	var best state.FmlFlowerTakeCandidate
 	found := false
@@ -250,6 +253,17 @@ func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goa
 			continue
 		}
 		stock := inventory[candidate.FlowerID]
+		if zeroOnly {
+			if stock > 0 {
+				s.ClearFmlFlowerZeroTake(candidate.FlowerID)
+				continue
+			}
+			// Already took this type once; wait until inventory reflects it
+			// (or later drops back to 0 after ClearFmlFlowerZeroTake).
+			if s.FmlFlowerZeroTakeSeen(candidate.FlowerID) {
+				continue
+			}
+		}
 		if !found || stock < bestStock {
 			best = candidate
 			bestStock = stock
@@ -259,7 +273,11 @@ func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goa
 	if !found {
 		return nil
 	}
-	take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", "公会成员分享鲜花可摸取", 4460, best.SlotID, 0, 1)
+	reason := "公会成员分享鲜花可摸取"
+	if zeroOnly {
+		reason = "库存为0的公会分享花可摸取一次"
+	}
+	take := domainOp(clientproto.RPCFmlFlowerShareTake.String(), goal, "union.flower.take", "take", reason, 4460, best.SlotID, 0, 1)
 	take.TargetUID = best.UID
 	take.FlowerID = best.FlowerID
 	take.CooldownKey = "union.flower.take"
@@ -940,6 +958,9 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
 			return []PlannedOp{op}
 		}
+		if op, ok := raceTaskLogSyncOp(view, goal, now); ok {
+			return []PlannedOp{op}
+		}
 		if raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
 			return []PlannedOp{domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
@@ -1101,10 +1122,13 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		}
 	}
 
-	// Idle: sync personal score/rank without preempting take/finish/giveUp.
-	// getTaskList also piggybacks a member-rank fetch for the common path.
+	// Idle: sync personal score/rank / completed-task log without preempting
+	// take/finish/giveUp. getTaskList also piggybacks rank + task-log fetches.
 	if len(ops) == 0 {
 		if op, ok := raceUsrRankScoreSyncOp(view, goal, now); ok {
+			return []PlannedOp{op}
+		}
+		if op, ok := raceTaskLogSyncOp(view, goal, now); ok {
 			return []PlannedOp{op}
 		}
 	}
@@ -1343,6 +1367,30 @@ func raceUsrRankScoreSyncOp(view state.FmlRaceView, goal Goal, now time.Time) (P
 	return op, true
 }
 
+// raceTaskLogSyncOp plans getTaskLogList for this batch's completed tasks when
+// missing, or periodically so the logs UI stays current across the whole race.
+func raceTaskLogSyncOp(view state.FmlRaceView, goal Goal, now time.Time) (PlannedOp, bool) {
+	if view.BatchID <= 0 || !view.TasksObserved {
+		return PlannedOp{}, false
+	}
+	const raceTaskLogSyncInterval = 10 * time.Minute
+	synced := view.TaskLogsSyncedAtMs
+	need := !view.TaskLogsObserved ||
+		(view.TaskQuotaObserved && view.FinishedTaskNum > 0 && int32(len(view.CompletedTasks)) < view.FinishedTaskNum)
+	backoffOK := synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceTaskLogSyncInterval))
+	periodic := view.TaskLogsObserved && synced > 0 && !now.Before(time.UnixMilli(synced).Add(raceTaskLogSyncInterval))
+	if (!need || !backoffOK) && !periodic {
+		return PlannedOp{}, false
+	}
+	op := domainOp(
+		clientproto.RPCFmlRaceGetTaskLogList.String(), goal, "union.race.sync", "sync",
+		"公会竞赛同步已完成任务", 4397, 0, 0, 0,
+	)
+	op.TaskMsID = view.BatchID
+	op.CooldownKey = "union.race.task_log"
+	return op, true
+}
+
 // raceFreeTaskQuotaDone reports that AutoStopOnQuotaDone should block further
 // takeTask planning: usr-rcd quota was observed and finished_task_num already
 // covers the free tier total (c_fmlRace(raceLvl).taskNum). Purchased extras
@@ -1440,6 +1488,15 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 		if t.ParamID <= 0 || !flowerCultivated(s, t.ParamID) {
 			return "目标花卉未培养"
 		}
+		if max := policy.GetPlantHarvestMaxInventory(); max > 0 {
+			stock := int32(0)
+			if s != nil {
+				stock = s.Inventory()[t.ParamID]
+			}
+			if stock > max {
+				return fmt.Sprintf("库存过多（>%d）", max)
+			}
+		}
 	case raceTaskTypeCustomerOrder:
 		if !gates.Customer {
 			return "顾客订单模块未开启"
@@ -1466,9 +1523,12 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 		if t.Score != raceFlowerCultivateRequiredScore {
 			return fmt.Sprintf("仅接%d分花种培育", raceFlowerCultivateRequiredScore)
 		}
-		if t.FinishCnt > 0 {
-			return "仅接进度为0的花种培育"
-		}
+	}
+	// Never auto-take a pool task that already has progress (e.g. abandoned
+	// mid-way by another member). Manual takes are outside this filter and
+	// remain held / progressed normally.
+	if t.FinishCnt > 0 {
+		return "仅接进度为0的任务"
 	}
 	return ""
 }
@@ -1514,15 +1574,20 @@ func raceTaskTypePriority(policy *pb.UnionRacePolicy, taskType int32) int32 {
 // Positive values rank candidates (higher first), then Score descending.
 //
 // Plant-harvest (3036): skip when ParamID is missing or the flower is not yet
-// cultivated (Status==2 && Lvl>0). Seed stock / empty land are not required.
+// cultivated (Status==2 && Lvl>0), or when plant_harvest_max_inventory > 0 and
+// owned stock of the target flower exceeds that ceiling. Seed stock / empty
+// land are not required for take eligibility.
 //
 // Flower-art sell (3030) / craft (3034): race auto-complete drives
 // flowerRack.sell / makeFlowerArt itself; order.flower_art toggles are not
 // required for take or progress.
 //
-// Flower-cultivate (3044): only Score==36 and FinishCnt==0; plant.cultivate is
-// not required. Race does not drive cultivate ops — only take, progress sync,
-// and finishTask once FinishCnt catches up.
+// Flower-cultivate (3044): only Score==36; plant.cultivate is not required.
+// Race does not drive cultivate ops — only take, progress sync, and
+// finishTask once FinishCnt catches up.
+//
+// All auto-completable types: FinishCnt>0 is never auto-taken (abandoned
+// mid-progress tasks stay for manual take only).
 //
 // AppearTime gating: ready tasks (appearTime already due) are preferred. CD tasks
 // within raceTakeLeadWindow may be selected preemptively when no ready candidate

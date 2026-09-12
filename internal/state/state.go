@@ -70,6 +70,7 @@ type State struct {
 	fmlOtherShareObserved     bool
 	fmlOtherShareSyncedAtMs   int64           // local wall time when 25.108 was last applied
 	fmlFlowerTakeLimitUntilMs int64           // server/local: 今日摸花次数已达上限，到该时刻前不再摸花
+	fmlFlowerZeroTakeIDs      map[int32]struct{} // flower ids taken while stock was 0 (anti-lag for take_zero_inventory_only)
 	fmlRace                   FmlRaceView     // 25.110/111/114 公会竞赛
 	shopGiftbagDRecord        map[int32]int32 // 112.1 daily purchase counts
 	shopGiftbagWRecord        map[int32]int32 // 112.2 weekly purchase counts
@@ -103,10 +104,19 @@ type State struct {
 	pearlHireTicketUsedDayID  int32
 	pearlHireSessionLocked    bool
 	pearlHireLockReason       string
+	// Local calendar-day spend of speed-up tickets (item 1001). Game
+	// IStatistics.speedUpCard is a different counter and must not be used as
+	// "tickets used today".
+	speedUpTicketUsedToday int32
+	speedUpTicketUsedDayID int32
 
 	frdStealObserved       bool
 	frdStealRTimeMs        int64
 	frdStealMap            map[int64]int32
+	frdStealElvesCnt       int32
+	frdStealHasUnReadRcd   bool
+	frdStealRcdObserved    bool
+	frdStealRcdList        []FrdStealRcdView
 	frdStealCntBuyObserved bool
 	frdStealCntBuyRTimeMs  int64
 	frdStealCntBuyMap      map[int64]int32
@@ -118,6 +128,42 @@ type State struct {
 	frdVisitLands map[int32]LandView
 	// Skip re-entering a friend garden after a visit found no stealable plots.
 	frdStealSkipEnterUntil map[int64]int64
+	// Sticky elf-steal skips for lands the server already rejected (or treated as
+	// ordinary flower steal). Keyed by friend UID → landID → plantTimeMs so a
+	// replant clears the skip while frdHome refresh cannot revive a dead plot.
+	frdStealElvesSkipPlantTime map[int64]map[int32]int64
+
+	// Sticky per-round set of own lands that have shown a flower elf. Cleared
+	// explicitly when a planting-elves harvest round completes.
+	elvesProducedLands map[int32]struct{}
+	elvesRoundStartMs  int64
+
+	// Namespace 7.4 IUsrTot.cntMap (G.IUsrCount by type). Used for daily
+	// counters such as flower-elves harvest (type 103).
+	usrCount map[int32]UsrCountView
+
+	// Namespace 132 flowerElvesTot.placeMap (dispatch slots).
+	flowerElvesPlaces         map[int32]*FlowerElvesPlaceView
+	flowerElvesPlacesObserved bool
+	// Namespace 131 flowerPassTot.
+	flowerPassObserved     bool
+	flowerPassEnterSynced  bool
+	flowerPassByBid        map[int32]*passRuntime
+	flowerPassTaskByBid    map[int32]*passTaskRuntime
+	// Namespace 132 flowerElvesTot.passMap / passTaskMap.
+	flowerElvesPassObserved    bool
+	flowerElvesPassEnterSynced bool
+	flowerElvesPassByBid       map[int32]*passRuntime
+	flowerElvesPassTaskByBid   map[int32]*passTaskRuntime
+	// Namespace 132.5 flowerElvesTot.flowerElvesAid.
+	flowerElvesAid         FlowerElvesAidView
+	flowerElvesAidObserved bool
+	// PreReqAidTime of the request whose buff was already claimed (or observed
+	// active). Prevents re-calling recvAidEff after helpers linger past claim.
+	flowerElvesAidClaimedPreReq int64
+	// Durable calendar-day helpFrd targets (hydrated from SQLite / operation_log).
+	elvesAidHelpDayID int32
+	elvesAidHelped    map[int64]struct{}
 
 	flowerOrders               map[int32]*FlowerOrder // 105.0.1.<boxId> 当前活跃居民订单
 	flowerOrderRewardsReceived map[int32]bool         // 105.0.2 已领取的居民订单阶段奖励 target
@@ -153,20 +199,41 @@ type State struct {
 	achievementTasks     map[int32]*AchievementTaskView // 22.2 + c_task_ach
 	storyMain            StoryMainView                  // 7.101 当前主线剧情
 
-	activityObserved    bool
-	activityBatches     map[int32]*activityBatchState
-	activityTemplates   map[int32]*activityTemplateState
-	activityTaskRecords map[string]*activityTaskRecordState
+	activityObserved bool
+	// Wall time of the last successful actCyclicNote.enter apply. Used to
+	// throttle task-list refresh enters when unlocked slots are still short
+	// of the catalog maximum (unlocks done outside this session).
+	cyclicNoteEnterAtMs int64
+	// Local high-water progress for plant-any / flower-rack satisfy_tasks
+	// drives. Namespace 23 progress is never mutated from business RPCs; this
+	// side channel stops overshooting while enter refreshes the server map.
+	cyclicNoteLocalBatchID         int32
+	cyclicNoteLocalProgress        map[int32]int32 // taskType -> count
+	cyclicNoteLocalServerSeen      map[int32]int32 // taskType -> last observed 23.3 progress
+	cyclicNoteProgressSyncNeeded   bool
+	cyclicNoteFlowerRackRelistSlow bool // 7-minute cancel when 5-minute relist stalls 23.3
+	// After 花艺上架 (3015) reaches target: wait 7 minutes then cancel every
+	// occupied flower-rack slot once. Scoped to batchID; cleared on regress.
+	cyclicNoteFlowerRackPostCompleteBatchID int32
+	cyclicNoteFlowerRackPostCompleteAtMs    int64
+	cyclicNoteFlowerRackPostCompleteDone    bool
+	activityBatches                         map[int32]*activityBatchState
+	activityTemplates              map[int32]*activityTemplateState
+	activityTaskRecords            map[string]*activityTaskRecordState
 	celebrity           celebrityState
 	// Local session marker: a like is never planned from an incidental
 	// celebrity delta until getAllTypesInfo has completed for this batch.
 	dessertCelebritySyncedBatch int32
 
-	roadGrowReceived    map[int32]bool             // 119.3.<taskId> 成长之路已领取
-	randomEvents        map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
-	randomEventObserved bool                       // 129.0.1 observed at least once
-	randomEventMapValid bool                       // latest whole event map decoded structurally
-	randomEventMapError string                     // fail-closed diagnostic for malformed maps
+	roadGrowReceived       map[int32]bool             // 119.3.<taskId> 成长之路已领取
+	randomEvents           map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
+	randomEventObserved    bool                       // 129.0.1 observed at least once
+	randomEventMapValid    bool                       // latest whole event map decoded structurally
+	randomEventMapError    string                     // fail-closed diagnostic for malformed maps
+	randomEventSyncedAtMs  int64                      // local wall time when 129.0.1 last applied validly
+	zooFoodShopObserved    bool                       // namespace 20 shop tempId=9 observed
+	zooFoodShopDRecord     map[int32]int32            // 20.0.9.12 daily buy counts by shop item id
+	zooFoodShopResetMs     int64                      // 20.0.9.3 lResetTime
 	signTypes           map[int32]*SignTypeView    // 140.0.<type> 防诈骗/渠道签到状态
 	signTypeObserved    bool                       // namespace 140 observed at least once
 	signTypeMapValid    bool                       // 140.0 was decoded as an object
@@ -277,6 +344,12 @@ func New() *State {
 		shopCultivateCosts:         make(map[int32]ItemCount),
 		shopCultivateBought:        make(map[int32]int32),
 		pearlPlaces:                make(map[int32]*PearlPlaceView),
+		flowerElvesPlaces:          make(map[int32]*FlowerElvesPlaceView),
+		flowerPassByBid:            make(map[int32]*passRuntime),
+		flowerPassTaskByBid:        make(map[int32]*passTaskRuntime),
+		flowerElvesPassByBid:       make(map[int32]*passRuntime),
+		flowerElvesPassTaskByBid:   make(map[int32]*passTaskRuntime),
+		elvesAidHelped:             make(map[int64]struct{}),
 		pearlFriendRelations:       make(map[string]pearlFriendRelation),
 		pearlProfiles:              make(map[int64]*PearlCandidateProfile),
 		pearlHireStates:            make(map[int64]*PearlCandidateHireState),
@@ -290,19 +363,22 @@ func New() *State {
 		activityBatches:            make(map[int32]*activityBatchState),
 		activityTemplates:          make(map[int32]*activityTemplateState),
 		activityTaskRecords:        make(map[string]*activityTaskRecordState),
+		cyclicNoteLocalProgress:    make(map[int32]int32),
+		cyclicNoteLocalServerSeen:  make(map[int32]int32),
 		celebrity: celebrityState{
 			Rankings: make(map[int32][]celebrityEntryState),
 			Likes:    make(map[int32]celebrityLikeState),
 		},
-		roadGrowReceived:  make(map[int32]bool),
-		randomEvents:      make(map[int32]*RandomEventView),
-		signTypes:         make(map[int32]*SignTypeView),
-		baseRewards:       make(map[int32]*BaseRewardView),
-		signTypeEnterAtMs: make(map[int32]int64),
-		statisticsByDay:   make(map[int32]StatisticsView),
-		zooPets:           make(map[int32]*ZooPetView),
-		zooLogs:           make(map[string]*ZooLogView),
-		zooSouvenirs:      make(map[int32]*ZooSouvenirView),
+		roadGrowReceived:   make(map[int32]bool),
+		randomEvents:       make(map[int32]*RandomEventView),
+		zooFoodShopDRecord: make(map[int32]int32),
+		signTypes:          make(map[int32]*SignTypeView),
+		baseRewards:        make(map[int32]*BaseRewardView),
+		signTypeEnterAtMs:  make(map[int32]int64),
+		statisticsByDay:    make(map[int32]StatisticsView),
+		zooPets:            make(map[int32]*ZooPetView),
+		zooLogs:            make(map[string]*ZooLogView),
+		zooSouvenirs:       make(map[int32]*ZooSouvenirView),
 	}
 }
 

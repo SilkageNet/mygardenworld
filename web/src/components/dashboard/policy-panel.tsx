@@ -37,6 +37,7 @@ import {
   CultivatePolicySchema,
   CustomerOrderPolicySchema,
   FlowerElvesPolicySchema,
+  ElvesPlantPolicySchema,
   FlowerMarketPolicySchema,
   FlowerArtPolicySchema,
   FriendStealPolicySchema,
@@ -71,6 +72,7 @@ import type {
   CultivatePolicy,
   CustomerOrderPolicy,
   FlowerElvesPolicy,
+  ElvesPlantPolicy,
   FlowerMarketPolicy,
   FlowerArtPolicy,
   FriendStealPolicy,
@@ -224,7 +226,7 @@ const RACE_TASK_TYPES: RaceTaskType[] = [
 type ActivityModuleMeta = {
   id: string;
   label: string;
-  boolParams?: { key: string; label: string }[];
+  boolParams?: { key: string; label: string; description?: string; defaultValue?: boolean }[];
   intParams?: { key: string; label: string; defaultValue: number; min: number; max?: number }[];
 };
 
@@ -235,7 +237,44 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
     boolParams: [
       { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
       { key: "auto_claim_progress_boxes", label: "自动领取积分奖励" },
-      { key: "satisfy_tasks", label: "驱动已启用模块完成任务" },
+      {
+        key: "satisfy_tasks",
+        label: "驱动完成任务",
+        description:
+          "开启后按下方子开关驱动任务进度。有种植任务且「自动种植任意鲜花」开启时强制种/浇/收循环（不要求土地「自动种植/自动收获」），补种模式/品质/等级、收获延迟、浇水下限等仍按「土地与种植」配置；进度达标后停止。有花架出售任务且「自动上架花艺」开启时只上架库存多的成品花艺，满5分钟下架再挂（不行则7分钟），不等完全售完，不自动制作。顾客任务仍需订单模块开启；居民/珍珠可用下方独立开关",
+      },
+      {
+        key: "auto_plant_any",
+        label: "自动种植任意鲜花",
+        description:
+          "驱动「去种植任意鲜花80次」：强制种/浇/收循环推进进度（不要求土地自动种植/自动收获）。关闭后不推进该种植任务，花架等其它任务不受影响。默认开启",
+        defaultValue: true,
+      },
+      {
+        key: "auto_sell_flower_art",
+        label: "自动上架花艺",
+        description:
+          "驱动花架出售任务：只上架库存多的成品花艺，满5分钟下架再挂（不行则7分钟），不等完全售完，不自动制作（不要求订单「自动上架花艺」）。关闭后不推进该花架任务，种植等其它任务不受影响。默认开启",
+        defaultValue: true,
+      },
+      {
+        key: "auto_hire",
+        label: "自动雇佣",
+        description:
+          "遇到珍珠雇佣任务时，不受「安全雇佣劳工」总开关限制直接雇佣；等级/在岗/每日券等其它安全雇佣限制仍生效。任务完成后停止，下次再遇到才继续。消耗的雇佣券照常记账",
+      },
+      {
+        key: "auto_complete_resident_orders",
+        label: "自动完成居民订单",
+        description:
+          "遇到居民订单任务时，不受订单模块开关/品质限制，能交的普通/绸缎/建材居民订单都交；仅当所有可提交订单均为广告位时才暂停。当前任务完成后停止，下次再遇到才继续",
+      },
+      {
+        key: "respect_resident_order_daily_limit",
+        label: "采用订单日上限",
+        description:
+          "花笺集芳进行中且尚未出现居民订单任务时，暂停订单模块的居民订单提交以保留日上限；出现任务后按订单模块的普通/绸缎/建材日完成上限执行（自动完成居民订单开启时同样生效）。关闭则不受日上限限制",
+      },
     ],
   },
   {
@@ -249,22 +288,7 @@ const ACTIVITY_MODULES: ActivityModuleMeta[] = [
       { key: "max_score", label: "分数上限（0=不限制）", defaultValue: 0, min: 0 },
     ],
   },
-  {
-    id: "actDessert",
-    label: "香卉甜糕",
-    boolParams: [
-      { key: "auto_claim_task_rewards", label: "自动领取任务奖励" },
-      { key: "auto_like_celebrity", label: "自动免费点赞" },
-      { key: "auto_open_reward_boxes", label: "自动开启奖励箱（每次1个）" },
-      { key: "auto_play", label: "启用影子诊断（不执行）" },
-      { key: "resume_existing_round", label: "请求接管评估（当前硬锁）" },
-    ],
-    intParams: [
-      { key: "mode", label: "影子模式（仅 1 可用）", defaultValue: 1, min: 1, max: 1 },
-      { key: "max_energy_per_session", label: "会话体力预算（0=禁用；当前仅诊断）", defaultValue: 0, min: 0, max: 100 },
-      { key: "min_energy_reserve", label: "最低体力保留", defaultValue: 0, min: 0 },
-    ],
-  },
+  // 香卉甜糕（actDessert）暂时从设置 UI 隐藏
 ];
 
 export default function PolicyPanel({
@@ -297,6 +321,7 @@ export default function PolicyPanel({
   const cultivate = plant?.cultivate;
   const friendSteal = plant?.friendSteal;
   const elves = plant?.elves;
+  const elvesPlant = plant?.elvesPlant;
   const market = plant?.market;
   const basic = policy?.basic;
   const reputation = basic?.reputation;
@@ -389,7 +414,26 @@ export default function PolicyPanel({
     } else {
       next[key] = count;
     }
-    updateFriendSteal({ friendCounts: next });
+    const patch: Partial<FriendStealPolicy> = { friendCounts: next };
+    // Per-friend extras beyond free quota require friendship-coin buys.
+    const extras = Object.values(next).reduce((max, target) => {
+      const extra = Math.max(0, Number(target) - 10);
+      return Math.max(max, extra);
+    }, 0);
+    if (extras > 0) {
+      patch.autoBuyTimes = true;
+      const currentMax = friendSteal?.maxBuyPerFriend || 0;
+      if (currentMax > 0 && currentMax < extras) {
+        patch.maxBuyPerFriend = Math.min(75, extras);
+      } else if (currentMax === 0 && extras > 10) {
+        patch.maxBuyPerFriend = Math.min(75, extras);
+      }
+    }
+    updateFriendSteal(patch);
+  };
+  const updateFriendTouchExtra = (uid: bigint, extra: number, baseStealMax: number) => {
+    const base = baseStealMax > 0 ? baseStealMax : 10;
+    updateFriendTouchCount(uid, extra <= 0 ? 0 : base + Math.min(75, extra));
   };
   const updateFriendTouchExcluded = (uid: bigint, excluded: boolean) => {
     const current = friendSteal?.excludeUids ?? [];
@@ -447,6 +491,12 @@ export default function PolicyPanel({
     const currentPlant = policy.plant ?? create(PlantPolicySchema);
     const current = currentPlant.elves ?? create(FlowerElvesPolicySchema);
     updatePlant({ elves: { ...current, ...patch } });
+  };
+  const updateElvesPlant = (patch: Partial<ElvesPlantPolicy>) => {
+    if (!policy) return;
+    const currentPlant = policy.plant ?? create(PlantPolicySchema);
+    const current = currentPlant.elvesPlant ?? create(ElvesPlantPolicySchema);
+    updatePlant({ elvesPlant: create(ElvesPlantPolicySchema, { ...current, ...patch }) });
   };
   const updateMarket = (patch: Partial<FlowerMarketPolicy>) => {
     if (!policy) return;
@@ -621,13 +671,117 @@ export default function PolicyPanel({
                 />
                 <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
                 <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
-                <NumberRow label="加速券上限" value={planting?.speedUpTicketMax || 0} min={0} onChange={(value) => updatePlanting({ speedUpTicketMax: value })} />
+                <NumberRow
+                  label="加速券每日上限"
+                  value={planting?.speedUpTicketMax || 0}
+                  min={0}
+                  onChange={(value) => updatePlanting({ speedUpTicketMax: value })}
+                  description="上海时间自然日累计用量；到上限后停止加速（含竞赛）。0=不限制"
+                />
                 <NumberRow
                   label="保留水滴"
                   value={planting?.minWaterDrops || 0}
                   min={0}
                   onChange={(value) => updatePlanting({ minWaterDrops: value })}
                   description="可用水滴=当前−保留，仅限制下种数量"
+                />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="种植花灵" icon={<Sparkles />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow
+                  label="种植花灵"
+                  checked={elvesPlant?.enabled ?? false}
+                  onChange={(checked) => updateElvesPlant({ enabled: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.elves_plant")}
+                  description="主花不浇水，副花浇水种植；开启后空地按主花地块数/剩余副花分配。无可领协助时直接种；加成未到期也可种；仅有可领协助且加成已结束时先领取再种"
+                />
+                <NumberRow
+                  label="主花种植地块数"
+                  value={elvesPlant?.mainLandCount || 4}
+                  min={1}
+                  max={64}
+                  onChange={(value) => updateElvesPlant({ mainLandCount: value })}
+                  description="副花自动种满剩余土地"
+                />
+                <FlowerMultiSelectRow
+                  label="主花"
+                  value={elvesPlant?.mainFlowerId ? [elvesPlant.mainFlowerId] : []}
+                  plantableFlowers={snapshot?.plantableFlowers ?? []}
+                  synced={Boolean(snapshot)}
+                  onChange={(value) => updateElvesPlant({ mainFlowerId: value[value.length - 1] || 0 })}
+                />
+                <FlowerMultiSelectRow
+                  label="副花"
+                  value={elvesPlant?.secondaryFlowerId ? [elvesPlant.secondaryFlowerId] : []}
+                  plantableFlowers={snapshot?.plantableFlowers ?? []}
+                  synced={Boolean(snapshot)}
+                  onChange={(value) => updateElvesPlant({ secondaryFlowerId: value[value.length - 1] || 0 })}
+                />
+                <NumberRow
+                  label="副花成熟后延迟收获（秒）"
+                  value={elvesPlant?.harvestDelaySeconds || 0}
+                  min={0}
+                  max={86400}
+                  onChange={(value) => updateElvesPlant({ harvestDelaySeconds: value })}
+                  description="大于 0 时强制收副花（不受自动收获开关控制）；浇水后首轮成熟无花灵立即收，第二轮成熟出花灵后按此时长再收"
+                />
+                <ToggleRow
+                  label="使用加速卡"
+                  checked={elvesPlant?.useSpeedUpTicket ?? false}
+                  onChange={(checked) => updateElvesPlant({ useSpeedUpTicket: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.elves_plant_speed_up")}
+                  description="只加速副花；本轮花灵出满上限后停止加速"
+                />
+                <NumberRow
+                  label="花灵产出上限"
+                  value={elvesPlant?.elvesSpawnCap || 30}
+                  min={1}
+                  max={300}
+                  onChange={(value) => updateElvesPlant({ elvesSpawnCap: value })}
+                  description="默认 30；出满后不再加速剩余副花地"
+                />
+                <ToggleRow
+                  label="摸取指定好友花灵"
+                  checked={elvesPlant?.stealFriendElvesEnabled ?? false}
+                  onChange={(checked) => updateElvesPlant({ stealFriendElvesEnabled: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.friend_steal_elves")}
+                  description="仅进勾选好友花园摸花灵（stealElves=1），不摸副花；受每日摸花灵上限与该好友摸花剩余次数共同限制"
+                />
+              </div>
+              {elvesPlant?.stealFriendElvesEnabled ? (
+                <ElvesFriendMultiSelectRow
+                  friends={snapshot?.friendTouchFriends ?? []}
+                  observed={snapshot?.friendTouchFriendsObserved ?? false}
+                  value={(elvesPlant.friendUids ?? []).map((uid) => uid.toString())}
+                  onChange={(uids) => updateElvesPlant({ friendUids: uids.map((id) => BigInt(id)) })}
+                />
+              ) : null}
+            </PolicyGroup>
+
+            <PolicyGroup title="花灵协助" icon={<Sparkles />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow
+                  label="申请协助"
+                  checked={elvesPlant?.requestAid ?? false}
+                  onChange={(checked) => updateElvesPlant({ requestAid: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.elves_aid_request")}
+                  description="不依赖「种植花灵」总开关；冷却结束后自动申请"
+                />
+                <ToggleRow
+                  label="领取协助"
+                  checked={elvesPlant?.receiveAid ?? false}
+                  onChange={(checked) => updateElvesPlant({ receiveAid: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.elves_aid_receive")}
+                  description="不依赖「种植花灵」总开关；好友协助达标后自动领取加成"
+                />
+                <ToggleRow
+                  label="协助好友"
+                  checked={elvesPlant?.helpFriend ?? false}
+                  onChange={(checked) => updateElvesPlant({ helpFriend: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.elves_aid_help")}
+                  description="不依赖「种植花灵」总开关；发现好友求协助时自动帮助"
                 />
               </div>
             </PolicyGroup>
@@ -717,11 +871,58 @@ export default function PolicyPanel({
             <PolicyGroup title="任务与剧情" icon={<ListChecks />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="主线任务" checked={task?.mainEnabled ?? false} onChange={(checked) => updateBasicTask({ mainEnabled: checked })} />
-                <ToggleRow label="每日任务" checked={task?.dailyEnabled ?? false} onChange={(checked) => updateBasicTask({ dailyEnabled: checked })} />
+                <ToggleRow label="每日任务领奖" checked={task?.dailyEnabled ?? false} onChange={(checked) => updateBasicTask({ dailyEnabled: checked })} />
+                <ToggleRow
+                  label="每日任务自动推进"
+                  checked={task?.dailyAutoAdvance ?? false}
+                  onChange={(checked) => updateBasicTask({ dailyAutoAdvance: checked })}
+                  description="按任务类型联动种植/浇水/收获/订单等已开启模块推进进度；视频/广告类跳过"
+                  status={settingStatusForCapability(capabilities, "basic.task_daily_advance")}
+                />
                 <ToggleRow label="每周任务" checked={task?.weeklyEnabled ?? false} onChange={(checked) => updateBasicTask({ weeklyEnabled: checked })} />
                 <ToggleRow label="主线剧情" checked={task?.storyEnabled ?? false} onChange={(checked) => updateBasicTask({ storyEnabled: checked })} />
                 <ToggleRow label="成就任务" checked={task?.achievementEnabled ?? false} onChange={(checked) => updateBasicTask({ achievementEnabled: checked })} />
                 <ToggleRow label="地图随机事件" checked={basic?.mapEventEnabled ?? false} onChange={(checked) => updateBasic({ mapEventEnabled: checked })} />
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <ToggleRow
+                  label="花之密令任务奖励"
+                  checked={task?.flowerPassTaskRewardEnabled ?? false}
+                  onChange={(checked) => updateBasicTask({ flowerPassTaskRewardEnabled: checked })}
+                  status={settingStatusForCapability(capabilities, "basic.flower_pass")}
+                />
+                <ToggleRow
+                  label="花之密令等级奖励"
+                  checked={task?.flowerPassRewardEnabled ?? false}
+                  onChange={(checked) => updateBasicTask({ flowerPassRewardEnabled: checked })}
+                  status={settingStatusForCapability(capabilities, "basic.flower_pass")}
+                />
+                <ToggleRow
+                  label="花之密令自动推进"
+                  checked={task?.flowerPassAutoAdvance ?? false}
+                  onChange={(checked) => updateBasicTask({ flowerPassAutoAdvance: checked })}
+                  description="按密令任务类型联动已开启模块推进；视频/盲盒/分享等跳过"
+                  status={settingStatusForCapability(capabilities, "basic.flower_pass_advance")}
+                />
+                <ToggleRow
+                  label="花灵密令任务奖励"
+                  checked={task?.elvesPassTaskRewardEnabled ?? false}
+                  onChange={(checked) => updateBasicTask({ elvesPassTaskRewardEnabled: checked })}
+                  status={settingStatusForCapability(capabilities, "basic.elves_pass")}
+                />
+                <ToggleRow
+                  label="花灵密令等级奖励"
+                  checked={task?.elvesPassRewardEnabled ?? false}
+                  onChange={(checked) => updateBasicTask({ elvesPassRewardEnabled: checked })}
+                  status={settingStatusForCapability(capabilities, "basic.elves_pass")}
+                />
+                <ToggleRow
+                  label="花灵密令自动推进"
+                  checked={task?.elvesPassAutoAdvance ?? false}
+                  onChange={(checked) => updateBasicTask({ elvesPassAutoAdvance: checked })}
+                  description="按密令任务类型联动已开启模块推进；盲盒/派遣等跳过"
+                  status={settingStatusForCapability(capabilities, "basic.elves_pass_advance")}
+                />
               </div>
             </PolicyGroup>
 
@@ -765,8 +966,7 @@ export default function PolicyPanel({
 
             <PolicyGroup title="好友摸花" icon={<Users />}>
 			  <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
-				仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
-				<code>stealElves=1</code>。
+				仅自动摸取服务端明确标记为可摸的成熟鲜花（始终 <code>stealElves=0</code>）。摸取好友花灵请在上方「种植花灵」中开启「摸取指定好友花灵」。
 			  </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow
@@ -822,9 +1022,9 @@ export default function PolicyPanel({
                   label="每好友兑换上限"
 				  value={friendSteal?.maxBuyPerFriend || 0}
                   min={0}
-				  max={10}
+				  max={75}
 				  onChange={(value) => updateFriendSteal({ maxBuyPerFriend: value })}
-				  description="每次消耗 1 友情币；0 使用静态目录 $pickMax（当前为 10）"
+				  description="每次消耗 1 友情币；0 使用目录默认（当前 $pickMax=10）；最多可设 75。下方可为单个好友单独加次数。"
                 />
               </div>
               <FriendTouchFriendList
@@ -833,9 +1033,8 @@ export default function PolicyPanel({
 				mode={friendSteal?.friendMode || SelectionMode.ALL}
 				counts={friendSteal?.friendCounts ?? {}}
 				excluded={new Set((friendSteal?.excludeUids ?? []).map((uid) => uid.toString()))}
-				autoBuy={friendSteal?.autoBuyTimes ?? false}
-				maxBuyPerFriend={friendSteal?.maxBuyPerFriend || 10}
                 onCountChange={updateFriendTouchCount}
+                onExtraChange={updateFriendTouchExtra}
                 onExcludedChange={updateFriendTouchExcluded}
               />
             </PolicyGroup>
@@ -1101,6 +1300,12 @@ export default function PolicyPanel({
                   </>
                 )}
                 <ToggleRow label="自动摸花" checked={unionFlower?.takeEnabled ?? false} onChange={(checked) => updateUnionFlower({ takeEnabled: checked })} />
+                <ToggleRow
+                  label="仅摸库存为0"
+                  checked={unionFlower?.takeZeroInventoryOnly ?? false}
+                  description="检测他人分享花：本地库存为0时拿取一次，再看下一朵；库存已有的跳过"
+                  onChange={(checked) => updateUnionFlower({ takeZeroInventoryOnly: checked })}
+                />
                 <SegmentedRow label="摸花模式" value={unionFlower?.takeMode || SelectionMode.QUALITY} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateUnionFlower({ takeMode: value })} />
                 <QualityRow label="摸花品质" value={unionFlower?.takeQualities ?? []} onChange={(value) => updateUnionFlower({ takeQualities: value })} />
                 <CatalogFlowerMultiSelectRow
@@ -1122,6 +1327,13 @@ export default function PolicyPanel({
                 <ToggleRow label="自动启停" checked={unionRace?.autoStopOnQuotaDone ?? true} description="任务次数做完后不再自动接取；已接任务仍会继续完成/放弃。关闭后仅在服务端提示次数用尽时停止接取" onChange={(checked) => updateUnionRace({ autoStopOnQuotaDone: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} description="已接种植收获任务全程可用加速卡。关闭时仍强制保底：任务最后 10 分钟自动对竞赛花使用加速卡" onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="分数不高于此值的任务将被跳过；已接且未完成的同样会自动放弃（需开启自动完成）。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
+                <NumberRow
+                  label="种植收获库存上限"
+                  value={unionRace?.plantHarvestMaxInventory ?? 0}
+                  min={0}
+                  description="目标花朵库存超过该值时不接取种植收获任务；0 表示不限制。仅影响接取，已接任务仍会继续完成"
+                  onChange={(value) => updateUnionRace({ plantHarvestMaxInventory: value })}
+                />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />
@@ -1168,7 +1380,8 @@ export default function PolicyPanel({
                         <ToggleRow
                           key={param.key}
                           label={param.label}
-                          checked={modulePolicy?.boolParams?.[param.key] ?? false}
+                          description={param.description}
+                          checked={modulePolicy?.boolParams?.[param.key] ?? param.defaultValue ?? false}
                           onChange={(checked) => updateActivityBoolParam(module.id, param.key, checked)}
                         />
                       ))}
@@ -2311,15 +2524,96 @@ function SettingStatusBadge({ status }: { status: SettingStatus }) {
   );
 }
 
+function ElvesFriendMultiSelectRow({
+  friends,
+  observed,
+  value,
+  onChange,
+}: {
+  friends: FriendTouchFriendView[];
+  observed: boolean;
+  value: string[];
+  onChange: (uids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = new Set(value);
+  const label =
+    value.length === 0 ? "选择指定好友" : `已选 ${value.length} 位好友`;
+  return (
+    <div className="sm:col-span-2 space-y-2">
+      <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setOpen(true)}>
+        <span>{label}</span>
+        <Users className="h-4 w-4 opacity-60" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="flex max-h-[90dvh] max-w-lg flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>选择指定好友（摸花灵）</DialogTitle>
+          </DialogHeader>
+          {!observed ? (
+            <EmptyState
+              title="尚未同步好友列表"
+              detail="请先开启「摸取指定好友花灵」并保存；账号在线后下一轮会自动拉取好友。也可先开「好友摸花」触发同步。"
+            />
+          ) : friends.length === 0 ? (
+            <EmptyState title="暂无好友" detail="游戏好友列表为空时无法配置。" />
+          ) : (
+            <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
+              {friends.map((friend) => {
+                const key = friend.uid.toString();
+                const checked = selected.has(key);
+                const zone = Number(friend.uid % BigInt(100000));
+                const displayName =
+                  friend.name.trim() ||
+                  (zone > 0 ? `s${zone}` : `UID ${key}`);
+                return (
+                  <label
+                    key={key}
+                    className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border/55 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{displayName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {zone > 0 ? `第${zone}区 · UID ${key}` : `UID ${key}`}
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        const next = new Set(selected);
+                        if (checked) next.delete(key);
+                        else next.add(key);
+                        onChange(Array.from(next));
+                      }}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onChange([])}>
+              清空
+            </Button>
+            <Button type="button" onClick={() => setOpen(false)}>
+              完成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function FriendTouchFriendList({
   friends,
   observed,
   mode,
   counts,
   excluded,
-  autoBuy,
-  maxBuyPerFriend,
   onCountChange,
+  onExtraChange,
   onExcludedChange,
 }: {
   friends: FriendTouchFriendView[];
@@ -2327,9 +2621,8 @@ function FriendTouchFriendList({
   mode: SelectionMode;
   counts: Record<string, number>;
   excluded: Set<string>;
-  autoBuy: boolean;
-  maxBuyPerFriend: number;
   onCountChange: (uid: bigint, count: number) => void;
+  onExtraChange: (uid: bigint, extra: number, baseStealMax: number) => void;
   onExcludedChange: (uid: bigint, excluded: boolean) => void;
 }) {
   const specific = mode === SelectionMode.SPECIFIC;
@@ -2349,22 +2642,31 @@ function FriendTouchFriendList({
       <div className="flex items-center justify-between gap-2 px-1">
         <span className="text-xs text-muted-foreground">
           {specific
-            ? "为指定好友设置今日摸花次数；可勾选排除不主动摸取"
-            : "自动摸取全部可摘好友；勾选排除后跳过该好友"}
+            ? "为指定好友设置今日摸花目标；额外次数最多 +75（需友情币兑换）"
+            : "默认摸取全部可摘好友；可为单个好友单独加次数（最多 +75）"}
         </span>
         <span className="text-xs text-muted-foreground">{friends.length} 人</span>
       </div>
       <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
         {friends.map((friend) => {
           const key = friend.uid.toString();
+          const base = friend.baseStealMax > 0 ? friend.baseStealMax : 10;
           const target = counts[key] ?? 0;
           const isExcluded = excluded.has(key);
-          const displayName = friend.name.trim() || (friend.profileObserved ? `UID ${key}` : `好友 ${key}`);
+          const zone = Number(friend.uid % BigInt(100000));
+          const displayName =
+            friend.name.trim() ||
+            (zone > 0 ? `s${zone}` : friend.profileObserved ? `UID ${key}` : `好友 ${key}`);
 		  const progress =
 			friend.quotaObserved
               ? `今日 ${friend.stolenCount}/${friend.stealMax}`
 			  : "次数未同步";
-		  const targetMax = friend.baseStealMax + (autoBuy ? maxBuyPerFriend : friend.boughtCount);
+          const extra = specific
+            ? Math.max(0, target - base)
+            : target > 0
+              ? Math.max(0, target - base)
+              : 0;
+          const extraMax = 75;
           return (
             <div
               key={key}
@@ -2377,7 +2679,7 @@ function FriendTouchFriendList({
                 <div className="min-w-0 space-y-0.5">
                   <div className="truncate text-sm font-medium">{displayName}</div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>UID {key}</span>
+                    <span>{zone > 0 ? `第${zone}区 · UID ${key}` : `UID ${key}`}</span>
                     <span>{progress}</span>
 					{friend.availabilityObserved && friend.canSteal ? (
                       <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
@@ -2399,19 +2701,41 @@ function FriendTouchFriendList({
                   排除
                 </label>
               </div>
-              {specific && !isExcluded && (
+              {!isExcluded && (
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-muted-foreground">目标次数</span>
-                  <NumericStepper
-                    label={`${displayName} 目标次数`}
-                    value={target.toString()}
-                    min={0}
-					max={targetMax > 0 ? targetMax : undefined}
-                    decrementDisabled={target <= 0}
-                    onDecrement={() => onCountChange(friend.uid, target - 1)}
-                    onIncrement={() => onCountChange(friend.uid, target + 1)}
-                    onValueChange={(nextValue) => onCountChange(friend.uid, parseNumber(nextValue, 0))}
-                  />
+                  {specific ? (
+                    <>
+                      <span className="text-xs text-muted-foreground">目标次数</span>
+                      <NumericStepper
+                        label={`${displayName} 目标次数`}
+                        value={target.toString()}
+                        min={0}
+                        max={base + extraMax}
+                        decrementDisabled={target <= 0}
+                        onDecrement={() => onCountChange(friend.uid, target - 1)}
+                        onIncrement={() => onCountChange(friend.uid, Math.min(base + extraMax, target + 1))}
+                        onValueChange={(nextValue) =>
+                          onCountChange(friend.uid, Math.min(base + extraMax, parseNumber(nextValue, 0)))
+                        }
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-muted-foreground">额外次数</span>
+                      <NumericStepper
+                        label={`${displayName} 额外次数`}
+                        value={extra.toString()}
+                        min={0}
+                        max={extraMax}
+                        decrementDisabled={extra <= 0}
+                        onDecrement={() => onExtraChange(friend.uid, extra - 1, base)}
+                        onIncrement={() => onExtraChange(friend.uid, Math.min(extraMax, extra + 1), base)}
+                        onValueChange={(nextValue) =>
+                          onExtraChange(friend.uid, Math.min(extraMax, parseNumber(nextValue, 0)), base)
+                        }
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>

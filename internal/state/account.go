@@ -5,6 +5,78 @@ import (
 	"time"
 )
 
+// applyUsrCountLocked merges IUsrTot.cntMap (namespace 7.4).
+// Keys are IUsrCount.type; null entries delete that type.
+func (s *State) applyUsrCountLocked(ns7 map[string]json.RawMessage) {
+	raw4, ok := ns7["4"]
+	if !ok {
+		return
+	}
+	if isJSONNull(raw4) {
+		s.usrCount = nil
+		return
+	}
+	var entries map[string]json.RawMessage
+	if json.Unmarshal(raw4, &entries) != nil {
+		return
+	}
+	if s.usrCount == nil {
+		s.usrCount = make(map[int32]UsrCountView)
+	}
+	for key, raw := range entries {
+		id := atoiCatalogID(key)
+		if id <= 0 {
+			continue
+		}
+		if isJSONNull(raw) {
+			delete(s.usrCount, id)
+			continue
+		}
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(raw, &fields) != nil {
+			continue
+		}
+		view := s.usrCount[id]
+		view.Type = id
+		view.Observed = true
+		if n, ok := readExactInt32Raw(fields["1"]); ok && n > 0 {
+			view.Type = n
+		}
+		if n, ok := readExactInt32Raw(fields["2"]); ok {
+			view.TdyCnt = n
+		}
+		if n, ok := readExactInt32Raw(fields["3"]); ok {
+			view.TotCnt = n
+		}
+		if ms, ok := readExactInt64Raw(fields["4"]); ok {
+			view.RTimeMs = ms
+		}
+		s.usrCount[id] = view
+	}
+}
+
+// GetTdyCount mirrors usrCtrl.getTdyCount: 0 when the row is missing or
+// rTime is before today's Asia/Shanghai calendar reset.
+func (s *State) GetTdyCount(countType int32, now time.Time) (count int32, observed bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getTdyCountLocked(countType, now)
+}
+
+func (s *State) getTdyCountLocked(countType int32, now time.Time) (count int32, observed bool) {
+	view, ok := s.usrCount[countType]
+	if !ok || !view.Observed {
+		return 0, false
+	}
+	if view.RTimeMs > 0 && !frdStealMapFresh(view.RTimeMs, now) {
+		return 0, true
+	}
+	if view.TdyCnt < 0 {
+		return 0, true
+	}
+	return view.TdyCnt, true
+}
+
 func (s *State) applyUsrExtraLocked(ns7 map[string]json.RawMessage) {
 	raw13, ok := ns7["13"]
 	if !ok {

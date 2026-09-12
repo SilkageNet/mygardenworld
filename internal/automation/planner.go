@@ -40,12 +40,16 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	for _, action := range activityActions {
 		demands = append(demands, action.Demand)
 	}
+	advanceActions := taskAdvanceActionDemands(s, policy, now)
+	for _, action := range advanceActions {
+		demands = append(demands, action.Demand)
+	}
 	// Race progress demands use FinishCnt as Have so they must skip the
 	// inventory ledger (inventory stock does not satisfy harvest counts).
 	demands = append(demands, raceTaskProgressDemands(s, policy, now)...)
 	annotateDemandStatuses(demands)
 	sortDemands(demands)
-	ops := buildOperations(s, policy, goals, demands, activityActions, ledger, now)
+	ops := buildOperations(s, policy, goals, demands, activityActions, advanceActions, ledger, now)
 	annotateOperationGates(s, ops, now)
 	sortOperations(ops)
 	annotateSequentialResourceBudget(s, ops, now)
@@ -57,16 +61,23 @@ func BuildPlan(s *state.State, policy *pb.Policy, now time.Time) PlanResult {
 	}
 }
 
-func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, ledger *InventoryLedger, now time.Time) []PlannedOp {
+func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []Demand, activityActions []cyclicNoteTaskActionDemand, advanceActions []taskAdvanceAction, ledger *InventoryLedger, now time.Time) []PlannedOp {
 	var ops []PlannedOp
-	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy, now))...)
+	forceFarmCycle := cyclicNoteForceFarmCycle(activityActions) || taskAdvanceForceFarmCycle(advanceActions)
+	forceFarmPlant := cyclicNoteForceFarmPlant(activityActions) || taskAdvanceForceFarmPlant(advanceActions)
+	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy, now), forceFarmCycle, forceFarmPlant)...)
 	ops = append(ops, friendTouchOperations(s, policy.GetPlant().GetFriendSteal(), now)...)
-	ops = append(ops, orderOperations(s, policy, goals, demands, ledger, now)...)
+	ops = append(ops, friendStealElvesOperations(s, policy.GetPlant(), now)...)
+	ops = append(ops, flowerElvesAidOperations(s, policy.GetPlant(), now)...)
+	ops = append(ops, elvesPlantSpeedUpOps(s, policy, now)...)
+	ops = append(ops, orderOperations(s, policy, goals, demands, activityActions, ledger, now)...)
 	ops = append(ops, basicOperations(s, policy, goals, now)...)
 	ops = append(ops, shopOperations(s, policy, now)...)
 	ops = append(ops, maintenanceOperations(s, policy, ledger, now)...)
 	ops = append(ops, unionOperations(s, policy, now)...)
-	ops = driveCyclicNoteTaskOperations(policy, activityActions, ledger, ops)
+	ops = driveCyclicNoteTaskOperations(s, policy, activityActions, ledger, ops, now)
+	ops = driveCyclicNoteFlowerRackPostCompleteCancel(s, policy, activityActions, ops, now)
+	ops = driveTaskAdvanceOperations(s, policy, advanceActions, ledger, ops, now)
 	ops = driveRaceCustomerOrderOperations(policy, demands, ops)
 	ops = driveRacePearlHireOperations(policy, demands, ops)
 	ops = driveRaceFlowerArtSellOperations(s, policy, demands, ops, ledger, now)

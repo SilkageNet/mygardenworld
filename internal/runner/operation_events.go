@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,10 +25,13 @@ type operationAttempt struct {
 	waterDropsBefore           int32
 	scoreBefore                int32
 	scoreBeforeSet             bool
-	friendStealUsedBefore      int32
-	friendStealUsedBeforeSet   bool
-	friendStealBoughtBefore    int32
-	friendStealBoughtBeforeSet bool
+	friendStealUsedBefore       int32
+	friendStealUsedBeforeSet    bool
+	friendStealBoughtBefore      int32
+	friendStealBoughtBeforeSet   bool
+	friendStealElvesCntBefore    int32
+	friendStealElvesCntBeforeSet bool
+	friendStealElvesInvBefore    int32
 }
 
 type operationResult struct {
@@ -58,6 +62,7 @@ const (
 	operationErrorFmlFlowerTakeDailyLimit   operationErrorKind = "fml_flower_take_daily_limit"
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
+	operationErrorPassFreeRecvRejected      operationErrorKind = "pass_free_recv_rejected"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -92,6 +97,8 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorCyclicStoryOrderNotReady
 	case isMailAlreadyPickedError(kind, err):
 		return operationErrorMailAlreadyPicked
+	case isPassFreeRecvRejectedError(kind, err):
+		return operationErrorPassFreeRecvRejected
 	default:
 		return operationErrorOrdinary
 	}
@@ -152,6 +159,27 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
+	if isFriendStealElvesUnavailableError(op, err) {
+		r.state.MarkFriendStealElvesLandUnavailable(op.TargetUID, op.TargetID)
+		r.state.ClearFriendTouchSkipEnter(op.TargetUID)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端提示该田花灵不可摸，已换下一块地继续", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{
+			"error":  err.Error(),
+			"stage":  "friend_steal_elves_unavailable",
+			"frdUid": op.TargetUID,
+			"landId": op.TargetID,
+		})
+		return nil
+	}
 	switch classifyOperationError(op.Kind, err) {
 	case operationErrorHarvestNotMature:
 		landIDs := op.LandIDs
@@ -454,6 +482,25 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "mail_already_picked", "msId": op.TargetID, "allId": op.ItemID})
 		return nil
+	case operationErrorPassFreeRecvRejected:
+		switch op.Kind {
+		case clientproto.RPCFlowerPassRecv.String(), clientproto.RPCFlowerPassRecvOneKey.String():
+			r.state.MarkFlowerPassFreeRecvRejected(op.TargetID)
+		case clientproto.RPCFlowerElvesPassRecv.String(), clientproto.RPCFlowerElvesPassRecvOneKey.String():
+			r.state.MarkFlowerElvesPassFreeRecvRejected(op.TargetID)
+		}
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端拒绝密令等级领取（参数有误/已领取），已校正本地奖励状态", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "pass_free_recv_rejected", "bid": op.TargetID, "lvl": op.ItemID})
+		return nil
 	default:
 		if op.Kind == clientproto.RPCFmlRaceGetTaskList.String() ||
 			op.Kind == clientproto.RPCFmlRaceEnter.String() {
@@ -558,16 +605,77 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
 	category := op.Category
 	switch op.Kind {
-	case clientproto.RPCFrdStealEnterFrdSteal.String():
+	case clientproto.RPCUsrLandSpeedUpBatch.String():
+		if n := int32(len(op.LandIDs)); n > 0 {
+			r.noteSpeedUpTicketsUsed(result.finishedAt, n)
+		} else if op.Count > 0 {
+			r.noteSpeedUpTicketsUsed(result.finishedAt, op.Count)
+		} else if cost := op.ItemCost[state.SpeedUpTicketItemID]; cost > 0 {
+			r.noteSpeedUpTicketsUsed(result.finishedAt, cost)
+		}
+	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
 		view := r.state.FriendTouch(result.finishedAt)
 		if view.VisitUID == op.TargetUID {
-			if _, ok := state.ReadyFriendStealLandID(view.VisitLands, result.finishedAt); !ok {
-				r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(5*time.Minute))
+			hasTarget := false
+			if op.FeatureID == "plant.friend_steal_elves" {
+				_, _, hasTarget = state.PickFriendStealElvesLandFor(view.VisitLands, result.finishedAt, r.state.RoleID(), func(landID int32, land state.LandView) bool {
+					return r.state.FriendStealElvesLandSkipped(op.TargetUID, landID, land.PlantTimeMs)
+				})
+			} else {
+				_, hasTarget = state.ReadyFriendStealLandID(view.VisitLands, result.finishedAt)
 			}
+			if !hasTarget {
+				skipFor := 5 * time.Minute
+				if op.FeatureID == "plant.friend_steal_elves" {
+					// Waiting for spawn → 10s; elves already visible / idle → 5m.
+					skipFor = automation.FriendStealElvesReenterAfter(view.VisitLands)
+				}
+				r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(skipFor))
+			}
+		} else {
+			// Empty/malformed home info must not re-enter every tick.
+			r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(5*time.Minute))
 		}
 	case clientproto.RPCFrdStealSteal.String():
-		r.state.NoteFriendStealSuccess(op.TargetUID, op.TargetID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
+		if op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves" {
+			invBefore := result.friendStealElvesInvBefore
+			if !r.state.FriendStealElvesActuallyStolen(op.TargetUID, op.TargetID, op.ItemID,
+				result.friendStealElvesCntBefore, result.friendStealElvesCntBeforeSet,
+				invBefore, result.finishedAt) {
+				// Server accepted stealElves=1 but applied ordinary flower steal
+				// (stealFlowerNum). Sticky-skip the plot and keep flower quota.
+				r.state.NoteFriendStealUsed(op.TargetUID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
+				r.state.MarkFriendStealElvesLandUnavailable(op.TargetUID, op.TargetID)
+				label = "摸取花灵"
+				message = fmt.Sprintf("摸取花灵未生效（服务端按摘花处理），已跳过田地 #%d", op.TargetID)
+			} else {
+				r.state.NoteFriendStealElvesSuccess(op.TargetUID, op.TargetID,
+					result.friendStealUsedBefore, result.friendStealUsedBeforeSet,
+					result.friendStealElvesCntBefore, result.friendStealElvesCntBeforeSet,
+					result.finishedAt)
+				label = "摸取花灵"
+				message = friendStealElvesSuccessMessage(op, r.state, result.finishedAt)
+			}
+		} else {
+			r.state.NoteFriendStealSuccess(op.TargetUID, op.TargetID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
+		}
 		r.state.ClearFriendTouchSkipEnter(op.TargetUID)
+	case clientproto.RPCFlowerElvesAidReqAid.String():
+		label = "申请花灵协助"
+		message = "申请花灵协助成功"
+	case clientproto.RPCFlowerElvesAidRecvAidEff.String():
+		label = "领取花灵协助"
+		message = "领取花灵协助成功"
+	case clientproto.RPCFlowerElvesAidHelpFrd.String():
+		if op != nil && op.TargetUID > 0 {
+			r.noteFlowerElvesAidHelped(op.TargetUID, result.finishedAt)
+		}
+		label = "协助好友花灵"
+		message = flowerElvesAidHelpSuccessMessage(op, r.state, result.finishedAt)
+	case clientproto.RPCUsrLandHarvest.String(), clientproto.RPCUsrLandHarvestOneKey.String():
+		if op.GoalID == "elves_plant" || op.DemandID == "elves_plant" {
+			r.state.ClearElvesRound()
+		}
 	case clientproto.RPCFrdExtBuyStealCnt.String():
 		r.state.NoteFriendStealPurchase(op.TargetUID, result.friendStealBoughtBefore, result.friendStealBoughtBeforeSet, result.finishedAt)
 	case clientproto.RPCOrderFlowerFinishOrder.String():
@@ -594,7 +702,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		kind = "union_flower_take"
 		label = "公会摸花"
 		message = fmt.Sprintf("公会摸花成功%s", unionFlowerTakeMessageSuffix(op))
-		r.state.NoteFmlFlowerShareTake(op.TargetUID, op.TargetID)
+		r.state.NoteFmlFlowerShareTake(op.TargetUID, op.TargetID, op.FlowerID)
 	case clientproto.RPCFlowerRackSell.String():
 		kind = "flower_rack_sell"
 		label = "花艺上架"
@@ -655,11 +763,28 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "同步竞赛已做次数"
 		category = automation.CategoryRace
 		message = "完成"
+	case clientproto.RPCFmlRaceGetTaskLogList.String():
+		kind = "race_task_sync"
+		label = "同步竞赛已完成任务"
+		category = automation.CategoryRace
+		message = "完成"
 	case clientproto.RPCFmlRaceEnter.String():
 		kind = "race_enter"
 		label = "进入公会竞赛"
 		category = automation.CategoryRace
 		message = "完成"
+	case clientproto.RPCFlowerPassEnter.String():
+		r.state.NoteFlowerPassEnterSynced()
+		kind = "operation_ack"
+		label = "花之密令"
+		category = automation.CategoryBasic
+		message = "同步花之密令奖励状态"
+	case clientproto.RPCFlowerElvesPassEnter.String():
+		r.state.NoteFlowerElvesPassEnterSynced()
+		kind = "operation_ack"
+		label = "花灵密令"
+		category = automation.CategoryBasic
+		message = "同步花灵密令奖励状态"
 	case clientproto.RPCFmlRaceTakeTask.String():
 		kind = "race_task_taken"
 		label = "接取竞赛任务"
@@ -670,6 +795,20 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "完成竞赛任务"
 		category = automation.CategoryRace
 		message = raceTaskSuccessMessage(op)
+		// Keep batch completed-task history locally; getTaskLogList is often
+		// partial and must not be the only source for the logs UI.
+		if op != nil {
+			taskType := op.TaskID
+			r.state.NoteFmlRaceCompletedTask(state.FmlRaceCompletedTaskView{
+				LogMsId:       op.TaskMsID,
+				TaskMsId:      op.TaskMsID,
+				TaskType:      taskType,
+				ParamID:       op.FlowerID,
+				TargetLabel:   state.ItemLabel(op.FlowerID),
+				CompletedAtMs: result.finishedAt.UnixMilli(),
+			})
+		}
+		r.state.MarkFmlRaceTaskLogsUnobserved()
 	case clientproto.RPCFmlRaceUpgradeTask.String():
 		kind = "race_task_upgraded"
 		label = "升级竞赛任务"
@@ -754,6 +893,52 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		// Flower-cultivate race FinishCnt also advances only via getTaskList;
 		// without this hook submission waits on the 10-minute fallback sync.
 		r.state.MarkFmlRaceTasksUnobserved()
+	}
+	r.noteCyclicNoteTaskProgress(op)
+}
+
+func (r *Runner) noteCyclicNoteTaskProgress(op *automation.PlannedOp) {
+	if r == nil || r.state == nil || op == nil || !strings.HasPrefix(op.DemandID, "activity.cyclicNote:") {
+		return
+	}
+	batchID, taskType, ok := automation.ParseCyclicNoteDemandID(op.DemandID)
+	if !ok || batchID <= 0 || taskType <= 0 {
+		return
+	}
+	serverBatch, serverProgress, _ := r.state.CyclicNoteServerProgressForType(time.Now(), taskType)
+	if serverBatch > 0 {
+		batchID = serverBatch
+	}
+	switch {
+	case automation.IsPlantOperation(op.Kind) && taskType == state.CyclicNoteTaskTypePlantAny:
+		delta := int32(len(op.LandIDs))
+		if delta <= 0 {
+			delta = 1
+		}
+		r.state.BumpCyclicNoteLocalProgress(batchID, taskType, serverProgress, delta)
+	case op.Kind == clientproto.RPCFlowerRackSell.String() && taskType == state.CyclicNoteTaskTypeFlowerRack:
+		delta := op.Count
+		if delta <= 0 {
+			delta = 1
+		}
+		// flowerRack.sell often returns authoritative 23.3 progress. ApplyV
+		// runs before this hook; if the server counter already moved past the
+		// prior local high-water, reconcile instead of double-counting delta
+		// (which left Missing=0 while empty racks sat idle until restart).
+		localBefore := r.state.CyclicNoteLocalProgress(batchID, taskType)
+		if serverProgress > localBefore {
+			if view, ok := r.state.CyclicNoteView(time.Now()); ok && view.BatchID > 0 {
+				r.state.ReconcileCyclicNoteLocalProgressFromTasks(view.BatchID, view.Tasks)
+			}
+			break
+		}
+		r.state.BumpCyclicNoteLocalProgress(batchID, taskType, serverProgress, delta)
+	case op.Kind == clientproto.RPCFlowerRackCancelSell.String() && taskType == state.CyclicNoteTaskTypeFlowerRack:
+		delta := op.Count
+		if delta <= 0 {
+			delta = 1
+		}
+		r.state.LowerCyclicNoteLocalProgress(batchID, taskType, serverProgress, delta)
 	}
 }
 
@@ -957,6 +1142,24 @@ func operationEventLabel(op *automation.PlannedOp) string {
 			return op.Label
 		}
 		return "雇佣劳工"
+	case op.Category == automation.CategoryElves ||
+		op.Domain == "farm.elves_aid" ||
+		op.Domain == "farm.elves_steal" ||
+		op.FeatureID == "plant.friend_steal_elves" ||
+		op.FeatureID == "plant.elves_aid_request" ||
+		op.FeatureID == "plant.elves_aid_receive" ||
+		op.FeatureID == "plant.elves_aid_help" ||
+		op.Action == "steal_elves":
+		if op.Label != "" {
+			return op.Label
+		}
+		if op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves" {
+			return "摸取花灵"
+		}
+		if desc := opKindDesc(op.Kind); desc != op.Kind {
+			return desc
+		}
+		return "花灵"
 	case op.Kind == clientproto.RPCActCyclicStoryEnter.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecvOrderRwd.String(),
 		op.Kind == clientproto.RPCActCyclicStoryRecv.String(),
@@ -966,6 +1169,8 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return "同步竞赛任务"
 	case op.Kind == clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String():
 		return "同步竞赛已做次数"
+	case op.Kind == clientproto.RPCFmlRaceGetTaskLogList.String():
+		return "同步竞赛已完成任务"
 	case op.Kind == clientproto.RPCFmlRaceEnter.String():
 		return "进入公会竞赛"
 	case op.Kind == clientproto.RPCFmlRaceTakeTask.String():
@@ -1201,6 +1406,59 @@ func flowerRackExpectedGold(artID, count int32) int32 {
 	return recipe.SaleValue * count
 }
 
+func friendStealElvesSuccessMessage(op *automation.PlannedOp, st *state.State, at time.Time) string {
+	friend := ""
+	elvesID := int32(0)
+	landID := int32(0)
+	if op != nil {
+		elvesID = op.ItemID
+		landID = op.TargetID
+		if op.TargetUID > 0 {
+			friend = strconv.FormatInt(op.TargetUID, 10)
+		}
+	}
+	if st != nil && op != nil && op.TargetUID > 0 {
+		view := st.FriendTouch(at)
+		if profile, ok := view.Profiles[op.TargetUID]; ok && strings.TrimSpace(profile.Name) != "" {
+			friend = strings.TrimSpace(profile.Name)
+		}
+		if elvesID <= 0 && view.VisitUID == op.TargetUID && landID > 0 {
+			if land, ok := view.VisitLands[landID]; ok && land.ElvesID > 0 {
+				elvesID = int32(land.ElvesID)
+			}
+		}
+	}
+	elvesLabel := state.ItemLabel(elvesID)
+	switch {
+	case friend != "" && elvesLabel != "" && landID > 0:
+		return fmt.Sprintf("摸取好友 %s 的花灵 %s（田地 #%d）", friend, elvesLabel, landID)
+	case friend != "" && elvesLabel != "":
+		return fmt.Sprintf("摸取好友 %s 的花灵 %s", friend, elvesLabel)
+	case friend != "" && landID > 0:
+		return fmt.Sprintf("摸取好友 %s 花灵（田地 #%d）", friend, landID)
+	case friend != "":
+		return fmt.Sprintf("摸取好友 %s 花灵", friend)
+	case elvesLabel != "":
+		return fmt.Sprintf("摸取花灵 %s", elvesLabel)
+	default:
+		return "摸取花灵成功"
+	}
+}
+
+func flowerElvesAidHelpSuccessMessage(op *automation.PlannedOp, st *state.State, at time.Time) string {
+	if op == nil || op.TargetUID <= 0 {
+		return "协助好友花灵成功"
+	}
+	friend := strconv.FormatInt(op.TargetUID, 10)
+	if st != nil {
+		view := st.FriendTouch(at)
+		if profile, ok := view.Profiles[op.TargetUID]; ok && strings.TrimSpace(profile.Name) != "" {
+			friend = strings.TrimSpace(profile.Name)
+		}
+	}
+	return fmt.Sprintf("协助好友 %s 花灵成功", friend)
+}
+
 func waterwheelClaimSuccessMessage(waterBefore int32, st *state.State) string {
 	after, total, _ := st.WaterDrops()
 	parts := []string{"水车水滴领取成功"}
@@ -1314,6 +1572,9 @@ func flowerUpgradeSuccessMessage(op *automation.PlannedOp, fromLevel int32, st *
 }
 
 func opDesc(op *automation.PlannedOp) string {
+	if op != nil && (op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves") {
+		return "摸取花灵"
+	}
 	desc := opKindDesc(op.Kind)
 	if op.FlowerID == 0 || isRaceOpKind(op.Kind) {
 		return desc
@@ -1408,6 +1669,14 @@ func operationTargetSuffix(op *automation.PlannedOp) string {
 	case clientproto.RPCZooAddFoodstuff.String():
 		if op.TargetID > 0 {
 			return fmt.Sprintf(" (宠物=%d 食物=%d×%d)", op.TargetID, op.ItemID, op.Count)
+		}
+	case clientproto.RPCShopBuy.String():
+		if op.TargetID > 0 && op.ItemID > 0 {
+			return fmt.Sprintf(" (商店=%d 商品=%d×%d)", op.TargetID, op.ItemID, op.Count)
+		}
+	case clientproto.RPCShopEnter.String():
+		if op.TargetID > 0 {
+			return fmt.Sprintf(" (商店=%d)", op.TargetID)
 		}
 	case clientproto.RPCZooRefreshPetStatus.String(), clientproto.RPCZooStrokePet.String(), clientproto.RPCZooFeedPets.String(), clientproto.RPCZooFindPet.String(), clientproto.RPCZooReadLog.String():
 		if op.TargetID > 0 {
