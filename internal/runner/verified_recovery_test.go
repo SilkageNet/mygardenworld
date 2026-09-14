@@ -200,6 +200,26 @@ func TestFreshRecoveryFailsClosedWithoutDurableReservation(t *testing.T) {
 	}
 }
 
+func TestExpiredCachedTokenQualifiesOnlyAfterAnotherCooldown(t *testing.T) {
+	for _, code := range []int{91102, 12345} {
+		r := recoveryTestRunner()
+		r.safety.RestrictionAttempts = 1
+		r.safety.FreshLoginAttempted = false
+		r.safety.LastFreshLoginMS = 0
+		r.deferRestrictionProbe(0, rejectedRestore(code))
+		s, _ := r.accountSafetySnapshot()
+		if freshRecoveryAvailable(s, time.Now()) {
+			t.Fatal("expired cache bypassed cooldown")
+		}
+		if got := freshRecoveryAvailable(s, time.UnixMilli(s.RestrictedUntilMS)); got != (code == 91102) {
+			t.Fatalf("code %d qualified=%v", code, got)
+		}
+		if code == 91102 && (s.RestrictionAttempts != 2 || time.Until(time.UnixMilli(s.RestrictedUntilMS)) < 9*time.Minute) {
+			t.Fatal("expired cache did not retain backoff", s)
+		}
+	}
+}
+
 func TestAutomaticReconnectPreservesAmbiguousPaidFence(t *testing.T) {
 	r := recoveryTestRunner()
 	r.state.LockPearlHireSession("ambiguous purchase")

@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -170,7 +171,7 @@ func nextAccountRestriction(previous store.AccountRequestSafety, d babigame.WSRe
 	if !active {
 		next.RestrictionAttempts = min(4, previous.RestrictionAttempts+1)
 	}
-	wait := min(30*time.Minute, 5*time.Minute*time.Duration(1<<uint(max(0, next.RestrictionAttempts-1))))
+	wait := restrictionBackoff(next.RestrictionAttempts)
 	until := now.Add(wait)
 	if d.ErrorCode() == 97778 {
 		// The official client formats args[0] as a retry date. Unknown or
@@ -197,6 +198,10 @@ func nextAccountRestriction(previous store.AccountRequestSafety, d babigame.WSRe
 		next.RestrictionCode = previous.RestrictionCode
 	}
 	return next
+}
+
+func restrictionBackoff(attempts int) time.Duration {
+	return min(30*time.Minute, 5*time.Minute*time.Duration(1<<uint(min(3, max(0, attempts-1)))))
 }
 
 func maxTime(a, b time.Time) time.Time {
@@ -290,11 +295,20 @@ func (r *Runner) deferRestrictionProbe(revision uint64, probeErr error) {
 		r.safetyMu.Unlock()
 		return
 	}
-	r.safety.RestrictedUntilMS = time.Now().Add(5 * time.Minute).UnixMilli()
+	// A positively expired cached token is also evidence that cached recovery
+	// cannot work. It may qualify for the same opt-in allowance after waiting;
+	// transport failures and arbitrary error text never qualify a fresh login.
+	var rejected *babigame.RPCServerError
+	if r.safety.RestrictionCode == 5000 && errors.As(probeErr, &rejected) && rejected.Name == clientproto.RPCIndexReLogin &&
+		rejected.Envelope.ErrorCode() == 91102 && !rejected.Envelope.IsSessionDisplaced() {
+		r.safety.RestrictionAttempts = min(4, r.safety.RestrictionAttempts+1)
+	}
+	wait := restrictionBackoff(r.safety.RestrictionAttempts)
+	r.safety.RestrictedUntilMS = time.Now().Add(wait).UnixMilli()
 	r.safetyRevision++
 	err := r.persistRestrictionLocked(r.safety)
 	r.safetyMu.Unlock()
-	message := fmt.Sprintf("账号恢复验证未成功，继续暂停 5 分钟: %v", probeErr)
+	message := fmt.Sprintf("账号恢复验证未成功，继续暂停 %s: %v", wait, probeErr)
 	if err != nil {
 		message += fmt.Sprintf("；保存保护状态失败: %v", err)
 	}

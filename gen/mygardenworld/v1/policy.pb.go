@@ -362,7 +362,7 @@ type BasicPolicy struct {
 	// ONLINE_ONLY never creates a session; pending codes wait until the account
 	// is already online for another reason.
 	RedeemConnectMode RedeemConnectMode `protobuf:"varint,17,opt,name=redeem_connect_mode,json=redeemConnectMode,proto3,enum=mygardenworld.v1.RedeemConnectMode" json:"redeem_connect_mode,omitempty"`
-	// Opt-in: after cached-session recovery still returns 5000, permit one
+	// Opt-in: after 5000 recovery still fails or the cached token expires, permit one
 	// fresh authentication per incident (also rate-limited across incidents).
 	// May displace a mobile client; independent of displaced-session relogin.
 	ServerErrorFreshLoginEnabled bool `protobuf:"varint,18,opt,name=server_error_fresh_login_enabled,json=serverErrorFreshLoginEnabled,proto3" json:"server_error_fresh_login_enabled,omitempty"`
