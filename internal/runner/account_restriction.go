@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -13,8 +14,8 @@ import (
 )
 
 // All game RPC paths, including heartbeat and executor-internal follow-up
-// reads, share this guard. Only a post-wait login
-// can pass while recovery is pending. HTTP reconnect is separately gated.
+// reads, share this guard. Only post-wait login and revision-bound, non-spending
+// recovery probes can pass while protection is pending. HTTP login is gated too.
 func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 	guard, guardedHire := ctx.Value(pearlHireSendGuardKey{}).(func() error)
 	guardedHire = guardedHire && name == clientproto.RPCPearlPlaceHire.String()
@@ -23,13 +24,13 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 			err = &pearlHireNotSentError{err: err}
 		}
 	}()
-	if err := r.checkGameRPC(name); err != nil {
+	if err := r.checkGameRPCContext(ctx, name); err != nil {
 		return err
 	}
 	if err := r.waitRaceTakeReady(ctx, name); err != nil {
 		return err
 	}
-	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPC(name) }); err != nil {
+	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPCContext(ctx, name) }); err != nil {
 		return err
 	}
 	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
@@ -50,17 +51,28 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 }
 
 func (r *Runner) checkGameRPC(name string) error {
+	return r.checkGameRPCContext(context.Background(), name)
+}
+
+func (r *Runner) checkGameRPCContext(ctx context.Context, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if r.gameGate != nil {
 		if blocked, _ := r.gameGate.status(); blocked {
 			return ErrMaintenance
 		}
 	}
-	s, _ := r.accountSafetySnapshot()
+	s, revision := r.accountSafetySnapshot()
 	if s.RestrictionCode == 0 {
 		return nil
 	}
 	if time.Now().UnixMilli() >= s.RestrictedUntilMS {
 		if name == clientproto.RPCIndexLogin.String() || name == clientproto.RPCIndexReLogin.String() {
+			return nil
+		}
+		if permit, ok := ctx.Value(recoveryProbeKey{}).(recoveryProbePermit); ok && permit.runner == r && permit.revision == revision &&
+			(name == clientproto.RPCUsrLazySync.String() || name == clientproto.RPCReputationView.String()) {
 			return nil
 		}
 	}
@@ -159,7 +171,7 @@ func nextAccountRestriction(previous store.AccountRequestSafety, d babigame.WSRe
 	if !active {
 		next.RestrictionAttempts = min(4, previous.RestrictionAttempts+1)
 	}
-	wait := min(30*time.Minute, 5*time.Minute*time.Duration(1<<uint(max(0, next.RestrictionAttempts-1))))
+	wait := restrictionBackoff(next.RestrictionAttempts)
 	until := now.Add(wait)
 	if d.ErrorCode() == 97778 {
 		// The official client formats args[0] as a retry date. Unknown or
@@ -186,6 +198,10 @@ func nextAccountRestriction(previous store.AccountRequestSafety, d babigame.WSRe
 		next.RestrictionCode = previous.RestrictionCode
 	}
 	return next
+}
+
+func restrictionBackoff(attempts int) time.Duration {
+	return min(30*time.Minute, 5*time.Minute*time.Duration(1<<uint(min(3, max(0, attempts-1)))))
 }
 
 func maxTime(a, b time.Time) time.Time {
@@ -234,6 +250,7 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	}
 	next := r.safety
 	next.RestrictedUntilMS, next.RestrictionCode, next.RestrictionAttempts = 0, 0, 0
+	next.FreshLoginAttempted = false // Keep the cross-incident authentication rate limit.
 	if err := r.persistRestrictionLocked(next); err != nil {
 		r.safetyMu.Unlock()
 		return fmt.Errorf("恢复状态保存失败，账号继续暂停: %w", err)
@@ -278,11 +295,20 @@ func (r *Runner) deferRestrictionProbe(revision uint64, probeErr error) {
 		r.safetyMu.Unlock()
 		return
 	}
-	r.safety.RestrictedUntilMS = time.Now().Add(5 * time.Minute).UnixMilli()
+	// A positively expired cached token is also evidence that cached recovery
+	// cannot work. It may qualify for the same opt-in allowance after waiting;
+	// transport failures and arbitrary error text never qualify a fresh login.
+	var rejected *babigame.RPCServerError
+	if r.safety.RestrictionCode == 5000 && errors.As(probeErr, &rejected) && rejected.Name == clientproto.RPCIndexReLogin &&
+		rejected.Envelope.ErrorCode() == 91102 && !rejected.Envelope.IsSessionDisplaced() {
+		r.safety.RestrictionAttempts = min(4, r.safety.RestrictionAttempts+1)
+	}
+	wait := restrictionBackoff(r.safety.RestrictionAttempts)
+	r.safety.RestrictedUntilMS = time.Now().Add(wait).UnixMilli()
 	r.safetyRevision++
 	err := r.persistRestrictionLocked(r.safety)
 	r.safetyMu.Unlock()
-	message := fmt.Sprintf("账号恢复验证未成功，继续暂停 5 分钟: %v", probeErr)
+	message := fmt.Sprintf("账号恢复验证未成功，继续暂停 %s: %v", wait, probeErr)
 	if err != nil {
 		message += fmt.Sprintf("；保存保护状态失败: %v", err)
 	}

@@ -73,6 +73,9 @@ func (r *Runner) reconnect(ctx context.Context, username, password string) *babi
 		if ctx.Err() != nil || errors.Is(err, ErrMaintenance) || isReputationGuardError(err) {
 			return nil // Administrative cancellation is not a failed recovery probe.
 		}
+		if r.isSessionInvalidated() {
+			return nil
+		}
 		if r.restrictionError() != nil {
 			// Coded failures have their own incident and recovery validation.
 			if s, revision := r.accountSafetySnapshot(); s.RestrictedUntilMS <= time.Now().UnixMilli() {
@@ -83,9 +86,6 @@ func (r *Runner) reconnect(ctx context.Context, username, password string) *babi
 			}
 			wait = reconnectInitialWait
 			continue
-		}
-		if r.isSessionInvalidated() {
-			return nil
 		}
 		r.emit(Event{Kind: "ws_disconnected", Message: fmt.Sprintf("重连失败: %v；%s 后重试", err, nextReconnectWait(wait)), Level: "warn"})
 		wait = nextReconnectWait(wait)

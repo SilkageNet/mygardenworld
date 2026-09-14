@@ -36,6 +36,7 @@ func TestCachedSessionRecoveryFallback(t *testing.T) {
 		{name: "expired 97778 permits rejected cache replacement", code: 97778, err: rejectedRestore(91102)},
 		{name: "bare numeric cache expiry", code: 97777, err: &babigame.RPCServerError{Name: clientproto.RPCIndexReLogin, Envelope: babigame.WSResponseD{M: json.RawMessage(`91102`)}}},
 		{name: "ordinary cache expiry", err: rejectedRestore(91102)},
+		{name: "5000 cannot bypass fresh-auth budget on cache expiry", code: 5000, err: rejectedRestore(91102), wantPreserved: true},
 		{name: "cooldown still active", code: 97777, active: true, err: rejectedRestore(91102), wantPreserved: true},
 		{name: "late restriction response wins", code: 97777, lateResponse: true, err: rejectedRestore(91102), wantPreserved: true},
 		{name: "unknown server code", code: 97777, err: rejectedRestore(12345), wantPreserved: true},
@@ -116,7 +117,7 @@ func TestExpiredRestrictionRetainsRPCGateUntilFreshBaseline(t *testing.T) {
 	if stored, err := db.LoadAccountRequestSafety(ctx, a.ID); err != nil || stored.RestrictionCode != 97777 {
 		t.Fatal("protection cleared before successful login", err)
 	}
-	// connectSession clears only after a successful complete login baseline.
+	// The clear operation is called only after login AND business verification.
 	if err := r.clearAccountRestriction(revision); err != nil {
 		t.Fatal(err)
 	}
