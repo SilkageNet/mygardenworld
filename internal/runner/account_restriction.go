@@ -68,20 +68,69 @@ func (r *Runner) checkGameRPC(name string) error {
 }
 
 func (r *Runner) observeGameRPC(name string, d babigame.WSResponseD) {
+	r.observeGameRPCAt(name, d, time.Now())
+}
+
+type serverFailure struct {
+	rpc string
+	at  time.Time
+}
+
+// 5000 has no confirmed protocol meaning. Only a burst across different RPCs
+// opens account-wide protection: a single domain failure stays local. These
+// are client-side circuit-breaker thresholds, not server rate-limit claims.
+const serverFailureWindow = time.Minute
+const serverFailureThreshold = 3
+
+func (r *Runner) observeGameRPCAt(name string, d babigame.WSResponseD, now time.Time) {
 	code := d.ErrorCode()
-	if code != 97777 && code != 97778 {
+	if code != 5000 && code != 97777 && code != 97778 {
 		return
 	}
-	r.recordAccountRestriction(name, d, time.Now())
+	r.safetyMu.Lock()
+	if code == 5000 && r.safety.RestrictionCode == 0 {
+		kept := r.serverFailures[:0]
+		for _, failure := range r.serverFailures {
+			if !failure.at.Before(now.Add(-serverFailureWindow)) && !failure.at.After(now) {
+				kept = append(kept, failure)
+			}
+		}
+		r.serverFailures = kept
+		r.serverFailures = append(r.serverFailures, serverFailure{rpc: name, at: now})
+		if len(r.serverFailures) > serverFailureThreshold {
+			r.serverFailures = r.serverFailures[len(r.serverFailures)-serverFailureThreshold:]
+		}
+		crossRPC := false
+		for _, failure := range r.serverFailures {
+			crossRPC = crossRPC || failure.rpc != name
+		}
+		if len(r.serverFailures) < serverFailureThreshold || !crossRPC {
+			r.safetyMu.Unlock()
+			return
+		}
+	}
+	// A failed recovery probe immediately reopens protection, even if its
+	// observation window expired. Hold the lock through the transition so a
+	// late error cannot be cleared by an older successful probe.
+	r.recordAccountRestrictionLocked(name, d, now)
 }
 
 func (r *Runner) recordAccountRestriction(name string, d babigame.WSResponseD, now time.Time) {
 	r.safetyMu.Lock()
+	r.recordAccountRestrictionLocked(name, d, now)
+}
+
+// Takes ownership of safetyMu and releases it before emitting an event.
+func (r *Runner) recordAccountRestrictionLocked(name string, d babigame.WSResponseD, now time.Time) {
 	previous := r.safety
 	next := nextAccountRestriction(previous, d, now)
 	r.safetyRevision++ // Even a late duplicate invalidates an in-flight probe.
 	r.safety = next    // Fail closed in memory even if persistence is unavailable.
 	changed := previous.RestrictedUntilMS != next.RestrictedUntilMS || previous.RestrictionCode != next.RestrictionCode
+	failureRPCs := make([]string, 0, len(r.serverFailures))
+	for _, failure := range r.serverFailures {
+		failureRPCs = append(failureRPCs, failure.rpc)
+	}
 	err := r.persistRestrictionLocked(next)
 	r.safetyMu.Unlock()
 	if !changed && err == nil {
@@ -90,9 +139,13 @@ func (r *Runner) recordAccountRestriction(name string, d babigame.WSResponseD, n
 	payload, _ := json.Marshal(map[string]any{
 		"rpc": name, "server_code": next.RestrictionCode,
 		"restricted_until_ms": next.RestrictedUntilMS, "attempt": next.RestrictionAttempts,
+		"recent_failure_rpcs": failureRPCs,
 	})
-	message := fmt.Sprintf("%s 返回 %d，暂停该账号全部游戏请求；%s 后验证恢复。97777 含义尚未确认，不能据此断定封禁或删除频率阈值",
+	message := fmt.Sprintf("%s 返回 %d，暂停该账号全部游戏请求；%s 后验证恢复。错误码不能单独证明封禁、挤号或安全频率阈值",
 		name, d.ErrorCode(), time.UnixMilli(next.RestrictedUntilMS).Local().Format("01/02 15:04:05"))
+	if next.RestrictionCode == 5000 {
+		message += "；短时间跨接口重复失败或恢复验证仍失败，已触发本地请求保护；保留自动化设置，不重放失败操作"
+	}
 	if err != nil {
 		message += fmt.Sprintf("；保护状态保存失败，当前进程仍保持暂停: %v", err)
 	}
@@ -129,8 +182,8 @@ func nextAccountRestriction(previous store.AccountRequestSafety, d babigame.WSRe
 	}
 	next.RestrictedUntilMS = max(until.UnixMilli(), previous.RestrictedUntilMS)
 	next.RestrictionCode = d.ErrorCode()
-	if active && previous.RestrictionCode == 97778 {
-		next.RestrictionCode = 97778
+	if active && (previous.RestrictionCode == 97778 || (previous.RestrictionCode == 97777 && d.ErrorCode() == 5000)) {
+		next.RestrictionCode = previous.RestrictionCode
 	}
 	return next
 }
@@ -186,6 +239,7 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 		return fmt.Errorf("恢复状态保存失败，账号继续暂停: %w", err)
 	}
 	r.safety = next
+	r.serverFailures = nil
 	r.safetyMu.Unlock()
 	r.emit(Event{Kind: "account_request_resumed", Category: "account", Domain: "account.request", Action: "resumed",
 		Label: "账号请求保护", Message: "冷却后状态验证成功，恢复账号游戏请求", Level: "info"})

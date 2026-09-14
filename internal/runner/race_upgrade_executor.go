@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
 )
@@ -14,6 +15,33 @@ type raceUpgradeExecution struct {
 	upgrade   func(context.Context) (json.RawMessage, error)
 	confirm   func(context.Context) (bool, error)
 	markStale func()
+}
+
+// RaceUpgradeStatus combines planner evidence with this session's paid
+// attempt fence. Read models never infer execution permission themselves.
+func (r *Runner) RaceUpgradeStatus(now time.Time) string {
+	p := r.Policy()
+	if p.GetUnion().GetRace().GetUpgradeTask() {
+		if !p.GetAutomationEnabled() {
+			return "自动化已暂停；恢复后按保存的预算检查"
+		}
+		if err := r.restrictionError(); err != nil {
+			return err.Error()
+		}
+		view := r.state.FmlRace()
+		r.mu.RLock()
+		attempted := r.raceUpgradeAttempts[[2]int64{view.BatchID, view.Taken.TaskMsId}]
+		r.mu.RUnlock()
+		if view.Taken.HasTask && attempted {
+			for _, task := range view.Tasks {
+				if task.MsId == view.Taken.TaskMsId && task.IsUpgrade != 0 {
+					return "当前任务已升级"
+				}
+			}
+			return "当前任务已提交升级，结果尚未确认；本会话不重复扣费，请查看日志"
+		}
+	}
+	return automation.RaceAutoUpgradeStatus(r.state, p.GetUnion().GetRace(), now)
 }
 
 // Keep the attempted batch/task across reconnects of this runner. A timeout

@@ -633,10 +633,14 @@ export default function PolicyPanel({
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} description="跳过他人升级及已升级但归属不明的任务，允许自己升级的任务；同时约束自动与手动接取，不影响已经持有的任务" onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} description="独立于自动完成；升级当前持有的未完成任务，消耗元宝。结果未确认时不会重复提交" onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />
+                <BigIntNumberRow label="单次升级元宝上限" description="0 表示禁止消费；每个任务升级前核对实际费用与可用余额" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
+                {unionRace?.upgradeTask && (unionRace.maxSpendDiamond <= BigInt(0)) && (
+                  <p role="status" className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">已打开升级开关，但预算为 0，不会执行升级。请明确设置允许的单次元宝上限并保存。</p>
+                )}
+                {unionView?.race?.autoUpgradeStatus && <p className="px-3 text-xs text-muted-foreground">当前执行状态（已保存配置）：{unionView.race.autoUpgradeStatus}</p>}
                 <ToggleRow label="删除低分任务" checked={unionRace?.deleteLowScoreTask ?? false} description="独立于自动完成；定期删除无人接取且分数不高于上限的任务，仅会长和副会长可用" status={raceDeleteStatus} onChange={(checked) => updateUnionRace({ deleteLowScoreTask: checked })} />
                 <NumberRow label="删除分数上限" value={unionRace?.deleteTaskMaxScore ?? 0} min={0} description="只处理已同步、无人接取且分数明确大于 0 的任务；0 表示不删除" onChange={(value) => updateUnionRace({ deleteTaskMaxScore: value })} />
                 <NumberRow label="删除间隔（秒）" value={unionRace?.deleteIntervalSeconds || 120} min={30} max={3600} description="默认 120 秒，可设 30～3600 秒；自动与手动删除共用账号间隔，重启后仍保留。此为本地保护策略，不代表服务端安全阈值" onChange={(value) => updateUnionRace({ deleteIntervalSeconds: value })} />
-                <BigIntNumberRow label="单次升级元宝上限" description="0 表示禁止消费；每个任务升级前核对实际费用与可用余额" value={unionRace?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateUnionRace({ maxSpendDiamond: value })} />
               </div>
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-muted-foreground">类型优先级：数字越大越优先接取；0 表示不接取。当前支持自动推进：种植收获、顾客订单、珍珠雇佣、花艺制作/售卖；花种培育仅接取与提交。</p>
