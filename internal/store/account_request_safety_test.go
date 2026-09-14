@@ -8,6 +8,48 @@ import (
 	"testing"
 )
 
+func TestRequestSafetyV13MigrationPreservesReservationsAndAccepts5000(t *testing.T) {
+	db, _, account, _, _ := notificationFixture(t)
+	ctx := t.Context()
+	// Recreate the actual v12 safety constraint, retaining all other tables.
+	if _, err := db.ExecContext(ctx, `DROP TABLE account_request_safety;`+migrations[8].sql+`
+INSERT INTO account_request_safety VALUES (?,1234,5678,97778,2);
+DROP INDEX idx_redeem_attempts_account;
+DROP INDEX idx_notification_incidents_account;
+DROP INDEX idx_notification_outbox_account;
+PRAGMA user_version=12;`, account.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyMigrations(ctx, db.writer); err != nil {
+		t.Fatal(err)
+	}
+	s, err := db.LoadAccountRequestSafety(ctx, account.ID)
+	if err != nil || s.LastRaceDeleteMS != 1234 || s.RestrictedUntilMS != 5678 || s.RestrictionCode != 97778 || s.RestrictionAttempts != 2 {
+		t.Fatal("v12 protection changed", s, err)
+	}
+	s.RestrictionCode = 5000
+	if err := db.SaveAccountRestriction(ctx, account.ID, s); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := db.LoadAccountRequestSafety(ctx, account.ID)
+	if err != nil || loaded != s {
+		t.Fatal("5000 protection did not persist", loaded, err)
+	}
+	for _, table := range []string{"redeem_attempts", "notification_incidents", "notification_outbox"} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM pragma_index_list(?) l JOIN pragma_index_info(l.name) i WHERE i.seqno=0 AND i.name='account_id'`, table).Scan(&count); err != nil || count == 0 {
+			t.Fatalf("%s missing account cascade index: %v", table, err)
+		}
+	}
+	if err := db.DeleteAccount(ctx, account.ID); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err = db.LoadAccountRequestSafety(ctx, account.ID)
+	if err != nil || loaded != (AccountRequestSafety{}) {
+		t.Fatal("migrated foreign key did not cascade", loaded, err)
+	}
+}
+
 func TestAccountRequestSafetyMigrationPersistenceAndAtomicReservation(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "garden.db")

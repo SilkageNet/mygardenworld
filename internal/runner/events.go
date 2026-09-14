@@ -41,7 +41,11 @@ func (r *Runner) emit(e Event) {
 	}
 	log := r.log.With("event_kind", e.Kind, "category", e.Category, "label", e.Label)
 	if r.db != nil {
-		id, err := r.db.LogEvent(context.Background(), store.EventLog{
+		// Telemetry must not indefinitely hold shutdown/lifecycle operations
+		// behind the writer queue. Failed persistence still reaches console/bus.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		id, err := r.db.LogEvent(ctx, store.EventLog{
 			AccountID:   r.account.ID,
 			AccountName: e.AccountName,
 			TS:          e.TS,

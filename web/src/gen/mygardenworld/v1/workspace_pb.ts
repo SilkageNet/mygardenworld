@@ -137,6 +137,8 @@ export const OpenWorkspaceSchema: GenMessage<OpenWorkspace> = /*@__PURE__*/
  */
 export type SelectWorkspaceAccount = Message<"mygardenworld.v1.SelectWorkspaceAccount"> & {
   /**
+   * Zero clears the selected account and its state/log subscriptions.
+   *
    * @generated from field: int64 account_id = 1;
    */
   accountId: bigint;

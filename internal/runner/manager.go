@@ -39,7 +39,7 @@ type Manager struct {
 
 	mu        sync.RWMutex
 	runners   map[int64]*Runner
-	opLocks   map[int64]*sync.Mutex
+	opLocks   map[int64]*accountLifecycleLock
 	lastStats map[int64]RuntimeStatsSnapshot
 	// lastDiag keeps the final diagnostics after a runner exits so status can
 	// still surface session-invalidation (e.g. phone login kick) as 异常
@@ -85,7 +85,7 @@ func NewManager(db *store.DB, bus *Bus, log *slog.Logger) *Manager {
 		bus:       bus,
 		log:       log,
 		runners:   make(map[int64]*Runner),
-		opLocks:   make(map[int64]*sync.Mutex),
+		opLocks:   make(map[int64]*accountLifecycleLock),
 		lastStats: make(map[int64]RuntimeStatsSnapshot),
 		lastDiag:  make(map[int64]Diagnostics),
 		pacers:    make(map[int64]*requestPacer),
@@ -243,7 +243,9 @@ func (m *Manager) StartWithSource(ctx context.Context, accountID int64, source S
 	}
 	defer release()
 	lock := m.accountLock(accountID)
-	lock.Lock()
+	if err := lock.LockContext(ctx); err != nil {
+		return nil, err
+	}
 	defer lock.Unlock()
 	return m.start(ctx, accountID, source, false)
 }
@@ -259,7 +261,9 @@ func (m *Manager) StartAutomation(ctx context.Context, accountID int64, source S
 	}
 	defer release()
 	lock := m.accountLock(accountID)
-	lock.Lock()
+	if err := lock.LockContext(ctx); err != nil {
+		return nil, err
+	}
 	defer lock.Unlock()
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -270,12 +274,12 @@ func (m *Manager) StartAutomation(ctx context.Context, accountID int64, source S
 	return m.start(ctx, accountID, source, true)
 }
 
-func (m *Manager) accountLock(accountID int64) *sync.Mutex {
+func (m *Manager) accountLock(accountID int64) *accountLifecycleLock {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	lock := m.opLocks[accountID]
 	if lock == nil {
-		lock = &sync.Mutex{}
+		lock = &accountLifecycleLock{token: make(chan struct{}, 1)}
 		m.opLocks[accountID] = lock
 	}
 	return lock
@@ -411,7 +415,9 @@ func (m *Manager) ReloadWithSource(ctx context.Context, accountID int64, source 
 	}
 	defer release()
 	lock := m.accountLock(accountID)
-	lock.Lock()
+	if err := lock.LockContext(ctx); err != nil {
+		return nil, err
+	}
 	defer lock.Unlock()
 	_ = m.stop(accountID)
 	return m.start(ctx, accountID, source, false)
@@ -426,7 +432,7 @@ func (m *Manager) Shutdown() {
 	m.mu.Lock()
 	runners := m.runners
 	m.runners = make(map[int64]*Runner)
-	m.opLocks = make(map[int64]*sync.Mutex)
+	m.opLocks = make(map[int64]*accountLifecycleLock)
 	m.mu.Unlock()
 	for _, r := range runners {
 		r.Stop()

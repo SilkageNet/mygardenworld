@@ -503,9 +503,10 @@ func (x *OpenWorkspace) GetAfterLogId() int64 {
 }
 
 type SelectWorkspaceAccount struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	AfterLogId    int64                  `protobuf:"varint,2,opt,name=after_log_id,json=afterLogId,proto3" json:"after_log_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Zero clears the selected account and its state/log subscriptions.
+	AccountId     int64 `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	AfterLogId    int64 `protobuf:"varint,2,opt,name=after_log_id,json=afterLogId,proto3" json:"after_log_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

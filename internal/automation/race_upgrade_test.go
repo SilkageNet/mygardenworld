@@ -45,6 +45,10 @@ func TestRaceUpgradeBudgetAndIndependentSwitch(t *testing.T) {
 				}
 				allowed = operationConsumesQueueBudget(op)
 				if allowed {
+					farm := PlannedOp{Kind: "usrLand.plant", Lane: LaneFarm, Priority: 9000}
+					if !operationComesBefore(op, farm) {
+						t.Fatal("eligible paid upgrade must precede farm progress")
+					}
 					if err := ValidateRaceUpgrade(s, p, &op, now); err != nil {
 						t.Fatal(err)
 					}
@@ -61,6 +65,16 @@ func TestRaceUpgradeBudgetAndIndependentSwitch(t *testing.T) {
 			}
 			if allowed != tc.allowed {
 				t.Fatalf("allowed=%v, want %v; ops=%+v", allowed, tc.allowed, ops)
+			}
+			status := RaceAutoUpgradeStatus(s, p, now)
+			if tc.allowed && !strings.Contains(status, "预计消耗 27 元宝") {
+				t.Fatalf("ready upgrade unexplained: %s", status)
+			}
+			if tc.budget == 0 && !strings.Contains(status, "禁止消费") {
+				t.Fatalf("zero-budget block unexplained: %s", status)
+			}
+			if tc.balance < 27 && !strings.Contains(status, "元宝不足") {
+				t.Fatalf("balance block unexplained: %s", status)
 			}
 			other := []PlannedOp{{Kind: clientproto.RPCFmlBld.String(), Executable: true, DiamondCost: 1}}
 			annotateOperationGates(s, other, now)
