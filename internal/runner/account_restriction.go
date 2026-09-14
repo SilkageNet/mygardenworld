@@ -13,8 +13,8 @@ import (
 )
 
 // All game RPC paths, including heartbeat and executor-internal follow-up
-// reads, share this guard. Only a post-wait login
-// can pass while recovery is pending. HTTP reconnect is separately gated.
+// reads, share this guard. Only post-wait login and revision-bound, non-spending
+// recovery probes can pass while protection is pending. HTTP login is gated too.
 func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 	guard, guardedHire := ctx.Value(pearlHireSendGuardKey{}).(func() error)
 	guardedHire = guardedHire && name == clientproto.RPCPearlPlaceHire.String()
@@ -23,13 +23,13 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 			err = &pearlHireNotSentError{err: err}
 		}
 	}()
-	if err := r.checkGameRPC(name); err != nil {
+	if err := r.checkGameRPCContext(ctx, name); err != nil {
 		return err
 	}
 	if err := r.waitRaceTakeReady(ctx, name); err != nil {
 		return err
 	}
-	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPC(name) }); err != nil {
+	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPCContext(ctx, name) }); err != nil {
 		return err
 	}
 	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
@@ -50,17 +50,28 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 }
 
 func (r *Runner) checkGameRPC(name string) error {
+	return r.checkGameRPCContext(context.Background(), name)
+}
+
+func (r *Runner) checkGameRPCContext(ctx context.Context, name string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if r.gameGate != nil {
 		if blocked, _ := r.gameGate.status(); blocked {
 			return ErrMaintenance
 		}
 	}
-	s, _ := r.accountSafetySnapshot()
+	s, revision := r.accountSafetySnapshot()
 	if s.RestrictionCode == 0 {
 		return nil
 	}
 	if time.Now().UnixMilli() >= s.RestrictedUntilMS {
 		if name == clientproto.RPCIndexLogin.String() || name == clientproto.RPCIndexReLogin.String() {
+			return nil
+		}
+		if permit, ok := ctx.Value(recoveryProbeKey{}).(recoveryProbePermit); ok && permit.runner == r && permit.revision == revision &&
+			(name == clientproto.RPCUsrLazySync.String() || name == clientproto.RPCReputationView.String()) {
 			return nil
 		}
 	}
@@ -234,6 +245,7 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	}
 	next := r.safety
 	next.RestrictedUntilMS, next.RestrictionCode, next.RestrictionAttempts = 0, 0, 0
+	next.FreshLoginAttempted = false // Keep the cross-incident authentication rate limit.
 	if err := r.persistRestrictionLocked(next); err != nil {
 		r.safetyMu.Unlock()
 		return fmt.Errorf("恢复状态保存失败，账号继续暂停: %w", err)

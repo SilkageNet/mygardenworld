@@ -21,6 +21,25 @@ func pearlHireFixture(t *testing.T) map[string]json.RawMessage {
 	return fixture
 }
 
+func TestPearlHireReconnectInvalidatesObservationsButPreservesSafety(t *testing.T) {
+	f := pearlHireFixture(t)
+	s := New()
+	s.ApplyV(f["initial"])
+	s.ApplyV(f["candidate_subset"])
+	s.ApplyV(f["friends_full"])
+	s.LockPearlHireSession("uncertain")
+	s.SkipPearlHireCandidate(2001)
+	s.MarkPearlHireFailed(2002, time.Now())
+	s.ResetPearlHireObservations()
+	v := s.PearlHire()
+	if v.FriendsObserved || v.RecommendObserved || len(v.Profiles) != 0 || len(v.HireStates) != 0 {
+		t.Fatalf("stale observations retained: %+v", v)
+	}
+	if !v.SessionLocked || len(v.SkippedUIDs) != 1 || len(v.FailedUntilMs) != 1 {
+		t.Fatalf("safety fences lost: %+v", v)
+	}
+}
+
 func TestPearlHireSparseStateAndStrictUIDs(t *testing.T) {
 	fixture := pearlHireFixture(t)
 	s := New()

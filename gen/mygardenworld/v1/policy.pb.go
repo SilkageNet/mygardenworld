@@ -362,8 +362,12 @@ type BasicPolicy struct {
 	// ONLINE_ONLY never creates a session; pending codes wait until the account
 	// is already online for another reason.
 	RedeemConnectMode RedeemConnectMode `protobuf:"varint,17,opt,name=redeem_connect_mode,json=redeemConnectMode,proto3,enum=mygardenworld.v1.RedeemConnectMode" json:"redeem_connect_mode,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Opt-in: after cached-session recovery still returns 5000, permit one
+	// fresh authentication per incident (also rate-limited across incidents).
+	// May displace a mobile client; independent of displaced-session relogin.
+	ServerErrorFreshLoginEnabled bool `protobuf:"varint,18,opt,name=server_error_fresh_login_enabled,json=serverErrorFreshLoginEnabled,proto3" json:"server_error_fresh_login_enabled,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *BasicPolicy) Reset() {
@@ -513,6 +517,13 @@ func (x *BasicPolicy) GetRedeemConnectMode() RedeemConnectMode {
 		return x.RedeemConnectMode
 	}
 	return RedeemConnectMode_REDEEM_CONNECT_MODE_UNSPECIFIED
+}
+
+func (x *BasicPolicy) GetServerErrorFreshLoginEnabled() bool {
+	if x != nil {
+		return x.ServerErrorFreshLoginEnabled
+	}
+	return false
 }
 
 type ReputationPolicy struct {
@@ -3126,7 +3137,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x05union\x18\x05 \x01(\v2\x1d.mygardenworld.v1.UnionPolicyR\x05union\x12<\n" +
 	"\bactivity\x18\x06 \x01(\v2 .mygardenworld.v1.ActivityPolicyR\bactivity\x12:\n" +
 	"\x19decision_interval_seconds\x18\a \x01(\x01R\x17decisionIntervalSeconds\x12%\n" +
-	"\x0eschema_version\x18\b \x01(\rR\rschemaVersion\"\xac\a\n" +
+	"\x0eschema_version\x18\b \x01(\rR\rschemaVersion\"\xf4\a\n" +
 	"\vBasicPolicy\x12B\n" +
 	"\n" +
 	"reputation\x18\x01 \x01(\v2\".mygardenworld.v1.ReputationPolicyR\n" +
@@ -3147,7 +3158,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x15water_claim_threshold\x18\x0e \x01(\x05R\x13waterClaimThreshold\x127\n" +
 	"\x18road_grow_reward_enabled\x18\x0f \x01(\bR\x15roadGrowRewardEnabled\x12I\n" +
 	"!displaced_session_relogin_enabled\x18\x10 \x01(\bR\x1edisplacedSessionReloginEnabled\x12S\n" +
-	"\x13redeem_connect_mode\x18\x11 \x01(\x0e2#.mygardenworld.v1.RedeemConnectModeR\x11redeemConnectMode\"J\n" +
+	"\x13redeem_connect_mode\x18\x11 \x01(\x0e2#.mygardenworld.v1.RedeemConnectModeR\x11redeemConnectMode\x12F\n" +
+	" server_error_fresh_login_enabled\x18\x12 \x01(\bR\x1cserverErrorFreshLoginEnabled\"J\n" +
 	"\x10ReputationPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\x05R\tthreshold\"\xd6\x01\n" +

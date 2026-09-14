@@ -493,6 +493,23 @@ func (s *State) LockPearlHireSession(reason string) {
 // starts.
 func (s *State) ResetPearlHireSession() {
 	s.mu.Lock()
+	s.resetPearlHireObservationsLocked()
+	s.pearlHireFailedUntil = make(map[int64]int64)
+	s.pearlHireSkippedUIDs = make(map[int64]struct{})
+	s.pearlHireSessionLocked = false
+	s.pearlHireLockReason = ""
+	s.mu.Unlock()
+}
+
+// ResetPearlHireObservations invalidates connection-scoped candidate caches
+// without forgetting paid/ambiguous attempt fences owned by the live runner.
+func (s *State) ResetPearlHireObservations() {
+	s.mu.Lock()
+	s.resetPearlHireObservationsLocked()
+	s.mu.Unlock()
+}
+
+func (s *State) resetPearlHireObservationsLocked() {
 	s.pearlFriendRelations = make(map[string]pearlFriendRelation)
 	s.pearlFriendOrder = nil
 	s.pearlFriendsObserved = false
@@ -503,11 +520,6 @@ func (s *State) ResetPearlHireSession() {
 	s.pearlRecommendObserved = false
 	s.pearlEnemies = make(map[int64]int64)
 	s.pearlEnemiesObserved = false
-	s.pearlHireFailedUntil = make(map[int64]int64)
-	s.pearlHireSkippedUIDs = make(map[int64]struct{})
-	s.pearlHireSessionLocked = false
-	s.pearlHireLockReason = ""
-	s.mu.Unlock()
 }
 
 func pearlRelationKey(uid0, uid1 int64) string {

@@ -6,7 +6,54 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
+
+func TestRequestSafetyV14MigrationAndDurableFreshReservation(t *testing.T) {
+	db, _, account, _, _ := notificationFixture(t)
+	ctx := t.Context()
+	if _, err := db.ExecContext(ctx, `ALTER TABLE account_request_safety DROP COLUMN fresh_login_attempted;
+ALTER TABLE account_request_safety DROP COLUMN last_fresh_login_ms;
+INSERT INTO account_request_safety VALUES (?,1234,5678,5000,2); PRAGMA user_version=13;`, account.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyMigrations(ctx, db.writer); err != nil {
+		t.Fatal(err)
+	}
+	s, err := db.LoadAccountRequestSafety(ctx, account.ID)
+	if err != nil || s.LastRaceDeleteMS != 1234 || s.RestrictionCode != 5000 || s.FreshLoginAttempted || s.LastFreshLoginMS != 0 {
+		t.Fatal(s, err)
+	}
+	nowMS := time.Now().UnixMilli()
+	var allowed atomic.Int32
+	var wg sync.WaitGroup
+	for range 12 {
+		wg.Go(func() {
+			ok, err := db.ReserveFreshRecovery(ctx, account.ID, nowMS, time.Hour.Milliseconds())
+			if err != nil {
+				t.Error(err)
+			}
+			if ok {
+				allowed.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if allowed.Load() != 1 {
+		t.Fatalf("%d simultaneous attempts admitted", allowed.Load())
+	}
+	s, err = db.LoadAccountRequestSafety(ctx, account.ID)
+	if err != nil || !s.FreshLoginAttempted || s.LastFreshLoginMS != nowMS || s.LastRaceDeleteMS != 1234 {
+		t.Fatal(s, err)
+	}
+	s.FreshLoginAttempted = false
+	if err := db.SaveAccountRestriction(ctx, account.ID, s); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := db.ReserveFreshRecovery(ctx, account.ID, nowMS+1, time.Hour.Milliseconds()); ok || err != nil {
+		t.Fatal(ok, err)
+	}
+}
 
 func TestRequestSafetyV13MigrationPreservesReservationsAndAccepts5000(t *testing.T) {
 	db, _, account, _, _ := notificationFixture(t)

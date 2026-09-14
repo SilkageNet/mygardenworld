@@ -5,6 +5,16 @@ import { PolicySchema } from "@/gen/mygardenworld/v1/policy_pb";
 import { UnionViewSchema } from "@/lib/api/workspace-models";
 import PolicyPanel from "./policy-panel";
 
+it("shows independent recovery opt-in and displacement warning while offline", () => {
+  const html = renderToStaticMarkup(<PolicyPanel policy={create(PolicySchema)} section="basic"
+    basicView={null} garden={null} orders={null} warehouse={null} unionView={null}
+    capabilities={[]} loading={false} saving={false} message="" onPolicyChange={vi.fn()} onSave={vi.fn()} />);
+  expect(html).toContain("5000 异常后允许重新登录");
+  expect(html).toContain("默认关闭");
+  expect(html).toContain("可能挤下手机端");
+  expect(html).toContain("与自动挤号设置独立");
+});
+
 describe("race upgrade configuration explains spending permission", () => {
   it.each([0, 100])("keeps budget next to upgrade and never invents permission: %i", (budget) => {
     const policy = create(PolicySchema, { union: { race: { upgradeTask: true, maxSpendDiamond: BigInt(budget) } } });
