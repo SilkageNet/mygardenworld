@@ -87,11 +87,10 @@ export class WorkspaceClient {
 
   selectAccount(accountId: string) {
     this.selectedAccountId = accountId;
-    if (!accountId) return;
     this.send({
       case: "selectAccount",
       value: create(SelectWorkspaceAccountSchema, {
-        accountId: BigInt(accountId),
+        accountId: BigInt(accountId || "0"),
         afterLogId: this.logCursors.get(accountId) ?? BigInt(0),
       }),
     });

@@ -386,6 +386,9 @@ func buildUnionView(model *accountReadModel) *pb.UnionView {
 		),
 	}
 	applyRaceRequestSafety(resp.Race, model.policy.GetUnion().GetRace(), model.diag)
+	if model.runner != nil {
+		resp.Race.AutoUpgradeStatus = model.runner.RaceUpgradeStatus(now)
+	}
 	return resp
 }
 

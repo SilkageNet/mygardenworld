@@ -233,15 +233,15 @@ function HeaderPanel({
               size="icon-lg"
               className="size-8 sm:size-9"
               onClick={() => void onAction(sessionAction)}
-              disabled={busyAction === sessionAction}
+              disabled={!!busyAction}
             >
               {busyAction === sessionAction ? <Loader2 className="size-4 animate-spin" /> : connected ? <LogOut className="size-4" /> : <Play className="size-4" />}
             </IconButtonWithTooltip>
             <IconButtonWithTooltip label="重新登录／更新凭据" type="button" variant="outline" size="icon-lg" className="size-8 sm:size-9" onClick={onReauthenticate} disabled={!!busyAction}>
               <KeyRound className="size-4" />
             </IconButtonWithTooltip>
-            <IconButtonWithTooltip label="删除账号" type="button" variant="destructive" size="icon-lg" className="size-8 sm:size-9" onClick={onDelete} disabled={busyAction === "delete"}>
-              <Trash2 className="size-4" />
+            <IconButtonWithTooltip label={busyAction === "delete" ? "正在删除账号" : "删除账号"} type="button" variant="destructive" size="icon-lg" className="size-8 sm:size-9" onClick={onDelete} disabled={!!busyAction}>
+              {busyAction === "delete" ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" /> : <Trash2 className="size-4" />}
             </IconButtonWithTooltip>
           </div>
         </div>
