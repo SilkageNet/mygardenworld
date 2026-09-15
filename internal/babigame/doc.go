@@ -245,6 +245,11 @@
 // evidence and execution-time cost validation; an ambiguous result must not be
 // automatically retried within the same runner session.
 //
+// Error 5000 has been observed across harvest, orders, pearl rewards and
+// health-score reads in user logs, but its server-side meaning is unconfirmed.
+// Repeated cross-RPC failures are handled by runner account request protection;
+// the protocol layer must not classify 5000 alone as displacement or expiry.
+//
 // # Personal Land Fields (G.ILand, Namespace 100)
 //
 // Mini 176 src/assets/scripts/game.js registers message 97777 with a handler

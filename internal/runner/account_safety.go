@@ -16,6 +16,7 @@ type accountSafetyState struct {
 	safety         store.AccountRequestSafety
 	safetyLoaded   bool
 	safetyRevision uint64
+	serverFailures []serverFailure
 }
 
 func (r *Runner) loadAccountSafety(ctx context.Context) error {

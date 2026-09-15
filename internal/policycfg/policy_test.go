@@ -35,6 +35,22 @@ func TestNormalizeClampsReconnectInterval(t *testing.T) {
 	}
 }
 
+func TestServerErrorFreshLoginDefaultsOffAndRoundTrips(t *testing.T) {
+	p := Normalize(&pb.Policy{})
+	if p.GetBasic().GetServerErrorFreshLoginEnabled() {
+		t.Fatal("fresh recovery must default off")
+	}
+	p.Basic.ServerErrorFreshLoginEnabled = true
+	raw, err := ToJSON(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := FromJSON(raw)
+	if err != nil || !got.GetBasic().GetServerErrorFreshLoginEnabled() || got.GetBasic().GetDisplacedSessionReloginEnabled() {
+		t.Fatalf("independent recovery choice did not round-trip: %v %v", got, err)
+	}
+}
+
 func TestNormalizeDisplacedSessionReloginDefaultsOffAndPreservesChoice(t *testing.T) {
 	if got := Normalize(&pb.Policy{}).GetBasic().GetDisplacedSessionReloginEnabled(); got {
 		t.Fatal("displaced-session relogin default=true, want false")

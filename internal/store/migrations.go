@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 12
+const currentSchemaVersion = 14
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -282,6 +282,26 @@ CREATE TABLE daemon_maintenance (
     resume_enabled INTEGER NOT NULL DEFAULT 0 CHECK(resume_enabled IN (0,1))
 );
 INSERT INTO daemon_maintenance(id) VALUES(1);
+`},
+	{version: 13, name: "cross-RPC request protection and account cascade indexes", sql: `
+CREATE TABLE account_request_safety_v13 (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    last_race_delete_ms INTEGER NOT NULL DEFAULT 0 CHECK(last_race_delete_ms >= 0),
+    restricted_until_ms INTEGER NOT NULL DEFAULT 0 CHECK(restricted_until_ms >= 0),
+    restriction_code INTEGER NOT NULL DEFAULT 0 CHECK(restriction_code IN (0, 5000, 97777, 97778)),
+    restriction_attempts INTEGER NOT NULL DEFAULT 0 CHECK(restriction_attempts >= 0)
+);
+INSERT INTO account_request_safety_v13 (account_id, last_race_delete_ms, restricted_until_ms, restriction_code, restriction_attempts)
+SELECT account_id, last_race_delete_ms, restricted_until_ms, restriction_code, restriction_attempts FROM account_request_safety;
+DROP TABLE account_request_safety;
+ALTER TABLE account_request_safety_v13 RENAME TO account_request_safety;
+CREATE INDEX IF NOT EXISTS idx_redeem_attempts_account ON redeem_attempts(account_id);
+CREATE INDEX IF NOT EXISTS idx_notification_incidents_account ON notification_incidents(account_id);
+CREATE INDEX IF NOT EXISTS idx_notification_outbox_account ON notification_outbox(account_id);
+`},
+	{version: 14, name: "bounded fresh-session recovery reservations", sql: `
+ALTER TABLE account_request_safety ADD COLUMN fresh_login_attempted INTEGER NOT NULL DEFAULT 0 CHECK(fresh_login_attempted IN (0,1));
+ALTER TABLE account_request_safety ADD COLUMN last_fresh_login_ms INTEGER NOT NULL DEFAULT 0 CHECK(last_fresh_login_ms>=0);
 `},
 }
 

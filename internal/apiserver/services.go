@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	connect "connectrpc.com/connect"
 
@@ -147,12 +148,13 @@ func formatLoginErr(err error) string {
 }
 
 func (svc *Services) DeleteAccount(ctx context.Context, req *connect.Request[pb.DeleteAccountRequest]) (*connect.Response[pb.DeleteAccountResponse], error) {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	acc, err := svc.resolveAccount(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	_ = svc.Manager.Stop(acc.ID)
-	if err := svc.DB.DeleteAccount(ctx, acc.ID); err != nil {
+	if err := svc.Manager.DeleteAccount(ctx, acc.ID); err != nil {
 		return nil, mapErr(err)
 	}
 	return connect.NewResponse(&pb.DeleteAccountResponse{}), nil
@@ -216,6 +218,10 @@ func (svc *Services) DisconnectAccount(ctx context.Context, req *connect.Request
 
 func mapErr(err error) error {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return connect.NewError(connect.CodeCanceled, err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return connect.NewError(connect.CodeDeadlineExceeded, err)
 	case errors.Is(err, runner.ErrMaintenance):
 		return connect.NewError(connect.CodeUnavailable, err)
 	case errors.Is(err, sql.ErrNoRows):

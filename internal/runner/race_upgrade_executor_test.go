@@ -62,3 +62,26 @@ func TestRaceUpgradePreflightFailureDoesNotSpend(t *testing.T) {
 		t.Fatal("preflight error lost")
 	}
 }
+
+func TestRaceUpgradePreemptsFarmButBlockedOrAttemptedUpgradeDoesNot(t *testing.T) {
+	for _, mode := range []string{"ready", "budget blocked", "attempted"} {
+		t.Run(mode, func(t *testing.T) {
+			r := newSideLaneTestRunner()
+			farm := runnableLaneOp("usrLand.harvest", automation.LaneFarm, "farm.harvest")
+			upgrade := runnableLaneOp("fmlRace.upgradeTask", automation.LaneSide, "union.race.upgrade")
+			upgrade.PreemptFarm = true
+			upgrade.RaceBatchID, upgrade.TaskMsID = 42, 1
+			want := upgrade.OperationID
+			if mode == "budget blocked" {
+				upgrade.Executable = false
+				upgrade.BlockedReasons = []string{"单次升级元宝上限为 0"}
+				want = farm.OperationID
+			}
+			if mode == "attempted" {
+				r.reserveRaceUpgrade(&upgrade)
+				want = farm.OperationID
+			}
+			assertSelectedOperation(t, r.selectRunnableOperation([]automation.PlannedOp{farm, upgrade}, time.Now()), want)
+		})
+	}
+}

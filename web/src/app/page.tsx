@@ -83,6 +83,8 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const { user } = useAuth();
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const deletedAccountIds = useRef(new Set<bigint>());
+  const [accountMessage, setAccountMessage] = useState("");
   const [statuses, setStatuses] = useState<Map<string, AccountStatus>>(new Map());
   const [featureCapabilities, setFeatureCapabilities] = useState<FeatureCapability[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -148,7 +150,8 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
 
   const refreshAccounts = useCallback(async () => {
     const accountRes = await accountClient.listAccounts({});
-    setAccounts(accountRes.accounts);
+    // A list read started before deletion may arrive after its commit.
+    setAccounts(accountRes.accounts.filter((account) => !deletedAccountIds.current.has(account.id)));
     accountsLoadedRef.current = true;
   }, []);
 
@@ -353,6 +356,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     redeemFeedRef.current = nextRedeemFeed;
     setRedeemFeed(nextRedeemFeed);
     if (!selectedAccountId) {
+      workspaceClientRef.current?.selectAccount("");
       setPolicyLoading(false);
       setViewsLoading(false);
       return;
@@ -586,26 +590,40 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   }
 
   async function deleteSelectedAccount() {
-    if (!selectedAccount) return;
-    const confirmed = window.confirm(`确认删除账号「${selectedAccount.name}」？此操作会移除本地账号、会话和策略。`);
+    if (!selectedAccount || busyAction) return;
+    const deleting = selectedAccount;
+    const confirmed = window.confirm(`确认删除账号「${deleting.name}」？此操作会断开游戏连接，永久移除本地账号、会话、策略和相关记录，不会删除游戏角色。`);
     if (!confirmed) return;
     setBusyAction("delete");
     setError("");
+    setAccountMessage(`正在删除「${deleting.name}」，等待账号操作结束并清理相关记录…`);
     try {
-      await accountClient.deleteAccount({ id: selectedAccount.id });
-      policyOwnerAccountIdRef.current = "";
-      const nextAccounts = accounts.filter((account) => account.id !== selectedAccount.id);
-      setSelectedAccountId(nextAccounts[0] ? accountKey(nextAccounts[0].id) : "");
-      setViews(EMPTY_ACCOUNT_VIEWS);
-      setPolicy(null);
+      await accountClient.deleteAccount({ id: deleting.id }, { timeoutMs: 25_000 });
+      deletedAccountIds.current.add(deleting.id);
+      setAccounts((current) => current.filter((account) => account.id !== deleting.id));
+      // Do not reset another account selected while deletion was in flight.
+      if (selectedAccountIdRef.current === accountKey(deleting.id)) {
+        selectedAccountIdRef.current = "";
+        workspaceClientRef.current?.selectAccount("");
+        policyOwnerAccountIdRef.current = "";
+        setSelectedAccountId("");
+        setViews(EMPTY_ACCOUNT_VIEWS);
+        setPolicy(null);
+      }
       setStatuses((current) => {
         const next = new Map(current);
-        next.delete(accountKey(selectedAccount.id));
+        next.delete(accountKey(deleting.id));
         return next;
       });
-      await refreshAccountCollection();
+      setAccountMessage(`账号「${deleting.name}」已删除。`);
+      // Refresh is not part of the deletion transaction. Its failure must
+      // never turn a committed delete into an apparent deletion failure.
+      void refreshAccountCollection().catch((err) => {
+        setError(`账号已删除，但刷新列表失败，请刷新页面。${formatAPIError(err)}`);
+      });
     } catch (err) {
-      setError(formatAPIError(err, "删除账号失败"));
+      setAccountMessage("");
+      setError(`账号「${deleting.name}」删除未确认，请刷新列表核对后重试。${formatAPIError(err)}`);
     } finally {
       setBusyAction("");
     }
@@ -675,10 +693,11 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
         </div>
       )}
       {error && (
-        <div className="mb-4 rounded-md border border-destructive/25 bg-white/72 px-3 py-2 text-sm text-destructive shadow-sm backdrop-blur-xl dark:bg-destructive/12">
+        <div role="alert" className="mb-4 rounded-md border border-destructive/25 bg-white/72 px-3 py-2 text-sm text-destructive shadow-sm backdrop-blur-xl dark:bg-destructive/12">
           {error}
         </div>
       )}
+      {accountMessage && <div role="status" className="mb-4 rounded-md border border-border bg-card px-3 py-2 text-sm">{accountMessage}</div>}
       {!error && workspaceConnection !== "open" && (
         <div className="mb-4 rounded-md border border-amber-400/30 bg-amber-50/75 px-3 py-2 text-sm text-amber-800 shadow-sm backdrop-blur-xl dark:bg-amber-400/10 dark:text-amber-200">
           状态通道正在{workspaceConnection === "connecting" ? "连接" : "重连"}，写操作仍可继续使用。

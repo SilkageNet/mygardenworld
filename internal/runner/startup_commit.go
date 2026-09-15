@@ -13,7 +13,9 @@ import (
 // enabled after the new connection has been stopped.
 func (m *Manager) PauseAutomation(ctx context.Context, accountID int64, disconnect bool) error {
 	lock := m.accountLock(accountID)
-	lock.Lock()
+	if err := lock.LockContext(ctx); err != nil {
+		return err
+	}
 	defer lock.Unlock()
 	if disconnect {
 		defer func() { _ = m.stop(accountID) }()
