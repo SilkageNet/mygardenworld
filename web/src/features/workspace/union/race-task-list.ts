@@ -2,6 +2,7 @@ import type { FmlRaceTask } from "@/lib/api/workspace-models";
 
 export type RaceTaskFilter = "all" | "ready";
 export type RaceTaskSort = "pool" | "score";
+export type RaceTaskTone = "ready" | "cooldown" | "claimed" | "blocked";
 
 export type RaceTaskListItem = {
   task: FmlRaceTask;
@@ -12,6 +13,15 @@ export function raceTaskReady(task: FmlRaceTask, nowMs: number): boolean {
   const reason = (task.takeSkipReason ?? "").trim();
   if (reason === "") return true;
   return reason.startsWith("冷却中") && Number(task.appearTimeMs) <= nowMs;
+}
+
+// Presentation only: keep the existing takeability and server-side guards.
+// Occupancy wins over cooldown; holding another task must not look actionable.
+export function raceTaskTone(task: FmlRaceTask, nowMs: number, canTake: boolean): RaceTaskTone {
+  const reason = (task.takeSkipReason ?? "").trim();
+  if (reason === "已被接取") return "claimed";
+  if ((reason.startsWith("冷却中") || reason.endsWith("后刷新")) && Number(task.appearTimeMs) > nowMs) return "cooldown";
+  return raceTaskReady(task, nowMs) && canTake ? "ready" : "blocked";
 }
 
 export function selectRaceTaskList(
@@ -50,7 +60,7 @@ export function nextRaceTaskReadyAt(tasks: FmlRaceTask[], nowMs: number): number
   let next: number | null = null;
   for (const task of tasks) {
     const at = Number(task.appearTimeMs);
-    if ((task.takeSkipReason ?? "").trim().startsWith("冷却中") && at > nowMs && (next === null || at < next)) next = at;
+    if (raceTaskTone(task, nowMs, true) === "cooldown" && at > nowMs && (next === null || at < next)) next = at;
   }
   return next;
 }
