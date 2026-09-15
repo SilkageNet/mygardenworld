@@ -77,6 +77,7 @@ message OpenWorkspace {
 }
 
 message SelectWorkspaceAccount {
+  // Zero clears the selected account and its state/log subscriptions.
   int64 account_id = 1;
   int64 after_log_id = 2;
 }

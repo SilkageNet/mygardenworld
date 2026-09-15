@@ -341,7 +341,13 @@ func (s *workspaceSession) handleClientFrame(frame *pb.WorkspaceClientFrame) err
 }
 
 func (s *workspaceSession) selectAccount(requestID uint64, accountID, afterLogID int64) error {
-	if accountID <= 0 {
+	if accountID == 0 {
+		// Deselecting (including deleting the last account) must release the
+		// old subscription, not keep resyncing a row that no longer exists.
+		s.clearSelection()
+		return nil
+	}
+	if accountID < 0 {
 		return errors.New("valid account id required")
 	}
 	acc, err := s.svc.resolveAccount(s.ctx, accountID)
@@ -369,6 +375,18 @@ func (s *workspaceSession) selectAccount(requestID uint64, accountID, afterLogID
 		State: state,
 		Logs:  logs,
 	}})
+}
+
+func (s *workspaceSession) clearSelection() {
+	s.selectedID = 0
+	s.selectedAccount = nil
+	s.lastState = nil
+	s.logHighWater = 0
+	s.catchingUp = false
+	s.pendingLogs = nil
+	s.dirtyState = false
+	s.redeemSubscribed = false
+	s.dirtyRedeem = false
 }
 
 func (s *workspaceSession) acceptEvent(event runner.Event) {
@@ -495,6 +513,9 @@ func (s *workspaceSession) setStatuses(statuses []*pb.AccountStatus) {
 		allowed[status.GetAccountId()] = struct{}{}
 	}
 	s.allowedAccount = allowed
+	if _, ok := allowed[s.selectedID]; s.selectedID > 0 && !ok {
+		s.clearSelection()
+	}
 }
 
 func (s *workspaceSession) validateIdentity() error {

@@ -1,6 +1,6 @@
-import { create, toBinary } from "@bufbuild/protobuf";
+import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MaintenanceViewSchema, WorkspaceReadySchema, WorkspaceServerFrameSchema } from "@/gen/mygardenworld/v1/workspace_pb";
+import { MaintenanceViewSchema, WorkspaceClientFrameSchema, WorkspaceReadySchema, WorkspaceServerFrameSchema } from "@/gen/mygardenworld/v1/workspace_pb";
 import { WorkspaceClient } from "./workspace-client";
 
 vi.mock("@/lib/api/client", () => ({
@@ -24,6 +24,20 @@ class FakeSocket {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("maintenance workspace delivery", () => {
+  it("clears a deleted selection and stops resyncing it", () => {
+    vi.stubGlobal("WebSocket", FakeSocket);
+    const client = new WorkspaceClient({});
+    client.start("42");
+    const socket = FakeSocket.latest;
+    client.selectAccount("");
+    const frame = fromBinary(WorkspaceClientFrameSchema, socket.send.mock.calls.at(-1)![0]);
+    expect(frame.payload.case).toBe("selectAccount");
+    if (frame.payload.case === "selectAccount") expect(frame.payload.value.accountId).toBe(BigInt(0));
+    const sent = socket.send.mock.calls.length;
+    client.resync();
+    expect(socket.send.mock.calls.length).toBe(sent);
+    client.stop();
+  });
   it("delivers initial state and sequenced live transitions without account identifiers", async () => {
     vi.stubGlobal("WebSocket", FakeSocket);
     const ready = vi.fn();

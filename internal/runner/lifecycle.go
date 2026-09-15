@@ -82,6 +82,9 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 		if ctx.Err() != nil {
 			return fail(ctx.Err())
 		}
+		if errors.Is(err, ErrMaintenance) || isReputationGuardError(err) || (r.isSessionInvalidated() && !r.autoReloginPending()) {
+			return fail(err)
+		}
 		if r.autoReloginPending() {
 			return finish(nil, username, password)
 		}
@@ -109,8 +112,14 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 	if !r.waitAccountRestriction(ctx) {
 		return nil, ctx.Err()
 	}
+	if r.freshRecoveryEligible(time.Now()) {
+		return r.connectFresh(ctx, username, password)
+	}
 	blob, err := r.db.LoadSession(ctx, r.account.ID)
 	if err != nil {
+		if r.restrictionError() != nil {
+			return nil, fmt.Errorf("读取恢复会话失败: %w", err)
+		}
 		r.log.Warn("load cached session failed; using fresh login", "err", err)
 		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
 			return nil, fmt.Errorf("delete unreadable cached session: %w", deleteErr)
@@ -132,6 +141,9 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 				return nil, resumeErr
 			}
 			decodeErr = resumeErr
+		}
+		if s, _ := r.accountSafetySnapshot(); s.RestrictionCode == 5000 {
+			return nil, fmt.Errorf("缓存会话不可用，5000 保护仍生效: %w", decodeErr)
 		}
 		r.log.Info("cached session rejected; using fresh login", "err", decodeErr)
 		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
@@ -155,6 +167,9 @@ func (r *Runner) preserveCachedSession(ctx context.Context, err error, restoreRe
 	if s.RestrictionCode == 0 {
 		return false
 	}
+	if s.RestrictionCode == 5000 {
+		return true
+	}
 	if s.RestrictedUntilMS > time.Now().UnixMilli() || revision != restoreRevision {
 		return true
 	}
@@ -173,6 +188,19 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		return nil, ctx.Err()
 	}
 	httpc := r.prepareHTTPClient(ctx, "", "", "")
+	// Every automatic fresh-authentication path shares the durable allowance;
+	// cache rejection/missing credentials must not bypass the opt-in or budget.
+	if err := r.reserveFreshRecovery(ctx, time.Now()); err != nil {
+		return nil, err
+	}
+	// Policy may have changed while waiting for the durable reservation.
+	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
+		return nil, err
+	}
+	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode == 5000 {
+		r.emit(Event{Kind: "account_recovery_authentication", Category: "account", Domain: "account.request", Action: "authenticating",
+			Label: "账号恢复认证", Message: "旧会话验证仍失败，按已启用设置尝试本次唯一的新认证；额度已持久化，失败也不会重试新认证", Level: "warn"})
+	}
 	var (
 		session *babigame.Session
 		err     error
@@ -190,6 +218,9 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	}
 	if err != nil {
 		return nil, fmt.Errorf("login: %w", err)
+	}
+	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
+		return nil, err
 	}
 	return r.connectSession(ctx, httpc, session, false)
 }
@@ -243,6 +274,13 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// Activity notices can arrive during login, before invalidation handlers
 	// are safe to install on a not-yet-validated cached session.
 	client.OnBinary(r.observeActivityRefresh)
+	// Explicit displacement must also win during login, before normal
+	// invalidation handlers are installed (ordinary expired caches may retry).
+	client.OnBinary(func(items []json.RawMessage) {
+		if reason, displaced := babigame.SessionDisplacementFromBinary(items); displaced {
+			r.handleSessionInvalidated(reason, true)
+		}
+	})
 	client.OnClosed = releaseConnection
 	context.AfterFunc(connectionCtx, func() { _ = client.Close() })
 	client.DebugWriter = r.debugWriter
@@ -257,7 +295,8 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// A cached route token resumes with index.reLogin; a freshly issued route
 	// token uses index.login, matching the official client lifecycle.
 	r.state.BeginFmlMembershipSnapshot()
-	_, safetyRevision := r.accountSafetySnapshot()
+	safety, safetyRevision := r.accountSafetySnapshot()
+	recovering := safety.RestrictionCode != 0
 	var v json.RawMessage
 	if resume {
 		v, err = client.ReLogin(ctx, r.cfg.IsSimulator)
@@ -266,13 +305,9 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	}
 	if err == nil {
 		r.state.ApplyV(v)
-		if err := r.clearAccountRestriction(safetyRevision); err != nil {
-			_ = client.Close()
-			r.deferRestrictionProbe(safetyRevision, err)
-			return nil, err
-		}
 		r.syncAccountDisplayName(ctx, v, session)
 	} else {
+		r.observeRecoveryDisplacement(err)
 		_ = client.Close()
 		return nil, fmt.Errorf("启动%s失败: %w", map[bool]string{true: "恢复登录", false: "登录"}[resume], err)
 	}
@@ -281,6 +316,13 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// usable. Otherwise an expired cache could stop the runner before its fresh
 	// login fallback gets a chance to run.
 	r.attachClientHandlers(client)
+	if recovering {
+		if err := r.verifyRestrictionRecovery(ctx, client, session, safetyRevision, resume, v); err != nil {
+			r.observeRecoveryDisplacement(err)
+			r.deferRestrictionProbe(safetyRevision, err)
+			return nil, err
+		}
+	}
 	r.resetFreshSessionAutomationState()
 	r.mu.Lock()
 	r.session = session
@@ -294,7 +336,9 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 		r.clearDisconnectedClient(client)
 		return nil, r.sessionInvalidatedError("session invalidated during startup")
 	}
-	r.applyStartupLazySync(client.LazySync(ctx))
+	if !recovering {
+		r.applyStartupLazySync(client.LazySync(ctx))
+	}
 	if r.isSessionInvalidated() {
 		_ = client.Close()
 		r.clearDisconnectedClient(client)
@@ -384,12 +428,19 @@ func startSourceLabel(source StartSource) string {
 	}
 }
 
-func (r *Runner) resetPearlHireSession() {
+func (r *Runner) resetPearlHireSession(preserveSafety bool) {
 	if r.state != nil {
-		r.state.ResetPearlHireSession()
+		if preserveSafety {
+			r.state.ResetPearlHireObservations()
+		} else {
+			r.state.ResetPearlHireSession()
+		}
 	}
 	r.mu.Lock()
 	for key := range r.operationCooldowns {
+		if preserveSafety && (strings.HasPrefix(key, clientproto.RPCPearlPlaceHire.String()+":") || key == "basic.pearl.hire.blocked") {
+			continue
+		}
 		if strings.HasPrefix(key, clientproto.RPCPearlPlaceHire.String()+":") ||
 			strings.HasPrefix(key, clientproto.RPCOpptGetDetailOppts.String()+":") ||
 			strings.HasPrefix(key, clientproto.RPCPearlGetHireStateByUids.String()+":") ||
@@ -404,7 +455,9 @@ func (r *Runner) resetPearlHireSession() {
 
 func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetSideLaneFairness()
-	r.resetPearlHireSession()
+	// Transport reconnects, including a new route token, cannot confirm an
+	// ambiguous paid mutation. A new Runner already owns fresh session state.
+	r.resetPearlHireSession(true)
 	r.resetResidentOrderSession()
 	r.mu.Lock()
 	clear(r.cultivateUpgradeRejects)
@@ -450,11 +503,6 @@ func (r *Runner) attachClientHandlers(client *babigame.Client) {
 			return
 		}
 		r.handleSessionInvalidated(d.ErrorMsg(), d.IsSessionDisplaced())
-	})
-	client.OnBinary(func(items []json.RawMessage) {
-		if reason, ok := babigame.SessionDisplacementFromBinary(items); ok {
-			r.handleSessionInvalidated(reason, true)
-		}
 	})
 	for _, ns := range observedCaptureNamespaces() {
 		ns := ns

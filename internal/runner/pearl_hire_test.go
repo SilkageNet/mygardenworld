@@ -250,7 +250,7 @@ func TestPearlHireOperationRegistryAndFreshSessionReset(t *testing.T) {
 			"unrelated": {},
 		},
 	}
-	r.resetPearlHireSession()
+	r.resetPearlHireSession(false)
 	view := s.PearlHire()
 	if view.SessionLocked || len(view.FailedUntilMs) != 0 || len(view.SkippedUIDs) != 0 {
 		t.Fatalf("state reset incomplete: %+v", view)
