@@ -18,6 +18,7 @@ import {
   raceTaskAvailability,
   raceTaskProgressLabel,
   raceTaskReady,
+  raceTaskTone,
   selectRaceTaskList,
   type RaceTaskFilter,
   type RaceTaskSort,
@@ -280,7 +281,14 @@ function FmlRaceTakenCard({ taken }: { taken: FmlRaceTaken }) {
   );
 }
 
-function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDelete, deleteBlockedReason, takeBusy, deleteBusy, onTake, onDelete }: {
+const taskToneStyles = {
+  ready: { card: "border-emerald-300/75 bg-emerald-50/80 dark:border-emerald-500/35 dark:bg-emerald-500/12", text: "text-emerald-800 dark:text-emerald-300" },
+  cooldown: { card: "border-amber-300/75 bg-amber-50/80 dark:border-amber-500/35 dark:bg-amber-500/12", text: "text-amber-800 dark:text-amber-300" },
+  claimed: { card: "border-sky-300/75 bg-sky-50/80 dark:border-sky-500/35 dark:bg-sky-500/12", text: "text-sky-800 dark:text-sky-300" },
+  blocked: { card: "border-border/60 bg-muted/55 dark:border-border/60 dark:bg-muted/40", text: "text-muted-foreground" },
+};
+
+export function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDelete, deleteBlockedReason, takeBusy, deleteBusy, onTake, onDelete }: {
   index: number;
   task: FmlRaceTask;
   nowMs: number;
@@ -293,16 +301,16 @@ function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDelete, d
   onTake: () => void;
   onDelete: () => void;
 }) {
-  const skipReason = (task.takeSkipReason ?? "").trim();
   const takeable = raceTaskReady(task, nowMs);
-  const onCooldown = !takeable && skipReason.startsWith("冷却中");
+  const tone = raceTaskTone(task, nowMs, canTake);
+  const styles = taskToneStyles[tone];
   const availability = takeable && !canTake ? "需先完成当前任务" : raceTaskAvailability(task, nowMs);
   const progressLabel = raceTaskProgressLabel(task);
   const baseTitle = raceTaskTitle(task);
   return (
-    <div className={cn(
-      "rounded-md border bg-white/36 px-3 py-2.5 dark:bg-white/5",
-      takeable && canTake ? "border-primary/55 bg-primary/7 shadow-sm" : onCooldown ? "border-amber-300/65 bg-amber-50/48 dark:bg-amber-400/8" : "border-border/55",
+    <div data-task-state={tone} className={cn(
+      "rounded-md border px-3 py-2.5",
+      styles.card,
     )}>
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 text-sm font-medium"><span className="mr-1.5 tabular-nums text-muted-foreground">{index}.</span>{baseTitle}</span>
@@ -314,7 +322,7 @@ function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDelete, d
         {task.upgradeUid > 0 && <span className="ml-auto">升级人 #{task.upgradeUid}</span>}
       </div>
       <div className="mt-2 flex min-h-7 items-center justify-between gap-2">
-        <span className={cn("text-xs", takeable && canTake ? "font-medium text-primary" : onCooldown ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>{availability}</span>
+        <span className={cn("text-xs font-medium", styles.text)}>{availability}</span>
         <span className="flex items-center gap-1.5">
           {showDelete && (
             <Button type="button" size="sm" variant="destructive" onClick={onDelete} disabled={!canDelete || deleteBusy || takeBusy} title={canDelete ? "删除此任务" : deleteBlockedReason || "当前不可删除"}>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { create } from "@bufbuild/protobuf";
 import { FmlRaceTaskSchema } from "@/gen/mygardenworld/v1/workspace_union_pb";
-import { formatRaceTaskTime, nextRaceTaskReadyAt, raceTaskAvailability, raceTaskProgressLabel, raceTaskReady, selectRaceTaskList } from "./race-task-list";
+import { formatRaceTaskTime, nextRaceTaskReadyAt, raceTaskAvailability, raceTaskProgressLabel, raceTaskReady, raceTaskTone, selectRaceTaskList } from "./race-task-list";
 
 const task = (msId: number, score: number, reason = "", appearTimeMs = 0) => create(FmlRaceTaskSchema, {
   msId: BigInt(msId),
@@ -11,6 +11,30 @@ const task = (msId: number, score: number, reason = "", appearTimeMs = 0) => cre
 });
 
 describe("guild race task list", () => {
+  it.each([
+    ["", 0, true, "ready"],
+    ["", 0, false, "blocked"],
+    ["冷却中", 10_000, true, "cooldown"],
+    ["冷却中", 10_000, false, "cooldown"],
+    ["已被接取", 10_000, true, "claimed"],
+    [" 已被接取 ", 0, false, "claimed"],
+    ["优先级为0", 0, true, "blocked"],
+    ["12:00:10 后刷新", 10_000, true, "cooldown"],
+    ["未知限制", 0, true, "blocked"],
+  ])("uses an explicit presentation tone for %s", (reason, appearTimeMs, canTake, tone) => {
+    expect(raceTaskTone(task(1, 30, reason, appearTimeMs), 9_000, canTake)).toBe(tone);
+  });
+
+  it("updates colors at the deadline without promoting other restrictions", () => {
+    const cooling = task(1, 30, "冷却中", 10_000);
+    const blocked = task(2, 30, "12:00:10 后刷新", 10_000);
+    expect(raceTaskTone(cooling, 10_000, true)).toBe("ready");
+    expect(raceTaskTone(cooling, 10_000, false)).toBe("blocked");
+    expect(raceTaskTone(blocked, 10_000, true)).toBe("blocked");
+    expect(nextRaceTaskReadyAt([blocked], 9_000)).toBe(10_000);
+    expect(nextRaceTaskReadyAt([blocked], 10_000)).toBeNull();
+    expect(nextRaceTaskReadyAt([task(3, 40, "已被接取", 10_000)], 9_000)).toBeNull();
+  });
   it("does not label a future cooldown task as ready", () => {
     const cooling = task(1, 30, "冷却中，12:00:10 后可接", 10_000);
     expect(raceTaskReady(cooling, 9_000)).toBe(false);
