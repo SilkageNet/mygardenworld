@@ -217,6 +217,9 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Order.Customer == nil {
 		cp.Order.Customer = proto.Clone(def.Order.Customer).(*pb.CustomerOrderPolicy)
 	}
+	if cp.Order.Customer.ExactFloralCoin != nil && *cp.Order.Customer.ExactFloralCoin < 0 {
+		cp.Order.Customer.ExactFloralCoin = proto.Int64(0)
+	}
 	if cp.Order.Resident == nil {
 		cp.Order.Resident = proto.Clone(def.Order.Resident).(*pb.ResidentOrderPolicy)
 	}

@@ -712,6 +712,50 @@ func (s *State) Zoo() ZooView {
 	return cloneZooView(s.zoo)
 }
 
+// InvalidateZooFoodBowl drops only the rejected target's capacity evidence.
+// An unrelated namespace-33 notification must not restore it.
+func (s *State) InvalidateZooFoodBowl(petID int32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if pet := s.zooPets[petID]; pet != nil {
+		pet.FoodstuffObserved = false
+		s.bumpRevisionLocked()
+	}
+}
+
+// RejectZooFoodStock removes a contradicted balance from feeding decisions,
+// without inventing an inventory delta (and therefore false consumption stats).
+// A later absolute inventory observation clears the limit; a delta only adds
+// its confirmed amount to the conservative usable balance.
+func (s *State) RejectZooFoodStock(itemID int32) {
+	if itemID != 1501 && itemID != 1502 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.zooFoodUsableLimits == nil {
+		s.zooFoodUsableLimits = make(map[int32]int32)
+	}
+	s.zooFoodUsableLimits[itemID] = 0
+	s.bumpRevisionLocked()
+}
+
+func (s *State) zooFoodUsableCountLocked(itemID int32) int32 {
+	count := s.inventory[itemID]
+	if limit, rejected := s.zooFoodUsableLimits[itemID]; rejected && count > limit {
+		return limit
+	}
+	return count
+}
+
+// ZooFoodUsableCount is the resource gate for feeding, not a replacement for
+// the last observed inventory count shown in the warehouse.
+func (s *State) ZooFoodUsableCount(itemID int32) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.zooFoodUsableCountLocked(itemID)
+}
+
 // ZooPets returns a defensive copy of the pet map.
 func (s *State) ZooPets() map[int32]ZooPetView {
 	s.mu.RLock()
@@ -1036,7 +1080,7 @@ func (s *State) NextZooFoodstuffPlan() (ZooFoodstuffPlan, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, foodstuffID := range []int32{1501, 1502} {
-		count := s.inventory[foodstuffID]
+		count := s.zooFoodUsableCountLocked(foodstuffID)
 		if count <= 0 {
 			continue
 		}

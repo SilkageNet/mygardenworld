@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"math"
 	"sort"
 	"time"
 )
@@ -88,8 +89,12 @@ func (s *State) applyInventoryCountsLocked(raw json.RawMessage, absolute bool) {
 		}
 		if absolute {
 			s.inventory[id] = count
+			delete(s.zooFoodUsableLimits, id)
 		} else {
 			s.inventory[id] += count
+			if limit, rejected := s.zooFoodUsableLimits[id]; rejected {
+				s.zooFoodUsableLimits[id] = int32(max(0, min(int64(math.MaxInt32), int64(limit)+int64(count))))
+			}
 		}
 		if id == 7 {
 			s.hasWaterDropsItem = true
@@ -275,9 +280,9 @@ func (s *State) MarkWaterDropsExhausted(now time.Time) {
 }
 
 // MarkInventoryItemExhausted reconciles local inventory after the server rejects
-// an RPC for material shortage (code 301 + param.iid). Zeroing the stale local
-// count prevents the planner from reissuing the same craft until an
-// authoritative namespace-7 update restores stock.
+// an RPC for material shortage (code 301 + param.iid). Zero is a conservative
+// usable balance, NOT evidence that the actual balance is zero. This prevents
+// reissuing the same rejected spend until namespace-7 restores usable stock.
 func (s *State) MarkInventoryItemExhausted(itemID int32) {
 	if itemID <= 0 {
 		return

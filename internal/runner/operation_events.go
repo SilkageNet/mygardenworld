@@ -43,6 +43,7 @@ const customerOrderGenerationNoopCooldown = 10 * time.Minute
 
 const (
 	operationErrorOrdinary                   operationErrorKind = "ordinary"
+	operationErrorZooFoodRejected            operationErrorKind = "zoo_food_rejected"
 	operationErrorHarvestNotMature           operationErrorKind = "harvest_not_mature"
 	operationErrorResidentOrderCooldown      operationErrorKind = "resident_order_cooldown"
 	operationErrorResidentOrderDailyLimit    operationErrorKind = "resident_order_daily_limit"
@@ -67,6 +68,10 @@ const (
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
+	var foodRejected *zooFoodRejectedError
+	if kind == clientproto.RPCZooAddFoodstuff.String() && errors.As(err, &foodRejected) {
+		return operationErrorZooFoodRejected
+	}
 	switch {
 	case isPearlHireCandidateFallbackError(kind, err):
 		return operationErrorPearlHireCandidateFallback
@@ -376,6 +381,24 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Level:       "warn",
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "offer_exhausted", "shopId": op.TargetID})
+		return nil
+	case operationErrorZooFoodRejected:
+		var rejected *zooFoodRejectedError
+		if !errors.As(err, &rejected) {
+			return err
+		}
+		details := map[string]any{"stage": "zoo_food_stock_rejected", "petId": rejected.PetID, "itemId": rejected.ItemID,
+			"requested": rejected.Requested, "stockBefore": rejected.StockBefore, "bowlBefore": rejected.BowlBefore,
+			"capacity": state.ZooFoodBowlCapacity(), "refreshError": rejected.RefreshError}
+		hint := "已刷新食盆，下轮按库存与购买设置重新决策"
+		if rejected.RefreshError != "" {
+			hint = "食盆刷新失败，等待后续状态更新"
+		}
+		payload, _ := json.Marshal(details)
+		r.emit(Event{Kind: "operation_deferred", Category: op.Category, Domain: op.Domain, Action: "blocked", Label: operationEventLabel(op), Level: "warn",
+			Message:     fmt.Sprintf("补充宠物食盆暂缓：服务端提示%s数量不足（请求 %d，本地原记录 %d），过期库存暂按不可用处理；%s", state.ItemLabel(rejected.ItemID), rejected.Requested, rejected.StockBefore, hint),
+			PayloadJSON: operationPayload(op, args, payload, err)})
+		r.logOperation(ctx, op.Kind, args, details)
 		return nil
 	case operationErrorWaterDropRejected:
 		r.state.MarkWaterDropsExhausted(result.finishedAt)

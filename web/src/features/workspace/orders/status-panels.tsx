@@ -148,6 +148,8 @@ function PendingTaskRow({ task, policy }: { task: PendingTaskView; policy: Polic
             </div>
           )}
           {task.cooldownReason && <div className="text-xs text-muted-foreground">{task.cooldownReason}</div>}
+          {task.category === "顾客订单" && <div className="text-xs text-muted-foreground">花坊币奖励：{task.floralCoinReward === undefined ? "待确认" : formatCount(task.floralCoinReward)}（普通交付）</div>}
+          {task.automationSkipReason && <div className="text-xs text-muted-foreground">{task.automationSkipReason}</div>}
           {task.requirements.length > 0 && <RequirementChips requirements={task.requirements} />}
         </div>
       </div>
@@ -158,6 +160,7 @@ function PendingTaskRow({ task, policy }: { task: PendingTaskView; policy: Polic
 function PendingTaskStatusBadge({ task, policy }: { task: PendingTaskView; policy: Policy | null }) {
   const disabledLabel = pendingTaskAutomationDisabledLabel(task, policy);
   if (disabledLabel) return <Badge variant="outline">{disabledLabel}</Badge>;
+  if (task.automationSkipReason) return <Badge variant="outline">已跳过</Badge>;
   if (pendingTaskCooling(task)) return <Badge variant="outline">冷却</Badge>;
   if (pendingTaskBlocked(task)) return <Badge variant="destructive">阻塞</Badge>;
   if (pendingTaskHasShortage(task)) return <Badge variant="destructive">缺口</Badge>;
@@ -173,6 +176,7 @@ function pendingTaskAutomationState(task: PendingTaskView, policy: Policy | null
   if (!policy.automationEnabled) return { kind: "disabled", label: "自动化关闭" };
   const categoryEnabled = pendingTaskCategoryEnabled(task, policy);
   if (categoryEnabled === false) return { kind: "disabled", label: "未启用" };
+  if (task.automationSkipReason) return { kind: "waiting", label: "已跳过" };
   if (categoryEnabled === undefined) return { kind: "enabled", label: "" };
   if (task.status === PlanStatus.READY) {
     return { kind: "enabled", label: "" };

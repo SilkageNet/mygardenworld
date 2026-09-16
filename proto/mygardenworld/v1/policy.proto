@@ -277,6 +277,10 @@ message CustomerOrderPolicy {
   // Minimum flower-art piece count to accept. Orders below this are rejected.
   // 0 means no filter; 2 accepts 2+ arts; 3 accepts only 3+ arts.
   int32 min_flower_art_count = 4;
+  // Exact whole-order floral-coin reward (item 1002), excluding video doubling.
+  // Absent disables the filter; zero explicitly matches zero-reward orders.
+  // Mismatches stay pending (never auto-rejected), including during a race task.
+  optional int64 exact_floral_coin = 5;
 }
 
 message ResidentOrderPolicy {

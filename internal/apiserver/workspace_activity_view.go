@@ -247,11 +247,22 @@ func buildPendingTasksAtPolicy(st *state.State, now time.Time, policy *pb.Policy
 		if len(reqs) == 0 {
 			continue
 		}
+		var coins *int64
+		if amount, known := state.CustomerOrderFloralCoinReward(order); known {
+			coins = &amount
+		}
+		skipReason := automation.CustomerOrderRewardSkipReason(order, policy.GetOrder().GetCustomer())
+		status := requirementsStatus(reqs)
+		if skipReason != "" {
+			status = pb.PlanStatus_PLAN_STATUS_SKIPPED
+		}
 		out = append(out, &pb.PendingTaskView{
 			Category:                "顾客订单",
 			Id:                      strconv.FormatInt(int64(npcID), 10),
 			Title:                   fmt.Sprintf("顾客订单 NPC=%d", npcID),
-			Status:                  requirementsStatus(reqs),
+			Status:                  status,
+			FloralCoinReward:        coins,
+			AutomationSkipReason:    skipReason,
 			Requirements:            reqs,
 			ExecutionFeature:        pb.TaskExecutionFeature_TASK_EXECUTION_FEATURE_CUSTOMER_ORDER,
 			AutoCompletionSupported: true,

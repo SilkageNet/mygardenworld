@@ -132,7 +132,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 				if order == nil {
 					continue
 				}
-				if !customerOrderMeetsMinFlowerArt(order, customerPolicy, bypassMinArt) {
+				if CustomerOrderRewardSkipReason(order, customerPolicy) != "" || !customerOrderMeetsMinFlowerArt(order, customerPolicy, bypassMinArt) {
 					continue
 				}
 				entityID := strconv.FormatInt(int64(npcID), 10)
