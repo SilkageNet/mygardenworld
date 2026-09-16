@@ -1996,8 +1996,12 @@ type CustomerOrderPolicy struct {
 	// Minimum flower-art piece count to accept. Orders below this are rejected.
 	// 0 means no filter; 2 accepts 2+ arts; 3 accepts only 3+ arts.
 	MinFlowerArtCount int32 `protobuf:"varint,4,opt,name=min_flower_art_count,json=minFlowerArtCount,proto3" json:"min_flower_art_count,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Exact whole-order floral-coin reward (item 1002), excluding video doubling.
+	// Absent disables the filter; zero explicitly matches zero-reward orders.
+	// Mismatches stay pending (never auto-rejected), including during a race task.
+	ExactFloralCoin *int64 `protobuf:"varint,5,opt,name=exact_floral_coin,json=exactFloralCoin,proto3,oneof" json:"exact_floral_coin,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *CustomerOrderPolicy) Reset() {
@@ -2054,6 +2058,13 @@ func (x *CustomerOrderPolicy) GetDailyLimit() int32 {
 func (x *CustomerOrderPolicy) GetMinFlowerArtCount() int32 {
 	if x != nil {
 		return x.MinFlowerArtCount
+	}
+	return 0
+}
+
+func (x *CustomerOrderPolicy) GetExactFloralCoin() int64 {
+	if x != nil && x.ExactFloralCoin != nil {
+		return *x.ExactFloralCoin
 	}
 	return 0
 }
@@ -3306,13 +3317,15 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x06palace\x18\x03 \x01(\v2#.mygardenworld.v1.PalaceOrderPolicyR\x06palace\x125\n" +
 	"\x04team\x18\x04 \x01(\v2!.mygardenworld.v1.TeamOrderPolicyR\x04team\x12@\n" +
 	"\n" +
-	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"\xbf\x01\n" +
+	"flower_art\x18\x05 \x01(\v2!.mygardenworld.v1.FlowerArtPolicyR\tflowerArt\"\x86\x02\n" +
 	"\x13CustomerOrderPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12<\n" +
 	"\x1areject_unavailable_enabled\x18\x02 \x01(\bR\x18rejectUnavailableEnabled\x12\x1f\n" +
 	"\vdaily_limit\x18\x03 \x01(\x05R\n" +
 	"dailyLimit\x12/\n" +
-	"\x14min_flower_art_count\x18\x04 \x01(\x05R\x11minFlowerArtCount\"\xdd\x02\n" +
+	"\x14min_flower_art_count\x18\x04 \x01(\x05R\x11minFlowerArtCount\x12/\n" +
+	"\x11exact_floral_coin\x18\x05 \x01(\x03H\x00R\x0fexactFloralCoin\x88\x01\x01B\x14\n" +
+	"\x12_exact_floral_coin\"\xdd\x02\n" +
 	"\x13ResidentOrderPolicy\x12%\n" +
 	"\x0enormal_enabled\x18\x01 \x01(\bR\rnormalEnabled\x12,\n" +
 	"\x12normal_daily_limit\x18\x02 \x01(\x05R\x10normalDailyLimit\x12)\n" +
@@ -3538,6 +3551,7 @@ func file_mygardenworld_v1_policy_proto_init() {
 	if File_mygardenworld_v1_policy_proto != nil {
 		return
 	}
+	file_mygardenworld_v1_policy_proto_msgTypes[18].OneofWrappers = []any{}
 	file_mygardenworld_v1_policy_proto_msgTypes[26].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

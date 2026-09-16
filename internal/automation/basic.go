@@ -395,6 +395,9 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 	if !s.ZooObserved() {
 		return []PlannedOp{domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "宠物状态未同步，先进入宠物模块", 5690, 0, 0, 0)}
 	}
+	if policy.GetAutoFeed() && len(s.ZooPets()) > 0 && !s.ZooFoodBowlsObserved() {
+		ops = append(ops, domainOp(clientproto.RPCZooEnterZoo.String(), goal, "basic.zoo", "sync", "食盆容量证据不完整，先刷新宠物食盆", 5690, 0, 0, 0))
+	}
 	need, bowlNeedsStock := s.NextZooFoodBowlNeed()
 	food, foodInInventory := s.NextZooFoodstuffPlan()
 	if policy.GetAutoFeed() && bowlNeedsStock {
@@ -403,7 +406,7 @@ func zooOperations(s *state.State, policy *pb.ZooPolicy, now time.Time) []Planne
 			stock.ItemCost = map[int32]int32{food.FoodstuffID: food.Count}
 			ops = append(ops, stock)
 		} else if !policy.GetAutoBuyFood() {
-			waiting := markerOp(CategoryBasic, "basic.zoo.feed", "stock", "食盆有空位，但普通/高级猫粮库存均为 0；可开启购买普通猫粮", 5688)
+			waiting := markerOp(CategoryBasic, "basic.zoo.feed", "stock", "食盆有空位，但暂无已确认可用的猫粮或小鱼干；可开启购买普通猫粮", 5688)
 			waiting.Status = PlanStatusSkipped
 			waiting.Executable = false
 			waiting.TargetID = need.PetID
@@ -581,6 +584,21 @@ func zooFoodPurchaseOperation(s *state.State, policy *pb.ZooPolicy, goal Goal, n
 	buy := domainOp(clientproto.RPCShopBuy.String(), goal, "basic.zoo.buy_food", "buy", fmt.Sprintf("食盆缺少 %d 份，购买金币普通猫粮 %d 份", need.Count, count), 5687, shop.ShopTempID, shop.ShopItemID, count)
 	buy.GoldCost = shop.GoldCost * count
 	return buy
+}
+
+// ValidateZooFoodStock rechecks the target bowl and stock, not pet satiety.
+func ValidateZooFoodStock(s *state.State, policy *pb.ZooPolicy, op *PlannedOp) error {
+	if s == nil || op == nil || !policy.GetEnabled() || !policy.GetAutoFeed() {
+		return fmt.Errorf("宠物自动补充食盆未开启或状态不可用")
+	}
+	pet, ok := s.ZooPets()[op.TargetID]
+	if !ok || !pet.FoodstuffObserved || op.Count <= 0 || op.Count > state.ZooFoodBowlCapacity()-int32(len(pet.FoodstuffIDs)) {
+		return fmt.Errorf("宠物食盆未同步或剩余空位不足")
+	}
+	if (op.ItemID != 1501 && op.ItemID != 1502) || s.ZooFoodUsableCount(op.ItemID) < op.Count {
+		return fmt.Errorf("食物库存不足或物品不支持")
+	}
+	return nil
 }
 
 // ValidateZooFoodPurchase rechecks the exact client shop, bowl demand, quota,

@@ -158,6 +158,10 @@ message PendingTaskView {
   TaskExecutionFeature execution_feature = 10;
   // False means the task stays pending because no safe protocol path exists.
   bool auto_completion_supported = 11;
+  // Ordinary whole-order reward; absent means not applicable or unknown.
+  optional int64 floral_coin_reward = 12;
+  // Planner-owned explanation when an otherwise visible order is filtered out.
+  string automation_skip_reason = 13;
 }
 
 enum TaskExecutionFeature {

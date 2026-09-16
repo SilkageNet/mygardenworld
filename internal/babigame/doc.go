@@ -364,9 +364,16 @@
 // The client red-dot gate uses c_zooState.isTouch plus c_zoo.$moodMax1 and
 // strokeCdTime to decide whether strokePet is available. Normal bowl stocking
 // uses zoo.addFoodstuff with inventory food IDs and is gated only by observed
-// foodstuffArr capacity and inventory—not pet status or satiety. When enabled
-// and inventory is empty, generic shop 9 item 90001 buys food 1501 for 100 gold
-// per unit, subject to namespace 20 dRecord's daily limit. Diamond food 90002
+// foodstuffArr capacity and inventory—not pet status or satiety. A matching
+// 301/param.iid rejection invalidates that food's usable local balance and
+// refreshes the target bowl once via the existing session. This
+// does not assert a real zero balance: enterZoo refreshes namespace 33, not
+// inventory. This does not fabricate inventory changes or consumption stats;
+// namespace-7 absolute counts restore stock, while deltas only restore their
+// confirmed incremental quantity. The next planner turn may use other stock
+// or the configured gold-only purchase. When enabled and usable inventory is
+// empty, generic shop 9 item 90001 buys food 1501 for 100 gold per unit, subject
+// to namespace 20 dRecord's daily limit. Diamond food 90002
 // remains blocked. zoo.feedPets is only an acknowledgement path for another
 // player's feeding notification. Automated
 // event handling is sourced from 33.2 logs, never inferred from pet fields.

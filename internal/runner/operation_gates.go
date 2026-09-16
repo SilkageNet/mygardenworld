@@ -34,10 +34,20 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 	if op == nil {
 		return nil
 	}
+	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() || op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() ||
+		(op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.GoalID == automation.GoalCustomerOrder) {
+		if reason := automation.CustomerOrderRewardSkipReason(r.state.CustomerOrderDetails()[op.TargetID], r.Policy().GetOrder().GetCustomer()); reason != "" {
+			return fmt.Errorf("顾客订单已跳过：%s", reason)
+		}
+	}
 	// Defense in depth: even if a future planner regression emits one of these
 	// operations as executable, do not send a request that depends on fabricated
 	// advertising SDK callbacks or tokens.
 	switch op.Kind {
+	case clientproto.RPCZooAddFoodstuff.String():
+		if err := automation.ValidateZooFoodStock(r.state, r.Policy().GetBasic().GetZoo(), op); err != nil {
+			return err
+		}
 	case clientproto.RPCFmlRaceUpgradeTask.String():
 		if !r.Policy().GetAutomationEnabled() {
 			return fmt.Errorf("自动化已暂停，不消费元宝")

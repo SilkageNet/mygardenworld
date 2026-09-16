@@ -510,6 +510,16 @@ export default function PolicyPanel({
                   description="0 不限；设 2 只做需 2/3 件花艺的单，设 3 只做需 3 件的单；已接竞赛顾客任务时不受此限"
                   onChange={(value) => updateCustomer({ minFlowerArtCount: value })}
                 />
+                <ToggleRow label="指定花坊币奖励" checked={customer?.exactFloralCoin !== undefined} onChange={(checked) => updateCustomer({ exactFloralCoin: checked ? BigInt(1) : undefined })} />
+                {customer?.exactFloralCoin !== undefined && (
+                  <BigIntNumberRow
+                    label="花坊币等于"
+                    value={customer.exactFloralCoin}
+                    min={0}
+                    description="按整单普通奖励精确匹配，不含广告翻倍；不匹配或奖励未知时保留订单，不制作、不交付、不自动拒绝。竞赛任务也遵守此条件；保留订单可能占满顾客名额。"
+                    onChange={(value) => updateCustomer({ exactFloralCoin: value })}
+                  />
+                )}
                 <ToggleRow label="暂时无货" checked={customer?.rejectUnavailableEnabled ?? false} onChange={(checked) => updateCustomer({ rejectUnavailableEnabled: checked })} />
                 <StatusRow label="今日进度" value={customerOrderStatusLabel} tone={customerOrderStatusTone} />
               </div>

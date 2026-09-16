@@ -1158,6 +1158,22 @@ func TestBuildPlan_CustomerMinFlowerArtBypassedWhenRaceHoldsCustomerTask(t *test
 	p.AutomationEnabled = true
 	p.Order.Customer.Enabled = true
 	p.Order.Customer.MinFlowerArtCount = 3
+	// Unlike the historical piece-count preference, the explicit currency
+	// filter remains a hard gate during a race and must not reject the order.
+	exact := int64(3)
+	p.Order.Customer.ExactFloralCoin = &exact
+	filtered := BuildPlan(s, p, time.Now())
+	for _, operation := range filtered.Operations {
+		if operation.GoalID == GoalCustomerOrder && operation.Executable {
+			t.Fatalf("race bypassed exact reward filter: %+v", operation)
+		}
+	}
+	for _, demand := range filtered.Demands {
+		if demand.GoalID == GoalCustomerOrder {
+			t.Fatalf("filtered race order created demand: %+v", demand)
+		}
+	}
+	p.Order.Customer.ExactFloralCoin = nil
 
 	result := BuildPlan(s, p, time.Now())
 	for _, op := range result.Operations {

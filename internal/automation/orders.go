@@ -130,6 +130,15 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRace())
 			for npcID, customerOrder := range s.CustomerOrderDetails() {
 				reqSummary := FormatCustomerOrderRequires(s, customerOrder)
+				if reason := CustomerOrderRewardSkipReason(customerOrder, customer); reason != "" {
+					filtered := markerOp(CategoryOrder, GoalCustomerOrder, "filter", reason, goal.Priority*100)
+					filtered.GoalID = goal.ID
+					filtered.TargetID = npcID
+					filtered.Status = PlanStatusSkipped
+					filtered.Executable = false
+					ops = append(ops, filtered)
+					continue
+				}
 				if !customerOrderMeetsMinFlowerArt(customerOrder, customer, bypassMinArt) {
 					artCount := customerOrderFlowerArtCount(customerOrder)
 					minArt := customer.GetMinFlowerArtCount()

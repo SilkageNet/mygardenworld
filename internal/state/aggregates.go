@@ -189,6 +189,7 @@ type assetState struct {
 	benefitBoxUTimeMs        int64
 	benefitBoxObserved       bool
 	zoo                      ZooView
+	zooFoodUsableLimits      map[int32]int32
 	zooPets                  map[int32]*ZooPetView
 	zooLogs                  map[string]*ZooLogView
 	zooSouvenirs             map[int32]*ZooSouvenirView
