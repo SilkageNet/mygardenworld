@@ -782,7 +782,19 @@ func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, e
 		payload["diamondCost"] = op.DiamondCost
 	}
 	if len(raw) > 0 {
-		payload["raw"] = json.RawMessage(raw)
+		// Successful read-side syncs only need their outcome and request metadata;
+		// full snapshots live in State. Keep bounded raw evidence for mutations
+		// and failures, with an explicit marker instead of invalid JSON truncation.
+		switch {
+		case err == nil && op.Action == "sync":
+			payload["rawOmitted"] = "successful_sync"
+			payload["rawBytes"] = len(raw)
+		case len(raw) > 32<<10:
+			payload["rawOmitted"] = "size_limit"
+			payload["rawBytes"] = len(raw)
+		default:
+			payload["raw"] = json.RawMessage(raw)
+		}
 	}
 	if !op.CooldownUntil.IsZero() {
 		payload["cooldownUntilMs"] = op.CooldownUntil.UnixMilli()

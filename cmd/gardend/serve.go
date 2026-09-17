@@ -174,6 +174,10 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	}
 	defer func() { _ = db.Close() }()
 	log.Info("opened sqlite", "path", dbPath)
+	prepareAutomaticReclaim(ctx, db, log)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	maintenanceCtx, cancelMaintenance := context.WithCancel(ctx)
 	maintenanceDone := make(chan struct{})
 	diagnosticsDone := make(chan struct{})

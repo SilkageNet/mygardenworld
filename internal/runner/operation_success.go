@@ -2,7 +2,6 @@ package runner
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -163,7 +162,8 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		Message:     message,
 		PayloadJSON: operationPayload(op, args, result.raw, nil),
 	})
-	r.logOperation(ctx, op.Kind, args, json.RawMessage(result.raw))
+	// The structured completion event already contains the diagnostic payload.
+	// Do not store the same successful RPC again in operation_log.
 	r.clearOperationCooldown(op)
 	r.clearCultivateUpgradeResourceRejection(op)
 	r.deferNoopCustomerOrderGeneration(op, result.finishedAt)

@@ -318,6 +318,12 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 		if !empty {
 			return fmt.Errorf("%w; this breaking release only accepts versioned databases; use `gardend reset-data --yes` to create the v%d baseline", ErrUnversionedDatabase, currentSchemaVersion)
 		}
+		// WAL initialization already materialized an empty database header.
+		// Rebuild that empty file to persist pointer maps before creating tables.
+		// Existing files are converted at daemon startup outside migrations.
+		if _, err := db.ExecContext(ctx, "PRAGMA auto_vacuum=INCREMENTAL; VACUUM"); err != nil {
+			return fmt.Errorf("enable incremental vacuum: %w", err)
+		}
 	}
 	if version > currentSchemaVersion {
 		return fmt.Errorf("%w: got v%d, binary supports v%d", ErrNewerDatabase, version, currentSchemaVersion)

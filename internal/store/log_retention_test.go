@@ -128,3 +128,52 @@ func TestCleanLogsBeforeDeletesMultipleBatches(t *testing.T) {
 		t.Fatalf("cleanup result=%+v, want %d rows from each table", result, want)
 	}
 }
+
+func TestCleanupTickBoundsWorkAndPreservesRedeemKeys(t *testing.T) {
+	db, _ := spaceFixture(t)
+	ctx := context.Background()
+	u, err := db.CreateUser(ctx, "owner", "owner@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := db.CreateAccount(ctx, u.ID, "main", "ios", "game", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<1005)
+INSERT INTO event_log(account_id,kind,ts) SELECT ?, 'test', '2026-01-01 00:00:00' FROM n`, a.ID); err != nil {
+		t.Fatal(err)
+	}
+	cutoff := time.Date(2026, 9, 17, 0, 0, 0, 0, time.UTC)
+	batch, err := db.CleanLogBatchBefore(ctx, cutoff)
+	if err != nil || batch.EventLogs != 1000 {
+		t.Fatalf("batch=%+v err=%v", batch, err)
+	}
+	batch, err = db.CleanLogBatchBefore(ctx, cutoff)
+	if err != nil || batch.EventLogs != 5 {
+		t.Fatalf("batch=%+v err=%v", batch, err)
+	}
+	if _, err := db.RedeemInstanceID(ctx); err != nil {
+		t.Fatal(err)
+	}
+	code, _, err := db.UpsertRedeemCode(ctx, RedeemCodeInput{Code: "PERMANENT", Channel: "ios", SourceKey: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.EnsureRedeemAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE redeem_attempts SET status='success',message='old detailed result',updated_at='2026-01-01 00:00:00' WHERE redeem_code_id=?`, code.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CompactRedeemHistory(ctx, cutoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.EnsureRedeemAttempts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var status, message string
+	if err := db.QueryRowContext(ctx, `SELECT status,message FROM redeem_attempts WHERE redeem_code_id=? AND account_id=?`, code.ID, a.ID).Scan(&status, &message); err != nil || status != "success" || message != "" {
+		t.Fatalf("status=%s message=%s err=%v", status, message, err)
+	}
+}
