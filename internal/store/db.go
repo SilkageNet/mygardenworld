@@ -44,7 +44,7 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		return nil, fmt.Errorf("database path: %w", err)
 	}
 	fileURL := databaseFileURL(absolutePath)
-	sqldb, err := sql.Open("sqlite", fileURL+"?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	sqldb, err := sql.Open("sqlite", fileURL+"?_txlock=immediate&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_size_limit(8388608)")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)
 	}

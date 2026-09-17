@@ -549,11 +549,12 @@ func (r *Runner) installStateHandlers() {
 	})
 	r.state.SetOnInventoryChange(func(snap state.InventorySnapshot) {
 		r.stats.ObserveInventorySnapshot(snap, time.Now())
-		raw, _ := json.Marshal(snap)
+		// Log the observed delta, not a full warehouse snapshot on every change.
+		// Runtime statistics still consume the original authoritative snapshot.
 		r.emit(Event{
 			Kind:        "inventory_changed",
 			Message:     inventoryChangeMessage(snap),
-			PayloadJSON: string(raw),
+			PayloadJSON: inventoryChangePayload(snap),
 		})
 	})
 }

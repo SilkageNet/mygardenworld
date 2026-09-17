@@ -74,3 +74,40 @@ func TestCleanExpiredLogsConsumesDatabaseErrors(t *testing.T) {
 	// Keep the no-op logger shape used by production callers covered as well.
 	cleanExpiredLogs(ctx, db, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Now().UTC(), 24*time.Hour)
 }
+
+func TestKeepForeverStillReclaimsDeletedSpace(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	u, err := db.CreateUser(ctx, "owner", "o@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := db.CreateAccount(ctx, u.ID, "main", "ios", "game", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.LogEvent(ctx, store.EventLog{AccountID: a.ID, Kind: "keep", TS: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE deleted_fixture(data BLOB); INSERT INTO deleted_fixture VALUES(zeroblob(2097152)); DELETE FROM deleted_fixture`); err != nil {
+		t.Fatal(err)
+	}
+	before, err := db.DatabaseSpace(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	maintainDatabase(ctx, db, log, time.Date(2026, 9, 17, 12, 1, 0, 0, time.UTC), 0)
+	after, err := db.DatabaseSpace(ctx)
+	if err != nil || after.Pages >= before.Pages {
+		t.Fatalf("before=%+v after=%+v err=%v", before, after, err)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM event_log`).Scan(&count); err != nil || count != 1 {
+		t.Fatal("keep-forever log was deleted")
+	}
+}

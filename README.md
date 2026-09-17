@@ -40,7 +40,7 @@ gardend serve --listen 127.0.0.1:50051
 
 [查看社区兑换码的数据流与可信闭环](assets/redeem-exchange.svg)。
 
-数据默认保存在系统用户配置目录下的 `mygardenworld/data`。事件与操作日志默认保留 7 天，可通过 `gardend serve --log-retention-days N` 调整；`0` 表示永久保留，`1` 表示保留 1 天。清理后 SQLite 会复用空闲页，但文件不会自动缩小；如需归还磁盘空间，先停止 `gardend`，再运行 `gardend compact-db --yes`。
+数据默认保存在系统用户配置目录下的 `mygardenworld/data`。事件与操作日志默认保留 7 天，可通过 `gardend serve --log-retention-days N` 调整；`0` 表示永久保留，`1` 表示保留 1 天。后台每分钟分批清理并增量回收空闲空间，无需定期手动压缩；长事务占用时会延后回收。旧库首次升级会在连接游戏前自动转换回收格式（可能延长启动，需预留临时磁盘空间）；转换失败会保留原库、明确告警并在下次启动重试。`compact-db` 仅作为可选离线维护工具。成功操作不再重复保存两份响应，库存日志只记录变化；90 天前的兑换终态消息会精简，兑换结果与去重记录保留。
 
 需要多个独立实例时，为每个实例指定不同的 `--data-dir` 和 `--listen`，例如分别使用 `gardend serve --data-dir ./data-a --listen 127.0.0.1:50051` 与 `gardend serve --data-dir ./data-b --listen 127.0.0.1:50052`（各自配置启动所需的密钥和管理员密码）。目录分别保存数据库及加密密钥；不要让多个守护进程共用同一数据目录，也不要在不同实例中同时运行同一个游戏账号。当前仅支持本机 SQLite，不支持共享数据库的集群部署或 MySQL。
 

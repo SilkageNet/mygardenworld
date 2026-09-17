@@ -85,6 +85,11 @@ func isNoisyStateEvent(e Event) bool {
 	return e.Kind == "land_changed" || e.Kind == "resource_changed" || e.Kind == "inventory_changed"
 }
 
+func inventoryChangePayload(snap state.InventorySnapshot) string {
+	raw, _ := json.Marshal(map[string]any{"changes": snap.Changes})
+	return string(raw)
+}
+
 func (r *Runner) emitLandChanges(changes []state.LandChange) {
 	if len(changes) == 0 {
 		return
