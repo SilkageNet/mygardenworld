@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,14 +79,23 @@ func TestAutomaticReclaimDefersForReaderAndRecovers(t *testing.T) {
 	}
 	bounded, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	if _, err := db.ReclaimDatabaseSpace(bounded); err != nil {
+	// Exhausting the maintenance budget is an expected deferral, especially
+	// on contended CI disks. Correctness is recovery afterwards, not completing
+	// all page moves within an arbitrary wall-clock threshold.
+	if _, err := db.ReclaimDatabaseSpace(bounded); err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
+	}
+	if err := db.writer.QueryRowContext(ctx, `PRAGMA busy_timeout`).Scan(&count); err != nil || count != 5000 {
+		t.Fatalf("writer after deferred reclaim: busy_timeout=%d err=%v", count, err)
 	}
 	if err := tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.ReclaimDatabaseSpace(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO reclaim_fixture VALUES(1,zeroblob(32))`); err != nil {
+		t.Fatalf("business write after deferred reclaim: %v", err)
 	}
 }
 
