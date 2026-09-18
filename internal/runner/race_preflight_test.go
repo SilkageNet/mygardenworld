@@ -131,8 +131,13 @@ func TestRaceTakeRechecksAfterRequestPacing(t *testing.T) {
 		blocked  bool
 	}{
 		{name: "unchanged"},
+		{name: "unclaimed upgraded without member", initial: `"14":1,"15":0`},
+		{name: "unclaimed upgraded with omitted member", initial: `"14":1`},
+		{name: "absent member remains allowed after exclusion enabled", initial: `"14":1,"15":0`, policyOn: true},
+		{name: "unclaimed upgraded becomes occupied", initial: `"14":1,"15":0`, update: `"14":1,"15":0,"12":100`, blocked: true},
+		{name: "absent member becomes known other", initial: `"14":1,"15":0`, update: `"14":1,"15":100`, blocked: true},
 		{name: "upgraded by other", update: `"14":1,"15":100`, blocked: true},
-		{name: "upgrade ownership missing", update: `"14":1`, blocked: true},
+		{name: "upgrade facts changed requires replan", update: `"14":1`, blocked: true},
 		{name: "upgrade owner changed without score change", initial: `"14":1,"15":999`, update: `"14":1,"15":100`, blocked: true},
 		{name: "taken by other", update: `"12":100`, blocked: true},
 		{name: "exclusion enabled while queued", initial: `"14":1,"15":100`, policyOn: true, blocked: true},
