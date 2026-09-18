@@ -72,7 +72,11 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 	if err := r.loadAccountSafety(ctx); err != nil {
 		return fail(err)
 	}
-	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 && s.RestrictedUntilMS > time.Now().UnixMilli() {
+	// Publish explicit activation before choosing a protected recovery route.
+	// Otherwise a paused account started after the deadline still has its old
+	// disabled policy here and incorrectly tries the cache before fresh auth.
+	// The background worker retains all cooldown, opt-in and durable budget gates.
+	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 {
 		r.emit(Event{Kind: "account_request_paused", Category: "account", Domain: "account.request", Action: "blocked",
 			Label: "账号请求保护", Message: r.restrictionError().Error(), Level: "warn"})
 		return finish(nil, username, password)
@@ -100,9 +104,10 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 	return finish(client, username, password)
 }
 
-// connectStoredOrFresh first tries the encrypted session captured during
-// account creation or the previous successful login. A rejected/corrupt cache
-// is deleted and the channel-specific fresh login becomes the fallback.
+// connectStoredOrFresh prefers encrypted session reuse for normal reconnects.
+// Explicitly opted-in 5000 recovery prefers one fresh authentication after the
+// first cooldown, subject to the durable allowance. It never deletes a usable
+// cache merely because 5000 occurred.
 func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
 	ctx, release, gateErr := r.beginGameWork(ctx)
 	if gateErr != nil {
@@ -199,7 +204,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	}
 	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode == 5000 {
 		r.emit(Event{Kind: "account_recovery_authentication", Category: "account", Domain: "account.request", Action: "authenticating",
-			Label: "账号恢复认证", Message: "旧会话验证仍失败，按已启用设置尝试本次唯一的新认证；额度已持久化，失败也不会重试新认证", Level: "warn"})
+			Label: "账号恢复认证", Message: "5000 保护冷却已结束，按已启用设置跳过旧会话，尝试本次唯一的新认证；额度已持久化，失败也不会重试新认证", Level: "warn"})
 	}
 	var (
 		session *babigame.Session

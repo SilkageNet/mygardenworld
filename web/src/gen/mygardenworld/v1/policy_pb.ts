@@ -174,8 +174,8 @@ export type BasicPolicy = Message<"mygardenworld.v1.BasicPolicy"> & {
   redeemConnectMode: RedeemConnectMode;
 
   /**
-   * Opt-in: after 5000 recovery still fails or the cached token expires, permit one
-   * fresh authentication per incident (also rate-limited across incidents).
+   * Opt-in: after the first 5000 protection cooldown, prefer one fresh
+   * authentication instead of cached recovery (rate-limited across incidents).
    * May displace a mobile client; independent of displaced-session relogin.
    *
    * @generated from field: bool server_error_fresh_login_enabled = 18;

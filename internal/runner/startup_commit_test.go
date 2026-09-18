@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
@@ -189,5 +190,53 @@ func TestManagerDoesNotRegisterUncommittedStartup(t *testing.T) {
 	}
 	if err := m.PauseAutomation(t.Context(), r.account.ID, true); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestProtectedRestartCommitsActivationBeforeSelectingRecovery(t *testing.T) {
+	for _, elapsed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "during cooldown", true: "after cooldown"}[elapsed], func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				m, fixture, _ := startupCommitFixture(t)
+				p := fixture.Policy()
+				p.AutomationEnabled = false
+				p.Basic.ServerErrorFreshLoginEnabled = true
+				raw, err := policycfg.ToJSON(p)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := m.db.SavePolicyJSON(t.Context(), fixture.account.ID, raw); err != nil {
+					t.Fatal(err)
+				}
+				deadline := time.Now().Add(time.Minute)
+				if elapsed {
+					deadline = time.Now().Add(-time.Minute)
+				}
+				safety := store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 1, RestrictedUntilMS: deadline.UnixMilli()}
+				if err := m.db.SaveAccountRestriction(t.Context(), fixture.account.ID, safety); err != nil {
+					t.Fatal(err)
+				}
+				started, err := m.StartAutomation(t.Context(), fixture.account.ID, StartSourceControlPanel, true)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// No sleep: the background reconnect remains behind its initial
+				// timer. Verify startup itself made no game connection or auth.
+				assertStartupIntent(t, started, true)
+				started.mu.RLock()
+				connected := started.client != nil
+				started.mu.RUnlock()
+				if connected || started.freshRecoveryEligible(time.Now()) != elapsed {
+					t.Fatal("protected start used a connection or selected recovery before activation")
+				}
+				stored, err := m.db.LoadAccountRequestSafety(t.Context(), fixture.account.ID)
+				if err != nil || stored != safety {
+					t.Fatal("restart reset protection or consumed authentication", stored, err)
+				}
+				if err := m.PauseAutomation(t.Context(), fixture.account.ID, true); err != nil {
+					t.Fatal(err)
+				}
+			})
+		})
 	}
 }

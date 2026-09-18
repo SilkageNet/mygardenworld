@@ -63,7 +63,7 @@ func (d *DB) ReserveFreshRecovery(ctx context.Context, accountID, nowMS, interva
 		return false, fmt.Errorf("invalid recovery reservation")
 	}
 	res, err := d.ExecContext(ctx, `UPDATE account_request_safety SET fresh_login_attempted=1, last_fresh_login_ms=?
-		WHERE account_id=? AND restriction_code=5000 AND restriction_attempts>=2 AND restricted_until_ms<=?
+		WHERE account_id=? AND restriction_code=5000 AND restriction_attempts>=1 AND restricted_until_ms<=?
 		AND fresh_login_attempted=0 AND (last_fresh_login_ms=0 OR last_fresh_login_ms+?<=?)`, nowMS, accountID, nowMS, intervalMS, nowMS)
 	if err != nil {
 		return false, err
