@@ -1711,16 +1711,16 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want:   "冷却中，" + time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后可接",
 		},
 		{
-			name: "far CD plant not cultivated → refresh",
+			name: "far CD preserves uncultivated flower reason",
 			task: state.FmlRaceTaskView{
 				MsId: 18, TaskId: 3036, TaskType: 3036, Score: 30, ParamID: 23999,
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: policyBase(),
-			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
+			want:   "目标花卉未培养",
 		},
 		{
-			name: "far CD score gate would fail → refresh",
+			name: "far CD preserves score gate reason",
 			task: state.FmlRaceTaskView{
 				MsId: 19, TaskId: 3030, TaskType: 3030, Score: 5,
 				AppearTime: now.Add(time.Hour).UnixMilli(),
@@ -1730,7 +1730,7 @@ func TestRaceTakeSkipReason(t *testing.T) {
 				p.MinTaskScore = 20
 				return p
 			}(),
-			want: time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
+			want: "分数不足（≤20）",
 		},
 		{
 			name: "within lead is takeable",
@@ -1933,13 +1933,13 @@ func TestRaceTakeSkipReason(t *testing.T) {
 			want:   "已被接取",
 		},
 		{
-			name: "priority: CD time copy over score detail",
+			name: "priority: score detail over CD time copy",
 			task: state.FmlRaceTaskView{
 				MsId: 11, TaskId: 3030, TaskType: 3030, Score: 5,
 				AppearTime: now.Add(time.Hour).UnixMilli(),
 			},
 			policy: &pb.UnionRacePolicy{MinTaskScore: 20},
-			want:   time.UnixMilli(now.Add(time.Hour).UnixMilli()).Local().Format("15:04:05") + " 后刷新",
+			want:   "分数不足（≤20）",
 		},
 	}
 

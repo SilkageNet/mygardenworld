@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { create } from "@bufbuild/protobuf";
 import { FmlRaceTaskSchema } from "@/gen/mygardenworld/v1/workspace_union_pb";
-import { formatRaceTaskTime, nextRaceTaskReadyAt, raceTaskAvailability, raceTaskProgressLabel, raceTaskReady, raceTaskTone, selectRaceTaskList } from "./race-task-list";
+import { formatRaceTaskTime, nextRaceTaskReadyAt, raceTaskAvailability, raceTaskProgressLabel, raceTaskReady, raceTaskRefreshLabel, raceTaskTone, selectRaceTaskList } from "./race-task-list";
 
 const task = (msId: number, score: number, reason = "", appearTimeMs = 0) => create(FmlRaceTaskSchema, {
   msId: BigInt(msId),
@@ -15,11 +15,11 @@ describe("guild race task list", () => {
     ["", 0, true, "ready"],
     ["", 0, false, "blocked"],
     ["冷却中", 10_000, true, "cooldown"],
-    ["冷却中", 10_000, false, "cooldown"],
+    ["冷却中", 10_000, false, "blocked"],
     ["已被接取", 10_000, true, "claimed"],
     [" 已被接取 ", 0, false, "claimed"],
     ["优先级为0", 0, true, "blocked"],
-    ["12:00:10 后刷新", 10_000, true, "cooldown"],
+    ["升级归属不明，已跳过", 10_000, true, "blocked"],
     ["未知限制", 0, true, "blocked"],
   ])("uses an explicit presentation tone for %s", (reason, appearTimeMs, canTake, tone) => {
     expect(raceTaskTone(task(1, 30, reason, appearTimeMs), 9_000, canTake)).toBe(tone);
@@ -27,7 +27,7 @@ describe("guild race task list", () => {
 
   it("updates colors at the deadline without promoting other restrictions", () => {
     const cooling = task(1, 30, "冷却中", 10_000);
-    const blocked = task(2, 30, "12:00:10 后刷新", 10_000);
+    const blocked = task(2, 30, "升级归属不明，已跳过", 10_000);
     expect(raceTaskTone(cooling, 10_000, true)).toBe("ready");
     expect(raceTaskTone(cooling, 10_000, false)).toBe("blocked");
     expect(raceTaskTone(blocked, 10_000, true)).toBe("blocked");
@@ -48,12 +48,33 @@ describe("guild race task list", () => {
     expect(formatRaceTaskTime(BigInt(0))).toBe("");
   });
 
-  it("only schedules the next cooldown boundary and stops when none remain", () => {
+  it("only schedules the next display boundary and stops when none remain", () => {
     const tasks = [task(1, 20, "冷却中", 20_000), task(2, 30, "冷却中", 10_000), task(3, 40, "优先级为0", 5_000)];
-    expect(nextRaceTaskReadyAt(tasks, 0)).toBe(10_000);
+    expect(nextRaceTaskReadyAt(tasks, 0)).toBe(5_000);
+    expect(nextRaceTaskReadyAt(tasks, 5_000)).toBe(10_000);
     expect(nextRaceTaskReadyAt(tasks, 10_000)).toBe(20_000);
     expect(nextRaceTaskReadyAt(tasks, 20_000)).toBeNull();
     expect(nextRaceTaskReadyAt([], 0)).toBeNull();
+  });
+
+  it.each(["目标花卉未培养", "分数不足（≤20）", "他人已升级", "升级归属不明，已跳过", "优先级为0", "账号请求保护中"])("keeps %s blocked across the refresh boundary", (reason) => {
+    const blocked = task(1, 50, reason, 10_000);
+    for (const now of [9_000, 10_000, 11_000]) {
+      expect(raceTaskTone(blocked, now, true)).toBe("blocked");
+      expect(raceTaskAvailability(blocked, now)).toBe(`不可抢：${reason}`);
+      expect(raceTaskReady(blocked, now)).toBe(false);
+      expect(selectRaceTaskList([blocked], "ready", "score", now)).toEqual([]);
+    }
+    expect(raceTaskRefreshLabel(blocked, 9_000, true)).toBe(`${formatRaceTaskTime(BigInt(10_000))} 后刷新`);
+    expect(raceTaskRefreshLabel(blocked, 10_000, true)).toBeNull();
+  });
+
+  it("does not promise readiness while the account holds another task", () => {
+    const cooling = task(1, 50, "冷却中", 10_000);
+    expect(raceTaskAvailability(cooling, 9_000, false)).toBe("需先完成当前任务");
+    expect(raceTaskRefreshLabel(cooling, 9_000, false)).toContain("后刷新");
+    expect(raceTaskRefreshLabel(cooling, 9_000, true)).toBeNull();
+    expect(raceTaskRefreshLabel(task(2, 40, "已被接取", 10_000), 9_000, true)).toBeNull();
   });
 
   it("promotes a cooldown task when its observed appear time arrives", () => {

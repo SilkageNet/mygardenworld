@@ -20,7 +20,7 @@ export function raceTaskReady(task: FmlRaceTask, nowMs: number): boolean {
 export function raceTaskTone(task: FmlRaceTask, nowMs: number, canTake: boolean): RaceTaskTone {
   const reason = (task.takeSkipReason ?? "").trim();
   if (reason === "已被接取") return "claimed";
-  if ((reason.startsWith("冷却中") || reason.endsWith("后刷新")) && Number(task.appearTimeMs) > nowMs) return "cooldown";
+  if (canTake && reason.startsWith("冷却中") && Number(task.appearTimeMs) > nowMs) return "cooldown";
   return raceTaskReady(task, nowMs) && canTake ? "ready" : "blocked";
 }
 
@@ -39,13 +39,21 @@ export function selectRaceTaskList(
   return selected;
 }
 
-export function raceTaskAvailability(task: FmlRaceTask, nowMs: number): string {
+export function raceTaskAvailability(task: FmlRaceTask, nowMs: number, canTake = true): string {
   const reason = (task.takeSkipReason ?? "").trim();
+  if (!canTake && (raceTaskReady(task, nowMs) || reason.startsWith("冷却中"))) return "需先完成当前任务";
   if (raceTaskReady(task, nowMs)) return "现在可抢";
   if (reason.startsWith("冷却中")) {
     return `${formatRaceTaskTime(task.appearTimeMs)} 后可抢`;
   }
   return reason ? `不可抢：${reason}` : "状态待刷新";
+}
+
+// A refresh deadline is not a promise that policy/state restrictions will clear.
+export function raceTaskRefreshLabel(task: FmlRaceTask, nowMs: number, canTake: boolean): string | null {
+  return raceTaskTone(task, nowMs, canTake) === "blocked" && Number(task.appearTimeMs) > nowMs
+    ? `${formatRaceTaskTime(task.appearTimeMs)} 后刷新`
+    : null;
 }
 
 export function formatRaceTaskTime(ms: bigint): string {
@@ -55,12 +63,13 @@ export function formatRaceTaskTime(ms: bigint): string {
   });
 }
 
-// Only wake the task list when availability changes, not on every elapsed second.
+// Wake once at a deadline to update availability or remove auxiliary refresh text.
+// A blocked task stays blocked; no per-second countdown is needed.
 export function nextRaceTaskReadyAt(tasks: FmlRaceTask[], nowMs: number): number | null {
   let next: number | null = null;
   for (const task of tasks) {
     const at = Number(task.appearTimeMs);
-    if (raceTaskTone(task, nowMs, true) === "cooldown" && at > nowMs && (next === null || at < next)) next = at;
+    if ((task.takeSkipReason ?? "").trim() !== "已被接取" && at > nowMs && (next === null || at < next)) next = at;
   }
   return next;
 }
