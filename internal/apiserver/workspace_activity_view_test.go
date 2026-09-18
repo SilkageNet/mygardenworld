@@ -12,20 +12,22 @@ import (
 )
 
 func TestFmlRaceProtoSurfacesPoolProgressAndSkipReason(t *testing.T) {
+	now := time.Now()
 	view := state.FmlRaceView{Tasks: []state.FmlRaceTaskView{{
-		MsId:      81,
-		TaskId:    3030,
-		TaskType:  3030,
-		Score:     24,
-		TargetCnt: 10,
-		FinishCnt: 3,
+		MsId:       81,
+		TaskId:     3030,
+		TaskType:   3030,
+		Score:      24,
+		TargetCnt:  10,
+		FinishCnt:  3,
+		AppearTime: now.Add(time.Hour).UnixMilli(),
 	}}}
 	policy := &pb.UnionRacePolicy{
 		AvoidProgressedTasks: proto.Bool(true),
 		TaskTypePriority:     map[int32]int32{3030: 4},
 	}
 
-	got := fmlRaceProto(view, state.New(), policy, 0, time.Now(), automation.RaceModuleGates{})
+	got := fmlRaceProto(view, state.New(), policy, 0, now, automation.RaceModuleGates{})
 	if len(got.GetTasks()) != 1 {
 		t.Fatalf("tasks=%d, want 1", len(got.GetTasks()))
 	}
@@ -35,6 +37,36 @@ func TestFmlRaceProtoSurfacesPoolProgressAndSkipReason(t *testing.T) {
 	}
 	if task.GetTakeSkipReason() != "已有进度（3/10）" {
 		t.Fatalf("take skip reason=%q", task.GetTakeSkipReason())
+	}
+	if task.GetAppearTimeMs() != view.Tasks[0].AppearTime {
+		t.Fatal("refresh deadline must remain available independently of the restriction")
+	}
+}
+
+func TestFmlRaceProtoPreservesUpgradeRestrictionsAcrossCooldown(t *testing.T) {
+	now := time.Now()
+	deadline := now.Add(time.Hour)
+	for _, tc := range []struct {
+		name       string
+		upgradeUID int64
+		want       string
+	}{
+		{"other member", 99, "他人已升级"},
+		{"unknown member", 0, "升级归属不明，已跳过"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			view := state.FmlRaceView{Tasks: []state.FmlRaceTaskView{{
+				MsId: 18, TaskType: 3030, Score: 50, IsUpgrade: 1,
+				UpgradeUid: tc.upgradeUID, AppearTime: deadline.UnixMilli(),
+			}}}
+			policy := &pb.UnionRacePolicy{ExcludeOthersUpgradeTask: true}
+			for _, at := range []time.Time{now, deadline, deadline.Add(time.Second)} {
+				got := fmlRaceProto(view, state.New(), policy, 42, at, automation.RaceModuleGates{}).GetTasks()[0]
+				if got.GetTakeSkipReason() != tc.want || got.GetAppearTimeMs() != deadline.UnixMilli() {
+					t.Fatalf("at %s: reason=%q deadline=%d", at, got.GetTakeSkipReason(), got.GetAppearTimeMs())
+				}
+			}
+		})
 	}
 }
 

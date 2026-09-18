@@ -925,15 +925,17 @@ func RaceTakeSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb.Unio
 	if t.UID != 0 {
 		return "已被接取"
 	}
+	// Keep policy/state restrictions visible even while the slot is cooling.
+	// AppearTime carries the independent refresh deadline to the read model.
+	if reason := raceTakeNonCDSkipReason(s, t, policy, uid, gates); reason != "" {
+		return reason
+	}
 	leadUntil := now.Add(raceTakeLeadWindow).UnixMilli()
 	if t.AppearTime > 0 && t.AppearTime > leadUntil {
 		hhmmss := time.UnixMilli(t.AppearTime).Local().Format("15:04:05")
-		if raceTakeNonCDSkipReason(s, t, policy, uid, gates) != "" {
-			return hhmmss + " 后刷新"
-		}
 		return "冷却中，" + hhmmss + " 后可接"
 	}
-	return raceTakeNonCDSkipReason(s, t, policy, uid, gates)
+	return ""
 }
 
 // ManualRaceTakeOperation validates a user-selected task against the same

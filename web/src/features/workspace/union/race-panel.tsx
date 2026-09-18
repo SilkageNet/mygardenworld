@@ -18,6 +18,7 @@ import {
   raceTaskAvailability,
   raceTaskProgressLabel,
   raceTaskReady,
+  raceTaskRefreshLabel,
   raceTaskTone,
   selectRaceTaskList,
   type RaceTaskFilter,
@@ -304,7 +305,8 @@ export function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDe
   const takeable = raceTaskReady(task, nowMs);
   const tone = raceTaskTone(task, nowMs, canTake);
   const styles = taskToneStyles[tone];
-  const availability = takeable && !canTake ? "需先完成当前任务" : raceTaskAvailability(task, nowMs);
+  const availability = raceTaskAvailability(task, nowMs, canTake);
+  const refreshLabel = raceTaskRefreshLabel(task, nowMs, canTake);
   const progressLabel = raceTaskProgressLabel(task);
   const baseTitle = raceTaskTitle(task);
   return (
@@ -322,8 +324,11 @@ export function FmlRaceTaskCard({ index, task, nowMs, canTake, canDelete, showDe
         {task.upgradeUid > 0 && <span className="ml-auto">升级人 #{task.upgradeUid}</span>}
       </div>
       <div className="mt-2 flex min-h-7 items-center justify-between gap-2">
-        <span className={cn("text-xs font-medium", styles.text)}>{availability}</span>
-        <span className="flex items-center gap-1.5">
+        <div className="min-w-0 space-y-1 text-xs">
+          <p className={cn("font-medium", styles.text)}>{availability}</p>
+          {refreshLabel && <p className="text-muted-foreground">{refreshLabel}</p>}
+        </div>
+        <span className="flex shrink-0 items-center gap-1.5">
           {showDelete && (
             <Button type="button" size="sm" variant="destructive" onClick={onDelete} disabled={!canDelete || deleteBusy || takeBusy} title={canDelete ? "删除此任务" : deleteBlockedReason || "当前不可删除"}>
               {deleteBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
