@@ -19,7 +19,7 @@ describe("guild race task list", () => {
     ["已被接取", 10_000, true, "claimed"],
     [" 已被接取 ", 0, false, "claimed"],
     ["优先级为0", 0, true, "blocked"],
-    ["升级归属不明，已跳过", 10_000, true, "blocked"],
+    ["他人已升级", 10_000, true, "blocked"],
     ["未知限制", 0, true, "blocked"],
   ])("uses an explicit presentation tone for %s", (reason, appearTimeMs, canTake, tone) => {
     expect(raceTaskTone(task(1, 30, reason, appearTimeMs), 9_000, canTake)).toBe(tone);
@@ -27,7 +27,7 @@ describe("guild race task list", () => {
 
   it("updates colors at the deadline without promoting other restrictions", () => {
     const cooling = task(1, 30, "冷却中", 10_000);
-    const blocked = task(2, 30, "升级归属不明，已跳过", 10_000);
+    const blocked = task(2, 30, "他人已升级", 10_000);
     expect(raceTaskTone(cooling, 10_000, true)).toBe("ready");
     expect(raceTaskTone(cooling, 10_000, false)).toBe("blocked");
     expect(raceTaskTone(blocked, 10_000, true)).toBe("blocked");
@@ -57,7 +57,7 @@ describe("guild race task list", () => {
     expect(nextRaceTaskReadyAt([], 0)).toBeNull();
   });
 
-  it.each(["目标花卉未培养", "分数不足（≤20）", "他人已升级", "升级归属不明，已跳过", "优先级为0", "账号请求保护中"])("keeps %s blocked across the refresh boundary", (reason) => {
+  it.each(["目标花卉未培养", "分数不足（≤20）", "他人已升级", "当前账号身份尚未同步", "优先级为0", "账号请求保护中"])("keeps %s blocked across the refresh boundary", (reason) => {
     const blocked = task(1, 50, reason, 10_000);
     for (const now of [9_000, 10_000, 11_000]) {
       expect(raceTaskTone(blocked, now, true)).toBe("blocked");
