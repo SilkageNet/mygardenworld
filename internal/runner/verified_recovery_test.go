@@ -130,7 +130,7 @@ func TestRecoveryRequiresBusinessSuccessAndFreshEvidence(t *testing.T) {
 func TestFreshRecoveryRequiresIndependentOptInAndDurableBudget(t *testing.T) {
 	_, r, _ := startupCommitFixture(t)
 	now := time.Now()
-	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 2, RestrictedUntilMS: now.Add(-time.Second).UnixMilli()}
+	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 1, RestrictedUntilMS: now.Add(-time.Second).UnixMilli()}
 	if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, r.safety); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,50 @@ func TestFreshRecoveryFailsClosedWithoutDurableReservation(t *testing.T) {
 	}
 }
 
-func TestExpiredCachedTokenQualifiesOnlyAfterAnotherCooldown(t *testing.T) {
+func TestFreshRecoveryFirstCooldownMatchesDurableAdmission(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*store.AccountRequestSafety, time.Time)
+		want   bool
+	}{
+		{name: "first cooldown deadline", want: true},
+		{name: "before deadline", change: func(s *store.AccountRequestSafety, now time.Time) {
+			s.RestrictedUntilMS = now.Add(time.Millisecond).UnixMilli()
+		}},
+		{name: "no incident", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 0 }},
+		{name: "no recorded attempt", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionAttempts = 0 }},
+		{name: "explicit server wait", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 97778 }},
+		{name: "other server rejection", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 97777 }},
+		{name: "allowance consumed", change: func(s *store.AccountRequestSafety, _ time.Time) { s.FreshLoginAttempted = true }},
+		{name: "cross incident too soon", change: func(s *store.AccountRequestSafety, now time.Time) {
+			s.LastFreshLoginMS = now.Add(-freshRecoveryInterval + time.Millisecond).UnixMilli()
+		}},
+		{name: "cross incident deadline", change: func(s *store.AccountRequestSafety, now time.Time) {
+			s.LastFreshLoginMS = now.Add(-freshRecoveryInterval).UnixMilli()
+		}, want: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, r, _ := startupCommitFixture(t)
+			now := time.Now()
+			s := store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 1, RestrictedUntilMS: now.UnixMilli()}
+			if tc.change != nil {
+				tc.change(&s, now)
+			}
+			if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, s); err != nil {
+				t.Fatal(err)
+			}
+			if got := freshRecoveryAvailable(s, now); got != tc.want {
+				t.Fatalf("memory admission=%v want=%v", got, tc.want)
+			}
+			got, err := r.db.ReserveFreshRecovery(t.Context(), r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+			if err != nil || got != tc.want {
+				t.Fatalf("durable admission=%v want=%v err=%v", got, tc.want, err)
+			}
+		})
+	}
+}
+
+func TestFailedCachedRecoveryRetainsCooldownBeforeFreshAuthentication(t *testing.T) {
 	for _, code := range []int{91102, 12345} {
 		r := recoveryTestRunner()
 		r.safety.RestrictionAttempts = 1
@@ -211,8 +254,8 @@ func TestExpiredCachedTokenQualifiesOnlyAfterAnotherCooldown(t *testing.T) {
 		if freshRecoveryAvailable(s, time.Now()) {
 			t.Fatal("expired cache bypassed cooldown")
 		}
-		if got := freshRecoveryAvailable(s, time.UnixMilli(s.RestrictedUntilMS)); got != (code == 91102) {
-			t.Fatalf("code %d qualified=%v", code, got)
+		if !freshRecoveryAvailable(s, time.UnixMilli(s.RestrictedUntilMS)) {
+			t.Fatalf("code %d blocked recovery after cooldown", code)
 		}
 		if code == 91102 && (s.RestrictionAttempts != 2 || time.Until(time.UnixMilli(s.RestrictedUntilMS)) < 9*time.Minute) {
 			t.Fatal("expired cache did not retain backoff", s)

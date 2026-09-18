@@ -263,9 +263,10 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	return nil
 }
 
-// Resume through the existing cached-session reconnect path, which obtains a
-// full login baseline. LazySync does not refresh farm/inventory, and reLogin on
-// an already initialized socket does not refresh its snapshot either. Close
+// Resume through the shared session recovery path, which obtains a full login
+// baseline (cached or explicitly opted-in fresh auth). LazySync does not refresh
+// farm/inventory, and reLogin on an initialized socket does not refresh its
+// snapshot either. Close
 // the old socket first; never create a concurrent game connection or replay
 // the operation that triggered the restriction.
 func (r *Runner) recoverAccountRestriction(client *babigame.Client, now time.Time) bool {
@@ -295,9 +296,9 @@ func (r *Runner) deferRestrictionProbe(revision uint64, probeErr error) {
 		r.safetyMu.Unlock()
 		return
 	}
-	// A positively expired cached token is also evidence that cached recovery
-	// cannot work. It may qualify for the same opt-in allowance after waiting;
-	// transport failures and arbitrary error text never qualify a fresh login.
+	// A positively expired cached token advances recovery backoff. Transport
+	// failures and arbitrary error text do not establish token expiry. Fresh
+	// authentication keeps its independent opt-in, cooldown and durable budget.
 	var rejected *babigame.RPCServerError
 	if r.safety.RestrictionCode == 5000 && errors.As(probeErr, &rejected) && rejected.Name == clientproto.RPCIndexReLogin &&
 		rejected.Envelope.ErrorCode() == 91102 && !rejected.Envelope.IsSessionDisplaced() {

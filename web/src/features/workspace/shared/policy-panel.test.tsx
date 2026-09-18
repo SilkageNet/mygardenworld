@@ -13,6 +13,8 @@ it("shows independent recovery opt-in and displacement warning while offline", (
   expect(html).toContain("默认关闭");
   expect(html).toContain("可能挤下手机端");
   expect(html).toContain("与自动挤号设置独立");
+  expect(html).toContain("不先重试旧会话");
+  expect(html).toContain("暂停/启动不会重置冷却和额度");
 });
 
 describe("race upgrade configuration explains spending permission", () => {

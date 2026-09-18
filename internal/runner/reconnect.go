@@ -44,7 +44,9 @@ func (r *Runner) connectionLoop(ctx context.Context, username, password string, 
 			return
 		}
 		message := "网络连接断开，准备重连"
-		if current == nil {
+		if r.restrictionError() != nil {
+			message = "账号请求保护恢复已启动，按当前设置等待冷却并核验恢复"
+		} else if current == nil {
 			message = "WebSocket 首次连接失败，准备自动重连"
 		}
 		r.emit(Event{Kind: "ws_disconnected", Message: message, Level: "warn"})

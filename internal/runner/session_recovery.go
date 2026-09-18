@@ -22,7 +22,7 @@ type recoveryProbePermit struct {
 }
 
 func freshRecoveryAvailable(s store.AccountRequestSafety, now time.Time) bool {
-	return s.RestrictionCode == 5000 && s.RestrictionAttempts >= 2 && now.UnixMilli() >= s.RestrictedUntilMS &&
+	return s.RestrictionCode == 5000 && s.RestrictionAttempts >= 1 && now.UnixMilli() >= s.RestrictedUntilMS &&
 		!s.FreshLoginAttempted && (s.LastFreshLoginMS == 0 || now.UnixMilli() >= s.LastFreshLoginMS+freshRecoveryInterval.Milliseconds())
 }
 
@@ -45,7 +45,7 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 		return nil
 	}
 	if !p.GetAutomationEnabled() || !p.GetBasic().GetServerErrorFreshLoginEnabled() || !freshRecoveryAvailable(r.safety, now) {
-		return fmt.Errorf("5000 保护中未获准重新认证（需开启自动化和独立开关，旧会话验证仍失败，且本次未尝试、距上次至少 30 分钟）；可检查设置后手动登录")
+		return fmt.Errorf("5000 保护中未获准重新认证（需开启自动化和独立开关、冷却已结束，且本次未尝试、距上次至少 30 分钟）；可检查设置后手动登录")
 	}
 	if r.db == nil {
 		return fmt.Errorf("无法持久化恢复认证额度，未发送登录请求")
