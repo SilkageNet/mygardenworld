@@ -242,6 +242,13 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 		if err := svc.checkAccountQuota(ctx, userID); err != nil {
 			return nil, err
 		}
+	} else if svc.Manager != nil {
+		var release func()
+		ctx, release, err = svc.Manager.BeginAccountGameWork(ctx, existing.ID)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
 	}
 	cfg, err := babigame.ConfigForChannel(babigame.ChannelAlipay)
 	if err != nil {

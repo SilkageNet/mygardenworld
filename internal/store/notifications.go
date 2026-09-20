@@ -231,7 +231,7 @@ func (d *DB) ConsumeNotificationEvents(ctx context.Context, userID int64, now ti
 	var pending bool
 	if err := d.QueryRowContext(ctx, `SELECT EXISTS (
 SELECT 1 FROM user_notifications n JOIN users u ON u.id = n.user_id
-JOIN accounts a ON a.user_id = n.user_id JOIN event_log e ON e.account_id = a.id
+JOIN accounts a ON a.user_id = n.user_id AND a.deletion_pending=0 JOIN event_log e ON e.account_id = a.id
 WHERE n.user_id = ? AND n.enabled = 1 AND u.status = 'active' AND e.id > n.event_cursor
 )`, userID).Scan(&pending); err != nil || !pending {
 		return err
@@ -250,7 +250,7 @@ WHERE n.user_id = ? AND n.enabled = 1 AND u.status = 'active' AND e.id > n.event
 	if err != nil {
 		return err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT e.id, e.account_id, a.name, e.ts, e.kind, e.level, e.action FROM event_log e JOIN accounts a ON a.id = e.account_id WHERE a.user_id = ? AND e.id > ? ORDER BY e.id LIMIT 200`, userID, cursor)
+	rows, err := tx.QueryContext(ctx, `SELECT e.id, e.account_id, a.name, e.ts, e.kind, e.level, e.action FROM event_log e JOIN accounts a ON a.id = e.account_id AND a.deletion_pending=0 WHERE a.user_id = ? AND e.id > ? ORDER BY e.id LIMIT 200`, userID, cursor)
 	if err != nil {
 		return err
 	}
@@ -430,6 +430,7 @@ func (d *DB) ClaimNotification(ctx context.Context, now time.Time) (*Notificatio
 
 const notificationClaimSelect = `SELECT o.id FROM notification_outbox o WHERE ((o.status = 'pending' AND o.next_ms <= ?) OR (o.status = 'sending' AND o.lease_ms <= ?))
 AND o.created_ms >= ? AND o.attempts < 5
+AND (o.account_id IS NULL OR EXISTS(SELECT 1 FROM accounts a WHERE a.id=o.account_id AND a.deletion_pending=0))
 AND NOT EXISTS (SELECT 1 FROM notification_outbox older WHERE older.user_id = o.user_id AND older.account_id IS o.account_id AND older.id < o.id AND older.status IN ('pending', 'sending'))
 AND NOT EXISTS (SELECT 1 FROM user_notifications settings WHERE settings.user_id = o.user_id AND settings.retry_after_ms > ?)
 AND NOT EXISTS (SELECT 1 FROM user_notifications settings JOIN notification_outbox recent ON recent.user_id = settings.user_id WHERE settings.user_id = o.user_id AND settings.provider <> 'custom' AND recent.last_attempt_ms > ?)
@@ -455,7 +456,7 @@ SELECT id FROM notification_outbox WHERE status IN ('sent', 'failed', 'cancelled
 func (d *DB) NotificationDestination(ctx context.Context, n *NotificationDelivery) (NotificationTarget, error) {
 	var encrypted, secret string
 	var target NotificationTarget
-	err := d.QueryRowContext(ctx, `SELECT s.endpoint_enc, s.provider, s.signing_secret_enc FROM notification_outbox o JOIN user_notifications s ON s.user_id = o.user_id JOIN users u ON u.id = o.user_id WHERE o.id = ? AND o.user_id = ? AND o.status = 'sending' AND o.attempts = ? AND s.enabled = 1 AND s.revision = ? AND u.status = 'active' AND (o.account_id IS NULL OR EXISTS(SELECT 1 FROM accounts a WHERE a.id = o.account_id AND a.user_id = o.user_id))`, n.ID, n.UserID, n.Attempts, n.Revision).Scan(&encrypted, &target.Provider, &secret)
+	err := d.QueryRowContext(ctx, `SELECT s.endpoint_enc, s.provider, s.signing_secret_enc FROM notification_outbox o JOIN user_notifications s ON s.user_id = o.user_id JOIN users u ON u.id = o.user_id WHERE o.id = ? AND o.user_id = ? AND o.status = 'sending' AND o.attempts = ? AND s.enabled = 1 AND s.revision = ? AND u.status = 'active' AND (o.account_id IS NULL OR EXISTS(SELECT 1 FROM accounts a WHERE a.id = o.account_id AND a.user_id = o.user_id AND a.deletion_pending=0))`, n.ID, n.UserID, n.Attempts, n.Revision).Scan(&encrypted, &target.Provider, &secret)
 	if err != nil {
 		return target, err
 	}

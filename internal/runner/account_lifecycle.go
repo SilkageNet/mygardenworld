@@ -2,13 +2,16 @@ package runner
 
 import (
 	"context"
-	"fmt"
-	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 // A lifecycle command may wait behind a network login. Cancellation must
 // remove that waiter rather than execute a stale command when login finishes.
-type accountLifecycleLock struct{ token chan struct{} }
+type accountLifecycleLock struct {
+	token chan struct{}
+	game  gameGate
+}
 
 func (l *accountLifecycleLock) LockContext(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
@@ -29,42 +32,39 @@ func (l *accountLifecycleLock) LockContext(ctx context.Context) error {
 func (l *accountLifecycleLock) Lock()   { _ = l.LockContext(context.Background()) }
 func (l *accountLifecycleLock) Unlock() { <-l.token }
 
-// DeleteAccount owns the same lifecycle boundary as start, reconnect and
-// pause. A pending start must finish before deletion; a subsequent start must
-// read the missing account, never reuse a runner removed from persistence.
-// Persistence remains atomic: on failure the account remains, disconnected.
-func (m *Manager) DeleteAccount(ctx context.Context, accountID int64) (err error) {
-	started := time.Now()
-	phase := "wait_lifecycle"
-	defer func() {
-		if m.log != nil {
-			if err != nil {
-				m.log.Warn("account deletion failed", "account_id", accountID, "phase", phase, "elapsed", time.Since(started), "error", err)
-			} else {
-				m.log.Info("account deleted", "account_id", accountID, "elapsed", time.Since(started))
-			}
-		}
-	}()
-	lock := m.accountLock(accountID)
-	if err := lock.LockContext(ctx); err != nil {
-		return fmt.Errorf("等待账号登录或其他生命周期操作结束时取消，未删除账号: %w", err)
+// DeleteAccount commits intent before canceling game work. It does not wait
+// behind a login or execute an unbounded SQLite cascade in the HTTP request.
+// Once committed, cleanup survives both client cancellation and daemon restart.
+func (m *Manager) DeleteAccount(ctx context.Context, accountID int64) error {
+	if err := m.db.RequestAccountDeletion(ctx, accountID); err != nil {
+		return err
 	}
-	defer lock.Unlock()
-	phase = "stop_runner"
-	if m.Get(accountID) != nil {
-		if err := m.stop(accountID); err != nil {
-			return err
-		}
+	m.accountLock(accountID).game.block()
+	if m.log != nil {
+		m.log.Info("account deletion requested", "account_id", accountID)
 	}
-	phase = "delete_persistence"
-	if err := m.db.DeleteAccount(ctx, accountID); err != nil {
-		return fmt.Errorf("清理账号及相关记录未确认，请刷新列表核对: %w", err)
+	select {
+	case m.deletionWake <- struct{}{}:
+	default:
 	}
-	m.mu.Lock()
-	delete(m.lastStats, accountID)
-	delete(m.lastDiag, accountID)
-	delete(m.pacers, accountID)
-	// Retain the lifecycle lock: existing waiters may still hold its address.
-	m.mu.Unlock()
 	return nil
+}
+
+// BeginAccountGameWork tracks account-bound I/O, including reauthorization
+// probes outside a runner. API callers must authorize ownership first.
+func (m *Manager) BeginAccountGameWork(ctx context.Context, id int64) (context.Context, func(), error) {
+	ctx, release, err := m.BeginGameWork(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, releaseAccount, err := m.accountLock(id).game.begin(ctx)
+	if err != nil {
+		release()
+		if err == ErrMaintenance {
+			err = store.ErrAccountDeleting
+		}
+		return nil, nil, err
+	}
+	done := func() { releaseAccount(); release() }
+	return ctx, done, nil
 }

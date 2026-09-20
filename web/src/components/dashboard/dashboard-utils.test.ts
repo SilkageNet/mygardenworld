@@ -24,6 +24,8 @@ function account(overrides: Partial<Account> = {}): Account {
     gsIdx: 0,
     wsUrl: "",
     connected: false,
+    deletionPending: false,
+    deletionFailed: false,
     ...overrides,
   };
 }

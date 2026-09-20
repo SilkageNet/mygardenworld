@@ -93,15 +93,16 @@ type Runner struct {
 	account *store.Account
 	log     *slog.Logger
 
-	mu          sync.RWMutex
-	state       *state.State
-	policy      *pb.Policy
-	stats       *RuntimeStats
-	lastEventAt time.Time
-	bus         *Bus
-	startSource StartSource
-	gameGate    *gameGate
-	pacer       *requestPacer
+	mu              sync.RWMutex
+	state           *state.State
+	policy          *pb.Policy
+	stats           *RuntimeStats
+	lastEventAt     time.Time
+	bus             *Bus
+	startSource     StartSource
+	gameGate        *gameGate
+	accountGameGate *gameGate
+	pacer           *requestPacer
 
 	sessionRuntimeState
 	schedulerState

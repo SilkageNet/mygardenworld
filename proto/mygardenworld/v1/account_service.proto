@@ -11,7 +11,8 @@ service AccountService {
   // persists the account, and starts its runner and automation.
   rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
 
-  // Soft-delete: stops the runner and removes the row + sessions/policies.
+  // Persist deletion intent. Background work drains the runner and removes
+  // history in bounded batches. Completion is observed via workspace statuses.
   rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
 
   rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
@@ -53,7 +54,10 @@ message DeleteAccountRequest {
   int64 id = 1;
 }
 
-message DeleteAccountResponse {}
+message DeleteAccountResponse {
+  // Accepted durable state, not a claim that physical cleanup has completed.
+  bool deletion_pending = 1;
+}
 
 message ListAccountsRequest {}
 

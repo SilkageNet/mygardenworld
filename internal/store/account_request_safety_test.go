@@ -11,6 +11,7 @@ import (
 
 func TestRequestSafetyV14MigrationAndDurableFreshReservation(t *testing.T) {
 	db, _, account, _, _ := notificationFixture(t)
+	removeAccountDeletionSchema(t, db.writer)
 	ctx := t.Context()
 	if _, err := db.ExecContext(ctx, `ALTER TABLE account_request_safety DROP COLUMN fresh_login_attempted;
 ALTER TABLE account_request_safety DROP COLUMN last_fresh_login_ms;
@@ -57,6 +58,7 @@ INSERT INTO account_request_safety VALUES (?,1234,5678,5000,2); PRAGMA user_vers
 
 func TestRequestSafetyV13MigrationPreservesReservationsAndAccepts5000(t *testing.T) {
 	db, _, account, _, _ := notificationFixture(t)
+	removeAccountDeletionSchema(t, db.writer)
 	ctx := t.Context()
 	// Recreate the actual v12 safety constraint, retaining all other tables.
 	if _, err := db.ExecContext(ctx, `DROP TABLE account_request_safety;`+migrations[8].sql+`
@@ -88,7 +90,7 @@ PRAGMA user_version=12;`, account.ID); err != nil {
 			t.Fatalf("%s missing account cascade index: %v", table, err)
 		}
 	}
-	if err := db.DeleteAccount(ctx, account.ID); err != nil {
+	if err := deleteAccountFixture(ctx, db, account.ID); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err = db.LoadAccountRequestSafety(ctx, account.ID)
@@ -117,6 +119,7 @@ func TestAccountRequestSafetyMigrationPersistenceAndAtomicReservation(t *testing
 		t.Fatal(err)
 	}
 	// Restore a v8 fixture; migration v9 must leave account data untouched.
+	removeAccountDeletionSchema(t, db.writer)
 	if _, err := db.ExecContext(ctx, `DROP TABLE daemon_maintenance; DROP TABLE notification_outbox; DROP TABLE notification_incidents; DROP TABLE user_notifications; DROP TABLE account_request_safety; PRAGMA user_version=8`); err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +188,7 @@ func TestAccountRequestSafetyMigrationPersistenceAndAtomicReservation(t *testing
 	if err != nil || loaded.RestrictionCode != 0 || loaded.LastRaceDeleteMS != nowMS+120000 {
 		t.Fatalf("clearing restriction reset delete spacing: %+v %v", loaded, err)
 	}
-	if err := db.DeleteAccount(ctx, account.ID); err != nil {
+	if err := deleteAccountFixture(ctx, db, account.ID); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err = db.LoadAccountRequestSafety(ctx, account.ID)

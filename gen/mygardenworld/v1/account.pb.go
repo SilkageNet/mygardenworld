@@ -109,9 +109,13 @@ type Account struct {
 	// fingerprint based on this value. Required at creation time.
 	// CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
 	// encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
-	Channel       Channel `protobuf:"varint,11,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Channel Channel `protobuf:"varint,11,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
+	// Durable deletion request; account remains visible until cleanup completes.
+	DeletionPending bool `protobuf:"varint,12,opt,name=deletion_pending,json=deletionPending,proto3" json:"deletion_pending,omitempty"`
+	// The background worker will retry. Detailed errors stay in daemon logs.
+	DeletionFailed bool `protobuf:"varint,13,opt,name=deletion_failed,json=deletionFailed,proto3" json:"deletion_failed,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Account) Reset() {
@@ -221,11 +225,25 @@ func (x *Account) GetChannel() Channel {
 	return Channel_CHANNEL_UNSPECIFIED
 }
 
+func (x *Account) GetDeletionPending() bool {
+	if x != nil {
+		return x.DeletionPending
+	}
+	return false
+}
+
+func (x *Account) GetDeletionFailed() bool {
+	if x != nil {
+		return x.DeletionFailed
+	}
+	return false
+}
+
 var File_mygardenworld_v1_account_proto protoreflect.FileDescriptor
 
 const file_mygardenworld_v1_account_proto_rawDesc = "" +
 	"\n" +
-	"\x1emygardenworld/v1/account.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/channel.proto\"\x92\x03\n" +
+	"\x1emygardenworld/v1/account.proto\x12\x10mygardenworld.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1emygardenworld/v1/channel.proto\"\xe6\x03\n" +
 	"\aAccount\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -240,7 +258,9 @@ const file_mygardenworld_v1_account_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x123\n" +
-	"\achannel\x18\v \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel*\xe9\x01\n" +
+	"\achannel\x18\v \x01(\x0e2\x19.mygardenworld.v1.ChannelR\achannel\x12)\n" +
+	"\x10deletion_pending\x18\f \x01(\bR\x0fdeletionPending\x12'\n" +
+	"\x0fdeletion_failed\x18\r \x01(\bR\x0edeletionFailed*\xe9\x01\n" +
 	"\x11AlipayLoginStatus\x12#\n" +
 	"\x1fALIPAY_LOGIN_STATUS_UNSPECIFIED\x10\x00\x12(\n" +
 	"$ALIPAY_LOGIN_STATUS_WAITING_FOR_SCAN\x10\x01\x12\"\n" +

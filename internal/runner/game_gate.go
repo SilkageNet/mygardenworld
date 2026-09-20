@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 var ErrMaintenance = errors.New("系统维护中，游戏连接与操作已暂停，用户配置保持不变")
@@ -95,8 +97,24 @@ func (m *Manager) BeginGameWork(ctx context.Context) (context.Context, func(), e
 }
 
 func (r *Runner) beginGameWork(ctx context.Context) (context.Context, func(), error) {
-	if r.gameGate == nil {
-		return ctx, func() {}, ctx.Err()
+	release := func() {}
+	if r.gameGate != nil {
+		var err error
+		ctx, release, err = r.gameGate.begin(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
-	return r.gameGate.begin(ctx)
+	if r.accountGameGate != nil {
+		workCtx, releaseAccount, err := r.accountGameGate.begin(ctx)
+		if err != nil {
+			release()
+			if err == ErrMaintenance {
+				err = store.ErrAccountDeleting
+			}
+			return nil, nil, err
+		}
+		return workCtx, func() { releaseAccount(); release() }, nil
+	}
+	return ctx, release, ctx.Err()
 }

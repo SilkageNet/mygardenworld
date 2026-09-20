@@ -549,7 +549,7 @@ func (d *DB) EnsureRedeemAttempts(ctx context.Context) error {
 INSERT OR IGNORE INTO redeem_attempts(redeem_code_id, account_id, status, created_at, updated_at)
 SELECT c.id, a.id, 'pending', ?, ?
 FROM redeem_codes c
-JOIN accounts a ON a.channel = c.channel
+JOIN accounts a ON a.channel = c.channel AND a.deletion_pending=0
 JOIN users u ON u.id = a.user_id AND u.status = 'active'
 WHERE c.validation NOT IN ('expired', 'invalid')
   AND (c.expires_at IS NULL OR c.expires_at > ?)`, now, now, now)
@@ -566,7 +566,7 @@ func (d *DB) DueRedeemAttemptAccountIDs(ctx context.Context) ([]int64, error) {
 SELECT DISTINCT a.account_id
 FROM redeem_attempts a
 JOIN redeem_codes c ON c.id = a.redeem_code_id
-JOIN accounts ac ON ac.id = a.account_id
+JOIN accounts ac ON ac.id = a.account_id AND ac.deletion_pending=0
 JOIN users u ON u.id = ac.user_id AND u.status = 'active'
 WHERE a.status IN ('pending', 'retryable')
   AND (a.retry_at IS NULL OR a.retry_at <= ?)
@@ -742,7 +742,7 @@ SELECT a.id, a.redeem_code_id, a.account_id, ac.name, c.channel, c.code,
        c.fingerprint, c.expires_at, a.attempt_count
 FROM redeem_attempts a
 JOIN redeem_codes c ON c.id = a.redeem_code_id
-JOIN accounts ac ON ac.id = a.account_id
+JOIN accounts ac ON ac.id = a.account_id AND ac.deletion_pending=0
 JOIN users u ON u.id = ac.user_id AND u.status = 'active'
 WHERE a.status IN ('pending', 'retryable')
   AND (a.retry_at IS NULL OR a.retry_at <= ?)

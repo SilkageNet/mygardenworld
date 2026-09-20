@@ -206,6 +206,10 @@ func runServe(ctx context.Context, opts serveOpts) error {
 	mgr.DebugDir = opts.DebugDir
 	mgr.Pacing = opts.Pacing
 	defer mgr.Shutdown()
+	deletionCtx, cancelDeletion := context.WithCancel(ctx)
+	deletionDone := make(chan struct{})
+	go func() { defer close(deletionDone); mgr.RunAccountDeletions(deletionCtx) }()
+	defer func() { cancelDeletion(); <-deletionDone }()
 	if err := mgr.ApplyMaintenance(ctx); err != nil {
 		return fmt.Errorf("initialize maintenance gate: %w", err)
 	}

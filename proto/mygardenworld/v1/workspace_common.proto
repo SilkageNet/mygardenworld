@@ -123,6 +123,8 @@ message AccountStatus {
   // Last-known game-server idx. This is included in the pushed runtime view
   // so the Web UI does not need to re-list accounts after the first login.
   int32 gs_idx = 26;
+  bool deletion_pending = 27;
+  bool deletion_failed = 28;
 }
 
 message RunnerDiagnostics {

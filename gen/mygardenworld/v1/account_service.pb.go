@@ -191,9 +191,11 @@ func (x *DeleteAccountRequest) GetId() int64 {
 }
 
 type DeleteAccountResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Accepted durable state, not a claim that physical cleanup has completed.
+	DeletionPending bool `protobuf:"varint,1,opt,name=deletion_pending,json=deletionPending,proto3" json:"deletion_pending,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DeleteAccountResponse) Reset() {
@@ -224,6 +226,13 @@ func (x *DeleteAccountResponse) ProtoReflect() protoreflect.Message {
 // Deprecated: Use DeleteAccountResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAccountResponse) Descriptor() ([]byte, []int) {
 	return file_mygardenworld_v1_account_service_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DeleteAccountResponse) GetDeletionPending() bool {
+	if x != nil {
+		return x.DeletionPending
+	}
+	return false
 }
 
 type ListAccountsRequest struct {
@@ -731,8 +740,9 @@ const file_mygardenworld_v1_account_service_proto_rawDesc = "" +
 	"\vlogin_error\x18\x02 \x01(\tR\n" +
 	"loginError\"&\n" +
 	"\x14DeleteAccountRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x03R\x02id\"\x17\n" +
-	"\x15DeleteAccountResponse\"\x15\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"B\n" +
+	"\x15DeleteAccountResponse\x12)\n" +
+	"\x10deletion_pending\x18\x01 \x01(\bR\x0fdeletionPending\"\x15\n" +
 	"\x13ListAccountsRequest\"M\n" +
 	"\x14ListAccountsResponse\x125\n" +
 	"\baccounts\x18\x01 \x03(\v2\x19.mygardenworld.v1.AccountR\baccounts\"'\n" +

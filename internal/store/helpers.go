@@ -39,6 +39,8 @@ func scanAccount(s scannable) (*Account, error) {
 		&lastLogin,
 		&createdAt,
 		&updatedAt,
+		&acc.DeletionPending,
+		&acc.DeletionFailed,
 	); err != nil {
 		return nil, err
 	}

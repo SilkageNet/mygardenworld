@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mygardenworld/v1/account.proto.
  */
 export const file_mygardenworld_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2FjY291bnQucHJvdG8SEG15Z2FyZGVud29ybGQudjEitAIKB0FjY291bnQSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIQCgh1c2VybmFtZRgDIAEoCRILCgNhaWQYBCABKAMSDgoGZ3NfaWR4GAUgASgFEg4KBndzX3VybBgGIAEoCRIxCg1sYXN0X2xvZ2luX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCgljb25uZWN0ZWQYCCABKAgSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoHY2hhbm5lbBgLIAEoDjIZLm15Z2FyZGVud29ybGQudjEuQ2hhbm5lbCrpAQoRQWxpcGF5TG9naW5TdGF0dXMSIwofQUxJUEFZX0xPR0lOX1NUQVRVU19VTlNQRUNJRklFRBAAEigKJEFMSVBBWV9MT0dJTl9TVEFUVVNfV0FJVElOR19GT1JfU0NBThABEiIKHkFMSVBBWV9MT0dJTl9TVEFUVVNfUFJPQ0VTU0lORxACEiAKHEFMSVBBWV9MT0dJTl9TVEFUVVNfQ09NUExFVEUQAxIfChtBTElQQVlfTE9HSU5fU1RBVFVTX0VYUElSRUQQBBIeChpBTElQQVlfTE9HSU5fU1RBVFVTX0ZBSUxFRBAFQoUBChRjb20ubXlnYXJkZW53b3JsZC52MUIMQWNjb3VudFByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
+  fileDesc("Ch5teWdhcmRlbndvcmxkL3YxL2FjY291bnQucHJvdG8SEG15Z2FyZGVud29ybGQudjEi5wIKB0FjY291bnQSCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRIQCgh1c2VybmFtZRgDIAEoCRILCgNhaWQYBCABKAMSDgoGZ3NfaWR4GAUgASgFEg4KBndzX3VybBgGIAEoCRIxCg1sYXN0X2xvZ2luX2F0GAcgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCgljb25uZWN0ZWQYCCABKAgSLgoKY3JlYXRlZF9hdBgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKdXBkYXRlZF9hdBgKIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKgoHY2hhbm5lbBgLIAEoDjIZLm15Z2FyZGVud29ybGQudjEuQ2hhbm5lbBIYChBkZWxldGlvbl9wZW5kaW5nGAwgASgIEhcKD2RlbGV0aW9uX2ZhaWxlZBgNIAEoCCrpAQoRQWxpcGF5TG9naW5TdGF0dXMSIwofQUxJUEFZX0xPR0lOX1NUQVRVU19VTlNQRUNJRklFRBAAEigKJEFMSVBBWV9MT0dJTl9TVEFUVVNfV0FJVElOR19GT1JfU0NBThABEiIKHkFMSVBBWV9MT0dJTl9TVEFUVVNfUFJPQ0VTU0lORxACEiAKHEFMSVBBWV9MT0dJTl9TVEFUVVNfQ09NUExFVEUQAxIfChtBTElQQVlfTE9HSU5fU1RBVFVTX0VYUElSRUQQBBIeChpBTElQQVlfTE9HSU5fU1RBVFVTX0ZBSUxFRBAFQoUBChRjb20ubXlnYXJkZW53b3JsZC52MUIMQWNjb3VudFByb3RvUAGiAgNNWFiqAhBNeWdhcmRlbndvcmxkLlYxygIQTXlnYXJkZW53b3JsZFxWMeICHE15Z2FyZGVud29ybGRcVjFcR1BCTWV0YWRhdGHqAhFNeWdhcmRlbndvcmxkOjpWMWIGcHJvdG8z", [file_google_protobuf_timestamp, file_mygardenworld_v1_channel]);
 
 /**
  * Account is the per-player credential record stored in SQLite.
@@ -101,6 +101,20 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
    * @generated from field: mygardenworld.v1.Channel channel = 11;
    */
   channel: Channel;
+
+  /**
+   * Durable deletion request; account remains visible until cleanup completes.
+   *
+   * @generated from field: bool deletion_pending = 12;
+   */
+  deletionPending: boolean;
+
+  /**
+   * The background worker will retry. Detailed errors stay in daemon logs.
+   *
+   * @generated from field: bool deletion_failed = 13;
+   */
+  deletionFailed: boolean;
 };
 
 /**

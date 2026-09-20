@@ -35,7 +35,8 @@ type AccountServiceClient interface {
 	// Add an iOS game account. Verifies credentials, derives the display name,
 	// persists the account, and starts its runner and automation.
 	CreateAccount(ctx context.Context, in *CreateAccountRequest, opts ...grpc.CallOption) (*CreateAccountResponse, error)
-	// Soft-delete: stops the runner and removes the row + sessions/policies.
+	// Persist deletion intent. Background work drains the runner and removes
+	// history in bounded batches. Completion is observed via workspace statuses.
 	DeleteAccount(ctx context.Context, in *DeleteAccountRequest, opts ...grpc.CallOption) (*DeleteAccountResponse, error)
 	ListAccounts(ctx context.Context, in *ListAccountsRequest, opts ...grpc.CallOption) (*ListAccountsResponse, error)
 	// Force a fresh username+password login for the account. Refreshes
@@ -137,7 +138,8 @@ type AccountServiceServer interface {
 	// Add an iOS game account. Verifies credentials, derives the display name,
 	// persists the account, and starts its runner and automation.
 	CreateAccount(context.Context, *CreateAccountRequest) (*CreateAccountResponse, error)
-	// Soft-delete: stops the runner and removes the row + sessions/policies.
+	// Persist deletion intent. Background work drains the runner and removes
+	// history in bounded batches. Completion is observed via workspace statuses.
 	DeleteAccount(context.Context, *DeleteAccountRequest) (*DeleteAccountResponse, error)
 	ListAccounts(context.Context, *ListAccountsRequest) (*ListAccountsResponse, error)
 	// Force a fresh username+password login for the account. Refreshes
