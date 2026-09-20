@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SoftSpotlight } from "@/components/effects/soft-spotlight";
 import { cn } from "@/lib/utils";
+import { accountDeleting } from "./account-deletion";
 
 export type AccountQuota = {
   current: number;
@@ -59,7 +60,7 @@ export default function AccountListPanel({
   const quotaReached = quota?.reached ?? false;
   const bulkBusy = busyBulkAutomation !== "";
   const automationLocked = bulkBusy || busyAutomationAccountId !== "";
-  const availableAccountIds = accounts.map((account) => account.id.toString());
+  const availableAccountIds = accounts.filter((account) => !accountDeleting(account, statuses.get(account.id.toString()))).map((account) => account.id.toString());
   const selectedIds = availableAccountIds.filter((accountId) => selectedAccountIds.has(accountId));
   const allSelected = selectedIds.length === availableAccountIds.length && availableAccountIds.length > 0;
 
@@ -162,12 +163,13 @@ export default function AccountListPanel({
             {accounts.map((account) => {
               const accountId = account.id.toString();
               const status = statuses.get(accountId);
+              const deleting = accountDeleting(account, status);
               const selected = accountId === selectedAccountId;
               const bulkSelected = selectedAccountIds.has(accountId);
               const identity = accountIdentity(account, status);
               const online = accountConnected(account, status);
               const abnormal = accountIsAbnormal(status);
-              const automationBusy = bulkBusy || busyAutomationAccountId === accountId;
+              const automationBusy = deleting || bulkBusy || busyAutomationAccountId === accountId;
               const automationSpinning = busyAutomationAccountId === accountId;
               return (
                 <SoftSpotlight
@@ -182,7 +184,7 @@ export default function AccountListPanel({
                       ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
                       : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
-                  onClick={() => bulkMode ? toggleSelected(accountId) : onSelect(accountId)}
+                  onClick={() => bulkMode ? (!deleting && toggleSelected(accountId)) : onSelect(accountId)}
                   onKeyDown={(event) => {
                     if (bulkMode) return;
                     if (event.key === "Enter" || event.key === " ") {
@@ -198,6 +200,7 @@ export default function AccountListPanel({
                         className="size-4 shrink-0 accent-primary"
                         aria-label={`选择账号 ${identity.nickname}`}
                         checked={bulkSelected}
+                        disabled={deleting}
                         onClick={(event) => event.stopPropagation()}
                         onChange={() => toggleSelected(accountId)}
                       />

@@ -63,12 +63,53 @@ func TestDeleteAccountReportsWriterTimeoutAndCanRetry(t *testing.T) {
 	if _, err := db.GetAccountByID(ctx, a.ID); err != nil {
 		t.Fatal("timed-out delete committed", err)
 	}
-	if _, err := svc.DeleteAccount(ctx, connect.NewRequest(&pb.DeleteAccountRequest{Id: a.ID})); err != nil {
+	if res, err := svc.DeleteAccount(ctx, connect.NewRequest(&pb.DeleteAccountRequest{Id: a.ID})); err != nil || !res.Msg.DeletionPending {
 		t.Fatal(err)
 	}
 	list, err := svc.ListAccounts(ctx, connect.NewRequest(&pb.ListAccountsRequest{}))
-	if err != nil || len(list.Msg.Accounts) != 0 {
-		t.Fatalf("deleted account remained: %v %v", list, err)
+	if err != nil || len(list.Msg.Accounts) != 1 || !list.Msg.Accounts[0].DeletionPending {
+		t.Fatalf("pending account not visible: %v %v", list, err)
+	}
+	if _, err := svc.resolveAccount(ctx, a.ID); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatal("pending account remained operable", err)
+	}
+	statuses, err := svc.accountStatuses(ctx)
+	if err != nil || len(statuses) != 1 || !statuses[0].DeletionPending {
+		t.Fatal("pending status", statuses, err)
+	}
+	foreign, err := db.CreateUser(t.Context(), "foreign", "foreign@example.test", "hash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range []string{"user", "admin"} {
+		foreignCtx := auth.ContextWithIdentity(t.Context(), &auth.Identity{UserID: foreign.ID, Role: role})
+		if _, err := svc.DeleteAccount(foreignCtx, connect.NewRequest(&pb.DeleteAccountRequest{Id: a.ID})); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatal("cross-owner pending delete", role, err)
+		}
+		if statuses, err := svc.accountStatuses(foreignCtx); err != nil || len(statuses) != 0 {
+			t.Fatal("cross-owner status", role, statuses, err)
+		}
+	}
+	if _, err := svc.DeleteAccount(ctx, connect.NewRequest(&pb.DeleteAccountRequest{Id: a.ID})); err != nil {
+		t.Fatal("repeat request", err)
+	}
+	workerCtx, cancelWorker := context.WithCancel(t.Context())
+	workerDone := make(chan struct{})
+	go func() { defer close(workerDone); svc.Manager.RunAccountDeletions(workerCtx) }()
+	t.Cleanup(func() { cancelWorker(); <-workerDone })
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		accounts, err := db.ListAccountsIncludingDeleting(ctx, u.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(accounts) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("worker did not finish")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	if _, err := svc.DeleteAccount(ctx, connect.NewRequest(&pb.DeleteAccountRequest{Id: a.ID})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("missing account did not report not-found: %v", err)

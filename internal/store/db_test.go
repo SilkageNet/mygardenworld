@@ -64,7 +64,7 @@ func TestOpenMigratesVersionThreeThroughRedeemSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := previous.ExecContext(ctx, `CREATE TABLE accounts (id INTEGER PRIMARY KEY)`); err != nil {
+	if _, err := previous.ExecContext(ctx, migrations[0].sql); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := previous.ExecContext(ctx, `PRAGMA user_version = 3`); err != nil {
@@ -111,6 +111,7 @@ func TestOpenMigratesVersionFiveRedeemSourcesWithoutLosingConfiguration(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	removeAccountDeletionSchema(t, baseline.writer)
 	if err := baseline.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -182,6 +183,7 @@ func TestOpenMigratesVersionSixRedeemCodesWithoutLosingData(t *testing.T) {
 		_ = baseline.Close()
 		t.Fatal(err)
 	}
+	removeAccountDeletionSchema(t, baseline.writer)
 	if err := baseline.Close(); err != nil {
 		t.Fatal(err)
 	}

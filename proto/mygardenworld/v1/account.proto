@@ -52,4 +52,8 @@ message Account {
   // CHANNEL_IOS uses password credentials; CHANNEL_ALIPAY uses a QR-bound
   // encrypted web grant. CHANNEL_UNSPECIFIED is rejected at the API.
   Channel channel = 11;
+  // Durable deletion request; account remains visible until cleanup completes.
+  bool deletion_pending = 12;
+  // The background worker will retry. Detailed errors stay in daemon logs.
+  bool deletion_failed = 13;
 }

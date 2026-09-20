@@ -14,6 +14,7 @@ func TestMaintenanceMigrationAndCommandRevisions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
+	removeAccountDeletionSchema(t, db.writer)
 	if _, err := db.ExecContext(ctx, `DROP TABLE daemon_maintenance; PRAGMA user_version=11`); err != nil {
 		t.Fatal(err)
 	}

@@ -96,17 +96,19 @@ func databaseFileURL(absolutePath string) string {
 // returned to clients - callers go through GetCredentials when they need it
 // to do a fresh login.
 type Account struct {
-	ID          int64
-	UserID      int64
-	Name        string
-	Channel     string
-	Username    string
-	AID         int64
-	GsIdx       int32
-	WSURL       string
-	LastLoginAt *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID              int64
+	UserID          int64
+	Name            string
+	Channel         string
+	Username        string
+	AID             int64
+	GsIdx           int32
+	WSURL           string
+	LastLoginAt     *time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletionPending bool
+	DeletionFailed  bool
 }
 
 // CreateAccount inserts a new account. Returns ErrAccountExists if name is
@@ -187,7 +189,7 @@ func (d *DB) UpdateAccountCredentials(ctx context.Context, id int64, username, p
 		return fmt.Errorf("encode password: %w", err)
 	}
 	res, err := d.ExecContext(ctx,
-		`UPDATE accounts SET username = ?, password_enc = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE accounts SET username = ?, password_enc = ?, updated_at = ? WHERE id = ? AND deletion_pending=0`,
 		username, passwordEnc, time.Now().UTC(), id,
 	)
 	if err != nil {
@@ -207,10 +209,13 @@ func (d *DB) UpdateAccountCredentials(ctx context.Context, id int64, username, p
 // dashboard user. It prevents repeated QR scans from creating duplicates.
 func (d *DB) GetAccountByChannelUsername(ctx context.Context, userID int64, channel, username string) (*Account, error) {
 	row := d.QueryRowContext(ctx,
-		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at, deletion_pending, deletion_failed
          FROM accounts WHERE user_id = ? AND channel = ? AND username = ? ORDER BY id ASC LIMIT 1`,
 		userID, channel, username)
 	acc, err := scanAccount(row)
+	if err == nil && acc.DeletionPending {
+		return nil, ErrAccountDeleting
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrAccountNotFound
 	}
@@ -250,7 +255,7 @@ func (d *DB) RenameAccount(ctx context.Context, id int64, name string) (*Account
 		return nil, errors.New("RenameAccount: id and name required")
 	}
 	res, err := d.ExecContext(ctx,
-		`UPDATE accounts SET name = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE accounts SET name = ?, updated_at = ? WHERE id = ? AND deletion_pending=0`,
 		name, time.Now().UTC(), id,
 	)
 	if err != nil {
@@ -269,40 +274,31 @@ func (d *DB) RenameAccount(ctx context.Context, id int64, name string) (*Account
 	return d.GetAccountByID(ctx, id)
 }
 
-// DeleteAccount removes the account and its dependent rows by stable id.
-func (d *DB) DeleteAccount(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return errors.New("DeleteAccount: valid id required")
-	}
-	res, err := d.ExecContext(ctx, `DELETE FROM accounts WHERE id = ?`, id)
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("count deleted accounts: %w", err)
-	}
-	if n == 0 {
-		return ErrAccountNotFound
-	}
-	return nil
-}
-
 // ListAccounts returns accounts ordered by id ascending. If userID > 0,
 // only accounts belonging to that user are returned.
 func (d *DB) ListAccounts(ctx context.Context, userID int64) ([]*Account, error) {
+	return d.listAccounts(ctx, userID, false)
+}
+
+// ListAccountsIncludingDeleting is for owner-visible deletion status only.
+// Scheduling and background services use ListAccounts, which excludes tombstones.
+func (d *DB) ListAccountsIncludingDeleting(ctx context.Context, userID int64) ([]*Account, error) {
+	return d.listAccounts(ctx, userID, true)
+}
+
+func (d *DB) listAccounts(ctx context.Context, userID int64, includeDeleting bool) ([]*Account, error) {
 	var (
 		rows *sql.Rows
 		err  error
 	)
 	if userID > 0 {
 		rows, err = d.QueryContext(ctx,
-			`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
-			 FROM accounts WHERE user_id = ? ORDER BY id ASC`, userID)
+			`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at, deletion_pending, deletion_failed
+			 FROM accounts WHERE user_id = ? AND (? OR deletion_pending=0) ORDER BY id ASC`, userID, includeDeleting)
 	} else {
 		rows, err = d.QueryContext(ctx,
-			`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
-			 FROM accounts ORDER BY id ASC`)
+			`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at, deletion_pending, deletion_failed
+			 FROM accounts WHERE (? OR deletion_pending=0) ORDER BY id ASC`, includeDeleting)
 	}
 	if err != nil {
 		return nil, err
@@ -321,8 +317,18 @@ func (d *DB) ListAccounts(ctx context.Context, userID int64) ([]*Account, error)
 
 // GetAccountByID resolves an account by primary key.
 func (d *DB) GetAccountByID(ctx context.Context, id int64) (*Account, error) {
+	acc, err := d.GetAccountIncludingDeleting(ctx, id)
+	if err == nil && acc.DeletionPending {
+		return nil, ErrAccountDeleting
+	}
+	return acc, err
+}
+
+// GetAccountIncludingDeleting supports authorized deletion retries/status reads.
+// It must not be used to authorize ordinary account operations.
+func (d *DB) GetAccountIncludingDeleting(ctx context.Context, id int64) (*Account, error) {
 	row := d.QueryRowContext(ctx,
-		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at, deletion_pending, deletion_failed
          FROM accounts WHERE id = ?`, id)
 	acc, err := scanAccount(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -338,7 +344,7 @@ func (d *DB) GetAccountByName(ctx context.Context, userID int64, name string) (*
 		return nil, errors.New("GetAccountByName: user id and name required")
 	}
 	row := d.QueryRowContext(ctx,
-		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at
+		`SELECT id, user_id, name, channel, username, aid, gs_idx, ws_url, last_login_at, created_at, updated_at, deletion_pending, deletion_failed
          FROM accounts WHERE user_id = ? AND name = ?`,
 		userID, name,
 	)
@@ -355,7 +361,7 @@ func (d *DB) GetAccountByName(ctx context.Context, userID int64, name string) (*
 // with general queries.
 func (d *DB) GetCredentials(ctx context.Context, id int64) (username, password string, err error) {
 	var pwd string
-	err = d.QueryRowContext(ctx, `SELECT username, password_enc FROM accounts WHERE id = ?`, id).Scan(&username, &pwd)
+	err = d.QueryRowContext(ctx, `SELECT username, password_enc FROM accounts WHERE id = ? AND deletion_pending=0`, id).Scan(&username, &pwd)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", ErrAccountNotFound
 	}
@@ -369,7 +375,7 @@ func (d *DB) GetCredentials(ctx context.Context, id int64) (username, password s
 // UpdateLogin stamps the post-login fields onto the account row.
 func (d *DB) UpdateLogin(ctx context.Context, id int64, aid int64, gsIdx int32, wsURL string, when time.Time) error {
 	_, err := d.ExecContext(ctx,
-		`UPDATE accounts SET aid = ?, gs_idx = ?, ws_url = ?, last_login_at = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE accounts SET aid = ?, gs_idx = ?, ws_url = ?, last_login_at = ?, updated_at = ? WHERE id = ? AND deletion_pending=0`,
 		aid, gsIdx, wsURL, when.UTC(), time.Now().UTC(), id,
 	)
 	return err
@@ -398,7 +404,7 @@ func (d *DB) LoadSession(ctx context.Context, accountID int64) ([]byte, error) {
 	var payloadEnc string
 	var expiresAt sql.NullTime
 	err := d.QueryRowContext(ctx,
-		`SELECT payload_enc, expires_at FROM sessions WHERE account_id = ?`, accountID).Scan(&payloadEnc, &expiresAt)
+		`SELECT payload_enc, expires_at FROM sessions WHERE account_id = ? AND EXISTS(SELECT 1 FROM accounts WHERE id=account_id AND deletion_pending=0)`, accountID).Scan(&payloadEnc, &expiresAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -465,13 +471,15 @@ func AccountToProto(a *Account) *pb.Account {
 		return nil
 	}
 	out := &pb.Account{
-		Id:       a.ID,
-		Name:     a.Name,
-		Channel:  channelToProto(a.Channel),
-		Username: a.Username,
-		Aid:      a.AID,
-		GsIdx:    a.GsIdx,
-		WsUrl:    a.WSURL,
+		Id:              a.ID,
+		Name:            a.Name,
+		Channel:         channelToProto(a.Channel),
+		Username:        a.Username,
+		Aid:             a.AID,
+		GsIdx:           a.GsIdx,
+		WsUrl:           a.WSURL,
+		DeletionPending: a.DeletionPending,
+		DeletionFailed:  a.DeletionFailed,
 	}
 	if a.LastLoginAt != nil {
 		out.LastLoginAt = timeToProto(*a.LastLoginAt)

@@ -21,7 +21,7 @@ func (svc *Services) accountStatuses(ctx context.Context) ([]*pb.AccountStatus, 
 	if err != nil {
 		return nil, err
 	}
-	accs, err := svc.DB.ListAccounts(ctx, userID)
+	accs, err := svc.DB.ListAccountsIncludingDeleting(ctx, userID)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -38,9 +38,14 @@ func (svc *Services) accountStatuses(ctx context.Context) ([]*pb.AccountStatus, 
 
 func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.AccountStatus, error) {
 	out := &pb.AccountStatus{
-		AccountId:   acc.ID,
-		AccountName: acc.Name,
-		GsIdx:       acc.GsIdx,
+		AccountId:       acc.ID,
+		AccountName:     acc.Name,
+		GsIdx:           acc.GsIdx,
+		DeletionPending: acc.DeletionPending,
+		DeletionFailed:  acc.DeletionFailed,
+	}
+	if acc.DeletionPending {
+		return out, nil
 	}
 	var r *runner.Runner
 	if svc.Manager != nil {

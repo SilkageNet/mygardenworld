@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 14
+const currentSchemaVersion = 15
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -303,6 +303,7 @@ CREATE INDEX IF NOT EXISTS idx_notification_outbox_account ON notification_outbo
 ALTER TABLE account_request_safety ADD COLUMN fresh_login_attempted INTEGER NOT NULL DEFAULT 0 CHECK(fresh_login_attempted IN (0,1));
 ALTER TABLE account_request_safety ADD COLUMN last_fresh_login_ms INTEGER NOT NULL DEFAULT 0 CHECK(last_fresh_login_ms>=0);
 `},
+	{version: 15, name: "durable bounded account deletion", apply: migrateAccountDeletion},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

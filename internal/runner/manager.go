@@ -46,6 +46,7 @@ type Manager struct {
 	// instead of a bare offline badge.
 	lastDiag             map[int64]Diagnostics
 	manualResumeRequired bool
+	deletionWake         chan struct{}
 }
 
 const restoreAccountTimeout = 90 * time.Second
@@ -81,14 +82,15 @@ type RestoreReport struct {
 // platform → Config mapping is resolved per-account in StartWithSource.
 func NewManager(db *store.DB, bus *Bus, log *slog.Logger) *Manager {
 	m := &Manager{
-		db:        db,
-		bus:       bus,
-		log:       log,
-		runners:   make(map[int64]*Runner),
-		opLocks:   make(map[int64]*accountLifecycleLock),
-		lastStats: make(map[int64]RuntimeStatsSnapshot),
-		lastDiag:  make(map[int64]Diagnostics),
-		pacers:    make(map[int64]*requestPacer),
+		db:           db,
+		bus:          bus,
+		log:          log,
+		runners:      make(map[int64]*Runner),
+		opLocks:      make(map[int64]*accountLifecycleLock),
+		lastStats:    make(map[int64]RuntimeStatsSnapshot),
+		lastDiag:     make(map[int64]Diagnostics),
+		pacers:       make(map[int64]*requestPacer),
+		deletionWake: make(chan struct{}, 1),
 	}
 	if db != nil {
 		s, err := db.Maintenance(context.Background())
@@ -237,7 +239,7 @@ func (m *Manager) accountsWithAutomationEnabled(ctx context.Context) ([]*store.A
 // build. We never fall back to a "default" channel because that would silently
 // hit the wrong host fronts.
 func (m *Manager) StartWithSource(ctx context.Context, accountID int64, source StartSource) (*Runner, error) {
-	ctx, release, err := m.BeginGameWork(ctx)
+	ctx, release, err := m.BeginAccountGameWork(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -255,7 +257,7 @@ func (m *Manager) StartWithSource(ctx context.Context, accountID int64, source S
 // persisted; cancellation or activation failure closes its connection instead
 // of leaving an apparently online, automation-disabled runner behind.
 func (m *Manager) StartAutomation(ctx context.Context, accountID int64, source StartSource, reconnect bool) (*Runner, error) {
-	ctx, release, err := m.BeginGameWork(ctx)
+	ctx, release, err := m.BeginAccountGameWork(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -316,6 +318,7 @@ func (m *Manager) start(ctx context.Context, accountID int64, source StartSource
 	}
 	r := New(cfg, m.db, acc, m.bus, m.log)
 	r.gameGate = &m.gameGate
+	r.accountGameGate = &m.accountLock(accountID).game
 	m.mu.Lock()
 	if m.pacers[accountID] == nil {
 		m.pacers[accountID] = newRequestPacer(m.Pacing)
@@ -409,7 +412,7 @@ func (m *Manager) stop(accountID int64) error {
 // ReloadWithSource replaces the runner and attributes the new session to
 // source.
 func (m *Manager) ReloadWithSource(ctx context.Context, accountID int64, source StartSource) (*Runner, error) {
-	ctx, release, err := m.BeginGameWork(ctx)
+	ctx, release, err := m.BeginAccountGameWork(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}

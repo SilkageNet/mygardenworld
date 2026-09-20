@@ -52,6 +52,9 @@ func (d *DB) LogEvent(ctx context.Context, e EventLog) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		return 0, err
+	}
 	id, err := res.LastInsertId()
 	if err != nil {
 		return 0, err

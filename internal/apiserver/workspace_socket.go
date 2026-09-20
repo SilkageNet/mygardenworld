@@ -510,7 +510,9 @@ func (s *workspaceSession) setStatuses(statuses []*pb.AccountStatus) {
 	s.lastStatuses = statuses
 	allowed := make(map[int64]struct{}, len(statuses))
 	for _, status := range statuses {
-		allowed[status.GetAccountId()] = struct{}{}
+		if !status.GetDeletionPending() {
+			allowed[status.GetAccountId()] = struct{}{}
+		}
 	}
 	s.allowedAccount = allowed
 	if _, ok := allowed[s.selectedID]; s.selectedID > 0 && !ok {

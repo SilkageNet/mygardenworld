@@ -49,7 +49,7 @@ func TestPearlHireTicketUsageIsAtomicAndBoundedToOneAccountRow(t *testing.T) {
 		t.Fatalf("usage rows=%d, want one bounded row", rows)
 	}
 
-	if err := db.DeleteAccount(ctx, account.ID); err != nil {
+	if err := deleteAccountFixture(ctx, db, account.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM account_pearl_hire_usage`).Scan(&rows); err != nil {

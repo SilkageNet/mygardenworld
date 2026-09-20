@@ -45,6 +45,7 @@ import {
 } from "@/features/workspace/basic/redeem-attempts-model";
 import { AccountDetailView, SelectAccountPlaceholder, type DashboardTabId } from "@/features/account-workspace/account-detail";
 import AccountListPanel, { type AccountQuota } from "@/features/account-workspace/account-list-panel";
+import { accountDeleting, reconcileAccountDeletions } from "@/features/account-workspace/account-deletion";
 import AddAccountDialog, { EMPTY_ADD_FORM, type AddAccountForm, type AlipayQRState } from "@/features/account-workspace/add-account-dialog";
 
 const accountClient = createClient(AccountService, transport);
@@ -114,6 +115,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   const accountsRef = useRef<Account[]>([]);
   const statusesRef = useRef<Map<string, AccountStatus>>(new Map());
   const accountsLoadedRef = useRef(false);
+  const accountRefreshRevision = useRef(0);
   const policyOwnerAccountIdRef = useRef("");
   const logFeedsRef = useRef<Map<string, LogFeed>>(new Map());
   const redeemFeedRef = useRef(emptyRedeemAttemptFeed());
@@ -123,6 +125,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     [accounts, selectedAccountId],
   );
   const selectedStatus = selectedAccountId ? statuses.get(selectedAccountId) : undefined;
+  const selectedDeleting = selectedAccount ? accountDeleting(selectedAccount, selectedStatus) : false;
   const hasAccounts = accounts.length > 0;
   const creatingAccount = busyAction === "create";
   const accountQuota = useMemo<AccountQuota | null>(() => {
@@ -149,9 +152,22 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   }, [selectedAccountId]);
 
   const refreshAccounts = useCallback(async () => {
+    const revision = ++accountRefreshRevision.current;
     const accountRes = await accountClient.listAccounts({});
+    if (revision !== accountRefreshRevision.current) return;
+    const remaining = new Set(accountRes.accounts.map((account) => account.id));
+    for (const account of accountsRef.current) {
+      if (account.deletionPending && !remaining.has(account.id)) {
+        deletedAccountIds.current.add(account.id);
+        setAccountMessage(`账号「${account.name}」已删除，相关记录已清理。`);
+        logFeedsRef.current.delete(accountKey(account.id));
+      }
+    }
     // A list read started before deletion may arrive after its commit.
-    setAccounts(accountRes.accounts.filter((account) => !deletedAccountIds.current.has(account.id)));
+    setAccounts((current) => accountRes.accounts.filter((account) => !deletedAccountIds.current.has(account.id)).map((account) => {
+      const previous = current.find((item) => item.id === account.id);
+      return previous?.deletionPending ? { ...account, deletionPending: true } : account;
+    }));
     accountsLoadedRef.current = true;
   }, []);
 
@@ -161,8 +177,12 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
       nextStatuses.set(accountKey(status.accountId), status);
     }
     setStatuses(nextStatuses);
+    if (accountsRef.current.some((account) => account.deletionPending && !nextStatuses.has(accountKey(account.id)))) {
+      void refreshAccounts().catch((err) => setError(formatAPIError(err, "核对删除状态失败")));
+    }
+    setAccounts((current) => reconcileAccountDeletions(current, nextStatuses));
     setError((current) => (isTransientConnectionMessage(current) ? "" : current));
-  }, []);
+  }, [refreshAccounts]);
 
   const applyLogPage = useCallback((page?: WorkspaceLogPage) => {
     if (!page) return;
@@ -355,7 +375,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     const nextRedeemFeed = emptyRedeemAttemptFeed(selectedAccountId);
     redeemFeedRef.current = nextRedeemFeed;
     setRedeemFeed(nextRedeemFeed);
-    if (!selectedAccountId) {
+    if (!selectedAccountId || selectedDeleting) {
       workspaceClientRef.current?.selectAccount("");
       setPolicyLoading(false);
       setViewsLoading(false);
@@ -364,7 +384,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     setPolicyLoading(true);
     setViewsLoading(true);
     workspaceClientRef.current?.selectAccount(selectedAccountId);
-  }, [selectedAccountId]);
+  }, [selectedAccountId, selectedDeleting]);
 
   function updateCachedAccount(account?: Account) {
     if (!account) return;
@@ -467,6 +487,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
     const selected = accountIds ? new Set(accountIds) : null;
     const targets = accountsRef.current.filter((account) => {
       const key = accountKey(account.id);
+      if (accountDeleting(account, statusesRef.current.get(key))) return false;
       if (selected && !selected.has(key)) return false;
       const online = accountConnected(account, statusesRef.current.get(key));
       return online !== wantOnline;
@@ -590,40 +611,35 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
   }
 
   async function deleteSelectedAccount() {
-    if (!selectedAccount || busyAction) return;
+    if (!selectedAccount || busyAction || selectedDeleting) return;
     const deleting = selectedAccount;
-    const confirmed = window.confirm(`确认删除账号「${deleting.name}」？此操作会断开游戏连接，永久移除本地账号、会话、策略和相关记录，不会删除游戏角色。`);
+    const confirmed = window.confirm(`确认删除账号「${deleting.name}」？提交后不可撤销，将停止账号并在后台分批清理本地会话、策略和相关记录。清理期间不能操作或重新添加该账号，不会删除游戏角色。`);
     if (!confirmed) return;
     setBusyAction("delete");
     setError("");
-    setAccountMessage(`正在删除「${deleting.name}」，等待账号操作结束并清理相关记录…`);
+    setAccountMessage(`正在提交「${deleting.name}」的删除请求…`);
     try {
       await accountClient.deleteAccount({ id: deleting.id }, { timeoutMs: 25_000 });
-      deletedAccountIds.current.add(deleting.id);
-      setAccounts((current) => current.filter((account) => account.id !== deleting.id));
-      // Do not reset another account selected while deletion was in flight.
+      accountRefreshRevision.current++;
+      accountsRef.current = accountsRef.current.map((account) => account.id === deleting.id
+        ? { ...account, deletionPending: true, connected: false } : account);
+      setAccounts((current) => current.map((account) => account.id === deleting.id
+        ? { ...account, deletionPending: true, connected: false } : account));
+      // Keep the pending account visible; do not touch another selected account.
       if (selectedAccountIdRef.current === accountKey(deleting.id)) {
-        selectedAccountIdRef.current = "";
         workspaceClientRef.current?.selectAccount("");
         policyOwnerAccountIdRef.current = "";
-        setSelectedAccountId("");
         setViews(EMPTY_ACCOUNT_VIEWS);
         setPolicy(null);
       }
-      setStatuses((current) => {
-        const next = new Map(current);
-        next.delete(accountKey(deleting.id));
-        return next;
-      });
-      setAccountMessage(`账号「${deleting.name}」已删除。`);
-      // Refresh is not part of the deletion transaction. Its failure must
-      // never turn a committed delete into an apparent deletion failure.
-      void refreshAccountCollection().catch((err) => {
-        setError(`账号已删除，但刷新列表失败，请刷新页面。${formatAPIError(err)}`);
-      });
+      setAccountMessage(`账号「${deleting.name}」的删除请求已保存，后台清理完成后会自动移出列表，可以关闭页面。`);
+      // A tiny account can finish before this command response, and the socket
+      // does not resend unchanged status batches. Confirm once after acceptance.
+      void refreshAccounts().catch((err) => setError(formatAPIError(err, "删除请求已保存，但刷新状态失败")));
     } catch (err) {
       setAccountMessage("");
-      setError(`账号「${deleting.name}」删除未确认，请刷新列表核对后重试。${formatAPIError(err)}`);
+      setError(`账号「${deleting.name}」删除请求未确认，正在刷新状态；若仍未进入删除状态可重试。${formatAPIError(err)}`);
+      void refreshAccountCollection().catch(() => {});
     } finally {
       setBusyAction("");
     }
@@ -789,7 +805,7 @@ function DashboardContent({ onServerVersion }: { onServerVersion: (version: stri
         qr={alipayQR}
         quota={accountQuota}
         creating={creatingAccount}
-        accounts={accounts}
+        accounts={accounts.filter((account) => !accountDeleting(account, statuses.get(accountKey(account.id))))}
         targetAccount={reauthAccount}
         error={error}
         onOpenChange={(open) => {

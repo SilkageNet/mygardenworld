@@ -682,9 +682,11 @@ type AccountStatus struct {
 	LevelMaxed          bool  `protobuf:"varint,25,opt,name=level_maxed,json=levelMaxed,proto3" json:"level_maxed,omitempty"`
 	// Last-known game-server idx. This is included in the pushed runtime view
 	// so the Web UI does not need to re-list accounts after the first login.
-	GsIdx         int32 `protobuf:"varint,26,opt,name=gs_idx,json=gsIdx,proto3" json:"gs_idx,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GsIdx           int32 `protobuf:"varint,26,opt,name=gs_idx,json=gsIdx,proto3" json:"gs_idx,omitempty"`
+	DeletionPending bool  `protobuf:"varint,27,opt,name=deletion_pending,json=deletionPending,proto3" json:"deletion_pending,omitempty"`
+	DeletionFailed  bool  `protobuf:"varint,28,opt,name=deletion_failed,json=deletionFailed,proto3" json:"deletion_failed,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *AccountStatus) Reset() {
@@ -897,6 +899,20 @@ func (x *AccountStatus) GetGsIdx() int32 {
 		return x.GsIdx
 	}
 	return 0
+}
+
+func (x *AccountStatus) GetDeletionPending() bool {
+	if x != nil {
+		return x.DeletionPending
+	}
+	return false
+}
+
+func (x *AccountStatus) GetDeletionFailed() bool {
+	if x != nil {
+		return x.DeletionFailed
+	}
+	return false
 }
 
 type RunnerDiagnostics struct {
@@ -2668,7 +2684,8 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\rexpires_at_ms\x18\b \x01(\x03R\vexpiresAtMs\x12A\n" +
 	"\arewards\x18\t \x03(\v2'.mygardenworld.v1.VideoActionRewardViewR\arewards\x12\x16\n" +
 	"\x06detail\x18\n" +
-	" \x01(\tR\x06detail\"\xf7\t\n" +
+	" \x01(\tR\x06detail\"\xcb\n" +
+	"\n" +
 	"\rAccountStatus\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12!\n" +
@@ -2702,7 +2719,9 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x15next_level_experience\x18\x18 \x01(\x05R\x13nextLevelExperience\x12\x1f\n" +
 	"\vlevel_maxed\x18\x19 \x01(\bR\n" +
 	"levelMaxed\x12\x15\n" +
-	"\x06gs_idx\x18\x1a \x01(\x05R\x05gsIdx\x1a9\n" +
+	"\x06gs_idx\x18\x1a \x01(\x05R\x05gsIdx\x12)\n" +
+	"\x10deletion_pending\x18\x1b \x01(\bR\x0fdeletionPending\x12'\n" +
+	"\x0fdeletion_failed\x18\x1c \x01(\bR\x0edeletionFailed\x1a9\n" +
 	"\vByKindEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01\"\xd3\x05\n" +

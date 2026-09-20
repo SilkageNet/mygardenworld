@@ -60,6 +60,9 @@ func (r *Runner) completeStartup(ctx context.Context, activate bool) (err error)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if _, err := r.db.GetAccountByID(ctx, r.account.ID); err != nil {
+		return err
+	}
 	if activate {
 		return r.enableAutomation(ctx)
 	}

@@ -65,6 +65,7 @@ export function alipayLoginStatusLabel(status: AlipayLoginStatus) {
 }
 
 export function accountConnected(account: Account, status?: AccountStatus) {
+  if (account.deletionPending || status?.deletionPending) return false;
   return status?.connected ?? account.connected;
 }
 
@@ -102,6 +103,7 @@ export function accountIsAbnormal(status?: AccountStatus) {
 
 export function HealthBadge({ account, status }: { account: Account; status?: AccountStatus; }) {
   const connected = accountConnected(account, status);
+  if (account.deletionPending || status?.deletionPending) return <Badge variant="outline">{(status?.deletionFailed ?? account.deletionFailed) ? "清理待重试" : "删除中"}</Badge>;
   if (accountIsAbnormal(status)) return <Badge variant="destructive">异常</Badge>;
   if (!connected) return <Badge variant="outline">离线</Badge>;
   return <Badge variant="secondary">在线</Badge>;

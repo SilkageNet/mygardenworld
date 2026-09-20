@@ -61,7 +61,8 @@ type AccountServiceClient interface {
 	// Add an iOS game account. Verifies credentials, derives the display name,
 	// persists the account, and starts its runner and automation.
 	CreateAccount(context.Context, *connect.Request[v1.CreateAccountRequest]) (*connect.Response[v1.CreateAccountResponse], error)
-	// Soft-delete: stops the runner and removes the row + sessions/policies.
+	// Persist deletion intent. Background work drains the runner and removes
+	// history in bounded batches. Completion is observed via workspace statuses.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	// Force a fresh username+password login for the account. Refreshes
@@ -185,7 +186,8 @@ type AccountServiceHandler interface {
 	// Add an iOS game account. Verifies credentials, derives the display name,
 	// persists the account, and starts its runner and automation.
 	CreateAccount(context.Context, *connect.Request[v1.CreateAccountRequest]) (*connect.Response[v1.CreateAccountResponse], error)
-	// Soft-delete: stops the runner and removes the row + sessions/policies.
+	// Persist deletion intent. Background work drains the runner and removes
+	// history in bounded batches. Completion is observed via workspace statuses.
 	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 	ListAccounts(context.Context, *connect.Request[v1.ListAccountsRequest]) (*connect.Response[v1.ListAccountsResponse], error)
 	// Force a fresh username+password login for the account. Refreshes

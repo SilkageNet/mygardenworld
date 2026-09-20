@@ -39,6 +39,11 @@ func (svc *Services) ReauthenticateAccount(ctx context.Context, req *connect.Req
 	if req.Msg.GetPassword() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("请输入当前密码"))
 	}
+	ctx, release, err := svc.Manager.BeginAccountGameWork(ctx, account.ID)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	defer release()
 	session, err := svc.probeAccountIdentity(ctx, account.Channel, account.Username, req.Msg.GetPassword())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New(formatLoginErr(err)))
