@@ -70,6 +70,7 @@ func applyRaceState(s *state.State, tasks [][5]int32) {
 		`{"25":{"116":[{"0":%d,"1":42,"3":0,"4":0}],"110":{"42":{"0":%d,"3":0,"4":0}}}}`,
 		uid, uid,
 	)))
+	s.MarkFmlRaceQuotaSyncAttempt()
 }
 
 func applyRaceDeletePosition(s *state.State, position int32) {
@@ -437,7 +438,7 @@ func TestUnionRaceAutoStopOnQuotaDoneSkipsTake(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
 	// raceLvl=4 → free total 18; finished=18 means free quota is done.
-	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":18}}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":18}}}}`))
 	if !s.FmlRace().TaskQuotaObserved || s.FmlRace().FinishedTaskNum != 18 {
 		t.Fatalf("quota not applied: %+v", s.FmlRace())
 	}
@@ -461,7 +462,7 @@ func TestUnionRaceAutoStopOnQuotaDoneSkipsTake(t *testing.T) {
 	// Remaining free quota still allows take while auto-stop is on.
 	s = state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
-	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":17}}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":17}}}}`))
 	policy = testRacePolicy()
 	policy.AutoStopOnQuotaDone = true
 	ops = unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
@@ -474,7 +475,7 @@ func TestUnionRaceAutoStopOnQuotaDoneStillFinishesHeldTask(t *testing.T) {
 	s := state.New()
 	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
 	// Field 110 takeTaskData: TargetCnt=3, FinishCnt=3; fTaskNum=18 (free quota done).
-	s.ApplyV(json.RawMessage(`{"25":{"110":{"1":{"3":18,"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
+	s.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":18,"7":{"0":1,"1":3036,"2":3,"3":3}}}}}`))
 	policy := testRacePolicy()
 	policy.AutoStopOnQuotaDone = true
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
@@ -937,6 +938,7 @@ func TestUnionRaceGetTaskListAfterActiveBatch(t *testing.T) {
 	// Enter response carries batch 111 but not task pool 114.
 	// Seed fTaskNum so usr-rank quota sync does not preempt getTaskList.
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}}}}`))
+	s.MarkFmlRaceQuotaSyncAttempt()
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
@@ -953,6 +955,7 @@ func TestUnionRaceUnobservedTaskPoolEmptySuccessUsesBoundedRetry(t *testing.T) {
 	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}}}}`))
 	s.NoteFmlRaceTaskPoolSync(now)
+	s.MarkFmlRaceQuotaSyncAttempt()
 	policy := testRacePolicy()
 
 	ops := unionRaceOperations(s, policy, 0, now.Add(time.Second), raceGatesOn())
@@ -975,6 +978,7 @@ func TestUnionRaceGetTaskListWhenPlantHarvestMissingParam(t *testing.T) {
 	if got := s.FmlRace(); !got.TasksObserved || len(got.Tasks) != 2 || got.Tasks[0].ParamID != 0 || got.Tasks[1].ParamID != 23001 {
 		t.Fatalf("seed pool = %+v", got)
 	}
+	s.MarkFmlRaceQuotaSyncAttempt()
 	policy := testRacePolicy()
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetTaskList.String() {
@@ -996,6 +1000,7 @@ func TestUnionRaceGetTaskListWhenFlowerArtCraftMissingVase(t *testing.T) {
 	s := state.New()
 	s.ApplyV(json.RawMessage(`{"25":{"1":{"1":42}}}`))
 	s.ApplyV(json.RawMessage(`{"25":{"111":{"0":1783872000000,"1":1,"2":1783990800000,"3":1784466000000},"117":{"5":4},"110":{"1783872000000":{"3":0}},"114":[{"0":178397176088910,"4":3034,"10":24,"14":0,"15":0,"6":[]}]}}`))
+	s.MarkFmlRaceQuotaSyncAttempt()
 	policy := testRacePolicy()
 	policy.TaskTypePriority = map[int32]int32{3034: 4}
 	ops := unionRaceOperations(s, policy, 0, time.Now(), raceGatesOn())

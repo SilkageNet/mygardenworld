@@ -22,6 +22,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 		view.BatchStartMs = 0
 		view.BatchEndMs = 0
 		view.TakeQuotaExhausted = false
+		view.takeQuotaExhaustedBuyTaskNum = 0
 		resetFmlRaceTaskPoolForBatch(view)
 		return
 	}
@@ -48,6 +49,7 @@ func applyFmlRaceBatchLocked(view *FmlRaceView, raw json.RawMessage) {
 	view.BatchActive = fmlRaceBatchActive(batch.Status, batch.StartTime, batch.EndTime, time.Now())
 	if batch.BatchId != prevBatchID {
 		view.TakeQuotaExhausted = false
+		view.takeQuotaExhaustedBuyTaskNum = 0
 		resetFmlRaceTaskPoolForBatch(view)
 		// Quota counters are per-batch. A new batch's sparse 110 row omits
 		// fTaskNum/buyTaskNum while zero, so presence-merge alone would keep
@@ -860,14 +862,9 @@ func applyFmlRaceUsrRankListLocked(view *FmlRaceView, raw json.RawMessage, uid i
 			continue
 		}
 		selfFound = true
-		if _, ok := fields["3"]; ok {
-			view.FinishedTaskNum = rcd.FTaskNum
-			view.TaskQuotaObserved = true
-		}
-		if _, ok := fields["6"]; ok {
-			view.BuyTaskNum = rcd.BuyTaskNum
-			view.TaskQuotaObserved = true
-		}
+		finished, finishedOK := readFmlRaceCounter(fields, "3")
+		buy, buyOK := readFmlRaceCounter(fields, "6")
+		mergeFmlRaceQuota(view, finished, buy, finishedOK, buyOK)
 		if hasScore {
 			view.Score = rcd.Score
 			view.ScoreObserved = true
@@ -905,24 +902,20 @@ func applyFmlRaceUsrRankListLocked(view *FmlRaceView, raw json.RawMessage, uid i
 	}
 }
 
-// parseFmlRaceUsrRcd extracts taken-task progress, task-quota counters, and
-// personal race score from FmlRaceUsrRcdMap (namespace 25, field 110). Observed
-// payloads key the map by batchId (not uid). Prefer batchId, then uid, then any
-// entry with TakeTaskData (for taken) / any entry (for quota/score fields that
-// are actually present).
-//
-// finishedOK / buyOK / scoreOK are true only when JSON keys "3" / "6" / "4"
-// appear on the chosen row. giveUpTask often returns {"8":giveUpTime,"9":uTime}
-// without fTaskNum; callers must keep prior FinishedTaskNum in that case.
-func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (
-	taken FmlRaceTakenView, finished, buy, score int32, scoreTime int64, finishedOK, buyOK, scoreOK bool,
-) {
-	if len(raw) == 0 {
-		return FmlRaceTakenView{}, 0, 0, 0, 0, false, false, false
-	}
+type fmlRaceUsrRecord struct {
+	taken                                     FmlRaceTakenView
+	finished, buy, score                      int32
+	scoreTime                                 int64
+	finishedOK, buyOK, scoreOK, takenObserved bool
+}
+
+// parseFmlRaceUsrRcd selects the current user's current-batch record. Historical
+// records and explicitly foreign identities must not contribute quota or taken
+// state. Preserve field presence: purchase-only deltas cannot clear a held task.
+func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) *fmlRaceUsrRecord {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil || len(m) == 0 {
-		return FmlRaceTakenView{}, 0, 0, 0, 0, false, false, false
+		return nil
 	}
 	tryKeys := make([]string, 0, 2)
 	if batchID > 0 {
@@ -931,76 +924,56 @@ func parseFmlRaceUsrRcd(raw json.RawMessage, uid, batchID int64) (
 	if uid > 0 {
 		tryKeys = append(tryKeys, strconv.FormatInt(uid, 10))
 	}
-	type usrRcdFields struct {
-		taken     FmlRaceTakenView
-		finished  int32
-		buy       int32
-		score     int32
-		scoreTime int64
-		fOK       bool
-		bOK       bool
-		sOK       bool
-	}
-	read := func(rcdRaw json.RawMessage) usrRcdFields {
+	read := func(key string, rcdRaw json.RawMessage) *fmlRaceUsrRecord {
 		var fields map[string]json.RawMessage
-		if json.Unmarshal(rcdRaw, &fields) != nil {
-			return usrRcdFields{}
+		if json.Unmarshal(rcdRaw, &fields) != nil || fields == nil {
+			return nil
 		}
 		var rcd clientproto.IFmlRaceUsrRcd
 		if json.Unmarshal(rcdRaw, &rcd) != nil {
-			return usrRcdFields{}
+			return nil
 		}
-		_, fOK := fields["3"]
-		_, bOK := fields["6"]
+		if (uid > 0 && rcd.UID > 0 && rcd.UID != uid) ||
+			(batchID > 0 && rcd.BatchId > 0 && rcd.BatchId != batchID) ||
+			(batchID > 0 && key != strconv.FormatInt(batchID, 10) && rcd.BatchId != batchID) {
+			return nil
+		}
+		_, fOK := readFmlRaceCounter(fields, "3")
+		_, bOK := readFmlRaceCounter(fields, "6")
 		_, sOK := fields["4"]
+		_, hasTaken := fields["7"]
+		_, hasGiveUp := fields["8"]
 		scoreTime := int64(0)
 		if _, ok := fields["5"]; ok {
 			scoreTime = rcd.ScoreTime
 		}
-		return usrRcdFields{
-			taken:     takenFromUsrRcd(rcd),
-			finished:  rcd.FTaskNum,
-			buy:       rcd.BuyTaskNum,
-			score:     rcd.Score,
-			scoreTime: scoreTime,
-			fOK:       fOK,
-			bOK:       bOK,
-			sOK:       sOK,
+		return &fmlRaceUsrRecord{
+			taken:         takenFromUsrRcd(rcd),
+			finished:      rcd.FTaskNum,
+			buy:           rcd.BuyTaskNum,
+			score:         rcd.Score,
+			scoreTime:     scoreTime,
+			finishedOK:    fOK,
+			buyOK:         bOK,
+			scoreOK:       sOK,
+			takenObserved: hasTaken || hasGiveUp || fOK,
 		}
 	}
-	pack := func(r usrRcdFields) (FmlRaceTakenView, int32, int32, int32, int64, bool, bool, bool) {
-		return r.taken, r.finished, r.buy, r.score, r.scoreTime, r.fOK, r.bOK, r.sOK
-	}
-	var preferredRaw json.RawMessage
 	for _, key := range tryKeys {
 		if rcdRaw, ok := m[key]; ok {
-			preferredRaw = rcdRaw
-			break
+			return read(key, rcdRaw)
 		}
 	}
-	if preferredRaw != nil {
-		r := read(preferredRaw)
-		taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK = pack(r)
-		if r.taken.HasTask {
-			return taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK
+	var selected *fmlRaceUsrRecord
+	for key, rcdRaw := range m {
+		if r := read(key, rcdRaw); r != nil {
+			if selected != nil {
+				return nil // Ambiguous records are not current-batch evidence.
+			}
+			selected = r
 		}
 	}
-	for _, rcdRaw := range m {
-		r := read(rcdRaw)
-		if !r.taken.HasTask {
-			continue
-		}
-		if preferredRaw == nil {
-			finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK = r.finished, r.buy, r.score, r.scoreTime, r.fOK, r.bOK, r.sOK
-		}
-		return r.taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK
-	}
-	if preferredRaw == nil {
-		for _, rcdRaw := range m {
-			return pack(read(rcdRaw))
-		}
-	}
-	return taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK
+	return selected
 }
 
 func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
@@ -1108,10 +1081,42 @@ func (s *State) MarkFmlRacePoolTaskClaimed(msID int64) {
 	}
 }
 
-// MarkFmlRaceTakeQuotaExhausted stops further takeTask planning for the current
-// race batch after the server reports the take-count limit.
+// A null/omitted/negative counter is unknown, not an observed zero.
+func readFmlRaceCounter(fields map[string]json.RawMessage, key string) (int32, bool) {
+	var n *int32
+	if json.Unmarshal(fields[key], &n) != nil || n == nil || *n < 0 {
+		return 0, false
+	}
+	return *n, true
+}
+
+// mergeFmlRaceQuota merges current-user/current-batch counters. Both counters
+// are cumulative within a batch: lagging rank snapshots must not roll them back.
+func mergeFmlRaceQuota(view *FmlRaceView, finished, buy int32, finishedOK, buyOK bool) {
+	if finishedOK && finished >= 0 {
+		view.FinishedTaskNum = max(view.FinishedTaskNum, finished)
+		view.TaskQuotaObserved = true
+	}
+	if buyOK && buy >= 0 {
+		view.BuyTaskNum = max(view.BuyTaskNum, buy)
+	}
+}
+
+// Reconcile once after the whole namespace delta, so a lagging rank row cannot
+// reopen quota before the same response's newer personal counters are merged.
+func reconcileFmlRaceQuota(view *FmlRaceView) {
+	if view.TakeQuotaExhausted && view.BatchID > 0 && view.TaskQuotaObserved &&
+		view.BuyTaskNum > view.takeQuotaExhaustedBuyTaskNum &&
+		FmlRaceTotalTaskNum(view.RaceLvl, view.BuyTaskNum) > view.FinishedTaskNum {
+		view.TakeQuotaExhausted = false
+	}
+}
+
+// MarkFmlRaceTakeQuotaExhausted retains the purchase baseline on server rejection;
+// only additional observed slots (or a new batch) can reopen take planning.
 func (s *State) MarkFmlRaceTakeQuotaExhausted() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.fmlRace.TakeQuotaExhausted = true
+	s.fmlRace.takeQuotaExhaustedBuyTaskNum = s.fmlRace.BuyTaskNum
 }

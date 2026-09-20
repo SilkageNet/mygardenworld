@@ -124,13 +124,15 @@ func TestRacePreflightFailureYieldsToOtherTask(t *testing.T) {
 
 func TestRaceTakeRechecksAfterRequestPacing(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		initial  string
-		update   string
-		policyOn bool
-		blocked  bool
+		name      string
+		initial   string
+		update    string
+		policyOn  bool
+		blocked   bool
+		quotaUsed bool
 	}{
 		{name: "unchanged"},
+		{name: "purchased quota consumed while queued", quotaUsed: true, blocked: true},
 		{name: "unclaimed upgraded without member", initial: `"14":1,"15":0`},
 		{name: "unclaimed upgraded with omitted member", initial: `"14":1`},
 		{name: "absent member remains allowed after exclusion enabled", initial: `"14":1,"15":0`, policyOn: true},
@@ -157,6 +159,7 @@ func TestRaceTakeRechecksAfterRequestPacing(t *testing.T) {
 					r.state.ApplyVFullFmlRaceTaskPool(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"6":[23001],"10":28` + fields + `}]}}`))
 				}
 				applyTask(tc.initial)
+				r.state.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":18,"6":2}}}}`))
 				op, err := automation.ManualRaceTakeOperation(r.state, r.Policy(), 1, time.Now())
 				if err != nil {
 					t.Fatal(err)
@@ -186,6 +189,9 @@ func TestRaceTakeRechecksAfterRequestPacing(t *testing.T) {
 				}
 				if tc.update != "" {
 					applyTask(tc.update)
+				}
+				if tc.quotaUsed {
+					r.state.ApplyV(json.RawMessage(`{"25":{"110":{"42":{"3":20,"6":2}}}}`))
 				}
 				if tc.policyOn {
 					p := r.Policy()

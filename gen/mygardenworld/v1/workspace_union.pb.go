@@ -189,11 +189,11 @@ type FmlRaceView struct {
 	BatchStatus       int32          `protobuf:"varint,7,opt,name=batch_status,json=batchStatus,proto3" json:"batch_status,omitempty"`
 	// Local ms when task pool (NS25 field 114) was last applied.
 	TasksSyncedAtMs int64 `protobuf:"varint,8,opt,name=tasks_synced_at_ms,json=tasksSyncedAtMs,proto3" json:"tasks_synced_at_ms,omitempty"`
-	// True after NS25 field 110 (usr rcd) has been observed for task quota.
+	// True after the current batch's finished count is observed in NS25 110/116.
 	TaskQuotaObserved bool `protobuf:"varint,9,opt,name=task_quota_observed,json=taskQuotaObserved,proto3" json:"task_quota_observed,omitempty"`
 	// Finished race tasks this batch (IFmlRaceUsrRcd.fTaskNum).
 	FinishedTaskNum int32 `protobuf:"varint,10,opt,name=finished_task_num,json=finishedTaskNum,proto3" json:"finished_task_num,omitempty"`
-	// Total race task quota: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, …).
+	// Total race task quota: c_fmlRace(raceLvl).taskNum + purchased buyTaskNum.
 	TotalTaskNum int32 `protobuf:"varint,11,opt,name=total_task_num,json=totalTaskNum,proto3" json:"total_task_num,omitempty"`
 	// Guild race tier used for total_task_num (甲=4, 乙=3, 丙=2, 丁=1).
 	RaceLvl int32 `protobuf:"varint,12,opt,name=race_lvl,json=raceLvl,proto3" json:"race_lvl,omitempty"`

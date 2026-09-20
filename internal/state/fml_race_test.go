@@ -699,9 +699,8 @@ func TestFmlRaceUsrRcdTaskQuota(t *testing.T) {
 	if s.FmlBuild().RaceLvl != 4 {
 		t.Fatalf("RaceLvl=%d, want 4", s.FmlBuild().RaceLvl)
 	}
-	if total := FmlRaceTotalTaskNum(s.FmlBuild().RaceLvl, got.BuyTaskNum); total != 18 {
-		// c_fmlRace(4).taskNum=18 (buyTaskNum not included in displayed total)
-		t.Fatalf("total=%d, want 18", total)
+	if total := FmlRaceTotalTaskNum(s.FmlBuild().RaceLvl, got.BuyTaskNum); total != 20 {
+		t.Fatalf("total=%d, want 18 base + 2 purchased", total)
 	}
 }
 

@@ -400,7 +400,8 @@ type FmlRaceView struct {
 	BatchEndMs          int64             // race batch end time in ms (field 3)
 	Tasks               []FmlRaceTaskView // available task pool (field 114)
 	Taken               FmlRaceTakenView  // current user's taken task (from field 110)
-	// TaskQuotaObserved is true after field 110 (usr rcd) was applied.
+	// TaskQuotaObserved means the current batch's finished count was observed
+	// in the personal record or member rank list; a purchase-only delta is insufficient.
 	TaskQuotaObserved bool
 	// FinishedTaskNum is IFmlRaceUsrRcd.fTaskNum (completed tasks this batch).
 	FinishedTaskNum int32
@@ -432,9 +433,10 @@ type FmlRaceView struct {
 	// current incomplete rows have not yet received their one immediate refresh.
 	MissingParamRefreshFP string
 	// TakeQuotaExhausted is set when takeTask returns「任务接取次数已达上限」.
-	// Cleared when the race batch identity changes. Blocks further take attempts
-	// for the remainder of this batch without marking the account abnormal.
-	TakeQuotaExhausted bool
+	// Cleared on batch change or newly observed purchased slots with remaining
+	// quota. Pool refreshes and unchanged counters cannot clear a server rejection.
+	TakeQuotaExhausted           bool
+	takeQuotaExhaustedBuyTaskNum int32
 	// LocalFinishCnt is a high-water harvest progress for the current taken
 	// plant-harvest task. It advances from field 134 and from land HarvestCnt
 	// deltas so the planner does not top-up-plant when FinishCnt lags or when

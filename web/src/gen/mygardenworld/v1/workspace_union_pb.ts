@@ -166,7 +166,7 @@ export type FmlRaceView = Message<"mygardenworld.v1.FmlRaceView"> & {
   tasksSyncedAtMs: bigint;
 
   /**
-   * True after NS25 field 110 (usr rcd) has been observed for task quota.
+   * True after the current batch's finished count is observed in NS25 110/116.
    *
    * @generated from field: bool task_quota_observed = 9;
    */
@@ -180,7 +180,7 @@ export type FmlRaceView = Message<"mygardenworld.v1.FmlRaceView"> & {
   finishedTaskNum: number;
 
   /**
-   * Total race task quota: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, …).
+   * Total race task quota: c_fmlRace(raceLvl).taskNum + purchased buyTaskNum.
    *
    * @generated from field: int32 total_task_num = 11;
    */
