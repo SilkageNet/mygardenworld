@@ -371,9 +371,9 @@ message UnionRacePolicy {
   // Per-task upgrade cost ceiling. Zero prohibits spending; never unlimited.
   int64 max_spend_diamond = 11;
   // When true with auto_enable_modules, stop planning takeTask once this
-  // batch's free task quota is used up (finished_task_num >= total_task_num).
+  // batch's actual task quota is used up (base slots + purchased extras).
   // Sync / finish / giveUp of an already-held task still run. Default on in
-  // DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
+  // DefaultPolicy. Using purchased slots never authorizes buying more slots.
   bool auto_stop_on_quota_done = 12;
   // When true, the race monitor shows personal cumulative score and guild-member
   // rank for the current batch. Default off.

@@ -1371,9 +1371,9 @@ export type UnionRacePolicy = Message<"mygardenworld.v1.UnionRacePolicy"> & {
 
   /**
    * When true with auto_enable_modules, stop planning takeTask once this
-   * batch's free task quota is used up (finished_task_num >= total_task_num).
+   * batch's actual task quota is used up (base slots + purchased extras).
    * Sync / finish / giveUp of an already-held task still run. Default on in
-   * DefaultPolicy; purchased extra slots (buyTaskNum) are not consumed.
+   * DefaultPolicy. Using purchased slots never authorizes buying more slots.
    *
    * @generated from field: bool auto_stop_on_quota_done = 12;
    */

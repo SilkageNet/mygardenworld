@@ -43,6 +43,16 @@ func TestFmlRaceProtoSurfacesPoolProgressAndSkipReason(t *testing.T) {
 	}
 }
 
+func TestFmlRaceProtoIncludesPurchasedTaskQuota(t *testing.T) {
+	for _, finished := range []int32{18, 19, 20} {
+		view := state.FmlRaceView{RaceLvl: 4, TaskQuotaObserved: true, FinishedTaskNum: finished, BuyTaskNum: 2}
+		got := fmlRaceProto(view, state.New(), nil, 99, time.Now(), automation.RaceModuleGates{})
+		if !got.GetTaskQuotaObserved() || got.GetTotalTaskNum() != 20 || got.GetFinishedTaskNum() != finished {
+			t.Fatalf("wrong visible purchased quota: %+v", got)
+		}
+	}
+}
+
 func TestFmlRaceProtoSeparatesTaskOccupancyFromUpgradeMember(t *testing.T) {
 	now := time.Now()
 	deadline := now.Add(time.Hour)

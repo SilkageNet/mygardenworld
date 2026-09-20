@@ -44,4 +44,6 @@ it("explains that upgrade member exclusion does not imply task occupancy", () =>
   expect(html).toContain("未记录升级人的任务仍按其余条件筛选");
   expect(html).toContain("已被接取的任务始终跳过");
   expect(html).not.toContain("已升级但归属不明的任务");
+  expect(html).toContain("基础次数加游戏内已购买次数");
+  expect(html).toContain("同步到新增可用次数后继续，不会自动购买次数");
 });

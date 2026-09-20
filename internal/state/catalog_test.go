@@ -160,11 +160,16 @@ func TestFmlRaceBaseAndTotalTaskNum(t *testing.T) {
 	if got := FmlRaceTotalTaskNum(0, 2); got != 0 {
 		t.Fatalf("unknown raceLvl total=%d, want 0", got)
 	}
-	if got := FmlRaceTotalTaskNum(4, 2); got != 18 {
-		t.Fatalf("total ignores buy=%d, want 18", got)
+	if got := FmlRaceTotalTaskNum(4, 2); got != 20 {
+		t.Fatalf("total with purchased extras=%d, want 20", got)
 	}
 	if got := FmlRaceTotalTaskNum(1, 0); got != 9 {
 		t.Fatalf("total no buy=%d, want 9", got)
+	}
+	for _, tc := range []struct{ level, buy, want int32 }{{3, 2, 17}, {4, -1, 18}, {999, 2, 0}, {4, 2147483647, 2147483647}} {
+		if got := FmlRaceTotalTaskNum(tc.level, tc.buy); got != tc.want {
+			t.Fatalf("total(%d,%d)=%d want=%d", tc.level, tc.buy, got, tc.want)
+		}
 	}
 }
 

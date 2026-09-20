@@ -153,18 +153,22 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if !view.BatchActive {
 		return nil
 	}
-	// enter/getTaskList may omit field 110; recover fTaskNum from member rank list
-	// so UI「已做」and AutoStopOnQuotaDone work after restart.
-	if !view.TaskQuotaObserved && view.BatchID > 0 {
+	// enter/getTaskList may omit personal counters. Also refresh while exhausted:
+	// a user may have purchased more slots in the game. This read must not be
+	// starved by ordinary pool refresh/deletion and must never buy slots itself.
+	quotaBlocked := !view.Taken.HasTask && (view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, policy))
+	initialQuotaSync := view.RaceQuotaSyncAtMs == 0 && !view.Taken.HasTask
+	if (!view.TaskQuotaObserved || initialQuotaSync || quotaBlocked) && view.BatchID > 0 {
 		const raceQuotaSyncInterval = 10 * time.Minute
 		synced := view.RaceQuotaSyncAtMs
 		if synced == 0 || !now.Before(time.UnixMilli(synced).Add(raceQuotaSyncInterval)) {
 			op := domainOp(
 				clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String(), goal, "union.race.sync", "sync",
-				"公会竞赛同步已做次数", 4398, 0, 0, 0,
+				"公会竞赛同步已做与已购买次数", 4398, 0, 0, 0,
 			)
 			op.TaskMsID = view.BatchID
 			op.CooldownKey = "union.race.usr_rank"
+			op.PreemptFarm = quotaBlocked || initialQuotaSync
 			return []PlannedOp{op}
 		}
 	}
@@ -314,11 +318,11 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	}
 
 	// 2. Select a task to take (only if not currently holding one).
-	// TakeQuotaExhausted is sticky for this batch after the server reports
-	// 「任务接取次数已达上限」— do not keep retrying exhausted takes.
-	// AutoStopOnQuotaDone also stops take when free-task quota is already used
+	// Server exhaustion stays blocked until additional purchased slots are
+	// observed; do not probe availability by repeatedly attempting takeTask.
+	// AutoStopOnQuotaDone also stops take when the actual quota is already used
 	// (finished >= total), without waiting for a take rejection.
-	if !view.Taken.HasTask && !view.TakeQuotaExhausted && !raceFreeTaskQuotaDone(s, view, policy) {
+	if !view.Taken.HasTask && !view.TakeQuotaExhausted && !raceTaskQuotaDone(s, view, policy) {
 		selected := selectRaceTasks(s, view.Tasks, policy, uid, now, gates)
 		if len(selected) > 0 {
 			best := selected[0]
@@ -697,7 +701,7 @@ func RaceTakeWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.Time 
 	view := s.FmlRace()
 	view.BatchActive = view.ActiveAt(now)
 	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
-		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
 		return time.Time{}
 	}
 	uid := s.RoleID()
@@ -741,7 +745,7 @@ func RaceTakeDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	view := s.FmlRace()
 	view.BatchActive = view.ActiveAt(now)
 	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
-		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
 		return false
 	}
 	return len(selectRaceTasks(s, view.Tasks, race, s.RoleID(), now, raceModuleGatesFromPolicy(policy))) > 0
@@ -805,7 +809,7 @@ func RaceTaskPoolWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.T
 	view := s.FmlRace()
 	if !race.GetEnabled() || !race.GetAutoEnableModules() || !build.MembershipObserved || build.MemberFmlID <= 0 ||
 		!view.ActiveAt(now) || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
-		view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+		view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
 		return time.Time{}
 	}
 	lastSync := view.TaskPoolSyncAttemptAtMs
@@ -868,12 +872,9 @@ func raceUsrRankScoreSyncOp(view state.FmlRaceView, goal Goal, now time.Time) (P
 	return op, true
 }
 
-// raceFreeTaskQuotaDone reports that AutoStopOnQuotaDone should block further
-// takeTask planning: usr-rcd quota was observed and finished_task_num already
-// covers the free tier total (c_fmlRace(raceLvl).taskNum). Purchased extras
-// (buyTaskNum) are intentionally ignored so automation stops at the UI「已做」
-// free quota. Unknown raceLvl / unobserved quota returns false.
-func raceFreeTaskQuotaDone(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy) bool {
+// raceTaskQuotaDone uses the same actual quota as the UI: base tier slots plus
+// already-purchased extras. Unknown tier / unobserved counters return false.
+func raceTaskQuotaDone(s *state.State, view state.FmlRaceView, policy *pb.UnionRacePolicy) bool {
 	if policy == nil || !policy.GetAutoStopOnQuotaDone() {
 		return false
 	}
@@ -983,7 +984,7 @@ func raceTakeTaskForOperation(s *state.State, policy *pb.Policy, taskMsID int64,
 	if view.Taken.HasTask {
 		return state.FmlRaceTaskView{}, fmt.Errorf("已有竞赛任务，请先完成或放弃当前任务")
 	}
-	if view.TakeQuotaExhausted || raceFreeTaskQuotaDone(s, view, race) {
+	if view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
 		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务接取次数已用完")
 	}
 	task, ok := raceTaskByMsID(view.Tasks, taskMsID)

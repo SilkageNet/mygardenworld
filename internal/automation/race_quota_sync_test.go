@@ -42,7 +42,13 @@ func TestUnionRacePlansUsrRankForScoreWhenIdle(t *testing.T) {
 	if len(ops) != 1 || ops[0].Kind != clientproto.RPCFmlRaceGetFmlRaceUsrRankList.String() {
 		t.Fatalf("expected score/rank sync when idle, got %+v", ops)
 	}
-	if ops[0].Reason != "公会竞赛同步个人得分与排名" {
+	if ops[0].Reason != "公会竞赛同步已做与已购买次数" {
 		t.Fatalf("reason = %q", ops[0].Reason)
+	}
+	s.MarkFmlRaceQuotaSyncAttempt()
+	// Pool refresh can precede score maintenance. The dedicated helper still
+	// shares the same bounded quota/rank sync timestamp.
+	if op, ok := raceUsrRankScoreSyncOp(s.FmlRace(), Goal{}, time.Now().Add(10*time.Minute)); !ok || op.Reason != "公会竞赛同步个人得分与排名" {
+		t.Fatalf("periodic rank sync missing: %+v (%v)", op, ok)
 	}
 }

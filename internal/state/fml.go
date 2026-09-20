@@ -102,20 +102,16 @@ func (s *State) applyFmlLocked(raw json.RawMessage, hints applyHints) {
 		} else {
 			// Sparse 110 (e.g. giveUpTask only sends giveUpTime/uTime) must not
 			// treat omitted fTaskNum/buyTaskNum as zero — that wipes UI「已做」.
-			taken, finished, buy, score, scoreTime, finishedOK, buyOK, scoreOK := parseFmlRaceUsrRcd(rawUsrRcd, s.roleID, s.fmlRace.BatchID)
-			s.fmlRace.Taken = taken
-			if finishedOK {
-				s.fmlRace.TaskQuotaObserved = true
-				s.fmlRace.FinishedTaskNum = finished
-			}
-			if buyOK {
-				s.fmlRace.TaskQuotaObserved = true
-				s.fmlRace.BuyTaskNum = buy
-			}
-			if scoreOK {
-				s.fmlRace.ScoreObserved = true
-				s.fmlRace.Score = score
-				s.fmlRace.ScoreTimeMs = scoreTime
+			if rcd := parseFmlRaceUsrRcd(rawUsrRcd, s.roleID, s.fmlRace.BatchID); rcd != nil {
+				if rcd.takenObserved {
+					s.fmlRace.Taken = rcd.taken
+				}
+				mergeFmlRaceQuota(&s.fmlRace, rcd.finished, rcd.buy, rcd.finishedOK, rcd.buyOK)
+				if rcd.scoreOK {
+					s.fmlRace.ScoreObserved = true
+					s.fmlRace.Score = rcd.score
+					s.fmlRace.ScoreTimeMs = rcd.scoreTime
+				}
 			}
 		}
 	}
@@ -152,6 +148,7 @@ func (s *State) applyFmlLocked(raw json.RawMessage, hints applyHints) {
 	if fullRaceTaskPool {
 		reconcileFmlRaceLocalFinishAfterFullPool(&s.fmlRace)
 	}
+	reconcileFmlRaceQuota(&s.fmlRace)
 	// Stamp take time / fill ExpireTime = TakenAtMs + TakeLimitMin when the
 	// server omits expireTime (common on 110/pool until harvest progress).
 	finalizeFmlRaceTakenDeadline(&s.fmlRace, prevTaken, s.lastApplyMs)

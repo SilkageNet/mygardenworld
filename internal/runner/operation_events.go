@@ -504,7 +504,7 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 			Category:    op.Category,
 			Domain:      op.Domain,
 			Action:      "blocked",
-			Message:     fmt.Sprintf("%s 暂停: 服务端提示任务接取次数已达上限，本轮竞赛不再自动接取", opDesc(op)),
+			Message:     fmt.Sprintf("%s 暂停: 服务端提示任务接取次数已达上限，将低频同步次数；确认新增可用次数后恢复接取，不会自动购买", opDesc(op)),
 			PayloadJSON: operationPayload(op, args, nil, err),
 			Level:       "warn",
 		})

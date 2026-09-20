@@ -1583,15 +1583,21 @@ func FmlRaceBaseTaskNum(raceLvl int32) int32 {
 	return row.TaskNum
 }
 
-// FmlRaceTotalTaskNum is the client-visible max free task count for a guild
-// race tier: c_fmlRace(raceLvl).taskNum (甲=18, 乙=15, 丙=12, 丁=9).
-// Purchased extras (buyTaskNum) are not included. Unknown raceLvl returns 0
-// so the UI does not fall back to 丁级's 9.
-func FmlRaceTotalTaskNum(raceLvl, _ int32) int32 {
+// FmlRaceTotalTaskNum matches Mini's task counter: the tier's base taskNum
+// plus already-purchased buyTaskNum. This never authorizes buying more slots.
+// Unknown tiers return 0 instead of inventing a usable quota.
+func FmlRaceTotalTaskNum(raceLvl, buyTaskNum int32) int32 {
 	if raceLvl <= 0 {
 		return 0
 	}
-	return FmlRaceBaseTaskNum(raceLvl)
+	if _, known := StaticRow("c_fmlRace", raceLvl); !known {
+		return 0
+	}
+	base := FmlRaceBaseTaskNum(raceLvl)
+	if base <= 0 {
+		return 0
+	}
+	return int32(min(int64(math.MaxInt32), int64(base)+int64(max(0, buyTaskNum))))
 }
 
 // FmlRaceTaskTypeByID returns c_fmlRaceTask.type for a catalog task id.
