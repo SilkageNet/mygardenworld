@@ -46,7 +46,7 @@ func (svc *Services) ReauthenticateAccount(ctx context.Context, req *connect.Req
 	defer release()
 	session, err := svc.probeAccountIdentity(ctx, account.Channel, account.Username, req.Msg.GetPassword())
 	if err != nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New(formatLoginErr(err)))
+		return nil, accountLoginError(err)
 	}
 	if err := svc.DB.UpdateAccountCredentials(ctx, account.ID, account.Username, req.Msg.GetPassword()); err != nil {
 		return nil, mapErr(err)

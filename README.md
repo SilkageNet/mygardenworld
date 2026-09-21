@@ -19,6 +19,8 @@ A small cloud for your garden. A self-hosted automation prototype with a built-i
 >
 > This project is not affiliated with or endorsed by the game or its platforms. It is intended for learning and personal use with accounts you own or are authorized to operate. Automation may violate platform rules and lead to account restrictions, suspension, or loss of game progress and resources.
 >
+> Avoid logging many accounts into the game from the same server or repeatedly retrying rejected logins: the game service may flag the shared IP. No safe account limit or restriction expiry is known.
+>
 > No guarantees are made about safety, correctness, or continued availability. You are responsible for your use and for complying with applicable terms, rules, and laws. **Do not use it if you cannot accept these risks.**
 
 ## At a glance
