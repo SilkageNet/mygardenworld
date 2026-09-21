@@ -67,6 +67,17 @@ func TestLoginRiskStopsAllRecoveryAndPersistsDisabledAutomation(t *testing.T) {
 			if persisted.GetAutomationEnabled() {
 				t.Fatal("automation not durably disabled")
 			}
+			r.bus.mu.RLock()
+			defer r.bus.mu.RUnlock()
+			incidents := 0
+			for _, e := range r.bus.recentEvents {
+				if e.Kind == "connection_unavailable" && e.Action == "blocked" {
+					incidents++
+				}
+			}
+			if incidents != 1 {
+				t.Fatalf("connection incidents = %d, want 1", incidents)
+			}
 		})
 	}
 }
