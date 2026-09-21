@@ -110,7 +110,7 @@ export type Account = Message<"mygardenworld.v1.Account"> & {
   deletionPending: boolean;
 
   /**
-   * The background worker will retry. Detailed errors stay in daemon logs.
+   * The background worker will retry; workspace status exposes cleanup progress.
    *
    * @generated from field: bool deletion_failed = 13;
    */

@@ -12,6 +12,9 @@ import (
 // Older migration tests construct historical schemas by removing newer fields.
 func removeAccountDeletionSchema(t *testing.T, db *sql.DB) {
 	t.Helper()
+	if _, err := db.Exec(`DROP TABLE account_deletion_progress`); err != nil {
+		t.Fatal(err)
+	}
 	rows, err := db.Query(`SELECT name FROM sqlite_schema WHERE type='trigger' AND name LIKE 'deletion_guard_%'`)
 	if err != nil {
 		t.Fatal(err)
@@ -38,6 +41,11 @@ func removeAccountDeletionSchema(t *testing.T, db *sql.DB) {
 	}
 }
 
+func cleanDeletionTestBatch(ctx context.Context, db *DB, id int64, limit int) (bool, int64, error) {
+	b, err := db.CleanAccountDeletionBatch(ctx, id, limit)
+	return b.Done, b.Removed, err
+}
+
 func TestAccountDeletionResumesAfterDatabaseReopen(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "garden.db")
 	db, err := Open(t.Context(), path)
@@ -59,7 +67,7 @@ func TestAccountDeletionResumesAfterDatabaseReopen(t *testing.T) {
 	if err := db.RequestAccountDeletion(t.Context(), a.ID); err != nil {
 		t.Fatal(err)
 	}
-	if done, n, err := db.CleanAccountDeletionBatch(t.Context(), a.ID, 250); err != nil || done || n != 250 {
+	if done, n, err := cleanDeletionTestBatch(t.Context(), db, a.ID, 250); err != nil || done || n != 250 {
 		t.Fatal(done, n, err)
 	}
 	if err := db.Close(); err != nil {
@@ -73,13 +81,13 @@ func TestAccountDeletionResumesAfterDatabaseReopen(t *testing.T) {
 	if err != nil || len(ids) != 1 || ids[0] != a.ID {
 		t.Fatal(ids, err)
 	}
-	if done, n, err := db.CleanAccountDeletionBatch(t.Context(), a.ID, 250); err != nil || done || n != 250 {
+	if done, n, err := cleanDeletionTestBatch(t.Context(), db, a.ID, 250); err != nil || done || n != 250 {
 		t.Fatal(done, n, err)
 	}
-	if done, n, err := db.CleanAccountDeletionBatch(t.Context(), a.ID, 250); err != nil || done || n != 1 {
+	if done, n, err := cleanDeletionTestBatch(t.Context(), db, a.ID, 250); err != nil || done || n != 1 {
 		t.Fatal(done, n, err)
 	}
-	if done, n, err := db.CleanAccountDeletionBatch(t.Context(), a.ID, 250); err != nil || !done || n != 0 {
+	if done, n, err := cleanDeletionTestBatch(t.Context(), db, a.ID, 250); err != nil || !done || n != 0 {
 		t.Fatal(done, n, err)
 	}
 }
@@ -89,7 +97,7 @@ func deleteAccountFixture(ctx context.Context, db *DB, id int64) error {
 		return err
 	}
 	for {
-		done, _, err := db.CleanAccountDeletionBatch(ctx, id, 250)
+		done, _, err := cleanDeletionTestBatch(ctx, db, id, 250)
 		if err != nil || done {
 			return err
 		}
@@ -128,7 +136,7 @@ func TestAccountDeletionBatchesAreDurableBoundedAndIsolated(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, _, err := db.CleanAccountDeletionBatch(ctx, account.ID, 250); err == nil {
+	if _, _, err := cleanDeletionTestBatch(ctx, db, account.ID, 250); err == nil {
 		t.Fatal("cleaned active account")
 	}
 	for range 2 {
@@ -159,13 +167,13 @@ func TestAccountDeletionBatchesAreDurableBoundedAndIsolated(t *testing.T) {
 	if err != nil || len(visible) != 1 || !visible[0].DeletionPending {
 		t.Fatal(visible, err)
 	}
-	done, n, err := db.CleanAccountDeletionBatch(ctx, account.ID, 250)
+	done, n, err := cleanDeletionTestBatch(ctx, db, account.ID, 250)
 	if err != nil || done || n != 250 {
 		t.Fatal(done, n, err)
 	}
 	cancelled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, _, err := db.CleanAccountDeletionBatch(cancelled, account.ID, 250); err == nil {
+	if _, _, err := cleanDeletionTestBatch(cancelled, db, account.ID, 250); err == nil {
 		t.Fatal("cancelled batch succeeded")
 	}
 	var left int

@@ -77,6 +77,23 @@ func TestDeleteAccountReportsWriterTimeoutAndCanRetry(t *testing.T) {
 	if err != nil || len(statuses) != 1 || !statuses[0].DeletionPending {
 		t.Fatal("pending status", statuses, err)
 	}
+	if p := statuses[0].DeletionProgress; p == nil || p.TrackingStartedMs == 0 || p.RemovedRows != 0 || p.Phase != "queued" {
+		t.Fatal("initial progress missing", p)
+	}
+	if err := db.RecordDeletionFailure(ctx, a.ID, store.DeletionAttempt{Phase: "wait_writer", ErrorKind: "timeout", AttemptMS: time.Now().UnixMilli(), Failures: 2, BatchSize: 250}); err != nil {
+		t.Fatal(err)
+	}
+	statuses, err = svc.accountStatuses(ctx)
+	if err != nil || !statuses[0].DeletionFailed || statuses[0].DeletionProgress.ErrorKind != "timeout" || statuses[0].DeletionProgress.Failures != 2 {
+		t.Fatal("failure not visible", statuses, err)
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE account_deletion_progress SET tracking_started_ms=? WHERE account_id=?`, time.Now().Add(-16*time.Minute).UnixMilli(), a.ID); err != nil {
+		t.Fatal(err)
+	}
+	statuses, err = svc.accountStatuses(ctx)
+	if err != nil || !statuses[0].DeletionProgress.Stalled {
+		t.Fatal("stalled deletion hidden", statuses, err)
+	}
 	foreign, err := db.CreateUser(t.Context(), "foreign", "foreign@example.test", "hash")
 	if err != nil {
 		t.Fatal(err)

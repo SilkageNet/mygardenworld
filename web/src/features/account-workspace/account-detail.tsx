@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import type { AccountViews } from "@/features/workspace/model";
 import { accountDeleting } from "./account-deletion";
+import { AccountDeletionProgressDetails } from "./account-deletion-progress";
 import type { RedeemAttemptFeed } from "@/features/workspace/basic/redeem-attempts-model";
 import { DashboardTabBar, type DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 import {
@@ -132,10 +133,11 @@ export function AccountDetailView({
     return <Card className="cloud-surface">
       <CardContent className="space-y-3 p-4" role="status">
         <Button variant="ghost" onClick={onBack}><ArrowLeft className="size-4" />返回账号列表</Button>
-        <h1 className="text-lg font-semibold">{account.name} · {failed ? "清理待重试" : "正在删除"}</h1>
+        <h1 className="text-lg font-semibold">{account.name} · 正在删除</h1>
         <p className="text-sm text-muted-foreground">{failed
           ? "后台清理暂未完成，系统会自动重试，无需反复点击删除。"
           : "正在停止账号并分批清理本地记录，完成后会自动移出列表。"}</p>
+        <AccountDeletionProgressDetails progress={status?.deletionProgress} />
         <p className="text-sm text-muted-foreground">可以关闭页面。清理期间不能操作或重新添加该账号；服务重启后会继续清理，不会删除游戏角色。</p>
       </CardContent>
     </Card>;
