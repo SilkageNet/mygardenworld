@@ -38,6 +38,8 @@ type Services struct {
 	Redeem        *redeemsvc.Service
 	RedeemLimiter *RedeemSubmitLimiter
 
+	identityProbes identityProbeGuard
+
 	workspaceProjectionMu sync.Mutex
 	workspaceProjections  map[int64]*workspaceProjectionCache
 }
@@ -119,7 +121,7 @@ func (svc *Services) CreateAccount(ctx context.Context, req *connect.Request[pb.
 	}
 	session, err := svc.probeAccountIdentity(ctx, channelStr, username, password)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeUnauthenticated, fmt.Errorf("login: %s", formatLoginErr(err)))
+		return nil, accountLoginError(err)
 	}
 	name, err := svc.DB.UniqueAccountName(ctx, userID, 0, babigame.DisplayNameFromSession(session, username))
 	if err != nil {

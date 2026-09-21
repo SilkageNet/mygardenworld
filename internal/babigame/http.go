@@ -335,7 +335,7 @@ func (c *HTTPClient) GameLoginWithPayload(ctx context.Context, body map[string]a
 		return GameLoginResult{}, fmt.Errorf("game/login: %w", err)
 	}
 	if !gameLoginSucceeded(resp["status"]) {
-		return GameLoginResult{}, fmt.Errorf("game/login non-success: %v", resp)
+		return GameLoginResult{}, gameLoginError(resp)
 	}
 	rawURL, _ := resp["url"].(string)
 	parsed, err := url.Parse(rawURL)

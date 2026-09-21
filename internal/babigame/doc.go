@@ -14,6 +14,13 @@
 //   - HTTPS gateway calls
 //   - WebSocket event/RPC stream
 //
+// The client SDK LOGIN constants identify 902049 as ip_login_risk, 902050
+// as ip_ban, 902051 as ip_frequency, 902052 as rate_limit, and 902053 as
+// sdk_acc_ban. These are explicit login refusals, not transport failures.
+// GameLoginError exposes only numeric diagnostics; a JSON code of 302 is
+// not an HTTP redirect and its URL must not be followed to bypass refusal.
+// No observed evidence establishes a safe account count or cooldown duration.
+//
 // # Namespace Reference
 //
 // Server responses carry a "v" field containing namespace-keyed data:

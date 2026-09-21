@@ -7,7 +7,7 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 )
 
-func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username, password string) (*babigame.Session, error) {
+func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username, password string) (session *babigame.Session, err error) {
 	ctx, release, err := svc.beginGameWork(ctx)
 	if err != nil {
 		return nil, err
@@ -17,7 +17,17 @@ func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username
 	if err != nil {
 		return nil, err
 	}
-	httpc := babigame.NewHTTPClient(cfg, "", "", "")
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	identity, finish, err := svc.identityProbes.begin(identityProbeKey{userID, channel, username}, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	defer func() { finish(err, time.Now()) }()
+	httpc := babigame.NewHTTPClient(cfg, identity.deviceID, identity.uuid, "")
+	defer httpc.HTTPClient.CloseIdleConnections()
 	if pkg, err := httpc.QueryPackageConfig(ctx); err == nil && pkg.GameVersion != "" {
 		httpc.Cfg.GameVersion = pkg.GameVersion
 		httpc.Cfg.ClientVersion = pkg.GameVersion
