@@ -54,6 +54,6 @@ message Account {
   Channel channel = 11;
   // Durable deletion request; account remains visible until cleanup completes.
   bool deletion_pending = 12;
-  // The background worker will retry. Detailed errors stay in daemon logs.
+  // The background worker will retry; workspace status exposes cleanup progress.
   bool deletion_failed = 13;
 }

@@ -3,19 +3,68 @@ package runner
 import (
 	"context"
 	"time"
+
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
-// RunAccountDeletions is the daemon-owned, restartable account cleanup worker.
-// It is independent of log retention (including retention=0). A small batch
-// releases the single SQLite writer between attempts; slow disks shrink batches.
+type deletionSchedule struct {
+	limit, fastBatches, failures int
+	after, reported              time.Time
+}
+
+func (s *deletionSchedule) observe(b store.DeletionBatch, err error, now time.Time) {
+	if s.limit == 0 {
+		s.limit = 250
+	}
+	if err != nil {
+		s.failures++
+		s.fastBatches = 0
+		// Only an execution deadline suggests the row batch is too large.
+		// Pool/lifecycle waits, external locks and I/O failures do not.
+		if store.DeletionErrorKind(err) == "timeout" && deletionExecuting(b.Phase) {
+			s.limit = max(1, s.limit/2)
+		}
+		delay := 10 * time.Second
+		switch store.DeletionErrorKind(err) {
+		case "disk_full", "io", "permission", "corrupt", "database":
+			delay = time.Minute
+		}
+		s.after = now.Add(delay)
+		return
+	}
+	s.failures = 0
+	s.after = time.Time{}
+	switch {
+	case b.WorkMS > 1000:
+		s.limit = max(1, s.limit/2)
+		s.fastBatches = 0
+	case b.Removed > 0 && b.WorkMS < 500:
+		s.fastBatches++
+		if s.fastBatches >= 3 {
+			s.limit = min(250, s.limit*2)
+			s.fastBatches = 0
+		}
+	default:
+		s.fastBatches = 0
+	}
+}
+
+func deletionExecuting(phase string) bool {
+	switch phase {
+	case "event_log", "operation_log", "redeem_attempts", "notification_outbox", "notification_incidents", "commit":
+		return true
+	default:
+		return false
+	}
+}
+
+// RunAccountDeletions retains fair, bounded batches and separates lifecycle,
+// writer admission and execution budgets. Counts commit with row removal;
+// process-local attempts also remain visible when the writer cannot save errors.
 func (m *Manager) RunAccountDeletions(ctx context.Context) {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
-	type retry struct {
-		after time.Time
-		limit int
-	}
-	retries := make(map[int64]retry)
+	retries := make(map[int64]*deletionSchedule)
 	var cursor int64
 	for ctx.Err() == nil {
 		listCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -31,41 +80,67 @@ func (m *Manager) RunAccountDeletions(ctx context.Context) {
 		default:
 			for _, id := range ids {
 				cursor = id
-				r := retries[id]
-				if time.Now().Before(r.after) {
+				s := retries[id]
+				if s == nil {
+					loadCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+					p, loadErr := m.db.AccountDeletionProgress(loadCtx, id)
+					cancel()
+					if loadErr != nil {
+						if m.log != nil {
+							m.log.Warn("load deletion progress", "account_id", id, "error", loadErr)
+						}
+						continue
+					}
+					s = &deletionSchedule{limit: p.BatchSize, failures: p.Failures}
+					if s.limit < 1 || s.limit > 250 {
+						s.limit = 250
+					}
+					if p.RetryAtMS > 0 {
+						s.after = time.UnixMilli(p.RetryAtMS)
+					}
+					retries[id] = s
+				}
+				if time.Now().Before(s.after) {
 					continue
 				}
-				if r.limit == 0 {
-					r.limit = 250
-				}
-				started := time.Now()
-				batchCtx, cancelBatch := context.WithTimeout(ctx, 2*time.Second)
-				done, removed, phase, err := m.cleanAccountDeletion(batchCtx, id, r.limit)
-				cancelBatch()
+				b, err := m.cleanAccountDeletion(ctx, id, s.limit)
 				if ctx.Err() != nil {
 					return
 				}
-				statusCtx, cancelStatus := context.WithTimeout(ctx, time.Second)
-				statusErr := m.db.SetAccountDeletionFailed(statusCtx, id, err != nil)
-				cancelStatus()
-				if statusErr != nil && m.log != nil {
-					m.log.Warn("persist account deletion status", "account_id", id, "error", statusErr)
+				s.observe(b, err, time.Now())
+				a := b.DeletionAttempt
+				a.ErrorKind, a.Failures, a.BatchSize = store.DeletionErrorKind(err), s.failures, s.limit
+				if !s.after.IsZero() {
+					a.RetryAtMS = s.after.UnixMilli()
 				}
+				m.mu.Lock()
+				if m.deletionAttempts == nil {
+					m.deletionAttempts = make(map[int64]store.DeletionAttempt)
+				}
+				m.deletionAttempts[id] = a
+				if b.Done && err == nil {
+					delete(m.deletionAttempts, id)
+				}
+				m.mu.Unlock()
 				switch {
 				case err != nil:
-					r.limit = max(1, r.limit/2)
-					r.after = time.Now().Add(10 * time.Second)
-					retries[id] = r
+					statusCtx, cancel := context.WithTimeout(ctx, time.Second)
+					statusErr := m.db.RecordDeletionFailure(statusCtx, id, a)
+					cancel()
 					if m.log != nil {
-						m.log.Warn("account deletion deferred", "account_id", id, "phase", phase, "elapsed", time.Since(started), "next_batch_size", r.limit, "retry_in", "10s", "error", err)
+						m.log.Warn("account deletion deferred", "account_id", id, "phase", b.Phase, "wait_ms", b.WaitMS, "work_ms", b.WorkMS, "next_batch_size", s.limit, "failures", s.failures, "retry_at", s.after, "error", err)
+						if statusErr != nil {
+							m.log.Warn("persist account deletion status", "account_id", id, "error", statusErr)
+						}
 					}
-				case done:
+				case b.Done:
 					delete(retries, id)
 					if m.log != nil {
 						m.log.Info("account deleted", "account_id", id)
 					}
-				case m.log != nil:
-					m.log.Debug("account deletion batch", "account_id", id, "removed_rows", removed)
+				case m.log != nil && time.Since(s.reported) >= time.Minute:
+					s.reported = time.Now()
+					m.log.Info("account deletion progress", "account_id", id, "phase", b.Phase, "batch_removed_rows", b.Removed, "committed_removed_rows", b.TotalRemoved, "wait_ms", b.WaitMS, "work_ms", b.WorkMS, "next_batch_size", s.limit)
 				}
 			}
 		}
@@ -79,31 +154,45 @@ func (m *Manager) RunAccountDeletions(ctx context.Context) {
 	}
 }
 
-func (m *Manager) cleanAccountDeletion(ctx context.Context, id int64, limit int) (bool, int64, string, error) {
+func (m *Manager) LatestDeletionAttempt(id int64) (store.DeletionAttempt, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	a, ok := m.deletionAttempts[id]
+	return a, ok
+}
+
+func (m *Manager) cleanAccountDeletion(ctx context.Context, id int64, limit int) (store.DeletionBatch, error) {
+	b := store.DeletionBatch{DeletionAttempt: store.DeletionAttempt{Phase: "wait_lifecycle", AttemptMS: time.Now().UnixMilli(), BatchSize: limit}}
 	lock := m.accountLock(id)
 	lock.game.block()
-	if err := lock.LockContext(ctx); err != nil {
-		return false, 0, "wait_lifecycle", err
+	lifecycleCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	started := time.Now()
+	if err := lock.LockContext(lifecycleCtx); err != nil {
+		b.WaitMS = time.Since(started).Milliseconds()
+		return b, err
 	}
 	defer lock.Unlock()
 	if m.Get(id) != nil {
+		b.Phase = "stop_runner"
 		if err := m.stop(id); err != nil {
-			return false, 0, "stop_runner", err
+			return b, err
 		}
 	}
-	// Stop closes sockets; tracked RPC/start/connection lifetimes must also
-	// finish before any database rows are physically removed.
-	if err := lock.game.wait(ctx); err != nil {
-		return false, 0, "drain_game_work", err
+	b.Phase = "drain_game_work"
+	if err := lock.game.wait(lifecycleCtx); err != nil {
+		b.WaitMS = time.Since(started).Milliseconds()
+		return b, err
 	}
-	done, removed, err := m.db.CleanAccountDeletionBatch(ctx, id, limit)
-	if done && err == nil {
+	lifecycleWait := time.Since(started).Milliseconds()
+	b, err := m.db.CleanAccountDeletionBatch(ctx, id, limit)
+	b.WaitMS += lifecycleWait
+	if b.Done && err == nil {
 		m.mu.Lock()
 		delete(m.lastStats, id)
 		delete(m.lastDiag, id)
 		delete(m.pacers, id)
-		// Keep the blocked lifecycle gate: existing waiters may reference it.
 		m.mu.Unlock()
 	}
-	return done, removed, "delete_persistence", err
+	return b, err
 }

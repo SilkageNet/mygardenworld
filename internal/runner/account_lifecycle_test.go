@@ -9,6 +9,11 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
+func cleanDeletionLifecycleTestBatch(m *Manager, ctx context.Context, id int64, limit int) (bool, int64, string, error) {
+	b, err := m.cleanAccountDeletion(ctx, id, limit)
+	return b.Done, b.Removed, b.Phase, err
+}
+
 func TestLifecycleWaitCancellationDoesNotExecuteLater(t *testing.T) {
 	for _, command := range []string{"pause", "start", "reload"} {
 		t.Run(command, func(t *testing.T) {
@@ -66,7 +71,7 @@ func TestDeleteAccountSerializesPendingStartAndRemovesRuntime(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if done, _, _, err := m.cleanAccountDeletion(t.Context(), r.account.ID, 250); err != nil || !done {
+	if done, _, _, err := cleanDeletionLifecycleTestBatch(m, t.Context(), r.account.ID, 250); err != nil || !done {
 		t.Fatal(done, err)
 	}
 	if !client.Closed() || m.Get(r.account.ID) != nil {
@@ -92,7 +97,7 @@ func TestDeleteAccountFailureRetainsPersistedAccount(t *testing.T) {
 	if err := m.DeleteAccount(t.Context(), r.account.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, _, err := m.cleanAccountDeletion(t.Context(), r.account.ID, 250); err == nil {
+	if _, _, _, err := cleanDeletionLifecycleTestBatch(m, t.Context(), r.account.ID, 250); err == nil {
 		t.Fatal("failed cleanup reported success")
 	}
 	if !client.Closed() {
@@ -128,7 +133,7 @@ func TestDeletionIntentCancelsPendingGameWorkAndWaitsForDrain(t *testing.T) {
 	lock.Unlock()
 	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
-	if done, _, phase, err := m.cleanAccountDeletion(short, r.account.ID, 250); done || phase != "drain_game_work" || !errors.Is(err, context.DeadlineExceeded) {
+	if done, _, phase, err := cleanDeletionLifecycleTestBatch(m, short, r.account.ID, 250); done || phase != "drain_game_work" || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(done, phase, err)
 	}
 	if !client.Closed() {
@@ -146,7 +151,7 @@ func TestDeletionIntentCancelsPendingGameWorkAndWaitsForDrain(t *testing.T) {
 		}
 	}
 	release()
-	if done, _, _, err := m.cleanAccountDeletion(t.Context(), r.account.ID, 250); !done || err != nil {
+	if done, _, _, err := cleanDeletionLifecycleTestBatch(m, t.Context(), r.account.ID, 250); !done || err != nil {
 		t.Fatal(done, err)
 	}
 }
@@ -164,10 +169,10 @@ func TestDeletionResumesWithNewManagerAndFailureDoesNotRestoreAccount(t *testing
 	if _, err := restarted.StartWithSource(t.Context(), r.account.ID, StartSourceDaemonRestore); !errors.Is(err, store.ErrAccountDeleting) {
 		t.Fatal(err)
 	}
-	if _, _, _, err := restarted.cleanAccountDeletion(t.Context(), r.account.ID, 250); err == nil {
+	if _, _, _, err := cleanDeletionLifecycleTestBatch(restarted, t.Context(), r.account.ID, 250); err == nil {
 		t.Fatal("injected failure hidden")
 	}
-	if err := m.db.SetAccountDeletionFailed(t.Context(), r.account.ID, true); err != nil {
+	if err := m.db.RecordDeletionFailure(t.Context(), r.account.ID, store.DeletionAttempt{Phase: "finalize", ErrorKind: "database", AttemptMS: time.Now().UnixMilli(), BatchSize: 250}); err != nil {
 		t.Fatal(err)
 	}
 	a, err := m.db.GetAccountIncludingDeleting(t.Context(), r.account.ID)
@@ -177,7 +182,7 @@ func TestDeletionResumesWithNewManagerAndFailureDoesNotRestoreAccount(t *testing
 	if _, err := m.db.ExecContext(t.Context(), `DROP TRIGGER fail_cleanup`); err != nil {
 		t.Fatal(err)
 	}
-	if done, _, _, err := restarted.cleanAccountDeletion(t.Context(), r.account.ID, 250); !done || err != nil {
+	if done, _, _, err := cleanDeletionLifecycleTestBatch(restarted, t.Context(), r.account.ID, 250); !done || err != nil {
 		t.Fatal(done, err)
 	}
 }

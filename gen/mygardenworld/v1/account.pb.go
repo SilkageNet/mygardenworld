@@ -112,7 +112,7 @@ type Account struct {
 	Channel Channel `protobuf:"varint,11,opt,name=channel,proto3,enum=mygardenworld.v1.Channel" json:"channel,omitempty"`
 	// Durable deletion request; account remains visible until cleanup completes.
 	DeletionPending bool `protobuf:"varint,12,opt,name=deletion_pending,json=deletionPending,proto3" json:"deletion_pending,omitempty"`
-	// The background worker will retry. Detailed errors stay in daemon logs.
+	// The background worker will retry; workspace status exposes cleanup progress.
 	DeletionFailed bool `protobuf:"varint,13,opt,name=deletion_failed,json=deletionFailed,proto3" json:"deletion_failed,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache

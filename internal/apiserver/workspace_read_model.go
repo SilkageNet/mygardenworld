@@ -45,6 +45,22 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 		DeletionFailed:  acc.DeletionFailed,
 	}
 	if acc.DeletionPending {
+		p, err := svc.DB.AccountDeletionProgress(ctx, acc.ID)
+		if err != nil {
+			return nil, mapErr(err)
+		}
+		if svc.Manager != nil {
+			if a, ok := svc.Manager.LatestDeletionAttempt(acc.ID); ok && a.AttemptMS >= p.AttemptMS {
+				p.DeletionAttempt = a
+			}
+		}
+		out.DeletionFailed = p.ErrorKind != ""
+		out.DeletionProgress = &pb.AccountDeletionProgress{
+			TrackingStartedMs: p.TrackingStartedMS, RemovedRows: p.RemovedRows, LastProgressMs: p.LastProgressMS,
+			Phase: p.Phase, AttemptMs: p.AttemptMS, ErrorKind: p.ErrorKind, RetryAtMs: p.RetryAtMS,
+			Failures: int32(p.Failures), BatchSize: int32(p.BatchSize), WaitMs: p.WaitMS, WorkMs: p.WorkMS,
+			Stalled: max(p.TrackingStartedMS, p.LastProgressMS) > 0 && time.Now().UnixMilli()-max(p.TrackingStartedMS, p.LastProgressMS) >= int64((15*time.Minute)/time.Millisecond),
+		}
 		return out, nil
 	}
 	var r *runner.Runner

@@ -47,6 +47,7 @@ type Manager struct {
 	lastDiag             map[int64]Diagnostics
 	manualResumeRequired bool
 	deletionWake         chan struct{}
+	deletionAttempts     map[int64]store.DeletionAttempt
 }
 
 const restoreAccountTimeout = 90 * time.Second

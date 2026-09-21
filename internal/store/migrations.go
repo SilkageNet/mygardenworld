@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 15
+const currentSchemaVersion = 16
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -304,6 +304,7 @@ ALTER TABLE account_request_safety ADD COLUMN fresh_login_attempted INTEGER NOT 
 ALTER TABLE account_request_safety ADD COLUMN last_fresh_login_ms INTEGER NOT NULL DEFAULT 0 CHECK(last_fresh_login_ms>=0);
 `},
 	{version: 15, name: "durable bounded account deletion", apply: migrateAccountDeletion},
+	{version: 16, name: "account deletion progress independent of history", sql: accountDeletionProgressMigration},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
