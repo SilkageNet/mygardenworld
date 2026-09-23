@@ -17,16 +17,16 @@ import (
 )
 
 type operationAttempt struct {
-	op                         *automation.PlannedOp
-	args                       any
-	startedAt                  time.Time
-	goldBefore                 int32
-	levelBefore                int32
-	waterDropsBefore           int32
-	scoreBefore                int32
-	scoreBeforeSet             bool
-	friendStealUsedBefore       int32
-	friendStealUsedBeforeSet    bool
+	op                           *automation.PlannedOp
+	args                         any
+	startedAt                    time.Time
+	goldBefore                   int32
+	levelBefore                  int32
+	waterDropsBefore             int32
+	scoreBefore                  int32
+	scoreBeforeSet               bool
+	friendStealUsedBefore        int32
+	friendStealUsedBeforeSet     bool
 	friendStealBoughtBefore      int32
 	friendStealBoughtBeforeSet   bool
 	friendStealElvesCntBefore    int32
@@ -63,6 +63,8 @@ const (
 	operationErrorCyclicStoryOrderNotReady  operationErrorKind = "cyclic_story_order_not_ready"
 	operationErrorMailAlreadyPicked         operationErrorKind = "mail_already_picked"
 	operationErrorPassFreeRecvRejected      operationErrorKind = "pass_free_recv_rejected"
+	operationErrorBenefitBoxDrawRejected    operationErrorKind = "benefit_box_draw_rejected"
+	operationErrorOrderServerAnomaly        operationErrorKind = "order_server_anomaly"
 )
 
 func classifyOperationError(kind string, err error) operationErrorKind {
@@ -99,6 +101,10 @@ func classifyOperationError(kind string, err error) operationErrorKind {
 		return operationErrorMailAlreadyPicked
 	case isPassFreeRecvRejectedError(kind, err):
 		return operationErrorPassFreeRecvRejected
+	case isBenefitBoxDrawRejectedError(kind, err):
+		return operationErrorBenefitBoxDrawRejected
+	case isOrderServerAnomalyError(kind, err):
+		return operationErrorOrderServerAnomaly
 	default:
 		return operationErrorOrdinary
 	}
@@ -119,7 +125,17 @@ func (r *Runner) handleResourceGateFailure(ctx context.Context, op *automation.P
 }
 
 func (r *Runner) handleRqstFailure(ctx context.Context, op *automation.PlannedOp, err, opErr error) {
-	payloadOp := r.cooldownSideOperation(op, time.Now(), opErr, "前置校验失败，暂缓重试", 0)
+	now := time.Now()
+	if isServerDataAnomalyError(err) && isOrderAnomalyPauseOp(op) {
+		r.markOrderServerAnomaly(op, now, err)
+		r.logOperation(ctx, op.Kind, nil, map[string]any{
+			"error":             err.Error(),
+			"stage":             "rqst_server_anomaly",
+			"retryAfterSeconds": int(serverAnomalyOrderPause.Seconds()),
+		})
+		return
+	}
+	payloadOp := r.cooldownSideOperation(op, now, opErr, "前置校验失败，暂缓重试", 0)
 	r.emit(Event{
 		Kind:        "operation_failed",
 		Category:    op.Category,
@@ -482,6 +498,34 @@ func (r *Runner) handleOperationError(ctx context.Context, result operationResul
 		})
 		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "mail_already_picked", "msId": op.TargetID, "allId": op.ItemID})
 		return nil
+	case operationErrorBenefitBoxDrawRejected:
+		r.state.MarkBenefitBoxEmpty(result.finishedAt)
+		cooldown := benefitBoxRejectCooldown(result.finishedAt)
+		payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, "服务端提示福利宝箱暂无可开", cooldown)
+		r.emit(Event{
+			Kind:        "operation_deferred",
+			Category:    op.Category,
+			Domain:      op.Domain,
+			Action:      "blocked",
+			Label:       operationEventLabel(op),
+			Message:     fmt.Sprintf("%s 已跳过: 服务端拒绝开启（code 5000），已校正本地剩余次数，今日凌晨窗口不再重试", opDesc(op)),
+			PayloadJSON: operationPayload(payloadOp, args, nil, err),
+			Level:       "warn",
+		})
+		r.logOperation(ctx, op.Kind, args, map[string]any{
+			"error":             err.Error(),
+			"stage":             "benefit_box_empty",
+			"retryAfterSeconds": int(cooldown.Seconds()),
+		})
+		return nil
+	case operationErrorOrderServerAnomaly:
+		r.markOrderServerAnomaly(op, result.finishedAt, err)
+		r.logOperation(ctx, op.Kind, args, map[string]any{
+			"error":             err.Error(),
+			"stage":             "order_server_anomaly",
+			"retryAfterSeconds": int(serverAnomalyOrderPause.Seconds()),
+		})
+		return nil
 	case operationErrorPassFreeRecvRejected:
 		switch op.Kind {
 		case clientproto.RPCFlowerPassRecv.String(), clientproto.RPCFlowerPassRecvOneKey.String():
@@ -555,10 +599,10 @@ func (r *Runner) handleRaceSyncFailure(ctx context.Context, result operationResu
 		r.state.MarkFmlRaceTasksUnobserved()
 	}
 	reason := "竞赛同步失败，稍后重试"
-	message := fmt.Sprintf("%s 暂缓: 同步失败，1 秒后重试", opDesc(op))
+	message := fmt.Sprintf("%s 暂缓: 同步失败，10 分钟后重试", opDesc(op))
 	if isRaceTransientSessionError(op.Kind, err) {
 		reason = "竞赛会话需重新进入，稍后重试"
-		message = fmt.Sprintf("%s 暂缓: 竞赛会话需重新进入，1 秒后重试", opDesc(op))
+		message = fmt.Sprintf("%s 暂缓: 竞赛会话需重新进入，10 分钟后重试", opDesc(op))
 	}
 	payloadOp := r.cooldownSideOperation(op, result.finishedAt, err, reason, raceSyncRetryCooldown)
 	r.emit(Event{
@@ -673,7 +717,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		label = "协助好友花灵"
 		message = flowerElvesAidHelpSuccessMessage(op, r.state, result.finishedAt)
 	case clientproto.RPCUsrLandHarvest.String(), clientproto.RPCUsrLandHarvestOneKey.String():
-		if op.GoalID == "elves_plant" || op.DemandID == "elves_plant" {
+		if op.GoalID == "elves_plant" || op.DemandID == "elves_plant" || op.FeatureID == "plant.elves_night_harvest" {
 			r.state.ClearElvesRound()
 		}
 	case clientproto.RPCFrdExtBuyStealCnt.String():
@@ -855,13 +899,21 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	case clientproto.RPCOrderFlowerFinishOrder.String():
 		r.state.NoteResidentOrderFinished(result.finishedAt, result.raw)
 		r.emitResidentOrderLimitInfo(r.Policy(), result.finishedAt)
+		r.clearOrderAnomalyPause()
 	case clientproto.RPCOrderFlowerFinishSatinOrder.String():
 		r.state.NoteResidentSatinOrderFinished(result.finishedAt, result.raw)
+		r.clearOrderAnomalyPause()
 	case clientproto.RPCOrderFlowerFinishDecorateOrder.String():
 		r.state.NoteResidentDecorateOrderFinished(result.finishedAt, result.raw)
+		r.clearOrderAnomalyPause()
 	case clientproto.RPCOrderCustomerFinishOrder.String():
 		r.state.NoteCustomerOrderFinished(result.finishedAt, result.raw)
 		r.emitCustomerOrderLimitInfo(r.Policy(), result.finishedAt)
+		r.clearOrderAnomalyPause()
+	case clientproto.RPCOrderCustomerGenOrder.String(),
+		clientproto.RPCOrderCustomerRejectOrder.String(),
+		clientproto.RPCFlowerArtMakeFlowerArt.String():
+		r.clearOrderAnomalyPause()
 	}
 	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() &&
 		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRace()) {
@@ -1142,6 +1194,8 @@ func operationEventLabel(op *automation.PlannedOp) string {
 			return op.Label
 		}
 		return "雇佣劳工"
+	case op.FeatureID == "plant.elves_night_harvest":
+		return "晚上10点收取花灵"
 	case op.Category == automation.CategoryElves ||
 		op.Domain == "farm.elves_aid" ||
 		op.Domain == "farm.elves_steal" ||

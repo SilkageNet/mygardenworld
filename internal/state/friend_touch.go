@@ -850,6 +850,28 @@ func FriendDisplayName(uid int64, name string) string {
 	return ""
 }
 
+// PlayerDisplayName resolves a nickname from cached oppt profiles (namespace 28).
+// selfName is used when uid matches RoleID. Returns empty when the name is
+// unknown so callers can omit UID digits from the UI until profiles sync.
+func (s *State) PlayerDisplayName(uid int64, selfName string) string {
+	if uid <= 0 || s == nil {
+		return ""
+	}
+	if s.RoleID() == uid {
+		if name := strings.TrimSpace(selfName); name != "" {
+			return name
+		}
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if profile := s.pearlProfiles[uid]; profile != nil {
+		if name := strings.TrimSpace(profile.Name); name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
 // FriendTouchFriends builds UI rows for all known friends.
 func (s *State) FriendTouchFriends(now time.Time) []FriendTouchFriendView {
 	cfg, ok := FriendTouchConfigFromCatalog()

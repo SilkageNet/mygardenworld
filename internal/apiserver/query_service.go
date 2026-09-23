@@ -2,6 +2,7 @@ package apiserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -84,8 +85,10 @@ func (svc *Services) statusFor(ctx context.Context, acc *store.Account) (*pb.Acc
 	out.AutomationEnabled = r.Policy().GetAutomationEnabled()
 	diag := r.Diagnostics(now)
 	out.Diagnostics = runnerDiagnosticsProto(diag)
+	riskPause := r.RiskPauseSnapshot(now)
+	out.RiskPause = riskPauseProto(riskPause)
 	out.DomainStatuses = buildDomainStatuses(r.Policy(), diag, out.Connected)
-	out.Health = accountHealth(out.Connected, diag)
+	out.Health = accountHealth(out.Connected, diag, riskPause.Pausing)
 	out.LastError = diag.LastOperationError
 	out.RuntimeStatistics = runtimeStatisticsProto(r.RuntimeStats())
 	st := r.State()
@@ -175,7 +178,7 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 		CyclicNote:            cyclicNoteProto(cyclicNote),
 		CyclicStory:           cyclicStoryProto(cyclicStory),
 		FmlRace: fmlRaceProto(
-			fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), now,
+			fmlRace, st, policy.GetUnion().GetRace(), st.RoleID(), acc.Name, now,
 			automation.RaceModuleGates{
 				Customer:  policy.GetOrder().GetCustomer().GetEnabled(),
 				Pearl:     policy.GetBasic().GetPearl().GetAutoHireEnabled(),
@@ -204,6 +207,8 @@ func (svc *Services) GetSnapshot(ctx context.Context, req *connect.Request[pb.Ge
 	resp.FlowerPass = passBoardProto(st.FlowerPassView())
 	resp.FlowerElvesPass = passBoardProto(st.FlowerElvesPassView())
 	resp.SpeedUpTicketsUsedToday = st.SpeedUpTicketsUsedToday(now)
+	svc.backfillFmlFlowerTodayTakes(ctx, acc.ID, st, now)
+	resp.FmlFlowerShare = fmlFlowerShareProto(st, now)
 	resp.Lands = buildLandViews(lands, st.FarmLands(), st.LandRosterObserved(), st.FarmLandConfigObserved(), st.Level(), now, time.Duration(policy.GetPlant().GetPlanting().GetHarvestDelaySeconds())*time.Second)
 	resp.FmlLandsObserved = st.FmlLandObserved()
 	resp.FmlLands = buildFmlLandViews(st.FmlLands(), st.Cultivations(), now)
@@ -266,6 +271,21 @@ func runtimeStatisticsProto(stats runner.RuntimeStatsSnapshot) *pb.RuntimeStatis
 		out.OperationCompletions = append(out.OperationCompletions, runtimeActionTotalProto(item))
 	}
 	return out
+}
+
+func riskPauseProto(s runner.RiskPauseStatus) *pb.RiskPauseView {
+	if !s.Enabled {
+		return nil
+	}
+	return &pb.RiskPauseView{
+		Enabled:              true,
+		Pausing:              s.Pausing,
+		RunSegmentStartedAt:  timestampOrNil(s.RunSegmentStartedAt),
+		NextPauseAt:          timestampOrNil(s.NextPauseAt),
+		PauseUntil:           timestampOrNil(s.PauseUntil),
+		RunDurationMinutes:   s.RunDurationMinutes,
+		PauseDurationMinutes: s.PauseDurationMinutes,
+	}
 }
 
 func runtimeActionTotalProto(item runner.RuntimeActionTotal) *pb.RuntimeActionTotal {
@@ -495,7 +515,7 @@ var fmlRaceTaskLabels = map[int32]string{
 	3052: "动物互动",
 }
 
-func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, gates automation.RaceModuleGates) *pb.FmlRaceView {
+func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, selfName string, now time.Time, gates automation.RaceModuleGates) *pb.FmlRaceView {
 	out := &pb.FmlRaceView{
 		Observed:        view.Observed,
 		BatchActive:     view.ActiveAt(now),
@@ -554,6 +574,12 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 		if taskType == 0 {
 			taskType = t.TaskId
 		}
+		upgradeName := ""
+		takeName := ""
+		if s != nil {
+			upgradeName = s.PlayerDisplayName(t.UpgradeUid, selfName)
+			takeName = s.PlayerDisplayName(t.UID, selfName)
+		}
 		out.Tasks = append(out.Tasks, &pb.FmlRaceTask{
 			MsId:           t.MsId,
 			TaskId:         t.TaskId,
@@ -562,6 +588,9 @@ func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRa
 			Score:          t.Score,
 			IsUpgrade:      t.IsUpgrade != 0,
 			UpgradeUid:     t.UpgradeUid,
+			UpgradeName:    upgradeName,
+			TakeUid:        t.UID,
+			TakeName:       takeName,
 			TargetLabel:    t.TargetLabel,
 			AppearTimeMs:   t.AppearTime,
 			TakeSkipReason: automation.RaceTakeSkipReason(s, t, racePolicy, uid, now, gates),
@@ -638,6 +667,81 @@ func completedTaskFromRaceFinishEvent(e store.EventLog) state.FmlRaceCompletedTa
 		TargetLabel:   targetLabel,
 		CompletedAtMs: completedAt,
 	}
+}
+
+func fmlFlowerShareProto(st *state.State, now time.Time) *pb.FmlFlowerShareView {
+	if st == nil {
+		return &pb.FmlFlowerShareView{}
+	}
+	share := st.FmlFlowerShare()
+	out := &pb.FmlFlowerShareView{
+		Observed:           share.Observed,
+		TodayTakeCount:     st.FmlFlowerTodayTakeCount(now),
+		TakeLimit:          st.FmlFlowerTakeLimit(),
+		LastTakeTimeMs:     share.LastTakeTimeMs,
+		TodayTakesObserved: st.FmlFlowerTodayTakesObserved(now),
+	}
+	takes := st.FmlFlowerTodayTakes(now)
+	if len(takes) == 0 {
+		return out
+	}
+	out.TodayTakes = make([]*pb.FmlFlowerTakeEntry, 0, len(takes))
+	for _, t := range takes {
+		out.TodayTakes = append(out.TodayTakes, &pb.FmlFlowerTakeEntry{
+			TakenAtMs:   t.TakenAtMs,
+			FlowerId:    t.FlowerID,
+			FlowerLabel: t.FlowerLabel,
+			MemberUid:   t.MemberUID,
+			SlotId:      t.SlotID,
+		})
+	}
+	return out
+}
+
+// backfillFmlFlowerTodayTakes replaces today's union_flower_take list from
+// event_log so the logs UI shows each successful take without merge/dedupe.
+func (svc *Services) backfillFmlFlowerTodayTakes(ctx context.Context, accountID int64, st *state.State, now time.Time) {
+	if svc == nil || svc.DB == nil || st == nil {
+		return
+	}
+	since := state.CalendarDayStart(now)
+	events, err := svc.DB.ListEventLogs(ctx, store.ListEventLogsOptions{
+		AccountIDs: []int64{accountID},
+		Kinds:      []string{"union_flower_take"},
+		Since:      since,
+		Limit:      100,
+	})
+	if err != nil {
+		return
+	}
+	entries := make([]state.FmlFlowerTodayTakeView, 0, len(events))
+	for _, e := range events {
+		entry := todayTakeFromUnionFlowerEvent(e)
+		if entry.TakenAtMs <= 0 {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	st.SetFmlFlowerTodayTakes(entries, now)
+}
+
+func todayTakeFromUnionFlowerEvent(e store.EventLog) state.FmlFlowerTodayTakeView {
+	entry := state.FmlFlowerTodayTakeView{TakenAtMs: e.TS.UnixMilli()}
+	var payload struct {
+		FlowerID  int32 `json:"flowerId"`
+		TargetUID int64 `json:"targetUid"`
+		TargetID  int32 `json:"targetId"`
+	}
+	if e.PayloadJSON != "" {
+		_ = json.Unmarshal([]byte(e.PayloadJSON), &payload)
+	}
+	entry.FlowerID = payload.FlowerID
+	entry.MemberUID = payload.TargetUID
+	entry.SlotID = payload.TargetID
+	if entry.FlowerID > 0 {
+		entry.FlowerLabel = state.ItemLabel(entry.FlowerID)
+	}
+	return entry
 }
 
 func splitRaceFinishMessage(message string) (taskLabel, targetLabel string) {
@@ -2040,6 +2144,33 @@ func flowerElvesProto(view state.FlowerElvesHouseView, now time.Time) *pb.Flower
 		AidPreReqTimeMs:     view.AidPreReqTimeMs,
 		AidReqReadyAtMs:     view.AidReqReadyAtMs,
 		AidCanRecv:          view.AidCanRecv,
+		DoubleBuffActive:    view.DoubleBuffActive,
+	}
+	if len(view.InventoryGroups) > 0 {
+		out.InventoryGroups = make([]*pb.FlowerElvesInventoryGroup, 0, len(view.InventoryGroups))
+		for _, group := range view.InventoryGroups {
+			pg := &pb.FlowerElvesInventoryGroup{
+				Color:    group.Color,
+				Score:    group.Score,
+				IsDouble: group.IsDouble,
+				Count:    group.Count,
+			}
+			if len(group.Items) > 0 {
+				pg.Items = make([]*pb.FlowerElvesInventoryItem, 0, len(group.Items))
+				for _, item := range group.Items {
+					name := item.Name
+					if name == "" {
+						name = itemNameOrID(item.ItemID)
+					}
+					pg.Items = append(pg.Items, &pb.FlowerElvesInventoryItem{
+						ItemId: item.ItemID,
+						Name:   name,
+						Count:  item.Count,
+					})
+				}
+			}
+			out.InventoryGroups = append(out.InventoryGroups, pg)
+		}
 	}
 	if len(view.Places) == 0 {
 		return out
@@ -2381,10 +2512,12 @@ func applyOperationCooldownsToDomainStatuses(statuses []*pb.DomainStatus, cooldo
 	}
 }
 
-func accountHealth(connected bool, diag runner.Diagnostics) string {
+func accountHealth(connected bool, diag runner.Diagnostics, riskPausing bool) string {
 	switch {
 	case diag.SessionInvalidatedReason != "":
 		return "session_expired"
+	case riskPausing:
+		return "pausing"
 	case len(diag.BlockedReasons) > 0:
 		return "blocked"
 	case connected:
@@ -2399,7 +2532,7 @@ func accountHealth(connected bool, diag runner.Diagnostics) string {
 func applyStoppedRunnerDiagnostics(out *pb.AccountStatus, policy *pb.Policy, diag runner.Diagnostics) {
 	out.Diagnostics = runnerDiagnosticsProto(diag)
 	out.DomainStatuses = buildDomainStatuses(policy, diag, false)
-	out.Health = accountHealth(false, diag)
+	out.Health = accountHealth(false, diag, false)
 	if diag.LastOperationError != "" {
 		out.LastError = diag.LastOperationError
 		return

@@ -35,6 +35,45 @@ func TestNormalizeClampsReconnectInterval(t *testing.T) {
 	}
 }
 
+func TestNormalizeRunPauseDurations(t *testing.T) {
+	tests := []struct {
+		name       string
+		run, pause int32
+		wantRun    int32
+		wantPause  int32
+	}{
+		{name: "zero uses defaults", run: 0, pause: 0, wantRun: 120, wantPause: 12},
+		{name: "negative uses defaults", run: -1, pause: -5, wantRun: 120, wantPause: 12},
+		{name: "configured values", run: 90, pause: 8, wantRun: 90, wantPause: 8},
+		{name: "huge clamps to one week", run: 1e9, pause: 1e9, wantRun: 7 * 24 * 60, wantPause: 7 * 24 * 60},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Normalize(&pb.Policy{Basic: &pb.BasicPolicy{
+				RunDurationMinutes:   tt.run,
+				PauseDurationMinutes: tt.pause,
+			}}).GetBasic()
+			if got.GetRunDurationMinutes() != tt.wantRun {
+				t.Fatalf("run duration=%d, want %d", got.GetRunDurationMinutes(), tt.wantRun)
+			}
+			if got.GetPauseDurationMinutes() != tt.wantPause {
+				t.Fatalf("pause duration=%d, want %d", got.GetPauseDurationMinutes(), tt.wantPause)
+			}
+		})
+	}
+}
+
+func TestNormalizeRunPauseDefaultsOffAndPreservesChoice(t *testing.T) {
+	if got := Normalize(&pb.Policy{}).GetBasic().GetRunPauseEnabled(); got {
+		t.Fatal("run pause default=true, want false")
+	}
+	if got := Normalize(&pb.Policy{Basic: &pb.BasicPolicy{
+		RunPauseEnabled: true,
+	}}).GetBasic().GetRunPauseEnabled(); !got {
+		t.Fatal("explicit run pause choice was not preserved")
+	}
+}
+
 func TestNormalizeDisplacedSessionReloginDefaultsOffAndPreservesChoice(t *testing.T) {
 	if got := Normalize(&pb.Policy{}).GetBasic().GetDisplacedSessionReloginEnabled(); got {
 		t.Fatal("displaced-session relogin default=true, want false")
@@ -154,6 +193,26 @@ func TestToJSONRoundTripPreservesHarvestDelaySeconds(t *testing.T) {
 	}
 	if got := out.GetPlant().GetPlanting().GetHarvestDelaySeconds(); got != 300 {
 		t.Fatalf("FromJSON harvest delay=%d, want 300", got)
+	}
+}
+
+func TestElvesNightHarvestDefaultsOn(t *testing.T) {
+	if !automation.DefaultPolicy().GetPlant().GetElvesPlant().GetNightHarvestEnabled() {
+		t.Fatal("default policy should collect land elves at 22:00")
+	}
+	legacy, err := FromJSON(`{"plant":{"elves_plant":{"enabled":false,"main_land_count":4}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !legacy.GetPlant().GetElvesPlant().GetNightHarvestEnabled() {
+		t.Fatal("stored policy without the switch should default on")
+	}
+	off, err := FromJSON(`{"plant":{"elves_plant":{"night_harvest_enabled":false}}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if off.GetPlant().GetElvesPlant().GetNightHarvestEnabled() {
+		t.Fatal("explicit off should stay off")
 	}
 }
 

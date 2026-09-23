@@ -14,6 +14,9 @@ import (
 const (
 	elvesPlantPriority        = int32(9800)
 	elvesPlantHarvestPriority = int32(10100)
+	elvesNightHarvestPriority = int32(10200)
+	elvesNightHarvestHour     = 22
+	elvesNightHarvestGoal     = "elves_night_harvest"
 	elvesFriendStealPriority  = int32(5540)
 	// While secondary is planted but elves have not spawned yet, re-enter often
 	// enough to catch the spawn. Once elves are visible (or the garden is idle),
@@ -72,6 +75,58 @@ func elvesPlantMainLandCount(p *pb.ElvesPlantPolicy, totalLands int) int {
 // elves-plant module (independent of auto_harvest).
 func elvesPlantDelayedHarvest(p *pb.ElvesPlantPolicy) bool {
 	return elvesPlantActive(p) && p.GetHarvestDelaySeconds() > 0
+}
+
+// elvesNightHarvestEnabled is the 22:00 own-land elf harvest switch. It does
+// not require ElvesPlantPolicy.enabled.
+func elvesNightHarvestEnabled(p *pb.ElvesPlantPolicy) bool {
+	return p != nil && p.GetNightHarvestEnabled()
+}
+
+// elvesNightHarvestOpen is 22:00–24:00 Asia/Shanghai. A late tick still
+// collects; after midnight the window closes until the next evening.
+func elvesNightHarvestOpen(now time.Time) bool {
+	return now.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Hour() >= elvesNightHarvestHour
+}
+
+// elvesNightHarvestLandIDs lists own lands that currently have a flower elf
+// and are harvestable immediately (configured harvest delay is ignored).
+func elvesNightHarvestLandIDs(s *state.State, p *pb.ElvesPlantPolicy, now time.Time) []int32 {
+	if s == nil || !elvesNightHarvestEnabled(p) || !elvesNightHarvestOpen(now) {
+		return nil
+	}
+	lands := s.Lands()
+	ids := make([]int32, 0)
+	for id, land := range lands {
+		if land.ElvesID == 0 {
+			continue
+		}
+		kind, _ := Recommend(land, now, 0)
+		if kind != KindHarvest {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+func filterOutLandIDs(landIDs, drop []int32) []int32 {
+	if len(drop) == 0 || len(landIDs) == 0 {
+		return landIDs
+	}
+	skip := make(map[int32]struct{}, len(drop))
+	for _, id := range drop {
+		skip[id] = struct{}{}
+	}
+	out := make([]int32, 0, len(landIDs))
+	for _, id := range landIDs {
+		if _, ok := skip[id]; ok {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
 }
 
 // elvesSecondaryFirstBloom is the post-water initial mature round. That bloom

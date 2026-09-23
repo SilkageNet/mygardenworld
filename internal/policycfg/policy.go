@@ -12,7 +12,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const maxReconnectIntervalSeconds = 24 * 60 * 60
+const (
+	maxReconnectIntervalSeconds = 24 * 60 * 60
+	maxRunPauseDurationMinutes  = 7 * 24 * 60 // one week
+)
 
 // migrateLegacyPassTaskPolicy copies flower/elves pass claim toggles from the
 // older plant.elves fields into basic.task when the basic side still looks
@@ -192,6 +195,18 @@ func Normalize(p *pb.Policy) *pb.Policy {
 		cp.Basic.ReconnectIntervalSeconds = 1
 	case cp.Basic.ReconnectIntervalSeconds > maxReconnectIntervalSeconds:
 		cp.Basic.ReconnectIntervalSeconds = maxReconnectIntervalSeconds
+	}
+	switch {
+	case cp.Basic.RunDurationMinutes <= 0:
+		cp.Basic.RunDurationMinutes = def.Basic.RunDurationMinutes
+	case cp.Basic.RunDurationMinutes > maxRunPauseDurationMinutes:
+		cp.Basic.RunDurationMinutes = maxRunPauseDurationMinutes
+	}
+	switch {
+	case cp.Basic.PauseDurationMinutes <= 0:
+		cp.Basic.PauseDurationMinutes = def.Basic.PauseDurationMinutes
+	case cp.Basic.PauseDurationMinutes > maxRunPauseDurationMinutes:
+		cp.Basic.PauseDurationMinutes = maxRunPauseDurationMinutes
 	}
 	if cp.Basic.Task == nil {
 		cp.Basic.Task = proto.Clone(def.Basic.Task).(*pb.BasicTaskPolicy)
@@ -414,6 +429,7 @@ func FromJSON(raw string) (*pb.Policy, error) {
 	}
 	compatAutoHarvest := shouldBackfillAutoHarvest(raw)
 	compatRaceAutoStop := shouldBackfillRaceAutoStopOnQuotaDone(raw)
+	compatElvesNightHarvest := shouldBackfillElvesNightHarvest(raw)
 	raw = rewriteLegacyRaceScoreField(raw)
 	if err := jsonUnmarshal.Unmarshal([]byte(raw), p); err != nil {
 		return nil, err
@@ -435,6 +451,15 @@ func FromJSON(raw string) (*pb.Policy, error) {
 			p.Union.Race = &pb.UnionRacePolicy{}
 		}
 		p.Union.Race.AutoStopOnQuotaDone = true
+	}
+	if compatElvesNightHarvest {
+		if p.Plant == nil {
+			p.Plant = &pb.PlantPolicy{}
+		}
+		if p.Plant.ElvesPlant == nil {
+			p.Plant.ElvesPlant = &pb.ElvesPlantPolicy{}
+		}
+		p.Plant.ElvesPlant.NightHarvestEnabled = true
 	}
 	return Normalize(p), nil
 }
@@ -509,6 +534,29 @@ func shouldBackfillRaceAutoStopOnQuotaDone(raw string) bool {
 		return true
 	}
 	return !hasAnyField(race, "auto_stop_on_quota_done", "autoStopOnQuotaDone")
+}
+
+// shouldBackfillElvesNightHarvest defaults the 22:00 land-elf harvest switch
+// on for stored policies that never saw the field, matching DefaultPolicy.
+// protojson replaces the elves_plant message, so a missing bool would
+// otherwise load as false.
+func shouldBackfillElvesNightHarvest(raw string) bool {
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return false
+	}
+	plant, ok := objectField(doc, "plant")
+	if !ok {
+		return true
+	}
+	elves, ok := objectField(plant, "elves_plant")
+	if !ok {
+		elves, ok = objectField(plant, "elvesPlant")
+	}
+	if !ok {
+		return true
+	}
+	return !hasAnyField(elves, "night_harvest_enabled", "nightHarvestEnabled")
 }
 
 func normalizeElvesPlant(p, def *pb.ElvesPlantPolicy) {

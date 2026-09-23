@@ -204,7 +204,7 @@ func TestIsRaceTakeOnCooldownError(t *testing.T) {
 	}
 }
 
-func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn1s(t *testing.T) {
+func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn10m(t *testing.T) {
 	r := newOperationEventTestRunner()
 	r.state.ApplyV(json.RawMessage(`{"25":{"111":{"0":42,"1":1,"2":1000,"3":9000000000},"114":[{"0":814,"4":4001,"5":3036,"10":9}]}}`))
 	if !r.state.FmlRace().TasksObserved {
@@ -236,12 +236,12 @@ func TestHandleOperationErrorRaceGetTaskListFailureRetriesIn1s(t *testing.T) {
 	if r.state.FmlRace().Observed {
 		t.Fatal("code 221 must MarkFmlRaceSessionStale (Observed=false)")
 	}
-	cd, cooling := r.operationCoolingDown(op, now.Add(500 * time.Millisecond))
+	cd, cooling := r.operationCoolingDown(op, now.Add(time.Minute))
 	if !cooling {
-		t.Fatal("expected 1s sync cooldown")
+		t.Fatal("expected 10m sync cooldown")
 	}
-	if d := cd.Until.Sub(now); d < time.Second || d > 2*time.Second {
-		t.Fatalf("cooldown duration=%v, want ~1s not 60s", d)
+	if d := cd.Until.Sub(now); d < 9*time.Minute || d > 11*time.Minute {
+		t.Fatalf("cooldown duration=%v, want ~10m", d)
 	}
 }
 

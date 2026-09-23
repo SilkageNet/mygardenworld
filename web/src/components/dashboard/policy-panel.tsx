@@ -658,6 +658,40 @@ export default function PolicyPanel({
 
         {activeTab === "basic" && (
           <div className="space-y-4">
+            <PolicyGroup title="风控休息" icon={<ShieldCheck />}>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ToggleRow
+                  label="定时休息"
+                  checked={basic?.runPauseEnabled ?? false}
+                  onChange={(checked) => updateBasic({ runPauseEnabled: checked })}
+                  description="按上海时间 0 点对齐循环，顶号不重置"
+                />
+                <NumberRow
+                  label="运行时长（分钟）"
+                  value={basic?.runDurationMinutes || 120}
+                  min={1}
+                  max={10080}
+                  disabled={!basic?.runPauseEnabled}
+                  onChange={(value) => updateBasic({ runDurationMinutes: value })}
+                  description="每个周期先运行此时长；默认 120，即 02:00 断开"
+                />
+                <NumberRow
+                  label="休息时长（分钟）"
+                  value={basic?.pauseDurationMinutes || 12}
+                  min={1}
+                  max={10080}
+                  disabled={!basic?.runPauseEnabled}
+                  onChange={(value) => updateBasic({ pauseDurationMinutes: value })}
+                  description="随后断开此时长再自动启动；默认 12，即 02:12 启动"
+                />
+                <p className="px-1 text-xs leading-5 text-muted-foreground sm:col-span-2">
+                  {basic?.runPauseEnabled
+                    ? "已启用：从上海时间 0 点起，按「运行时长 + 休息时长」循环。运行 120、休息 12 时为 02:00 停止、02:12 启动、04:12 停止、04:24 启动。被顶号不会重新计时。"
+                    : "默认关闭。开启后所有开启该选项的账号按同一套钟点休息；请对需要生效的账号分别保存。"}
+                </p>
+              </div>
+            </PolicyGroup>
+
             <PolicyGroup title="土地与种植" icon={<Sprout />}>
               <div className="grid gap-2 sm:grid-cols-2">
                 <ToggleRow label="自动种植" checked={planting?.autoEnabled ?? false} onChange={(checked) => updatePlanting({ autoEnabled: checked })} />
@@ -726,6 +760,13 @@ export default function PolicyPanel({
                   max={86400}
                   onChange={(value) => updateElvesPlant({ harvestDelaySeconds: value })}
                   description="大于 0 时强制收副花（不受自动收获开关控制）；浇水后首轮成熟无花灵立即收，第二轮成熟出花灵后按此时长再收"
+                />
+                <ToggleRow
+                  label="晚上10点收取花灵"
+                  checked={elvesPlant?.nightHarvestEnabled ?? true}
+                  onChange={(checked) => updateElvesPlant({ nightHarvestEnabled: checked })}
+                  status={settingStatusForCapability(capabilities, "plant.elves_night_harvest")}
+                  description="上海时间 22:00 起收获地里所有已出现花灵的地块，直到午夜。不受「种植花灵」和「自动收获」开关控制"
                 />
                 <ToggleRow
                   label="使用加速卡"
@@ -937,7 +978,7 @@ export default function PolicyPanel({
                 <ToggleRow label="水车水滴" checked={basic?.waterwheelEnabled ?? false} onChange={(checked) => updateBasic({ waterwheelEnabled: checked })} description="广告桶仅使用服务端明确支持的 skip→recv 路径，不触发或伪造广告 SDK 回调；每次约3–7滴，普通桶约30滴" />
                 <ToggleRow label="限时水滴" checked={basic?.freeWaterEnabled ?? false} onChange={(checked) => updateBasic({ freeWaterEnabled: checked })} />
                 <NumberRow label="水滴领取阈值" value={basic?.waterClaimThreshold || 0} min={0} onChange={(value) => updateBasic({ waterClaimThreshold: value })} description="当前水滴≥该值时暂停水车/限时领取；0=不限制。与自然恢复上限(如130)无关" />
-                <ToggleRow label="福利宝箱" checked={benefit?.boxEnabled ?? false} onChange={(checked) => updateBenefit({ boxEnabled: checked })} />
+				<ToggleRow label="福利宝箱" checked={benefit?.boxEnabled ?? false} onChange={(checked) => updateBenefit({ boxEnabled: checked })} description="仅在每天 04:30–05:00（上海时区）自动开启；白天留给手动领取" />
                 {SHOW_UNSUPPORTED_SETTINGS && <ToggleRow label="分享奖励" checked={benefit?.shareRewardEnabled ?? false} onChange={(checked) => updateBenefit({ shareRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "basic.share_reward")} />}
                 <ToggleRow label="防骗宝箱" checked={benefit?.antiScamBoxEnabled ?? false} onChange={(checked) => updateBenefit({ antiScamBoxEnabled: checked })} />
                 <ToggleRow label="防诈骗签到奖励" checked={sign?.dailyEnabled ?? false} onChange={(checked) => updateSign({ dailyEnabled: checked })} />

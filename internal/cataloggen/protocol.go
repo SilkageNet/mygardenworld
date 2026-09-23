@@ -13,14 +13,15 @@ import (
 	"unicode"
 )
 
-// ProtocolField is one numbered field from a client mo.DS schema.
+// ProtocolField is one numbered field from a client *.DS schema.
 type ProtocolField struct {
 	Name  string
 	Index int
 	Type  string
 }
 
-// ProtocolSchema is one mo.DS.setSingle schema recovered from game.js.
+// ProtocolSchema is one *.DS.setSingle schema recovered from game.js
+// (historically mo.DS.setSingle; newer clients minify to s.DS.setSingle).
 type ProtocolSchema struct {
 	Name   string
 	Parent string
@@ -180,7 +181,8 @@ func applyCelebrityNamespaceOverride(schema *ProtocolSchema) {
 }
 
 func extractSchemas(text string) ([]ProtocolSchema, error) {
-	const marker = `mo.DS.setSingle(`
+	// Match both mo.DS.setSingle( and minified s.DS.setSingle(.
+	const marker = `.DS.setSingle(`
 	var schemas []ProtocolSchema
 	for searchAt := 0; ; {
 		idx := strings.Index(text[searchAt:], marker)
@@ -223,7 +225,7 @@ func extractSchemas(text string) ([]ProtocolSchema, error) {
 		searchAt = objEnd
 	}
 	if len(schemas) == 0 {
-		return nil, fmt.Errorf("no mo.DS.setSingle schemas found")
+		return nil, fmt.Errorf("no *.DS.setSingle schemas found")
 	}
 	byName := make(map[string]ProtocolSchema, len(schemas))
 	for _, schema := range schemas {

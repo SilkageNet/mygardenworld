@@ -152,8 +152,41 @@ func TestUnionRaceAutoModulesOffProducesNoOps(t *testing.T) {
 	applyRaceState(s, [][5]int32{{1, 3036, 10, 0, 0}})
 	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false, MinTaskScore: 28}
 	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
-	if len(ops) != 0 {
-		t.Fatalf("expected 0 ops when autoEnableModules off, got %d: %+v", len(ops), ops)
+	for _, op := range ops {
+		switch op.Kind {
+		case clientproto.RPCFmlRaceTakeTask.String(),
+			clientproto.RPCFmlRaceFinishTask.String(),
+			clientproto.RPCFmlRaceGiveUpTask.String(),
+			clientproto.RPCFmlRaceUpgradeTask.String(),
+			clientproto.RPCFmlRaceDelTask.String():
+			t.Fatalf("expected no mutating race ops when autoEnableModules off, got %+v", ops)
+		}
+	}
+}
+
+func TestUnionRaceAutoModulesOffSyncsMemberNames(t *testing.T) {
+	s := state.New()
+	applyRaceState(s, [][5]int32{{1, 3036, 30, 1, 2001}})
+	// Mark taker on a second row so name sync has a UID to fetch.
+	s.ApplyV(json.RawMessage(`{"25":{"114":[{"0":1,"4":3036,"10":30,"12":0,"14":1,"15":2001},{"0":2,"4":3036,"10":28,"12":2002}]}}`))
+	s.MarkFmlRaceTaskLogsSynced()
+	policy := &pb.UnionRacePolicy{Enabled: true, AutoEnableModules: false, MinTaskScore: 0}
+	policy.TaskTypePriority = map[int32]int32{3036: 5}
+	ops := unionRaceOperations(s, policy, s.RoleID(), time.Now(), raceGatesOn())
+	found := false
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCOpptGetDetailOppts.String() {
+			found = true
+			if len(op.TargetUIDs) == 0 {
+				t.Fatalf("member name sync missing TargetUIDs: %+v", op)
+			}
+		}
+		if op.Kind == clientproto.RPCFmlRaceTakeTask.String() {
+			t.Fatalf("must not take when autoEnableModules off: %+v", ops)
+		}
+	}
+	if !found {
+		t.Fatalf("expected oppt.getDetailOppts for race member names, got %+v", ops)
 	}
 }
 

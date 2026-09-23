@@ -36,6 +36,11 @@ const (
 	RPCActAutumnDraw                            RPCName = "actAutumn.draw"
 	RPCActAutumnEnter                           RPCName = "actAutumn.enter"
 	RPCActAutumnRecv                            RPCName = "actAutumn.recv"
+	RPCActAutumnBack26Draw                      RPCName = "actAutumnBack26.draw"
+	RPCActAutumnBack26Enter                     RPCName = "actAutumnBack26.enter"
+	RPCActAutumnBack26UnlockDrawRecall          RPCName = "actAutumnBack26.unlockDrawRecall"
+	RPCActAutumnDrum26Draw                      RPCName = "actAutumnDrum26.draw"
+	RPCActAutumnDrum26Enter                     RPCName = "actAutumnDrum26.enter"
 	RPCActBigHeartAcceptTradeInv                RPCName = "actBigHeart.acceptTradeInv"
 	RPCActBigHeartCancelTrade                   RPCName = "actBigHeart.cancelTrade"
 	RPCActBigHeartEnter                         RPCName = "actBigHeart.enter"
@@ -146,11 +151,25 @@ const (
 	RPCActGame2048Restart                       RPCName = "actGame2048.restart"
 	RPCActGame2048UseChange                     RPCName = "actGame2048.useChange"
 	RPCActGame2048UseEliminate                  RPCName = "actGame2048.useEliminate"
+	RPCActGuoqingBack26Draw                     RPCName = "actGuoqingBack26.draw"
+	RPCActGuoqingBack26Enter                    RPCName = "actGuoqingBack26.enter"
+	RPCActGuoqingBack26GiftBuy                  RPCName = "actGuoqingBack26.giftBuy"
+	RPCActGuoqingBack26Recv                     RPCName = "actGuoqingBack26.recv"
+	RPCActGuoqingBack26UnlockDrawRecall         RPCName = "actGuoqingBack26.unlockDrawRecall"
 	RPCActHalloweenDraw                         RPCName = "actHalloween.draw"
 	RPCActHoneyEnter                            RPCName = "actHoney.enter"
 	RPCActHoneyGiftBuy                          RPCName = "actHoney.giftBuy"
 	RPCActHoneyRecv                             RPCName = "actHoney.recv"
 	RPCActHoneyResetGiftCd                      RPCName = "actHoney.resetGiftCd"
+	RPCActIpcxsHerbDraw                         RPCName = "actIPCXSHerb.draw"
+	RPCActIpcxsHerbEnter                        RPCName = "actIPCXSHerb.enter"
+	RPCActIpcxsHerbGetOrderExtRwd               RPCName = "actIPCXSHerb.getOrderExtRwd"
+	RPCActIpcxsHerbOpenBox                      RPCName = "actIPCXSHerb.openBox"
+	RPCActIpcxsPearlEnter                       RPCName = "actIPCXSPearl.enter"
+	RPCActIpcxsPearlGetOrderExtRwd              RPCName = "actIPCXSPearl.getOrderExtRwd"
+	RPCActIpcxsWineDraw                         RPCName = "actIPCXSWine.draw"
+	RPCActIpcxsWineEnter                        RPCName = "actIPCXSWine.enter"
+	RPCActIpcxsWineGetOrderExtRwd               RPCName = "actIPCXSWine.getOrderExtRwd"
 	RPCActIPCardPreferredEnter                  RPCName = "actIPCardPreferred.enter"
 	RPCActIPDmdGiftGiftBuy                      RPCName = "actIPDmdGift.giftBuy"
 	RPCActIPFlowWaterEnter                      RPCName = "actIPFlowWater.enter"
@@ -226,6 +245,12 @@ const (
 	RPCActPaperRecv                             RPCName = "actPaper.recv"
 	RPCActPaperRecvGamePrize                    RPCName = "actPaper.recvGamePrize"
 	RPCActPaperRecvTaskPrize                    RPCName = "actPaper.recvTaskPrize"
+	RPCActPaperBack26Enter                      RPCName = "actPaperBack26.enter"
+	RPCActPaperBack26GiftBuy                    RPCName = "actPaperBack26.giftBuy"
+	RPCActPaperBack26Recv                       RPCName = "actPaperBack26.recv"
+	RPCActPaperBack26RecvGamePrize              RPCName = "actPaperBack26.recvGamePrize"
+	RPCActPaperBack26RecvTaskPrize              RPCName = "actPaperBack26.recvTaskPrize"
+	RPCActPaperBack26UnlockDrawRecall           RPCName = "actPaperBack26.unlockDrawRecall"
 	RPCActQixiDraw                              RPCName = "actQixi.draw"
 	RPCActRchgRwdEnter                          RPCName = "actRchgRwd.enter"
 	RPCActRchgRwdRecv                           RPCName = "actRchgRwd.recv"
@@ -665,6 +690,8 @@ const (
 	RPCRchgDayReceive                           RPCName = "rchgDay.receive"
 	RPCRchgOrderToMoneyConvertMoney             RPCName = "rchgOrderToMoney.convertMoney"
 	RPCRchgSumRecv                              RPCName = "rchgSum.recv"
+	RPCRealFlowerLvlGetLogList                  RPCName = "realFlowerLvl.getLogList"
+	RPCRealFlowerLvlRecv                        RPCName = "realFlowerLvl.recv"
 	RPCRedeemGetInfo                            RPCName = "redeem.getInfo"
 	RPCRedeemUseCode                            RPCName = "redeem.useCode"
 	RPCRedeemCodeShowDjdk                       RPCName = "redeemCodeShow.djdk"
@@ -915,6 +942,11 @@ var gameJSRPCNames = []RPCName{
 	RPCActAutumnDraw,
 	RPCActAutumnEnter,
 	RPCActAutumnRecv,
+	RPCActAutumnBack26Draw,
+	RPCActAutumnBack26Enter,
+	RPCActAutumnBack26UnlockDrawRecall,
+	RPCActAutumnDrum26Draw,
+	RPCActAutumnDrum26Enter,
 	RPCActBigHeartAcceptTradeInv,
 	RPCActBigHeartCancelTrade,
 	RPCActBigHeartEnter,
@@ -1025,11 +1057,25 @@ var gameJSRPCNames = []RPCName{
 	RPCActGame2048Restart,
 	RPCActGame2048UseChange,
 	RPCActGame2048UseEliminate,
+	RPCActGuoqingBack26Draw,
+	RPCActGuoqingBack26Enter,
+	RPCActGuoqingBack26GiftBuy,
+	RPCActGuoqingBack26Recv,
+	RPCActGuoqingBack26UnlockDrawRecall,
 	RPCActHalloweenDraw,
 	RPCActHoneyEnter,
 	RPCActHoneyGiftBuy,
 	RPCActHoneyRecv,
 	RPCActHoneyResetGiftCd,
+	RPCActIpcxsHerbDraw,
+	RPCActIpcxsHerbEnter,
+	RPCActIpcxsHerbGetOrderExtRwd,
+	RPCActIpcxsHerbOpenBox,
+	RPCActIpcxsPearlEnter,
+	RPCActIpcxsPearlGetOrderExtRwd,
+	RPCActIpcxsWineDraw,
+	RPCActIpcxsWineEnter,
+	RPCActIpcxsWineGetOrderExtRwd,
 	RPCActIPCardPreferredEnter,
 	RPCActIPDmdGiftGiftBuy,
 	RPCActIPFlowWaterEnter,
@@ -1105,6 +1151,12 @@ var gameJSRPCNames = []RPCName{
 	RPCActPaperRecv,
 	RPCActPaperRecvGamePrize,
 	RPCActPaperRecvTaskPrize,
+	RPCActPaperBack26Enter,
+	RPCActPaperBack26GiftBuy,
+	RPCActPaperBack26Recv,
+	RPCActPaperBack26RecvGamePrize,
+	RPCActPaperBack26RecvTaskPrize,
+	RPCActPaperBack26UnlockDrawRecall,
 	RPCActQixiDraw,
 	RPCActRchgRwdEnter,
 	RPCActRchgRwdRecv,
@@ -1544,6 +1596,8 @@ var gameJSRPCNames = []RPCName{
 	RPCRchgDayReceive,
 	RPCRchgOrderToMoneyConvertMoney,
 	RPCRchgSumRecv,
+	RPCRealFlowerLvlGetLogList,
+	RPCRealFlowerLvlRecv,
 	RPCRedeemGetInfo,
 	RPCRedeemUseCode,
 	RPCRedeemCodeShowDjdk,
@@ -1802,6 +1856,11 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCActAutumnDraw, Group: "actAutumn", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActAutumnEnter, Group: "actAutumn", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActAutumnRecv, Group: "actAutumn", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActAutumnBack26Draw, Group: "actAutumnBack26", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActAutumnBack26Enter, Group: "actAutumnBack26", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActAutumnBack26UnlockDrawRecall, Group: "actAutumnBack26", Method: "unlockDrawRecall", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActAutumnDrum26Draw, Group: "actAutumnDrum26", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActAutumnDrum26Enter, Group: "actAutumnDrum26", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActBigHeartAcceptTradeInv, Group: "actBigHeart", Method: "acceptTradeInv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "dstUid"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActBigHeartCancelTrade, Group: "actBigHeart", Method: "cancelTrade", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActBigHeartEnter, Group: "actBigHeart", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
@@ -1912,11 +1971,25 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCActGame2048Restart, Group: "actGame2048", Method: "restart", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "map"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActGame2048UseChange, Group: "actGame2048", Method: "useChange", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "map", "cells"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActGame2048UseEliminate, Group: "actGame2048", Method: "useEliminate", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "map", "cells"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActGuoqingBack26Draw, Group: "actGuoqingBack26", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActGuoqingBack26Enter, Group: "actGuoqingBack26", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActGuoqingBack26GiftBuy, Group: "actGuoqingBack26", Method: "giftBuy", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "giftId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActGuoqingBack26Recv, Group: "actGuoqingBack26", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActGuoqingBack26UnlockDrawRecall, Group: "actGuoqingBack26", Method: "unlockDrawRecall", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActHalloweenDraw, Group: "actHalloween", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActHoneyEnter, Group: "actHoney", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActHoneyGiftBuy, Group: "actHoney", Method: "giftBuy", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "giftId", "count"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActHoneyRecv, Group: "actHoney", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActHoneyResetGiftCd, Group: "actHoney", Method: "resetGiftCd", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "giftId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsHerbDraw, Group: "actIPCXSHerb", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsHerbEnter, Group: "actIPCXSHerb", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsHerbGetOrderExtRwd, Group: "actIPCXSHerb", Method: "getOrderExtRwd", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "id"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsHerbOpenBox, Group: "actIPCXSHerb", Method: "openBox", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "boxId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsPearlEnter, Group: "actIPCXSPearl", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsPearlGetOrderExtRwd, Group: "actIPCXSPearl", Method: "getOrderExtRwd", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "id"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsWineDraw, Group: "actIPCXSWine", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsWineEnter, Group: "actIPCXSWine", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActIpcxsWineGetOrderExtRwd, Group: "actIPCXSWine", Method: "getOrderExtRwd", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "id"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActIPCardPreferredEnter, Group: "actIPCardPreferred", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActIPDmdGiftGiftBuy, Group: "actIPDmdGift", Method: "giftBuy", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActIPFlowWaterEnter, Group: "actIPFlowWater", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
@@ -1992,6 +2065,12 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCActPaperRecv, Group: "actPaper", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActPaperRecvGamePrize, Group: "actPaper", Method: "recvGamePrize", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActPaperRecvTaskPrize, Group: "actPaper", Method: "recvTaskPrize", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActPaperBack26Enter, Group: "actPaperBack26", Method: "enter", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActPaperBack26GiftBuy, Group: "actPaperBack26", Method: "giftBuy", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "giftId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActPaperBack26Recv, Group: "actPaperBack26", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "idx"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActPaperBack26RecvGamePrize, Group: "actPaperBack26", Method: "recvGamePrize", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActPaperBack26RecvTaskPrize, Group: "actPaperBack26", Method: "recvTaskPrize", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
+	{Name: RPCActPaperBack26UnlockDrawRecall, Group: "actPaperBack26", Method: "unlockDrawRecall", RequestShape: RPCRequestFields, RequestFields: []string{"batchId"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActQixiDraw, Group: "actQixi", Method: "draw", RequestShape: RPCRequestFields, RequestFields: []string{"batchId", "count"}, ResponseSchema: "StateDelta"},
 	{Name: RPCActRchgRwdEnter, Group: "actRchgRwd", Method: "enter", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCActRchgRwdRecv, Group: "actRchgRwd", Method: "recv", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
@@ -2431,6 +2510,8 @@ var gameJSRPCSpecs = []RPCSpec{
 	{Name: RPCRchgDayReceive, Group: "rchgDay", Method: "receive", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCRchgOrderToMoneyConvertMoney, Group: "rchgOrderToMoney", Method: "convertMoney", RequestShape: RPCRequestFields, RequestFields: []string{"orderNo"}, ResponseSchema: "StateDelta"},
 	{Name: RPCRchgSumRecv, Group: "rchgSum", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"id"}, ResponseSchema: "StateDelta"},
+	{Name: RPCRealFlowerLvlGetLogList, Group: "realFlowerLvl", Method: "getLogList", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
+	{Name: RPCRealFlowerLvlRecv, Group: "realFlowerLvl", Method: "recv", RequestShape: RPCRequestFields, RequestFields: []string{"id"}, ResponseSchema: "StateDelta"},
 	{Name: RPCRedeemGetInfo, Group: "redeem", Method: "getInfo", RequestShape: RPCRequestEmpty, RequestFields: nil, ResponseSchema: "StateDelta"},
 	{Name: RPCRedeemUseCode, Group: "redeem", Method: "useCode", RequestShape: RPCRequestFields, RequestFields: []string{"code"}, ResponseSchema: "StateDelta"},
 	{Name: RPCRedeemCodeShowDjdk, Group: "redeemCodeShow", Method: "djdk", RequestShape: RPCRequestRaw, RequestFields: nil, ResponseSchema: "StateDelta"},

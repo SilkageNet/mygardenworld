@@ -392,9 +392,13 @@ func isRaceTakeQuotaExceededError(kind string, err error) bool {
 	return false
 }
 
+// raceSyncRetryCooldown backs off getTaskList/enter after a sync failure.
+// Keep aligned with automation.raceTaskPoolRefreshInterval so a broken sync
+// cannot preempt farm/order work every decision tick.
+const raceSyncRetryCooldown = 10 * time.Minute
+
 // isRaceTakeOnCooldownError matches takeTask when the pool row is still on
 // AppearTime CD (common after a preemptive lead-window attempt).
-const raceSyncRetryCooldown = 1 * time.Second
 
 // raceTransientSessionCode is returned when the client race session is stale
 // (common on getTaskList/takeTask before a fresh enter).
@@ -541,6 +545,31 @@ func isMailAlreadyPickedError(kind string, err error) bool {
 	}
 	msg := err.Error()
 	return strings.Contains(msg, "附件已领取") || strings.Contains(msg, "不存在可以领取的邮件") || strings.Contains(msg, "mail_nonToPick") || strings.Contains(msg, "mail_alreadyPick")
+}
+
+// isBenefitBoxDrawRejectedError covers benefitBox.draw rejects where the server
+// reports no unopened box (numeric code 5000). Local accrual can otherwise
+// keep planning draws for the whole 04:30–05:00 window.
+func isBenefitBoxDrawRejectedError(kind string, err error) bool {
+	if kind != clientproto.RPCBenefitBoxDraw.String() || err == nil {
+		return false
+	}
+	var rpcErr *babigame.RPCServerError
+	if errors.As(err, &rpcErr) && rpcErr != nil && rpcErr.Envelope.ErrorCode() == 5000 {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, `"code":5000`) || strings.Contains(msg, `"code": 5000`)
+}
+
+func benefitBoxRejectCooldown(now time.Time) time.Duration {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	local := now.In(shanghai)
+	end := time.Date(local.Year(), local.Month(), local.Day(), 5, 0, 0, 0, shanghai)
+	if d := end.Sub(now); d > 0 {
+		return d
+	}
+	return time.Hour
 }
 
 // isFriendStealElvesUnavailableError covers stealElves=1 rejects where the plot

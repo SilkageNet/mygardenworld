@@ -186,6 +186,27 @@ type ActAutumnRecvRequest struct {
 	Idx     RPCInt `json:"idx,omitempty"`
 }
 
+type ActAutumnBack26DrawRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActAutumnBack26EnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActAutumnBack26UnlockDrawRecallRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActAutumnDrum26DrawRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActAutumnDrum26EnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
 type ActBigHeartAcceptTradeInvRequest struct {
 	BatchId RPCID  `json:"batchId,omitempty"`
 	DstUid  RPCUID `json:"dstUid,omitempty"`
@@ -738,6 +759,30 @@ type ActGame2048UseEliminateRequest struct {
 	Cells   RPCArray  `json:"cells,omitempty"`
 }
 
+type ActGuoqingBack26DrawRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActGuoqingBack26EnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActGuoqingBack26GiftBuyRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	GiftId  RPCID  `json:"giftId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActGuoqingBack26RecvRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Idx     RPCInt `json:"idx,omitempty"`
+}
+
+type ActGuoqingBack26UnlockDrawRecallRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
 type ActHalloweenDrawRequest struct {
 	BatchId RPCID  `json:"batchId,omitempty"`
 	Count   RPCInt `json:"count,omitempty"`
@@ -864,6 +909,48 @@ type ActIPTreasureDrawRequest struct {
 
 type ActIPTreasureEnterRequest struct {
 	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActIpcxsHerbDrawRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActIpcxsHerbEnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActIpcxsHerbGetOrderExtRwdRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+	ID      RPCID `json:"id,omitempty"`
+}
+
+type ActIpcxsHerbOpenBoxRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+	BoxId   RPCID `json:"boxId,omitempty"`
+}
+
+type ActIpcxsPearlEnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActIpcxsPearlGetOrderExtRwdRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+	ID      RPCID `json:"id,omitempty"`
+}
+
+type ActIpcxsWineDrawRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActIpcxsWineEnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActIpcxsWineGetOrderExtRwdRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+	ID      RPCID `json:"id,omitempty"`
 }
 
 type ActJiuSeLuClearObstacleRequest struct {
@@ -1091,6 +1178,34 @@ type ActPaperRecvGamePrizeRequest struct {
 }
 
 type ActPaperRecvTaskPrizeRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActPaperBack26EnterRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActPaperBack26GiftBuyRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	GiftId  RPCID  `json:"giftId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActPaperBack26RecvRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Idx     RPCInt `json:"idx,omitempty"`
+}
+
+type ActPaperBack26RecvGamePrizeRequest struct {
+	BatchId RPCID  `json:"batchId,omitempty"`
+	Count   RPCInt `json:"count,omitempty"`
+}
+
+type ActPaperBack26RecvTaskPrizeRequest struct {
+	BatchId RPCID `json:"batchId,omitempty"`
+}
+
+type ActPaperBack26UnlockDrawRecallRequest struct {
 	BatchId RPCID `json:"batchId,omitempty"`
 }
 
@@ -2664,6 +2779,12 @@ type RchgSumRecvRequest struct {
 	ID RPCID `json:"id,omitempty"`
 }
 
+type RealFlowerLvlGetLogListRequest struct{}
+
+type RealFlowerLvlRecvRequest struct {
+	ID RPCID `json:"id,omitempty"`
+}
+
 type ReapPopupShjmRequest struct {
 	Point RPCPoint `json:"point,omitempty"`
 }
@@ -3852,6 +3973,7 @@ type IActDrawExt struct {
 	LdTime             int64    `json:"13,omitempty"`
 	IsDrawRecall       int32    `json:"14,omitempty"`
 	IsFeBookDrawRecall int32    `json:"15,omitempty"`
+	IsBigTrans         int32    `json:"16,omitempty"`
 }
 
 type IActElim struct {
@@ -4048,6 +4170,13 @@ type IActLetterContent struct {
 
 type IActLetterTot struct {
 	Map RawValue `json:"0,omitempty"`
+}
+
+type IActMamaCallExt struct {
+	TdyCnt int32 `json:"0,omitempty"`
+	TotCnt int32 `json:"1,omitempty"`
+	LgTime int64 `json:"2,omitempty"`
+	DrTime int64 `json:"3,omitempty"`
 }
 
 type IActMerge2 struct {
@@ -4957,13 +5086,16 @@ type IButlerOlTlEvt struct {
 }
 
 type IButlerOlTlExt struct {
-	HTime                int32                 `json:"0,omitempty"`
-	Water                IButlerOlTlWaterState `json:"1,omitempty"`
-	ElvesNoAppearCnt     int32                 `json:"2,omitempty"`
-	ElvesNoAppearCntSnap int32                 `json:"3,omitempty"`
-	ResumeFenceHTime     int32                 `json:"4,omitempty"`
-	ResumeFenceOnly      int32                 `json:"5,omitempty"`
-	SelfSettle           IButlerOlTlSelfSettle `json:"6,omitempty"`
+	HTime                  int32                 `json:"0,omitempty"`
+	Water                  IButlerOlTlWaterState `json:"1,omitempty"`
+	ElvesNoAppearCnt       int32                 `json:"2,omitempty"`
+	ElvesNoAppearCntSnap   int32                 `json:"3,omitempty"`
+	ResumeFenceHTime       int32                 `json:"4,omitempty"`
+	ResumeFenceOnly        int32                 `json:"5,omitempty"`
+	SelfSettle             IButlerOlTlSelfSettle `json:"6,omitempty"`
+	PendingHarvestElvesCnt int32                 `json:"7,omitempty"`
+	PdHFleCountMap         RawValue              `json:"8,omitempty"`
+	PendingPlantMap        RawValue              `json:"9,omitempty"`
 }
 
 type IButlerOlTlSelfSettle struct {
@@ -5613,6 +5745,8 @@ type IExtActRcd struct {
 	SpaceData               IActSpaceData         `json:"126,omitempty"`
 	RegularDrawData         IDraw                 `json:"127,omitempty"`
 	CabinetData             IActCabinetData       `json:"128,omitempty"`
+	PrevUnlockScore         int32                 `json:"129,omitempty"`
+	MamaCallData            IActMamaCallExt       `json:"130,omitempty"`
 }
 
 type IExtActRcdCardCollect struct {
@@ -5686,6 +5820,7 @@ type IExtActTmp struct {
 	RankUIId              int32        `json:"130,omitempty"`
 	ActType               int32        `json:"131,omitempty"`
 	HelpCfg               RawValue     `json:"132,omitempty"`
+	HideTime              int32        `json:"133,omitempty"`
 }
 
 type IExtBattlePass struct {
@@ -6899,6 +7034,7 @@ type IGameClubTaskDone struct {
 	Receive    int32 `json:"1,omitempty"`
 	Time       int32 `json:"2,omitempty"`
 	FinishTime int64 `json:"3,omitempty"`
+	DailyMax   int32 `json:"4,omitempty"`
 }
 
 type IGameClubTot struct {
@@ -8376,6 +8512,31 @@ type IRchgWheelLog struct {
 	MsId    int32 `json:"5,omitempty"`
 }
 
+type IRealFlowerLvl struct {
+	UID      int64 `json:"0,omitempty"`
+	Lvl      int32 `json:"1,omitempty"`
+	ShareCnt int32 `json:"2,omitempty"`
+	ItemId   int32 `json:"3,omitempty"`
+	RecvTime int64 `json:"4,omitempty"`
+	UTime    int64 `json:"5,omitempty"`
+	CTime    int64 `json:"6,omitempty"`
+}
+
+type IRealFlowerLvlLog struct {
+	MsId    int32  `json:"0,omitempty"`
+	UID     int64  `json:"1,omitempty"`
+	Lvl     int32  `json:"2,omitempty"`
+	ItemId  int32  `json:"3,omitempty"`
+	UsrName string `json:"4,omitempty"`
+	UTime   int64  `json:"5,omitempty"`
+	CTime   int64  `json:"6,omitempty"`
+}
+
+type IRealFlowerLvlTot struct {
+	Map     RawValue            `json:"0,omitempty"`
+	LogList []IRealFlowerLvlLog `json:"1,omitempty"`
+}
+
 type IRedTot struct {
 	Map RawValue `json:"0,omitempty"`
 }
@@ -9006,6 +9167,7 @@ type ISyncData struct {
 	FrdNoteTot           IFrdNoteTot           `json:"173,omitempty"`
 	InfoBgTot            IInfoBgTot            `json:"174,omitempty"`
 	ButlerTot            IButlerTot            `json:"175,omitempty"`
+	RealFlowerLvlTot     IRealFlowerLvlTot     `json:"176,omitempty"`
 }
 
 type ISysMsg struct {
@@ -9204,14 +9366,15 @@ type IThirdpartyAccessToken struct {
 }
 
 type ITimeItem struct {
-	MsId       int32    `json:"0,omitempty"`
-	UID        int64    `json:"1,omitempty"`
-	Iid        int32    `json:"2,omitempty"`
-	ExpireTime int64    `json:"3,omitempty"`
-	Param      RawValue `json:"4,omitempty"`
-	UTime      int64    `json:"5,omitempty"`
-	CTime      int64    `json:"6,omitempty"`
-	ChooseIid  int32    `json:"7,omitempty"`
+	MsId        int32    `json:"0,omitempty"`
+	UID         int64    `json:"1,omitempty"`
+	Iid         int32    `json:"2,omitempty"`
+	ExpireTime  int64    `json:"3,omitempty"`
+	Param       RawValue `json:"4,omitempty"`
+	UTime       int64    `json:"5,omitempty"`
+	CTime       int64    `json:"6,omitempty"`
+	ChooseIid   int32    `json:"7,omitempty"`
+	OrderStatus int32    `json:"8,omitempty"`
 }
 
 type ITimeItemTot struct {

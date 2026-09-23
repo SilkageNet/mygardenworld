@@ -961,6 +961,9 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 		if op, ok := raceTaskLogSyncOp(view, goal, now); ok {
 			return []PlannedOp{op}
 		}
+		if op, ok := raceMemberNameSyncOp(s, view, goal, uid); ok {
+			return []PlannedOp{op}
+		}
 		if raceTaskPoolTTLStale(view, now) && !raceHasNearTakeableCD(s, view.Tasks, policy, uid, now, gates) {
 			return []PlannedOp{domainOp(
 				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
@@ -1129,6 +1132,9 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			return []PlannedOp{op}
 		}
 		if op, ok := raceTaskLogSyncOp(view, goal, now); ok {
+			return []PlannedOp{op}
+		}
+		if op, ok := raceMemberNameSyncOp(s, view, goal, uid); ok {
 			return []PlannedOp{op}
 		}
 	}
@@ -1389,6 +1395,53 @@ func raceTaskLogSyncOp(view state.FmlRaceView, goal Goal, now time.Time) (Planne
 	op.TaskMsID = view.BatchID
 	op.CooldownKey = "union.race.task_log"
 	return op, true
+}
+
+// raceMemberNameSyncOp fetches oppt summaries for upgrade/taker UIDs so the
+// task-pool UI can show member names instead of raw numbers.
+func raceMemberNameSyncOp(s *state.State, view state.FmlRaceView, goal Goal, selfUID int64) (PlannedOp, bool) {
+	if s == nil || !view.TasksObserved || len(view.Tasks) == 0 {
+		return PlannedOp{}, false
+	}
+	missing := raceMissingMemberProfileUIDs(s, view.Tasks, selfUID)
+	if len(missing) == 0 {
+		return PlannedOp{}, false
+	}
+	op := domainOp(
+		clientproto.RPCOpptGetDetailOppts.String(), goal, "union.race.sync", "sync",
+		"公会竞赛同步成员名称", 4390, 0, 0, 0,
+	)
+	op.TargetUIDs = firstUIDs(missing)
+	op.CooldownKey = "union.race.member_name"
+	return op, true
+}
+
+func raceMissingMemberProfileUIDs(s *state.State, tasks []state.FmlRaceTaskView, selfUID int64) []int64 {
+	if s == nil || len(tasks) == 0 {
+		return nil
+	}
+	profiles := s.PearlHire().Profiles
+	seen := make(map[int64]struct{}, len(tasks)*2)
+	missing := make([]int64, 0)
+	add := func(uid int64) {
+		if uid <= 0 || uid == selfUID {
+			return
+		}
+		if _, ok := seen[uid]; ok {
+			return
+		}
+		seen[uid] = struct{}{}
+		profile, ok := profiles[uid]
+		if !ok || profile.ObservedAtMs <= 0 || strings.TrimSpace(profile.Name) == "" {
+			missing = append(missing, uid)
+		}
+	}
+	for _, t := range tasks {
+		add(t.UpgradeUid)
+		add(t.UID)
+	}
+	sort.Slice(missing, func(i, j int) bool { return missing[i] < missing[j] })
+	return missing
 }
 
 // raceFreeTaskQuotaDone reports that AutoStopOnQuotaDone should block further

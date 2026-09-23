@@ -215,6 +215,87 @@ func TestFlowerElvesHouseAggregates(t *testing.T) {
 	if view.PendingRewardMoney <= 0 {
 		t.Fatalf("pending_reward=%d, want >0", view.PendingRewardMoney)
 	}
+	if view.DoubleBuffActive {
+		t.Fatal("double buff should be inactive without act 4401")
+	}
+	if len(view.InventoryGroups) != 6 {
+		t.Fatalf("inventory groups=%d, want 6", len(view.InventoryGroups))
+	}
+	// 110001×3 + 110002×2 → blue/2pt = 5
+	if view.InventoryGroups[0].Color != 2 || view.InventoryGroups[0].Score != 2 || view.InventoryGroups[0].IsDouble || view.InventoryGroups[0].Count != 5 {
+		t.Fatalf("blue group=%+v", view.InventoryGroups[0])
+	}
+	for _, group := range view.InventoryGroups[1:] {
+		if group.Count != 0 {
+			t.Fatalf("unexpected non-empty group=%+v", group)
+		}
+	}
+}
+
+func TestFlowerElvesInventoryGroupsDoubleBuff(t *testing.T) {
+	s := New()
+	now := time.UnixMilli(1_700_000_000_000)
+	s.ApplyVMap(map[string]any{
+		"7": map[string]any{
+			"0": map[string]any{"32": map[string]any{
+				"110001": 3, // color 2
+				"110006": 2, // color 3
+				"110011": 1, // color 4
+			}},
+		},
+		"23": map[string]any{
+			"0": map[string]any{
+				"8801": map[string]any{
+					"0": 8801,
+					"1": 44018801,
+					"2": 4401,
+					"3": 1,
+					"5": now.Add(-time.Hour).UnixMilli(),
+					"7": now.Add(time.Hour).UnixMilli(),
+				},
+			},
+			"1": map[string]any{
+				"44018801": map[string]any{
+					"0": 44018801,
+					"1": "花灵双倍",
+					"3": 4401,
+					"12": map[string]any{
+						"104": map[string]any{
+							"0": 2,
+							"2": []any{110001, 110011},
+						},
+					},
+				},
+			},
+		},
+	})
+	view := s.FlowerElvesHouseAt(now)
+	if !view.DoubleBuffActive {
+		t.Fatal("expected double buff active")
+	}
+	if len(view.InventoryGroups) != 6 {
+		t.Fatalf("groups=%d", len(view.InventoryGroups))
+	}
+	// order: blue, purple, gold, blue×2, purple×2, gold×2
+	want := []struct {
+		color    int32
+		score    int32
+		isDouble bool
+		count    int32
+	}{
+		{2, 2, false, 0},
+		{3, 3, false, 2},
+		{4, 4, false, 0},
+		{2, 4, true, 3},
+		{3, 6, true, 0},
+		{4, 8, true, 1},
+	}
+	for i, w := range want {
+		g := view.InventoryGroups[i]
+		if g.Color != w.color || g.Score != w.score || g.IsDouble != w.isDouble || g.Count != w.count {
+			t.Fatalf("group[%d]=%+v want color=%d score=%d double=%v count=%d", i, g, w.color, w.score, w.isDouble, w.count)
+		}
+	}
 }
 
 func TestFlowerElvesHouseAidExpiry(t *testing.T) {

@@ -353,6 +353,15 @@ type FmlFlowerShareView struct {
 	Slots          map[int32]FmlFlowerShareSlotView `json:"slots,omitempty"`
 }
 
+// FmlFlowerTodayTakeView is one successful guild flower-share take today.
+type FmlFlowerTodayTakeView struct {
+	TakenAtMs   int64  `json:"taken_at_ms,omitempty"`
+	FlowerID    int32  `json:"flower_id,omitempty"`
+	FlowerLabel string `json:"flower_label,omitempty"`
+	MemberUID   int64  `json:"member_uid,omitempty"`
+	SlotID      int32  `json:"slot_id,omitempty"`
+}
+
 // FmlFlowerTakeCandidate is one no-cost guild flower-share take candidate.
 type FmlFlowerTakeCandidate struct {
 	UID       int64 `json:"uid,omitempty"`
@@ -406,15 +415,15 @@ type FmlRaceTakenView struct {
 // FmlRaceCompletedTaskView is one finished race task from getTaskLogList
 // (NS25 field 118 / IFmlRaceTaskLog) for the current account.
 type FmlRaceCompletedTaskView struct {
-	LogMsId        int64  // IFmlRaceTaskLog.msId
-	TaskMsId       int64  // embedded IFmlRaceTask.msId
-	TaskId         int32  // catalog task id
-	TaskType       int32  // c_fmlRaceTask.type
-	Score          int32
-	ParamID        int32
-	TargetLabel    string
-	CompletedAtMs  int64  // IFmlRaceTaskLog.cTime
-	LogType        int32  // IFmlRaceTaskLog.type (server enum; kept for diagnostics)
+	LogMsId       int64 // IFmlRaceTaskLog.msId
+	TaskMsId      int64 // embedded IFmlRaceTask.msId
+	TaskId        int32 // catalog task id
+	TaskType      int32 // c_fmlRaceTask.type
+	Score         int32
+	ParamID       int32
+	TargetLabel   string
+	CompletedAtMs int64 // IFmlRaceTaskLog.cTime
+	LogType       int32 // IFmlRaceTaskLog.type (server enum; kept for diagnostics)
 }
 
 // FmlRaceView is the race-related slice of namespace 25.

@@ -298,9 +298,17 @@ type BasicPolicy struct {
 	DisplacedSessionReloginEnabled bool `protobuf:"varint,16,opt,name=displaced_session_relogin_enabled,json=displacedSessionReloginEnabled,proto3" json:"displaced_session_relogin_enabled,omitempty"`
 	// Deprecated compatibility field from the initial KK implementation.
 	// Normalize migrates it to plant.friend_steal; new clients must not write it.
-	FriendTouch   *FriendTouchPolicy `protobuf:"bytes,17,opt,name=friend_touch,json=friendTouch,proto3" json:"friend_touch,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FriendTouch *FriendTouchPolicy `protobuf:"bytes,17,opt,name=friend_touch,json=friendTouch,proto3" json:"friend_touch,omitempty"`
+	// Wall-clock rest cycle aligned to 00:00 Asia/Shanghai. Each cycle is
+	// run_duration_minutes of uptime followed by pause_duration_minutes offline.
+	// Example 120/12: stop 02:00, restart 02:12, stop 04:12, restart 04:24.
+	// Kicks and relogins do not reset the clock. automation_enabled stays true.
+	// Disabled by default; minutes default to 120 / 12 when unset or invalid.
+	RunPauseEnabled      bool  `protobuf:"varint,18,opt,name=run_pause_enabled,json=runPauseEnabled,proto3" json:"run_pause_enabled,omitempty"`
+	RunDurationMinutes   int32 `protobuf:"varint,19,opt,name=run_duration_minutes,json=runDurationMinutes,proto3" json:"run_duration_minutes,omitempty"`
+	PauseDurationMinutes int32 `protobuf:"varint,20,opt,name=pause_duration_minutes,json=pauseDurationMinutes,proto3" json:"pause_duration_minutes,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *BasicPolicy) Reset() {
@@ -450,6 +458,27 @@ func (x *BasicPolicy) GetFriendTouch() *FriendTouchPolicy {
 		return x.FriendTouch
 	}
 	return nil
+}
+
+func (x *BasicPolicy) GetRunPauseEnabled() bool {
+	if x != nil {
+		return x.RunPauseEnabled
+	}
+	return false
+}
+
+func (x *BasicPolicy) GetRunDurationMinutes() int32 {
+	if x != nil {
+		return x.RunDurationMinutes
+	}
+	return 0
+}
+
+func (x *BasicPolicy) GetPauseDurationMinutes() int32 {
+	if x != nil {
+		return x.PauseDurationMinutes
+	}
+	return 0
 }
 
 // Friend flower pick (摘花/摸花) via frdSteal.*.
@@ -1602,10 +1631,13 @@ type FriendStealPolicy struct {
 	MaxSpendDiamond int64 `protobuf:"varint,9,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
 	// Friend selection is separate from mode, which selects flower types.
 	// Only ALL and SPECIFIC are accepted here.
-	FriendMode   SelectionMode   `protobuf:"varint,10,opt,name=friend_mode,json=friendMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"friend_mode,omitempty"`
+	FriendMode SelectionMode `protobuf:"varint,10,opt,name=friend_mode,json=friendMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"friend_mode,omitempty"`
+	// Absolute daily touch targets. SPECIFIC: only these friends. ALL: optional
+	// per-friend overrides on top of the default free (+ optional global buy) quota.
 	FriendCounts map[int64]int32 `protobuf:"bytes,11,rep,name=friend_counts,json=friendCounts,proto3" json:"friend_counts,omitempty" protobuf_key:"varint,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
 	ExcludeUids  []int64         `protobuf:"varint,12,rep,packed,name=exclude_uids,json=excludeUids,proto3" json:"exclude_uids,omitempty"`
-	// Maximum friendship-coin purchases per friend. 0 uses the catalog limit.
+	// Maximum friendship-coin purchases per friend. 0 uses catalog $pickMax;
+	// explicit values may go up to 75 (policy/UI ceiling).
 	MaxBuyPerFriend int32 `protobuf:"varint,13,opt,name=max_buy_per_friend,json=maxBuyPerFriend,proto3" json:"max_buy_per_friend,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -1905,11 +1937,15 @@ type ElvesPlantPolicy struct {
 	HarvestDelaySeconds int32 `protobuf:"varint,10,opt,name=harvest_delay_seconds,json=harvestDelaySeconds,proto3" json:"harvest_delay_seconds,omitempty"`
 	// Flower-elf friend aid. Each toggle runs on its own; none require enabled
 	// (auto plant) above.
-	RequestAid    bool `protobuf:"varint,11,opt,name=request_aid,json=requestAid,proto3" json:"request_aid,omitempty"`
-	ReceiveAid    bool `protobuf:"varint,12,opt,name=receive_aid,json=receiveAid,proto3" json:"receive_aid,omitempty"`
-	HelpFriend    bool `protobuf:"varint,13,opt,name=help_friend,json=helpFriend,proto3" json:"help_friend,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RequestAid bool `protobuf:"varint,11,opt,name=request_aid,json=requestAid,proto3" json:"request_aid,omitempty"`
+	ReceiveAid bool `protobuf:"varint,12,opt,name=receive_aid,json=receiveAid,proto3" json:"receive_aid,omitempty"`
+	HelpFriend bool `protobuf:"varint,13,opt,name=help_friend,json=helpFriend,proto3" json:"help_friend,omitempty"`
+	// From 22:00 Asia/Shanghai until midnight, harvest every own land that
+	// currently has a flower elf. Independent of enabled (auto plant) and of
+	// PlantingPolicy.auto_harvest_enabled. Default on.
+	NightHarvestEnabled bool `protobuf:"varint,14,opt,name=night_harvest_enabled,json=nightHarvestEnabled,proto3" json:"night_harvest_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ElvesPlantPolicy) Reset() {
@@ -2022,6 +2058,13 @@ func (x *ElvesPlantPolicy) GetReceiveAid() bool {
 func (x *ElvesPlantPolicy) GetHelpFriend() bool {
 	if x != nil {
 		return x.HelpFriend
+	}
+	return false
+}
+
+func (x *ElvesPlantPolicy) GetNightHarvestEnabled() bool {
+	if x != nil {
+		return x.NightHarvestEnabled
 	}
 	return false
 }
@@ -3387,7 +3430,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x05union\x18\x05 \x01(\v2\x1d.mygardenworld.v1.UnionPolicyR\x05union\x12<\n" +
 	"\bactivity\x18\x06 \x01(\v2 .mygardenworld.v1.ActivityPolicyR\bactivity\x12:\n" +
 	"\x19decision_interval_seconds\x18\n" +
-	" \x01(\x01R\x17decisionIntervalSeconds\"\x9f\a\n" +
+	" \x01(\x01R\x17decisionIntervalSeconds\"\xb3\b\n" +
 	"\vBasicPolicy\x12B\n" +
 	"\n" +
 	"reputation\x18\x01 \x01(\v2\".mygardenworld.v1.ReputationPolicyR\n" +
@@ -3408,7 +3451,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x15water_claim_threshold\x18\x0e \x01(\x05R\x13waterClaimThreshold\x127\n" +
 	"\x18road_grow_reward_enabled\x18\x0f \x01(\bR\x15roadGrowRewardEnabled\x12I\n" +
 	"!displaced_session_relogin_enabled\x18\x10 \x01(\bR\x1edisplacedSessionReloginEnabled\x12F\n" +
-	"\ffriend_touch\x18\x11 \x01(\v2#.mygardenworld.v1.FriendTouchPolicyR\vfriendTouch\"\x96\x03\n" +
+	"\ffriend_touch\x18\x11 \x01(\v2#.mygardenworld.v1.FriendTouchPolicyR\vfriendTouch\x12*\n" +
+	"\x11run_pause_enabled\x18\x12 \x01(\bR\x0frunPauseEnabled\x120\n" +
+	"\x14run_duration_minutes\x18\x13 \x01(\x05R\x12runDurationMinutes\x124\n" +
+	"\x16pause_duration_minutes\x18\x14 \x01(\x05R\x14pauseDurationMinutes\"\x96\x03\n" +
 	"\x11FriendTouchPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1f\n" +
 	"\vsteal_elves\x18\x02 \x01(\bR\n" +
@@ -3554,7 +3600,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x18pass_task_reward_enabled\x18\v \x01(\bR\x15passTaskRewardEnabled\x12;\n" +
 	"\x1aflower_pass_reward_enabled\x18\f \x01(\bR\x17flowerPassRewardEnabled\x12D\n" +
 	"\x1fflower_pass_task_reward_enabled\x18\r \x01(\bR\x1bflowerPassTaskRewardEnabled\x12*\n" +
-	"\x11max_spend_diamond\x18\x0e \x01(\x03R\x0fmaxSpendDiamond\"\x98\x04\n" +
+	"\x11max_spend_diamond\x18\x0e \x01(\x03R\x0fmaxSpendDiamond\"\xcc\x04\n" +
 	"\x10ElvesPlantPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12$\n" +
 	"\x0emain_flower_id\x18\x02 \x01(\x05R\fmainFlowerId\x12.\n" +
@@ -3572,7 +3618,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\vreceive_aid\x18\f \x01(\bR\n" +
 	"receiveAid\x12\x1f\n" +
 	"\vhelp_friend\x18\r \x01(\bR\n" +
-	"helpFriendJ\x04\b\x05\x10\x06R\x1aharvest_after_elves_picked\"\x85\x05\n" +
+	"helpFriend\x122\n" +
+	"\x15night_harvest_enabled\x18\x0e \x01(\bR\x13nightHarvestEnabledJ\x04\b\x05\x10\x06R\x1aharvest_after_elves_picked\"\x85\x05\n" +
 	"\x12FlowerMarketPolicy\x12*\n" +
 	"\x11auto_unlock_shelf\x18\x01 \x01(\bR\x0fautoUnlockShelf\x12\x1f\n" +
 	"\vput_enabled\x18\x02 \x01(\bR\n" +

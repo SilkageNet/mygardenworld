@@ -131,6 +131,14 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
+	if nightIDs := elvesNightHarvestLandIDs(s, elvesP, now); len(nightIDs) > 0 {
+		planned := landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest",
+			fmt.Sprintf("晚上10点收取花灵 %d 地", len(nightIDs)), elvesNightHarvestPriority, nightIDs, 0, elvesNightHarvestGoal, elvesNightHarvestGoal)
+		planned.FeatureID = "plant.elves_night_harvest"
+		planned.Label = "晚上10点收取花灵"
+		ops = append(ops, planned)
+		harvest = filterOutLandIDs(harvest, nightIDs)
+	}
 	autoHarvestDriven := plantingPolicy.GetAutoHarvestEnabled() || raceDriven || forceFarmCycle
 	if elvesDelayedHarvest {
 		secHarvest := filterOnlyFlowerLandIDs(s, harvest, elvesP.GetSecondaryFlowerId())

@@ -72,9 +72,9 @@ func (r *Runner) nextTickInterval(now time.Time) time.Duration {
 	consider(automation.RaceTakeWakeAt(st, policy, now))
 	raceCooldownUntil := r.soonestRaceOpCooldownUntil(now)
 	consider(raceCooldownUntil)
-	// A failed bootstrap op carries a short runner cooldown. Respect it here;
-	// otherwise RaceBootstrapDue would force a 5ms loop until the cooldown
-	// expires even though selectRunnableOperation cannot run the race op.
+	// A failed bootstrap op carries raceSyncRetryCooldown (10m). Respect it
+	// here; otherwise RaceBootstrapDue would force a 5ms loop until the
+	// cooldown expires even though selectRunnableOperation cannot run the race op.
 	if automation.RaceBootstrapDue(st, policy, now) && raceCooldownUntil.IsZero() {
 		return minDecisionWake
 	}
@@ -112,6 +112,10 @@ func (r *Runner) tick(ctx context.Context) {
 	}
 
 	now := time.Now()
+	if r.maybeEnterRiskPause(now) {
+		r.resetSideLaneFairness()
+		return
+	}
 	if snapshot.policy != nil && snapshot.policy.GetAutomationEnabled() &&
 		automation.RaceBootstrapDue(r.state, snapshot.policy, now) {
 		if op := r.nextRunnableOperation(snapshot.policy, now); op != nil && automation.IsUrgentRaceOp(*op) {

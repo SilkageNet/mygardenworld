@@ -99,6 +99,22 @@ message AccountStatus {
   // Last-known game-server idx. This is included in the polled runtime view
   // so the Web UI does not need to re-list accounts after the first login.
   int32 gs_idx = 27;
+  // Timed risk-control rest progress for the monitoring overview.
+  RiskPauseView risk_pause = 28;
+}
+
+message RiskPauseView {
+  bool enabled = 1;
+  // True while the runner is intentionally disconnected for a rest window.
+  bool pausing = 2;
+  // Start of the current Shanghai-midnight cycle window.
+  google.protobuf.Timestamp run_segment_started_at = 3;
+  // Expected disconnect time while running, aligned to 00:00 Asia/Shanghai.
+  google.protobuf.Timestamp next_pause_at = 4;
+  // Rest window end while pausing; after this the runner auto-reconnects.
+  google.protobuf.Timestamp pause_until = 5;
+  int32 run_duration_minutes = 6;
+  int32 pause_duration_minutes = 7;
 }
 
 message RunnerDiagnostics {
@@ -203,6 +219,8 @@ message GetSnapshotResponse {
   PassBoardView flower_pass = 60;
   // 花灵密令 progress / claim readiness (namespace 132 passMap/passTaskMap).
   PassBoardView flower_elves_pass = 61;
+  // Guild flower-share daily take progress (namespace 25.107) for logs UI.
+  FmlFlowerShareView fml_flower_share = 62;
 }
 
 // DailyTaskBoardView is the monitor-facing daily task list.
@@ -298,6 +316,29 @@ message FlowerElvesView {
   int64 aid_req_ready_at_ms = 22;
   // True when recvAidEff is safe (open request with enough helpers).
   bool aid_can_recv = 23;
+  // True while tmpType-4401 花灵双倍 is active for this account.
+  bool double_buff_active = 24;
+  // Undispatched inventory elves grouped by color × double eligibility.
+  repeated FlowerElvesInventoryGroup inventory_groups = 25;
+}
+
+// FlowerElvesInventoryGroup is one undispatched inventory bucket
+// (蓝/紫/金 × 普通/双倍) for the flower-elves house monitor.
+message FlowerElvesInventoryGroup {
+  // c_item.color: 2=蓝, 3=紫, 4=金.
+  int32 color = 1;
+  // Per-elf money points: $elvesMoney[color-1] × (iv when double, else 1).
+  int32 score = 2;
+  // True when item is in active 4401 commonCfg.il (double reward).
+  bool is_double = 3;
+  int32 count = 4;
+  repeated FlowerElvesInventoryItem items = 5;
+}
+
+message FlowerElvesInventoryItem {
+  int32 item_id = 1;
+  string name = 2;
+  int32 count = 3;
 }
 
 // FlowerElvesPlaceView is one dispatch slot from namespace 132.2 placeMap.
@@ -577,6 +618,29 @@ message FmlRaceCompletedTask {
   int64 completed_at_ms = 8;
 }
 
+// FmlFlowerShareView is the account's guild flower-share take quota + today's takes.
+message FmlFlowerShareView {
+  // True after namespace 25.107 has been observed this session.
+  bool observed = 1;
+  // IFmlFlowerShare.tdyTakeCnt for the current Asia/Shanghai calendar day.
+  int32 today_take_count = 2;
+  // Daily take allowance (IFml.flowerTakeCnt / catalog fallback).
+  int32 take_limit = 3;
+  int64 last_take_time_ms = 4;
+  // True after today's takes were loaded from event_log / live notes.
+  bool today_takes_observed = 5;
+  // Successful guild flower takes today (newest first).
+  repeated FmlFlowerTakeEntry today_takes = 6;
+}
+
+message FmlFlowerTakeEntry {
+  int64 taken_at_ms = 1;
+  int32 flower_id = 2;
+  string flower_label = 3;
+  int64 member_uid = 4;
+  int32 slot_id = 5;
+}
+
 message FmlRaceTask {
   int64 ms_id = 1;
   int32 task_id = 2;
@@ -593,6 +657,12 @@ message FmlRaceTask {
   string take_skip_reason = 10;
   // Target flower/item id from task param (e.g. plant-harvest flower). 0 if unknown.
   int32 target_item_id = 11;
+  // Taker uid from IFmlRaceTask.uid; non-zero means the pool row is already taken.
+  int64 take_uid = 12;
+  // Resolved display name for upgrade_uid (empty when unknown / not upgraded by a member).
+  string upgrade_name = 13;
+  // Resolved display name for take_uid (empty when unknown / not taken).
+  string take_name = 14;
 }
 
 message FmlRaceTaken {

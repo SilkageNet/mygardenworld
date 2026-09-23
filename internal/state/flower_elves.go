@@ -15,6 +15,10 @@ const (
 	// DefaultElvesSpawnCap matches $harvestMax(18)+$addHarvestMax(12) when the
 	// flower-elves pass bonus applies; used as the planting-elves round cap.
 	DefaultElvesSpawnCap int32 = 30
+	// FlowerElvesDoubleActTmpType is c_act id / IActInfo.tmpType for 花灵双倍.
+	// Active batches expose eligible item ids via actTmp.ext.commonCfg.il and
+	// multiplier via commonCfg.iv (client FlowerElvesPlaceCtrl.canRecvReward).
+	FlowerElvesDoubleActTmpType int32 = 4401
 	// UsrCountTypeFlowerElvesHarvest is IUsrCount.type for daily own-land
 	// flower-elves harvest. Client flower-elves widget:
 	// usrCtrl.getTdyCount(103) / ($harvestMax [+ $addHarvestMax]).
@@ -73,6 +77,26 @@ type FlowerElvesHouseView struct {
 	AidPreReqTimeMs  int64
 	AidReqReadyAtMs  int64 // 0 when reqAid is allowed now
 	AidCanRecv       bool
+	// Undispatched inventory breakdown (color × double eligibility).
+	DoubleBuffActive bool
+	InventoryGroups  []FlowerElvesInventoryGroup
+}
+
+// FlowerElvesInventoryItem is one undispatched elf stack in a color/double bucket.
+type FlowerElvesInventoryItem struct {
+	ItemID int32
+	Name   string
+	Count  int32
+}
+
+// FlowerElvesInventoryGroup is one monitor bucket for undispatched elves.
+// Color 2/3/4 → 蓝/紫/金; Score is $elvesMoney[color-1] (×iv when double).
+type FlowerElvesInventoryGroup struct {
+	Color    int32
+	Score    int32
+	IsDouble bool
+	Count    int32
+	Items    []FlowerElvesInventoryItem
 }
 
 // UsrCountView is one G.IUsrCount row from IUsrTot.cntMap (namespace 7.4).
@@ -349,6 +373,146 @@ func SecondaryFlowersForMain(mainFlowerID int32) []int32 {
 func ItemIsFlowerElves(itemID int32) bool {
 	info, ok := ItemInfoByID(itemID)
 	return ok && info.Type == FlowerElvesItemType
+}
+
+// FlowerElvesMoneyRateForColor returns $elvesMoney[color-1] (fallback 1).
+func FlowerElvesMoneyRateForColor(color int32) int32 {
+	rates := FlowerElvesMoneyRatesFromCatalog()
+	if color >= 1 && int(color) <= len(rates) && rates[color-1] > 0 {
+		return rates[color-1]
+	}
+	if len(rates) > 0 && rates[0] > 0 {
+		return rates[0]
+	}
+	return 1
+}
+
+// flowerElvesDoubleBuffLocked returns the active 4401 item set and multiplier.
+// Mirrors client getActiveActByTmpType(4401) + actTmp.ext.commonCfg.{il,iv}.
+func (s *State) flowerElvesDoubleBuffLocked(nowMs int64) (map[int32]struct{}, int32, bool) {
+	var selected *activityBatchState
+	for _, batch := range s.activityBatches {
+		if batch == nil || batch.TmpType != FlowerElvesDoubleActTmpType || batch.Status != 1 {
+			continue
+		}
+		if batch.BeginMs > 0 && nowMs < batch.BeginMs {
+			continue
+		}
+		if batch.EndMs > 0 && nowMs >= batch.EndMs {
+			continue
+		}
+		if selected == nil || batch.BeginMs > selected.BeginMs || (batch.BeginMs == selected.BeginMs && batch.BatchID > selected.BatchID) {
+			selected = batch
+		}
+	}
+	if selected == nil || selected.TmpID <= 0 {
+		return nil, 0, false
+	}
+	template := s.activityTemplates[selected.TmpID]
+	if template == nil || !template.CommonCfgObserved {
+		return nil, 0, true
+	}
+	multi := template.CommonCfgIV
+	if multi <= 0 {
+		multi = 2
+	}
+	set := make(map[int32]struct{}, len(template.CommonCfgIL))
+	for _, id := range template.CommonCfgIL {
+		if id > 0 {
+			set[id] = struct{}{}
+		}
+	}
+	return set, multi, true
+}
+
+func buildFlowerElvesInventoryGroups(inventory map[int32]int32, doubleIDs map[int32]struct{}, doubleMulti int32, doubleActive bool) []FlowerElvesInventoryGroup {
+	type bucketKey struct {
+		color    int32
+		isDouble bool
+	}
+	type bucketAcc struct {
+		count int32
+		items map[int32]int32
+	}
+	acc := map[bucketKey]*bucketAcc{}
+	ensure := func(color int32, isDouble bool) *bucketAcc {
+		key := bucketKey{color: color, isDouble: isDouble}
+		if b := acc[key]; b != nil {
+			return b
+		}
+		b := &bucketAcc{items: map[int32]int32{}}
+		acc[key] = b
+		return b
+	}
+	for itemID, count := range inventory {
+		if count <= 0 || !ItemIsFlowerElves(itemID) {
+			continue
+		}
+		info, ok := ItemInfoByID(itemID)
+		if !ok {
+			continue
+		}
+		color := info.Color
+		if color < 2 || color > 4 {
+			continue
+		}
+		isDouble := false
+		if doubleActive && doubleMulti > 1 {
+			_, isDouble = doubleIDs[itemID]
+		}
+		b := ensure(color, isDouble)
+		b.count += count
+		b.items[itemID] += count
+	}
+
+	order := []bucketKey{
+		{2, false}, {3, false}, {4, false},
+		{2, true}, {3, true}, {4, true},
+	}
+	out := make([]FlowerElvesInventoryGroup, 0, len(order))
+	for _, key := range order {
+		b := acc[key]
+		if b == nil {
+			b = &bucketAcc{}
+		}
+		rate := FlowerElvesMoneyRateForColor(key.color)
+		score := rate
+		if key.isDouble {
+			multi := doubleMulti
+			if multi <= 1 {
+				multi = 2
+			}
+			score = rate * multi
+		}
+		group := FlowerElvesInventoryGroup{
+			Color:    key.color,
+			Score:    score,
+			IsDouble: key.isDouble,
+			Count:    b.count,
+		}
+		if len(b.items) > 0 {
+			ids := make([]int32, 0, len(b.items))
+			for id := range b.items {
+				ids = append(ids, id)
+			}
+			sort.Slice(ids, func(i, j int) bool {
+				if b.items[ids[i]] != b.items[ids[j]] {
+					return b.items[ids[i]] > b.items[ids[j]]
+				}
+				return ids[i] < ids[j]
+			})
+			group.Items = make([]FlowerElvesInventoryItem, 0, len(ids))
+			for _, id := range ids {
+				group.Items = append(group.Items, FlowerElvesInventoryItem{
+					ItemID: id,
+					Name:   ItemName(id),
+					Count:  b.items[id],
+				})
+			}
+		}
+		out = append(out, group)
+	}
+	return out
 }
 
 func (s *State) noteElvesSpawnLocked(lands map[int32]LandView) {
@@ -684,6 +848,9 @@ func (s *State) FlowerElvesHouseAt(now time.Time) FlowerElvesHouseView {
 		}
 		out.DispatchableCount += count
 	}
+	doubleIDs, doubleMulti, doubleActive := s.flowerElvesDoubleBuffLocked(now.UnixMilli())
+	out.DoubleBuffActive = doubleActive
+	out.InventoryGroups = buildFlowerElvesInventoryGroups(s.inventory, doubleIDs, doubleMulti, doubleActive)
 
 	placeIDs := FlowerElvesPlaceIDsFromCatalog()
 	seen := map[int32]struct{}{}

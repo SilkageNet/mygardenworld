@@ -1202,6 +1202,18 @@ func TestClassifyOperationError(t *testing.T) {
 			want: operationErrorMailAlreadyPicked,
 		},
 		{
+			name: "benefit box draw rejected",
+			kind: clientproto.RPCBenefitBoxDraw.String(),
+			err:  errors.New(`rpc benefitBox.draw: server: {"code":5000,"args":[]}`),
+			want: operationErrorBenefitBoxDrawRejected,
+		},
+		{
+			name: "customer gen server anomaly",
+			kind: clientproto.RPCOrderCustomerGenOrder.String(),
+			err:  errors.New(`rpc orderCustomer.genOrder: server: {"code":5000,"args":[]}`),
+			want: operationErrorOrderServerAnomaly,
+		},
+		{
 			name: "ordinary failure",
 			kind: clientproto.RPCFreeWaterRecv.String(),
 			err:  errors.New("rpc freeWater.recv: server busy"),
@@ -1249,6 +1261,52 @@ func TestHandleOperationErrorFlowerArtMaterialRejected(t *testing.T) {
 	}
 	if got := r.state.Inventory()[23022]; got != 0 {
 		t.Fatalf("Inventory[23022]=%d, want 0 after material rejection", got)
+	}
+}
+
+func TestHandleOperationErrorBenefitBoxDrawRejected(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	resetAt := time.Date(2026, 7, 29, 20, 0, 0, 0, shanghai)
+	now := time.Date(2026, 7, 30, 4, 30, 0, 0, shanghai)
+	r := newOperationEventTestRunner()
+	r.state.ApplyVMap(map[string]any{
+		"116": map[string]any{
+			"0": map[string]any{
+				"1": 0,
+				"2": resetAt.UnixMilli(),
+			},
+		},
+	})
+	if got := r.state.BenefitBoxDrawsRemaining(now); got != 8 {
+		t.Fatalf("preflight remaining=%d, want 8", got)
+	}
+	op := &automation.PlannedOp{
+		Kind:        clientproto.RPCBenefitBoxDraw.String(),
+		Lane:        automation.LaneSide,
+		Category:    automation.CategoryBasic,
+		Domain:      "basic.benefit",
+		Action:      "claim",
+		OperationID: "benefitBox.draw",
+		Count:       8,
+	}
+	err := r.handleOperationError(context.Background(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              errors.New(`rpc benefitBox.draw: server: {"code":5000,"args":[]}`),
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("handleOperationError=%v, want nil", err)
+	}
+	if got := r.state.BenefitBoxDrawsRemaining(now); got != 0 {
+		t.Fatalf("remaining after reject=%d, want 0", got)
+	}
+	cd, ok := r.operationCoolingDown(op, now.Add(time.Second))
+	if !ok {
+		t.Fatal("expected side cooldown after reject")
+	}
+	wantUntil := time.Date(2026, 7, 30, 5, 0, 0, 0, shanghai)
+	if !cd.Until.Equal(wantUntil) {
+		t.Fatalf("cooldown until=%v, want %v", cd.Until, wantUntil)
 	}
 }
 

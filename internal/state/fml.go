@@ -1715,6 +1715,12 @@ func (s *State) FmlFlowerTakeExhausted(now time.Time) bool {
 // When flowerID > 0, also records a zero-stock take mark so take_zero_inventory_only
 // does not re-queue the same flower type before ns7 inventory catches up.
 func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32, flowerID int32) {
+	s.NoteFmlFlowerShareTakeAt(dstUID, slotID, flowerID, time.Now())
+}
+
+// NoteFmlFlowerShareTakeAt is NoteFmlFlowerShareTake with an explicit timestamp
+// (used by tests and event_log backfill).
+func (s *State) NoteFmlFlowerShareTakeAt(dstUID int64, slotID int32, flowerID int32, at time.Time) {
 	if dstUID == 0 || slotID <= 0 {
 		return
 	}
@@ -1749,6 +1755,75 @@ func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32, flowerID int3
 		slot.TakeNum++
 		share.Slots[slotID] = slot
 	}
+}
+
+// SetFmlFlowerTodayTakes replaces today's guild flower-take list (no merge/dedupe).
+func (s *State) SetFmlFlowerTodayTakes(entries []FmlFlowerTodayTakeView, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	today := calendarDayID(now)
+	s.ensureFmlFlowerTodayTakesDayLocked(today)
+	out := make([]FmlFlowerTodayTakeView, 0, len(entries))
+	for _, entry := range entries {
+		if entry.TakenAtMs <= 0 {
+			continue
+		}
+		if calendarDayID(time.UnixMilli(entry.TakenAtMs)) != today {
+			continue
+		}
+		if entry.FlowerLabel == "" && entry.FlowerID > 0 {
+			entry.FlowerLabel = ItemLabel(entry.FlowerID)
+		}
+		out = append(out, entry)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].TakenAtMs > out[j].TakenAtMs
+	})
+	s.fmlFlowerTodayTakes = out
+	s.fmlFlowerTodayTakesSeen = true
+}
+
+func (s *State) ensureFmlFlowerTodayTakesDayLocked(day int32) {
+	if s.fmlFlowerTodayTakesDayID == day {
+		return
+	}
+	s.fmlFlowerTodayTakesDayID = day
+	s.fmlFlowerTodayTakes = nil
+	s.fmlFlowerTodayTakesSeen = false
+}
+
+// FmlFlowerTodayTakes returns today's guild flower takes (newest first).
+func (s *State) FmlFlowerTodayTakes(now time.Time) []FmlFlowerTodayTakeView {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureFmlFlowerTodayTakesDayLocked(calendarDayID(now))
+	out := make([]FmlFlowerTodayTakeView, len(s.fmlFlowerTodayTakes))
+	copy(out, s.fmlFlowerTodayTakes)
+	return out
+}
+
+// FmlFlowerTodayTakesObserved reports whether today's take list was loaded
+// from event_log this calendar day.
+func (s *State) FmlFlowerTodayTakesObserved(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ensureFmlFlowerTodayTakesDayLocked(calendarDayID(now))
+	return s.fmlFlowerTodayTakesSeen
+}
+
+// FmlFlowerTodayTakeCount returns tdyTakeCnt for the current game day, or 0
+// when the last take was on a prior day (counter stale until 107 refresh).
+func (s *State) FmlFlowerTodayTakeCount(now time.Time) int32 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if !s.fmlFlowerShare.Observed {
+		return 0
+	}
+	if s.fmlFlowerShare.LastTakeTimeMs > 0 &&
+		calendarDayID(time.UnixMilli(s.fmlFlowerShare.LastTakeTimeMs)) < calendarDayID(now) {
+		return 0
+	}
+	return s.fmlFlowerShare.TdyTakeCnt
 }
 
 // FmlFlowerZeroTakeSeen reports whether flowerID was already taken once while
@@ -1813,6 +1888,13 @@ func FmlFlowerTakeWindowStart(now time.Time) time.Time {
 	local := now.In(gameDayLocation())
 	y, m, d := local.Date()
 	return time.Date(y, m, d, 0, 1, 0, 0, local.Location())
+}
+
+// CalendarDayStart is 00:00 Asia/Shanghai for the calendar day containing now.
+func CalendarDayStart(now time.Time) time.Time {
+	local := now.In(gameDayLocation())
+	y, m, d := local.Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, local.Location())
 }
 
 // FmlFlowerTakeWindowOpen reports whether flower-take automation may run now.

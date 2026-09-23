@@ -51,6 +51,11 @@ func (r *Runner) Start(ctx context.Context) error {
 	r.hydratePearlHireTicketUsage(ctx)
 	r.hydrateSpeedUpTicketUsage(ctx)
 	r.hydrateFlowerElvesAidHelpUsage(ctx)
+	if r.deferStartForRiskPause(time.Now()) {
+		go r.decisionLoop(rctx)
+		go r.connectionLoop(rctx, username, password, nil)
+		return nil
+	}
 	client, err := r.connectFresh(ctx, username, password)
 	if err != nil {
 		if r.autoReloginPending() {
@@ -190,6 +195,7 @@ func (r *Runner) resetFreshSessionAutomationState() {
 	r.resetPearlHireSession()
 	r.resetDessertRoundSession()
 	r.resetResidentOrderSession()
+	r.clearOrderAnomalyPause()
 	if r.state != nil {
 		r.state.ResetDessertSession()
 		// Contest window: every login/reconnect must re-fetch the task pool
@@ -302,15 +308,48 @@ connection:
 			current = next
 			continue
 		}
-		if r.isSessionInvalidated() || current == nil {
+		if r.riskPauseReconnectPath() {
+			if !r.awaitRiskPause(ctx) {
+				return
+			}
+			if ctx.Err() != nil {
+				return
+			}
+			next, err := r.connectFresh(ctx, username, password)
+			if err == nil {
+				current = next
+				continue
+			}
+			if isReputationGuardError(err) {
+				return
+			}
+			if ctx.Err() != nil || r.sessionInvalidatedWithoutAutoRelogin() {
+				return
+			}
+			if r.autoReloginPending() {
+				current = nil
+				continue connection
+			}
+			r.emit(Event{
+				Kind:    "risk_pause",
+				Message: fmt.Sprintf("休眠后启动失败: %v，转入普通重连", err),
+				Level:   "warn",
+			})
+			// Fall through to the normal reconnect loop even though current is nil.
+		} else if r.isSessionInvalidated() || current == nil {
 			return
+		} else {
+			r.emit(Event{Kind: "ws_disconnected", Message: "网络连接断开，准备重连", Level: "warn"})
 		}
-		r.emit(Event{Kind: "ws_disconnected", Message: "网络连接断开，准备重连", Level: "warn"})
 
 		wait := reconnectInitialWait
 		for {
 			if !sleepOrDone(ctx, wait) || r.isSessionInvalidated() {
 				if r.autoReloginPending() {
+					current = nil
+					continue connection
+				}
+				if r.riskPauseReconnectPath() {
 					current = nil
 					continue connection
 				}

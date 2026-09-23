@@ -52,6 +52,11 @@ type activityTemplateState struct {
 	TaskGroups    []DessertTaskGroupInfo
 	TasksObserved bool
 	TasksValid    bool
+	// IActTmp.ext.commonCfg (IWrapperType): used by 花灵双倍 (tmpType 4401)
+	// where iv=multiplier and il=eligible flower-elf item ids.
+	CommonCfgObserved bool
+	CommonCfgIV       int32
+	CommonCfgIL       []int32
 }
 
 type activityTaskRecordState struct {
@@ -272,6 +277,55 @@ func (s *State) mergeActivityTemplatesLocked(raw json.RawMessage) {
 			template.TaskGroups = groups
 			template.TasksObserved = true
 			template.TasksValid = valid
+		}
+		if rawExt, present := fields["12"]; present {
+			mergeActivityTemplateCommonCfgLocked(template, rawExt)
+		}
+	}
+}
+
+func mergeActivityTemplateCommonCfgLocked(template *activityTemplateState, rawExt json.RawMessage) {
+	if template == nil {
+		return
+	}
+	if isJSONNull(rawExt) {
+		template.CommonCfgObserved = false
+		template.CommonCfgIV = 0
+		template.CommonCfgIL = nil
+		return
+	}
+	var extFields map[string]json.RawMessage
+	if json.Unmarshal(rawExt, &extFields) != nil || extFields == nil {
+		return
+	}
+	rawCfg, ok := extFields["104"]
+	if !ok {
+		return
+	}
+	if isJSONNull(rawCfg) {
+		template.CommonCfgObserved = true
+		template.CommonCfgIV = 0
+		template.CommonCfgIL = nil
+		return
+	}
+	var cfgFields map[string]json.RawMessage
+	if json.Unmarshal(rawCfg, &cfgFields) != nil || cfgFields == nil {
+		return
+	}
+	template.CommonCfgObserved = true
+	if rawIV, present := cfgFields["0"]; present {
+		if value, ok := readActivityInt32Raw(rawIV); ok {
+			template.CommonCfgIV = value
+		}
+	}
+	if rawIL, present := cfgFields["2"]; present {
+		if isJSONNull(rawIL) {
+			template.CommonCfgIL = nil
+			return
+		}
+		ids, parsed, valid := decodeActivityInt32List(rawIL, false)
+		if parsed && valid {
+			template.CommonCfgIL = ids
 		}
 	}
 }

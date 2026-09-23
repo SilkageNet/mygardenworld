@@ -48,6 +48,7 @@ var featureSpecs = []FeatureSpec{
 	{ID: "plant.elves_plant", Label: "种植花灵", Category: CategoryPlant, Domain: "farm.elves_plant", Action: "run", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.elves_plant_speed_up", Label: "种植花灵加速", Category: CategoryPlant, Domain: "farm.speed_up", Action: "speed_up", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.elves_plant_harvest", Label: "花灵副花延迟收获", Category: CategoryPlant, Domain: "farm.harvest", Action: "harvest", Status: PlanStatusManaged, Executable: true},
+	{ID: "plant.elves_night_harvest", Label: "晚上10点收取花灵", Category: CategoryPlant, Domain: "farm.elves_night_harvest", Action: "harvest", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.elves_aid_request", Label: "申请花灵协助", Category: CategoryElves, Domain: "farm.elves_aid", Action: "request", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.elves_aid_receive", Label: "领取花灵协助", Category: CategoryElves, Domain: "farm.elves_aid", Action: "claim", Status: PlanStatusManaged, Executable: true},
 	{ID: "plant.elves_aid_help", Label: "协助好友花灵", Category: CategoryElves, Domain: "farm.elves_aid", Action: "help", Status: PlanStatusManaged, Executable: true},

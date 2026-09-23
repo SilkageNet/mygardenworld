@@ -181,6 +181,9 @@ func DefaultPolicy() *pb.Policy {
 			Reputation:                     &pb.ReputationPolicy{Enabled: true, Threshold: 80},
 			ReconnectIntervalSeconds:       300,
 			DisplacedSessionReloginEnabled: false,
+			RunPauseEnabled:                false,
+			RunDurationMinutes:             120,
+			PauseDurationMinutes:           12,
 			Task:                           &pb.BasicTaskPolicy{},
 			Benefit:                        &pb.BenefitPolicy{},
 			Sign:                           &pb.SignPolicy{},
@@ -210,8 +213,9 @@ func DefaultPolicy() *pb.Policy {
 			},
 			Elves: &pb.FlowerElvesPolicy{},
 			ElvesPlant: &pb.ElvesPlantPolicy{
-				MainLandCount: 4,
-				ElvesSpawnCap: 30,
+				MainLandCount:       4,
+				ElvesSpawnCap:       30,
+				NightHarvestEnabled: true,
 			},
 			Market: &pb.FlowerMarketPolicy{
 				PutMode:    pb.MarketPutMode_MARKET_PUT_MODE_INVENTORY,

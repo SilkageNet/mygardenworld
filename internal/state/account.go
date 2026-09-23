@@ -614,7 +614,33 @@ func (s *State) BenefitBoxObserved() bool {
 	return s.benefitBoxObserved
 }
 
+// MarkBenefitBoxEmpty records that the server rejected benefitBox.draw (no
+// unopened box). Local accrual is suppressed through the rest of today's
+// 04:30–05:00 claim window so the planner does not retry every minute.
+func (s *State) MarkBenefitBoxEmpty(now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.benefitBoxObserved = true
+	s.benefitBoxDrawCnt = 0
+	nowMs := now.UnixMilli()
+	s.benefitBoxResetCntMs = nowMs
+	s.benefitBoxEmptyUntilMs = benefitBoxEmptyUntilMs(now)
+}
+
+func benefitBoxEmptyUntilMs(now time.Time) int64 {
+	local := now.In(gameDayLocation())
+	end := time.Date(local.Year(), local.Month(), local.Day(), 5, 0, 0, 0, local.Location())
+	if !end.After(now) {
+		end = now.Add(time.Hour)
+	}
+	return end.UnixMilli()
+}
+
 func (s *State) benefitBoxDrawsRemainingLocked(now time.Time) int32 {
+	nowMs := now.UnixMilli()
+	if s.benefitBoxEmptyUntilMs > 0 && nowMs < s.benefitBoxEmptyUntilMs {
+		return 0
+	}
 	max := benefitBoxMax()
 	cnt := s.benefitBoxDrawCnt
 	if cnt >= max {
@@ -623,7 +649,6 @@ func (s *State) benefitBoxDrawsRemainingLocked(now time.Time) int32 {
 	if s.benefitBoxResetCntMs <= 0 {
 		return cnt
 	}
-	nowMs := now.UnixMilli()
 	if s.benefitBoxResetCntMs > nowMs {
 		return cnt
 	}

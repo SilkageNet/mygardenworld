@@ -68,9 +68,12 @@ type State struct {
 	fmlFlowerShare            FmlFlowerShareView     // 25.107 自己的公会鲜花分享
 	fmlOtherFlowerShares      map[int64]*FmlFlowerShareView
 	fmlOtherShareObserved     bool
-	fmlOtherShareSyncedAtMs   int64           // local wall time when 25.108 was last applied
-	fmlFlowerTakeLimitUntilMs int64           // server/local: 今日摸花次数已达上限，到该时刻前不再摸花
+	fmlOtherShareSyncedAtMs   int64              // local wall time when 25.108 was last applied
+	fmlFlowerTakeLimitUntilMs int64              // server/local: 今日摸花次数已达上限，到该时刻前不再摸花
 	fmlFlowerZeroTakeIDs      map[int32]struct{} // flower ids taken while stock was 0 (anti-lag for take_zero_inventory_only)
+	fmlFlowerTodayTakes       []FmlFlowerTodayTakeView
+	fmlFlowerTodayTakesDayID  int32
+	fmlFlowerTodayTakesSeen   bool            // true after event_log backfill or a live take note today
 	fmlRace                   FmlRaceView     // 25.110/111/114 公会竞赛
 	shopGiftbagDRecord        map[int32]int32 // 112.1 daily purchase counts
 	shopGiftbagWRecord        map[int32]int32 // 112.2 weekly purchase counts
@@ -146,10 +149,10 @@ type State struct {
 	flowerElvesPlaces         map[int32]*FlowerElvesPlaceView
 	flowerElvesPlacesObserved bool
 	// Namespace 131 flowerPassTot.
-	flowerPassObserved     bool
-	flowerPassEnterSynced  bool
-	flowerPassByBid        map[int32]*passRuntime
-	flowerPassTaskByBid    map[int32]*passTaskRuntime
+	flowerPassObserved    bool
+	flowerPassEnterSynced bool
+	flowerPassByBid       map[int32]*passRuntime
+	flowerPassTaskByBid   map[int32]*passTaskRuntime
 	// Namespace 132 flowerElvesTot.passMap / passTaskMap.
 	flowerElvesPassObserved    bool
 	flowerElvesPassEnterSynced bool
@@ -218,29 +221,29 @@ type State struct {
 	cyclicNoteFlowerRackPostCompleteAtMs    int64
 	cyclicNoteFlowerRackPostCompleteDone    bool
 	activityBatches                         map[int32]*activityBatchState
-	activityTemplates              map[int32]*activityTemplateState
-	activityTaskRecords            map[string]*activityTaskRecordState
-	celebrity           celebrityState
+	activityTemplates                       map[int32]*activityTemplateState
+	activityTaskRecords                     map[string]*activityTaskRecordState
+	celebrity                               celebrityState
 	// Local session marker: a like is never planned from an incidental
 	// celebrity delta until getAllTypesInfo has completed for this batch.
 	dessertCelebritySyncedBatch int32
 
-	roadGrowReceived       map[int32]bool             // 119.3.<taskId> 成长之路已领取
-	randomEvents           map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
-	randomEventObserved    bool                       // 129.0.1 observed at least once
-	randomEventMapValid    bool                       // latest whole event map decoded structurally
-	randomEventMapError    string                     // fail-closed diagnostic for malformed maps
-	randomEventSyncedAtMs  int64                      // local wall time when 129.0.1 last applied validly
-	zooFoodShopObserved    bool                       // namespace 20 shop tempId=9 observed
-	zooFoodShopDRecord     map[int32]int32            // 20.0.9.12 daily buy counts by shop item id
-	zooFoodShopResetMs     int64                      // 20.0.9.3 lResetTime
-	signTypes           map[int32]*SignTypeView    // 140.0.<type> 防诈骗/渠道签到状态
-	signTypeObserved    bool                       // namespace 140 observed at least once
-	signTypeMapValid    bool                       // 140.0 was decoded as an object
-	baseRewards         map[int32]*BaseRewardView  // 7.7.<type> G.IRwd 基础奖励状态
-	baseRewardObserved  bool                       // namespace 7.7 reward map observed
-	baseRewardMapValid  bool                       // namespace 7.7 decoded as an object
-	signTypeEnterAtMs   map[int32]int64            // local daily de-dup for empty signType.enter
+	roadGrowReceived      map[int32]bool             // 119.3.<taskId> 成长之路已领取
+	randomEvents          map[int32]*RandomEventView // 129.0.1.<eventId> 地图随机事件
+	randomEventObserved   bool                       // 129.0.1 observed at least once
+	randomEventMapValid   bool                       // latest whole event map decoded structurally
+	randomEventMapError   string                     // fail-closed diagnostic for malformed maps
+	randomEventSyncedAtMs int64                      // local wall time when 129.0.1 last applied validly
+	zooFoodShopObserved   bool                       // namespace 20 shop tempId=9 observed
+	zooFoodShopDRecord    map[int32]int32            // 20.0.9.12 daily buy counts by shop item id
+	zooFoodShopResetMs    int64                      // 20.0.9.3 lResetTime
+	signTypes             map[int32]*SignTypeView    // 140.0.<type> 防诈骗/渠道签到状态
+	signTypeObserved      bool                       // namespace 140 observed at least once
+	signTypeMapValid      bool                       // 140.0 was decoded as an object
+	baseRewards           map[int32]*BaseRewardView  // 7.7.<type> G.IRwd 基础奖励状态
+	baseRewardObserved    bool                       // namespace 7.7 reward map observed
+	baseRewardMapValid    bool                       // namespace 7.7 decoded as an object
+	signTypeEnterAtMs     map[int32]int64            // local daily de-dup for empty signType.enter
 
 	freeWaterObserved bool    // namespace 117 has been observed at least once
 	freeWaterRecvIdx  []int32 // 117.1 client recvIdx list: free-water slots already claimed today
@@ -250,6 +253,7 @@ type State struct {
 	benefitBoxResetCntMs     int64 // 116.0.2 resetCntTime
 	benefitBoxUTimeMs        int64 // 116.0.3 uTime
 	benefitBoxObserved       bool  // namespace 116 has been observed at least once
+	benefitBoxEmptyUntilMs   int64 // server rejected draw; suppress local accrual until then
 	usrExtra                 UsrExtraView
 	reputation               ReputationView
 	videoDouble              VideoDoubleView

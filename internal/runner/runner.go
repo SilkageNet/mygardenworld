@@ -110,6 +110,15 @@ type Runner struct {
 	sessionInvalidatedReason string
 	sessionAutoRelogin       bool
 
+	// riskPauseUntil is the end of the current wall-clock rest window.
+	riskPauseUntil time.Time
+
+	// orderAnomalyUntil pauses resident/customer order work after server code
+	// 5000 (data anomaly). Without this, per-box OperationIDs keep retrying
+	// flowerOrderRqst.showR / genOrder every few seconds for hours.
+	orderAnomalyUntil      time.Time
+	lastOrderAnomalyReason string
+
 	bus *Bus
 }
 
@@ -210,6 +219,9 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 	}
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
+	}
+	if !normalized.GetBasic().GetRunPauseEnabled() {
+		r.clearRiskPauseLocked()
 	}
 	stopPendingRelogin := r.sessionAutoRelogin &&
 		!normalized.GetBasic().GetDisplacedSessionReloginEnabled()

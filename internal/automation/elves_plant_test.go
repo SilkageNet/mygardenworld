@@ -434,6 +434,138 @@ func TestFriendStealElvesIdleGardenWaits5Minutes(t *testing.T) {
 	}
 }
 
+func TestElvesNightHarvestIgnoresPlantAndAutoHarvestSwitches(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	night := time.Date(2026, 9, 21, 22, 1, 0, 0, loc)
+	mature := night.Add(-2 * time.Minute)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1002": map[string]any{
+				"0": 23331, "1": 2, "2": 1, "3": 1,
+				"5": float64(mature.UnixMilli()),
+				"6": 110132,
+				"7": float64(mature.UnixMilli()),
+			},
+			"1003": map[string]any{
+				"0": 23001, "1": 3, "2": 1, "3": 0,
+				"7": float64(mature.UnixMilli()),
+			},
+			"1004": map[string]any{
+				"0": 23331, "1": 2, "2": 1, "3": 1,
+				"5": float64(night.Add(10 * time.Minute).UnixMilli()),
+				"6": 110133,
+				"7": float64(mature.UnixMilli()),
+			},
+		}}},
+	})
+	policy := &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoEnabled: false, AutoHarvestEnabled: false, HarvestDelaySeconds: 0},
+		ElvesPlant: &pb.ElvesPlantPolicy{
+			Enabled:             false,
+			MainFlowerId:        23517,
+			SecondaryFlowerId:   23331,
+			HarvestDelaySeconds: 300,
+			NightHarvestEnabled: true,
+		},
+	}
+	ops := farmOps(s, policy, nil, night, false, false, false)
+	var harvests []PlannedOp
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() {
+			harvests = append(harvests, op)
+		}
+	}
+	if len(harvests) != 1 {
+		t.Fatalf("expected one night elf harvest, got %+v", harvests)
+	}
+	got := harvests[0]
+	if got.FeatureID != "plant.elves_night_harvest" || got.Label != "晚上10点收取花灵" {
+		t.Fatalf("night harvest op=%+v", got)
+	}
+	if len(got.LandIDs) != 1 || got.LandIDs[0] != 1002 {
+		t.Fatalf("lands=%v, want only ready elf land 1002", got.LandIDs)
+	}
+
+	before := night.Add(-2 * time.Minute) // 21:59
+	if ops := farmOps(s, policy, nil, before, false, false, false); len(harvestOps(ops)) != 0 {
+		t.Fatalf("before 22:00 should not night-harvest, got %+v", harvestOps(ops))
+	}
+
+	policy.ElvesPlant.NightHarvestEnabled = false
+	if ops := farmOps(s, policy, nil, night, false, false, false); len(harvestOps(ops)) != 0 {
+		t.Fatalf("switch off should not harvest, got %+v", harvestOps(ops))
+	}
+}
+
+func TestElvesNightHarvestDoesNotDuplicateDelayedHarvest(t *testing.T) {
+	loc := time.FixedZone("Asia/Shanghai", 8*60*60)
+	night := time.Date(2026, 9, 21, 23, 0, 0, 0, loc)
+	mature := night.Add(-10 * time.Minute)
+	s := state.New()
+	applyMap(t, s, map[string]any{
+		"100": map[string]any{"0": map[string]any{"1": map[string]any{
+			"1002": map[string]any{
+				"0": 23331, "1": 2, "2": 1, "3": 1,
+				"5": float64(mature.UnixMilli()),
+				"6": 110132,
+				"7": float64(mature.UnixMilli()),
+			},
+			"1003": map[string]any{
+				"0": 23001, "1": 3, "2": 1,
+				"7": float64(mature.UnixMilli()),
+			},
+		}}},
+	})
+	policy := &pb.PlantPolicy{
+		Planting: &pb.PlantingPolicy{AutoHarvestEnabled: true},
+		ElvesPlant: &pb.ElvesPlantPolicy{
+			Enabled:             true,
+			MainFlowerId:        23517,
+			SecondaryFlowerId:   23331,
+			HarvestDelaySeconds: 60,
+			NightHarvestEnabled: true,
+		},
+	}
+	ops := harvestOps(farmOps(s, policy, nil, night, false, false, false))
+	var nightLands, otherLands []int32
+	for _, op := range ops {
+		switch op.FeatureID {
+		case "plant.elves_night_harvest":
+			nightLands = append(nightLands, op.LandIDs...)
+		default:
+			otherLands = append(otherLands, op.LandIDs...)
+		}
+	}
+	if len(nightLands) != 1 || nightLands[0] != 1002 {
+		t.Fatalf("night lands=%v", nightLands)
+	}
+	for _, id := range otherLands {
+		if id == 1002 {
+			t.Fatalf("elf land also scheduled on another harvest: %+v", ops)
+		}
+	}
+	foundPlain := false
+	for _, id := range otherLands {
+		if id == 1003 {
+			foundPlain = true
+		}
+	}
+	if !foundPlain {
+		t.Fatalf("plain ready flower should still follow auto harvest, got %+v", ops)
+	}
+}
+
+func harvestOps(ops []PlannedOp) []PlannedOp {
+	out := make([]PlannedOp, 0)
+	for _, op := range ops {
+		if op.Kind == clientproto.RPCUsrLandHarvest.String() {
+			out = append(out, op)
+		}
+	}
+	return out
+}
+
 func TestFriendStealElvesSlowsAfterElvesVisible(t *testing.T) {
 	s := state.New()
 	plant := &pb.PlantPolicy{

@@ -69,11 +69,13 @@ import type {
   DessertView,
   Event,
   FeatureCapability,
+  FmlFlowerShareView,
   FmlLandView,
   FmlRaceTask,
   FmlRaceTaken,
   FmlRaceView,
   FlowerArtAvailabilityView,
+  FlowerElvesInventoryGroup,
   FlowerElvesPlaceView,
   FlowerElvesView,
   FlowerRackSlotView,
@@ -91,6 +93,7 @@ import type {
   PlantableFlowerView,
   PlannedOperation,
   RequirementView,
+  RiskPauseView,
   RuntimeActionTotal,
   RuntimeResourceTotal,
   RuntimeStatisticsView,
@@ -1372,7 +1375,7 @@ function AccountDetailView({
         )}
       >
         {activeTab === "monitor" && <MonitorTab snapshot={snapshot} status={status} />}
-        {activeTab === "logs" && <EventPanel events={events} race={snapshot?.fmlRace} />}
+        {activeTab === "logs" && <EventPanel events={events} race={snapshot?.fmlRace} flowerShare={snapshot?.fmlFlowerShare} />}
         {activeTab === "settings" && (
           <PolicyPanel
             policy={policy}
@@ -1805,6 +1808,8 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
       : videoDoubleEndMs > 0
         ? "已到期"
         : "需自行观看广告";
+  const riskPause = status?.riskPause;
+  const riskPauseDisplay = riskPauseOverview(riskPause);
   return (
     <CollapsibleCard title="监控概览" actions={snapshot?.capturedAt && <Badge variant="outline">快照 {formatTimestamp(snapshot.capturedAt)}</Badge>}>
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
@@ -1834,7 +1839,12 @@ function StatusOverviewPanel({ snapshot, status }: { snapshot: GetSnapshotRespon
           value={videoDoubleValue}
           detail={videoDoubleDetail}
         />
-
+        <OverviewStat
+          icon={<Pause />}
+          label="预计暂停"
+          value={riskPauseDisplay.value}
+          detail={riskPauseDisplay.detail}
+        />
       </div>
     </CollapsibleCard>
   );
@@ -2106,7 +2116,84 @@ function FlowerElvesMonitorPanel({ elves }: { elves?: FlowerElvesView }) {
           </div>
         )}
       </section>
+
+      <section className="min-w-0 overflow-hidden rounded-md border border-border/58 bg-white/34 dark:bg-white/5">
+        <div className="flex min-h-9 items-center justify-between gap-2 bg-secondary/55 px-3 py-1.5 text-sm font-semibold dark:bg-muted/45">
+          <span>未派遣花灵</span>
+          <div className="flex items-center gap-1.5">
+            {elves?.doubleBuffActive && <Badge variant="secondary">双倍活动中</Badge>}
+            <Badge variant="secondary">{formatCount(elves?.dispatchableCount ?? 0)}</Badge>
+          </div>
+        </div>
+        {(elves?.inventoryGroups?.length ?? 0) === 0 ? (
+          <div className="p-3">
+            <EmptyState title="暂无可派遣花灵" detail="库存同步后，会按蓝/紫/金与双倍分组展示未派遣花灵。" />
+          </div>
+        ) : (
+          <div className="grid gap-2 p-2 sm:grid-cols-2 lg:grid-cols-3">
+            {(elves?.inventoryGroups ?? []).map((group) => (
+              <FlowerElvesInventoryGroupCard key={`${group.color}-${group.isDouble ? "d" : "n"}`} group={group} />
+            ))}
+          </div>
+        )}
+      </section>
     </CollapsibleCard>
+  );
+}
+
+function flowerElvesInventoryGroupMeta(group: FlowerElvesInventoryGroup): {
+  title: string;
+  tone: string;
+} {
+  const colorLabel =
+    group.color === 2 ? "蓝底" : group.color === 3 ? "紫底" : group.color === 4 ? "金底" : `色${group.color}`;
+  const title = group.isDouble
+    ? `${colorLabel}双倍${group.score}分`
+    : `${colorLabel}${group.score}分`;
+  const tone =
+    group.color === 2
+      ? group.isDouble
+        ? "border-sky-500/55 bg-sky-500/18"
+        : "border-sky-400/35 bg-sky-400/10"
+      : group.color === 3
+        ? group.isDouble
+          ? "border-violet-500/55 bg-violet-500/18"
+          : "border-violet-400/35 bg-violet-400/10"
+        : group.color === 4
+          ? group.isDouble
+            ? "border-amber-500/55 bg-amber-500/18"
+            : "border-amber-400/35 bg-amber-400/10"
+          : "border-border/58 bg-background/72";
+  return { title, tone };
+}
+
+function FlowerElvesInventoryGroupCard({ group }: { group: FlowerElvesInventoryGroup }) {
+  const meta = flowerElvesInventoryGroupMeta(group);
+  const items = group.items ?? [];
+  return (
+    <div className={`rounded-md border p-3 text-sm ${meta.tone}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-medium">{meta.title}</div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {group.isDouble ? "双倍名单内" : "普通"} · 单只 {group.score} 分
+          </div>
+        </div>
+        <Badge variant={group.count > 0 ? "secondary" : "outline"}>{formatCount(group.count)}</Badge>
+      </div>
+      {group.count <= 0 ? (
+        <div className="mt-2 text-xs text-muted-foreground">暂无</div>
+      ) : (
+        <div className="mt-2 max-h-28 space-y-1 overflow-y-auto text-xs text-muted-foreground">
+          {items.map((item) => (
+            <div key={item.itemId} className="flex items-center justify-between gap-2">
+              <span className="truncate">{item.name || `#${item.itemId}`}</span>
+              <span className="shrink-0 tabular-nums">×{formatCount(item.count)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -3078,6 +3165,8 @@ function FmlRaceTaskCard({
 		: task.taskLabel || `任务 #${task.taskId}`;
 	const title = onCd ? `CD ${baseTitle}` : baseTitle;
   const flowerStock = fmlRacePlantHarvestStock(task, inventory);
+  const upgradeName = (task.upgradeName ?? "").trim();
+  const takeName = (task.takeName ?? "").trim();
   return (
     <div
       className={cn(
@@ -3097,8 +3186,13 @@ function FmlRaceTaskCard({
         {flowerStock !== null ? (
           <span className="tabular-nums font-medium text-foreground">库存 {formatCount(flowerStock)}</span>
         ) : null}
-        {task.upgradeUid > 0 && <span>升级人 #{task.upgradeUid}</span>}
       </div>
+      {(upgradeName !== "" || takeName !== "") && (
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          {upgradeName !== "" ? <span>升级人 {upgradeName}</span> : null}
+          {takeName !== "" ? <span>接取人 {takeName}</span> : null}
+        </div>
+      )}
       {skipReason === "" ? (
         <div className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">可接取</div>
       ) : skipReason.startsWith("冷却中") ? (
@@ -4702,7 +4796,7 @@ function isRunnableOperation(operation: PlannedOperation) {
 
 
 
-function EventPanel({ events, race }: { events: Event[]; race?: FmlRaceView }) {
+function EventPanel({ events, race, flowerShare }: { events: Event[]; race?: FmlRaceView; flowerShare?: FmlFlowerShareView }) {
   const [activeCategory, setActiveCategory] = useState("all");
   const [showCompletedRaceTasks, setShowCompletedRaceTasks] = useState(false);
   const displayEvents = useMemo(() => collapseElvesLogEvents(collapseRaceSyncLogEvents(events)), [events]);
@@ -4720,6 +4814,9 @@ function EventPanel({ events, race }: { events: Event[]; race?: FmlRaceView }) {
     if (race?.observed || race?.completedTasksObserved || (race?.completedTasks?.length ?? 0) > 0) {
       keys.add("race");
     }
+    if (flowerShare?.observed || flowerShare?.todayTakesObserved || (flowerShare?.todayTakes?.length ?? 0) > 0) {
+      keys.add("union");
+    }
     return [...keys].sort((a, b) => {
       const ai = order.indexOf(a);
       const bi = order.indexOf(b);
@@ -4728,12 +4825,21 @@ function EventPanel({ events, race }: { events: Event[]; race?: FmlRaceView }) {
       if (bi >= 0) return 1;
       return a.localeCompare(b);
     });
-  }, [categoryCounts, race?.completedTasks?.length, race?.completedTasksObserved, race?.observed]);
+  }, [
+    categoryCounts,
+    race?.completedTasks?.length,
+    race?.completedTasksObserved,
+    race?.observed,
+    flowerShare?.observed,
+    flowerShare?.todayTakes?.length,
+    flowerShare?.todayTakesObserved,
+  ]);
   const visibleEvents = useMemo(() => {
     if (activeCategory === "all") return displayEvents;
     return displayEvents.filter((event) => eventCategory(event) === activeCategory);
   }, [activeCategory, displayEvents]);
   const completedRaceTasks = race?.completedTasks ?? [];
+  const todayUnionTakes = flowerShare?.todayTakes ?? [];
   const showCompletedList = activeCategory === "race" && showCompletedRaceTasks;
 
   useEffect(() => {
@@ -4787,6 +4893,54 @@ function EventPanel({ events, race }: { events: Event[]; race?: FmlRaceView }) {
               aria-label="展示已完成任务"
             />
           </label>
+        )}
+
+        {activeCategory === "union" && (
+          <div className="flex shrink-0 flex-col gap-2 rounded-md border border-border/58 bg-white/42 px-3 py-2 dark:bg-white/5">
+            <div className="min-w-0">
+              <span className="block text-sm font-medium">今日公会摸花</span>
+              <span className="block text-xs text-muted-foreground">
+                {flowerShare?.observed
+                  ? flowerShare.takeLimit > 0
+                    ? `已摸 ${flowerShare.todayTakeCount}/${flowerShare.takeLimit}`
+                    : `已摸 ${flowerShare.todayTakeCount}`
+                  : "摸花次数待同步"}
+                {todayUnionTakes.length > 0 ? ` · 记录 ${todayUnionTakes.length} 条` : ""}
+              </span>
+            </div>
+            {todayUnionTakes.length > 0 ? (
+              <div className="dark-scrollbar max-h-48 space-y-1.5 overflow-y-auto pr-0.5 text-xs">
+                {todayUnionTakes.map((take, index) => {
+                  const flower =
+                    take.flowerLabel || (take.flowerId > 0 ? `花朵 #${take.flowerId}` : "未知花朵");
+                  const member =
+                    take.memberUid > BigInt(0) ? `成员 ${take.memberUid.toString()}` : "";
+                  const slot = take.slotId > 0 ? `槽位 ${take.slotId}` : "";
+                  const detail = [member, slot].filter(Boolean).join(" · ");
+                  const takenAt =
+                    take.takenAtMs > BigInt(0)
+                      ? new Date(Number(take.takenAtMs)).toLocaleString("zh-CN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })
+                      : "";
+                  return (
+                    <div
+                      key={`${take.takenAtMs}-${take.memberUid}-${take.slotId}-${take.flowerId}-${index}`}
+                      className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded border border-border/45 bg-white/40 px-2 py-1.5 dark:bg-white/5"
+                    >
+                      <span className="shrink-0 tabular-nums text-muted-foreground">{takenAt || "-"}</span>
+                      <span className="font-medium text-foreground">{flower}</span>
+                      {detail && <span className="text-muted-foreground">{detail}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : flowerShare?.todayTakesObserved ? (
+              <span className="text-xs text-muted-foreground">今天还没有成功摸到公会分享花朵</span>
+            ) : null}
+          </div>
         )}
 
         {showCompletedList ? (
@@ -4928,12 +5082,16 @@ function EmptyState({ title, detail }: { title: string; detail?: string }) {
 }
 
 function accountIsAbnormal(status?: AccountStatus) {
+  if (status?.health === "pausing" || status?.riskPause?.pausing) return false;
   if (accountStatusIssues(status).length > 0) return true;
   return status?.health === "blocked" || status?.health === "session_expired" || Boolean(status?.lastError);
 }
 
 function HealthBadge({ account, status }: { account: Account; status?: AccountStatus }) {
   const connected = accountConnected(account, status);
+  if (status?.health === "pausing" || status?.riskPause?.pausing) {
+    return <Badge variant="secondary">休息中</Badge>;
+  }
   if (accountIsAbnormal(status)) return <Badge variant="destructive">异常</Badge>;
   if (!connected) return <Badge variant="outline">离线</Badge>;
   return <Badge variant="secondary">在线</Badge>;
@@ -5444,6 +5602,7 @@ function operationReasonLabel(reason: string) {
 }
 
 function eventCategory(event: Event) {
+  if (event.kind === "risk_pause") return "account";
   if (event.category === "flower_art") return "order";
   if (event.category === "redeem") return "system";
   if (event.kind === "pearl_hire" || event.domain?.startsWith("basic.pearl.hire") || event.domain === "basic.pearl.buy_hire_ticket") {
@@ -5536,6 +5695,7 @@ function isRaceSyncPlannedLogEvent(event: Event) {
 }
 
 function eventTitle(event: Event) {
+  if (event.kind === "risk_pause") return "休眠";
   if (event.label) return event.label;
   if (event.kind === "order_satin_finish") return "绸缎订单";
   if (event.kind === "order_decorate_finish") return "建材订单";
@@ -5678,6 +5838,41 @@ function formatUnixTime(value?: bigint) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(milliseconds));
+}
+
+function timestampToMilliseconds(ts?: Timestamp) {
+  if (!ts) return 0;
+  const milliseconds = Number(ts.seconds) * 1000 + Math.floor(ts.nanos / 1_000_000);
+  return Number.isFinite(milliseconds) && milliseconds > 0 ? milliseconds : 0;
+}
+
+function riskPauseOverview(riskPause?: RiskPauseView): { value: string; detail?: string } {
+  if (!riskPause?.enabled) {
+    return { value: "-", detail: "未开启定时休息" };
+  }
+  const pauseUntilMs = timestampToMilliseconds(riskPause.pauseUntil);
+  if (riskPause.pausing && pauseUntilMs > 0) {
+    const remaining = pauseUntilMs - Date.now();
+    return {
+      value: formatClockTime(pauseUntilMs),
+      detail:
+        remaining > 0
+          ? `休息中 · 剩余 ${formatRemainingMilliseconds(remaining)}后自动启动`
+          : "休息结束，正在自动启动",
+    };
+  }
+  const nextPauseMs = timestampToMilliseconds(riskPause.nextPauseAt);
+  if (nextPauseMs > 0) {
+    const remaining = nextPauseMs - Date.now();
+    return {
+      value: formatClockTime(nextPauseMs),
+      detail:
+        remaining > 0
+          ? `约 ${formatRemainingMilliseconds(remaining)}后断开休息`
+          : "即将断开休息",
+    };
+  }
+  return { value: "-", detail: "时长未配置" };
 }
 
 /** Absolute local clock for hire deadlines (HH:MM:SS). */

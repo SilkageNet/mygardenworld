@@ -46,12 +46,13 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	}
 	sessionInvalidated := r.sessionInvalidated
 	connected := r.client != nil && !r.client.Closed()
+	riskPausing := r.inRiskPauseLocked(now)
 	r.mu.RUnlock()
 
 	if sessionInvalidated {
 		out.BlockedReasons = append(out.BlockedReasons, "会话已失效")
 	}
-	if !connected && !sessionInvalidated {
+	if !connected && !sessionInvalidated && !riskPausing {
 		out.BlockedReasons = append(out.BlockedReasons, "WebSocket 未连接")
 	}
 	out.UnknownNamespaceCount = r.state.UnknownNamespaceCount()

@@ -46,6 +46,15 @@ message BasicPolicy {
   // Deprecated compatibility field from the initial KK implementation.
   // Normalize migrates it to plant.friend_steal; new clients must not write it.
   FriendTouchPolicy friend_touch = 17;
+
+  // Wall-clock rest cycle aligned to 00:00 Asia/Shanghai. Each cycle is
+  // run_duration_minutes of uptime followed by pause_duration_minutes offline.
+  // Example 120/12: stop 02:00, restart 02:12, stop 04:12, restart 04:24.
+  // Kicks and relogins do not reset the clock. automation_enabled stays true.
+  // Disabled by default; minutes default to 120 / 12 when unset or invalid.
+  bool run_pause_enabled = 18;
+  int32 run_duration_minutes = 19;
+  int32 pause_duration_minutes = 20;
 }
 
 // Friend flower pick (摘花/摸花) via frdSteal.*.
@@ -278,6 +287,10 @@ message ElvesPlantPolicy {
   bool request_aid = 11;
   bool receive_aid = 12;
   bool help_friend = 13;
+  // From 22:00 Asia/Shanghai until midnight, harvest every own land that
+  // currently has a flower elf. Independent of enabled (auto plant) and of
+  // PlantingPolicy.auto_harvest_enabled. Default on.
+  bool night_harvest_enabled = 14;
 }
 
 message FlowerMarketPolicy {

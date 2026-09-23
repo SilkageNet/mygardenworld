@@ -651,6 +651,23 @@ func TestNoteFmlFlowerShareTake_AdvancesDepletedSlot(t *testing.T) {
 	}
 }
 
+func TestSetFmlFlowerTodayTakes_KeepsEachTake(t *testing.T) {
+	s := New()
+	now := time.Date(2026, 9, 22, 12, 0, 0, 0, gameDayLocation())
+	s.SetFmlFlowerTodayTakes([]FmlFlowerTodayTakeView{
+		{TakenAtMs: now.Add(-12 * time.Second).UnixMilli(), FlowerID: 23011, MemberUID: 100, SlotID: 1},
+		{TakenAtMs: now.UnixMilli(), FlowerID: 23011, MemberUID: 100, SlotID: 1},
+		{TakenAtMs: now.Add(-24 * time.Hour).UnixMilli(), FlowerID: 23012, MemberUID: 101, SlotID: 2},
+	}, now)
+	takes := s.FmlFlowerTodayTakes(now)
+	if len(takes) != 2 {
+		t.Fatalf("takes=%d, want 2 (yesterday dropped, same-slot kept twice)", len(takes))
+	}
+	if takes[0].TakenAtMs < takes[1].TakenAtMs {
+		t.Fatalf("want newest first: %+v", takes)
+	}
+}
+
 func TestApplyV_RosterPopulatesLands(t *testing.T) {
 	// Cold-start `index.reLogin` shape: 100.0.1.<id> carries the full
 	// per-land state for every land in the player's roster. We verify both
@@ -1608,6 +1625,41 @@ func TestBenefitBoxDrawsAccrueLocallyUntilMax(t *testing.T) {
 	}
 	if !s.BenefitBoxReady(morning) {
 		t.Fatal("BenefitBoxReady at morning = false, want true after overnight accrual from drawCnt=0")
+	}
+}
+
+func TestMarkBenefitBoxEmptySuppressesMorningAccrual(t *testing.T) {
+	shanghai := time.FixedZone("Asia/Shanghai", 8*60*60)
+	resetAt := time.Date(2026, 7, 29, 20, 0, 0, 0, shanghai)
+	morning := time.Date(2026, 7, 30, 4, 30, 0, 0, shanghai)
+	s := New()
+	applyMap(t, s, map[string]any{
+		"116": map[string]any{
+			"0": map[string]any{
+				"1": 0,
+				"2": resetAt.UnixMilli(),
+			},
+		},
+	})
+	if got := s.BenefitBoxDrawsRemaining(morning); got != 8 {
+		t.Fatalf("pre-mark remaining=%d, want 8", got)
+	}
+	s.MarkBenefitBoxEmpty(morning)
+	if got := s.BenefitBoxDrawsRemaining(morning); got != 0 {
+		t.Fatalf("remaining after mark at window start=%d, want 0", got)
+	}
+	if got := s.BenefitBoxDrawsRemaining(morning.Add(20 * time.Minute)); got != 0 {
+		t.Fatalf("remaining mid-window after mark=%d, want 0", got)
+	}
+	afterWindow := time.Date(2026, 7, 30, 5, 0, 0, 0, shanghai)
+	// Empty-until ends at 05:00; accrual restarts from the mark timestamp (04:30),
+	// so remaining stays 0 until the next $boxCd hour elapses.
+	if got := s.BenefitBoxDrawsRemaining(afterWindow); got != 0 {
+		t.Fatalf("remaining at window end=%d, want 0", got)
+	}
+	nextMorning := time.Date(2026, 7, 31, 4, 30, 0, 0, shanghai)
+	if got := s.BenefitBoxDrawsRemaining(nextMorning); got != 8 {
+		t.Fatalf("remaining next morning=%d, want accrued 8", got)
 	}
 }
 
