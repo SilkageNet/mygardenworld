@@ -233,6 +233,11 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 
 func (r *Runner) prepareHTTPClient(ctx context.Context, deviceID, uuid, session0 string) *babigame.HTTPClient {
 	httpc := babigame.NewHTTPClient(r.cfg, deviceID, uuid, session0)
+	if !r.cfg.IsNative {
+		// Alipay initializes through pack/init only when a fresh login is
+		// needed. Restoring a session must retain its authenticated UUID.
+		return httpc
+	}
 	if pkg, err := httpc.QueryPackageConfig(ctx); err == nil {
 		if pkg.GameVersion != "" {
 			httpc.Cfg.GameVersion = pkg.GameVersion

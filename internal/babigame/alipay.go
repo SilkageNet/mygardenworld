@@ -137,6 +137,9 @@ func (c *AlipayClient) LoginWithWebGrant(ctx context.Context, gameHTTP *HTTPClie
 	if gameHTTP == nil {
 		return nil, errors.New("alipay game HTTP client required")
 	}
+	if err := gameHTTP.prepareAlipayLogin(ctx); err != nil {
+		return nil, err
+	}
 	gameAppID, err := c.queryGameAppID(ctx, grant)
 	if err != nil {
 		return nil, err
@@ -145,7 +148,7 @@ func (c *AlipayClient) LoginWithWebGrant(ctx context.Context, gameHTTP *HTTPClie
 	if err != nil {
 		return nil, err
 	}
-	yxt, err := c.exchangeYXT(ctx, authCode)
+	yxt, err := c.exchangeYXT(ctx, authCode, gameHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -197,9 +200,16 @@ func (c *AlipayClient) queryGameAuthCode(ctx context.Context, grant AlipayWebGra
 	return authCode, nil
 }
 
-func (c *AlipayClient) exchangeYXT(ctx context.Context, authCode string) (AlipayYXTGrant, error) {
+func (c *AlipayClient) exchangeYXT(ctx context.Context, authCode string, gameHTTP *HTTPClient) (AlipayYXTGrant, error) {
 	form := url.Values{"authCode": {authCode}, "scene": {"other"}}
-	endpoint := strings.TrimRight(c.YXTURL, "/") + "/Channel/login/yxtGame/wdhysj/yxtChannel/myxyx/yxtSubChannel/myxyx"
+	endpoint := strings.TrimRight(c.YXTURL, "/") + "/Channel/login"
+	for _, key := range []string{"yxtGame", "yxtChannel", "yxtSubChannel"} {
+		value := stringOf(gameHTTP.loginOption(key))
+		if value == "" {
+			return AlipayYXTGrant{}, fmt.Errorf("alipay initialization missing %s", key)
+		}
+		endpoint += "/" + key + "/" + url.PathEscape(value)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
 		return AlipayYXTGrant{}, err
@@ -237,10 +247,10 @@ func (c *AlipayClient) exchangeYXT(ctx context.Context, authCode string) (Alipay
 		ChannelUserID: data["yxtChannelUserId"],
 	}
 	if stringOf(grant.Game) == "" {
-		grant.Game = "wdhysj"
+		grant.Game = gameHTTP.loginOption("yxtGame")
 	}
 	if stringOf(grant.Channel) == "" {
-		grant.Channel = "myxyx"
+		grant.Channel = gameHTTP.loginOption("yxtChannel")
 	}
 	if stringOf(grant.UserID) == "" || stringOf(grant.LoginTime) == "" || stringOf(grant.Sign) == "" || stringOf(grant.ChannelUserID) == "" {
 		return AlipayYXTGrant{}, errors.New("alipay yxt login response missing signed user fields")
@@ -249,6 +259,20 @@ func (c *AlipayClient) exchangeYXT(ctx context.Context, authCode string) (Alipay
 }
 
 func (c *AlipayClient) gameLoginPayload(gameHTTP *HTTPClient, yxt AlipayYXTGrant) (map[string]any, error) {
+	body, err := gameHTTP.alipayLaunchPayload()
+	if err != nil {
+		return nil, err
+	}
+	body["yxtGame"] = yxt.Game
+	body["yxtChannel"] = yxt.Channel
+	body["yxtUserId"] = yxt.UserID
+	body["yxtLoginTime"] = yxt.LoginTime
+	body["yxtSign"] = yxt.Sign
+	body["yxtChannelUserId"] = yxt.ChannelUserID
+	return body, nil
+}
+
+func (c *HTTPClient) alipayLaunchPayload() (map[string]any, error) {
 	launch := map[string]any{
 		"query": map[string]any{"channel": "other"},
 		"scene": "1000",
@@ -258,29 +282,66 @@ func (c *AlipayClient) gameLoginPayload(gameHTTP *HTTPClient, yxt AlipayYXTGrant
 		return nil, err
 	}
 	systemInfo, err := json.Marshal(map[string]any{
-		"platform":     gameHTTP.Cfg.SDKPlatform,
-		"version":      gameHTTP.Cfg.ClientVersion,
-		"model":        gameHTTP.Cfg.DeviceModel,
-		"brand":        gameHTTP.Cfg.DeviceBrand,
-		"screenHeight": gameHTTP.Cfg.ScreenHeightPx,
-		"screenWidth":  gameHTTP.Cfg.ScreenWidthPx,
-		"system":       gameHTTP.Cfg.OSVersion,
-		"language":     gameHTTP.Cfg.SysLanguage,
+		"platform":     c.Cfg.SDKPlatform,
+		"version":      c.Cfg.ClientVersion,
+		"model":        c.Cfg.DeviceModel,
+		"brand":        c.Cfg.DeviceBrand,
+		"screenHeight": c.Cfg.ScreenHeightPx,
+		"screenWidth":  c.Cfg.ScreenWidthPx,
+		"system":       c.Cfg.OSVersion,
+		"language":     c.Cfg.SysLanguage,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{
-		"open_data":        string(openData),
-		"scene":            "1000",
-		"system_info":      string(systemInfo),
-		"yxtGame":          yxt.Game,
-		"yxtChannel":       yxt.Channel,
-		"yxtUserId":        yxt.UserID,
-		"yxtLoginTime":     yxt.LoginTime,
-		"yxtSign":          yxt.Sign,
-		"yxtChannelUserId": yxt.ChannelUserID,
+		"open_data":   string(openData),
+		"scene":       "1000",
+		"system_info": string(systemInfo),
 	}, nil
+}
+
+// prepareAlipayLogin mirrors Driver_hmzfbxyx.init in the 450.0.15 package.
+// Mini-games receive UUID and SDK options directly from pack/init. The native
+// queryPackageConfig/queryInitParams chain does not initialize this channel.
+func (c *HTTPClient) prepareAlipayLogin(ctx context.Context) error {
+	if c.Cfg.PackageName != "cn.hysj.zfb.minigame" {
+		return errors.New("alipay initialization requires Alipay channel config")
+	}
+	c.launchUUID, c.gameSession1 = "", ""
+	c.launchParams, c.loginParams = nil, nil
+	body, err := c.alipayLaunchPayload()
+	if err != nil {
+		return err
+	}
+	body["version"], body["userParams"] = c.Cfg.ClientVersion, 1
+	resp, _, err := c.PostJSON(ctx, c.Cfg.HostAPI, "/pack/init/packageName/"+c.Cfg.PackageName, body, c.headersBasic())
+	if err != nil {
+		return fmt.Errorf("alipay package initialization: %w", err)
+	}
+	if !gameLoginSucceeded(resp["status"]) {
+		return fmt.Errorf("alipay package initialization rejected: code=%d bizCode=%d", loginDiagnosticCode(resp["code"]), loginDiagnosticCode(resp["bizCode"]))
+	}
+	if err := c.acceptLaunchURL(stringOf(resp["url"])); err != nil {
+		return fmt.Errorf("alipay package initialization: %w", err)
+	}
+	params := mapOf(resp["userParams"])
+	if err := c.validateLoginScope(params); err != nil {
+		return fmt.Errorf("alipay package initialization: %w", err)
+	}
+	if uuid := stringOf(params["uuid"]); uuid != "" && uuid != c.launchUUID {
+		return errors.New("alipay initialization UUID differs from launch URL")
+	}
+	c.loginParams = params
+	for _, key := range []string{"yxtGame", "yxtChannel", "yxtSubChannel"} {
+		if strings.TrimSpace(stringOf(c.loginOption(key))) == "" {
+			return fmt.Errorf("alipay initialization missing %s", key)
+		}
+	}
+	// userParams.gameVersion identifies the SDK web entry (2.2.209), not the
+	// executable's protocol version (450.0.15); keep the latter for appInfo/GW.
+	c.UUID = c.launchUUID
+	return c.prepareRequestToken(ctx)
 }
 
 func (c *AlipayClient) postGateway(ctx context.Context, path string, payload map[string]any, webToken, userID string) (map[string]any, error) {

@@ -30,6 +30,12 @@
 // common session1/uuid/lang/appInfo filter after building their signed payload.
 // Native startup must consume the UUID in queryPackageConfig's launch URL and
 // the subsequent queryInitParams response before password authentication.
+// Alipay instead calls /pack/init/packageName/cn.hysj.zfb.minigame with the
+// observed executable version 450.0.15, then consumes userParams for UUID,
+// session options and YXT channel routing before exchanging the web grant.
+// A same-input comparison on 2026-09-23 routed 412.0.4 to aud-zfb and 450.0.15
+// to prod. The returned SDK entry gameVersion (2.2.209) must not overwrite
+// the executable version sent in appInfo or GW/GS login requests.
 // Read-only observations on 2026-09-23 found session1Cipher=1 with no mdSession1
 // in the iOS init response; random UUIDs were rejected with "params is null".
 // The meaning of 902054 and a causal link to this SDK change remain unverified.
