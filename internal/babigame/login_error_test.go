@@ -21,6 +21,7 @@ func TestGameLoginRefusalClassificationAndRedaction(t *testing.T) {
 		{902052, "触发限流", true},
 		{902053, "SDK 账号被封禁", true},
 		{902048, "原因尚未识别", false},
+		{902054, "原因尚未识别", false},
 		{123456, "原因尚未识别", false},
 	} {
 		t.Run(fmt.Sprint(tc.code), func(t *testing.T) {

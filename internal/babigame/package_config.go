@@ -20,6 +20,8 @@ type PackageConfig struct {
 // this launch. The returned gameVersion is the current client protocol version
 // that the official app uses for /game/login and /gw index.login.
 func (c *HTTPClient) QueryPackageConfig(ctx context.Context) (PackageConfig, error) {
+	c.launchUUID = ""
+	c.launchParams = nil
 	equipmentInfoJSON, err := json.Marshal(struct {
 		EquipmentBrand string `json:"equipmentBrand"`
 		PushDeviceID   string `json:"pushDeviceId"`
@@ -72,6 +74,9 @@ func (c *HTTPClient) QueryPackageConfig(ctx context.Context) (PackageConfig, err
 	if err != nil {
 		return PackageConfig{}, err
 	}
+	if !gameLoginSucceeded(resp["status"]) {
+		return PackageConfig{}, fmt.Errorf("queryPackageConfig rejected: code=%d bizCode=%d", loginDiagnosticCode(resp["code"]), loginDiagnosticCode(resp["bizCode"]))
+	}
 	data, _ := resp["data"].(map[string]any)
 	gameConfig, _ := data["gameConfig"].(map[string]any)
 	entryConfig, _ := data["entryConfig"].(map[string]any)
@@ -85,7 +90,14 @@ func (c *HTTPClient) QueryPackageConfig(ctx context.Context) (PackageConfig, err
 		}
 	}
 	if pkg.GameVersion == "" && pkg.EntryPath == "" {
-		return PackageConfig{}, fmt.Errorf("queryPackageConfig missing gameVersion/entryConfig: %v", resp)
+		return PackageConfig{}, fmt.Errorf("queryPackageConfig missing gameVersion/entryConfig")
+	}
+	if err := c.acceptLaunchURL(stringOf(resp["url"])); err != nil {
+		return PackageConfig{}, fmt.Errorf("queryPackageConfig: %w", err)
+	}
+	if pkg.GameVersion != "" {
+		c.Cfg.GameVersion = pkg.GameVersion
+		c.Cfg.ClientVersion = pkg.GameVersion
 	}
 	return pkg, nil
 }

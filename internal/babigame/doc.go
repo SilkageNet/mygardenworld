@@ -20,6 +20,19 @@
 // GameLoginError exposes only numeric diagnostics; a JSON code of 302 is
 // not an HTTP redirect and its URL must not be followed to bypass refusal.
 // No observed evidence establishes a safe account count or cooldown duration.
+// Unknown business refusals, including the observed 902054, also stop automatic
+// authentication retries without claiming an unobserved risk/ban meaning.
+//
+// The authorized 187 mini-game and 450.0.15 web SDK add session1Cipher support:
+// game/login uses mdSession1 from SDK options when enabled and present, or a
+// local "s1" + 17 random characters + millisecond timestamp otherwise. This is
+// distinct from the account SDK's session1. Both supported channels pass the
+// common session1/uuid/lang/appInfo filter after building their signed payload.
+// Native startup must consume the UUID in queryPackageConfig's launch URL and
+// the subsequent queryInitParams response before password authentication.
+// Read-only observations on 2026-09-23 found session1Cipher=1 with no mdSession1
+// in the iOS init response; random UUIDs were rejected with "params is null".
+// The meaning of 902054 and a causal link to this SDK change remain unverified.
 //
 // # Namespace Reference
 //

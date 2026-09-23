@@ -70,3 +70,11 @@ func IsLoginRiskError(err error) bool {
 		return false
 	}
 }
+
+// IsLoginRefusalError includes unknown business refusals. Unknown does not
+// mean transient, and must not cause automatic repeated authentication. This
+// deliberately does not label unknown codes (including 902054) as IP risk.
+func IsLoginRefusalError(err error) bool {
+	var rejected *GameLoginError
+	return errors.As(err, &rejected) && rejected != nil
+}
