@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -31,6 +30,14 @@ type HTTPClient struct {
 	// Token is updated after successful /game/login and used by every
 	// token-bearing call.
 	Token string
+
+	// Package metadata is also used by session restoration. Keep its launch
+	// UUID separate until fresh login, so metadata reads cannot replace the
+	// identity of an already authenticated session.
+	launchUUID   string
+	launchParams map[string]any
+	loginParams  map[string]any
+	gameSession1 string
 
 	HTTPClient *http.Client
 }
@@ -250,17 +257,35 @@ func (c *HTTPClient) AccountLoginUsername(ctx context.Context, username, passwor
 	return nativeFromMap(native), nil
 }
 
-// QueryInitParams probes the per-version feature flags. Idempotent; useful
-// to call once on startup to surface server-side switches like timeStep.
+// QueryInitParams loads the launch-scoped SDK options, including session1Cipher
+// and mdSession1. UUID must come from the package bootstrap, not a local UUID.
 func (c *HTTPClient) QueryInitParams(ctx context.Context) (map[string]any, error) {
+	c.loginParams = nil
 	resp, _, err := c.PostJSON(ctx, c.Cfg.HostAPI, c.gamePath("queryInitParams"),
 		map[string]any{"uuid": c.UUID, "lang": "zh"}, c.headersBasic())
-	return resp, err
+	if err != nil {
+		return nil, err
+	}
+	if !gameLoginSucceeded(resp["status"]) {
+		return nil, fmt.Errorf("queryInitParams rejected: code=%d bizCode=%d", loginDiagnosticCode(resp["code"]), loginDiagnosticCode(resp["bizCode"]))
+	}
+	params, ok := resp["data"].(map[string]any)
+	if !ok || len(params) == 0 {
+		return nil, fmt.Errorf("queryInitParams missing SDK options")
+	}
+	if err := c.validateLoginScope(params); err != nil {
+		return nil, fmt.Errorf("queryInitParams: %w", err)
+	}
+	if uuid, present := params["uuid"]; present && stringOf(uuid) != c.UUID {
+		return nil, fmt.Errorf("queryInitParams UUID does not match this launch")
+	}
+	c.loginParams = params
+	return resp, nil
 }
 
 // AccountTokenVerify is the SDK-side "is the cached session still valid"
-// probe. Always called by the iOS client at startup. We don't depend on its
-// result for anything; we always do a fresh login when the daemon spins up.
+// probe. Its result does not replace game initialization or determine whether
+// the runner can restore its separately persisted game session.
 func (c *HTTPClient) AccountTokenVerify(ctx context.Context) (map[string]any, error) {
 	body := map[string]any{
 		"clid":        1,
@@ -281,28 +306,6 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 	if idfv == "" {
 		idfv = c.DeviceID
 	}
-	appInfo := map[string]any{
-		"_ip":                 clientIP,
-		"_os":                 c.Cfg.MobilePlatform,
-		"_ram":                c.Cfg.RAMMB,
-		"_os_version":         c.Cfg.OSVersion,
-		"_cpu_type":           c.Cfg.CPUType,
-		"_time_zone":          c.Cfg.TimeZoneHour,
-		"_game_platform":      c.Cfg.GamePlatform,
-		"_game_version":       c.Cfg.GameVersion,
-		"_sdk_version":        c.Cfg.SDKVersion,
-		"_screen_height":      c.Cfg.ScreenHeightPx,
-		"_screen_width":       c.Cfg.ScreenWidthPx,
-		"_network_type":       c.Cfg.NetworkType,
-		"_package_version":    c.Cfg.AppVersion,
-		"_native_version":     c.Cfg.AppVersion,
-		"_equipment_model":    strings.ToLower(c.Cfg.DeviceModel),
-		"_equipment_brand":    strings.ToLower(c.Cfg.DeviceBrand),
-		"_deviceId":           c.DeviceID,
-		"_equipment_language": "zh",
-		"_runtime_language":   c.Cfg.RuntimeLanguage,
-	}
-	appInfoJSON, _ := json.Marshal(appInfo)
 	body := map[string]any{
 		"content":        native.Content,
 		"timestamp":      native.Timestamp,
@@ -319,8 +322,7 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		"caid2_md5":      caid2MD5,
 		"packageId":      fmt.Sprintf("%d", c.Cfg.PackageID),
 		"lang":           "zh",
-		"session1":       defaultStr(native.Session1, RandomSessionID()),
-		"appInfo":        string(appInfoJSON),
+		"appInfo":        c.gameLoginAppInfo(clientIP),
 		"uuid":           c.UUID,
 	}
 	return c.GameLoginWithPayload(ctx, body)
@@ -330,6 +332,10 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 // parses the common redirect token result. Password channels build this
 // payload in GameLogin; grant-based channels such as Alipay build their own.
 func (c *HTTPClient) GameLoginWithPayload(ctx context.Context, body map[string]any) (GameLoginResult, error) {
+	// The SDK's common filter runs for every channel after its signed native
+	// assertion is built. Never use the account SDK's session1 as the game
+	// session1, or alter any of the channel's signed fields.
+	body = c.withGameLoginOptions(body)
 	resp, _, err := c.PostJSON(ctx, c.Cfg.HostAPI, c.gamePath("login"), body, c.headersBasic())
 	if err != nil {
 		return GameLoginResult{}, fmt.Errorf("game/login: %w", err)

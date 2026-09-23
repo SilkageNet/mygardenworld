@@ -222,7 +222,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		err = fmt.Errorf("unsupported channel %q", r.account.Channel)
 	}
 	if err != nil {
-		r.stopForLoginRisk(err)
+		r.stopForLoginRefusal(err)
 		return nil, fmt.Errorf("login: %w", err)
 	}
 	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {

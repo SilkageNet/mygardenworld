@@ -31,17 +31,14 @@ type persistedSession struct {
 // a Session ready for Client.Connect. Mirrors the Python helper of the same
 // name in scripts/tools/garden_client.py.
 //
-// Steps that aren't strictly required (BI reports, queryInitParams variants,
-// pack/getIosCaid) are skipped - they're observability sugar.
+// Package initialization and queryInitParams supply the server-issued UUID
+// and game session options. Neither can be skipped before fresh login.
 func PerformLoginWithPassword(ctx context.Context, http *HTTPClient, username, password string, isSimulator int) (*Session, error) {
-	// Best-effort startup probes. Failures here are not fatal; the iOS client
-	// always runs them but the server doesn't gate login on the result.
-	for _, fn := range []func(context.Context) (map[string]any, error){
-		http.AccountTokenVerify,
-		http.QueryInitParams,
-	} {
-		_, _ = fn(ctx)
+	if err := http.preparePasswordLogin(ctx); err != nil {
+		return nil, err
 	}
+	// This account-SDK cache probe does not provide game initialization data.
+	_, _ = http.AccountTokenVerify(ctx)
 
 	native, err := http.AccountLoginUsername(ctx, username, password)
 	if err != nil {
@@ -54,6 +51,9 @@ func PerformLoginWithPassword(ctx context.Context, http *HTTPClient, username, p
 // from a captured / cached NativeLogin to a Session. Useful in tests and when
 // you already have a token from elsewhere.
 func PerformLoginWithNative(ctx context.Context, http *HTTPClient, native NativeLogin, isSimulator int) (*Session, error) {
+	if err := http.preparePasswordLogin(ctx); err != nil {
+		return nil, err
+	}
 	return finishLogin(ctx, http, native, isSimulator)
 }
 

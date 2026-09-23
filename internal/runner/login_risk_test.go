@@ -13,8 +13,8 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
-func TestLoginRiskStopsAllRecoveryAndPersistsDisabledAutomation(t *testing.T) {
-	for _, code := range []int{902049, 902050, 902051, 902052, 902053} {
+func TestLoginRefusalStopsAllRecoveryAndPersistsDisabledAutomation(t *testing.T) {
+	for _, code := range []int{902049, 902050, 902051, 902052, 902053, 902054, 123456} {
 		t.Run(fmt.Sprint(code), func(t *testing.T) {
 			ctx := context.Background()
 			db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
@@ -45,7 +45,7 @@ func TestLoginRiskStopsAllRecoveryAndPersistsDisabledAutomation(t *testing.T) {
 			}
 			// Simulate a displacement arriving while a fresh login is in flight.
 			r.sessionInvalidated, r.sessionAutoRelogin = true, true
-			if !r.stopForLoginRisk(fmt.Errorf("login: %w", &babigame.GameLoginError{BizCode: code})) {
+			if !r.stopForLoginRefusal(fmt.Errorf("login: %w", &babigame.GameLoginError{BizCode: code})) {
 				t.Fatal("refusal not handled")
 			}
 			if !r.sessionInvalidatedWithoutAutoRelogin() || r.Policy().GetAutomationEnabled() || r.prepareAutoReloginAttempt() {
@@ -82,11 +82,11 @@ func TestLoginRiskStopsAllRecoveryAndPersistsDisabledAutomation(t *testing.T) {
 	}
 }
 
-func TestOrdinaryLoginErrorsDoNotTriggerRiskStop(t *testing.T) {
-	for _, err := range []error{nil, context.DeadlineExceeded, errors.New("902049"), &babigame.GameLoginError{BizCode: 123456}} {
+func TestOrdinaryLoginErrorsDoNotTriggerRefusalStop(t *testing.T) {
+	for _, err := range []error{nil, context.DeadlineExceeded, errors.New("902049")} {
 		r := newOperationEventTestRunner()
-		if r.stopForLoginRisk(err) || r.isSessionInvalidated() {
-			t.Fatalf("ordinary error classified as risk: %v", err)
+		if r.stopForLoginRefusal(err) || r.isSessionInvalidated() {
+			t.Fatalf("ordinary error classified as refusal: %v", err)
 		}
 	}
 }

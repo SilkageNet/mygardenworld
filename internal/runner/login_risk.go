@@ -7,12 +7,12 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 )
 
-// stopForLoginRisk terminates both automatic recovery paths on an explicit
+// stopForLoginRefusal terminates both automatic recovery paths on an explicit
 // login refusal. Unlike a displacement notification, this always revokes a
 // pending relogin, even if another displacement arrived during HTTP login.
 // It does not invent a server expiry or disable other accounts on the host.
-func (r *Runner) stopForLoginRisk(err error) bool {
-	if !babigame.IsLoginRiskError(err) {
+func (r *Runner) stopForLoginRefusal(err error) bool {
+	if !babigame.IsLoginRefusalError(err) {
 		return false
 	}
 	reason := err.Error()
