@@ -23,6 +23,10 @@ func (c *HTTPClient) preparePasswordLogin(ctx context.Context) error {
 	if _, err := c.QueryInitParams(ctx); err != nil {
 		return fmt.Errorf("login SDK initialization: %w", err)
 	}
+	return c.prepareRequestToken(ctx)
+}
+
+func (c *HTTPClient) prepareRequestToken(ctx context.Context) error {
 	// This preflight predates session1Cipher. Do not silently omit it if the
 	// server enables it, and do not copy the SDK's unbounded retry loop.
 	if sdkOptionEnabled(c.loginOption("getRequestToken")) {

@@ -140,7 +140,7 @@ func iOSConfig() Config {
 }
 
 // alipayConfig contains the identifiers observed from the production Alipay
-// mini-game package served by wanyiwan on 2026-08-25. Keep this channel
+// mini-game package served by wanyiwan on 2026-09-23. Keep this channel
 // isolated from iOS: version and host drift must never silently cross channels.
 func alipayConfig() Config {
 	return Config{
@@ -148,8 +148,8 @@ func alipayConfig() Config {
 		PackageName:       "cn.hysj.zfb.minigame",
 		AppVersion:        "0.0.0",
 		AppVersionCode:    "0",
-		ClientVersion:     "412.0.4",
-		GameVersion:       "412.0.4",
+		ClientVersion:     "450.0.15",
+		GameVersion:       "450.0.15",
 		SDKVersion:        "7.0.4",
 		SDKPlatform:       "Browser",
 		MobilePlatform:    "browser",

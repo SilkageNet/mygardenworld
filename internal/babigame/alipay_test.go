@@ -29,7 +29,7 @@ func TestAlipayConfigIsChannelScoped(t *testing.T) {
 	if cfg.PackageName != "cn.hysj.zfb.minigame" || cfg.MdGid != 163 || cfg.ChannelID != 538 || cfg.PackageID != 520 {
 		t.Fatalf("unexpected Alipay identity: %+v", cfg)
 	}
-	if cfg.ClientVersion != "412.0.4" || cfg.HostAPI != "apizfbfast.babigame.cn" || cfg.HostGW != "hygnhmzfb.babigame.cn" {
+	if cfg.ClientVersion != "450.0.15" || cfg.HostAPI != "apizfbfast.babigame.cn" || cfg.HostGW != "hygnhmzfb.babigame.cn" {
 		t.Fatalf("unexpected Alipay version/hosts: %+v", cfg)
 	}
 	if cfg.SDKPlatform != "Browser" || cfg.IsNative || cfg.OSType != 0 || cfg.IsSimulator != 0 {
@@ -159,11 +159,12 @@ func TestAlipayAuthCodeAndYXTPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	yxt, err := client.exchangeYXT(context.Background(), authCode)
+	gameHTTP := NewHTTPClient(cfg, "device", "uuid", "session")
+	gameHTTP.loginParams = map[string]any{"yxtGame": "wdhysj", "yxtChannel": "myxyx", "yxtSubChannel": "myxyx"}
+	yxt, err := client.exchangeYXT(context.Background(), authCode, gameHTTP)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gameHTTP := NewHTTPClient(cfg, "device", "uuid", "session")
 	payload, err := client.gameLoginPayload(gameHTTP, yxt)
 	if err != nil {
 		t.Fatal(err)
