@@ -17,7 +17,7 @@ func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username
 		httpc.Cfg.GameVersion = pkg.GameVersion
 		httpc.Cfg.ClientVersion = pkg.GameVersion
 	}
-	return babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
+	return babigame.PerformLoginWithPassword(ctx, httpc, username, password, 0)
 }
 
 func (svc *Services) saveLoginProbe(ctx context.Context, accountID int64, session *babigame.Session) {

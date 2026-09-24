@@ -19,7 +19,7 @@ type Config struct {
 	PackageID int    // 494
 	SDKID     int    // 10000
 	Env       string // prod
-	Area      string // cn
+	Area      string // ca (observed); legacy docs said cn
 	ZoneCode  string // ys
 
 	// /gw + WS crypto

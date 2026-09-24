@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/andybalholm/brotli"
@@ -28,6 +29,15 @@ type HTTPClient struct {
 	// Token is updated after successful /game/login and used by every
 	// token-bearing call.
 	Token string
+
+	// NotifyURL is the CDN entry URL returned by /pack/init (GAME_URL). The
+	// official client attaches it as notifyUrl on /game/* requests.
+	NotifyURL string
+
+	// Session1Cipher mirrors pack/init params session1Cipher=1. When set, the
+	// official client rotates session1 via mdSession1; we still generate the
+	// same "s1"+uuid(17)+ms shape on first login.
+	Session1Cipher bool
 
 	HTTPClient *http.Client
 }
@@ -195,35 +205,89 @@ func decompressBody(data []byte, encoding string) ([]byte, error) {
 
 // AccountLoginUsername performs the gfsdk username/password login.
 //
-// The password is sent base64-encoded in the `value` field; this is *not*
-// encryption, just SDK encoding. The server responds with a payload that
-// (somewhere inside) contains content/timestamp/signature/session1; we
-// DFS the response for the first dict that has those three keys and treat
-// it as the NativeLogin.
+// Current official iOS (loginNewFlow=2 / moac_rn 3.3.2.54+) uses the V5
+// RequestSecurity envelope on POST /account/login/username/v5.
 func (c *HTTPClient) AccountLoginUsername(ctx context.Context, username, password string) (NativeLogin, error) {
-	body := map[string]any{
-		"clid":                   1,
-		"lang":                   "zh",
-		"deviceId":               c.DeviceID,
-		"appId":                  c.Cfg.AppID,
-		"packageName":            c.Cfg.PackageName,
-		"platform":               "iOS",
-		"version":                "v" + c.Cfg.AppVersion,
-		"name":                   username,
-		"value":                  base64.StdEncoding.EncodeToString([]byte(password)),
-		"showVerEighteenAgeTips": false,
-		"storeCountryCode":       "CN",
-		"sysLanguage":            c.Cfg.SysLanguage,
-	}
-	resp, _, err := c.PostJSON(ctx, c.Cfg.HostMOAC, "/account/login/username/v2", body, c.headersSDK())
+	return c.accountLoginUsernameV5(ctx, username, password)
+}
+
+func (c *HTTPClient) accountLoginUsernameV5(ctx context.Context, username, password string) (NativeLogin, error) {
+	passwordB64 := base64.StdEncoding.EncodeToString([]byte(password))
+	inner := c.v5LoginInner(username, passwordB64)
+	nonce := generateV5Nonce()
+	outer, err := buildEncryptedOuterBody(inner, c.DeviceID, nonce, "POST", accountLoginUsernameV5Path, 0)
 	if err != nil {
-		return NativeLogin{}, fmt.Errorf("account/login: %w", err)
+		return NativeLogin{}, fmt.Errorf("account/login v5 build: %w", err)
+	}
+	headers := c.headersSDK()
+	headers.Set("deviceId", c.DeviceID)
+	headers.Set("nonce", nonce)
+	headers.Set("packageName", c.Cfg.PackageName)
+	headers.Set("appId", c.Cfg.AppID)
+	headers.Set("version", "v"+c.Cfg.AppVersion)
+	headers.Set("requestSecurityIvVersion", requestSecurityIVVersion)
+
+	resp, _, err := c.PostJSON(ctx, c.Cfg.HostMOAC, accountLoginUsernameV5Path, outer, headers)
+	if err != nil {
+		return NativeLogin{}, fmt.Errorf("account/login v5: %w", err)
+	}
+	resp, err = c.decryptV5ResponseIfNeeded(resp, c.DeviceID, nonce, outer)
+	if err != nil {
+		return NativeLogin{}, fmt.Errorf("account/login v5 decrypt: %w", err)
 	}
 	native, found := findFirstDictWithKeys(resp, "content", "timestamp", "signature")
 	if !found {
-		return NativeLogin{}, fmt.Errorf("account/login response missing content/timestamp/signature: %v", resp)
+		return NativeLogin{}, fmt.Errorf("account/login v5 response missing content/timestamp/signature: %v", resp)
+	}
+	// Official SDK stores the MOAC session token after username login; some
+	// subsequent /game calls expect it in headers even before /game/login.
+	if tok := stringOf(firstNonEmpty(native, "token")); tok != "" {
+		c.Token = tok
+	} else if data, _ := resp["data"].(map[string]any); data != nil {
+		if tok := stringOf(data["token"]); tok != "" {
+			c.Token = tok
+		}
 	}
 	return nativeFromMap(native), nil
+}
+
+// decryptV5ResponseIfNeeded unwraps isEncrypt/encryptData envelopes from V5
+// MOAC responses. Non-encrypted payloads pass through unchanged.
+func (c *HTTPClient) decryptV5ResponseIfNeeded(resp map[string]any, deviceID, nonce string, outer map[string]any) (map[string]any, error) {
+	if resp == nil {
+		return resp, nil
+	}
+	isEncrypt, _ := resp["isEncrypt"].(bool)
+	encryptData, _ := resp["encryptData"].(string)
+	if !isEncrypt || encryptData == "" {
+		// Some envelopes nest the encrypt payload under data.
+		if data, _ := resp["data"].(map[string]any); data != nil {
+			if enc, _ := data["isEncrypt"].(bool); enc {
+				if ed, _ := data["encryptData"].(string); ed != "" {
+					isEncrypt, encryptData = true, ed
+				}
+			}
+		}
+	}
+	if !isEncrypt || encryptData == "" {
+		return resp, nil
+	}
+	ts := int64(0)
+	switch v := outer["timestamp"].(type) {
+	case int64:
+		ts = v
+	case float64:
+		ts = int64(v)
+	case int:
+		ts = int64(v)
+	case json.Number:
+		ts, _ = v.Int64()
+	}
+	plain, err := decryptV5ResponseData(encryptData, deviceID, nonce, ts)
+	if err != nil {
+		return nil, err
+	}
+	return plain, nil
 }
 
 // QueryInitParams probes the per-version feature flags. Idempotent; useful
@@ -251,34 +315,56 @@ func (c *HTTPClient) AccountTokenVerify(ctx context.Context) (map[string]any, er
 	return resp, err
 }
 
-// GameLogin posts the captured NativeLogin to /game/login and parses out
-// token+open_id+content. After this returns, c.Token is set.
-func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP, idfv, caid1MD5, caid2MD5 string) (GameLoginResult, error) {
-	if idfv == "" {
-		idfv = c.DeviceID
+// commonAppInfo builds the appInfo JSON object attached to /game/login.
+// Shape matches modosdk getCommonAppInfo (empty fields omitted; brand/model
+// lowercased; includes _package_name).
+func (c *HTTPClient) commonAppInfo(clientIP string) map[string]any {
+	sdkVer := c.Cfg.SDKVersion
+	if sdkVer == "" || sdkVer == "7.0.4" {
+		sdkVer = "7.0.183"
 	}
-	appInfo := map[string]any{
+	info := map[string]any{
 		"_ip":                 clientIP,
 		"_os":                 "ios",
 		"_ram":                c.Cfg.RAMMB,
 		"_os_version":         c.Cfg.OSVersion,
 		"_cpu_type":           c.Cfg.CPUType,
 		"_time_zone":          c.Cfg.TimeZoneHour,
-		"_game_platform":      "mobilegame",
+		// modosdk $clientInfo.gameType defaults to "h5"; SDK_VERSION to "7.0.183".
+		"_game_platform":      "h5",
 		"_game_version":       c.Cfg.GameVersion,
-		"_sdk_version":        c.Cfg.SDKVersion,
+		"_package_name":       strings.ToLower(c.Cfg.PackageName),
+		"_sdk_version":        sdkVer,
 		"_screen_height":      c.Cfg.ScreenHeightPx,
 		"_screen_width":       c.Cfg.ScreenWidthPx,
 		"_network_type":       c.Cfg.NetworkType,
 		"_package_version":    c.Cfg.AppVersion,
 		"_native_version":     c.Cfg.AppVersion,
-		"_equipment_model":    "iphone 15 pro",
-		"_equipment_brand":    "apple",
+		"_equipment_model":    strings.ToLower(c.Cfg.DeviceModel),
+		"_equipment_brand":    strings.ToLower(c.Cfg.DeviceBrand),
 		"_deviceId":           c.DeviceID,
 		"_equipment_language": "zh",
-		"_runtime_language":   c.Cfg.RuntimeLanguage,
+		"_runtime_language":   strings.ToLower(c.Cfg.RuntimeLanguage),
 	}
-	appInfoJSON, _ := json.Marshal(appInfo)
+	for k, v := range info {
+		if s, ok := v.(string); ok && s == "" {
+			delete(info, k)
+		}
+	}
+	return info
+}
+
+// GameLogin posts the captured NativeLogin to /game/login and parses out
+// token+open_id+content. After this returns, c.Token is set.
+func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP, idfv, caid1MD5, caid2MD5 string) (GameLoginResult, error) {
+	if idfv == "" {
+		idfv = c.DeviceID
+	}
+	appInfoJSON, _ := json.Marshal(c.commonAppInfo(clientIP))
+	session1 := native.Session1
+	if session1 == "" {
+		session1 = RandomGameSession1()
+	}
 	body := map[string]any{
 		"content":        native.Content,
 		"timestamp":      native.Timestamp,
@@ -287,7 +373,8 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		"appId":          c.Cfg.AppID,
 		"apiVersion":     2,
 		"isNewDevice":    native.IsNewDevice,
-		"hotCloudData":   `""`,
+		// Official client sends an empty string here (not the two-char `""`).
+		"hotCloudData":   "",
 		"deeplinkUrl":    "",
 		"mobilePlatform": "ios",
 		"idfv":           idfv,
@@ -295,9 +382,12 @@ func (c *HTTPClient) GameLogin(ctx context.Context, native NativeLogin, clientIP
 		"caid2_md5":      caid2MD5,
 		"packageId":      fmt.Sprintf("%d", c.Cfg.PackageID),
 		"lang":           "zh",
-		"session1":       defaultStr(native.Session1, RandomSessionID()),
+		"session1":       session1,
 		"appInfo":        string(appInfoJSON),
 		"uuid":           c.UUID,
+	}
+	if c.NotifyURL != "" {
+		body["notifyUrl"] = c.NotifyURL
 	}
 	resp, _, err := c.PostJSON(ctx, c.Cfg.HostAPI, c.gamePath("login"), body, c.headersBasic())
 	if err != nil {
@@ -354,11 +444,11 @@ func (c *HTTPClient) gwCall(ctx context.Context, payload any, lang string) (map[
 // aid + lastGsIdx + routeToken.
 func (c *HTTPClient) GWIndexLogin(ctx context.Context, login GameLoginResult, isSimulator int) (map[string]any, error) {
 	before := nowMsTime()
+	// Shape matches captured hygnhf2 /gw index.login (login-450): no isNewDevice field.
 	params := map[string]any{
 		"token":           login.Token,
 		"open_id":         login.OpenID,
 		"reportDataGeted": map[string]any{"reyun": map[string]any{}},
-		"isNewDevice":     true,
 		"content":         login.Content,
 		"zoneCode":        c.Cfg.ZoneCode,
 		"appVersion":      c.Cfg.AppVersion,
@@ -519,7 +609,7 @@ func nativeFromMap(m map[string]any) NativeLogin {
 		out.LoginType = "account"
 	}
 	if out.Session1 == "" {
-		out.Session1 = RandomSessionID()
+		out.Session1 = RandomGameSession1()
 	}
 	return out
 }

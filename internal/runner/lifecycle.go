@@ -96,7 +96,8 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	} else {
 		r.log.Warn("query package config failed", "err", err)
 	}
-	session, err := babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
+	// Official client sends isSimulator=0 (login-450 capture). DeviceInfo.IsEmulator is already "0".
+	session, err := babigame.PerformLoginWithPassword(ctx, httpc, username, password, 0)
 	if err != nil {
 		return nil, fmt.Errorf("login: %w", err)
 	}
@@ -123,7 +124,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 
 	// The official client sends index.login as the first WS initialization
 	// call after the HTTP login and route-token bootstrap.
-	if v, err := client.Login(ctx, 1); err == nil {
+	if v, err := client.Login(ctx, 0); err == nil {
 		r.state.ApplyV(v)
 		r.syncAccountDisplayName(ctx, v, session)
 	} else {

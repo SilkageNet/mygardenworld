@@ -7,15 +7,17 @@ import (
 	"time"
 )
 
-// PerformLoginWithPassword runs the captured 14-step login chain and returns
-// a Session ready for Client.Connect. Mirrors the Python helper of the same
-// name in scripts/tools/garden_client.py.
+// PerformLoginWithPassword runs the captured login chain and returns a Session
+// ready for Client.Connect.
 //
-// Steps that aren't strictly required (BI reports, queryInitParams variants,
-// pack/getIosCaid) are skipped - they're observability sugar.
+// Observed order: pack/init (GAME_URL + session1Cipher) → SDK account/login →
+// /game/login → /gw index.login. BI reports and optional probes are skipped.
 func PerformLoginWithPassword(ctx context.Context, http *HTTPClient, username, password string, isSimulator int) (*Session, error) {
-	// Best-effort startup probes. Failures here are not fatal; the iOS client
-	// always runs them but the server doesn't gate login on the result.
+	// pack/init is required for notifyUrl / session1Cipher on current builds.
+	if _, err := http.PackInit(ctx); err != nil {
+		return nil, fmt.Errorf("pack/init: %w", err)
+	}
+	// Best-effort startup probes. Failures here are not fatal.
 	for _, fn := range []func(context.Context) (map[string]any, error){
 		http.AccountTokenVerify,
 		http.QueryInitParams,
@@ -34,6 +36,11 @@ func PerformLoginWithPassword(ctx context.Context, http *HTTPClient, username, p
 // from a captured / cached NativeLogin to a Session. Useful in tests and when
 // you already have a token from elsewhere.
 func PerformLoginWithNative(ctx context.Context, http *HTTPClient, native NativeLogin, isSimulator int) (*Session, error) {
+	if http.NotifyURL == "" {
+		if _, err := http.PackInit(ctx); err != nil {
+			return nil, fmt.Errorf("pack/init: %w", err)
+		}
+	}
 	return finishLogin(ctx, http, native, isSimulator)
 }
 

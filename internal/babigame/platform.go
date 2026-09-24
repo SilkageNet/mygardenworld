@@ -86,18 +86,21 @@ func iOSConfig() Config {
 	return Config{
 		AppID:             "95cdabc1e87532edb21c99f4ed845653",
 		PackageName:       "cn.lbwdhysj.gf.ios",
-		AppVersion:        "1.1.17",
-		AppVersionCode:    "1001017",
-		ClientVersion:     "450.0.16",
-		GameVersion:       "450.0.16",
-		RNVersion:         "v3.3.2.41",
-		SDKVersion:        "7.0.4",
+		AppVersion:        "1.1.23",
+		AppVersionCode:    "1001023",
+		// Observed 2026-09-23 login-450 capture + live queryPackageConfig:
+		// CDN entry and successful index.login both pin 450.0.15 (not 450.0.16).
+		ClientVersion:     "450.0.15",
+		GameVersion:       "450.0.15",
+		RNVersion:         "v3.3.2.54",
+		SDKVersion:        "7.0.183",
 		MdGid:             160,
 		ChannelID:         459,
 		PackageID:         494,
 		SDKID:             10000,
 		Env:               "prod",
-		Area:              "cn",
+		// Official client WS/GW index.login uses area "ca".
+		Area:              "ca",
 		ZoneCode:          "ys",
 		GWXorMask:         0x77,
 		GWSignKey:         "smallaitt",

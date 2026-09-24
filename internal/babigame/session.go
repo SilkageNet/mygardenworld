@@ -98,7 +98,8 @@ func (s *Session) WSURL() string {
 	return fmt.Sprintf("wss://%s:%d/?sgid=%d", host, port, s.GsIdx)
 }
 
-// RandomSessionID matches the gfsdk SDK's session id format (32 alpha-num).
+// RandomSessionID matches the gfsdk SDK's session0 / generic session id
+// format (32 alpha-num).
 func RandomSessionID() string {
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	var b [32]byte
@@ -108,6 +109,20 @@ func RandomSessionID() string {
 		out[i] = alphabet[int(x)%len(alphabet)]
 	}
 	return string(out)
+}
+
+// RandomGameSession1 matches modosdk getSession1's first-login shape:
+// "s1" + uuid(17) + unix_ms. Used for /game/login when the account/login
+// response does not already carry a session1.
+func RandomGameSession1() string {
+	const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	var b [17]byte
+	_, _ = rand.Read(b[:])
+	out := make([]byte, 17)
+	for i, x := range b {
+		out[i] = alphabet[int(x)%len(alphabet)]
+	}
+	return "s1" + string(out) + fmt.Sprintf("%d", time.Now().UnixMilli())
 }
 
 // RandomDeviceID returns a UUID-shaped uppercase string used as the iOS IDFV.

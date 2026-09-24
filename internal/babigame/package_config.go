@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -14,6 +15,85 @@ type PackageConfig struct {
 	GameVersion string
 	EntryPath   string
 	CDNs        []string
+}
+
+// PackInitResult is the live /pack/init response used before account/game login.
+// Official iOS treats code=302 + status=success as OK and stores url as GAME_URL.
+type PackInitResult struct {
+	URL            string
+	Params         map[string]string
+	Session1Cipher bool
+	Raw            map[string]any
+}
+
+// PackInit asks the platform for the CDN entry URL and feature flags.
+// Populates c.NotifyURL and c.Session1Cipher on success.
+func (c *HTTPClient) PackInit(ctx context.Context) (PackInitResult, error) {
+	body := map[string]any{
+		"packageName":  c.Cfg.PackageName,
+		"deviceId":     c.DeviceID,
+		"platform":     "ios",
+		"version":      c.Cfg.AppVersionCode,
+		"session0":     c.Session0,
+		"lang":         "zh",
+		"appVersion":   c.Cfg.AppVersion,
+		"gameVersion":  c.Cfg.GameVersion,
+		"uuid":         c.UUID,
+		"packageId":    c.Cfg.PackageID,
+		"zoneCode":     c.Cfg.ZoneCode,
+	}
+	path := "/pack/init/packageName/" + c.Cfg.PackageName
+	resp, _, err := c.PostJSON(ctx, c.Cfg.HostAPI, path, body, c.headersBasic())
+	if err != nil {
+		return PackInitResult{}, err
+	}
+	status, _ := resp["status"].(string)
+	rawURL, _ := resp["url"].(string)
+	if status != "success" || rawURL == "" {
+		return PackInitResult{}, fmt.Errorf("pack/init non-success: %v", resp)
+	}
+	out := PackInitResult{URL: rawURL, Raw: resp, Params: map[string]string{}}
+	if data, _ := resp["data"].(map[string]any); data != nil {
+		if params, _ := data["params"].(string); params != "" {
+			for _, part := range strings.Split(params, "&") {
+				k, v, ok := strings.Cut(part, "=")
+				if !ok || k == "" {
+					continue
+				}
+				out.Params[k] = v
+			}
+		}
+	}
+	if out.Params["session1Cipher"] == "1" {
+		out.Session1Cipher = true
+	}
+	c.NotifyURL = rawURL
+	c.Session1Cipher = out.Session1Cipher
+	// Official client loads GAME_URL and reads uuid from its query string for
+	// subsequent /game/login. The pack/init response URL carries a server-
+	// issued uuid that must match body.uuid on /game/login (bizCode 902054
+	// otherwise).
+	adoptNotifyUUID(c)
+	if gv := out.Params["gameVersion"]; gv != "" {
+		c.Cfg.GameVersion = gv
+		c.Cfg.ClientVersion = gv
+	}
+	return out, nil
+}
+
+// adoptNotifyUUID copies uuid from the pack/init notifyUrl into c.UUID when
+// present. No-op if NotifyURL is empty or has no uuid query param.
+func adoptNotifyUUID(c *HTTPClient) {
+	if c == nil || c.NotifyURL == "" {
+		return
+	}
+	u, err := url.Parse(c.NotifyURL)
+	if err != nil {
+		return
+	}
+	if id := u.Query().Get("uuid"); id != "" {
+		c.UUID = id
+	}
 }
 
 // QueryPackageConfig asks the platform which game bundle should be used for
