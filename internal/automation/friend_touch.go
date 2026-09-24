@@ -338,7 +338,7 @@ func blockedFriendTouch(reason string) PlannedOp {
 }
 
 func unsupportedFriendElves() PlannedOp {
-	reason := "花灵可摸状态与成功回包尚未完成实测，暂不发送 stealElves=1"
+	reason := "请在花灵种植与协助中开启指定好友花灵摸取并选择好友"
 	planned := markerOp(CategoryPlant, "farm.friend_steal", "steal_elves", reason, friendTouchPriority+1)
 	planned.FeatureID = "plant.friend_steal_elves"
 	planned.Status = PlanStatusAdapterMissing

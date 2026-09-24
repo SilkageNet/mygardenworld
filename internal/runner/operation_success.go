@@ -14,24 +14,69 @@ import (
 
 func (r *Runner) handleOperationSuccess(ctx context.Context, result operationResult) {
 	op, args := result.op, result.args
-	r.stats.RecordOperationSuccess(op, result.finishedAt)
 	kind := "operation_ack"
+	level := "info"
 	label := operationEventLabel(op)
 	message := fmt.Sprintf("%s 完成%s", opDesc(op), r.opSuffix(op))
 	category := op.Category
 	switch op.Kind {
+	case clientproto.RPCFlowerPassEnter.String():
+		r.state.NoteFlowerPassEnterSynced()
+	case clientproto.RPCFlowerElvesPassEnter.String():
+		r.state.NoteFlowerElvesPassEnterSynced()
 	case clientproto.RPCFrdHomeGetFrdHomeInfo.String():
 		view := r.state.FriendTouch(result.finishedAt)
 		if view.VisitUID == op.TargetUID {
-			if _, ok := state.PickFriendStealLandID(view.VisitLands, nil, r.state.RoleID(), result.finishedAt); !ok {
-				r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(5*time.Minute))
+			hasTarget := false
+			skipFor := 5 * time.Minute
+			if op.FeatureID == "plant.friend_steal_elves" {
+				_, _, hasTarget = state.PickFriendStealElvesLandFor(view.VisitLands, result.finishedAt, r.state.RoleID(), func(landID int32, land state.LandView) bool {
+					return r.state.FriendStealElvesLandSkipped(op.TargetUID, landID, land.PlantTimeMs)
+				})
+				skipFor = automation.FriendStealElvesReenterAfter(view.VisitLands)
+			} else {
+				_, hasTarget = state.PickFriendStealLandID(view.VisitLands, nil, r.state.RoleID(), result.finishedAt)
+			}
+			if !hasTarget {
+				if op.FeatureID == "plant.friend_steal_elves" {
+					r.state.MarkFriendElvesSkipEnter(op.TargetUID, result.finishedAt.Add(skipFor))
+				} else {
+					r.state.MarkFriendTouchSkipEnter(op.TargetUID, result.finishedAt.Add(skipFor))
+				}
 			}
 		}
 	case clientproto.RPCFrdStealSteal.String():
-		r.state.NoteFriendStealSuccess(op.TargetUID, op.TargetID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
-		r.state.ClearFriendTouchSkipEnter(op.TargetUID)
+		if op.Action == "steal_elves" {
+			if r.state.FriendStealElvesActuallyStolen(op.TargetUID, op.TargetID, op.ItemID,
+				result.friendStealElvesCntBefore, result.friendStealElvesCntBeforeSet,
+				result.friendStealElvesInvBefore, result.finishedAt) {
+				r.state.NoteFriendStealElvesSuccess(op.TargetUID, op.TargetID,
+					result.friendStealUsedBefore, result.friendStealUsedBeforeSet,
+					result.friendStealElvesCntBefore, result.friendStealElvesCntBeforeSet, result.finishedAt)
+				label = "摸取花灵"
+				message = "摸取好友花灵成功"
+			} else {
+				r.state.NoteFriendStealUsed(op.TargetUID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
+				r.state.MarkFriendStealElvesLandUnavailable(op.TargetUID, op.TargetID)
+				label = "摸取花灵"
+				message = "花灵摸取未确认生效，已跳过该地块"
+				kind = "operation_deferred"
+				level = "warn"
+			}
+		} else {
+			r.state.NoteFriendStealSuccess(op.TargetUID, op.TargetID, result.friendStealUsedBefore, result.friendStealUsedBeforeSet, result.finishedAt)
+		}
+		if op.Action == "steal_elves" {
+			r.state.ClearFriendElvesSkipEnter(op.TargetUID)
+		} else {
+			r.state.ClearFriendTouchSkipEnter(op.TargetUID)
+		}
 	case clientproto.RPCFrdExtBuyStealCnt.String():
 		r.state.NoteFriendStealPurchase(op.TargetUID, result.friendStealBoughtBefore, result.friendStealBoughtBeforeSet, result.finishedAt)
+	case clientproto.RPCUsrLandHarvest.String(), clientproto.RPCUsrLandHarvestOneKey.String():
+		if op.GoalID == "elves_plant" || op.DemandID == "elves_plant" || op.FeatureID == "plant.elves_night_harvest" {
+			r.state.ClearElvesRound()
+		}
 	case clientproto.RPCOrderFlowerFinishOrder.String():
 		kind = "order_finish"
 		label = "普通居民订单"
@@ -56,7 +101,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		kind = "union_flower_take"
 		label = "公会摸花"
 		message = fmt.Sprintf("公会摸花成功%s", unionFlowerTakeMessageSuffix(op))
-		r.state.NoteFmlFlowerShareTake(op.TargetUID, op.TargetID)
+		r.state.NoteFmlFlowerShareTake(op.TargetUID, op.TargetID, op.FlowerID)
 	case clientproto.RPCFlowerRackSell.String():
 		kind = "flower_rack_sell"
 		label = "花艺上架"
@@ -153,6 +198,9 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		// planner does not retry and hit「邮件附件已领取」.
 		r.state.MarkMailPicked(op.TargetID, op.ItemID)
 	}
+	if kind != "operation_deferred" {
+		r.stats.RecordOperationSuccess(op, result.finishedAt)
+	}
 	r.emit(Event{
 		Kind:        kind,
 		Category:    category,
@@ -160,6 +208,7 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		Action:      op.Action,
 		Label:       label,
 		Message:     message,
+		Level:       level,
 		PayloadJSON: operationPayload(op, args, result.raw, nil),
 	})
 	// The structured completion event already contains the diagnostic payload.

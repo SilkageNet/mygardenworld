@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 16
+const currentSchemaVersion = 18
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -305,6 +305,23 @@ ALTER TABLE account_request_safety ADD COLUMN last_fresh_login_ms INTEGER NOT NU
 `},
 	{version: 15, name: "durable bounded account deletion", apply: migrateAccountDeletion},
 	{version: 16, name: "account deletion progress independent of history", sql: accountDeletionProgressMigration},
+	{version: 17, name: "daily speed-up ticket reservations", sql: `
+CREATE TABLE IF NOT EXISTS account_speed_up_ticket_daily (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    day_id INTEGER NOT NULL,
+    reserved_count INTEGER NOT NULL DEFAULT 0 CHECK(reserved_count >= 0),
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`},
+	{version: 18, name: "daily flower-elf aid help reservations", sql: `
+CREATE TABLE IF NOT EXISTS account_elves_aid_help_daily (
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    day_id INTEGER NOT NULL,
+    friend_uid INTEGER NOT NULL CHECK(friend_uid > 0),
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(account_id, day_id, friend_uid)
+);
+`},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

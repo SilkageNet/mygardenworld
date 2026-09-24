@@ -13,6 +13,8 @@ func operationEventLabel(op *automation.PlannedOp) string {
 		return ""
 	}
 	switch {
+	case op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves":
+		return "摸取花灵"
 	case op.Kind == clientproto.RPCOrderFlowerFinishOrder.String():
 		return "普通居民订单"
 	case op.Kind == clientproto.RPCOrderFlowerFinishSatinOrder.String():
@@ -59,6 +61,9 @@ func operationEventLabel(op *automation.PlannedOp) string {
 }
 
 func opDesc(op *automation.PlannedOp) string {
+	if op != nil && (op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves") {
+		return "摸取花灵"
+	}
 	desc := opKindDesc(op.Kind)
 	if op.FlowerID == 0 || isRaceOpKind(op.Kind) {
 		return desc

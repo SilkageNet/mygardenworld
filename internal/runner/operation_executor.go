@@ -155,6 +155,16 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 		babigame.WithApplyV(r.state.ApplyV),
 	)
 	rt := operationRuntime{runner: r, rpc: clientrpc.NewClient(rawRPC)}
+	if op.Kind == clientproto.RPCUsrLandSpeedUpBatch.String() {
+		if err := r.reserveSpeedUpTickets(ctx, time.Now(), int32(len(op.LandIDs))); err != nil {
+			return nil, err
+		}
+	}
+	if op.Kind == clientproto.RPCFlowerElvesAidHelpFrd.String() {
+		if err := r.reserveElvesAidHelp(ctx, time.Now(), op.TargetUID); err != nil {
+			return nil, err
+		}
+	}
 	return spec.run(ctx, rt, op)
 }
 

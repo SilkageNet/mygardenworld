@@ -15,19 +15,22 @@ import (
 )
 
 type operationAttempt struct {
-	op                         *automation.PlannedOp
-	args                       any
-	startedAt                  time.Time
-	goldBefore                 int32
-	levelBefore                int32
-	waterDropsBefore           int32
-	scoreBefore                int32
-	scoreBeforeSet             bool
-	friendStealUsedBefore      int32
-	friendStealUsedBeforeSet   bool
-	friendStealBoughtBefore    int32
-	friendStealBoughtBeforeSet bool
-	shopOfferBefore            *state.ShopCultivateOfferView
+	op                           *automation.PlannedOp
+	args                         any
+	startedAt                    time.Time
+	goldBefore                   int32
+	levelBefore                  int32
+	waterDropsBefore             int32
+	scoreBefore                  int32
+	scoreBeforeSet               bool
+	friendStealUsedBefore        int32
+	friendStealUsedBeforeSet     bool
+	friendStealElvesCntBefore    int32
+	friendStealElvesCntBeforeSet bool
+	friendStealElvesInvBefore    int32
+	friendStealBoughtBefore      int32
+	friendStealBoughtBeforeSet   bool
+	shopOfferBefore              *state.ShopCultivateOfferView
 }
 
 type operationResult struct {
@@ -179,6 +182,16 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
+	if isFriendStealElvesUnavailableError(op, err) {
+		r.state.MarkFriendStealElvesLandUnavailable(op.TargetUID, op.TargetID)
+		r.state.ClearFriendElvesSkipEnter(op.TargetUID)
+		r.emit(Event{Kind: "operation_deferred", Category: op.Category, Domain: op.Domain,
+			Action: "blocked", Label: operationEventLabel(op), Level: "warn",
+			Message:     fmt.Sprintf("%s 已跳过: 服务端提示该田花灵不可摸", opDesc(op)),
+			PayloadJSON: operationPayload(op, args, nil, err)})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "friend_steal_elves_unavailable", "frdUid": op.TargetUID, "landId": op.TargetID})
+		return nil
+	}
 	if result.shopOfferBefore != nil {
 		payload, _ := json.Marshal(map[string]any{
 			"offer_before": result.shopOfferBefore, "request": args, "error": err.Error(),

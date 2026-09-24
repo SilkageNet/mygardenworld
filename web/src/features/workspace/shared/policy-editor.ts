@@ -5,6 +5,7 @@ import {
   BasicTaskPolicySchema,
   BenefitPolicySchema,
   CultivatePolicySchema,
+  ElvesPlantPolicySchema,
   CustomerOrderPolicySchema,
   CyclicNotePolicySchema,
   CyclicStoryPolicySchema,
@@ -35,6 +36,7 @@ import {
   type BasicTaskPolicy,
   type BenefitPolicy,
   type CultivatePolicy,
+  type ElvesPlantPolicy,
   type CustomerOrderPolicy,
   type CyclicNotePolicy,
   type CyclicStoryPolicy,
@@ -143,6 +145,10 @@ export function createPolicyEditor(policy: Policy | null, onPolicyChange: (polic
     const current = policy?.plant?.elves ?? create(FlowerElvesPolicySchema);
     updatePlant({ elves: { ...current, ...patch } });
   };
+  const updateElvesPlant = (patch: Partial<ElvesPlantPolicy>) => {
+    const current = policy?.plant?.elvesPlant ?? create(ElvesPlantPolicySchema);
+    updatePlant({ elvesPlant: create(ElvesPlantPolicySchema, { ...current, ...patch }) });
+  };
   const updateMarket = (patch: Partial<FlowerMarketPolicy>) => {
     const current = policy?.plant?.market ?? create(FlowerMarketPolicySchema);
     updatePlant({ market: { ...current, ...patch } });
@@ -209,7 +215,7 @@ export function createPolicyEditor(policy: Policy | null, onPolicyChange: (polic
   return {
     updatePolicy, updateBasic, updateReputation, updateBasicTask, updateBenefit, updateSign, updatePearl,
     updateCultivateShop, updateVipShop, updateZoo, updatePlanting, updateCultivate, updateFriendSteal,
-    updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateMarket, updateCustomer,
+    updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateElvesPlant, updateMarket, updateCustomer,
     updateResident, updatePalace, updateTeam, updateFlowerArt, updateUnion, updateUnionBuild,
     updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory,
   };

@@ -81,6 +81,9 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	var ops []PlannedOp
 	ops = append(ops, farmOps(s, policy.GetPlant(), demands, now, raceSuppressesAutoReplant(s, policy, now))...)
 	ops = append(ops, friendTouchOperations(s, policy.GetPlant().GetFriendSteal(), now)...)
+	ops = append(ops, friendStealElvesOperations(s, policy.GetPlant(), now)...)
+	ops = append(ops, flowerElvesAidOperations(s, policy.GetPlant(), now)...)
+	ops = append(ops, elvesPlantSpeedUpOps(s, policy, now)...)
 	ops = append(ops, orderOperations(s, policy, goals, demands, ledger, now)...)
 	ops = append(ops, basicOperations(s, policy, goals, now)...)
 	ops = append(ops, shopOperations(s, policy, now)...)

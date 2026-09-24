@@ -141,6 +141,24 @@ message PlantPolicy {
   FriendStealPolicy friend_steal = 3;
   FlowerElvesPolicy elves = 4;
   FlowerMarketPolicy market = 5;
+  ElvesPlantPolicy elves_plant = 6;
+}
+
+// Controls the two-flower planting cycle that produces flower elves.
+message ElvesPlantPolicy {
+  bool enabled = 1;
+  int32 main_flower_id = 2;
+  int32 secondary_flower_id = 3;
+  int32 main_land_count = 4;
+  bool use_speed_up_ticket = 5;
+  int32 elves_spawn_cap = 6;
+  int32 harvest_delay_seconds = 7;
+  // At 22:00 local game time, collect ready elves even when auto harvest is off.
+  bool night_harvest_enabled = 8;
+  // Opt-in: visit only these game friends and request an elf steal when the
+  // observed land and daily quotas permit it. Independent of auto planting.
+  bool steal_friend_elves_enabled = 9;
+  repeated int64 friend_uids = 10;
 }
 
 message CultivatePolicy {
@@ -349,6 +367,8 @@ message UnionFlowerPolicy {
   SelectionMode take_mode = 6;
   repeated int32 take_qualities = 7;
   repeated int32 take_flower_ids = 8;
+  // Take each shared flower only while personal inventory has none.
+  bool take_zero_inventory_only = 9;
 }
 
 message UnionRacePolicy {
@@ -390,6 +410,9 @@ message UnionRacePolicy {
   // deletion and its preflight refresh. Zero uses 120 seconds; clamped to
   // 30..3600 seconds. This is a conservative local guard, not a server limit.
   int32 delete_interval_seconds = 16;
+  // Skip plant-harvest pool tasks when target flower stock exceeds this count.
+  // Zero disables the inventory ceiling.
+  int32 plant_harvest_max_inventory = 17;
 }
 
 message UnionLandPolicy {

@@ -968,12 +968,18 @@ func (s *State) FmlFlowerTakeExhausted(now time.Time) bool {
 // take when the response omitted a 25.108 delta, so the planner advances to
 // the next candidate instead of retrying a depleted slot under shared cooldown.
 // Own tdyTakeCnt is left to ApplyV / tips8 — do not guess it here.
-func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32) {
+func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32, flowerIDs ...int32) {
 	if dstUID == 0 || slotID <= 0 {
 		return
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(flowerIDs) > 0 && flowerIDs[0] > 0 {
+		if s.fmlFlowerZeroTakeIDs == nil {
+			s.fmlFlowerZeroTakeIDs = make(map[int32]struct{})
+		}
+		s.fmlFlowerZeroTakeIDs[flowerIDs[0]] = struct{}{}
+	}
 	for key, share := range s.fmlOtherFlowerShares {
 		if share == nil {
 			continue
@@ -997,6 +1003,21 @@ func (s *State) NoteFmlFlowerShareTake(dstUID int64, slotID int32) {
 		slot.TakeNum++
 		share.Slots[slotID] = slot
 	}
+}
+
+// FmlFlowerZeroTakeSeen prevents another take of the same type while the
+// inventory delta from a successful zero-stock take is still pending.
+func (s *State) FmlFlowerZeroTakeSeen(flowerID int32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.fmlFlowerZeroTakeIDs[flowerID]
+	return ok
+}
+
+func (s *State) ClearFmlFlowerZeroTake(flowerID int32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.fmlFlowerZeroTakeIDs, flowerID)
 }
 
 // MarkFmlFlowerTakeDailyLimitReached records the server-side daily take cap so

@@ -47,8 +47,7 @@ export default function FriendStealPolicyGroup({
   return (
     <PolicyGroup title="好友摸花" icon={<Users />}>
       <p className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
-        仅自动摸取服务端明确标记为可摸的成熟鲜花；花灵摸取尚缺少状态与成功回包实测，因此不会发送{" "}
-        <code>stealElves=1</code>。
+        本组设置只控制普通鲜花摸取。指定好友花灵摸取在“花灵种植与协助”中单独开启，并共用好友摸花次数。
       </p>
       <div className="grid gap-2">
         <ToggleRow

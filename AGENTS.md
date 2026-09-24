@@ -75,7 +75,7 @@ web/             embedded Next.js control panel
 
 - This prototype does not carry runtime backward compatibility. Do not add deprecated fields, Protobuf `reserved` declarations, legacy decoders, old policy aliases, or parallel API versions unless explicitly requested.
 - Breaking schema work stays in `mygardenworld.v1`. Regenerate both Go and TypeScript outputs and update all callers atomically.
-- SQLite uses transactional, ordered `PRAGMA user_version` migrations and currently targets schema v16. A database schema change requires a one-way migration and tests; unversioned legacy databases remain rejected.
+- SQLite uses transactional, ordered `PRAGMA user_version` migrations and currently targets schema v18. A database schema change requires a one-way migration and tests; unversioned legacy databases remain rejected.
 - Account deletion is durable intent followed by drained, bounded background cleanup. Pending accounts cannot start or accept mutations; do not reintroduce request-bound history cascades.
 - SQLite writes use one writer connection; reads use a bounded read-only pool. Route mutations with `RETURNING` explicitly to the writer. Inside transactions use only the transaction handle; do not re-enter store methods or call external services while holding a connection or transaction.
 - Policy is one strict protojson document in `account_policies.policy_json`. Public replace/import/export/copy operations handle the whole current policy.

@@ -1179,6 +1179,7 @@ type PlantPolicy struct {
 	FriendSteal   *FriendStealPolicy     `protobuf:"bytes,3,opt,name=friend_steal,json=friendSteal,proto3" json:"friend_steal,omitempty"`
 	Elves         *FlowerElvesPolicy     `protobuf:"bytes,4,opt,name=elves,proto3" json:"elves,omitempty"`
 	Market        *FlowerMarketPolicy    `protobuf:"bytes,5,opt,name=market,proto3" json:"market,omitempty"`
+	ElvesPlant    *ElvesPlantPolicy      `protobuf:"bytes,6,opt,name=elves_plant,json=elvesPlant,proto3" json:"elves_plant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1248,6 +1249,133 @@ func (x *PlantPolicy) GetMarket() *FlowerMarketPolicy {
 	return nil
 }
 
+func (x *PlantPolicy) GetElvesPlant() *ElvesPlantPolicy {
+	if x != nil {
+		return x.ElvesPlant
+	}
+	return nil
+}
+
+// Controls the two-flower planting cycle that produces flower elves.
+type ElvesPlantPolicy struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	Enabled             bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	MainFlowerId        int32                  `protobuf:"varint,2,opt,name=main_flower_id,json=mainFlowerId,proto3" json:"main_flower_id,omitempty"`
+	SecondaryFlowerId   int32                  `protobuf:"varint,3,opt,name=secondary_flower_id,json=secondaryFlowerId,proto3" json:"secondary_flower_id,omitempty"`
+	MainLandCount       int32                  `protobuf:"varint,4,opt,name=main_land_count,json=mainLandCount,proto3" json:"main_land_count,omitempty"`
+	UseSpeedUpTicket    bool                   `protobuf:"varint,5,opt,name=use_speed_up_ticket,json=useSpeedUpTicket,proto3" json:"use_speed_up_ticket,omitempty"`
+	ElvesSpawnCap       int32                  `protobuf:"varint,6,opt,name=elves_spawn_cap,json=elvesSpawnCap,proto3" json:"elves_spawn_cap,omitempty"`
+	HarvestDelaySeconds int32                  `protobuf:"varint,7,opt,name=harvest_delay_seconds,json=harvestDelaySeconds,proto3" json:"harvest_delay_seconds,omitempty"`
+	// At 22:00 local game time, collect ready elves even when auto harvest is off.
+	NightHarvestEnabled bool `protobuf:"varint,8,opt,name=night_harvest_enabled,json=nightHarvestEnabled,proto3" json:"night_harvest_enabled,omitempty"`
+	// Opt-in: visit only these game friends and request an elf steal when the
+	// observed land and daily quotas permit it. Independent of auto planting.
+	StealFriendElvesEnabled bool    `protobuf:"varint,9,opt,name=steal_friend_elves_enabled,json=stealFriendElvesEnabled,proto3" json:"steal_friend_elves_enabled,omitempty"`
+	FriendUids              []int64 `protobuf:"varint,10,rep,packed,name=friend_uids,json=friendUids,proto3" json:"friend_uids,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *ElvesPlantPolicy) Reset() {
+	*x = ElvesPlantPolicy{}
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ElvesPlantPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ElvesPlantPolicy) ProtoMessage() {}
+
+func (x *ElvesPlantPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ElvesPlantPolicy.ProtoReflect.Descriptor instead.
+func (*ElvesPlantPolicy) Descriptor() ([]byte, []int) {
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ElvesPlantPolicy) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *ElvesPlantPolicy) GetMainFlowerId() int32 {
+	if x != nil {
+		return x.MainFlowerId
+	}
+	return 0
+}
+
+func (x *ElvesPlantPolicy) GetSecondaryFlowerId() int32 {
+	if x != nil {
+		return x.SecondaryFlowerId
+	}
+	return 0
+}
+
+func (x *ElvesPlantPolicy) GetMainLandCount() int32 {
+	if x != nil {
+		return x.MainLandCount
+	}
+	return 0
+}
+
+func (x *ElvesPlantPolicy) GetUseSpeedUpTicket() bool {
+	if x != nil {
+		return x.UseSpeedUpTicket
+	}
+	return false
+}
+
+func (x *ElvesPlantPolicy) GetElvesSpawnCap() int32 {
+	if x != nil {
+		return x.ElvesSpawnCap
+	}
+	return 0
+}
+
+func (x *ElvesPlantPolicy) GetHarvestDelaySeconds() int32 {
+	if x != nil {
+		return x.HarvestDelaySeconds
+	}
+	return 0
+}
+
+func (x *ElvesPlantPolicy) GetNightHarvestEnabled() bool {
+	if x != nil {
+		return x.NightHarvestEnabled
+	}
+	return false
+}
+
+func (x *ElvesPlantPolicy) GetStealFriendElvesEnabled() bool {
+	if x != nil {
+		return x.StealFriendElvesEnabled
+	}
+	return false
+}
+
+func (x *ElvesPlantPolicy) GetFriendUids() []int64 {
+	if x != nil {
+		return x.FriendUids
+	}
+	return nil
+}
+
 type CultivatePolicy struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Enabled             bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -1260,7 +1388,7 @@ type CultivatePolicy struct {
 
 func (x *CultivatePolicy) Reset() {
 	*x = CultivatePolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[12]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1272,7 +1400,7 @@ func (x *CultivatePolicy) String() string {
 func (*CultivatePolicy) ProtoMessage() {}
 
 func (x *CultivatePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[12]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1285,7 +1413,7 @@ func (x *CultivatePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CultivatePolicy.ProtoReflect.Descriptor instead.
 func (*CultivatePolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{12}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CultivatePolicy) GetEnabled() bool {
@@ -1355,7 +1483,7 @@ type PlantingPolicy struct {
 
 func (x *PlantingPolicy) Reset() {
 	*x = PlantingPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[13]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1367,7 +1495,7 @@ func (x *PlantingPolicy) String() string {
 func (*PlantingPolicy) ProtoMessage() {}
 
 func (x *PlantingPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[13]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1380,7 +1508,7 @@ func (x *PlantingPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlantingPolicy.ProtoReflect.Descriptor instead.
 func (*PlantingPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{13}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PlantingPolicy) GetAutoEnabled() bool {
@@ -1510,7 +1638,7 @@ type FriendStealPolicy struct {
 
 func (x *FriendStealPolicy) Reset() {
 	*x = FriendStealPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[14]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1522,7 +1650,7 @@ func (x *FriendStealPolicy) String() string {
 func (*FriendStealPolicy) ProtoMessage() {}
 
 func (x *FriendStealPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[14]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1535,7 +1663,7 @@ func (x *FriendStealPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FriendStealPolicy.ProtoReflect.Descriptor instead.
 func (*FriendStealPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{14}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *FriendStealPolicy) GetEnabled() bool {
@@ -1637,7 +1765,7 @@ type FlowerElvesPolicy struct {
 
 func (x *FlowerElvesPolicy) Reset() {
 	*x = FlowerElvesPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[15]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1649,7 +1777,7 @@ func (x *FlowerElvesPolicy) String() string {
 func (*FlowerElvesPolicy) ProtoMessage() {}
 
 func (x *FlowerElvesPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[15]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1662,7 +1790,7 @@ func (x *FlowerElvesPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlowerElvesPolicy.ProtoReflect.Descriptor instead.
 func (*FlowerElvesPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{15}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *FlowerElvesPolicy) GetEnabled() bool {
@@ -1785,7 +1913,7 @@ type FlowerMarketPolicy struct {
 
 func (x *FlowerMarketPolicy) Reset() {
 	*x = FlowerMarketPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[16]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1797,7 +1925,7 @@ func (x *FlowerMarketPolicy) String() string {
 func (*FlowerMarketPolicy) ProtoMessage() {}
 
 func (x *FlowerMarketPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[16]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1810,7 +1938,7 @@ func (x *FlowerMarketPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlowerMarketPolicy.ProtoReflect.Descriptor instead.
 func (*FlowerMarketPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{16}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *FlowerMarketPolicy) GetAutoUnlockShelf() bool {
@@ -1924,7 +2052,7 @@ type OrderPolicy struct {
 
 func (x *OrderPolicy) Reset() {
 	*x = OrderPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[17]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1936,7 +2064,7 @@ func (x *OrderPolicy) String() string {
 func (*OrderPolicy) ProtoMessage() {}
 
 func (x *OrderPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[17]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1949,7 +2077,7 @@ func (x *OrderPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderPolicy.ProtoReflect.Descriptor instead.
 func (*OrderPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{17}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *OrderPolicy) GetCustomer() *CustomerOrderPolicy {
@@ -2006,7 +2134,7 @@ type CustomerOrderPolicy struct {
 
 func (x *CustomerOrderPolicy) Reset() {
 	*x = CustomerOrderPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[18]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2018,7 +2146,7 @@ func (x *CustomerOrderPolicy) String() string {
 func (*CustomerOrderPolicy) ProtoMessage() {}
 
 func (x *CustomerOrderPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[18]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2031,7 +2159,7 @@ func (x *CustomerOrderPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomerOrderPolicy.ProtoReflect.Descriptor instead.
 func (*CustomerOrderPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{18}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CustomerOrderPolicy) GetEnabled() bool {
@@ -2085,7 +2213,7 @@ type ResidentOrderPolicy struct {
 
 func (x *ResidentOrderPolicy) Reset() {
 	*x = ResidentOrderPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[19]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2097,7 +2225,7 @@ func (x *ResidentOrderPolicy) String() string {
 func (*ResidentOrderPolicy) ProtoMessage() {}
 
 func (x *ResidentOrderPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[19]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2110,7 +2238,7 @@ func (x *ResidentOrderPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResidentOrderPolicy.ProtoReflect.Descriptor instead.
 func (*ResidentOrderPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{19}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ResidentOrderPolicy) GetNormalEnabled() bool {
@@ -2179,7 +2307,7 @@ type PalaceOrderPolicy struct {
 
 func (x *PalaceOrderPolicy) Reset() {
 	*x = PalaceOrderPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[20]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2191,7 +2319,7 @@ func (x *PalaceOrderPolicy) String() string {
 func (*PalaceOrderPolicy) ProtoMessage() {}
 
 func (x *PalaceOrderPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[20]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2204,7 +2332,7 @@ func (x *PalaceOrderPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PalaceOrderPolicy.ProtoReflect.Descriptor instead.
 func (*PalaceOrderPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{20}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *PalaceOrderPolicy) GetEnabled() bool {
@@ -2234,7 +2362,7 @@ type TeamOrderPolicy struct {
 
 func (x *TeamOrderPolicy) Reset() {
 	*x = TeamOrderPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[21]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2246,7 +2374,7 @@ func (x *TeamOrderPolicy) String() string {
 func (*TeamOrderPolicy) ProtoMessage() {}
 
 func (x *TeamOrderPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[21]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2259,7 +2387,7 @@ func (x *TeamOrderPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TeamOrderPolicy.ProtoReflect.Descriptor instead.
 func (*TeamOrderPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{21}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *TeamOrderPolicy) GetEnabled() bool {
@@ -2318,7 +2446,7 @@ type FlowerArtPolicy struct {
 
 func (x *FlowerArtPolicy) Reset() {
 	*x = FlowerArtPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[22]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2330,7 +2458,7 @@ func (x *FlowerArtPolicy) String() string {
 func (*FlowerArtPolicy) ProtoMessage() {}
 
 func (x *FlowerArtPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[22]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2343,7 +2471,7 @@ func (x *FlowerArtPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FlowerArtPolicy.ProtoReflect.Descriptor instead.
 func (*FlowerArtPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{22}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *FlowerArtPolicy) GetAutoUnlockStand() bool {
@@ -2416,7 +2544,7 @@ type UnionPolicy struct {
 
 func (x *UnionPolicy) Reset() {
 	*x = UnionPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[23]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2428,7 +2556,7 @@ func (x *UnionPolicy) String() string {
 func (*UnionPolicy) ProtoMessage() {}
 
 func (x *UnionPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[23]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2441,7 +2569,7 @@ func (x *UnionPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnionPolicy.ProtoReflect.Descriptor instead.
 func (*UnionPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{23}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *UnionPolicy) GetBuild() *UnionBuildPolicy {
@@ -2499,7 +2627,7 @@ type UnionBuildPolicy struct {
 
 func (x *UnionBuildPolicy) Reset() {
 	*x = UnionBuildPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[24]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2511,7 +2639,7 @@ func (x *UnionBuildPolicy) String() string {
 func (*UnionBuildPolicy) ProtoMessage() {}
 
 func (x *UnionBuildPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[24]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2524,7 +2652,7 @@ func (x *UnionBuildPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnionBuildPolicy.ProtoReflect.Descriptor instead.
 func (*UnionBuildPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{24}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *UnionBuildPolicy) GetFreeEnabled() bool {
@@ -2572,13 +2700,15 @@ type UnionFlowerPolicy struct {
 	TakeMode       SelectionMode          `protobuf:"varint,6,opt,name=take_mode,json=takeMode,proto3,enum=mygardenworld.v1.SelectionMode" json:"take_mode,omitempty"`
 	TakeQualities  []int32                `protobuf:"varint,7,rep,packed,name=take_qualities,json=takeQualities,proto3" json:"take_qualities,omitempty"`
 	TakeFlowerIds  []int32                `protobuf:"varint,8,rep,packed,name=take_flower_ids,json=takeFlowerIds,proto3" json:"take_flower_ids,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Take each shared flower only while personal inventory has none.
+	TakeZeroInventoryOnly bool `protobuf:"varint,9,opt,name=take_zero_inventory_only,json=takeZeroInventoryOnly,proto3" json:"take_zero_inventory_only,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *UnionFlowerPolicy) Reset() {
 	*x = UnionFlowerPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[25]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2590,7 +2720,7 @@ func (x *UnionFlowerPolicy) String() string {
 func (*UnionFlowerPolicy) ProtoMessage() {}
 
 func (x *UnionFlowerPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[25]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2603,7 +2733,7 @@ func (x *UnionFlowerPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnionFlowerPolicy.ProtoReflect.Descriptor instead.
 func (*UnionFlowerPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{25}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UnionFlowerPolicy) GetShareEnabled() bool {
@@ -2662,6 +2792,13 @@ func (x *UnionFlowerPolicy) GetTakeFlowerIds() []int32 {
 	return nil
 }
 
+func (x *UnionFlowerPolicy) GetTakeZeroInventoryOnly() bool {
+	if x != nil {
+		return x.TakeZeroInventoryOnly
+	}
+	return false
+}
+
 type UnionRacePolicy struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
 	Enabled                bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -2702,13 +2839,16 @@ type UnionRacePolicy struct {
 	// deletion and its preflight refresh. Zero uses 120 seconds; clamped to
 	// 30..3600 seconds. This is a conservative local guard, not a server limit.
 	DeleteIntervalSeconds int32 `protobuf:"varint,16,opt,name=delete_interval_seconds,json=deleteIntervalSeconds,proto3" json:"delete_interval_seconds,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	// Skip plant-harvest pool tasks when target flower stock exceeds this count.
+	// Zero disables the inventory ceiling.
+	PlantHarvestMaxInventory int32 `protobuf:"varint,17,opt,name=plant_harvest_max_inventory,json=plantHarvestMaxInventory,proto3" json:"plant_harvest_max_inventory,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *UnionRacePolicy) Reset() {
 	*x = UnionRacePolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[26]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2720,7 +2860,7 @@ func (x *UnionRacePolicy) String() string {
 func (*UnionRacePolicy) ProtoMessage() {}
 
 func (x *UnionRacePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[26]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2733,7 +2873,7 @@ func (x *UnionRacePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnionRacePolicy.ProtoReflect.Descriptor instead.
 func (*UnionRacePolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{26}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *UnionRacePolicy) GetEnabled() bool {
@@ -2848,6 +2988,13 @@ func (x *UnionRacePolicy) GetDeleteIntervalSeconds() int32 {
 	return 0
 }
 
+func (x *UnionRacePolicy) GetPlantHarvestMaxInventory() int32 {
+	if x != nil {
+		return x.PlantHarvestMaxInventory
+	}
+	return 0
+}
+
 type UnionLandPolicy struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	HarvestEnabled   bool                   `protobuf:"varint,1,opt,name=harvest_enabled,json=harvestEnabled,proto3" json:"harvest_enabled,omitempty"`
@@ -2870,7 +3017,7 @@ type UnionLandPolicy struct {
 
 func (x *UnionLandPolicy) Reset() {
 	*x = UnionLandPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[27]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2882,7 +3029,7 @@ func (x *UnionLandPolicy) String() string {
 func (*UnionLandPolicy) ProtoMessage() {}
 
 func (x *UnionLandPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[27]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2895,7 +3042,7 @@ func (x *UnionLandPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnionLandPolicy.ProtoReflect.Descriptor instead.
 func (*UnionLandPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{27}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *UnionLandPolicy) GetHarvestEnabled() bool {
@@ -2957,7 +3104,7 @@ type ActivityPolicy struct {
 
 func (x *ActivityPolicy) Reset() {
 	*x = ActivityPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[28]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2969,7 +3116,7 @@ func (x *ActivityPolicy) String() string {
 func (*ActivityPolicy) ProtoMessage() {}
 
 func (x *ActivityPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[28]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2982,7 +3129,7 @@ func (x *ActivityPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActivityPolicy.ProtoReflect.Descriptor instead.
 func (*ActivityPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{28}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ActivityPolicy) GetCyclicNote() *CyclicNotePolicy {
@@ -3011,7 +3158,7 @@ type CyclicNotePolicy struct {
 
 func (x *CyclicNotePolicy) Reset() {
 	*x = CyclicNotePolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[29]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3023,7 +3170,7 @@ func (x *CyclicNotePolicy) String() string {
 func (*CyclicNotePolicy) ProtoMessage() {}
 
 func (x *CyclicNotePolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[29]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3036,7 +3183,7 @@ func (x *CyclicNotePolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CyclicNotePolicy.ProtoReflect.Descriptor instead.
 func (*CyclicNotePolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{29}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *CyclicNotePolicy) GetEnabled() bool {
@@ -3079,7 +3226,7 @@ type CyclicStoryPolicy struct {
 
 func (x *CyclicStoryPolicy) Reset() {
 	*x = CyclicStoryPolicy{}
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[30]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3091,7 +3238,7 @@ func (x *CyclicStoryPolicy) String() string {
 func (*CyclicStoryPolicy) ProtoMessage() {}
 
 func (x *CyclicStoryPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_mygardenworld_v1_policy_proto_msgTypes[30]
+	mi := &file_mygardenworld_v1_policy_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3104,7 +3251,7 @@ func (x *CyclicStoryPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CyclicStoryPolicy.ProtoReflect.Descriptor instead.
 func (*CyclicStoryPolicy) Descriptor() ([]byte, []int) {
-	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{30}
+	return file_mygardenworld_v1_policy_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CyclicStoryPolicy) GetEnabled() bool {
@@ -3223,13 +3370,28 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\vauto_stroke\x18\x05 \x01(\bR\n" +
 	"autoStroke\x12$\n" +
 	"\x0emax_spend_gold\x18\x06 \x01(\x03R\fmaxSpendGold\x12*\n" +
-	"\x11max_spend_diamond\x18\a \x01(\x03R\x0fmaxSpendDiamond\"\xcd\x02\n" +
+	"\x11max_spend_diamond\x18\a \x01(\x03R\x0fmaxSpendDiamond\"\x92\x03\n" +
 	"\vPlantPolicy\x12?\n" +
 	"\tcultivate\x18\x01 \x01(\v2!.mygardenworld.v1.CultivatePolicyR\tcultivate\x12<\n" +
 	"\bplanting\x18\x02 \x01(\v2 .mygardenworld.v1.PlantingPolicyR\bplanting\x12F\n" +
 	"\ffriend_steal\x18\x03 \x01(\v2#.mygardenworld.v1.FriendStealPolicyR\vfriendSteal\x129\n" +
 	"\x05elves\x18\x04 \x01(\v2#.mygardenworld.v1.FlowerElvesPolicyR\x05elves\x12<\n" +
-	"\x06market\x18\x05 \x01(\v2$.mygardenworld.v1.FlowerMarketPolicyR\x06market\"\xac\x01\n" +
+	"\x06market\x18\x05 \x01(\v2$.mygardenworld.v1.FlowerMarketPolicyR\x06market\x12C\n" +
+	"\velves_plant\x18\x06 \x01(\v2\".mygardenworld.v1.ElvesPlantPolicyR\n" +
+	"elvesPlant\"\xc7\x03\n" +
+	"\x10ElvesPlantPolicy\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12$\n" +
+	"\x0emain_flower_id\x18\x02 \x01(\x05R\fmainFlowerId\x12.\n" +
+	"\x13secondary_flower_id\x18\x03 \x01(\x05R\x11secondaryFlowerId\x12&\n" +
+	"\x0fmain_land_count\x18\x04 \x01(\x05R\rmainLandCount\x12-\n" +
+	"\x13use_speed_up_ticket\x18\x05 \x01(\bR\x10useSpeedUpTicket\x12&\n" +
+	"\x0felves_spawn_cap\x18\x06 \x01(\x05R\relvesSpawnCap\x122\n" +
+	"\x15harvest_delay_seconds\x18\a \x01(\x05R\x13harvestDelaySeconds\x122\n" +
+	"\x15night_harvest_enabled\x18\b \x01(\bR\x13nightHarvestEnabled\x12;\n" +
+	"\x1asteal_friend_elves_enabled\x18\t \x01(\bR\x17stealFriendElvesEnabled\x12\x1f\n" +
+	"\vfriend_uids\x18\n" +
+	" \x03(\x03R\n" +
+	"friendUids\"\xac\x01\n" +
 	"\x0fCultivatePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x123\n" +
 	"\x16video_speed_up_enabled\x18\x02 \x01(\bR\x13videoSpeedUpEnabled\x12'\n" +
@@ -3366,7 +3528,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\fgold_enabled\x18\x02 \x01(\bR\vgoldEnabled\x12'\n" +
 	"\x0fdiamond_enabled\x18\x03 \x01(\bR\x0ediamondEnabled\x12$\n" +
 	"\x0emax_spend_gold\x18\x04 \x01(\x03R\fmaxSpendGold\x12*\n" +
-	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xfb\x02\n" +
+	"\x11max_spend_diamond\x18\x05 \x01(\x03R\x0fmaxSpendDiamond\"\xb4\x03\n" +
 	"\x11UnionFlowerPolicy\x12#\n" +
 	"\rshare_enabled\x18\x01 \x01(\bR\fshareEnabled\x12>\n" +
 	"\n" +
@@ -3376,7 +3538,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\ftake_enabled\x18\x05 \x01(\bR\vtakeEnabled\x12<\n" +
 	"\ttake_mode\x18\x06 \x01(\x0e2\x1f.mygardenworld.v1.SelectionModeR\btakeMode\x12%\n" +
 	"\x0etake_qualities\x18\a \x03(\x05R\rtakeQualities\x12&\n" +
-	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\"\xb1\a\n" +
+	"\x0ftake_flower_ids\x18\b \x03(\x05R\rtakeFlowerIds\x127\n" +
+	"\x18take_zero_inventory_only\x18\t \x01(\bR\x15takeZeroInventoryOnly\"\xf0\a\n" +
 	"\x0fUnionRacePolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12.\n" +
 	"\x13auto_enable_modules\x18\x02 \x01(\bR\x11autoEnableModules\x12:\n" +
@@ -3394,7 +3557,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x18show_personal_score_rank\x18\r \x01(\bR\x15showPersonalScoreRank\x129\n" +
 	"\x16avoid_progressed_tasks\x18\x0e \x01(\bH\x00R\x14avoidProgressedTasks\x88\x01\x01\x12)\n" +
 	"\x11auto_give_up_task\x18\x0f \x01(\bR\x0eautoGiveUpTask\x126\n" +
-	"\x17delete_interval_seconds\x18\x10 \x01(\x05R\x15deleteIntervalSeconds\x1aC\n" +
+	"\x17delete_interval_seconds\x18\x10 \x01(\x05R\x15deleteIntervalSeconds\x12=\n" +
+	"\x1bplant_harvest_max_inventory\x18\x11 \x01(\x05R\x18plantHarvestMaxInventory\x1aC\n" +
 	"\x15TaskTypePriorityEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value:\x028\x01B\x19\n" +
@@ -3456,7 +3620,7 @@ func file_mygardenworld_v1_policy_proto_rawDescGZIP() []byte {
 }
 
 var file_mygardenworld_v1_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_mygardenworld_v1_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_mygardenworld_v1_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_mygardenworld_v1_policy_proto_goTypes = []any{
 	(RedeemConnectMode)(0),      // 0: mygardenworld.v1.RedeemConnectMode
 	(SelectionMode)(0),          // 1: mygardenworld.v1.SelectionMode
@@ -3474,35 +3638,36 @@ var file_mygardenworld_v1_policy_proto_goTypes = []any{
 	(*VipShopPolicy)(nil),       // 13: mygardenworld.v1.VipShopPolicy
 	(*ZooPolicy)(nil),           // 14: mygardenworld.v1.ZooPolicy
 	(*PlantPolicy)(nil),         // 15: mygardenworld.v1.PlantPolicy
-	(*CultivatePolicy)(nil),     // 16: mygardenworld.v1.CultivatePolicy
-	(*PlantingPolicy)(nil),      // 17: mygardenworld.v1.PlantingPolicy
-	(*FriendStealPolicy)(nil),   // 18: mygardenworld.v1.FriendStealPolicy
-	(*FlowerElvesPolicy)(nil),   // 19: mygardenworld.v1.FlowerElvesPolicy
-	(*FlowerMarketPolicy)(nil),  // 20: mygardenworld.v1.FlowerMarketPolicy
-	(*OrderPolicy)(nil),         // 21: mygardenworld.v1.OrderPolicy
-	(*CustomerOrderPolicy)(nil), // 22: mygardenworld.v1.CustomerOrderPolicy
-	(*ResidentOrderPolicy)(nil), // 23: mygardenworld.v1.ResidentOrderPolicy
-	(*PalaceOrderPolicy)(nil),   // 24: mygardenworld.v1.PalaceOrderPolicy
-	(*TeamOrderPolicy)(nil),     // 25: mygardenworld.v1.TeamOrderPolicy
-	(*FlowerArtPolicy)(nil),     // 26: mygardenworld.v1.FlowerArtPolicy
-	(*UnionPolicy)(nil),         // 27: mygardenworld.v1.UnionPolicy
-	(*UnionBuildPolicy)(nil),    // 28: mygardenworld.v1.UnionBuildPolicy
-	(*UnionFlowerPolicy)(nil),   // 29: mygardenworld.v1.UnionFlowerPolicy
-	(*UnionRacePolicy)(nil),     // 30: mygardenworld.v1.UnionRacePolicy
-	(*UnionLandPolicy)(nil),     // 31: mygardenworld.v1.UnionLandPolicy
-	(*ActivityPolicy)(nil),      // 32: mygardenworld.v1.ActivityPolicy
-	(*CyclicNotePolicy)(nil),    // 33: mygardenworld.v1.CyclicNotePolicy
-	(*CyclicStoryPolicy)(nil),   // 34: mygardenworld.v1.CyclicStoryPolicy
-	nil,                         // 35: mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
-	nil,                         // 36: mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
-	nil,                         // 37: mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
+	(*ElvesPlantPolicy)(nil),    // 16: mygardenworld.v1.ElvesPlantPolicy
+	(*CultivatePolicy)(nil),     // 17: mygardenworld.v1.CultivatePolicy
+	(*PlantingPolicy)(nil),      // 18: mygardenworld.v1.PlantingPolicy
+	(*FriendStealPolicy)(nil),   // 19: mygardenworld.v1.FriendStealPolicy
+	(*FlowerElvesPolicy)(nil),   // 20: mygardenworld.v1.FlowerElvesPolicy
+	(*FlowerMarketPolicy)(nil),  // 21: mygardenworld.v1.FlowerMarketPolicy
+	(*OrderPolicy)(nil),         // 22: mygardenworld.v1.OrderPolicy
+	(*CustomerOrderPolicy)(nil), // 23: mygardenworld.v1.CustomerOrderPolicy
+	(*ResidentOrderPolicy)(nil), // 24: mygardenworld.v1.ResidentOrderPolicy
+	(*PalaceOrderPolicy)(nil),   // 25: mygardenworld.v1.PalaceOrderPolicy
+	(*TeamOrderPolicy)(nil),     // 26: mygardenworld.v1.TeamOrderPolicy
+	(*FlowerArtPolicy)(nil),     // 27: mygardenworld.v1.FlowerArtPolicy
+	(*UnionPolicy)(nil),         // 28: mygardenworld.v1.UnionPolicy
+	(*UnionBuildPolicy)(nil),    // 29: mygardenworld.v1.UnionBuildPolicy
+	(*UnionFlowerPolicy)(nil),   // 30: mygardenworld.v1.UnionFlowerPolicy
+	(*UnionRacePolicy)(nil),     // 31: mygardenworld.v1.UnionRacePolicy
+	(*UnionLandPolicy)(nil),     // 32: mygardenworld.v1.UnionLandPolicy
+	(*ActivityPolicy)(nil),      // 33: mygardenworld.v1.ActivityPolicy
+	(*CyclicNotePolicy)(nil),    // 34: mygardenworld.v1.CyclicNotePolicy
+	(*CyclicStoryPolicy)(nil),   // 35: mygardenworld.v1.CyclicStoryPolicy
+	nil,                         // 36: mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
+	nil,                         // 37: mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
+	nil,                         // 38: mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
 }
 var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	5,  // 0: mygardenworld.v1.Policy.basic:type_name -> mygardenworld.v1.BasicPolicy
 	15, // 1: mygardenworld.v1.Policy.plant:type_name -> mygardenworld.v1.PlantPolicy
-	21, // 2: mygardenworld.v1.Policy.order:type_name -> mygardenworld.v1.OrderPolicy
-	27, // 3: mygardenworld.v1.Policy.union:type_name -> mygardenworld.v1.UnionPolicy
-	32, // 4: mygardenworld.v1.Policy.activity:type_name -> mygardenworld.v1.ActivityPolicy
+	22, // 2: mygardenworld.v1.Policy.order:type_name -> mygardenworld.v1.OrderPolicy
+	28, // 3: mygardenworld.v1.Policy.union:type_name -> mygardenworld.v1.UnionPolicy
+	33, // 4: mygardenworld.v1.Policy.activity:type_name -> mygardenworld.v1.ActivityPolicy
 	6,  // 5: mygardenworld.v1.BasicPolicy.reputation:type_name -> mygardenworld.v1.ReputationPolicy
 	7,  // 6: mygardenworld.v1.BasicPolicy.task:type_name -> mygardenworld.v1.BasicTaskPolicy
 	8,  // 7: mygardenworld.v1.BasicPolicy.benefit:type_name -> mygardenworld.v1.BenefitPolicy
@@ -3513,37 +3678,38 @@ var file_mygardenworld_v1_policy_proto_depIdxs = []int32{
 	0,  // 12: mygardenworld.v1.BasicPolicy.redeem_connect_mode:type_name -> mygardenworld.v1.RedeemConnectMode
 	12, // 13: mygardenworld.v1.ShopPolicy.cultivate_shop:type_name -> mygardenworld.v1.ShopBuyPolicy
 	13, // 14: mygardenworld.v1.ShopPolicy.vip_shop:type_name -> mygardenworld.v1.VipShopPolicy
-	16, // 15: mygardenworld.v1.PlantPolicy.cultivate:type_name -> mygardenworld.v1.CultivatePolicy
-	17, // 16: mygardenworld.v1.PlantPolicy.planting:type_name -> mygardenworld.v1.PlantingPolicy
-	18, // 17: mygardenworld.v1.PlantPolicy.friend_steal:type_name -> mygardenworld.v1.FriendStealPolicy
-	19, // 18: mygardenworld.v1.PlantPolicy.elves:type_name -> mygardenworld.v1.FlowerElvesPolicy
-	20, // 19: mygardenworld.v1.PlantPolicy.market:type_name -> mygardenworld.v1.FlowerMarketPolicy
-	35, // 20: mygardenworld.v1.PlantingPolicy.demand_priority:type_name -> mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
-	1,  // 21: mygardenworld.v1.PlantingPolicy.auto_replant_mode:type_name -> mygardenworld.v1.SelectionMode
-	1,  // 22: mygardenworld.v1.FriendStealPolicy.mode:type_name -> mygardenworld.v1.SelectionMode
-	1,  // 23: mygardenworld.v1.FriendStealPolicy.friend_mode:type_name -> mygardenworld.v1.SelectionMode
-	36, // 24: mygardenworld.v1.FriendStealPolicy.friend_counts:type_name -> mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
-	2,  // 25: mygardenworld.v1.FlowerMarketPolicy.put_mode:type_name -> mygardenworld.v1.MarketPutMode
-	3,  // 26: mygardenworld.v1.FlowerMarketPolicy.buy_mode:type_name -> mygardenworld.v1.MarketBuyMode
-	22, // 27: mygardenworld.v1.OrderPolicy.customer:type_name -> mygardenworld.v1.CustomerOrderPolicy
-	23, // 28: mygardenworld.v1.OrderPolicy.resident:type_name -> mygardenworld.v1.ResidentOrderPolicy
-	24, // 29: mygardenworld.v1.OrderPolicy.palace:type_name -> mygardenworld.v1.PalaceOrderPolicy
-	25, // 30: mygardenworld.v1.OrderPolicy.team:type_name -> mygardenworld.v1.TeamOrderPolicy
-	26, // 31: mygardenworld.v1.OrderPolicy.flower_art:type_name -> mygardenworld.v1.FlowerArtPolicy
-	28, // 32: mygardenworld.v1.UnionPolicy.build:type_name -> mygardenworld.v1.UnionBuildPolicy
-	29, // 33: mygardenworld.v1.UnionPolicy.flower:type_name -> mygardenworld.v1.UnionFlowerPolicy
-	30, // 34: mygardenworld.v1.UnionPolicy.race:type_name -> mygardenworld.v1.UnionRacePolicy
-	31, // 35: mygardenworld.v1.UnionPolicy.land:type_name -> mygardenworld.v1.UnionLandPolicy
-	1,  // 36: mygardenworld.v1.UnionFlowerPolicy.share_mode:type_name -> mygardenworld.v1.SelectionMode
-	1,  // 37: mygardenworld.v1.UnionFlowerPolicy.take_mode:type_name -> mygardenworld.v1.SelectionMode
-	37, // 38: mygardenworld.v1.UnionRacePolicy.task_type_priority:type_name -> mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
-	33, // 39: mygardenworld.v1.ActivityPolicy.cyclic_note:type_name -> mygardenworld.v1.CyclicNotePolicy
-	34, // 40: mygardenworld.v1.ActivityPolicy.cyclic_story:type_name -> mygardenworld.v1.CyclicStoryPolicy
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	17, // 15: mygardenworld.v1.PlantPolicy.cultivate:type_name -> mygardenworld.v1.CultivatePolicy
+	18, // 16: mygardenworld.v1.PlantPolicy.planting:type_name -> mygardenworld.v1.PlantingPolicy
+	19, // 17: mygardenworld.v1.PlantPolicy.friend_steal:type_name -> mygardenworld.v1.FriendStealPolicy
+	20, // 18: mygardenworld.v1.PlantPolicy.elves:type_name -> mygardenworld.v1.FlowerElvesPolicy
+	21, // 19: mygardenworld.v1.PlantPolicy.market:type_name -> mygardenworld.v1.FlowerMarketPolicy
+	16, // 20: mygardenworld.v1.PlantPolicy.elves_plant:type_name -> mygardenworld.v1.ElvesPlantPolicy
+	36, // 21: mygardenworld.v1.PlantingPolicy.demand_priority:type_name -> mygardenworld.v1.PlantingPolicy.DemandPriorityEntry
+	1,  // 22: mygardenworld.v1.PlantingPolicy.auto_replant_mode:type_name -> mygardenworld.v1.SelectionMode
+	1,  // 23: mygardenworld.v1.FriendStealPolicy.mode:type_name -> mygardenworld.v1.SelectionMode
+	1,  // 24: mygardenworld.v1.FriendStealPolicy.friend_mode:type_name -> mygardenworld.v1.SelectionMode
+	37, // 25: mygardenworld.v1.FriendStealPolicy.friend_counts:type_name -> mygardenworld.v1.FriendStealPolicy.FriendCountsEntry
+	2,  // 26: mygardenworld.v1.FlowerMarketPolicy.put_mode:type_name -> mygardenworld.v1.MarketPutMode
+	3,  // 27: mygardenworld.v1.FlowerMarketPolicy.buy_mode:type_name -> mygardenworld.v1.MarketBuyMode
+	23, // 28: mygardenworld.v1.OrderPolicy.customer:type_name -> mygardenworld.v1.CustomerOrderPolicy
+	24, // 29: mygardenworld.v1.OrderPolicy.resident:type_name -> mygardenworld.v1.ResidentOrderPolicy
+	25, // 30: mygardenworld.v1.OrderPolicy.palace:type_name -> mygardenworld.v1.PalaceOrderPolicy
+	26, // 31: mygardenworld.v1.OrderPolicy.team:type_name -> mygardenworld.v1.TeamOrderPolicy
+	27, // 32: mygardenworld.v1.OrderPolicy.flower_art:type_name -> mygardenworld.v1.FlowerArtPolicy
+	29, // 33: mygardenworld.v1.UnionPolicy.build:type_name -> mygardenworld.v1.UnionBuildPolicy
+	30, // 34: mygardenworld.v1.UnionPolicy.flower:type_name -> mygardenworld.v1.UnionFlowerPolicy
+	31, // 35: mygardenworld.v1.UnionPolicy.race:type_name -> mygardenworld.v1.UnionRacePolicy
+	32, // 36: mygardenworld.v1.UnionPolicy.land:type_name -> mygardenworld.v1.UnionLandPolicy
+	1,  // 37: mygardenworld.v1.UnionFlowerPolicy.share_mode:type_name -> mygardenworld.v1.SelectionMode
+	1,  // 38: mygardenworld.v1.UnionFlowerPolicy.take_mode:type_name -> mygardenworld.v1.SelectionMode
+	38, // 39: mygardenworld.v1.UnionRacePolicy.task_type_priority:type_name -> mygardenworld.v1.UnionRacePolicy.TaskTypePriorityEntry
+	34, // 40: mygardenworld.v1.ActivityPolicy.cyclic_note:type_name -> mygardenworld.v1.CyclicNotePolicy
+	35, // 41: mygardenworld.v1.ActivityPolicy.cyclic_story:type_name -> mygardenworld.v1.CyclicStoryPolicy
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_mygardenworld_v1_policy_proto_init() }
@@ -3551,15 +3717,15 @@ func file_mygardenworld_v1_policy_proto_init() {
 	if File_mygardenworld_v1_policy_proto != nil {
 		return
 	}
-	file_mygardenworld_v1_policy_proto_msgTypes[18].OneofWrappers = []any{}
-	file_mygardenworld_v1_policy_proto_msgTypes[26].OneofWrappers = []any{}
+	file_mygardenworld_v1_policy_proto_msgTypes[19].OneofWrappers = []any{}
+	file_mygardenworld_v1_policy_proto_msgTypes[27].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mygardenworld_v1_policy_proto_rawDesc), len(file_mygardenworld_v1_policy_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   34,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

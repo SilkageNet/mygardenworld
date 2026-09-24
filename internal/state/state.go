@@ -23,6 +23,8 @@ type State struct {
 	unionState
 	activityState
 	taskState
+	passState
+	elvesState
 	socialState
 	assetState
 	hooksState

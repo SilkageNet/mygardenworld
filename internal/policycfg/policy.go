@@ -196,6 +196,39 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Plant.Elves == nil {
 		cp.Plant.Elves = proto.Clone(def.Plant.Elves).(*pb.FlowerElvesPolicy)
 	}
+	if ep := cp.Plant.ElvesPlant; ep != nil {
+		seenFriends := make(map[int64]struct{}, len(ep.FriendUids))
+		friendUIDs := make([]int64, 0, len(ep.FriendUids))
+		for _, uid := range ep.FriendUids {
+			if uid <= 0 {
+				continue
+			}
+			if _, exists := seenFriends[uid]; exists {
+				continue
+			}
+			seenFriends[uid] = struct{}{}
+			friendUIDs = append(friendUIDs, uid)
+		}
+		sort.Slice(friendUIDs, func(i, j int) bool { return friendUIDs[i] < friendUIDs[j] })
+		ep.FriendUids = friendUIDs
+		if ep.MainFlowerId <= 0 || ep.SecondaryFlowerId <= 0 || ep.MainFlowerId == ep.SecondaryFlowerId {
+			ep.Enabled = false
+		}
+		if ep.Enabled {
+			if _, ok := state.FlowerElvesBookByPair(ep.MainFlowerId, ep.SecondaryFlowerId); !ok {
+				ep.Enabled = false
+			}
+		}
+		if ep.MainLandCount < 0 {
+			ep.MainLandCount = 0
+		}
+		if ep.ElvesSpawnCap < 0 {
+			ep.ElvesSpawnCap = 0
+		}
+		if ep.HarvestDelaySeconds < 0 {
+			ep.HarvestDelaySeconds = 0
+		}
+	}
 	if cp.Plant.Market == nil {
 		cp.Plant.Market = proto.Clone(def.Plant.Market).(*pb.FlowerMarketPolicy)
 	}

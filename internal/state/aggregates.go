@@ -14,27 +14,29 @@ type protocolState struct {
 }
 
 type gardenState struct {
-	lands              map[int32]LandView
-	landRosterObserved bool
-	farmLands          map[int32]FarmLandInfo
-	farmLandObserved   bool
-	cultivations       map[int32]*CultivateView
-	hasWaterDropsItem  bool
-	waterDropsTotal    int32
-	waterDropsNextMs   int64
-	waterDropsInFlight int32
-	wwClaimedCount     int32
-	wwLastRecvTs       int64
-	wwCTimeMs          int64
-	wwObserved         bool
-	wwEntered          bool
-	wwAdvList          []int32
-	wwLocalGenMs       int64
-	wwBackoffUntil     int64
-	wwLastCountMs      int64
-	freeWaterObserved  bool
-	freeWaterRecvIdx   []int32
-	freeWaterResetMs   int64
+	lands                  map[int32]LandView
+	landRosterObserved     bool
+	farmLands              map[int32]FarmLandInfo
+	farmLandObserved       bool
+	cultivations           map[int32]*CultivateView
+	hasWaterDropsItem      bool
+	waterDropsTotal        int32
+	waterDropsNextMs       int64
+	waterDropsInFlight     int32
+	wwClaimedCount         int32
+	wwLastRecvTs           int64
+	wwCTimeMs              int64
+	wwObserved             bool
+	wwEntered              bool
+	wwAdvList              []int32
+	wwLocalGenMs           int64
+	wwBackoffUntil         int64
+	wwLastCountMs          int64
+	freeWaterObserved      bool
+	freeWaterRecvIdx       []int32
+	freeWaterResetMs       int64
+	speedUpTicketDayID     int32
+	speedUpTicketsReserved int32
 }
 
 type resourceState struct {
@@ -92,6 +94,7 @@ type unionState struct {
 	fmlForestRefreshAttemptAtMs int64
 	fmlFlowerShare              FmlFlowerShareView
 	fmlOtherFlowerShares        map[int64]*FmlFlowerShareView
+	fmlFlowerZeroTakeIDs        map[int32]struct{}
 	fmlOtherShareObserved       bool
 	fmlOtherShareSyncedAtMs     int64
 	fmlFlowerTakeLimitUntilMs   int64
@@ -117,6 +120,35 @@ type taskState struct {
 	randomEventObserved  bool
 	randomEventMapValid  bool
 	randomEventMapError  string
+}
+
+type passState struct {
+	flowerPassObserved         bool
+	flowerPassEnterSynced      bool
+	flowerPassByBid            map[int32]*passRuntime
+	flowerPassTaskByBid        map[int32]*passTaskRuntime
+	flowerElvesPassObserved    bool
+	flowerElvesPassEnterSynced bool
+	flowerElvesPassByBid       map[int32]*passRuntime
+	flowerElvesPassTaskByBid   map[int32]*passTaskRuntime
+}
+
+type elvesState struct {
+	flowerElvesPlaces           map[int32]*FlowerElvesPlaceView
+	flowerElvesPlacesObserved   bool
+	flowerElvesAid              FlowerElvesAidView
+	flowerElvesAidObserved      bool
+	flowerElvesAidClaimedPreReq int64
+	elvesAidHelpDayID           int32
+	elvesAidHelped              map[int64]struct{}
+	elvesProducedLands          map[int32]struct{}
+	elvesRoundStartMs           int64
+	usrCount                    map[int32]UsrCountView
+	frdStealElvesSkipPlantTime  map[int64]map[int32]int64
+	frdStealElvesSkipEnterUntil map[int64]int64
+	frdStealRcdList             []FrdStealRcdView
+	frdStealRcdObserved         bool
+	frdStealElvesCnt            int32
 }
 
 type socialState struct {
