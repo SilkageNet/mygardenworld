@@ -110,6 +110,7 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 			s.applyInventoryLocked(ns)
 			s.applyBaseRewardsLocked(ns)
 			s.applyUsrExtraLocked(ns)
+			s.applyUsrCountLocked(ns)
 			s.applyReputationLocked(ns)
 			s.applyStoryMainLocked(ns)
 		}
@@ -203,6 +204,12 @@ func (s *State) applyTop(top map[string]json.RawMessage, hints applyHints) {
 	}
 	if rawNS129, ok := top["129"]; ok {
 		s.applyRandomEventsLocked(rawNS129)
+	}
+	if rawNS131, ok := top["131"]; ok {
+		s.applyFlowerPassLocked(rawNS131)
+	}
+	if rawNS132, ok := top["132"]; ok {
+		s.applyFlowerElvesLocked(rawNS132)
 	}
 	if rawNS140, ok := top["140"]; ok {
 		s.applySignTypesLocked(rawNS140)

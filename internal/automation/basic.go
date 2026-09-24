@@ -97,6 +97,7 @@ func basicOperations(s *state.State, policy *pb.Policy, goals []Goal, now time.T
 			break
 		}
 	}
+	ops = append(ops, passClaimOperations(s, policy.GetPlant().GetElves())...)
 	if basic.GetRoadGrowRewardEnabled() {
 		for _, id := range s.ReadyRoadGrowTaskIDs() {
 			add(true, clientproto.RPCRoadGrowRecv.String(), "basic.road_grow", "claim", "成长之路奖励可领取", 5980, id, CategoryBasic)

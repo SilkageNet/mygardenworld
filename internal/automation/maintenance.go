@@ -37,19 +37,25 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 			flowerFilter = preferFlower
 			preferFlower = 0
 		}
-		if lands, count := speedUpCandidates(s, now, flowerFilter, preferFlower); count > 0 {
-			reason := "存在可加速土地"
-			if !planting.GetUseSpeedUpTicket() {
-				reason = "公会竞赛种植任务使用加速卡"
-				if raceExpireUrgentSpeedup(s.FmlRace().Taken, now) &&
-					!policy.GetUnion().GetRace().GetUseSpeedupTicketInTask() {
-					reason = "公会竞赛任务即将过期，使用加速卡"
+		remaining := planting.GetSpeedUpTicketMax()
+		if remaining > 0 {
+			remaining -= s.SpeedUpTicketsReservedToday(now)
+		}
+		if planting.GetSpeedUpTicketMax() <= 0 || remaining > 0 {
+			if lands, count := speedUpCandidates(s, now, flowerFilter, preferFlower, remaining); count > 0 {
+				reason := "存在可加速土地"
+				if !planting.GetUseSpeedUpTicket() {
+					reason = "公会竞赛种植任务使用加速卡"
+					if raceExpireUrgentSpeedup(s.FmlRace().Taken, now) &&
+						!policy.GetUnion().GetRace().GetUseSpeedupTicketInTask() {
+						reason = "公会竞赛任务即将过期，使用加速卡"
+					}
 				}
+				speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", reason, 7400, 0, 0, count)
+				speed.LandIDs = lands
+				speed.ItemCost = map[int32]int32{1001: count}
+				ops = append(ops, speed)
 			}
-			speed := op(clientproto.RPCUsrLandSpeedUpBatch.String(), goal, "speed_up", reason, 7400, 0, 0, count)
-			speed.LandIDs = lands
-			speed.ItemCost = map[int32]int32{1001: count}
-			ops = append(ops, speed)
 		}
 	}
 	if cultivate.GetEnabled() || cultivate.GetUpgradeEnabled() {
@@ -86,7 +92,7 @@ func blockedUnknownOperations(policy *pb.Policy) []PlannedOp {
 // (used by guild-race plant-harvest speedup).
 // When preferFlower > 0, matching lands are ordered first so scarce tickets
 // serve the race crop before other growing lands.
-func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int32) ([]int32, int32) {
+func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower, maxCount int32) ([]int32, int32) {
 	available := s.Inventory()[1001]
 	if available <= 0 {
 		return nil, 0
@@ -118,6 +124,9 @@ func speedUpCandidates(s *state.State, now time.Time, flowerID, preferFlower int
 	}
 	if want > 5 {
 		want = 5
+	}
+	if maxCount > 0 && want > maxCount {
+		want = maxCount
 	}
 	return ids[:want], want
 }

@@ -59,6 +59,7 @@ export default function PolicyPanel({
   const cultivate = plant?.cultivate;
   const friendSteal = plant?.friendSteal;
   const elves = plant?.elves;
+  const elvesPlant = plant?.elvesPlant;
   const market = plant?.market;
   const basic = policy?.basic;
   const reputation = basic?.reputation;
@@ -107,7 +108,7 @@ export default function PolicyPanel({
   const {
     updatePolicy, updateBasic, updateReputation, updateBasicTask, updateBenefit, updateSign, updatePearl,
     updateCultivateShop, updateVipShop, updateZoo, updatePlanting, updateCultivate, updateFriendSteal,
-    updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateMarket, updateCustomer,
+    updateFriendTouchCount, updateFriendTouchExcluded, updateElves, updateElvesPlant, updateMarket, updateCustomer,
     updateResident, updatePalace, updateTeam, updateFlowerArt, updateUnion, updateUnionBuild,
     updateUnionFlower, updateUnionRace, updateUnionLand, updateCyclicNote, updateCyclicStory,
   } = createPolicyEditor(policy, onPolicyChange);
@@ -179,7 +180,7 @@ export default function PolicyPanel({
                 />
                 <ToggleRow label="解锁土地" checked={planting?.autoUnlockLand ?? false} onChange={(checked) => updatePlanting({ autoUnlockLand: checked })} />
                 <ToggleRow label="使用加速券" checked={planting?.useSpeedUpTicket ?? false} onChange={(checked) => updatePlanting({ useSpeedUpTicket: checked })} />
-                <NumberRow label="加速券上限" value={planting?.speedUpTicketMax || 0} min={0} onChange={(value) => updatePlanting({ speedUpTicketMax: value })} />
+                <NumberRow label="加速券每日上限" value={planting?.speedUpTicketMax || 0} min={0} onChange={(value) => updatePlanting({ speedUpTicketMax: value })} description="种植与竞赛共用；按北京时间零点重置，0=不限" />
                 <NumberRow
                   label="保留水滴"
                   value={planting?.minWaterDrops || 0}
@@ -265,23 +266,53 @@ export default function PolicyPanel({
               onExcludedChange={updateFriendTouchExcluded}
             />
 
+            <PolicyGroup title="密令免费奖励" icon={<Sparkles />}>
+              <div className="grid gap-2">
+                <ToggleRow label="花之密令等级" checked={elves?.flowerPassRewardEnabled ?? false} onChange={(checked) => updateElves({ flowerPassRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.flower_pass")} />
+                <ToggleRow label="花之密令任务" checked={elves?.flowerPassTaskRewardEnabled ?? false} onChange={(checked) => updateElves({ flowerPassTaskRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.flower_pass")} />
+                <ToggleRow label="花灵密令等级" checked={elves?.passRewardEnabled ?? false} onChange={(checked) => updateElves({ passRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves_pass")} />
+                <ToggleRow label="花灵密令任务" checked={elves?.passTaskRewardEnabled ?? false} onChange={(checked) => updateElves({ passTaskRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves_pass")} />
+              </div>
+            </PolicyGroup>
+
+            <PolicyGroup title="花灵种植与协助" icon={<Sparkles />}>
+              <div className="grid gap-2">
+                <ToggleRow label="花灵主副花种植" checked={elvesPlant?.enabled ?? false} onChange={(checked) => updateElvesPlant({ enabled: checked })} description="开启后按主花地块数分配其余地块；竞赛种植任务优先" />
+                <NumberRow label="主花 ID" value={elvesPlant?.mainFlowerId ?? 0} min={0} onChange={(value) => updateElvesPlant({ mainFlowerId: value })} description="需与副花组成游戏图鉴中的花灵配方；无效配方不会启用自动种植" />
+                <NumberRow label="副花 ID" value={elvesPlant?.secondaryFlowerId ?? 0} min={0} onChange={(value) => updateElvesPlant({ secondaryFlowerId: value })} />
+                <NumberRow label="主花地块数" value={elvesPlant?.mainLandCount || 4} min={1} onChange={(value) => updateElvesPlant({ mainLandCount: value })} />
+                <ToggleRow label="花灵种植使用加速券" checked={elvesPlant?.useSpeedUpTicket ?? false} onChange={(checked) => updateElvesPlant({ useSpeedUpTicket: checked })} />
+                <NumberRow label="花灵数量上限" value={elvesPlant?.elvesSpawnCap ?? 0} min={0} onChange={(value) => updateElvesPlant({ elvesSpawnCap: value })} description="达到上限后停止加速；0=不限制" />
+                <NumberRow label="副花延时收获（秒）" value={elvesPlant?.harvestDelaySeconds ?? 0} min={0} onChange={(value) => updateElvesPlant({ harvestDelaySeconds: value })} />
+                <ToggleRow label="夜间收取成熟花灵" checked={elvesPlant?.nightHarvestEnabled ?? false} onChange={(checked) => updateElvesPlant({ nightHarvestEnabled: checked })} description="北京时间 22:00 后收取已有花灵的成熟地块" />
+                <ToggleRow label="申请协助" checked={elves?.requestAid ?? false} onChange={(checked) => updateElves({ requestAid: checked })} />
+                <ToggleRow label="领取协助" checked={elves?.receiveAid ?? false} onChange={(checked) => updateElves({ receiveAid: checked })} />
+                <ToggleRow label="协助好友" checked={elves?.helpFriend ?? false} onChange={(checked) => updateElves({ helpFriend: checked })} />
+                <ToggleRow label="摸取指定好友花灵" checked={elvesPlant?.stealFriendElvesEnabled ?? false} onChange={(checked) => updateElvesPlant({ stealFriendElvesEnabled: checked })} description="默认关闭；只访问下方勾选的游戏好友，共用好友摸花次数，不自动购买次数" status={settingStatusForCapability(capabilities, "plant.friend_steal_elves")} />
+                {elvesPlant?.stealFriendElvesEnabled && (
+                  <div className="max-h-72 space-y-2 overflow-y-auto">
+                    {garden?.friendTouchFriendsObserved ? (garden.friendTouchFriends.length > 0 ? garden.friendTouchFriends.map((friend) => {
+                      const selected = (elvesPlant.friendUids ?? []).includes(friend.uid);
+                      const label = friend.name.trim() || `好友 ${friend.uid.toString()}`;
+                      return <ToggleRow key={friend.uid.toString()} label={label} checked={selected} onChange={(checked) => updateElvesPlant({ friendUids: checked
+                        ? [...(elvesPlant.friendUids ?? []), friend.uid]
+                        : (elvesPlant.friendUids ?? []).filter((uid) => uid !== friend.uid) })} description={`UID ${friend.uid.toString()}`} />;
+                    }) : <p className="px-1 text-xs text-muted-foreground">游戏好友列表为空</p>) : <p className="px-1 text-xs text-muted-foreground">保存后会先同步游戏好友，再选择目标</p>}
+                  </div>
+                )}
+              </div>
+            </PolicyGroup>
+
             {SHOW_UNSUPPORTED_SETTINGS && (
               <>
                 <PolicyGroup title="花灵与密令" icon={<Sparkles />}>
                   <div className="grid gap-2">
                     <ToggleRow label="自动种花灵" checked={elves?.enabled ?? false} onChange={(checked) => updateElves({ enabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves")} />
                     <IntListRow label="指定花灵" value={elves?.selectedIds ?? []} onChange={(value) => updateElves({ selectedIds: value })} />
-                    <ToggleRow label="申请协助" checked={elves?.requestAid ?? false} onChange={(checked) => updateElves({ requestAid: checked })} />
-                    <ToggleRow label="领取协助" checked={elves?.receiveAid ?? false} onChange={(checked) => updateElves({ receiveAid: checked })} />
-                    <ToggleRow label="协助好友" checked={elves?.helpFriend ?? false} onChange={(checked) => updateElves({ helpFriend: checked })} />
                     <ToggleRow label="派遣花灵" checked={elves?.dispatch ?? false} onChange={(checked) => updateElves({ dispatch: checked })} />
                     <ToggleRow label="仅双倍花灵" checked={elves?.dispatchOnlyDoubleBuff ?? false} onChange={(checked) => updateElves({ dispatchOnlyDoubleBuff: checked })} />
                     <ToggleRow label="加速派遣" checked={elves?.speedUpDispatch ?? false} onChange={(checked) => updateElves({ speedUpDispatch: checked })} status={settingStatusForCapability(capabilities, "plant.elves_speed_up")} />
                     <ToggleRow label="派遣奖励" checked={elves?.receiveDispatchReward ?? false} onChange={(checked) => updateElves({ receiveDispatchReward: checked })} />
-                    <ToggleRow label="花灵密令等级" checked={elves?.passRewardEnabled ?? false} onChange={(checked) => updateElves({ passRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves_pass")} />
-                    <ToggleRow label="花灵密令任务" checked={elves?.passTaskRewardEnabled ?? false} onChange={(checked) => updateElves({ passTaskRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.elves_pass")} />
-                    <ToggleRow label="花之密令等级" checked={elves?.flowerPassRewardEnabled ?? false} onChange={(checked) => updateElves({ flowerPassRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.flower_pass")} />
-                    <ToggleRow label="花之密令任务" checked={elves?.flowerPassTaskRewardEnabled ?? false} onChange={(checked) => updateElves({ flowerPassTaskRewardEnabled: checked })} status={settingStatusForCapability(capabilities, "plant.flower_pass")} />
                     <BigIntNumberRow label="元宝上限" value={elves?.maxSpendDiamond ?? BigInt(0)} min={0} onChange={(value) => updateElves({ maxSpendDiamond: value })} />
                   </div>
                 </PolicyGroup>
@@ -624,6 +655,7 @@ export default function PolicyPanel({
                   </>
                 )}
                 <ToggleRow label="自动摸花" checked={unionFlower?.takeEnabled ?? false} onChange={(checked) => updateUnionFlower({ takeEnabled: checked })} />
+                <ToggleRow label="只摸库存为零的花" checked={unionFlower?.takeZeroInventoryOnly ?? false} onChange={(checked) => updateUnionFlower({ takeZeroInventoryOnly: checked })} description="每种花先取一次，库存更新后再判断" />
                 <SegmentedRow label="摸花模式" value={unionFlower?.takeMode || SelectionMode.QUALITY} options={SELECTION_MODE_OPTIONS} onChange={(value) => updateUnionFlower({ takeMode: value })} />
                 <QualityRow label="摸花品质" value={unionFlower?.takeQualities ?? []} onChange={(value) => updateUnionFlower({ takeQualities: value })} />
                 <CatalogFlowerMultiSelectRow
@@ -646,6 +678,7 @@ export default function PolicyPanel({
                 <ToggleRow label="避免接取已有进度任务" checked={unionRace?.avoidProgressedTasks ?? true} description="跳过其他成员退出后留下进度的任务，同时约束自动与手动接取；已经持有的任务不受影响" onChange={(checked) => updateUnionRace({ avoidProgressedTasks: checked })} />
                 <ToggleRow label="种植任务使用加速卡" checked={unionRace?.useSpeedupTicketInTask ?? false} description="已接种植收获任务全程可用加速卡。关闭时仍强制保底：任务最后 10 分钟自动对竞赛花使用加速卡" onChange={(checked) => updateUnionRace({ useSpeedupTicketInTask: checked })} />
                 <NumberRow label="最低任务分" value={unionRace?.minTaskScore ?? 0} min={0} description="自动接取会跳过分数不高于此值的任务；只有另行开启自动放弃后，已接任务才会受此限制。0 表示不限制" onChange={(value) => updateUnionRace({ minTaskScore: value })} />
+                <NumberRow label="种植任务目标花库存上限" value={unionRace?.plantHarvestMaxInventory ?? 0} min={0} description="新接取的种植收获任务中，目标花库存超过此值时跳过；0=不限" onChange={(value) => updateUnionRace({ plantHarvestMaxInventory: value })} />
                 <ToggleRow label="只接已升级任务" checked={unionRace?.onlyUpgradeTask ?? false} description="只接取已被升级的任务（积分加成更高）" onChange={(checked) => updateUnionRace({ onlyUpgradeTask: checked })} />
                 <ToggleRow label="排除他人升级任务" checked={unionRace?.excludeOthersUpgradeTask ?? true} description="仅排除明确由其他成员升级的任务；未记录升级人的任务仍按其余条件筛选，已被接取的任务始终跳过。适用于自动与手动接取，不影响已持有任务" onChange={(checked) => updateUnionRace({ excludeOthersUpgradeTask: checked })} />
                 <ToggleRow label="自动升级任务" checked={unionRace?.upgradeTask ?? false} description="独立于自动完成；升级当前持有的未完成任务，消耗元宝。结果未确认时不会重复提交" onChange={(checked) => updateUnionRace({ upgradeTask: checked })} status={settingStatusForCapability(capabilities, "union.race.upgrade")} />

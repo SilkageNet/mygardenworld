@@ -1200,6 +1200,9 @@ func raceTakeNonCDSkipReason(s *state.State, t state.FmlRaceTaskView, policy *pb
 		if t.ParamID <= 0 || !flowerCultivated(s, t.ParamID) {
 			return "目标花卉未培养"
 		}
+		if max := policy.GetPlantHarvestMaxInventory(); max > 0 && s.Inventory()[t.ParamID] > max {
+			return fmt.Sprintf("目标花卉库存超过%d", max)
+		}
 	case raceTaskTypeCustomerOrder:
 		if !gates.Customer {
 			return "顾客订单模块未开启"

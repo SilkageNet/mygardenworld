@@ -82,6 +82,8 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		return nil
 	}
 	plantingPolicy := policy.GetPlanting()
+	elvesPolicy := policy.GetElvesPlant()
+	elvesOn := elvesPlantActive(elvesPolicy)
 	harvestDelay := time.Duration(plantingPolicy.GetHarvestDelaySeconds()) * time.Second
 	// Race plant-harvest must keep driving farm while the task is unfinished:
 	// after planting, pending yield clears the plant demand, but lands still
@@ -90,6 +92,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	// auto-replant when ordinary AutoEnabled is on.
 	raceProgress := suppressAutoReplant
 	raceDriven := hasRacePlantDemand(demands) || raceProgress
+	elvesDriving := elvesOn && !raceDriven
 	raceFlowerID := racePlantHarvestFlowerID(s, demands)
 	lands := s.Lands()
 	var harvest, water, plant []int32
@@ -106,6 +109,9 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		if raceFlowerID > 0 && int32(land.FlowerID) == raceFlowerID {
 			delay = 0
 		}
+		if elvesDriving && int32(land.FlowerID) == elvesPolicy.GetSecondaryFlowerId() {
+			delay = elvesPlantHarvestDelayForLand(elvesPolicy, land)
+		}
 		kind, _ := Recommend(land, now, delay)
 		switch kind {
 		case KindHarvest:
@@ -117,6 +123,22 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	var ops []PlannedOp
+	if nightIDs := elvesNightHarvestLandIDs(s, elvesPolicy, now); len(nightIDs) > 0 {
+		planned := landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", "夜间收取成熟花灵", elvesNightHarvestPriority, nightIDs, 0, "elves_plant", "elves_plant")
+		planned.FeatureID = "plant.elves_night_harvest"
+		ops = append(ops, planned)
+		harvest = filterOutLandIDs(harvest, nightIDs)
+	}
+	if elvesDriving {
+		secondary := filterOnlyFlowerLandIDs(s, harvest, elvesPolicy.GetSecondaryFlowerId())
+		if len(secondary) > 0 {
+			planned := landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", "收取花灵副花", elvesPlantHarvestPriority, secondary, 0, "elves_plant", "elves_plant")
+			planned.FeatureID = "plant.elves_plant_harvest"
+			ops = append(ops, planned)
+			harvest = filterOutLandIDs(harvest, secondary)
+		}
+		harvest = filterOutFlowerLandIDs(s, harvest, elvesPolicy.GetMainFlowerId())
+	}
 	if (plantingPolicy.GetAutoHarvestEnabled() || raceDriven) && len(harvest) > 0 {
 		// Without ordinary auto-harvest, only race flowers are forced; other
 		// ready lands stay untouched until AutoHarvestEnabled is on.
@@ -127,37 +149,49 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 			ops = append(ops, landOp(clientproto.RPCUsrLandHarvest.String(), "farm.harvest", "harvest", fmt.Sprintf("%d ready lands", len(harvest)), 10000, harvest, 0, "", ""))
 		}
 	}
-	if !plantingPolicy.GetAutoEnabled() && !raceDriven {
+	if !plantingPolicy.GetAutoEnabled() && !raceDriven && !elvesDriving {
 		return ops
 	}
 	if len(plant) > 0 {
-		plantDemands := demands
-		// Race-only drive (AutoEnabled off) must not fill leftover empties with
-		// 自主补种. Active race still assigns first; leftover empties auto-replant
-		// when AutoEnabled is on. Expired plant-harvest holds keep freezing
-		// replant until getTaskList clears the stale task.
-		suppressFallback := !plantingPolicy.GetAutoEnabled() ||
-			(raceProgress && raceTakenExpired(s.FmlRace().Taken, now))
-		plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressFallback)
-		cursor := 0
-		for _, assignment := range plan.executable {
-			if cursor >= len(plant) {
-				break
+		if elvesDriving {
+			if !elvesPlantBlockedByPendingAid(s, now) {
+				ops = append(ops, elvesPlantPlantOps(s, elvesPolicy, plant)...)
 			}
-			count := int(assignment.Count)
-			if count > len(plant)-cursor {
-				count = len(plant) - cursor
+		} else {
+			plantDemands := demands
+			// Race-only drive (AutoEnabled off) must not fill leftover empties with
+			// 自主补种. Active race still assigns first; leftover empties auto-replant
+			// when AutoEnabled is on. Expired plant-harvest holds keep freezing
+			// replant until getTaskList clears the stale task.
+			suppressFallback := !plantingPolicy.GetAutoEnabled() ||
+				(raceProgress && raceTakenExpired(s.FmlRace().Taken, now))
+			plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressFallback)
+			cursor := 0
+			for _, assignment := range plan.executable {
+				if cursor >= len(plant) {
+					break
+				}
+				count := int(assignment.Count)
+				if count > len(plant)-cursor {
+					count = len(plant) - cursor
+				}
+				picks := append([]int32(nil), plant[cursor:cursor+count]...)
+				cursor += count
+				kind := clientproto.RPCUsrLandPlant.String()
+				if len(picks) > 1 {
+					kind = clientproto.RPCUsrLandPlantBatch.String()
+				}
+				ops = append(ops, landOp(kind, "farm.plant", "plant", assignment.Reason, assignment.Priority, picks, assignment.FlowerID, assignment.GoalID, assignment.DemandID))
 			}
-			picks := append([]int32(nil), plant[cursor:cursor+count]...)
-			cursor += count
-			kind := clientproto.RPCUsrLandPlant.String()
-			if len(picks) > 1 {
-				kind = clientproto.RPCUsrLandPlantBatch.String()
+			for _, diagnostic := range plan.blockedDiagnostic {
+				ops = append(ops, blockedPlantDiagnosticOp(diagnostic))
 			}
-			ops = append(ops, landOp(kind, "farm.plant", "plant", assignment.Reason, assignment.Priority, picks, assignment.FlowerID, assignment.GoalID, assignment.DemandID))
 		}
-		for _, diagnostic := range plan.blockedDiagnostic {
-			ops = append(ops, blockedPlantDiagnosticOp(diagnostic))
+	}
+	if elvesDriving {
+		water = filterOutFlowerLandIDs(s, water, elvesPolicy.GetMainFlowerId())
+		if elvesPlantBlockedByPendingAid(s, now) {
+			water = filterOutFlowerLandIDs(s, water, elvesPolicy.GetSecondaryFlowerId())
 		}
 	}
 	if len(water) > 0 {

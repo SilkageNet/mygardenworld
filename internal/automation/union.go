@@ -93,6 +93,7 @@ func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goa
 	// stock, so multi-flower take lists refill scarcest flowers first instead
 	// of always taking the first configured / lowest FlowerID match.
 	inventory := s.Inventory()
+	zeroOnly := policy.GetTakeZeroInventoryOnly()
 	var best state.FmlFlowerTakeCandidate
 	found := false
 	bestStock := int32(0)
@@ -101,6 +102,15 @@ func unionFlowerTakeOperations(s *state.State, policy *pb.UnionFlowerPolicy, goa
 			continue
 		}
 		stock := inventory[candidate.FlowerID]
+		if zeroOnly {
+			if stock > 0 {
+				s.ClearFmlFlowerZeroTake(candidate.FlowerID)
+				continue
+			}
+			if s.FmlFlowerZeroTakeSeen(candidate.FlowerID) {
+				continue
+			}
+		}
 		if !found || stock < bestStock {
 			best = candidate
 			bestStock = stock

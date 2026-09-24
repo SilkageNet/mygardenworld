@@ -40,14 +40,17 @@ type activityBatchState struct {
 }
 
 type activityTemplateState struct {
-	TmpID         int32
-	IdentityValid bool
-	Name          string
-	Description   string
-	TmpType       int32
-	Milestones    []CyclicNoteMilestoneInfo
-	BoxesObserved bool
-	BoxesValid    bool
+	CommonCfgObserved bool
+	CommonCfgIV       int32
+	CommonCfgIL       []int32
+	TmpID             int32
+	IdentityValid     bool
+	Name              string
+	Description       string
+	TmpType           int32
+	Milestones        []CyclicNoteMilestoneInfo
+	BoxesObserved     bool
+	BoxesValid        bool
 }
 
 type activityTaskRecordState struct {
@@ -261,6 +264,49 @@ func (s *State) mergeActivityTemplatesLocked(raw json.RawMessage) {
 			template.Milestones = milestones
 			template.BoxesObserved = true
 			template.BoxesValid = valid
+		}
+		if rawExt, present := fields["12"]; present {
+			mergeActivityTemplateCommonCfgLocked(template, rawExt)
+		}
+	}
+}
+
+func mergeActivityTemplateCommonCfgLocked(template *activityTemplateState, rawExt json.RawMessage) {
+	if isJSONNull(rawExt) {
+		template.CommonCfgObserved = false
+		template.CommonCfgIV = 0
+		template.CommonCfgIL = nil
+		return
+	}
+	var ext map[string]json.RawMessage
+	if json.Unmarshal(rawExt, &ext) != nil {
+		return
+	}
+	rawCfg, ok := ext["104"]
+	if !ok {
+		return
+	}
+	if isJSONNull(rawCfg) {
+		template.CommonCfgObserved = true
+		template.CommonCfgIV = 0
+		template.CommonCfgIL = nil
+		return
+	}
+	var cfg map[string]json.RawMessage
+	if json.Unmarshal(rawCfg, &cfg) != nil {
+		return
+	}
+	template.CommonCfgObserved = true
+	if rawIV, ok := cfg["0"]; ok {
+		if value, valid := readActivityInt32Raw(rawIV); valid {
+			template.CommonCfgIV = value
+		}
+	}
+	if rawIL, ok := cfg["2"]; ok {
+		if isJSONNull(rawIL) {
+			template.CommonCfgIL = nil
+		} else if ids, parsed, valid := decodeActivityInt32List(rawIL, false); parsed && valid {
+			template.CommonCfgIL = ids
 		}
 	}
 }

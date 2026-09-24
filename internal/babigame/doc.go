@@ -79,8 +79,8 @@
 //	119        | High-freq task counters          | Most RPCs
 //	124        | Daily summary / popup rewards    | harvest, orders
 //	130        | Cultivation & art rewards        | cultivate.recv
-//	131        | Observed high-frequency delta     | land, task, pass, random-event RPCs
-//	132        | Observed order/pass delta          | orderFlower, flowerElvesPass
+//	131        | Land, task and flower-pass delta   | land, task, flowerPass.*, random-event RPCs
+//	132        | Order, flower-elf and pass delta   | orderFlower, flowerElves.*, flowerElvesAid.*, flowerElvesPass.*
 //	140        | Stateful anti-fraud daily reward   | signType.enter/sign/recv
 //	148        | Observed broad activity delta      | Most reward/activity RPCs
 //	165        | Celebrity state (legacy)          | older celebrity responses
@@ -475,7 +475,7 @@
 //	frdExt.buyStealCnt   {frdUid,buyCnt:1}        → {7,24,...}       costs c_frd.$pickAddCost item 1305
 //	frdSteal.enterFrdSteal {point:[22,deviceFingerprint]} → {111,...}
 //	frdHome.getFrdHomeInfo {frdUid}              → {133,...}
-//	frdSteal.steal      {frdUid,landId,stealElves:0} → {7,111,...}
+//	frdSteal.steal      {frdUid,landId,stealElves:0|1} → {7,111,...}; 1 requests an elf, but confirm the elf counter/UID/inventory delta
 //	pearl.getHireStateByUids {uids:[uid]}          → {115.5}
 //	pearl.getRecommendList {}                      → {115.5,115.6}
 //	pearlPlace.hire      {placeId,dstUid}           → {7,115,...}

@@ -15,6 +15,7 @@ func FriendCoinItemID() int32 { return friendCoinItemID }
 // FriendOtherInfoView is namespace 110.1 frdOtherInfoMap entry.
 type FriendOtherInfoView struct {
 	IsSteal    bool  `json:"is_steal,omitempty"`
+	IsAid      bool  `json:"is_aid,omitempty"`
 	ObservedAt int64 `json:"observed_at_ms,omitempty"`
 }
 
@@ -249,6 +250,11 @@ func (s *State) applyFrdExtOtherInfoLocked(raw json.RawMessage) {
 		if rawSteal, ok := infoFields["0"]; ok {
 			if v, ok := readExactInt32Raw(rawSteal); ok {
 				view.IsSteal = v != 0
+			}
+		}
+		if rawAid, ok := infoFields["1"]; ok {
+			if v, ok := readInt64Raw(rawAid); ok {
+				view.IsAid = v != 0
 			}
 		}
 		parsed[uid] = view

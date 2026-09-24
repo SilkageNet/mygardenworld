@@ -41,6 +41,20 @@ type LandView struct {
 // IsPlanted returns true when a flower id is set on the land.
 func (l LandView) IsPlanted() bool { return l.FlowerID != 0 }
 
+func (l LandView) HasStealableElvesFor(selfUID int64, now time.Time) bool {
+	if l.ElvesID == 0 || len(l.ElvesStealUIDs) > 0 {
+		return false
+	}
+	if selfUID > 0 {
+		for _, uid := range l.StealUIDs {
+			if uid == selfUID {
+				return false
+			}
+		}
+	}
+	return l.State == 3 || (l.State == 2 && l.NextTimeMs > 0 && l.NextTimeMs <= now.UnixMilli())
+}
+
 // FromPrimary builds a LandView from the raw `100.1.<id>` JSON dict. Server
 // responses use numeric-string keys ("0".."9"), per the G.ILand schema.
 func FromPrimary(raw map[string]any) LandView {

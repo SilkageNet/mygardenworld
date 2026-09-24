@@ -69,6 +69,8 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 
 	r.installStateHandlers()
 	r.hydratePearlHireTicketUsage(ctx, time.Now())
+	r.hydrateSpeedUpTicketReservations(ctx, time.Now())
+	r.hydrateElvesAidHelpReservations(ctx, time.Now())
 	if err := r.loadAccountSafety(ctx); err != nil {
 		return fail(err)
 	}

@@ -11,6 +11,16 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
 
+func isFriendStealElvesUnavailableError(op *automation.PlannedOp, err error) bool {
+	if op == nil || err == nil || op.Kind != clientproto.RPCFrdStealSteal.String() || op.Action != "steal_elves" {
+		return false
+	}
+	message := err.Error()
+	return strings.Contains(message, "花灵已被他人摘取") ||
+		strings.Contains(message, "已摘取过该鲜花") ||
+		strings.Contains(message, "当前土地状态发生变动")
+}
+
 func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automation.PlannedOp {
 	if policy == nil || !policy.GetAutomationEnabled() {
 		r.resetSideLaneFairness()
@@ -76,6 +86,12 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 			return fmt.Errorf("%s: 公会建设 shareId=%d", automation.SDKAdUnsupportedReason, option.ShareID)
 		}
 	case clientproto.RPCFrdStealSteal.String(), clientproto.RPCFrdExtBuyStealCnt.String():
+		if op.Action == "steal_elves" || op.FeatureID == "plant.friend_steal_elves" {
+			if err := automation.ValidateFriendStealElvesMutation(r.state, r.Policy().GetPlant(), op, now); err != nil {
+				return err
+			}
+			break
+		}
 		if err := automation.ValidateFriendTouchMutation(r.state, r.Policy().GetPlant().GetFriendSteal(), op, now); err != nil {
 			return err
 		}

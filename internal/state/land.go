@@ -47,6 +47,7 @@ func (s *State) applyLandsLocked(ns100 map[string]json.RawMessage) []LandChange 
 						}
 					}
 					s.lands = next
+					s.noteElvesSpawnLocked(next)
 				}
 			}
 		}
@@ -81,6 +82,9 @@ func (s *State) upsertLandLocked(lid int32, next LandView, _ string) (LandChange
 		return LandChange{}, false
 	}
 	s.lands[lid] = next
+	if next.ElvesID != 0 {
+		s.noteElvesSpawnLandLocked(lid)
+	}
 	return LandChange{LandID: lid, Before: prev, After: next}, true
 }
 

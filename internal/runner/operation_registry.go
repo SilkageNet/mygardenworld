@@ -633,6 +633,91 @@ var plannedOperationSpecs = map[string]operationSpec{
 			return rpc.TaskDly().Recv(ctx, req)
 		},
 	),
+	clientproto.RPCFlowerPassEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.FlowerPassEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerPassEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerPass().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerPassTaskDone.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerPassTaskDoneRequest, error) {
+			if op.TargetID <= 0 || op.ItemID <= 0 {
+				return clientproto.FlowerPassTaskDoneRequest{}, fmt.Errorf("flower pass task target missing")
+			}
+			return clientproto.FlowerPassTaskDoneRequest{Bid: op.TargetID, TaskId: op.ItemID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerPassTaskDoneRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerPass().TaskDone(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerPassRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerPassRecvRequest, error) {
+			if op.TargetID <= 0 || op.ItemID <= 0 || op.Count != state.PassRwdTypeFree {
+				return clientproto.FlowerPassRecvRequest{}, fmt.Errorf("free flower pass reward target missing")
+			}
+			return clientproto.FlowerPassRecvRequest{Bid: op.TargetID, RwdType: state.PassRwdTypeFree, Lvl: op.ItemID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerPassRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerPass().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesPassEnter.String(): stateDeltaOperation(
+		staticRequest(clientproto.FlowerElvesPassEnterRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesPassEnterRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElvesPass().Enter(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesPassTaskDone.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerElvesPassTaskDoneRequest, error) {
+			if op.TargetID <= 0 || op.ItemID <= 0 {
+				return clientproto.FlowerElvesPassTaskDoneRequest{}, fmt.Errorf("elves pass task target missing")
+			}
+			return clientproto.FlowerElvesPassTaskDoneRequest{Bid: op.TargetID, TaskId: op.ItemID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesPassTaskDoneRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElvesPass().TaskDone(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesPassRecv.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerElvesPassRecvRequest, error) {
+			if op.TargetID <= 0 || op.ItemID <= 0 || op.Count != state.PassRwdTypeFree {
+				return clientproto.FlowerElvesPassRecvRequest{}, fmt.Errorf("free elves pass reward target missing")
+			}
+			return clientproto.FlowerElvesPassRecvRequest{Bid: op.TargetID, RwdType: state.PassRwdTypeFree, Lvl: op.ItemID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesPassRecvRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElvesPass().Recv(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesCheckConvert.String(): stateDeltaOperation(
+		staticRequest(clientproto.FlowerElvesCheckConvertRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesCheckConvertRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElves().CheckConvert(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesAidReqAid.String(): stateDeltaOperation(
+		staticRequest(clientproto.FlowerElvesAidReqAidRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesAidReqAidRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElvesAid().ReqAid(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesAidRecvAidEff.String(): stateDeltaOperation(
+		staticRequest(clientproto.FlowerElvesAidRecvAidEffRequest{}),
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesAidRecvAidEffRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElvesAid().RecvAidEff(ctx, req)
+		},
+	),
+	clientproto.RPCFlowerElvesAidHelpFrd.String(): stateDeltaOperation(
+		func(op *automation.PlannedOp) (clientproto.FlowerElvesAidHelpFrdRequest, error) {
+			if op.TargetUID <= 0 {
+				return clientproto.FlowerElvesAidHelpFrdRequest{}, fmt.Errorf("aid target missing")
+			}
+			return clientproto.FlowerElvesAidHelpFrdRequest{DstUid: op.TargetUID}, nil
+		},
+		func(ctx context.Context, rpc *clientrpc.Client, req clientproto.FlowerElvesAidHelpFrdRequest) (babigame.RPCResponse[clientproto.StateDelta], error) {
+			return rpc.FlowerElvesAid().HelpFrd(ctx, req)
+		},
+	),
 	clientproto.RPCTaskWeekRecv.String(): stateDeltaOperation(
 		func(op *automation.PlannedOp) (clientproto.TaskWeekRecvRequest, error) {
 			return clientproto.TaskWeekRecvRequest{ID: op.TargetID}, nil
