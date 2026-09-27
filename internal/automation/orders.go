@@ -127,7 +127,7 @@ func orderOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 		if blocked, ok := customerOrderLimitBlock(s, customer, goal, now); ok {
 			ops = append(ops, blocked)
 		} else {
-			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRace())
+			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRaceAt(now))
 			for npcID, customerOrder := range s.CustomerOrderDetails() {
 				reqSummary := FormatCustomerOrderRequires(s, customerOrder)
 				if reason := CustomerOrderRewardSkipReason(customerOrder, customer); reason != "" {

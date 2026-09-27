@@ -36,6 +36,9 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
 		return err
 	}
+	if err := r.validateRaceHeldBeforeSend(ctx, name); err != nil {
+		return err
+	}
 	if err := r.validateFmlMembershipBeforeSend(ctx, name); err != nil {
 		return err
 	}

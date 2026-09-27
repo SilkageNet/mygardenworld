@@ -74,7 +74,7 @@ func TestUnconfirmedGuildDoesNotDriveRaceFarmOrSpeedup(t *testing.T) {
 		} else {
 			s.MarkFmlMembershipUncertainAt(now)
 		}
-		if len(raceTaskProgressDemands(s, policy, now)) != 0 || raceSpeedupEnabledAt(s, policy.Union.Race, now) || raceSuppressesAutoReplant(s, policy, now) {
+		if len(raceTaskProgressDemands(s, policy, now)) != 0 || raceSpeedupEnabledAt(s, policy.Union.Race, now) || raceDrivesFarm(s, policy, now) {
 			t.Fatal("unconfirmed guild still influences farm or spends speedup tickets")
 		}
 		if len(unionRaceOperations(s, policy.Union.Race, s.RoleID(), now, raceGatesOn())) != 0 {

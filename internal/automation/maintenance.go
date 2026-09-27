@@ -31,7 +31,7 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 		preferFlower := int32(0)
 		raceOn := raceSpeedupEnabledAt(s, policy.GetUnion().GetRace(), now)
 		if raceOn {
-			preferFlower = s.FmlRace().Taken.ParamID
+			preferFlower = s.FmlRaceAt(now).Taken.ParamID
 		}
 		if !planting.GetUseSpeedUpTicket() {
 			flowerFilter = preferFlower
@@ -46,7 +46,7 @@ func maintenanceOperations(s *state.State, policy *pb.Policy, ledger *InventoryL
 				reason := "存在可加速土地"
 				if !planting.GetUseSpeedUpTicket() {
 					reason = "公会竞赛种植任务使用加速卡"
-					if raceExpireUrgentSpeedup(s.FmlRace().Taken, now) &&
+					if raceExpireUrgentSpeedup(s.FmlRaceAt(now).Taken, now) &&
 						!policy.GetUnion().GetRace().GetUseSpeedupTicketInTask() {
 						reason = "公会竞赛任务即将过期，使用加速卡"
 					}

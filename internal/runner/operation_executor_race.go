@@ -18,6 +18,17 @@ func fmlEnterSyncRequest() clientproto.FmlEnterRequest {
 
 type raceMutationContextKey struct{}
 
+type raceHeldOperationKey struct{}
+
+// Only fence the mutation itself, never interrupt its confirmation reads.
+func (r *Runner) validateRaceHeldBeforeSend(ctx context.Context, name string) error {
+	op, _ := ctx.Value(raceHeldOperationKey{}).(*automation.PlannedOp)
+	if op == nil || op.Kind != name {
+		return nil
+	}
+	return automation.ValidateRaceHeldOperation(r.state, op, time.Now())
+}
+
 const raceFreshPoolWindow = 3 * time.Second
 
 // Taking needs a tight three-second window. Deletion may reuse the ordinary

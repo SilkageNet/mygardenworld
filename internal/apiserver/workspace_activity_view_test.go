@@ -53,6 +53,24 @@ func TestFmlRaceProtoIncludesPurchasedTaskQuota(t *testing.T) {
 	}
 }
 
+func TestFmlRaceProtoHidesExpiredHeldProgressWithoutPush(t *testing.T) {
+	view := state.FmlRaceView{Taken: state.FmlRaceTakenView{HasTask: true, TaskMsId: 99, TargetCnt: 280, ExpireTime: 1000}, LocalFinishTaskMsId: 99, LocalFinishCnt: 280}
+	for _, ms := range []int64{999, 1000, 1001} {
+		got := fmlRaceProto(view, state.New(), nil, 99, time.UnixMilli(ms), automation.RaceModuleGates{})
+		if got.GetTaken().GetHasTask() != (ms < 1000) {
+			t.Fatalf("at %d: %+v", ms, got.GetTaken())
+		}
+		cached := &pb.WorkspaceState{Union: &pb.UnionView{Race: &pb.FmlRaceView{Taken: &pb.FmlRaceTaken{HasTask: true, ExpireTimeMs: 1000}}}}
+		if workspaceRaceHoldExpired(cached, time.UnixMilli(ms)) != (ms >= 1000) {
+			t.Fatal("cache ignored expiry boundary")
+		}
+		cached.Union.Race = got
+		if workspaceRaceHoldExpired(cached, time.UnixMilli(ms)) {
+			t.Fatal("refreshed view continuously invalidates cache")
+		}
+	}
+}
+
 func TestFmlRaceProtoSeparatesTaskOccupancyFromUpgradeMember(t *testing.T) {
 	now := time.Now()
 	deadline := now.Add(time.Hour)

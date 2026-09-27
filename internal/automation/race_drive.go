@@ -63,10 +63,6 @@ const (
 	// raceExpireSpeedupLead is how long before a held plant-harvest task's
 	// ExpireTime the explicit urgency policy may use speedup tickets.
 	raceExpireSpeedupLead = 10 * time.Minute
-
-	// An expired local task is refreshed promptly, but a server response that
-	// still carries it must not cause a sync loop every planner tick.
-	raceExpiredTaskSyncInterval = 30 * time.Second
 )
 
 // raceTaskProgressDemands converts the currently taken unfinished guild-race
@@ -86,12 +82,9 @@ func raceTaskProgressDemands(s *state.State, policy *pb.Policy, now time.Time) [
 	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return nil
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	taken := view.Taken
 	if !taken.HasTask || taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
-		return nil
-	}
-	if raceTakenExpired(taken, now) {
 		return nil
 	}
 	// Do not plant/harvest for a task we are about to give up (low score,
@@ -303,12 +296,12 @@ func hasRacePlantDemand(demands []Demand) bool {
 	return false
 }
 
-// raceSuppressesAutoReplant reports whether an unfinished plant-harvest race
+// raceDrivesFarm reports whether an unfinished plant-harvest race
 // task should keep driving harvest/water (and race plant slots) even when
 // ordinary farm auto toggles are off. Leftover empty lands still follow
-// AutoEnabled for 自主补种 after race demand slots are assigned, except while
-// the held task is expired (freeze until getTaskList clears it).
-func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time) bool {
+// AutoEnabled for 自主补种 after race demand slots are assigned. Expired holds
+// no longer drive farm operations or suppress ordinary user policy.
+func raceDrivesFarm(s *state.State, policy *pb.Policy, now time.Time) bool {
 	if s == nil || policy == nil || !policy.GetAutomationEnabled() {
 		return false
 	}
@@ -320,19 +313,14 @@ func raceSuppressesAutoReplant(s *state.State, policy *pb.Policy, now time.Time)
 	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
 	}
-	taken := s.FmlRace().Taken
+	taken := s.FmlRaceAt(now).Taken
 	if !taken.HasTask || taken.TaskType != raceTaskTypePlantHarvest {
 		return false
 	}
 	if taken.TargetCnt <= 0 || taken.FinishCnt >= taken.TargetCnt {
 		return false
 	}
-	if raceTakenExpired(taken, now) {
-		// Freeze autonomous replant until getTaskList confirms the stale hold is
-		// gone; otherwise an expired race task can unexpectedly refill the farm.
-		return true
-	}
-	return !raceTakenBlocksProgress(s, race, s.FmlRace(), raceModuleGatesFromPolicy(policy))
+	return !raceTakenBlocksProgress(s, race, s.FmlRaceAt(now), raceModuleGatesFromPolicy(policy))
 }
 
 // RaceModuleGates carries ordinary business-module switches that race take /
@@ -916,9 +904,9 @@ func raceSpeedupEnabledAt(s *state.State, race *pb.UnionRacePolicy, now time.Tim
 	if s == nil || race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
 	}
-	taken := s.FmlRace().Taken
+	taken := s.FmlRaceAt(now).Taken
 	if !taken.HasTask || taken.TaskType != raceTaskTypePlantHarvest ||
-		taken.FinishCnt >= taken.TargetCnt || raceTakenBlocksProgress(s, race, s.FmlRace(), RaceModuleGates{Customer: true, Pearl: true, Cultivate: true}) {
+		taken.FinishCnt >= taken.TargetCnt || raceTakenBlocksProgress(s, race, s.FmlRaceAt(now), RaceModuleGates{Customer: true, Pearl: true, Cultivate: true}) {
 		return false
 	}
 	if race.GetUseSpeedupTicketInTask() {
@@ -938,6 +926,11 @@ func raceExpireUrgentSpeedup(taken state.FmlRaceTakenView, now time.Time) bool {
 	return !now.Before(leadStart) && now.Before(deadline)
 }
 
-func raceTakenExpired(taken state.FmlRaceTakenView, now time.Time) bool {
-	return taken.HasTask && taken.ExpireTime > 0 && !now.Before(time.UnixMilli(taken.ExpireTime))
+// A post-expiry successful pool read is needed before taking another task.
+// A push is not such evidence. A successful delta-only read can confirm an
+// already observed pool without requiring the server to erase historical data.
+func raceExpiredHoldNeedsSync(s *state.State, now time.Time) bool {
+	v := s.FmlRace()
+	return v.Taken.ExpiredAt(now) && (!v.TasksObserved || v.TaskPoolStale ||
+		max(v.FullTasksSyncedAtMs, v.TaskPoolSyncAttemptAtMs) < v.Taken.ExpireTime)
 }

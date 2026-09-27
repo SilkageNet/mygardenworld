@@ -21,7 +21,7 @@ func RaceAutoUpgradeStatus(s *state.State, policy *pb.UnionRacePolicy, now time.
 	if !policy.GetEnabled() {
 		return "任务池同步未开启"
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	if !view.Taken.HasTask {
 		return "等待接取任务"
 	}

@@ -138,6 +138,9 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	if op == nil {
 		return nil, fmt.Errorf("nil planned operation")
 	}
+	if op.RaceHoldTaskMsID != 0 {
+		ctx = context.WithValue(ctx, raceHeldOperationKey{}, op)
+	}
 	spec, ok := operationSpecFor(op.Kind)
 	if !ok {
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)

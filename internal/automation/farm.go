@@ -77,7 +77,7 @@ func harvestReadyAt(land state.LandView, harvestDelay time.Duration) (time.Time,
 	}
 }
 
-func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time, suppressAutoReplant bool) []PlannedOp {
+func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.Time, raceHeldProgress bool) []PlannedOp {
 	if policy == nil {
 		return nil
 	}
@@ -90,10 +90,10 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 	// need watering (and later harvest). raceProgress is true for that whole
 	// window. Race plant slots still claim first; leftover empties may
 	// auto-replant when ordinary AutoEnabled is on.
-	raceProgress := suppressAutoReplant
+	raceProgress := raceHeldProgress
 	raceDriven := hasRacePlantDemand(demands) || raceProgress
 	elvesDriving := elvesOn && !raceDriven
-	raceFlowerID := racePlantHarvestFlowerID(s, demands)
+	raceFlowerID := racePlantHarvestFlowerID(s, demands, now)
 	lands := s.Lands()
 	var harvest, water, plant []int32
 	ids := make([]int32, 0, len(lands))
@@ -161,10 +161,8 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 			plantDemands := demands
 			// Race-only drive (AutoEnabled off) must not fill leftover empties with
 			// 自主补种. Active race still assigns first; leftover empties auto-replant
-			// when AutoEnabled is on. Expired plant-harvest holds keep freezing
-			// replant until getTaskList clears the stale task.
-			suppressFallback := !plantingPolicy.GetAutoEnabled() ||
-				(raceProgress && raceTakenExpired(s.FmlRace().Taken, now))
+			// when AutoEnabled is on. Expired holds follow ordinary farm policy.
+			suppressFallback := !plantingPolicy.GetAutoEnabled()
 			plan := planPlantAssignments(s, policy, plantDemands, int32(len(plant)), suppressFallback)
 			cursor := 0
 			for _, assignment := range plan.executable {
@@ -195,7 +193,7 @@ func farmOps(s *state.State, policy *pb.PlantPolicy, demands []Demand, now time.
 		}
 	}
 	if len(water) > 0 {
-		if flowerID := racePlantHarvestFlowerID(s, demands); flowerID > 0 && raceProgress {
+		if flowerID := racePlantHarvestFlowerID(s, demands, now); flowerID > 0 && raceProgress {
 			if !plantingPolicy.GetAutoEnabled() {
 				// Race-only farm drive: water only the race flower.
 				water = filterLandIDsByFlower(s, water, flowerID)
@@ -353,7 +351,7 @@ func isRaceDrivenFlowerDemand(demand Demand) bool {
 	return demand.GoalID == raceActionGoal && demand.Source == "race_task"
 }
 
-func racePlantHarvestFlowerID(s *state.State, demands []Demand) int32 {
+func racePlantHarvestFlowerID(s *state.State, demands []Demand, now time.Time) int32 {
 	for _, demand := range demands {
 		if isRaceDrivenFlowerDemand(demand) && demand.ItemID > 0 {
 			return demand.ItemID
@@ -362,7 +360,7 @@ func racePlantHarvestFlowerID(s *state.State, demands []Demand) int32 {
 	if s == nil {
 		return 0
 	}
-	taken := s.FmlRace().Taken
+	taken := s.FmlRaceAt(now).Taken
 	if taken.HasTask && taken.TaskType == raceTaskTypePlantHarvest && taken.ParamID > 0 {
 		return taken.ParamID
 	}

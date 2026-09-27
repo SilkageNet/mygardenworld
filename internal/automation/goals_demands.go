@@ -127,7 +127,7 @@ func buildDirectDemands(s *state.State, policy *pb.Policy, goals []Goal, now tim
 	if goal, ok := goalByID(goals, GoalCustomerOrder); ok {
 		if _, limited := customerDailyLimitReached(s, policy.GetOrder().GetCustomer(), now); !limited {
 			customerPolicy := policy.GetOrder().GetCustomer()
-			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRace())
+			bypassMinArt := RaceHoldsUnfinishedCustomerOrder(s.FmlRaceAt(now))
 			for npcID, order := range s.CustomerOrderDetails() {
 				if order == nil {
 					continue

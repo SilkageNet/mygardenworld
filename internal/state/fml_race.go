@@ -550,7 +550,7 @@ func reconcileFmlRaceLocalFinishAfterFullPool(view *FmlRaceView) {
 // credit remaining frequencys-HarvestCnt rounds when a race flower disappears.
 func (s *State) syncFmlRaceLocalFinishLocked(landChanges []LandChange) {
 	view := &s.fmlRace
-	if !view.Taken.HasTask {
+	if !view.Taken.HasTask || view.Taken.ExpiredAt(time.UnixMilli(s.lastApplyMs)) {
 		clearFmlRaceLocalFinish(view)
 		return
 	}
@@ -983,7 +983,30 @@ func takenFromUsrRcd(rcd clientproto.IFmlRaceUsrRcd) FmlRaceTakenView {
 	return takenFromTakeTask(rcd.TakeTaskData)
 }
 
-// FmlRace returns the guild race view parsed from namespace 25.
+// ExpiredAt matches the client's getTaskData expiry filter. Retaining a server
+// record is not proof of a current hold; expiry also advances without pushes.
+func (v FmlRaceTakenView) ExpiredAt(now time.Time) bool {
+	return v.HasTask && v.ExpireTime > 0 && now.UnixMilli() >= v.ExpireTime
+}
+
+// EffectiveAt projects observed records into current task ownership, without
+// destroying the deadline evidence needed to reject repeated stale snapshots.
+// Pool ownership is deliberately unchanged: expiry does not make a row takeable.
+func (v FmlRaceView) EffectiveAt(now time.Time) FmlRaceView {
+	if v.Taken.ExpiredAt(now) {
+		v.Taken = FmlRaceTakenView{}
+		clearFmlRaceLocalFinish(&v)
+	}
+	return v
+}
+
+// FmlRaceAt is the time-aware view for planning, execution and presentation.
+func (s *State) FmlRaceAt(now time.Time) FmlRaceView {
+	return s.FmlRace().EffectiveAt(now)
+}
+
+// FmlRace returns raw observed guild race records, including expired holds.
+// Consumers deciding current ownership must use FmlRaceAt.
 func (s *State) FmlRace() FmlRaceView {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
