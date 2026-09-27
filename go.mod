@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	connectrpc.com/connect v1.21.0
-	github.com/andybalholm/brotli v1.2.3
+	github.com/andybalholm/brotli v1.2.4
 	github.com/coder/websocket v1.8.15
 	github.com/elazarl/goproxy v1.9.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -12,9 +12,9 @@ require (
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.57.0
 	golang.org/x/text v0.42.0
-	google.golang.org/grpc v1.83.2
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
-	modernc.org/sqlite v1.58.0
+	modernc.org/sqlite v1.59.0
 )
 
 require (
