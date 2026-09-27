@@ -213,7 +213,8 @@ func (svc *Services) cachedLiveWorkspaceState(ctx context.Context, acc *store.Ac
 	lastEventAt := r.LastEventAt()
 	policy := r.Policy()
 	if cache.state != nil && cache.runner == r && cache.revision == revision && cache.lastEventAt.Equal(lastEventAt) &&
-		cache.accountName == acc.Name && cache.gsIdx == acc.GsIdx && proto.Equal(cache.policy, policy) {
+		cache.accountName == acc.Name && cache.gsIdx == acc.GsIdx && proto.Equal(cache.policy, policy) &&
+		!workspaceRaceHoldExpired(cache.state, time.Now()) {
 		return cache.state, nil
 	}
 	state, err := svc.buildLiveWorkspaceState(ctx, acc, r)
@@ -228,6 +229,13 @@ func (svc *Services) cachedLiveWorkspaceState(ctx context.Context, acc *store.Ac
 	cache.policy = proto.Clone(policy).(*pb.Policy)
 	cache.state = state
 	return state, nil
+}
+
+// Wall-clock expiry must invalidate a cached hold even without a game push.
+// After projection removes Taken this becomes false again (no permanent cache miss).
+func workspaceRaceHoldExpired(view *pb.WorkspaceState, now time.Time) bool {
+	taken := view.GetUnion().GetRace().GetTaken()
+	return taken.GetHasTask() && taken.GetExpireTimeMs() > 0 && now.UnixMilli() >= taken.GetExpireTimeMs()
 }
 
 func (svc *Services) buildLiveWorkspaceState(ctx context.Context, acc *store.Account, r *runner.Runner) (*pb.WorkspaceState, error) {

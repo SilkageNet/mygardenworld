@@ -44,6 +44,9 @@ func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time
 	if op == nil {
 		return nil
 	}
+	if err := automation.ValidateRaceHeldOperation(r.state, op, now); err != nil {
+		return err
+	}
 	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() || op.Kind == clientproto.RPCOrderCustomerRejectOrder.String() ||
 		(op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() && op.GoalID == automation.GoalCustomerOrder) {
 		if reason := automation.CustomerOrderRewardSkipReason(r.state.CustomerOrderDetails()[op.TargetID], r.Policy().GetOrder().GetCustomer()); reason != "" {

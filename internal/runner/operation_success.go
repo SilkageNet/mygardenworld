@@ -236,32 +236,32 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 		r.emitCustomerOrderLimitInfo(r.Policy(), result.finishedAt)
 	}
 	if op.Kind == clientproto.RPCOrderCustomerFinishOrder.String() &&
-		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRace()) {
+		automation.RaceHoldsUnfinishedCustomerOrder(r.state.FmlRaceAt(time.Now())) {
 		// Customer-order race FinishCnt advances via getTaskList, not harvest
 		// field 134. Force a pool refresh on the next tick.
 		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if op.Kind == clientproto.RPCPearlPlaceHire.String() &&
-		automation.RaceHoldsUnfinishedPearlHire(r.state.FmlRace()) {
+		automation.RaceHoldsUnfinishedPearlHire(r.state.FmlRaceAt(time.Now())) {
 		// Pearl-hire race FinishCnt advances via getTaskList. Force a pool
 		// refresh on the next tick after a successful hire.
 		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if op.Kind == clientproto.RPCFlowerArtMakeFlowerArt.String() &&
-		automation.RaceHoldsUnfinishedFlowerArtCraft(r.state.FmlRace()) {
+		automation.RaceHoldsUnfinishedFlowerArtCraft(r.state.FmlRaceAt(time.Now())) {
 		// Flower-art-craft race FinishCnt advances via getTaskList. Force a
 		// pool refresh on the next tick after a successful craft.
 		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if op.Kind == clientproto.RPCFlowerRackSell.String() &&
-		automation.RaceHoldsUnfinishedFlowerArtSell(r.state.FmlRace()) {
+		automation.RaceHoldsUnfinishedFlowerArtSell(r.state.FmlRaceAt(time.Now())) {
 		// Flower-art-sell race FinishCnt advances via getTaskList. Force a
 		// pool refresh on the next tick after a successful listing.
 		r.state.MarkFmlRaceTaskPoolStale()
 	}
 	if (op.Kind == clientproto.RPCCultivateCultivate.String() ||
 		op.Kind == clientproto.RPCCultivateRecv.String()) &&
-		automation.RaceHoldsUnfinishedFlowerCultivate(r.state.FmlRace()) {
+		automation.RaceHoldsUnfinishedFlowerCultivate(r.state.FmlRaceAt(time.Now())) {
 		// Flower-cultivate race FinishCnt also advances only via getTaskList;
 		// without this hook submission waits on the 10-minute fallback sync.
 		r.state.MarkFmlRaceTaskPoolStale()

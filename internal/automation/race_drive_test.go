@@ -542,6 +542,8 @@ func TestRaceExpiredTaskStopsProgressAndRefreshes(t *testing.T) {
 	})
 	s.MarkFmlRaceTaskPoolStale()
 	policy := racePlantPolicy(true)
+	// Expiry stops race-only actions, not independently enabled farm policy.
+	policy.Plant.Planting.AutoEnabled = false
 
 	result := BuildPlan(s, policy, now)
 	foundSync := false

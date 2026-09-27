@@ -28,7 +28,7 @@ func (r *Runner) RaceUpgradeStatus(now time.Time) string {
 		if err := r.restrictionError(); err != nil {
 			return err.Error()
 		}
-		view := r.state.FmlRace()
+		view := r.state.FmlRaceAt(now)
 		r.mu.RLock()
 		attempted := r.raceUpgradeAttempts[[2]int64{view.BatchID, view.Taken.TaskMsId}]
 		r.mu.RUnlock()

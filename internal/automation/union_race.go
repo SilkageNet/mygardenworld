@@ -79,7 +79,7 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if policy == nil || !policy.GetEnabled() {
 		return nil
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	build := s.FmlBuild()
 	if !build.MembershipObserved || build.MemberFmlID <= 0 {
 		return nil
@@ -153,6 +153,12 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 	if !view.BatchActive {
 		return nil
 	}
+	if raceExpiredHoldNeedsSync(s, now) {
+		op := domainOp(clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
+			"公会竞赛已接任务过期，重新同步任务池", 4399, 0, 0, 0)
+		op.PreemptFarm = true
+		return []PlannedOp{op}
+	}
 	// enter/getTaskList may omit personal counters. Also refresh while exhausted:
 	// a user may have purchased more slots in the game. This read must not be
 	// starved by ordinary pool refresh/deletion and must never buy slots itself.
@@ -172,19 +178,6 @@ func unionRaceOperations(s *state.State, policy *pb.UnionRacePolicy, uid int64, 
 			return []PlannedOp{op}
 		}
 	}
-	if view.Taken.HasTask && raceTakenExpired(view.Taken, now) {
-		if !view.TasksObserved || view.TaskPoolStale || view.TasksSyncedAtMs <= 0 ||
-			!now.Before(time.UnixMilli(view.TasksSyncedAtMs).Add(raceExpiredTaskSyncInterval)) {
-			op := domainOp(
-				clientproto.RPCFmlRaceGetTaskList.String(), goal, "union.race.sync", "sync",
-				"公会竞赛已接任务过期，重新同步任务池", 4399, 0, 0, 0,
-			)
-			op.PreemptFarm = true
-			return []PlannedOp{op}
-		}
-		return nil
-	}
-
 	// Finish a completed held task before pool sync. Harvest ACKs update
 	// FinishCnt via field 134; waiting for getTaskList here risks expire.
 	if policy.GetAutoEnableModules() &&
@@ -427,7 +420,7 @@ func ValidateRaceUpgrade(s *state.State, policy *pb.UnionRacePolicy, op *Planned
 	if !policy.GetEnabled() || !policy.GetUpgradeTask() {
 		return fmt.Errorf("自动升级任务未开启")
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	build := s.FmlBuild()
 	if !view.ActiveAt(now) || view.BatchID != op.RaceBatchID || !view.TasksObserved || view.TaskPoolStale || raceTaskPoolTTLStale(view, now) ||
 		!build.MembershipObserved || build.MemberFmlID <= 0 {
@@ -540,7 +533,7 @@ func RaceAutoDeleteStatus(s *state.State, policy *pb.UnionRacePolicy, now time.T
 	if policy.GetDeleteTaskMaxScore() <= 0 {
 		return "删除分数上限为 0，不删除任务"
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	if !view.Observed || !view.ActiveAt(now) {
 		return "当前不在竞赛期间"
 	}
@@ -550,6 +543,9 @@ func RaceAutoDeleteStatus(s *state.State, policy *pb.UnionRacePolicy, now time.T
 	}
 	if !state.FmlPositionAllowsRaceDelete(build.MemberPosition) {
 		return "当前职位无删除权限，仅会长／副会长可用"
+	}
+	if raceExpiredHoldNeedsSync(s, now) {
+		return "已接任务已过期，等待同步任务池后恢复调度"
 	}
 	if !view.TasksObserved || view.TaskPoolStale || raceTaskPoolRefreshDue(view, policy, now) {
 		return "等待刷新任务池"
@@ -698,7 +694,7 @@ func RaceTakeWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.Time 
 	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return time.Time{}
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	view.BatchActive = view.ActiveAt(now)
 	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
 		view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
@@ -742,7 +738,7 @@ func RaceTakeDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	if race == nil || !race.GetEnabled() || !race.GetAutoEnableModules() {
 		return false
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	view.BatchActive = view.ActiveAt(now)
 	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
 		view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
@@ -762,7 +758,7 @@ func RaceBootstrapDue(s *state.State, policy *pb.Policy, now time.Time) bool {
 	if race == nil || !race.GetEnabled() {
 		return false
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	build := s.FmlBuild()
 	if !build.MembershipObserved || build.MemberFmlID <= 0 {
 		return false
@@ -806,7 +802,7 @@ func RaceTaskPoolWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.T
 	}
 	race := policy.GetUnion().GetRace()
 	build := s.FmlBuild()
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	if !race.GetEnabled() || !race.GetAutoEnableModules() || !build.MembershipObserved || build.MemberFmlID <= 0 ||
 		!view.ActiveAt(now) || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
 		view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
@@ -973,7 +969,7 @@ func raceTakeTaskForOperation(s *state.State, policy *pb.Policy, taskMsID int64,
 	if race == nil || !race.GetEnabled() {
 		return state.FmlRaceTaskView{}, fmt.Errorf("请先开启公会竞赛")
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	view.BatchActive = view.ActiveAt(now)
 	if !view.Observed || !view.BatchActive {
 		return state.FmlRaceTaskView{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
@@ -983,6 +979,9 @@ func raceTakeTaskForOperation(s *state.State, policy *pb.Policy, taskMsID int64,
 	}
 	if view.Taken.HasTask {
 		return state.FmlRaceTaskView{}, fmt.Errorf("已有竞赛任务，请先完成或放弃当前任务")
+	}
+	if raceExpiredHoldNeedsSync(s, now) {
+		return state.FmlRaceTaskView{}, fmt.Errorf("已接任务已过期，需先同步任务池")
 	}
 	if view.TakeQuotaExhausted || raceTaskQuotaDone(s, view, race) {
 		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务接取次数已用完")
@@ -1012,7 +1011,7 @@ func ManualRaceDeleteOperation(s *state.State, policy *pb.Policy, taskMsID int64
 	if race == nil || !race.GetEnabled() {
 		return PlannedOp{}, fmt.Errorf("请先开启公会竞赛")
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	if !view.Observed || !view.ActiveAt(now) {
 		return PlannedOp{}, fmt.Errorf("当前不在有效的公会竞赛批次中")
 	}
@@ -1068,7 +1067,7 @@ func ValidateRaceTaskMutation(s *state.State, policy *pb.Policy, op *PlannedOp, 
 		return fmt.Errorf("竞赛任务缺少执行前校验信息")
 	}
 	if s != nil {
-		if current, ok := raceTaskByMsID(s.FmlRace().Tasks, op.TaskMsID); ok {
+		if current, ok := raceTaskByMsID(s.FmlRaceAt(now).Tasks, op.TaskMsID); ok {
 			op.RaceTaskGuard.Current = raceTaskMutationFacts(current)
 			if op.RaceTaskGuard.Current != op.RaceTaskGuard.Planned {
 				return fmt.Errorf("竞赛任务在规划后已变化（原分数 %d，当前 %d；原升级状态 %d，当前 %d），等待重新规划",
@@ -1106,7 +1105,7 @@ func raceDeleteTaskForOperation(s *state.State, policy *pb.Policy, taskMsID int6
 	if race == nil || !race.GetEnabled() {
 		return state.FmlRaceTaskView{}, fmt.Errorf("请先开启公会竞赛")
 	}
-	view := s.FmlRace()
+	view := s.FmlRaceAt(now)
 	if !view.Observed || !view.ActiveAt(now) || !view.TasksObserved || view.TaskPoolStale {
 		return state.FmlRaceTaskView{}, fmt.Errorf("竞赛任务池尚未同步或批次无效")
 	}

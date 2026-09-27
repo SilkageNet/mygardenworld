@@ -288,7 +288,10 @@ type PlannedOp struct {
 	// upgrade or automatic deletion. The runner refreshes the authoritative pool and
 	// revalidates this guard immediately before sending the mutating RPC.
 	RaceTaskGuard *RaceTaskMutationGuard
-	RaceBatchID   int64
+	// RaceHoldTaskMsID fences work planned under a live held task. It is
+	// rechecked after pacing; it never authorizes an operation on its own.
+	RaceHoldTaskMsID int64
+	RaceBatchID      int64
 }
 
 // RaceTaskMutationGuard is runner-only decision evidence for a guild-race

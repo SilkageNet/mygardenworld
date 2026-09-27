@@ -31,6 +31,7 @@ var fmlRaceTaskLabels = map[int32]string{
 }
 
 func fmlRaceProto(view state.FmlRaceView, s *state.State, racePolicy *pb.UnionRacePolicy, uid int64, now time.Time, gates automation.RaceModuleGates) *pb.FmlRaceView {
+	view = view.EffectiveAt(now)
 	out := &pb.FmlRaceView{
 		AutoDeleteStatus:  automation.RaceAutoDeleteStatus(s, racePolicy, now),
 		AutoUpgradeStatus: automation.RaceAutoUpgradeStatus(s, racePolicy, now),

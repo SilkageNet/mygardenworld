@@ -258,6 +258,12 @@
 // or locked vase targets are unsafe to take; a held task with such a target
 // cannot be completed by automation.
 //
+// Mini 187 FmlRaceUsrRcdCtrl/FmlRaceUsrInfoCtrl.getTaskData filters expired
+// takeTaskData by expireTime even when the server retains that record. A held
+// record in 25.110/134 is therefore not by itself an active task. Pool ownership
+// still requires a fresh getTaskList before taking another task; expiration
+// does not authorize clearing another holder's UID or deleting an occupied row.
+//
 // IFmlRaceTask fields 14/15 are isUpgrade/upgradeUid. Mini 176's race UI uses
 // field 14 for the upgrade badge and field 15 to look up the upgrading member.
 // It does not establish that an upgraded row with a zero/missing upgradeUid

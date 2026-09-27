@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -438,7 +439,8 @@ func TestFmlRaceTakenProgressFromField134OnHarvest(t *testing.T) {
 		t.Fatalf("seed FinishCnt=%d, want 48", s.FmlRace().Taken.FinishCnt)
 	}
 	// Harvest ACK shape: 25.134 batch map with takeTaskData at field 3.
-	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1785368365572},"4":1785358559363}}}}`))
+	expires := time.Now().Add(time.Hour).UnixMilli()
+	s.ApplyV(json.RawMessage(fmt.Sprintf(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":%d},"4":1785358559363}}}}`, expires)))
 	got := s.FmlRace()
 	if !got.Taken.HasTask || got.Taken.TaskMsId != 715 {
 		t.Fatalf("134 must keep Taken, got %+v", got.Taken)
@@ -449,8 +451,8 @@ func TestFmlRaceTakenProgressFromField134OnHarvest(t *testing.T) {
 	if got.Taken.ParamID != 23577 {
 		t.Fatalf("ParamID=%d, want 23577", got.Taken.ParamID)
 	}
-	if got.Taken.ExpireTime != 1785368365572 {
-		t.Fatalf("ExpireTime=%d, want 1785368365572 from takeTaskData field 5", got.Taken.ExpireTime)
+	if got.Taken.ExpireTime != expires {
+		t.Fatalf("ExpireTime=%d, want %d from takeTaskData field 5", got.Taken.ExpireTime, expires)
 	}
 	if got.LocalFinishCnt != 300 || got.LocalFinishTaskMsId != 715 {
 		t.Fatalf("LocalFinish=%d msId=%d, want 300/715", got.LocalFinishCnt, got.LocalFinishTaskMsId)
@@ -460,7 +462,7 @@ func TestFmlRaceTakenProgressFromField134OnHarvest(t *testing.T) {
 func TestFmlRaceFullPoolClampsLocalFinishWhenServerStillShort(t *testing.T) {
 	s := New()
 	s.ApplyV(json.RawMessage(`{"7":{"0":{"0":999}},"25":{"111":{"0":1785081600000,"1":1,"2":1000,"3":9000},"110":{"1785081600000":{"7":{"0":715,"1":4013,"2":300,"3":48,"4":[23577]}}},"114":[{"0":715,"4":4013,"6":[23577],"7":300,"8":48,"10":28,"12":0}]}}`))
-	s.ApplyV(json.RawMessage(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":1},"4":1}}}}`))
+	s.ApplyV(json.RawMessage(fmt.Sprintf(`{"25":{"134":{"1785081600000":{"3":{"0":715,"1":4013,"2":300,"3":300,"4":[23577],"5":%d},"4":1}}}}`, time.Now().Add(time.Hour).UnixMilli())))
 	if got := s.FmlRace(); got.LocalFinishCnt < 300 || got.Taken.FinishCnt != 300 {
 		t.Fatalf("seed after 134 local=%d finish=%d", got.LocalFinishCnt, got.Taken.FinishCnt)
 	}
