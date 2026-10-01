@@ -1076,8 +1076,11 @@ type RunnerDiagnostics struct {
 	UnknownRpcCount           int32                  `protobuf:"varint,10,opt,name=unknown_rpc_count,json=unknownRpcCount,proto3" json:"unknown_rpc_count,omitempty"`
 	UnknownNamespaceCount     int32                  `protobuf:"varint,11,opt,name=unknown_namespace_count,json=unknownNamespaceCount,proto3" json:"unknown_namespace_count,omitempty"`
 	ObservedNamespaces        []string               `protobuf:"bytes,12,rep,name=observed_namespaces,json=observedNamespaces,proto3" json:"observed_namespaces,omitempty"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
+	// Remains true after the deadline until read-only recovery probes succeed.
+	RequestsPaused   bool  `protobuf:"varint,13,opt,name=requests_paused,json=requestsPaused,proto3" json:"requests_paused,omitempty"`
+	RequestRetryAtMs int64 `protobuf:"varint,14,opt,name=request_retry_at_ms,json=requestRetryAtMs,proto3" json:"request_retry_at_ms,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RunnerDiagnostics) Reset() {
@@ -1192,6 +1195,20 @@ func (x *RunnerDiagnostics) GetObservedNamespaces() []string {
 		return x.ObservedNamespaces
 	}
 	return nil
+}
+
+func (x *RunnerDiagnostics) GetRequestsPaused() bool {
+	if x != nil {
+		return x.RequestsPaused
+	}
+	return false
+}
+
+func (x *RunnerDiagnostics) GetRequestRetryAtMs() int64 {
+	if x != nil {
+		return x.RequestRetryAtMs
+	}
+	return 0
 }
 
 type PendingTaskView struct {
@@ -2888,7 +2905,7 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\await_ms\x18\n" +
 	" \x01(\x03R\x06waitMs\x12\x17\n" +
 	"\awork_ms\x18\v \x01(\x03R\x06workMs\x12\x18\n" +
-	"\astalled\x18\f \x01(\bR\astalled\"\xd3\x05\n" +
+	"\astalled\x18\f \x01(\bR\astalled\"\xab\x06\n" +
 	"\x11RunnerDiagnostics\x12+\n" +
 	"\x11current_operation\x18\x01 \x01(\tR\x10currentOperation\x12[\n" +
 	"\x1ccurrent_operation_started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x19currentOperationStartedAt\x12%\n" +
@@ -2902,7 +2919,9 @@ const file_mygardenworld_v1_workspace_common_proto_rawDesc = "" +
 	"\x11unknown_rpc_count\x18\n" +
 	" \x01(\x05R\x0funknownRpcCount\x126\n" +
 	"\x17unknown_namespace_count\x18\v \x01(\x05R\x15unknownNamespaceCount\x12/\n" +
-	"\x13observed_namespaces\x18\f \x03(\tR\x12observedNamespaces\"\xea\x04\n" +
+	"\x13observed_namespaces\x18\f \x03(\tR\x12observedNamespaces\x12'\n" +
+	"\x0frequests_paused\x18\r \x01(\bR\x0erequestsPaused\x12-\n" +
+	"\x13request_retry_at_ms\x18\x0e \x01(\x03R\x10requestRetryAtMs\"\xea\x04\n" +
 	"\x0fPendingTaskView\x12\x1a\n" +
 	"\bcategory\x18\x01 \x01(\tR\bcategory\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x14\n" +

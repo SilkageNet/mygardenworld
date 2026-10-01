@@ -14,6 +14,8 @@ type Diagnostics struct {
 	LastOperationErrorAt      time.Time
 	NextDecisionAt            time.Time
 	SessionInvalidatedReason  string
+	RequestsPaused            bool
+	RequestRetryAtMS          int64
 	BlockedReasons            []string
 	UnknownRPCCount           int32
 	UnknownNamespaceCount     int32
@@ -57,9 +59,11 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	out.UnknownNamespaceCount = r.state.UnknownNamespaceCount()
 	out.ObservedNamespaces = r.state.ObservedNamespaces()
 	out.OperationCooldowns = r.operationCooldownSnapshots(now)
-	if err := r.restrictionError(); err != nil {
+	s, _ := r.accountSafetySnapshot()
+	if err := accountRestrictionError(s); err != nil {
 		out.BlockedReasons = append(out.BlockedReasons, err.Error())
-		s, _ := r.accountSafetySnapshot()
+		out.RequestsPaused = true
+		out.RequestRetryAtMS = s.RestrictedUntilMS
 		out.OperationCooldowns = append(out.OperationCooldowns, OperationCooldownSnapshot{
 			OperationID: "account.request", Category: "account", Domain: "account.request",
 			Reason: err.Error(), Until: time.UnixMilli(s.RestrictedUntilMS), FailureCount: int32(s.RestrictionAttempts),

@@ -328,9 +328,11 @@ func buildPearlHireStatusView(st *state.State, policy *pb.PearlPolicy, now time.
 	}
 	hire := st.PearlHireAt(now)
 	out := &pb.PearlHireStatusView{
-		TicketCount:      hire.TicketCount,
-		TicketUsedToday:  hire.TicketUsedToday,
-		DailyTicketLimit: policy.GetDailyHireTicketLimit(),
+		TicketCount:       hire.TicketCount,
+		TicketUsedToday:   hire.TicketUsedToday,
+		DailyTicketLimit:  policy.GetDailyHireTicketLimit(),
+		SessionLocked:     hire.SessionLocked,
+		SessionLockReason: hire.SessionLockReason,
 	}
 	ids := make([]int32, 0, len(hire.Places))
 	for id := range hire.Places {
@@ -671,6 +673,8 @@ func runnerDiagnosticsProto(d runner.Diagnostics) *pb.RunnerDiagnostics {
 		LastOperationErrorAt:      timestampOrNil(d.LastOperationErrorAt),
 		NextDecisionAt:            timestampOrNil(d.NextDecisionAt),
 		SessionInvalidatedReason:  d.SessionInvalidatedReason,
+		RequestsPaused:            d.RequestsPaused,
+		RequestRetryAtMs:          d.RequestRetryAtMS,
 		BlockedReasons:            append([]string(nil), d.BlockedReasons...),
 		UnknownRpcCount:           d.UnknownRPCCount,
 		UnknownNamespaceCount:     d.UnknownNamespaceCount,

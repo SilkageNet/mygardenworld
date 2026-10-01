@@ -133,9 +133,13 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 		hire: func(ctx context.Context, request clientproto.PearlPlaceHireRequest) (json.RawMessage, error) {
 			return checkedStateDelta(rt.rpc.PearlPlace().Hire(ctx, request, babigame.WithPayloadApply(false)))
 		},
-		apply:         rt.runner.state.ApplyV,
-		outcome:       rt.runner.state.PearlHireAttemptApplied,
-		ticketSpent:   rt.runner.state.PearlHireTicketDecreased,
+		apply:       rt.runner.state.ApplyV,
+		outcome:     rt.runner.state.PearlHireAttemptApplied,
+		ticketSpent: rt.runner.state.PearlHireTicketDecreased,
+		rejectionUnchanged: func(before state.PearlHireAttemptSnapshot) bool {
+			after, ok := rt.runner.state.PearlHireAttemptSnapshot(before.PlaceID, before.TargetUID, time.Now())
+			return ok && after.TicketCount == before.TicketCount && after.PreviousPlaceUTimeMs == before.PreviousPlaceUTimeMs
+		},
 		markFailed:    rt.runner.state.MarkPearlHireFailed,
 		skipCandidate: rt.runner.state.SkipPearlHireCandidate,
 		noteUsed:      rt.runner.notePearlHireTicketUsed,
@@ -177,6 +181,26 @@ type pearlHireNotSentError struct{ err error }
 func (e *pearlHireNotSentError) Error() string { return "珍珠雇佣未发送: " + e.err.Error() }
 func (e *pearlHireNotSentError) Unwrap() error { return e.err }
 
+// Only the observed, typed rejection is candidate-scoped. Unknown errors,
+// contradictory payloads and transport failures remain ambiguous paid writes.
+type pearlHireCandidateTakenError struct{ cause error }
+
+func (e *pearlHireCandidateTakenError) Error() string {
+	return "候选已被其他人雇佣，冷却该候选 60 秒并继续筛选其他人"
+}
+func (e *pearlHireCandidateTakenError) Unwrap() error { return e.cause }
+
+func pearlHireCandidateTaken(err error) bool {
+	var serverErr *babigame.RPCServerError
+	if !errors.As(err, &serverErr) || serverErr == nil || serverErr.Name != clientproto.RPCPearlPlaceHire || babigame.HasPayload(serverErr.Envelope.V) {
+		return false
+	}
+	var message struct {
+		Code string `json:"code"`
+	}
+	return json.Unmarshal(serverErr.Envelope.M, &message) == nil && message.Code == "pearl_tips4"
+}
+
 func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest, exec pearlHireExecution) (json.RawMessage, error) {
 	if exec.preflight == nil || exec.hire == nil || exec.outcome == nil || exec.markFailed == nil || exec.skipCandidate == nil || exec.lockSession == nil {
 		return nil, fmt.Errorf("pearl hire execution is incomplete")
@@ -200,6 +224,10 @@ func executePearlHire(ctx context.Context, req clientproto.PearlPlaceHireRequest
 		var notSent *pearlHireNotSentError
 		if errors.As(err, &notSent) {
 			return nil, err
+		}
+		if pearlHireCandidateTaken(err) && !babigame.HasPayload(raw) && exec.rejectionUnchanged != nil && exec.rejectionUnchanged(snapshot) {
+			exec.markFailed(snapshot.TargetUID, clock())
+			return nil, &pearlHireCandidateTakenError{cause: err}
 		}
 		exec.lockSession("珍珠雇佣请求结果不明确，当前会话已锁定以避免重复扣券")
 		exec.markFailed(snapshot.TargetUID, clock())

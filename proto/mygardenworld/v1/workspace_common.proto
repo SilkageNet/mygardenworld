@@ -163,6 +163,9 @@ message RunnerDiagnostics {
   int32 unknown_rpc_count = 10;
   int32 unknown_namespace_count = 11;
   repeated string observed_namespaces = 12;
+  // Remains true after the deadline until read-only recovery probes succeed.
+  bool requests_paused = 13;
+  int64 request_retry_at_ms = 14;
 }
 
 message PendingTaskView {
