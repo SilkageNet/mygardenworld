@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
 )
@@ -60,6 +61,35 @@ func TestPearlHireRequestBuildersAreExact(t *testing.T) {
 	}
 }
 
+func TestTakenPearlCandidateDoesNotBlockOtherCandidates(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.bus = NewBus()
+	events, cancel := r.bus.SubscribeLive(2)
+	defer cancel()
+	op := validPearlHireOperation()
+	now := time.Now()
+	r.setSideOperationCooldown(op, now, errors.New("previous error"), "", time.Minute)
+	err := r.handleOperationError(t.Context(), operationResult{
+		operationAttempt: operationAttempt{op: op},
+		err:              &pearlHireCandidateTakenError{cause: errors.New("candidate rejected")},
+		finishedAt:       now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, cooling := r.operationCoolingDown(op, now); cooling {
+		t.Fatal("candidate rejection blocked the entire hire operation")
+	}
+	select {
+	case e := <-events:
+		if e.Kind != "operation_deferred" || !strings.Contains(e.Message, "继续筛选其他人") {
+			t.Fatalf("unexpected event: %+v", e)
+		}
+	default:
+		t.Fatal("candidate rejection was not explained")
+	}
+}
+
 func TestPearlHireGoldFallbackStrictField(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -90,6 +120,9 @@ func TestPearlHireGoldFallbackStrictField(t *testing.T) {
 func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 	base := time.UnixMilli(1_700_000_000_000)
 	snapshot := state.PearlHireAttemptSnapshot{At: base, PlaceID: 1, TargetUID: 2001, TicketCount: 3}
+	serverError := func(name clientproto.RPCName, message, payload string) error {
+		return fmt.Errorf("wrapped: %w", &babigame.RPCServerError{Name: name, Envelope: babigame.WSResponseD{M: json.RawMessage(message), V: json.RawMessage(payload)}})
+	}
 	tests := []struct {
 		name         string
 		raw          string
@@ -114,6 +147,13 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 		{name: "postcondition unknown", raw: `{"115":{}}`, wantErr: "postcondition", wantFailed: true, wantLocked: true},
 		{name: "transport unknown", hireErr: errors.New("timeout"), wantErr: "timeout", wantFailed: true, wantLocked: true},
 		{name: "local veto", hireErr: &pearlHireNotSentError{err: errors.New("policy changed")}, wantErr: "policy changed"},
+		{name: "candidate already taken", hireErr: serverError(clientproto.RPCPearlPlaceHire, `{"code":"pearl_tips4","msg":"对方已被其他人雇佣","param":[4]}`, ""), wantErr: "冷却该候选", wantFailed: true},
+		{name: "taken with unexpected delta", hireErr: serverError(clientproto.RPCPearlPlaceHire, `{"code":"pearl_tips4"}`, `{"115":{}}`), wantErr: "pearl_tips4", wantFailed: true, wantLocked: true},
+		{name: "taken with ticket change", hireErr: serverError(clientproto.RPCPearlPlaceHire, `{"code":"pearl_tips4"}`, ""), ticketSpent: true, wantErr: "pearl_tips4", wantFailed: true, wantLocked: true},
+		{name: "wrong rpc", hireErr: serverError(clientproto.RPCUsrLazySync, `{"code":"pearl_tips4"}`, ""), wantErr: "pearl_tips4", wantFailed: true, wantLocked: true},
+		{name: "message alone not evidence", hireErr: errors.New("pearl_tips4 对方已被其他人雇佣"), wantErr: "pearl_tips4", wantFailed: true, wantLocked: true},
+		{name: "unknown business error", hireErr: serverError(clientproto.RPCPearlPlaceHire, `{"code":"pearl_tips99"}`, ""), wantErr: "pearl_tips99", wantFailed: true, wantLocked: true},
+		{name: "server protection", hireErr: serverError(clientproto.RPCPearlPlaceHire, `{"code":97778}`, ""), wantErr: "97778", wantFailed: true, wantLocked: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -127,12 +167,13 @@ func TestExecutePearlHireOutcomesAndLocks(t *testing.T) {
 				outcome: func(state.PearlHireAttemptSnapshot) (bool, int32, bool) {
 					return tc.success, tc.failCount, tc.known
 				},
-				ticketSpent:   func(state.PearlHireAttemptSnapshot) bool { return tc.ticketSpent },
-				markFailed:    func(uid int64, _ time.Time) { failed = uid == 2001 },
-				skipCandidate: func(uid int64) { skipped = uid == 2001 },
-				noteUsed:      func(context.Context, time.Time) { noted = true },
-				lockSession:   func(string) { locked = true },
-				now:           func() time.Time { return base },
+				ticketSpent:        func(state.PearlHireAttemptSnapshot) bool { return tc.ticketSpent },
+				rejectionUnchanged: func(state.PearlHireAttemptSnapshot) bool { return !tc.ticketSpent },
+				markFailed:         func(uid int64, _ time.Time) { failed = uid == 2001 },
+				skipCandidate:      func(uid int64) { skipped = uid == 2001 },
+				noteUsed:           func(context.Context, time.Time) { noted = true },
+				lockSession:        func(string) { locked = true },
+				now:                func() time.Time { return base },
 			}
 			raw, err := executePearlHire(context.Background(), clientproto.PearlPlaceHireRequest{PlaceId: 1, DstUid: 2001}, exec)
 			if tc.wantErr == "" && err != nil {

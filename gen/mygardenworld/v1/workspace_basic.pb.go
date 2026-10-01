@@ -330,8 +330,11 @@ type PearlHireStatusView struct {
 	TicketUsedToday  int32                  `protobuf:"varint,2,opt,name=ticket_used_today,json=ticketUsedToday,proto3" json:"ticket_used_today,omitempty"`
 	DailyTicketLimit int32                  `protobuf:"varint,3,opt,name=daily_ticket_limit,json=dailyTicketLimit,proto3" json:"daily_ticket_limit,omitempty"`
 	Slots            []*PearlLaborSlotView  `protobuf:"bytes,4,rep,name=slots,proto3" json:"slots,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Applies only to automatic hiring, not other account operations.
+	SessionLocked     bool   `protobuf:"varint,5,opt,name=session_locked,json=sessionLocked,proto3" json:"session_locked,omitempty"`
+	SessionLockReason string `protobuf:"bytes,6,opt,name=session_lock_reason,json=sessionLockReason,proto3" json:"session_lock_reason,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PearlHireStatusView) Reset() {
@@ -390,6 +393,20 @@ func (x *PearlHireStatusView) GetSlots() []*PearlLaborSlotView {
 		return x.Slots
 	}
 	return nil
+}
+
+func (x *PearlHireStatusView) GetSessionLocked() bool {
+	if x != nil {
+		return x.SessionLocked
+	}
+	return false
+}
+
+func (x *PearlHireStatusView) GetSessionLockReason() string {
+	if x != nil {
+		return x.SessionLockReason
+	}
+	return ""
 }
 
 type PearlLaborSlotView struct {
@@ -514,12 +531,14 @@ const file_mygardenworld_v1_workspace_basic_proto_rawDesc = "" +
 	"\rpending_tasks\x18\x1f \x03(\v2!.mygardenworld.v1.PendingTaskViewR\fpendingTasks\x12D\n" +
 	"\n" +
 	"pearl_hire\x18  \x01(\v2%.mygardenworld.v1.PearlHireStatusViewR\tpearlHire\x12L\n" +
-	"\rvideo_actions\x18! \x03(\v2'.mygardenworld.v1.VideoActionStatusViewR\fvideoActions\"\xce\x01\n" +
+	"\rvideo_actions\x18! \x03(\v2'.mygardenworld.v1.VideoActionStatusViewR\fvideoActions\"\xa5\x02\n" +
 	"\x13PearlHireStatusView\x12!\n" +
 	"\fticket_count\x18\x01 \x01(\x05R\vticketCount\x12*\n" +
 	"\x11ticket_used_today\x18\x02 \x01(\x05R\x0fticketUsedToday\x12,\n" +
 	"\x12daily_ticket_limit\x18\x03 \x01(\x05R\x10dailyTicketLimit\x12:\n" +
-	"\x05slots\x18\x04 \x03(\v2$.mygardenworld.v1.PearlLaborSlotViewR\x05slots\"\xae\x01\n" +
+	"\x05slots\x18\x04 \x03(\v2$.mygardenworld.v1.PearlLaborSlotViewR\x05slots\x12%\n" +
+	"\x0esession_locked\x18\x05 \x01(\bR\rsessionLocked\x12.\n" +
+	"\x13session_lock_reason\x18\x06 \x01(\tR\x11sessionLockReason\"\xae\x01\n" +
 	"\x12PearlLaborSlotView\x12\x19\n" +
 	"\bplace_id\x18\x01 \x01(\x05R\aplaceId\x12\x1b\n" +
 	"\tlabor_uid\x18\x02 \x01(\x03R\blaborUid\x12\x1d\n" +

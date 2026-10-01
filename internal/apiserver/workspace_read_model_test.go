@@ -82,6 +82,22 @@ func TestBuildPearlHireStatusViewExposesDailyUsageAndSlots(t *testing.T) {
 	if got.GetSlots()[1].GetPlaceId() != 2 || got.GetSlots()[1].GetActive() || got.GetSlots()[1].GetLaborUid() != 0 {
 		t.Fatalf("empty pearl slot=%+v", got.GetSlots()[1])
 	}
+	st.LockPearlHireSession("请求结果不明确")
+	got = buildPearlHireStatusView(st, &pb.PearlPolicy{}, now)
+	if !got.GetSessionLocked() || got.GetSessionLockReason() != "请求结果不明确" {
+		t.Fatalf("missing scoped hire protection: %+v", got)
+	}
+	st.ResetPearlHireSession()
+	if buildPearlHireStatusView(st, &pb.PearlPolicy{}, now).GetSessionLocked() {
+		t.Fatal("new session retained old hire protection")
+	}
+}
+
+func TestRunnerDiagnosticsProtoPreservesRequestProtection(t *testing.T) {
+	got := runnerDiagnosticsProto(runner.Diagnostics{RequestsPaused: true, RequestRetryAtMS: 1234})
+	if !got.GetRequestsPaused() || got.GetRequestRetryAtMs() != 1234 {
+		t.Fatalf("protection lost in workspace view: %+v", got)
+	}
 }
 
 func TestVideoActionReadModelsKeepDomainOwnershipAndState(t *testing.T) {

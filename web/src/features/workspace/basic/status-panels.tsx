@@ -97,9 +97,16 @@ export function PearlHirePanel({ pearlHire }: { pearlHire?: PearlHireStatusView 
         <>
           <Badge variant="outline">雇佣券 {formatCount(ticketCount)}</Badge>
           <Badge variant="secondary">今日 {usageLabel}</Badge>
+          {pearlHire?.sessionLocked && <Badge variant="destructive">雇佣已保护暂停</Badge>}
         </>
       )}
     >
+      {pearlHire?.sessionLocked && (
+        <div role="status" className="mb-3 rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p>{pearlHire.sessionLockReason}</p>
+          <p className="mt-1 text-xs">仅暂停自动雇佣，不影响其他任务。请先核对游戏内雇佣券和槽位；不要反复重登录重试扣券。</p>
+        </div>
+      )}
       {slots.length === 0 ? (
         <EmptyState title="暂无劳工槽位快照" detail="登录并完成珍珠状态同步后显示" />
       ) : (

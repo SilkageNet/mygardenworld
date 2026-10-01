@@ -104,6 +104,8 @@ export function accountIsAbnormal(status?: AccountStatus) {
 export function HealthBadge({ account, status }: { account: Account; status?: AccountStatus; }) {
   const connected = accountConnected(account, status);
   if (account.deletionPending || status?.deletionPending) return <Badge variant="outline">{(status?.deletionFailed ?? account.deletionFailed) ? "清理待重试" : "删除中"}</Badge>;
+  if (status?.diagnostics?.sessionInvalidatedReason || status?.health === AccountHealth.SESSION_EXPIRED) return <Badge variant="destructive">会话失效</Badge>;
+  if (status?.diagnostics?.requestsPaused) return <Badge variant="destructive">请求保护中</Badge>;
   if (accountIsAbnormal(status)) return <Badge variant="destructive">异常</Badge>;
   if (!connected) return <Badge variant="outline">离线</Badge>;
   return <Badge variant="secondary">在线</Badge>;
@@ -112,6 +114,10 @@ export function HealthBadge({ account, status }: { account: Account; status?: Ac
 export function accountStatusIssues(status?: AccountStatus) {
   const diagnostics = status?.diagnostics;
   const issues = [
+    diagnostics?.requestsPaused
+      ? `账号全部游戏请求暂停；${diagnostics.requestRetryAtMs > BigInt(0) ? `${formatUnixTime(diagnostics.requestRetryAtMs)} 后尝试核验，` : ""}核验成功才恢复，并非到时立即执行。`
+      : undefined,
+    diagnostics?.sessionInvalidatedReason ? "会话已失效，游戏任务停止；仅明确被挤下线且已开启自动挤号时自动重登，否则需手动登录。" : undefined,
     status?.lastError,
     diagnostics?.lastOperationError,
     diagnostics?.sessionInvalidatedReason,

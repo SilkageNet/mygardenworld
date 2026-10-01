@@ -182,6 +182,15 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
+	var taken *pearlHireCandidateTakenError
+	if op.Kind == clientproto.RPCPearlPlaceHire.String() && errors.As(err, &taken) {
+		r.clearOperationCooldown(op)
+		r.emit(Event{Kind: "operation_deferred", Category: op.Category, Domain: op.Domain,
+			Action: "blocked", Label: operationEventLabel(op), Level: "info",
+			Message: taken.Error(), PayloadJSON: operationPayload(op, args, nil, err)})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": taken.Error(), "stage": "candidate_taken"})
+		return nil
+	}
 	if isFriendStealElvesUnavailableError(op, err) {
 		r.state.MarkFriendStealElvesLandUnavailable(op.TargetUID, op.TargetID)
 		r.state.ClearFriendElvesSkipEnter(op.TargetUID)

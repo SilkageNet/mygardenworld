@@ -48,6 +48,9 @@ message PearlHireStatusView {
   int32 ticket_used_today = 2;
   int32 daily_ticket_limit = 3;
   repeated PearlLaborSlotView slots = 4;
+  // Applies only to automatic hiring, not other account operations.
+  bool session_locked = 5;
+  string session_lock_reason = 6;
 }
 
 message PearlLaborSlotView {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/state"
+	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 func TestDiagnosticsTracksOperationLifecycleAndBlocks(t *testing.T) {
@@ -40,5 +41,19 @@ func TestDiagnosticsTracksOperationLifecycleAndBlocks(t *testing.T) {
 	diag = r.Diagnostics(now)
 	if diag.LastOperationError != "" || !diag.LastOperationErrorAt.IsZero() {
 		t.Fatalf("success should clear LastOperationError, got error=%q at=%v", diag.LastOperationError, diag.LastOperationErrorAt)
+	}
+}
+
+func TestDiagnosticsProtectionSurvivesDeadlineUntilVerified(t *testing.T) {
+	now := time.Now()
+	r := &Runner{state: state.New()}
+	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictedUntilMS: now.Add(-time.Minute).UnixMilli()}
+	d := r.Diagnostics(now)
+	if !d.RequestsPaused || d.RequestRetryAtMS != r.safety.RestrictedUntilMS {
+		t.Fatalf("expired cooldown is not successful recovery: %+v", d)
+	}
+	r.safety = store.AccountRequestSafety{}
+	if r.Diagnostics(now).RequestsPaused {
+		t.Fatal("cleared protection still shown")
 	}
 }
