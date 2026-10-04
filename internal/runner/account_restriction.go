@@ -91,18 +91,21 @@ type serverFailure struct {
 	at  time.Time
 }
 
-// 5000 has no confirmed protocol meaning. Only a burst across different RPCs
-// opens account-wide protection: a single domain failure stays local. These
-// are client-side circuit-breaker thresholds, not server rate-limit claims.
+// Client c_msgCode groups 5000 with temporary role-data restrictions (97778),
+// but does not identify the trigger or a safe request rate. Only a burst across
+// different RPCs opens account-wide protection; a single domain failure stays
+// local. These are client-side thresholds, not server rate-limit claims.
 const serverFailureWindow = time.Minute
 const serverFailureThreshold = 3
 
 func (r *Runner) observeGameRPCAt(name string, d babigame.WSResponseD, now time.Time) {
 	code := d.ErrorCode()
+	r.safetyMu.Lock()
+	r.rpcObservations.record(name, code, d.IsError(), now)
 	if code != 5000 && code != 97777 && code != 97778 {
+		r.safetyMu.Unlock()
 		return
 	}
-	r.safetyMu.Lock()
 	if code == 5000 && r.safety.RestrictionCode == 0 {
 		kept := r.serverFailures[:0]
 		for _, failure := range r.serverFailures {
@@ -147,6 +150,7 @@ func (r *Runner) recordAccountRestrictionLocked(name string, d babigame.WSRespon
 		failureRPCs = append(failureRPCs, failure.rpc)
 	}
 	err := r.persistRestrictionLocked(next)
+	responses := r.rpcObservations.snapshot(now)
 	r.safetyMu.Unlock()
 	if !changed && err == nil {
 		return
@@ -154,7 +158,8 @@ func (r *Runner) recordAccountRestrictionLocked(name string, d babigame.WSRespon
 	payload, _ := json.Marshal(map[string]any{
 		"rpc": name, "server_code": next.RestrictionCode,
 		"restricted_until_ms": next.RestrictedUntilMS, "attempt": next.RestrictionAttempts,
-		"recent_failure_rpcs": failureRPCs,
+		"recent_failure_rpcs":  failureRPCs,
+		"recent_rpc_responses": responses,
 	})
 	message := fmt.Sprintf("%s 返回 %d，暂停该账号全部游戏请求；%s 后验证恢复。错误码不能单独证明封禁、挤号或安全频率阈值",
 		name, d.ErrorCode(), time.UnixMilli(next.RestrictedUntilMS).Local().Format("01/02 15:04:05"))
@@ -260,9 +265,10 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	}
 	r.safety = next
 	r.serverFailures = nil
+	r.pacer.startRecovery(time.Now())
 	r.safetyMu.Unlock()
 	r.emit(Event{Kind: "account_request_resumed", Category: "account", Domain: "account.request", Action: "resumed",
-		Label: "账号请求保护", Message: "冷却后状态验证成功，恢复账号游戏请求", Level: "info"})
+		Label: "账号请求保护", Message: "冷却后状态验证成功，恢复账号游戏请求；前 5 分钟降速运行（普通请求至少间隔 5 秒、重复接口 30 秒、购买/雇佣 60 秒；更慢的原设置继续生效）", Level: "info"})
 	return nil
 }
 

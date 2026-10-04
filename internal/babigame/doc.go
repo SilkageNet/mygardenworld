@@ -282,7 +282,10 @@
 // automatically retried within the same runner session.
 //
 // Error 5000 has been observed across harvest, orders, pearl rewards and
-// health-score reads in user logs, but its server-side meaning is unconfirmed.
+// health-score reads. The bundled client c_msgCode maps 5000 to dialog type
+// 97778; both texts describe unavailable role data, possibly related to
+// third-party tools, and ask the player to retry later. This is evidence of a
+// temporary restriction, not proof of its trigger, a ban or a safe request rate.
 // Repeated cross-RPC failures are handled by runner account request protection;
 // the protocol layer must not classify 5000 alone as displacement or expiry.
 //

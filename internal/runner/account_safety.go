@@ -12,11 +12,12 @@ import (
 )
 
 type accountSafetyState struct {
-	safetyMu       sync.Mutex
-	safety         store.AccountRequestSafety
-	safetyLoaded   bool
-	safetyRevision uint64
-	serverFailures []serverFailure
+	safetyMu        sync.Mutex
+	safety          store.AccountRequestSafety
+	safetyLoaded    bool
+	safetyRevision  uint64
+	serverFailures  []serverFailure
+	rpcObservations rpcObservationWindow
 }
 
 func (r *Runner) loadAccountSafety(ctx context.Context) error {
