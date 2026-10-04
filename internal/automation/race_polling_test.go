@@ -15,8 +15,9 @@ func TestRaceIdlePollingIsBoundedAndDoesNotAccelerateHeldTasks(t *testing.T) {
 		held, off, exhausted bool
 		want                 bool
 	}{
-		{name: "idle before deadline", age: 9 * time.Second},
-		{name: "idle at deadline", age: 10 * time.Second, want: true},
+		{name: "idle no accelerated polling", age: 10 * time.Second},
+		{name: "idle before deadline", age: 29 * time.Second},
+		{name: "idle at deadline", age: 30 * time.Second, want: true},
 		{name: "held retains 30s", age: 20 * time.Second, held: true},
 		{name: "maintenance before deadline", age: 299 * time.Second, off: true},
 		{name: "maintenance at deadline", age: 300 * time.Second, off: true, want: true},

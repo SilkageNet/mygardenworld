@@ -6,11 +6,15 @@ import (
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/automation"
+	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
 const (
 	sideOperationBaseCooldown = 60 * time.Second
 	sideOperationMaxCooldown  = 10 * time.Minute
+	// Keep failed attempts past their deadline so a scheduler/UI read cannot
+	// reset exponential backoff. Success clears history; idle history expires.
+	operationFailureRetention = 10 * time.Minute
 )
 
 type operationCooldown struct {
@@ -39,7 +43,9 @@ func (r *Runner) operationCoolingDown(op *automation.PlannedOp, now time.Time) (
 		return operationCooldown{}, false
 	}
 	if !cd.Until.After(now) {
-		delete(r.operationCooldowns, key)
+		if !now.Before(cd.Until.Add(operationFailureRetention)) {
+			delete(r.operationCooldowns, key)
+		}
 		return operationCooldown{}, false
 	}
 	return cd, true
@@ -62,10 +68,16 @@ func (r *Runner) setSideOperationCooldown(op *automation.PlannedOp, now time.Tim
 		r.operationCooldowns = make(map[string]operationCooldown)
 	}
 	prev := r.operationCooldowns[key]
-	failures := prev.FailureCount + 1
+	if !now.Before(prev.Until.Add(operationFailureRetention)) {
+		prev = operationCooldown{}
+	}
+	failures := min(prev.FailureCount+1, 32)
 	duration := explicit
 	if duration <= 0 {
 		duration = exponentialCooldown(failures)
+		if isRaceSyncOperation(op) {
+			duration = min(duration/2, 5*time.Minute)
+		}
 	}
 	cd := operationCooldown{
 		OperationID:  key,
@@ -110,7 +122,9 @@ func (r *Runner) operationCooldownSnapshots(now time.Time) []OperationCooldownSn
 	out := make([]OperationCooldownSnapshot, 0, len(r.operationCooldowns))
 	for key, cd := range r.operationCooldowns {
 		if !cd.Until.After(now) {
-			delete(r.operationCooldowns, key)
+			if !now.Before(cd.Until.Add(operationFailureRetention)) {
+				delete(r.operationCooldowns, key)
+			}
 			continue
 		}
 		out = append(out, OperationCooldownSnapshot(cd))
@@ -128,6 +142,11 @@ func operationCooldownKey(op *automation.PlannedOp) string {
 	if op == nil {
 		return ""
 	}
+	// Full-list/enter failures belong to the RPC, not a particular planner
+	// reason. Push invalidation and bootstrap plans must share this backoff.
+	if isRaceSyncOperation(op) {
+		return "rpc:" + op.Kind
+	}
 	if key := strings.TrimSpace(op.CooldownKey); key != "" {
 		return key
 	}
@@ -136,6 +155,10 @@ func operationCooldownKey(op *automation.PlannedOp) string {
 	}
 	parts := []string{op.Kind, op.Domain, op.Action}
 	return strings.Join(parts, "|")
+}
+
+func isRaceSyncOperation(op *automation.PlannedOp) bool {
+	return op.Kind == clientproto.RPCFmlRaceGetTaskList.String() || op.Kind == clientproto.RPCFmlRaceEnter.String()
 }
 
 func exponentialCooldown(failures int32) time.Duration {

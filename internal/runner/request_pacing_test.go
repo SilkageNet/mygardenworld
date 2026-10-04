@@ -97,3 +97,71 @@ func TestRequestPacingValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoveryPacingAppliesToAllScopesAndExpires(t *testing.T) {
+	now := time.Now()
+	for _, tc := range []struct {
+		name string
+		want time.Duration
+	}{
+		{"usrLand.harvest", 30 * time.Second},
+		{"fmlRace.getTaskList", 30 * time.Second},
+		{"shopCultivate.buy", time.Minute},
+		{"pearlPlace.hire", time.Minute},
+		{"usr.heartTick", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newRequestPacer(RequestPacing{})
+			scope, _ := p.scope(tc.name)
+			p.lastRequest, p.lastScope[scope] = now, now
+			p.startRecovery(now)
+			if got := p.delay(tc.name, now); got != tc.want {
+				t.Fatalf("got %s want %s", got, tc.want)
+			}
+			if got := p.delay("usr.lazySync", now); got != 5*time.Second {
+				t.Fatalf("global spacing %s", got)
+			}
+			end := now.Add(recoveryPacingDuration)
+			p.lastRequest, p.lastScope[scope] = end, end
+			if got := p.delay(tc.name, end); got != newPacingDelay(tc.name, end) {
+				t.Fatalf("recovery did not expire: %s", got)
+			}
+		})
+	}
+	p := newRequestPacer(RequestPacing{RequestInterval: 10 * time.Second, RepeatInterval: time.Minute, PurchaseInterval: 2 * time.Minute})
+	p.startRecovery(now)
+	p.lastRequest, p.lastScope["pearlPlace.purchase"] = now, now
+	if got := p.delay("pearlPlace.hire", now); got != 2*time.Minute {
+		t.Fatal("operator pacing weakened", got)
+	}
+	if p.config.RequestInterval != 10*time.Second {
+		t.Fatal("operator config mutated")
+	}
+}
+
+func newPacingDelay(name string, now time.Time) time.Duration {
+	p := newRequestPacer(RequestPacing{})
+	scope, _ := p.scope(name)
+	p.lastRequest, p.lastScope[scope] = now, now
+	return p.delay(name, now)
+}
+
+func TestRecoveryPacingOnlyStartsAfterVerifiedClear(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.pacer = newRequestPacer(RequestPacing{})
+	r.safety.RestrictionCode = 5000
+	r.safetyRevision = 2
+	if err := r.clearAccountRestriction(1); err == nil || !r.pacer.recoveryUntil.IsZero() {
+		t.Fatal("stale probe started recovery")
+	}
+	if err := r.clearAccountRestriction(2); err != nil {
+		t.Fatal(err)
+	}
+	if !r.pacer.recoveryUntil.After(time.Now()) {
+		t.Fatal("verified recovery skipped pacing")
+	}
+	until := r.pacer.recoveryUntil
+	if err := r.clearAccountRestriction(2); err != nil || r.pacer.recoveryUntil != until {
+		t.Fatal("healthy calls extended recovery")
+	}
+}

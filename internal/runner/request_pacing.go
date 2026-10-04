@@ -43,11 +43,40 @@ func (p RequestPacing) Validate() error {
 }
 
 type requestPacer struct {
-	mu          sync.Mutex
-	config      RequestPacing
-	lastRequest time.Time
-	lastScope   map[string]time.Time
-	lastSpacing map[string]time.Duration
+	mu            sync.Mutex
+	config        RequestPacing
+	lastRequest   time.Time
+	lastScope     map[string]time.Time
+	lastSpacing   map[string]time.Duration
+	recoveryUntil time.Time
+}
+
+const recoveryPacingDuration = 5 * time.Minute
+
+// Successful login/probes do not establish that full request load is safe.
+// Temporarily slow all ordinary paths, including manual and batch requests,
+// without changing operator settings or the independent heartbeat cadence.
+func (p *requestPacer) startRecovery(now time.Time) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.recoveryUntil = now.Add(recoveryPacingDuration)
+}
+
+func (p *requestPacer) intervalsLocked(name string, now time.Time) (string, time.Duration, time.Duration) {
+	scope, repeat := p.scope(name)
+	request := p.config.RequestInterval
+	if now.Before(p.recoveryUntil) {
+		request = max(request, 5*time.Second)
+		minimum := 30 * time.Second
+		if strings.HasSuffix(scope, ".purchase") {
+			minimum = time.Minute
+		}
+		repeat = max(repeat, minimum)
+	}
+	return scope, request, repeat
 }
 
 func newRequestPacer(p RequestPacing) *requestPacer {
@@ -65,8 +94,8 @@ func (p *requestPacer) scope(name string) (string, time.Duration) {
 }
 
 func (p *requestPacer) delayLocked(name string, now time.Time) time.Duration {
-	scope, interval := p.scope(name)
-	return max(0, p.lastRequest.Add(p.config.RequestInterval).Sub(now), p.lastScope[scope].Add(interval).Sub(now))
+	scope, request, interval := p.intervalsLocked(name, now)
+	return max(0, p.lastRequest.Add(request).Sub(now), p.lastScope[scope].Add(interval).Sub(now))
 }
 
 func (p *requestPacer) delay(name string, now time.Time) time.Duration {
@@ -116,8 +145,8 @@ func (p *requestPacer) diagnostic(name string) map[string]any {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	scope, minimum := p.scope(name)
-	return map[string]any{"scope": scope, "minimum_interval_ms": minimum.Milliseconds(), "last_admitted_at": p.lastScope[scope], "previous_interval_ms": p.lastSpacing[scope].Milliseconds()}
+	scope, request, minimum := p.intervalsLocked(name, time.Now())
+	return map[string]any{"scope": scope, "minimum_interval_ms": minimum.Milliseconds(), "request_interval_ms": request.Milliseconds(), "recovery_until": p.recoveryUntil, "last_admitted_at": p.lastScope[scope], "previous_interval_ms": p.lastSpacing[scope].Milliseconds()}
 }
 
 // Reserve only the final account-spacing window for a due urgent mutation.
@@ -129,5 +158,6 @@ func (p *requestPacer) reserveUrgentSlot(name string, now time.Time) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delay := p.delayLocked(name, now)
-	return delay > 0 && delay <= p.config.RequestInterval
+	_, request, _ := p.intervalsLocked(name, now)
+	return delay > 0 && delay <= request
 }

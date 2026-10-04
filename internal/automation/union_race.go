@@ -19,8 +19,6 @@ const raceTakeLeadWindow = 300 * time.Millisecond
 // when idle of giveUp/finish/take.
 const raceTaskPoolRefreshInterval = 30 * time.Second
 
-const raceIdleTaskPoolRefreshInterval = 10 * time.Second
-
 // Read-only/low-score maintenance has no race-to-take deadline. Mutations
 // still obtain fresh full-list evidence in the runner before sending.
 const raceMaintenanceTaskPoolRefreshInterval = 5 * time.Minute
@@ -607,8 +605,9 @@ func raceTaskPoolTTLStale(view state.FmlRaceView, now time.Time) bool {
 	return !now.Before(time.UnixMilli(lastSync).Add(raceTaskPoolRefreshInterval))
 }
 
-// Active auto-take waiters use the shorter fallback; held tasks retain the
-// ordinary rate. Idle maintenance-only accounts refresh every five minutes.
+// Pushes and known task deadlines still wake the serialized decision loop.
+// Idle auto-take is a fallback poll, not a separate high-frequency feed.
+// Maintenance-only accounts refresh every five minutes.
 func raceTaskPoolRefreshDue(view state.FmlRaceView, policy *pb.UnionRacePolicy, now time.Time) bool {
 	if !policy.GetAutoEnableModules() && !view.Taken.HasTask {
 		last := view.TaskPoolSyncAttemptAtMs
@@ -618,18 +617,7 @@ func raceTaskPoolRefreshDue(view state.FmlRaceView, policy *pb.UnionRacePolicy, 
 		return view.BatchActive && view.TasksObserved && !view.TaskPoolStale &&
 			(last <= 0 || !now.Before(time.UnixMilli(last).Add(raceMaintenanceTaskPoolRefreshInterval)))
 	}
-	if raceTaskPoolTTLStale(view, now) {
-		return true
-	}
-	if !view.BatchActive || !view.TasksObserved || view.TaskPoolStale || view.Taken.HasTask ||
-		!policy.GetAutoEnableModules() || view.TakeQuotaExhausted {
-		return false
-	}
-	lastSync := view.TaskPoolSyncAttemptAtMs
-	if lastSync <= 0 {
-		lastSync = view.TasksSyncedAtMs
-	}
-	return !now.Before(time.UnixMilli(lastSync).Add(raceIdleTaskPoolRefreshInterval))
+	return raceTaskPoolTTLStale(view, now)
 }
 
 func raceTaskPoolBootstrapSyncDue(view state.FmlRaceView, now time.Time) bool {
@@ -812,7 +800,7 @@ func RaceTaskPoolWakeAt(s *state.State, policy *pb.Policy, now time.Time) time.T
 	if lastSync <= 0 {
 		lastSync = view.TasksSyncedAtMs
 	}
-	return time.UnixMilli(lastSync).Add(raceIdleTaskPoolRefreshInterval)
+	return time.UnixMilli(lastSync).Add(raceTaskPoolRefreshInterval)
 }
 
 // IsUrgentRaceOp reports ops that must preempt farm/order lanes (login/pool

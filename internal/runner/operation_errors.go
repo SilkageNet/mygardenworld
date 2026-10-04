@@ -223,10 +223,6 @@ func isRaceTakeQuotaExceededError(kind string, err error) bool {
 	return false
 }
 
-// isRaceTakeOnCooldownError matches takeTask when the pool row is still on
-// AppearTime CD (common after a preemptive lead-window attempt).
-const raceSyncRetryCooldown = 1 * time.Second
-
 // raceTransientSessionCode is returned when the client race session is stale
 // (common on getTaskList/takeTask before a fresh enter).
 const raceTransientSessionCode = 221
