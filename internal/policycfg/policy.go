@@ -113,6 +113,11 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Reputation == nil {
 		cp.Basic.Reputation = proto.Clone(def.Basic.Reputation).(*pb.ReputationPolicy)
 	}
+	if cp.Basic.ServerErrorFreshLoginMaxAttempts <= 0 {
+		cp.Basic.ServerErrorFreshLoginMaxAttempts = def.Basic.ServerErrorFreshLoginMaxAttempts
+	} else if cp.Basic.ServerErrorFreshLoginMaxAttempts > 10 {
+		cp.Basic.ServerErrorFreshLoginMaxAttempts = 10
+	}
 	if cp.Basic.Reputation.Threshold <= 0 {
 		cp.Basic.Reputation.Threshold = def.Basic.Reputation.Threshold
 	}

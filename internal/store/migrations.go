@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 18
+const currentSchemaVersion = 19
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -321,6 +321,11 @@ CREATE TABLE IF NOT EXISTS account_elves_aid_help_daily (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(account_id, day_id, friend_uid)
 );
+`},
+	{version: 19, name: "bounded fresh authentication recovery", sql: `
+ALTER TABLE account_request_safety ADD COLUMN fresh_login_attempts INTEGER NOT NULL DEFAULT 0 CHECK(fresh_login_attempts >= 0);
+UPDATE account_request_safety SET fresh_login_attempts = fresh_login_attempted;
+ALTER TABLE account_request_safety DROP COLUMN fresh_login_attempted;
 `},
 }
 

@@ -21,7 +21,9 @@ it("shows independent recovery opt-in and displacement warning while offline", (
   const html = renderToStaticMarkup(<PolicyPanel policy={create(PolicySchema)} section="basic"
     basicView={null} garden={null} orders={null} warehouse={null} unionView={null}
     capabilities={[]} loading={false} saving={false} message="" onPolicyChange={vi.fn()} onSave={vi.fn()} />);
-  expect(html).toContain("5000 异常后允许重新登录");
+  expect(html).toContain("异常后重新认证");
+  expect(html).toContain("异常恢复最多尝试次数");
+  expect(html).toContain("登录且业务核验通过才清零");
   expect(html).toContain("默认关闭");
   expect(html).toContain("可能挤下手机端");
   expect(html).toContain("与自动挤号设置独立");

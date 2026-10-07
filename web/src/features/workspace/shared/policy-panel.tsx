@@ -373,11 +373,22 @@ export default function PolicyPanel({
                   description="默认开启：有待处理兑换码时可建立游戏会话，可能挤下正在使用的游戏客户端。关闭后仅复用本来就在线的账号，兑换码会保留到下次上线。"
                 />
                 <ToggleRow
-                  label="5000 异常后允许重新登录"
+                  label="异常后重新认证"
                   checked={basic?.serverErrorFreshLoginEnabled ?? false}
                   onChange={(checked) => updateBasic({ serverErrorFreshLoginEnabled: checked })}
-                  description="默认关闭，仅控制后台自动重登。开启后，5000 首次保护冷却结束且额度可用时，直接重新认证，不先重试旧会话，可能挤下手机端。每次异常自动认证最多一次，两次尝试至少间隔 30 分钟；暂停时不尝试，暂停/启动不会重置冷却和额度。关闭时仍可手动登录，单次授权不会打开此开关，仍遵守冷却和认证间隔。缓存失效且未授权时明确等待，不反复延长冷却。与自动挤号设置独立，业务核验通过后才恢复操作。"
+                  description="默认关闭。开启后，5000 / 97777 / 97778 异常保护冷却结束后直接重新认证，不先重试旧会话，可能挤下手机端。iOS 使用账号密码；支付宝使用有效扫码授权，授权失效需重新扫码。普通断线仍优先复用缓存，与自动挤号设置独立。"
                 />
+                <NumberRow
+                  label="异常恢复最多尝试次数"
+                  value={basic?.serverErrorFreshLoginMaxAttempts || 3}
+                  min={1}
+                  max={10}
+                  disabled={!basic?.serverErrorFreshLoginEnabled}
+                  onChange={(value) => updateBasic({ serverErrorFreshLoginMaxAttempts: value })}
+                />
+                <p className="px-1 text-xs leading-5 text-muted-foreground">
+                  默认 3 次，包含首次尝试；认证或业务核验失败均计数，两次认证至少间隔 30 分钟，并遵守服务端冷却。登录且业务核验通过才清零并恢复操作；达到上限等待手动处理。暂停/启动不会重置冷却和额度，重启同样保留。关闭时仍可手动登录，单次授权可超过自动上限，但不清零、不打开开关，仍遵守冷却与间隔；本地等待不反复延长冷却。
+                </p>
               </div>
             </PolicyGroup>
 

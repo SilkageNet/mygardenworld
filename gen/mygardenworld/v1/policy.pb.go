@@ -362,12 +362,16 @@ type BasicPolicy struct {
 	// ONLINE_ONLY never creates a session; pending codes wait until the account
 	// is already online for another reason.
 	RedeemConnectMode RedeemConnectMode `protobuf:"varint,17,opt,name=redeem_connect_mode,json=redeemConnectMode,proto3,enum=mygardenworld.v1.RedeemConnectMode" json:"redeem_connect_mode,omitempty"`
-	// Opt-in: after the first 5000 protection cooldown, prefer one fresh
-	// authentication instead of cached recovery (rate-limited across incidents).
+	// Opt-in: after 5000/97777/97778 protection cooldown, use fresh channel
+	// authentication on each recovery attempt instead of cached sessions.
 	// May displace a mobile client; independent of displaced-session relogin.
 	ServerErrorFreshLoginEnabled bool `protobuf:"varint,18,opt,name=server_error_fresh_login_enabled,json=serverErrorFreshLoginEnabled,proto3" json:"server_error_fresh_login_enabled,omitempty"`
-	unknownFields                protoimpl.UnknownFields
-	sizeCache                    protoimpl.SizeCache
+	// Maximum attempts per unresolved incident, including failed authentication
+	// and business verification. Default 3, range 1..10. Verified recovery resets
+	// the durable counter; restart does not. Attempts remain spaced by 30 minutes.
+	ServerErrorFreshLoginMaxAttempts int32 `protobuf:"varint,19,opt,name=server_error_fresh_login_max_attempts,json=serverErrorFreshLoginMaxAttempts,proto3" json:"server_error_fresh_login_max_attempts,omitempty"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *BasicPolicy) Reset() {
@@ -524,6 +528,13 @@ func (x *BasicPolicy) GetServerErrorFreshLoginEnabled() bool {
 		return x.ServerErrorFreshLoginEnabled
 	}
 	return false
+}
+
+func (x *BasicPolicy) GetServerErrorFreshLoginMaxAttempts() int32 {
+	if x != nil {
+		return x.ServerErrorFreshLoginMaxAttempts
+	}
+	return 0
 }
 
 type ReputationPolicy struct {
@@ -3315,7 +3326,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x05union\x18\x05 \x01(\v2\x1d.mygardenworld.v1.UnionPolicyR\x05union\x12<\n" +
 	"\bactivity\x18\x06 \x01(\v2 .mygardenworld.v1.ActivityPolicyR\bactivity\x12:\n" +
 	"\x19decision_interval_seconds\x18\a \x01(\x01R\x17decisionIntervalSeconds\x12%\n" +
-	"\x0eschema_version\x18\b \x01(\rR\rschemaVersion\"\xf4\a\n" +
+	"\x0eschema_version\x18\b \x01(\rR\rschemaVersion\"\xc5\b\n" +
 	"\vBasicPolicy\x12B\n" +
 	"\n" +
 	"reputation\x18\x01 \x01(\v2\".mygardenworld.v1.ReputationPolicyR\n" +
@@ -3337,7 +3348,8 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x18road_grow_reward_enabled\x18\x0f \x01(\bR\x15roadGrowRewardEnabled\x12I\n" +
 	"!displaced_session_relogin_enabled\x18\x10 \x01(\bR\x1edisplacedSessionReloginEnabled\x12S\n" +
 	"\x13redeem_connect_mode\x18\x11 \x01(\x0e2#.mygardenworld.v1.RedeemConnectModeR\x11redeemConnectMode\x12F\n" +
-	" server_error_fresh_login_enabled\x18\x12 \x01(\bR\x1cserverErrorFreshLoginEnabled\"J\n" +
+	" server_error_fresh_login_enabled\x18\x12 \x01(\bR\x1cserverErrorFreshLoginEnabled\x12O\n" +
+	"%server_error_fresh_login_max_attempts\x18\x13 \x01(\x05R serverErrorFreshLoginMaxAttempts\"J\n" +
 	"\x10ReputationPolicy\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\x05R\tthreshold\"\xd6\x01\n" +

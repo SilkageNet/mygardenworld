@@ -10,7 +10,6 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 	"github.com/SilkageNet/mygardenworld/internal/state"
-	"github.com/SilkageNet/mygardenworld/internal/store"
 )
 
 const freshRecoveryInterval = 30 * time.Minute
@@ -21,15 +20,11 @@ type recoveryProbePermit struct {
 	revision uint64
 }
 
-func freshRecoveryAvailable(s store.AccountRequestSafety, now time.Time) bool {
-	return s.RestrictionCode == 5000 && s.RestrictionAttempts >= 1 && now.UnixMilli() >= s.RestrictedUntilMS &&
-		!s.FreshLoginAttempted && (s.LastFreshLoginMS == 0 || now.UnixMilli() >= s.LastFreshLoginMS+freshRecoveryInterval.Milliseconds())
-}
-
-func (r *Runner) freshRecoveryEligible(now time.Time) bool {
+// Routing is independent of admission: exhaustion must never fall back to cache.
+func (r *Runner) prefersFreshRecovery() bool {
 	p := r.Policy()
 	s, _ := r.accountSafetySnapshot()
-	return p.GetAutomationEnabled() && p.GetBasic().GetServerErrorFreshLoginEnabled() && freshRecoveryAvailable(s, now)
+	return s.RestrictionCode != 0 && p.GetAutomationEnabled() && p.GetBasic().GetServerErrorFreshLoginEnabled()
 }
 
 // Reserve at the last boundary before channel authentication. Never let cache
@@ -42,17 +37,18 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	r.safetyMu.Lock()
 	defer r.safetyMu.Unlock()
 	manual := r.manualRecoveryAuthorized(ctx)
-	if r.safety.RestrictionCode == 0 || (r.safety.RestrictionCode != 5000 && !manual) {
+	if r.safety.RestrictionCode == 0 {
 		return nil
 	}
 	if !p.GetAutomationEnabled() {
 		return &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复认证，未延长服务端冷却"}
 	}
-	if !manual && r.safety.FreshLoginAttempted {
-		return &recoveryBlockedError{reason: "本次自动重新认证额度已使用，且缓存会话不可用；请手动重新登录，未延长服务端冷却"}
+	maxAttempts := int(p.GetBasic().GetServerErrorFreshLoginMaxAttempts())
+	if !manual && r.safety.FreshLoginAttempts >= maxAttempts {
+		return &recoveryBlockedError{reason: fmt.Sprintf("异常恢复已尝试 %d/%d 次，达到自动重新认证上限；等待手动处理，未延长服务端冷却", r.safety.FreshLoginAttempts, maxAttempts)}
 	}
 	if until := time.UnixMilli(r.safety.LastFreshLoginMS).Add(freshRecoveryInterval); r.safety.LastFreshLoginMS != 0 && now.Before(until) {
-		return &recoveryBlockedError{reason: fmt.Sprintf("重新认证间隔未到，%s 后尝试；未延长服务端冷却", until.Local().Format("15:04:05")), retryAt: until}
+		return &recoveryBlockedError{reason: fmt.Sprintf("异常恢复已尝试 %d/%d 次；重新认证间隔未到，%s 后尝试；未延长服务端冷却", r.safety.FreshLoginAttempts, maxAttempts, until.Local().Format("15:04:05")), retryAt: until}
 	}
 	if r.db == nil {
 		return fmt.Errorf("无法持久化恢复认证额度，未发送登录请求")
@@ -62,7 +58,7 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	if manual {
 		allowed, err = r.db.ReserveManualRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
 	} else {
-		allowed, err = r.db.ReserveFreshRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+		allowed, err = r.db.ReserveFreshRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds(), maxAttempts)
 	}
 	if err != nil {
 		return fmt.Errorf("保存恢复认证额度失败，未发送登录请求: %w", err)
@@ -70,14 +66,14 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	if !allowed {
 		return &recoveryBlockedError{reason: "恢复认证额度未获批准，未发送登录请求；请检查设置后手动重新登录"}
 	}
-	r.safety.FreshLoginAttempted = true
+	r.safety.FreshLoginAttempts++
 	r.safety.LastFreshLoginMS = now.UnixMilli()
 	if manual {
 		r.mu.Lock()
 		r.manualRecoveryPending = false
 		r.mu.Unlock()
 	}
-	r.log.Info("recovery reserved one fresh authentication", "account_id", r.account.ID, "manual", manual)
+	r.log.Info("recovery reserved fresh authentication", "account_id", r.account.ID, "manual", manual, "attempt", r.safety.FreshLoginAttempts, "max_attempts", maxAttempts)
 	return nil
 }
 
@@ -93,8 +89,8 @@ func (r *Runner) checkFreshRecoveryAuthorization(ctx context.Context) error {
 	if s.RestrictionCode != 0 && !p.GetAutomationEnabled() {
 		return &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复认证，未延长服务端冷却"}
 	}
-	if s.RestrictionCode == 5000 && !p.GetBasic().GetServerErrorFreshLoginEnabled() && !r.manualRecoveryAuthorized(ctx) {
-		return &recoveryBlockedError{reason: "缓存会话不可用，且未允许自动重新登录；请手动重新登录或开启“5000 异常后允许重新登录”，未延长服务端冷却"}
+	if s.RestrictionCode != 0 && !p.GetBasic().GetServerErrorFreshLoginEnabled() && !r.manualRecoveryAuthorized(ctx) {
+		return &recoveryBlockedError{reason: "缓存会话不可用，且未允许自动重新登录；请手动重新登录或开启“异常后重新认证”，未延长服务端冷却"}
 	}
 	return nil
 }

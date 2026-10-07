@@ -123,7 +123,7 @@ func TestManualRecoveryIsOneShotWithoutChangingAutomaticPolicy(t *testing.T) {
 	r.SetPolicy(p)
 	r.manualRecoveryPending = true
 	now := time.Now()
-	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 3, RestrictedUntilMS: now.Add(-time.Minute).UnixMilli(), FreshLoginAttempted: true, LastFreshLoginMS: now.Add(-time.Hour).UnixMilli()}
+	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 3, RestrictedUntilMS: now.Add(-time.Minute).UnixMilli(), FreshLoginAttempts: 1, LastFreshLoginMS: now.Add(-time.Hour).UnixMilli()}
 	if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, r.safety); err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,10 @@ func TestFreshRecoveryLocalBudgetWaitDoesNotExtendServerDeadline(t *testing.T) {
 		p := automation.DefaultPolicy()
 		p.AutomationEnabled, p.Basic.ServerErrorFreshLoginEnabled = true, true
 		r.SetPolicy(p)
-		r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 2, RestrictedUntilMS: time.Now().Add(-time.Minute).UnixMilli(), FreshLoginAttempted: consumed, LastFreshLoginMS: time.Now().Add(-time.Minute).UnixMilli()}
+		r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 2, RestrictedUntilMS: time.Now().Add(-time.Minute).UnixMilli(), LastFreshLoginMS: time.Now().Add(-time.Minute).UnixMilli()}
+		if consumed {
+			r.safety.FreshLoginAttempts = 3
+		}
 		before, _ := r.accountSafetySnapshot()
 		var blocked *recoveryBlockedError
 		if err := r.reserveFreshRecovery(t.Context(), time.Now()); !errors.As(err, &blocked) {
@@ -167,6 +170,46 @@ func TestFreshRecoveryLocalBudgetWaitDoesNotExtendServerDeadline(t *testing.T) {
 		}
 		if after, _ := r.accountSafetySnapshot(); after != before {
 			t.Fatal("budget wait extended protection")
+		}
+	}
+}
+
+func TestExhaustedFreshRecoveryNeverFallsBackToCache(t *testing.T) {
+	for _, code := range []int{5000, 97777, 97778} {
+		_, r, _ := startupCommitFixture(t)
+		p := automation.DefaultPolicy()
+		p.AutomationEnabled, p.Basic.ServerErrorFreshLoginEnabled = true, true
+		r.SetPolicy(p)
+		r.safety = store.AccountRequestSafety{RestrictionCode: code, RestrictionAttempts: 1, FreshLoginAttempts: 3}
+		if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, r.safety); err != nil {
+			t.Fatal(err)
+		}
+		// A corrupt cache would produce a different error if the route touched it.
+		if err := r.db.SaveSession(t.Context(), r.account.ID, []byte("not a session"), nil); err != nil {
+			t.Fatal(err)
+		}
+		_, err := r.connectStoredOrFresh(t.Context(), "unused", "unused")
+		var blocked *recoveryBlockedError
+		if !errors.As(err, &blocked) || !blocked.retryAt.IsZero() || !strings.Contains(blocked.reason, "3/3") {
+			t.Fatal("exhausted recovery used cache or network", err)
+		}
+		if cache, err := r.db.LoadSession(t.Context(), r.account.ID); err != nil || string(cache) != "not a session" {
+			t.Fatal("recovery destroyed cache", err)
+		}
+	}
+}
+
+func TestEveryProtectedCodeRequiresFreshAuthenticationOptIn(t *testing.T) {
+	for _, code := range []int{5000, 97777, 97778} {
+		_, r, _ := startupCommitFixture(t)
+		p := automation.DefaultPolicy()
+		p.AutomationEnabled = true
+		r.SetPolicy(p)
+		r.safety = store.AccountRequestSafety{RestrictionCode: code, RestrictionAttempts: 1}
+		_, err := r.connectStoredOrFresh(t.Context(), "unused", "unused")
+		var blocked *recoveryBlockedError
+		if !errors.As(err, &blocked) || !strings.Contains(blocked.reason, "未允许自动重新登录") {
+			t.Fatalf("code %d bypassed opt-in with missing cache: %v", code, err)
 		}
 	}
 }

@@ -147,6 +147,7 @@ func TestDeletionErrorClassificationDoesNotEchoMessages(t *testing.T) {
 
 func TestDeletionProgressMigrationSeedsExistingPendingAccounts(t *testing.T) {
 	db, a, _ := deletionProgressFixture(t)
+	restoreV18RecoverySchema(t, db)
 	if _, err := db.ExecContext(t.Context(), `DROP TABLE account_deletion_progress; PRAGMA user_version=15`); err != nil {
 		t.Fatal(err)
 	}

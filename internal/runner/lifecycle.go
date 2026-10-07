@@ -107,9 +107,8 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 }
 
 // connectStoredOrFresh prefers encrypted session reuse for normal reconnects.
-// Explicitly opted-in 5000 recovery prefers one fresh authentication after the
-// first cooldown, subject to the durable allowance. It never deletes a usable
-// cache merely because 5000 occurred.
+// Opted-in protected recovery always selects fresh authentication; admission
+// enforces the durable attempt budget and spacing without fallback to cache.
 func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
 	ctx, release, gateErr := r.beginGameWork(ctx)
 	if gateErr != nil {
@@ -130,7 +129,7 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 			return r.connectFresh(ctx, username, password)
 		}
 	}
-	if r.freshRecoveryEligible(time.Now()) {
+	if r.prefersFreshRecovery() {
 		return r.connectFresh(ctx, username, password)
 	}
 	blob, err := r.db.LoadSession(ctx, r.account.ID)
@@ -213,13 +212,13 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
 		return nil, err
 	}
-	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode == 5000 {
+	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 {
 		mode := "按已启用设置"
 		if r.manualRecoveryAuthorized(ctx) {
 			mode = "按本次手动登录授权（不改变自动重登设置）"
 		}
 		r.emit(Event{Kind: "account_recovery_authentication", Category: "account", Domain: "account.request", Action: "authenticating",
-			Label: "账号恢复认证", Message: "5000 保护冷却已结束，" + mode + "尝试一次新认证；额度已持久化，仍需业务核验", Level: "warn"})
+			Label: "账号恢复认证", Message: fmt.Sprintf("%d 保护冷却已结束，%s重新认证（已尝试 %d 次，自动上限 %d 次）；计数已持久化，业务核验通过后清零", s.RestrictionCode, mode, s.FreshLoginAttempts, r.Policy().GetBasic().GetServerErrorFreshLoginMaxAttempts()), Level: "warn"})
 	}
 	var (
 		session *babigame.Session

@@ -35,6 +35,27 @@ func TestNormalizeClampsReconnectInterval(t *testing.T) {
 	}
 }
 
+func TestFreshRecoveryPolicyLimitsAndRoundTrip(t *testing.T) {
+	for _, tc := range []struct{ in, want int32 }{{0, 3}, {-1, 3}, {1, 1}, {7, 7}, {11, 10}} {
+		p := Normalize(&pb.Policy{Basic: &pb.BasicPolicy{ServerErrorFreshLoginEnabled: true, ServerErrorFreshLoginMaxAttempts: tc.in}})
+		if p.Basic.ServerErrorFreshLoginMaxAttempts != tc.want {
+			t.Fatal(p.Basic)
+		}
+		raw, err := ToJSON(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := FromJSON(raw)
+		if err != nil || !got.GetBasic().GetServerErrorFreshLoginEnabled() || got.GetBasic().GetServerErrorFreshLoginMaxAttempts() != tc.want {
+			t.Fatal(got, err)
+		}
+	}
+	p := Normalize(&pb.Policy{})
+	if p.Basic.ServerErrorFreshLoginEnabled || p.Basic.ServerErrorFreshLoginMaxAttempts != 3 {
+		t.Fatal("defaults granted authentication", p.Basic)
+	}
+}
+
 func TestPearlCollectionDefaultsAndRoundTrip(t *testing.T) {
 	for _, raw := range []string{`{"schema_version":3}`, `{"schema_version":3,"basic":{"pearl":{"auto_hire_enabled":true,"free_enabled":true,"draw_enabled":true}}}`} {
 		p, err := FromJSON(raw)
