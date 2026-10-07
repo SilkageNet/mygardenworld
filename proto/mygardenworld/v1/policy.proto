@@ -103,6 +103,12 @@ message PearlPolicy {
   int64 max_spend_diamond = 8;
   // Max hire tickets (item 1003) spent since 00:00 Asia/Shanghai. 0 means unlimited.
   int32 daily_hire_ticket_limit = 9;
+  // Explicit opt-in for collecting laborer production; independent of hiring,
+  // daily free rewards, drawing pearls and protection. Defaults to false.
+  bool collect_enabled = 10;
+  // Local minimum between collection attempts. 0 uses 300; bounded to
+  // 60..3600 seconds. This is not an observed server-side safety threshold.
+  int32 collect_interval_seconds = 11;
 }
 
 message ShopPolicy {

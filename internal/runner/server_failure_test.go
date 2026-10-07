@@ -2,6 +2,7 @@ package runner
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ func TestServerFailureBurstIsAccountScopedAndBounded(t *testing.T) {
 	}{
 		{"one rejection", []string{"usrLand.harvest"}, time.Second, false},
 		{"same RPC stays local", []string{"usrLand.harvest", "usrLand.harvest", "usrLand.harvest", "usrLand.harvest"}, time.Second, false},
+		{"pearl failures stay local", []string{"pearlPlace.recvOneKey", "pearlPlace.recvOneKey", "pearlPlace.recvOneKey"}, time.Second, false},
 		{"cross domain burst", []string{"usrLand.harvest", "fmlForest.refresh", "usrLand.harvest"}, 10 * time.Second, true},
 		{"expired observations", []string{"usrLand.harvest", "fmlForest.refresh", "pearlPlace.recvOneKey"}, 40 * time.Second, false},
 		{"inclusive window", []string{"usrLand.harvest", "fmlForest.refresh", "pearlPlace.recvOneKey"}, 30 * time.Second, true},
@@ -48,6 +50,25 @@ func TestServerFailureBurstIsAccountScopedAndBounded(t *testing.T) {
 				t.Fatal("one account paused unrelated accounts")
 			}
 		})
+	}
+}
+
+func TestProtectionLogExplainsTriggerNotRootCause(t *testing.T) {
+	r := newOperationEventTestRunner()
+	r.bus = NewBus()
+	events, unsubscribe := r.bus.SubscribeLive(10)
+	defer unsubscribe()
+	now := time.Now()
+	for i, rpc := range []string{"usr.heartTick", "fmlRace.getTaskList", "pearlPlace.recvOneKey"} {
+		r.observeGameRPCAt(rpc, babigame.WSResponseD{M: json.RawMessage(`{"code":5000}`)}, now.Add(time.Duration(i)*time.Second))
+	}
+	select {
+	case event := <-events:
+		if !strings.Contains(event.Message, "usr.heartTick → fmlRace.getTaskList → pearlPlace.recvOneKey") || !strings.Contains(event.Message, "最后一次失败不代表根因") {
+			t.Fatal(event.Message)
+		}
+	default:
+		t.Fatal("missing protection event")
 	}
 }
 

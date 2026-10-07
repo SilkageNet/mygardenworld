@@ -406,6 +406,9 @@ export default function PolicyPanel({
 
             <PolicyGroup title="珍珠" icon={<Gem />}>
               <div className="grid gap-2">
+                <ToggleRow label="自动收取珍珠产出" checked={pearl?.collectEnabled ?? false} onChange={(checked) => updatePearl({ collectEnabled: checked })} />
+                <NumberRow label="产出收取间隔（秒）" value={pearl?.collectIntervalSeconds || 300} min={60} max={3600} onChange={(value) => updatePearl({ collectIntervalSeconds: value })} />
+                <p className="text-xs text-muted-foreground">默认关闭，与雇佣、免费领取、开珍珠独立；开启后仅在有产出时收取，默认间隔 300 秒（5 分钟）。间隔内不影响种植和订单，不代表游戏安全频率。</p>
                 <ToggleRow label="免费珍珠" checked={pearl?.freeEnabled ?? false} onChange={(checked) => updatePearl({ freeEnabled: checked })} />
                 <ToggleRow label="安全雇佣劳工" checked={pearl?.autoHireEnabled ?? false} onChange={(checked) => updatePearl({ autoHireEnabled: checked })} />
                 <NumberRow label="雇佣等级上限（0=不限）" value={pearl?.maxHireLevel || 0} min={0} onChange={(value) => updatePearl({ maxHireLevel: value })} />

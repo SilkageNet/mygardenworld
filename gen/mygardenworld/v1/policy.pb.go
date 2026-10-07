@@ -787,8 +787,14 @@ type PearlPolicy struct {
 	MaxSpendDiamond    int64 `protobuf:"varint,8,opt,name=max_spend_diamond,json=maxSpendDiamond,proto3" json:"max_spend_diamond,omitempty"`
 	// Max hire tickets (item 1003) spent since 00:00 Asia/Shanghai. 0 means unlimited.
 	DailyHireTicketLimit int32 `protobuf:"varint,9,opt,name=daily_hire_ticket_limit,json=dailyHireTicketLimit,proto3" json:"daily_hire_ticket_limit,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// Explicit opt-in for collecting laborer production; independent of hiring,
+	// daily free rewards, drawing pearls and protection. Defaults to false.
+	CollectEnabled bool `protobuf:"varint,10,opt,name=collect_enabled,json=collectEnabled,proto3" json:"collect_enabled,omitempty"`
+	// Local minimum between collection attempts. 0 uses 300; bounded to
+	// 60..3600 seconds. This is not an observed server-side safety threshold.
+	CollectIntervalSeconds int32 `protobuf:"varint,11,opt,name=collect_interval_seconds,json=collectIntervalSeconds,proto3" json:"collect_interval_seconds,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *PearlPolicy) Reset() {
@@ -880,6 +886,20 @@ func (x *PearlPolicy) GetMaxSpendDiamond() int64 {
 func (x *PearlPolicy) GetDailyHireTicketLimit() int32 {
 	if x != nil {
 		return x.DailyHireTicketLimit
+	}
+	return 0
+}
+
+func (x *PearlPolicy) GetCollectEnabled() bool {
+	if x != nil {
+		return x.CollectEnabled
+	}
+	return false
+}
+
+func (x *PearlPolicy) GetCollectIntervalSeconds() int32 {
+	if x != nil {
+		return x.CollectIntervalSeconds
 	}
 	return 0
 }
@@ -3336,7 +3356,7 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\n" +
 	"SignPolicy\x12#\n" +
 	"\rdaily_enabled\x18\x01 \x01(\bR\fdailyEnabled\x12#\n" +
-	"\rpatch_enabled\x18\x02 \x01(\bR\fpatchEnabled\"\x95\x03\n" +
+	"\rpatch_enabled\x18\x02 \x01(\bR\fpatchEnabled\"\xf8\x03\n" +
 	"\vPearlPolicy\x12!\n" +
 	"\ffree_enabled\x18\x01 \x01(\bR\vfreeEnabled\x12*\n" +
 	"\x11auto_hire_enabled\x18\x02 \x01(\bR\x0fautoHireEnabled\x12$\n" +
@@ -3346,7 +3366,10 @@ const file_mygardenworld_v1_policy_proto_rawDesc = "" +
 	"\x0fprotect_enabled\x18\x06 \x01(\bR\x0eprotectEnabled\x12/\n" +
 	"\x14auto_buy_hire_ticket\x18\a \x01(\bR\x11autoBuyHireTicket\x12*\n" +
 	"\x11max_spend_diamond\x18\b \x01(\x03R\x0fmaxSpendDiamond\x125\n" +
-	"\x17daily_hire_ticket_limit\x18\t \x01(\x05R\x14dailyHireTicketLimit\"\xc7\x01\n" +
+	"\x17daily_hire_ticket_limit\x18\t \x01(\x05R\x14dailyHireTicketLimit\x12'\n" +
+	"\x0fcollect_enabled\x18\n" +
+	" \x01(\bR\x0ecollectEnabled\x128\n" +
+	"\x18collect_interval_seconds\x18\v \x01(\x05R\x16collectIntervalSeconds\"\xc7\x01\n" +
 	"\n" +
 	"ShopPolicy\x125\n" +
 	"\x17video_free_gift_enabled\x18\x01 \x01(\bR\x14videoFreeGiftEnabled\x12F\n" +

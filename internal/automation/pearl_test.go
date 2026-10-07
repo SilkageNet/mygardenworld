@@ -18,7 +18,7 @@ func TestBuildPlanPearlUsesOneKeyOnceForAllMatureSlots(t *testing.T) {
 	}}})
 	p := DefaultPolicy()
 	p.AutomationEnabled = true
-	p.Basic.Pearl.FreeEnabled = true
+	p.Basic.Pearl.CollectEnabled = true
 
 	result := BuildPlan(s, p, now)
 	var oneKeyCount int
@@ -43,7 +43,7 @@ func TestBuildPlanPearlUsesOneKeyOnceForAllMatureSlots(t *testing.T) {
 func TestBuildPlanPearlMaturityAndObservationGates(t *testing.T) {
 	policy := DefaultPolicy()
 	policy.AutomationEnabled = true
-	policy.Basic.Pearl.FreeEnabled = true
+	policy.Basic.Pearl.CollectEnabled = true
 	tests := []struct {
 		name  string
 		nowMS int64

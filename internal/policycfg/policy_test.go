@@ -35,6 +35,34 @@ func TestNormalizeClampsReconnectInterval(t *testing.T) {
 	}
 }
 
+func TestPearlCollectionDefaultsAndRoundTrip(t *testing.T) {
+	for _, raw := range []string{`{"schema_version":3}`, `{"schema_version":3,"basic":{"pearl":{"auto_hire_enabled":true,"free_enabled":true,"draw_enabled":true}}}`} {
+		p, err := FromJSON(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Basic.Pearl.CollectEnabled || p.Basic.Pearl.CollectIntervalSeconds != 300 {
+			t.Fatal("implicit collection authorization", p.Basic.Pearl)
+		}
+		p.Basic.Pearl.CollectEnabled = true
+		p.Basic.Pearl.CollectIntervalSeconds = 600
+		encoded, err := ToJSON(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := FromJSON(encoded)
+		if err != nil || !got.GetBasic().GetPearl().GetCollectEnabled() || got.GetBasic().GetPearl().GetCollectIntervalSeconds() != 600 {
+			t.Fatalf("roundtrip failed: %v %v", got, err)
+		}
+	}
+	for _, tc := range []struct{ in, want int32 }{{0, 300}, {-1, 300}, {1, 60}, {7200, 3600}} {
+		p := Normalize(&pb.Policy{Basic: &pb.BasicPolicy{Pearl: &pb.PearlPolicy{CollectIntervalSeconds: tc.in}}})
+		if p.Basic.Pearl.CollectIntervalSeconds != tc.want {
+			t.Fatal("interval not normalized", p.Basic.Pearl)
+		}
+	}
+}
+
 func TestServerErrorFreshLoginDefaultsOffAndRoundTrips(t *testing.T) {
 	p := Normalize(&pb.Policy{})
 	if p.GetBasic().GetServerErrorFreshLoginEnabled() {

@@ -29,6 +29,11 @@ func (r *Runner) selectRunnableOperation(candidates []automation.PlannedOp, now 
 			continue
 		}
 		op := candidate
+		// Collection is intentionally batched by policy. It is not eligible
+		// work waiting for scheduler fairness until its own interval expires.
+		if op.Kind == "pearlPlace.recvOneKey" && r.pacer.delay(op.Kind, now) > 0 {
+			continue
+		}
 		if op.Kind == "fmlRace.upgradeTask" {
 			r.mu.RLock()
 			attempted := r.raceUpgradeAttempts[[2]int64{op.RaceBatchID, op.TaskMsID}]

@@ -188,7 +188,7 @@ func DefaultPolicy() *pb.Policy {
 			Task:                           &pb.BasicTaskPolicy{},
 			Benefit:                        &pb.BenefitPolicy{},
 			Sign:                           &pb.SignPolicy{},
-			Pearl:                          &pb.PearlPolicy{},
+			Pearl:                          &pb.PearlPolicy{CollectIntervalSeconds: 300},
 			Shop: &pb.ShopPolicy{
 				CultivateShop: &pb.ShopBuyPolicy{},
 				VipShop:       &pb.VipShopPolicy{},

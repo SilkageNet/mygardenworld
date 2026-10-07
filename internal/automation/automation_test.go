@@ -2922,6 +2922,7 @@ func TestBuildPlan_PearlExecutableOps(t *testing.T) {
 	p.Basic.Pearl.FreeEnabled = true
 	p.Basic.Pearl.DrawEnabled = true
 	p.Basic.Pearl.ProtectEnabled = true
+	p.Basic.Pearl.CollectEnabled = true
 
 	result := BuildPlan(s, p, now)
 	want := map[string]string{
