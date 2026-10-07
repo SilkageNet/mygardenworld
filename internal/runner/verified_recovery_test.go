@@ -243,22 +243,19 @@ func TestFreshRecoveryFirstCooldownMatchesDurableAdmission(t *testing.T) {
 	}
 }
 
-func TestFailedCachedRecoveryRetainsCooldownBeforeFreshAuthentication(t *testing.T) {
+func TestFailedCachedRecoveryDoesNotInventServerCooldown(t *testing.T) {
 	for _, code := range []int{91102, 12345} {
 		r := recoveryTestRunner()
 		r.safety.RestrictionAttempts = 1
 		r.safety.FreshLoginAttempted = false
 		r.safety.LastFreshLoginMS = 0
-		r.deferRestrictionProbe(0, rejectedRestore(code))
-		s, _ := r.accountSafetySnapshot()
-		if freshRecoveryAvailable(s, time.Now()) {
-			t.Fatal("expired cache bypassed cooldown")
+		before, revision := r.accountSafetySnapshot()
+		preserved := r.preserveCachedSession(t.Context(), rejectedRestore(code), revision)
+		if preserved != (code != 91102) {
+			t.Fatal("cache decision did not follow positive expiry evidence")
 		}
-		if !freshRecoveryAvailable(s, time.UnixMilli(s.RestrictedUntilMS)) {
-			t.Fatalf("code %d blocked recovery after cooldown", code)
-		}
-		if code == 91102 && (s.RestrictionAttempts != 2 || time.Until(time.UnixMilli(s.RestrictedUntilMS)) < 9*time.Minute) {
-			t.Fatal("expired cache did not retain backoff", s)
+		if after, _ := r.accountSafetySnapshot(); after != before {
+			t.Fatal("cache failure changed server restriction", after)
 		}
 	}
 }

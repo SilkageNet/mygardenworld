@@ -91,11 +91,8 @@ func TestRestrictionRecoveryRequiresDurableClear(t *testing.T) {
 	if err := r.clearAccountRestriction(0); err == nil || r.restrictionError() == nil {
 		t.Fatal("failed persistence resumed account")
 	}
-	r.deferRestrictionProbe(0, fmt.Errorf("test probe failure"))
-	s, _ := r.accountSafetySnapshot()
-	if s.RestrictedUntilMS <= time.Now().UnixMilli() {
-		t.Fatal("persistence failure caused an immediate probe loop")
-	}
+	// Local persistence failure must not invent another server cooldown.
+	// reconnect applies its own bounded connection backoff instead.
 }
 
 func TestRaceDeleteSpacingDoesNotStarveOtherOperations(t *testing.T) {

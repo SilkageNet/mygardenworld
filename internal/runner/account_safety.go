@@ -100,6 +100,9 @@ func accountRestrictionError(s store.AccountRequestSafety) error {
 	if s.RestrictionCode == 0 {
 		return nil
 	}
+	if time.Now().UnixMilli() >= s.RestrictedUntilMS {
+		return fmt.Errorf("账号请求保护（此前服务端 %d）：冷却已结束，等待恢复核验；尚未恢复业务请求", s.RestrictionCode)
+	}
 	return fmt.Errorf("账号请求已暂停（服务端 %d），%s 后验证恢复", s.RestrictionCode,
 		time.UnixMilli(s.RestrictedUntilMS).Local().Format("01/02 15:04:05"))
 }

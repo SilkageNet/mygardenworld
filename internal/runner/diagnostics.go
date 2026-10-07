@@ -48,6 +48,7 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	}
 	sessionInvalidated := r.sessionInvalidated
 	connected := r.client != nil && !r.client.Closed()
+	recoveryReason, recoveryAt := r.recoveryWaitReason, r.recoveryRetryAt
 	r.mu.RUnlock()
 
 	if sessionInvalidated {
@@ -61,12 +62,19 @@ func (r *Runner) Diagnostics(now time.Time) Diagnostics {
 	out.OperationCooldowns = r.operationCooldownSnapshots(now)
 	s, _ := r.accountSafetySnapshot()
 	if err := accountRestrictionError(s); err != nil {
-		out.BlockedReasons = append(out.BlockedReasons, err.Error())
+		reason := err.Error()
+		until := time.UnixMilli(s.RestrictedUntilMS)
+		if !until.After(now) && recoveryReason != "" {
+			reason, until = recoveryReason, recoveryAt
+		}
+		out.BlockedReasons = append(out.BlockedReasons, reason)
 		out.RequestsPaused = true
-		out.RequestRetryAtMS = s.RestrictedUntilMS
+		if !until.IsZero() {
+			out.RequestRetryAtMS = until.UnixMilli()
+		}
 		out.OperationCooldowns = append(out.OperationCooldowns, OperationCooldownSnapshot{
 			OperationID: "account.request", Category: "account", Domain: "account.request",
-			Reason: err.Error(), Until: time.UnixMilli(s.RestrictedUntilMS), FailureCount: int32(s.RestrictionAttempts),
+			Reason: reason, Until: until, FailureCount: int32(s.RestrictionAttempts),
 		})
 	}
 	if wait := r.raceDeleteWait(now); wait > 0 {

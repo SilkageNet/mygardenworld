@@ -37,3 +37,24 @@ func TestRaceRequestSafetyProjectsToExistingStatusAndButtons(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalRecoveryWaitHasNoFakeDeadlineAndKeepsMutationGates(t *testing.T) {
+	reason := "缓存会话不可用，请手动重新登录"
+	diag := runner.Diagnostics{
+		RequestsPaused: true, BlockedReasons: []string{reason},
+		OperationCooldowns: []runner.OperationCooldownSnapshot{{OperationID: "account.request", Reason: reason}},
+	}
+	status := runnerDiagnosticsProto(diag)
+	if !status.RequestsPaused || status.RequestRetryAtMs != 0 || len(status.BlockedReasons) != 1 {
+		t.Fatal("local wait became a timed server restriction", status)
+	}
+	ops := plannedOperationsProto([]automation.PlannedOp{{Kind: "usrLand.harvest", Executable: true}}, diag)
+	if ops[0].Executable || ops[0].Status != pb.PlanStatus_PLAN_STATUS_BLOCKED || ops[0].CooldownUntilMs != 0 || ops[0].CooldownReason != reason {
+		t.Fatal("local admission wait lost its gate or invented a deadline", ops[0])
+	}
+	view := &pb.FmlRaceView{Tasks: []*pb.FmlRaceTask{{DeleteAllowed: true}}}
+	applyRaceRequestSafety(view, &pb.UnionRacePolicy{}, diag)
+	if view.Tasks[0].DeleteAllowed || view.Tasks[0].TakeSkipReason != reason {
+		t.Fatal("manual task mutation bypassed local recovery wait", view)
+	}
+}

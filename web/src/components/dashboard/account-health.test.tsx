@@ -17,4 +17,13 @@ describe("account protection status", () => {
     expect(renderToStaticMarkup(<HealthBadge account={account} status={status} />)).toContain("会话失效");
     expect(accountStatusIssues(status).join()).toContain("手动登录");
   });
+  it("shows local admission waits without promising another timed retry", () => {
+    const reason = "缓存会话不可用，且未允许自动重新登录；请手动重新登录";
+    const status = create(AccountStatusSchema, { diagnostics: { requestsPaused: true, blockedReasons: [reason] } });
+    expect(renderToStaticMarkup(<HealthBadge account={account} status={status} />)).toContain("恢复待处理");
+    const issues = accountStatusIssues(status).join();
+    expect(issues).toContain(reason);
+    expect(issues).not.toContain("后尝试核验");
+    expect(issues).toContain("不会因本地等待反复延长冷却");
+  });
 });

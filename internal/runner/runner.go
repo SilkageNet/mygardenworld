@@ -133,6 +133,7 @@ func New(cfg babigame.Config, db *store.DB, account *store.Account, bus *Bus, lo
 	r.lastCustomerOrderInfo = make(map[int32]string)
 	r.done = make(chan struct{})
 	r.decisionWake = make(chan struct{}, 1)
+	r.recoveryWake = make(chan struct{}, 1)
 	return r
 }
 
@@ -194,6 +195,7 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 	r.policy = normalized
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
+		r.manualRecoveryPending = false
 	}
 	stopPendingRelogin := r.sessionAutoRelogin &&
 		!normalized.GetBasic().GetDisplacedSessionReloginEnabled()
@@ -202,4 +204,5 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 		r.failClosedPendingDisplacedRelogin()
 	}
 	r.wakeDecision()
+	r.wakeRecovery()
 }

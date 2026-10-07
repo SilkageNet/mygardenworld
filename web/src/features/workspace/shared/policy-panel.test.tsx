@@ -15,6 +15,8 @@ it("shows independent recovery opt-in and displacement warning while offline", (
   expect(html).toContain("与自动挤号设置独立");
   expect(html).toContain("不先重试旧会话");
   expect(html).toContain("暂停/启动不会重置冷却和额度");
+  expect(html).toContain("关闭时仍可手动登录");
+  expect(html).toContain("不反复延长冷却");
 });
 
 describe("race upgrade configuration explains spending permission", () => {

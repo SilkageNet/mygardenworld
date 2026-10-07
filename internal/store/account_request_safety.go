@@ -59,12 +59,24 @@ func (d *DB) SaveAccountRestriction(ctx context.Context, accountID int64, s Acco
 // ReserveFreshRecovery commits before authentication, including failed or
 // uncertain attempts. A restart must not replenish this incident's allowance.
 func (d *DB) ReserveFreshRecovery(ctx context.Context, accountID, nowMS, intervalMS int64) (bool, error) {
+	return d.reserveRecovery(ctx, accountID, nowMS, intervalMS, false)
+}
+
+// ReserveManualRecovery honors the current server deadline and shared login
+// spacing, but an explicit new Connect may renew the automatic incident quota.
+// It does not clear protection or change the account's automatic-login policy.
+func (d *DB) ReserveManualRecovery(ctx context.Context, accountID, nowMS, intervalMS int64) (bool, error) {
+	return d.reserveRecovery(ctx, accountID, nowMS, intervalMS, true)
+}
+
+func (d *DB) reserveRecovery(ctx context.Context, accountID, nowMS, intervalMS int64, manual bool) (bool, error) {
 	if accountID <= 0 || nowMS <= 0 || intervalMS <= 0 {
 		return false, fmt.Errorf("invalid recovery reservation")
 	}
 	res, err := d.ExecContext(ctx, `UPDATE account_request_safety SET fresh_login_attempted=1, last_fresh_login_ms=?
-		WHERE account_id=? AND restriction_code=5000 AND restriction_attempts>=1 AND restricted_until_ms<=?
-		AND fresh_login_attempted=0 AND (last_fresh_login_ms=0 OR last_fresh_login_ms+?<=?)`, nowMS, accountID, nowMS, intervalMS, nowMS)
+		WHERE account_id=? AND (restriction_code=5000 OR (? AND restriction_code IN (97777,97778)))
+		AND restriction_attempts>=1 AND restricted_until_ms<=?
+		AND (fresh_login_attempted=0 OR ?) AND (last_fresh_login_ms=0 OR last_fresh_login_ms+?<=?)`, nowMS, accountID, manual, nowMS, manual, intervalMS, nowMS)
 	if err != nil {
 		return false, err
 	}
