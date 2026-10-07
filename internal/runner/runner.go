@@ -193,6 +193,7 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 	normalized := policycfg.Normalize(p)
 	r.mu.Lock()
 	r.policy = normalized
+	r.pacer.setPearlCollectInterval(automation.PearlCollectInterval(normalized.GetBasic().GetPearl()))
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
 		r.manualRecoveryPending = false

@@ -343,6 +343,28 @@ func runPearlRecvOneKey(ctx context.Context, rt operationRuntime, op *automation
 	return executePearlRecvOneKey(ctx, req, exec)
 }
 
+type pearlCollectDeferredError struct{ reason string }
+
+func (e *pearlCollectDeferredError) Error() string { return e.reason }
+
+// Recheck after account pacing, so disabling collection or a changed mature
+// slot cancels queued automatic collection without changing other pearl work.
+func (r *Runner) validatePearlCollectBeforeSend(ctx context.Context, name string) error {
+	if name != clientproto.RPCPearlPlaceRecvOneKey.String() {
+		return nil
+	}
+	if scheduled, _ := ctx.Value(scheduledOperationKey{}).(bool); scheduled {
+		p := r.Policy()
+		if !p.GetAutomationEnabled() || !p.GetBasic().GetPearl().GetCollectEnabled() {
+			return &pearlCollectDeferredError{reason: "自动化或自动收取珍珠产出已关闭，取消尚未发送的收取"}
+		}
+	}
+	if r.state == nil || len(r.state.ReadyPearlPlaceIDsAt(time.Now())) == 0 {
+		return &pearlCollectDeferredError{reason: "珍珠产出状态已变化，当前没有可收取产出"}
+	}
+	return nil
+}
+
 func executePearlRecvOneKey(ctx context.Context, req clientproto.PearlPlaceRecvOneKeyRequest, exec pearlRecvOneKeyExecution) (json.RawMessage, error) {
 	if exec.preflight == nil || exec.recv == nil || exec.apply == nil || exec.claimed == nil {
 		return nil, fmt.Errorf("pearl recvOneKey execution is incomplete")

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SilkageNet/mygardenworld/internal/automation"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
 )
 
@@ -43,12 +44,13 @@ func (p RequestPacing) Validate() error {
 }
 
 type requestPacer struct {
-	mu            sync.Mutex
-	config        RequestPacing
-	lastRequest   time.Time
-	lastScope     map[string]time.Time
-	lastSpacing   map[string]time.Duration
-	recoveryUntil time.Time
+	mu                   sync.Mutex
+	config               RequestPacing
+	lastRequest          time.Time
+	lastScope            map[string]time.Time
+	lastSpacing          map[string]time.Duration
+	recoveryUntil        time.Time
+	pearlCollectInterval time.Duration
 }
 
 const recoveryPacingDuration = 5 * time.Minute
@@ -80,7 +82,18 @@ func (p *requestPacer) intervalsLocked(name string, now time.Time) (string, time
 }
 
 func newRequestPacer(p RequestPacing) *requestPacer {
-	return &requestPacer{config: p.defaults(), lastScope: make(map[string]time.Time), lastSpacing: make(map[string]time.Duration)}
+	return &requestPacer{config: p.defaults(), lastScope: make(map[string]time.Time), lastSpacing: make(map[string]time.Duration), pearlCollectInterval: automation.PearlCollectInterval(nil)}
+}
+
+// Updating policy preserves previous attempts, including failed attempts and
+// attempts made by a previous runner sharing this account's pacer.
+func (p *requestPacer) setPearlCollectInterval(interval time.Duration) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	p.pearlCollectInterval = interval
+	p.mu.Unlock()
 }
 
 func (p *requestPacer) scope(name string) (string, time.Duration) {
@@ -89,6 +102,9 @@ func (p *requestPacer) scope(name string) (string, time.Duration) {
 	group, method, _ := strings.Cut(name, ".")
 	if strings.HasPrefix(strings.ToLower(method), "buy") || name == clientproto.RPCPearlPlaceHire.String() {
 		return group + ".purchase", p.config.PurchaseInterval
+	}
+	if name == clientproto.RPCPearlPlaceRecvOneKey.String() {
+		return name, max(p.config.RepeatInterval, p.pearlCollectInterval)
 	}
 	return name, p.config.RepeatInterval
 }
@@ -133,6 +149,12 @@ func (p *requestPacer) wait(ctx context.Context, name string, guard func() error
 			return guard() // Recheck protection after waiting, before sending.
 		}
 		p.mu.Unlock()
+		if name == clientproto.RPCPearlPlaceRecvOneKey.String() {
+			// A concurrent settings change or request may invalidate selection.
+			// Neither manual nor scheduled work may hold the operation lock
+			// while waiting minutes for the next collection opportunity.
+			return &pearlCollectDeferredError{reason: fmt.Sprintf("珍珠产出收取间隔未到，稍后重新调度（剩余 %s）", delay.Round(time.Second))}
+		}
 		if !sleepOrDone(ctx, delay) {
 			return ctx.Err()
 		}

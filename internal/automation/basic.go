@@ -647,7 +647,7 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 	if policy.GetFreeEnabled() && s.PearlDailyFreeReady(now) {
 		ops = append(ops, domainOp(clientproto.RPCPearlRecvDailyFree.String(), goal, "basic.pearl.free", "claim", "每日免费珍珠可领取", 5580, 0, 0, 0))
 	}
-	if len(s.ReadyPearlPlaceIDsAt(now)) > 0 {
+	if policy.GetCollectEnabled() && len(s.ReadyPearlPlaceIDsAt(now)) > 0 {
 		ops = append(ops, domainOp(clientproto.RPCPearlPlaceRecvOneKey.String(), goal, "basic.pearl.place", "claim", "珍珠实时产出可一键收取", 5570, 0, 0, 0))
 	}
 	pearl := s.Pearl()
@@ -690,6 +690,6 @@ func pearlOperations(s *state.State, policy *pb.PearlPolicy, now time.Time) []Pl
 }
 
 func pearlPolicyEnabled(policy *pb.PearlPolicy) bool {
-	return policy.GetFreeEnabled() || policy.GetAutoHireEnabled() || policy.GetDrawEnabled() ||
+	return policy.GetCollectEnabled() || policy.GetFreeEnabled() || policy.GetAutoHireEnabled() || policy.GetDrawEnabled() ||
 		policy.GetProtectEnabled() || policy.GetAutoBuyHireTicket()
 }

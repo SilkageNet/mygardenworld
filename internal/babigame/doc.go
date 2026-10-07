@@ -168,6 +168,13 @@
 // that UID for the current session. Malformed-present data or an otherwise
 // ambiguous result locks automatic hiring for the rest of the session.
 //
+// Automatic recvOneKey requires its own collect_enabled policy; enabling hire,
+// free rewards, draw or protection does not authorize production collection.
+// The account pacer spaces collection attempts by collect_interval_seconds
+// (default 300, range 60..3600), including failed attempts. Ordinary reconnects
+// preserve this in-memory spacing; daemon restarts do not persist pacing.
+// These local intervals are not observed server-side safety guarantees.
+//
 // # Friend Flower Pick State (Namespaces 24, 110, 111)
 //
 // Automatic friend flower picking is driven only by observed state:

@@ -142,6 +142,7 @@ func Normalize(p *pb.Policy) *pb.Policy {
 	if cp.Basic.Pearl == nil {
 		cp.Basic.Pearl = proto.Clone(def.Basic.Pearl).(*pb.PearlPolicy)
 	}
+	cp.Basic.Pearl.CollectIntervalSeconds = int32(automation.PearlCollectInterval(cp.Basic.Pearl) / time.Second)
 	if cp.Basic.Shop == nil {
 		cp.Basic.Shop = proto.Clone(def.Basic.Shop).(*pb.ShopPolicy)
 	}

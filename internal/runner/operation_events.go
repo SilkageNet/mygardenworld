@@ -182,6 +182,16 @@ func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 
 func (r *Runner) handleOperationError(ctx context.Context, result operationResult) error {
 	op, args, err := result.op, result.args, result.err
+	var collectionDeferred *pearlCollectDeferredError
+	if op.Kind == clientproto.RPCPearlPlaceRecvOneKey.String() && errors.As(err, &collectionDeferred) {
+		// Local admission is not a failed RPC and must not add retry backoff
+		// or erase an earlier real failure. The pacer/current policy owns it.
+		r.emit(Event{Kind: "operation_deferred", Category: op.Category, Domain: op.Domain,
+			Action: "blocked", Label: operationEventLabel(op), Level: "info",
+			Message: collectionDeferred.Error(), PayloadJSON: operationPayload(op, args, nil, err)})
+		r.logOperation(ctx, op.Kind, args, map[string]any{"error": err.Error(), "stage": "collection_not_sent"})
+		return nil
+	}
 	var taken *pearlHireCandidateTakenError
 	if op.Kind == clientproto.RPCPearlPlaceHire.String() && errors.As(err, &taken) {
 		r.clearOperationCooldown(op)

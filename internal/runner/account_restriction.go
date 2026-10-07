@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
@@ -29,7 +30,13 @@ func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 	if err := r.waitRaceTakeReady(ctx, name); err != nil {
 		return err
 	}
-	if err := r.pacer.wait(ctx, name, func() error { return r.checkGameRPCContext(ctx, name) }); err != nil {
+	guardRequest := func() error {
+		if err := r.checkGameRPCContext(ctx, name); err != nil {
+			return err
+		}
+		return r.validatePearlCollectBeforeSend(ctx, name)
+	}
+	if err := r.pacer.wait(ctx, name, guardRequest); err != nil {
 		return err
 	}
 	if err := r.validateActivitySyncBeforeSend(ctx, name); err != nil {
@@ -167,6 +174,9 @@ func (r *Runner) recordAccountRestrictionLocked(name string, d babigame.WSRespon
 		name, d.ErrorCode(), time.UnixMilli(next.RestrictedUntilMS).Local().Format("01/02 15:04:05"))
 	if next.RestrictionCode == 5000 {
 		message += "；短时间跨接口重复失败或恢复验证仍失败，已触发本地请求保护；保留自动化设置，不重放失败操作"
+		if previous.RestrictionCode == 0 && len(failureRPCs) > 0 {
+			message += "；本次触发前 60 秒失败顺序：" + strings.Join(failureRPCs, " → ") + "（最后一次失败不代表根因）"
+		}
 	}
 	if err != nil {
 		message += fmt.Sprintf("；保护状态保存失败，当前进程仍保持暂停: %v", err)
