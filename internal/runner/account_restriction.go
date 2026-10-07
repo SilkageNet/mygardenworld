@@ -270,7 +270,7 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	}
 	next := r.safety
 	next.RestrictedUntilMS, next.RestrictionCode, next.RestrictionAttempts = 0, 0, 0
-	next.FreshLoginAttempted = false // Keep the cross-incident authentication rate limit.
+	next.FreshLoginAttempts = 0 // Keep the cross-incident authentication rate limit.
 	if err := r.persistRestrictionLocked(next); err != nil {
 		r.safetyMu.Unlock()
 		return fmt.Errorf("恢复状态保存失败，账号继续暂停: %w", err)
@@ -280,7 +280,7 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	r.pacer.startRecovery(time.Now())
 	r.safetyMu.Unlock()
 	r.emit(Event{Kind: "account_request_resumed", Category: "account", Domain: "account.request", Action: "resumed",
-		Label: "账号请求保护", Message: "冷却后状态验证成功，恢复账号游戏请求；前 5 分钟降速运行（普通请求至少间隔 5 秒、重复接口 30 秒、购买/雇佣 60 秒；更慢的原设置继续生效）", Level: "info"})
+		Label: "账号请求保护", Message: "冷却后状态验证成功，重新认证计数已清零，恢复账号游戏请求；前 5 分钟降速运行（普通请求至少间隔 5 秒、重复接口 30 秒、购买/雇佣 60 秒；更慢的原设置继续生效）", Level: "info"})
 	return nil
 }
 

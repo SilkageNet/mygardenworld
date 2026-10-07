@@ -17,7 +17,7 @@ var recoveryReputation = json.RawMessage(`{"7":{"17":{"0":{"1":100}}}}`)
 
 func recoveryTestRunner() *Runner {
 	r := newOperationEventTestRunner()
-	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 2, RestrictedUntilMS: time.Now().Add(-time.Second).UnixMilli(), FreshLoginAttempted: true, LastFreshLoginMS: 12345}
+	r.safety = store.AccountRequestSafety{RestrictionCode: 5000, RestrictionAttempts: 2, RestrictedUntilMS: time.Now().Add(-time.Second).UnixMilli(), FreshLoginAttempts: 1, LastFreshLoginMS: 12345}
 	return r
 }
 
@@ -117,8 +117,11 @@ func TestRecoveryRequiresBusinessSuccessAndFreshEvidence(t *testing.T) {
 			if (s.RestrictionCode == 0) != wantHealthy || s.LastFreshLoginMS != 12345 {
 				t.Fatalf("bad protection: %+v", s)
 			}
-			if wantHealthy && (s.RestrictionAttempts != 0 || s.FreshLoginAttempted || calls != 2) {
+			if wantHealthy && (s.RestrictionAttempts != 0 || s.FreshLoginAttempts != 0 || calls != 2) {
 				t.Fatalf("bad success: %+v calls=%d", s, calls)
+			}
+			if !wantHealthy && s.FreshLoginAttempts != 1 {
+				t.Fatal("failed verification replenished the budget", s)
 			}
 			if scenario == "reputation 5000" && (s.RestrictionAttempts != 3 || time.Until(time.UnixMilli(s.RestrictedUntilMS)) < 19*time.Minute) {
 				t.Fatalf("backoff reset: %+v", s)
@@ -137,19 +140,20 @@ func TestFreshRecoveryRequiresIndependentOptInAndDurableBudget(t *testing.T) {
 	p := automation.DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Basic.DisplacedSessionReloginEnabled = true
+	p.Basic.ServerErrorFreshLoginMaxAttempts = 1
 	r.SetPolicy(p)
-	if r.freshRecoveryEligible(now) || r.reserveFreshRecovery(t.Context(), now) == nil {
+	if r.prefersFreshRecovery() || r.reserveFreshRecovery(t.Context(), now) == nil {
 		t.Fatal("displacement setting granted 5000 authentication")
 	}
 	p.Basic.ServerErrorFreshLoginEnabled = true
 	p.AutomationEnabled = false
 	r.SetPolicy(p)
-	if r.freshRecoveryEligible(now) || r.reserveFreshRecovery(t.Context(), now) == nil {
+	if r.prefersFreshRecovery() || r.reserveFreshRecovery(t.Context(), now) == nil {
 		t.Fatal("paused account authenticated")
 	}
 	p.AutomationEnabled = true
 	r.SetPolicy(p)
-	if !r.freshRecoveryEligible(now) {
+	if !r.prefersFreshRecovery() {
 		t.Fatal("explicitly permitted recovery blocked")
 	}
 	if err := r.reserveFreshRecovery(t.Context(), now); err != nil {
@@ -171,7 +175,8 @@ func TestFreshRecoveryRequiresIndependentOptInAndDurableBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	s, _ := reloaded.accountSafetySnapshot()
-	if !s.FreshLoginAttempted || freshRecoveryAvailable(s, now.Add(time.Hour)) {
+	reloaded.SetPolicy(p)
+	if s.FreshLoginAttempts != 1 || reloaded.reserveFreshRecovery(t.Context(), now.Add(time.Hour)) == nil {
 		t.Fatal("restart replenished allowance")
 	}
 	if err := r.clearAccountRestriction(0); err != nil {
@@ -179,14 +184,18 @@ func TestFreshRecoveryRequiresIndependentOptInAndDurableBudget(t *testing.T) {
 	}
 	s, _ = r.accountSafetySnapshot()
 	s.RestrictionCode, s.RestrictionAttempts = 5000, 2
-	if freshRecoveryAvailable(s, now.Add(29*time.Minute)) || !freshRecoveryAvailable(s, now.Add(30*time.Minute)) {
+	r.safety = s
+	if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, s); err != nil {
+		t.Fatal(err)
+	}
+	if r.reserveFreshRecovery(t.Context(), now.Add(29*time.Minute)) == nil || r.reserveFreshRecovery(t.Context(), now.Add(30*time.Minute)) != nil {
 		t.Fatal("cross-incident rate limit lost")
 	}
 }
 
 func TestFreshRecoveryFailsClosedWithoutDurableReservation(t *testing.T) {
 	r := recoveryTestRunner()
-	r.safety.FreshLoginAttempted = false
+	r.safety.FreshLoginAttempts = 0
 	r.safety.LastFreshLoginMS = 0
 	p := automation.DefaultPolicy()
 	p.AutomationEnabled = true
@@ -195,12 +204,57 @@ func TestFreshRecoveryFailsClosedWithoutDurableReservation(t *testing.T) {
 	if r.reserveFreshRecovery(t.Context(), time.Now()) == nil {
 		t.Fatal("authentication allowed without durable reservation")
 	}
-	if r.safety.FreshLoginAttempted {
+	if r.safety.FreshLoginAttempts != 0 {
 		t.Fatal("failed reservation changed incident")
 	}
 }
 
-func TestFreshRecoveryFirstCooldownMatchesDurableAdmission(t *testing.T) {
+func TestFreshRecoveryCountSurvivesReplacementAndResetsOnlyAfterVerification(t *testing.T) {
+	for _, code := range []int{5000, 97777, 97778} {
+		_, r, _ := startupCommitFixture(t)
+		now := time.Now()
+		p := automation.DefaultPolicy()
+		p.AutomationEnabled, p.Basic.ServerErrorFreshLoginEnabled = true, true
+		r.SetPolicy(p)
+		r.safety = store.AccountRequestSafety{RestrictionCode: code, RestrictionAttempts: 1}
+		if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, r.safety); err != nil {
+			t.Fatal(err)
+		}
+		for attempt := 1; attempt <= 3; attempt++ {
+			if err := r.reserveFreshRecovery(t.Context(), now.Add(time.Duration(attempt-1)*freshRecoveryInterval)); err != nil {
+				t.Fatal(err)
+			}
+			if err := r.verifyRecoveryState(t.Context(), 0, nil, func(context.Context, clientproto.RPCName) (json.RawMessage, error) {
+				return nil, errors.New("business unavailable")
+			}); err == nil {
+				t.Fatal("failed probe cleared protection")
+			}
+			replacement := newOperationEventTestRunner()
+			replacement.db, replacement.account = r.db, r.account
+			replacement.SetPolicy(p)
+			if err := replacement.loadAccountSafety(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			r = replacement
+			if r.safety.FreshLoginAttempts != attempt {
+				t.Fatal("replacement reset budget", r.safety)
+			}
+		}
+		if err := r.reserveFreshRecovery(t.Context(), now.Add(3*freshRecoveryInterval)); err == nil {
+			t.Fatal("fourth automatic attempt admitted")
+		}
+		_, revision := r.accountSafetySnapshot()
+		if err := r.verifyRecoveryState(t.Context(), revision, nil, func(context.Context, clientproto.RPCName) (json.RawMessage, error) { return recoveryReputation, nil }); err != nil {
+			t.Fatal(err)
+		}
+		got, err := r.db.LoadAccountRequestSafety(t.Context(), r.account.ID)
+		if err != nil || got.FreshLoginAttempts != 0 || got.RestrictionCode != 0 || got.LastFreshLoginMS != now.Add(2*freshRecoveryInterval).UnixMilli() {
+			t.Fatal("verified recovery did not persist reset and retain spacing", got, err)
+		}
+	}
+}
+
+func TestFreshRecoveryDurableAdmissionBoundaries(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		change func(*store.AccountRequestSafety, time.Time)
@@ -212,9 +266,9 @@ func TestFreshRecoveryFirstCooldownMatchesDurableAdmission(t *testing.T) {
 		}},
 		{name: "no incident", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 0 }},
 		{name: "no recorded attempt", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionAttempts = 0 }},
-		{name: "explicit server wait", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 97778 }},
-		{name: "other server rejection", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 97777 }},
-		{name: "allowance consumed", change: func(s *store.AccountRequestSafety, _ time.Time) { s.FreshLoginAttempted = true }},
+		{name: "explicit server wait", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 97778 }, want: true},
+		{name: "other server rejection", change: func(s *store.AccountRequestSafety, _ time.Time) { s.RestrictionCode = 97777 }, want: true},
+		{name: "allowance consumed", change: func(s *store.AccountRequestSafety, _ time.Time) { s.FreshLoginAttempts = 1 }},
 		{name: "cross incident too soon", change: func(s *store.AccountRequestSafety, now time.Time) {
 			s.LastFreshLoginMS = now.Add(-freshRecoveryInterval + time.Millisecond).UnixMilli()
 		}},
@@ -232,10 +286,7 @@ func TestFreshRecoveryFirstCooldownMatchesDurableAdmission(t *testing.T) {
 			if err := r.db.SaveAccountRestriction(t.Context(), r.account.ID, s); err != nil {
 				t.Fatal(err)
 			}
-			if got := freshRecoveryAvailable(s, now); got != tc.want {
-				t.Fatalf("memory admission=%v want=%v", got, tc.want)
-			}
-			got, err := r.db.ReserveFreshRecovery(t.Context(), r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+			got, err := r.db.ReserveFreshRecovery(t.Context(), r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds(), 1)
 			if err != nil || got != tc.want {
 				t.Fatalf("durable admission=%v want=%v err=%v", got, tc.want, err)
 			}
@@ -247,7 +298,7 @@ func TestFailedCachedRecoveryDoesNotInventServerCooldown(t *testing.T) {
 	for _, code := range []int{91102, 12345} {
 		r := recoveryTestRunner()
 		r.safety.RestrictionAttempts = 1
-		r.safety.FreshLoginAttempted = false
+		r.safety.FreshLoginAttempts = 0
 		r.safety.LastFreshLoginMS = 0
 		before, revision := r.accountSafetySnapshot()
 		preserved := r.preserveCachedSession(t.Context(), rejectedRestore(code), revision)

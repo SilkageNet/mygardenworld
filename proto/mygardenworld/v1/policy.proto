@@ -60,10 +60,14 @@ message BasicPolicy {
   // ONLINE_ONLY never creates a session; pending codes wait until the account
   // is already online for another reason.
   RedeemConnectMode redeem_connect_mode = 17;
-  // Opt-in: after the first 5000 protection cooldown, prefer one fresh
-  // authentication instead of cached recovery (rate-limited across incidents).
+  // Opt-in: after 5000/97777/97778 protection cooldown, use fresh channel
+  // authentication on each recovery attempt instead of cached sessions.
   // May displace a mobile client; independent of displaced-session relogin.
   bool server_error_fresh_login_enabled = 18;
+  // Maximum attempts per unresolved incident, including failed authentication
+  // and business verification. Default 3, range 1..10. Verified recovery resets
+  // the durable counter; restart does not. Attempts remain spaced by 30 minutes.
+  int32 server_error_fresh_login_max_attempts = 19;
 }
 
 message ReputationPolicy {

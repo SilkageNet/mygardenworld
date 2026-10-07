@@ -106,6 +106,7 @@ func deleteAccountFixture(ctx context.Context, db *DB, id int64) error {
 
 func TestAccountDeletionMigrationPreservesDataAndIsOneWay(t *testing.T) {
 	db, _, account, _, _ := notificationFixture(t)
+	restoreV18RecoverySchema(t, db)
 	removeAccountDeletionSchema(t, db.writer)
 	if _, err := db.ExecContext(t.Context(), `PRAGMA user_version=14`); err != nil {
 		t.Fatal(err)

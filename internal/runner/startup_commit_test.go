@@ -226,7 +226,7 @@ func TestProtectedRestartCommitsActivationBeforeSelectingRecovery(t *testing.T) 
 				started.mu.RLock()
 				connected := started.client != nil
 				started.mu.RUnlock()
-				if connected || started.freshRecoveryEligible(time.Now()) != elapsed {
+				if connected || !started.prefersFreshRecovery() {
 					t.Fatal("protected start used a connection or selected recovery before activation")
 				}
 				stored, err := m.db.LoadAccountRequestSafety(t.Context(), fixture.account.ID)

@@ -5,7 +5,7 @@ import { exportPolicyJSON, importPolicyJSON } from "./policy-json";
 
 const policy = create(PolicySchema, {
   schemaVersion: 3, automationEnabled: false,
-  basic: { displacedSessionReloginEnabled: true, pearl: {autoHireEnabled: true, collectEnabled: true, collectIntervalSeconds: 600} },
+  basic: { displacedSessionReloginEnabled: true, serverErrorFreshLoginEnabled: true, serverErrorFreshLoginMaxAttempts: 5, pearl: {autoHireEnabled: true, collectEnabled: true, collectIntervalSeconds: 600} },
   plant: { friendSteal: { excludeUids: [BigInt("9007199254740993")] } },
   order: {}, union: { race: { upgradeTask: true, maxSpendDiamond: BigInt(73), deleteIntervalSeconds: 180 } }, activity: {},
 });
@@ -17,6 +17,8 @@ describe("configuration JSON", () => {
     expect(importPolicyJSON(text, policy).union?.race?.deleteIntervalSeconds).toBe(180);
     expect(importPolicyJSON(text, policy).basic?.pearl?.collectEnabled).toBe(true);
     expect(importPolicyJSON(text, policy).basic?.pearl?.collectIntervalSeconds).toBe(600);
+    expect(importPolicyJSON(text, policy).basic?.serverErrorFreshLoginEnabled).toBe(true);
+    expect(importPolicyJSON(text, policy).basic?.serverErrorFreshLoginMaxAttempts).toBe(5);
     expect(text).not.toContain("$typeName");
     expect(equals(PolicySchema, importPolicyJSON(text, policy), policy)).toBe(true);
   });

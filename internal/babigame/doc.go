@@ -305,8 +305,10 @@
 // args[0] as a date; c_msgCode describes temporarily unavailable role data and
 // asks the player to retry after that time. Neither artifact establishes a
 // safe deletion frequency. The runner pauses all account RPCs on either code,
-// preserves that pause across restarts, and validates a cached-session login
-// after the deadline before replanning from its full state baseline.
+// preserves that pause across restarts, and validates login plus business reads
+// after the deadline before replanning from its full state baseline. Optional
+// fresh channel authentication replaces cache reuse for protected recovery;
+// its bounded, durable attempt counter resets only after verified recovery.
 // Mini's c_msgCode 91102 explicitly means the login has expired; CnnMgr stops
 // and requests reloadGame on acknowledgement. If a post-deadline index.reLogin
 // returns 91102, the runner discards that rejected cache and falls back to the
