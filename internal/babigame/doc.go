@@ -306,6 +306,11 @@
 // channel login flow. It keeps the restriction until the new baseline succeeds;
 // transport failures, unknown codes and new restrictions do not trigger this
 // fallback during recovery.
+// Local recovery admission (paused automation, missing authentication opt-in,
+// or exhausted automatic login allowance) is not a server response and never
+// extends this deadline. It waits for settings or explicit user login. A manual
+// Connect can authorize one fresh authentication without enabling automatic
+// relogin; it still honors the server deadline and durable login spacing.
 // Message envelopes may be bare numeric codes (m:91102) or objects with a
 // numeric code. Both feed the same safety classifier; unstructured error text
 // is not parsed as an authentication or request-protection code.

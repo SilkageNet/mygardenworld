@@ -376,7 +376,7 @@ export default function PolicyPanel({
                   label="5000 异常后允许重新登录"
                   checked={basic?.serverErrorFreshLoginEnabled ?? false}
                   onChange={(checked) => updateBasic({ serverErrorFreshLoginEnabled: checked })}
-            description="默认关闭。开启后，5000 首次保护冷却结束且额度可用时，直接重新认证，不先重试旧会话，可能挤下手机端。每次异常最多一次，两次尝试至少间隔 30 分钟；暂停时不尝试，暂停/启动不会重置冷却和额度。与自动挤号设置独立，业务核验通过后才恢复操作。"
+                  description="默认关闭，仅控制后台自动重登。开启后，5000 首次保护冷却结束且额度可用时，直接重新认证，不先重试旧会话，可能挤下手机端。每次异常自动认证最多一次，两次尝试至少间隔 30 分钟；暂停时不尝试，暂停/启动不会重置冷却和额度。关闭时仍可手动登录，单次授权不会打开此开关，仍遵守冷却和认证间隔。缓存失效且未授权时明确等待，不反复延长冷却。与自动挤号设置独立，业务核验通过后才恢复操作。"
                 />
               </div>
             </PolicyGroup>

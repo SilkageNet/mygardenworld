@@ -348,6 +348,9 @@ func (m *Manager) start(ctx context.Context, accountID int64, source StartSource
 		return nil, store.ErrUserInactive
 	}
 	r.SetPolicy(policy)
+	// An explicit Connect command grants one recovery authentication, not an
+	// ongoing policy change. Daemon restore, enable and ordinary manual RPCs do not.
+	r.manualRecoveryPending = activate && source == StartSourceControlPanel
 	if m.DebugDir != "" {
 		path := fmt.Sprintf("%s/%s_debug.jsonl", m.DebugDir, acc.Name)
 		dw, err := babigame.NewDebugFrameWriter(path)

@@ -3,7 +3,6 @@ package runner
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -69,6 +68,9 @@ func (r *Runner) checkGameRPCContext(ctx context.Context, name string) error {
 	s, revision := r.accountSafetySnapshot()
 	if s.RestrictionCode == 0 {
 		return nil
+	}
+	if ctx.Value(recoveryAttemptKey{}) == r && !r.Policy().GetAutomationEnabled() {
+		return &recoveryBlockedError{reason: "自动化已暂停，取消尚未发送的恢复请求；未延长服务端冷却"}
 	}
 	if time.Now().UnixMilli() >= s.RestrictedUntilMS {
 		if name == clientproto.RPCIndexLogin.String() || name == clientproto.RPCIndexReLogin.String() {
@@ -296,32 +298,4 @@ func (r *Runner) recoverAccountRestriction(client *babigame.Client, now time.Tim
 		_ = client.Close()
 	}
 	return true
-}
-
-func (r *Runner) deferRestrictionProbe(revision uint64, probeErr error) {
-	r.safetyMu.Lock()
-	// A coded failure was already recorded by the response observer.
-	if r.safetyRevision != revision || r.safety.RestrictionCode == 0 {
-		r.safetyMu.Unlock()
-		return
-	}
-	// A positively expired cached token advances recovery backoff. Transport
-	// failures and arbitrary error text do not establish token expiry. Fresh
-	// authentication keeps its independent opt-in, cooldown and durable budget.
-	var rejected *babigame.RPCServerError
-	if r.safety.RestrictionCode == 5000 && errors.As(probeErr, &rejected) && rejected.Name == clientproto.RPCIndexReLogin &&
-		rejected.Envelope.ErrorCode() == 91102 && !rejected.Envelope.IsSessionDisplaced() {
-		r.safety.RestrictionAttempts = min(4, r.safety.RestrictionAttempts+1)
-	}
-	wait := restrictionBackoff(r.safety.RestrictionAttempts)
-	r.safety.RestrictedUntilMS = time.Now().Add(wait).UnixMilli()
-	r.safetyRevision++
-	err := r.persistRestrictionLocked(r.safety)
-	r.safetyMu.Unlock()
-	message := fmt.Sprintf("账号恢复验证未成功，继续暂停 %s: %v", wait, probeErr)
-	if err != nil {
-		message += fmt.Sprintf("；保存保护状态失败: %v", err)
-	}
-	r.emit(Event{Kind: "account_request_paused", Category: "account", Domain: "account.request", Action: "blocked",
-		Label: "账号请求保护", Message: message, Level: "warn"})
 }

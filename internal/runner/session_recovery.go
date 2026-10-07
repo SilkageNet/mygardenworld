@@ -41,25 +41,43 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	p := r.Policy()
 	r.safetyMu.Lock()
 	defer r.safetyMu.Unlock()
-	if r.safety.RestrictionCode != 5000 {
+	manual := r.manualRecoveryAuthorized(ctx)
+	if r.safety.RestrictionCode == 0 || (r.safety.RestrictionCode != 5000 && !manual) {
 		return nil
 	}
-	if !p.GetAutomationEnabled() || !p.GetBasic().GetServerErrorFreshLoginEnabled() || !freshRecoveryAvailable(r.safety, now) {
-		return fmt.Errorf("5000 保护中未获准重新认证（需开启自动化和独立开关、冷却已结束，且本次未尝试、距上次至少 30 分钟）；可检查设置后手动登录")
+	if !p.GetAutomationEnabled() {
+		return &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复认证，未延长服务端冷却"}
+	}
+	if !manual && r.safety.FreshLoginAttempted {
+		return &recoveryBlockedError{reason: "本次自动重新认证额度已使用，且缓存会话不可用；请手动重新登录，未延长服务端冷却"}
+	}
+	if until := time.UnixMilli(r.safety.LastFreshLoginMS).Add(freshRecoveryInterval); r.safety.LastFreshLoginMS != 0 && now.Before(until) {
+		return &recoveryBlockedError{reason: fmt.Sprintf("重新认证间隔未到，%s 后尝试；未延长服务端冷却", until.Local().Format("15:04:05")), retryAt: until}
 	}
 	if r.db == nil {
 		return fmt.Errorf("无法持久化恢复认证额度，未发送登录请求")
 	}
-	allowed, err := r.db.ReserveFreshRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+	var allowed bool
+	var err error
+	if manual {
+		allowed, err = r.db.ReserveManualRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+	} else {
+		allowed, err = r.db.ReserveFreshRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+	}
 	if err != nil {
 		return fmt.Errorf("保存恢复认证额度失败，未发送登录请求: %w", err)
 	}
 	if !allowed {
-		return fmt.Errorf("恢复认证额度已占用，未发送登录请求")
+		return &recoveryBlockedError{reason: "恢复认证额度未获批准，未发送登录请求；请检查设置后手动重新登录"}
 	}
 	r.safety.FreshLoginAttempted = true
 	r.safety.LastFreshLoginMS = now.UnixMilli()
-	r.log.Info("5000 recovery reserved one fresh authentication", "account_id", r.account.ID)
+	if manual {
+		r.mu.Lock()
+		r.manualRecoveryPending = false
+		r.mu.Unlock()
+	}
+	r.log.Info("recovery reserved one fresh authentication", "account_id", r.account.ID, "manual", manual)
 	return nil
 }
 
@@ -72,8 +90,11 @@ func (r *Runner) checkFreshRecoveryAuthorization(ctx context.Context) error {
 	}
 	s, _ := r.accountSafetySnapshot()
 	p := r.Policy()
-	if s.RestrictionCode == 5000 && (!p.GetAutomationEnabled() || !p.GetBasic().GetServerErrorFreshLoginEnabled()) {
-		return fmt.Errorf("自动化或 5000 重新登录开关已关闭，取消恢复认证")
+	if s.RestrictionCode != 0 && !p.GetAutomationEnabled() {
+		return &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复认证，未延长服务端冷却"}
+	}
+	if s.RestrictionCode == 5000 && !p.GetBasic().GetServerErrorFreshLoginEnabled() && !r.manualRecoveryAuthorized(ctx) {
+		return &recoveryBlockedError{reason: "缓存会话不可用，且未允许自动重新登录；请手动重新登录或开启“5000 异常后允许重新登录”，未延长服务端冷却"}
 	}
 	return nil
 }

@@ -104,5 +104,6 @@ func (r *Runner) enableAutomation(ctx context.Context) error {
 			Message: "自动化已启动", PayloadJSON: `{"automation_enabled":true}`})
 	}
 	r.wakeDecision()
+	r.wakeRecovery()
 	return nil
 }

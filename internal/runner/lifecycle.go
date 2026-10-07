@@ -119,6 +119,17 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 	if !r.waitAccountRestriction(ctx) {
 		return nil, ctx.Err()
 	}
+	safety, _ := r.accountSafetySnapshot()
+	if safety.RestrictionCode != 0 {
+		if !r.Policy().GetAutomationEnabled() {
+			return nil, &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复请求，未延长服务端冷却"}
+		}
+		ctx = context.WithValue(ctx, recoveryAttemptKey{}, r)
+		ctx = r.recoveryContext(ctx)
+		if r.manualRecoveryAuthorized(ctx) {
+			return r.connectFresh(ctx, username, password)
+		}
+	}
 	if r.freshRecoveryEligible(time.Now()) {
 		return r.connectFresh(ctx, username, password)
 	}
@@ -149,9 +160,6 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 			}
 			decodeErr = resumeErr
 		}
-		if s, _ := r.accountSafetySnapshot(); s.RestrictionCode == 5000 {
-			return nil, fmt.Errorf("缓存会话不可用，5000 保护仍生效: %w", decodeErr)
-		}
 		r.log.Info("cached session rejected; using fresh login", "err", decodeErr)
 		if deleteErr := r.db.DeleteSession(ctx, r.account.ID); deleteErr != nil {
 			return nil, fmt.Errorf("delete rejected cached session: %w", deleteErr)
@@ -174,15 +182,13 @@ func (r *Runner) preserveCachedSession(ctx context.Context, err error, restoreRe
 	if s.RestrictionCode == 0 {
 		return false
 	}
-	if s.RestrictionCode == 5000 {
-		return true
-	}
 	if s.RestrictedUntilMS > time.Now().UnixMilli() || revision != restoreRevision {
 		return true
 	}
 	var rejected *babigame.RPCServerError
-	return !errors.As(err, &rejected) || rejected == nil || rejected.Name != clientproto.RPCIndexReLogin ||
-		rejected.Envelope.ErrorCode() != 91102 || rejected.Envelope.IsSessionDisplaced()
+	return !errors.As(err, &rejected) || rejected == nil ||
+		(rejected.Name != clientproto.RPCIndexReLogin && rejected.Name != clientproto.RPCUsrLazySync && rejected.Name != clientproto.RPCReputationView) ||
+		!rejected.Envelope.IsSessionExpired() || rejected.Envelope.IsSessionDisplaced()
 }
 
 func (r *Runner) connectFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
@@ -194,7 +200,6 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if !r.waitAccountRestriction(ctx) {
 		return nil, ctx.Err()
 	}
-	httpc := r.prepareHTTPClient(ctx, "", "", "")
 	// Every automatic fresh-authentication path shares the durable allowance;
 	// cache rejection/missing credentials must not bypass the opt-in or budget.
 	if err := r.reserveFreshRecovery(ctx, time.Now()); err != nil {
@@ -204,9 +209,17 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
 		return nil, err
 	}
+	httpc := r.prepareHTTPClient(ctx, "", "", "")
+	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
+		return nil, err
+	}
 	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode == 5000 {
+		mode := "按已启用设置"
+		if r.manualRecoveryAuthorized(ctx) {
+			mode = "按本次手动登录授权（不改变自动重登设置）"
+		}
 		r.emit(Event{Kind: "account_recovery_authentication", Category: "account", Domain: "account.request", Action: "authenticating",
-			Label: "账号恢复认证", Message: "5000 保护冷却已结束，按已启用设置跳过旧会话，尝试本次唯一的新认证；额度已持久化，失败也不会重试新认证", Level: "warn"})
+			Label: "账号恢复认证", Message: "5000 保护冷却已结束，" + mode + "尝试一次新认证；额度已持久化，仍需业务核验", Level: "warn"})
 	}
 	var (
 		session *babigame.Session
@@ -328,19 +341,21 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	// Do not install invalidation callbacks until a cached session has proved
 	// usable. Otherwise an expired cache could stop the runner before its fresh
 	// login fallback gets a chance to run.
-	r.attachClientHandlers(client)
 	if recovering {
 		if err := r.verifyRestrictionRecovery(ctx, client, session, safetyRevision, resume, v); err != nil {
 			r.observeRecoveryDisplacement(err)
-			r.deferRestrictionProbe(safetyRevision, err)
+			_ = client.Close()
 			return nil, err
 		}
 	}
+	r.attachClientHandlers(client)
+	r.setRecoveryWait("", time.Time{})
 	r.resetFreshSessionAutomationState()
 	r.mu.Lock()
 	r.session = session
 	r.httpc = httpc
 	r.client = client
+	r.manualRecoveryPending = false
 	r.rqst = rqstState{}
 	r.mu.Unlock()
 

@@ -9,6 +9,52 @@ import (
 	"time"
 )
 
+func TestManualRecoveryReservationPreservesServerDeadlineAndSharedSpacing(t *testing.T) {
+	for _, code := range []int{5000, 97777, 97778} {
+		db, _, account, _, _ := notificationFixture(t)
+		now := time.Now().UnixMilli()
+		interval := (30 * time.Minute).Milliseconds()
+		s := AccountRequestSafety{RestrictionCode: code, RestrictionAttempts: 3, RestrictedUntilMS: now + 1, FreshLoginAttempted: true, LastFreshLoginMS: now - interval, LastRaceDeleteMS: 1234}
+		if err := db.SaveAccountRestriction(t.Context(), account.ID, s); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now, interval); err != nil || ok {
+			t.Fatal("manual login bypassed server cooldown", ok, err)
+		}
+		s.RestrictedUntilMS = now
+		if err := db.SaveAccountRestriction(t.Context(), account.ID, s); err != nil {
+			t.Fatal(err)
+		}
+		var admitted atomic.Int32
+		var wg sync.WaitGroup
+		for range 12 {
+			wg.Go(func() {
+				ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now, interval)
+				if err != nil {
+					t.Error(err)
+				}
+				if ok {
+					admitted.Add(1)
+				}
+			})
+		}
+		wg.Wait()
+		if admitted.Load() != 1 {
+			t.Fatalf("manual admission count=%d", admitted.Load())
+		}
+		if ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now+interval-1, interval); err != nil || ok {
+			t.Fatal("manual login bypassed shared spacing", ok, err)
+		}
+		if ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now+interval, interval); err != nil || !ok {
+			t.Fatal("new explicit login blocked by old automatic allowance", ok, err)
+		}
+		stored, err := db.LoadAccountRequestSafety(t.Context(), account.ID)
+		if err != nil || stored.RestrictionCode != code || stored.RestrictedUntilMS != now || stored.RestrictionAttempts != 3 {
+			t.Fatal("reservation cleared server protection", stored, err)
+		}
+	}
+}
+
 func TestRequestSafetyV14MigrationAndDurableFreshReservation(t *testing.T) {
 	db, _, account, _, _ := notificationFixture(t)
 	removeAccountDeletionSchema(t, db.writer)

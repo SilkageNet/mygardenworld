@@ -78,15 +78,29 @@ func (r *Runner) reconnect(ctx context.Context, username, password string) *babi
 		if r.isSessionInvalidated() {
 			return nil
 		}
-		if r.restrictionError() != nil {
-			// Coded failures have their own incident and recovery validation.
-			if s, revision := r.accountSafetySnapshot(); s.RestrictedUntilMS <= time.Now().UnixMilli() {
-				r.deferRestrictionProbe(revision, err)
-			}
-			if !r.waitAccountRestriction(ctx) {
+		var blocked *recoveryBlockedError
+		if errors.As(err, &blocked) {
+			r.setRecoveryWait(blocked.reason, blocked.retryAt)
+			if !r.waitRecovery(ctx, blocked.retryAt) {
 				return nil
 			}
 			wait = reconnectInitialWait
+			continue
+		}
+		if r.restrictionError() != nil {
+			// Only observed server restrictions extend the durable deadline.
+			// Network/local verification failures use connection backoff instead.
+			if s, _ := r.accountSafetySnapshot(); s.RestrictedUntilMS > time.Now().UnixMilli() {
+				r.setRecoveryWait("", time.Time{})
+				if !r.waitAccountRestriction(ctx) {
+					return nil
+				}
+				wait = reconnectInitialWait
+				continue
+			}
+			wait = nextReconnectWait(wait)
+			retryAt := time.Now().Add(wait)
+			r.setRecoveryWait(fmt.Sprintf("恢复核验暂未完成：%v；连接退避后重试（未延长服务端冷却）", err), retryAt)
 			continue
 		}
 		r.emit(Event{Kind: "ws_disconnected", Message: fmt.Sprintf("重连失败: %v；%s 后重试", err, nextReconnectWait(wait)), Level: "warn"})
