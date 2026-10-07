@@ -81,8 +81,8 @@ export default function AccountListPanel({
   return (
     <Card className={cn("cloud-surface min-h-[340px]", hasAccounts ? "xl:h-full xl:min-h-[480px]" : "xl:min-h-[360px]")}>
       <CardHeader className="border-b border-border/45 pb-2.5 sm:pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-md bg-white/72 text-sky-500 shadow-sm dark:bg-white/8 dark:text-sky-300">
               <Cloud className="size-4" />
             </span>
@@ -174,24 +174,14 @@ export default function AccountListPanel({
               return (
                 <SoftSpotlight
                   key={accountId}
-                  role={bulkMode ? undefined : "button"}
-                  tabIndex={bulkMode ? undefined : 0}
                   className={cn(
-                    "w-full cursor-pointer rounded-md border p-3 text-left shadow-sm transition-all active:scale-[0.99]",
+                    "w-full min-w-0 rounded-md border p-3 text-left shadow-sm transition-colors",
                     bulkMode && bulkSelected
                       ? "border-sky-400/60 bg-sky-50/80 shadow-[0_10px_20px_rgba(14,165,233,0.10)] dark:bg-sky-400/10"
                       : selected
                       ? "border-primary/45 bg-white/78 shadow-[0_10px_20px_rgba(255,111,97,0.12)] dark:bg-primary/12 dark:shadow-black/20"
                       : "border-border/58 bg-white/42 hover:border-ring/45 hover:bg-white/66 dark:bg-white/5 dark:hover:bg-white/8",
                   )}
-                  onClick={() => bulkMode ? (!deleting && toggleSelected(accountId)) : onSelect(accountId)}
-                  onKeyDown={(event) => {
-                    if (bulkMode) return;
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(accountId);
-                    }
-                  }}
                 >
                   <div className="flex items-center justify-between gap-2">
                     {bulkMode && (
@@ -201,28 +191,41 @@ export default function AccountListPanel({
                         aria-label={`选择账号 ${identity.nickname}`}
                         checked={bulkSelected}
                         disabled={deleting}
-                        onClick={(event) => event.stopPropagation()}
                         onChange={() => toggleSelected(accountId)}
                       />
                     )}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{identity.nickname}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{identity.area}</span><span>{identity.channel}</span></div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      {!bulkMode && <Button
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 cursor-pointer rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-default"
+                      aria-label={`${bulkMode ? "切换选择账号" : "查看账号"} ${identity.nickname}`}
+                      aria-pressed={bulkMode ? bulkSelected : selected}
+                      disabled={bulkMode && deleting}
+                      onClick={() => bulkMode ? toggleSelected(accountId) : onSelect(accountId)}
+                    >
+                      <span className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-sm font-semibold" title={identity.nickname}>{identity.nickname}</span>
+                        <HealthBadge status={status} account={account} />
+                      </span>
+                      <span className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                        <span className="whitespace-nowrap">{identity.area}</span><span aria-hidden="true">·</span><span className="whitespace-nowrap">{identity.channel}</span>
+                      </span>
+                    </button>
+                  </div>
+                  {!bulkMode && (
+                    <div className="mt-2.5 flex items-center justify-end gap-2 border-t border-border/40 pt-2.5" role="group" aria-label={`${identity.nickname}的运行操作`}>
+                      <Button
                         type="button"
                         variant={online ? "secondary" : "default"}
                         size="sm"
                         className="h-7 px-2"
                         aria-label={online ? "暂停并离线" : "启动并上线"}
                         disabled={automationBusy}
-                        onClick={(event) => { event.stopPropagation(); onAutomationToggle(accountId); }}
+                        onClick={() => onAutomationToggle(accountId)}
                       >
                         {automationSpinning ? <Loader2 className="size-3.5 animate-spin" /> : online ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                         {online ? "暂停" : "启动"}
-                      </Button>}
-                      {!bulkMode && abnormal && (
+                      </Button>
+                      {abnormal && (
                         <Button
                           type="button"
                           variant="outline"
@@ -230,15 +233,14 @@ export default function AccountListPanel({
                           className="h-7 px-2"
                           aria-label="停止并离线"
                           disabled={automationBusy}
-                          onClick={(event) => { event.stopPropagation(); onAutomationStop(accountId); }}
+                          onClick={() => onAutomationStop(accountId)}
                         >
                           {automationSpinning ? <Loader2 className="size-3.5 animate-spin" /> : <Square className="size-3.5" />}
                           停止
                         </Button>
                       )}
-                      <HealthBadge status={status} account={account} />
                     </div>
-                  </div>
+                  )}
                 </SoftSpotlight>
               );
             })}

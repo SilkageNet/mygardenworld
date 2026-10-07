@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, type ComponentProps } from "react";
 import {
-  AlertTriangle,
   ArrowLeft,
   Cloud,
   Loader2,
@@ -17,7 +16,7 @@ import type { Account } from "@/gen/mygardenworld/v1/account_pb";
 import type { Policy } from "@/gen/mygardenworld/v1/policy_pb";
 import type { AccountRedeemAttemptFilter } from "@/gen/mygardenworld/v1/workspace_pb";
 import type { AccountStatus, Event, FeatureCapability } from "@/lib/api/workspace-models";
-import { accountConnected, accountIdentity, accountStatusIssues, HealthBadge } from "@/components/dashboard/dashboard-utils";
+import { accountConnected, accountIdentity, HealthBadge } from "@/components/dashboard/dashboard-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContentReveal } from "@/components/effects/content-reveal";
@@ -26,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { AccountViews } from "@/features/workspace/model";
 import { accountDeleting } from "./account-deletion";
 import { AccountDeletionProgressDetails } from "./account-deletion-progress";
+import { AccountStatusNotice } from "./account-status-notice";
 import type { RedeemAttemptFeed } from "@/features/workspace/basic/redeem-attempts-model";
 import { DashboardTabBar, type DashboardTabId } from "@/features/account-workspace/dashboard-tab-bar";
 import {
@@ -146,7 +146,7 @@ export function AccountDetailView({
   return (
     <div className="flex min-h-0 w-full min-w-0 max-w-full flex-col gap-3 sm:gap-4 xl:h-full xl:overflow-hidden">
       <div className="shrink-0">
-        <HeaderPanel
+        <AccountHeaderPanel
           account={account}
           status={status}
           viewsLoading={viewsLoading}
@@ -193,7 +193,7 @@ export function AccountDetailView({
   );
 }
 
-function HeaderPanel({
+export function AccountHeaderPanel({
   account,
   status,
   viewsLoading,
@@ -217,11 +217,10 @@ function HeaderPanel({
   const connected = accountConnected(account, status);
   const sessionAction = connected ? "logout" : "login";
   const identity = accountIdentity(account, status);
-  const statusIssues = accountStatusIssues(status);
   return (
     <Card className="cloud-surface bg-card/88 py-3 sm:py-4">
-      <CardContent className="space-y-2 px-3 sm:space-y-3 sm:px-4">
-        <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-3">
+      <CardContent className="@container/account-header space-y-3 px-3 sm:px-4">
+        <div className="flex min-w-0 flex-col gap-3 @lg/account-header:flex-row @lg/account-header:items-center @lg/account-header:justify-between">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
             <Button type="button" variant="ghost" size="icon" className="shrink-0 xl:hidden" onClick={onBack} aria-label="返回账号列表">
               <ArrowLeft className="size-4" />
@@ -230,16 +229,16 @@ function HeaderPanel({
               <Cloud className="size-6" />
             </div>
             <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
                 <h1 className="min-w-0 truncate text-lg font-semibold leading-tight sm:text-xl">{identity.nickname}</h1>
                 <HealthBadge account={account} status={status} />
               </div>
               <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground sm:text-sm">
-                <span className="truncate">{identity.area}</span><span>·</span><span className="truncate">{identity.channel}</span>
+                <span className="whitespace-nowrap">{identity.area}</span><span>·</span><span className="whitespace-nowrap">{identity.channel}</span>
               </div>
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-1.5">
+          <div role="group" aria-label="账号操作" className="flex shrink-0 items-center justify-end gap-1.5">
             <IconButtonWithTooltip label="刷新" type="button" variant="outline" size="icon-lg" className="size-8 sm:size-9" onClick={onRefresh} disabled={viewsLoading || !connected}>
               <RefreshCw className={cn("size-4", viewsLoading && "animate-spin")} />
             </IconButtonWithTooltip>
@@ -262,17 +261,7 @@ function HeaderPanel({
             </IconButtonWithTooltip>
           </div>
         </div>
-        {statusIssues.length > 0 && (
-          <div className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive shadow-sm">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <div className="min-w-0 space-y-1">
-                <div className="font-medium">异常信息</div>
-                {statusIssues.map((issue) => <div key={issue} className="break-words text-destructive/90">{issue}</div>)}
-              </div>
-            </div>
-          </div>
-        )}
+        <AccountStatusNotice status={status} />
       </CardContent>
     </Card>
   );
