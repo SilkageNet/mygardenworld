@@ -33,7 +33,7 @@ else
 endif
 
 GARDEND := $(BIN_DIR)/gardend$(EXE)
-GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.0
+GOLANGCI_LINT ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
 default: help
 

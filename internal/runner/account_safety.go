@@ -109,7 +109,11 @@ func accountRestrictionError(s store.AccountRequestSafety) error {
 
 // Reconnect waits without HTTP login/config fetches. The existing cached
 // session is retained; a restriction is not evidence of an invalid token.
+// A revision-bound explicit user command may attempt login before this deadline.
 func (r *Runner) waitAccountRestriction(ctx context.Context) bool {
+	if r.manualRecoveryAuthorized(ctx) {
+		return ctx.Err() == nil
+	}
 	for {
 		s, _ := r.accountSafetySnapshot()
 		wait := time.Until(time.UnixMilli(s.RestrictedUntilMS))

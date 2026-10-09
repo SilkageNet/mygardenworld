@@ -30,6 +30,8 @@ it("shows independent recovery opt-in and displacement warning while offline", (
   expect(html).toContain("不先重试旧会话");
   expect(html).toContain("暂停/启动不会重置冷却和额度");
   expect(html).toContain("关闭时仍可手动登录");
+  expect(html).toContain("不受自动冷却、间隔和次数上限限制");
+  expect(html).toContain("失败会直接提示");
   expect(html).toContain("不反复延长冷却");
 });
 

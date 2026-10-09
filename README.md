@@ -81,6 +81,6 @@ Questions, ideas, and thoughtful feedback are welcome in [Issues](https://github
 
 ## Development
 
-Use **Go 1.27.0**, **Node.js 22**, and **pnpm 10**. Start with `pnpm --dir web install --frozen-lockfile`, then run `make check` for the quality checks.
+Use **Go 1.27.2**, **Node.js 22**, and **pnpm 10**. Start with `pnpm --dir web install --frozen-lockfile`, then run `make check` for the quality checks.
 
 See [AGENTS.md](AGENTS.md) for contributor guidance and [third-party notices](THIRD_PARTY_NOTICES.md) for dependency acknowledgments.

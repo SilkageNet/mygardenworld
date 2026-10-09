@@ -36,18 +36,18 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	p := r.Policy()
 	r.safetyMu.Lock()
 	defer r.safetyMu.Unlock()
-	manual := r.manualRecoveryAuthorized(ctx)
+	manual := r.manualRecoveryAtRevision(ctx, r.safetyRevision)
 	if r.safety.RestrictionCode == 0 {
 		return nil
 	}
-	if !p.GetAutomationEnabled() {
+	if !p.GetAutomationEnabled() && !manual {
 		return &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复认证，未延长服务端冷却"}
 	}
 	maxAttempts := int(p.GetBasic().GetServerErrorFreshLoginMaxAttempts())
 	if !manual && r.safety.FreshLoginAttempts >= maxAttempts {
 		return &recoveryBlockedError{reason: fmt.Sprintf("异常恢复已尝试 %d/%d 次，达到自动重新认证上限；等待手动处理，未延长服务端冷却", r.safety.FreshLoginAttempts, maxAttempts)}
 	}
-	if until := time.UnixMilli(r.safety.LastFreshLoginMS).Add(freshRecoveryInterval); r.safety.LastFreshLoginMS != 0 && now.Before(until) {
+	if until := time.UnixMilli(r.safety.LastFreshLoginMS).Add(freshRecoveryInterval); !manual && r.safety.LastFreshLoginMS != 0 && now.Before(until) {
 		return &recoveryBlockedError{reason: fmt.Sprintf("异常恢复已尝试 %d/%d 次；重新认证间隔未到，%s 后尝试；未延长服务端冷却", r.safety.FreshLoginAttempts, maxAttempts, until.Local().Format("15:04:05")), retryAt: until}
 	}
 	if r.db == nil {
@@ -56,7 +56,7 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	var allowed bool
 	var err error
 	if manual {
-		allowed, err = r.db.ReserveManualRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds())
+		allowed, err = r.db.ReserveManualRecovery(ctx, r.account.ID, now.UnixMilli())
 	} else {
 		allowed, err = r.db.ReserveFreshRecovery(ctx, r.account.ID, now.UnixMilli(), freshRecoveryInterval.Milliseconds(), maxAttempts)
 	}
@@ -68,11 +68,6 @@ func (r *Runner) reserveFreshRecovery(ctx context.Context, now time.Time) error 
 	}
 	r.safety.FreshLoginAttempts++
 	r.safety.LastFreshLoginMS = now.UnixMilli()
-	if manual {
-		r.mu.Lock()
-		r.manualRecoveryPending = false
-		r.mu.Unlock()
-	}
 	r.log.Info("recovery reserved fresh authentication", "account_id", r.account.ID, "manual", manual, "attempt", r.safety.FreshLoginAttempts, "max_attempts", maxAttempts)
 	return nil
 }
@@ -86,7 +81,7 @@ func (r *Runner) checkFreshRecoveryAuthorization(ctx context.Context) error {
 	}
 	s, _ := r.accountSafetySnapshot()
 	p := r.Policy()
-	if s.RestrictionCode != 0 && !p.GetAutomationEnabled() {
+	if s.RestrictionCode != 0 && !p.GetAutomationEnabled() && !r.manualRecoveryAuthorized(ctx) {
 		return &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复认证，未延长服务端冷却"}
 	}
 	if s.RestrictionCode != 0 && !p.GetBasic().GetServerErrorFreshLoginEnabled() && !r.manualRecoveryAuthorized(ctx) {

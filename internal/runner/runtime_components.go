@@ -23,7 +23,6 @@ type sessionRuntimeState struct {
 	sessionInvalidated       bool
 	sessionInvalidatedReason string
 	sessionAutoRelogin       bool
-	manualRecoveryPending    bool
 	recoveryWake             chan struct{}
 	recoveryWaitReason       string
 	recoveryRetryAt          time.Time

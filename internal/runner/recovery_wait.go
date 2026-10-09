@@ -53,16 +53,28 @@ func (r *Runner) waitRecovery(ctx context.Context, retryAt time.Time) bool {
 type manualRecoveryKey struct{}
 type recoveryAttemptKey struct{}
 
-func (r *Runner) manualRecoveryAuthorized(ctx context.Context) bool {
-	return ctx.Value(manualRecoveryKey{}) == r
+// This permit belongs only to one synchronous user command. It is never
+// inherited by background reconnects and a new server rejection revokes it.
+type manualRecoveryPermit struct {
+	runner   *Runner
+	revision uint64
 }
 
-func (r *Runner) recoveryContext(ctx context.Context) context.Context {
-	r.mu.RLock()
-	pending := r.manualRecoveryPending
-	r.mu.RUnlock()
-	if pending {
-		return context.WithValue(ctx, manualRecoveryKey{}, r)
+func (r *Runner) manualRecoveryAuthorized(ctx context.Context) bool {
+	permit, ok := ctx.Value(manualRecoveryKey{}).(manualRecoveryPermit)
+	if !ok || permit.runner != r {
+		return false
 	}
-	return ctx
+	_, revision := r.accountSafetySnapshot()
+	return permit.revision == revision
+}
+
+func (r *Runner) manualRecoveryAtRevision(ctx context.Context, revision uint64) bool {
+	permit, ok := ctx.Value(manualRecoveryKey{}).(manualRecoveryPermit)
+	return ok && permit.runner == r && permit.revision == revision
+}
+
+func (r *Runner) manualRecoveryContext(ctx context.Context) context.Context {
+	_, revision := r.accountSafetySnapshot()
+	return context.WithValue(ctx, manualRecoveryKey{}, manualRecoveryPermit{r, revision})
 }

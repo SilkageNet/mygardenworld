@@ -62,22 +62,22 @@ func (d *DB) ReserveFreshRecovery(ctx context.Context, accountID, nowMS, interva
 	return d.reserveRecovery(ctx, accountID, nowMS, intervalMS, maxAttempts, false)
 }
 
-// ReserveManualRecovery honors the current server deadline and shared login
-// spacing, but an explicit new Connect may exceed the automatic incident quota.
+// ReserveManualRecovery records an explicit, lifecycle-serialized user attempt
+// without applying automatic cooldown, spacing or incident quota.
 // The attempt is still counted; only verified recovery resets that count.
 // It does not clear protection or change the account's automatic-login policy.
-func (d *DB) ReserveManualRecovery(ctx context.Context, accountID, nowMS, intervalMS int64) (bool, error) {
-	return d.reserveRecovery(ctx, accountID, nowMS, intervalMS, 0, true)
+func (d *DB) ReserveManualRecovery(ctx context.Context, accountID, nowMS int64) (bool, error) {
+	return d.reserveRecovery(ctx, accountID, nowMS, 0, 0, true)
 }
 
 func (d *DB) reserveRecovery(ctx context.Context, accountID, nowMS, intervalMS int64, maxAttempts int, manual bool) (bool, error) {
-	if accountID <= 0 || nowMS <= 0 || intervalMS <= 0 || (!manual && maxAttempts <= 0) {
+	if accountID <= 0 || nowMS <= 0 || (!manual && (intervalMS <= 0 || maxAttempts <= 0)) {
 		return false, fmt.Errorf("invalid recovery reservation")
 	}
 	res, err := d.ExecContext(ctx, `UPDATE account_request_safety SET fresh_login_attempts=fresh_login_attempts+1, last_fresh_login_ms=?
 		WHERE account_id=? AND restriction_code IN (5000,97777,97778)
-		AND restriction_attempts>=1 AND restricted_until_ms<=?
-		AND (fresh_login_attempts<? OR ?) AND (last_fresh_login_ms=0 OR last_fresh_login_ms+?<=?)`, nowMS, accountID, nowMS, maxAttempts, manual, intervalMS, nowMS)
+		AND restriction_attempts>=1
+		AND (? OR (restricted_until_ms<=? AND fresh_login_attempts<? AND (last_fresh_login_ms=0 OR last_fresh_login_ms+?<=?)))`, nowMS, accountID, manual, nowMS, maxAttempts, intervalMS, nowMS)
 	if err != nil {
 		return false, err
 	}

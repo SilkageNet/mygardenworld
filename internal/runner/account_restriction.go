@@ -14,8 +14,9 @@ import (
 )
 
 // All game RPC paths, including heartbeat and executor-internal follow-up
-// reads, share this guard. Only post-wait login and revision-bound, non-spending
-// recovery probes can pass while protection is pending. HTTP login is gated too.
+// reads, share this guard. Only login and revision-bound, non-spending recovery
+// probes can pass while protection is pending. Automatic recovery waits for the
+// deadline; explicit login commands may try once early. HTTP login is gated too.
 func (r *Runner) beforeGameRPC(ctx context.Context, name string) (err error) {
 	guard, guardedHire := ctx.Value(pearlHireSendGuardKey{}).(func() error)
 	guardedHire = guardedHire && name == clientproto.RPCPearlPlaceHire.String()
@@ -76,10 +77,11 @@ func (r *Runner) checkGameRPCContext(ctx context.Context, name string) error {
 	if s.RestrictionCode == 0 {
 		return nil
 	}
-	if ctx.Value(recoveryAttemptKey{}) == r && !r.Policy().GetAutomationEnabled() {
+	manual := r.manualRecoveryAtRevision(ctx, revision)
+	if ctx.Value(recoveryAttemptKey{}) == r && !r.Policy().GetAutomationEnabled() && !manual {
 		return &recoveryBlockedError{reason: "自动化已暂停，取消尚未发送的恢复请求；未延长服务端冷却"}
 	}
-	if time.Now().UnixMilli() >= s.RestrictedUntilMS {
+	if time.Now().UnixMilli() >= s.RestrictedUntilMS || manual {
 		if name == clientproto.RPCIndexLogin.String() || name == clientproto.RPCIndexReLogin.String() {
 			return nil
 		}
@@ -280,7 +282,7 @@ func (r *Runner) clearAccountRestriction(revision uint64) error {
 	r.pacer.startRecovery(time.Now())
 	r.safetyMu.Unlock()
 	r.emit(Event{Kind: "account_request_resumed", Category: "account", Domain: "account.request", Action: "resumed",
-		Label: "账号请求保护", Message: "冷却后状态验证成功，重新认证计数已清零，恢复账号游戏请求；前 5 分钟降速运行（普通请求至少间隔 5 秒、重复接口 30 秒、购买/雇佣 60 秒；更慢的原设置继续生效）", Level: "info"})
+		Label: "账号请求保护", Message: "登录后状态验证成功，重新认证计数已清零，恢复账号游戏请求；前 5 分钟降速运行（普通请求至少间隔 5 秒、重复接口 30 秒、购买/雇佣 60 秒；更慢的原设置继续生效）", Level: "info"})
 	return nil
 }
 
