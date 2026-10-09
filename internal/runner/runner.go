@@ -196,7 +196,6 @@ func (r *Runner) SetPolicy(p *pb.Policy) {
 	r.pacer.setPearlCollectInterval(automation.PearlCollectInterval(normalized.GetBasic().GetPearl()))
 	if !normalized.GetAutomationEnabled() {
 		r.resetSideLaneFairnessLocked()
-		r.manualRecoveryPending = false
 	}
 	stopPendingRelogin := r.sessionAutoRelogin &&
 		!normalized.GetBasic().GetDisplacedSessionReloginEnabled()

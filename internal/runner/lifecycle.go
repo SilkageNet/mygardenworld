@@ -74,17 +74,22 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 	if err := r.loadAccountSafety(ctx); err != nil {
 		return fail(err)
 	}
-	// Publish explicit activation before choosing a protected recovery route.
-	// Otherwise a paused account started after the deadline still has its old
-	// disabled policy here and incorrectly tries the cache before fresh auth.
-	// The background worker retains all cooldown, opt-in and durable budget gates.
-	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 {
+	// Explicit login is synchronous and may try during automatic protection.
+	// Only the request context gets this one-shot permit, never the loops below.
+	manual := r.startSource == StartSourceControlPanel || r.startSource == StartSourceAlipayLogin
+	if manual {
+		ctx = r.manualRecoveryContext(ctx)
+	}
+	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 && !manual {
 		r.emit(Event{Kind: "account_request_paused", Category: "account", Domain: "account.request", Action: "blocked",
 			Label: "账号请求保护", Message: r.restrictionError().Error(), Level: "warn"})
 		return finish(nil, username, password)
 	}
 	client, err := r.connectStoredOrFresh(ctx, username, password)
 	if err != nil {
+		if manual {
+			return fail(err)
+		}
 		if ctx.Err() != nil {
 			return fail(ctx.Err())
 		}
@@ -107,8 +112,9 @@ func (r *Runner) start(ctx context.Context, activate bool) error {
 }
 
 // connectStoredOrFresh prefers encrypted session reuse for normal reconnects.
-// Opted-in protected recovery always selects fresh authentication; admission
-// enforces the durable attempt budget and spacing without fallback to cache.
+// Automatic opted-in protected recovery selects fresh authentication; admission
+// enforces its durable budget and spacing. An explicit user login keeps the
+// cache-first route and may try once without those automatic admission limits.
 func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password string) (*babigame.Client, error) {
 	ctx, release, gateErr := r.beginGameWork(ctx)
 	if gateErr != nil {
@@ -120,16 +126,12 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 	}
 	safety, _ := r.accountSafetySnapshot()
 	if safety.RestrictionCode != 0 {
-		if !r.Policy().GetAutomationEnabled() {
+		if !r.Policy().GetAutomationEnabled() && !r.manualRecoveryAuthorized(ctx) {
 			return nil, &recoveryBlockedError{reason: "自动化已暂停，等待手动启动；未发送恢复请求，未延长服务端冷却"}
 		}
 		ctx = context.WithValue(ctx, recoveryAttemptKey{}, r)
-		ctx = r.recoveryContext(ctx)
-		if r.manualRecoveryAuthorized(ctx) {
-			return r.connectFresh(ctx, username, password)
-		}
 	}
-	if r.prefersFreshRecovery() {
+	if r.prefersFreshRecovery() && !r.manualRecoveryAuthorized(ctx) {
 		return r.connectFresh(ctx, username, password)
 	}
 	blob, err := r.db.LoadSession(ctx, r.account.ID)
@@ -181,7 +183,7 @@ func (r *Runner) preserveCachedSession(ctx context.Context, err error, restoreRe
 	if s.RestrictionCode == 0 {
 		return false
 	}
-	if s.RestrictedUntilMS > time.Now().UnixMilli() || revision != restoreRevision {
+	if (s.RestrictedUntilMS > time.Now().UnixMilli() && !r.manualRecoveryAuthorized(ctx)) || revision != restoreRevision {
 		return true
 	}
 	var rejected *babigame.RPCServerError
@@ -213,12 +215,12 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		return nil, err
 	}
 	if s, _ := r.accountSafetySnapshot(); s.RestrictionCode != 0 {
-		mode := "按已启用设置"
+		mode := "保护冷却已结束，按已启用设置"
 		if r.manualRecoveryAuthorized(ctx) {
-			mode = "按本次手动登录授权（不改变自动重登设置）"
+			mode = "按本次手动登录授权立即尝试（不改变自动重登设置）"
 		}
 		r.emit(Event{Kind: "account_recovery_authentication", Category: "account", Domain: "account.request", Action: "authenticating",
-			Label: "账号恢复认证", Message: fmt.Sprintf("%d 保护冷却已结束，%s重新认证（已尝试 %d 次，自动上限 %d 次）；计数已持久化，业务核验通过后清零", s.RestrictionCode, mode, s.FreshLoginAttempts, r.Policy().GetBasic().GetServerErrorFreshLoginMaxAttempts()), Level: "warn"})
+			Label: "账号恢复认证", Message: fmt.Sprintf("%d %s重新认证（已尝试 %d 次，自动上限 %d 次）；计数已持久化，业务核验通过后清零", s.RestrictionCode, mode, s.FreshLoginAttempts, r.Policy().GetBasic().GetServerErrorFreshLoginMaxAttempts()), Level: "warn"})
 	}
 	var (
 		session *babigame.Session
@@ -354,7 +356,6 @@ func (r *Runner) connectSession(ctx context.Context, httpc *babigame.HTTPClient,
 	r.session = session
 	r.httpc = httpc
 	r.client = client
-	r.manualRecoveryPending = false
 	r.rqst = rqstState{}
 	r.mu.Unlock()
 

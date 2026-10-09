@@ -86,19 +86,14 @@ func TestFreshRecoveryReservesConfiguredBudgetAtomically(t *testing.T) {
 	}
 }
 
-func TestManualRecoveryReservationPreservesServerDeadlineAndSharedSpacing(t *testing.T) {
+func TestManualRecoveryRecordsAttemptsWithoutAutomaticAdmissionLimits(t *testing.T) {
 	for _, code := range []int{5000, 97777, 97778} {
 		db, _, account, _, _ := notificationFixture(t)
 		now := time.Now().UnixMilli()
-		interval := (30 * time.Minute).Milliseconds()
-		s := AccountRequestSafety{RestrictionCode: code, RestrictionAttempts: 3, RestrictedUntilMS: now + 1, FreshLoginAttempts: 1, LastFreshLoginMS: now - interval, LastRaceDeleteMS: 1234}
-		if err := db.SaveAccountRestriction(t.Context(), account.ID, s); err != nil {
-			t.Fatal(err)
+		s := AccountRequestSafety{RestrictionCode: code, RestrictionAttempts: 3, RestrictedUntilMS: now + 3600000, FreshLoginAttempts: 3, LastFreshLoginMS: now, LastRaceDeleteMS: 1234}
+		if ok, err := db.ReserveRaceDelete(t.Context(), account.ID, s.LastRaceDeleteMS, 1); err != nil || !ok {
+			t.Fatal(ok, err)
 		}
-		if ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now, interval); err != nil || ok {
-			t.Fatal("manual login bypassed server cooldown", ok, err)
-		}
-		s.RestrictedUntilMS = now
 		if err := db.SaveAccountRestriction(t.Context(), account.ID, s); err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +101,7 @@ func TestManualRecoveryReservationPreservesServerDeadlineAndSharedSpacing(t *tes
 		var wg sync.WaitGroup
 		for range 12 {
 			wg.Go(func() {
-				ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now, interval)
+				ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now)
 				if err != nil {
 					t.Error(err)
 				}
@@ -116,17 +111,12 @@ func TestManualRecoveryReservationPreservesServerDeadlineAndSharedSpacing(t *tes
 			})
 		}
 		wg.Wait()
-		if admitted.Load() != 1 {
+		if admitted.Load() != 12 {
 			t.Fatalf("manual admission count=%d", admitted.Load())
 		}
-		if ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now+interval-1, interval); err != nil || ok {
-			t.Fatal("manual login bypassed shared spacing", ok, err)
-		}
-		if ok, err := db.ReserveManualRecovery(t.Context(), account.ID, now+interval, interval); err != nil || !ok {
-			t.Fatal("new explicit login blocked by old automatic allowance", ok, err)
-		}
 		stored, err := db.LoadAccountRequestSafety(t.Context(), account.ID)
-		if err != nil || stored.RestrictionCode != code || stored.RestrictedUntilMS != now || stored.RestrictionAttempts != 3 || stored.FreshLoginAttempts != 3 {
+		s.FreshLoginAttempts += 12
+		if err != nil || stored != s {
 			t.Fatal("reservation cleared server protection", stored, err)
 		}
 	}
