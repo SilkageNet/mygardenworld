@@ -4,7 +4,7 @@ Personal local automation prototype. One `gardend` daemon owns game sessions, au
 
 ## Toolchain
 
-- Use system Go 1.27.0 for every Go build, test, lint, generation, and release command.
+- Use system Go 1.27.2 for every Go build, test, lint, generation, and release command.
 - The Web UI uses Node.js 22, pnpm 10, Next.js 16.3, React 19, and Tailwind CSS 4.
 - Generated files under `gen/` and `web/src/gen/` must not be edited by hand.
 
@@ -12,7 +12,7 @@ Personal local automation prototype. One `gardend` daemon owns game sessions, au
 make build            # bin/gardend
 make test             # go test -count=1 ./...
 make test-race        # go test -race -count=1 ./...
-make lint             # golangci-lint v2.13.0
+make lint             # golangci-lint v2.14.0
 make proto-gen        # Go protobuf/connect code
 make proto-gen-web    # TypeScript protobuf code
 make frontend:test
