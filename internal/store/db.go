@@ -79,7 +79,12 @@ func Open(ctx context.Context, path string) (*DB, error) {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("ping sqlite readers: %w", err)
 	}
-	return &DB{writer: sqldb, reader: reader, credentialKey: credentialKey}, nil
+	db := &DB{writer: sqldb, reader: reader, credentialKey: credentialKey}
+	if err := db.initializeDeviceIdentities(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize device identities: %w", err)
+	}
+	return db, nil
 }
 
 func databaseFileURL(absolutePath string) string {
@@ -171,15 +176,18 @@ AND (SELECT COUNT(*) FROM accounts WHERE user_id = users.id) < max_accounts`,
 			return nil, err
 		}
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE login_device_identities SET account_id=? WHERE user_id=? AND channel=? AND username=? AND account_id IS NULL`, id, userID, channel, username); err != nil {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return d.GetAccountByID(ctx, id)
 }
 
-// UpdateAccountCredentials replaces the channel identity and encrypted grant
-// used for fresh login. QR-bound channels call this after a successful
-// re-authorization so an existing account never retries with a stale grant.
+// UpdateAccountCredentials replaces credentials only for the same channel
+// principal. Reauthorization must not rebind an account's device/session/policy
+// to another username; a different principal requires a separate account.
 func (d *DB) UpdateAccountCredentials(ctx context.Context, id int64, username, password string) error {
 	if id <= 0 || strings.TrimSpace(username) == "" || password == "" {
 		return errors.New("UpdateAccountCredentials: id, username and password required")
@@ -189,8 +197,8 @@ func (d *DB) UpdateAccountCredentials(ctx context.Context, id int64, username, p
 		return fmt.Errorf("encode password: %w", err)
 	}
 	res, err := d.ExecContext(ctx,
-		`UPDATE accounts SET username = ?, password_enc = ?, updated_at = ? WHERE id = ? AND deletion_pending=0`,
-		username, passwordEnc, time.Now().UTC(), id,
+		`UPDATE accounts SET password_enc = ?, updated_at = ? WHERE id = ? AND username = ? AND deletion_pending=0`,
+		passwordEnc, time.Now().UTC(), id, username,
 	)
 	if err != nil {
 		return fmt.Errorf("update account credentials: %w", err)

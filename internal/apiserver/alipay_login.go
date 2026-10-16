@@ -254,7 +254,11 @@ func (svc *Services) createAlipayAccount(ctx context.Context, userID int64, gran
 	if err != nil {
 		return nil, err
 	}
-	gameHTTP := babigame.NewHTTPClient(cfg, "", "", "")
+	gameHTTP, err := svc.loginHTTPClient(ctx, cfg, userID, string(babigame.ChannelAlipay), grant.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer gameHTTP.HTTPClient.CloseIdleConnections()
 	session, err := svc.AlipayLogins.provider.LoginWithWebGrant(ctx, gameHTTP, grant)
 	if err != nil {
 		return nil, fmt.Errorf("verify Alipay game login: %w", err)

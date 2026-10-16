@@ -23,6 +23,14 @@
 // Unknown business refusals, including the observed 902054, also stop automatic
 // authentication retries without claiming an unobserved risk/ban meaning.
 //
+// The authorized 187 SDK reads deviceId from its platform app info, with a
+// browser fallback to localStorage["MO.__deviceId"]. Device identity must not
+// be confused with launch UUIDs or authentication sessions. The daemon owns a
+// durable owner/channel/account identity outside cached Sessions and supplies
+// it to NewHTTPClient for password, QR and recovery login. Existing channel
+// device templates are not randomized; stable identity is not evidence that
+// server risk restrictions have been removed or that more accounts are safe.
+//
 // The authorized 187 mini-game and 450.0.15 web SDK add session1Cipher support:
 // game/login uses mdSession1 from SDK options when enabled and present, or a
 // local "s1" + 17 random characters + millisecond timestamp otherwise. This is

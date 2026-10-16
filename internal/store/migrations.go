@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-const currentSchemaVersion = 19
+const currentSchemaVersion = 20
 
 var (
 	ErrUnversionedDatabase = errors.New("unversioned database is not supported")
@@ -326,6 +326,19 @@ CREATE TABLE IF NOT EXISTS account_elves_aid_help_daily (
 ALTER TABLE account_request_safety ADD COLUMN fresh_login_attempts INTEGER NOT NULL DEFAULT 0 CHECK(fresh_login_attempts >= 0);
 UPDATE account_request_safety SET fresh_login_attempts = fresh_login_attempted;
 ALTER TABLE account_request_safety DROP COLUMN fresh_login_attempted;
+`},
+	{version: 20, name: "durable channel device identities", sql: `
+CREATE TABLE IF NOT EXISTS login_device_identities (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL CHECK(channel IN ('ios', 'alipay')),
+    username TEXT NOT NULL,
+    account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+    device_id TEXT NOT NULL CHECK(length(device_id) BETWEEN 1 AND 256),
+    source TEXT NOT NULL CHECK(source IN ('session', 'generated')),
+    touched_ms INTEGER NOT NULL,
+    PRIMARY KEY(user_id, channel, username)
+);
+CREATE INDEX IF NOT EXISTS idx_login_devices_pending ON login_device_identities(user_id, touched_ms) WHERE account_id IS NULL;
 `},
 }
 
