@@ -23,17 +23,14 @@ type identityProbeKey struct {
 	username string
 }
 
-type probeDevice struct{ deviceID, uuid string }
-
 type identityProbeEntry struct {
-	device           probeDevice
 	active           bool
 	expires, retryAt time.Time
 }
 
-// identityProbeGuard bounds in-flight password probes and retains only device
-// identifiers after failure. It never caches credentials or successful sessions,
-// and never shares an identity across system users or channels. The local wait
+// identityProbeGuard bounds in-flight password probes and retains only retry
+// deadlines after failure. Durable device identity belongs to the store, not
+// this process-local admission guard. The local wait
 // is anti-repeat protection, NOT a server risk expiry or an automatic retry.
 // This process-local guard is deliberately not a durable IP-wide risk policy.
 type identityProbeGuard struct {
@@ -41,7 +38,7 @@ type identityProbeGuard struct {
 	entries map[identityProbeKey]*identityProbeEntry
 }
 
-func (g *identityProbeGuard) begin(key identityProbeKey, now time.Time) (probeDevice, func(error, time.Time), error) {
+func (g *identityProbeGuard) begin(key identityProbeKey, now time.Time) (func(error, time.Time), error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for k, e := range g.entries {
@@ -52,20 +49,20 @@ func (g *identityProbeGuard) begin(key identityProbeKey, now time.Time) (probeDe
 	e := g.entries[key]
 	if e != nil {
 		if e.active {
-			return probeDevice{}, nil, probeLimitError("该账号正在验证登录，请勿重复提交")
+			return nil, probeLimitError("该账号正在验证登录，请勿重复提交")
 		}
 		if now.Before(e.retryAt) {
 			seconds := int(e.retryAt.Sub(now).Seconds()) + 1
-			return probeDevice{}, nil, probeLimitError(fmt.Sprintf("登录失败后的本地防重复保护中，请至少 %d 秒后再手动尝试；等待结束不代表游戏风控已解除", seconds))
+			return nil, probeLimitError(fmt.Sprintf("登录失败后的本地防重复保护中，请至少 %d 秒后再手动尝试；等待结束不代表游戏风控已解除", seconds))
 		}
 	} else {
 		if len(g.entries) >= identityProbeMaxEntries {
-			return probeDevice{}, nil, probeLimitError("登录验证请求过多，请稍后再试")
+			return nil, probeLimitError("登录验证请求过多，请稍后再试")
 		}
 		if g.entries == nil {
 			g.entries = make(map[identityProbeKey]*identityProbeEntry)
 		}
-		e = &identityProbeEntry{device: probeDevice{babigame.RandomDeviceID(), babigame.RandomUUID()}}
+		e = &identityProbeEntry{}
 		g.entries[key] = e
 	}
 	e.active = true
@@ -87,7 +84,7 @@ func (g *identityProbeGuard) begin(key identityProbeKey, now time.Time) (probeDe
 			e.retryAt = completed.Add(wait)
 		})
 	}
-	return e.device, finish, nil
+	return finish, nil
 }
 
 func probeLimitError(message string) error {

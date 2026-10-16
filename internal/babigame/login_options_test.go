@@ -51,6 +51,9 @@ func TestFreshLoginUsesLaunchIdentityAndSDKSession(t *testing.T) {
 				case "/account/v3/token/verify":
 					return jsonResponse(`{"status":"fail"}`), nil
 				case "/account/login/username/v2":
+					if req.Header.Get("deviceid") != "device" {
+						t.Fatal("account SDK did not reuse supplied device identity")
+					}
 					return jsonResponse(`{"data":{"content":"signed-content","timestamp":123,"signature":"signature","session1":"account-sdk-session"}}`), nil
 				case c.gamePath("login"):
 					if body["uuid"] != "launch-uuid" || body["content"] != "signed-content" || body["signature"] != "signature" || body["timestamp"] != float64(123) {
@@ -68,7 +71,7 @@ func TestFreshLoginUsesLaunchIdentityAndSDKSession(t *testing.T) {
 					if err := json.Unmarshal([]byte(body["appInfo"].(string)), &appInfo); err != nil {
 						t.Fatal(err)
 					}
-					if appInfo["_game_version"] != "450.0.15" || appInfo["_package_name"] != cfg.PackageName {
+					if appInfo["_game_version"] != "450.0.15" || appInfo["_package_name"] != cfg.PackageName || appInfo["_deviceId"] != "device" {
 						t.Fatal("login did not use package metadata")
 					}
 					return jsonResponse(`{"status":"fail","code":302,"bizCode":902054,"url":"https://secret.test/?token=private"}`), nil

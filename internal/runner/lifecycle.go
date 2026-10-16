@@ -131,6 +131,10 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 		}
 		ctx = context.WithValue(ctx, recoveryAttemptKey{}, r)
 	}
+	identity, err := r.db.EnsureDeviceIdentity(ctx, r.account.UserID, r.account.Channel, r.account.Username)
+	if err != nil {
+		return nil, fmt.Errorf("load device identity: %w", err)
+	}
 	if r.prefersFreshRecovery() && !r.manualRecoveryAuthorized(ctx) {
 		return r.connectFresh(ctx, username, password)
 	}
@@ -145,6 +149,9 @@ func (r *Runner) connectStoredOrFresh(ctx context.Context, username, password st
 		}
 	} else if len(blob) > 0 {
 		session, decodeErr := babigame.UnmarshalSessionJSON(blob, r.cfg)
+		if decodeErr == nil && session.DeviceID != identity.DeviceID {
+			decodeErr = errors.New("cached session does not match durable device identity")
+		}
 		if decodeErr == nil {
 			httpc := r.prepareHTTPClient(ctx, session.DeviceID, session.UUID, session.Session0)
 			session.Cfg = httpc.Cfg
@@ -210,7 +217,10 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
 		return nil, err
 	}
-	httpc := r.prepareHTTPClient(ctx, "", "", "")
+	httpc, err := r.prepareFreshHTTPClient(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if err := r.checkFreshRecoveryAuthorization(ctx); err != nil {
 		return nil, err
 	}
@@ -222,10 +232,7 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		r.emit(Event{Kind: "account_recovery_authentication", Category: "account", Domain: "account.request", Action: "authenticating",
 			Label: "账号恢复认证", Message: fmt.Sprintf("%d %s重新认证（已尝试 %d 次，自动上限 %d 次）；计数已持久化，业务核验通过后清零", s.RestrictionCode, mode, s.FreshLoginAttempts, r.Policy().GetBasic().GetServerErrorFreshLoginMaxAttempts()), Level: "warn"})
 	}
-	var (
-		session *babigame.Session
-		err     error
-	)
+	var session *babigame.Session
 	switch babigame.Channel(r.account.Channel) {
 	case babigame.ChannelIOS:
 		session, err = babigame.PerformLoginWithPassword(ctx, httpc, username, password, r.cfg.IsSimulator)
@@ -245,6 +252,15 @@ func (r *Runner) connectFresh(ctx context.Context, username, password string) (*
 		return nil, err
 	}
 	return r.connectSession(ctx, httpc, session, false)
+}
+
+func (r *Runner) prepareFreshHTTPClient(ctx context.Context) (*babigame.HTTPClient, error) {
+	identity, err := r.db.EnsureDeviceIdentity(ctx, r.account.UserID, r.account.Channel, r.account.Username)
+	if err != nil {
+		return nil, fmt.Errorf("load device identity: %w", err)
+	}
+	r.log.Info("using durable device identity", "source", identity.Source, "device_ref", identity.Summary())
+	return r.prepareHTTPClient(ctx, identity.DeviceID, "", ""), nil
 }
 
 func (r *Runner) prepareHTTPClient(ctx context.Context, deviceID, uuid, session0 string) *babigame.HTTPClient {

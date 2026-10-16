@@ -21,18 +21,35 @@ func (svc *Services) probeAccountIdentity(ctx context.Context, channel, username
 	if err != nil {
 		return nil, err
 	}
-	identity, finish, err := svc.identityProbes.begin(identityProbeKey{userID, channel, username}, time.Now())
+	finish, err := svc.identityProbes.begin(identityProbeKey{userID, channel, username}, time.Now())
 	if err != nil {
 		return nil, err
 	}
 	defer func() { finish(err, time.Now()) }()
-	httpc := babigame.NewHTTPClient(cfg, identity.deviceID, identity.uuid, "")
+	httpc, err := svc.loginHTTPClient(ctx, cfg, userID, channel, username)
+	if err != nil {
+		return nil, err
+	}
 	defer httpc.HTTPClient.CloseIdleConnections()
 	if pkg, err := httpc.QueryPackageConfig(ctx); err == nil && pkg.GameVersion != "" {
 		httpc.Cfg.GameVersion = pkg.GameVersion
 		httpc.Cfg.ClientVersion = pkg.GameVersion
 	}
 	return babigame.PerformLoginWithPassword(ctx, httpc, username, password, 1)
+}
+
+// loginHTTPClient shares the durable identity lifecycle across native password
+// probes and Alipay QR grants. Only the device identifier survives fresh login;
+// package bootstrap still owns launch UUIDs and authentication session values.
+func (svc *Services) loginHTTPClient(ctx context.Context, cfg babigame.Config, userID int64, channel, username string) (*babigame.HTTPClient, error) {
+	identity, err := svc.DB.EnsureDeviceIdentity(ctx, userID, channel, username)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	if svc.Log != nil {
+		svc.Log.Info("using durable device identity", "user_id", userID, "channel", channel, "source", identity.Source, "device_ref", identity.Summary())
+	}
+	return babigame.NewHTTPClient(cfg, identity.DeviceID, "", ""), nil
 }
 
 func (svc *Services) beginGameWork(ctx context.Context) (context.Context, func(), error) {

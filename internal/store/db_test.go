@@ -432,7 +432,10 @@ func TestAccountPasswordIsEncryptedAtRest(t *testing.T) {
 		t.Fatalf("credentials=(%q,%q), want game/secret-password", username, password)
 	}
 
-	if err := db.UpdateAccountCredentials(ctx, acc.ID, "game-refreshed", "refreshed-secret"); err != nil {
+	if err := db.UpdateAccountCredentials(ctx, acc.ID, "game-refreshed", "wrong-principal-secret"); !errors.Is(err, ErrAccountNotFound) {
+		t.Fatalf("reauthorization rebound principal: %v", err)
+	}
+	if err := db.UpdateAccountCredentials(ctx, acc.ID, "game", "refreshed-secret"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.QueryRowContext(ctx, `SELECT password_enc FROM accounts WHERE id = ?`, acc.ID).Scan(&stored); err != nil {
@@ -445,8 +448,8 @@ func TestAccountPasswordIsEncryptedAtRest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if username != "game-refreshed" || password != "refreshed-secret" {
-		t.Fatalf("updated credentials=(%q,%q), want game-refreshed/refreshed-secret", username, password)
+	if username != "game" || password != "refreshed-secret" {
+		t.Fatalf("updated credentials=(%q,%q), want game/refreshed-secret", username, password)
 	}
 }
 
