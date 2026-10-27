@@ -2,6 +2,8 @@ package apiserver
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -19,7 +21,8 @@ import (
 )
 
 func TestWorkspaceSocketAuthenticatesAndNegotiatesProtocol(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	db, err := store.Open(ctx, filepath.Join(t.TempDir(), "garden.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +37,9 @@ func TestWorkspaceSocketAuthenticatesAndNegotiatesProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := &Services{DB: db, JWT: jwt}
+	manager := runner.NewManager(db, runner.NewBus(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	defer manager.Shutdown()
+	svc := &Services{DB: db, JWT: jwt, Manager: manager}
 	server := httptest.NewServer(svc.WorkspaceHandler(WorkspaceHandlerOptions{}))
 	defer server.Close()
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
@@ -59,6 +64,16 @@ func TestWorkspaceSocketAuthenticatesAndNegotiatesProtocol(t *testing.T) {
 	}
 	if got, want := ready.GetReady().GetServerVersion(), buildinfo.GetVersion(); got != want {
 		t.Fatalf("ready server version=%q, want %q", got, want)
+	}
+	if _, err := db.RequestMaintenance(ctx, true, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.ApplyMaintenance(ctx); err != nil {
+		t.Fatal(err)
+	}
+	frame := readServerWorkspaceFrame(t, ctx, conn)
+	if frame.GetMaintenance() == nil || !frame.GetMaintenance().GetEnabled() || frame.GetSequence() != ready.GetSequence()+1 {
+		t.Fatalf("maintenance update did not preserve the workspace connection: %+v", frame)
 	}
 }
 

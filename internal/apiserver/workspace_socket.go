@@ -596,6 +596,8 @@ func (s *workspaceSession) send(requestID uint64, payload any) error {
 		frame.Payload = value
 	case *pb.WorkspaceServerFrame_Notifications:
 		frame.Payload = value
+	case *pb.WorkspaceServerFrame_Maintenance:
+		frame.Payload = value
 	case *pb.WorkspaceServerFrame_Error:
 		frame.Payload = value
 	default:

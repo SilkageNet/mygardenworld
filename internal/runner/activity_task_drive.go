@@ -66,6 +66,11 @@ func (r *Runner) noteCyclicNoteDriveSuccess(op *automation.PlannedOp) {
 	if count <= 0 {
 		return
 	}
+	// Seeding and clearing mature plots are prerequisites, not a confirmed
+	// planting-task increment. Fencing them would block the first watering.
+	if op.Kind == clientproto.RPCUsrLandPlant.String() || op.Kind == clientproto.RPCUsrLandPlantBatch.String() || op.Kind == clientproto.RPCUsrLandHarvest.String() {
+		return
+	}
 	key := cyclicNotePendingKey(*op.CyclicNoteDrive)
 	view, _ := r.state.CyclicNoteView(time.Now())
 	for _, task := range view.Tasks {

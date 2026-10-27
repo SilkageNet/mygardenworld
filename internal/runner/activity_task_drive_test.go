@@ -18,6 +18,7 @@ func activityDriveTestRunner(t *testing.T) (*Runner, *automation.PlannedOp) {
 	r.state = cyclicNoteRunnerState(t, true)
 	now := time.Now()
 	r.state.ApplyV(json.RawMessage(fmt.Sprintf(`{"23":{"0":{"9001":{"5":%d,"7":%d}},"3":{"9001|0":{"3":{"4003":75},"5":{}}}}}`, now.Add(-time.Hour).UnixMilli(), now.Add(time.Hour).UnixMilli())))
+	r.state.ApplyV(json.RawMessage(`{"7":{"0":{"32":{"7":10}}},"100":{"1":{"1001":{"0":23001,"1":1,"2":1},"1002":{"0":23001,"1":1,"2":1}}}}`))
 	p := automation.DefaultPolicy()
 	p.AutomationEnabled = true
 	p.Plant.Planting.AutoEnabled = false
@@ -25,12 +26,29 @@ func activityDriveTestRunner(t *testing.T) (*Runner, *automation.PlannedOp) {
 	p.Activity.CyclicNote.SatisfyTasks = true
 	r.SetPolicy(p)
 	view, _ := r.state.CyclicNoteView(now)
-	op := &automation.PlannedOp{Kind: clientproto.RPCUsrLandPlantBatch.String(), LandIDs: []int32{1001, 1002}, DemandID: "activity.cyclicNote:9001:3001",
+	op := &automation.PlannedOp{Kind: clientproto.RPCUsrLandWaterBatch.String(), LandIDs: []int32{1001, 1002}, DemandID: "activity.cyclicNote:9001:3001",
 		CyclicNoteDrive: &automation.CyclicNoteTaskDrive{BatchID: 9001, SlotID: 1, TaskID: 4003, TaskType: 3001, Progress: 75, FinishCount: view.FinishCount}}
 	if err := r.validateCyclicNoteDrive(op, now); err != nil {
 		t.Fatal(err)
 	}
 	return r, op
+}
+
+func TestCyclicNotePlantPrerequisitesDoNotFenceFirstWater(t *testing.T) {
+	for _, kind := range []string{clientproto.RPCUsrLandPlantBatch.String(), clientproto.RPCUsrLandHarvest.String()} {
+		t.Run(kind, func(t *testing.T) {
+			r, op := activityDriveTestRunner(t)
+			op.Kind = kind
+			r.noteCyclicNoteDriveSuccess(op)
+			op.Kind = clientproto.RPCUsrLandWaterBatch.String()
+			if err := r.validateCyclicNoteDrive(op, time.Now()); err != nil {
+				t.Fatal("first watering blocked by preparatory action", err)
+			}
+			if len(r.cyclicNotePending) != 0 || len(r.activityBatchSync) != 0 {
+				t.Fatal("prerequisite incorrectly waits for planting task increment")
+			}
+		})
+	}
 }
 
 func TestCyclicNoteDriveWaitsForAuthoritativeProgress(t *testing.T) {

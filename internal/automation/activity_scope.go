@@ -38,8 +38,7 @@ func scopedCyclicNoteOperations(s *state.State, policy *pb.Policy, actions []cyc
 		var candidates []PlannedOp
 		switch action.TaskType {
 		case cyclicNoteTaskTypePlantAny:
-			candidates = farmOps(s, scoped.GetPlant(), nil, now, false)
-			candidates = driveCyclicNotePlant(scoped, action.Demand, candidates)
+			candidates = scopedCyclicNoteFarmOperations(s, scoped, action.Demand, now)
 		case cyclicNoteTaskTypePearlHire:
 			if candidate, ok := PlanOneSafePearlHire(s, scoped.GetBasic().GetPearl(), now, PearlHireIntent{
 				DemandID: action.Demand.ID, Reason: cyclicNoteDriveReason(action.Demand, ""),
@@ -69,8 +68,8 @@ func scopedCyclicNoteOperations(s *state.State, policy *pb.Policy, actions []cyc
 			candidates = orderOperations(s, scoped, goals, demands, ledger, now)
 			candidates = driveCyclicNoteTaskOperations(scoped, []cyclicNoteTaskActionDemand{action}, ledger, candidates)
 		}
-		// Never import craft, reject, purchase, harvest, water, rewards or other
-		// incidental operations produced by a reused business planner.
+		// Import only explicitly bounded task actions, never incidental craft,
+		// reject, purchase or reward operations from reused business planners.
 		idx := deterministicOperationIndex(candidates, func(op PlannedOp) bool {
 			return op.DemandID == action.Demand.ID && cyclicNoteOperationMatches(action.TaskType, op.Kind)
 		})
@@ -83,6 +82,45 @@ func scopedCyclicNoteOperations(s *state.State, policy *pb.Policy, actions []cyc
 		ops = append(ops, candidate)
 	}
 	return ops
+}
+
+// Seeding leaves a land awaiting its first watering; the live game does not
+// advance the planting task at that intermediate step. Finish those lands
+// before seeding more. Harvest only when occupied plots prevent further work.
+func scopedCyclicNoteFarmOperations(s *state.State, policy *pb.Policy, demand Demand, now time.Time) []PlannedOp {
+	policy.Plant.Planting.AutoHarvestEnabled = true // private task policy only
+	ops := farmOps(s, policy.GetPlant(), nil, now, false)
+	var awaitingWater, empty int
+	for _, land := range s.Lands() {
+		kind, _ := Recommend(land, now, 0)
+		switch kind {
+		case KindWater:
+			awaitingWater++
+		case KindPlant:
+			empty++
+		}
+	}
+	if awaitingWater == 0 && empty > 0 {
+		return driveCyclicNotePlant(policy, demand, ops)
+	}
+	for _, op := range ops {
+		water := op.Kind == clientproto.RPCUsrLandWater.String() || op.Kind == clientproto.RPCUsrLandWaterBatch.String()
+		if (awaitingWater > 0 && !water) || (awaitingWater == 0 && op.Kind != clientproto.RPCUsrLandHarvest.String()) {
+			continue
+		}
+		if !runnableBusinessOperation(op) || len(op.LandIDs) == 0 {
+			continue
+		}
+		op.LandIDs = append([]int32(nil), op.LandIDs[:min(len(op.LandIDs), int(demand.Missing))]...)
+		if water && len(op.LandIDs) == 1 {
+			op.Kind = clientproto.RPCUsrLandWater.String()
+		}
+		op.OperationID = operationID(op.Kind, op.LandIDs, op.FlowerID, 0, 0)
+		op.DemandID = demand.ID
+		op.Reason = cyclicNoteDriveReason(demand, op.Reason)
+		return []PlannedOp{op}
+	}
+	return nil
 }
 
 func cyclicNoteScopedPolicy(policy *pb.Policy, taskType int32) *pb.Policy {
@@ -138,7 +176,8 @@ func cyclicNoteScopedPolicy(policy *pb.Policy, taskType int32) *pb.Policy {
 func cyclicNoteOperationMatches(taskType int32, kind string) bool {
 	switch taskType {
 	case cyclicNoteTaskTypePlantAny:
-		return isPlantOperation(kind)
+		return isPlantOperation(kind) || kind == clientproto.RPCUsrLandWater.String() ||
+			kind == clientproto.RPCUsrLandWaterBatch.String() || kind == clientproto.RPCUsrLandHarvest.String()
 	case cyclicNoteTaskTypeResidentOrder:
 		return kind == clientproto.RPCOrderFlowerFinishOrder.String()
 	case cyclicNoteTaskTypeCustomerOrder:
@@ -151,14 +190,16 @@ func cyclicNoteOperationMatches(taskType int32, kind string) bool {
 	return false
 }
 
-// CyclicNoteOperationCount is the maximum task progress a single mutation can
-// make. Discovery reads consume no task quota.
+// CyclicNoteOperationCount bounds task-sized units per mutation, including
+// preparatory seeding/harvest. Discovery reads consume no task quota; the
+// runner separately decides which actions need progress confirmation.
 func CyclicNoteOperationCount(op *PlannedOp) int32 {
 	if op == nil || op.CyclicNoteDrive == nil {
 		return 0
 	}
 	switch op.Kind {
-	case clientproto.RPCUsrLandPlant.String(), clientproto.RPCUsrLandPlantBatch.String():
+	case clientproto.RPCUsrLandPlant.String(), clientproto.RPCUsrLandPlantBatch.String(),
+		clientproto.RPCUsrLandWater.String(), clientproto.RPCUsrLandWaterBatch.String(), clientproto.RPCUsrLandHarvest.String():
 		return int32(len(op.LandIDs))
 	case clientproto.RPCFlowerRackSell.String():
 		return op.Count
@@ -190,6 +231,19 @@ func ValidateCyclicNoteTaskOperation(s *state.State, policy *pb.Policy, op *Plan
 			p := cyclicNoteScopedPolicy(policy, drive.TaskType)
 			if reason, blocked := residentNormalDailyLimitReached(s, p.GetOrder().GetResident(), now); blocked {
 				return fmt.Errorf("%s", reason)
+			}
+		}
+		if drive.TaskType == cyclicNoteTaskTypePlantAny && (op.Kind == clientproto.RPCUsrLandWater.String() || op.Kind == clientproto.RPCUsrLandWaterBatch.String()) {
+			lands := s.Lands()
+			for _, id := range op.LandIDs {
+				kind, _ := Recommend(lands[id], now, 0)
+				if kind != KindWater {
+					return fmt.Errorf("花笺集芳待浇水土地已变化，等待重新规划")
+				}
+			}
+			drops, _, _ := s.AvailableWaterDrops(now)
+			if drops-max(0, policy.GetPlant().GetPlanting().GetMinWaterDrops()) < count {
+				return fmt.Errorf("花笺集芳浇水需保留配置的水滴数量，等待水滴恢复")
 			}
 		}
 		return nil
