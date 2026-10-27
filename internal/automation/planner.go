@@ -96,6 +96,7 @@ func buildOperations(s *state.State, policy *pb.Policy, goals []Goal, demands []
 	ops = driveRaceFlowerArtSellOperations(s, policy, demands, ops, ledger, now)
 	ops = driveRaceFlowerArtCraftOperations(s, policy, demands, ops, ledger)
 	ops = driveDailyTaskOperations(dailyActions, ops)
+	ops = scopedCyclicNoteOperations(s, policy, activityActions, ledger, ops, now)
 	ops = append(ops, activityOperations(s, policy.GetActivity(), now)...)
 	ops = append(ops, blockedUnknownOperations(policy)...)
 	return ops

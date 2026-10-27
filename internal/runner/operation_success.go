@@ -201,6 +201,9 @@ func (r *Runner) handleOperationSuccess(ctx context.Context, result operationRes
 	if kind != "operation_deferred" {
 		r.stats.RecordOperationSuccess(op, result.finishedAt)
 	}
+	if op.CyclicNoteDrive != nil {
+		message += " · 花笺集芳任务补做（日常配置未改变）"
+	}
 	r.emit(Event{
 		Kind:        kind,
 		Category:    category,

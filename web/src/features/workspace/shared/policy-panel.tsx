@@ -738,7 +738,8 @@ export default function PolicyPanel({
                 <ToggleRow label="启用" checked={activity?.cyclicNote?.enabled ?? false} onChange={(enabled) => updateCyclicNote({ enabled })} status={settingStatusForCapability(capabilities, "activity.cyclicNote")} />
                 <ToggleRow label="自动领取任务奖励" checked={activity?.cyclicNote?.autoClaimTaskRewards ?? false} onChange={(autoClaimTaskRewards) => updateCyclicNote({ autoClaimTaskRewards })} />
                 <ToggleRow label="自动领取积分奖励" checked={activity?.cyclicNote?.autoClaimProgressBoxes ?? false} onChange={(autoClaimProgressBoxes) => updateCyclicNote({ autoClaimProgressBoxes })} />
-                <ToggleRow label="驱动已启用模块完成任务" checked={activity?.cyclicNote?.satisfyTasks ?? false} onChange={(satisfyTasks) => updateCyclicNote({ satisfyTasks })} />
+                <ToggleRow label="按任务缺口自动完成" checked={activity?.cyclicNote?.satisfyTasks ?? false} onChange={(satisfyTasks) => updateCyclicNote({ satisfyTasks })} />
+                <p className="text-xs leading-5 text-muted-foreground">仅补做当前任务所需的种植、订单、花架出售或珍珠雇佣，完成即停止额外执行。不修改日常开关和限额；可临时越过对应日常开关及订单数量限制，但仍保留资源、游戏上限、雇佣券预算与安全保护。原已开启的日常自动化照常运行。</p>
               </div>
             </PolicyGroup>
 

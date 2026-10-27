@@ -26,6 +26,7 @@ const (
 type cyclicNoteTaskActionDemand struct {
 	TaskType int32
 	Demand   Demand
+	Drive    CyclicNoteTaskDrive
 }
 
 // cyclicNoteTaskActionDemands converts only capture-confirmed, incomplete
@@ -54,8 +55,15 @@ func cyclicNoteTaskActionDemands(s *state.State, policy *pb.Policy, now time.Tim
 		remaining int32
 	}
 	byType := make(map[int32]representative)
+	occurrences := make(map[int32]int)
 	for _, task := range view.Tasks {
-		if !cyclicNoteTaskTypeSupported(task.TaskType) || !cyclicNoteBusinessModuleEnabled(policy, task.TaskType) ||
+		if task.Unlocked {
+			occurrences[task.TaskID]++
+		}
+	}
+	for _, task := range view.Tasks {
+		if !cyclicNoteTaskTypeSupported(task.TaskType) ||
+			occurrences[task.TaskID] != 1 ||
 			!task.Unlocked || task.TaskID <= 0 ||
 			!task.CatalogKnown || task.Target <= 0 || task.Progress < 0 || !task.ProgressObserved ||
 			!task.ReceiptObserved || task.Received || task.Progress >= task.Target {
@@ -88,6 +96,8 @@ func cyclicNoteTaskActionDemands(s *state.State, policy *pb.Policy, now time.Tim
 		}
 		out = append(out, cyclicNoteTaskActionDemand{
 			TaskType: taskType,
+			Drive: CyclicNoteTaskDrive{BatchID: view.BatchID, SlotID: rep.task.SlotID, TaskID: rep.task.TaskID,
+				TaskType: taskType, Progress: rep.task.Progress, FinishCount: view.FinishCount},
 			Demand: Demand{
 				ID:        id,
 				GoalID:    cyclicNoteActionGoal,
@@ -107,26 +117,6 @@ func cyclicNoteTaskActionDemands(s *state.State, policy *pb.Policy, now time.Tim
 		})
 	}
 	return out
-}
-
-func cyclicNoteBusinessModuleEnabled(policy *pb.Policy, taskType int32) bool {
-	if policy == nil {
-		return false
-	}
-	switch taskType {
-	case cyclicNoteTaskTypePlantAny:
-		return policy.GetPlant().GetPlanting().GetAutoEnabled()
-	case cyclicNoteTaskTypeFlowerRack:
-		return policy.GetOrder().GetFlowerArt().GetSellEnabled()
-	case cyclicNoteTaskTypeCustomerOrder:
-		return policy.GetOrder().GetCustomer().GetEnabled()
-	case cyclicNoteTaskTypeResidentOrder:
-		return policy.GetOrder().GetResident().GetNormalEnabled()
-	case cyclicNoteTaskTypePearlHire:
-		return policy.GetBasic().GetPearl().GetAutoHireEnabled()
-	default:
-		return false
-	}
 }
 
 func cyclicNoteTaskTypeSupported(taskType int32) bool {

@@ -8,6 +8,7 @@ import (
 
 	pb "github.com/SilkageNet/mygardenworld/gen/mygardenworld/v1"
 	"github.com/SilkageNet/mygardenworld/internal/babigame/clientproto"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestCyclicNoteActionDemandUsesMaxRemainingAndServerProgressOnly(t *testing.T) {
@@ -52,7 +53,7 @@ func TestCyclicNoteActionDemandUsesMaxRemainingAndServerProgressOnly(t *testing.
 	}
 }
 
-func TestCyclicNoteActionDemandRequiresCorrespondingEnabledModule(t *testing.T) {
+func TestCyclicNoteActionDemandDoesNotRequireDailyModule(t *testing.T) {
 	now := time.UnixMilli(1_500_000)
 	tests := []struct {
 		name     string
@@ -96,12 +97,13 @@ func TestCyclicNoteActionDemandRequiresCorrespondingEnabledModule(t *testing.T) 
 				t.Fatal("enabled business module did not expose action demand")
 			}
 			tc.disable(policy)
+			before := proto.Clone(policy)
 			result := BuildPlan(s, policy, now)
-			if _, ok := findCyclicNoteActionDemand(result, tc.taskType); ok {
-				t.Fatalf("disabled business module retained managed action demand: %+v", result.Demands)
+			if _, ok := findCyclicNoteActionDemand(result, tc.taskType); !ok {
+				t.Fatalf("daily switch suppressed independent activity demand: %+v", result.Demands)
 			}
-			if ops := cyclicNoteDrivenBusinessOps(result.Operations); len(ops) != 0 {
-				t.Fatalf("disabled business module was driven: %+v", ops)
+			if !proto.Equal(before, policy) {
+				t.Fatal("planning changed daily policy")
 			}
 		})
 	}

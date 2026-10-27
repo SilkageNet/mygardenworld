@@ -166,6 +166,9 @@ func (r *Runner) handleOperationArgsFailure(ctx context.Context, op *automation.
 
 func (r *Runner) emitOperationPlanned(attempt operationAttempt) {
 	message := fmt.Sprintf("计划执行 %s%s", opDesc(attempt.op), r.opSuffix(attempt.op))
+	if attempt.op.CyclicNoteDrive != nil {
+		message += " · 花笺集芳任务补做"
+	}
 	if attempt.op.Kind == clientproto.RPCFmlRaceGetTaskList.String() && strings.TrimSpace(attempt.op.Reason) != "" {
 		message += ": " + strings.TrimSpace(attempt.op.Reason)
 	}
@@ -806,6 +809,9 @@ func operationPayload(op *automation.PlannedOp, args any, raw json.RawMessage, e
 	}
 	if op.RaceTaskGuard != nil {
 		payload["raceTaskGuard"] = op.RaceTaskGuard
+	}
+	if op.CyclicNoteDrive != nil {
+		payload["cyclicNoteTaskDrive"] = op.CyclicNoteDrive
 	}
 	if op.RaceBatchID != 0 {
 		payload["raceBatchId"] = op.RaceBatchID
