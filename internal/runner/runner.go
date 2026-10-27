@@ -104,6 +104,8 @@ type Runner struct {
 	accountGameGate *gameGate
 	pacer           *requestPacer
 
+	cyclicNotePending map[automation.CyclicNoteTaskDrive]int32
+
 	sessionRuntimeState
 	schedulerState
 	executionState

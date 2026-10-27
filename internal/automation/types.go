@@ -241,6 +241,9 @@ func (l *InventoryLedger) AllocatedItems() map[int32]int32 {
 // executable and supported by their operation registry.
 type PlannedOp struct {
 	OperationID string
+	// CyclicNoteDrive authorizes this exact task-scoped business operation.
+	// It is local execution metadata, never a game RPC argument or saved policy.
+	CyclicNoteDrive *CyclicNoteTaskDrive
 	// CooldownKey optionally groups multiple concrete targets into one
 	// runner-local retry scope. It is intentionally not exposed in protobuf.
 	CooldownKey string

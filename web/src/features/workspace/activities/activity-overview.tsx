@@ -19,7 +19,7 @@ export const CYCLIC_NOTE_PROFILE: ActivityProfile = {
   mechanic: "品质任务",
   rewardPath: "进度奖励 · 花笺商店",
   description: "完成不同品质的活动任务可获得集芳笺；累计集芳笺解锁进度奖励，也可在花笺商店兑换活动奖励。",
-  automation: "自动同步活动，领取已完成任务与进度奖励；不执行钻石刷新或立即完成。",
+  automation: "可按当前任务缺口额外执行，完成即停且不修改日常配置；按设置领取任务与进度奖励。不执行钻石刷新或立即完成，仍遵守资源与安全限制。",
 };
 
 export const CYCLIC_STORY_PROFILE: ActivityProfile = {

@@ -142,6 +142,9 @@ func (r *Runner) executePlannedOp(ctx context.Context, client *babigame.Client, 
 	if op.RaceHoldTaskMsID != 0 {
 		ctx = context.WithValue(ctx, raceHeldOperationKey{}, op)
 	}
+	if op.CyclicNoteDrive != nil {
+		ctx = context.WithValue(ctx, cyclicNoteDriveContextKey{}, op)
+	}
 	spec, ok := operationSpecFor(op.Kind)
 	if !ok {
 		return nil, fmt.Errorf("unsupported planned operation %s", op.Kind)

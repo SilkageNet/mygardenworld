@@ -27,6 +27,12 @@ func (r *Runner) nextRunnableOperation(policy *pb.Policy, now time.Time) *automa
 		return nil
 	}
 	candidates := automation.PlanOperations(r.state, policy, now)
+	for i := range candidates {
+		if err := r.validateCyclicNoteDrive(&candidates[i], now); err != nil {
+			candidates[i].Executable = false
+			candidates[i].BlockedReasons = append(candidates[i].BlockedReasons, err.Error())
+		}
+	}
 	selected := r.selectRunnableOperation(candidates, now)
 	r.emitSchedulerWaitDiagnostic(candidates, selected, now)
 	return selected
@@ -43,6 +49,9 @@ func runnablePlannedOp(op automation.PlannedOp) bool {
 func (r *Runner) checkOperationResources(op *automation.PlannedOp, now time.Time) error {
 	if op == nil {
 		return nil
+	}
+	if err := r.validateCyclicNoteDrive(op, now); err != nil {
+		return err
 	}
 	if err := automation.ValidateRaceHeldOperation(r.state, op, now); err != nil {
 		return err

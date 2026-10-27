@@ -400,6 +400,7 @@ func (r *Runner) executeOperation(ctx context.Context, client *babigame.Client, 
 		return result.err
 	}
 	r.handleOperationSuccess(ctx, result)
+	r.noteCyclicNoteDriveSuccess(op)
 	return nil
 }
 

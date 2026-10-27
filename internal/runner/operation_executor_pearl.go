@@ -120,7 +120,10 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 	}
 	exec := pearlHireExecution{
 		preflight: func(at time.Time) (state.PearlHireAttemptSnapshot, error) {
-			policy := rt.runner.Policy().GetBasic().GetPearl()
+			policy, err := automation.CyclicNotePearlPolicy(rt.runner.state, rt.runner.Policy(), op, at)
+			if err != nil {
+				return state.PearlHireAttemptSnapshot{}, err
+			}
 			if err := automation.ValidateSafePearlHire(rt.runner.state, policy, op, at); err != nil {
 				return state.PearlHireAttemptSnapshot{}, err
 			}
@@ -156,7 +159,11 @@ func runPearlHire(ctx context.Context, rt operationRuntime, op *automation.Plann
 // these two bounded reads with the mutation avoids restarting discovery each
 // time a separate scheduled step exhausts the 30-second spend-time window.
 func preparePearlHireCandidate(ctx context.Context, rt operationRuntime, op *automation.PlannedOp) error {
-	if err := automation.ValidatePearlHireCandidate(rt.runner.state, rt.runner.Policy().GetBasic().GetPearl(), op, time.Now()); err != nil {
+	policy, err := automation.CyclicNotePearlPolicy(rt.runner.state, rt.runner.Policy(), op, time.Now())
+	if err != nil {
+		return err
+	}
+	if err := automation.ValidatePearlHireCandidate(rt.runner.state, policy, op, time.Now()); err != nil {
 		return err
 	}
 	if automation.PearlHireCandidateFresh(rt.runner.state, op.TargetUID, time.Now()) {
