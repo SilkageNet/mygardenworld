@@ -198,3 +198,80 @@ func TestCyclicNoteScopedAuthorizationRevoked(t *testing.T) {
 		})
 	}
 }
+
+func TestCyclicNoteScopedFarmFirstWaterBeforeMoreSeeds(t *testing.T) {
+	for _, drops := range []int32{5, 6, 100} {
+		t.Run(itoa32(drops), func(t *testing.T) {
+			now := time.Now()
+			s := cyclicNotePlannerState(t, now, 2, []any{4003, nil, nil}, map[string]any{"4003": 78}, map[string]any{}, 0, []any{})
+			lands := emptyLands(10)
+			for _, id := range []string{"1001", "1002", "1003"} {
+				lands[id] = map[string]any{"0": 23001, "1": 1, "2": 1}
+			}
+			applyMap(t, s, map[string]any{
+				"7": map[string]any{"0": map[string]any{"4": 10000, "32": map[string]any{"7": drops, "23001": 100},
+					"33": map[string]any{"7": map[string]any{"1": 130, "5": now.Add(time.Hour).UnixMilli()}}}},
+				"100": map[string]any{"1": lands}, "101": map[string]any{"0": cultivate(23001)},
+			})
+			p := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+			p.Plant.Planting.AutoEnabled = false
+			p.Plant.Planting.AutoHarvestEnabled = false
+			p.Plant.Planting.MinWaterDrops = 5
+			before := proto.Clone(p)
+			var selected *PlannedOp
+			for _, op := range BuildPlan(s, p, now).Operations {
+				if op.CyclicNoteDrive != nil {
+					if isPlantOperation(op.Kind) {
+						t.Fatal("seeded more while first watering is pending")
+					}
+					selected = &op
+				}
+			}
+			if !proto.Equal(before, p) {
+				t.Fatal("modified daily policy")
+			}
+			if drops == 5 {
+				if selected != nil {
+					t.Fatal("spent reserved water")
+				}
+				return
+			}
+			if selected == nil || len(selected.LandIDs) != int(min(drops-5, 2)) {
+				t.Fatalf("unbounded first water: %+v", selected)
+			}
+			if err := ValidateCyclicNoteTaskOperation(s, p, selected, now); err != nil {
+				t.Fatal(err)
+			}
+			p.Plant.Planting.MinWaterDrops = drops
+			if err := ValidateCyclicNoteTaskOperation(s, p, selected, now); err == nil {
+				t.Fatal("new water reserve ignored at send time")
+			}
+			p.Plant.Planting.MinWaterDrops = 5
+			applyMap(t, s, map[string]any{"23": map[string]any{"3": map[string]any{"9001|0": map[string]any{"3": map[string]any{"4003": 80}}}}})
+			for _, op := range BuildPlan(s, p, now).Operations {
+				if op.CyclicNoteDrive != nil {
+					t.Fatal("continued task farm work after completion")
+				}
+			}
+		})
+	}
+}
+
+func TestCyclicNoteScopedFarmHarvestOnlyToFreeOccupiedPlots(t *testing.T) {
+	for _, empty := range []bool{false, true} {
+		now := time.Now()
+		s := cyclicNotePlannerState(t, now, 2, []any{4003, nil, nil}, map[string]any{"4003": 79}, map[string]any{}, 0, []any{})
+		lands := map[string]any{"1001": map[string]any{"0": 23001, "1": 3, "2": 1}, "1002": map[string]any{"0": 23001, "1": 3, "2": 1}}
+		if empty {
+			lands["1003"] = map[string]any{}
+		}
+		applyMap(t, s, map[string]any{"7": map[string]any{"0": map[string]any{"4": 10000, "32": map[string]any{"23001": 100}}}, "100": map[string]any{"1": lands}, "101": map[string]any{"0": cultivate(23001)}})
+		p := cyclicNotePlannerPolicy(true, map[string]bool{cyclicNoteSatisfyTasksKey: true})
+		p.Plant.Planting.AutoEnabled = false
+		p.Plant.Planting.AutoHarvestEnabled = false
+		op := requireSingleCyclicNoteBusinessOp(t, BuildPlan(s, p, now).Operations, cyclicNoteTaskTypePlantAny)
+		if (op.Kind == clientproto.RPCUsrLandHarvest.String()) == empty || len(op.LandIDs) != 1 {
+			t.Fatalf("empty=%t op=%+v", empty, op)
+		}
+	}
+}
