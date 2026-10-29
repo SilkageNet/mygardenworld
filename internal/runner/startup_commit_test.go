@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 	"testing/synctest"
@@ -11,6 +12,46 @@ import (
 	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
+
+func TestPauseAutomationRecordsControlPanelIntent(t *testing.T) {
+	for _, disconnect := range []bool{false, true} {
+		t.Run(map[bool]string{false: "pause", true: "stop"}[disconnect], func(t *testing.T) {
+			m, r, client := startupCommitFixture(t)
+			m.runners[r.account.ID] = r
+			if err := r.enableAutomation(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if err := m.PauseAutomation(t.Context(), r.account.ID, disconnect); err != nil {
+				t.Fatal(err)
+			}
+			assertStartupIntent(t, r, false)
+			if client.Closed() != disconnect {
+				t.Fatal("pause changed the requested connection lifecycle")
+			}
+			var found bool
+			for _, event := range r.bus.recentEvents {
+				if event.Kind != "policy_changed" || event.Message == "自动化已启动" {
+					continue
+				}
+				var payload struct {
+					Enabled    bool        `json:"automation_enabled"`
+					Source     StartSource `json:"source"`
+					Disconnect bool        `json:"disconnect"`
+				}
+				if err := json.Unmarshal([]byte(event.PayloadJSON), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if payload.Enabled || payload.Source != StartSourceControlPanel || payload.Disconnect != disconnect {
+					t.Fatalf("pause lost its source: %+v", event)
+				}
+				found = true
+			}
+			if !found {
+				t.Fatal("pause intent not logged")
+			}
+		})
+	}
+}
 
 func startupCommitFixture(t *testing.T) (*Manager, *Runner, *babigame.Client) {
 	t.Helper()

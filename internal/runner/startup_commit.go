@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -37,8 +38,15 @@ func (m *Manager) PauseAutomation(ctx context.Context, accountID int64, disconne
 	if r != nil {
 		r.SetPolicy(p)
 		if wasEnabled {
+			message := "控制面板已暂停自动化，保留游戏连接"
+			if disconnect {
+				message = "控制面板已停止账号，关闭自动化并断开游戏连接"
+			}
+			payload, _ := json.Marshal(map[string]any{
+				"automation_enabled": false, "source": StartSourceControlPanel, "disconnect": disconnect,
+			})
 			r.emit(Event{Kind: "policy_changed", Category: "system", Domain: "policy", Action: "set",
-				Message: "自动化已停止", PayloadJSON: `{"automation_enabled":false}`})
+				Message: message, PayloadJSON: string(payload)})
 		}
 	}
 	raw, err = policycfg.ToJSON(p)

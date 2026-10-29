@@ -2,15 +2,65 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/SilkageNet/mygardenworld/internal/babigame"
+	"github.com/SilkageNet/mygardenworld/internal/policycfg"
 	"github.com/SilkageNet/mygardenworld/internal/store"
 )
+
+// A redeem-only connection and its displaced-session recoveries must retain
+// pause intent. Recovery closes transport incidents, not automation pauses.
+func TestConnectionRecoveryPreservesAndReportsAutomationIntent(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "redeem only", true: "automation enabled"}[enabled], func(t *testing.T) {
+			_, r, _ := startupCommitFixture(t)
+			p := r.Policy()
+			p.AutomationEnabled = enabled
+			p.Basic.DisplacedSessionReloginEnabled = true
+			r.SetPolicy(p)
+			raw, err := policycfg.ToJSON(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := r.db.SavePolicyJSON(t.Context(), r.account.ID, raw); err != nil {
+				t.Fatal(err)
+			}
+			r.startSource = StartSourceRedeemAutoConnect
+			if err := r.completeStartup(t.Context(), false); err != nil {
+				t.Fatal(err)
+			}
+			for range 2 {
+				r.sessionInvalidated, r.sessionAutoRelogin = true, true
+				if !r.prepareAutoReloginAttempt() || !r.completeAutoRelogin() {
+					t.Fatal("recovery rejected")
+				}
+				r.emitConnectionRecovered()
+				assertStartupIntent(t, r, enabled)
+				event := r.bus.recentEvents[len(r.bus.recentEvents)-1]
+				var payload struct {
+					Enabled bool `json:"automation_enabled"`
+				}
+				if err := json.Unmarshal([]byte(event.PayloadJSON), &payload); err != nil {
+					t.Fatal(err)
+				}
+				want := "自动化仍暂停"
+				if enabled {
+					want = "自动化已启用"
+				}
+				if event.Kind != "connection_recovered" || payload.Enabled != enabled || !strings.Contains(event.Message, want) {
+					t.Fatalf("incorrect recovery status: %+v", event)
+				}
+			}
+		})
+	}
+}
 
 func TestConnectionRecoveryAlertLifecycle(t *testing.T) {
 	for _, tc := range []struct {

@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 )
@@ -53,6 +54,12 @@ func (r *Runner) watchConnectionRecovery(ctx context.Context) func() {
 func (r *Runner) emitConnectionRecovered() {
 	// Emit after every successful startup as well: an incident persisted before
 	// a daemon restart must close, but the outbox ignores unmatched recoveries.
+	enabled := r.Policy().GetAutomationEnabled()
+	message := "游戏连接已建立，自动化已启用，将按当前配置评估任务"
+	if !enabled {
+		message = "游戏连接已建立；自动化仍暂停，不执行日常任务。连接恢复不会开启自动化，如需恢复任务请点击“启动”；兑换码等独立操作按各自设置执行"
+	}
+	payload, _ := json.Marshal(map[string]any{"automation_enabled": enabled})
 	r.emit(Event{Kind: "connection_recovered", Category: "account", Domain: "account.connection", Action: "recovered",
-		Label: "连接恢复", Level: "info", Message: "游戏连接已建立，按当前配置运行"})
+		Label: "连接恢复", Level: "info", Message: message, PayloadJSON: string(payload)})
 }
