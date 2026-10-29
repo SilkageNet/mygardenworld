@@ -21,6 +21,7 @@ const (
 	defaultAlipayYXTURL     = "https://h5sdk.hnycgames.cn"
 	alipayWebGWAppID        = "180020010001270314"
 	alipayGameSlug          = "xjskp"
+	alipayMiniGameAppID     = "2021004163668677"
 	alipayWebTokenHeader    = "x-game-token-pcweb"
 	alipayDefaultUserAgent  = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36"
 )
@@ -137,14 +138,22 @@ func (c *AlipayClient) LoginWithWebGrant(ctx context.Context, gameHTTP *HTTPClie
 	if gameHTTP == nil {
 		return nil, errors.New("alipay game HTTP client required")
 	}
-	if err := gameHTTP.prepareAlipayLogin(ctx); err != nil {
-		return nil, err
+	if gameHTTP.Cfg.PackageName != "cn.hysj.zfb.minigame" {
+		return nil, errors.New("alipay initialization requires Alipay channel config")
 	}
-	gameAppID, err := c.queryGameAppID(ctx, grant)
+	info, err := c.queryGameInfo(ctx, grant)
 	if err != nil {
 		return nil, err
 	}
-	authCode, err := c.queryGameAuthCode(ctx, grant, gameAppID)
+	version, err := c.queryPackageVersion(ctx, info.PackageURL)
+	if err != nil {
+		return nil, err
+	}
+	gameHTTP.Cfg.ClientVersion, gameHTTP.Cfg.GameVersion = version, version
+	if err := gameHTTP.prepareAlipayLogin(ctx); err != nil {
+		return nil, fmt.Errorf("alipay client %s: %w", version, err)
+	}
+	authCode, err := c.queryGameAuthCode(ctx, grant, info.AppID)
 	if err != nil {
 		return nil, err
 	}
@@ -163,21 +172,32 @@ func (c *AlipayClient) LoginWithWebGrant(ctx context.Context, gameHTTP *HTTPClie
 	return FinishLoginWithGameLogin(ctx, gameHTTP, NativeLogin{}, gameLogin, gameHTTP.Cfg.IsSimulator)
 }
 
-func (c *AlipayClient) queryGameAppID(ctx context.Context, grant AlipayWebGrant) (string, error) {
+type alipayGameInfo struct {
+	AppID      string
+	PackageURL string
+}
+
+func (c *AlipayClient) queryGameInfo(ctx context.Context, grant AlipayWebGrant) (alipayGameInfo, error) {
 	if strings.TrimSpace(grant.Token) == "" || strings.TrimSpace(grant.UserID) == "" {
-		return "", errors.New("alipay web grant requires token and userId")
+		return alipayGameInfo{}, errors.New("alipay web grant requires token and userId")
 	}
 	resp, err := c.postGateway(ctx, "/gamecenterhome/com.alipay.gamecenterhome.common.facade.service.GameCenterPcGameFacade/queryPcGameInfo/uprodhatchstation66500008", map[string]any{
 		"gameId": alipayGameSlug,
 	}, grant.Token, grant.UserID)
 	if err != nil {
-		return "", fmt.Errorf("alipay query game info: %w", err)
+		return alipayGameInfo{}, fmt.Errorf("alipay query game info: %w", err)
 	}
-	appID := stringOf(mapOf(resp["data"])["appId"])
-	if appID == "" {
-		return "", errors.New("alipay queryPcGameInfo response missing appId")
+	data := mapOf(resp["data"])
+	info := alipayGameInfo{
+		AppID: stringOf(data["appId"]), PackageURL: stringOf(mapOf(data["pkgUrl"])["pkgUrl"]),
 	}
-	return appID, nil
+	if info.AppID != alipayMiniGameAppID {
+		return alipayGameInfo{}, errors.New("alipay queryPcGameInfo returned unexpected appId")
+	}
+	if !validAlipayPackageURL(info.PackageURL) {
+		return alipayGameInfo{}, errors.New("alipay queryPcGameInfo missing or invalid official package URL")
+	}
+	return info, nil
 }
 
 func (c *AlipayClient) queryGameAuthCode(ctx context.Context, grant AlipayWebGrant, gameAppID string) (string, error) {
@@ -301,7 +321,7 @@ func (c *HTTPClient) alipayLaunchPayload() (map[string]any, error) {
 	}, nil
 }
 
-// prepareAlipayLogin mirrors Driver_hmzfbxyx.init in the 450.0.15 package.
+// prepareAlipayLogin mirrors Driver_hmzfbxyx.init in the official package.
 // Mini-games receive UUID and SDK options directly from pack/init. The native
 // queryPackageConfig/queryInitParams chain does not initialize this channel.
 func (c *HTTPClient) prepareAlipayLogin(ctx context.Context) error {
@@ -339,7 +359,7 @@ func (c *HTTPClient) prepareAlipayLogin(ctx context.Context) error {
 		}
 	}
 	// userParams.gameVersion identifies the SDK web entry (2.2.209), not the
-	// executable's protocol version (450.0.15); keep the latter for appInfo/GW.
+	// executable's protocol version; keep the latter for appInfo/GW.
 	c.UUID = c.launchUUID
 	return c.prepareRequestToken(ctx)
 }
