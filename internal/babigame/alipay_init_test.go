@@ -51,7 +51,7 @@ func TestAlipayInitialization(t *testing.T) {
 				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 					t.Fatal(err)
 				}
-				if body["version"] != "450.0.15" || body["userParams"] != float64(1) || body["scene"] != "1000" {
+				if body["version"] != "490.0.5" || body["userParams"] != float64(1) || body["scene"] != "1000" {
 					t.Fatalf("init body=%v", body)
 				}
 				if body["system_info"] == nil || body["open_data"] == nil || body["uuid"] != nil || body["yxtSign"] != nil {
@@ -80,7 +80,7 @@ func TestAlipayInitialization(t *testing.T) {
 			if calls != 1 || c.UUID != "launch-uuid" {
 				t.Fatalf("calls=%d UUID=%q", calls, c.UUID)
 			}
-			if c.Cfg.ClientVersion != "450.0.15" || c.Cfg.GameVersion != "450.0.15" {
+			if c.Cfg.ClientVersion != "490.0.5" || c.Cfg.GameVersion != "490.0.5" {
 				t.Fatal("SDK entry version replaced executable version")
 			}
 			body := c.withGameLoginOptions(map[string]any{"yxtSign": "signed-unchanged"})
@@ -99,7 +99,7 @@ func TestAlipayInitialization(t *testing.T) {
 			if err := json.Unmarshal([]byte(stringOf(body["appInfo"])), &appInfo); err != nil {
 				t.Fatal(err)
 			}
-			if appInfo["_game_version"] != "450.0.15" {
+			if appInfo["_game_version"] != "490.0.5" {
 				t.Fatalf("appInfo=%v", appInfo)
 			}
 		})
@@ -116,7 +116,16 @@ func TestAlipayLoginInitializesBeforeChannelAuthorization(t *testing.T) {
 			transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
 				paths = append(paths, req.URL.Path)
 				switch {
+				case req.URL.Host == "mdn.alipayobjects.com":
+					return alipayPackageResponse(testAlipayPackage(t, alipayManifestFixture("501.2.3"))), nil
 				case strings.HasPrefix(req.URL.Path, "/pack/init/"):
+					var body map[string]any
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatal(err)
+					}
+					if body["version"] != "501.2.3" {
+						t.Fatal("initialization ignored live executable version")
+					}
 					fixture := alipayInitFixture()
 					mapOf(fixture["userParams"])["getRequestToken"] = "1"
 					raw, _ := json.Marshal(fixture)
@@ -130,7 +139,7 @@ func TestAlipayLoginInitializesBeforeChannelAuthorization(t *testing.T) {
 					}
 					return jsonResponse(`{"status":1}`), nil
 				case strings.Contains(req.URL.Path, "/queryPcGameInfo/"):
-					return jsonResponse(`{"success":true,"data":{"appId":"2021004163668677"}}`), nil
+					return jsonResponse(alipayGameInfoFixture), nil
 				case strings.Contains(req.URL.Path, "/queryPcGameAuthInfo/"):
 					return jsonResponse(`{"success":true,"data":{"authCode":"auth-code"}}`), nil
 				case req.URL.Path == "/Channel/login/yxtGame/wdhysj/yxtChannel/myxyx/yxtSubChannel/myxyx":
@@ -142,6 +151,13 @@ func TestAlipayLoginInitializesBeforeChannelAuthorization(t *testing.T) {
 					}
 					if body["uuid"] != "launch-uuid" || body["yxtLoginTime"] != float64(100) || body["yxtSign"] != "sig" || body["yxtGame"] != "wdhysj" {
 						t.Fatalf("body=%v", body)
+					}
+					var appInfo map[string]string
+					if err := json.Unmarshal([]byte(stringOf(body["appInfo"])), &appInfo); err != nil {
+						t.Fatal(err)
+					}
+					if appInfo["_game_version"] != "501.2.3" || game.Cfg.ClientVersion != "501.2.3" {
+						t.Fatal("SDK entry version overwrote executable version")
 					}
 					return jsonResponse(`{"status":0,"code":302,"bizCode":902054}`), nil
 				default:
@@ -155,9 +171,9 @@ func TestAlipayLoginInitializesBeforeChannelAuthorization(t *testing.T) {
 			if !errors.As(err, &refusal) {
 				t.Fatalf("err=%v", err)
 			}
-			wantCalls, wantCode := 6, 902054
+			wantCalls, wantCode := 7, 902054
 			if rejectPreflight {
-				wantCalls, wantCode = 2, 902048
+				wantCalls, wantCode = 4, 902048
 			}
 			if len(paths) != wantCalls || refusal.BizCode != wantCode {
 				t.Fatalf("requests=%v err=%v", paths, err)

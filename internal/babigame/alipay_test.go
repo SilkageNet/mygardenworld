@@ -29,7 +29,7 @@ func TestAlipayConfigIsChannelScoped(t *testing.T) {
 	if cfg.PackageName != "cn.hysj.zfb.minigame" || cfg.MdGid != 163 || cfg.ChannelID != 538 || cfg.PackageID != 520 {
 		t.Fatalf("unexpected Alipay identity: %+v", cfg)
 	}
-	if cfg.ClientVersion != "450.0.15" || cfg.HostAPI != "apizfbfast.babigame.cn" || cfg.HostGW != "hygnhmzfb.babigame.cn" {
+	if cfg.ClientVersion != "490.0.5" || cfg.HostAPI != "apizfbfast.babigame.cn" || cfg.HostGW != "hygnhmzfb.babigame.cn" {
 		t.Fatalf("unexpected Alipay version/hosts: %+v", cfg)
 	}
 	if cfg.SDKPlatform != "Browser" || cfg.IsNative || cfg.OSType != 0 || cfg.IsSimulator != 0 {
@@ -124,9 +124,9 @@ func TestAlipayAuthCodeAndYXTPayload(t *testing.T) {
 				if body["gameId"] != alipayGameSlug {
 					t.Fatalf("game info body=%v", body)
 				}
-				return jsonResponse(`{"success":true,"data":{"appId":"2021000000000001"}}`), nil
+				return jsonResponse(alipayGameInfoFixture), nil
 			case strings.Contains(req.URL.Path, "/queryPcGameAuthInfo/"):
-				if body["appId"] != "2021000000000001" {
+				if body["appId"] != "2021004163668677" {
 					t.Fatalf("game auth body=%v", body)
 				}
 				return jsonResponse(`{"success":true,"data":{"authCode":"auth-code"}}`), nil
@@ -148,14 +148,14 @@ func TestAlipayAuthCodeAndYXTPayload(t *testing.T) {
 		}
 	})}
 
-	gameAppID, err := client.queryGameAppID(context.Background(), grant)
+	info, err := client.queryGameInfo(context.Background(), grant)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gameAppID != "2021000000000001" {
-		t.Fatalf("gameAppID=%q", gameAppID)
+	if info.AppID != "2021004163668677" {
+		t.Fatalf("gameAppID=%q", info.AppID)
 	}
-	authCode, err := client.queryGameAuthCode(context.Background(), grant, gameAppID)
+	authCode, err := client.queryGameAuthCode(context.Background(), grant, info.AppID)
 	if err != nil {
 		t.Fatal(err)
 	}
