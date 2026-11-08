@@ -51,7 +51,7 @@ jobs:
         run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0 run
 
       - name: Setup Buf
-        uses: bufbuild/buf-action@v1.6.0
+        uses: bufbuild/buf-action@v1.7.0
         with:
           setup_only: true
           version: "1.72.0"
@@ -66,12 +66,12 @@ jobs:
         run: buf lint
 
       - name: Setup Node
-        uses: actions/setup-node@v7.0.0
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: "22"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6.1.0
+        uses: pnpm/action-setup@v6.1.1
         with:
           version: 10
 
